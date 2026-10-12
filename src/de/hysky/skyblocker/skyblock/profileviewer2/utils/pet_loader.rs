@@ -90,10 +90,10 @@ impl PetLoader {
         // rust:     return FlexibleItemStack::get_stack_or_throw(&ItemUtils::get_item_id_placeholder(&compat::read(pet, |__t| __t.r#type.clone())));
         // rust: }
         let mut level_info: LevelInfo = PetLoader::calculate_pet_level(pet, &neu_pet_rarity, &pet_levelling_data);
-        // rust: let mut pet_numbers: crate::unresolved::PetNumbers = (pet_numbers_data.get(&compat::read(pet, |__t| __t.r#type.clone())).cloned().unwrap()).get(&neu_pet_rarity).cloned().unwrap();
+        // (Rarity is Hash + Eq and PetNumbers Clone now - the Java lookup, restored)
         let _ = &pet_numbers_data;
         // (unreached: `petNumbersData` above is still the converter's todo; the placeholder type has no data to look up)
-        let mut pet_numbers: crate::unresolved::PetNumbers = crate::unresolved::PetNumbers;
+        let mut pet_numbers: crate::unresolved::PetNumbers = (pet_numbers_data.get(&compat::read(pet, |__t| __t.r#type.clone())).cloned().unwrap()).get(&neu_pet_rarity).cloned().unwrap();
         let mut name: MutableComponent = PetLoader::format_name(pet_item.as_ref().unwrap(), level_info.level());
         let mut lore: Vec<MutableComponent> = PetLoader::append_lore_extras(pet, &level_info, &mut PetLoader::format_lore(pet_item.as_ref().unwrap(), &pet_numbers, level_info.level()));
         let mut head: Option<ResolvableProfile> = PetLoader::get_head_icon(pet, FlexibleItemStack::get::<ResolvableProfile>(base_stack.as_ref().unwrap(), mcrust::net::minecraft::core::component::data_components::profile()));

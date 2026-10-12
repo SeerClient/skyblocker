@@ -282,7 +282,7 @@ pub fn init() {
     sb::utils::mayor::mayor_utils::MayorUtils::init(); // @Init utils.mayor.MayorUtils.init
     sb::utils::render::render_helper::RenderHelper::init(); // @Init utils.render.RenderHelper.init
     sb::utils::render::skyblocker_render_pipelines::SkyblockerRenderPipelines::init(); // @Init utils.render.SkyblockerRenderPipelines.init
-    sb::utils::render::gui::pip::gui_equipment_renderer::GuiEquipmentRenderer::init(); // @Init utils.render.gui.pip.GuiEquipmentRenderer.init
+    sb::utils::render::gui::pip::gui_equipment_renderer::GuiEquipmentRenderer::<()>::init(); // Java static: S unused // @Init utils.render.gui.pip.GuiEquipmentRenderer.init
     sb::utils::render::texture::fallbacked_texture::init(); // @Init utils.render.texture.FallbackedTexture.init
     sb::utils::render::title::title_container::TitleContainer::init(); // @Init utils.render.title.TitleContainer.init
     sb::utils::time::skyblock_time::SkyblockTime::init(); // @Init utils.time.SkyblockTime.init

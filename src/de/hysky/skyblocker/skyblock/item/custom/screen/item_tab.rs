@@ -2,6 +2,8 @@
 
 #[allow(unused_imports)]
 use crate::prelude::*;
+use mcrust::net::minecraft::network::chat::component::Component as _;
+use mcrust::net::minecraft::world::entity::living_entity::LivingEntity as _;
 use crate::de::hysky::skyblocker::config::skyblocker_config_manager::SkyblockerConfigManager;
 use crate::de::hysky::skyblocker::skyblock::item::custom::screen::customize_screen::CustomizeScreen;
 use crate::de::hysky::skyblocker::skyblock::item::custom::screen::identifier_text_field::IdentifierTextField;

@@ -127,7 +127,7 @@ impl ArmorTab {
         };
 
         // java: List<ItemStack> list = ItemUtils.getArmor(CLIENT.player);
-        let list: Vec<mcrust::net::minecraft::world::item::item_stack::ItemStack> = mcrust::mcrust::modding::game::with_player(|player| ItemUtils::get_armor(player)).expect("CLIENT.player");
+        let mut list: Vec<mcrust::net::minecraft::world::item::item_stack::ItemStack> = mcrust::mcrust::modding::game::with_player(|player| ItemUtils::get_armor(player)).expect("CLIENT.player");
         // new ItemStack[4] - every element is written below, before any read
         let mut armor: Vec<mcrust::net::minecraft::world::item::item_stack::ItemStack> = (0..4).map(|_| mcrust::net::minecraft::world::item::item_stack::empty()).collect();
         for i in 0..list.len() {

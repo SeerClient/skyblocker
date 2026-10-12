@@ -198,9 +198,9 @@ impl Pet {
         let mut rarity: crate::unresolved::Rarity = todo!("fabric2seer: the initialiser of `rarity` (TODO above)");
         // rust: port gap (GAPS_batchB L1, the NEU repo library) - `Rarity` / `PetNumbers` are the library's types, of which
         // the port has placeholders with no equality or hash: the map cannot be looked up by them
-        // rust: let mut data: crate::unresolved::PetNumbers = pet_nums.get(&self.get_name()).cloned().unwrap().get(&rarity).cloned().unwrap();
+        // (Rarity is Hash + Eq and PetNumbers Clone now - the Java lookup, restored)
         let _ = (&pet_nums, &rarity);
-        let mut data: crate::unresolved::PetNumbers = crate::unresolved::PetNumbers;
+        let mut data: crate::unresolved::PetNumbers = pet_nums.get(&self.get_name()).cloned().unwrap().get(&rarity).cloned().unwrap();
         let mut formatted_lore: Vec<MutableComponent> = Vec::new();
         for line in lore.iter() {
             if line.contains("Right-click to add this") || line.contains("pet menu!") {
