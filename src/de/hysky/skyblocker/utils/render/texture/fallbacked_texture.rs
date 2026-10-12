@@ -22,9 +22,10 @@ pub trait FallbackedTexture<T> {
 /// java: static FallbackedTexture<Identifier> of(Identifier id, Identifier fallback, @Nullable Identifier atlas)
 pub fn of(id: &Identifier, fallback: &Identifier, mut atlas: Option<Identifier>) -> compat::Shared<dyn FallbackedTexture<Identifier>> {
     let mut identifier_texture: compat::Shared<IdentifierTexture> = IdentifierTexture::new(id.clone(), fallback.clone(), atlas.clone());
-    // TODO(fabric2seer): a lambda / method reference where this call does not take one
-    //   java: UPDATE_CALLBACKS.add(identifierTexture::update);
-    return (identifier_texture as compat::Shared<dyn FallbackedTexture<compat::Object>>);
+    // java: UPDATE_CALLBACKS.add(identifierTexture::update);
+    let __update_target = identifier_texture.clone();
+    UPDATE_CALLBACKS.get_mut().push(Arc::new(move || IdentifierTexture::update(&__update_target)));
+    return (identifier_texture as compat::Shared<dyn FallbackedTexture<Identifier>>);
 }
 
 /// java: static FallbackedTexture<Identifier> ofGuiSprite(Identifier id, Identifier fallback)
@@ -41,18 +42,20 @@ pub fn of_texture(id: &Identifier, fallback: &Identifier) -> compat::Shared<dyn 
 pub fn of_widget_sprites(sprites: &WidgetSprites, fallback: &WidgetSprites) -> compat::Shared<dyn FallbackedTexture<WidgetSprites>> {
     let mut textures: Vec<compat::Shared<IdentifierTexture>> = Vec::with_capacity((4) as usize);
     let mut helper: Helper = Helper::new(sprites.clone(), fallback.clone());
-    // TODO(fabric2seer): `WidgetSprites.enabled` has no Rust method in the port (looked for `enabled` in WidgetSprites and JavaSrc)
-    // rust: helper.populate(&mut textures, Arc::new(move |__a0| __a0.enabled()));
-    // TODO(fabric2seer): `WidgetSprites.disabled` has no Rust method in the port (looked for `disabled` in WidgetSprites and JavaSrc)
-    // rust: helper.populate(&mut textures, Arc::new(move |__a0| __a0.disabled()));
-    // TODO(fabric2seer): `WidgetSprites.enabledFocused` has no Rust method in the port (looked for `enabled_focused` in WidgetSprites and JavaSrc)
-    // rust: helper.populate(&mut textures, Arc::new(move |__a0| __a0.enabled_focused()));
-    // TODO(fabric2seer): `WidgetSprites.disabledFocused` has no Rust method in the port (looked for `disabled_focused` in WidgetSprites and JavaSrc)
-    // rust: helper.populate(&mut textures, Arc::new(move |__a0| __a0.disabled_focused()));
+    // java: helper.populate(textures, WidgetSprites::enabled); (the port's record components are public fields)
+    helper.populate(&mut textures, Arc::new(move |__a0: WidgetSprites| __a0.enabled));
+    // java: helper.populate(textures, WidgetSprites::disabled);
+    helper.populate(&mut textures, Arc::new(move |__a0: WidgetSprites| __a0.disabled));
+    // java: helper.populate(textures, WidgetSprites::enabledFocused);
+    helper.populate(&mut textures, Arc::new(move |__a0: WidgetSprites| __a0.enabled_focused));
+    // java: helper.populate(textures, WidgetSprites::disabledFocused);
+    helper.populate(&mut textures, Arc::new(move |__a0: WidgetSprites| __a0.disabled_focused));
     let mut sprites_fallback: WidgetSpritesFallback = WidgetSpritesFallback::new(textures[(0) as usize].clone(), textures[(1) as usize].clone(), textures[(2) as usize].clone(), textures[(3) as usize].clone());
-    // TODO(fabric2seer): a lambda / method reference where this call does not take one
-    //   java: UPDATE_CALLBACKS.add(spritesFallback::update);
-    return (compat::shared(sprites_fallback) as compat::Shared<dyn FallbackedTexture<compat::Object>>);
+    let sprites_fallback: compat::Shared<WidgetSpritesFallback> = compat::shared(sprites_fallback);
+    // java: UPDATE_CALLBACKS.add(spritesFallback::update);
+    let __update_target = sprites_fallback.clone();
+    UPDATE_CALLBACKS.get_mut().push(Arc::new(move || compat::write(&__update_target, |__t| __t.update())));
+    return (sprites_fallback as compat::Shared<dyn FallbackedTexture<WidgetSprites>>);
 }
 
 /// java: @Init static void init()

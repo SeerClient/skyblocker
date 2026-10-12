@@ -4,7 +4,8 @@
 use crate::prelude::*;
 use crate::de::hysky::skyblocker::utils::api_utils::ApiUtils;
 use crate::entry::skyblocker_mod;
-use mcrust::com::google::common::cache::loading_cache::LoadingCache;
+use mcrust::com::google::common::cache::cache_loader::CacheLoader;
+use mcrust::com::google::common::cache::loading_cache::{CacheBuilder, LoadingCache};
 use mcrust::java::util::concurrent::completable_future::CompletableFuture;
 
 // TODO(fabric2seer): static call CacheBuilder.newBuilder(..)
@@ -17,7 +18,25 @@ use mcrust::java::util::concurrent::completable_future::CompletableFuture;
 //   java: 				}
 //   java: 			});
 /// java: private static final LoadingCache<String, JsonObject> UUID_TO_PROFILES_CACHE = CacheBuilder.newBuilder() .expireAfterWrite(Duration.ofMinutes(5L)) .build(new CacheLoader<>() { @Override public JsonObj
-pub static UUID_TO_PROFILES_CACHE: compat::MainThread<LoadingCache<String, serde_json::Map<String, serde_json::Value>, compat::Object>> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `UUID_TO_PROFILES_CACHE` - see the TODO above"));
+pub static UUID_TO_PROFILES_CACHE: LazyLock<LoadingCache<String, serde_json::Map<String, serde_json::Value>, UuidToProfilesLoader>> = LazyLock::new(|| {
+    CacheBuilder::new_builder().expire_after_write(std::time::Duration::from_secs(5 * 60)).build(UuidToProfilesLoader)
+});
+
+/// java: the anonymous `new CacheLoader<>() { public JsonObject load(String uuid) }` of UUID_TO_PROFILES_CACHE
+pub struct UuidToProfilesLoader;
+
+impl CacheLoader<String, serde_json::Map<String, serde_json::Value>> for UuidToProfilesLoader {
+    fn load(&self, uuid: &String) -> serde_json::Map<String, serde_json::Value> {
+        // a null answer is Guava's InvalidCacheLoadException
+        return ProfileUtils::fetch_profiles_internal(uuid)
+            .unwrap_or_else(|| panic!("InvalidCacheLoadException: CacheLoader returned null for key {uuid}."));
+    }
+}
+
+/// `supplyAsync`'s task: a throw completes the future exceptionally.
+fn supply<T>(f: impl FnOnce() -> T) -> Result<T, String> {
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(f)).map_err(|e| compat::panic_message(&e))
+}
 
 /// java: public class ProfileUtils
 #[derive(Clone)]
@@ -33,34 +52,33 @@ impl ProfileUtils {
 
     /// java: public static CompletableFuture<@Nullable JsonObject> fetchProfileMember(String name)
     pub fn fetch_profile_member(name: &str) -> Option<mcrust::java::util::concurrent::completable_future::CompletableFuture<Option<serde_json::Map<String, serde_json::Value>>>> {
-        return Some(CompletableFuture::supply_async(move || Ok((|| {
-            let mut uuid: String = ApiUtils::name2_uuid(name);
+        let name: String = name.to_string();
+        return Some(CompletableFuture::supply_async(move || supply(|| {
+            let mut uuid: String = ApiUtils::name2_uuid(&name);
             if !uuid.is_empty() {
-                // TODO(fabric2seer): `LoadingCache.getUnchecked` has no Rust method in the port (looked for `get_unchecked` in LoadingCache and its supertypes)
-                // rust: let mut profile: serde_json::Map<String, serde_json::Value> = UUID_TO_PROFILES_CACHE.get_mut().get_unchecked(&uuid);
-                let mut profile: serde_json::Map<String, serde_json::Value> = todo!("fabric2seer: the initialiser of `profile` (TODO above)");
+                let mut profile: serde_json::Map<String, serde_json::Value> = UUID_TO_PROFILES_CACHE.get_unchecked(&uuid);
                 let mut player: serde_json::Map<String, serde_json::Value> = compat::json::get_as_json_object(&(compat::json::get_as_json_object_of(&(compat::json::get_as_json_array_of(&profile, "profiles")).clone().into_iter().map(|__a0| compat::json::get_as_json_object(&__a0)).filter(|profile_obj| compat::json::get_as_boolean(&(compat::json::get_as_json_primitive_of(&profile_obj, "selected")))).next().expect("Optional.orElseThrow"), "members")).get(&uuid).cloned().unwrap());
-                return player;
+                return Some(player);
             }
-            return Default::default(); // java: return null
-        })()), compat::executor));
+            return None; // java: return null
+        }), compat::executor));
     }
 
     /// java: public static CompletableFuture<@Nullable JsonObject> fetchFullProfile(String name)
     pub fn fetch_full_profile(name: &str) -> Option<mcrust::java::util::concurrent::completable_future::CompletableFuture<Option<serde_json::Map<String, serde_json::Value>>>> {
-        return Some(CompletableFuture::supply_async(move || Ok((|| {
-            let mut uuid: String = ApiUtils::name2_uuid(name);
-            // TODO(fabric2seer): `LoadingCache.getUnchecked` has no Rust method in the port (looked for `get_unchecked` in LoadingCache and its supertypes)
-            // rust: return (if !uuid.is_empty() { Some(UUID_TO_PROFILES_CACHE.get_mut().get_unchecked(&uuid)) } else { None });
-        })()), compat::executor));
+        let name: String = name.to_string();
+        return Some(CompletableFuture::supply_async(move || supply(|| {
+            let mut uuid: String = ApiUtils::name2_uuid(&name);
+            return (if !uuid.is_empty() { Some(UUID_TO_PROFILES_CACHE.get_unchecked(&uuid)) } else { None });
+        }), compat::executor));
     }
 
     /// java: public static CompletableFuture<@Nullable JsonObject> fetchFullProfileByUuid(String uuid)
     pub fn fetch_full_profile_by_uuid(uuid: &str) -> Option<mcrust::java::util::concurrent::completable_future::CompletableFuture<Option<serde_json::Map<String, serde_json::Value>>>> {
-        return Some(CompletableFuture::supply_async(move || Ok((|| {
-            // TODO(fabric2seer): `LoadingCache.getUnchecked` has no Rust method in the port (looked for `get_unchecked` in LoadingCache and its supertypes)
-            // rust: return (if !uuid.is_empty() { Some(UUID_TO_PROFILES_CACHE.get_mut().get_unchecked(uuid)) } else { None });
-        })()), compat::executor));
+        let uuid: String = uuid.to_string();
+        return Some(CompletableFuture::supply_async(move || supply(|| {
+            return (if !uuid.is_empty() { Some(UUID_TO_PROFILES_CACHE.get_unchecked(&uuid)) } else { None });
+        }), compat::executor));
     }
 
     /// java: private static @Nullable JsonObject fetchProfilesInternal(String uuid)
@@ -68,17 +86,15 @@ impl ProfileUtils {
         {
             // TODO(fabric2seer): `Http.sendHypixelRequest` is not a static method of Http
             //   java: Http.ApiResponse response = Http.sendHypixelRequest(..);
-            let mut response: crate::unresolved::ApiResponse = todo!("fabric2seer: the initialiser of `response` (TODO above)");
+            let mut response: crate::de::hysky::skyblocker::utils::http::ApiResponse = todo!("fabric2seer: the initialiser of `response` (TODO above)");
             // java: try {..} catch (Exception e) - an exception here is a panic, caught by `catch_unwind`; the body's `return` is the closure's value
             match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                // TODO(fabric2seer): the condition: `.ok(..)` on a ApiResponse
-                //   java: !response.ok()
-                if todo!("fabric2seer: the condition (TODO above)") {
-                    // TODO(fabric2seer): `.statusCode(..)` on a ApiResponse
-                    //   java: throw new IllegalStateException(String.format("Failed to get profile for player: %s!, Status Code: %d, Response: %s", uuid, response.statusCode(), response.content()));
+                if !response.ok() {
+                    panic!("IllegalStateException: {}", format!("Failed to get profile for player: {}!, Status Code: {}, Response: {}", uuid, response.status_code(), response.content()));
                 }
-                // TODO(fabric2seer): `.fromJson(..)` on a Gson
-                //   java: return SkyblockerMod.GSON.fromJson(response.content(), JsonObject.class);
+                // java: SkyblockerMod.GSON.fromJson(response.content(), JsonObject.class) - a JSON null is Java's null, a non-object throws
+                let __json: serde_json::Value = serde_json::from_str(&response.content()).unwrap_or_else(|e| panic!("JsonSyntaxException: {e}"));
+                return (if __json.is_null() { None } else { Some(compat::json::get_as_json_object(&__json)) });
             })) {
                 Ok(__v) => return __v,
                 Err(e) => {

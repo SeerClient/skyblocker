@@ -13,6 +13,8 @@ use mcrust::com::mojang::math::axis::Axis as _;
 pub struct GuiEquipmentRenderer<S> {
     /// java: extends net.minecraft.client.gui.render.pip.PictureInPictureRenderer
     pub base: PictureInPictureRenderer,
+    /// the class's type parameter (`S`: the equipment model's render state)
+    pub _state: std::marker::PhantomData<fn() -> S>,
 }
 
 impl<S: 'static> std::ops::Deref for GuiEquipmentRenderer<S> {
@@ -44,12 +46,14 @@ impl<S: Clone + 'static> GuiEquipmentRenderer<S> {
     }
 
     /// java: @SuppressWarnings("unchecked") @Override public Class<GuiEquipmentRenderState<S>> getRenderStateClass()
-    pub fn get_render_state_class(&self) -> crate::unresolved::Class {
-        return std::any::TypeId::of::<GuiEquipmentRenderState<compat::Object>>();
+    pub fn get_render_state_class(&self) -> std::any::TypeId {
+        // java: return (Class<GuiEquipmentRenderState<S>>) (Object) GuiEquipmentRenderState.class; - the class object
+        // is the port's `TypeId`
+        return std::any::TypeId::of::<GuiEquipmentRenderState<S>>();
     }
 
     /// java: @Override protected void renderToTexture(GuiEquipmentRenderState<S> state, PoseStack matrices, SubmitNodeCollector submitNodeCollector)
-    pub fn render_to_texture(&self, state: &GuiEquipmentRenderState<S>, matrices: &mut PoseStack, submit_node_collector: &dyn SubmitNodeCollector) {
+    pub fn render_to_texture(&self, state: &GuiEquipmentRenderState<S>, matrices: &mut PoseStack, submit_node_collector: &mut dyn SubmitNodeCollector) {
         let client = compat::minecraft();
         matrices.push_pose();
         matrices.translate((0) as f32, (state.offset() / state.scale()), (0) as f32);
@@ -57,7 +61,7 @@ impl<S: Clone + 'static> GuiEquipmentRenderer<S> {
         matrices.mul_pose_quat(&mcrust::com::mojang::math::axis::YN.rotation_degrees(state.rotation()));
         // TODO(fabric2seer): field `ENTITY_IN_UI` of a value of unknown type
         //   java: client.gameRenderer.lighting().setupFor(Lighting.Entry.ENTITY_IN_UI);
-        state.equipment_renderer().render_layers(state.layer_type(), &state.asset_key(), state.model(), state.state(), &state.stack(), matrices, &mut submit_node_collector, mcrust::net::minecraft::util::light_coords_util::FULL_BRIGHT, 0);
+        state.equipment_renderer().render_layers(state.layer_type(), &state.asset_key(), state.model(), state.state() as std::rc::Rc<dyn std::any::Any>, &state.stack(), matrices, submit_node_collector, mcrust::net::minecraft::util::light_coords_util::FULL_BRIGHT, 0);
         matrices.pop_pose();
     }
 

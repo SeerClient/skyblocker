@@ -44,7 +44,7 @@ impl LZString {
         if false /* java: input == null: never null here */ {
             return "".to_string();
         }
-        let mut res: String = LZString::_compress(input, 6, &Arc::new(move |a| {
+        let mut res: String = LZString::_compress(input, 6, &(move |a: i32| -> char {
             return compat::lock(&KEY_STR_BASE64)[(a) as usize];
         }));
         match (compat::str_len(&res)).wrapping_rem(4) {
@@ -74,7 +74,7 @@ impl LZString {
         if input_str == "" {
             return None;
         }
-        return LZString::_decompress(compat::str_len(&input_str), 32, &Arc::new(move |index| {
+        return LZString::_decompress(compat::str_len(&input_str), 32, &(move |index: i32| -> char {
             return LZString::get_base_value(compat::get_state(&KEY_STR_BASE64), compat::char_at(&input_str, index));
         }));
     }
@@ -84,7 +84,7 @@ impl LZString {
         if false /* java: input == null: never null here */ {
             return "".to_string();
         }
-        return format!("{} ", LZString::_compress(input, 15, &Arc::new(move |a| {
+        return format!("{} ", LZString::_compress(input, 15, &(move |a: i32| -> char {
             return LZString::fc(a.wrapping_add(32));
         })));
     }
@@ -97,7 +97,7 @@ impl LZString {
         if compressed_str.is_empty() {
             return None;
         }
-        return LZString::_decompress(compat::str_len(&compressed_str), 16384, &Arc::new(move |index| {
+        return LZString::_decompress(compat::str_len(&compressed_str), 16384, &(move |index: i32| -> char {
             return char::from_u32(((compat::char_at(&compressed_str, index) as u32 as i32).wrapping_sub(32)) as u32).unwrap_or('\0');
         }));
     }
@@ -107,7 +107,7 @@ impl LZString {
         if false /* java: input == null: never null here */ {
             return "".to_string();
         }
-        return LZString::_compress(input, 6, &Arc::new(move |a| {
+        return LZString::_compress(input, 6, &(move |a: i32| -> char {
             return compat::lock(&KEY_STR_URI_SAFE)[(a) as usize];
         }));
     }
@@ -121,20 +121,20 @@ impl LZString {
             return None;
         }
         let mut url_encoded_input_str: String = input_str.replace(' ', &'+'.to_string());
-        return LZString::_decompress(compat::str_len(&url_encoded_input_str), 32, &Arc::new(move |index| {
+        return LZString::_decompress(compat::str_len(&url_encoded_input_str), 32, &(move |index: i32| -> char {
             return LZString::get_base_value(compat::get_state(&KEY_STR_URI_SAFE), compat::char_at(&url_encoded_input_str, index));
         }));
     }
 
     /// java: public static String compress(String uncompressed)
     pub fn compress(uncompressed: &str) -> String {
-        return LZString::_compress(uncompressed, 16, &Arc::new(move |a| {
+        return LZString::_compress(uncompressed, 16, &(move |a: i32| -> char {
             return LZString::fc(a);
         }));
     }
 
     /// java: private static String _compress(String uncompressedStr, int bitsPerChar, CompressFunctionWrapper getCharFromInt)
-    pub fn _compress(uncompressed_str: &str, mut bits_per_char: i32, get_char_from_int: &compat::Shared<dyn CompressFunctionWrapper>) -> String {
+    pub fn _compress(uncompressed_str: &str, mut bits_per_char: i32, get_char_from_int: &dyn Fn(i32) -> char) -> String {
         if false /* java: uncompressed_str == null: never null here */ {
             return "".to_string();
         }
@@ -172,7 +172,7 @@ impl LZString {
                                     context_data_val = context_data_val.wrapping_shl((1) as u32);
                                     if context_data_position == bits_per_char.wrapping_sub(1) {
                                         context_data_position = 0;
-                                        { context_data.push(({ let __f = compat::dispatch(get_char_from_int, |__t| __t.do_func()); __f(get_char_from_int, context_data_val) })); };
+                                        { context_data.push((get_char_from_int(context_data_val))); };
                                         context_data_val = 0;
                                     } else {
                                         context_data_position += 1;
@@ -187,7 +187,7 @@ impl LZString {
                                     context_data_val = (context_data_val.wrapping_shl((1) as u32) | (value & 1));
                                     if context_data_position == bits_per_char.wrapping_sub(1) {
                                         context_data_position = 0;
-                                        { context_data.push(({ let __f = compat::dispatch(get_char_from_int, |__t| __t.do_func()); __f(get_char_from_int, context_data_val) })); };
+                                        { context_data.push((get_char_from_int(context_data_val))); };
                                         context_data_val = 0;
                                     } else {
                                         context_data_position += 1;
@@ -204,7 +204,7 @@ impl LZString {
                                     context_data_val = (context_data_val.wrapping_shl((1) as u32) | value);
                                     if context_data_position == bits_per_char.wrapping_sub(1) {
                                         context_data_position = 0;
-                                        { context_data.push(({ let __f = compat::dispatch(get_char_from_int, |__t| __t.do_func()); __f(get_char_from_int, context_data_val) })); };
+                                        { context_data.push((get_char_from_int(context_data_val))); };
                                         context_data_val = 0;
                                     } else {
                                         context_data_position += 1;
@@ -220,7 +220,7 @@ impl LZString {
                                     context_data_val = (context_data_val.wrapping_shl((1) as u32) | (value & 1));
                                     if context_data_position == bits_per_char.wrapping_sub(1) {
                                         context_data_position = 0;
-                                        { context_data.push(({ let __f = compat::dispatch(get_char_from_int, |__t| __t.do_func()); __f(get_char_from_int, context_data_val) })); };
+                                        { context_data.push((get_char_from_int(context_data_val))); };
                                         context_data_val = 0;
                                     } else {
                                         context_data_position += 1;
@@ -244,7 +244,7 @@ impl LZString {
                                 context_data_val = (context_data_val.wrapping_shl((1) as u32) | (value & 1));
                                 if context_data_position == bits_per_char.wrapping_sub(1) {
                                     context_data_position = 0;
-                                    { context_data.push(({ let __f = compat::dispatch(get_char_from_int, |__t| __t.do_func()); __f(get_char_from_int, context_data_val) })); };
+                                    { context_data.push((get_char_from_int(context_data_val))); };
                                     context_data_val = 0;
                                 } else {
                                     context_data_position += 1;
@@ -274,7 +274,7 @@ impl LZString {
                             context_data_val = context_data_val.wrapping_shl((1) as u32);
                             if context_data_position == bits_per_char.wrapping_sub(1) {
                                 context_data_position = 0;
-                                { context_data.push(({ let __f = compat::dispatch(get_char_from_int, |__t| __t.do_func()); __f(get_char_from_int, context_data_val) })); };
+                                { context_data.push((get_char_from_int(context_data_val))); };
                                 context_data_val = 0;
                             } else {
                                 context_data_position += 1;
@@ -289,7 +289,7 @@ impl LZString {
                             context_data_val = (context_data_val.wrapping_shl((1) as u32) | (value & 1));
                             if context_data_position == bits_per_char.wrapping_sub(1) {
                                 context_data_position = 0;
-                                { context_data.push(({ let __f = compat::dispatch(get_char_from_int, |__t| __t.do_func()); __f(get_char_from_int, context_data_val) })); };
+                                { context_data.push((get_char_from_int(context_data_val))); };
                                 context_data_val = 0;
                             } else {
                                 context_data_position += 1;
@@ -306,7 +306,7 @@ impl LZString {
                             context_data_val = (context_data_val.wrapping_shl((1) as u32) | value);
                             if context_data_position == bits_per_char.wrapping_sub(1) {
                                 context_data_position = 0;
-                                { context_data.push(({ let __f = compat::dispatch(get_char_from_int, |__t| __t.do_func()); __f(get_char_from_int, context_data_val) })); };
+                                { context_data.push((get_char_from_int(context_data_val))); };
                                 context_data_val = 0;
                             } else {
                                 context_data_position += 1;
@@ -322,7 +322,7 @@ impl LZString {
                             context_data_val = (context_data_val.wrapping_shl((1) as u32) | (value & 1));
                             if context_data_position == bits_per_char.wrapping_sub(1) {
                                 context_data_position = 0;
-                                { context_data.push(({ let __f = compat::dispatch(get_char_from_int, |__t| __t.do_func()); __f(get_char_from_int, context_data_val) })); };
+                                { context_data.push((get_char_from_int(context_data_val))); };
                                 context_data_val = 0;
                             } else {
                                 context_data_position += 1;
@@ -346,7 +346,7 @@ impl LZString {
                         context_data_val = (context_data_val.wrapping_shl((1) as u32) | (value & 1));
                         if context_data_position == bits_per_char.wrapping_sub(1) {
                             context_data_position = 0;
-                            { context_data.push(({ let __f = compat::dispatch(get_char_from_int, |__t| __t.do_func()); __f(get_char_from_int, context_data_val) })); };
+                            { context_data.push((get_char_from_int(context_data_val))); };
                             context_data_val = 0;
                         } else {
                             context_data_position += 1;
@@ -369,7 +369,7 @@ impl LZString {
                 context_data_val = (context_data_val.wrapping_shl((1) as u32) | (value & 1));
                 if context_data_position == bits_per_char.wrapping_sub(1) {
                     context_data_position = 0;
-                    { context_data.push(({ let __f = compat::dispatch(get_char_from_int, |__t| __t.do_func()); __f(get_char_from_int, context_data_val) })); };
+                    { context_data.push((get_char_from_int(context_data_val))); };
                     context_data_val = 0;
                 } else {
                     context_data_position += 1;
@@ -381,7 +381,7 @@ impl LZString {
         loop {
             context_data_val = context_data_val.wrapping_shl((1) as u32);
             if context_data_position == bits_per_char.wrapping_sub(1) {
-                { context_data.push(({ let __f = compat::dispatch(get_char_from_int, |__t| __t.do_func()); __f(get_char_from_int, context_data_val) })); };
+                { context_data.push((get_char_from_int(context_data_val))); };
                 break;
             } else {
                 context_data_position += 1;
@@ -408,13 +408,13 @@ impl LZString {
         if compressed.is_empty() {
             return None;
         }
-        return LZString::_decompress(compat::str_len(&compressed), 32768, &Arc::new(move |i| {
+        return LZString::_decompress(compat::str_len(&compressed), 32768, &(move |i: i32| -> char {
             return compat::char_at(&compressed, i);
         }));
     }
 
     /// java: private static String _decompress(int length, int resetValue, DecompressFunctionWrapper getNextValue)
-    pub fn _decompress(mut length: i32, mut reset_value: i32, get_next_value: &compat::Shared<dyn DecompressFunctionWrapper>) -> Option<String> {
+    pub fn _decompress(mut length: i32, mut reset_value: i32, get_next_value: &dyn Fn(i32) -> char) -> Option<String> {
         let mut dictionary: Vec<String> = Vec::new();
         let mut next: i32;
         let mut enlarge_in: i32 = 4;
@@ -429,7 +429,7 @@ impl LZString {
         let mut power: i32;
         let mut c: Option<String> = None;
         let mut data: DecData = DecData::new();
-        data.val = ({ let __f = compat::dispatch(get_next_value, |__t| __t.do_func()); __f(get_next_value, 0) });
+        data.val = (get_next_value(0));
         data.position = reset_value;
         data.index = 1;
         for i in 0..3 {
@@ -443,9 +443,9 @@ impl LZString {
             data.position = data.position.wrapping_shr((1) as u32);
             if data.position == 0 {
                 data.position = reset_value;
-                data.val = ({ let __f = compat::dispatch(get_next_value, |__t| __t.do_func()); __f(get_next_value, { let __v = data.index; data.index += 1; __v }) });
+                data.val = (get_next_value({ let __v = data.index; data.index += 1; __v }));
             }
-            bits = (bits | (if resb > 0 { 1 } else { 0 }).wrapping_mul(power));
+            bits = (bits | (if resb > 0 { 1i32 } else { 0i32 }).wrapping_mul(power));
             power = power.wrapping_shl((1) as u32);
         }
         match { next = bits; next } {
@@ -458,9 +458,9 @@ impl LZString {
                     data.position = data.position.wrapping_shr((1) as u32);
                     if data.position == 0 {
                         data.position = reset_value;
-                        data.val = ({ let __f = compat::dispatch(get_next_value, |__t| __t.do_func()); __f(get_next_value, { let __v = data.index; data.index += 1; __v }) });
+                        data.val = (get_next_value({ let __v = data.index; data.index += 1; __v }));
                     }
-                    bits = (bits | (if resb > 0 { 1 } else { 0 }).wrapping_mul(power));
+                    bits = (bits | (if resb > 0 { 1i32 } else { 0i32 }).wrapping_mul(power));
                     power = power.wrapping_shl((1) as u32);
                 }
                 c = Some(LZString::f(bits));
@@ -474,9 +474,9 @@ impl LZString {
                     data.position = data.position.wrapping_shr((1) as u32);
                     if data.position == 0 {
                         data.position = reset_value;
-                        data.val = ({ let __f = compat::dispatch(get_next_value, |__t| __t.do_func()); __f(get_next_value, { let __v = data.index; data.index += 1; __v }) });
+                        data.val = (get_next_value({ let __v = data.index; data.index += 1; __v }));
                     }
-                    bits = (bits | (if resb > 0 { 1 } else { 0 }).wrapping_mul(power));
+                    bits = (bits | (if resb > 0 { 1i32 } else { 0i32 }).wrapping_mul(power));
                     power = power.wrapping_shl((1) as u32);
                 }
                 c = Some(LZString::f(bits));
@@ -501,9 +501,9 @@ impl LZString {
                 data.position = data.position.wrapping_shr((1) as u32);
                 if data.position == 0 {
                     data.position = reset_value;
-                    data.val = ({ let __f = compat::dispatch(get_next_value, |__t| __t.do_func()); __f(get_next_value, { let __v = data.index; data.index += 1; __v }) });
+                    data.val = (get_next_value({ let __v = data.index; data.index += 1; __v }));
                 }
-                bits = (bits | (if resb > 0 { 1 } else { 0 }).wrapping_mul(power));
+                bits = (bits | (if resb > 0 { 1i32 } else { 0i32 }).wrapping_mul(power));
                 power = power.wrapping_shl((1) as u32);
             }
             let mut cc: i32;
@@ -517,9 +517,9 @@ impl LZString {
                         data.position = data.position.wrapping_shr((1) as u32);
                         if data.position == 0 {
                             data.position = reset_value;
-                            data.val = ({ let __f = compat::dispatch(get_next_value, |__t| __t.do_func()); __f(get_next_value, { let __v = data.index; data.index += 1; __v }) });
+                            data.val = (get_next_value({ let __v = data.index; data.index += 1; __v }));
                         }
-                        bits = (bits | (if resb > 0 { 1 } else { 0 }).wrapping_mul(power));
+                        bits = (bits | (if resb > 0 { 1i32 } else { 0i32 }).wrapping_mul(power));
                         power = power.wrapping_shl((1) as u32);
                     }
                     dictionary.insert(({ let __v = dict_size; dict_size += 1; __v }) as usize, LZString::f(bits));
@@ -535,9 +535,9 @@ impl LZString {
                         data.position = data.position.wrapping_shr((1) as u32);
                         if data.position == 0 {
                             data.position = reset_value;
-                            data.val = ({ let __f = compat::dispatch(get_next_value, |__t| __t.do_func()); __f(get_next_value, { let __v = data.index; data.index += 1; __v }) });
+                            data.val = (get_next_value({ let __v = data.index; data.index += 1; __v }));
                         }
-                        bits = (bits | (if resb > 0 { 1 } else { 0 }).wrapping_mul(power));
+                        bits = (bits | (if resb > 0 { 1i32 } else { 0i32 }).wrapping_mul(power));
                         power = power.wrapping_shl((1) as u32);
                     }
                     dictionary.insert(({ let __v = dict_size; dict_size += 1; __v }) as usize, LZString::f(bits));

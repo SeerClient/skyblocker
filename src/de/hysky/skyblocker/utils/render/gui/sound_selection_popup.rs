@@ -37,9 +37,9 @@ use mcrust::net::minecraft::core::registry::Registry as _;
 use mcrust::net::minecraft::network::chat::component::Component as _;
 
 /// java: private static final Component YES_TEXT = CommonComponents.GUI_YES.copy().withStyle(ChatFormatting.GREEN);
-pub static YES_TEXT: compat::MainThread<MutableComponent> = compat::MainThread::new(|| mcrust::net::minecraft::network::chat::common_components::gui_yes().copy().with_style_format(ChatFormatting::Green));
+pub static YES_TEXT: compat::MainThread<MutableComponent> = compat::MainThread::new(|| compat::component_of(mcrust::net::minecraft::network::chat::common_components::gui_yes()).with_style_format(ChatFormatting::Green));
 /// java: private static final Component NO_TEXT = CommonComponents.GUI_NO.copy().withStyle(ChatFormatting.RED);
-pub static NO_TEXT: compat::MainThread<MutableComponent> = compat::MainThread::new(|| mcrust::net::minecraft::network::chat::common_components::gui_no().copy().with_style_format(ChatFormatting::Red));
+pub static NO_TEXT: compat::MainThread<MutableComponent> = compat::MainThread::new(|| compat::component_of(mcrust::net::minecraft::network::chat::common_components::gui_no()).with_style_format(ChatFormatting::Red));
 
 /// java: public class SoundSelectionPopup extends AbstractPopupScreen
 pub struct SoundSelectionPopup {
@@ -87,7 +87,9 @@ impl SoundSelectionPopup {
     }
 
     /// java: private @Nullable Component getSoundName(SoundEvent sound)
-    pub fn get_sound_name(__this: &compat::Shared<Self>, sound: &SoundEvent) -> Option<MutableComponent> {
+    ///
+    /// (`sound` is the registry's own `SoundEvent` object - `getKey` finds an element by identity)
+    pub fn get_sound_name(__this: &compat::Shared<Self>, sound: &mcrust::com::mojang::serialization::Obj) -> Option<MutableComponent> {
         let mut key: String = mcrust::net::minecraft::core::registries::built_in_registries::sound_event().get_key(sound).unwrap().to_short_language_key();
         let mut translation: MutableComponent = component::translatable_with_fallback(&format!("subtitles.{}", key), Some("null"));
         if !(translation.get_string() == "null") {
@@ -107,12 +109,15 @@ impl SoundSelectionPopup {
     /// java: private void filterSounds(String input)
     pub fn filter_sounds(__this: &compat::Shared<Self>, input: &str) {
         __this.lock().borrow_mut().filtered_widgets.clear();
-        for sound_event in mcrust::net::minecraft::core::registries::built_in_registries::sound_event().iter() {
-            let mut translation: Option<MutableComponent> = SoundSelectionPopup::get_sound_name(__this, sound_event);
+        // java: for (SoundEvent soundEvent : BuiltInRegistries.SOUND_EVENT)
+        for sound_event in mcrust::net::minecraft::core::registries::built_in_registries::sound_event().iterator() {
+            let mut translation: Option<MutableComponent> = SoundSelectionPopup::get_sound_name(__this, &sound_event);
             if translation.is_some() && translation.as_ref().unwrap().get_string().to_lowercase().contains(&input.to_lowercase()) {
-                let mut widget: AbstractWidget = SoundWidget::new(translation.clone().unwrap(), sound_event.clone());
-                let __h0 = widget.clone();
-                __this.lock().borrow_mut().filtered_widgets.push(__h0);
+                let widget: SoundWidget = SoundWidget::new(translation.clone().unwrap(), sound_event.clone());
+                // java: filteredWidgets.add(new SoundWidget(..)); - rust: port gap - the list holds the port's concrete
+                // `AbstractWidget`, which has no subclass dispatch, so the SoundWidget's overrides (getHeight, its
+                // render state, onClick) do not travel with it (GAPS_batchA.md)
+                __this.lock().borrow_mut().filtered_widgets.push(widget.base);
             }
         }
         SoundSelectionPopup::recreate_list(__this);
@@ -379,14 +384,14 @@ impl ListContainer {
     }
 
     /// java: @Override public void setX(int x)
-    pub fn set_x(&self, mut x: i32) {
+    pub fn set_x(&mut self, mut x: i32) {
         self.base.set_x(x);
         // TODO(fabric2seer): `listLayout` is a field of the enclosing instance (SoundSelectionPopup.this) - an inner class has no outer reference in Rust
         //   java: listLayout.setX(x);
     }
 
     /// java: @Override public void setY(int y)
-    pub fn set_y(&self, mut y: i32) {
+    pub fn set_y(&mut self, mut y: i32) {
         self.base.set_y(y);
         // TODO(fabric2seer): `listLayout` is a field of the enclosing instance (SoundSelectionPopup.this) - an inner class has no outer reference in Rust
         //   java: listLayout.setY(y);
@@ -411,8 +416,8 @@ impl ListContainer {
 pub struct SoundWidget {
     /// java: extends net.minecraft.client.gui.components.StringWidget
     pub base: AbstractWidget,
-    /// java: SoundEvent sound;
-    pub sound: SoundEvent,
+    /// java: SoundEvent sound; (the registry's own object, by reference)
+    pub sound: mcrust::com::mojang::serialization::Obj,
     /// java: @SuppressWarnings("unused") Component name;
     pub name: MutableComponent,
 }
@@ -432,7 +437,7 @@ impl std::ops::DerefMut for SoundWidget {
 
 impl SoundWidget {
     /// java: SoundWidget(Component name, SoundEvent sound)
-    pub fn new(mut name: MutableComponent, mut sound: SoundEvent) -> Self {
+    pub fn new(mut name: MutableComponent, mut sound: mcrust::com::mojang::serialization::Obj) -> Self {
         let __init_name = name.clone();
         let __init_sound = sound.clone();
         // TODO(fabric2seer): unknown name `font`
@@ -454,9 +459,10 @@ impl SoundWidget {
         // TODO(fabric2seer): the condition: `selectedSound` is a field of the enclosing instance (SoundSelectionPopup.this) - an inner class has no outer reference in Rust
         //   java: selectedSound == sound
         if todo!("fabric2seer: the condition (TODO above)") {
-            graphics.fill_additive(&mcrust::net::minecraft::client::renderer::render_pipelines::gui(), self.get_x(), self.get_y(), self.get_right(), self.get_bottom(), 0x3000FF00);
-        } else if self.is_hovered {
-            graphics.fill_additive(&mcrust::net::minecraft::client::renderer::render_pipelines::gui(), self.get_x(), self.get_y(), self.get_right(), self.get_bottom(), 0x20FFFFFF);
+            // java: graphics.fill(RenderPipelines.GUI, ..) - the port's `fill` draws with the GUI pipeline
+            graphics.fill(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), self.get_x(), self.get_y(), self.get_right(), self.get_bottom(), 0x3000FF00);
+        } else if self.is_hovered() {
+            graphics.fill(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), self.get_x(), self.get_y(), self.get_right(), self.get_bottom(), 0x20FFFFFF);
         }
     }
 

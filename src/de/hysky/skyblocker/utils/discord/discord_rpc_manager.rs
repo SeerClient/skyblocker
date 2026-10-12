@@ -46,7 +46,7 @@ impl DiscordRPCManager {
     /// java: public static void updateDataAndPresence()
     pub fn update_data_and_presence() {
         if SkyblockerConfigManager::get().misc.rich_presence.custom_message.is_empty() {
-            SkyblockerConfigManager::update(Arc::new(move |config| { config.misc.rich_presence.custom_message = "Playing Skyblock".to_string(); }));
+            SkyblockerConfigManager::update(Arc::new(move |mut config| { config.misc.rich_presence.custom_message = "Playing Skyblock".to_string(); }));
         }
         if SkyblockerConfigManager::get().misc.rich_presence.cycle_mode {
             compat::set_state(&CYCLE_COUNT, ((compat::get_state(&CYCLE_COUNT)).wrapping_add(1)).wrapping_rem(3));

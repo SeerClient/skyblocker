@@ -65,7 +65,8 @@ impl SkyblockerWebSocket {
                 logger().info("[Skyblocker WebSocket] Successfully connected to the Skyblocker WebSocket!");
             }));
             if let Err(e) = __result {
-                if let Some(ws_handshake_exception) = None.as_any().downcast_ref::<crate::unresolved::WebSocketHandshakeException>() {
+                // java: if (e.getCause() instanceof WebSocketHandshakeException wsHandshakeException) - the panic payload is the exception
+                if let Some(ws_handshake_exception) = e.downcast_ref::<crate::unresolved::WebSocketHandshakeException>() {
                     // TODO(fabric2seer): `.getResponse(..)` on a WebSocketHandshakeException
                     //   java: HttpResponse<?> response = wsHandshakeException.getResponse();
                     let mut response: crate::unresolved::HttpResponse = todo!("fabric2seer: the initialiser of `response` (TODO above)");
@@ -132,7 +133,7 @@ pub struct SocketListener {
     /// java: private List<CharSequence> parts = new ArrayList<>();
     pub parts: Vec<String>,
     /// java: private CompletableFuture<?> accumulatedMessage = new CompletableFuture<>();
-    pub accumulated_message: mcrust::java::util::concurrent::completable_future::CompletableFuture<compat::Object>,
+    pub accumulated_message: mcrust::java::util::concurrent::completable_future::CompletableFuture<Option<compat::Object>>,
 }
 
 impl SocketListener {
@@ -146,7 +147,7 @@ impl SocketListener {
     }
 
     /// java: @Override public CompletionStage<?> onText(WebSocket webSocket, CharSequence message, boolean last)
-    pub fn on_text(&mut self, web_socket: &crate::unresolved::WebSocket, mut message: String, mut last: bool) -> crate::unresolved::CompletionStage {
+    pub fn on_text(&mut self, web_socket: &crate::unresolved::WebSocket, mut message: String, mut last: bool) -> mcrust::java::util::concurrent::completable_future::CompletableFuture<Option<compat::Object>> {
         self.parts.push(message.clone());
         // TODO(fabric2seer): `.request(..)` on a WebSocket
         //   java: webSocket.request(1);
@@ -154,9 +155,9 @@ impl SocketListener {
             self.handle_whole_message(&self.parts);
             self.parts = Vec::new();
             self.accumulated_message.complete(None);
-            let future = &self.accumulated_message;
-            self.accumulated_message = CompletableFuture::new();
-            return future.clone();
+            // java: CompletionStage<?> future = accumulatedMessage; accumulatedMessage = new CompletableFuture<>(); return future;
+            let future = std::mem::replace(&mut self.accumulated_message, CompletableFuture::new());
+            return future;
         }
         return self.accumulated_message.clone();
     }

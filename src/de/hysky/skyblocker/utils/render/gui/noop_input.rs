@@ -5,7 +5,7 @@ use crate::prelude::*;
 use mcrust::net::minecraft::client::input::input_with_modifiers::InputWithModifiers;
 
 /// java: public static final InputWithModifiers INSTANCE = new NoopInput();
-pub static INSTANCE: compat::MainThread<Box<dyn InputWithModifiers>> = compat::MainThread::new(|| NoopInput::new());
+pub static INSTANCE: compat::MainThread<Box<dyn InputWithModifiers>> = compat::MainThread::new(|| Box::new(NoopInput::new()));
 
 /// java: public record NoopInput() implements InputWithModifiers
 #[derive(Clone, Debug, PartialEq)]
@@ -17,13 +17,16 @@ impl NoopInput {
         Self {  }
     }
 
+}
+
+impl InputWithModifiers for NoopInput {
     /// java: @Override public int input()
-    pub fn input(&self) -> i32 {
+    fn input(&self) -> i32 {
         return 0;
     }
 
     /// java: @Override public int modifiers()
-    pub fn modifiers(&self) -> i32 {
+    fn modifiers(&self) -> i32 {
         return 0;
     }
 

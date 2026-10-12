@@ -50,7 +50,7 @@ impl MayorUtils {
     pub fn get_active_perks() -> Vec<String> {
         let mut mayor_perks = compat::lock(&MAYOR).perks().into_iter().map(|__a0| __a0.name());
         let mut minister_perk = vec![compat::lock(&MINISTER).perk().name()].into_iter();
-        let mut overridden_mayor_perks = compat::lock(&MAYOR_PERK_OVERRIDES).iter().cloned().filter(|__a0| __a0.is_active()).map(|__a0| __a0.perk());
+        let mut overridden_mayor_perks = compat::lock(&MAYOR_PERK_OVERRIDES).iter().cloned().filter(|__a0| __a0.is_active()).map(|__a0| __a0.perk()).collect::<Vec<String>>().into_iter();
         return mayor_perks.chain(minister_perk).chain(overridden_mayor_perks).collect::<Vec<_>>();
     }
 
@@ -180,7 +180,8 @@ impl MayorUtils {
                     return false;
                 }
             }
-        })()), compat::executor)).then_apply_async(|loaded| {
+        })()), compat::executor)).then_apply_async(|loaded: &bool| {
+            let loaded: bool = *loaded;
             if loaded {
                 (skyblock_events::mayor_change_invoker())();
             }

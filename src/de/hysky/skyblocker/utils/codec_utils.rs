@@ -96,10 +96,19 @@ impl CodecUtils {
     }
 
     /// java: public static <E extends Enum<E>> Codec<EnumSet<E>> enumSetCodec(Codec<E> enumCodec, Class<E> enumClass)
-    pub fn enum_set_codec<E: 'static>(enum_codec: &CodecRef<E>, enum_class: &crate::unresolved::Class) -> CodecRef<std::collections::HashSet<E>> {
-        // TODO(fabric2seer): `.isEmpty(..)` on a A
-        //   java: return enumCodec.listOf().xmap(list -> list.isEmpty() ? EnumSet.noneOf(enumClass) : EnumSet.copyOf(list), List::copyOf);
-        todo!("fabric2seer: the value of this function is in a TODO above")
+    pub fn enum_set_codec<E: Clone + Eq + Ord + std::hash::Hash + 'static>(enum_codec: &CodecRef<E>, enum_class: &std::any::TypeId) -> CodecRef<std::collections::HashSet<E>> {
+        // java: return enumCodec.listOf().xmap(list -> list.isEmpty() ? EnumSet.noneOf(enumClass) : EnumSet.copyOf(list), List::copyOf);
+        // (an EnumSet iterates in ordinal order, so the encoded list is in that order: the enum's `Ord`)
+        let _ = enum_class;
+        return codec::xmap(
+            codec::list(enum_codec.clone()),
+            |list: Vec<E>| list.into_iter().collect::<std::collections::HashSet<E>>(),
+            |set: &std::collections::HashSet<E>| {
+                let mut list: Vec<E> = set.iter().cloned().collect();
+                list.sort();
+                list
+            },
+        );
     }
 
     /// java: public static <T> MapCodec<T> mutableOptional(MapCodec<T> codec, Function<? super T, ? extends T> mutableFactory)

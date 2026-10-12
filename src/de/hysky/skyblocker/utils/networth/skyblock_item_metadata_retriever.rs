@@ -32,13 +32,15 @@ impl SkyblockItemMetadataRetriever {
         if item_id == "NEW_YEAR_CAKE_BAG" && custom_data.contains("new_year_cake_bag_data") {
             // java: try {..} catch (Exception _) - an exception here is a panic, caught by `catch_unwind`; the body's `return` is the closure's value
             match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                // TODO(fabric2seer): `new ByteArrayInputStream(..)`
-                //   java: CompoundTag uncompressed = NbtIo.readCompressed(new ByteArrayInputStream(customData.getByteArray("new_year_cake_bag_data").orElse(new byte[0])), NbtAccounter.unlimitedHeap());
-                let mut uncompressed: Tag = todo!("fabric2seer: the initialiser of `uncompressed` (TODO above)");
-                let mut items: Tag = uncompressed.get_list_or_empty("i");
+                // java: CompoundTag uncompressed = NbtIo.readCompressed(new ByteArrayInputStream(customData.getByteArray("new_year_cake_bag_data").orElse(new byte[0])), NbtAccounter.unlimitedHeap());
+                let bytes: Vec<u8> = custom_data.get_byte_array("new_year_cake_bag_data").unwrap_or(&[]).iter().map(|b| *b as u8).collect();
+                let mut uncompressed: Tag = mcrust::net::minecraft::nbt::nbt_io::read_compressed(&bytes, mcrust::net::minecraft::nbt::nbt_accounter::NbtAccounter::unlimited_heap()).unwrap_or_else(|e| panic!("IOException: {e}"));
+                // java: ListTag items = uncompressed.getListOrEmpty("i");
+                let mut items: Vec<Tag> = uncompressed.get_list_or_empty("i");
                 let mut cake_years: Vec<i32> = Vec::new();
                 for element in items.iter() {
-                    if let Some(compound) = element.as_any().downcast_ref::<Tag>() && compound.get_compound_or_empty("tag").contains("ExtraAttributes") {
+                    // java: if (element instanceof CompoundTag compound && compound.getCompoundOrEmpty("tag").contains("ExtraAttributes"))
+                    if let Some(compound) = Some(element).filter(|element| matches!(element, Tag::Compound(_))) && compound.get_compound_or_empty("tag").contains("ExtraAttributes") {
                         let mut extra_attributes: Tag = compound.get_compound_or_empty("tag").get_compound_or_empty("ExtraAttributes");
                         let mut cake_year: i32 = extra_attributes.get_int_or("new_years_cake", 0);
                         cake_years.push(cake_year);

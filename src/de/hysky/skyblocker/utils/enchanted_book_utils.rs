@@ -67,7 +67,9 @@ impl EnchantedBookUtils {
             return "".to_string();
         }
         if RomanNumerals::is_valid_roman_numeral(Some(parts[((parts.len() as i32).wrapping_sub(1)) as usize].clone())) {
-            parts[((parts.len() as i32).wrapping_sub(1)) as usize] = RomanNumerals::roman_to_decimal(Some(parts[((parts.len() as i32).wrapping_sub(1)) as usize].clone())).to_string();
+            let __v = RomanNumerals::roman_to_decimal(Some(parts[((parts.len() as i32).wrapping_sub(1)) as usize].clone())).to_string();
+            let __i = ((parts.len() as i32).wrapping_sub(1)) as usize;
+            parts[__i] = __v;
         }
         let mut is_ultimate: bool = (!(enchant_name.get_siblings().is_empty()) && (enchant_name.get_siblings()[enchant_name.get_siblings().len() - 1]).get_style().is_bold());
         let mut id: String = format!("ENCHANTMENT_{}{}", (if is_ultimate { "ULTIMATE_" } else { "" }), parts.iter().map(|s| s.to_string()).collect::<Vec<String>>().join("_"));

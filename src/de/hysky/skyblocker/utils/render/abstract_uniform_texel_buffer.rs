@@ -8,13 +8,15 @@ use mcrust::net::minecraft::util::argb;
 // TODO(fabric2seer): static call ByteOrder.nativeOrder(..)
 //   java: private static final boolean IS_LITTLE_ENDIAN = ByteOrder.nativeOrder() == ByteOrder.LITTLE_ENDIAN;
 /// java: private static final boolean IS_LITTLE_ENDIAN = ByteOrder.nativeOrder() == ByteOrder.LITTLE_ENDIAN;
-pub static IS_LITTLE_ENDIAN: LazyLock<bool> = LazyLock::new(|| todo!("fabric2seer: the initialiser of `IS_LITTLE_ENDIAN` - see the TODO above"));
+pub static IS_LITTLE_ENDIAN: LazyLock<bool> = LazyLock::new(|| cfg!(target_endian = "little"));
 
 /// java: public abstract class AbstractUniformTexelBuffer<T>
 #[derive(Clone)]
 pub struct AbstractUniformTexelBufferBase<T> {
     /// java: private final int instanceBytes;
     pub instance_bytes: i32,
+    /// the class's type parameter (`T`: the state it writes)
+    pub _states: std::marker::PhantomData<fn() -> T>,
 }
 
 impl<T: Clone + 'static> AbstractUniformTexelBufferBase<T> {
@@ -23,6 +25,7 @@ impl<T: Clone + 'static> AbstractUniformTexelBufferBase<T> {
         let __init_instance_bytes = instance_bytes;
         let mut this = Self {
             instance_bytes: __init_instance_bytes,
+            _states: std::marker::PhantomData,
         };
         this
     }
@@ -30,9 +33,8 @@ impl<T: Clone + 'static> AbstractUniformTexelBufferBase<T> {
     /// java: protected static final int toNativeRgba(int colour)
     pub fn to_native_rgba(mut colour: i32) -> i32 {
         let mut abgr: i32 = argb::to_abgr(colour);
-        // TODO(fabric2seer): Integer.reverseBytes
-        //   java: return IS_LITTLE_ENDIAN ? abgr : Integer.reverseBytes(abgr);
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        // java: return IS_LITTLE_ENDIAN ? abgr : Integer.reverseBytes(abgr);
+        return if *IS_LITTLE_ENDIAN { abgr } else { abgr.swap_bytes() };
     }
 
 }
@@ -49,13 +51,13 @@ pub trait AbstractUniformTexelBuffer<T> {
     }
 
     /// java: public final void writeToBuffer(List<T> states, CameraRenderState camera, MemorySegment buffer)
-    fn write_to_buffer(&self, states: &Vec<T>, camera: &CameraRenderState, buffer: &crate::unresolved::MemorySegment) {
+    fn write_to_buffer(&self, states: &Vec<T>, camera: &CameraRenderState, buffer: &mut crate::unresolved::MemorySegment) {
         for i in 0..(states.len() as i32) {
-            self.write_to_buffer_4(i, &states[(i) as usize], camera, &mut buffer);
+            self.write_to_buffer_4(i, &states[(i) as usize], camera, buffer);
         }
     }
 
     /// java: protected abstract void writeToBuffer(int index, T state, CameraRenderState camera, MemorySegment buffer);
-    fn write_to_buffer_4(&self, index: i32, state: &T, camera: &CameraRenderState, buffer: &crate::unresolved::MemorySegment);
+    fn write_to_buffer_4(&self, index: i32, state: &T, camera: &CameraRenderState, buffer: &mut crate::unresolved::MemorySegment);
 
 }

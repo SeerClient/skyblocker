@@ -2,6 +2,7 @@
 
 #[allow(unused_imports)]
 use crate::prelude::*;
+use std::rc::Rc;
 use crate::de::hysky::skyblocker::compatibility::caxton_compatibility::CaxtonCompatibility;
 use crate::de::hysky::skyblocker::compatibility::modern_ui_compatibility;
 use crate::de::hysky::skyblocker::compatibility::modern_ui_compatibility::ModernUICompatibility;
@@ -58,7 +59,7 @@ impl GuiHelper {
 
     /// java: public static void nineSliceColored(GuiGraphicsExtractor graphics, Identifier texture, int x, int y, int width, int height, int argb)
     pub fn nine_slice_colored(graphics: &GuiGraphicsExtractor, texture: &Identifier, mut x: i32, mut y: i32, mut width: i32, mut height: i32, mut argb: i32) {
-        gui_graphics_extractor::blit_sprite_identifier_with_color(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), mcrust::net::minecraft::client::renderer::render_pipelines::gui_textured(), texture, x, y, width, height, (argb) as f32);
+        gui_graphics_extractor::blit_sprite_identifier_with_color(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), mcrust::net::minecraft::client::renderer::render_pipelines::gui_textured(), texture, x, y, width, height, argb);
     }
 
     /// java: public static void nineSliceColored(GuiGraphicsExtractor graphics, Identifier texture, int x, int y, int width, int height, Color color)
@@ -139,11 +140,11 @@ impl GuiHelper {
     pub fn blurred_rectangle(graphics: &GuiGraphicsExtractor, mut x0: i32, mut y0: i32, mut x1: i32, mut y1: i32, mut radius: i32) {
         if compat::get_state(&BLIT_INDEX_FOR_FRAME) == -1 {
             let main_render_target = compat::minecraft().game_renderer.main_render_target();
-            let mut required_width: i32 = main_render_target.width;
-            let mut required_height: i32 = main_render_target.height;
+            let mut required_width: i32 = main_render_target.target.width;
+            let mut required_height: i32 = main_render_target.target.height;
             compat::set_state(&BLIT_INDEX_FOR_FRAME, BLIT_TEXTURE_POOL.get_mut().get_next_available_index(required_width, required_height));
         }
-        let mut blit_texture_view: Box<dyn GpuTextureView> = BLIT_TEXTURE_POOL.get_mut().get_texture_view(compat::get_state(&BLIT_INDEX_FOR_FRAME));
+        let mut blit_texture_view: Rc<dyn GpuTextureView> = BLIT_TEXTURE_POOL.get_mut().get_texture_view(compat::get_state(&BLIT_INDEX_FOR_FRAME));
         // TODO(fabric2seer): `with_sampler_cache` takes 1 argument(s) in the port (`f: impl FnOnce(&SamplerCache) -> R`), Java passes 0
         // rust: let mut sampler: Box<dyn GpuSampler> = render_system::with_sampler_cache().get_clamp_to_edge(FilterMode::Linear);
         let mut sampler: Box<dyn GpuSampler> = todo!("fabric2seer: the initialiser of `sampler` (TODO above)");
@@ -156,10 +157,10 @@ impl GuiHelper {
     pub fn update_screen_blit_texture() {
         if compat::get_state(&BLIT_INDEX_FOR_FRAME) != -1 {
             let main_render_target = compat::minecraft().game_renderer.main_render_target();
-            let mut required_width: i32 = main_render_target.width;
-            let mut required_height: i32 = main_render_target.height;
-            let mut blit_texture_view: Box<dyn GpuTextureView> = BLIT_TEXTURE_POOL.get_mut().get_texture_view(compat::get_state(&BLIT_INDEX_FOR_FRAME));
-            render_system::get_device().create_command_encoder().copy_texture_to_texture(&main_render_target.get_color_texture().unwrap(), blit_texture_view.texture(), 0, 0, 0, 0, 0, required_width, required_height);
+            let mut required_width: i32 = main_render_target.target.width;
+            let mut required_height: i32 = main_render_target.target.height;
+            let mut blit_texture_view: Rc<dyn GpuTextureView> = BLIT_TEXTURE_POOL.get_mut().get_texture_view(compat::get_state(&BLIT_INDEX_FOR_FRAME));
+            render_system::get_device().create_command_encoder().copy_texture_to_texture(main_render_target.target.get_color_texture().expect("NullPointerException: color texture").as_ref(), blit_texture_view.texture().as_ref(), 0, 0, 0, 0, 0, required_width, required_height);
             compat::set_state(&BLIT_INDEX_FOR_FRAME, -1);
         }
     }

@@ -81,15 +81,16 @@ impl<T: Clone + 'static> CyclingIconButtonWidget<T> {
     }
 
     /// java: public CyclingIconButtonWidget(int width, int height, T value, T[] values, Function<T, Icon> valueToIcon, Function<T, Tooltip> tooltipFactory, Consumer<T> callback)
-    pub fn new_7(mut width: i32, mut height: i32, mut value: T, mut values: Vec<T>, value_to_icon: Arc<dyn Fn(T) -> Icon>, tooltip_factory: Arc<dyn Fn(T) -> Tooltip>, callback: Arc<dyn Fn(T)>) -> compat::Shared<Self> {
-        let __this = Self::new(width, height, value.clone(), values.clone(), Arc::new(move |o| component::literal(&compat::jstring(&o))), value_to_icon.clone(), tooltip_factory.clone(), callback.clone(), false);
+    pub fn new_7(mut width: i32, mut height: i32, mut value: T, mut values: Vec<T>, value_to_icon: Arc<dyn Fn(T) -> Icon>, tooltip_factory: Arc<dyn Fn(T) -> Tooltip>, callback: Arc<dyn Fn(T)>) -> compat::Shared<Self> where T: std::fmt::Display {
+        // java: this(width, height, value, values, Object::toString -> Component.literal(..), ..) - `toString` is `Display`
+        let __this = Self::new(width, height, value.clone(), values.clone(), Arc::new(move |o: T| component::literal(&o.to_string())), value_to_icon.clone(), tooltip_factory.clone(), callback.clone(), false);
         __this
     }
 
     /// java: @Override public void onPress(InputWithModifiers input)
     pub fn on_press(__this: &compat::Shared<Self>, input: &dyn InputWithModifiers) {
         { let __v = ((compat::read(__this, |__t| __t.index)).wrapping_add(1)).wrapping_rem(__this.lock().borrow().values.len() as i32); compat::write(__this, |__t| __t.index = __v); }
-        let new_value = &__this.lock().borrow().values[(compat::read(__this, |__t| __t.index)) as usize];
+        let new_value: T = compat::read(__this, |__t| __t.values[(__t.index) as usize].clone());
         ((compat::read(__this, |__t| __t.callback.clone()).unwrap()))(new_value.clone());
         let __r0 = compat::read(__this, |__t| __t.value_to_text.clone());
         { let (__q0,) = (mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(((__r0.unwrap()))(new_value.clone())),); __this.lock().borrow_mut().set_message_text(__q0) };

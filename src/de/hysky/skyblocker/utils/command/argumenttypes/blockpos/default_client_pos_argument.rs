@@ -87,7 +87,7 @@ impl DefaultClientPosArgument {
 
     /// java: public static DefaultClientPosArgument absolute(Vec2 vec)
     pub fn absolute_1(vec: &Vec2) -> compat::Shared<DefaultClientPosArgument> {
-        return DefaultClientPosArgument::new(WorldCoordinate::new(false, vec.x), WorldCoordinate::new(false, vec.y), WorldCoordinate::new(true, 0.0));
+        return DefaultClientPosArgument::new(WorldCoordinate::new(false, vec.x as f64), WorldCoordinate::new(false, vec.y as f64), WorldCoordinate::new(true, 0.0));
     }
 
     /// java: public static DefaultClientPosArgument zero()
@@ -97,25 +97,22 @@ impl DefaultClientPosArgument {
 
     /// java: public boolean equals(Object o)
     pub fn equals(&self, o: &compat::Object) -> bool {
-        if std::ptr::addr_eq(std::sync::Arc::as_ptr(self), std::sync::Arc::as_ptr(o)) {
+        if std::ptr::addr_eq(self as *const Self, std::sync::Arc::as_ptr(o)) {
             return true;
         }
-        // TODO(fabric2seer): instanceof with a pattern binding outside an `if` condition
-        //   java: return o instanceof DefaultClientPosArgument defaultPosArgument &&
-        //   java: 				this.x.equals(defaultPosArgument.x) && this.y.equals(defaultPosArgument.y) && this.z.equals(defaultPosArgument.z);
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        // java: return o instanceof DefaultClientPosArgument defaultPosArgument &&
+        //   this.x.equals(defaultPosArgument.x) && this.y.equals(defaultPosArgument.y) && this.z.equals(defaultPosArgument.z);
+        return match o.downcast_ref::<DefaultClientPosArgument>() {
+            Some(default_pos_argument) => self.x == default_pos_argument.x && self.y == default_pos_argument.y && self.z == default_pos_argument.z,
+            None => false,
+        };
     }
 
     /// java: public int hashCode()
     pub fn hash_code(&self) -> i32 {
-        // TODO(fabric2seer): `WorldCoordinate.hashCode` has no Rust method in the port (looked for `hash_code` in WorldCoordinate and JavaSrc)
-        // rust: let mut i: i32 = self.x.hash_code();
-        let mut i: i32 = todo!("fabric2seer: the initialiser of `i` (TODO above)");
-        // TODO(fabric2seer): `WorldCoordinate.hashCode` has no Rust method in the port (looked for `hash_code` in WorldCoordinate and JavaSrc)
-        // rust: i = (31i32.wrapping_mul(i)).wrapping_add(self.y.hash_code());
-        // TODO(fabric2seer): `WorldCoordinate.hashCode` has no Rust method in the port (looked for `hash_code` in WorldCoordinate and JavaSrc)
-        // rust: return (31i32.wrapping_mul(i)).wrapping_add(self.z.hash_code());
-        return todo!("fabric2seer: see the TODO above");
+        let mut i: i32 = world_coordinate_hash_code(&self.x);
+        i = (31i32.wrapping_mul(i)).wrapping_add(world_coordinate_hash_code(&self.y));
+        return (31i32.wrapping_mul(i)).wrapping_add(world_coordinate_hash_code(&self.z));
     }
 
 }
@@ -209,4 +206,13 @@ impl DefaultClientPosArgument {
         Self::is_z_relative_impl(&compat::view_as::<Self, _, Self>(__this, |a| a))
     }
 
+}
+
+/// `WorldCoordinate.hashCode()`: the record's (`relative`, `value`) hash - `31 * Boolean.hashCode(relative) +
+/// Double.hashCode(value)`. The port's `WorldCoordinate` has no `hash_code`.
+pub fn world_coordinate_hash_code(coordinate: &WorldCoordinate) -> i32 {
+    let relative: i32 = if coordinate.relative() { 1231 } else { 1237 };
+    let bits: i64 = coordinate.value().to_bits() as i64;
+    let value: i32 = (bits ^ ((bits as u64) >> 32) as i64) as i32;
+    return 31i32.wrapping_mul(relative).wrapping_add(value);
 }

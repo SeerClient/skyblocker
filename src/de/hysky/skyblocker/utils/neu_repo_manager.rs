@@ -144,13 +144,14 @@ impl NEURepoManager {
                 success = false;
             }
             return success;
-        })()), compat::executor)).then_apply_async(|success| {
+        })()), compat::executor)).then_apply_async(|success: &bool| {
+            let success: bool = *success;
             for task in AFTER_LOAD_TASKS.get_mut().iter() {
                 // TODO(fabric2seer): CompletableFuture.runAsync of a non-lambda
                 //   java: CompletableFuture.runAsync(..).exceptionally(..);
             }
             return success;
-        }, skyblocker_mod::VIRTUAL_THREAD_EXECUTOR.get_mut().clone()));
+        }, std::sync::Arc::new(|__t: Box<dyn FnOnce() + Send>| compat::executor(__t))));
     }
 
     /// java: private static void loadNameToNEUItemMap()
@@ -166,14 +167,14 @@ impl NEURepoManager {
     /// java: private static void deleteAndDownloadRepository(Player player)
     pub fn delete_and_download_repository(player: &dyn Player) {
         if NEURepoManager::is_loading() {
-            NEURepoManager::send_message(Some(player.clone()), &component::translatable("skyblocker.updateRepository.loading").with_style_format(ChatFormatting::Red));
+            NEURepoManager::send_message(Some(player), &component::translatable("skyblocker.updateRepository.loading").with_style_format(ChatFormatting::Red));
             return;
         }
-        NEURepoManager::delete_and_download_repository_internal(Some(player.clone()));
+        NEURepoManager::delete_and_download_repository_internal(Some(player));
     }
 
     /// java: private static void deleteAndDownloadRepositoryInternal(@Nullable Player player)
-    pub fn delete_and_download_repository_internal(mut player: Option<Box<dyn Player>>) {
+    pub fn delete_and_download_repository_internal(mut player: Option<&dyn Player>) {
         // TODO(fabric2seer): CompletableFuture.runAsync of a non-lambda
         //   java: Function<Runnable, CompletableFuture<Void>> runner = isLoading() ? REPO_LOADING::thenRunAsync : task -> CompletableFuture.runAsync(task, SkyblockerMod.VIRTUAL_THREAD_EXECUTOR);
         let mut runner: Arc<dyn Fn(Arc<dyn Fn()>) -> mcrust::java::util::concurrent::completable_future::CompletableFuture<()>> = todo!("fabric2seer: the initialiser of `runner` (TODO above)");
@@ -192,11 +193,13 @@ impl NEURepoManager {
     }
 
     /// java: private static void sendMessage(@Nullable Player player, Component text)
-    pub fn send_message(mut player: Option<Box<dyn Player>>, text: &MutableComponent) {
-        let Some(mut player) = player.clone() else {
+    pub fn send_message(mut player: Option<&dyn Player>, text: &MutableComponent) {
+        let Some(mut player) = player else {
             logger().info(&format!("[Skyblocker NEU Repo] {}", text.get_string()));
             return;
         };
+        // java: Minecraft.getInstance().execute(() -> player.sendSystemMessage(Constants.PREFIX.get().append(text)));
+        let text: MutableComponent = text.clone();
         mcrust::mcrust::modding::game::execute(move || { script_host::send_feedback(&(constants::PREFIX.get_mut())().append(text.clone()).to_string()); });
     }
 

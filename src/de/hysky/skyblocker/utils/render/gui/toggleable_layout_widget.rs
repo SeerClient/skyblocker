@@ -29,17 +29,28 @@ impl ToggleableLayoutWidget {
     }
 
     /// java: @Override public void visitChildren(Consumer<LayoutElement> consumer)
-    pub fn visit_children(&self, consumer: Arc<dyn Fn(LayoutElement)>) {
+    ///
+    /// (the port's layouts visit their children by reference, as `GridLayout.visitChildren` does)
+    pub fn visit_children(&self, consumer: &mut dyn FnMut(&LayoutElement)) {
         if self.enabled {
-            (consumer)(self.widget);
+            (consumer)(&self.widget);
         }
     }
 
     /// java: @Override public void arrangeElements()
     pub fn arrange_elements(&mut self) {
         self.enabled = (self.is_enabled)();
-        // TODO(fabric2seer): `.arrangeElements(..)` on a value of unknown type
-        //   java: Layout.super.arrangeElements();
+        // java: Layout.super.arrangeElements(); - `visitChildren(child -> { if (child instanceof Layout layout)
+        // layout.arrangeElements(); })`, and this class's `visitChildren` visits `widget` only while enabled
+        if self.enabled {
+            match &mut self.widget {
+                LayoutElement::Grid(layout) => layout.arrange_elements(),
+                LayoutElement::Frame(layout) => layout.arrange_elements(),
+                LayoutElement::EqualSpacing(layout) => layout.arrange_elements(),
+                LayoutElement::Scrollable(layout) => layout.arrange_elements(),
+                LayoutElement::Widget { .. } | LayoutElement::Spacer { .. } => {}
+            }
+        }
     }
 
     /// java: @Override public void setX(int x)
@@ -73,10 +84,18 @@ impl ToggleableLayoutWidget {
     }
 
     /// java: @Override public void removeChildren()
-    pub fn remove_children(&self) {
-        if self.enabled && let Some(layout) = self.widget.as_any().downcast_ref::<LayoutElement>() {
-            // TODO(fabric2seer): `Layout.removeChildren` has no Rust method in the port (looked for `remove_children` in Layout and its supertypes)
-            // rust: layout.remove_children();
+    pub fn remove_children(&mut self) {
+        // java: if (this.enabled && this.widget instanceof Layout layout) layout.removeChildren();
+        if self.enabled {
+            match &mut self.widget {
+                LayoutElement::Grid(layout) => layout.remove_children(),
+                LayoutElement::Frame(layout) => layout.remove_children(),
+                LayoutElement::EqualSpacing(layout) => layout.remove_children(),
+                // rust: port gap - `ScrollableLayout.removeChildren:82-85` has no port on `ScrollableLayoutElement`
+                // (GAPS_batchA.md)
+                LayoutElement::Scrollable(_) => {}
+                LayoutElement::Widget { .. } | LayoutElement::Spacer { .. } => {}
+            }
         }
     }
 

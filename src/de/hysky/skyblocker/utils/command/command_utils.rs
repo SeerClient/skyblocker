@@ -3,9 +3,11 @@
 #[allow(unused_imports)]
 use crate::prelude::*;
 use mcrust::com::mojang::brigadier::command::Command;
+use mcrust::com::mojang::brigadier::context::command_context::CommandContext;
+use mcrust::mcrust::modding::events::client_command_registration_callback::FabricClientCommandSource;
 
 /// java: public static final Command<FabricClientCommandSource> noOp = _ -> -1;
-pub static NO_OP: compat::MainThread<Command> = compat::MainThread::new(|| Arc::new(move |_| -1));
+pub static NO_OP: compat::MainThread<Command<FabricClientCommandSource>> = compat::MainThread::new(|| Arc::new(move |_: &CommandContext<FabricClientCommandSource>| Ok(-1)));
 
 /// java: public final class CommandUtils
 #[derive(Clone)]

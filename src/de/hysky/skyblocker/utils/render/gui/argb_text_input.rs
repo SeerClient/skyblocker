@@ -36,7 +36,7 @@ pub struct ARGBTextInput {
     /// java: private final boolean drawBackground;
     pub draw_background: bool,
     /// java: private final Font textRenderer;
-    pub text_renderer: Option<Font>,
+    pub text_renderer: Option<Font<'static>>,
     /// java: private final boolean hasAlpha;
     pub has_alpha: bool,
     /// java: private final int alphaMask;
@@ -93,16 +93,17 @@ impl ARGBTextInput {
 
     /// java: protected OptionalInt getOptionalARGBColor(String input)
     pub fn get_optional_argb_color(__this: &compat::Shared<Self>, input: &str) -> Option<i32> {
-        // java: try {..} catch (NumberFormatException e) - an exception here is a panic, caught by `catch_unwind`; the body's `return` is the closure's value
-        match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            // TODO(fabric2seer): Integer.parseUnsignedInt
-            //   java: int i = Integer.parseUnsignedInt(input, 16);
-            let mut i: i32 = todo!("fabric2seer: the initialiser of `i` (TODO above)");
-            return Some((compat::read(__this, |__t| __t.alpha_mask) | i));
-        })) {
-            Ok(__v) => return __v,
+        // java: try { int i = Integer.parseUnsignedInt(input, 16); return OptionalInt.of(alphaMask | i); }
+        //       catch (NumberFormatException e) { LOGGER.error("Could not parse rgb color", e); }
+        // (`parseUnsignedInt` takes an optional `+` and the full unsigned 32-bit range, as `u32::from_str_radix` does;
+        // the NumberFormatException is its `Err`)
+        match u32::from_str_radix(input, 16) {
+            Ok(__parsed) => {
+                let i: i32 = __parsed as i32;
+                return Some((compat::read(__this, |__t| __t.alpha_mask) | i));
+            }
             Err(e) => {
-                logger().error(&format!("Could not parse rgb color"));
+                logger().error(&format!("Could not parse rgb color: {}", e));
             }
         }
         return None;
@@ -265,17 +266,20 @@ impl ARGBTextInput {
         }
         let mut i: i32 = (ARGBTextInput::find_clicked_char(__this, ((mouse_x) as i32))).wrapping_div(2);
         let mut begin_index: i32 = i.wrapping_mul(2);
-        let mut an_int: Option<i32>;
-        // java: try {..} catch (NumberFormatException e) - an exception here is a panic, caught by `catch_unwind`
-        let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            // TODO(fabric2seer): Integer.parseUnsignedInt
-            //   java: int parsedInt = Integer.parseUnsignedInt(input.substring(beginIndex, beginIndex + 2), 16);
-            let mut parsed_int: i32 = todo!("fabric2seer: the initialiser of `parsedInt` (TODO above)");
-            an_int = Some(parsed_int);
-        }));
-        if let Err(e) = __result {
-            an_int = None;
-            logger().error(&format!("[Skyblocker] Failed to parse integer"));
+        let an_int: Option<i32>;
+        // java: try { int parsedInt = Integer.parseUnsignedInt(input.substring(beginIndex, beginIndex + 2), 16); anInt = OptionalInt.of(parsedInt); }
+        //       catch (NumberFormatException e) { anInt = OptionalInt.empty(); LOGGER.error("[Skyblocker] Failed to parse integer", e); }
+        // (`substring` throws IndexOutOfBoundsException, which the catch does not take: `substring2` panics alike)
+        let __digits: String = compat::substring2(&compat::read(__this, |__t| __t.input.clone()), begin_index, begin_index.wrapping_add(2));
+        match u32::from_str_radix(&__digits, 16) {
+            Ok(__parsed) => {
+                let parsed_int: i32 = __parsed as i32;
+                an_int = Some(parsed_int);
+            }
+            Err(e) => {
+                an_int = None;
+                logger().error(&format!("[Skyblocker] Failed to parse integer: {}", e));
+            }
         }
         if an_int.is_some() {
             let mut prev: i32 = an_int.clone().unwrap();
@@ -283,8 +287,12 @@ impl ARGBTextInput {
             new_int = new_int.clamp(0, 255);
             if new_int != prev {
                 let mut format: String = format!("{:02X}", new_int);
-                // TODO(fabric2seer): StringBuilder.replace
-                //   java: input = new StringBuilder(input).replace(beginIndex, beginIndex + 2, format).toString();
+                // java: input = new StringBuilder(input).replace(beginIndex, beginIndex + 2, format).toString();
+                {
+                    let __input: String = compat::read(__this, |__t| __t.input.clone());
+                    let __v = format!("{}{}{}", compat::substring2(&__input, 0, begin_index), format, compat::substring(&__input, begin_index.wrapping_add(2)));
+                    compat::write(__this, |__t| __t.input = __v);
+                }
                 ARGBTextInput::call_on_change(__this);
             }
         }

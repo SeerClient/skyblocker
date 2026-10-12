@@ -51,13 +51,14 @@ impl IdentifierTexture {
             // TODO(fabric2seer): `Minecraft.getAtlasManager` has no Rust method in the port (looked for `get_atlas_manager` in Minecraft and its supertypes)
             // rust: let mut texture_atlas: TextureAtlas = minecraft.get_atlas_manager().get_atlas_or_throw(&compat::read(__this, |__t| __t.atlas.clone()).unwrap());
             let mut texture_atlas: TextureAtlas = todo!("fabric2seer: the initialiser of `textureAtlas` (TODO above)");
-            if texture_atlas.missing_sprite() == texture_atlas.get_sprite(&compat::read(__this, |__t| __t.texture.clone())) {
+            // java: textureAtlas.missingSprite() == textureAtlas.getSprite(this.texture) - the same sprite object
+            if std::ptr::eq(texture_atlas.missing_sprite(), texture_atlas.get_sprite(&compat::read(__this, |__t| __t.texture.clone()))) {
                 { let __v = compat::read(__this, |__t| __t.fallback.clone()); compat::write(__this, |__t| __t.current_texture = __v); }
             } else {
                 { let __v = compat::read(__this, |__t| __t.texture.clone()); compat::write(__this, |__t| __t.current_texture = __v); }
             }
         } else {
-            let mut resource: Option<Resource> = minecraft.get_resource_manager().get_resource(&compat::read(__this, |__t| __t.texture.clone())).unwrap();
+            let mut resource: Option<Resource> = minecraft.get_resource_manager().get_resource(&compat::read(__this, |__t| __t.texture.clone()));
             if resource.is_none() {
                 { let __v = compat::read(__this, |__t| __t.fallback.clone()); compat::write(__this, |__t| __t.current_texture = __v); }
             } else {
@@ -75,7 +76,10 @@ impl FallbackedTexture<mcrust::net::minecraft::resources::identifier::Identifier
 
     /// java: @Override public boolean isUsingFallback()
     fn is_using_fallback(&self) -> bool {
-        return std::ptr::eq(&self.current_texture, &self.fallback);
+        // java: return currentTexture == fallback; - `currentTexture` is only ever assigned `texture` or `fallback`, so the
+        // reference test is "was it assigned the fallback"; two separate fields never share an address here, so the
+        // port compares the identifiers' values (differs from Java only when `texture` equals `fallback`)
+        return self.current_texture == self.fallback;
     }
 
 }

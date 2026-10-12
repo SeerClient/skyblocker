@@ -20,8 +20,8 @@ impl FieldReference {
     }
 
     /// java: the record accessor `classDesc()`
-    pub fn class_desc(&self) -> crate::unresolved::ClassDesc {
-        self.class_desc.clone()
+    pub fn class_desc(&self) -> &crate::unresolved::ClassDesc {
+        &self.class_desc
     }
 
     /// java: the record accessor `fieldName()`
@@ -30,8 +30,8 @@ impl FieldReference {
     }
 
     /// java: the record accessor `typeDesc()`
-    pub fn type_desc(&self) -> crate::unresolved::ClassDesc {
-        self.type_desc.clone()
+    pub fn type_desc(&self) -> &crate::unresolved::ClassDesc {
+        &self.type_desc
     }
 
     /// java: public static FieldReference fromModel(FieldModel fieldModel)
@@ -45,7 +45,7 @@ impl FieldReference {
         // TODO(fabric2seer): `.fieldTypeSymbol(..)` on a FieldModel
         //   java: ClassDesc typeDesc = fieldModel.fieldTypeSymbol();
         let mut type_desc: crate::unresolved::ClassDesc = todo!("fabric2seer: the initialiser of `typeDesc` (TODO above)");
-        return FieldReference::new(class_desc.clone(), field_name.clone(), type_desc.clone());
+        return FieldReference::new(class_desc, field_name, type_desc);
     }
 
     /// java: public boolean matches(FieldModel fieldModel)

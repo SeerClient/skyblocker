@@ -57,7 +57,7 @@ impl WsMessageHandler {
             //   java: SkyblockerWebSocket.send(SkyblockerMod.GSON_COMPACT.toJson(encoded));
         }));
         if let Err(e) = __result {
-            logger().info(&format!("[Skyblocker WebSocket Message Handler] Failed to send message! Type: {}, Service: {}, Message: {}", compat::jstring(&r#type), compat::jstring(&service), compat::jstring(&message)));
+            logger().info(&format!("[Skyblocker WebSocket Message Handler] Failed to send message! Type: {}, Service: {}, Message: {}", compat::jstring(&r#type), compat::jstring(&service), match &message { Some(dynamic) => format!("Optional[{:?}]", dynamic), None => "Optional.empty".to_string() }));
         }
     }
 
@@ -73,7 +73,7 @@ impl WsMessageHandler {
         })) {
             Ok(__v) => return __v,
             Err(e) => {
-                logger().info(&format!("[Skyblocker WebSocket Message Handler] Failed to encode message! Message: {}", compat::jstring(&message)));
+                logger().info(&format!("[Skyblocker WebSocket Message Handler] Failed to encode message! Message: {:p}", std::sync::Arc::as_ptr(message)));
             }
         }
         return Dynamic::new(mcrust::com::mojang::serialization::json_ops::JsonOps::instance());
@@ -85,7 +85,7 @@ impl WsMessageHandler {
         let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             let mut payload_encoded: serde_json::Map<String, serde_json::Value> = compat::json::get_as_json_object(&(serde_json::from_str::<serde_json::Value>(message).expect("JsonSyntaxException")));
             if compat::json::has(&payload_encoded, "type") {
-                let mut payload: Payload = (payload::CODEC.get_mut().parse(&mcrust::com::mojang::serialization::json_ops::JsonOps::instance(), &compat::json_to_port(&payload_encoded))).get_or_throw().unwrap();
+                let mut payload: Payload = (payload::CODEC.get_mut().parse(&mcrust::com::mojang::serialization::json_ops::JsonOps::instance(), &compat::json_to_port(&serde_json::Value::Object(payload_encoded.clone())))).get_or_throw().unwrap();
                 match payload.service() {
                     Service::CrystalWaypoints => {
                         CrystalsWaypointMessage::handle(payload.r#type(), &payload.message());

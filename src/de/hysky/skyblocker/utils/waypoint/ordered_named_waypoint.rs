@@ -355,7 +355,7 @@ impl RelativeIndex {
 
     /// java: public boolean shouldRender()
     pub fn should_render(&self) -> bool {
-        return (*self != NONE);
+        return (*self != RelativeIndex::None);
     }
 
 }

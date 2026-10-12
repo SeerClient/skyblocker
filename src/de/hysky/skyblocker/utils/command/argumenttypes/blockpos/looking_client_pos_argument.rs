@@ -74,18 +74,26 @@ impl LookingClientPosArgument {
 
     /// java: public boolean equals(Object o)
     pub fn equals(&self, o: &compat::Object) -> bool {
-        if std::ptr::addr_eq(std::sync::Arc::as_ptr(self), std::sync::Arc::as_ptr(o)) {
+        if std::ptr::addr_eq(self as *const Self, std::sync::Arc::as_ptr(o)) {
             return true;
         }
-        // TODO(fabric2seer): instanceof with a pattern binding outside an `if` condition
-        //   java: return o instanceof LookingClientPosArgument lookingPosArgument
-        //   java: 				&& this.x == lookingPosArgument.x && this.y == lookingPosArgument.y && this.z == lookingPosArgument.z;
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        // java: return o instanceof LookingClientPosArgument lookingPosArgument
+        //   && this.x == lookingPosArgument.x && this.y == lookingPosArgument.y && this.z == lookingPosArgument.z;
+        return match o.downcast_ref::<LookingClientPosArgument>() {
+            Some(looking_pos_argument) => self.x == looking_pos_argument.x && self.y == looking_pos_argument.y && self.z == looking_pos_argument.z,
+            None => false,
+        };
     }
 
     /// java: public int hashCode()
     pub fn hash_code(&self) -> i32 {
-        return compat::hash_code(&(&self.x, &self.y, &self.z,));
+        // java: Objects.hash(x, y, z) - Arrays.hashCode of the three boxed doubles (Double.hashCode: bits ^ bits >>> 32)
+        let mut result: i32 = 1;
+        for value in [self.x, self.y, self.z] {
+            let bits: i64 = value.to_bits() as i64;
+            result = 31i32.wrapping_mul(result).wrapping_add((bits ^ ((bits as u64) >> 32) as i64) as i32);
+        }
+        return result;
     }
 
 }

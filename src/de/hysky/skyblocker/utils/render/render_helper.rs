@@ -2,6 +2,7 @@
 
 #[allow(unused_imports)]
 use crate::prelude::*;
+use mcrust::net::minecraft::world::level::block_getter::BlockGetter as _;
 use crate::de::hysky::skyblocker::utils::render::level_render_extraction_callback;
 use crate::de::hysky::skyblocker::utils::render::primitive::primitive_collector::PrimitiveCollector;
 use crate::de::hysky::skyblocker::utils::render::primitive::primitive_collector_impl::PrimitiveCollectorImpl;
@@ -35,7 +36,7 @@ impl RenderHelper {
         // TODO(fabric2seer): LevelExtractionEvents.END_EXTRACTION.register: no SeerClient equivalent yet
         //   java: LevelExtractionEvents.END_EXTRACTION.register(RenderHelper::startExtraction);
         world_render_events::BEFORE_ENTITIES.register(Arc::new(|ctx: &mut world_render_events::WorldRenderContext<'_>| {
-            let mut profiler: Arc<dyn ProfilerFiller> = profiler::get();
+            let mut profiler = profiler::get();
             profiler.push("skyblockerDispatchSubmits");
             // TODO(fabric2seer): WorldRenderContext.levelState() - the port's context only carries the GameRenderer (`gameRenderer`)
             //   java: collector.dispatchSubmits(context.levelState(), context.submitNodeCollector());
@@ -73,18 +74,18 @@ impl RenderHelper {
 
     /// java: private static void startExtraction(LevelExtractionContext context)
     pub fn start_extraction(context: &crate::unresolved::LevelExtractionContext) {
-        let mut profiler: Arc<dyn ProfilerFiller> = profiler::get();
+        let mut profiler = profiler::get();
         profiler.push("skyblockerPrimitiveCollection");
         // TODO(fabric2seer): `.levelState(..)` on a LevelExtractionContext
         //   java: collector = new PrimitiveCollectorImpl(context.levelState(), context.levelState().cameraRenderState.cullFrustum);
-        (level_render_extraction_callback::event_invoker())((COLLECTOR.get_mut().clone() as compat::Shared<dyn PrimitiveCollector>));
+        (level_render_extraction_callback::event_invoker())((COLLECTOR.get_mut().clone().expect("RenderHelper.collector") as compat::Shared<dyn PrimitiveCollector>));
         PrimitiveCollectorImpl::end_collection(COLLECTOR.get_mut().as_ref().unwrap());
         profiler.pop();
     }
 
     /// java: private static void dispatchSubmits(LevelRenderContext context)
     pub fn dispatch_submits(context: &crate::unresolved::LevelRenderContext) {
-        let mut profiler: Arc<dyn ProfilerFiller> = profiler::get();
+        let mut profiler = profiler::get();
         profiler.push("skyblockerDispatchSubmits");
         // TODO(fabric2seer): `.levelState(..)` on a LevelRenderContext
         //   java: collector.dispatchSubmits(context.levelState(), context.submitNodeCollector());
@@ -92,11 +93,12 @@ impl RenderHelper {
     }
 
     /// java: public static void runOnRenderThread(Runnable runnable)
-    pub fn run_on_render_thread(runnable: Arc<dyn Fn()>) {
+    pub fn run_on_render_thread(runnable: Arc<dyn Fn() + Send + Sync>) {
         if render_system::is_on_render_thread() {
             (runnable)();
         } else {
-            mcrust::mcrust::modding::game::execute(move || (runnable.clone())());
+            // java: Minecraft.getInstance().execute(runnable); - the runnable crosses to the render thread, so it is `Send`
+            mcrust::mcrust::modding::game::execute(move || (runnable)());
         }
     }
 
@@ -108,8 +110,9 @@ impl RenderHelper {
     }
 
     /// java: public static DeltaTracker getTickCounter()
-    pub fn get_tick_counter() -> crate::unresolved::DeltaTracker {
-        return compat::minecraft().get_delta_tracker().clone();
+    pub fn get_tick_counter() -> &'static mcrust::net::minecraft::client::delta_tracker::Timer {
+        // java: return CLIENT.getDeltaTracker(); - the game's object
+        return compat::minecraft().get_delta_tracker();
     }
 
     /// java: public static Camera getCamera()
@@ -126,7 +129,7 @@ impl RenderHelper {
 
     /// java: public static @Nullable AABB getBlockBoundingBox(ClientLevel world, BlockState state, BlockPos pos)
     pub fn get_block_bounding_box_3(world: &ClientLevel, state: &Arc<BlockState>, pos: &BlockPos) -> Option<AABB> {
-        let mut shape: VoxelShape = (state.get_shape_no_context(world.as_block_getter(), pos)).single_encompassing();
+        let mut shape = (state.get_shape_no_context(world.as_block_getter(), pos)).single_encompassing();
         return (if shape.is_empty() { None } else { Some(shape.bounds().unwrap().move_block_pos(pos)) });
     }
 

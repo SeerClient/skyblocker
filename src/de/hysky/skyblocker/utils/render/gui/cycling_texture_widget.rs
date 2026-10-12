@@ -53,15 +53,14 @@ impl<T: 'static> std::ops::DerefMut for CyclingTextureWidget<T> {
     }
 }
 
-impl<T: Clone + 'static> CyclingTextureWidget<T> {
+impl<T: Clone + crate::de::hysky::skyblocker::utils::enum_utils::JavaEnum + 'static> CyclingTextureWidget<T> {
     /// java: public CyclingTextureWidget(int x, int y, int width, int height, T initial)
     pub fn new(mut x: i32, mut y: i32, mut width: i32, mut height: i32, mut initial: T) -> compat::Shared<Self> {
         let __init_current = initial.clone();
-        // TODO(fabric2seer): the initialiser of `textSupplier`: `.name(..)` on a T
-        //   java: private Function<T, Component> textSupplier = t -> Component.nullToEmpty(t.name());
         let __this = compat::shared(Self {
             base: AbstractWidget::new(x, y, width, height, (&component::empty().get_string()).to_string(), WidgetKind::PlainText, OnPress::Inert),
-            text_supplier: Default::default(),
+            // java: private Function<T, Component> textSupplier = t -> Component.nullToEmpty(t.name());
+            text_supplier: Arc::new(|t: T| component::null_to_empty(Some(t.java_name()))),
             tooltip_supplier: None,
             on_cycle: Arc::new(move |_| {
 
@@ -69,7 +68,9 @@ impl<T: Clone + 'static> CyclingTextureWidget<T> {
             current: __init_current,
         });
         let __this_w1 = compat::RenderThread::new(std::sync::Arc::downgrade(&__this));
-        { let __v = Some(Arc::new(move |t| { let Some(__this_1) = __this_w1.get().upgrade() else { return Default::default(); }; Tooltip::create((component::translation_arg_message(&((compat::read(&__this_1, |__t| __t.text_supplier.clone())))(t.clone()))).get_string()) })); compat::write(&__this, |__t| __t.tooltip_supplier = __v); }
+        // java: private Function<T, Tooltip> tooltipSupplier = t -> Tooltip.create(Component.translationArg(textSupplier.apply(t)));
+        // (the lambda reads `this.textSupplier`; it lives in the widget's own field, so the widget is alive whenever it runs)
+        { let __v: Option<Arc<dyn Fn(T) -> Tooltip>> = Some(Arc::new(move |t: T| { let __this_1 = __this_w1.get().upgrade().expect("CyclingTextureWidget: tooltipSupplier outlived its widget"); Tooltip::create_text(mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::translation_arg_message(&((compat::read(&__this_1, |__t| __t.text_supplier.clone())))(t.clone())))) })); compat::write(&__this, |__t| __t.tooltip_supplier = __v); }
         let __r0 = compat::read(&__this, |__t| __t.tooltip_supplier.clone());
         { let (__q0,) = (((__r0.unwrap()))(initial.clone()),); __this.lock().borrow_mut().set_tooltip(__q0) };
         __this

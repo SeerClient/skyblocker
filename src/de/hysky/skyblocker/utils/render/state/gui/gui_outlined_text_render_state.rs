@@ -50,7 +50,8 @@ impl GuiOutlinedTextRenderState {
 
     /// java: private PreparedText prepareOutline()
     pub fn prepare_outline(&self) -> PreparedText {
-        let mut accessor: crate::unresolved::FontAccessor = compat::font();
+        // java: FontAccessor accessor = (FontAccessor) this.font; - the font itself
+        let mut accessor = compat::font();
         // TODO(fabric2seer): not translated (expected ';' at 'drawer' (offset 1330))
         //   java: Font.PreparedTextBuilder drawer = this.font.new PreparedTextBuilder(0.0f, 0.0f, this.outlineColor, false, this.includeEmpty);
         for i in -1..=1 {
@@ -108,7 +109,8 @@ impl GuiOutlinedTextRenderState {
     }
 
     /// java: @Override public PreparedText ensurePrepared()
-    pub fn ensure_prepared(&mut self) -> PreparedText {
+    pub fn ensure_prepared(&mut self) -> OutlineGlyphDrawable {
+        // (Java's static type is PreparedText; the object is the OutlineGlyphDrawable this class prepares)
         if self.preparation.is_none() {
             self.preparation = Some(OutlineGlyphDrawable::new(self.prepare_outline(), self.prepare_text()));
         }

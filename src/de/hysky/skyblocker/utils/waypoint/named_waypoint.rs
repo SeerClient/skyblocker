@@ -66,7 +66,11 @@ pub static COLEWEIGHT_CODEC: compat::MainThread<CodecRef<compat::Shared<dyn Name
 /// java: static final Codec<NamedWaypoint> SKYBLOCKER_LEGACY_ORDERED_CODEC = RecordCodecBuilder.create(instance -> instance.group( BlockPos.CODEC.fieldOf("pos").forGetter(waypoint -> waypoint.pos), Codec.float
 pub static SKYBLOCKER_LEGACY_ORDERED_CODEC: compat::MainThread<CodecRef<compat::Shared<dyn NamedWaypoint>>> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `SKYBLOCKER_LEGACY_ORDERED_CODEC` - see the TODO above"));
 /// java: public static final Comparator<NamedWaypoint> NAME_COMPARATOR = new NameComparator();
-pub static NAME_COMPARATOR: compat::MainThread<Arc<dyn Fn(&compat::Shared<dyn NamedWaypoint>, &compat::Shared<dyn NamedWaypoint>) -> std::cmp::Ordering>> = compat::MainThread::new(|| NameComparator::new());
+pub static NAME_COMPARATOR: compat::MainThread<Arc<dyn Fn(&compat::Shared<dyn NamedWaypoint>, &compat::Shared<dyn NamedWaypoint>) -> std::cmp::Ordering>> = compat::MainThread::new(|| {
+    // the comparator object, as the closure type the port's sorts take (its int answer as an Ordering)
+    let comparator: NameComparator = NameComparator::new();
+    Arc::new(move |o1: &compat::Shared<dyn NamedWaypoint>, o2: &compat::Shared<dyn NamedWaypoint>| comparator.compare(o1, o2).cmp(&0))
+});
 // TODO(fabric2seer): `.map(..)` on a A
 //   java: public static final Codec<ColeweightOptions> CODEC = RecordCodecBuilder.create(instance -> instance.group(
 //   java: 				Codec.either(Codec.STRING, Codec.INT).xmap(either -> either.map(Function.identity(), Object::toString), Either::left).optionalFieldOf("name").forGetter(ColeweightOptions::name)
@@ -399,10 +403,10 @@ impl dyn NamedWaypoint {
 
 impl NamedWaypoint for NamedWaypointBase {
     fn named_waypoint_base(&self) -> &NamedWaypointBase {
-        &self
+        self
     }
     fn named_waypoint_base_mut(&mut self) -> &mut NamedWaypointBase {
-        &mut self
+        self
     }
 
 }

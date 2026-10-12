@@ -19,9 +19,9 @@ pub struct RangedSliderWidget {
     /// java: private final double max;
     pub max: f64,
     /// java: private final Double2ObjectFunction<Component> formatter;
-    pub formatter: crate::unresolved::Double2ObjectFunction,
+    pub formatter: Arc<dyn Fn(f64) -> MutableComponent>,
     /// java: private final DoubleConsumer callback;
-    pub callback: crate::unresolved::DoubleConsumer,
+    pub callback: Arc<dyn Fn(f64)>,
     /// java: private final double step;
     pub step: f64,
 }
@@ -41,12 +41,12 @@ impl std::ops::DerefMut for RangedSliderWidget {
 
 impl RangedSliderWidget {
     /// java: public RangedSliderWidget(int x, int y, int width, int height, double defaultValue, double min, double max, double step, Double2ObjectFunction<Component> formatter, DoubleConsumer callback)
-    pub fn new(mut x: i32, mut y: i32, mut width: i32, mut height: i32, mut default_value: f64, mut min: f64, mut max: f64, mut step: f64, mut formatter: crate::unresolved::Double2ObjectFunction, mut callback: crate::unresolved::DoubleConsumer) -> Self {
+    pub fn new(mut x: i32, mut y: i32, mut width: i32, mut height: i32, mut default_value: f64, mut min: f64, mut max: f64, mut step: f64, mut formatter: Arc<dyn Fn(f64) -> MutableComponent>, mut callback: Arc<dyn Fn(f64)>) -> Self {
         let __init_min = min;
         let __init_max = max;
         let __init_step = step;
-        let __init_formatter = formatter.clone();
-        let __init_callback = callback.clone();
+        let __init_formatter = formatter;
+        let __init_callback = callback;
         // TODO(fabric2seer): `new` takes 1 argument(s) in the port (`initial_value: f64`), Java passes 6
         //   java: super(x, y, width, height, Component.empty(), 0);
         let mut this: Self = todo!("constructor");
@@ -76,9 +76,10 @@ impl RangedSliderWidget {
     }
 
     /// java: @Override protected void updateMessage()
-    pub fn update_message(&self) {
-        // TODO(fabric2seer): `.apply(..)` on a Double2ObjectFunction
-        //   java: setMessage(this.formatter.apply(getValue()));
+    pub fn update_message(&mut self) {
+        // java: setMessage(this.formatter.apply(getValue()));
+        let __message = (self.formatter)(self.get_value());
+        self.base.set_message_text(mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(__message));
     }
 
     /// java: public double getValue()
@@ -90,8 +91,8 @@ impl RangedSliderWidget {
 
     /// java: @Override protected void applyValue()
     pub fn apply_value(&mut self) {
-        // TODO(fabric2seer): `.accept(..)` on a DoubleConsumer
-        //   java: callback.accept(getValue());
+        // java: callback.accept(getValue());
+        (self.callback)(self.get_value());
     }
 
     /// java: @Override public void onRelease(MouseButtonEvent click)
@@ -108,6 +109,8 @@ impl RangedSliderWidget {
 // NOTE(fabric2seer): applyValue, onRelease, updateMessage override(s) of AbstractSliderButton - the port dispatches its own calls, so these run only where the mod calls them; hook the port's method to make the game call them
 
 /// java: public static class Builder
+///
+/// Each setter is Java's `return this;` - the builder is handed on, so the chain keeps writing the one object.
 pub struct Builder {
     /// java: private int x, y, width = Button.DEFAULT_WIDTH, height = Button.DEFAULT_HEIGHT;
     pub x: i32,
@@ -126,9 +129,9 @@ pub struct Builder {
     /// java: private double value, min = 0, max = 1, step;
     pub step: f64,
     /// java: private Double2ObjectFunction<Component> formatter = d -> Component.literal(Formatters.DOUBLE_NUMBERS.format(d));
-    pub formatter: crate::unresolved::Double2ObjectFunction,
+    pub formatter: Arc<dyn Fn(f64) -> MutableComponent>,
     /// java: private DoubleConsumer callback = _ -> {};
-    pub callback: crate::unresolved::DoubleConsumer,
+    pub callback: Arc<dyn Fn(f64)>,
 }
 
 impl Builder {
@@ -143,8 +146,8 @@ impl Builder {
             min: ((0) as f64) as f64,
             max: ((1) as f64) as f64,
             step: 0.0,
-            formatter: Arc::new(move |d| component::literal(&formatters::DOUBLE_NUMBERS.get_mut().format(d.clone()))),
-            callback: Arc::new(move |_| {
+            formatter: Arc::new(move |d: f64| component::literal(&formatters::DOUBLE_NUMBERS.get_mut().format(d))),
+            callback: Arc::new(move |_: f64| {
 
         }),
         };
@@ -152,65 +155,71 @@ impl Builder {
     }
 
     /// java: public Builder position(int x, int y)
-    pub fn position(&mut self, mut x: i32, mut y: i32) -> Builder {
+    pub fn position(mut self, mut x: i32, mut y: i32) -> Builder {
         self.x = x;
         self.y = y;
-        return self.clone();
+        return self;
     }
 
     /// java: public Builder width(int width)
-    pub fn width(&mut self, mut width: i32) -> Builder {
+    pub fn width(mut self, mut width: i32) -> Builder {
         self.width = width;
-        return self.clone();
+        return self;
     }
 
     /// java: public Builder height(int height)
-    pub fn height(&mut self, mut height: i32) -> Builder {
+    pub fn height(mut self, mut height: i32) -> Builder {
         self.height = height;
-        return self.clone();
+        return self;
     }
 
     /// java: public Builder minMax(double min, double max)
-    pub fn min_max(&mut self, mut min: f64, mut max: f64) -> Builder {
+    pub fn min_max(mut self, mut min: f64, mut max: f64) -> Builder {
         self.min = min;
         self.max = max;
-        return self.clone();
+        return self;
     }
 
     /// java: public Builder step(double step)
-    pub fn step(&mut self, mut step: f64) -> Builder {
+    pub fn step(mut self, mut step: f64) -> Builder {
         self.step = step;
-        return self.clone();
+        return self;
     }
 
     /// java: public Builder defaultValue(double value)
-    pub fn default_value(&mut self, mut value: f64) -> Builder {
+    pub fn default_value(mut self, mut value: f64) -> Builder {
         self.value = value;
-        return self.clone();
+        return self;
     }
 
     /// java: public Builder optionFormatter(Component optionName, NumberFormat formatter)
-    pub fn option_formatter(&mut self, option_name: &MutableComponent, formatter: &DecimalFormat) -> Builder {
-        return self.option_formatter(option_name, &Arc::new(move |d| component::literal(&formatter.format(d.clone()))));
+    pub fn option_formatter(self, option_name: &MutableComponent, formatter: &DecimalFormat) -> Builder {
+        // java: return optionFormatter(optionName, d -> Component.literal(formatter.format(d)));
+        // (the lambda keeps the format object; `DecimalFormat.format` reads only its pattern, so the lambda holds its
+        // own copy of that pattern)
+        let formatter: DecimalFormat = formatter.clone();
+        return self.option_formatter_component_double2_object_function(option_name, &(Arc::new(move |d: f64| component::literal(&formatter.format(d))) as Arc<dyn Fn(f64) -> MutableComponent>));
     }
 
     /// java: public Builder optionFormatter(Component optionName, Double2ObjectFunction<Component> formatter)
-    pub fn option_formatter_component_double2_object_function(&mut self, option_name: &MutableComponent, formatter: &crate::unresolved::Double2ObjectFunction) -> Builder {
-        // TODO(fabric2seer): `.apply(..)` on a Double2ObjectFunction
-        //   java: return formatter(d -> CommonComponents.optionNameValue(optionName, formatter.apply(d)));
-        todo!("fabric2seer: the value of this function is in a TODO above")
+    pub fn option_formatter_component_double2_object_function(self, option_name: &MutableComponent, formatter: &Arc<dyn Fn(f64) -> MutableComponent>) -> Builder {
+        // java: return formatter(d -> CommonComponents.optionNameValue(optionName, formatter.apply(d)));
+        // (`optionNameValue(Component, Component)` is `Component.translatable("options.generic_value", caption, value)`)
+        let option_name: MutableComponent = option_name.clone();
+        let formatter: Arc<dyn Fn(f64) -> MutableComponent> = formatter.clone();
+        return self.formatter(Arc::new(move |d: f64| component::translatable_args("options.generic_value", vec![mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(option_name.clone()), mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from((formatter)(d))])));
     }
 
     /// java: public Builder formatter(Double2ObjectFunction<Component> formatter)
-    pub fn formatter(&mut self, mut formatter: crate::unresolved::Double2ObjectFunction) -> Builder {
-        self.formatter = formatter.clone();
-        return self.clone();
+    pub fn formatter(mut self, formatter: Arc<dyn Fn(f64) -> MutableComponent>) -> Builder {
+        self.formatter = formatter;
+        return self;
     }
 
     /// java: public Builder callback(DoubleConsumer callback)
-    pub fn callback(&mut self, mut callback: crate::unresolved::DoubleConsumer) -> Builder {
-        self.callback = callback.clone();
-        return self.clone();
+    pub fn callback(mut self, callback: Arc<dyn Fn(f64)>) -> Builder {
+        self.callback = callback;
+        return self;
     }
 
     /// java: public RangedSliderWidget build()

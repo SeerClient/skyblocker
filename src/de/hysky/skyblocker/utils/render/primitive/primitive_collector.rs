@@ -14,7 +14,7 @@ use mcrust::net::minecraft::world::phys::vec3::Vec3;
 pub trait PrimitiveCollector: compat::DynAny {
     fn as_any(&self) -> &dyn std::any::Any;
     /// java: <S> void submitVanilla(S state, VanillaRenderer<S> renderer);
-    fn submit_vanilla<S: 'static>(&mut self, state: &S, renderer: &compat::Shared<dyn VanillaRenderer<S>>) where Self: Sized;
+    fn submit_vanilla<S: Clone + 'static>(&mut self, state: &S, renderer: &compat::Shared<dyn VanillaRenderer<S>>) where Self: Sized;
 
     /// java: void submitFilledBoxWithBeaconBeam(BlockPos pos, float[] colourComponents, float alpha, boolean throughWalls); (dispatch: the body for this class)
     fn submit_filled_box_with_beacon_beam(&self) -> fn(&compat::Shared<dyn PrimitiveCollector>, &BlockPos, &Vec<f32>, f32, bool);

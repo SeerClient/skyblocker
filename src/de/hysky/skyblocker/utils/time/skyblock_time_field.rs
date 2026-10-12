@@ -68,18 +68,18 @@ impl SkyblockTimeField {
     }
 
     /// java: @Override public TemporalUnit getBaseUnit()
-    pub fn get_base_unit(&self) -> crate::unresolved::TemporalUnit {
-        return self.fields().base_unit.clone();
+    pub fn get_base_unit(&self) -> &'static crate::unresolved::TemporalUnit {
+        return &self.fields().base_unit;
     }
 
     /// java: @Override public TemporalUnit getRangeUnit()
-    pub fn get_range_unit(&self) -> crate::unresolved::TemporalUnit {
-        return self.fields().range_unit.clone();
+    pub fn get_range_unit(&self) -> &'static crate::unresolved::TemporalUnit {
+        return &self.fields().range_unit;
     }
 
     /// java: @Override public ValueRange range()
-    pub fn range(&self) -> crate::unresolved::ValueRange {
-        return self.fields().range.clone();
+    pub fn range(&self) -> &'static crate::unresolved::ValueRange {
+        return &self.fields().range;
     }
 
     /// java: @Override public boolean isDateBased()
@@ -100,8 +100,8 @@ impl SkyblockTimeField {
     }
 
     /// java: @Override public ValueRange rangeRefinedBy(TemporalAccessor temporal)
-    pub fn range_refined_by(&self, temporal: &crate::unresolved::TemporalAccessor) -> crate::unresolved::ValueRange {
-        return self.fields().range.clone();
+    pub fn range_refined_by(&self, temporal: &crate::unresolved::TemporalAccessor) -> &'static crate::unresolved::ValueRange {
+        return &self.fields().range;
     }
 
     /// java: @Override public long getFrom(TemporalAccessor temporal)
@@ -124,7 +124,7 @@ impl SkyblockTimeField {
             // TODO(fabric2seer): `.getDuration(..)` on a TemporalUnit
             //   java: value = seconds / baseUnit.getDuration().getSeconds();
         }
-        if *self != HOUR_OF_DAY {
+        if *self != SkyblockTimeField::HourOfDay {
             value += 1;
         }
         return value;
@@ -161,13 +161,10 @@ pub struct SkyblockTimeFieldFields {
 impl SkyblockTimeFieldFields {
     fn new(mut base_unit: crate::unresolved::TemporalUnit, mut range_unit: crate::unresolved::TemporalUnit, mut range: crate::unresolved::ValueRange) -> Self {
         let mut this = Self {
-            base_unit: Default::default(),
-            range_unit: Default::default(),
-            range: Default::default(),
+            base_unit,
+            range_unit,
+            range,
         };
-        this.base_unit = base_unit.clone();
-        this.range_unit = range_unit.clone();
-        this.range = range.clone();
         this
     }
 

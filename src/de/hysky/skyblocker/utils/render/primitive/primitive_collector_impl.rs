@@ -53,7 +53,8 @@ pub struct PrimitiveCollectorImpl {
     /// java: private final Frustum frustum;
     pub frustum: Frustum,
     /// java: private final List<VanillaSubmittable<?>> vanillaSubmittables = new ArrayList<>();
-    pub vanilla_submittables: Vec<VanillaSubmittable<compat::Object>>,
+    /// (`List<VanillaSubmittable<?>>`: each record behind its type-erased submit)
+    pub vanilla_submittables: Vec<std::rc::Rc<dyn ErasedVanillaSubmittable>>,
     /// java: private final List<FilledBoxRenderState> filledBoxStates = new ArrayList<>();
     pub filled_box_states: Vec<FilledBoxRenderState>,
     /// java: private final List<FilledBoxRenderState> filledBoxThroughWallsStates = new ArrayList<>();
@@ -157,24 +158,25 @@ impl PrimitiveCollectorImpl {
         }
         let mut colour: i32 = argb::color_from_float(1.0f32, colour_components[(0) as usize], colour_components[(1) as usize], colour_components[(2) as usize]);
         let mut length: f32 = ((RenderHelper::get_camera().position().subtract_vec(&vec3::at_center_of(&pos)).horizontal_distance()) as f32);
-        let mut state: BeaconRenderState = BeaconRenderState::new();
-        // TODO(fabric2seer): `BlockEntityRenderState.block_pos` is a field of the port's `BlockEntityRenderState`, which the port's `BeaconRenderState` does not hold (no Deref, no `base` field)
-        // rust: state.block_pos = pos.clone();
-        state.block_state = blocks::blocks().get("beacon").default_block_state();
-        // TODO(fabric2seer): `BlockEntityRenderState.block_entity_type` is a field of the port's `BlockEntityRenderState`, which the port's `BeaconRenderState` does not hold (no Deref, no `base` field)
-        // TODO(fabric2seer): the mod keeps the game's `BlockEntityType` (Java holds a reference to the live object); the port's `BlockEntityType` is not a value to copy and the port lends the mod no handle to it
-        // rust: state.block_entity_type = mcrust::net::minecraft::world::level::block::entity::block_entity_types::beacon().clone();
-        // TODO(fabric2seer): `BlockEntityRenderState.light_coords` is a field of the port's `BlockEntityRenderState`, which the port's `BeaconRenderState` does not hold (no Deref, no `base` field)
-        // rust: state.light_coords = mcrust::net::minecraft::util::light_coords_util::FULL_BRIGHT;
-        // TODO(fabric2seer): `BlockEntityRenderState.break_progress` is a field of the port's `BlockEntityRenderState`, which the port's `BeaconRenderState` does not hold (no Deref, no `base` field)
-        // rust: state.break_progress = None;
-        // TODO(fabric2seer): `DeltaTracker.getGameTimeDeltaPartialTick` has no Rust method in the port (looked for `get_game_time_delta_partial_tick` in DeltaTracker and its supertypes)
-        // rust: state.animation_time = (if mcrust::mcrust::modding::game::level().is_some() { ((compat::floor_mod_i64(mcrust::mcrust::modding::game::level().unwrap().get_game_time(), (40 as i64)) as f32) + compat::minecraft().get_delta_tracker().get_game_time_delta_partial_tick(true)) } else { 0.0f32 });
-        // TODO(fabric2seer): `new Section(..)`: the port has no `Section::new`
-        // rust: state.sections.push(Section::new(colour, MAX_OVERWORLD_BUILD_HEIGHT));
-        state.beam_radius_scale = (if mcrust::mcrust::modding::game::with_player(|_| ()).is_some() && mcrust::mcrust::modding::game::with_player(|player| player.is_scoping()).unwrap_or(false) { 1.0f32 } else { (1.0f32).max((length / 96.0f32)) });
-        let __h0 = state.clone();
-        __this.lock().borrow().world_state.block_entity_render_states.push(__h0);
+        // java: BeaconRenderState state = new BeaconRenderState(); - the port's beacon state is its BlockEntityRenderState
+        // half (`base`) with the beacon's own fields (`beacon`)
+        let mut state = mcrust::net::minecraft::client::renderer::blockentity::beacon_renderer::BeaconRenderStateFull {
+            base: mcrust::net::minecraft::client::renderer::blockentity::state::block_entity_render_state::BlockEntityRenderState::new(),
+            beacon: BeaconRenderState::new(),
+        };
+        state.base.block_pos = pos.clone();
+        // java: state.blockState = Blocks.BEACON.defaultBlockState();
+        // rust: port gap - `BlockEntityRenderState.block_state` is private in the port (only `extract_base` writes it) and
+        // has no setter; the field keeps its default (air), which only the crash report category reads (GAPS_batchA.md)
+        state.base.block_entity_type = mcrust::net::minecraft::world::level::block::entity::block_entity_types::beacon();
+        state.base.light_coords = mcrust::net::minecraft::util::light_coords_util::FULL_BRIGHT;
+        state.base.break_progress = None;
+        state.beacon.animation_time = (if mcrust::mcrust::modding::game::level().is_some() { ((compat::floor_mod_i64(mcrust::mcrust::modding::game::level().unwrap().get_game_time(), (40 as i64)) as f32) + compat::minecraft().get_delta_tracker().get_game_time_delta_partial_tick(true)) } else { 0.0f32 });
+        state.beacon.sections.push(Section { color: colour, height: MAX_OVERWORLD_BUILD_HEIGHT });
+        state.beacon.beam_radius_scale = (if mcrust::mcrust::modding::game::with_player(|_| ()).is_some() && mcrust::mcrust::modding::game::with_player(|player| player.is_scoping()).unwrap_or(false) { 1.0f32 } else { (1.0f32).max((length / 96.0f32)) });
+        // java: this.worldState.blockEntityRenderStates.add(state);
+        let __h0 = mcrust::net::minecraft::client::renderer::blockentity::state::block_entity_render_state::PooledBlockEntityRenderState::new(Box::new(state));
+        __this.lock().borrow_mut().world_state.block_entity_render_states.push(__h0);
     }
 
     /// java: private void submitOutlinedBox(double minX, double minY, double minZ, double maxX, double maxY, double maxZ, float[] colourComponents, float alpha, float lineWidth, boolean throughWalls)
@@ -197,7 +199,7 @@ impl PrimitiveCollectorImpl {
     pub fn submit_text_formatted_char_sequence_vec3_float_float_boolean(__this: &compat::Shared<Self>, text: &Seq, pos: &Vec3, mut scale: f32, mut y_offset: f32, mut through_walls: bool) {
         PrimitiveCollectorImpl::ensure_not_frozen(__this);
         let mut text_renderer: Font = compat::font();
-        let mut x_offset: f32 = (((-text_renderer.width_of_sequence(text)) as f32) / 2.0f32);
+        let mut x_offset: f32 = (((-text_renderer.width_of_sequence(&**text)) as f32) / 2.0f32);
         // TODO(fabric2seer): the port's `prepare_text` ports this Java method with other parameters (text, x, y, color, drop_shadow, background_color for Java's text, x, y, original_color, draw_shadow, include_empty, background_color)
         // TODO(fabric2seer): `prepare_text` takes 6 argument(s) in the port (`text: &crate::net::minecraft::network::chat::formatted_text::FormattedText, x: f32, y: f32, color: i32, drop_shadow: bool, background_color: i32`), Java passes 7
         // rust: let mut glyphs: PreparedText = text_renderer.prepare_text(text, x_offset, y_offset, mcrust::net::minecraft::util::common_colors::WHITE, false, false, 0);
@@ -232,7 +234,8 @@ impl PrimitiveCollectorImpl {
         let camera = &level_state.camera_render_state;
         if !(__this.lock().borrow().vanilla_submittables.is_empty()) {
             for submittable in compat::read(__this, |__t| __t.vanilla_submittables.clone()) {
-                { let (__a0, __a1, __a2,) = (&submittable.state(), level_state, submit_node_collector,); submittable.renderer.lock().borrow().submit_vanilla(__a0, __a1, __a2) };
+                // java: ((VanillaSubmittable<Object>) submittable).renderer().submitVanilla(submittable.state(), levelState, submitNodeCollector);
+                submittable.submit(level_state, submit_node_collector);
             }
         }
         if !(__this.lock().borrow().filled_box_states.is_empty()) {
@@ -339,7 +342,7 @@ impl PrimitiveCollector for PrimitiveCollectorImpl {
     /// java: @Override public <S> void submitVanilla(S state, VanillaRenderer<S> renderer)
     fn submit_vanilla<S: Clone + 'static>(&mut self, state: &S, renderer: &compat::Shared<dyn VanillaRenderer<S>>) where Self: Sized {
         PrimitiveCollectorImpl::ensure_not_frozen(&self.self_ref.upgrade().unwrap());
-        self.vanilla_submittables.push(VanillaSubmittable::new(state.clone(), renderer.clone()));
+        self.vanilla_submittables.push(std::rc::Rc::new(VanillaSubmittable::new(state.clone(), renderer.clone())) as std::rc::Rc<dyn ErasedVanillaSubmittable>);
     }
 
     /// java: @Override public void submitFilledBoxWithBeaconBeam(BlockPos pos, float[] colourComponents, float alpha, boolean throughWalls) (dispatch: the body for this class)
@@ -695,7 +698,7 @@ impl PrimitiveCollectorImpl {
 }
 
 /// java: private record VanillaSubmittable<S>(S state, VanillaRenderer<S> renderer)
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct VanillaSubmittable<S> {
     /// java: S state
     pub state: S,
@@ -719,4 +722,16 @@ impl<S: Clone + 'static> VanillaSubmittable<S> {
         self.renderer.clone()
     }
 
+}
+
+/// A `VanillaSubmittable<?>` of the collector's list: its renderer handed its own state (the record's type parameter
+/// erased, as Java's wildcard list holds it).
+pub trait ErasedVanillaSubmittable {
+    fn submit(&self, level_state: &LevelRenderState, submit_node_collector: &dyn SubmitNodeCollector);
+}
+
+impl<S: Clone + 'static> ErasedVanillaSubmittable for VanillaSubmittable<S> {
+    fn submit(&self, level_state: &LevelRenderState, submit_node_collector: &dyn SubmitNodeCollector) {
+        compat::read(&self.renderer, |renderer| renderer.submit_vanilla(&self.state, level_state, submit_node_collector));
+    }
 }

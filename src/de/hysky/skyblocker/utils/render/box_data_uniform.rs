@@ -60,7 +60,7 @@ impl AbstractUniformTexelBuffer<crate::de::hysky::skyblocker::utils::render::sta
     /// java: @Override protected void writeToBuffer(int index, FilledBoxRenderState state, CameraRenderState camera, MemorySegment buffer)
     fn write_to_buffer_4(&self, mut index: i32, state: &FilledBoxRenderState, camera: &CameraRenderState, buffer: &mut crate::unresolved::MemorySegment) {
         let mut offset: i64 = ((index.wrapping_mul(*BYTES_PER_BOX)) as i64) as i64;
-        let mut colour: i32 = AbstractUniformTexelBufferBase::to_native_rgba(argb::color_from_float(state.alpha(), state.colour_components()[(0) as usize], state.colour_components()[(1) as usize], state.colour_components()[(2) as usize]));
+        let mut colour: i32 = AbstractUniformTexelBufferBase::<FilledBoxRenderState>::to_native_rgba(argb::color_from_float(state.alpha(), state.colour_components()[(0) as usize], state.colour_components()[(1) as usize], state.colour_components()[(2) as usize]));
         // TODO(fabric2seer): `.set(..)` on a MemorySegment
         //   java: buffer.set(ValueLayout.JAVA_FLOAT, offset + 0L, (float) (state.minX() - camera.pos.x));
         // TODO(fabric2seer): `.set(..)` on a MemorySegment

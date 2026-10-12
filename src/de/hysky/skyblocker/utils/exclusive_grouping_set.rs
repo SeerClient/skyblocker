@@ -13,7 +13,7 @@ pub struct ExclusiveGroupingSet<T> {
     pub sets: Vec<std::collections::HashSet<T>>,
 }
 
-impl<T: Clone + 'static> ExclusiveGroupingSet<T> {
+impl<T: Clone + Eq + std::hash::Hash + 'static> ExclusiveGroupingSet<T> {
     /// java: public ExclusiveGroupingSet()
     pub fn new() -> compat::Shared<Self> {
         let __this = Self::new_1(Vec::new());
@@ -22,7 +22,7 @@ impl<T: Clone + 'static> ExclusiveGroupingSet<T> {
 
     /// java: private ExclusiveGroupingSet(List<Set<T>> sets)
     pub fn new_1(mut sets: Vec<std::collections::HashSet<T>>) -> compat::Shared<Self> {
-        let __init_sets = sets.clone();
+        let __init_sets = sets;
         let __this = compat::shared(Self {
             sets: __init_sets,
         });
@@ -30,50 +30,56 @@ impl<T: Clone + 'static> ExclusiveGroupingSet<T> {
     }
 
     /// java: public static <T extends Enum<T>> Codec<ExclusiveGroupingSet<T>> getCodec(Codec<Set<T>> setCodec)
-    pub fn get_codec<T: 'static>(set_codec: &CodecRef<std::collections::HashSet<T>>) -> CodecRef<compat::Shared<ExclusiveGroupingSet<T>>> {
-        // TODO(fabric2seer): static call Function.identity(..)
-        //   java: return setCodec.listOf()
-        //   java: 				.<List<Set<T>>>xmap(ArrayList::new, Function.identity())
-        //   java: 				.xmap(ExclusiveGroupingSet::new, s -> s.sets);
-        todo!("fabric2seer: the value of this function is in a TODO above")
+    pub fn get_codec(set_codec: &CodecRef<std::collections::HashSet<T>>) -> CodecRef<compat::Shared<ExclusiveGroupingSet<T>>> {
+        // java: return setCodec.listOf().<List<Set<T>>>xmap(ArrayList::new, Function.identity())
+        //           .xmap(ExclusiveGroupingSet::new, s -> s.sets);
+        // (`ArrayList::new` copies the decoded list into a mutable one: a `Vec` already is one)
+        let list_codec: CodecRef<Vec<std::collections::HashSet<T>>> = codec::list(set_codec.clone());
+        let mutable_list_codec: CodecRef<Vec<std::collections::HashSet<T>>> = codec::xmap(list_codec, |sets: Vec<std::collections::HashSet<T>>| sets.into_iter().collect::<Vec<_>>(), |sets: &Vec<std::collections::HashSet<T>>| sets.clone());
+        return codec::xmap(mutable_list_codec, |sets: Vec<std::collections::HashSet<T>>| ExclusiveGroupingSet::new_1(sets), |s: &compat::Shared<ExclusiveGroupingSet<T>>| compat::read(s, |__t| __t.sets.clone()));
     }
 
     /// java: public Optional<Set<T>> getGroup(T location)
     pub fn get_group(__this: &compat::Shared<Self>, location: &T) -> Option<std::collections::HashSet<T>> {
-        // TODO(fabric2seer): Set.copyOf(..)
-        //   java: return sets.stream().filter(locations -> locations.contains(location)).findAny().map(EnumSet::copyOf);
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        // java: return sets.stream().filter(locations -> locations.contains(location)).findAny().map(EnumSet::copyOf);
+        return compat::read(__this, |__t| __t.sets.iter().find(|locations| locations.contains(location)).cloned());
     }
 
     /// java: public void group(Set<T> locations)
     pub fn group(__this: &compat::Shared<Self>, locations: &std::collections::HashSet<T>) {
-        ExclusiveGroupingSet::remove_all(__this, locations);
+        ExclusiveGroupingSet::remove_all(__this, &locations.iter().cloned().collect::<Vec<_>>());
         if (locations.len() as i32) > 1 {
-            let __h0 = locations.iter().cloned().collect::<Vec<_>>();
-            __this.lock().borrow_mut().sets.push(__h0);
+            // java: sets.add(EnumSet.copyOf(locations));
+            let __h0: std::collections::HashSet<T> = locations.clone();
+            compat::write(__this, |__t| __t.sets.push(__h0));
         }
     }
 
     /// java: public void remove(T location)
     pub fn remove(__this: &compat::Shared<Self>, location: &T) {
-        for set in compat::read(__this, |__t| __t.sets.clone()) {
-            set.remove(location);
-        }
+        compat::write(__this, |__t| {
+            for set in __t.sets.iter_mut() {
+                set.remove(location);
+            }
+        });
         ExclusiveGroupingSet::clean_up(__this);
     }
 
     /// java: public void removeAll(Collection<T> locations)
     pub fn remove_all(__this: &compat::Shared<Self>, locations: &Vec<T>) {
-        for set in compat::read(__this, |__t| __t.sets.clone()) {
-            { for __x in locations.iter().cloned() { set.remove(&__x); } };
-        }
+        compat::write(__this, |__t| {
+            for set in __t.sets.iter_mut() {
+                for __x in locations.iter() {
+                    set.remove(__x);
+                }
+            }
+        });
         ExclusiveGroupingSet::clean_up(__this);
     }
 
     /// java: public void cleanUp()
     pub fn clean_up(__this: &compat::Shared<Self>) {
-        let __h0 = |s| !(((s.len() as i32) <= 1));
-        __this.lock().borrow_mut().sets.retain(__h0);
+        compat::write(__this, |__t| __t.sets.retain(|s| !((s.len() as i32) <= 1)));
     }
 
 }

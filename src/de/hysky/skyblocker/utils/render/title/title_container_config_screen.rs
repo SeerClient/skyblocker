@@ -28,7 +28,9 @@ pub const MIN_TITLE_SCALE: f32 = 30.0f32;
 /// java: public static final float MAX_TITLE_SCALE = 140f;
 pub const MAX_TITLE_SCALE: f32 = 140.0f32;
 /// java: private static final Set<Title> EXAMPLES = ImmutableSet.of( new Title(Component.literal("Test1").withStyle(ChatFormatting.RED)), new Title(Component.literal("Test23").withStyle(ChatFormatting.AQUA)), 
-pub static EXAMPLES: compat::MainThread<std::collections::HashSet<compat::Shared<Title>>> = compat::MainThread::new(|| std::collections::HashSet::from([Title::new_1(component::literal("Test1").with_style_format(ChatFormatting::Red)), Title::new_1(component::literal("Test23").with_style_format(ChatFormatting::Aqua)), Title::new_1(component::literal("Testing1234").with_style_format(ChatFormatting::DarkGreen))]));
+///
+/// (an identity set in insertion order, as `TitleContainer`'s titles are: `ImmutableSet.of` keeps its argument order)
+pub static EXAMPLES: compat::MainThread<Vec<compat::Shared<Title>>> = compat::MainThread::new(|| Vec::from([Title::new_1(component::literal("Test1").with_style_format(ChatFormatting::Red)), Title::new_1(component::literal("Test23").with_style_format(ChatFormatting::Aqua)), Title::new_1(component::literal("Testing1234").with_style_format(ChatFormatting::DarkGreen))]));
 
 /// java: public class TitleContainerConfigScreen extends HudConfigScreen
 pub struct TitleContainerConfigScreen {
@@ -66,7 +68,7 @@ impl TitleContainerConfigScreen {
 
     /// java: public TitleContainerConfigScreen(@Nullable Screen parent)
     pub fn new_1(mut parent: Option<mcrust::net::minecraft::client::gui::screens::screen::Screen>) -> compat::Shared<Self> {
-        let (_, __this) = HudConfigScreenBase::new_in(component::null_to_empty(Some("Title Container HUD Config")), parent.clone(), (EmptyWidget::new() as compat::Shared<dyn BasicWidget>), move |__base| {
+        let (_, __this) = HudConfigScreenBase::new_in(component::null_to_empty(Some("Title Container HUD Config")), parent, (EmptyWidget::new() as compat::Shared<dyn BasicWidget>), move |__base| {
             let __h = compat::shared(Self {
                 base: __base,
                 direction: Direction::Vertical,
@@ -82,7 +84,8 @@ impl TitleContainerConfigScreen {
     /// java: private void updateWidgetDimensions()
     pub fn update_widget_dimensions(__this: &compat::Shared<Self>) {
         { let __v = (compat::read(__this, |__t| __t.title_container_scale) * title_container::RENDER_SCALE); compat::write(__this, |__t| __t.render_scale = __v); }
-        ({ let __r = &__this.lock().borrow().widgets[0]; let __f = compat::dispatch(__r, |__t| __t.set_dimensions_2()); __f(__r, TitleContainerConfigScreen::get_selection_width(__this), TitleContainerConfigScreen::get_selection_height(__this)) });
+        // java: widgets.getFirst().setDimensions(..) - the widget handle is read out before the call re-enters the screen
+        ({ let __r = &compat::read(__this, |__t| __t.widgets[0].clone()); let __f = compat::dispatch(__r, |__t| __t.set_dimensions_2()); __f(__r, TitleContainerConfigScreen::get_selection_width(__this), TitleContainerConfigScreen::get_selection_height(__this)) });
     }
 
     /// java: private int getSelectionWidth()

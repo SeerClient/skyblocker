@@ -10,6 +10,9 @@ use mcrust::net::minecraft::network::chat::mutable_component::MutableComponent;
 use mcrust::net::minecraft::resources::identifier::Identifier;
 use mcrust::net::minecraft::util::formatted_char_sequence::FormattedCharSequence;
 use mcrust::net::minecraft::util::formatted_char_sequence::Seq;
+use mcrust::net::minecraft::client::gui::components::toasts::toast::Token;
+use mcrust::net::minecraft::client::gui::components::toasts::toast::Visibility;
+use mcrust::net::minecraft::network::chat::formatted_text::FormattedText;
 
 /// java: private static final Identifier TEXTURE = SkyblockerMod.id("notification");
 pub static TEXTURE: compat::MainThread<Identifier> = compat::MainThread::new(|| crate::entry::skyblocker_mod::id("notification"));
@@ -21,53 +24,54 @@ pub struct BasicToast {
     /// java: private final @Nullable ItemStack icon;
     pub icon: Option<mcrust::net::minecraft::world::item::item_stack::ItemStack>,
     /// java: private final List<FormattedCharSequence> lines;
-    pub lines: Vec<Seq>,
+    /// (the port's `Font.split` answers each line as the `FormattedText` its draws take)
+    pub lines: Vec<FormattedText>,
     /// java: private final int width;
     pub width: i32,
     /// java: private final Object token;
-    pub token: Option<compat::Object>,
+    /// (the port's `Toast.getToken` answers its closed set of tokens, `Token`; see GAPS_batchA.md)
+    pub token: Token,
     /// java: private Visibility visibility = Visibility.SHOW;
-    pub visibility: crate::unresolved::Visibility,
+    pub visibility: Visibility,
 }
 
 impl BasicToast {
     /// java: public BasicToast(Component message, long displayDuration, @Nullable ItemStack icon, Object token)
-    pub fn new(mut message: MutableComponent, mut display_duration: i64, mut icon: Option<mcrust::net::minecraft::world::item::item_stack::ItemStack>, mut token: compat::Object) -> Self {
+    pub fn new(mut message: MutableComponent, mut display_duration: i64, mut icon: Option<mcrust::net::minecraft::world::item::item_stack::ItemStack>, token: Token) -> Self {
         let mut text_renderer: Font = compat::font();
         let __init_lines = text_renderer.split(&mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(message.clone()), 200);
         let __init_display_duration = display_duration;
         let __init_icon = icon.clone();
-        let __init_token = Some(token.clone());
-        // TODO(fabric2seer): the initialiser of `visibility`: static field Visibility.SHOW
-        //   java: private Visibility visibility = Visibility.SHOW;
+        let __init_token = token;
         let mut this = Self {
             display_duration: __init_display_duration,
             icon: __init_icon,
             lines: __init_lines,
             width: 0,
             token: __init_token,
-            visibility: Default::default(),
+            // java: private Visibility visibility = Visibility.SHOW;
+            visibility: Visibility::Show,
         };
-        this.width = (this.lines.iter().cloned().map(|__a0| text_renderer.width_of_sequence(&__a0)).max().unwrap_or(200)).wrapping_add(if icon.is_none() { 10 } else { 30 });
+        this.width = (this.lines.iter().cloned().map(|__a0| text_renderer.width_of_cached(&__a0)).max().unwrap_or(200)).wrapping_add(if icon.is_none() { 10 } else { 30 });
         this
     }
 
     /// java: public BasicToast(Component message, long displayDuration, @Nullable ItemStack icon)
     pub fn new_3(mut message: MutableComponent, mut display_duration: i64, mut icon: Option<mcrust::net::minecraft::world::item::item_stack::ItemStack>) -> Self {
-        let mut this = Self::new(message.clone(), display_duration, icon.clone(), (std::sync::Arc::new(NO_TOKEN) as compat::Object));
+        let mut this = Self::new(message.clone(), display_duration, icon.clone(), Token::NoToken);
         this
     }
 
     /// java: @Override public Visibility getWantedVisibility()
-    pub fn get_wanted_visibility(&self) -> crate::unresolved::Visibility {
-        return self.visibility.clone();
+    pub fn get_wanted_visibility(&self) -> Visibility {
+        return self.visibility;
     }
 
     /// java: @Override public void update(ToastManager manager, long time)
     pub fn update(&mut self, manager: &ToastManager, mut time: i64) {
         if time > self.display_duration {
-            // TODO(fabric2seer): static field Visibility.HIDE
-            //   java: visibility = Visibility.HIDE;
+            // java: visibility = Visibility.HIDE;
+            self.visibility = Visibility::Hide;
         }
     }
 
@@ -97,8 +101,8 @@ impl BasicToast {
     }
 
     /// java: @Override public Object getToken()
-    pub fn get_token(&self) -> compat::Object {
-        return self.token.clone().unwrap();
+    pub fn get_token(&self) -> Token {
+        return self.token;
     }
 
 }

@@ -124,7 +124,10 @@ impl dyn FilteredEditBox {
 
     /// java: @Override public void insertText(final String input)
     pub fn insert_text_body(__this: &compat::Shared<dyn FilteredEditBox>, input: &str) {
-        let mut accessor: crate::unresolved::EditBoxAccessor = __this;
+        // java: EditBoxAccessor accessor = (EditBoxAccessor) this; - the accessor is this edit box itself; its
+        // getHighlightPos/getMaxLength/invokeOnValueChange reach `EditBox.highlight_pos` and `onValueChange`, which
+        // the port keeps private (port gap, GAPS_batchA.md)
+        let accessor: &compat::Shared<dyn FilteredEditBox> = __this;
         // TODO(fabric2seer): `.getHighlightPos(..)` on a EditBoxAccessor
         //   java: int start = Math.min(this.getCursorPosition(), accessor.getHighlightPos());
         let mut start: i32 = todo!("fabric2seer: the initialiser of `start` (TODO above)");
@@ -163,7 +166,10 @@ impl dyn FilteredEditBox {
 
     /// java: @Override public void deleteCharsToPos(final int pos)
     pub fn delete_chars_to_pos_body(__this: &compat::Shared<dyn FilteredEditBox>, mut pos: i32) {
-        let mut accessor: crate::unresolved::EditBoxAccessor = __this;
+        // java: EditBoxAccessor accessor = (EditBoxAccessor) this; - the accessor is this edit box itself; its
+        // getHighlightPos/getMaxLength/invokeOnValueChange reach `EditBox.highlight_pos` and `onValueChange`, which
+        // the port keeps private (port gap, GAPS_batchA.md)
+        let accessor: &compat::Shared<dyn FilteredEditBox> = __this;
         if !(__this.lock().borrow().filtered_edit_box_base().get_value().is_empty()) {
             // TODO(fabric2seer): the condition: `.getHighlightPos(..)` on a EditBoxAccessor
             //   java: accessor.getHighlightPos() != this.getCursorPosition()
@@ -194,10 +200,10 @@ impl dyn FilteredEditBox {
 
 impl FilteredEditBox for FilteredEditBoxBase {
     fn filtered_edit_box_base(&self) -> &FilteredEditBoxBase {
-        &self
+        self
     }
     fn filtered_edit_box_base_mut(&mut self) -> &mut FilteredEditBoxBase {
-        &mut self
+        self
     }
 
     fn as_any(&self) -> &dyn std::any::Any {

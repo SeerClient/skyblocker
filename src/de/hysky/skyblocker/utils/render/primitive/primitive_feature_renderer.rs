@@ -17,6 +17,7 @@ use mcrust::net::minecraft::client::renderer::staged_vertex_buffer::Draw;
 use mcrust::net::minecraft::client::renderer::staged_vertex_buffer::ExecuteInfo;
 use mcrust::net::minecraft::client::renderer::staged_vertex_buffer::StagedVertexBuffer;
 use mcrust::org::joml::matrix4f_stack::Matrix4fStack;
+use std::rc::Rc;
 
 /// java: public abstract class PrimitiveFeatureRenderer<Submit extends SubmitNode> implements FeatureRenderer<Submit>
 #[derive(Clone)]
@@ -25,6 +26,8 @@ pub struct PrimitiveFeatureRendererBase<Submit> {
     pub current_group: Option<compat::Shared<Group>>,
     /// java: private final List<PrimitiveFeatureRenderer.Group> groups = new ArrayList<>();
     pub groups: Vec<compat::Shared<Group>>,
+    /// the class's type parameter (`Submit`: the submits it renders)
+    pub _submits: std::marker::PhantomData<fn() -> Submit>,
 }
 
 impl<Submit: Clone + 'static> PrimitiveFeatureRendererBase<Submit> {
@@ -33,6 +36,7 @@ impl<Submit: Clone + 'static> PrimitiveFeatureRendererBase<Submit> {
         let mut this = Self {
             current_group: None,
             groups: Vec::new(),
+            _submits: std::marker::PhantomData,
         };
         this
     }
@@ -89,17 +93,17 @@ pub trait PrimitiveFeatureRenderer<Submit> {
     fn build_group(&self, context: &FeatureFrameContext, submits: &Vec<Submit>);
 
     /// java: protected final VertexConsumer getVertexBuilder(RenderPipeline pipeline)
-    fn get_vertex_builder(&self, pipeline: &RenderPipeline) -> Box<dyn VertexConsumer> {
+    fn get_vertex_builder(&self, pipeline: &Rc<RenderPipeline>) -> Box<dyn VertexConsumer> {
         return Group::get_vertex_builder(&self.current_group(), pipeline.clone(), TextureSetup::no_texture(), instancing_parameters::NONE.get_mut().clone());
     }
 
     /// java: protected final VertexConsumer getVertexBuilder(RenderPipeline pipeline, TextureSetup textureSetup)
-    fn get_vertex_builder_render_pipeline_texture_setup(&self, pipeline: &RenderPipeline, texture_setup: &TextureSetup) -> Box<dyn VertexConsumer> {
+    fn get_vertex_builder_render_pipeline_texture_setup(&self, pipeline: &Rc<RenderPipeline>, texture_setup: &TextureSetup) -> Box<dyn VertexConsumer> {
         return Group::get_vertex_builder(&self.current_group(), pipeline.clone(), texture_setup.clone(), instancing_parameters::NONE.get_mut().clone());
     }
 
     /// java: protected final VertexConsumer getVertexBuilder(RenderPipeline pipeline, InstancingParameters instancing)
-    fn get_vertex_builder_render_pipeline_instancing_parameters(&self, pipeline: &RenderPipeline, instancing: &InstancingParameters) -> Box<dyn VertexConsumer> {
+    fn get_vertex_builder_render_pipeline_instancing_parameters(&self, pipeline: &Rc<RenderPipeline>, instancing: &InstancingParameters) -> Box<dyn VertexConsumer> {
         return Group::get_vertex_builder(&self.current_group(), pipeline.clone(), TextureSetup::no_texture(), instancing.clone());
     }
 
@@ -113,14 +117,16 @@ pub trait PrimitiveFeatureRenderer<Submit> {
         // TODO(fabric2seer): the mod keeps the game's `StagedVertexBuffer` (Java holds a reference to the live object); the port's `StagedVertexBuffer` is not a value to copy and the port lends the mod no handle to it
         // rust: self.primitive_feature_renderer_base_mut().current_group = Some(Group::new(context.staged_vertex_buffer().clone(), !strictly_ordered));
         self.build_group(context, submits);
-        self.primitive_feature_renderer_base_mut().groups.push(self.primitive_feature_renderer_base().current_group.clone().unwrap());
+        // java: this.groups.add(this.currentGroup);
+        let current_group: compat::Shared<Group> = self.primitive_feature_renderer_base().current_group.clone().unwrap();
+        self.primitive_feature_renderer_base_mut().groups.push(current_group);
         self.primitive_feature_renderer_base_mut().current_group = None;
     }
 
     /// java: @Override public final void executeGroup(FeatureFrameContext context, int groupIndex, List<Submit> submits, boolean strictlyOrdered)
     fn execute_group(&self, context: &FeatureFrameContext, mut group_index: i32, submits: &Vec<Submit>, mut strictly_ordered: bool) {
         let mut group: compat::Shared<Group> = self.primitive_feature_renderer_base().groups[(group_index) as usize].clone();
-        PrimitiveFeatureRendererBase::apply_view_offset_z_layering();
+        PrimitiveFeatureRendererBase::<Submit>::apply_view_offset_z_layering();
         let main_target = compat::minecraft().game_renderer.main_render_target();
         // TODO(fabric2seer): `with_dynamic_uniforms` takes 1 argument(s) in the port (`f: impl FnOnce(&mut DynamicUniforms) -> R`), Java passes 0
         // rust: let mut dynamic_transforms: GpuBufferSlice = render_system::with_dynamic_uniforms().write_transform(&render_system::get_model_view_matrix_copy());
@@ -137,11 +143,11 @@ pub trait PrimitiveFeatureRenderer<Submit> {
                 // rust: let mut info: Option<ExecuteInfo> = Some(context.staged_vertex_buffer().get_execute_info(&group.lock().borrow().draws[(i) as usize]));
                 let mut info: ExecuteInfo = todo!("fabric2seer: the initialiser of `info` (TODO above)");
                 if true /* java: info != null: never null here */ {
-                    PrimitiveFeatureRendererBase::execute_draw(&mut render_pass, primitive_draw, &info);
+                    PrimitiveFeatureRendererBase::<Submit>::execute_draw(&mut render_pass, primitive_draw, &info);
                 }
             }
         }
-        PrimitiveFeatureRendererBase::unapply_view_offset_z_layering();
+        PrimitiveFeatureRendererBase::<Submit>::unapply_view_offset_z_layering();
     }
 
     /// java: @Override public final void finishExecute(FeatureFrameContext context)
@@ -157,18 +163,19 @@ pub struct Group {
     pub staged_buffer: StagedVertexBuffer,
     /// java: private final boolean canReorder;
     pub can_reorder: bool,
-    /// java: private final List<StagedVertexBuffer.Draw> draws = new ArrayList<>();
-    pub draws: Vec<Draw>,
+    /// java: private final List<StagedVertexBuffer.Draw> draws = new ArrayList<>(); (the port's draws are the staged
+    /// buffer's indices)
+    pub draws: Vec<usize>,
     /// java: private final List<PreparedPrimitiveDraw> drawPrimitives = new ArrayList<>();
     pub draw_primitives: Vec<PreparedPrimitiveDraw>,
     /// java: private @Nullable RenderPipeline lastPipeline;
-    pub last_pipeline: Option<RenderPipeline>,
+    pub last_pipeline: Option<Rc<RenderPipeline>>,
     /// java: private @Nullable TextureSetup lastTextureSetup;
     pub last_texture_setup: Option<TextureSetup>,
     /// java: private @Nullable InstancingParameters lastInstancing;
     pub last_instancing: Option<InstancingParameters>,
     /// java: private StagedVertexBuffer.@Nullable Draw lastDraw;
-    pub last_draw: Option<Draw>,
+    pub last_draw: Option<usize>,
 }
 
 impl Group {
@@ -191,13 +198,20 @@ impl Group {
     }
 
     /// java: private static boolean canConsolidateConsecutiveGeometry(RenderPipeline pipeline)
-    pub fn can_consolidate_consecutive_geometry(pipeline: &RenderPipeline) -> bool {
+    pub fn can_consolidate_consecutive_geometry(pipeline: &Rc<RenderPipeline>) -> bool {
         return !(pipeline.get_primitive_topology().connected_primitives());
     }
 
     /// java: public VertexConsumer getVertexBuilder(RenderPipeline pipeline, TextureSetup textureSetup, InstancingParameters instancing)
-    pub fn get_vertex_builder(__this: &compat::Shared<Self>, mut pipeline: RenderPipeline, mut texture_setup: TextureSetup, mut instancing: InstancingParameters) -> Box<dyn VertexConsumer> {
-        if compat::read(__this, |__t| __t.last_draw.clone()).is_none() || !std::ptr::eq(&pipeline, &compat::read(__this, |__t| __t.last_pipeline.clone()).unwrap()) || !std::ptr::eq(&texture_setup, &compat::read(__this, |__t| __t.last_texture_setup.clone()).unwrap()) || !std::ptr::eq(&compat::read(__this, |__t| __t.last_instancing.clone()).unwrap(), &instancing) || !(Group::can_consolidate_consecutive_geometry(&pipeline)) {
+    pub fn get_vertex_builder(__this: &compat::Shared<Self>, mut pipeline: Rc<RenderPipeline>, mut texture_setup: TextureSetup, mut instancing: InstancingParameters) -> Box<dyn VertexConsumer> {
+        // java: this.lastDraw == null || pipeline != this.lastPipeline || textureSetup != this.lastTextureSetup
+        //       || this.lastInstancing != instancing || !canConsolidateConsecutiveGeometry(pipeline)
+        // (the pipeline by identity; the two records - values here - by their components)
+        if compat::read(__this, |__t| __t.last_draw).is_none()
+            || !compat::read(__this, |__t| __t.last_pipeline.as_ref().is_some_and(|last| Rc::ptr_eq(&pipeline, last)))
+            || compat::read(__this, |__t| __t.last_texture_setup.as_ref() != Some(&texture_setup))
+            || compat::read(__this, |__t| __t.last_instancing.as_ref() != Some(&instancing))
+            || !(Group::can_consolidate_consecutive_geometry(&pipeline)) {
             { let __v = Some(Group::get_or_add_draw(__this, &pipeline, &texture_setup, &instancing)); compat::write(__this, |__t| __t.last_draw = __v); }
             { let __v = Some(pipeline.clone()); compat::write(__this, |__t| __t.last_pipeline = __v); }
             { let __v = Some(texture_setup.clone()); compat::write(__this, |__t| __t.last_texture_setup = __v); }
@@ -210,18 +224,16 @@ impl Group {
     }
 
     /// java: private StagedVertexBuffer.Draw getOrAddDraw(RenderPipeline pipeline, TextureSetup textureSetup, InstancingParameters instancing)
-    pub fn get_or_add_draw(__this: &compat::Shared<Self>, pipeline: &RenderPipeline, texture_setup: &TextureSetup, instancing: &InstancingParameters) -> Draw {
+    pub fn get_or_add_draw(__this: &compat::Shared<Self>, pipeline: &Rc<RenderPipeline>, texture_setup: &TextureSetup, instancing: &InstancingParameters) -> usize {
         let mut prepared_primitive_draw: PreparedPrimitiveDraw = PreparedPrimitiveDraw::new(pipeline.clone(), texture_setup.clone(), instancing.clone());
-        let mut existing_index: i32 = (if compat::read(__this, |__t| __t.can_reorder) && Group::can_consolidate_consecutive_geometry(pipeline) { __this.lock().borrow().draw_primitives.iter().position(|e| *e == prepared_primitive_draw.clone()).map_or(-1, |i| i as i32) } else { -1 });
+        let mut existing_index: i32 = (if compat::read(__this, |__t| __t.can_reorder) && Group::can_consolidate_consecutive_geometry(pipeline) { compat::read(__this, |__t| __t.draw_primitives.iter().position(|e| *e == prepared_primitive_draw).map_or(-1, |i| i as i32)) } else { -1 });
         if existing_index != -1 {
-            // TODO(fabric2seer): the mod keeps the game's `StagedVertexBuffer$Draw` (Java holds a reference to the live object); the port's `Draw` is not a value to copy and the port lends the mod no handle to it
-            // rust: return __this.lock().borrow().draws[(existing_index) as usize].clone();
-            return todo!("fabric2seer: see the TODO above");
+            // java: return this.draws.get(existingIndex);
+            return compat::read(__this, |__t| __t.draws[(existing_index) as usize]);
         }
-        let mut draw: Draw = { let (__q0, __q1,) = (pipeline.get_vertex_format_binding((0) as usize).unwrap(), pipeline.get_primitive_topology(),); __this.lock().borrow_mut().staged_buffer.append_draw(__q0, __q1) };
-        // TODO(fabric2seer): the mod keeps the game's `StagedVertexBuffer$Draw` (Java holds a reference to the live object); the port's `Draw` is not a value to copy and the port lends the mod no handle to it
-        // rust: let __h0 = draw.clone();
-        // rust: __this.lock().borrow_mut().draws.push(__h0);
+        let mut draw: usize = { let (__q0, __q1,) = (pipeline.get_vertex_format_binding((0) as usize).unwrap().clone(), pipeline.get_primitive_topology(),); __this.lock().borrow_mut().staged_buffer.append_draw(__q0, __q1) };
+        // java: this.draws.add(draw);
+        __this.lock().borrow_mut().draws.push(draw);
         let __h0 = prepared_primitive_draw.clone();
         __this.lock().borrow_mut().draw_primitives.push(__h0);
         return draw;
@@ -233,7 +245,7 @@ impl Group {
 #[derive(Clone, Debug)]
 pub struct PreparedPrimitiveDraw {
     /// java: RenderPipeline pipeline
-    pub pipeline: RenderPipeline,
+    pub pipeline: Rc<RenderPipeline>,
     /// java: TextureSetup textureSetup
     pub texture_setup: TextureSetup,
     /// java: InstancingParameters instancing
@@ -242,12 +254,12 @@ pub struct PreparedPrimitiveDraw {
 
 impl PreparedPrimitiveDraw {
     /// java: the canonical record constructor
-    pub fn new(mut pipeline: RenderPipeline, mut texture_setup: TextureSetup, mut instancing: InstancingParameters) -> Self {
+    pub fn new(mut pipeline: Rc<RenderPipeline>, mut texture_setup: TextureSetup, mut instancing: InstancingParameters) -> Self {
         Self { pipeline, texture_setup, instancing }
     }
 
     /// java: the record accessor `pipeline()`
-    pub fn pipeline(&self) -> RenderPipeline {
+    pub fn pipeline(&self) -> Rc<RenderPipeline> {
         self.pipeline.clone()
     }
 
@@ -261,4 +273,12 @@ impl PreparedPrimitiveDraw {
         self.instancing.clone()
     }
 
+}
+
+/// The record's `equals` (`drawPrimitives.indexOf(..)`): the components' own `equals` - `RenderPipeline` has none (its
+/// identity), the two records compare their components.
+impl PartialEq for PreparedPrimitiveDraw {
+    fn eq(&self, other: &PreparedPrimitiveDraw) -> bool {
+        Rc::ptr_eq(&self.pipeline, &other.pipeline) && self.texture_setup == other.texture_setup && self.instancing == other.instancing
+    }
 }

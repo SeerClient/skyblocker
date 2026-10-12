@@ -61,22 +61,24 @@ impl MessageScheduler {
             logger().error(&format!("[Skyblocker Message Scheduler] Tried to send a message while player is null: {}", message));
             return;
         }
-        // TODO(fabric2seer): static call StringUtils.normalizeSpace(..)
-        //   java: message = StringUtil.trimChatMessage(StringUtils.normalizeSpace(message.trim()));
+        // java: message = StringUtil.trimChatMessage(StringUtils.normalizeSpace(message.trim()));
+        message = mcrust::net::minecraft::util::string_util::trim_chat_message(&normalize_space(&compat::trim(&message)));
         if !hide {
             client.gui.hud.get_chat().add_recent_chat(&message);
         }
         if message.starts_with("/") {
-            mcrust::mcrust::modding::game::with_player(|player| { player.connection.as_ref().unwrap().send_command(&compat::substring(&message, 1)); });
+            // java: client.player.connection.sendCommand(message.substring(1)); - the player's connection is the client's
+            mcrust::net::minecraft::client::minecraft::get_connection(client).expect("client.player.connection").send_command(&compat::substring(&message, 1));
         } else {
-            mcrust::mcrust::modding::game::with_player(|player| { player.connection.as_ref().unwrap().send_chat(&message); });
+            mcrust::net::minecraft::client::minecraft::get_connection(client).expect("client.player.connection").send_chat(&message);
         }
     }
 
     /// java: public void queueMessage(String message, boolean hide, int delay)
     pub fn queue_message(__this: &compat::Shared<Self>, message: &str, mut hide: bool, mut delay: i32) {
         let __this_w1 = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
-        ({ let __f = compat::dispatch(__this, |__t| __t.schedule()); __f(&compat::view(__this, |a| a as compat::Shared<dyn Scheduler>), Arc::new(move || { let Some(__this_1) = __this_w1.get().upgrade() else { return Default::default(); }; { MessageScheduler::send_message((&__this_1), message.to_string(), hide); } }), delay) });
+        let message: String = message.to_string();
+        ({ let __f = compat::dispatch(__this, |__t| __t.schedule()); __f(&compat::view(__this, |a| a as compat::Shared<dyn Scheduler>), Arc::new(move || { let Some(__this_1) = __this_w1.get().upgrade() else { return Default::default(); }; { MessageScheduler::send_message((&__this_1), message.clone(), hide); } }), delay) });
     }
 
 }
@@ -116,4 +118,24 @@ impl MessageScheduler {
         Self::run_task_impl(&compat::view_as::<Self, _, Self>(__this, |a| a), __p0)
     }
 
+}
+
+/// `org.apache.commons.lang3.StringUtils.normalizeSpace(str)`: trims, and every run of whitespace
+/// (`Character.isWhitespace`, which excludes the no-break spaces) becomes one ' '.
+fn normalize_space(s: &str) -> String {
+    let is_java_whitespace = |c: char| c.is_whitespace() && c != '\u{00A0}' && c != '\u{2007}' && c != '\u{202F}';
+    let mut out = String::with_capacity(s.len());
+    let mut pending_space = false;
+    for c in s.chars() {
+        if is_java_whitespace(c) {
+            pending_space = !out.is_empty();
+        } else {
+            if pending_space {
+                out.push(' ');
+                pending_space = false;
+            }
+            out.push(c);
+        }
+    }
+    out
 }

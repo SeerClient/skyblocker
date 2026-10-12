@@ -34,8 +34,9 @@ impl NetworthDataSuppliers {
     }
 
     /// java: static Object2ObjectMap<String, SkyblockItemData> getSkyblockItemData()
-    pub fn get_skyblock_item_data() -> std::collections::HashMap<String, crate::unresolved::SkyblockItemData> {
-        return ITEM_DATA.get_mut().clone();
+    pub fn get_skyblock_item_data() -> &'static std::collections::HashMap<String, crate::unresolved::SkyblockItemData> {
+        // java: return itemData; - the map itself
+        return ITEM_DATA.get();
     }
 
     /// java: static double getPrice(String id)

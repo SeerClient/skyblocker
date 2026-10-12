@@ -111,16 +111,16 @@ impl PrimitiveFeatureRenderer<crate::de::hysky::skyblocker::utils::render::primi
                 // TODO(fabric2seer): `.allocate(..)` on a Arena
                 //   java: MemorySegment uniformSegment = arena.allocate(this.boxData.calculateRequiredSize(boxes));
                 let mut uniform_segment: crate::unresolved::MemorySegment = todo!("fabric2seer: the initialiser of `uniformSegment` (TODO above)");
-                self.box_data.write_to_buffer(&submit.states(), &submit.camera(), &uniform_segment);
-                let mut device: GpuDevice = render_system::get_device();
+                self.box_data.write_to_buffer(&submit.states(), &submit.camera(), &mut uniform_segment);
+                let mut device = render_system::get_device();
                 // TODO(fabric2seer): `.asByteBuffer(..)` on a MemorySegment
                 //   java: GpuBufferSlice tbo = device.createCommandEncoder()
                 //   java: 						.transientMemory()
                 //   java: 						.uploadGpu(uniformSegment.asByteBuffer(), device.getDeviceInfo().limits().minUniformOffsetAlignment(), GpuBuffer.USAGE_UNIFORM_TEXEL_BUFFER);
                 let mut tbo: GpuBufferSlice = todo!("fabric2seer: the initialiser of `tbo` (TODO above)");
-                let mut pipeline: RenderPipeline = (if submit.through_walls() { skyblocker_render_pipelines::FILLED_THROUGH_WALLS_INSTANCED.get_mut().clone() } else { skyblocker_render_pipelines::FILLED_INSTANCED.get_mut().clone() });
+                let mut pipeline: std::rc::Rc<RenderPipeline> = (if submit.through_walls() { skyblocker_render_pipelines::FILLED_THROUGH_WALLS_INSTANCED.get_mut().clone() } else { skyblocker_render_pipelines::FILLED_INSTANCED.get_mut().clone() });
                 let mut builder: Box<dyn VertexConsumer> = self.get_vertex_builder_render_pipeline_instancing_parameters(&pipeline, &InstancingParameters::new(boxes, Some("BoxData".to_string()), Some(tbo.clone())));
-                FilledBoxInstancedFeatureRenderer::build_unit_box(((UNIT_BOX.get_mut().min_x) as f32), ((UNIT_BOX.get_mut().min_y) as f32), ((UNIT_BOX.get_mut().min_z) as f32), ((UNIT_BOX.get_mut().max_x) as f32), ((UNIT_BOX.get_mut().max_y) as f32), ((UNIT_BOX.get_mut().max_z) as f32), &mut builder);
+                FilledBoxInstancedFeatureRenderer::build_unit_box(((UNIT_BOX.get_mut().min_x) as f32), ((UNIT_BOX.get_mut().min_y) as f32), ((UNIT_BOX.get_mut().min_z) as f32), ((UNIT_BOX.get_mut().max_x) as f32), ((UNIT_BOX.get_mut().max_y) as f32), ((UNIT_BOX.get_mut().max_z) as f32), &mut *builder);
             }
         }
     }

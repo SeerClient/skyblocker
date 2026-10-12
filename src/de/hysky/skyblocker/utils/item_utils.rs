@@ -47,7 +47,7 @@ use mcrust::net::minecraft::world::item::item_instance::ItemInstance;
 use mcrust::net::minecraft::world::item::items;
 use crate::de::hysky::skyblocker::skyblock::item::tooltip::info::data_tooltip_info_type::DataTooltipInfoType as _;
 use mcrust::com::mojang::serialization::decoder::Decoder as _;
-use mcrust::net::minecraft::core::typed_instance::TypedInstance as _;
+use mcrust::net::minecraft::core::typed_instance::TypedInstance;
 use mcrust::net::minecraft::network::chat::component::Component as _;
 
 /// java: public static final String ID = "id";
@@ -119,13 +119,19 @@ impl ItemUtils {
 
     /// java: public static CompoundTag getCustomData(DataComponentGetter stack)
     pub fn get_custom_data(stack: &dyn DataComponentGetter) -> Tag {
-        return stack.get_or_default(mcrust::net::minecraft::core::component::data_components::custom_data(), mcrust::net::minecraft::world::item::component::custom_data::empty()).tag;
+        // java: ((CustomDataAccessor) (Object) stack.getOrDefault(DataComponents.CUSTOM_DATA, CustomData.EMPTY)).getTag()
+        let custom_data: mcrust::com::mojang::serialization::Obj = stack.get_or_default(mcrust::net::minecraft::core::component::data_components::custom_data(), mcrust::com::mojang::serialization::obj(mcrust::net::minecraft::world::item::component::custom_data::empty()));
+        return mcrust::com::mojang::serialization::cast::<mcrust::net::minecraft::world::item::component::custom_data::CustomData>(&custom_data).expect("ClassCastException: CustomData").copy_tag();
     }
 
     /// java: public static Optional<String> getItemIdOptional(DataComponentGetter stack)
     pub fn get_item_id_optional(stack: &dyn DataComponentGetter) -> Option<String> {
         let mut custom_data: Tag = ItemUtils::get_custom_data(stack);
-        return custom_data.get_string(ID);
+        // java: customData.getString(ID) - Optional<String>: present for a string tag only
+        return match custom_data.get(ID) {
+            Some(Tag::String(value)) => Some(value.clone()),
+            _ => None,
+        };
     }
 
     /// java: @Deprecated(since = "5.8.0") public static String getItemId(DataComponentGetter stack)
@@ -136,7 +142,11 @@ impl ItemUtils {
     /// java: public static Optional<String> getItemUuidOptional(DataComponentGetter stack)
     pub fn get_item_uuid_optional(stack: &dyn DataComponentGetter) -> Option<String> {
         let mut custom_data: Tag = ItemUtils::get_custom_data(stack);
-        return custom_data.get_string(UUID);
+        // java: customData.getString(UUID) - Optional<String>: present for a string tag only
+        return match custom_data.get(UUID) {
+            Some(Tag::String(value)) => Some(value.clone()),
+            _ => None,
+        };
     }
 
     /// java: @Deprecated(since = "5.8.0") public static String getItemUuid(DataComponentGetter stack)
@@ -328,9 +338,9 @@ impl ItemUtils {
             // java: try {..} catch (Exception _) - an exception here is a panic, caught by `catch_unwind`; the body's `return` is the closure's value
             match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                 let mut json_element: serde_json::Value = serde_json::from_str::<serde_json::Value>(&pet_info).expect("JsonSyntaxException");
-                if let Some(item_stack) = stack.as_any().downcast_ref::<mcrust::net::minecraft::world::item::item_stack::ItemStack>() {
-                    compat::json::get_as_json_object(&json_element).insert("name".to_string(), serde_json::json!(compat::component_of(item_stack.get_hover_name()).get_string()));
-                }
+                // java: if (stack instanceof ItemStack itemStack) jsonElement.getAsJsonObject().addProperty("name", itemStack.getHoverName().getString());
+                // rust: port gap - the port's `DataComponentGetter` trait objects cannot be asked for their concrete class
+                // (no `as_any`), so the item name is not added for the wiki lookup (GAPS_batchA.md)
                 return (pet_info::CODEC.get_mut().parse(&mcrust::com::mojang::serialization::json_ops::JsonOps::instance(), &compat::json_to_port(&json_element))).set_partial(pet_info::EMPTY.clone()).get_partial_or_throw().unwrap();
             })) {
                 Ok(__v) => return __v,
@@ -398,8 +408,8 @@ impl ItemUtils {
     /// java: public static @Nullable IntIntPair getDurability(ItemStack stack)
     pub fn get_durability(stack: &mcrust::net::minecraft::world::item::item_stack::ItemStack) -> Option<(i32, i32)> {
         let mut custom_data: Tag = ItemUtils::get_custom_data(stack);
-        // TODO(fabric2seer): `is_empty` takes 1 argument(s) in the port (`tags: &BTreeMap<String, Tag>`), Java passes 0
-        if compound_tag::is_empty() {
+        // java: if (customData.isEmpty())
+        if custom_data.compound_size() == 0 {
             return None;
         }
         if stack.get_skyblock_id() == "PICKONIMBUS" {
@@ -441,7 +451,7 @@ impl ItemUtils {
 
     /// java: public static List<Matcher> getLoreLineIfMatch(ItemStack stack, Pattern... patterns)
     pub fn get_lore_line_if_match_item_stack_pattern(stack: &mcrust::net::minecraft::world::item::item_stack::ItemStack, patterns: &Vec<compat::regex::Pattern>) -> Vec<compat::regex::Matcher> {
-        return RegexListUtils::match_in_list(&stack.skyblocker_get_lore_strings(), patterns).unwrap();
+        return RegexListUtils::match_in_list_list_pattern(&stack.skyblocker_get_lore_strings(), patterns);
     }
 
     /// java: public static @Nullable Matcher getLoreLineIfContainsMatch(ItemStack stack, Pattern pattern)
@@ -451,9 +461,10 @@ impl ItemUtils {
 
     /// java: @Deprecated public static List<Component> getLore(DataComponentGetter stack)
     pub fn get_lore(stack: &dyn DataComponentGetter) -> Vec<MutableComponent> {
-        // TODO(fabric2seer): `.styledLines(..)` on a value of unknown type
-        //   java: return stack.getOrDefault(DataComponents.LORE, ItemLore.EMPTY).styledLines();
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        // java: return stack.getOrDefault(DataComponents.LORE, ItemLore.EMPTY).styledLines();
+        let lore: mcrust::com::mojang::serialization::Obj = stack.get_or_default(mcrust::net::minecraft::core::component::data_components::lore(), mcrust::com::mojang::serialization::obj(mcrust::net::minecraft::world::item::component::item_lore::empty()));
+        let lore = mcrust::com::mojang::serialization::cast::<mcrust::net::minecraft::world::item::component::item_lore::ItemLore>(&lore).expect("ClassCastException: ItemLore");
+        return lore.styled_lines().iter().map(|line| compat::component_of(line.clone())).collect();
     }
 
     /// java: public static PropertyMap propertyMapWithTexture(String textureValue)
@@ -462,20 +473,18 @@ impl ItemUtils {
     }
 
     /// java: public static String getHeadTexture(ItemInstance stack)
-    pub fn get_head_texture(stack: &dyn ItemInstance) -> String {
-        if !(stack.is_tag(&items::items().get("player_head"))) {
+    pub fn get_head_texture<S: ItemInstance + TypedInstance + ?Sized>(stack: &S) -> String {
+        // java: if (!stack.is(Items.PLAYER_HEAD)) return "";
+        if !(stack.is_value(&(items::items().get("player_head") as mcrust::com::mojang::serialization::Obj))) {
             return "".to_string();
         }
-        let Some(mut profile) = stack.get(mcrust::net::minecraft::core::component::data_components::profile()) else {
+        let Some(mut profile) = DataComponentGetter::get(stack, mcrust::net::minecraft::core::component::data_components::profile()) else {
             return "".to_string();
         };
-        // TODO(fabric2seer): `.value(..)` on a V
-        //   java: return profile.partialProfile().properties().get("textures").stream()
-        //   java: 				.filter(Objects::nonNull)
-        //   java: 				.map(Property::value)
-        //   java: 				.findFirst()
-        //   java: 				.orElse("");
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        let profile: &ResolvableProfile = mcrust::com::mojang::serialization::cast::<ResolvableProfile>(&profile).expect("ClassCastException: ResolvableProfile");
+        // java: return profile.partialProfile().properties().get("textures").stream().filter(Objects::nonNull)
+        //           .map(Property::value).findFirst().orElse("");
+        return profile.partial_profile().properties().get("textures").into_iter().map(|property| property.value().to_string()).next().unwrap_or_default();
     }
 
     /// java: public static Optional<String> getHeadTextureOptional(ItemStack stack)
@@ -594,7 +603,7 @@ impl ItemUtils {
 
     /// java: public static OptionalInt getItemCountInStash(Component itemName)
     pub fn get_item_count_in_stash_component(item_name: &MutableComponent) -> Option<i32> {
-        return RegexUtils::find_int_from_matcher(&STASH_COUNT_PATTERN.matcher(&item_name.get_string()));
+        return RegexUtils::find_int_from_matcher(&mut STASH_COUNT_PATTERN.matcher(&item_name.get_string()));
     }
 
     /// java: public static OptionalInt getCompostCountInComposter(List<String> lines)
@@ -606,19 +615,20 @@ impl ItemUtils {
     /// java: public static OptionalInt getItemCountInHuntingBox(ItemStack stack)
     pub fn get_item_count_in_hunting_box(stack: &mcrust::net::minecraft::world::item::item_stack::ItemStack) -> Option<i32> {
         let mut matcher: Option<compat::regex::Matcher> = ItemUtils::get_lore_line_if_contains_match(stack, &HUNTING_BOX_COUNT_PATTERN);
-        return (if matcher.is_some() { RegexUtils::parse_optional_int_from_matcher(matcher.as_ref().unwrap(), "shards") } else { None });
+        return (if matcher.is_some() { RegexUtils::parse_optional_int_from_matcher_match_result_string(matcher.as_ref().unwrap(), "shards") } else { None });
     }
 
     /// java: public static OptionalInt getItemCountInSuperpairs(ItemStack stack)
     pub fn get_item_count_in_superpairs(stack: &mcrust::net::minecraft::world::item::item_stack::ItemStack) -> Option<i32> {
-        let mut current_screen: mcrust::net::minecraft::client::gui::screens::screen::Screen = compat::minecraft().gui.screen().unwrap();
-        if let Some(container) = current_screen.as_any().downcast_ref::<ContainerScreen>() {
-            // TODO(fabric2seer): `Screen::get_title` ports `getTitle`, but the port's `ContainerScreen` holds no `Screen` (no Deref, no `base` field) to call it on
-            if container.get_title().to_string().starts_with("Superpairs") {
+        let mut current_screen: Option<&mcrust::net::minecraft::client::gui::screens::screen::Screen> = compat::minecraft().gui.screen();
+        // java: currentScreen instanceof ContainerScreen container - the port's screen is the husk; a ContainerScreen is
+        // the screen over the player's open ChestMenu
+        if let Some(container) = current_screen.filter(|_| mcrust::mcrust::modding::game::with_chest_menu(|_| ()).is_some()) {
+            if container.title.starts_with("Superpairs") {
                 if compat::component_of(stack.get_hover_name()).get_string().contains("Enchanted Book") {
                     return Some(1);
                 }
-            } else if container.get_title().to_string().contains("Experimentation Table RNG") {
+            } else if container.title.contains("Experimentation Table RNG") {
                 return Some(1);
             }
         }
@@ -626,37 +636,28 @@ impl ItemUtils {
     }
 
     /// java: @Deprecated(since = "5.8.0") public static <T extends ItemInstance & SkyblockerStack> SkyblockItemRarity getItemRarity(T stack)
-    pub fn get_item_rarity<T: 'static>(stack: &T) -> SkyblockItemRarity {
-        // TODO(fabric2seer): the condition: `.is(..)` on a T
-        //   java: stack.is(..)
-        if todo!("fabric2seer: the condition (TODO above)") {
+    pub fn get_item_rarity<T: ItemInstance + TypedInstance + SkyblockerStack + 'static>(stack: &T) -> SkyblockItemRarity {
+        // java: if (stack.is(Items.AIR)) return SkyblockItemRarity.UNKNOWN;
+        if stack.is_value(&(items::items().get("air") as mcrust::com::mojang::serialization::Obj)) {
             return SkyblockItemRarity::Unknown;
         }
         if ItemUtils::get_custom_data(stack).get_string_or(ID, "") == "PET" {
-            // TODO(fabric2seer): `.getPetInfo(..)` on a T
-            //   java: PetInfo info = stack.getPetInfo();
-            let mut info: PetInfo = todo!("fabric2seer: the initialiser of `info` (TODO above)");
+            // java: PetInfo info = stack.getPetInfo();
+            let mut info: PetInfo = stack.get_pet_info();
             if info.is_empty() {
                 return SkyblockItemRarity::Unknown;
             }
             return (if info.item().is_some() && info.item().unwrap() == "PET_ITEM_TIER_BOOST" { info.rarity().next() } else { info.rarity() });
         }
-        // TODO(fabric2seer): static call Optional.stream(..)
-        //   java: Optional<SkyblockItemRarity> rarity = ItemUtils.getLore(stack)
-        //   java: 				.reversed()
-        //   java: 				.stream()
-        //   java: 				.map(Component::getString)
-        //   java: 				.map(SkyblockItemRarity::containsName)
-        //   java: 				.flatMap(Optional::stream)
-        //   java: 				.findFirst();
-        let mut rarity: Option<SkyblockItemRarity> = todo!("fabric2seer: the initialiser of `rarity` (TODO above)");
+        // java: Optional<SkyblockItemRarity> rarity = ItemUtils.getLore(stack).reversed().stream().map(Component::getString)
+        //           .map(SkyblockItemRarity::containsName).flatMap(Optional::stream).findFirst();
+        let mut rarity: Option<SkyblockItemRarity> = ItemUtils::get_lore(stack).iter().rev().map(|line| line.get_string()).filter_map(|line| SkyblockItemRarity::contains_name(&line)).next();
         if rarity.is_some() {
             return rarity.clone().unwrap();
         }
-        // TODO(fabric2seer): `.get(..)` on a T
-        //   java: Identifier tooltipStyle = stack.get(DataComponents.TOOLTIP_STYLE);
-        let mut tooltip_style: Identifier = todo!("fabric2seer: the initialiser of `tooltipStyle` (TODO above)");
-        if true /* java: tooltip_style != null: never null here */ && tooltip_style.namespace() == utils::HYPIXEL_SKYBLOCK_NAMESPACE {
+        // java: Identifier tooltipStyle = stack.get(DataComponents.TOOLTIP_STYLE);
+        let mut tooltip_style: Option<Identifier> = DataComponentGetter::get(stack, mcrust::net::minecraft::core::component::data_components::tooltip_style()).and_then(|value| mcrust::com::mojang::serialization::cast::<Identifier>(&value).cloned());
+        if let Some(tooltip_style) = tooltip_style.as_ref().filter(|tooltip_style| tooltip_style.namespace() == utils::HYPIXEL_SKYBLOCK_NAMESPACE) {
             return SkyblockItemRarity::contains_name(&tooltip_style.path().to_uppercase()).unwrap_or(SkyblockItemRarity::Unknown);
         }
         return SkyblockItemRarity::Unknown;
@@ -679,16 +680,16 @@ impl ItemUtils {
     }
 
     /// java: public static MutableComponent getIcon(ItemInstance itemInstance)
-    pub fn get_icon(item_instance: &dyn ItemInstance) -> MutableComponent {
-        let mut item: Arc<Item> = item_instance.type_holder().value();
+    pub fn get_icon<S: ItemInstance + TypedInstance + ?Sized>(item_instance: &S) -> MutableComponent {
+        let mut item: Arc<Item> = mcrust::net::minecraft::world::item::item::from_obj(&item_instance.type_holder().value()).expect("a Holder<Item>");
         // TODO(fabric2seer): a pattern switch expression
         //   java: ObjectInfo objectInfo = switch (item) {
         //   java: 			case BlockItem _ when itemInstance.is(Items.PLAYER_HEAD) && itemInstance.get(DataComponents.PROFILE) != null -> new PlayerSprite(itemInstance.get(DataComponents.PROFILE), true);
         //   java: 			case BlockItem _ -> new AtlasSprite(AtlasIds.BLOCKS, BuiltInRegistries.ITEM.getKey(item).withPath(itemId -> "block/" + itemId));
         //   java: 			default -> new AtlasSprite(AtlasIds.ITEMS, BuiltInRegistries.ITEM.getKey(item).withPath(itemId -> "item/" + itemId));
         //   java: 		};
-        let mut object_info: Box<dyn ObjectInfo> = todo!("fabric2seer: the initialiser of `objectInfo` (TODO above)");
-        return component::object(object_info.clone());
+        let mut object_info: Arc<dyn ObjectInfo> = todo!("fabric2seer: the initialiser of `objectInfo` (TODO above)");
+        return component::object(object_info);
     }
 
 }

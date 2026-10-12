@@ -29,8 +29,9 @@ impl<L: Clone + 'static, R: Clone + 'static> Pair<L, R> {
     }
 
     /// java: public static <L, R> Pair<L, R> of(L left, R right)
-    pub fn of<L: Clone + 'static, R: Clone + 'static>(left: &L, right: &R) -> (L, R) {
-        return Pair::new(left.clone(), right.clone());
+    pub fn of(left: &L, right: &R) -> (L, R) {
+        // java: return new Pair<>(left, right); - the converter's `Pair<L, R>` values are tuples
+        return (left.clone(), right.clone());
     }
 
 }

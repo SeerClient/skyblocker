@@ -2,7 +2,8 @@
 
 #[allow(unused_imports)]
 use crate::prelude::*;
-use mcrust::com::google::common::cache::loading_cache::LoadingCache;
+use mcrust::com::google::common::cache::cache_loader::CacheLoader;
+use mcrust::com::google::common::cache::loading_cache::{CacheBuilder, LoadingCache};
 use mcrust::net::minecraft::client::user::User;
 
 // TODO(fabric2seer): static call CacheBuilder.newBuilder(..)
@@ -15,7 +16,18 @@ use mcrust::net::minecraft::client::user::User;
 //   java: 				}
 //   java: 			});
 /// java: private static final LoadingCache<String, String> NAME_2_UUID_CACHE = CacheBuilder.newBuilder() .expireAfterWrite(Duration.ofMinutes(20L)) .build(new CacheLoader<>() { @Override public String load(Str
-pub static NAME_2_UUID_CACHE: compat::MainThread<LoadingCache<String, String, compat::Object>> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `NAME_2_UUID_CACHE` - see the TODO above"));
+pub static NAME_2_UUID_CACHE: LazyLock<LoadingCache<String, String, Name2UuidLoader>> = LazyLock::new(|| {
+    CacheBuilder::new_builder().expire_after_write(std::time::Duration::from_secs(20 * 60)).build(Name2UuidLoader)
+});
+
+/// java: the anonymous `new CacheLoader<>() { public String load(String key) }` of NAME_2_UUID_CACHE
+pub struct Name2UuidLoader;
+
+impl CacheLoader<String, String> for Name2UuidLoader {
+    fn load(&self, key: &String) -> String {
+        return ApiUtils::name2_uuid_internal(key, 0);
+    }
+}
 
 /// java: public class ApiUtils
 #[derive(Clone)]
@@ -31,18 +43,15 @@ impl ApiUtils {
 
     /// java: public static String name2Uuid(String name)
     pub fn name2_uuid(name: &str) -> String {
-        // TODO(fabric2seer): `LoadingCache.getUnchecked` has no Rust method in the port (looked for `get_unchecked` in LoadingCache and its supertypes)
-        // rust: return NAME_2_UUID_CACHE.get_mut().get_unchecked(name);
-        return todo!("fabric2seer: see the TODO above");
+        return NAME_2_UUID_CACHE.get_unchecked(&name.to_string());
     }
 
     /// java: private static String name2UuidInternal(String name, int retries)
     pub fn name2_uuid_internal(name: &str, mut retries: i32) -> String {
-        let mut session: User = compat::minecraft().get_user();
+        let session = compat::minecraft().get_user();
         if compat::equals_ignore_case(&session.get_name(), name) {
-            // TODO(fabric2seer): static `UndashedUuid.toString` has no Rust counterpart in the port
-            // rust: return UndashedUuid::to_string(session.get_profile_id());
-            return todo!("fabric2seer: see the TODO above");
+            // java: UndashedUuid.toString(session.getProfileId()) - the uuid's string without its dashes
+            return session.get_profile_id().replace('-', "");
         }
         {
             // TODO(fabric2seer): `Http.sendName2UuidRequest` is not a static method of Http

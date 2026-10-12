@@ -115,10 +115,10 @@ impl dyn DistancedNamedWaypoint {
 
 impl DistancedNamedWaypoint for DistancedNamedWaypointBase {
     fn distanced_named_waypoint_base(&self) -> &DistancedNamedWaypointBase {
-        &self
+        self
     }
     fn distanced_named_waypoint_base_mut(&mut self) -> &mut DistancedNamedWaypointBase {
-        &mut self
+        self
     }
 
 }

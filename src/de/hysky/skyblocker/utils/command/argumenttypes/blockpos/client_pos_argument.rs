@@ -7,7 +7,7 @@ use mcrust::net::minecraft::world::phys::vec2::Vec2;
 use mcrust::net::minecraft::world::phys::vec3::Vec3;
 
 /// java: public interface ClientPosArgument
-pub trait ClientPosArgument: compat::DynAny {
+pub trait ClientPosArgument: compat::DynAny + Send {
     fn as_any(&self) -> &dyn std::any::Any;
     /// java: Vec3 toAbsolutePos(FabricClientCommandSource source); (dispatch: the body for this class)
     fn to_absolute_pos(&self) -> fn(&compat::Shared<dyn ClientPosArgument>, &crate::unresolved::FabricClientCommandSource) -> Vec3;

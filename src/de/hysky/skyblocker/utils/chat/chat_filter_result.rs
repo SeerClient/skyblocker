@@ -48,15 +48,14 @@ impl ChatFilterResult {
 
     /// java: @Override public String toString()
     pub fn to_string(&self) -> String {
-        // TODO(fabric2seer): call to `name(..)` (not a method of this class)
-        //   java: return I18n.get("skyblocker.config.chat.filter.chatFilterResult." + name());
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        // java: return I18n.get("skyblocker.config.chat.filter.chatFilterResult." + name());
+        return mcrust::net::minecraft::client::resources::language::i18n::get(&format!("skyblocker.config.chat.filter.chatFilterResult.{}", self.name()), &[]);
     }
 
 }
 
 impl std::fmt::Display for ChatFilterResult {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", ChatFilterResult::to_string(*self))
+        write!(f, "{}", ChatFilterResult::to_string(self))
     }
 }

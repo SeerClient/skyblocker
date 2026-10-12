@@ -38,12 +38,12 @@ pub struct GuiHorizontalGradientRenderState {
 impl GuiHorizontalGradientRenderState {
     /// java: public GuiHorizontalGradientRenderState( RenderPipeline pipeline, TextureSetup textureSetup, Matrix3x2f pose, int startX, int startY, int endX, int endY, int colorStart, int colorEnd, @Nullable Screen
     pub fn new(mut pipeline: RenderPipeline, mut texture_setup: TextureSetup, mut pose: Matrix3x2f, mut start_x: i32, mut start_y: i32, mut end_x: i32, mut end_y: i32, mut color_start: i32, mut color_end: i32, mut scissor_area: Option<ScreenRectangle>) -> Self {
-        let mut this = Self::new(pipeline.clone(), texture_setup.clone(), pose.clone(), start_x, start_y, end_x, end_y, color_start, color_end, scissor_area.clone(), GuiHorizontalGradientRenderState::create_bounds(start_x, start_y, end_x, end_y, &pose, scissor_area.clone()));
+        let mut this = Self::new_canonical(pipeline.clone(), texture_setup.clone(), pose.clone(), start_x, start_y, end_x, end_y, color_start, color_end, scissor_area.clone(), GuiHorizontalGradientRenderState::create_bounds(start_x, start_y, end_x, end_y, &pose, scissor_area.clone()));
         this
     }
 
     /// java: the canonical record constructor
-    pub fn new(mut pipeline: RenderPipeline, mut texture_setup: TextureSetup, mut matrix: Matrix3x2f, mut start_x: i32, mut start_y: i32, mut end_x: i32, mut end_y: i32, mut color_start: i32, mut color_end: i32, mut scissor_area: Option<ScreenRectangle>, mut bounds: Option<ScreenRectangle>) -> Self {
+    pub fn new_canonical(mut pipeline: RenderPipeline, mut texture_setup: TextureSetup, mut matrix: Matrix3x2f, mut start_x: i32, mut start_y: i32, mut end_x: i32, mut end_y: i32, mut color_start: i32, mut color_end: i32, mut scissor_area: Option<ScreenRectangle>, mut bounds: Option<ScreenRectangle>) -> Self {
         Self { pipeline, texture_setup, matrix, start_x, start_y, end_x, end_y, color_start, color_end, scissor_area, bounds }
     }
 
@@ -109,7 +109,7 @@ impl GuiHorizontalGradientRenderState {
     }
 
     /// java: @Override public void buildVertices(VertexConsumer vertices)
-    pub fn build_vertices(&self, vertices: &dyn VertexConsumer) {
+    pub fn build_vertices(&self, vertices: &mut dyn VertexConsumer) {
         { vertices.add_vertex_with_2d_pose(&self.matrix(), (self.start_x()) as f32, (self.start_y()) as f32); vertices.set_color(self.color_start()); &mut *vertices };
         { vertices.add_vertex_with_2d_pose(&self.matrix(), (self.start_x()) as f32, (self.end_y()) as f32); vertices.set_color(self.color_start()); &mut *vertices };
         { vertices.add_vertex_with_2d_pose(&self.matrix(), (self.end_x()) as f32, (self.end_y()) as f32); vertices.set_color(self.color_end()); &mut *vertices };

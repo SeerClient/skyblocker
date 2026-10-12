@@ -55,9 +55,15 @@ pub struct ConfigInformation {
 }
 
 impl ConfigInformation {
+    /// java: the canonical record constructor `ConfigInformation(String id, Component name, @Nullable Component... description)`
+    pub fn new_canonical(id: String, name: MutableComponent, description: Option<Vec<MutableComponent>>) -> Self {
+        Self { id, name, description }
+    }
+
     /// java: public ConfigInformation(String id, Component name)
     pub fn new(mut id: String, mut name: MutableComponent) -> Self {
-        let mut this = Self::new4(id.clone(), name.clone(), None);
+        // java: this(id, name, (Component[]) null);
+        let mut this = Self::new_canonical(id.clone(), name.clone(), None);
         this
     }
 
@@ -69,15 +75,15 @@ impl ConfigInformation {
 
     /// java: public ConfigInformation(String id, @Translatable String name, @Translatable String... descriptionLines)
     pub fn new3(mut id: String, mut name: String, mut description_lines: Vec<String>) -> Self {
-        // TODO(fabric2seer): List.map(..)
-        //   java: this(id, name, Stream.of(descriptionLines).map(Component::translatable).toArray(Component[]::new));
-        let mut this: Self = todo!("constructor");
+        // java: this(id, name, Stream.of(descriptionLines).map(Component::translatable).toArray(Component[]::new));
+        let mut this = Self::new4(id.clone(), name.clone(), description_lines.iter().map(|line| component::translatable(line)).collect());
         this
     }
 
     /// java: public ConfigInformation(String id, @Translatable String name, Component... descriptionLines)
     pub fn new4(mut id: String, mut name: String, mut description_lines: Vec<MutableComponent>) -> Self {
-        let mut this = Self::new3(id.clone(), component::translatable(&name), description_lines.clone());
+        // java: this(id, Component.translatable(name), descriptionLines);
+        let mut this = Self::new_canonical(id.clone(), component::translatable(&name), Some(description_lines.clone()));
         this
     }
 

@@ -15,7 +15,7 @@ use mcrust::com::mojang::blaze3d::pipeline::render_pipeline::RenderPipeline;
 //   java: 			.withCull(false)
 //   java: 			.build());
 /// java: public static final RenderPipeline FILLED_INSTANCED = RenderPipelines.register(RenderPipeline.builder(RenderPipelines.DEBUG_FILLED_SNIPPET) .withLocation(SkyblockerMod.id("pipeline/debug_filled_box_in
-pub static FILLED_INSTANCED: compat::MainThread<RenderPipeline> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `FILLED_INSTANCED` - see the TODO above"));
+pub static FILLED_INSTANCED: compat::MainThread<std::rc::Rc<RenderPipeline>> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `FILLED_INSTANCED` - see the TODO above"));
 // TODO(fabric2seer): `register` takes 2 argument(s) in the port (`registry: &mut Registry, pipeline: RenderPipeline`), Java passes 1
 //   java: public static final RenderPipeline FILLED_THROUGH_WALLS_INSTANCED = RenderPipelines.register(RenderPipeline.builder(RenderPipelines.DEBUG_FILLED_SNIPPET)
 //   java: 			.withLocation(SkyblockerMod.id("pipeline/debug_filled_box_through_walls_instanced"))
@@ -26,14 +26,14 @@ pub static FILLED_INSTANCED: compat::MainThread<RenderPipeline> = compat::MainTh
 //   java: 			.withDepthStencilState(Optional.empty())
 //   java: 			.build());
 /// java: public static final RenderPipeline FILLED_THROUGH_WALLS_INSTANCED = RenderPipelines.register(RenderPipeline.builder(RenderPipelines.DEBUG_FILLED_SNIPPET) .withLocation(SkyblockerMod.id("pipeline/debug
-pub static FILLED_THROUGH_WALLS_INSTANCED: compat::MainThread<RenderPipeline> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `FILLED_THROUGH_WALLS_INSTANCED` - see the TODO above"));
+pub static FILLED_THROUGH_WALLS_INSTANCED: compat::MainThread<std::rc::Rc<RenderPipeline>> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `FILLED_THROUGH_WALLS_INSTANCED` - see the TODO above"));
 // TODO(fabric2seer): `register` takes 2 argument(s) in the port (`registry: &mut Registry, pipeline: RenderPipeline`), Java passes 1
 //   java: public static final RenderPipeline FILLED_THROUGH_WALLS = RenderPipelines.register(RenderPipeline.builder(RenderPipelines.DEBUG_FILLED_SNIPPET)
 //   java: 			.withLocation(SkyblockerMod.id("pipeline/debug_filled_box_through_walls"))
 //   java: 			.withDepthStencilState(Optional.empty())
 //   java: 			.build());
 /// java: public static final RenderPipeline FILLED_THROUGH_WALLS = RenderPipelines.register(RenderPipeline.builder(RenderPipelines.DEBUG_FILLED_SNIPPET) .withLocation(SkyblockerMod.id("pipeline/debug_filled_bo
-pub static FILLED_THROUGH_WALLS: compat::MainThread<RenderPipeline> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `FILLED_THROUGH_WALLS` - see the TODO above"));
+pub static FILLED_THROUGH_WALLS: compat::MainThread<std::rc::Rc<RenderPipeline>> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `FILLED_THROUGH_WALLS` - see the TODO above"));
 // TODO(fabric2seer): `register` takes 2 argument(s) in the port (`registry: &mut Registry, pipeline: RenderPipeline`), Java passes 1
 //   java: public static final RenderPipeline OUTLINED_BOX_INSTANCED = RenderPipelines.register(RenderPipeline.builder(RenderPipelines.LINES_SNIPPET)
 //   java: 			.withLocation(SkyblockerMod.id("pipeline/outlined_box_instanced"))
@@ -43,7 +43,7 @@ pub static FILLED_THROUGH_WALLS: compat::MainThread<RenderPipeline> = compat::Ma
 //   java: 			.withPrimitiveTopology(PrimitiveTopology.LINES)
 //   java: 			.build());
 /// java: public static final RenderPipeline OUTLINED_BOX_INSTANCED = RenderPipelines.register(RenderPipeline.builder(RenderPipelines.LINES_SNIPPET) .withLocation(SkyblockerMod.id("pipeline/outlined_box_instanc
-pub static OUTLINED_BOX_INSTANCED: compat::MainThread<RenderPipeline> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `OUTLINED_BOX_INSTANCED` - see the TODO above"));
+pub static OUTLINED_BOX_INSTANCED: compat::MainThread<std::rc::Rc<RenderPipeline>> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `OUTLINED_BOX_INSTANCED` - see the TODO above"));
 // TODO(fabric2seer): `register` takes 2 argument(s) in the port (`registry: &mut Registry, pipeline: RenderPipeline`), Java passes 1
 //   java: public static final RenderPipeline OUTLINED_BOX_THROUGH_WALLS_INSTANCED = RenderPipelines.register(RenderPipeline.builder(RenderPipelines.LINES_SNIPPET)
 //   java: 			.withLocation(SkyblockerMod.id("pipeline/outlined_box_through_walls_instanced"))
@@ -54,14 +54,14 @@ pub static OUTLINED_BOX_INSTANCED: compat::MainThread<RenderPipeline> = compat::
 //   java: 			.withDepthStencilState(Optional.empty())
 //   java: 			.build());
 /// java: public static final RenderPipeline OUTLINED_BOX_THROUGH_WALLS_INSTANCED = RenderPipelines.register(RenderPipeline.builder(RenderPipelines.LINES_SNIPPET) .withLocation(SkyblockerMod.id("pipeline/outlin
-pub static OUTLINED_BOX_THROUGH_WALLS_INSTANCED: compat::MainThread<RenderPipeline> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `OUTLINED_BOX_THROUGH_WALLS_INSTANCED` - see the TODO above"));
+pub static OUTLINED_BOX_THROUGH_WALLS_INSTANCED: compat::MainThread<std::rc::Rc<RenderPipeline>> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `OUTLINED_BOX_THROUGH_WALLS_INSTANCED` - see the TODO above"));
 // TODO(fabric2seer): `register` takes 2 argument(s) in the port (`registry: &mut Registry, pipeline: RenderPipeline`), Java passes 1
 //   java: public static final RenderPipeline LINES_THROUGH_WALLS = RenderPipelines.register(RenderPipeline.builder(RenderPipelines.LINES_SNIPPET)
 //   java: 			.withLocation(SkyblockerMod.id("pipeline/lines_through_walls"))
 //   java: 			.withDepthStencilState(Optional.empty())
 //   java: 			.build());
 /// java: public static final RenderPipeline LINES_THROUGH_WALLS = RenderPipelines.register(RenderPipeline.builder(RenderPipelines.LINES_SNIPPET) .withLocation(SkyblockerMod.id("pipeline/lines_through_walls")) 
-pub static LINES_THROUGH_WALLS: compat::MainThread<RenderPipeline> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `LINES_THROUGH_WALLS` - see the TODO above"));
+pub static LINES_THROUGH_WALLS: compat::MainThread<std::rc::Rc<RenderPipeline>> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `LINES_THROUGH_WALLS` - see the TODO above"));
 // TODO(fabric2seer): `register` takes 2 argument(s) in the port (`registry: &mut Registry, pipeline: RenderPipeline`), Java passes 1
 //   java: public static final RenderPipeline QUADS_THROUGH_WALLS = RenderPipelines.register(RenderPipeline.builder(RenderPipelines.DEBUG_FILLED_SNIPPET)
 //   java: 			.withLocation(SkyblockerMod.id("pipeline/debug_quads_through_walls"))
@@ -69,7 +69,7 @@ pub static LINES_THROUGH_WALLS: compat::MainThread<RenderPipeline> = compat::Mai
 //   java: 			.withCull(false)
 //   java: 			.build());
 /// java: public static final RenderPipeline QUADS_THROUGH_WALLS = RenderPipelines.register(RenderPipeline.builder(RenderPipelines.DEBUG_FILLED_SNIPPET) .withLocation(SkyblockerMod.id("pipeline/debug_quads_thro
-pub static QUADS_THROUGH_WALLS: compat::MainThread<RenderPipeline> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `QUADS_THROUGH_WALLS` - see the TODO above"));
+pub static QUADS_THROUGH_WALLS: compat::MainThread<std::rc::Rc<RenderPipeline>> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `QUADS_THROUGH_WALLS` - see the TODO above"));
 // TODO(fabric2seer): `register` takes 2 argument(s) in the port (`registry: &mut Registry, pipeline: RenderPipeline`), Java passes 1
 //   java: public static final RenderPipeline TEXTURE = RenderPipelines.register(RenderPipeline.builder(RenderPipelines.GUI_TEXTURED_SNIPPET)
 //   java: 			.withLocation(SkyblockerMod.id("pipeline/texture"))
@@ -77,7 +77,7 @@ pub static QUADS_THROUGH_WALLS: compat::MainThread<RenderPipeline> = compat::Mai
 //   java: 			.withCull(false)
 //   java: 			.build());
 /// java: public static final RenderPipeline TEXTURE = RenderPipelines.register(RenderPipeline.builder(RenderPipelines.GUI_TEXTURED_SNIPPET) .withLocation(SkyblockerMod.id("pipeline/texture")) .withDepthStencil
-pub static TEXTURE: compat::MainThread<RenderPipeline> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `TEXTURE` - see the TODO above"));
+pub static TEXTURE: compat::MainThread<std::rc::Rc<RenderPipeline>> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `TEXTURE` - see the TODO above"));
 // TODO(fabric2seer): `register` takes 2 argument(s) in the port (`registry: &mut Registry, pipeline: RenderPipeline`), Java passes 1
 //   java: public static final RenderPipeline TEXTURE_THROUGH_WALLS = RenderPipelines.register(RenderPipeline.builder(RenderPipelines.GUI_TEXTURED_SNIPPET)
 //   java: 			.withLocation(SkyblockerMod.id("pipeline/texture_through_walls"))
@@ -85,7 +85,7 @@ pub static TEXTURE: compat::MainThread<RenderPipeline> = compat::MainThread::new
 //   java: 			.withCull(false)
 //   java: 			.build());
 /// java: public static final RenderPipeline TEXTURE_THROUGH_WALLS = RenderPipelines.register(RenderPipeline.builder(RenderPipelines.GUI_TEXTURED_SNIPPET) .withLocation(SkyblockerMod.id("pipeline/texture_throug
-pub static TEXTURE_THROUGH_WALLS: compat::MainThread<RenderPipeline> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `TEXTURE_THROUGH_WALLS` - see the TODO above"));
+pub static TEXTURE_THROUGH_WALLS: compat::MainThread<std::rc::Rc<RenderPipeline>> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `TEXTURE_THROUGH_WALLS` - see the TODO above"));
 // TODO(fabric2seer): `register` takes 2 argument(s) in the port (`registry: &mut Registry, pipeline: RenderPipeline`), Java passes 1
 //   java: public static final RenderPipeline CYLINDER = RenderPipelines.register(RenderPipeline.builder(RenderPipelines.DEBUG_FILLED_SNIPPET)
 //   java: 			.withLocation(SkyblockerMod.id("pipeline/cylinder"))
@@ -94,7 +94,7 @@ pub static TEXTURE_THROUGH_WALLS: compat::MainThread<RenderPipeline> = compat::M
 //   java: 			.withCull(false)
 //   java: 			.build());
 /// java: public static final RenderPipeline CYLINDER = RenderPipelines.register(RenderPipeline.builder(RenderPipelines.DEBUG_FILLED_SNIPPET) .withLocation(SkyblockerMod.id("pipeline/cylinder")) .withVertexBind
-pub static CYLINDER: compat::MainThread<RenderPipeline> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `CYLINDER` - see the TODO above"));
+pub static CYLINDER: compat::MainThread<std::rc::Rc<RenderPipeline>> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `CYLINDER` - see the TODO above"));
 // TODO(fabric2seer): `register` takes 2 argument(s) in the port (`registry: &mut Registry, pipeline: RenderPipeline`), Java passes 1
 //   java: public static final RenderPipeline CIRCLE = RenderPipelines.register(RenderPipeline.builder(RenderPipelines.DEBUG_FILLED_SNIPPET)
 //   java: 			.withLocation(SkyblockerMod.id("pipeline/circle"))
@@ -103,7 +103,7 @@ pub static CYLINDER: compat::MainThread<RenderPipeline> = compat::MainThread::ne
 //   java: 			.withCull(false)
 //   java: 			.build());
 /// java: public static final RenderPipeline CIRCLE = RenderPipelines.register(RenderPipeline.builder(RenderPipelines.DEBUG_FILLED_SNIPPET) .withLocation(SkyblockerMod.id("pipeline/circle")) .withVertexBinding(
-pub static CIRCLE: compat::MainThread<RenderPipeline> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `CIRCLE` - see the TODO above"));
+pub static CIRCLE: compat::MainThread<std::rc::Rc<RenderPipeline>> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `CIRCLE` - see the TODO above"));
 // TODO(fabric2seer): `register` takes 2 argument(s) in the port (`registry: &mut Registry, pipeline: RenderPipeline`), Java passes 1
 //   java: public static final RenderPipeline CIRCLE_LINES = RenderPipelines.register(RenderPipeline.builder(RenderPipelines.DEBUG_FILLED_SNIPPET)
 //   java: 			.withLocation(SkyblockerMod.id("pipeline/circle_lines"))
@@ -112,7 +112,7 @@ pub static CIRCLE: compat::MainThread<RenderPipeline> = compat::MainThread::new(
 //   java: 			.withCull(false)
 //   java: 			.build());
 /// java: public static final RenderPipeline CIRCLE_LINES = RenderPipelines.register(RenderPipeline.builder(RenderPipelines.DEBUG_FILLED_SNIPPET) .withLocation(SkyblockerMod.id("pipeline/circle_lines")) .withVe
-pub static CIRCLE_LINES: compat::MainThread<RenderPipeline> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `CIRCLE_LINES` - see the TODO above"));
+pub static CIRCLE_LINES: compat::MainThread<std::rc::Rc<RenderPipeline>> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `CIRCLE_LINES` - see the TODO above"));
 // TODO(fabric2seer): `register` takes 2 argument(s) in the port (`registry: &mut Registry, pipeline: RenderPipeline`), Java passes 1
 //   java: public static final RenderPipeline BLURRED_RECTANGLE = RenderPipelines.register(RenderPipeline.builder(RenderPipelines.GUI_SNIPPET)
 //   java: 			.withLocation(SkyblockerMod.id("pipeline/blurred_rectangle"))
@@ -123,7 +123,7 @@ pub static CIRCLE_LINES: compat::MainThread<RenderPipeline> = compat::MainThread
 //   java: 			.withPrimitiveTopology(PrimitiveTopology.QUADS)
 //   java: 			.build());
 /// java: public static final RenderPipeline BLURRED_RECTANGLE = RenderPipelines.register(RenderPipeline.builder(RenderPipelines.GUI_SNIPPET) .withLocation(SkyblockerMod.id("pipeline/blurred_rectangle")) .withV
-pub static BLURRED_RECTANGLE: compat::MainThread<RenderPipeline> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `BLURRED_RECTANGLE` - see the TODO above"));
+pub static BLURRED_RECTANGLE: compat::MainThread<std::rc::Rc<RenderPipeline>> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `BLURRED_RECTANGLE` - see the TODO above"));
 
 /// java: public class SkyblockerRenderPipelines
 #[derive(Clone)]

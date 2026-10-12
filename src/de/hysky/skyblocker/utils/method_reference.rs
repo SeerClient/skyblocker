@@ -22,8 +22,8 @@ impl MethodReference {
     }
 
     /// java: the record accessor `classDesc()`
-    pub fn class_desc(&self) -> crate::unresolved::ClassDesc {
-        self.class_desc.clone()
+    pub fn class_desc(&self) -> &crate::unresolved::ClassDesc {
+        &self.class_desc
     }
 
     /// java: the record accessor `methodName()`
@@ -32,8 +32,8 @@ impl MethodReference {
     }
 
     /// java: the record accessor `typeDesc()`
-    pub fn type_desc(&self) -> crate::unresolved::MethodTypeDesc {
-        self.type_desc.clone()
+    pub fn type_desc(&self) -> &crate::unresolved::MethodTypeDesc {
+        &self.type_desc
     }
 
     /// java: the record accessor `itf()`
@@ -58,7 +58,7 @@ impl MethodReference {
         // TODO(fabric2seer): `.flags(..)` on a ClassModel
         //   java: boolean itf = parentClassModel.flags().has(AccessFlag.INTERFACE);
         let mut itf: bool = todo!("fabric2seer: the initialiser of `itf` (TODO above)");
-        return MethodReference::new(class_desc.clone(), method_name.clone(), type_desc.clone(), itf);
+        return MethodReference::new(class_desc, method_name, type_desc, itf);
     }
 
     /// java: public boolean matches(MethodModel methodModel)

@@ -77,10 +77,10 @@ impl SearchableGridWidgetBase {
         { let __v = packed; compat::write(&__this, |__t| __t.searchable_grid_widget_base_mut().packed = __v); }
         { let __v = space_elements_out; compat::write(&__this, |__t| __t.searchable_grid_widget_base_mut().space_elements_out = __v); }
         { let __v = Some(WidgetsContainer::new()); compat::write(&__this, |__t| __t.searchable_grid_widget_base_mut().widgets_container = __v); }
-        let __r0 = compat::read(&__this, |__t| __t.searchable_grid_widget_base().search_field.clone());
-        { let (__q0,) = (__r0.unwrap(),); __this.lock().borrow_mut().searchable_grid_widget_base_mut().layout_widget.add_child(__q0) };
-        let __r0 = compat::read(&__this, |__t| __t.searchable_grid_widget_base().widgets_container.clone());
-        { let (__q0,) = (__r0.unwrap(),); __this.lock().borrow_mut().searchable_grid_widget_base_mut().layout_widget.add_child(__q0) };
+        // java: layoutWidget.addChild(searchField); layoutWidget.addChild(widgetsContainer);
+        // rust: port gap - the port's `LayoutElement::Widget` is an index into a SCREEN's widget list; the search
+        // field and the widgets container are owned by this container widget and have no such index, so the port's
+        // `LinearLayout` cannot hold them (GAPS_batchA.md)
         __this.lock().borrow_mut().searchable_grid_widget_base_mut().layout_widget.arrange_elements();
         // TODO(fabric2seer): `LayoutElement::set_position` ports `setPosition`, but the port's `LinearLayout` holds no `LayoutElement` (no Deref, no `base` field) to call it on
         // rust: __this.lock().borrow_mut().searchable_grid_widget_base_mut().layout_widget.set_position(x, y);
@@ -269,7 +269,11 @@ impl dyn SearchableGridWidget {
 
     /// java: @Override public List<? extends GuiEventListener> children()
     pub fn children_body(__this: &compat::Shared<dyn SearchableGridWidget>) -> Vec<Box<dyn GuiEventListener>> {
-        return vec![compat::read(__this, |__t| __t.searchable_grid_widget_base().search_field.clone()).unwrap(), compat::read(__this, |__t| __t.searchable_grid_widget_base().widgets_container.clone()).unwrap()];
+        // java: return List.of(searchField, widgetsContainer); - the two live children
+        // rust: port gap - the port's `EditBox` and the mod's `WidgetsContainer` are values inside this widget's lock;
+        // the port's `children()` answers owned listeners, so it cannot lend the live children (GAPS_batchA.md)
+        let _ = __this;
+        todo!("rust: port gap - children() cannot lend the container's live EditBox / WidgetsContainer")
     }
 
     /// java: @Override protected void extractWidgetRenderState(GuiGraphicsExtractor context, int mouseX, int mouseY, float deltaTicks)

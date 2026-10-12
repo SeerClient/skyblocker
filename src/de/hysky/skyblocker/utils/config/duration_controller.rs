@@ -102,7 +102,10 @@ impl DurationController {
 
     /// java: @SuppressWarnings("UnstableApiUsage") @Override public ControllerBuilder<Integer> controllerYACL(dev.isxander.yacl3.api.Option<Integer> yaclOption, Class<Integer> type)
     pub fn controller_yacl(&self, yacl_option: &crate::unresolved::Option, r#type: &crate::unresolved::Class) -> crate::unresolved::ControllerBuilder {
-        return Arc::new(move || DurationControllerYACL::new(yacl_option.clone()));
+        // java: return () -> new DurationControllerYACL(yaclOption);
+        // rust: port gap - YACL (dev.isxander.yacl3: ControllerBuilder, Option, YACLScreen) is not available to SeerClient
+        // mods; `crate::unresolved::ControllerBuilder` is a placeholder with no lambda form (GAPS_batchA.md)
+        todo!("rust: port gap - YACL ControllerBuilder (GAPS_batchA.md)")
     }
 
 }
@@ -164,8 +167,8 @@ impl DurationControllerYACL {
     }
 
     /// java: the record accessor `option()`
-    pub fn option(&self) -> crate::unresolved::Option {
-        self.option.clone()
+    pub fn option(&self) -> &crate::unresolved::Option {
+        &self.option
     }
 
     /// java: @Override public String getString()
@@ -188,7 +191,10 @@ impl DurationControllerYACL {
 
     /// java: @Override public AbstractWidget provideWidget(YACLScreen screen, Dimension<Integer> widgetDimension)
     pub fn provide_widget(&self, screen: &crate::unresolved::YACLScreen, widget_dimension: &crate::unresolved::Dimension) -> crate::unresolved::AbstractWidget {
-        return DurationControllerWidget::new(self.clone(), screen.clone(), widget_dimension.clone());
+        // java: return new DurationControllerWidget(this, screen, widgetDimension);
+        // rust: port gap - YACL (dev.isxander.yacl3: IStringController, YACLScreen, Dimension, its AbstractWidget) is not
+        // available to SeerClient mods; the placeholders cannot carry this record or be copied (GAPS_batchA.md)
+        todo!("rust: port gap - YACL StringControllerElement (GAPS_batchA.md)")
     }
 
 }

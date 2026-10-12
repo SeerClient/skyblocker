@@ -167,12 +167,12 @@ impl Location {
 
     /// java: public static Location from(String id)
     pub fn from(id: &str) -> Location {
-        return Location::values().iter().copied().filter(|loc| (loc.fields().id == id)).next().unwrap_or(UNKNOWN);
+        return Location::values().iter().copied().filter(|loc| (loc.fields().id == id)).next().unwrap_or(Location::Unknown);
     }
 
     /// java: public static Location fromFriendlyName(String friendlyName)
     pub fn from_friendly_name(friendly_name: &str) -> Location {
-        return Location::values().iter().copied().filter(|loc| compat::equals_ignore_case(&loc.fields().friendly_name, friendly_name)).next().unwrap_or(UNKNOWN);
+        return Location::values().iter().copied().filter(|loc| compat::equals_ignore_case(&loc.fields().friendly_name, friendly_name)).next().unwrap_or(Location::Unknown);
     }
 
     /// java: @Override public String toString()
@@ -184,7 +184,7 @@ impl Location {
 
 impl std::fmt::Display for Location {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", Location::to_string(*self))
+        write!(f, "{}", Location::to_string(self))
     }
 }
 

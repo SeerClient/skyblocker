@@ -10,7 +10,7 @@ use mcrust::net::minecraft::network::chat::component;
 use mcrust::net::minecraft::network::chat::mutable_component::MutableComponent;
 
 /// java: public static final Instant SKYBLOCK_EPOCH = Instant.ofEpochMilli(1560275700000L);
-pub static SKYBLOCK_EPOCH: compat::MainThread<std::time::SystemTime> = compat::MainThread::new(|| mcrust::java::time::instant::Instant::of_epoch_milli(1560275700000));
+pub static SKYBLOCK_EPOCH: compat::MainThread<mcrust::java::time::instant::Instant> = compat::MainThread::new(|| mcrust::java::time::instant::Instant::of_epoch_milli(1560275700000));
 /// java: public static final AtomicInteger skyblockYear = new AtomicInteger(0);
 pub static SKYBLOCK_YEAR: LazyLock<Mutex<std::sync::atomic::AtomicI32>> = LazyLock::new(|| Mutex::new(std::sync::atomic::AtomicI32::new(0)));
 // TODO(fabric2seer): `new AtomicReference(..)`
@@ -372,7 +372,7 @@ impl Month {
 
 impl std::fmt::Display for Month {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", Month::to_string(*self))
+        write!(f, "{}", Month::to_string(self))
     }
 }
 

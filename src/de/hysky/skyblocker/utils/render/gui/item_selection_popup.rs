@@ -93,8 +93,8 @@ impl AbstractSelectionPopup<compat::Shared<crate::de::hysky::skyblocker::utils::
 
     /// java: @Override protected Collection<ItemWidget> filterWidgets(String input)
     fn filter_widgets(&self, input: &str) -> Vec<compat::Shared<ItemWidget>> {
-        let __o1 = w.clone();
-        return self.items.iter().cloned().filter(|w| (compat::write(&__o1, |__t| compat::component_of(__t.get_message_component()))).get_string().to_lowercase().contains(&input.to_lowercase())).collect::<Vec<_>>();
+        // java: return items.stream().filter(w -> w.getMessage().getString().toLowerCase().contains(input.toLowerCase())).toList();
+        return self.items.iter().cloned().filter(|w| (compat::read(w, |__t| compat::component_of(__t.get_message_component()))).get_string().to_lowercase().contains(&input.to_lowercase())).collect::<Vec<_>>();
     }
 
 }
@@ -113,17 +113,17 @@ impl AbstractPopupScreen for ItemSelectionPopup {
 
     /// java: @Override public void extractBackground(GuiGraphicsExtractor context, int mouseX, int mouseY, float delta) (dispatch: the body for this class)
     fn extract_background(&self) -> fn(&compat::Shared<dyn AbstractPopupScreen>, &mut GuiGraphicsExtractor, i32, i32, f32) {
-        <dyn AbstractSelectionPopup>::extract_background_from::<Self>
+        <dyn AbstractSelectionPopup<compat::Shared<crate::de::hysky::skyblocker::utils::render::gui::item_selection_popup::ItemWidget>>>::extract_background_from::<Self>
     }
 
     /// java: @Override public void init() (dispatch: the body for this class)
     fn init(&self) -> fn(&compat::Shared<dyn AbstractPopupScreen>) {
-        <dyn AbstractSelectionPopup>::init_from::<Self>
+        <dyn AbstractSelectionPopup<compat::Shared<crate::de::hysky::skyblocker::utils::render::gui::item_selection_popup::ItemWidget>>>::init_from::<Self>
     }
 
     /// java: @Override protected void repositionElements() (dispatch: the body for this class)
     fn reposition_elements(&self) -> fn(&compat::Shared<dyn AbstractPopupScreen>) {
-        <dyn AbstractSelectionPopup>::reposition_elements_from::<Self>
+        <dyn AbstractSelectionPopup<compat::Shared<crate::de::hysky::skyblocker::utils::render::gui::item_selection_popup::ItemWidget>>>::reposition_elements_from::<Self>
     }
 
 }
@@ -214,20 +214,21 @@ impl std::ops::DerefMut for ItemWidget {
 impl ItemWidget {
     /// java: private ItemWidget(FlexibleItemStack stack)
     pub fn new(mut stack: compat::Shared<FlexibleItemStack>) -> compat::Shared<Self> {
-        let __init_item = mcrust::net::minecraft::world::item::item_stack::ItemStack::new(&FlexibleItemStack::type_holder(&stack));
+        // java: item = new ItemStack(stack.typeHolder()); - `ItemStack(Holder<Item>)` is `this(item.value(), 1)`
+        let __init_item = mcrust::net::minecraft::world::item::item_stack::ItemStack::new(&crate::de::hysky::skyblocker::utils::flexible_item_stack::item_of(&FlexibleItemStack::type_holder(&stack)));
         let __this = compat::shared(Self {
             base: AbstractWidget::new(0, 0, 20, 20, (&component::literal(&compat::component_of(FlexibleItemStack::get_stack_or_throw(&stack).get_hover_name()).get_string()).get_string()).to_string(), WidgetKind::PlainText, OnPress::Inert),
             self_ref: std::sync::Weak::new(),
             item: __init_item,
         });
         compat::write(&__this, |__t| __t.self_ref = std::sync::Arc::downgrade(&__this));
-        { let (__q0, __q1,) = (mcrust::net::minecraft::core::component::data_components::profile().clone(), &stack,); __this.lock().borrow_mut().item.copy_from(__q0, __q1) };
-        { let (__q0, __q1,) = (mcrust::net::minecraft::core::component::data_components::item_model().clone(), &stack,); __this.lock().borrow_mut().item.copy_from(__q0, __q1) };
-        { let (__q0, __q1,) = (mcrust::net::minecraft::core::component::data_components::banner_patterns().clone(), &stack,); __this.lock().borrow_mut().item.copy_from(__q0, __q1) };
+        { let __q0 = mcrust::net::minecraft::core::component::data_components::profile().clone(); compat::read(&stack, |__s| compat::write(&__this, |__t| __t.item.copy_from(__q0, __s))) };
+        { let __q0 = mcrust::net::minecraft::core::component::data_components::item_model().clone(); compat::read(&stack, |__s| compat::write(&__this, |__t| __t.item.copy_from(__q0, __s))) };
+        { let __q0 = mcrust::net::minecraft::core::component::data_components::banner_patterns().clone(); compat::read(&stack, |__s| compat::write(&__this, |__t| __t.item.copy_from(__q0, __s))) };
         let mut item_id: String = stack.lock().borrow().get_skyblock_id();
-        let mut custom_data: Tag = mcrust::net::minecraft::nbt::compound_tag::Tag::compound();
+        let mut custom_data: Tag = Tag::compound();
         custom_data.put_string(item_utils::ID, &item_id);
-        { let (__q0, __q1,) = (mcrust::net::minecraft::core::component::data_components::custom_data().clone(), Some(CustomData::of(&custom_data)),); __this.lock().borrow_mut().item.set(__q0, __q1) };
+        { let (__q0, __q1,) = (mcrust::net::minecraft::core::component::data_components::custom_data().clone(), Some(mcrust::com::mojang::serialization::obj(CustomData::of(&custom_data))),); __this.lock().borrow_mut().item.set(__q0, __q1) };
         { let (__q0,) = (Tooltip::create(compat::component_of(__this.lock().borrow().get_message_component()).get_string()),); __this.lock().borrow_mut().set_tooltip(__q0) };
         __this
     }

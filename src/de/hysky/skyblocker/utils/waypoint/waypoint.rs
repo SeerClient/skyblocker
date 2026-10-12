@@ -392,7 +392,9 @@ impl dyn Waypoint {
 
     /// java: @Override public int hashCode()
     pub fn hash_code_body(__this: &compat::Shared<dyn Waypoint>) -> i32 {
-        return compat::hash_code(&(&compat::read(__this, |__t| __t.waypoint_base().pos.clone()).unwrap(), &((compat::read(__this, |__t| __t.waypoint_base().type_supplier.clone()).unwrap()))(), &compat::hash_code(&compat::read(__this, |__t| __t.waypoint_base().color_components.clone())), &compat::read(__this, |__t| __t.waypoint_base().alpha), &compat::read(__this, |__t| __t.waypoint_base().line_width), &compat::read(__this, |__t| __t.waypoint_base().through_walls), &compat::read(__this, |__t| __t.waypoint_base().enabled),));
+        // java: Objects.hash(pos, typeSupplier.get(), Arrays.hashCode(colorComponents), alpha, lineWidth, throughWalls, enabled)
+        // (floats hash by their bits, as Float.hashCode does)
+        return compat::hash_code(&(&compat::read(__this, |__t| __t.waypoint_base().pos.clone()).unwrap(), &((compat::read(__this, |__t| __t.waypoint_base().type_supplier.clone()).unwrap()))(), &compat::read(__this, |__t| __t.waypoint_base().color_components.iter().map(|c| c.to_bits()).collect::<Vec<u32>>()), &compat::read(__this, |__t| __t.waypoint_base().alpha).to_bits(), &compat::read(__this, |__t| __t.waypoint_base().line_width).to_bits(), &compat::read(__this, |__t| __t.waypoint_base().through_walls), &compat::read(__this, |__t| __t.waypoint_base().enabled),));
     }
 
     /// java: @Override public boolean equals(Object obj)
@@ -406,10 +408,10 @@ impl dyn Waypoint {
 
 impl Waypoint for WaypointBase {
     fn waypoint_base(&self) -> &WaypointBase {
-        &self
+        self
     }
     fn waypoint_base_mut(&mut self) -> &mut WaypointBase {
-        &mut self
+        self
     }
 
 }
@@ -474,23 +476,21 @@ impl Type {
 
     /// java: @Override public String getSerializedName()
     pub fn get_serialized_name(&self) -> String {
-        // TODO(fabric2seer): call to `name(..)` (not a method of this class)
-        //   java: return name().toLowerCase(Locale.ENGLISH);
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        // java: return name().toLowerCase(Locale.ENGLISH);
+        return self.name().to_lowercase();
     }
 
     /// java: @Override public String toString()
     pub fn to_string(&self) -> String {
-        // TODO(fabric2seer): call to `name(..)` (not a method of this class)
-        //   java: return I18n.get("skyblocker.waypoints.type." + name());
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        // java: return I18n.get("skyblocker.waypoints.type." + name());
+        return mcrust::net::minecraft::client::resources::language::i18n::get(&format!("skyblocker.waypoints.type.{}", self.name()), &[]);
     }
 
     /// java: public Type withoutBeacon()
     pub fn without_beacon(&self) -> Type {
         return match *self {
-            Type::Waypoint => HIGHLIGHT,
-            Type::OutlinedWaypoint => OUTLINED_HIGHLIGHT,
+            Type::Waypoint => Type::Highlight,
+            Type::OutlinedWaypoint => Type::OutlinedHighlight,
             _ => *self,
         };
     }
@@ -499,6 +499,6 @@ impl Type {
 
 impl std::fmt::Display for Type {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", Type::to_string(*self))
+        write!(f, "{}", Type::to_string(self))
     }
 }

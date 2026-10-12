@@ -888,6 +888,10 @@ pub mod regex {
         pub fn group_count(&self) -> i32 {
             self.groups.len() as i32 - 1
         }
+        /// `namedGroups().keySet()` - the pattern's group names.
+        pub fn named_groups(&self) -> Vec<String> {
+            self.names.iter().flatten().cloned().collect()
+        }
     }
 
     /// `java.util.regex.Matcher`: stateful like Java's (`find` advances).
@@ -950,6 +954,11 @@ pub mod regex {
         pub fn find_from(&mut self, start: i32) -> bool {
             let b = self.input.char_indices().nth(start.max(0) as usize).map_or(self.input.len(), |(b, _)| b);
             self.record(false, b)
+        }
+
+        /// `hasMatch()` (Java 20): whether the last match operation succeeded (a reset clears it).
+        pub fn has_match(&self) -> bool {
+            self.caps.is_some()
         }
 
         /// `hitEnd()` (approximation: whether the last search reached the end).
@@ -2416,6 +2425,108 @@ pub fn shared<T>(value: T) -> Shared<T> {
 }
 
 
+/// `System.identityHashCode(stack)`: a number that belongs to the Java OBJECT, kept as a per-object attachment
+/// (`ItemStack::duplicate` hands the same object on and shares it; a `copy()` is a new object and gets a new one).
+/// Unique per object where Java's may collide - the readers only use it as a cache key.
+pub fn identity_hash_code(stack: &mcrust::net::minecraft::world::item::item_stack::ItemStack) -> i32 {
+    use mcrust::mcrust::modding::attach::{AttachmentTarget as _, AttachmentType};
+    static IDENTITY: AttachmentType<i32> = AttachmentType::new("fabric2seer:identity_hash_code");
+    static NEXT: std::sync::atomic::AtomicI32 = std::sync::atomic::AtomicI32::new(1);
+    stack.get_attached_or_create(&IDENTITY, || NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed))
+}
+
+/// `Minecraft.getInstance().screen instanceof AbstractContainerScreen` from anywhere (a tooltip callback, a tick):
+/// the kind the game publishes once a frame (`gui::current_screen_kind`), which names every container screen
+/// (`InventoryScreen`, `ContainerScreen`, the furnaces, ..., `CreativeModeInventoryScreen` - all
+/// `AbstractContainerScreen`s; a mod's container screen rides on the vanilla one it replaced).
+pub fn container_screen_open() -> bool {
+    use mcrust::net::minecraft::client::gui::gui::ScreenKind;
+    // `gui.screen_kind` is the tag `setScreen` writes before the new screen's `init` (so `ScreenEvents.AFTER_INIT`
+    // sees its own screen); before the first client tick only the published copy exists.
+    let p = MINECRAFT.load(std::sync::atomic::Ordering::Acquire);
+    let kind = if p.is_null() {
+        mcrust::net::minecraft::client::gui::gui::current_screen_kind()
+    } else {
+        Some(minecraft().gui.screen_kind)
+    };
+    matches!(
+        kind,
+        Some(
+            ScreenKind::Inventory
+                | ScreenKind::Container
+                | ScreenKind::Hopper
+                | ScreenKind::ShulkerBox
+                | ScreenKind::Dispenser
+                | ScreenKind::BrewingStand
+                | ScreenKind::Furnace
+                | ScreenKind::BlastFurnace
+                | ScreenKind::Smoker
+                | ScreenKind::Grindstone
+                | ScreenKind::Crafting
+                | ScreenKind::Anvil
+                | ScreenKind::Smithing
+                | ScreenKind::Stonecutter
+                | ScreenKind::Loom
+                | ScreenKind::Enchantment
+                | ScreenKind::Crafter
+                | ScreenKind::Beacon
+                | ScreenKind::Merchant
+                | ScreenKind::HorseInventory
+                | ScreenKind::NautilusInventory
+                | ScreenKind::CartographyTable
+                | ScreenKind::CreativeInventory
+        )
+    )
+}
+
+/// JOML's `toString()` of a vector (`Vector2i`, `Vector2d`, `Vector3d` ..., joml 1.10.8): `"(" + x + " " + y + ")"`
+/// with each component in `Options.NUMBER_FORMAT` (`0.000E0`) as `Runtime.formatNumbers` writes it - a positive
+/// number gets a leading space and the exponent its sign: `( 3.000E+0 -1.200E+1)`.
+pub fn joml_string(components: &[f64]) -> String {
+    let parts: Vec<String> = components
+        .iter()
+        .map(|v| {
+            let s = format!("{:.3e}", v);
+            let (mantissa, exponent) = s.split_once('e').unwrap_or((&s, "0"));
+            let exponent: i32 = exponent.parse().unwrap_or(0);
+            let mantissa = if *v >= 0.0 { format!(" {mantissa}") } else { mantissa.to_string() };
+            format!("{mantissa}E{}{}", if exponent < 0 { "-" } else { "+" }, exponent.abs())
+        })
+        .collect();
+    format!("({})", parts.join(" "))
+}
+
+/// `player.containerMenu`'s slots together with the containers their `Slot.getItem()` reads (the port's
+/// `Slot::get_item` takes them): `f(menu, containers)`. `None` where `game::with_player` answers `None` (no
+/// player; or this thread holds the player - inside a `ModMenu` method or a container screen's `slot_clicked`).
+pub fn with_open_menu<R>(
+    f: impl FnOnce(
+        &mcrust::net::minecraft::world::inventory::abstract_container_menu::AbstractContainerMenu,
+        &mcrust::net::minecraft::world::inventory::slot::Containers<'_>,
+    ) -> R,
+) -> Option<R> {
+    use mcrust::net::minecraft::world::entity::player::player::Player as _;
+    mcrust::mcrust::modding::game::with_player(|p| {
+        let (menu, inventory_menu, inventory) = p.player_mut().get_container_menu_and_inventory();
+        let (menu, containers) = menu.slots_and_containers(inventory_menu, inventory);
+        f(menu, &containers)
+    })
+}
+
+/// `slot.getItem()` of a slot of the player's open menu: the SAME stack (`duplicate` keeps Java's identity, so
+/// `stack == slot.getItem()` holds). EMPTY where `with_open_menu` answers `None`.
+pub fn slot_item(
+    slot: &mcrust::net::minecraft::world::inventory::slot::Slot,
+) -> mcrust::net::minecraft::world::item::item_stack::ItemStack {
+    with_open_menu(|_, containers| slot.get_item(containers).duplicate())
+        .unwrap_or_else(mcrust::net::minecraft::world::item::item_stack::empty)
+}
+
+/// `slot.hasItem()` of a slot of the player's open menu (see `slot_item`).
+pub fn slot_has_item(slot: &mcrust::net::minecraft::world::inventory::slot::Slot) -> bool {
+    with_open_menu(|_, containers| slot.has_item(containers)).unwrap_or(false)
+}
+
 /// A key category by id: vanilla's, or the mod's own (registered on first use,
 /// `KeyMapping.Category.register`).
 pub fn category(id: &str) -> mcrust::net::minecraft::client::key_mapping::Category {
@@ -2426,4 +2537,322 @@ pub fn category(id: &str) -> mcrust::net::minecraft::client::key_mapping::Catego
     Category::by_id(&ident).unwrap_or_else(|| {
         crate::prelude::key_binding_helper::register_category(id).unwrap_or(Category::Misc)
     })
+}
+
+/// One argument of `String.format` (`java.util.Formatter`): an integral, a floating-point or any other value (its
+/// `toString`). A `float` widens to `double`, as `Formatter.print(float, Locale)` does.
+#[derive(Clone, Debug)]
+pub enum FormatArg {
+    Int(i64),
+    Float(f64),
+    Str(String),
+}
+
+impl From<i32> for FormatArg {
+    fn from(v: i32) -> Self {
+        FormatArg::Int(v as i64)
+    }
+}
+impl From<i64> for FormatArg {
+    fn from(v: i64) -> Self {
+        FormatArg::Int(v)
+    }
+}
+impl From<f32> for FormatArg {
+    fn from(v: f32) -> Self {
+        FormatArg::Float(v as f64)
+    }
+}
+impl From<f64> for FormatArg {
+    fn from(v: f64) -> Self {
+        FormatArg::Float(v)
+    }
+}
+impl From<&str> for FormatArg {
+    fn from(v: &str) -> Self {
+        FormatArg::Str(v.to_string())
+    }
+}
+impl From<String> for FormatArg {
+    fn from(v: String) -> Self {
+        FormatArg::Str(v)
+    }
+}
+
+/// `String.format(Locale.ENGLISH / Locale.US / Locale.ROOT, format, args)` - `java.util.Formatter`'s
+/// `%[argument_index$][flags][width][.precision]conversion` for the conversions `d s f e g % n` and the flags
+/// `- + space 0 ,`. A floating-point conversion rounds the value's shortest decimal digits (`Double.toString`'s)
+/// HALF_UP, as `sun.misc.FormattedFloatingDecimal` does - not the binary value, as C's `printf` would.
+pub fn string_format(format: &str, args: &[FormatArg]) -> String {
+    let chars: Vec<char> = format.chars().collect();
+    let mut out = String::new();
+    let mut i = 0;
+    let mut ordinary = 0usize;
+    while i < chars.len() {
+        if chars[i] != '%' {
+            out.push(chars[i]);
+            i += 1;
+            continue;
+        }
+        i += 1;
+        // argument_index$
+        let mut j = i;
+        while j < chars.len() && chars[j].is_ascii_digit() {
+            j += 1;
+        }
+        let mut index: Option<usize> = None;
+        if j > i && j < chars.len() && chars[j] == '$' {
+            index = chars[i..j].iter().collect::<String>().parse::<usize>().ok().map(|n| n - 1);
+            i = j + 1;
+        }
+        let mut flags = String::new();
+        while i < chars.len() && "-+ 0,#(".contains(chars[i]) {
+            flags.push(chars[i]);
+            i += 1;
+        }
+        let mut width: Option<usize> = None;
+        let start = i;
+        while i < chars.len() && chars[i].is_ascii_digit() {
+            i += 1;
+        }
+        if i > start {
+            width = chars[start..i].iter().collect::<String>().parse().ok();
+        }
+        let mut precision: Option<usize> = None;
+        if i < chars.len() && chars[i] == '.' {
+            i += 1;
+            let start = i;
+            while i < chars.len() && chars[i].is_ascii_digit() {
+                i += 1;
+            }
+            precision = chars[start..i].iter().collect::<String>().parse().ok();
+        }
+        let conversion = chars.get(i).copied().expect("UnknownFormatConversionException");
+        i += 1;
+        if conversion == '%' {
+            out.push('%');
+            continue;
+        }
+        if conversion == 'n' {
+            out.push('\n');
+            continue;
+        }
+        let arg = match index {
+            Some(n) => args.get(n),
+            None => {
+                ordinary += 1;
+                args.get(ordinary - 1)
+            }
+        }
+        .expect("MissingFormatArgumentException");
+        let grouping = flags.contains(',');
+        let body = match (conversion.to_ascii_lowercase(), arg) {
+            ('d', FormatArg::Int(v)) => format_sign(&group_digits(&v.unsigned_abs().to_string(), grouping), *v < 0, &flags),
+            ('f', FormatArg::Float(v)) => format_float(*v, &flags, |d, neg| format_sign(&group_digits_fixed(&fixed_digits(d, precision.unwrap_or(6)), grouping), neg, &flags)),
+            ('e', FormatArg::Float(v)) => format_float(*v, &flags, |d, neg| format_sign(&scientific_digits(d, precision.unwrap_or(6)), neg, &flags)),
+            ('g', FormatArg::Float(v)) => format_float(*v, &flags, |d, neg| {
+                let p = match precision {
+                    None => 6,
+                    Some(0) => 1,
+                    Some(p) => p,
+                };
+                format_sign(&general_digits(d, p, grouping), neg, &flags)
+            }),
+            ('s', FormatArg::Str(s)) => s.clone(),
+            ('s', FormatArg::Int(v)) => v.to_string(),
+            ('s', FormatArg::Float(v)) => mcrust::javacompat::java_double_to_string(*v),
+            _ => panic!("IllegalFormatConversionException: {} != {:?}", conversion, arg),
+        };
+        let body = if conversion.is_ascii_uppercase() { body.to_uppercase() } else { body };
+        let body: String = match precision {
+            Some(p) if conversion.to_ascii_lowercase() == 's' => body.chars().take(p).collect(),
+            _ => body,
+        };
+        match width {
+            Some(w) if body.chars().count() < w => {
+                let pad = w - body.chars().count();
+                if flags.contains('-') {
+                    out.push_str(&body);
+                    out.push_str(&" ".repeat(pad));
+                } else if flags.contains('0') {
+                    let sign_len = if body.starts_with(['+', '-', ' ']) { 1 } else { 0 };
+                    out.push_str(&body[..sign_len]);
+                    out.push_str(&"0".repeat(pad));
+                    out.push_str(&body[sign_len..]);
+                } else {
+                    out.push_str(&" ".repeat(pad));
+                    out.push_str(&body);
+                }
+            }
+            _ => out.push_str(&body),
+        }
+    }
+    out
+}
+
+/// The shortest decimal digits of `|v|` (`Double.toString`'s) and the decimal exponent of the first:
+/// `|v| = d1.d2d3.. * 10^exp`.
+fn shortest_digits(v: f64) -> (Vec<u8>, i32) {
+    let s = format!("{:e}", v.abs());
+    let (mantissa, exp) = s.split_once('e').unwrap();
+    let digits: Vec<u8> = mantissa.bytes().filter(|b| b.is_ascii_digit()).map(|b| b - b'0').collect();
+    (digits, exp.parse::<i32>().unwrap())
+}
+
+/// Rounds `digits` HALF_UP to `keep` digits; a carry out of the first digit raises `exp`. `keep < 0` is zero.
+fn round_half_up(mut digits: Vec<u8>, mut exp: i32, keep: i32) -> (Vec<u8>, i32) {
+    if keep < 0 {
+        return (vec![0], exp);
+    }
+    let keep = keep as usize;
+    if digits.len() > keep {
+        let round_up = digits[keep] >= 5;
+        digits.truncate(keep);
+        if round_up {
+            let mut k = keep;
+            loop {
+                if k == 0 {
+                    digits.insert(0, 1);
+                    exp += 1;
+                    break;
+                }
+                k -= 1;
+                if digits[k] == 9 {
+                    digits[k] = 0;
+                } else {
+                    digits[k] += 1;
+                    break;
+                }
+            }
+        }
+    }
+    (digits, exp)
+}
+
+fn format_float(v: f64, flags: &str, finite: impl Fn(f64, bool) -> String) -> String {
+    if v.is_nan() {
+        return "NaN".to_string();
+    }
+    if v.is_infinite() {
+        return format_sign("Infinity", v < 0.0, flags);
+    }
+    finite(v, v.is_sign_negative() && v != 0.0)
+}
+
+fn format_sign(body: &str, negative: bool, flags: &str) -> String {
+    if negative {
+        format!("-{}", body)
+    } else if flags.contains('+') {
+        format!("+{}", body)
+    } else if flags.contains(' ') {
+        format!(" {}", body)
+    } else {
+        body.to_string()
+    }
+}
+
+/// `%.{precision}f` of `|v|`.
+fn fixed_digits(v: f64, precision: usize) -> String {
+    if v == 0.0 {
+        return if precision == 0 { "0".to_string() } else { format!("0.{}", "0".repeat(precision)) };
+    }
+    let (digits, exp) = shortest_digits(v);
+    // exp + 1 digits sit before the point; keep those and `precision` more
+    let (digits, exp) = round_half_up(digits, exp, exp + 1 + precision as i32);
+    let mut int_part = String::new();
+    for k in 0..(exp + 1).max(0) {
+        int_part.push((b'0' + digits.get(k as usize).copied().unwrap_or(0)) as char);
+    }
+    if int_part.is_empty() {
+        int_part.push('0');
+    }
+    let mut frac_part = String::new();
+    for k in 0..precision as i32 {
+        let pos = exp + 1 + k;
+        let d = if pos >= 0 { digits.get(pos as usize).copied().unwrap_or(0) } else { 0 };
+        frac_part.push((b'0' + d) as char);
+    }
+    if precision == 0 { int_part } else { format!("{}.{}", int_part, frac_part) }
+}
+
+/// `%.{precision}e` of `|v|`: `d.ddde+xx`.
+fn scientific_digits(v: f64, precision: usize) -> String {
+    let (digits, exp) = if v == 0.0 {
+        (vec![0], 0)
+    } else {
+        let (d, e) = shortest_digits(v);
+        round_half_up(d, e, precision as i32 + 1)
+    };
+    let mut s = String::new();
+    s.push((b'0' + digits[0]) as char);
+    if precision > 0 {
+        s.push('.');
+        for k in 1..=precision {
+            s.push((b'0' + digits.get(k).copied().unwrap_or(0)) as char);
+        }
+    }
+    s.push('e');
+    s.push(if exp < 0 { '-' } else { '+' });
+    s.push_str(&format!("{:02}", exp.abs()));
+    s
+}
+
+/// `%.{precision}g` of `|v|`: rounded to `precision` significant digits, then fixed when
+/// `10^-4 <= x < 10^precision`, scientific otherwise.
+fn general_digits(v: f64, precision: usize, grouping: bool) -> String {
+    if v == 0.0 {
+        return fixed_digits(0.0, precision - 1);
+    }
+    let (digits, exp) = shortest_digits(v);
+    let (_, rounded_exp) = round_half_up(digits, exp, precision as i32);
+    if rounded_exp >= -4 && rounded_exp < precision as i32 {
+        group_digits_fixed(&fixed_digits(v, (precision as i32 - 1 - rounded_exp).max(0) as usize), grouping)
+    } else {
+        scientific_digits(v, precision - 1)
+    }
+}
+
+/// The `,` flag: the integer digits in groups of three (`Locale.ENGLISH`'s separator).
+fn group_digits(int_part: &str, grouping: bool) -> String {
+    if !grouping {
+        return int_part.to_string();
+    }
+    let chars: Vec<char> = int_part.chars().collect();
+    let mut out = String::new();
+    for (k, c) in chars.iter().enumerate() {
+        if k > 0 && (chars.len() - k) % 3 == 0 {
+            out.push(',');
+        }
+        out.push(*c);
+    }
+    out
+}
+
+fn group_digits_fixed(fixed: &str, grouping: bool) -> String {
+    match fixed.split_once('.') {
+        Some((int_part, frac)) => format!("{}.{}", group_digits(int_part, grouping), frac),
+        None => group_digits(fixed, grouping),
+    }
+}
+
+/// `Integer.decode(nm)`: an optional sign, then `0x` / `0X` / `#` (hexadecimal), a leading `0` (octal) or decimal
+/// digits. A malformed string is Java's `NumberFormatException`.
+pub fn integer_decode(nm: &str) -> i32 {
+    let (negative, rest) = match nm.as_bytes().first() {
+        Some(b'-') => (true, &nm[1..]),
+        Some(b'+') => (false, &nm[1..]),
+        _ => (false, nm),
+    };
+    let (radix, digits) = if let Some(d) = rest.strip_prefix("0x").or_else(|| rest.strip_prefix("0X")).or_else(|| rest.strip_prefix('#')) {
+        (16, d)
+    } else if rest.len() > 1 && rest.starts_with('0') {
+        (8, &rest[1..])
+    } else {
+        (10, rest)
+    };
+    if digits.starts_with(['-', '+']) {
+        panic!("NumberFormatException: Sign character in wrong position");
+    }
+    let signed = if negative { format!("-{}", digits) } else { digits.to_string() };
+    i32::from_str_radix(&signed, radix).unwrap_or_else(|_| panic!("NumberFormatException: For input string: \"{}\"", nm))
 }

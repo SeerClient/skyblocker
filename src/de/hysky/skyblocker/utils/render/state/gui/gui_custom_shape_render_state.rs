@@ -31,12 +31,12 @@ pub struct GuiCustomShapeRenderState {
 impl GuiCustomShapeRenderState {
     /// java: public GuiCustomShapeRenderState( RenderPipeline pipeline, TextureSetup textureSetup, Matrix3x2f pose, List<Vector2f> inputVertices, int color, @Nullable ScreenRectangle scissorArea )
     pub fn new(mut pipeline: RenderPipeline, mut texture_setup: TextureSetup, mut pose: Matrix3x2f, mut input_vertices: Vec<Vector2f>, mut color: i32, mut scissor_area: Option<ScreenRectangle>) -> Self {
-        let mut this = Self::new(pipeline.clone(), texture_setup.clone(), pose.clone(), input_vertices.clone(), color, scissor_area.clone(), GuiCustomShapeRenderState::create_bounds(&input_vertices, &pose, scissor_area.clone()));
+        let mut this = Self::new_canonical(pipeline.clone(), texture_setup.clone(), pose.clone(), input_vertices.clone(), color, scissor_area.clone(), GuiCustomShapeRenderState::create_bounds(&input_vertices, &pose, scissor_area.clone()));
         this
     }
 
     /// java: the canonical record constructor
-    pub fn new(mut pipeline: RenderPipeline, mut texture_setup: TextureSetup, mut matrix: Matrix3x2f, mut input_vertices: Vec<Vector2f>, mut color: i32, mut scissor_area: Option<ScreenRectangle>, mut bounds: Option<ScreenRectangle>) -> Self {
+    pub fn new_canonical(mut pipeline: RenderPipeline, mut texture_setup: TextureSetup, mut matrix: Matrix3x2f, mut input_vertices: Vec<Vector2f>, mut color: i32, mut scissor_area: Option<ScreenRectangle>, mut bounds: Option<ScreenRectangle>) -> Self {
         Self { pipeline, texture_setup, matrix, input_vertices, color, scissor_area, bounds }
     }
 
@@ -86,7 +86,7 @@ impl GuiCustomShapeRenderState {
     }
 
     /// java: @Override public void buildVertices(VertexConsumer vertexConsumer)
-    pub fn build_vertices(&self, vertex_consumer: &dyn VertexConsumer) {
+    pub fn build_vertices(&self, vertex_consumer: &mut dyn VertexConsumer) {
         for vector in self.input_vertices.iter() {
             { vertex_consumer.add_vertex_with_2d_pose(&self.matrix(), vector.x(), vector.y()); vertex_consumer.set_color(self.color); &mut *vertex_consumer };
         }

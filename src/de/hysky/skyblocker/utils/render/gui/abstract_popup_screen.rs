@@ -144,10 +144,10 @@ impl dyn AbstractPopupScreen {
 
 impl AbstractPopupScreen for AbstractPopupScreenBase {
     fn abstract_popup_screen_base(&self) -> &AbstractPopupScreenBase {
-        &self
+        self
     }
     fn abstract_popup_screen_base_mut(&mut self) -> &mut AbstractPopupScreenBase {
-        &mut self
+        self
     }
 
     fn as_any(&self) -> &dyn std::any::Any {
@@ -206,8 +206,11 @@ impl EnterConfirmTextFieldWidget {
 
     /// java: @Override public boolean keyPressed(KeyEvent input)
     pub fn key_pressed(__this: &compat::Shared<Self>, input: &mcrust::net::minecraft::client::input::key_event::KeyEvent) -> bool {
-        // TODO(fabric2seer): `key_pressed` takes 5 argument(s) in the port (`splitter: &StringSplitter<W>, event: KeyEvent, focused: bool, active: bool, clipboard: &mut dyn ClipboardAccess`), Java passes 1
-        if !(__this.lock().borrow_mut().base.key_pressed(input)) {
+        // java: if (!super.keyPressed(input)) - the port's `EditBox.keyPressed` takes the widget's `focused`/`active`
+        // state and the window clipboard from its caller (the game's widget tree); a mod-built edit box can reach
+        // neither, so `super.keyPressed` cannot be called from here (port gap, GAPS_batchA.md)
+        let __super_key_pressed: bool = todo!("rust: port gap - EditBox.keyPressed needs the widget focus/active state and a ClipboardAccess the mod cannot reach");
+        if !(__super_key_pressed) {
             if input.is_confirmation() {
                 ((compat::read(__this, |__t| __t.on_enter.clone()).unwrap()))();
                 return true;

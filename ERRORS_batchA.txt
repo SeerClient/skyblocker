@@ -1,0 +1,601 @@
+src/de/hysky/skyblocker/utils/exclusive_grouping_set.rs:33:22: error[E0403]: the name `T` is already used for a generic parameter in this item's generic parameters: already used
+src/de/hysky/skyblocker/utils/pair.rs:32:15: error[E0403]: the name `L` is already used for a generic parameter in this item's generic parameters: already used
+src/de/hysky/skyblocker/utils/pair.rs:32:35: error[E0403]: the name `R` is already used for a generic parameter in this item's generic parameters: already used
+src/de/hysky/skyblocker/utils/render/gui/argb_text_input.rs:39:31: error[E0106]: missing lifetime specifier: expected named lifetime parameter
+src/de/hysky/skyblocker/utils/block_pos_set.rs:453:20: error[E0425]: cannot find value `cloned` in this scope: not found in this scope
+src/de/hysky/skyblocker/utils/flexible_item_stack.rs:26:360: error[E0425]: cannot find value `FIELD_ID` in this scope: not found in this scope
+src/de/hysky/skyblocker/utils/flexible_item_stack.rs:26:606: error[E0425]: cannot find value `FIELD_COUNT` in this scope: not found in this scope
+src/de/hysky/skyblocker/utils/flexible_item_stack.rs:26:839: error[E0425]: cannot find value `FIELD_COMPONENTS` in this scope: not found in this scope
+src/de/hysky/skyblocker/utils/item_ability.rs:133:16: error[E0425]: cannot find value `RIGHT_CLICK` in this scope: not found in this scope
+src/de/hysky/skyblocker/utils/json_value_input.rs:20:26: error[E0425]: cannot find type `Rc` in this scope: not found in this scope
+src/de/hysky/skyblocker/utils/json_value_input.rs:25:30: error[E0425]: cannot find type `Rc` in this scope: not found in this scope
+src/de/hysky/skyblocker/utils/json_value_input.rs:42:82: error[E0425]: cannot find type `Rc` in this scope: not found in this scope
+src/de/hysky/skyblocker/utils/json_value_output.rs:17:26: error[E0425]: cannot find type `Rc` in this scope: not found in this scope
+src/de/hysky/skyblocker/utils/json_value_output.rs:22:30: error[E0425]: cannot find type `Rc` in this scope: not found in this scope
+src/de/hysky/skyblocker/utils/location.rs:170:106: error[E0425]: cannot find value `UNKNOWN` in this scope: not found in this scope
+src/de/hysky/skyblocker/utils/location.rs:175:153: error[E0425]: cannot find value `UNKNOWN` in this scope: not found in this scope
+src/de/hysky/skyblocker/utils/purse/purse_change_cause.rs:70:24: error[E0425]: cannot find value `TALISMAN_OF_COINS` in this scope: not found in this scope
+src/de/hysky/skyblocker/utils/purse/purse_change_cause.rs:73:24: error[E0425]: cannot find value `DICE_SIX` in this scope: not found in this scope
+src/de/hysky/skyblocker/utils/purse/purse_change_cause.rs:76:24: error[E0425]: cannot find value `MOB_KILL` in this scope: not found in this scope
+src/de/hysky/skyblocker/utils/purse/purse_change_cause.rs:78:24: error[E0425]: cannot find value `TAKE_BANK` in this scope: not found in this scope
+src/de/hysky/skyblocker/utils/purse/purse_change_cause.rs:80:20: error[E0425]: cannot find value `UNKNOWN_GAIN` in this scope: not found in this scope
+src/de/hysky/skyblocker/utils/purse/purse_change_cause.rs:83:24: error[E0425]: cannot find value `DICE_ROLL` in this scope: not found in this scope
+src/de/hysky/skyblocker/utils/purse/purse_change_cause.rs:85:20: error[E0425]: cannot find value `UNKNOWN_LOSS` in this scope: not found in this scope
+src/de/hysky/skyblocker/utils/render/gui/basic_toast.rs:57:104: error[E0425]: cannot find value `NO_TOKEN` in this scope: not found in this scope
+src/de/hysky/skyblocker/utils/render/gui/dropdown_widget.rs:506:16: error[E0425]: cannot find type `T` in this scope: not found in this scope
+src/de/hysky/skyblocker/utils/render/gui/dropdown_widget.rs:528:37: error[E0425]: cannot find type `T` in this scope: not found in this scope
+src/de/hysky/skyblocker/utils/render/gui/dropdown_widget.rs:542:29: error[E0425]: cannot find type `T` in this scope: not found in this scope
+src/de/hysky/skyblocker/utils/render/gui/item_button_widget.rs:49:96: error[E0425]: cannot find value `DEFAULT_NARRATION` in this scope: not found in this scope
+src/de/hysky/skyblocker/utils/render/gui/item_button_widget.rs:55:89: error[E0425]: cannot find value `DEFAULT_NARRATION` in this scope: not found in this scope
+src/de/hysky/skyblocker/utils/render/gui/item_selection_popup.rs:96:20: error[E0425]: cannot find value `w` in this scope: not found in this scope
+src/de/hysky/skyblocker/utils/text_transformer.rs:76:33: error[E0425]: cannot find value `codes` in this scope: not found in this scope
+src/de/hysky/skyblocker/utils/time/skyblock_time_field.rs:127:21: error[E0425]: cannot find value `HOUR_OF_DAY` in this scope: not found in this scope
+src/de/hysky/skyblocker/utils/waypoint/ordered_named_waypoint.rs:358:26: error[E0425]: cannot find value `NONE` in this scope
+src/de/hysky/skyblocker/utils/waypoint/waypoint.rs:492:31: error[E0425]: cannot find value `HIGHLIGHT` in this scope: not found in this scope
+src/de/hysky/skyblocker/utils/waypoint/waypoint.rs:493:39: error[E0425]: cannot find value `OUTLINED_HIGHLIGHT` in this scope: not found in this scope
+src/de/hysky/skyblocker/utils/datafixer/legacy_string_nbt_reader.rs:193:80: error[E0603]: enum `Tag` is private: private enum
+src/de/hysky/skyblocker/utils/render/gui/item_selection_popup.rs:228:79: error[E0603]: enum `Tag` is private: private enum
+src/de/hysky/skyblocker/utils/render/gui/dropdown_widget.rs:119:45: error[E0121]: the placeholder `_` is not allowed within types on item signatures for return types: not allowed in type signatures, not allowed in type signatures
+src/de/hysky/skyblocker/utils/render/gui/dropdown_widget.rs:332:68: error[E0121]: the placeholder `_` is not allowed within types on item signatures for methods: not allowed in type signatures
+src/de/hysky/skyblocker/utils/render/gui/dropdown_widget.rs:332:71: error[E0121]: the placeholder `_` is not allowed within types on item signatures for methods: not allowed in type signatures
+src/de/hysky/skyblocker/utils/datafixer/legacy_string_nbt_reader.rs:288:70: error[E0107]: trait takes 0 generic arguments but 1 generic argument was supplied: expected 0 generic arguments
+src/de/hysky/skyblocker/utils/datafixer/legacy_string_nbt_reader.rs:288:113: error[E0107]: trait takes 0 generic arguments but 1 generic argument was supplied: expected 0 generic arguments
+src/de/hysky/skyblocker/utils/render/gui/abstract_selection_popup.rs:45:306: error[E0107]: missing generics for trait `AbstractSelectionPopup`: expected 1 generic argument
+src/de/hysky/skyblocker/utils/api_utils.rs:18:31: error[E0277]: the trait bound `Arc<dyn Any + Send + Sync>: CacheLoader<String, String>` is not satisfied: unsatisfied trait bound
+src/de/hysky/skyblocker/utils/calculator.rs:680:24: error[E0277]: `(dyn Fn(f64) -> f64 + 'static)` cannot be shared between threads safely: `(dyn Fn(f64) -> f64 + 'static)` cannot be shared between threads safely
+src/de/hysky/skyblocker/utils/calculator.rs:680:24: error[E0277]: `(dyn Fn(f64) -> f64 + 'static)` cannot be sent between threads safely: `(dyn Fn(f64) -> f64 + 'static)` cannot be sent between threads safely
+src/de/hysky/skyblocker/utils/command/command_utils.rs:8:38: error[E0107]: missing generics for type alias `mcrust::com::mojang::brigadier::command::Command`: expected 1 generic argument
+src/de/hysky/skyblocker/utils/profile_utils.rs:20:36: error[E0277]: the trait bound `Arc<dyn Any + Send + Sync>: CacheLoader<String, Map<String, Value>>` is not satisfied: unsatisfied trait bound
+src/de/hysky/skyblocker/utils/render/abstract_uniform_texel_buffer.rs:15:43: error[E0392]: type parameter `T` is never used: unused type parameter
+src/de/hysky/skyblocker/utils/render/box_data_uniform.rs:61:115: error[E0053]: method `write_to_buffer_4` has an incompatible type for trait: types differ in mutability
+src/de/hysky/skyblocker/utils/render/gui/abstract_custom_hypixel_gui.rs:13:41: error[E0392]: type parameter `T` is never used: unused type parameter
+src/de/hysky/skyblocker/utils/render/gui/pip/gui_equipment_renderer.rs:13:33: error[E0392]: type parameter `S` is never used: unused type parameter
+src/de/hysky/skyblocker/utils/render/outlined_box_data_uniform.rs:61:117: error[E0053]: method `write_to_buffer_4` has an incompatible type for trait: types differ in mutability
+src/de/hysky/skyblocker/utils/render/primitive/primitive_collector_impl.rs:340:26: error[E0276]: impl has stricter requirements than trait: impl has extra requirement `S: std::clone::Clone`
+src/de/hysky/skyblocker/utils/render/primitive/primitive_feature_renderer.rs:23:41: error[E0392]: type parameter `Submit` is never used: unused type parameter
+src/de/hysky/skyblocker/utils/render/gui/abstract_selection_popup.rs:45:252: error[E0107]: missing generics for trait `AbstractSelectionPopup`: expected 1 generic argument
+src/de/hysky/skyblocker/utils/render/gui/dropdown_widget.rs:395:79: error[E0121]: the placeholder `_` is not allowed within types on item signatures for associated functions: not allowed in type signatures
+src/de/hysky/skyblocker/utils/render/gui/dropdown_widget.rs:395:82: error[E0121]: the placeholder `_` is not allowed within types on item signatures for associated functions: not allowed in type signatures
+src/de/hysky/skyblocker/utils/render/gui/dropdown_widget.rs:581:76: error[E0038]: the trait `NarratableEntry` is not dyn compatible: `NarratableEntry` is not dyn compatible
+src/de/hysky/skyblocker/utils/scheduler/scheduler.rs:49:204: error[E0107]: missing generics for type alias `mcrust::com::mojang::brigadier::command::Command`: expected 1 generic argument
+src/de/hysky/skyblocker/utils/scheduler/scheduler.rs:54:137: error[E0107]: missing generics for type alias `mcrust::com::mojang::brigadier::command::Command`: expected 1 generic argument
+src/de/hysky/skyblocker/utils/scheduler/scheduler.rs:59:119: error[E0107]: missing generics for type alias `mcrust::com::mojang::brigadier::command::Command`: expected 1 generic argument
+src/de/hysky/skyblocker/utils/render/gui/dropdown_widget.rs:558:72: error[E0038]: the trait `NarratableEntry` is not dyn compatible: `NarratableEntry` is not dyn compatible
+src/de/hysky/skyblocker/utils/regex_list_utils.rs:122:5: error[E0592]: duplicate definitions with name `match_in_list_list_function_pattern`: duplicate definitions for `match_in_list_list_function_pattern`
+src/de/hysky/skyblocker/utils/render/state/gui/gui_custom_shape_render_state.rs:39:5: error[E0592]: duplicate definitions with name `new`: duplicate definitions for `new`
+src/de/hysky/skyblocker/utils/render/state/gui/gui_equipment_render_state.rs:56:5: error[E0592]: duplicate definitions with name `new`: duplicate definitions for `new`
+src/de/hysky/skyblocker/utils/render/state/gui/gui_horizontal_gradient_render_state.rs:46:5: error[E0592]: duplicate definitions with name `new`: duplicate definitions for `new`
+src/de/hysky/skyblocker/utils/render/text/grid_formatted_char_sequence.rs:35:5: error[E0592]: duplicate definitions with name `new`: duplicate definitions for `new`
+src/de/hysky/skyblocker/utils/scheduler/scheduler.rs:235:5: error[E0592]: duplicate definitions with name `new`: duplicate definitions for `new`
+src/de/hysky/skyblocker/utils/ws/message/dungeon_bat_killed_message.rs:34:5: error[E0592]: duplicate definitions with name `new`: duplicate definitions for `new`
+src/de/hysky/skyblocker/utils/ws/message/dungeon_mimic_killed_message.rs:34:5: error[E0592]: duplicate definitions with name `new`: duplicate definitions for `new`
+src/de/hysky/skyblocker/utils/ws/message/dungeon_prince_killed_message.rs:34:5: error[E0592]: duplicate definitions with name `new`: duplicate definitions for `new`
+src/de/hysky/skyblocker/utils/ws/message/dungeon_room_hide_waypoint_message.rs:38:5: error[E0592]: duplicate definitions with name `new`: duplicate definitions for `new`
+src/de/hysky/skyblocker/utils/ws/message/dungeon_room_match_message.rs:50:5: error[E0592]: duplicate definitions with name `new`: duplicate definitions for `new`
+src/de/hysky/skyblocker/utils/ws/message/dungeon_room_secret_count_message.rs:38:5: error[E0592]: duplicate definitions with name `new`: duplicate definitions for `new`
+src/de/hysky/skyblocker/utils/api_authentication.rs:39:490: error[E0308]: mismatched types: expected `Vec<u8>`, found `Vec<i8>`
+src/de/hysky/skyblocker/utils/api_authentication.rs:39:839: error[E0308]: mismatched types: expected `Vec<i8>`, found `Vec<u8>`
+src/de/hysky/skyblocker/utils/api_authentication.rs:41:201: error[E0308]: mismatched types: expected `Vec<u8>`, found `Vec<i8>`
+src/de/hysky/skyblocker/utils/api_authentication.rs:41:348: error[E0308]: mismatched types: expected `Vec<u8>`, found `Vec<i8>`
+src/de/hysky/skyblocker/utils/api_authentication.rs:41:467: error[E0308]: arguments to this function are incorrect
+src/de/hysky/skyblocker/utils/api_authentication.rs:73:75: error[E0609]: no field `profile_key_pair_manager` on type `&'static mut mcrust::net::minecraft::client::minecraft::Minecraft`: unknown field
+src/de/hysky/skyblocker/utils/api_authentication.rs:113:62: error[E0599]: no method named `clone` found for mutable reference `&mut ExecutorService` in the current scope: method not found in `&mut ExecutorService`
+src/de/hysky/skyblocker/utils/api_authentication.rs:91:54: error[E0308]: arguments to this function are incorrect
+src/de/hysky/skyblocker/utils/api_authentication.rs:108:275: error[E0599]: the method `clone` exists for struct `std::boxed::Box<dyn std::any::Any + std::marker::Send>`, but its trait bounds were not satisfied: method cannot be called due to unsatisfied trait bounds
+src/de/hysky/skyblocker/utils/api_utils.rs:41:33: error[E0308]: mismatched types: expected `User`, found `Ref<'_, User>`
+src/de/hysky/skyblocker/utils/block_pos_set.rs:99:26: error[E0308]: mismatched types: expected `bool`, found `()`
+src/de/hysky/skyblocker/utils/block_pos_set.rs:116:26: error[E0308]: mismatched types: expected `i32`, found `()`
+src/de/hysky/skyblocker/utils/block_pos_set.rs:150:26: error[E0308]: mismatched types: expected `bool`, found `()`
+src/de/hysky/skyblocker/utils/block_pos_set.rs:189:26: error[E0308]: mismatched types: expected `bool`, found `()`
+src/de/hysky/skyblocker/utils/block_pos_set.rs:257:75: error[E0277]: the trait bound `dyn std::any::Any + std::marker::Send + Sync: std::default::Default` is not satisfied: the trait `std::default::Default` is not implemented for `dyn std::any::Any + std::marker::Send + Sync`
+src/de/hysky/skyblocker/utils/block_pos_set.rs:284:34: error[E0308]: mismatched types: expected type parameter `T`, found `Option<_>`
+src/de/hysky/skyblocker/utils/block_pos_set.rs:295:66: error[E0308]: mismatched types: expected type parameter `T`, found `BlockPos`
+src/de/hysky/skyblocker/utils/block_pos_set.rs:335:44: error[E0369]: binary operation `==` cannot be applied to type `std::sync::Arc<dyn std::any::Any + std::marker::Send + Sync>`
+src/de/hysky/skyblocker/utils/block_pos_set.rs:388:46: error[E0369]: binary operation `==` cannot be applied to type `std::sync::Arc<dyn std::any::Any + std::marker::Send + Sync>`
+src/de/hysky/skyblocker/utils/block_pos_set.rs:427:128: error[E0599]: no method named `iter` found for struct `block_pos_set::Iter` in the current scope: method not found in `block_pos_set::Iter`
+src/de/hysky/skyblocker/utils/block_pos_set.rs:432:16: error[E0308]: mismatched types: expected `Vec<MutableBlockPos>`, found `IterMut`
+src/de/hysky/skyblocker/utils/block_pos_set.rs:437:16: error[E0308]: mismatched types: expected `Vec<BlockPos>`, found `OwningIter`
+src/de/hysky/skyblocker/utils/block_pos_set.rs:442:16: error[E0308]: mismatched types: expected `Vec<MutableBlockPos>`, found `OwningIterMut`
+src/de/hysky/skyblocker/utils/block_pos_set.rs:622:30: error[E0599]: no method named `iter` found for reference `&block_pos_set::IterMut` in the current scope
+src/de/hysky/skyblocker/utils/block_pos_set.rs:682:30: error[E0599]: no method named `iter` found for reference `&OwningIter` in the current scope
+src/de/hysky/skyblocker/utils/block_pos_set.rs:746:30: error[E0599]: no method named `iter` found for reference `&OwningIterMut` in the current scope
+src/de/hysky/skyblocker/utils/boxes.rs:65:57: error[E0599]: no method named `old_position` found for reference `&dyn mcrust::net::minecraft::world::entity::entity::Entity` in the current scope
+src/de/hysky/skyblocker/utils/boxes.rs:65:93: error[E0599]: no method named `position` found for reference `&dyn mcrust::net::minecraft::world::entity::entity::Entity` in the current scope
+src/de/hysky/skyblocker/utils/boxes.rs:66:23: error[E0599]: no method named `get_bounding_box` found for reference `&dyn mcrust::net::minecraft::world::entity::entity::Entity` in the current scope: method not found in `&dyn mcrust::net::minecraft::world::entity::entity::Entity`
+src/de/hysky/skyblocker/utils/calculator.rs:61:37: error[E0277]: the trait bound `OperatorToken: AbstractToken<Arc<dyn Any + Send + Sync>>` is not satisfied: unsatisfied trait bound
+src/de/hysky/skyblocker/utils/calculator.rs:70:37: error[E0277]: the trait bound `Token: AbstractToken<Arc<dyn Any + Send + Sync>>` is not satisfied: unsatisfied trait bound
+src/de/hysky/skyblocker/utils/calculator.rs:111:37: error[E0277]: the trait bound `FunctionToken: AbstractToken<Arc<dyn Any + Send + Sync>>` is not satisfied: unsatisfied trait bound
+src/de/hysky/skyblocker/utils/calculator.rs:129:44: error[E0308]: mismatched types: expected `Operator`, found `Arc<dyn Any + Send + Sync>`
+src/de/hysky/skyblocker/utils/calculator.rs:137:83: error[E0308]: mismatched types: expected `Operator`, found `Arc<dyn Any + Send + Sync>`
+src/de/hysky/skyblocker/utils/calculator.rs:193:67: error[E0308]: mismatched types: expected `&str`, found `&Arc<dyn Any + Send + Sync>`
+src/de/hysky/skyblocker/utils/calculator.rs:202:25: error[E0308]: mismatched types: expected `Arc<dyn Any + Send + Sync>`, found `Operator`
+src/de/hysky/skyblocker/utils/calculator.rs:203:25: error[E0308]: mismatched types: expected `Arc<dyn Any + Send + Sync>`, found `Operator`
+src/de/hysky/skyblocker/utils/calculator.rs:204:25: error[E0308]: mismatched types: expected `Arc<dyn Any + Send + Sync>`, found `Operator`
+src/de/hysky/skyblocker/utils/calculator.rs:205:25: error[E0308]: mismatched types: expected `Arc<dyn Any + Send + Sync>`, found `Operator`
+src/de/hysky/skyblocker/utils/calculator.rs:212:25: error[E0308]: mismatched types: expected `Arc<dyn Any + Send + Sync>`, found `Operator`
+src/de/hysky/skyblocker/utils/calculator.rs:219:25: error[E0308]: mismatched types: expected `Arc<dyn Any + Send + Sync>`, found `Operator`
+src/de/hysky/skyblocker/utils/calculator.rs:206:29: error[E0317]: `if` may be missing an `else` clause: expected `f64`, found `()`
+src/de/hysky/skyblocker/utils/calculator.rs:213:29: error[E0317]: `if` may be missing an `else` clause: expected `f64`, found `()`
+src/de/hysky/skyblocker/utils/calculator.rs:744:75: error[E0308]: mismatched types: expected `f64`, found `i64`
+src/de/hysky/skyblocker/utils/calculator.rs:772:23: error[E0277]: the trait bound `dyn Fn(f64) -> f64: std::default::Default` is not satisfied: the trait `std::default::Default` is not implemented for `dyn Fn(f64) -> f64`
+src/de/hysky/skyblocker/utils/chat/chat_filter_result.rs:60:53: error[E0308]: mismatched types: expected `&ChatFilterResult`, found `ChatFilterResult`
+src/de/hysky/skyblocker/utils/collection_utils.rs:30:73: error[E0277]: the trait bound `E: std::clone::Clone` is not satisfied: the trait `std::clone::Clone` is not implemented for `E`
+src/de/hysky/skyblocker/utils/collection_utils.rs:31:92: error[E0277]: the trait bound `E: std::clone::Clone` is not satisfied: the trait `std::clone::Clone` is not implemented for `E`
+src/de/hysky/skyblocker/utils/collection_utils.rs:32:28: error[E0599]: the method `clone` exists for struct `Vec<E>`, but its trait bounds were not satisfied
+src/de/hysky/skyblocker/utils/collection_utils.rs:32:49: error[E0599]: the method `clone` exists for struct `Vec<E>`, but its trait bounds were not satisfied
+src/de/hysky/skyblocker/utils/command/argumenttypes/blockpos/client_block_pos_argument_type.rs:59:53: error[E0277]: `(dyn ClientPosArgument + 'static)` cannot be sent between threads safely: `(dyn ClientPosArgument + 'static)` cannot be sent between threads safely
+src/de/hysky/skyblocker/utils/command/argumenttypes/blockpos/client_block_pos_argument_type.rs:85:135: error[E0308]: mismatched types: expected `Result<(), CommandSyntaxException>`, found `()`
+src/de/hysky/skyblocker/utils/command/argumenttypes/blockpos/client_block_pos_argument_type.rs:90:16: error[E0308]: mismatched types: expected `Vec<String>`, found `[&str; 5]`
+src/de/hysky/skyblocker/utils/command/argumenttypes/blockpos/default_client_pos_argument.rs:90:74: error[E0308]: mismatched types: expected `f64`, found `f32`
+src/de/hysky/skyblocker/utils/command/argumenttypes/blockpos/default_client_pos_argument.rs:90:110: error[E0308]: mismatched types: expected `f64`, found `f32`
+src/de/hysky/skyblocker/utils/command/argumenttypes/blockpos/default_client_pos_argument.rs:100:53: error[E0308]: mismatched types: expected `&Arc<_, _>`, found `&DefaultClientPosArgument`
+src/de/hysky/skyblocker/utils/command/argumenttypes/blockpos/looking_client_pos_argument.rs:77:53: error[E0308]: mismatched types: expected `&Arc<_, _>`, found `&LookingClientPosArgument`
+src/de/hysky/skyblocker/utils/command/argumenttypes/blockpos/looking_client_pos_argument.rs:88:34: error[E0277]: the trait bound `f64: Hash` is not satisfied: the trait `Hash` is not implemented for `f64`
+src/de/hysky/skyblocker/utils/command/argumenttypes/color/hex_color_argument_type.rs:33:16: error[E0308]: mismatched types: expected `i32`, found `&i32`
+src/de/hysky/skyblocker/utils/command/argumenttypes/color/hex_color_argument_type.rs:45:56: error[E0599]: no method named `create` found for mutable reference `&mut DynamicCommandExceptionType` in the current scope: method not found in `&mut DynamicCommandExceptionType`
+src/de/hysky/skyblocker/utils/command/argumenttypes/color/hex_color_argument_type.rs:50:60: error[E0599]: no method named `create` found for mutable reference `&mut DynamicCommandExceptionType` in the current scope: method not found in `&mut DynamicCommandExceptionType`
+src/de/hysky/skyblocker/utils/command/argumenttypes/color/rgb_color_argument_type.rs:14:142: error[E0308]: mismatched types: expected `Arc<dyn Message>`, found `MutableComponent`
+src/de/hysky/skyblocker/utils/command/argumenttypes/color/rgb_color_argument_type.rs:14:110: error[E0308]: mismatched types: expected `SimpleCommandExceptionType`, found `Arc<SimpleCommandExceptionType>`
+src/de/hysky/skyblocker/utils/command/argumenttypes/color/rgb_color_argument_type.rs:30:16: error[E0308]: mismatched types: expected `i32`, found `&i32`
+src/de/hysky/skyblocker/utils/command/argumenttypes/color/rgb_color_argument_type.rs:36:37: error[E0308]: mismatched types: expected `i32`, found `Arc<dyn Any + Send + Sync>`
+src/de/hysky/skyblocker/utils/command/argumenttypes/color/rgb_color_argument_type.rs:39:43: error[E0308]: mismatched types: expected `i32`, found `Arc<dyn Any + Send + Sync>`
+src/de/hysky/skyblocker/utils/command/argumenttypes/color/rgb_color_argument_type.rs:42:46: error[E0308]: mismatched types: expected `i32`, found `Arc<dyn Any + Send + Sync>`
+src/de/hysky/skyblocker/utils/command/argumenttypes/color/rgb_color_argument_type.rs:46:63: error[E0599]: no method named `create_with_context` found for mutable reference `&mut SimpleCommandExceptionType` in the current scope: method not found in `&mut SimpleCommandExceptionType`
+src/de/hysky/skyblocker/utils/command/argumenttypes/color/rgb_color_argument_type.rs:50:59: error[E0599]: no method named `create_with_context` found for mutable reference `&mut SimpleCommandExceptionType` in the current scope: method not found in `&mut SimpleCommandExceptionType`
+src/de/hysky/skyblocker/utils/command/command_utils.rs:8:94: error[E0308]: mismatched types: expected `Result<i32, CommandSyntaxException>`, found integer
+src/de/hysky/skyblocker/utils/config/duration_controller.rs:105:61: error[E0308]: mismatched types: expected `Option`, found `&Option`
+src/de/hysky/skyblocker/utils/config/duration_controller.rs:105:16: error[E0308]: mismatched types: expected `ControllerBuilder`, found `Arc<{closure@...}>`
+src/de/hysky/skyblocker/utils/config/duration_controller.rs:168:21: error[E0599]: no method named `clone` found for struct `unresolved::Option` in the current scope: method not found in `unresolved::Option`
+src/de/hysky/skyblocker/utils/config/duration_controller.rs:191:16: error[E0308]: arguments to this function are incorrect
+src/de/hysky/skyblocker/utils/config/duration_controller.rs:191:16: error[E0308]: mismatched types: expected `AbstractWidget`, found `DurationControllerWidget`
+src/de/hysky/skyblocker/utils/container/container_solver.rs:73:39: error[E0599]: no method named `as_any` found for reference `&mcrust::net::minecraft::client::gui::screens::screen::Screen` in the current scope
+src/de/hysky/skyblocker/utils/container/container_solver_manager.rs:49:138: error[E0308]: mismatched types: expected `ColorTerminal`, found `OrderTerminal`
+src/de/hysky/skyblocker/utils/container/container_solver_manager.rs:82:52: error[E0599]: no method named `as_any` found for mutable reference `&mut mcrust::net::minecraft::client::gui::screens::screen::Screen` in the current scope
+src/de/hysky/skyblocker/utils/container/container_solver_manager.rs:141:187: error[E0599]: no method named `menu` found for reference `&AbstractContainerScreen` in the current scope: method not found in `&AbstractContainerScreen`
+src/de/hysky/skyblocker/utils/container/regex_container_matcher.rs:19:43: error[E0308]: mismatched types: expected `Pattern`, found `Option<_>`
+src/de/hysky/skyblocker/utils/container/slot_text_adder.rs:60:24: error[E0308]: arguments to this function are incorrect
+src/de/hysky/skyblocker/utils/container/slot_text_adder.rs:80:24: error[E0308]: arguments to this function are incorrect
+src/de/hysky/skyblocker/utils/countdown_component.rs:34:42: error[E0599]: no method named `clone` found for struct `unresolved::TimeUnit` in the current scope: method not found in `unresolved::TimeUnit`
+src/de/hysky/skyblocker/utils/countdown_component.rs:62:45: error[E0308]: mismatched types: expected `ComponentContents`, found `PlainTextContents`
+src/de/hysky/skyblocker/utils/countdown_component.rs:62:110: error[E0308]: mismatched types: expected `ComponentContents`, found `PlainTextContents`
+src/de/hysky/skyblocker/utils/data/constants/constant_data.rs:53:9: error[E0277]: `T` cannot be sent between threads safely: `T` cannot be sent between threads safely
+src/de/hysky/skyblocker/utils/data/constants/constant_data.rs:53:134: error[E0599]: the method `then_accept_async` exists for struct `CompletableFuture<std::option::Option<T>>`, but its trait bounds were not satisfied: method cannot be called on `CompletableFuture<std::option::Option<T>>` due to unsatisfied trait bounds
+src/de/hysky/skyblocker/utils/data/constants/constant_data.rs:59:65: error[E0308]: mismatched types: expected `BufferedReader`, found `String`
+src/de/hysky/skyblocker/utils/data/constants/constant_data.rs:65:35: error[E0308]: mismatched types: expected `Option<T>`, found `()`
+src/de/hysky/skyblocker/utils/data/constants/constant_data.rs:78:22: error[E0308]: mismatched types: expected type parameter `T`, found `&T`
+src/de/hysky/skyblocker/utils/data/constants/emblem_constants.rs:16:450: error[E0308]: mismatched types: expected `FormattedText`, found `MutableComponent`
+src/de/hysky/skyblocker/utils/data/constants/emblem_constants.rs:16:629: error[E0308]: mismatched types: expected `MutableComponent`, found `FormattedText`
+src/de/hysky/skyblocker/utils/data/json_data.rs:98:89: error[E0308]: mismatched types: expected `()`, found `Option<_>`
+src/de/hysky/skyblocker/utils/data/json_data.rs:116:56: error[E0599]: no method named `clone` found for type parameter `T` in the current scope: method not found in `T`
+src/de/hysky/skyblocker/utils/data/json_data.rs:166:56: error[E0308]: mismatched types: expected `()`, found `Option<_>`
+src/de/hysky/skyblocker/utils/data/json_data.rs:218:43: error[E0599]: the method `clone` exists for enum `std::option::Option<T>`, but its trait bounds were not satisfied: method cannot be called on `std::option::Option<T>` due to unsatisfied trait bounds
+src/de/hysky/skyblocker/utils/data/json_data.rs:223:58: error[E0599]: the method `clone` exists for enum `std::option::Option<T>`, but its trait bounds were not satisfied: method cannot be called on `std::option::Option<T>` due to unsatisfied trait bounds
+src/de/hysky/skyblocker/utils/data/json_data.rs:224:52: error[E0599]: no method named `clone` found for type parameter `T` in the current scope: method not found in `T`
+src/de/hysky/skyblocker/utils/datafixer/item_stack_componentization_fixer.rs:70:135: error[E0308]: mismatched types: expected `&Arc<dyn JavaObject>`, found `&Arc<DataComponentType>`
+src/de/hysky/skyblocker/utils/datafixer/item_stack_componentization_fixer.rs:77:158: error[E0308]: mismatched types: expected `&Arc<dyn DynamicOps>`, found `&RegistryOps`
+src/de/hysky/skyblocker/utils/datafixer/item_stack_componentization_fixer.rs:77:54: error[E0308]: mismatched types: expected `Option<Tag>`, found `Arc<dyn JavaObject>`
+src/de/hysky/skyblocker/utils/datafixer/item_stack_componentization_fixer.rs:91:152: error[E0308]: mismatched types: expected `Arc<Item>`, found `Holder`
+src/de/hysky/skyblocker/utils/datafixer/legacy_string_nbt_reader.rs:24:130: error[E0308]: mismatched types: expected `Arc<dyn Message>`, found `MutableComponent`
+src/de/hysky/skyblocker/utils/datafixer/legacy_string_nbt_reader.rs:24:98: error[E0308]: mismatched types: expected `SimpleCommandExceptionType`, found `Arc<SimpleCommandExceptionType>`
+src/de/hysky/skyblocker/utils/datafixer/legacy_string_nbt_reader.rs:26:134: error[E0308]: mismatched types: expected `Arc<dyn Message>`, found `MutableComponent`
+src/de/hysky/skyblocker/utils/datafixer/legacy_string_nbt_reader.rs:26:102: error[E0308]: mismatched types: expected `SimpleCommandExceptionType`, found `Arc<SimpleCommandExceptionType>`
+src/de/hysky/skyblocker/utils/datafixer/legacy_string_nbt_reader.rs:28:136: error[E0308]: mismatched types: expected `Arc<dyn Message>`, found `MutableComponent`
+src/de/hysky/skyblocker/utils/datafixer/legacy_string_nbt_reader.rs:28:104: error[E0308]: mismatched types: expected `SimpleCommandExceptionType`, found `Arc<SimpleCommandExceptionType>`
+src/de/hysky/skyblocker/utils/datafixer/legacy_string_nbt_reader.rs:99:47: error[E0599]: no method named `create_with_context` found for mutable reference `&mut SimpleCommandExceptionType` in the current scope: method not found in `&mut SimpleCommandExceptionType`
+src/de/hysky/skyblocker/utils/datafixer/legacy_string_nbt_reader.rs:109:51: error[E0599]: no method named `create_with_context` found for mutable reference `&mut SimpleCommandExceptionType` in the current scope: method not found in `&mut SimpleCommandExceptionType`
+src/de/hysky/skyblocker/utils/datafixer/legacy_string_nbt_reader.rs:125:57: error[E0599]: no method named `create_with_context` found for mutable reference `&mut SimpleCommandExceptionType` in the current scope: method not found in `&mut SimpleCommandExceptionType`
+src/de/hysky/skyblocker/utils/datafixer/legacy_string_nbt_reader.rs:174:53: error[E0599]: no method named `create_with_context` found for mutable reference `&mut SimpleCommandExceptionType` in the current scope: method not found in `&mut SimpleCommandExceptionType`
+src/de/hysky/skyblocker/utils/datafixer/legacy_string_nbt_reader.rs:200:55: error[E0599]: no method named `create_with_context` found for mutable reference `&mut SimpleCommandExceptionType` in the current scope: method not found in `&mut SimpleCommandExceptionType`
+src/de/hysky/skyblocker/utils/datafixer/legacy_string_nbt_reader.rs:208:55: error[E0599]: no method named `create_with_context` found for mutable reference `&mut SimpleCommandExceptionType` in the current scope: method not found in `&mut SimpleCommandExceptionType`
+src/de/hysky/skyblocker/utils/datafixer/legacy_string_nbt_reader.rs:220:53: error[E0599]: no method named `create_with_context` found for mutable reference `&mut SimpleCommandExceptionType` in the current scope: method not found in `&mut SimpleCommandExceptionType`
+src/de/hysky/skyblocker/utils/datafixer/legacy_string_nbt_reader.rs:225:47: error[E0107]: trait takes 0 generic arguments but 1 generic argument was supplied: expected 0 generic arguments
+src/de/hysky/skyblocker/utils/datafixer/legacy_string_nbt_reader.rs:241:38: error[E0308]: mismatched types: expected `Box<dyn TagType>`, found `&dyn TagType`
+src/de/hysky/skyblocker/utils/datafixer/legacy_string_nbt_reader.rs:242:55: error[E0277]: the trait bound `std::boxed::Box<dyn TagType>: TagType` is not satisfied: the trait `TagType` is not implemented for `std::boxed::Box<dyn TagType>`
+src/de/hysky/skyblocker/utils/datafixer/legacy_string_nbt_reader.rs:244:57: error[E0599]: no method named `create_with_context` found for mutable reference `&mut Dynamic2CommandExceptionType` in the current scope: method not found in `&mut Dynamic2CommandExceptionType`
+src/de/hysky/skyblocker/utils/datafixer/legacy_string_nbt_reader.rs:252:61: error[E0599]: no method named `create_with_context` found for mutable reference `&mut SimpleCommandExceptionType` in the current scope: method not found in `&mut SimpleCommandExceptionType`
+src/de/hysky/skyblocker/utils/datafixer/legacy_string_nbt_reader.rs:269:53: error[E0599]: no method named `create_with_context` found for mutable reference `&mut SimpleCommandExceptionType` in the current scope: method not found in `&mut SimpleCommandExceptionType`
+src/de/hysky/skyblocker/utils/datafixer/legacy_string_nbt_reader.rs:282:52: error[E0599]: no method named `create_with_context` found for mutable reference `&mut DynamicCommandExceptionType` in the current scope: method not found in `&mut DynamicCommandExceptionType`
+src/de/hysky/skyblocker/utils/datafixer/legacy_string_nbt_reader.rs:296:54: error[E0599]: no method named `create_with_context` found for mutable reference `&mut Dynamic2CommandExceptionType` in the current scope: method not found in `&mut Dynamic2CommandExceptionType`
+src/de/hysky/skyblocker/utils/datafixer/legacy_string_nbt_reader.rs:299:40: error[E0599]: no method named `as_any` found for enum `mcrust::net::minecraft::nbt::Tag` in the current scope
+src/de/hysky/skyblocker/utils/datafixer/legacy_string_nbt_reader.rs:301:40: error[E0599]: no method named `as_any` found for enum `mcrust::net::minecraft::nbt::Tag` in the current scope
+src/de/hysky/skyblocker/utils/datafixer/legacy_string_nbt_reader.rs:303:40: error[E0599]: no method named `as_any` found for enum `mcrust::net::minecraft::nbt::Tag` in the current scope
+src/de/hysky/skyblocker/utils/datafixer/legacy_string_nbt_reader.rs:309:57: error[E0599]: no method named `create_with_context` found for mutable reference `&mut SimpleCommandExceptionType` in the current scope: method not found in `&mut SimpleCommandExceptionType`
+src/de/hysky/skyblocker/utils/enum_utils.rs:30:97: error[E0599]: no method named `clone` found for type parameter `T` in the current scope: method not found in `T`
+src/de/hysky/skyblocker/utils/exclusive_grouping_set.rs:50:50: error[E0308]: mismatched types: expected `&Vec<T>`, found `&HashSet<T>`
+src/de/hysky/skyblocker/utils/exclusive_grouping_set.rs:53:50: error[E0308]: mismatched types: expected `HashSet<T>`, found `Vec<T>`
+src/de/hysky/skyblocker/utils/exclusive_grouping_set.rs:60:17: error[E0599]: the method `remove` exists for struct `HashSet<T>`, but its trait bounds were not satisfied: method cannot be called on `HashSet<T>` due to unsatisfied trait bounds
+src/de/hysky/skyblocker/utils/exclusive_grouping_set.rs:68:58: error[E0599]: the method `remove` exists for struct `HashSet<T>`, but its trait bounds were not satisfied: method cannot be called on `HashSet<T>` due to unsatisfied trait bounds
+src/de/hysky/skyblocker/utils/exclusive_grouping_set.rs:75:21: error[E0282]: type annotations needed
+src/de/hysky/skyblocker/utils/field_reference.rs:24:25: error[E0599]: no method named `clone` found for struct `ClassDesc` in the current scope: method not found in `ClassDesc`
+src/de/hysky/skyblocker/utils/field_reference.rs:34:24: error[E0599]: no method named `clone` found for struct `ClassDesc` in the current scope: method not found in `ClassDesc`
+src/de/hysky/skyblocker/utils/field_reference.rs:48:47: error[E0599]: no method named `clone` found for struct `ClassDesc` in the current scope: method not found in `ClassDesc`
+src/de/hysky/skyblocker/utils/field_reference.rs:48:86: error[E0599]: no method named `clone` found for struct `ClassDesc` in the current scope: method not found in `ClassDesc`
+src/de/hysky/skyblocker/utils/flexible_item_stack.rs:26:239: error[E0308]: mismatched types: expected `Arc<Item>`, found `Holder`
+src/de/hysky/skyblocker/utils/flexible_item_stack.rs:26:979: error[E0308]: mismatched types: expected `Holder`, found `Arc<Item>`
+src/de/hysky/skyblocker/utils/flexible_item_stack.rs:32:131: error[E0605]: non-primitive cast: `std::option::Option<_>` as `()`: an `as` expression can only be used to convert between primitive types or to coerce to a specific trait object
+src/de/hysky/skyblocker/utils/flexible_item_stack.rs:34:117: error[E0308]: mismatched types: expected `Box<dyn DataComponentGetter>`, found `FallbackComponentGetter`
+src/de/hysky/skyblocker/utils/flexible_item_stack.rs:97:32: error[E0308]: mismatched types: expected `Holder`, found `Arc<Reference>`
+src/de/hysky/skyblocker/utils/flexible_item_stack.rs:103:32: error[E0308]: mismatched types: expected `Holder`, found `Arc<Item>`
+src/de/hysky/skyblocker/utils/flexible_item_stack.rs:135:32: error[E0308]: mismatched types: expected `Holder`, found `Arc<Reference>`
+src/de/hysky/skyblocker/utils/flexible_item_stack.rs:157:20: error[E0308]: mismatched types: expected type parameter `T`, found `Arc<dyn JavaObject>`
+src/de/hysky/skyblocker/utils/flexible_item_stack.rs:159:146: error[E0277]: the trait bound `std::boxed::Box<(dyn DataComponentGetter + 'static)>: DataComponentMap` is not satisfied: the trait `DataComponentMap` is not implemented for `std::boxed::Box<(dyn DataComponentGetter + 'static)>`
+src/de/hysky/skyblocker/utils/flexible_item_stack.rs:166:141: error[E0308]: mismatched types: expected `Option<Arc<dyn JavaObject>>`, found `Option<T>`
+src/de/hysky/skyblocker/utils/flexible_item_stack.rs:168:61: error[E0615]: attempted to take value of method `map` on type `std::option::Option<DataComponentPatch>`: method, not a field
+src/de/hysky/skyblocker/utils/flexible_item_stack.rs:197:39: error[E0308]: mismatched types: expected `Arc<Item>`, found `Holder`
+src/de/hysky/skyblocker/utils/flexible_item_stack.rs:225:165: error[E0308]: mismatched types: expected `Arc<Item>`, found `Holder`
+src/de/hysky/skyblocker/utils/flexible_item_stack.rs:226:157: error[E0308]: mismatched types: expected `Option<Error<ItemStack>>`, found `&Error<ItemStack>`
+src/de/hysky/skyblocker/utils/flexible_item_stack.rs:228:151: error[E0277]: `ReentrantMutex<parking_lot::RawMutex, RawThreadId, RefCell<FlexibleItemStack>>` doesn't implement `std::fmt::Display`: the trait `std::fmt::Display` is not implemented for `ReentrantMutex<parking_lot::RawMutex, RawThreadId, RefCell<FlexibleItemStack>>`
+src/de/hysky/skyblocker/utils/fun_utils.rs:14:95: error[E0308]: mismatched types: expected `unresolved::Random`, found `compat::Random`
+src/de/hysky/skyblocker/utils/hovered_item/hovered_item_stack_utils.rs:21:40: error[E0599]: no method named `as_any` found for reference `&mcrust::net::minecraft::client::gui::screens::screen::Screen` in the current scope
+src/de/hysky/skyblocker/utils/hovered_item/hovered_item_stack_utils.rs:24:67: error[E0599]: no method named `as_any` found for type `usize` in the current scope
+src/de/hysky/skyblocker/utils/item_ability.rs:41:9: error[E0063]: missing field `abilities` in initializer of `ItemAbility`: missing `abilities`
+src/de/hysky/skyblocker/utils/item_ability.rs:150:47: error[E0308]: mismatched types: expected `&Activation`, found `Activation`
+src/de/hysky/skyblocker/utils/item_utils.rs:122:110: error[E0308]: mismatched types: expected `Arc<dyn JavaObject>`, found `CustomData`
+src/de/hysky/skyblocker/utils/item_utils.rs:122:180: error[E0609]: no field `tag` on type `std::sync::Arc<(dyn JavaObject + 'static)>`: unknown field
+src/de/hysky/skyblocker/utils/item_utils.rs:128:16: error[E0308]: mismatched types: expected `Option<String>`, found `String`
+src/de/hysky/skyblocker/utils/item_utils.rs:139:16: error[E0308]: mismatched types: expected `Option<String>`, found `String`
+src/de/hysky/skyblocker/utils/item_utils.rs:331:49: error[E0599]: no method named `as_any` found for reference `&dyn DataComponentGetter` in the current scope
+src/de/hysky/skyblocker/utils/item_utils.rs:402:12: error[E0061]: this function takes 1 argument but 0 arguments were supplied
+src/de/hysky/skyblocker/utils/item_utils.rs:444:84: error[E0308]: mismatched types: expected `&Pattern`, found `&Vec<Pattern>`
+src/de/hysky/skyblocker/utils/item_utils.rs:444:16: error[E0308]: mismatched types: expected `Vec<Matcher>`, found `Matcher`
+src/de/hysky/skyblocker/utils/item_utils.rs:466:20: error[E0599]: no method named `is_tag` found for reference `&dyn ItemInstance` in the current scope: method not found in `&dyn ItemInstance`
+src/de/hysky/skyblocker/utils/item_utils.rs:609:111: error[E0308]: mismatched types: expected `i32`, found `&str`
+src/de/hysky/skyblocker/utils/item_utils.rs:614:96: error[E0308]: mismatched types: expected `Screen`, found `&Screen`
+src/de/hysky/skyblocker/utils/item_utils.rs:615:49: error[E0599]: no method named `as_any` found for struct `mcrust::net::minecraft::client::gui::screens::screen::Screen` in the current scope
+src/de/hysky/skyblocker/utils/item_utils.rs:635:39: error[E0277]: the trait bound `T: DataComponentGetter` is not satisfied: the trait `DataComponentGetter` is not implemented for `T`
+src/de/hysky/skyblocker/utils/item_utils.rs:683:49: error[E0599]: no method named `type_holder` found for reference `&dyn ItemInstance` in the current scope
+src/de/hysky/skyblocker/utils/item_utils.rs:691:46: error[E0599]: the method `clone` exists for struct `std::boxed::Box<dyn ObjectInfo>`, but its trait bounds were not satisfied: method cannot be called on `std::boxed::Box<dyn ObjectInfo>` due to unsatisfied trait bounds
+src/de/hysky/skyblocker/utils/json_value_input.rs:99:61: error[E0308]: `else` clause of `let...else` does not diverge: expected `!`, found `()`
+src/de/hysky/skyblocker/utils/json_value_input.rs:195:31: error[E0308]: mismatched types: expected `Option<Number>`, found `Option<f64>`
+src/de/hysky/skyblocker/utils/json_value_output.rs:40:128: error[E0599]: no method named `as_any` found for enum `DataResult<R>` in the current scope
+src/de/hysky/skyblocker/utils/json_value_output.rs:43:133: error[E0599]: no method named `as_any` found for enum `DataResult<R>` in the current scope
+src/de/hysky/skyblocker/utils/json_value_output.rs:50:58: error[E0277]: `std::option::Option<_>` doesn't implement `std::fmt::Display`: the trait `std::fmt::Display` is not implemented for `std::option::Option<_>`
+src/de/hysky/skyblocker/utils/json_value_output.rs:56:65: error[E0277]: the trait bound `mcrust::java::lang::number::Number: serde::Serialize` is not satisfied: the trait `serde_core::ser::Serialize` is not implemented for `mcrust::java::lang::number::Number`, required by a bound introduced by this call
+src/de/hysky/skyblocker/utils/location.rs:14:162: error[E0308]: mismatched types: expected `&Class`, found `&TypeId`
+src/de/hysky/skyblocker/utils/location.rs:187:45: error[E0308]: mismatched types: expected `&Location`, found `Location`
+src/de/hysky/skyblocker/utils/logs_folder_finder.rs:65:44: error[E0277]: the trait bound `Appender: std::clone::Clone` is not satisfied: the trait `std::clone::Clone` is not implemented for `Appender`
+src/de/hysky/skyblocker/utils/logs_folder_finder.rs:65:25: error[E0277]: the trait bound `Appender: std::clone::Clone` is not satisfied: the trait `std::clone::Clone` is not implemented for `Appender`
+src/de/hysky/skyblocker/utils/logs_folder_finder.rs:77:146: error[E0277]: `Vec<std::string::String>` doesn't implement `std::fmt::Display`: the trait `std::fmt::Display` is not implemented for `Vec<std::string::String>`
+src/de/hysky/skyblocker/utils/lz_string.rs:47:61: error[E0308]: mismatched types: expected `&Arc<ReentrantMutex<RawMutex, ..., ...>>`, found `&Arc<{closure@lz_string.rs:47:71}>`
+src/de/hysky/skyblocker/utils/lz_string.rs:77:71: error[E0308]: mismatched types: expected `&Arc<ReentrantMutex<RawMutex, ..., ...>>`, found `&Arc<{closure@lz_string.rs:77:81}>`
+src/de/hysky/skyblocker/utils/lz_string.rs:87:78: error[E0282]: type annotations needed
+src/de/hysky/skyblocker/utils/lz_string.rs:100:79: error[E0308]: mismatched types: expected `&Arc<ReentrantMutex<RawMutex, ..., ...>>`, found `&Arc<{closure@lz_string.rs:100:89}>`
+src/de/hysky/skyblocker/utils/lz_string.rs:110:46: error[E0308]: mismatched types: expected `&Arc<ReentrantMutex<RawMutex, ..., ...>>`, found `&Arc<{closure@lz_string.rs:110:56}>`
+src/de/hysky/skyblocker/utils/lz_string.rs:124:83: error[E0308]: mismatched types: expected `&Arc<ReentrantMutex<RawMutex, ..., ...>>`, found `&Arc<{closure@lz_string.rs:124:93}>`
+src/de/hysky/skyblocker/utils/lz_string.rs:131:54: error[E0308]: mismatched types: expected `&Arc<ReentrantMutex<RawMutex, ..., ...>>`, found `&Arc<{closure@lz_string.rs:131:64}>`
+src/de/hysky/skyblocker/utils/lz_string.rs:411:75: error[E0308]: mismatched types: expected `&Arc<ReentrantMutex<RawMutex, ..., ...>>`, found `&Arc<{closure@lz_string.rs:411:85}>`
+src/de/hysky/skyblocker/utils/lz_string.rs:448:59: error[E0689]: can't call method `wrapping_mul` on ambiguous numeric type `{integer}`
+src/de/hysky/skyblocker/utils/lz_string.rs:463:67: error[E0689]: can't call method `wrapping_mul` on ambiguous numeric type `{integer}`
+src/de/hysky/skyblocker/utils/lz_string.rs:479:67: error[E0689]: can't call method `wrapping_mul` on ambiguous numeric type `{integer}`
+src/de/hysky/skyblocker/utils/lz_string.rs:506:63: error[E0689]: can't call method `wrapping_mul` on ambiguous numeric type `{integer}`
+src/de/hysky/skyblocker/utils/lz_string.rs:522:71: error[E0689]: can't call method `wrapping_mul` on ambiguous numeric type `{integer}`
+src/de/hysky/skyblocker/utils/lz_string.rs:540:71: error[E0689]: can't call method `wrapping_mul` on ambiguous numeric type `{integer}`
+src/de/hysky/skyblocker/utils/mayor/mayor.rs:59:35: error[E0308]: mismatched types: expected `*const Mayor`, found `&LazyLock<Mayor>`
+src/de/hysky/skyblocker/utils/mayor/mayor_utils.rs:184:16: error[E0308]: mismatched types: expected `bool`, found `&bool`
+src/de/hysky/skyblocker/utils/mayor/mayor_utils.rs:167:16: error[E0308]: mismatched types: expected `CompletableFuture<bool>`, found `CompletableFuture<&bool>`
+src/de/hysky/skyblocker/utils/mayor/minister.rs:59:35: error[E0308]: mismatched types: expected `*const Minister`, found `&LazyLock<Minister>`
+src/de/hysky/skyblocker/utils/method_reference.rs:26:25: error[E0599]: no method named `clone` found for struct `ClassDesc` in the current scope: method not found in `ClassDesc`
+src/de/hysky/skyblocker/utils/method_reference.rs:36:24: error[E0599]: no method named `clone` found for struct `MethodTypeDesc` in the current scope: method not found in `MethodTypeDesc`
+src/de/hysky/skyblocker/utils/method_reference.rs:61:48: error[E0599]: no method named `clone` found for struct `ClassDesc` in the current scope: method not found in `ClassDesc`
+src/de/hysky/skyblocker/utils/method_reference.rs:61:88: error[E0599]: no method named `clone` found for struct `MethodTypeDesc` in the current scope: method not found in `MethodTypeDesc`
+src/de/hysky/skyblocker/utils/networth/networth_data_suppliers.rs:38:36: error[E0599]: the method `clone` exists for mutable reference `&mut std::collections::HashMap<std::string::String, unresolved::SkyblockItemData>`, but its trait bounds were not satisfied: method cannot be called due to unsatisfied trait bounds
+src/de/hysky/skyblocker/utils/networth/skyblock_item_metadata_retriever.rs:38:38: error[E0308]: mismatched types: expected `Tag`, found `Vec<Tag>`
+src/de/hysky/skyblocker/utils/networth/skyblock_item_metadata_retriever.rs:40:38: error[E0599]: no method named `iter` found for enum `mcrust::net::minecraft::nbt::Tag` in the current scope: method not found in `mcrust::net::minecraft::nbt::Tag`
+src/de/hysky/skyblocker/utils/neu_repo_manager.rs:153:62: error[E0599]: no method named `clone` found for mutable reference `&mut ExecutorService` in the current scope: method not found in `&mut ExecutorService`
+src/de/hysky/skyblocker/utils/neu_repo_manager.rs:71:21: error[E0308]: mismatched types: expected `CompletableFuture<bool>`, found `CompletableFuture<&bool>`
+src/de/hysky/skyblocker/utils/neu_repo_manager.rs:169:47: error[E0308]: mismatched types: expected `Box<dyn Player>`, found `&dyn Player`
+src/de/hysky/skyblocker/utils/neu_repo_manager.rs:172:70: error[E0308]: mismatched types: expected `Box<dyn Player>`, found `&dyn Player`
+src/de/hysky/skyblocker/utils/neu_repo_manager.rs:196:39: error[E0599]: the method `clone` exists for enum `Option<Box<dyn Player>>`, but its trait bounds were not satisfied: method cannot be called on `Option<Box<dyn Player>>` due to unsatisfied trait bounds
+src/de/hysky/skyblocker/utils/profile_utils.rs:36:21: error[E0308]: mismatched types: expected `CompletableFuture<Option<Map<..., ...>>>`, found `CompletableFuture<Map<String, Value>>`
+src/de/hysky/skyblocker/utils/profile_utils.rs:51:21: error[E0308]: mismatched types: expected `CompletableFuture<Option<Map<..., ...>>>`, found `CompletableFuture<()>`
+src/de/hysky/skyblocker/utils/profile_utils.rs:60:21: error[E0308]: mismatched types: expected `CompletableFuture<Option<Map<..., ...>>>`, found `CompletableFuture<()>`
+src/de/hysky/skyblocker/utils/profile_utils.rs:83:35: error[E0308]: mismatched types: expected `Option<Map<String, Value>>`, found `()`
+src/de/hysky/skyblocker/utils/regex_list_utils.rs:40:82: error[E0599]: no method named `clone` found for type parameter `T` in the current scope: method not found in `T`
+src/de/hysky/skyblocker/utils/regex_list_utils.rs:72:82: error[E0599]: no method named `clone` found for type parameter `T` in the current scope: method not found in `T`
+src/de/hysky/skyblocker/utils/regex_list_utils.rs:104:82: error[E0599]: no method named `clone` found for type parameter `T` in the current scope: method not found in `T`
+src/de/hysky/skyblocker/utils/regex_list_utils.rs:136:80: error[E0599]: no method named `clone` found for type parameter `T` in the current scope: method not found in `T`
+src/de/hysky/skyblocker/utils/registry_utils.rs:27:93: error[E0308]: mismatched types: expected `Minecraft`, found `&mut Minecraft`
+src/de/hysky/skyblocker/utils/registry_utils.rs:28:289: error[E0599]: no method named `registry_access` found for struct `PlayListenerSinks` in the current scope: field, not a method
+src/de/hysky/skyblocker/utils/registry_utils.rs:33:93: error[E0308]: mismatched types: expected `Minecraft`, found `&mut Minecraft`
+src/de/hysky/skyblocker/utils/registry_utils.rs:34:170: error[E0599]: no method named `registry_access` found for struct `PlayListenerSinks` in the current scope: field, not a method
+src/de/hysky/skyblocker/utils/render/abstract_uniform_texel_buffer.rs:14:10: error[E0282]: type annotations needed: cannot infer type
+src/de/hysky/skyblocker/utils/render/box_data_uniform.rs:63:31: error[E0283]: type annotations needed: cannot infer type of the type parameter `T` declared on the struct `AbstractUniformTexelBufferBase`
+src/de/hysky/skyblocker/utils/render/gui/abstract_custom_hypixel_gui.rs:78:14: error[E0609]: no field `menu` on type `&Self`: unknown field
+src/de/hysky/skyblocker/utils/render/gui/abstract_popup_screen.rs:210:46: error[E0061]: this method takes 5 arguments but 1 argument was supplied
+src/de/hysky/skyblocker/utils/render/gui/abstract_selection_popup.rs:50:48: error[E0107]: missing generics for trait `AbstractSelectionPopup`: expected 1 generic argument
+src/de/hysky/skyblocker/utils/render/gui/abstract_selection_popup.rs:63:85: error[E0599]: no method named `clone` found for type parameter `W` in the current scope: method not found in `W`
+src/de/hysky/skyblocker/utils/render/gui/abstract_selection_popup.rs:65:84: error[E0609]: no field `active` on type `&mut WidgetRef`: unknown field
+src/de/hysky/skyblocker/utils/render/gui/basic_toast.rs:46:20: error[E0308]: mismatched types: expected `Vec<Arc<dyn FormattedCharSequence>>`, found `Vec<FormattedText>`
+src/de/hysky/skyblocker/utils/render/gui/basic_toast.rs:49:25: error[E0277]: the trait bound `unresolved::Visibility: std::default::Default` is not satisfied: the trait `std::default::Default` is not implemented for `unresolved::Visibility`
+src/de/hysky/skyblocker/utils/render/gui/basic_toast.rs:51:93: error[E0277]: the trait bound `std::sync::Arc<dyn FormattedCharSequence>: FormattedCharSequence` is not satisfied: the trait `FormattedCharSequence` is not implemented for `std::sync::Arc<dyn FormattedCharSequence>`
+src/de/hysky/skyblocker/utils/render/gui/basic_toast.rs:63:32: error[E0599]: no method named `clone` found for struct `unresolved::Visibility` in the current scope: method not found in `unresolved::Visibility`
+src/de/hysky/skyblocker/utils/render/gui/basic_toast.rs:85:168: error[E0308]: mismatched types: expected `&FormattedText`, found `&Arc<dyn FormattedCharSequence>`
+src/de/hysky/skyblocker/utils/render/gui/cycling_icon_button_widget.rs:85:132: error[E0277]: `T` doesn't implement `std::fmt::Display`: the trait `std::fmt::Display` is not implemented for `T`
+src/de/hysky/skyblocker/utils/render/gui/cycling_texture_widget.rs:64:28: error[E0277]: the trait bound `dyn Fn(T) -> MutableComponent: std::default::Default` is not satisfied: the trait `std::default::Default` is not implemented for `dyn Fn(T) -> MutableComponent`
+src/de/hysky/skyblocker/utils/render/gui/cycling_texture_widget.rs:72:107: error[E0277]: the trait bound `mcrust::net::minecraft::client::gui::components::tooltip::Tooltip: std::default::Default` is not satisfied: the trait `std::default::Default` is not implemented for `mcrust::net::minecraft::client::gui::components::tooltip::Tooltip`
+src/de/hysky/skyblocker/utils/render/gui/dropdown_widget.rs:136:21: error[E0308]: mismatched types: expected `Box<dyn GuiEventListener>`, found `Arc<ReentrantMutex<RawMutex, ..., ...>>`
+src/de/hysky/skyblocker/utils/render/gui/dropdown_widget.rs:163:169: error[E0277]: `T` doesn't implement `std::fmt::Display`: the trait `std::fmt::Display` is not implemented for `T`
+src/de/hysky/skyblocker/utils/render/gui/dropdown_widget.rs:191:63: error[E0599]: no method named `clone` found for type parameter `T` in the current scope: method not found in `T`
+src/de/hysky/skyblocker/utils/render/gui/dropdown_widget.rs:193:49: error[E0599]: the method `clone` exists for enum `std::option::Option<T>`, but its trait bounds were not satisfied: method cannot be called on `std::option::Option<T>` due to unsatisfied trait bounds
+src/de/hysky/skyblocker/utils/render/gui/dropdown_widget.rs:193:111: error[E0599]: the method `clone` exists for enum `std::option::Option<T>`, but its trait bounds were not satisfied: method cannot be called on `std::option::Option<T>` due to unsatisfied trait bounds
+src/de/hysky/skyblocker/utils/render/gui/dropdown_widget.rs:194:83: error[E0599]: no method named `clone` found for type parameter `T` in the current scope: method not found in `T`
+src/de/hysky/skyblocker/utils/render/gui/dropdown_widget.rs:195:98: error[E0599]: the method `clone` exists for enum `std::option::Option<T>`, but its trait bounds were not satisfied: method cannot be called on `std::option::Option<T>` due to unsatisfied trait bounds
+src/de/hysky/skyblocker/utils/render/gui/dropdown_widget.rs:241:58: error[E0277]: expected a `FnOnce()` closure, found `MouseButtonEvent`: expected an `FnOnce()` closure, found `MouseButtonEvent`
+src/de/hysky/skyblocker/utils/render/gui/dropdown_widget.rs:241:73: error[E0277]: expected a `FnOnce()` closure, found `bool`: expected an `FnOnce()` closure, found `bool`
+src/de/hysky/skyblocker/utils/render/gui/dropdown_widget.rs:241:16: error[E0308]: mismatched types: expected `bool`, found `(bool, bool)`
+src/de/hysky/skyblocker/utils/render/gui/dropdown_widget.rs:428:66: error[E0609]: no field `visible` on type `&DropdownListBase`: unknown field
+src/de/hysky/skyblocker/utils/render/gui/dropdown_widget.rs:439:66: error[E0609]: no field `visible` on type `&DropdownListBase`: unknown field
+src/de/hysky/skyblocker/utils/render/gui/dropdown_widget.rs:451:66: error[E0609]: no field `visible` on type `&DropdownListBase`: unknown field
+src/de/hysky/skyblocker/utils/render/gui/dropdown_widget.rs:462:66: error[E0609]: no field `visible` on type `&DropdownListBase`: unknown field
+src/de/hysky/skyblocker/utils/render/gui/dropdown_widget.rs:476:313: error[E0689]: can't call method `wrapping_shl` on ambiguous numeric type `{integer}`
+src/de/hysky/skyblocker/utils/render/gui/dropdown_widget.rs:582:16: error[E0038]: the trait `NarratableEntry` is not dyn compatible: `NarratableEntry` is not dyn compatible
+src/de/hysky/skyblocker/utils/render/gui/filtered_edit_box.rs:127:64: error[E0308]: mismatched types: expected `EditBoxAccessor`, found `&Arc<ReentrantMutex<RawMutex, ..., ...>>`
+src/de/hysky/skyblocker/utils/render/gui/filtered_edit_box.rs:166:64: error[E0308]: mismatched types: expected `EditBoxAccessor`, found `&Arc<ReentrantMutex<RawMutex, ..., ...>>`
+src/de/hysky/skyblocker/utils/render/gui/item_selection_popup.rs:116:14: error[E0107]: missing generics for trait `AbstractSelectionPopup`: expected 1 generic argument
+src/de/hysky/skyblocker/utils/render/gui/item_selection_popup.rs:121:14: error[E0107]: missing generics for trait `AbstractSelectionPopup`: expected 1 generic argument
+src/de/hysky/skyblocker/utils/render/gui/item_selection_popup.rs:126:14: error[E0107]: missing generics for trait `AbstractSelectionPopup`: expected 1 generic argument
+src/de/hysky/skyblocker/utils/render/gui/item_selection_popup.rs:217:91: error[E0277]: the trait bound `Holder: ItemLike` is not satisfied: the trait `ItemLike` is not implemented for `Holder`
+src/de/hysky/skyblocker/utils/render/gui/item_selection_popup.rs:224:167: error[E0277]: the trait bound `Arc<ReentrantMutex<RawMutex, RawThreadId, ...>>: DataComponentGetter` is not satisfied: the trait `DataComponentGetter` is not implemented for `Arc<ReentrantMutex<RawMutex, RawThreadId, RefCell<FlexibleItemStack>>>`
+src/de/hysky/skyblocker/utils/render/gui/item_selection_popup.rs:225:170: error[E0277]: the trait bound `Arc<ReentrantMutex<RawMutex, RawThreadId, ...>>: DataComponentGetter` is not satisfied: the trait `DataComponentGetter` is not implemented for `Arc<ReentrantMutex<RawMutex, RawThreadId, RefCell<FlexibleItemStack>>>`
+src/de/hysky/skyblocker/utils/render/gui/item_selection_popup.rs:226:175: error[E0277]: the trait bound `Arc<ReentrantMutex<RawMutex, RawThreadId, ...>>: DataComponentGetter` is not satisfied: the trait `DataComponentGetter` is not implemented for `Arc<ReentrantMutex<RawMutex, RawThreadId, RefCell<FlexibleItemStack>>>`
+src/de/hysky/skyblocker/utils/render/gui/item_selection_popup.rs:230:193: error[E0308]: mismatched types: expected `Option<Arc<dyn JavaObject>>`, found `Option<CustomData>`
+src/de/hysky/skyblocker/utils/render/gui/noop_input.rs:8:99: error[E0308]: mismatched types: expected `Box<dyn InputWithModifiers>`, found `NoopInput`
+src/de/hysky/skyblocker/utils/render/gui/pip/gui_equipment_renderer.rs:48:16: error[E0308]: mismatched types: expected `Class`, found `TypeId`
+src/de/hysky/skyblocker/utils/render/gui/pip/gui_equipment_renderer.rs:60:146: error[E0277]: the trait bound `&dyn SubmitNodeCollector: SubmitNodeCollector` is not satisfied: the trait `SubmitNodeCollector` is not implemented for `&dyn SubmitNodeCollector`
+src/de/hysky/skyblocker/utils/render/gui/pip/gui_equipment_renderer.rs:60:36: error[E0308]: arguments to this method are incorrect
+src/de/hysky/skyblocker/utils/render/gui/ranged_slider_widget.rs:48:42: error[E0599]: no method named `clone` found for struct `Double2ObjectFunction` in the current scope: method not found in `Double2ObjectFunction`
+src/de/hysky/skyblocker/utils/render/gui/ranged_slider_widget.rs:49:40: error[E0599]: no method named `clone` found for struct `DoubleConsumer` in the current scope: method not found in `DoubleConsumer`
+src/de/hysky/skyblocker/utils/render/gui/ranged_slider_widget.rs:146:39: error[E0282]: type annotations needed
+src/de/hysky/skyblocker/utils/render/gui/ranged_slider_widget.rs:147:23: error[E0308]: mismatched types: expected `DoubleConsumer`, found `Arc<{closure@...}>`
+src/de/hysky/skyblocker/utils/render/gui/ranged_slider_widget.rs:158:21: error[E0599]: no method named `clone` found for mutable reference `&mut ranged_slider_widget::Builder` in the current scope: method not found in `&mut ranged_slider_widget::Builder`
+src/de/hysky/skyblocker/utils/render/gui/ranged_slider_widget.rs:164:21: error[E0599]: no method named `clone` found for mutable reference `&mut ranged_slider_widget::Builder` in the current scope: method not found in `&mut ranged_slider_widget::Builder`
+src/de/hysky/skyblocker/utils/render/gui/ranged_slider_widget.rs:170:21: error[E0599]: no method named `clone` found for mutable reference `&mut ranged_slider_widget::Builder` in the current scope: method not found in `&mut ranged_slider_widget::Builder`
+src/de/hysky/skyblocker/utils/render/gui/ranged_slider_widget.rs:177:21: error[E0599]: no method named `clone` found for mutable reference `&mut ranged_slider_widget::Builder` in the current scope: method not found in `&mut ranged_slider_widget::Builder`
+src/de/hysky/skyblocker/utils/render/gui/ranged_slider_widget.rs:183:21: error[E0599]: no method named `clone` found for mutable reference `&mut ranged_slider_widget::Builder` in the current scope: method not found in `&mut ranged_slider_widget::Builder`
+src/de/hysky/skyblocker/utils/render/gui/ranged_slider_widget.rs:189:21: error[E0599]: no method named `clone` found for mutable reference `&mut ranged_slider_widget::Builder` in the current scope: method not found in `&mut ranged_slider_widget::Builder`
+src/de/hysky/skyblocker/utils/render/gui/ranged_slider_widget.rs:194:67: error[E0282]: type annotations needed
+src/de/hysky/skyblocker/utils/render/gui/ranged_slider_widget.rs:206:36: error[E0599]: no method named `clone` found for struct `Double2ObjectFunction` in the current scope: method not found in `Double2ObjectFunction`
+src/de/hysky/skyblocker/utils/render/gui/ranged_slider_widget.rs:207:21: error[E0599]: no method named `clone` found for mutable reference `&mut ranged_slider_widget::Builder` in the current scope: method not found in `&mut ranged_slider_widget::Builder`
+src/de/hysky/skyblocker/utils/render/gui/ranged_slider_widget.rs:212:34: error[E0599]: no method named `clone` found for struct `DoubleConsumer` in the current scope: method not found in `DoubleConsumer`
+src/de/hysky/skyblocker/utils/render/gui/ranged_slider_widget.rs:213:21: error[E0599]: no method named `clone` found for mutable reference `&mut ranged_slider_widget::Builder` in the current scope: method not found in `&mut ranged_slider_widget::Builder`
+src/de/hysky/skyblocker/utils/render/gui/ranged_slider_widget.rs:218:139: error[E0599]: no method named `clone` found for struct `Double2ObjectFunction` in the current scope: method not found in `Double2ObjectFunction`
+src/de/hysky/skyblocker/utils/render/gui/ranged_slider_widget.rs:218:162: error[E0599]: no method named `clone` found for struct `DoubleConsumer` in the current scope: method not found in `DoubleConsumer`
+src/de/hysky/skyblocker/utils/render/gui/searchable_grid_widget.rs:81:128: error[E0308]: mismatched types: expected `LayoutElement`, found `EditBox`
+src/de/hysky/skyblocker/utils/render/gui/searchable_grid_widget.rs:83:128: error[E0308]: mismatched types: expected `LayoutElement`, found `WidgetsContainer`
+src/de/hysky/skyblocker/utils/render/gui/searchable_grid_widget.rs:272:21: error[E0308]: mismatched types: expected `Box<dyn GuiEventListener>`, found `EditBox`
+src/de/hysky/skyblocker/utils/render/gui/sound_selection_popup.rs:40:156: error[E0599]: no method named `copy` found for enum `mcrust::net::minecraft::network::chat::formatted_text::FormattedText` in the current scope: method not found in `mcrust::net::minecraft::network::chat::formatted_text::FormattedText`
+src/de/hysky/skyblocker/utils/render/gui/sound_selection_popup.rs:42:154: error[E0599]: no method named `copy` found for enum `mcrust::net::minecraft::network::chat::formatted_text::FormattedText` in the current scope: method not found in `mcrust::net::minecraft::network::chat::formatted_text::FormattedText`
+src/de/hysky/skyblocker/utils/render/gui/sound_selection_popup.rs:91:116: error[E0308]: mismatched types: expected `&Arc<dyn JavaObject>`, found `&SoundEvent`
+src/de/hysky/skyblocker/utils/render/gui/sound_selection_popup.rs:110:105: error[E0599]: no method named `iter` found for reference `&'static std::sync::Arc<MappedRegistry>` in the current scope
+src/de/hysky/skyblocker/utils/render/gui/sound_selection_popup.rs:113:50: error[E0308]: mismatched types: expected `AbstractWidget`, found `SoundWidget`
+src/de/hysky/skyblocker/utils/render/gui/sound_selection_popup.rs:457:36: error[E0308]: mismatched types: expected `&Gl`, found `&Rc<RenderPipeline>`
+src/de/hysky/skyblocker/utils/render/gui/sound_selection_popup.rs:458:24: error[E0616]: field `is_hovered` of struct `mcrust::net::minecraft::client::gui::components::abstract_widget::AbstractWidget` is private: private field
+src/de/hysky/skyblocker/utils/render/gui/sound_selection_popup.rs:459:36: error[E0308]: mismatched types: expected `&Gl`, found `&Rc<RenderPipeline>`
+src/de/hysky/skyblocker/utils/render/gui/toggleable_layout_widget.rs:77:59: error[E0599]: no method named `as_any` found for enum `LayoutElement` in the current scope
+src/de/hysky/skyblocker/utils/render/gui_helper.rs:61:258: error[E0308]: mismatched types: expected `i32`, found `f32`
+src/de/hysky/skyblocker/utils/render/gui_helper.rs:142:62: error[E0609]: no field `width` on type `&MainTarget`: unknown field
+src/de/hysky/skyblocker/utils/render/gui_helper.rs:143:63: error[E0609]: no field `height` on type `&MainTarget`: unknown field
+src/de/hysky/skyblocker/utils/render/gui_helper.rs:159:62: error[E0609]: no field `width` on type `&MainTarget`: unknown field
+src/de/hysky/skyblocker/utils/render/gui_helper.rs:160:63: error[E0609]: no field `height` on type `&MainTarget`: unknown field
+src/de/hysky/skyblocker/utils/render/gui_helper.rs:162:110: error[E0599]: no method named `get_color_texture` found for reference `&MainTarget` in the current scope: method not found in `&MainTarget`
+src/de/hysky/skyblocker/utils/render/gui_helper.rs:162:140: error[E0277]: the trait bound `Rc<(dyn GpuTexture + 'static)>: GpuTexture` is not satisfied: the trait `GpuTexture` is not implemented for `Rc<(dyn GpuTexture + 'static)>`
+src/de/hysky/skyblocker/utils/render/outlined_box_data_uniform.rs:63:31: error[E0283]: type annotations needed: cannot infer type of the type parameter `T` declared on the struct `AbstractUniformTexelBufferBase`
+src/de/hysky/skyblocker/utils/render/primitive/filled_box_feature_renderer.rs:68:191: error[E0308]: mismatched types: expected `RenderPipeline`, found `Rc<RenderPipeline>`
+src/de/hysky/skyblocker/utils/render/primitive/filled_box_instanced_feature_renderer.rs:115:45: error[E0308]: mismatched types: expected `GpuDevice`, found `Rc<GpuDevice>`
+src/de/hysky/skyblocker/utils/render/primitive/filled_box_instanced_feature_renderer.rs:123:289: error[E0277]: the trait bound `std::boxed::Box<dyn VertexConsumer>: VertexConsumer` is not satisfied: the trait `VertexConsumer` is not implemented for `std::boxed::Box<dyn VertexConsumer>`
+src/de/hysky/skyblocker/utils/render/primitive/lines_feature_renderer.rs:71:190: error[E0308]: mismatched types: expected `RenderPipeline`, found `Rc<RenderPipeline>`
+src/de/hysky/skyblocker/utils/render/primitive/outlined_box_feature_renderer.rs:68:190: error[E0308]: mismatched types: expected `RenderPipeline`, found `Rc<RenderPipeline>`
+src/de/hysky/skyblocker/utils/render/primitive/outlined_box_instanced_feature_renderer.rs:115:45: error[E0308]: mismatched types: expected `GpuDevice`, found `Rc<GpuDevice>`
+src/de/hysky/skyblocker/utils/render/primitive/outlined_box_instanced_feature_renderer.rs:123:291: error[E0277]: the trait bound `std::boxed::Box<dyn VertexConsumer>: VertexConsumer` is not satisfied: the trait `VertexConsumer` is not implemented for `std::boxed::Box<dyn VertexConsumer>`
+src/de/hysky/skyblocker/utils/render/primitive/primitive_collector_impl.rs:163:15: error[E0609]: no field `block_state` on type `BeaconRenderState`: unknown field
+src/de/hysky/skyblocker/utils/render/primitive/primitive_collector_impl.rs:177:76: error[E0308]: mismatched types: expected `PooledBlockEntityRenderState`, found `BeaconRenderState`
+src/de/hysky/skyblocker/utils/render/primitive/primitive_collector_impl.rs:200:69: error[E0277]: the trait bound `std::sync::Arc<(dyn FormattedCharSequence + 'static)>: FormattedCharSequence` is not satisfied: the trait `FormattedCharSequence` is not implemented for `std::sync::Arc<(dyn FormattedCharSequence + 'static)>`
+src/de/hysky/skyblocker/utils/render/primitive/primitive_collector_impl.rs:342:40: error[E0308]: arguments to this function are incorrect
+src/de/hysky/skyblocker/utils/render/primitive/primitive_collector_impl.rs:703:5: error[E0277]: `(dyn VanillaRenderer<S> + 'static)` doesn't implement `std::fmt::Debug`: the trait `std::fmt::Debug` is not implemented for `(dyn VanillaRenderer<S> + 'static)`
+src/de/hysky/skyblocker/utils/render/primitive/primitive_feature_renderer.rs:22:10: error[E0282]: type annotations needed: cannot infer type
+src/de/hysky/skyblocker/utils/render/primitive/primitive_feature_renderer.rs:42:34: error[E0308]: mismatched types: expected `&Rc<RenderPipeline>`, found `&RenderPipeline`
+src/de/hysky/skyblocker/utils/render/primitive/primitive_feature_renderer.rs:123:9: error[E0283]: type annotations needed: cannot infer type of the type parameter `Submit` declared on the struct `PrimitiveFeatureRendererBase`
+src/de/hysky/skyblocker/utils/render/primitive/primitive_feature_renderer.rs:200:53: error[E0599]: the method `clone` exists for enum `std::option::Option<mcrust::net::minecraft::client::renderer::staged_vertex_buffer::Draw>`, but its trait bounds were not satisfied: method cannot be called due to unsatisfied trait bounds
+src/de/hysky/skyblocker/utils/render/primitive/primitive_feature_renderer.rs:215:208: error[E0369]: binary operation `==` cannot be applied to type `PreparedPrimitiveDraw`
+src/de/hysky/skyblocker/utils/render/primitive/primitive_feature_renderer.rs:221:202: error[E0308]: mismatched types: expected `VertexFormat`, found `&VertexFormat`
+src/de/hysky/skyblocker/utils/render/primitive/primitive_feature_renderer.rs:221:149: error[E0308]: mismatched types: expected `Draw`, found `usize`
+src/de/hysky/skyblocker/utils/render/primitive/quad_feature_renderer.rs:68:190: error[E0308]: mismatched types: expected `RenderPipeline`, found `Rc<RenderPipeline>`
+src/de/hysky/skyblocker/utils/render/primitive/text_feature_renderer.rs:60:111: error[E0308]: `if` and `else` have incompatible types: expected `Option<RenderPipeline>`, found `Option<Rc<RenderPipeline>>`
+src/de/hysky/skyblocker/utils/render/primitive/text_feature_renderer.rs:62:101: error[E0308]: `if` and `else` have incompatible types: expected `Option<RenderPipeline>`, found `Option<Rc<RenderPipeline>>`
+src/de/hysky/skyblocker/utils/render/render_helper.rs:38:57: error[E0308]: mismatched types: expected `Arc<dyn ProfilerFiller>`, found `ProfilerFillerRef`
+src/de/hysky/skyblocker/utils/render/render_helper.rs:76:53: error[E0308]: mismatched types: expected `Arc<dyn ProfilerFiller>`, found `ProfilerFillerRef`
+src/de/hysky/skyblocker/utils/render/render_helper.rs:80:61: error[E0605]: non-primitive cast: `std::option::Option<std::sync::Arc<ReentrantMutex<parking_lot::RawMutex, RawThreadId, RefCell<PrimitiveCollectorImpl>>>>` as `std::sync::Arc<ReentrantMutex<parking_lot::RawMutex, RawThreadId, RefCell<(dyn PrimitiveCollector + 'static)>>>`: an `as` expression can only be used to convert between primitive types or to coerce to a specific trait object
+src/de/hysky/skyblocker/utils/render/render_helper.rs:87:53: error[E0308]: mismatched types: expected `Arc<dyn ProfilerFiller>`, found `ProfilerFillerRef`
+src/de/hysky/skyblocker/utils/render/render_helper.rs:99:52: error[E0277]: `dyn Fn()` cannot be shared between threads safely: `dyn Fn()` cannot be shared between threads safely
+src/de/hysky/skyblocker/utils/render/render_helper.rs:99:52: error[E0277]: `dyn Fn()` cannot be sent between threads safely: `dyn Fn()` cannot be sent between threads safely
+src/de/hysky/skyblocker/utils/render/render_helper.rs:112:16: error[E0308]: mismatched types: expected `DeltaTracker`, found `&Timer`
+src/de/hysky/skyblocker/utils/render/render_helper.rs:129:71: error[E0599]: no method named `as_block_getter` found for reference `&ClientLevel` in the current scope
+src/de/hysky/skyblocker/utils/render/render_helper.rs:129:37: error[E0308]: mismatched types: expected `VoxelShape`, found `Arc<VoxelShape>`
+src/de/hysky/skyblocker/utils/render/state/gui/gui_custom_shape_render_state.rs:34:24: error[E0061]: this function takes 6 arguments but 7 arguments were supplied
+src/de/hysky/skyblocker/utils/render/state/gui/gui_equipment_render_state.rs:62:33: error[E0599]: no method named `clone` found for struct `EquipmentLayerRenderer` in the current scope: method not found in `EquipmentLayerRenderer`
+src/de/hysky/skyblocker/utils/render/state/gui/gui_horizontal_gradient_render_state.rs:41:24: error[E0061]: this function takes 10 arguments but 11 arguments were supplied
+src/de/hysky/skyblocker/utils/render/state/gui/gui_outlined_text_render_state.rs:53:61: error[E0308]: mismatched types: expected `FontAccessor`, found `Font<'_>`
+src/de/hysky/skyblocker/utils/render/state/gui/gui_outlined_text_render_state.rs:115:16: error[E0308]: mismatched types: expected `PreparedText`, found `OutlineGlyphDrawable`
+src/de/hysky/skyblocker/utils/render/text/grid_component.rs:29:41: error[E0308]: mismatched types: expected `Arc<ComponentContents>`, found `Contents`
+src/de/hysky/skyblocker/utils/render/text/grid_component_manager.rs:35:60: error[E0599]: the method `insert` exists for struct `HashSet<Arc<ReentrantMutex<RawMutex, RawThreadId, RefCell<...>>>>`, but its trait bounds were not satisfied
+src/de/hysky/skyblocker/utils/render/text/grid_formatted_char_sequence.rs:26:28: error[E0277]: the trait bound `grid_component::Contents: std::default::Default` is not satisfied: the trait `std::default::Default` is not implemented for `grid_component::Contents`
+src/de/hysky/skyblocker/utils/render/text/grid_formatted_char_sequence.rs:27:24: error[E0277]: the trait bound `dyn FormattedCharSequence: std::default::Default` is not satisfied: the trait `std::default::Default` is not implemented for `dyn FormattedCharSequence`
+src/de/hysky/skyblocker/utils/render/text/grid_formatted_char_sequence.rs:51:38: error[E0277]: the trait bound `&dyn FormattedCharSink: FormattedCharSink` is not satisfied: the trait `for<'a> Fn(i32, &'a mcrust::net::minecraft::network::chat::style::Style, u32)` is not implemented for `dyn FormattedCharSink`
+src/de/hysky/skyblocker/utils/render/text/grid_formatted_char_sequence.rs:63:34: error[E0277]: the trait bound `grid_component::Contents: Hash` is not satisfied: the trait `Hash` is not implemented for `grid_component::Contents`
+src/de/hysky/skyblocker/utils/render/text/grid_tooltip_component.rs:26:40: error[E0599]: no method named `clone` found for struct `GridFormattedCharSequence` in the current scope: method not found in `GridFormattedCharSequence`
+src/de/hysky/skyblocker/utils/render/text/grid_tooltip_component.rs:48:56: error[E0599]: no method named `clone` found for struct `GridFormattedCharSequence` in the current scope: method not found in `GridFormattedCharSequence`
+src/de/hysky/skyblocker/utils/render/text/grid_tooltip_component.rs:57:80: error[E0599]: no method named `clone` found for struct `GridFormattedCharSequence` in the current scope: method not found in `GridFormattedCharSequence`
+src/de/hysky/skyblocker/utils/render/texture/fallbacked_texture.rs:27:12: error[E0308]: mismatched types: expected `Identifier`, found `Arc<dyn Any + Send + Sync>`
+src/de/hysky/skyblocker/utils/render/texture/fallbacked_texture.rs:27:13: error[E0277]: the trait bound `IdentifierTexture: FallbackedTexture<Arc<dyn Any + Send + Sync>>` is not satisfied: unsatisfied trait bound
+src/de/hysky/skyblocker/utils/render/texture/fallbacked_texture.rs:55:12: error[E0308]: mismatched types: expected `WidgetSprites`, found `Arc<dyn Any + Send + Sync>`
+src/de/hysky/skyblocker/utils/render/texture/fallbacked_texture.rs:55:13: error[E0277]: the trait bound `WidgetSpritesFallback: FallbackedTexture<Arc<dyn Any + Send + Sync>>` is not satisfied: unsatisfied trait bound
+src/de/hysky/skyblocker/utils/render/texture/identifier_texture.rs:54:47: error[E0369]: binary operation `==` cannot be applied to type `&TextureAtlasSprite`
+src/de/hysky/skyblocker/utils/render/texture/identifier_texture.rs:60:50: error[E0308]: mismatched types: expected `Option<Resource>`, found `Resource`
+src/de/hysky/skyblocker/utils/render/texture_pool.rs:58:23: error[E0599]: the method `clone` exists for enum `std::option::Option<Vec<std::boxed::Box<(dyn GpuTexture + 'static)>>>`, but its trait bounds were not satisfied: method cannot be called due to unsatisfied trait bounds
+src/de/hysky/skyblocker/utils/render/texture_pool.rs:63:28: error[E0599]: the method `clone` exists for enum `std::option::Option<Vec<std::boxed::Box<(dyn GpuTextureView + 'static)>>>`, but its trait bounds were not satisfied: method cannot be called due to unsatisfied trait bounds
+src/de/hysky/skyblocker/utils/render/texture_pool.rs:73:107: error[E0277]: the trait bound `dyn GpuTexture: std::default::Default` is not satisfied: the trait `std::default::Default` is not implemented for `dyn GpuTexture`
+src/de/hysky/skyblocker/utils/render/texture_pool.rs:73:183: error[E0277]: the trait bound `dyn GpuTextureView: std::default::Default` is not satisfied: the trait `std::default::Default` is not implemented for `dyn GpuTextureView`
+src/de/hysky/skyblocker/utils/render/texture_pool.rs:80:108: error[E0599]: the method `clone` exists for struct `std::boxed::Box<dyn GpuTexture>`, but its trait bounds were not satisfied
+src/de/hysky/skyblocker/utils/render/texture_pool.rs:81:122: error[E0599]: the method `clone` exists for struct `std::boxed::Box<dyn GpuTextureView>`, but its trait bounds were not satisfied
+src/de/hysky/skyblocker/utils/render/texture_pool.rs:84:22: error[E0277]: the trait bound `&std::boxed::Box<dyn GpuTextureView>: GpuTextureView` is not satisfied: the trait `GpuTextureView` is not implemented for `&std::boxed::Box<dyn GpuTextureView>`
+src/de/hysky/skyblocker/utils/render/texture_pool.rs:85:62: error[E0308]: mismatched types: expected `Box<dyn GpuTexture>`, found `Option<_>`
+src/de/hysky/skyblocker/utils/render/texture_pool.rs:86:67: error[E0308]: mismatched types: expected `Box<dyn GpuTextureView>`, found `Option<_>`
+src/de/hysky/skyblocker/utils/render/texture_pool.rs:97:108: error[E0599]: the method `clone` exists for struct `std::boxed::Box<dyn GpuTexture>`, but its trait bounds were not satisfied
+src/de/hysky/skyblocker/utils/render/texture_pool.rs:98:122: error[E0599]: the method `clone` exists for struct `std::boxed::Box<dyn GpuTextureView>`, but its trait bounds were not satisfied
+src/de/hysky/skyblocker/utils/render/texture_pool.rs:105:64: error[E0308]: mismatched types: expected `Box<dyn GpuTexture>`, found `Rc<dyn GpuTexture>`
+src/de/hysky/skyblocker/utils/render/texture_pool.rs:106:133: error[E0599]: the method `clone` exists for struct `std::boxed::Box<dyn GpuTexture>`, but its trait bounds were not satisfied
+src/de/hysky/skyblocker/utils/render/texture_pool.rs:106:73: error[E0308]: mismatched types: expected `Box<dyn GpuTextureView>`, found `Rc<dyn GpuTextureView>`
+src/de/hysky/skyblocker/utils/render/texture_pool.rs:107:74: error[E0599]: the method `clone` exists for struct `std::boxed::Box<dyn GpuTexture>`, but its trait bounds were not satisfied
+src/de/hysky/skyblocker/utils/render/texture_pool.rs:108:84: error[E0599]: the method `clone` exists for struct `std::boxed::Box<dyn GpuTextureView>`, but its trait bounds were not satisfied
+src/de/hysky/skyblocker/utils/render/texture_pool.rs:119:59: error[E0599]: the method `clone` exists for struct `std::boxed::Box<dyn GpuTexture>`, but its trait bounds were not satisfied
+src/de/hysky/skyblocker/utils/render/texture_pool.rs:124:64: error[E0599]: the method `clone` exists for struct `std::boxed::Box<dyn GpuTextureView>`, but its trait bounds were not satisfied
+src/de/hysky/skyblocker/utils/render/texture_pool.rs:136:18: error[E0277]: the trait bound `std::boxed::Box<dyn GpuTextureView>: GpuTextureView` is not satisfied: the trait `GpuTextureView` is not implemented for `std::boxed::Box<dyn GpuTextureView>`
+src/de/hysky/skyblocker/utils/render/title/title_container.rs:43:38: error[E0308]: mismatched types: expected `&GuiGraphicsExtractor`, found `&ScriptGraphics`
+src/de/hysky/skyblocker/utils/render/title/title_container.rs:57:33: error[E0599]: the method `contains` exists for mutable reference `&mut HashSet<Arc<ReentrantMutex<RawMutex, RawThreadId, RefCell<...>>>>`, but its trait bounds were not satisfied: method cannot be called due to unsatisfied trait bounds
+src/de/hysky/skyblocker/utils/render/title/title_container.rs:62:29: error[E0599]: the method `insert` exists for mutable reference `&mut HashSet<Arc<ReentrantMutex<RawMutex, RawThreadId, RefCell<...>>>>`, but its trait bounds were not satisfied
+src/de/hysky/skyblocker/utils/render/title/title_container.rs:105:26: error[E0599]: the method `remove` exists for mutable reference `&mut HashSet<Arc<ReentrantMutex<RawMutex, RawThreadId, RefCell<...>>>>`, but its trait bounds were not satisfied: method cannot be called due to unsatisfied trait bounds
+src/de/hysky/skyblocker/utils/render/title/title_container.rs:135:29: error[E0599]: no method named `iter_mut` found for reference `&HashSet<Arc<ReentrantMutex<RawMutex, RawThreadId, RefCell<Title>>>>` in the current scope
+src/de/hysky/skyblocker/utils/render/title/title_container.rs:167:294: error[E0277]: a value of type `f64` cannot be made by summing an iterator over elements of type `i32`: value of type `f64` cannot be made by summing a `std::iter::Iterator<Item=i32>`
+src/de/hysky/skyblocker/utils/render/title/title_container_config_screen.rs:31:120: error[E0277]: the trait bound `ReentrantMutex<RawMutex, RawThreadId, RefCell<Title>>: Eq` is not satisfied: the trait `Eq` is not implemented for `ReentrantMutex<RawMutex, RawThreadId, RefCell<Title>>`
+src/de/hysky/skyblocker/utils/render/title/title_container_config_screen.rs:31:120: error[E0277]: the trait bound `ReentrantMutex<RawMutex, RawThreadId, RefCell<Title>>: Hash` is not satisfied: the trait `Hash` is not implemented for `ReentrantMutex<RawMutex, RawThreadId, RefCell<Title>>`
+src/de/hysky/skyblocker/utils/render/title/title_container_config_screen.rs:69:124: error[E0599]: the method `clone` exists for enum `std::option::Option<mcrust::net::minecraft::client::gui::screens::screen::Screen>`, but its trait bounds were not satisfied: method cannot be called due to unsatisfied trait bounds
+src/de/hysky/skyblocker/utils/scheduler/message_scheduler.rs:70:74: error[E0616]: field `connection` of struct `LocalPlayer` is private: private field
+src/de/hysky/skyblocker/utils/scheduler/message_scheduler.rs:72:74: error[E0616]: field `connection` of struct `LocalPlayer` is private: private field
+src/de/hysky/skyblocker/utils/scheduler/scheduler.rs:32:20: error[E0308]: mismatched types: expected `AbstractInt2ObjectMap`, found `HashMap<_, _>`
+src/de/hysky/skyblocker/utils/scheduler/scheduler.rs:33:74: error[E0599]: no method named `clone` found for mutable reference `&mut ExecutorService` in the current scope: method not found in `&mut ExecutorService`
+src/de/hysky/skyblocker/utils/scheduler/scheduler.rs:50:40: error[E0308]: mismatched types: expected `Result<i32, CommandSyntaxException>`, found `i32`
+src/de/hysky/skyblocker/utils/scheduler/scheduler.rs:55:34: error[E0308]: mismatched types: expected `Result<i32, CommandSyntaxException>`, found `i32`
+src/de/hysky/skyblocker/utils/scheduler/scheduler.rs:60:34: error[E0308]: mismatched types: expected `Result<i32, CommandSyntaxException>`, found `i32`
+src/de/hysky/skyblocker/utils/scheduler/scheduler.rs:132:106: error[E0308]: mismatched types: expected `Arc<dyn Fn()>`, found `ScheduledTask`
+src/de/hysky/skyblocker/utils/scheduler/scheduler.rs:147:86: error[E0061]: this function takes 2 arguments but 4 arguments were supplied
+src/de/hysky/skyblocker/utils/scheduler/scheduler.rs:147:86: error[E0308]: mismatched types: expected `Arc<dyn Fn()>`, found `ScheduledTask`
+src/de/hysky/skyblocker/utils/scheduler/scheduler.rs:155:53: error[E0308]: mismatched types: expected `Arc<dyn ProfilerFiller>`, found `ProfilerFillerRef`
+src/de/hysky/skyblocker/utils/scheduler/scheduler.rs:218:5: error[E0277]: `(dyn Fn() + 'static)` doesn't implement `std::fmt::Debug`: the trait `std::fmt::Debug` is not implemented for `(dyn Fn() + 'static)`
+src/de/hysky/skyblocker/utils/scheduler/scheduler.rs:230:24: error[E0061]: this function takes 2 arguments but 4 arguments were supplied
+src/de/hysky/skyblocker/utils/scheduler/scheduler.rs:268:110: error[E0308]: mismatched types: expected `Arc<dyn Fn()>`, found `ScheduledTask`
+src/de/hysky/skyblocker/utils/screen_utils.rs:25:53: error[E0308]: mismatched types: expected `Option<Screen>`, found `Option<&Screen>`
+src/de/hysky/skyblocker/utils/tictactoe/tic_tac_toe_utils.rs:30:23: error[E0599]: the method `insert` exists for struct `std::collections::HashMap<BoardIndex, i32>`, but its trait bounds were not satisfied
+src/de/hysky/skyblocker/utils/time/skyblock_time.rs:13:99: error[E0308]: mismatched types: expected `SystemTime`, found `Instant`
+src/de/hysky/skyblocker/utils/time/skyblock_time.rs:375:42: error[E0308]: mismatched types: expected `&Month`, found `Month`
+src/de/hysky/skyblocker/utils/time/skyblock_time_field.rs:72:40: error[E0599]: no method named `clone` found for struct `TemporalUnit` in the current scope: method not found in `TemporalUnit`
+src/de/hysky/skyblocker/utils/time/skyblock_time_field.rs:77:41: error[E0599]: no method named `clone` found for struct `TemporalUnit` in the current scope: method not found in `TemporalUnit`
+src/de/hysky/skyblocker/utils/time/skyblock_time_field.rs:82:36: error[E0599]: no method named `clone` found for struct `ValueRange` in the current scope: method not found in `ValueRange`
+src/de/hysky/skyblocker/utils/time/skyblock_time_field.rs:104:36: error[E0599]: no method named `clone` found for struct `ValueRange` in the current scope: method not found in `ValueRange`
+src/de/hysky/skyblocker/utils/time/skyblock_time_field.rs:164:24: error[E0277]: the trait bound `TemporalUnit: std::default::Default` is not satisfied: the trait `std::default::Default` is not implemented for `TemporalUnit`
+src/de/hysky/skyblocker/utils/time/skyblock_time_field.rs:165:25: error[E0277]: the trait bound `TemporalUnit: std::default::Default` is not satisfied: the trait `std::default::Default` is not implemented for `TemporalUnit`
+src/de/hysky/skyblocker/utils/time/skyblock_time_field.rs:166:20: error[E0277]: the trait bound `ValueRange: std::default::Default` is not satisfied: the trait `std::default::Default` is not implemented for `ValueRange`
+src/de/hysky/skyblocker/utils/time/skyblock_time_field.rs:168:36: error[E0599]: no method named `clone` found for struct `TemporalUnit` in the current scope: method not found in `TemporalUnit`
+src/de/hysky/skyblocker/utils/time/skyblock_time_field.rs:169:38: error[E0599]: no method named `clone` found for struct `TemporalUnit` in the current scope: method not found in `TemporalUnit`
+src/de/hysky/skyblocker/utils/time/skyblock_time_field.rs:170:28: error[E0599]: no method named `clone` found for struct `ValueRange` in the current scope: method not found in `ValueRange`
+src/de/hysky/skyblocker/utils/utils.rs:250:38: error[E0599]: no method named `clone` found for mutable reference `&mut unresolved::Environment` in the current scope: method not found in `&mut unresolved::Environment`
+src/de/hysky/skyblocker/utils/utils.rs:275:31: error[E0599]: no method named `clone` found for mutable reference `&mut RankType` in the current scope: method not found in `&mut RankType`
+src/de/hysky/skyblocker/utils/utils.rs:382:46: error[E0308]: mismatched types: expected `Scoreboard`, found `Arc<Mutex<Scoreboard>>`
+src/de/hysky/skyblocker/utils/utils.rs:383:52: error[E0308]: mismatched types: expected `Option<Objective>`, found `Option<&Objective>`
+src/de/hysky/skyblocker/utils/utils.rs:387:92: error[E0277]: the trait bound `std::string::String: Borrow<Objective>` is not satisfied: the trait `Borrow<Objective>` is not implemented for `std::string::String`
+src/de/hysky/skyblocker/utils/utils.rs:387:92: error[E0277]: the trait bound `Objective: Ord` is not satisfied: the trait `Ord` is not implemented for `Objective`
+src/de/hysky/skyblocker/utils/utils.rs:388:98: error[E0599]: no method named `get_scoreboard_name` found for reference `&str` in the current scope: method not found in `&str`
+src/de/hysky/skyblocker/utils/utils.rs:388:56: error[E0308]: mismatched types: expected `Option<PlayerTeam>`, found `Option<&PlayerTeam>`
+src/de/hysky/skyblocker/utils/utils.rs:426:23: error[E0369]: binary operation `==` cannot be applied to type `Arc<ReentrantMutex<RawMutex, RawThreadId, RefCell<dyn Area>>>`
+src/de/hysky/skyblocker/utils/utils.rs:459:77: error[E0599]: no method named `get_online_players` found for struct `PlayListenerSinks` in the current scope: method not found in `PlayListenerSinks`
+src/de/hysky/skyblocker/utils/utils.rs:643:16: error[E0308]: mismatched types: expected `Uuid`, found `String`
+src/de/hysky/skyblocker/utils/waypoint/named_waypoint.rs:69:184: error[E0308]: mismatched types: expected `Arc<dyn Fn(&Arc<...>, ...) -> ...>`, found `NameComparator`
+src/de/hysky/skyblocker/utils/waypoint/profile_aware_waypoint.rs:44:92: error[E0308]: mismatched types: expected `Vec<f32>`, found `Option<_>`
+src/de/hysky/skyblocker/utils/waypoint/waypoint.rs:395:213: error[E0277]: the trait bound `f32: Hash` is not satisfied: the trait `Hash` is not implemented for `f32`
+src/de/hysky/skyblocker/utils/waypoint/waypoint.rs:395:34: error[E0277]: the trait bound `f32: Hash` is not satisfied: the trait `Hash` is not implemented for `f32`
+src/de/hysky/skyblocker/utils/waypoint/waypoint.rs:502:41: error[E0308]: mismatched types: expected `&Type`, found `Type`
+src/de/hysky/skyblocker/utils/waypoint/waypoint_group.rs:110:121: error[E0277]: the trait bound `(dyn NamedWaypoint + 'static): std::default::Default` is not satisfied: the trait `std::default::Default` is not implemented for `(dyn NamedWaypoint + 'static)`
+src/de/hysky/skyblocker/utils/waypoint/waypoint_group.rs:205:16: error[E0605]: non-primitive cast: `std::sync::Arc<ReentrantMutex<parking_lot::RawMutex, RawThreadId, RefCell<(dyn skyblocker::utils::waypoint::waypoint::Waypoint + 'static)>>>` as `std::sync::Arc<ReentrantMutex<parking_lot::RawMutex, RawThreadId, RefCell<(dyn NamedWaypoint + 'static)>>>`: an `as` expression can only be used to convert between primitive types or to coerce to a specific trait object
+src/de/hysky/skyblocker/utils/waypoint/waypoint_group.rs:212:449: error[E0308]: mismatched types: expected trait `NamedWaypoint`, found trait `Waypoint`
+src/de/hysky/skyblocker/utils/waypoint/waypoint_group.rs:215:485: error[E0308]: mismatched types: expected trait `NamedWaypoint`, found trait `Waypoint`
+src/de/hysky/skyblocker/utils/ws/message/dungeon_bat_killed_message.rs:15:480: error[E0061]: this function takes 1 argument but 2 arguments were supplied
+src/de/hysky/skyblocker/utils/ws/message/dungeon_bat_killed_message.rs:29:24: error[E0061]: this function takes 1 argument but 2 arguments were supplied
+src/de/hysky/skyblocker/utils/ws/message/dungeon_mimic_killed_message.rs:15:486: error[E0061]: this function takes 1 argument but 2 arguments were supplied
+src/de/hysky/skyblocker/utils/ws/message/dungeon_mimic_killed_message.rs:29:24: error[E0061]: this function takes 1 argument but 2 arguments were supplied
+src/de/hysky/skyblocker/utils/ws/message/dungeon_prince_killed_message.rs:15:489: error[E0061]: this function takes 1 argument but 2 arguments were supplied
+src/de/hysky/skyblocker/utils/ws/message/dungeon_prince_killed_message.rs:29:24: error[E0061]: this function takes 1 argument but 2 arguments were supplied
+src/de/hysky/skyblocker/utils/ws/message/dungeon_room_hide_waypoint_message.rs:15:846: error[E0061]: this function takes 3 arguments but 4 arguments were supplied
+src/de/hysky/skyblocker/utils/ws/message/dungeon_room_hide_waypoint_message.rs:33:24: error[E0061]: this function takes 3 arguments but 4 arguments were supplied
+src/de/hysky/skyblocker/utils/ws/message/dungeon_room_match_message.rs:21:1224: error[E0061]: this function takes 6 arguments but 7 arguments were supplied
+src/de/hysky/skyblocker/utils/ws/message/dungeon_room_match_message.rs:45:24: error[E0061]: this function takes 6 arguments but 7 arguments were supplied
+src/de/hysky/skyblocker/utils/ws/message/dungeon_room_secret_count_message.rs:15:839: error[E0061]: this function takes 3 arguments but 4 arguments were supplied
+src/de/hysky/skyblocker/utils/ws/message/dungeon_room_secret_count_message.rs:33:24: error[E0061]: this function takes 3 arguments but 4 arguments were supplied
+src/de/hysky/skyblocker/utils/ws/payload.rs:16:748: error[E0308]: mismatched types: expected `String`, found `Option<String>`
+src/de/hysky/skyblocker/utils/ws/skyblocker_web_socket.rs:68:60: error[E0599]: no method named `as_any` found for enum `std::option::Option<T>` in the current scope: method not found in `std::option::Option<_>`
+src/de/hysky/skyblocker/utils/ws/skyblocker_web_socket.rs:156:47: error[E0308]: mismatched types: expected `Arc<dyn Any + Send + Sync>`, found `Option<_>`
+src/de/hysky/skyblocker/utils/ws/skyblocker_web_socket.rs:159:20: error[E0308]: mismatched types: expected `CompletionStage`, found `CompletableFuture<Arc<...>>`
+src/de/hysky/skyblocker/utils/ws/ws_message_handler.rs:60:207: error[E0277]: `std::option::Option<mcrust::com::mojang::serialization::dynamic::Dynamic>` doesn't implement `std::fmt::Display`: the trait `std::fmt::Display` is not implemented for `std::option::Option<mcrust::com::mojang::serialization::dynamic::Dynamic>`
+src/de/hysky/skyblocker/utils/ws/ws_message_handler.rs:76:137: error[E0277]: `ReentrantMutex<RawMutex, RawThreadId, RefCell<dyn Message<Arc<...>>>>` doesn't implement `std::fmt::Display`: the trait `std::fmt::Display` is not implemented for `ReentrantMutex<RawMutex, RawThreadId, RefCell<dyn Message<Arc<...>>>>`
+src/de/hysky/skyblocker/utils/ws/ws_message_handler.rs:88:166: error[E0308]: mismatched types: expected `&Value`, found `&Map<String, Value>`
+src/de/hysky/skyblocker/utils/api_authentication.rs:150:44: error: lifetime may not live long enough: coercion requires that `'1` must outlive `'static`
+src/de/hysky/skyblocker/utils/api_authentication.rs:165:68: error[E0507]: cannot move out of dereference of `std::sync::MutexGuard<'_, std::option::Option<TokenInfo>>`: help: consider calling `.as_ref()` or `.as_mut()` to borrow the type's contents, move occurs because value has type `std::option::Option<TokenInfo>`, which does not implement the `Copy` trait
+src/de/hysky/skyblocker/utils/constants.rs:57:12: error[E0382]: use of moved value: `component`: value used here after move
+src/de/hysky/skyblocker/utils/data/json_data.rs:235:9: error[E0596]: cannot borrow `self` as mutable, as it is not declared as mutable: cannot borrow as mutable
+src/de/hysky/skyblocker/utils/discord/discord_rpc_manager.rs:49:70: error[E0594]: cannot assign to `config.misc.rich_presence.custom_message`, as `config` is not declared as mutable: cannot assign
+src/de/hysky/skyblocker/utils/enchanted_book_utils.rs:70:21: error[E0502]: cannot borrow `parts` as immutable because it is also borrowed as mutable: immutable borrow occurs here
+src/de/hysky/skyblocker/utils/fun_utils.rs:78:16: error[E0382]: use of moved value: `component`: value used here after move
+src/de/hysky/skyblocker/utils/json_value_output.rs:61:9: error[E0596]: cannot borrow `self.output` as mutable, as it is behind a `&` reference: `self` is a `&` reference, so it cannot be borrowed as mutable
+src/de/hysky/skyblocker/utils/json_value_output.rs:66:9: error[E0596]: cannot borrow `self.output` as mutable, as it is behind a `&` reference: `self` is a `&` reference, so it cannot be borrowed as mutable
+src/de/hysky/skyblocker/utils/mayor/mayor_utils.rs:53:42: error[E0716]: temporary value dropped while borrowed: creates a temporary value which is freed while still in use
+src/de/hysky/skyblocker/utils/regex_utils.rs:28:14: error[E0596]: cannot borrow `*matcher` as mutable, as it is behind a `&` reference: `matcher` is a `&` reference, so it cannot be borrowed as mutable
+src/de/hysky/skyblocker/utils/regex_utils.rs:46:14: error[E0596]: cannot borrow `*matcher` as mutable, as it is behind a `&` reference: `matcher` is a `&` reference, so it cannot be borrowed as mutable
+src/de/hysky/skyblocker/utils/regex_utils.rs:61:14: error[E0596]: cannot borrow `*matcher` as mutable, as it is behind a `&` reference: `matcher` is a `&` reference, so it cannot be borrowed as mutable
+src/de/hysky/skyblocker/utils/regex_utils.rs:118:14: error[E0596]: cannot borrow `*matcher` as mutable, as it is behind a `&` reference: `matcher` is a `&` reference, so it cannot be borrowed as mutable
+src/de/hysky/skyblocker/utils/render/abstract_uniform_texel_buffer.rs:54:70: error[E0596]: cannot borrow `buffer` as mutable, as it is not declared as mutable: cannot borrow as mutable
+src/de/hysky/skyblocker/utils/render/gui/abstract_popup_screen.rs:150:9: error[E0596]: cannot borrow `self` as mutable, as it is not declared as mutable: cannot borrow as mutable
+src/de/hysky/skyblocker/utils/render/gui/argb_text_input.rs:270:78: error[E0381]: used binding `an_int` isn't initialized: `an_int` used here but it isn't initialized
+src/de/hysky/skyblocker/utils/render/gui/cycling_icon_button_widget.rs:92:26: error[E0716]: temporary value dropped while borrowed: creates a temporary value which is freed while still in use
+src/de/hysky/skyblocker/utils/render/gui/dropdown_widget.rs:151:12: error[E0310]: the parameter type `T` may not live long enough: the parameter type `T` must be valid for the static lifetime..., ...so that the type `T` will meet its required lifetime bounds
+src/de/hysky/skyblocker/utils/render/gui/dropdown_widget.rs:201:9: error[E0596]: cannot borrow data in a `&` reference as mutable: cannot borrow as mutable
+src/de/hysky/skyblocker/utils/render/gui/dropdown_widget.rs:201:9: error[E0310]: the parameter type `T` may not live long enough: the parameter type `T` must be valid for the static lifetime..., ...so that the type `T` will meet its required lifetime bounds
+src/de/hysky/skyblocker/utils/render/gui/dropdown_widget.rs:202:21: error[E0310]: the parameter type `T` may not live long enough: the parameter type `T` must be valid for the static lifetime..., ...so that the type `T` will meet its required lifetime bounds
+src/de/hysky/skyblocker/utils/render/gui/dropdown_widget.rs:211:9: error[E0596]: cannot borrow data in a `&` reference as mutable: cannot borrow as mutable
+src/de/hysky/skyblocker/utils/render/gui/dropdown_widget.rs:211:9: error[E0310]: the parameter type `T` may not live long enough: the parameter type `T` must be valid for the static lifetime..., ...so that the type `T` will meet its required lifetime bounds
+src/de/hysky/skyblocker/utils/render/gui/dropdown_widget.rs:212:21: error[E0310]: the parameter type `T` may not live long enough: the parameter type `T` must be valid for the static lifetime..., ...so that the type `T` will meet its required lifetime bounds
+src/de/hysky/skyblocker/utils/render/gui/dropdown_widget.rs:219:9: error[E0596]: cannot borrow data in a `&` reference as mutable: cannot borrow as mutable
+src/de/hysky/skyblocker/utils/render/gui/dropdown_widget.rs:219:9: error[E0310]: the parameter type `T` may not live long enough: the parameter type `T` must be valid for the static lifetime..., ...so that the type `T` will meet its required lifetime bounds
+src/de/hysky/skyblocker/utils/render/gui/dropdown_widget.rs:220:21: error[E0310]: the parameter type `T` may not live long enough: the parameter type `T` must be valid for the static lifetime..., ...so that the type `T` will meet its required lifetime bounds
+src/de/hysky/skyblocker/utils/render/gui/dropdown_widget.rs:227:9: error[E0596]: cannot borrow data in a `&` reference as mutable: cannot borrow as mutable
+src/de/hysky/skyblocker/utils/render/gui/dropdown_widget.rs:227:9: error[E0310]: the parameter type `T` may not live long enough: the parameter type `T` must be valid for the static lifetime..., ...so that the type `T` will meet its required lifetime bounds
+src/de/hysky/skyblocker/utils/render/gui/dropdown_widget.rs:246:16: error[E0310]: the parameter type `T` may not live long enough: the parameter type `T` must be valid for the static lifetime..., ...so that the type `T` will meet its required lifetime bounds
+src/de/hysky/skyblocker/utils/render/gui/dropdown_widget.rs:256:13: error[E0310]: the parameter type `T` may not live long enough: the parameter type `T` must be valid for the static lifetime..., ...so that the type `T` will meet its required lifetime bounds
+src/de/hysky/skyblocker/utils/render/gui/dropdown_widget.rs:278:9: error[E0596]: cannot borrow `self` as mutable, as it is not declared as mutable: cannot borrow as mutable
+src/de/hysky/skyblocker/utils/render/gui/dropdown_widget.rs:492:9: error[E0596]: cannot borrow `self` as mutable, as it is not declared as mutable: cannot borrow as mutable
+src/de/hysky/skyblocker/utils/render/gui/dropdown_widget.rs:616:9: error[E0596]: cannot borrow `self` as mutable, as it is not declared as mutable: cannot borrow as mutable
+src/de/hysky/skyblocker/utils/render/gui/dropdown_widget.rs:632:9: error[E0515]: cannot return value referencing temporary value: returns a value referencing data owned by the current function
+src/de/hysky/skyblocker/utils/render/gui/filtered_edit_box.rs:200:9: error[E0596]: cannot borrow `self` as mutable, as it is not declared as mutable: cannot borrow as mutable
+src/de/hysky/skyblocker/utils/render/gui/side_tab_button_widget.rs:149:9: error[E0596]: cannot borrow `self` as mutable, as it is not declared as mutable: cannot borrow as mutable
+src/de/hysky/skyblocker/utils/render/gui/sound_selection_popup.rs:383:9: error[E0596]: cannot borrow `self.base` as mutable, as it is behind a `&` reference: `self` is a `&` reference, so it cannot be borrowed as mutable
+src/de/hysky/skyblocker/utils/render/gui/sound_selection_popup.rs:390:9: error[E0596]: cannot borrow `self.base` as mutable, as it is behind a `&` reference: `self` is a `&` reference, so it cannot be borrowed as mutable
+src/de/hysky/skyblocker/utils/render/gui/toggleable_layout_widget.rs:34:24: error[E0507]: cannot move out of `self.widget` which is behind a shared reference: move occurs because `self.widget` has type `LayoutElement`, which does not implement the `Copy` trait
+src/de/hysky/skyblocker/utils/render/primitive/primitive_feature_renderer.rs:116:64: error[E0502]: cannot borrow `*self` as immutable because it is also borrowed as mutable: immutable borrow occurs here
+src/de/hysky/skyblocker/utils/render/state/gui/gui_custom_shape_render_state.rs:91:15: error[E0596]: cannot borrow `*vertex_consumer` as mutable, as it is behind a `&` reference: `vertex_consumer` is a `&` reference, so it cannot be borrowed as mutable
+src/de/hysky/skyblocker/utils/render/state/gui/gui_custom_shape_render_state.rs:91:96: error[E0596]: cannot borrow `*vertex_consumer` as mutable, as it is behind a `&` reference: `vertex_consumer` is a `&` reference, so it cannot be borrowed as mutable
+src/de/hysky/skyblocker/utils/render/state/gui/gui_custom_shape_render_state.rs:91:135: error[E0596]: cannot borrow `*vertex_consumer` as mutable, as it is behind a `&` reference: `vertex_consumer` is a `&` reference, so it cannot be borrowed as mutable
+src/de/hysky/skyblocker/utils/render/state/gui/gui_horizontal_gradient_render_state.rs:113:11: error[E0596]: cannot borrow `*vertices` as mutable, as it is behind a `&` reference: `vertices` is a `&` reference, so it cannot be borrowed as mutable
+src/de/hysky/skyblocker/utils/render/state/gui/gui_horizontal_gradient_render_state.rs:113:111: error[E0596]: cannot borrow `*vertices` as mutable, as it is behind a `&` reference: `vertices` is a `&` reference, so it cannot be borrowed as mutable
+src/de/hysky/skyblocker/utils/render/state/gui/gui_horizontal_gradient_render_state.rs:113:151: error[E0596]: cannot borrow `*vertices` as mutable, as it is behind a `&` reference: `vertices` is a `&` reference, so it cannot be borrowed as mutable
+src/de/hysky/skyblocker/utils/render/state/gui/gui_horizontal_gradient_render_state.rs:114:11: error[E0596]: cannot borrow `*vertices` as mutable, as it is behind a `&` reference: `vertices` is a `&` reference, so it cannot be borrowed as mutable
+src/de/hysky/skyblocker/utils/render/state/gui/gui_horizontal_gradient_render_state.rs:114:109: error[E0596]: cannot borrow `*vertices` as mutable, as it is behind a `&` reference: `vertices` is a `&` reference, so it cannot be borrowed as mutable
+src/de/hysky/skyblocker/utils/render/state/gui/gui_horizontal_gradient_render_state.rs:114:149: error[E0596]: cannot borrow `*vertices` as mutable, as it is behind a `&` reference: `vertices` is a `&` reference, so it cannot be borrowed as mutable
+src/de/hysky/skyblocker/utils/render/state/gui/gui_horizontal_gradient_render_state.rs:115:11: error[E0596]: cannot borrow `*vertices` as mutable, as it is behind a `&` reference: `vertices` is a `&` reference, so it cannot be borrowed as mutable
+src/de/hysky/skyblocker/utils/render/state/gui/gui_horizontal_gradient_render_state.rs:115:107: error[E0596]: cannot borrow `*vertices` as mutable, as it is behind a `&` reference: `vertices` is a `&` reference, so it cannot be borrowed as mutable
+src/de/hysky/skyblocker/utils/render/state/gui/gui_horizontal_gradient_render_state.rs:115:145: error[E0596]: cannot borrow `*vertices` as mutable, as it is behind a `&` reference: `vertices` is a `&` reference, so it cannot be borrowed as mutable
+src/de/hysky/skyblocker/utils/render/state/gui/gui_horizontal_gradient_render_state.rs:116:11: error[E0596]: cannot borrow `*vertices` as mutable, as it is behind a `&` reference: `vertices` is a `&` reference, so it cannot be borrowed as mutable
+src/de/hysky/skyblocker/utils/render/state/gui/gui_horizontal_gradient_render_state.rs:116:109: error[E0596]: cannot borrow `*vertices` as mutable, as it is behind a `&` reference: `vertices` is a `&` reference, so it cannot be borrowed as mutable
+src/de/hysky/skyblocker/utils/render/state/gui/gui_horizontal_gradient_render_state.rs:116:147: error[E0596]: cannot borrow `*vertices` as mutable, as it is behind a `&` reference: `vertices` is a `&` reference, so it cannot be borrowed as mutable
+src/de/hysky/skyblocker/utils/render/title/title_container.rs:72:95: error: lifetime may not live long enough: returning this value requires that `'1` must outlive `'static`
+src/de/hysky/skyblocker/utils/render/title/title_container_config_screen.rs:85:23: error[E0716]: temporary value dropped while borrowed: creates a temporary value which is freed while still in use
+src/de/hysky/skyblocker/utils/render/title/title_container_config_screen.rs:255:22: error[E0596]: cannot borrow `full_config.ui_and_visuals.title_container` as mutable, as it is behind a `&` reference: `full_config` is a `&` reference, so it cannot be borrowed as mutable
+src/de/hysky/skyblocker/utils/scheduler/message_scheduler.rs:79:53: error: lifetime may not live long enough: returning this value requires that `'1` must outlive `'static`
+src/de/hysky/skyblocker/utils/scheduler/scheduler.rs:205:9: error[E0596]: cannot borrow `self` as mutable, as it is not declared as mutable: cannot borrow as mutable
+src/de/hysky/skyblocker/utils/text_transformer.rs:171:17: error[E0382]: use of moved value: `new_text`: value used here after move
+src/de/hysky/skyblocker/utils/text_transformer.rs:174:16: error[E0382]: use of moved value: `new_text`: value used here after move
+src/de/hysky/skyblocker/utils/tictactoe/tic_tac_toe_utils.rs:110:26: error[E0596]: cannot borrow `*board` as mutable, as it is behind a `&` reference: `board` is a `&` reference, so it cannot be borrowed as mutable
+src/de/hysky/skyblocker/utils/tictactoe/tic_tac_toe_utils.rs:112:26: error[E0596]: cannot borrow `*board` as mutable, as it is behind a `&` reference: `board` is a `&` reference, so it cannot be borrowed as mutable
+src/de/hysky/skyblocker/utils/tictactoe/tic_tac_toe_utils.rs:126:26: error[E0596]: cannot borrow `*board` as mutable, as it is behind a `&` reference: `board` is a `&` reference, so it cannot be borrowed as mutable
+src/de/hysky/skyblocker/utils/tictactoe/tic_tac_toe_utils.rs:128:26: error[E0596]: cannot borrow `*board` as mutable, as it is behind a `&` reference: `board` is a `&` reference, so it cannot be borrowed as mutable
+src/de/hysky/skyblocker/utils/waypoint/distanced_named_waypoint.rs:121:9: error[E0596]: cannot borrow `self` as mutable, as it is not declared as mutable: cannot borrow as mutable
+src/de/hysky/skyblocker/utils/waypoint/named_waypoint.rs:405:9: error[E0596]: cannot borrow `self` as mutable, as it is not declared as mutable: cannot borrow as mutable
+src/de/hysky/skyblocker/utils/waypoint/profile_aware_waypoint.rs:135:9: error[E0596]: cannot borrow `self` as mutable, as it is not declared as mutable: cannot borrow as mutable
+src/de/hysky/skyblocker/utils/waypoint/seen_waypoint.rs:150:9: error[E0596]: cannot borrow `self` as mutable, as it is not declared as mutable: cannot borrow as mutable
+src/de/hysky/skyblocker/utils/waypoint/waypoint.rs:412:9: error[E0596]: cannot borrow `self` as mutable, as it is not declared as mutable: cannot borrow as mutable

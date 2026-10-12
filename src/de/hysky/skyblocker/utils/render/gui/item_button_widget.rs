@@ -46,13 +46,13 @@ impl ItemButtonWidget {
 
     /// java: public ItemButtonWidget(int x, int y, int width, int height, ItemStack item, Component message, OnPress onPress)
     pub fn new_7(mut x: i32, mut y: i32, mut width: i32, mut height: i32, mut item: mcrust::net::minecraft::world::item::item_stack::ItemStack, mut message: MutableComponent, mut on_press: OnPress) -> Self {
-        let mut this = Self::new(x, y, width, height, item.clone(), message.clone(), on_press, DEFAULT_NARRATION);
+        let mut this = Self::new(x, y, width, height, item.clone(), message.clone(), on_press, CreateNarration::Default);
         this
     }
 
     /// java: public ItemButtonWidget(int x, int y, ItemStack item, Component message, OnPress onPress)
     pub fn new_5(mut x: i32, mut y: i32, mut item: mcrust::net::minecraft::world::item::item_stack::ItemStack, mut message: MutableComponent, mut on_press: OnPress) -> Self {
-        let mut this = Self::new(x, y, 20, 20, item.clone(), message.clone(), on_press, DEFAULT_NARRATION);
+        let mut this = Self::new(x, y, 20, 20, item.clone(), message.clone(), on_press, CreateNarration::Default);
         this
     }
 

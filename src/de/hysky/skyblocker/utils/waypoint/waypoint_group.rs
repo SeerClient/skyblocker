@@ -106,8 +106,8 @@ impl WaypointGroup {
             waypoint_type: __init_waypoint_type,
             current_index: 0,
         });
-        let __this_w1 = compat::RenderThread::new(std::sync::Arc::downgrade(&__this));
-        { let __v = waypoints.iter().cloned().map(|__a0| { let Some(__this_1) = __this_w1.get().upgrade() else { return Default::default(); }; WaypointGroup::convert_waypoint(&__this_1, &__a0) }).collect::<Vec<_>>(); compat::write(&__this, |__t| __t.waypoints = __v); }
+        // java: this.waypoints = waypoints.stream().map(this::convertWaypoint).collect(Collectors.toList());
+        { let __v = waypoints.iter().map(|__a0| WaypointGroup::convert_waypoint(&__this, __a0)).collect::<Vec<_>>(); compat::write(&__this, |__t| __t.waypoints = __v); }
         __this
     }
 
@@ -200,22 +200,42 @@ impl WaypointGroup {
 
     /// java: public NamedWaypoint createWaypoint(BlockPos pos)
     pub fn create_waypoint(__this: &compat::Shared<Self>, pos: &BlockPos) -> compat::Shared<dyn NamedWaypoint> {
-        let mut name: String = format!("Waypoint {}", (__this.lock().borrow().waypoints.len() as i32).wrapping_add(1));
-        let __this_1 = compat::RenderThread::new(__this.clone());
-        return (({ let __r = &({ let __r = &(if compat::read(__this, |__t| __t.ordered) { OrderedNamedWaypoint::new_3(pos.clone(), name.clone(), vec![0.0f32, 1.0f32, 0.0f32]) } else { (NamedWaypointBase::new_3(pos.clone(), name.clone(), vec![0.0f32, 1.0f32, 0.0f32]) as compat::Shared<dyn NamedWaypoint>) }); let __f = compat::dispatch(__r, |__t| __t.with_through_walls()); __f(&compat::view(__r, |a| a as compat::Shared<dyn Waypoint>), compat::read(__this, |__t| __t.render_through_walls)) }); let __f = compat::dispatch(__r, |__t| __t.with_type_supplier()); __f(&compat::view(__r, |a| a as compat::Shared<dyn Waypoint>), Arc::new(move || WaypointGroup::waypoint_type(__this_1.get()))) }) as compat::Shared<dyn NamedWaypoint>);
+        let mut name: String = format!("Waypoint {}", (compat::read(__this, |__t| __t.waypoints.len()) as i32).wrapping_add(1));
+        // java: return (ordered ? new OrderedNamedWaypoint(pos, name, new float[]{0f, 1f, 0f}) : new NamedWaypoint(pos, name, new float[]{0f, 1f, 0f}))
+        //           .withThroughWalls(renderThroughWalls).withTypeSupplier(this::waypointType);
+        let waypoint: compat::Shared<dyn NamedWaypoint> = if compat::read(__this, |__t| __t.ordered) {
+            OrderedNamedWaypoint::new_3(pos.clone(), name.clone(), vec![0.0f32, 1.0f32, 0.0f32]) as compat::Shared<dyn NamedWaypoint>
+        } else {
+            NamedWaypointBase::new_3(pos.clone(), name.clone(), vec![0.0f32, 1.0f32, 0.0f32]) as compat::Shared<dyn NamedWaypoint>
+        };
+        return WaypointGroup::with_group_settings(__this, &waypoint);
     }
 
     /// java: public NamedWaypoint convertWaypoint(NamedWaypoint waypoint)
     pub fn convert_waypoint(__this: &compat::Shared<Self>, waypoint: &compat::Shared<dyn NamedWaypoint>) -> compat::Shared<dyn NamedWaypoint> {
+        let is_ordered_waypoint: bool = compat::read(waypoint, |__t| __t.dyn_any().is::<OrderedNamedWaypoint>());
         if compat::read(__this, |__t| __t.ordered) {
-            let __this_1 = compat::RenderThread::new(__this.clone());
-            return ({ let __r = &({ let __r = &(if waypoint.lock().borrow().as_any().is::<compat::Shared<OrderedNamedWaypoint>>() { waypoint.clone() } else { OrderedNamedWaypoint::new(waypoint.clone()) }); let __f = compat::dispatch(__r, |__t| __t.with_through_walls()); __f(&compat::view(__r, |a| a as compat::Shared<dyn Waypoint>), WaypointGroup::render_through_walls(__this)) }); let __f = compat::dispatch(__r, |__t| __t.with_type_supplier()); __f(&compat::view(__r, |a| a as compat::Shared<dyn Waypoint>), Arc::new(move || WaypointGroup::waypoint_type(__this_1.get()))) });
+            // java: return (waypoint instanceof OrderedNamedWaypoint ? waypoint : new OrderedNamedWaypoint(waypoint)).withThroughWalls(renderThroughWalls()).withTypeSupplier(this::waypointType);
+            let converted: compat::Shared<dyn NamedWaypoint> = if is_ordered_waypoint { waypoint.clone() } else { OrderedNamedWaypoint::new(waypoint.clone()) as compat::Shared<dyn NamedWaypoint> };
+            return WaypointGroup::with_group_settings(__this, &converted);
         } else {
-            let __this_2 = compat::RenderThread::new(__this.clone());
-            return ({ let __r = &({ let __r = &(if waypoint.lock().borrow().as_any().is::<compat::Shared<OrderedNamedWaypoint>>() { (NamedWaypointBase::new(waypoint.clone()) as compat::Shared<dyn NamedWaypoint>) } else { waypoint.clone() }); let __f = compat::dispatch(__r, |__t| __t.with_through_walls()); __f(&compat::view(__r, |a| a as compat::Shared<dyn Waypoint>), WaypointGroup::render_through_walls(__this)) }); let __f = compat::dispatch(__r, |__t| __t.with_type_supplier()); __f(&compat::view(__r, |a| a as compat::Shared<dyn Waypoint>), Arc::new(move || WaypointGroup::waypoint_type(__this_2.get()))) });
+            // java: return (waypoint instanceof OrderedNamedWaypoint ? new NamedWaypoint(waypoint) : waypoint).withThroughWalls(renderThroughWalls()).withTypeSupplier(this::waypointType);
+            let converted: compat::Shared<dyn NamedWaypoint> = if is_ordered_waypoint { NamedWaypointBase::new(waypoint.clone()) as compat::Shared<dyn NamedWaypoint> } else { waypoint.clone() };
+            return WaypointGroup::with_group_settings(__this, &converted);
         }
     }
 
+    /// `.withThroughWalls(renderThroughWalls()).withTypeSupplier(this::waypointType)` on a named waypoint: both are
+    /// covariant overrides in Java (NamedWaypoint / OrderedNamedWaypoint answer their own class), which the port's
+    /// `Waypoint` slots answer as `dyn Waypoint` - so the answer is taken back as the named waypoint it is.
+    fn with_group_settings(__this: &compat::Shared<Self>, waypoint: &compat::Shared<dyn NamedWaypoint>) -> compat::Shared<dyn NamedWaypoint> {
+        let render_through_walls: bool = WaypointGroup::render_through_walls(__this);
+        let __this_1 = compat::RenderThread::new(__this.clone());
+        let as_waypoint = compat::view(waypoint, |a| a as compat::Shared<dyn Waypoint>);
+        let with_walls: compat::Shared<dyn Waypoint> = ({ let __f = compat::dispatch(&*as_waypoint, |__t| __t.with_through_walls()); __f(&as_waypoint, render_through_walls) });
+        let with_type: compat::Shared<dyn Waypoint> = ({ let __f = compat::dispatch(&with_walls, |__t| __t.with_type_supplier()); __f(&with_walls, Arc::new(move || WaypointGroup::waypoint_type(__this_1.get()))) });
+        return as_named_waypoint(&with_type);
+    }
     /// java: public void tick()
     pub fn tick(__this: &compat::Shared<Self>) {
         if mcrust::mcrust::modding::game::with_player(|_| ()).is_none() || !(compat::read(__this, |__t| __t.ordered)) || __this.lock().borrow().waypoints.is_empty() {
@@ -281,4 +301,19 @@ impl std::fmt::Display for WaypointGroup {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", WaypointGroup::to_string(self))
     }
+}
+
+/// `(NamedWaypoint) waypoint`: a waypoint the port's `Waypoint` slots hand back as `dyn Waypoint` while Java's static
+/// type is `NamedWaypoint` - the same object, seen as its named waypoint class (Java's checked cast).
+pub fn as_named_waypoint(waypoint: &compat::Shared<dyn Waypoint>) -> compat::Shared<dyn NamedWaypoint> {
+    if compat::read(waypoint, |__t| __t.dyn_any().is::<OrderedNamedWaypoint>()) {
+        return compat::handle_as::<OrderedNamedWaypoint, _>(waypoint) as compat::Shared<dyn NamedWaypoint>;
+    }
+    if compat::read(waypoint, |__t| __t.dyn_any().is::<NamedWaypointBase>()) {
+        return compat::handle_as::<NamedWaypointBase, _>(waypoint) as compat::Shared<dyn NamedWaypoint>;
+    }
+    if compat::read(waypoint, |__t| __t.dyn_any().is::<crate::de::hysky::skyblocker::utils::waypoint::distanced_named_waypoint::DistancedNamedWaypointBase>()) {
+        return compat::handle_as::<crate::de::hysky::skyblocker::utils::waypoint::distanced_named_waypoint::DistancedNamedWaypointBase, _>(waypoint) as compat::Shared<dyn NamedWaypoint>;
+    }
+    panic!("ClassCastException: {} is not a NamedWaypoint", compat::read(waypoint, |__t| std::any::type_name_of_val(__t.dyn_any())));
 }

@@ -70,50 +70,70 @@ impl ApiAuthentication {
 
     /// java: private static void updateToken()
     pub fn update_token() {
-        let mut profile_keys: ProfileKeyPairManager = compat::minecraft().profile_key_pair_manager;
-        (profile_keys.prepare_key_pair().then_accept_async(|player_keypair_opt| {
-            // TODO(fabric2seer): `.map(..)` on a value of unknown type
-            //   java: boolean expired = playerKeypairOpt.map(keyPair -> keyPair.publicKey().data().hasExpired()).orElse(false);
-            let mut expired: bool = todo!("fabric2seer: the initialiser of `expired` (TODO above)");
-            // TODO(fabric2seer): the condition: `.isPresent(..)` on a value of unknown type
-            //   java: playerKeypairOpt.isPresent() && !expired
-            if todo!("fabric2seer: the condition (TODO above)") {
-                // TODO(fabric2seer): `.get(..)` on a value of unknown type
-                //   java: ProfileKeyPair playerKeyPair = playerKeypairOpt.get();
-                let mut player_key_pair: ProfileKeyPair = todo!("fabric2seer: the initialiser of `playerKeyPair` (TODO above)");
-                // TODO(fabric2seer): `.encodeToString(..)` on a Result
-                //   java: String publicKey = Base64.getMimeEncoder().encodeToString(playerKeyPair.publicKey().data().key().getEncoded());
-                let mut public_key: String = todo!("fabric2seer: the initialiser of `publicKey` (TODO above)");
-                let public_key_signature = player_key_pair.public_key().data().key_signature();
-                // TODO(fabric2seer): `.toEpochMilli(..)` on a Instant
-                //   java: long expiresAt = playerKeyPair.publicKey().data().expiresAt().toEpochMilli();
-                let mut expires_at: i64 = todo!("fabric2seer: the initialiser of `expiresAt` (TODO above)");
-                let mut key_pair_info: KeyPairInfo = KeyPairInfo::new(compat::minecraft().get_user().get_profile_id(), public_key.clone(), public_key_signature.clone(), expires_at);
-                let mut signed_data: SignedData = ApiAuthentication::get_random_signed_data(player_key_pair.private_key()).unwrap();
-                let mut token_request: TokenRequest = TokenRequest::new(key_pair_info.clone(), signed_data.clone(), skyblocker_mod::SKYBLOCKER_MOD.get_mut().metadata.id.clone(), MINECRAFT_VERSION.clone(), skyblocker_mod::VERSION.clone());
-                // TODO(fabric2seer): `.toJson(..)` on a Gson
-                //   java: String request = SkyblockerMod.GSON.toJson(TokenRequest.CODEC.encodeStart(JsonOps.INSTANCE, tokenRequest).getOrThrow());
-                let mut request: String = todo!("fabric2seer: the initialiser of `request` (TODO above)");
-                // java: try {..} catch (Exception e) - an exception here is a panic, caught by `catch_unwind`
-                let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                    // TODO(fabric2seer): `Http.sendPostRequest` is not a static method of Http
-                    //   java: tokenInfo = TokenInfo.CODEC.parse(JsonOps.INSTANCE, JsonParser.parseString(Http.sendPostRequest(AUTH_URL, request, CONTENT_TYPE))).getOrThrow();
-                    RenderHelper::run_on_render_thread(Arc::new(move || {
-                        let mut refresh_at_ticks: i32 = (((((compat::lock(&TOKEN_INFO).unwrap().expires_at()).wrapping_sub(compat::lock(&TOKEN_INFO).unwrap().issued_at())).wrapping_div(1000)).wrapping_sub(300)) as i32).wrapping_mul(20);
-                        logger().info("[Skyblocker Api Auth] Successfully refreshed api token.");
-                        ({ let __r = scheduler::INSTANCE.get_mut(); let __f = compat::dispatch(__r, |__t| __t.schedule()); __f(__r, Arc::new(move || { ApiAuthentication::update_token(); }), refresh_at_ticks) });
-                    }));
-                }));
-                if let Err(e) = __result {
-                    ApiAuthentication::log_error_and_schedule_retry(&component::translatable("skyblocker.api.token.authFailure"), 900i32.wrapping_mul(20), "[Skyblocker Api Auth] Failed to refresh the api token! Some features might not work :(", &vec![(std::sync::Arc::new(e.clone()) as compat::Object)]);
-                }
-            } else {
-                ApiAuthentication::log_error_and_schedule_retry(&component::translatable("skyblocker.api.token.noProfileKeys"), (if expired { -1 } else { 300i32.wrapping_mul(20) }), "[Skyblocker Api Auth] Failed to fetch profile keys! Some features may not work temporarily :( (Has your game been open for more than 24 hours? If so restart.)", &vec![]);
+        // java: ((MinecraftAccessor) CLIENT).getProfileKeyPairManagerField().prepareKeyPair()
+        let future = compat::minecraft()
+            .get_profile_key_pair_manager()
+            .as_mut()
+            .expect("Minecraft.profileKeyPairManager")
+            .prepare_key_pair();
+        // java: CLIENT.getUser().getProfileId() - read here, on the render thread that owns the User (the same value
+        // the async body reads: the user does not change while the game runs)
+        let profile_id: Option<Uuid> = Uuid::from_string(&compat::minecraft().get_user().get_profile_id());
+        // SkyblockerMod.SKYBLOCKER_MOD / VERSION are render-thread statics here (compat::MainThread): read them here too
+        let mod_id: String = skyblocker_mod::SKYBLOCKER_MOD.get_mut().metadata.id.clone();
+        let mod_version: String = skyblocker_mod::VERSION.clone();
+        // java: .thenAcceptAsync(playerKeypairOpt -> {..}, SkyblockerMod.VIRTUAL_THREAD_EXECUTOR).exceptionally(throwable -> {..})
+        // rust: port gap - the port's `KeyPairFuture` (CompletableFuture<Optional<ProfileKeyPair>>) has only
+        // isDone/join; the action runs on its own thread (the virtual-thread-per-task executor) once the future is
+        // done, and a panic in it is the exceptional completion `exceptionally` handles (GAPS_batchA.md)
+        compat::executor(Box::new(move || {
+            while !future.is_done() {
+                std::thread::sleep(std::time::Duration::from_millis(50));
             }
-        }, skyblocker_mod::VIRTUAL_THREAD_EXECUTOR.get_mut().clone())).exceptionally(|throwable| {
-            ApiAuthentication::log_error_and_schedule_retry(&component::translatable("skyblocker.api.token.authFailure"), 300i32.wrapping_mul(20), "[Skyblocker Api Auth] Encountered an unexpected exception while refreshing the api token!", &vec![throwable.clone()]);
-            return Default::default(); // java: return null
-        });
+            let __outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                let player_keypair_opt = future.join();
+                let mut expired: bool = player_keypair_opt.as_ref().map(|key_pair| key_pair.public_key().data().has_expired()).unwrap_or(false);
+                if player_keypair_opt.is_some() && !expired {
+                    let player_key_pair = player_keypair_opt.as_ref().unwrap();
+                    //The key header and footer can be sent but that doesn't matter to the server
+                    // java: Base64.getMimeEncoder() is getMimeEncoder(76, "\r\n")
+                    let mut public_key: String = base64::get_mime_encoder(76, b"\r\n").expect("Base64.getMimeEncoder()").encode_to_string(player_key_pair.public_key().data().key_encoded());
+                    let public_key_signature: Vec<u8> = player_key_pair.public_key().data().key_signature().to_vec();
+                    let mut expires_at: i64 = player_key_pair.public_key().data().expires_at().to_epoch_milli();
+                    let mut key_pair_info: KeyPairInfo = KeyPairInfo::new(profile_id.clone().expect("Objects.requireNonNull(CLIENT.getUser().getProfileId())"), public_key.clone(), public_key_signature, expires_at);
+                    let mut signed_data: SignedData = ApiAuthentication::get_random_signed_data(player_key_pair.private_key()).expect("Objects.requireNonNull(getRandomSignedData(..))");
+                    let mut token_request: TokenRequest = TokenRequest::new(key_pair_info.clone(), signed_data.clone(), mod_id.clone(), MINECRAFT_VERSION.clone(), mod_version.clone());
+                    // TODO(fabric2seer): `.toJson(..)` on a Gson
+                    //   java: String request = SkyblockerMod.GSON.toJson(TokenRequest.CODEC.encodeStart(JsonOps.INSTANCE, tokenRequest).getOrThrow());
+                    let mut request: String = todo!("fabric2seer: the initialiser of `request` (TODO above)");
+                    // java: try {..} catch (Exception e) - an exception here is a panic, caught by `catch_unwind`
+                    let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                        // TODO(fabric2seer): `Http.sendPostRequest` is not a static method of Http
+                        //   java: tokenInfo = TokenInfo.CODEC.parse(JsonOps.INSTANCE, JsonParser.parseString(Http.sendPostRequest(AUTH_URL, request, CONTENT_TYPE))).getOrThrow();
+                        RenderHelper::run_on_render_thread(Arc::new(move || {
+                            let (expires_at, issued_at) = {
+                                let token_info = compat::lock(&TOKEN_INFO);
+                                let token_info = token_info.as_ref().expect("tokenInfo");
+                                (token_info.expires_at(), token_info.issued_at())
+                            };
+                            let mut refresh_at_ticks: i32 = ((((expires_at.wrapping_sub(issued_at)).wrapping_div(1000)).wrapping_sub(300)) as i32).wrapping_mul(20);
+                            logger().info("[Skyblocker Api Auth] Successfully refreshed api token.");
+                            ({ let __r = scheduler::INSTANCE.get_mut(); let __f = compat::dispatch(__r, |__t| __t.schedule()); __f(__r, Arc::new(move || { ApiAuthentication::update_token(); }), refresh_at_ticks) });
+                        }));
+                    }));
+                    if let Err(e) = __result {
+                        //Try again in 15 minutes
+                        ApiAuthentication::log_error_and_schedule_retry(&component::translatable("skyblocker.api.token.authFailure"), 900i32.wrapping_mul(20), "[Skyblocker Api Auth] Failed to refresh the api token! Some features might not work :(", &vec![(std::sync::Arc::new(compat::panic_message(&e)) as compat::Object)]);
+                    }
+                } else {
+                    ApiAuthentication::log_error_and_schedule_retry(&component::translatable("skyblocker.api.token.noProfileKeys"), (if expired { -1 } else { 300i32.wrapping_mul(20) }), "[Skyblocker Api Auth] Failed to fetch profile keys! Some features may not work temporarily :( (Has your game been open for more than 24 hours? If so restart.)", &vec![]);
+                }
+            }));
+            if let Err(throwable) = __outcome {
+                //Try again in 5 minutes
+                ApiAuthentication::log_error_and_schedule_retry(&component::translatable("skyblocker.api.token.authFailure"), 300i32.wrapping_mul(20), "[Skyblocker Api Auth] Encountered an unexpected exception while refreshing the api token!", &vec![(std::sync::Arc::new(compat::panic_message(&throwable)) as compat::Object)]);
+            }
+        }));
     }
 
     /// java: private static TokenRequest.SignedData getRandomSignedData(PrivateKey privateKey)
@@ -122,31 +142,30 @@ impl ApiAuthentication {
         match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             let mut signature: Signature = Signature::get_instance(ALGORITHM).unwrap();
             let mut uuid: Uuid = Uuid::random_uuid();
-            // TODO(fabric2seer): static call ByteBuffer.allocate(..)
-            //   java: ByteBuffer buf = ByteBuffer.allocate(16)
-            //   java: 					.putLong(uuid.getMostSignificantBits())
-            //   java: 					.putLong(uuid.getLeastSignificantBits());
-            let mut buf: crate::unresolved::ByteBuffer = todo!("fabric2seer: the initialiser of `buf` (TODO above)");
-            // TODO(fabric2seer): `.initSign(..)` on a Signature
-            //   java: signature.initSign(privateKey);
-            // TODO(fabric2seer): `.update(..)` on a Signature
-            //   java: signature.update(buf.array());
-            // TODO(fabric2seer): `.sign(..)` on a Signature
-            //   java: byte[] signedData = signature.sign();
-            let mut signed_data: Vec<i8> = todo!("fabric2seer: the initialiser of `signedData` (TODO above)");
-            // TODO(fabric2seer): `.array(..)` on a ByteBuffer
-            //   java: return new TokenRequest.SignedData(buf.array(), signedData);
+            // java: ByteBuffer buf = ByteBuffer.allocate(16).putLong(uuid.getMostSignificantBits()).putLong(uuid.getLeastSignificantBits());
+            // (a ByteBuffer is big-endian)
+            let mut buf: Vec<u8> = Vec::with_capacity(16);
+            buf.extend_from_slice(&uuid.get_most_significant_bits().to_be_bytes());
+            buf.extend_from_slice(&uuid.get_least_significant_bits().to_be_bytes());
+            signature.init_sign(std::sync::Arc::clone(private_key.provider_handle_arc()));
+            signature.update(&buf);
+            let mut signed_data: Vec<u8> = signature.sign().unwrap();
+            return Some(SignedData::new(buf.clone(), signed_data));
         })) {
             Ok(__v) => return __v,
             Err(e) => {
-                logger().error(&format!("[Skyblocker Api Auth] Failed to sign random data!"));
+                logger().error(&format!("[Skyblocker Api Auth] Failed to sign random data! {}", compat::panic_message(&e)));
             }
         }
+        //This should never ever be the case, since we are signing data that is not invalid in any case
         return None;
     }
 
     /// java: private static void logErrorAndScheduleRetry(Component warningMessage, int retryAfter, String logMessage, Object... logArgs)
     pub fn log_error_and_schedule_retry(warning_message: &MutableComponent, mut retry_after: i32, log_message: &str, log_args: &Vec<compat::Object>) {
+        // the lambda keeps its own copies (Java's captured references)
+        let warning_message: MutableComponent = warning_message.clone();
+        let log_message: String = log_message.to_string();
         RenderHelper::run_on_render_thread(Arc::new(move || {
             // TODO(fabric2seer): a log call with a non-literal format
             //   java: LOGGER.error(logMessage, logArgs);
@@ -162,7 +181,7 @@ impl ApiAuthentication {
 
     /// java: public static @Nullable String getToken()
     pub fn get_token() -> Option<String> {
-        return (if compat::get_state(&TOKEN_INFO).is_some() { Some(compat::lock(&TOKEN_INFO).unwrap().token()) } else { None });
+        return (if compat::get_state(&TOKEN_INFO).is_some() { Some(compat::lock(&TOKEN_INFO).as_ref().unwrap().token()) } else { None });
     }
 
 }
@@ -223,14 +242,14 @@ pub struct KeyPairInfo {
     /// java: String publicKey
     pub public_key: String,
     /// java: byte[] publicKeySignature
-    pub public_key_signature: Vec<i8>,
+    pub public_key_signature: Vec<u8>,
     /// java: long expiresAt
     pub expires_at: i64,
 }
 
 impl KeyPairInfo {
     /// java: the canonical record constructor
-    pub fn new(mut uuid: Uuid, mut public_key: String, mut public_key_signature: Vec<i8>, mut expires_at: i64) -> Self {
+    pub fn new(mut uuid: Uuid, mut public_key: String, mut public_key_signature: Vec<u8>, mut expires_at: i64) -> Self {
         Self { uuid, public_key, public_key_signature, expires_at }
     }
 
@@ -245,7 +264,7 @@ impl KeyPairInfo {
     }
 
     /// java: the record accessor `publicKeySignature()`
-    pub fn public_key_signature(&self) -> Vec<i8> {
+    pub fn public_key_signature(&self) -> Vec<u8> {
         self.public_key_signature.clone()
     }
 
@@ -260,24 +279,24 @@ impl KeyPairInfo {
 #[derive(Clone, Debug, PartialEq)]
 pub struct SignedData {
     /// java: byte[] original
-    pub original: Vec<i8>,
+    pub original: Vec<u8>,
     /// java: byte[] signed
-    pub signed: Vec<i8>,
+    pub signed: Vec<u8>,
 }
 
 impl SignedData {
     /// java: the canonical record constructor
-    pub fn new(mut original: Vec<i8>, mut signed: Vec<i8>) -> Self {
+    pub fn new(mut original: Vec<u8>, mut signed: Vec<u8>) -> Self {
         Self { original, signed }
     }
 
     /// java: the record accessor `original()`
-    pub fn original(&self) -> Vec<i8> {
+    pub fn original(&self) -> Vec<u8> {
         self.original.clone()
     }
 
     /// java: the record accessor `signed()`
-    pub fn signed(&self) -> Vec<i8> {
+    pub fn signed(&self) -> Vec<u8> {
         self.signed.clone()
     }
 

@@ -10,8 +10,10 @@ use mcrust::net::minecraft::client::gui::gui;
 use mcrust::net::minecraft::util::profiling::profiler;
 use mcrust::net::minecraft::util::profiling::profiler_filler::ProfilerFiller;
 use mcrust::net::minecraft::util::thread::task_scheduler::TaskScheduler as _;
+use mcrust::mcrust::modding::events::client_command_registration_callback::FabricClientCommandSource;
+use mcrust::mcrust::modding::screens::ModScreen;
 
-/// java: public static final Scheduler INSTANCE = new Scheduler();
+//// java: public static final Scheduler INSTANCE = new Scheduler();
 pub static INSTANCE: compat::MainThread<compat::Shared<dyn Scheduler>> = compat::MainThread::new(|| (SchedulerBase::new() as compat::Shared<dyn Scheduler>));
 
 /// java: public class Scheduler
@@ -19,9 +21,10 @@ pub struct SchedulerBase {
     /// java: private int currentTick = 0;
     pub current_tick: i32,
     /// java: private final AbstractInt2ObjectMap<List<Runnable>> tasks = new Int2ObjectOpenHashMap<>();
-    pub tasks: crate::unresolved::AbstractInt2ObjectMap,
+    pub tasks: std::collections::HashMap<i32, Vec<Arc<dyn Fn()>>>,
     /// java: private final ExecutorService executors = SkyblockerMod.VIRTUAL_THREAD_EXECUTOR;
-    pub executors: crate::unresolved::ExecutorService,
+    /// (a new thread per task: `compat::executor`)
+    pub executors: fn(Box<dyn FnOnce() + Send>),
 }
 
 impl SchedulerBase {
@@ -30,7 +33,7 @@ impl SchedulerBase {
         let this = Self {
             current_tick: 0,
             tasks: std::collections::HashMap::new(),
-            executors: skyblocker_mod::VIRTUAL_THREAD_EXECUTOR.get_mut().clone(),
+            executors: compat::executor,
         };
         let (__h, __r) = __wrap(this);
         let __this = __h;
@@ -46,31 +49,44 @@ impl SchedulerBase {
     }
 
     /// java: public static Command<FabricClientCommandSource> queueOpenScreenFactoryCommand(Function<CommandContext<FabricClientCommandSource>, Screen> screenFactory)
-    pub fn queue_open_screen_factory_command(screen_factory: Arc<dyn Fn(CommandContext<crate::unresolved::FabricClientCommandSource>) -> mcrust::net::minecraft::client::gui::screens::screen::Screen>) -> Command {
-        return Arc::new(move |context| SchedulerBase::queue_open_screen_screen(&(screen_factory)(context.clone())));
+    pub fn queue_open_screen_factory_command(screen_factory: Arc<dyn Fn(&CommandContext<FabricClientCommandSource>) -> Box<dyn ModScreen> + Send + Sync>) -> Command<FabricClientCommandSource> {
+        // java: return context -> queueOpenScreen(screenFactory.apply(context));
+        return Arc::new(move |context: &CommandContext<FabricClientCommandSource>| Ok(SchedulerBase::queue_open_screen_screen((screen_factory)(context))));
     }
 
     /// java: public static Command<FabricClientCommandSource> queueOpenScreenCommand(Supplier<Screen> screenSupplier)
-    pub fn queue_open_screen_command(screen_supplier: Arc<dyn Fn() -> mcrust::net::minecraft::client::gui::screens::screen::Screen>) -> Command {
-        return Arc::new(move |_| SchedulerBase::queue_open_screen_screen(&(screen_supplier)()));
+    pub fn queue_open_screen_command(screen_supplier: Arc<dyn Fn() -> Box<dyn ModScreen> + Send + Sync>) -> Command<FabricClientCommandSource> {
+        // java: return _ -> queueOpenScreen(screenSupplier.get());
+        return Arc::new(move |_: &CommandContext<FabricClientCommandSource>| Ok(SchedulerBase::queue_open_screen_screen((screen_supplier)())));
     }
 
     /// java: public static Command<FabricClientCommandSource> queueOpenScreenCommand(Screen screen)
-    pub fn queue_open_screen_command_screen(screen: &mcrust::net::minecraft::client::gui::screens::screen::Screen) -> Command {
-        return Arc::new(move |_| SchedulerBase::queue_open_screen_screen(screen));
+    pub fn queue_open_screen_command_screen(screen: Box<dyn ModScreen>) -> Command<FabricClientCommandSource> {
+        // java: return _ -> queueOpenScreen(screen);
+        // rust: Java reopens the SAME screen object on every run; the port takes a mod screen by value, so the
+        // command opens it on its first run (a later run finds it gone and logs it)
+        let screen: std::sync::Mutex<Option<Box<dyn ModScreen>>> = std::sync::Mutex::new(Some(screen));
+        return Arc::new(move |_: &CommandContext<FabricClientCommandSource>| {
+            match compat::lock(&screen).take() {
+                Some(screen) => Ok(SchedulerBase::queue_open_screen_screen(screen)),
+                None => {
+                    logger().warn("[Skyblocker Scheduler] queueOpenScreenCommand(Screen): the screen was already opened once");
+                    Ok(1)
+                }
+            }
+        });
     }
 
     /// java: @Deprecated(forRemoval = true) public static int queueOpenScreen(Supplier<Screen> screenSupplier)
-    pub fn queue_open_screen(screen_supplier: Arc<dyn Fn() -> mcrust::net::minecraft::client::gui::screens::screen::Screen>) -> i32 {
-        return SchedulerBase::queue_open_screen_screen(&(screen_supplier)());
+    pub fn queue_open_screen(screen_supplier: Arc<dyn Fn() -> Box<dyn ModScreen>>) -> i32 {
+        return SchedulerBase::queue_open_screen_screen((screen_supplier)());
     }
 
     /// java: public static int queueOpenScreen(Screen screen)
-    pub fn queue_open_screen_screen(screen: &mcrust::net::minecraft::client::gui::screens::screen::Screen) -> i32 {
-        // TODO(fabric2seer): `set_screen` takes 14 argument(s) in the port (`gfx: &mut Minecraft, screen: &mut GuiScreen, screen_extra: &mut ScreenExtra, screen_stack: &mut Vec<HeldScreen>, screen_kind_before_pause: &mut Option<ScreenKind>, screen_is_open: &mut bool, level_screen_closed: &mut bool, frames_on_this_sc ..`), Java passes 1
-        // TODO(fabric2seer): a lambda for a parameter the port does not type as a closure (`R`)
-        // TODO(fabric2seer): `schedule` is a method of the port's trait `TaskScheduler`, which the port's `Minecraft` does not implement
-        // rust: compat::minecraft().schedule(|| gui::set_screen(&mut screen));
+    pub fn queue_open_screen_screen(screen: Box<dyn ModScreen>) -> i32 {
+        // java: Minecraft.getInstance().schedule(() -> Minecraft.getInstance().gui.setScreen(screen));
+        mcrust::net::minecraft::client::minecraft::execute(Box::new(move |_minecraft| mcrust::mcrust::modding::game::set_screen(screen)));
+        // java: return Command.SINGLE_SUCCESS;
         return 1;
     }
 
@@ -129,7 +145,9 @@ impl dyn Scheduler {
     pub fn schedule_3_body(__this: &compat::Shared<dyn Scheduler>, task: Arc<dyn Fn()>, mut delay: i32, mut multithreaded: bool) {
         RenderHelper::assert_on_render_thread("Scheduler called from outside the Render Thread");
         if delay >= 0 {
-            ({ let __f = compat::dispatch(__this, |__t| __t.add_task()); __f(__this, (if multithreaded { ScheduledTask::new(task.clone(), true) } else { task.clone() }), (compat::read(__this, |__t| __t.scheduler_base().current_tick)).wrapping_add(delay)) });
+            // java: addTask(multithreaded ? new ScheduledTask(task, true) : task, currentTick + delay);
+            let task: Arc<dyn Fn()> = if multithreaded { ScheduledTask::new_2(task.clone(), true).into_runnable() } else { task.clone() };
+            ({ let __f = compat::dispatch(__this, |__t| __t.add_task()); __f(__this, task, (compat::read(__this, |__t| __t.scheduler_base().current_tick)).wrapping_add(delay)) });
         } else {
             logger().warn("Scheduled a task with negative delay");
         }
@@ -144,7 +162,9 @@ impl dyn Scheduler {
     pub fn schedule_cyclic_3_body(__this: &compat::Shared<dyn Scheduler>, task: Arc<dyn Fn()>, mut period: i32, mut multithreaded: bool) {
         RenderHelper::assert_on_render_thread("Scheduler called from outside the Render Thread");
         if period > 0 {
-            ({ let __f = compat::dispatch(__this, |__t| __t.add_task()); __f(__this, ScheduledTask::new(task.clone(), period, true, multithreaded), compat::read(__this, |__t| __t.scheduler_base().current_tick)) });
+            // java: addTask(new ScheduledTask(task, period, true, multithreaded), currentTick);
+            let task: Arc<dyn Fn()> = ScheduledTask::new(task.clone(), period, true, multithreaded).into_runnable();
+            ({ let __f = compat::dispatch(__this, |__t| __t.add_task()); __f(__this, task, compat::read(__this, |__t| __t.scheduler_base().current_tick)) });
         } else {
             logger().error("Attempted to schedule a cyclic task with period lower than 1");
         }
@@ -152,23 +172,26 @@ impl dyn Scheduler {
 
     /// java: public void tick()
     pub fn tick_body(__this: &compat::Shared<dyn Scheduler>) {
-        let mut profiler: Arc<dyn ProfilerFiller> = profiler::get();
+        let profiler = profiler::get();
         profiler.push("skyblockerSchedulerTick");
-        // TODO(fabric2seer): the condition: `.containsKey(..)` on a AbstractInt2ObjectMap
-        //   java: tasks.containsKey(..)
-        if todo!("fabric2seer: the condition (TODO above)") {
-            // TODO(fabric2seer): `.get(..)` on a AbstractInt2ObjectMap
-            //   java: List<Runnable> currentTickTasks = tasks.get(currentTick);
-            let mut current_tick_tasks: Vec<Arc<dyn Fn()>> = todo!("fabric2seer: the initialiser of `currentTickTasks` (TODO above)");
-            for i in 0..(current_tick_tasks.len() as i32) {
-                let mut task: Arc<dyn Fn()> = current_tick_tasks[(i) as usize].clone();
+        let current_tick: i32 = compat::read(__this, |__t| __t.scheduler_base().current_tick);
+        if compat::read(__this, |__t| __t.scheduler_base().tasks.contains_key(&current_tick)) {
+            // java: List<Runnable> currentTickTasks = tasks.get(currentTick);
+            //       for (int i = 0; i < currentTickTasks.size(); i++) - the list ITSELF: a task scheduled for this tick
+            //       while it runs is added to it and runs in this loop too; every task runs with nothing borrowed
+            let mut i: usize = 0;
+            loop {
+                let Some(task) = compat::read(__this, |__t| __t.scheduler_base().tasks.get(&current_tick).and_then(|list| list.get(i).cloned())) else {
+                    break;
+                };
                 if !({ let __f = compat::dispatch(__this, |__t| __t.run_task()); __f(__this, task.clone()) }) {
-                    // TODO(fabric2seer): `.computeIfAbsent(..)` on a AbstractInt2ObjectMap
-                    //   java: tasks.computeIfAbsent(currentTick + 1, _ -> new ArrayList<>()).add(task);
+                    // java: tasks.computeIfAbsent(currentTick + 1, _ -> new ArrayList<>()).add(task);
+                    compat::write(__this, |__t| __t.scheduler_base_mut().tasks.entry(current_tick.wrapping_add(1)).or_insert_with(Vec::new).push(task.clone()));
                 }
+                i += 1;
             }
-            // TODO(fabric2seer): `.remove(..)` on a AbstractInt2ObjectMap
-            //   java: tasks.remove(currentTick);
+            // java: tasks.remove(currentTick);
+            compat::write(__this, |__t| __t.scheduler_base_mut().tasks.remove(&current_tick));
         }
         { let __v = (compat::read(__this, |__t| __t.scheduler_base().current_tick)).wrapping_add(1); compat::write(__this, |__t| __t.scheduler_base_mut().current_tick = __v); }
         profiler.pop();
@@ -182,27 +205,28 @@ impl dyn Scheduler {
 
     /// java: private void addTask(Runnable task, int schedule)
     pub fn add_task_body(__this: &compat::Shared<dyn Scheduler>, task: Arc<dyn Fn()>, mut schedule: i32) {
-        // TODO(fabric2seer): the condition: `.containsKey(..)` on a AbstractInt2ObjectMap
-        //   java: tasks.containsKey(..)
-        if todo!("fabric2seer: the condition (TODO above)") {
-            // TODO(fabric2seer): `.get(..)` on a AbstractInt2ObjectMap
-            //   java: tasks.get(schedule).add(task);
-        } else {
-            let mut list: Vec<Arc<dyn Fn()>> = Vec::new();
-            list.push(task.clone());
-            // TODO(fabric2seer): `.put(..)` on a AbstractInt2ObjectMap
-            //   java: tasks.put(schedule, list);
-        }
+        compat::write(__this, |__t| {
+            let tasks = &mut __t.scheduler_base_mut().tasks;
+            if tasks.contains_key(&schedule) {
+                // java: tasks.get(schedule).add(task);
+                tasks.get_mut(&schedule).unwrap().push(task.clone());
+            } else {
+                let mut list: Vec<Arc<dyn Fn()>> = Vec::new();
+                list.push(task.clone());
+                // java: tasks.put(schedule, list);
+                tasks.insert(schedule, list);
+            }
+        });
     }
 
 }
 
 impl Scheduler for SchedulerBase {
     fn scheduler_base(&self) -> &SchedulerBase {
-        &self
+        self
     }
     fn scheduler_base_mut(&mut self) -> &mut SchedulerBase {
-        &mut self
+        self
     }
 
     fn as_any(&self) -> &dyn std::any::Any {
@@ -212,7 +236,7 @@ impl Scheduler for SchedulerBase {
 }
 
 /// java: protected record ScheduledTask(Runnable task, int interval, boolean cyclic, boolean multithreaded) implements Runnable
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct ScheduledTask {
     /// java: Runnable task
     pub task: Arc<dyn Fn()>,
@@ -226,7 +250,7 @@ pub struct ScheduledTask {
 
 impl ScheduledTask {
     /// java: private ScheduledTask(Runnable task, boolean multithreaded)
-    pub fn new(task: Arc<dyn Fn()>, mut multithreaded: bool) -> Self {
+    pub fn new_2(task: Arc<dyn Fn()>, mut multithreaded: bool) -> Self {
         let mut this = Self::new(task.clone(), -1, false, multithreaded);
         this
     }
@@ -234,6 +258,11 @@ impl ScheduledTask {
     /// java: the canonical record constructor
     pub fn new(mut task: Arc<dyn Fn()>, mut interval: i32, mut cyclic: bool, mut multithreaded: bool) -> Self {
         Self { task, interval, cyclic, multithreaded }
+    }
+
+    /// The record as the `Runnable` it implements (what the scheduler's task lists hold).
+    pub fn into_runnable(self) -> Arc<dyn Fn()> {
+        Arc::new(move || self.run())
     }
 
     /// java: the record accessor `task()`
@@ -259,13 +288,19 @@ impl ScheduledTask {
     /// java: @Override public void run()
     pub fn run(&self) {
         if self.multithreaded {
-            // TODO(fabric2seer): `.execute(..)` on a ExecutorService
-            //   java: INSTANCE.executors.execute(this.task);
+            // java: INSTANCE.executors.execute(this.task);
+            // rust: port gap - a scheduled task is an `Arc<dyn Fn()>` over the mod's render-thread objects (not
+            // `Send`), so it cannot be handed to another thread; it runs here (GAPS_batchA.md)
+            (self.task)();
         } else {
             (self.task)();
         }
         if self.cyclic {
-            ({ let __r = INSTANCE.get_mut(); let __f = compat::dispatch(__r, |__t| __t.add_task()); __f(__r, self.clone(), (compat::read(INSTANCE.get_mut(), |__t| __t.scheduler_base().current_tick)).wrapping_add(self.interval)) });
+            // java: INSTANCE.addTask(this, INSTANCE.currentTick + this.interval);
+            let __r = INSTANCE.get_mut();
+            let current_tick: i32 = compat::read(__r, |__t| __t.scheduler_base().current_tick);
+            let runnable: Arc<dyn Fn()> = self.clone().into_runnable();
+            ({ let __f = compat::dispatch(__r, |__t| __t.add_task()); __f(__r, runnable, current_tick.wrapping_add(self.interval)) });
         }
     }
 

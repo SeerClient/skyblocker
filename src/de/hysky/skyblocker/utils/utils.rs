@@ -246,8 +246,9 @@ impl Utils {
     }
 
     /// java: public static Environment getEnvironment()
-    pub fn get_environment() -> crate::unresolved::Environment {
-        return ENVIRONMENT.get_mut().clone();
+    pub fn get_environment() -> &'static crate::unresolved::Environment {
+        // java: return environment; - the object itself
+        return ENVIRONMENT.get();
     }
 
     /// java: public static String getServer()
@@ -271,8 +272,9 @@ impl Utils {
     }
 
     /// java: public static RankType getRank()
-    pub fn get_rank() -> crate::unresolved::RankType {
-        return RANK.get_mut().clone();
+    pub fn get_rank() -> &'static crate::unresolved::RankType {
+        // java: return rank; - the object itself
+        return RANK.get();
     }
 
     /// java: @Init public static void init()
@@ -379,13 +381,16 @@ impl Utils {
             let Some(mut world) = mcrust::mcrust::modding::game::level() else {
                 return;
             };
-            let mut scoreboard: Scoreboard = world.get_scoreboard().unwrap();
-            let mut objective: Option<Objective> = scoreboard.get_display_objective(DisplaySlot::Sidebar);
+            // java: Scoreboard scoreboard = client.level.getScoreboard(); - the level's board (shared with the network side)
+            let scoreboard_cell = world.get_scoreboard().expect("NullPointerException: client.level.getScoreboard()");
+            let mut scoreboard = scoreboard_cell.lock().unwrap_or_else(|p| p.into_inner());
+            let mut objective: Option<Objective> = scoreboard.get_display_objective(DisplaySlot::Sidebar).cloned();
             let mut text_lines: Vec<MutableComponent> = Vec::new();
             let mut string_lines: Vec<String> = Vec::new();
             for score_holder in scoreboard.get_tracked_players() {
-                if scoreboard.list_scores_of(&compat::jstring(&score_holder)).contains_key(objective.as_ref().unwrap()) {
-                    let mut team: Option<PlayerTeam> = scoreboard.get_players_team(&score_holder.get_scoreboard_name());
+                // java: scoreboard.listPlayerScores(scoreHolder).containsKey(objective) - the port's map is by objective name
+                if scoreboard.list_scores_of(score_holder).contains_key(objective.as_ref().expect("NullPointerException: objective").get_name()) {
+                    let mut team: Option<PlayerTeam> = scoreboard.get_players_team(score_holder).cloned();
                     if let Some(team) = &team {
                         let mut text_line: MutableComponent = component::empty().append(compat::component_of(team.get_player_prefix().clone()).copy()).append(compat::component_of(team.get_player_suffix().clone()).copy());
                         let mut str_line: String = format!("{}{}", compat::component_of(team.get_player_prefix().clone()).get_string(), compat::component_of(team.get_player_suffix().clone()).get_string());
@@ -403,6 +408,8 @@ impl Utils {
                 string_lines.reverse();
                 text_lines.reverse();
             }
+            // the board's lock is not held past the reads Java makes of it (the updates below may read it again)
+            drop(scoreboard);
             TEXT_SCOREBOARD.get_mut().extend(text_lines.iter().cloned());
             compat::lock(&STRING_SCOREBOARD).extend(string_lines.iter().cloned());
             if compat::get_state(&IS_ON_SKYBLOCK) {
@@ -423,7 +430,8 @@ impl Utils {
         let mut area_name: String = (compat::regex::replace_all(&Utils::get_island_area(), &AREA_ICON_REGEX, "")).trim().to_string();
         let mut old_area: compat::Shared<dyn Area> = AREA.get_mut().clone();
         *AREA.get_mut() = area::from(&area_name);
-        if !(old_area == AREA.get_mut()) {
+        // java: if (oldArea != area) - the same object (Area constants are enum singletons)
+        if !std::sync::Arc::ptr_eq(&old_area, AREA.get_mut()) {
             (skyblock_events::area_change_invoker())(AREA.get_mut().clone());
         }
     }
@@ -456,11 +464,14 @@ impl Utils {
         if minecraft::get_connection(client).is_none() {
             return;
         }
-        for player_list_entry in minecraft::get_connection(client).unwrap().get_online_players() {
-            if player_list_entry.get_tab_list_display_name().is_none() {
+        // java: client.getConnection().getOnlinePlayers() - the port keeps each PlayerInfo's tab list fields in the
+        // connection's `tab_list_players` (refreshed every tick)
+        let online_players = minecraft::get_connection(client).unwrap().tab_list_players.lock().unwrap_or_else(|p| p.into_inner()).clone();
+        for player_list_entry in online_players.iter() {
+            if player_list_entry.tab_list_display_name.is_none() {
                 continue;
             }
-            let mut name: String = player_list_entry.get_tab_list_display_name().unwrap().get_string();
+            let mut name: String = compat::component_of(player_list_entry.tab_list_display_name.clone().unwrap()).get_string();
             if name.starts_with(PROFILE_PREFIX) {
                 compat::set_state(&PROFILE, compat::substring(&name, compat::str_len(PROFILE_PREFIX)));
             }
@@ -640,7 +651,9 @@ impl Utils {
 
     /// java: public static UUID getUuid()
     pub fn get_uuid() -> Uuid {
-        return compat::minecraft().get_user().get_profile_id();
+        // java: return CLIENT.getUser().getProfileId(); - the port's User keeps the id as its string
+        let profile_id: String = compat::minecraft().get_user().get_profile_id();
+        return Uuid::from_string(&profile_id).or_else(|| mcrust::com::mojang::util::undashed_uuid::from_string(&profile_id)).expect("User.getProfileId()");
     }
 
     /// java: public static String getUndashedUuid()

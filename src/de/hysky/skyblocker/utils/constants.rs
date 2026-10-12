@@ -52,7 +52,7 @@ pub trait Constants: compat::DynAny {
 pub fn create_skyblocker_gradient(string: &str) -> MutableComponent {
     let mut component: MutableComponent = component::empty();
     for i in 0..compat::str_len(&string) {
-        component.append((component::literal(&compat::substring2(&string, i, i.wrapping_add(1)))).with_color(OkLabColor::interpolate(0x00FF4C, 0x14D0FF, (((i) as f32) / ((compat::str_len(&string)).wrapping_sub(1) as f32)))));
+        component = component.append((component::literal(&compat::substring2(&string, i, i.wrapping_add(1)))).with_color(OkLabColor::interpolate(0x00FF4C, 0x14D0FF, (((i) as f32) / ((compat::str_len(&string)).wrapping_sub(1) as f32)))));
     }
     return component;
 }

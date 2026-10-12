@@ -21,9 +21,9 @@ use mcrust::org::joml::matrix4f::Matrix4f;
 /// java: public static final FeatureRendererType<Submit> TYPE = FeatureRendererType.create("Skyblocker Text");
 pub static TYPE: compat::MainThread<FeatureRendererType> = compat::MainThread::new(|| feature_renderer_type::create("Skyblocker Text"));
 /// java: private static final @Nullable RenderPipeline CAXTON_SEE_THROUGH = CaxtonCompatibility.getSeeThroughTextPipeline().orElse(null);
-pub static CAXTON_SEE_THROUGH: compat::MainThread<Option<RenderPipeline>> = compat::MainThread::new(|| CaxtonCompatibility::get_see_through_text_pipeline());
+pub static CAXTON_SEE_THROUGH: compat::MainThread<Option<std::rc::Rc<RenderPipeline>>> = compat::MainThread::new(|| CaxtonCompatibility::get_see_through_text_pipeline().map(std::rc::Rc::new));
 /// java: private static final @Nullable RenderPipeline CAXTON_NORMAL = CaxtonCompatibility.getTextPipeline().orElse(null);
-pub static CAXTON_NORMAL: compat::MainThread<Option<RenderPipeline>> = compat::MainThread::new(|| CaxtonCompatibility::get_text_pipeline());
+pub static CAXTON_NORMAL: compat::MainThread<Option<std::rc::Rc<RenderPipeline>>> = compat::MainThread::new(|| CaxtonCompatibility::get_text_pipeline().map(std::rc::Rc::new));
 
 /// java: public class TextFeatureRenderer extends PrimitiveFeatureRenderer<TextFeatureRenderer.Submit>
 #[derive(Clone)]
@@ -55,7 +55,7 @@ impl TextFeatureRenderer {
     }
 
     /// java: private static RenderPipeline getPipeline(boolean seeThrough, boolean greyscale)
-    pub fn get_pipeline(mut see_through: bool, mut greyscale: bool) -> RenderPipeline {
+    pub fn get_pipeline(mut see_through: bool, mut greyscale: bool) -> std::rc::Rc<RenderPipeline> {
         if see_through {
             return (if CAXTON_SEE_THROUGH.get_mut().is_some() { CAXTON_SEE_THROUGH.get_mut().clone() } else { Some((if greyscale { mcrust::net::minecraft::client::renderer::render_pipelines::text_grayscale_see_through() } else { mcrust::net::minecraft::client::renderer::render_pipelines::text_see_through() })) }).unwrap();
         } else {

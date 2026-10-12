@@ -27,3 +27,61 @@ impl Http {
     }
 
 }
+
+/// java: public record ApiResponse(String content, int statusCode, String[] cacheStatuses, int age) implements AutoCloseable
+#[derive(Clone, Debug, PartialEq)]
+pub struct ApiResponse {
+    /// java: String content
+    pub content: String,
+    /// java: int statusCode
+    pub status_code: i32,
+    /// java: String[] cacheStatuses
+    pub cache_statuses: Vec<String>,
+    /// java: int age
+    pub age: i32,
+}
+
+impl ApiResponse {
+    /// java: the canonical record constructor
+    pub fn new(content: String, status_code: i32, cache_statuses: Vec<String>, age: i32) -> Self {
+        Self { content, status_code, cache_statuses, age }
+    }
+
+    /// java: the record accessor `content()`
+    pub fn content(&self) -> String {
+        self.content.clone()
+    }
+
+    /// java: the record accessor `statusCode()`
+    pub fn status_code(&self) -> i32 {
+        self.status_code
+    }
+
+    /// java: the record accessor `cacheStatuses()`
+    pub fn cache_statuses(&self) -> Vec<String> {
+        self.cache_statuses.clone()
+    }
+
+    /// java: the record accessor `age()`
+    pub fn age(&self) -> i32 {
+        self.age
+    }
+
+    /// java: public boolean ok()
+    pub fn ok(&self) -> bool {
+        return self.status_code == 200;
+    }
+
+    /// java: public boolean ratelimited()
+    pub fn ratelimited(&self) -> bool {
+        return self.status_code == 429;
+    }
+
+    /// java: public boolean cached()
+    pub fn cached(&self) -> bool {
+        return self.cache_statuses[0] == "HIT" || self.cache_statuses[1] == "HIT";
+    }
+
+    /// java: public void close() - "Maybe one day we'll have some resources to free"
+    pub fn close(&self) {}
+}

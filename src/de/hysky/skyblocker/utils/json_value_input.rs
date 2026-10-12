@@ -11,6 +11,29 @@ use mcrust::net::minecraft::util::problem_reporter::Problem;
 use mcrust::net::minecraft::util::problem_reporter::ProblemReporter;
 use mcrust::com::mojang::serialization::decoder::Decoder as _;
 use mcrust::com::mojang::serialization::dynamic_ops::DynamicOps as _;
+use mcrust::com::mojang::serialization::map_decoder::MapDecoder as _;
+use mcrust::com::mojang::serialization::data_result::DataResult;
+use std::rc::Rc;
+
+/// A `ProblemReporter.Problem` lambda (`() -> "..."`): its description.
+#[derive(Debug)]
+pub struct DescribedProblem(pub String);
+
+impl Problem for DescribedProblem {
+    fn description(&self) -> String {
+        self.0.clone()
+    }
+}
+
+/// `element.getClass().getSimpleName()` of a Gson tree node.
+fn json_class_name(element: &serde_json::Value) -> &'static str {
+    match element {
+        serde_json::Value::Object(_) => "JsonObject",
+        serde_json::Value::Array(_) => "JsonArray",
+        serde_json::Value::Null => "JsonNull",
+        _ => "JsonPrimitive",
+    }
+}
 
 /// java: public class JsonValueInput
 pub struct JsonValueInput {
@@ -40,38 +63,36 @@ impl JsonValueInput {
 
     /// java: private static ProblemReporter.Problem expectedPrimtiveProblem(String name, JsonElement element)
     pub fn expected_primtive_problem(name: &str, element: &serde_json::Value) -> Rc<dyn Problem> {
-        // TODO(fabric2seer): JsonElement.getClass
-        //   java: return () -> "Expected json primitive for " + name + ", got " + element.getClass().getSimpleName() + " instead.";
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        // java: return () -> "Expected json primitive for " + name + ", got " + element.getClass().getSimpleName() + " instead.";
+        return Rc::new(DescribedProblem(format!("Expected json primitive for {}, got {} instead.", name, json_class_name(element))));
     }
 
     /// java: public <T> Optional<T> read(String name, Codec<T> codec)
-    pub fn read<T: 'static>(&self, name: &str, codec: &CodecRef<T>) -> Option<T> {
+    pub fn read<T: Clone + 'static>(&self, name: &str, codec: &CodecRef<T>) -> Option<T> {
         let Some(mut element) = self.input.as_ref().unwrap().get(name).cloned() else {
             return None;
         };
-        // TODO(fabric2seer): a pattern switch expression
-        //   java: return switch (codec.parse(JsonOps.INSTANCE, element)) {
-        //   java: 			case DataResult.Success<T> success -> Optional.of(success.value());
-        //   java: 			case DataResult.Error<T> error -> {
-        //   java: 				reporter.report(() -> "Failed to decode value '" + element + "' from field '" + name + "': " + error.message());
-        //   java: 				yield error.partialValue();
-        //   java: 			}
-        //   java: 		};
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        return match codec.parse(&mcrust::com::mojang::serialization::json_ops::JsonOps::instance(), &compat::json_to_port(&element)) {
+            DataResult::Success(success, _) => Some(success),
+            DataResult::Error(error) => {
+                self.reporter.clone().unwrap().report(Rc::new(DescribedProblem(format!("Failed to decode value '{}' from field '{}': {}", element, name, error.message()))));
+                error.partial_value().cloned()
+            }
+        };
     }
 
     /// java: public <T> Optional<T> read(MapCodec<T> codec)
-    pub fn read_1<T: 'static>(&self, codec: &MapCodecRef<T>) -> Option<T> {
-        // TODO(fabric2seer): a pattern switch expression
-        //   java: return switch (JsonOps.INSTANCE.getMap(this.input).flatMap(/* lambda$read$0 */ map -> codec.decode(JsonOps.INSTANCE, map))) {
-        //   java: 			case DataResult.Success<T> success -> Optional.of(success.value());
-        //   java: 			case DataResult.Error<T> error -> {
-        //   java: 				this.reporter.report(() ->  "Failed to decode from map: " + error.message());
-        //   java: 				yield error.partialValue();
-        //   java: 			}
-        //   java: 		};
-        todo!("fabric2seer: the value of this function is in a TODO above")
+    pub fn read_1<T: Clone + 'static>(&self, codec: &MapCodecRef<T>) -> Option<T> {
+        // java: JsonOps.INSTANCE.getMap(this.input).flatMap(map -> codec.decode(JsonOps.INSTANCE, map))
+        let ops = mcrust::com::mojang::serialization::json_ops::JsonOps::instance();
+        let input = compat::json_to_port(&serde_json::Value::Object(self.input.clone().unwrap()));
+        return match ops.get_map(&ops, &input).flat_map(|map| codec.decode(&ops, &map)) {
+            DataResult::Success(success, _) => Some(success),
+            DataResult::Error(error) => {
+                self.reporter.clone().unwrap().report(Rc::new(DescribedProblem(format!("Failed to decode from map: {}", error.message()))));
+                error.partial_value().cloned()
+            }
+        };
     }
 
     /// java: public OptionalInt readInt(String name)
@@ -79,9 +100,7 @@ impl JsonValueInput {
         let Some(mut element) = self.read_number(name) else {
             return None;
         };
-        // TODO(fabric2seer): `.intValue(..)` on a Number
-        //   java: return OptionalInt.of(element.intValue());
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        return Some(element.int_value());
     }
 
     /// java: public int readIntOr(String name, int defaultValue)
@@ -89,20 +108,15 @@ impl JsonValueInput {
         let Some(mut element) = self.read_number(name) else {
             return default_value;
         };
-        // TODO(fabric2seer): `.intValue(..)` on a Number
-        //   java: return element.intValue();
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        return element.int_value();
     }
 
     /// java: public OptionalLong readLong(String name)
     pub fn read_long(&self, name: &str) -> Option<i64> {
         let Some(mut element) = self.read_number(name) else {
-            // TODO(fabric2seer): static call OptionalLong.empty(..)
-            //   java: return OptionalLong.empty();
+            return None;
         };
-        // TODO(fabric2seer): static call OptionalLong.of(..)
-        //   java: return OptionalLong.of(element.longValue());
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        return Some(element.long_value());
     }
 
     /// java: public long readLongOr(String name, long defaultValue)
@@ -110,9 +124,7 @@ impl JsonValueInput {
         let Some(mut element) = self.read_number(name) else {
             return default_value;
         };
-        // TODO(fabric2seer): `.longValue(..)` on a Number
-        //   java: return element.longValue();
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        return element.long_value();
     }
 
     /// java: public OptionalDouble readDouble(String name)
@@ -120,9 +132,8 @@ impl JsonValueInput {
         let Some(mut element) = self.read_number(name) else {
             return None;
         };
-        // TODO(fabric2seer): `.longValue(..)` on a Number
-        //   java: return OptionalDouble.of(element.longValue());
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        // java: return OptionalDouble.of(element.longValue()); (sic: the long value, widened)
+        return Some(element.long_value() as f64);
     }
 
     /// java: public double readDoubleOr(String name, double defaultValue)
@@ -130,9 +141,7 @@ impl JsonValueInput {
         let Some(mut element) = self.read_number(name) else {
             return default_value;
         };
-        // TODO(fabric2seer): `.doubleValue(..)` on a Number
-        //   java: return element.doubleValue();
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        return element.double_value();
     }
 
     /// java: public Optional<Float> readFloat(String name)
@@ -140,9 +149,7 @@ impl JsonValueInput {
         let Some(mut element) = self.read_number(name) else {
             return None;
         };
-        // TODO(fabric2seer): `.floatValue(..)` on a Number
-        //   java: return Optional.of(element.floatValue());
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        return Some(element.float_value());
     }
 
     /// java: public float readFloatOr(String name, float defaultValue)
@@ -150,9 +157,7 @@ impl JsonValueInput {
         let Some(mut element) = self.read_number(name) else {
             return default_value;
         };
-        // TODO(fabric2seer): `.floatValue(..)` on a Number
-        //   java: return element.floatValue();
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        return element.float_value();
     }
 
     /// java: public Optional<Boolean> readBoolean(String name)
@@ -161,7 +166,7 @@ impl JsonValueInput {
             return None;
         };
         if !(compat::json::is_primitive(&element)) {
-            self.reporter.as_ref().unwrap().report(JsonValueInput::expected_primtive_problem(name, &element));
+            self.reporter.clone().unwrap().report(JsonValueInput::expected_primtive_problem(name, &element));
             return None;
         }
         return Some(compat::json::get_as_boolean(&element));
@@ -173,7 +178,7 @@ impl JsonValueInput {
             return default_value;
         };
         if !(compat::json::is_primitive(&element)) {
-            self.reporter.as_ref().unwrap().report(JsonValueInput::expected_primtive_problem(name, &element));
+            self.reporter.clone().unwrap().report(JsonValueInput::expected_primtive_problem(name, &element));
             return default_value;
         }
         return compat::json::get_as_boolean(&element);
@@ -185,21 +190,26 @@ impl JsonValueInput {
             return None;
         };
         if !(compat::json::is_primitive(&element)) {
-            self.reporter.as_ref().unwrap().report(JsonValueInput::expected_primtive_problem(name, &element));
+            self.reporter.clone().unwrap().report(JsonValueInput::expected_primtive_problem(name, &element));
             return None;
         }
-        // java: try {..} catch (NumberFormatException _) - an exception here is a panic, caught by `catch_unwind`; the body's `return` is the closure's value
-        match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            return Some(compat::json::get_as_number(&compat::json::get_as_json_primitive(&element)));
-        })) {
-            Ok(__v) => return __v,
-            Err(_) => {
-                // TODO(fabric2seer): a lambda for a parameter the port does not type as a closure (`net.minecraft.util.ProblemReporter.Problem`)
-                // rust: self.reporter.as_ref().unwrap().report(|| format!("Expected valid number for {}, got {} instead.", name, compat::json::get_as_string(&element)));
-                return None;
-            }
+        // java: try { return element.getAsJsonPrimitive().getAsNumber(); } catch (NumberFormatException _) {..}
+        // (a JSON number, or a string read as one; a boolean is Gson's UnsupportedOperationException, not caught)
+        let number: Option<Number> = match &element {
+            serde_json::Value::Number(n) => Some(match n.as_i64() {
+                Some(v) => Number::Long(v),
+                None => Number::Double(n.as_f64().unwrap_or(0.0)),
+            }),
+            serde_json::Value::String(s) => match s.trim().parse::<i64>() {
+                Ok(v) => Some(Number::Long(v)),
+                Err(_) => s.trim().parse::<f64>().ok().map(Number::Double),
+            },
+            other => panic!("UnsupportedOperationException: Primitive is neither a number nor a string: {other}"),
+        };
+        if number.is_none() {
+            self.reporter.clone().unwrap().report(Rc::new(DescribedProblem(format!("Expected valid number for {}, got {} instead.", name, compat::json::get_as_string(&element)))));
         }
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        return number;
     }
 
 }

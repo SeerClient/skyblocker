@@ -62,8 +62,8 @@ impl Boxes {
     /// java: public static AABB lerpEntityBoundingBox(Entity entity, float partialTick)
     pub fn lerp_entity_bounding_box(entity: &dyn Entity, mut partial_tick: f32) -> AABB {
         let mut remaining_tick: f32 = ((1 as f32) - partial_tick);
-        let mut backwards_delta_movement: Vec3 = entity.old_position().subtract_vec(&entity.position()).multiply((remaining_tick) as f64, (remaining_tick) as f64, (remaining_tick) as f64);
-        return entity.get_bounding_box().move_vec(&backwards_delta_movement);
+        let mut backwards_delta_movement: Vec3 = entity.base().old_position().subtract_vec(&entity.base().position()).multiply((remaining_tick) as f64, (remaining_tick) as f64, (remaining_tick) as f64);
+        return entity.base().get_bounding_box().move_vec(&backwards_delta_movement);
     }
 
 }

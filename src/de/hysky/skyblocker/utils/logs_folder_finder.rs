@@ -62,7 +62,7 @@ impl LogsFolderFinder {
         //   java: Map<String, Appender> appenders = instance.getConfiguration().getAppenders();
         let mut appenders: std::collections::HashMap<String, crate::unresolved::Appender> = todo!("fabric2seer: the initialiser of `appenders` (TODO above)");
         let mut file_names: Vec<String> = Vec::with_capacity(((appenders.len() as i32)) as usize);
-        for appender in appenders.values().cloned() {
+        for appender in appenders.values() {
             // TODO(fabric2seer): `.getManager(..)` on a AbstractOutputStreamAppender
             //   java: if (appender instanceof AbstractOutputStreamAppender<?> streamAppender && streamAppender.getManager() instanceof FileManager manager) {
             //   java: 				fileNames.add(manager.getFileName());
@@ -74,7 +74,7 @@ impl LogsFolderFinder {
         }
         let mut latest_log_opt: Option<String> = file_names.iter().cloned().filter(|s| s.contains("latest.log")).next();
         if latest_log_opt.is_none() {
-            logger().warn(&format!("Could not compute logs folder: didn't find a path that contains 'latest.log'. Only got: {}", compat::jstring(&file_names)));
+            logger().warn(&format!("Could not compute logs folder: didn't find a path that contains 'latest.log'. Only got: {}", format!("[{}]", file_names.join(", "))));
             return LogsFolderFinder::get_fallback_folder();
         }
         return (std::path::absolute(&std::path::PathBuf::from(&latest_log_opt.clone().unwrap())).unwrap_or_else(|_| std::path::PathBuf::from(&latest_log_opt.clone().unwrap()).clone())).parent().map(|x| x.to_path_buf()).unwrap();

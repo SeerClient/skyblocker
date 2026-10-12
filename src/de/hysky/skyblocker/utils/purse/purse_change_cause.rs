@@ -67,22 +67,22 @@ impl PurseChangeCause {
     pub fn get_cause(mut diff: f64) -> PurseChangeCause {
         if diff > (0 as f64) {
             if diff == (5 as f64) || diff == (25 as f64) {
-                return TALISMAN_OF_COINS;
+                return PurseChangeCause::TalismanOfCoins;
             }
             if diff == (15000000 as f64) || diff == (100000000 as f64) {
-                return DICE_SIX;
+                return PurseChangeCause::DiceSix;
             }
             if compat::minecraft().gui.screen().is_none() {
-                return MOB_KILL;
+                return PurseChangeCause::MobKill;
             } else if compat::read(&Utils::get_area(), |__t| compat::DynAny::dyn_any(__t).downcast_ref::<Hub>().is_some_and(|__e| *__e == Hub::Bank)) {
-                return TAKE_BANK;
+                return PurseChangeCause::TakeBank;
             }
-            return UNKNOWN_GAIN;
+            return PurseChangeCause::UnknownGain;
         } else {
             if diff == (-6666666 as f64) || diff == (-666666 as f64) {
-                return DICE_ROLL;
+                return PurseChangeCause::DiceRoll;
             }
-            return UNKNOWN_LOSS;
+            return PurseChangeCause::UnknownLoss;
         }
     }
 

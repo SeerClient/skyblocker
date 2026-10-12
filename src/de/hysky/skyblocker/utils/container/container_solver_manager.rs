@@ -46,7 +46,12 @@ use mcrust::net::minecraft::world::inventory::slot::Slot;
 use mcrust::net::minecraft::client::gui::screens::inventory::abstract_container_screen::ContainerScreenHost as _;
 
 /// java: private static final List<ContainerSolver> solvers = new ArrayList<>(List.of( new ColorTerminal(), new OrderTerminal(), new StartsWithTerminal(), new LightsOnTerminal(), CroesusHelper.INSTANCE, Croesu
-pub static SOLVERS: compat::MainThread<Vec<compat::Shared<dyn ContainerSolver>>> = compat::MainThread::new(|| vec![ColorTerminal::new(), OrderTerminal::new(), StartsWithTerminal::new(), LightsOnTerminal::new(), croesus_helper::INSTANCE.get_mut().clone(), croesus_profit::INSTANCE.get_mut().clone(), SalvageHelper::new(), ChronomatronSolver::new(), CommissionHighlight::new(), SuperpairsSolver::new(), ultrasequencer_solver::INSTANCE.get_mut().clone(), NewYearCakeBagHelper::new(), new_year_cakes_helper::INSTANCE.get_mut().clone(), chocolate_factory_solver::INSTANCE.get_mut().clone(), tuner_solver::INSTANCE.get_mut().clone(), ReorderHelper::new(), bits_helper::INSTANCE.get_mut().clone(), RaffleTaskHighlight::new(), RaffleRewardHighlight::new(), FossilSolver::new(), same_color_terminal::INSTANCE.get_mut().clone(), CopyUnderbidPrice::new(), HuntingBoxHelper::new(), SellableItemsHighlighter::new(), stereo_harmony_helper::INSTANCE.get_mut().clone(), EndStatsBestiaryUpdater::new(), accessories_container_solver::INSTANCE.get_mut().clone(), AnvilHelper::new(), RewardsHighlighter::new(), (SkyBlockEquipmentUpdaterBase::new() as compat::Shared<dyn SkyBlockEquipmentUpdater>), EquipmentWardrobe::new()].into_iter().collect::<Vec<_>>());
+pub static SOLVERS: compat::MainThread<Vec<compat::Shared<dyn ContainerSolver>>> = compat::MainThread::new(|| vec![(ColorTerminal::new() as compat::Shared<dyn ContainerSolver>), (OrderTerminal::new() as compat::Shared<dyn ContainerSolver>), (StartsWithTerminal::new() as compat::Shared<dyn ContainerSolver>), (LightsOnTerminal::new() as compat::Shared<dyn ContainerSolver>), (croesus_helper::INSTANCE.get_mut().clone() as compat::Shared<dyn ContainerSolver>), (croesus_profit::INSTANCE.get_mut().clone() as compat::Shared<dyn ContainerSolver>), (SalvageHelper::new() as compat::Shared<dyn ContainerSolver>), (ChronomatronSolver::new() as compat::Shared<dyn ContainerSolver>), (CommissionHighlight::new() as compat::Shared<dyn ContainerSolver>), (SuperpairsSolver::new() as compat::Shared<dyn ContainerSolver>), (ultrasequencer_solver::INSTANCE.get_mut().clone() as compat::Shared<dyn ContainerSolver>), (NewYearCakeBagHelper::new() as compat::Shared<dyn ContainerSolver>), (new_year_cakes_helper::INSTANCE.get_mut().clone() as compat::Shared<dyn ContainerSolver>), (chocolate_factory_solver::INSTANCE.get_mut().clone() as compat::Shared<dyn ContainerSolver>), (tuner_solver::INSTANCE.get_mut().clone() as compat::Shared<dyn ContainerSolver>), (ReorderHelper::new() as compat::Shared<dyn ContainerSolver>), (bits_helper::INSTANCE.get_mut().clone() as compat::Shared<dyn ContainerSolver>), (RaffleTaskHighlight::new() as compat::Shared<dyn ContainerSolver>), (RaffleRewardHighlight::new() as compat::Shared<dyn ContainerSolver>), (FossilSolver::new() as compat::Shared<dyn ContainerSolver>), (same_color_terminal::INSTANCE.get_mut().clone() as compat::Shared<dyn ContainerSolver>), (CopyUnderbidPrice::new() as compat::Shared<dyn ContainerSolver>), (HuntingBoxHelper::new() as compat::Shared<dyn ContainerSolver>), (SellableItemsHighlighter::new() as compat::Shared<dyn ContainerSolver>), (stereo_harmony_helper::INSTANCE.get_mut().clone() as compat::Shared<dyn ContainerSolver>), (EndStatsBestiaryUpdater::new() as compat::Shared<dyn ContainerSolver>), (accessories_container_solver::INSTANCE.get_mut().clone() as compat::Shared<dyn ContainerSolver>), (AnvilHelper::new() as compat::Shared<dyn ContainerSolver>), (RewardsHighlighter::new() as compat::Shared<dyn ContainerSolver>), (SkyBlockEquipmentUpdaterBase::new() as compat::Shared<dyn ContainerSolver>), (EquipmentWardrobe::new() as compat::Shared<dyn ContainerSolver>)].into_iter().collect::<Vec<_>>());
+thread_local! {
+    /// How deep the render thread is inside `AbstractContainerScreen.init` (see `init`).
+    static IN_CONTAINER_SCREEN_INIT: std::cell::Cell<i32> = const { std::cell::Cell::new(0) };
+}
+
 /// java: private static @Nullable ContainerSolver currentSolver = null;
 pub static CURRENT_SOLVER: compat::MainThread<Option<compat::Shared<dyn ContainerSolver>>> = compat::MainThread::new(|| None);
 /// java: private static @Nullable List<ColorHighlight> highlights;
@@ -78,12 +83,27 @@ impl ContainerSolverManager {
 
     /// java: @Init public static void init()
     pub fn init() {
-        screen_events::BEFORE_INIT.register(Arc::new(|screen: &mut Screen, width: i32, height: i32| {
-            if let Some(container_screen) = screen.as_any().downcast_ref::<AbstractContainerScreen>() {
-                // TODO(fabric2seer): ScreenEvents.remove(..).register: no SeerClient equivalent yet
-                //   java: ScreenEvents.remove(screen).register(_ -> clearScreen());
+        // java: ScreenEvents.BEFORE_INIT.register((_, screen, _, _) -> { if (screen instanceof AbstractContainerScreen<?>
+        // containerScreen) {..} else clearScreen(); })
+        // The port hands BEFORE_INIT the `Screen` husk only (a container screen's `AbstractContainerScreen` is the object
+        // around it), so `instanceof AbstractContainerScreen` is the call of `AbstractContainerScreen.init` the husk's
+        // `Screen.init(w, h)` runs inside: its HEAD is the container arm, and BEFORE_INIT outside it is the other arm.
+        report(hook::inject("net.minecraft.client.gui.screens.inventory.AbstractContainerScreen#init", At::Head, |ci: &mut CallbackInfo<'_>| {
+            if let Some(container_screen) = ci.this_mut::<AbstractContainerScreen>() {
+                IN_CONTAINER_SCREEN_INIT.with(|depth| depth.set(depth.get() + 1));
                 ContainerSolverManager::on_set_screen(container_screen);
-            } else {
+            }
+        }));
+        report(hook::inject("net.minecraft.client.gui.screens.inventory.AbstractContainerScreen#init", At::Return, |_: &mut CallbackInfo<'_>| {
+            IN_CONTAINER_SCREEN_INIT.with(|depth| depth.set((depth.get() - 1).max(0)));
+        }));
+        // java: ScreenEvents.remove(screen).register(_ -> clearScreen()); - registered for every container screen, so
+        // the removal of any container screen
+        report(hook::inject("net.minecraft.client.gui.screens.inventory.AbstractContainerScreen#removed", At::Head, |_: &mut CallbackInfo<'_>| {
+            ContainerSolverManager::clear_screen();
+        }));
+        screen_events::BEFORE_INIT.register(Arc::new(|screen: &mut Screen, width: i32, height: i32| {
+            if IN_CONTAINER_SCREEN_INIT.with(|depth| depth.get()) == 0 {
                 ContainerSolverManager::clear_screen();
             }
         }));
@@ -93,7 +113,7 @@ impl ContainerSolverManager {
     pub fn on_set_screen(screen: &AbstractContainerScreen) {
         let mut screen_name: String = screen.screen.get_title().to_string();
         for solver in SOLVERS.get_mut().iter() {
-            if Utils::is_on_skyblock() || !({ let __f = compat::dispatch(solver, |__t| __t.skyblock_only()); __f(&compat::view(solver, |a| a as compat::Shared<dyn ContainerMatcher>)) }) && { let __f = compat::dispatch(solver, |__t| __t.is_enabled()); __f(&compat::view(solver, |a| a as compat::Shared<dyn ContainerMatcher>)) } {
+            if (Utils::is_on_skyblock() || !({ let __f = compat::dispatch(solver, |__t| __t.skyblock_only()); __f(&compat::view(solver, |a| a as compat::Shared<dyn ContainerMatcher>)) })) && { let __f = compat::dispatch(solver, |__t| __t.is_enabled()); __f(&compat::view(solver, |a| a as compat::Shared<dyn ContainerMatcher>)) } {
                 // TODO(fabric2seer): an `instanceof` pattern under `||` / `!`
                 //   java: if ((solver instanceof RegexContainerMatcher containerMatcher && containerMatcher.test(screenName)) || solver.test(screen)) {
                 //   java: 					// Checks if the solver should be processed for this screen type.
@@ -138,8 +158,9 @@ impl ContainerSolverManager {
         }
         let __pose_1 = gui_graphics_extractor::push_pose();
         gui_graphics_extractor::pose_translate((handled_screen.left_pos) as f32, (handled_screen.top_pos) as f32);
-        if { let __r = CURRENT_SOLVER.get_mut().as_ref().unwrap(); let __f = compat::dispatch(__r, |__t| __t.chest_inventory_only()); __f(__r) } && let Some(chest_menu) = handled_screen.menu().downcast_ref::<compat::LiveChestMenu>() {
-            slots = slots[(0) as usize..(chest_menu.get_row_count().wrapping_mul(9)) as usize].to_vec();
+        if { let __r = CURRENT_SOLVER.get_mut().as_ref().unwrap(); let __f = compat::dispatch(__r, |__t| __t.chest_inventory_only()); __f(__r) } && let Some(row_count) = mcrust::mcrust::modding::game::with_chest_menu(|chest_menu| chest_menu.get_row_count()) {
+            // java: handledScreen.getMenu() instanceof ChestMenu chestMenu - the screen's menu is the player's open one
+            slots = slots[(0) as usize..(row_count.wrapping_mul(9)) as usize].to_vec();
         }
         let mut highlights_safe: Option<Vec<ColorHighlight>> = compat::get_state(&HIGHLIGHTS);
         if highlights_safe.is_none() {

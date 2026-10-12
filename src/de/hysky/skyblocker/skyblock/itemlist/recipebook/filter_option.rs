@@ -98,3 +98,16 @@ impl FilterOptionFields {
     }
 
 }
+
+/// java: `FilterOption extends Enum<FilterOption>` - what `CyclingTextureWidget<T extends Enum<T> & ..>` reaches
+impl crate::de::hysky::skyblocker::utils::enum_utils::JavaEnum for FilterOption {
+    fn java_name(&self) -> &'static str {
+        self.name()
+    }
+    fn java_ordinal(&self) -> i32 {
+        self.ordinal()
+    }
+    fn java_values() -> Vec<Self> {
+        FilterOption::values()
+    }
+}

@@ -16,7 +16,13 @@ pub struct RegexContainerMatcherBase {
 impl RegexContainerMatcherBase {
     /// java: protected RegexContainerMatcher() (built by the most-derived class's `wrap`, then run on its handle)
     pub fn new_in<__R>(__wrap: impl FnOnce(Self) -> (compat::Shared<dyn RegexContainerMatcher>, __R)) -> (compat::Shared<dyn RegexContainerMatcher>, __R) {
-        let (__this, __r) = Self::new3_in(None, __wrap);
+        // java: this((Pattern) null); - the `@Nullable Pattern` constructor's body with a null pattern (`new3_in` takes the
+        // non-null patterns its other callers hand it)
+        let this = Self {
+            title_pattern: None,
+            groups: None,
+        };
+        let (__this, __r) = __wrap(this);
         (__this, __r)
     }
 

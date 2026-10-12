@@ -24,14 +24,27 @@ impl RegistryUtils {
 
     /// java: public static HolderLookup.Provider getRegistryWrapperLookup()
     pub fn get_registry_wrapper_lookup() -> Arc<dyn Provider> {
-        let mut client: Option<mcrust::net::minecraft::client::minecraft::Minecraft> = Some(compat::minecraft());
-        return (if client.is_some() && minecraft::get_connection(client.as_ref().unwrap()).is_some() && true /* java: minecraft::get_connection(client.as_ref().unwrap()).unwrap().registry_access() != null: never null here */ { minecraft::get_connection(client.as_ref().unwrap()).unwrap().registry_access().clone() } else { LOOKUP.get_mut().clone() });
+        // java: client != null && client.getConnection() != null && client.getConnection().registryAccess() != null
+        //   ? client.getConnection().registryAccess() : LOOKUP
+        return match RegistryUtils::connection_registry_access() {
+            Some(registry_access) => registry_access,
+            None => LOOKUP.get_mut().clone(),
+        };
     }
 
     /// java: public static HolderLookup.@Nullable Provider getCurrentRegistryWrapperLookup()
     pub fn get_current_registry_wrapper_lookup() -> Option<Arc<dyn Provider>> {
-        let mut client: Option<mcrust::net::minecraft::client::minecraft::Minecraft> = Some(compat::minecraft());
-        return (if client.is_some() && minecraft::get_connection(client.as_ref().unwrap()).is_some() { Some(minecraft::get_connection(client.as_ref().unwrap()).unwrap().registry_access().clone()) } else { None });
+        // java: client != null && client.getConnection() != null ? client.getConnection().registryAccess() : null
+        return RegistryUtils::connection_registry_access();
+    }
+
+    /// `Minecraft.getInstance().getConnection().registryAccess()`, or null without a connection: the port's
+    /// connection keeps it in `PlayListenerSinks.registry_access` (`None` before the registry sync).
+    fn connection_registry_access() -> Option<Arc<dyn Provider>> {
+        let client = compat::minecraft();
+        let connection = minecraft::get_connection(client)?;
+        let registry_access = connection.registry_access.lock().unwrap_or_else(|p| p.into_inner()).clone()?;
+        Some(Arc::new(registry_access) as Arc<dyn Provider>)
     }
 
 }

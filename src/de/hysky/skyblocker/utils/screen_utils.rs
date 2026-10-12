@@ -21,12 +21,12 @@ impl ScreenUtils {
     }
 
     /// java: public static @Nullable Screen getUnderlyingScreen()
-    pub fn get_underlying_screen() -> Option<mcrust::net::minecraft::client::gui::screens::screen::Screen> {
+    pub fn get_underlying_screen() -> Option<&'static mcrust::net::minecraft::client::gui::screens::screen::Screen> {
         return ScreenUtils::get_underlying_screen_1(compat::minecraft().gui.screen());
     }
 
     /// java: @Contract("null -> null; !null -> !null") public static @Nullable Screen getUnderlyingScreen(@Nullable Screen screen)
-    pub fn get_underlying_screen_1(mut screen: Option<mcrust::net::minecraft::client::gui::screens::screen::Screen>) -> Option<mcrust::net::minecraft::client::gui::screens::screen::Screen> {
+    pub fn get_underlying_screen_1<'a>(mut screen: Option<&'a mcrust::net::minecraft::client::gui::screens::screen::Screen>) -> Option<&'a mcrust::net::minecraft::client::gui::screens::screen::Screen> {
         // TODO(fabric2seer): a pattern switch expression
         //   java: return switch (screen) {
         //   java: 			case PopupScreen popupScreen -> getUnderlyingScreen(((PopupScreenAccessor) popupScreen).getUnderlyingScreen());

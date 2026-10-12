@@ -143,10 +143,10 @@ impl dyn SideTabButtonWidget {
 
 impl SideTabButtonWidget for SideTabButtonWidgetBase {
     fn side_tab_button_widget_base(&self) -> &SideTabButtonWidgetBase {
-        &self
+        self
     }
     fn side_tab_button_widget_base_mut(&mut self) -> &mut SideTabButtonWidgetBase {
-        &mut self
+        self
     }
 
     fn as_any(&self) -> &dyn std::any::Any {

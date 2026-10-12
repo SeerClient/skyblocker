@@ -18,7 +18,7 @@ use mcrust::org::joml::vector2i::Vector2i;
 /// java: public static final String TYPE = "room_match";
 pub const TYPE: &str = "room_match";
 /// java: public static final Codec<DungeonRoomMatchMessage> CODEC = RecordCodecBuilder.create(instance -> instance.group( Codec.STRING.fieldOf("type").forGetter(DungeonRoomMatchMessage::type), UUIDUtil.STRING_
-pub static CODEC: compat::MainThread<CodecRef<DungeonRoomMatchMessage>> = compat::MainThread::new(|| record_codec_builder::create(record_codec_builder::apply7(record_codec_builder::of(|o: &DungeonRoomMatchMessage| o.r#type(), codec::field_of(mcrust::com::mojang::serialization::codec::string_codec(), "type")), record_codec_builder::of(|o: &DungeonRoomMatchMessage| o.sender(), codec::field_of(mcrust::net::minecraft::core::uuid_util::string_codec(), "uuid")), record_codec_builder::of(|o: &DungeonRoomMatchMessage| o.room_type(), codec::field_of(room::TYPE_CODEC.get_mut().clone(), "roomType")), record_codec_builder::of(|o: &DungeonRoomMatchMessage| o.shape(), codec::field_of(room::SHAPE_CODEC.get_mut().clone(), "shape")), record_codec_builder::of(|o: &DungeonRoomMatchMessage| o.direction(), codec::field_of(room::DIRECTION_CODEC.get_mut().clone(), "direction")), record_codec_builder::of(|o: &DungeonRoomMatchMessage| o.room(), codec::field_of(mcrust::com::mojang::serialization::codec::string_codec(), "room")), record_codec_builder::of(|o: &DungeonRoomMatchMessage| o.pos(), codec::field_of(codec::list_sized(codec_utils::VECTOR_2I.get_mut().clone(), 1, 5), "pos")), move |__a0, __a1, __a2, __a3, __a4, __a5, __a6| DungeonRoomMatchMessage::new(__a0.clone(), __a1.clone(), __a2.clone(), __a3.clone(), __a4.clone(), __a5.clone(), __a6.clone()))));
+pub static CODEC: compat::MainThread<CodecRef<DungeonRoomMatchMessage>> = compat::MainThread::new(|| record_codec_builder::create(record_codec_builder::apply7(record_codec_builder::of(|o: &DungeonRoomMatchMessage| o.r#type(), codec::field_of(mcrust::com::mojang::serialization::codec::string_codec(), "type")), record_codec_builder::of(|o: &DungeonRoomMatchMessage| o.sender(), codec::field_of(mcrust::net::minecraft::core::uuid_util::string_codec(), "uuid")), record_codec_builder::of(|o: &DungeonRoomMatchMessage| o.room_type(), codec::field_of(room::TYPE_CODEC.get_mut().clone(), "roomType")), record_codec_builder::of(|o: &DungeonRoomMatchMessage| o.shape(), codec::field_of(room::SHAPE_CODEC.get_mut().clone(), "shape")), record_codec_builder::of(|o: &DungeonRoomMatchMessage| o.direction(), codec::field_of(room::DIRECTION_CODEC.get_mut().clone(), "direction")), record_codec_builder::of(|o: &DungeonRoomMatchMessage| o.room(), codec::field_of(mcrust::com::mojang::serialization::codec::string_codec(), "room")), record_codec_builder::of(|o: &DungeonRoomMatchMessage| o.pos(), codec::field_of(codec::list_sized(codec_utils::VECTOR_2I.get_mut().clone(), 1, 5), "pos")), move |__a0, __a1, __a2, __a3, __a4, __a5, __a6| DungeonRoomMatchMessage::new_canonical(__a0.clone(), __a1.clone(), __a2.clone(), __a3.clone(), __a4.clone(), __a5.clone(), __a6.clone()))));
 
 /// java: public record DungeonRoomMatchMessage(String type, UUID sender, Room.Type roomType, Room.Shape shape, Room.Direction direction, String room, List<Vector2ic> pos) implements Message<DungeonRoomMatchMessage>
 #[derive(Clone, Debug, PartialEq)]
@@ -42,12 +42,12 @@ pub struct DungeonRoomMatchMessage {
 impl DungeonRoomMatchMessage {
     /// java: public DungeonRoomMatchMessage(UUID uuid, Room.Type roomType, Room.Shape shape, Room.Direction direction, String room, List<Vector2ic> pos)
     pub fn new(mut uuid: Uuid, mut room_type: Type, mut shape: Shape, mut direction: Direction, mut room: String, mut pos: Vec<Vector2i>) -> Self {
-        let mut this = Self::new(TYPE.to_string(), uuid.clone(), room_type, shape, direction, room.clone(), pos.clone());
+        let mut this = Self::new_canonical(TYPE.to_string(), uuid.clone(), room_type, shape, direction, room.clone(), pos.clone());
         this
     }
 
     /// java: the canonical record constructor
-    pub fn new(mut r#type: String, mut sender: Uuid, mut room_type: Type, mut shape: Shape, mut direction: Direction, mut room: String, mut pos: Vec<Vector2i>) -> Self {
+    pub fn new_canonical(mut r#type: String, mut sender: Uuid, mut room_type: Type, mut shape: Shape, mut direction: Direction, mut room: String, mut pos: Vec<Vector2i>) -> Self {
         Self { r#type, sender, room_type, shape, direction, room, pos }
     }
 

@@ -10,6 +10,7 @@ use crate::entry::skyblocker_mod;
 use mcrust::com::mojang::serialization::codec::Codec;
 use mcrust::com::mojang::serialization::codec::CodecRef;
 use mcrust::java::util::concurrent::completable_future::CompletableFuture;
+use mcrust::com::mojang::serialization::decoder::Decoder as _;
 use mcrust::net::minecraft::server::packs::resources::resource_provider::ResourceProvider as _;
 
 /// java: private static EmblemConstants emblemConstants = EmblemConstants.EMPTY;
@@ -50,32 +51,54 @@ impl ConstantData {
 
     /// java: private static <T> void loadDataAsync(Minecraft minecraft, String fileName, Codec<T> codec, Consumer<T> setter)
     pub fn load_data_async<T: Clone + 'static>(minecraft: &mut mcrust::net::minecraft::client::minecraft::Minecraft, file_name: &str, codec: &CodecRef<T>, setter: Arc<dyn Fn(T)>) {
-        (CompletableFuture::supply_async(move || Ok((|| ConstantData::load_data(minecraft, file_name, codec))()), compat::executor)).then_accept_async(|data| ConstantData::set_data(Some(data.clone()), setter.clone()), std::sync::Arc::new(|__t: Box<dyn FnOnce() + Send>| mcrust::mcrust::modding::game::execute(__t)));
+        // java: CompletableFuture.supplyAsync(() -> loadData(minecraft, fileName, codec), VIRTUAL_THREAD_EXECUTOR)
+        //           .thenAcceptAsync(data -> setData(data, setter), minecraft);
+        // rust: the port's `Codec` objects are not `Send` (`Arc<dyn Codec<T>>`), so `loadData` is split where the
+        // thread changes: the worker reads the resource (`openAsReader`), and the parse runs with `setData` on the
+        // render thread (`minecraft` as the executor). `codec` and `setter` stay on the render thread.
+        let file_name: String = file_name.to_string();
+        let worker_file_name: String = file_name.clone();
+        let codec: compat::RenderThread<CodecRef<T>> = compat::RenderThread::new(codec.clone());
+        let setter: compat::RenderThread<Arc<dyn Fn(T)>> = compat::RenderThread::new(setter);
+        (CompletableFuture::supply_async(move || Ok(ConstantData::open_data(compat::minecraft(), &worker_file_name)), compat::executor))
+            .then_accept_async(move |reader: &Result<String, String>| {
+                let data: Option<T> = ConstantData::parse_data(reader.clone(), &file_name, codec.get());
+                ConstantData::set_data(data, setter.get().clone());
+            }, std::sync::Arc::new(|__t: Box<dyn FnOnce() + Send>| mcrust::mcrust::modding::game::execute(__t)));
+    }
+
+    /// `loadData`'s `minecraft.getResourceManager().openAsReader(SkyblockerMod.id("constants/" + fileName))`.
+    fn open_data(minecraft: &mcrust::net::minecraft::client::minecraft::Minecraft, file_name: &str) -> Result<String, String> {
+        minecraft.get_resource_manager().open_as_reader(&crate::entry::skyblocker_mod::id(&format!("constants/{}", file_name)))
     }
 
     /// java: private static <T> @Nullable T loadData(Minecraft minecraft, String fileName, Codec<T> codec)
     pub fn load_data<T: 'static>(minecraft: &mut mcrust::net::minecraft::client::minecraft::Minecraft, file_name: &str, codec: &CodecRef<T>) -> Option<T> {
-        {
-            let mut reader: crate::unresolved::BufferedReader = minecraft.get_resource_manager().open_as_reader(&crate::entry::skyblocker_mod::id(&format!("constants/{}", file_name))).unwrap();
-            // java: try {..} catch (Exception e) - an exception here is a panic, caught by `catch_unwind`; the body's `return` is the closure's value
-            match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                // TODO(fabric2seer): static call JsonParser.parseReader(..)
-                //   java: return codec.parse(JsonOps.INSTANCE, JsonParser.parseReader(reader)).getOrThrow();
-            })) {
-                Ok(__v) => return __v,
-                Err(e) => {
-                    logger().error(&format!("[Skyblocker Constant Data] Failed to load data for {}.", file_name));
-                    return None;
-                }
+        return ConstantData::parse_data(ConstantData::open_data(minecraft, file_name), file_name, codec);
+    }
+
+    /// `loadData`'s try block after the resource was opened: `codec.parse(JsonOps.INSTANCE, JsonParser.parseReader(reader))
+    /// .getOrThrow()`, or `null` (logged) for any exception, the open's included.
+    fn parse_data<T: 'static>(reader: Result<String, String>, file_name: &str, codec: &CodecRef<T>) -> Option<T> {
+        // java: try (BufferedReader reader = ..) {..} catch (Exception e) - an exception here is a panic, caught by `catch_unwind`
+        match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let mut reader: String = reader.clone().unwrap_or_else(|e| panic!("IOException: {e}"));
+            // java: return codec.parse(JsonOps.INSTANCE, JsonParser.parseReader(reader)).getOrThrow();
+            let json: serde_json::Value = serde_json::from_str(&reader).unwrap_or_else(|e| panic!("JsonSyntaxException: {e}"));
+            return codec.parse(&mcrust::com::mojang::serialization::json_ops::JsonOps::instance(), &compat::json_to_port(&json)).get_or_throw().unwrap_or_else(|e| panic!("IllegalStateException: {e}"));
+        })) {
+            Ok(__v) => return Some(__v),
+            Err(e) => {
+                logger().error(&format!("[Skyblocker Constant Data] Failed to load data for {}. {}", file_name, compat::panic_message(&e)));
+                return None;
             }
         }
-        todo!("fabric2seer: the value of this function is in a TODO above")
     }
 
     /// java: private static <T> void setData(@Nullable T data, Consumer<T> setter)
     pub fn set_data<T: 'static>(mut data: Option<T>, setter: Arc<dyn Fn(T)>) {
-        if let Some(data) = &data {
-            (setter)(data.clone());
+        if let Some(data) = data {
+            (setter)(data);
         }
     }
 

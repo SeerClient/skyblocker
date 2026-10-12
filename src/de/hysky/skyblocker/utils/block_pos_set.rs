@@ -48,11 +48,21 @@ impl std::ops::DerefMut for BlockPosSet {
 impl BlockPosSet {
     /// java: public BlockPosSet()
     pub fn new() -> compat::Shared<Self> {
-        // TODO(fabric2seer): `new AbstractSet(..)`: the port has no `AbstractSet::new`
-        //   java:
-        let __this: compat::Shared<Self> = todo!("constructor");
-        __this.lock().borrow_mut().entries.fill(*EMPTY);
-        __this
+        // the field initialisers: capacity = 8, mask = capacity - 1,
+        // nextGrowThreshold = Math.min((int) (this.capacity * LOAD_FACTOR), this.capacity - 1),
+        // entries = new long[this.capacity + LANES - 1]
+        let capacity: i32 = 8;
+        let mut this = Self {
+            base: crate::unresolved::AbstractSet,
+            size: 0,
+            tombstones: 0,
+            capacity,
+            mask: capacity.wrapping_sub(1),
+            next_grow_threshold: (((capacity as f32) * LOAD_FACTOR) as i32).min(capacity.wrapping_sub(1)),
+            entries: vec![0; (capacity.wrapping_add(LANES).wrapping_sub(1)) as usize],
+        };
+        this.entries.fill(*EMPTY);
+        compat::shared(this)
     }
 
     /// java: public static long hashPos(BlockPos pos)
@@ -67,142 +77,170 @@ impl BlockPosSet {
 
     /// java: public static long hashLong(final long l)
     pub fn hash_long(mut l: i64) -> i64 {
-        // TODO(fabric2seer): Long.rotateRight
-        //   java: return Long.rotateRight(l * 0xCB45348A28CB43BDL, 32);
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        // java: return Long.rotateRight(l * 0xCB45348A28CB43BDL, 32); // 64 bit mcg
+        return l.wrapping_mul(0xCB45348A28CB43BDu64 as i64).rotate_right(32);
     }
 
     /// java: public static long unhashLong(final long h)
     pub fn unhash_long(mut h: i64) -> i64 {
-        // TODO(fabric2seer): Long.rotateLeft
-        //   java: return Long.rotateLeft(h, 32) * 0xE3EBDD17C2778F95L;
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        // java: return Long.rotateLeft(h, 32) * 0xE3EBDD17C2778F95L;
+        return h.rotate_left(32).wrapping_mul(0xE3EBDD17C2778F95u64 as i64);
     }
 
     /// java: public boolean containsXyz(int x, int y, int z)
     pub fn contains_xyz(__this: &compat::Shared<Self>, mut x: i32, mut y: i32, mut z: i32) -> bool {
-        let mut hash: i64 = BlockPosSet::hash_xyz(x, y, z);
-        let mut mask: i32 = compat::read(__this, |__t| __t.mask);
-        let mut i: i32 = (((hash) as i32) & mask);
+        compat::read(__this, |this| this.contains_xyz_body(x, y, z))
+    }
+
+    fn contains_xyz_body(&self, x: i32, y: i32, z: i32) -> bool {
+        let hash: i64 = BlockPosSet::hash_xyz(x, y, z);
+        let mask: i32 = self.mask;
+        let mut i: i32 = ((hash) as i32) & mask;
         loop {
-            let mut n0: i64 = __this.lock().borrow().entries[(i.wrapping_add(0)) as usize];
-            let mut n1: i64 = __this.lock().borrow().entries[(i.wrapping_add(1)) as usize];
-            let mut n2: i64 = __this.lock().borrow().entries[(i.wrapping_add(2)) as usize];
-            let mut n3: i64 = __this.lock().borrow().entries[(i.wrapping_add(3)) as usize];
+            let n0: i64 = self.entries[(i.wrapping_add(0)) as usize];
+            let n1: i64 = self.entries[(i.wrapping_add(1)) as usize];
+            let n2: i64 = self.entries[(i.wrapping_add(2)) as usize];
+            let n3: i64 = self.entries[(i.wrapping_add(3)) as usize];
             if n0 == hash || n1 == hash || n2 == hash || n3 == hash {
                 return true;
             }
             if n0 == *EMPTY || n1 == *EMPTY || n2 == *EMPTY || n3 == *EMPTY {
                 return false;
             }
-            i = (i.wrapping_add(LANES) & mask);
-            if !(true) { break; }
+            i = i.wrapping_add(LANES) & mask;
         }
     }
 
     /// java: public int indexOf(BlockPos pos)
     pub fn index_of(__this: &compat::Shared<Self>, pos: &BlockPos) -> i32 {
-        let mut hash: i64 = BlockPosSet::hash_pos(pos);
-        let mut mask: i32 = compat::read(__this, |__t| __t.mask);
-        let mut i: i32 = (((hash) as i32) & mask);
-        loop {
-            if __this.lock().borrow().entries[(i) as usize] == hash {
-                return i;
+        compat::read(__this, |this| {
+            let hash: i64 = BlockPosSet::hash_pos(pos);
+            let mask: i32 = this.mask;
+            let mut i: i32 = ((hash) as i32) & mask;
+            loop {
+                if this.entries[(i) as usize] == hash {
+                    return i;
+                }
+                if this.entries[(i) as usize] == *EMPTY {
+                    return -1;
+                }
+                i = i.wrapping_add(1) & mask;
             }
-            if __this.lock().borrow().entries[(i) as usize] == *EMPTY {
-                return -1;
-            }
-            i = (i.wrapping_add(1) & mask);
-            if !(true) { break; }
-        }
+        })
     }
 
     /// java: public boolean addXYZ(int x, int y, int z)
     pub fn add_xyz(__this: &compat::Shared<Self>, mut x: i32, mut y: i32, mut z: i32) -> bool {
-        if compat::read(__this, |__t| __t.size) >= compat::read(__this, |__t| __t.next_grow_threshold) {
-            BlockPosSet::resize(__this, (compat::read(__this, |__t| __t.capacity)).wrapping_mul(2));
-        } else if compat::read(__this, |__t| __t.tombstones) >= (compat::read(__this, |__t| __t.capacity)).wrapping_sub(compat::read(__this, |__t| __t.next_grow_threshold)) {
-            BlockPosSet::resize(__this, compat::read(__this, |__t| __t.capacity));
+        compat::write(__this, |this| this.add_xyz_body(x, y, z))
+    }
+
+    fn add_xyz_body(&mut self, x: i32, y: i32, z: i32) -> bool {
+        if self.size >= self.next_grow_threshold {
+            self.resize_body(self.capacity.wrapping_mul(2));
+        } else if self.tombstones >= self.capacity.wrapping_sub(self.next_grow_threshold) {
+            self.resize_body(self.capacity);
         }
-        let mut hash: i64 = BlockPosSet::hash_xyz(x, y, z);
-        let mut mask: i32 = compat::read(__this, |__t| __t.mask);
-        let mut slot_to_insert: i32 = (((hash) as i32) & mask);
+        let hash: i64 = BlockPosSet::hash_xyz(x, y, z);
+        let mask: i32 = self.mask;
+        let mut slot_to_insert: i32 = ((hash) as i32) & mask;
         let mut candidate_tombstone_slot: i32 = i32::MAX;
+        // scan slots for empty spot
         loop {
-            if __this.lock().borrow().entries[(slot_to_insert) as usize] == hash {
+            // already exists
+            if self.entries[(slot_to_insert) as usize] == hash {
                 return false;
-            } else if __this.lock().borrow().entries[(slot_to_insert) as usize] == *TOMBSTONE && candidate_tombstone_slot == i32::MAX {
+            }
+            // we can't insert immediately if we find a tombstone slot, because the entry could show up later
+            else if self.entries[(slot_to_insert) as usize] == *TOMBSTONE && candidate_tombstone_slot == i32::MAX {
                 candidate_tombstone_slot = slot_to_insert;
-            } else if __this.lock().borrow().entries[(slot_to_insert) as usize] == *EMPTY {
+            }
+            // found an absent slot
+            else if self.entries[(slot_to_insert) as usize] == *EMPTY {
+                // check if we found a tombstone to replace earlier
                 if candidate_tombstone_slot != i32::MAX {
                     slot_to_insert = candidate_tombstone_slot;
-                    { let __v = compat::read(__this, |__t| __t.tombstones) - 1; compat::write(__this, |__t| __t.tombstones = __v); }
+                    // if we replaced a tombstone, reduce tombstone count
+                    self.tombstones -= 1;
                 }
-                __this.lock().borrow_mut().entries[(slot_to_insert) as usize] = hash;
-                { let __v = compat::read(__this, |__t| __t.size) + 1; compat::write(__this, |__t| __t.size = __v); }
+                self.entries[(slot_to_insert) as usize] = hash;
+                self.size += 1;
+                // duplicate entries near the start to the extra padding at the end
                 if slot_to_insert < LANES.wrapping_sub(1) {
-                    let __r0 = compat::read(__this, |__t| __t.capacity);
-                    __this.lock().borrow_mut().entries[(slot_to_insert.wrapping_add(__r0)) as usize] = hash;
+                    let capacity = self.capacity;
+                    self.entries[(slot_to_insert.wrapping_add(capacity)) as usize] = hash;
                 }
                 return true;
             }
-            slot_to_insert = (slot_to_insert.wrapping_add(1) & mask);
-            if !(true) { break; }
+            // wrap to beginning
+            slot_to_insert = slot_to_insert.wrapping_add(1) & mask;
         }
     }
 
     /// java: public boolean removeXyz(int x, int y, int z)
     pub fn remove_xyz(__this: &compat::Shared<Self>, mut x: i32, mut y: i32, mut z: i32) -> bool {
-        if compat::read(__this, |__t| __t.size) == 0 {
+        compat::write(__this, |this| this.remove_xyz_body(x, y, z))
+    }
+
+    fn remove_xyz_body(&mut self, x: i32, y: i32, z: i32) -> bool {
+        if self.size == 0 {
             return false;
         }
-        let mut hash: i64 = BlockPosSet::hash_xyz(x, y, z);
-        let mut mask: i32 = compat::read(__this, |__t| __t.mask);
-        let mut i: i32 = (((hash) as i32) & mask);
+        let hash: i64 = BlockPosSet::hash_xyz(x, y, z);
+        let mask: i32 = self.mask;
+        let capacity: i32 = self.capacity;
+        let mut i: i32 = ((hash) as i32) & mask;
         loop {
-            if __this.lock().borrow().entries[(i) as usize] == hash {
-                __this.lock().borrow_mut().entries[(i) as usize] = *TOMBSTONE;
+            if self.entries[(i) as usize] == hash {
+                // replace with tombstone
+                self.entries[(i) as usize] = *TOMBSTONE;
                 if i < LANES.wrapping_sub(1) {
-                    let __r0 = compat::read(__this, |__t| __t.capacity);
-                    __this.lock().borrow_mut().entries[(i.wrapping_add(__r0)) as usize] = *TOMBSTONE;
+                    self.entries[(i.wrapping_add(capacity)) as usize] = *TOMBSTONE;
                 }
-                { let __v = compat::read(__this, |__t| __t.size) - 1; compat::write(__this, |__t| __t.size = __v); }
-                { let __v = compat::read(__this, |__t| __t.tombstones) + 1; compat::write(__this, |__t| __t.tombstones = __v); }
-                if __this.lock().borrow().entries[((i.wrapping_add(1) & mask)) as usize] != *EMPTY {
+                self.size -= 1;
+                self.tombstones += 1;
+                // travel backwards and attempt to remove tombstones if the next slot is empty
+                if self.entries[((i.wrapping_add(1) & mask)) as usize] != *EMPTY {
                     return true;
                 }
                 loop {
-                    __this.lock().borrow_mut().entries[(i) as usize] = *EMPTY;
+                    self.entries[(i) as usize] = *EMPTY;
                     if i < LANES.wrapping_sub(1) {
-                        let __r0 = compat::read(__this, |__t| __t.capacity);
-                        __this.lock().borrow_mut().entries[(i.wrapping_add(__r0)) as usize] = *EMPTY;
+                        self.entries[(i.wrapping_add(capacity)) as usize] = *EMPTY;
                     }
-                    { let __v = compat::read(__this, |__t| __t.tombstones) - 1; compat::write(__this, |__t| __t.tombstones = __v); }
-                    i = (i.wrapping_sub(1) & mask);
-                    if !(__this.lock().borrow().entries[(i) as usize] == *TOMBSTONE) { break; }
+                    self.tombstones -= 1;
+                    i = i.wrapping_sub(1) & mask;
+                    if !(self.entries[(i) as usize] == *TOMBSTONE) {
+                        break;
+                    }
                 }
                 return true;
-            } else if __this.lock().borrow().entries[(i) as usize] == *EMPTY {
+            } else if self.entries[(i) as usize] == *EMPTY {
                 return false;
             }
-            i = (i.wrapping_add(1) & mask);
-            if !(true) { break; }
+            i = i.wrapping_add(1) & mask;
         }
     }
 
     /// java: public void resize(int newCapacity)
     pub fn resize(__this: &compat::Shared<Self>, mut new_capacity: i32) {
-        debug_assert!(new_capacity >= compat::read(__this, |__t| __t.size), "{}", format!("capacity must be greater than size! (got: {}, size: {})", new_capacity, compat::read(__this, |__t| __t.size)).to_string());
-        debug_assert!((new_capacity & new_capacity.wrapping_sub(1)) == 0, "{}", format!("capacity must be a power of two! (got: {})", new_capacity).to_string());
-        let mut mask: i32 = new_capacity.wrapping_sub(1);
+        compat::write(__this, |this| this.resize_body(new_capacity))
+    }
+
+    fn resize_body(&mut self, new_capacity: i32) {
+        debug_assert!(new_capacity >= self.size, "capacity must be greater than size! (got: {}, size: {})", new_capacity, self.size);
+        debug_assert!((new_capacity & new_capacity.wrapping_sub(1)) == 0, "capacity must be a power of two! (got: {})", new_capacity);
+        let mask: i32 = new_capacity.wrapping_sub(1);
         let mut new_entries: Vec<i64> = vec![0; ((new_capacity.wrapping_add(LANES)).wrapping_sub(1)) as usize];
         new_entries.fill(*EMPTY);
-        for current_index in 0..compat::read(__this, |__t| __t.capacity) {
-            let mut hash: i64 = __this.lock().borrow().entries[(current_index) as usize];
+        // iterate through the current entries array
+        for current_index in 0..self.capacity {
+            // skip tombstones and absents
+            let hash: i64 = self.entries[(current_index) as usize];
             if hash >= *EMPTY {
                 continue;
             }
-            let mut new_index: i32 = (((hash) as i32) & mask);
+            // add to new entries array
+            let mut new_index: i32 = ((hash) as i32) & mask;
             loop {
                 if new_entries[(new_index) as usize] == *EMPTY {
                     new_entries[(new_index) as usize] = hash;
@@ -211,20 +249,24 @@ impl BlockPosSet {
                     }
                     break;
                 }
-                new_index = (new_index.wrapping_add(1) & mask);
+                // wrap to beginning
+                new_index = new_index.wrapping_add(1) & mask;
             }
         }
-        { let __v = 0; compat::write(__this, |__t| __t.tombstones = __v); }
-        { let __v = new_capacity; compat::write(__this, |__t| __t.capacity = __v); }
-        { let __v = new_capacity.wrapping_sub(1); compat::write(__this, |__t| __t.mask = __v); }
-        { let __v = ((((compat::read(__this, |__t| __t.capacity) as f32) * LOAD_FACTOR)) as i32).min((compat::read(__this, |__t| __t.capacity)).wrapping_sub(1)); compat::write(__this, |__t| __t.next_grow_threshold = __v); }
-        { let __v = new_entries.clone(); compat::write(__this, |__t| __t.entries = __v); }
+        // no more tombstones
+        self.tombstones = 0;
+        self.capacity = new_capacity;
+        self.mask = new_capacity.wrapping_sub(1);
+        self.next_grow_threshold = (((self.capacity as f32) * LOAD_FACTOR) as i32).min(self.capacity.wrapping_sub(1));
+        self.entries = new_entries;
     }
 
     /// java: public void clearRetainingCapacity()
     pub fn clear_retaining_capacity(__this: &compat::Shared<Self>) {
-        { let __v = 0; compat::write(__this, |__t| __t.size = __v); }
-        __this.lock().borrow_mut().entries.fill(*EMPTY);
+        compat::write(__this, |this| {
+            this.size = 0;
+            this.entries.fill(*EMPTY);
+        });
     }
 
     /// java: @Override public int size()
@@ -234,14 +276,24 @@ impl BlockPosSet {
 
     /// java: @Override public boolean isEmpty()
     pub fn is_empty(__this: &compat::Shared<Self>) -> bool {
-        return (compat::read(__this, |__t| __t.size) == 0);
+        return compat::read(__this, |__t| __t.size) == 0;
+    }
+
+    /// `o instanceof BlockPos pos` (a `MutableBlockPos` is one too): the position.
+    fn object_pos(o: &(dyn std::any::Any + Send + Sync)) -> Option<BlockPos> {
+        if let Some(pos) = o.downcast_ref::<BlockPos>() {
+            return Some(*pos);
+        }
+        o.downcast_ref::<MutableBlockPos>().map(|pos| pos.immutable())
     }
 
     /// java: @Override public boolean contains(Object o)
     pub fn contains(__this: &compat::Shared<Self>, o: &compat::Object) -> bool {
-        // TODO(fabric2seer): instanceof with a pattern binding outside an `if` condition
-        //   java: return o instanceof BlockPos pos && this.contains(pos);
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        // java: return o instanceof BlockPos pos && this.contains(pos);
+        return match BlockPosSet::object_pos(&**o) {
+            Some(pos) => BlockPosSet::contains_block_pos(__this, &pos),
+            None => false,
+        };
     }
 
     /// java: public boolean contains(BlockPos pos)
@@ -251,20 +303,18 @@ impl BlockPosSet {
 
     /// java: @Override public Object[] toArray()
     pub fn to_array(__this: &compat::Shared<Self>) -> Vec<compat::Object> {
-        let mut size: i32 = compat::read(__this, |__t| __t.size);
-        let mut capacity: i32 = compat::read(__this, |__t| __t.capacity);
-        let mut entries: Vec<i64> = compat::read(__this, |__t| __t.entries.clone());
-        let mut array: Vec<compat::Object> = (0..(size) as usize).map(|_| Default::default()).collect::<Vec<_>>();
+        let size: i32 = compat::read(__this, |__t| __t.size);
+        let capacity: i32 = compat::read(__this, |__t| __t.capacity);
+        let entries: Vec<i64> = compat::read(__this, |__t| __t.entries.clone());
+        let mut array: Vec<compat::Object> = Vec::with_capacity(size as usize);
         {
             let mut i: i32 = 0;
             let mut j: i32 = 0;
             while i < capacity && j < size {
-                'continue_1: {
-                    let mut h: i64 = entries[(i) as usize];
-                    if h >= *EMPTY {
-                        break 'continue_1;
-                    }
-                    array[({ let __v = j; j += 1; __v }) as usize] = (std::sync::Arc::new(BlockPos::of(BlockPosSet::unhash_long(h))) as compat::Object);
+                let h: i64 = entries[(i) as usize];
+                if h < *EMPTY {
+                    array.push(std::sync::Arc::new(BlockPos::of(BlockPosSet::unhash_long(h))) as compat::Object);
+                    j += 1;
                 }
                 i += 1;
             }
@@ -272,14 +322,14 @@ impl BlockPosSet {
         return array;
     }
 
-    /// java: @SuppressWarnings(
-    pub fn to_array_1<T: 'static>(__this: &compat::Shared<Self>, mut a: Vec<T>) -> Vec<T> {
-        let mut size: i32 = compat::read(__this, |__t| __t.size);
-        let mut capacity: i32 = compat::read(__this, |__t| __t.capacity);
-        let mut entries: Vec<i64> = compat::read(__this, |__t| __t.entries.clone());
+    /// java: @Override public <T> T[] toArray(T[] a)
+    pub fn to_array_1<T: From<BlockPos>>(__this: &compat::Shared<Self>, mut a: Vec<Option<T>>) -> Vec<Option<T>> {
+        let size: i32 = compat::read(__this, |__t| __t.size);
+        let capacity: i32 = compat::read(__this, |__t| __t.capacity);
+        let entries: Vec<i64> = compat::read(__this, |__t| __t.entries.clone());
         if (a.len() as i32) < size {
-            // TODO(fabric2seer): static call Array.newInstance(..)
-            //   java: a = (T[]) Array.newInstance(a.getClass().getComponentType(), size);
+            // java: a = (T[]) Array.newInstance(a.getClass().getComponentType(), size);
+            a = (0..size).map(|_| None).collect();
         } else if (a.len() as i32) > size {
             a[(size) as usize] = None;
         }
@@ -287,12 +337,10 @@ impl BlockPosSet {
             let mut i: i32 = 0;
             let mut j: i32 = 0;
             while i < capacity && j < size {
-                'continue_1: {
-                    let mut h: i64 = entries[(i) as usize];
-                    if h >= *EMPTY {
-                        break 'continue_1;
-                    }
-                    a[({ let __v = j; j += 1; __v }) as usize] = BlockPos::of(BlockPosSet::unhash_long(h));
+                let h: i64 = entries[(i) as usize];
+                if h < *EMPTY {
+                    a[(j) as usize] = Some(T::from(BlockPos::of(BlockPosSet::unhash_long(h))));
+                    j += 1;
                 }
                 i += 1;
             }
@@ -307,9 +355,11 @@ impl BlockPosSet {
 
     /// java: @Override public boolean remove(Object o)
     pub fn remove(__this: &compat::Shared<Self>, o: &compat::Object) -> bool {
-        // TODO(fabric2seer): instanceof with a pattern binding outside an `if` condition
-        //   java: return o instanceof BlockPos pos && this.remove(pos);
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        // java: return o instanceof BlockPos pos && this.remove(pos);
+        return match BlockPosSet::object_pos(&**o) {
+            Some(pos) => BlockPosSet::remove_block_pos(__this, &pos),
+            None => false,
+        };
     }
 
     /// java: public boolean remove(BlockPos pos)
@@ -317,43 +367,58 @@ impl BlockPosSet {
         return BlockPosSet::remove_xyz(__this, pos.get_x(), pos.get_y(), pos.get_z());
     }
 
+    /// `c.contains(pos)`: `BlockPos.equals` (Vec3i's: the same x, y, z).
+    fn collection_contains(c: &Vec<compat::Object>, pos: &MutableBlockPos) -> bool {
+        let pos = pos.immutable();
+        c.iter().any(|e| BlockPosSet::object_pos(&**e) == Some(pos))
+    }
+
     /// java: @Override public boolean retainAll(Collection<?> c)
     pub fn retain_all(__this: &compat::Shared<Self>, c: &Vec<compat::Object>) -> bool {
-        let mut longs: Vec<i64> = compat::read(__this, |__t| __t.entries.clone());
-        let mut mask: i32 = compat::read(__this, |__t| __t.mask);
+        compat::write(__this, |this| this.remove_where(|pos| !BlockPosSet::collection_contains(c, pos)))
+    }
+
+    /// The loop `retainAll` and `removeAll` both run in Java (written out twice there; `longs`/`entries` IS
+    /// `this.entries`): every entry `remove_it` picks is removed in place.
+    fn remove_where(&mut self, mut remove_it: impl FnMut(&MutableBlockPos) -> bool) -> bool {
+        let mask: i32 = self.mask;
+        let capacity: i32 = self.capacity;
         let mut pos: MutableBlockPos = MutableBlockPos::new_origin();
         let mut removed_any: bool = false;
         {
-            let mut i: i32 = (compat::read(__this, |__t| __t.capacity)).wrapping_sub(1);
+            let mut i: i32 = capacity.wrapping_sub(1);
             while i >= 0 {
                 'continue_1: {
-                    let mut h: i64 = longs[(i) as usize];
+                    let h: i64 = self.entries[(i) as usize];
                     if h >= *EMPTY {
                         break 'continue_1;
                     }
                     pos.set_long(BlockPosSet::unhash_long(h));
-                    if c.iter().any(|e| *e == pos.clone()) {
+                    if !remove_it(&pos) {
                         break 'continue_1;
                     }
-                    if longs[((i.wrapping_add(1) & mask)) as usize] != *EMPTY {
-                        longs[(i) as usize] = *TOMBSTONE;
+                    if self.entries[((i.wrapping_add(1) & mask)) as usize] != *EMPTY {
+                        self.entries[(i) as usize] = *TOMBSTONE;
                         if i < LANES.wrapping_sub(1) {
-                            longs[(i.wrapping_add(compat::read(__this, |__t| __t.capacity))) as usize] = *TOMBSTONE;
+                            self.entries[(i.wrapping_add(capacity)) as usize] = *TOMBSTONE;
                         }
-                        { let __v = compat::read(__this, |__t| __t.size) - 1; compat::write(__this, |__t| __t.size = __v); }
-                        { let __v = compat::read(__this, |__t| __t.tombstones) + 1; compat::write(__this, |__t| __t.tombstones = __v); }
+                        self.size -= 1;
+                        self.tombstones += 1;
                     } else {
+                        // no need to use tombstones if the next slot is empty
                         let mut j: i32 = i;
-                        { let __v = compat::read(__this, |__t| __t.size) - 1; compat::write(__this, |__t| __t.size = __v); }
-                        { let __v = compat::read(__this, |__t| __t.tombstones) + 1; compat::write(__this, |__t| __t.tombstones = __v); }
+                        self.size -= 1;
+                        self.tombstones += 1;
                         loop {
-                            longs[(j) as usize] = *EMPTY;
+                            self.entries[(j) as usize] = *EMPTY;
                             if j < LANES.wrapping_sub(1) {
-                                longs[(j.wrapping_add(compat::read(__this, |__t| __t.capacity))) as usize] = *EMPTY;
+                                self.entries[(j.wrapping_add(capacity)) as usize] = *EMPTY;
                             }
-                            { let __v = compat::read(__this, |__t| __t.tombstones) - 1; compat::write(__this, |__t| __t.tombstones = __v); }
-                            j = (j.wrapping_sub(1) & mask);
-                            if !(longs[(j) as usize] == *TOMBSTONE) { break; }
+                            self.tombstones -= 1;
+                            j = j.wrapping_sub(1) & mask;
+                            if !(self.entries[(j) as usize] == *TOMBSTONE) {
+                                break;
+                            }
                         }
                     }
                     removed_any = true;
@@ -369,52 +434,11 @@ impl BlockPosSet {
         let mut removed_any: bool = false;
         if compat::read(__this, |__t| __t.size) > (c.len() as i32) {
             for e in c.iter() {
-                removed_any = ((removed_any | BlockPosSet::remove(__this, e))) as bool;
+                removed_any |= BlockPosSet::remove(__this, e);
             }
             return removed_any;
         }
-        let mut entries: Vec<i64> = compat::read(__this, |__t| __t.entries.clone());
-        let mut mask: i32 = compat::read(__this, |__t| __t.mask);
-        let mut pos: MutableBlockPos = MutableBlockPos::new_origin();
-        {
-            let mut i: i32 = (compat::read(__this, |__t| __t.capacity)).wrapping_sub(1);
-            while i >= 0 {
-                'continue_2: {
-                    let mut h: i64 = entries[(i) as usize];
-                    if h >= *EMPTY {
-                        break 'continue_2;
-                    }
-                    pos.set_long(BlockPosSet::unhash_long(h));
-                    if !(c.iter().any(|e| *e == pos.clone())) {
-                        break 'continue_2;
-                    }
-                    if entries[((i.wrapping_add(1) & mask)) as usize] != *EMPTY {
-                        entries[(i) as usize] = *TOMBSTONE;
-                        if i < LANES.wrapping_sub(1) {
-                            entries[(i.wrapping_add(compat::read(__this, |__t| __t.capacity))) as usize] = *TOMBSTONE;
-                        }
-                        { let __v = compat::read(__this, |__t| __t.size) - 1; compat::write(__this, |__t| __t.size = __v); }
-                        { let __v = compat::read(__this, |__t| __t.tombstones) + 1; compat::write(__this, |__t| __t.tombstones = __v); }
-                    } else {
-                        let mut j: i32 = i;
-                        { let __v = compat::read(__this, |__t| __t.size) - 1; compat::write(__this, |__t| __t.size = __v); }
-                        { let __v = compat::read(__this, |__t| __t.tombstones) + 1; compat::write(__this, |__t| __t.tombstones = __v); }
-                        loop {
-                            entries[(j) as usize] = *EMPTY;
-                            if j < LANES.wrapping_sub(1) {
-                                entries[(j.wrapping_add(compat::read(__this, |__t| __t.capacity))) as usize] = *EMPTY;
-                            }
-                            { let __v = compat::read(__this, |__t| __t.tombstones) - 1; compat::write(__this, |__t| __t.tombstones = __v); }
-                            j = (j.wrapping_sub(1) & mask);
-                            if !(entries[(j) as usize] == *TOMBSTONE) { break; }
-                        }
-                    }
-                    removed_any = true;
-                }
-                i -= 1;
-            }
-        }
-        return removed_any;
+        compat::write(__this, |this| this.remove_where(|pos| BlockPosSet::collection_contains(c, pos)))
     }
 
     /// java: @Override public void clear()
@@ -423,49 +447,57 @@ impl BlockPosSet {
     }
 
     /// java: @Override public Iterator<BlockPos> iterator()
-    pub fn iterator(__this: &compat::Shared<Self>) -> Box<dyn Iterator<Item = BlockPos> + '_> {
-        return Box::new((Iter::new(compat::read(__this, |__t| __t.capacity), compat::read(__this, |__t| __t.entries.clone()))).iter().cloned());
+    pub fn iterator(__this: &compat::Shared<Self>) -> Iter {
+        return Iter::new(__this.clone(), compat::read(__this, |__t| __t.capacity));
     }
 
     /// java: public Iterable<BlockPos.MutableBlockPos> iterateMut()
-    pub fn iterate_mut(__this: &compat::Shared<Self>) -> Vec<MutableBlockPos> {
-        return IterMut::new(compat::read(__this, |__t| __t.capacity), compat::read(__this, |__t| __t.entries.clone()));
+    pub fn iterate_mut(__this: &compat::Shared<Self>) -> IterMut {
+        return IterMut::new(__this.clone(), compat::read(__this, |__t| __t.capacity));
     }
 
     /// java: public Iterable<BlockPos> destroyAndIterate()
-    pub fn destroy_and_iterate(__this: &compat::Shared<Self>) -> Vec<BlockPos> {
-        return OwningIter::new(compat::read(__this, |__t| __t.size), compat::read(__this, |__t| __t.entries.clone()));
+    pub fn destroy_and_iterate(__this: &compat::Shared<Self>) -> OwningIter {
+        return OwningIter::new(compat::read(__this, |__t| __t.size), __this.clone());
     }
 
     /// java: public Iterable<BlockPos.MutableBlockPos> destroyAndIterateMut()
-    pub fn destroy_and_iterate_mut(__this: &compat::Shared<Self>) -> Vec<MutableBlockPos> {
-        return OwningIterMut::new(compat::read(__this, |__t| __t.size), compat::read(__this, |__t| __t.entries.clone()));
+    pub fn destroy_and_iterate_mut(__this: &compat::Shared<Self>) -> OwningIterMut {
+        return OwningIterMut::new(compat::read(__this, |__t| __t.size), __this.clone());
     }
 
     /// java: @Override public BlockPosSet clone()
     pub fn clone(__this: &compat::Shared<Self>) -> compat::Shared<BlockPosSet> {
-        // java: try {..} catch (CloneNotSupportedException _) - an exception here is a panic, caught by `catch_unwind`; the body's `return` is the closure's value
-        match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            // TODO(fabric2seer): `AbstractSet.clone` has no Rust method in the port (looked for `clone` in AbstractSet and JavaSrc)
-            // rust: let mut cloned = __this.lock().borrow_mut().base.clone();
-            // TODO(fabric2seer): field `entries` of a value of unknown type
-            //   java: cloned.entries = cloned.entries.clone();
-            return cloned;
-        })) {
-            Ok(__v) => return __v,
-            Err(_) => {
-                panic!("RuntimeException");
-            }
-        }
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        // java: var cloned = (BlockPosSet) super.clone(); cloned.entries = cloned.entries.clone(); return cloned;
+        // (Object.clone: a new object with the same field values; then its own copy of the array)
+        compat::read(__this, |this| {
+            compat::shared(BlockPosSet {
+                base: crate::unresolved::AbstractSet,
+                size: this.size,
+                tombstones: this.tombstones,
+                capacity: this.capacity,
+                mask: this.mask,
+                next_grow_threshold: this.next_grow_threshold,
+                entries: this.entries.clone(),
+            })
+        })
     }
 
 }
 
 // NOTE(fabric2seer): add, clear, clone, contains, isEmpty, iterator, remove, removeAll, retainAll, size, toArray override(s) of AbstractSet - the port dispatches its own calls, so these run only where the mod calls them; hook the port's method to make the game call them
 
+/// One slot of the set's array as an iterator holds it: Java hands the iterator the array ITSELF (`this.entries`),
+/// so the iterator's writes (`remove`, the owning iterators' compaction) are writes to the set's array.
+fn entry_at(set: &compat::Shared<BlockPosSet>, i: i32) -> i64 {
+    compat::read(set, |t| t.entries[(i) as usize])
+}
+
+fn set_entry(set: &compat::Shared<BlockPosSet>, i: i32, value: i64) {
+    compat::write(set, |t| t.entries[(i) as usize] = value);
+}
+
 /// java: private class Iter implements Iterator<BlockPos>
-#[derive(Clone)]
 pub struct Iter {
     /// java: private int index;
     pub index: i32,
@@ -473,41 +505,59 @@ pub struct Iter {
     pub next_index: i32,
     /// java: private final int capacity;
     pub capacity: i32,
-    /// java: private final long[] entries;
-    pub entries: Vec<i64>,
+    /// java: private final long[] entries; - the set's own array (and the inner class's `BlockPosSet.this`)
+    pub set: compat::Shared<BlockPosSet>,
 }
 
 impl Iter {
     /// java: Iter(int capacity, long[] entries)
-    pub fn new(mut capacity: i32, mut entries: Vec<i64>) -> Self {
-        let __init_index = i32::MIN;
-        let __init_next_index = i32::MIN;
+    pub fn new(set: compat::Shared<BlockPosSet>, mut capacity: i32) -> Self {
         let mut this = Self {
-            index: __init_index,
-            next_index: __init_next_index,
+            index: i32::MIN,
+            next_index: i32::MIN,
             capacity: 0,
-            entries: Default::default(),
+            set,
         };
         for i in 0..capacity {
-            if entries[(i) as usize] < *EMPTY {
+            if entry_at(&this.set, i) < *EMPTY {
                 this.next_index = i;
                 break;
             }
         }
         this.capacity = capacity;
-        this.entries = entries.clone();
         this
     }
 
     /// java: @Override public boolean hasNext()
     pub fn has_next(&self) -> bool {
-        return (self.next_index != i32::MIN);
+        return self.next_index != i32::MIN;
     }
 
-    /// java: @Override public BlockPos next()
-    pub fn next(&mut self) -> BlockPos {
+    /// java: @Override public void remove()
+    pub fn remove(&mut self) {
+        if self.index == i32::MIN {
+            panic!("IllegalStateException");
+        }
+        set_entry(&self.set, self.index, *TOMBSTONE);
+        if self.index < LANES.wrapping_sub(1) {
+            set_entry(&self.set, self.index.wrapping_add(self.capacity), *TOMBSTONE);
+        }
+        // prevent this element from being removed again
+        self.index = i32::MIN;
+        compat::write(&self.set, |t| {
+            t.size -= 1;
+            t.tombstones += 1;
+        });
+    }
+}
+
+impl Iterator for Iter {
+    type Item = BlockPos;
+
+    /// java: @Override public BlockPos next() (`None` where Java's `hasNext()` is false and `next()` throws)
+    fn next(&mut self) -> Option<BlockPos> {
         if !self.has_next() {
-            panic!("NoSuchElementException");
+            return None;
         }
         self.index = self.next_index;
         loop {
@@ -516,31 +566,15 @@ impl Iter {
                 self.next_index = i32::MIN;
                 break;
             }
-            if !(self.entries[(self.next_index) as usize] >= *EMPTY) { break; }
+            if !(entry_at(&self.set, self.next_index) >= *EMPTY) {
+                break;
+            }
         }
-        return BlockPos::of(BlockPosSet::unhash_long(self.entries[(self.index) as usize]));
+        return Some(BlockPos::of(BlockPosSet::unhash_long(entry_at(&self.set, self.index))));
     }
-
-    /// java: @Override public void remove()
-    pub fn remove(&mut self) {
-        if self.index == i32::MIN {
-            panic!("IllegalStateException");
-        }
-        self.entries[(self.index) as usize] = *TOMBSTONE;
-        if self.index < LANES.wrapping_sub(1) {
-            self.entries[(self.index.wrapping_add(self.capacity)) as usize] = *TOMBSTONE;
-        }
-        self.index = i32::MIN;
-        // TODO(fabric2seer): `BlockPosSet.this` (the enclosing instance of an inner class)
-        //   java: BlockPosSet.this.size--;
-        // TODO(fabric2seer): `BlockPosSet.this` (the enclosing instance of an inner class)
-        //   java: BlockPosSet.this.tombstones++;
-    }
-
 }
 
 /// java: private class IterMut implements Iterator<BlockPos.MutableBlockPos>, Iterable<BlockPos.MutableBlockPos>
-#[derive(Clone)]
 pub struct IterMut {
     /// java: private int index;
     pub index: i32,
@@ -548,45 +582,68 @@ pub struct IterMut {
     pub next_index: i32,
     /// java: private final int capacity;
     pub capacity: i32,
-    /// java: private final long[] entries;
-    pub entries: Vec<i64>,
+    /// java: private final long[] entries; - the set's own array (and the inner class's `BlockPosSet.this`)
+    pub set: compat::Shared<BlockPosSet>,
     /// java: private final BlockPos.MutableBlockPos pos;
-    pub pos: Option<MutableBlockPos>,
+    pub pos: MutableBlockPos,
 }
 
 impl IterMut {
     /// java: IterMut(int capacity, long[] entries)
-    pub fn new(mut capacity: i32, mut entries: Vec<i64>) -> Self {
-        let __init_index = i32::MIN;
-        let __init_next_index = i32::MIN;
+    pub fn new(set: compat::Shared<BlockPosSet>, mut capacity: i32) -> Self {
         let mut this = Self {
-            index: __init_index,
-            next_index: __init_next_index,
+            index: i32::MIN,
+            next_index: i32::MIN,
             capacity: 0,
-            entries: Default::default(),
-            pos: None,
+            set,
+            pos: MutableBlockPos::new_origin(),
         };
         for i in 0..capacity {
-            if entries[(i) as usize] < *EMPTY {
+            if entry_at(&this.set, i) < *EMPTY {
                 this.next_index = i;
                 break;
             }
         }
         this.capacity = capacity;
-        this.entries = entries.clone();
-        this.pos = Some(MutableBlockPos::new_origin());
         this
     }
 
     /// java: @Override public boolean hasNext()
     pub fn has_next(&self) -> bool {
-        return (self.next_index != i32::MIN);
+        return self.next_index != i32::MIN;
     }
 
-    /// java: @Override public BlockPos.MutableBlockPos next()
-    pub fn next(&mut self) -> MutableBlockPos {
+    /// java: @Override public void remove()
+    pub fn remove(&mut self) {
+        if self.index == i32::MIN {
+            panic!("IllegalStateException");
+        }
+        set_entry(&self.set, self.index, *TOMBSTONE);
+        if self.index < LANES.wrapping_sub(1) {
+            set_entry(&self.set, self.index.wrapping_add(self.capacity), *TOMBSTONE);
+        }
+        // prevent this element from being removed again
+        self.index = i32::MIN;
+        compat::write(&self.set, |t| {
+            t.size -= 1;
+            t.tombstones += 1;
+        });
+    }
+
+    /// java: @Override public Iterator<BlockPos.MutableBlockPos> iterator() - `return this;`
+    pub fn iterator(self) -> Self {
+        return self;
+    }
+}
+
+impl Iterator for IterMut {
+    type Item = MutableBlockPos;
+
+    /// java: @Override public BlockPos.MutableBlockPos next() - Java answers the SAME mutable object each time; a
+    /// `MutableBlockPos` here is a value, so each call answers that object's state after its `set`
+    fn next(&mut self) -> Option<MutableBlockPos> {
         if !self.has_next() {
-            panic!("NoSuchElementException");
+            return None;
         }
         self.index = self.next_index;
         loop {
@@ -595,155 +652,113 @@ impl IterMut {
                 self.next_index = i32::MIN;
                 break;
             }
-            if !(self.entries[(self.next_index) as usize] >= *EMPTY) { break; }
+            if !(entry_at(&self.set, self.next_index) >= *EMPTY) {
+                break;
+            }
         }
-        { let __s0 = BlockPosSet::unhash_long(self.entries[(self.index) as usize]); self.pos.as_mut().unwrap().set_long(__s0) };
-        return self.pos.clone().unwrap();
+        self.pos.set_long(BlockPosSet::unhash_long(entry_at(&self.set, self.index)));
+        return Some(self.pos);
     }
+}
 
-    /// java: @Override public void remove()
-    pub fn remove(&mut self) {
-        if self.index == i32::MIN {
-            panic!("IllegalStateException");
+/// `OwningIter` / `OwningIterMut`'s constructor: compacts the set's array in place.
+fn compact(set: &compat::Shared<BlockPosSet>, size: i32) {
+    compat::write(set, |t| {
+        let entries = &mut t.entries;
+        let mut i: i32 = 0;
+        let mut j: i32 = 0;
+        while j < size {
+            if entries[(i) as usize] < *EMPTY {
+                entries[(j) as usize] = entries[(i) as usize];
+                j += 1;
+            }
+            i += 1;
         }
-        self.entries[(self.index) as usize] = *TOMBSTONE;
-        if self.index < LANES.wrapping_sub(1) {
-            self.entries[(self.index.wrapping_add(self.capacity)) as usize] = *TOMBSTONE;
-        }
-        self.index = i32::MIN;
-        // TODO(fabric2seer): `BlockPosSet.this` (the enclosing instance of an inner class)
-        //   java: BlockPosSet.this.size--;
-        // TODO(fabric2seer): `BlockPosSet.this` (the enclosing instance of an inner class)
-        //   java: BlockPosSet.this.tombstones++;
-    }
-
-    /// java: @Override public Iterator<BlockPos.MutableBlockPos> iterator()
-    pub fn iterator(&self) -> Box<dyn Iterator<Item = MutableBlockPos> + '_> {
-        return Box::new(self.iter().cloned());
-    }
-
+    });
 }
 
 /// java: private static class OwningIter implements Iterable<BlockPos>, Iterator<BlockPos>
-#[derive(Clone)]
 pub struct OwningIter {
     /// java: private int i = 0;
     pub i: i32,
     /// java: private final int size;
     pub size: i32,
-    /// java: private final long[] entries;
-    pub entries: Vec<i64>,
+    /// java: private final long[] entries; - the set's own array
+    pub set: compat::Shared<BlockPosSet>,
 }
 
 impl OwningIter {
     /// java: OwningIter(int size, long[] entries)
-    pub fn new(mut size: i32, mut entries: Vec<i64>) -> Self {
-        let mut this = Self {
-            i: 0,
-            size: 0,
-            entries: Default::default(),
-        };
-        {
-            let mut i: i32 = 0;
-            let mut j: i32 = 0;
-            while j < size {
-                'continue_1: {
-                    if entries[(i) as usize] >= *EMPTY {
-                        break 'continue_1;
-                    }
-                    entries[(j) as usize] = entries[(i) as usize];
-                    j += 1;
-                }
-                i += 1;
-            }
-        }
-        this.entries = entries.clone();
-        this.size = size;
-        this
+    pub fn new(mut size: i32, set: compat::Shared<BlockPosSet>) -> Self {
+        compact(&set, size);
+        Self { i: 0, size, set }
     }
 
     /// java: @Override public boolean hasNext()
     pub fn has_next(&self) -> bool {
-        return (self.i < self.size);
+        return self.i < self.size;
     }
+
+    /// java: public Iterator<BlockPos> iterator() - `return this;`
+    pub fn iterator(self) -> Self {
+        return self;
+    }
+}
+
+impl Iterator for OwningIter {
+    type Item = BlockPos;
 
     /// java: @Override public BlockPos next()
-    pub fn next(&mut self) -> BlockPos {
+    fn next(&mut self) -> Option<BlockPos> {
         if self.i >= self.size {
-            panic!("NoSuchElementException");
+            return None;
         }
-        let mut l: i64 = BlockPosSet::unhash_long(self.entries[(self.i) as usize]);
+        let l: i64 = BlockPosSet::unhash_long(entry_at(&self.set, self.i));
         self.i += 1;
-        return BlockPos::of(l);
+        return Some(BlockPos::of(l));
     }
-
-    /// java: public Iterator<BlockPos> iterator()
-    pub fn iterator(&self) -> Box<dyn Iterator<Item = BlockPos> + '_> {
-        return Box::new(self.iter().cloned());
-    }
-
 }
 
 /// java: private static class OwningIterMut implements Iterable<BlockPos.MutableBlockPos>, Iterator<BlockPos.MutableBlockPos>
-#[derive(Clone)]
 pub struct OwningIterMut {
     /// java: private int i = 0;
     pub i: i32,
     /// java: private final int size;
     pub size: i32,
-    /// java: private final long[] entries;
-    pub entries: Vec<i64>,
+    /// java: private final long[] entries; - the set's own array
+    pub set: compat::Shared<BlockPosSet>,
     /// java: private final BlockPos.MutableBlockPos pos;
-    pub pos: Option<MutableBlockPos>,
+    pub pos: MutableBlockPos,
 }
 
 impl OwningIterMut {
     /// java: OwningIterMut(int size, long[] entries)
-    pub fn new(mut size: i32, mut entries: Vec<i64>) -> Self {
-        let mut this = Self {
-            i: 0,
-            size: 0,
-            entries: Default::default(),
-            pos: None,
-        };
-        {
-            let mut i: i32 = 0;
-            let mut j: i32 = 0;
-            while j < size {
-                'continue_1: {
-                    if entries[(i) as usize] >= *EMPTY {
-                        break 'continue_1;
-                    }
-                    entries[(j) as usize] = entries[(i) as usize];
-                    j += 1;
-                }
-                i += 1;
-            }
-        }
-        this.entries = entries.clone();
-        this.size = size;
-        this.pos = Some(MutableBlockPos::new_origin());
-        this
+    pub fn new(mut size: i32, set: compat::Shared<BlockPosSet>) -> Self {
+        compact(&set, size);
+        Self { i: 0, size, set, pos: MutableBlockPos::new_origin() }
     }
 
     /// java: @Override public boolean hasNext()
     pub fn has_next(&self) -> bool {
-        return (self.i < self.size);
+        return self.i < self.size;
     }
+
+    /// java: public Iterator<BlockPos.MutableBlockPos> iterator() - `return this;`
+    pub fn iterator(self) -> Self {
+        return self;
+    }
+}
+
+impl Iterator for OwningIterMut {
+    type Item = MutableBlockPos;
 
     /// java: @Override public BlockPos.MutableBlockPos next()
-    pub fn next(&mut self) -> MutableBlockPos {
+    fn next(&mut self) -> Option<MutableBlockPos> {
         if self.i >= self.size {
-            panic!("NoSuchElementException");
+            return None;
         }
-        { let __s0 = BlockPosSet::unhash_long(self.entries[(self.i) as usize]); self.pos.as_mut().unwrap().set_long(__s0) };
+        self.pos.set_long(BlockPosSet::unhash_long(entry_at(&self.set, self.i)));
         self.i += 1;
-        return self.pos.clone().unwrap();
+        return Some(self.pos);
     }
-
-    /// java: public Iterator<BlockPos.MutableBlockPos> iterator()
-    pub fn iterator(&self) -> Box<dyn Iterator<Item = MutableBlockPos> + '_> {
-        return Box::new(self.iter().cloned());
-    }
-
 }

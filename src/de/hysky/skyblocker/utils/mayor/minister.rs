@@ -56,7 +56,9 @@ impl Minister {
 
     /// java: public boolean isEmpty()
     pub fn is_empty(&self) -> bool {
-        return std::ptr::eq(self, &EMPTY);
+        // java: this == EMPTY - the port's records are values (copied where Java shares the reference), so the EMPTY
+        // instance is recognised by its (empty) value
+        return self == &*EMPTY;
     }
 
 }

@@ -23,10 +23,9 @@ impl CollectionUtils {
     }
 
     /// java: public static <E> Pair<List<E>, List<E>> halve(List<E> list)
-    pub fn halve<E: 'static>(list: &Vec<E>) -> (Vec<E>, Vec<E>) {
-        // TODO(fabric2seer): Math.ceilDiv
-        //   java: int mid = Math.ceilDiv(list.size(), 2);
-        let mut mid: i32 = todo!("fabric2seer: the initialiser of `mid` (TODO above)");
+    pub fn halve<E: Clone + 'static>(list: &Vec<E>) -> (Vec<E>, Vec<E>) {
+        // java: int mid = Math.ceilDiv(list.size(), 2);
+        let mut mid: i32 = list.len().div_ceil(2) as i32;
         let mut first_half: Vec<E> = list[(0) as usize..(mid) as usize].to_vec();
         let mut second_half: Vec<E> = list[(mid) as usize..((list.len() as i32)) as usize].to_vec();
         return (first_half.clone(), second_half.clone());

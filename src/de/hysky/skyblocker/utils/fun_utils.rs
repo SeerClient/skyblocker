@@ -11,7 +11,7 @@ use mcrust::net::minecraft::util::argb;
 /// java: private static final boolean FUN_DISABLED = Boolean.parseBoolean(System.getProperty("skyblocker.iAmABoringPersonAndHateFun", "false"));
 pub static FUN_DISABLED: LazyLock<bool> = LazyLock::new(|| std::env::var("skyblocker.iAmABoringPersonAndHateFun").ok().unwrap().eq_ignore_ascii_case("true"));
 /// java: public static final Random RANDOM = new Random();
-pub static RANDOM: compat::MainThread<crate::unresolved::Random> = compat::MainThread::new(|| compat::Random::new());
+pub static RANDOM: compat::MainThread<compat::Random> = compat::MainThread::new(|| compat::Random::new());
 /// java: private static final String OBFUSCATED_NAME = "Corruptedblocker";
 pub const OBFUSCATED_NAME: &str = "Corruptedblocker";
 /// java: public static final List<String> FUN_NAMES = List.of( "Skibidiblocker", "Skiblocker", OBFUSCATED_NAME, "AAAAAAAAblocker", "camelCaseBlocker" );
@@ -73,7 +73,7 @@ impl FunUtils {
             let mut start_color: i32 = (if i >= half_size { 0xFD2EF6 } else { 0x22D71D });
             let mut end_color: i32 = (if i >= half_size { 0x9B5300 } else { 0xFD2EF6 });
             let mut progress: f32 = ((i.wrapping_rem(half_size) as f32) / ((half_size) as f32)).clamp((0 as f32), (1 as f32));
-            component.append((component::literal(&c.to_string()).with_color(argb::srgb_lerp(progress, start_color, end_color))).with_style_fn(|style| style.with_obfuscated(Some(obfuscated))));
+            component = component.append((component::literal(&c.to_string()).with_color(argb::srgb_lerp(progress, start_color, end_color))).with_style_fn(|style| style.with_obfuscated(Some(obfuscated))));
         }
         return component;
     }

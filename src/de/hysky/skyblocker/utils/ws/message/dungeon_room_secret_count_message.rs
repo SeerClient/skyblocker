@@ -12,7 +12,7 @@ use mcrust::java::util::uuid::Uuid;
 /// java: public static final String TYPE = "room_secret_count";
 pub const TYPE: &str = "room_secret_count";
 /// java: public static final Codec<DungeonRoomSecretCountMessage> CODEC = RecordCodecBuilder.create(instance -> instance.group( Codec.STRING.fieldOf("type").forGetter(DungeonRoomSecretCountMessage::type), UUID
-pub static CODEC: compat::MainThread<CodecRef<DungeonRoomSecretCountMessage>> = compat::MainThread::new(|| record_codec_builder::create(record_codec_builder::apply4(record_codec_builder::of(|o: &DungeonRoomSecretCountMessage| o.r#type(), codec::field_of(mcrust::com::mojang::serialization::codec::string_codec(), "type")), record_codec_builder::of(|o: &DungeonRoomSecretCountMessage| o.sender(), codec::field_of(mcrust::net::minecraft::core::uuid_util::string_codec(), "uuid")), record_codec_builder::of(|o: &DungeonRoomSecretCountMessage| o.room_name(), codec::field_of(mcrust::com::mojang::serialization::codec::string_codec(), "room")), record_codec_builder::of(|o: &DungeonRoomSecretCountMessage| o.secret_count(), codec::field_of(mcrust::com::mojang::serialization::codec::int_codec(), "secretCount")), move |__a0, __a1, __a2, __a3| DungeonRoomSecretCountMessage::new(__a0.clone(), __a1.clone(), __a2.clone(), __a3.clone()))));
+pub static CODEC: compat::MainThread<CodecRef<DungeonRoomSecretCountMessage>> = compat::MainThread::new(|| record_codec_builder::create(record_codec_builder::apply4(record_codec_builder::of(|o: &DungeonRoomSecretCountMessage| o.r#type(), codec::field_of(mcrust::com::mojang::serialization::codec::string_codec(), "type")), record_codec_builder::of(|o: &DungeonRoomSecretCountMessage| o.sender(), codec::field_of(mcrust::net::minecraft::core::uuid_util::string_codec(), "uuid")), record_codec_builder::of(|o: &DungeonRoomSecretCountMessage| o.room_name(), codec::field_of(mcrust::com::mojang::serialization::codec::string_codec(), "room")), record_codec_builder::of(|o: &DungeonRoomSecretCountMessage| o.secret_count(), codec::field_of(mcrust::com::mojang::serialization::codec::int_codec(), "secretCount")), move |__a0, __a1, __a2, __a3| DungeonRoomSecretCountMessage::new_canonical(__a0.clone(), __a1.clone(), __a2.clone(), __a3.clone()))));
 
 /// java: public record DungeonRoomSecretCountMessage(String type, UUID sender, String roomName, int secretCount) implements Message<DungeonRoomSecretCountMessage>
 #[derive(Clone, Debug, PartialEq)]
@@ -30,12 +30,12 @@ pub struct DungeonRoomSecretCountMessage {
 impl DungeonRoomSecretCountMessage {
     /// java: public DungeonRoomSecretCountMessage(UUID uuid, String roomName, int secretCount)
     pub fn new(mut uuid: Uuid, mut room_name: String, mut secret_count: i32) -> Self {
-        let mut this = Self::new(TYPE.to_string(), uuid.clone(), room_name.clone(), secret_count);
+        let mut this = Self::new_canonical(TYPE.to_string(), uuid.clone(), room_name.clone(), secret_count);
         this
     }
 
     /// java: the canonical record constructor
-    pub fn new(mut r#type: String, mut sender: Uuid, mut room_name: String, mut secret_count: i32) -> Self {
+    pub fn new_canonical(mut r#type: String, mut sender: Uuid, mut room_name: String, mut secret_count: i32) -> Self {
         Self { r#type, sender, room_name, secret_count }
     }
 

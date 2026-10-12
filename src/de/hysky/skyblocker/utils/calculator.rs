@@ -18,15 +18,31 @@ pub static NUMBER_PATTERN: LazyLock<compat::regex::Pattern> = LazyLock::new(|| c
 //   java: 			Object2LongMap.entry("q", 1_000_000_000_000_000L)
 //   java: 	);
 /// java: private static final Object2LongMap<String> MAGNITUDE_VALUES = Object2LongMap.ofEntries( Object2LongMap.entry("s", 64L), Object2LongMap.entry("e", 160L), Object2LongMap.entry("k", 1_000L), Object2Long
-pub static MAGNITUDE_VALUES: LazyLock<std::collections::HashMap<String, i64>> = LazyLock::new(|| todo!("fabric2seer: the initialiser of `MAGNITUDE_VALUES` - see the TODO above"));
+pub static MAGNITUDE_VALUES: LazyLock<std::collections::HashMap<String, i64>> = LazyLock::new(|| {
+    std::collections::HashMap::from([
+        ("s".to_string(), 64i64),
+        ("e".to_string(), 160i64),
+        ("k".to_string(), 1_000i64),
+        ("m".to_string(), 1_000_000i64),
+        ("b".to_string(), 1_000_000_000i64),
+        ("t".to_string(), 1_000_000_000_000i64),
+        ("q".to_string(), 1_000_000_000_000_000i64),
+    ])
+});
 // TODO(fabric2seer): field `op` of a T
 //   java: private static final java.util.function.Function<String, @Nullable Operator> OPERATOR_MAP = StringRepresentable.createNameLookup(Operator.values(), op -> op.op);
 /// java: private static final java.util.function.Function<String, @Nullable Operator> OPERATOR_MAP = StringRepresentable.createNameLookup(Operator.values(), op -> op.op);
-pub static OPERATOR_OPERATOR_MAP: compat::MainThread<Arc<dyn Fn(String) -> Option<Operator>>> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `OPERATOR_MAP` - see the TODO above"));
+pub static OPERATOR_OPERATOR_MAP: compat::MainThread<Arc<dyn Fn(String) -> Option<Operator>>> = compat::MainThread::new(|| {
+    let lookup = mcrust::net::minecraft::util::string_representable::create_name_lookup(&Operator::VALUES, |op: &Operator| op.fields().op.clone());
+    Arc::new(move |name: String| lookup(&name).copied())
+});
 // TODO(fabric2seer): field `name` of a T
 //   java: private static final java.util.function.Function<String, @Nullable Function> FUNCTION_MAP = StringRepresentable.createNameLookup(Function.values(), func -> func.name);
 /// java: private static final java.util.function.Function<String, @Nullable Function> FUNCTION_MAP = StringRepresentable.createNameLookup(Function.values(), func -> func.name);
-pub static FUNCTION_FUNCTION_MAP: compat::MainThread<Arc<dyn Fn(String) -> Option<Arc<dyn Fn(compat::Object) -> compat::Object>>>> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `FUNCTION_MAP` - see the TODO above"));
+pub static FUNCTION_FUNCTION_MAP: compat::MainThread<Arc<dyn Fn(String) -> Option<Function>>> = compat::MainThread::new(|| {
+    let lookup = mcrust::net::minecraft::util::string_representable::create_name_lookup(&Function::VALUES, |func: &Function| func.fields().name.clone());
+    Arc::new(move |name: String| lookup(&name).copied())
+});
 /// java: @Serial private static final long serialVersionUID = -4480904461688998159L;
 pub const CALCULATOR_EXCEPTION_SERIAL_VERSION_UID: i64 = -4480904461688998159;
 
@@ -43,8 +59,8 @@ impl Calculator {
     }
 
     /// java: private static List<AbstractToken<?>> lex(String input) throws CalculatorException
-    pub fn lex(mut input: String) -> Vec<compat::Shared<dyn AbstractToken<compat::Object>>> {
-        let mut tokens: Vec<compat::Shared<dyn AbstractToken<compat::Object>>> = Vec::new();
+    pub fn lex(mut input: String) -> Vec<compat::Shared<dyn AbstractToken>> {
+        let mut tokens: Vec<compat::Shared<dyn AbstractToken>> = Vec::new();
         input = (input.replace(" ", "")).to_lowercase().replace("x", "*");
         let mut i: i32 = 0;
         while i < compat::str_len(&input) {
@@ -55,21 +71,21 @@ impl Calculator {
                     let Some(mut operator) = operator.clone() else {
                         panic!("CalculatorException: {}", "skyblocker.config.uiAndVisuals.inputCalculator.invalidOperatorError");
                     };
-                    if !tokens.is_empty() && compat::read(&tokens[tokens.len() - 1], |__t| __t.abstract_token_base().r#type) == TokenType::Operator {
+                    if !tokens.is_empty() && compat::read(&tokens[tokens.len() - 1], |__t| __t.token_type()) == TokenType::Operator {
                         panic!("CalculatorException: {}", "skyblocker.config.uiAndVisuals.inputCalculator.duplicateOperatorError");
                     }
-                    break 'yield_2 (compat::shared(OperatorToken::new(operator)) as compat::Shared<dyn AbstractToken<compat::Object>>);
+                    break 'yield_2 (compat::shared(OperatorToken::new(operator)) as compat::Shared<dyn AbstractToken>);
                 }
                 '(' => 'yield_3: {
                     if !tokens.is_empty() {
-                        let mut last_type: TokenType = compat::read(&tokens[tokens.len() - 1], |__t| __t.abstract_token_base().r#type);
+                        let mut last_type: TokenType = compat::read(&tokens[tokens.len() - 1], |__t| __t.token_type());
                         if last_type == TokenType::RParenthesis || last_type == TokenType::Number {
-                            tokens.push((compat::shared(OperatorToken::new(Operator::Mult)) as compat::Shared<dyn AbstractToken<compat::Object>>));
+                            tokens.push((compat::shared(OperatorToken::new(Operator::Mult)) as compat::Shared<dyn AbstractToken>));
                         }
                     }
-                    break 'yield_3 (compat::shared(Token::new(TokenType::LParenthesis, "(".to_string())) as compat::Shared<dyn AbstractToken<compat::Object>>);
+                    break 'yield_3 (compat::shared(Token::new(TokenType::LParenthesis, "(".to_string())) as compat::Shared<dyn AbstractToken>);
                 }
-                ')' => (compat::shared(Token::new(TokenType::RParenthesis, ")".to_string())) as compat::Shared<dyn AbstractToken<compat::Object>>),
+                ')' => (compat::shared(Token::new(TokenType::RParenthesis, ")".to_string())) as compat::Shared<dyn AbstractToken>),
                 '_' | ',' => {
                     panic!("CalculatorException: {}", "skyblocker.config.uiAndVisuals.inputCalculator.invalidNumberError2");
                 }
@@ -84,31 +100,31 @@ impl Calculator {
                     let mut end: i32 = number_matcher.end(0);
                     let mut number: String = compat::substring2(&input, i, i.wrapping_add(end));
                     i = i.wrapping_add(end.wrapping_sub(1));
-                    break 'yield_4 (compat::shared(Token::new(TokenType::Number, number.clone())) as compat::Shared<dyn AbstractToken<compat::Object>>);
+                    break 'yield_4 (compat::shared(Token::new(TokenType::Number, number.clone())) as compat::Shared<dyn AbstractToken>);
                 }
                 'p' => 'yield_5: {
-                    if !tokens.is_empty() && compat::read(&tokens[tokens.len() - 1], |__t| __t.abstract_token_base().r#type) == TokenType::Number {
+                    if !tokens.is_empty() && compat::read(&tokens[tokens.len() - 1], |__t| __t.token_type()) == TokenType::Number {
                         panic!("CalculatorException: {}", "skyblocker.config.uiAndVisuals.inputCalculator.invalidEquation");
                     }
                     if compat::substring2(&input, i, (compat::str_len(&input)).min(i.wrapping_add(5))) == "purse" {
                         i = i.wrapping_add(4);
                     }
-                    break 'yield_5 (compat::shared(Token::new(TokenType::Number, ((Utils::get_purse()) as i64).to_string())) as compat::Shared<dyn AbstractToken<compat::Object>>);
+                    break 'yield_5 (compat::shared(Token::new(TokenType::Number, ((Utils::get_purse()) as i64).to_string())) as compat::Shared<dyn AbstractToken>);
                 }
                 _ => 'yield_6: {
                     let mut func: String = (compat::regex::split_limit(&(compat::substring(&input, i)), "[ (]", 2))[(0) as usize].clone();
-                    let mut function: Option<Arc<dyn Fn(compat::Object) -> compat::Object>> = (FUNCTION_FUNCTION_MAP.get_mut())(func.clone());
+                    let mut function: Option<Function> = (FUNCTION_FUNCTION_MAP.get_mut())(func.clone());
                     let Some(mut function) = function.clone() else {
                         panic!("CalculatorException: {}", "skyblocker.config.uiAndVisuals.inputCalculator.invalidOperatorError");
                     };
                     if !tokens.is_empty() {
-                        let mut last_type: TokenType = compat::read(&tokens[tokens.len() - 1], |__t| __t.abstract_token_base().r#type);
+                        let mut last_type: TokenType = compat::read(&tokens[tokens.len() - 1], |__t| __t.token_type());
                         if last_type == TokenType::RParenthesis || last_type == TokenType::Number {
-                            tokens.push((compat::shared(OperatorToken::new(Operator::Mult)) as compat::Shared<dyn AbstractToken<compat::Object>>));
+                            tokens.push((compat::shared(OperatorToken::new(Operator::Mult)) as compat::Shared<dyn AbstractToken>));
                         }
                     }
                     i = i.wrapping_add((compat::str_len(&func)).wrapping_sub(1));
-                    break 'yield_6 (compat::shared(FunctionToken::new(function.clone())) as compat::Shared<dyn AbstractToken<compat::Object>>);
+                    break 'yield_6 (compat::shared(FunctionToken::new(function.clone())) as compat::Shared<dyn AbstractToken>);
                 }
             });
             i += 1;
@@ -117,24 +133,24 @@ impl Calculator {
     }
 
     /// java: private static List<AbstractToken<?>> shunt(List<AbstractToken<?>> tokens) throws CalculatorException
-    pub fn shunt(tokens: &Vec<compat::Shared<dyn AbstractToken<compat::Object>>>) -> Vec<compat::Shared<dyn AbstractToken<compat::Object>>> {
-        let mut operator_stack: std::collections::VecDeque<compat::Shared<dyn AbstractToken<compat::Object>>> = std::collections::VecDeque::new();
-        let mut output_queue: Vec<compat::Shared<dyn AbstractToken<compat::Object>>> = Vec::new();
+    pub fn shunt(tokens: &Vec<compat::Shared<dyn AbstractToken>>) -> Vec<compat::Shared<dyn AbstractToken>> {
+        let mut operator_stack: std::collections::VecDeque<compat::Shared<dyn AbstractToken>> = std::collections::VecDeque::new();
+        let mut output_queue: Vec<compat::Shared<dyn AbstractToken>> = Vec::new();
         for shunting_token in tokens.iter() {
-            match compat::read(shunting_token, |__t| __t.abstract_token_base().r#type) {
+            match compat::read(shunting_token, |__t| __t.token_type()) {
                 TokenType::Number => {
                     output_queue.push(shunting_token.clone());
                 }
                 TokenType::Operator => {
-                    let mut op: Operator = compat::read(shunting_token, |__t| __t.abstract_token_base().value.clone());
+                    let mut op: Operator = compat::read(shunting_token, |__t| token_value::<Operator>(__t));
                     let mut precedence: i32 = Calculator::get_precedence(op);
                     while !operator_stack.is_empty() {
-                        let mut left_token: compat::Shared<dyn AbstractToken<compat::Object>> = operator_stack.front().cloned().unwrap();
-                        if compat::read(&left_token, |__t| __t.abstract_token_base().r#type) == TokenType::LParenthesis {
+                        let mut left_token: compat::Shared<dyn AbstractToken> = operator_stack.front().cloned().unwrap();
+                        if compat::read(&left_token, |__t| __t.token_type()) == TokenType::LParenthesis {
                             break;
                         }
-                        debug_assert!(compat::read(&left_token, |__t| __t.abstract_token_base().r#type) == TokenType::Operator);
-                        let mut left_precedence: i32 = Calculator::get_precedence(compat::read(&left_token, |__t| __t.abstract_token_base().value.clone()));
+                        debug_assert!(compat::read(&left_token, |__t| __t.token_type()) == TokenType::Operator);
+                        let mut left_precedence: i32 = Calculator::get_precedence(compat::read(&left_token, |__t| token_value::<Operator>(__t)));
                         if left_precedence > precedence || left_precedence == precedence && !(op.fields().right_associative) {
                             output_queue.push(operator_stack.pop_front().expect("NoSuchElementException"));
                             continue;
@@ -151,13 +167,13 @@ impl Calculator {
                         if operator_stack.is_empty() {
                             panic!("CalculatorException: {}", "skyblocker.config.uiAndVisuals.inputCalculator.unbalancedParenthesisError");
                         }
-                        let mut left_token: compat::Shared<dyn AbstractToken<compat::Object>> = operator_stack.pop_front().expect("NoSuchElementException");
-                        if compat::read(&left_token, |__t| __t.abstract_token_base().r#type) == TokenType::LParenthesis {
+                        let mut left_token: compat::Shared<dyn AbstractToken> = operator_stack.pop_front().expect("NoSuchElementException");
+                        if compat::read(&left_token, |__t| __t.token_type()) == TokenType::LParenthesis {
                             break;
                         }
                         output_queue.push(left_token.clone());
                     }
-                    if !operator_stack.is_empty() && compat::read(&operator_stack.front().cloned().unwrap(), |__t| __t.abstract_token_base().r#type) == TokenType::Function {
+                    if !operator_stack.is_empty() && compat::read(&operator_stack.front().cloned().unwrap(), |__t| __t.token_type()) == TokenType::Function {
                         output_queue.push(operator_stack.pop_front().expect("NoSuchElementException"));
                     }
                 }
@@ -165,8 +181,8 @@ impl Calculator {
             }
         }
         while !operator_stack.is_empty() {
-            let mut left_token: compat::Shared<dyn AbstractToken<compat::Object>> = operator_stack.pop_front().expect("NoSuchElementException");
-            if compat::read(&left_token, |__t| __t.abstract_token_base().r#type) == TokenType::LParenthesis {
+            let mut left_token: compat::Shared<dyn AbstractToken> = operator_stack.pop_front().expect("NoSuchElementException");
+            if compat::read(&left_token, |__t| __t.token_type()) == TokenType::LParenthesis {
                 continue;
             }
             output_queue.push(left_token.clone());
@@ -185,12 +201,12 @@ impl Calculator {
     }
 
     /// java: private static double evaluate(List<AbstractToken<?>> tokens) throws CalculatorException
-    pub fn evaluate(tokens: &Vec<compat::Shared<dyn AbstractToken<compat::Object>>>) -> f64 {
+    pub fn evaluate(tokens: &Vec<compat::Shared<dyn AbstractToken>>) -> f64 {
         let mut values: std::collections::VecDeque<f64> = std::collections::VecDeque::new();
         for token in tokens.iter() {
-            match compat::read(token, |__t| __t.abstract_token_base().r#type) {
+            match compat::read(token, |__t| __t.token_type()) {
                 TokenType::Number => {
-                    values.push_front(Calculator::calculate_value(&compat::read(token, |__t| __t.abstract_token_base().value.clone())));
+                    values.push_front(Calculator::calculate_value(&compat::read(token, |__t| token_value::<String>(__t))));
                 }
                 TokenType::Operator => {
                     if (values.len() as i32) < 2 {
@@ -198,7 +214,7 @@ impl Calculator {
                     }
                     let mut right: f64 = values.pop_front().unwrap();
                     let mut left: f64 = values.pop_front().unwrap();
-                    values.push_front(match compat::read(token, |__t| __t.abstract_token_base().value.clone()) {
+                    values.push_front(match compat::read(token, |__t| token_value::<Operator>(__t)) {
                         Operator::Add => (left + right),
                         Operator::Sub => (left - right),
                         Operator::Mult => (left * right),
@@ -206,15 +222,13 @@ impl Calculator {
                             if right == (0 as f64) {
                                 panic!("CalculatorException: {}", "skyblocker.config.uiAndVisuals.inputCalculator.divisionByZeroError");
                             }
-                            // TODO(fabric2seer): call to `yield(..)` (not a method of this class)
-                            //   java: yield (left / right);
+                            break 'yield_3 (left / right);
                         }
                         Operator::Mod => 'yield_4: {
                             if right == (0 as f64) {
                                 panic!("CalculatorException: {}", "skyblocker.config.uiAndVisuals.inputCalculator.moduloByZeroError");
                             }
-                            // TODO(fabric2seer): call to `yield(..)` (not a method of this class)
-                            //   java: yield (left % right);
+                            break 'yield_4 (left % right);
                         }
                         Operator::Pow => left.powf(right),
                         _ => unreachable!("switch expression: no case matched"),
@@ -224,8 +238,10 @@ impl Calculator {
                     if values.is_empty() {
                         panic!("CalculatorException: {}", "skyblocker.config.uiAndVisuals.inputCalculator.missingValueError");
                     }
-                    // TODO(fabric2seer): field `function` of a Function
-                    //   java: values.push(((Function) token.value).function.apply(values.pollFirst()));
+                    // java: values.push(((Function) token.value).function.apply(values.pollFirst()));
+                    let function: Function = compat::read(token, |__t| token_value::<Function>(__t));
+                    let value: f64 = values.pop_front().unwrap();
+                    values.push_front((function.fields().function)(value));
                 }
                 TokenType::LParenthesis | TokenType::RParenthesis => {
                     panic!("CalculatorException: {}", "skyblocker.config.uiAndVisuals.inputCalculator.unbalancedParenthesisError");
@@ -343,12 +359,20 @@ impl<T: Clone + 'static> AbstractTokenBase<T> {
 
 }
 
-/// java: the virtual methods of AbstractToken (implemented by AbstractTokenBase and every subclass)
-pub trait AbstractToken<T> {
-    fn abstract_token_base(&self) -> &AbstractTokenBase<T>;
-    fn abstract_token_base_mut(&mut self) -> &mut AbstractTokenBase<T>;
+/// java: the virtual methods of AbstractToken (implemented by AbstractTokenBase and every subclass). Every list of
+/// the class holds `AbstractToken<?>`: the value's type is erased and read back with Java's cast (`token_value`).
+pub trait AbstractToken {
+    /// java: public final TokenType type
+    fn token_type(&self) -> TokenType;
+    /// java: private final T value (erased)
+    fn token_value(&self) -> &dyn std::any::Any;
     fn as_any(&self) -> &dyn std::any::Any;
 
+}
+
+/// `(T) token.value` - Java's checked cast of the erased value.
+pub fn token_value<T: Clone + 'static>(token: &dyn AbstractToken) -> T {
+    token.token_value().downcast_ref::<T>().cloned().expect("ClassCastException: AbstractToken.value")
 }
 
 /// java: public static class Token extends AbstractToken<String>
@@ -382,12 +406,12 @@ impl Token {
 
 }
 
-impl AbstractToken<String> for Token {
-    fn abstract_token_base(&self) -> &AbstractTokenBase<String> {
-        &self.base
+impl AbstractToken for Token {
+    fn token_type(&self) -> TokenType {
+        self.base.r#type
     }
-    fn abstract_token_base_mut(&mut self) -> &mut AbstractTokenBase<String> {
-        &mut self.base
+    fn token_value(&self) -> &dyn std::any::Any {
+        &self.base.value
     }
 
     fn as_any(&self) -> &dyn std::any::Any {
@@ -427,12 +451,12 @@ impl OperatorToken {
 
 }
 
-impl AbstractToken<crate::de::hysky::skyblocker::utils::calculator::Operator> for OperatorToken {
-    fn abstract_token_base(&self) -> &AbstractTokenBase<crate::de::hysky::skyblocker::utils::calculator::Operator> {
-        &self.base
+impl AbstractToken for OperatorToken {
+    fn token_type(&self) -> TokenType {
+        self.base.r#type
     }
-    fn abstract_token_base_mut(&mut self) -> &mut AbstractTokenBase<crate::de::hysky::skyblocker::utils::calculator::Operator> {
-        &mut self.base
+    fn token_value(&self) -> &dyn std::any::Any {
+        &self.base.value
     }
 
     fn as_any(&self) -> &dyn std::any::Any {
@@ -528,8 +552,8 @@ impl OperatorFields {
             op: Default::default(),
             right_associative: false,
         };
-        // TODO(fabric2seer): this statement
-        //   java: this(op, false);
+        // java: this(op, false);
+        this = OperatorFields::new_2(op, false);
         this
     }
 
@@ -549,11 +573,11 @@ impl OperatorFields {
 #[derive(Clone)]
 pub struct FunctionToken {
     /// java: extends AbstractToken
-    pub base: AbstractTokenBase<Arc<dyn Fn(compat::Object) -> compat::Object>>,
+    pub base: AbstractTokenBase<Function>,
 }
 
 impl std::ops::Deref for FunctionToken {
-    type Target = AbstractTokenBase<Arc<dyn Fn(compat::Object) -> compat::Object>>;
+    type Target = AbstractTokenBase<Function>;
     fn deref(&self) -> &Self::Target {
         &self.base
     }
@@ -567,21 +591,21 @@ impl std::ops::DerefMut for FunctionToken {
 
 impl FunctionToken {
     /// java: public FunctionToken(Function value)
-    pub fn new(mut value: Arc<dyn Fn(compat::Object) -> compat::Object>) -> Self {
+    pub fn new(mut value: Function) -> Self {
         let mut this = Self {
-            base: AbstractTokenBase::<Arc<dyn Fn(compat::Object) -> compat::Object>>::new(TokenType::Function, value.clone()),
+            base: AbstractTokenBase::<Function>::new(TokenType::Function, value.clone()),
         };
         this
     }
 
 }
 
-impl AbstractToken<Arc<dyn Fn(compat::Object) -> compat::Object>> for FunctionToken {
-    fn abstract_token_base(&self) -> &AbstractTokenBase<Arc<dyn Fn(compat::Object) -> compat::Object>> {
-        &self.base
+impl AbstractToken for FunctionToken {
+    fn token_type(&self) -> TokenType {
+        self.base.r#type
     }
-    fn abstract_token_base_mut(&mut self) -> &mut AbstractTokenBase<Arc<dyn Fn(compat::Object) -> compat::Object>> {
-        &mut self.base
+    fn token_value(&self) -> &dyn std::any::Any {
+        &self.base.value
     }
 
     fn as_any(&self) -> &dyn std::any::Any {
@@ -741,7 +765,7 @@ impl Function {
             FunctionFields::new("abs".to_string(), Arc::new(move |__a0| __a0.abs())),
             FunctionFields::new("floor".to_string(), Arc::new(move |__a0| __a0.floor())),
             FunctionFields::new("ceil".to_string(), Arc::new(move |__a0| __a0.ceil())),
-            FunctionFields::new("round".to_string(), Arc::new(move |__a0| compat::java_round_f64(__a0))),
+            FunctionFields::new("round".to_string(), Arc::new(move |__a0| compat::java_round_f64(__a0) as f64)),
         ]);
         &FIELDS[self as usize]
     }
@@ -768,11 +792,9 @@ pub struct FunctionFields {
 impl FunctionFields {
     fn new(mut name: String, function: CalculatorFunction) -> Self {
         let mut this = Self {
-            name: Default::default(),
-            function: Default::default(),
+            name: name.clone(),
+            function: function.clone(),
         };
-        this.name = name.clone();
-        this.function = function.clone();
         this
     }
 
@@ -780,7 +802,7 @@ impl FunctionFields {
 
 /// java: @FunctionalInterface private interface CalculatorFunction
 /// a functional interface: `apply(double val)` - a lambda / method reference is this closure type
-pub type CalculatorFunction = Arc<dyn Fn(f64) -> f64>;
+pub type CalculatorFunction = Arc<dyn Fn(f64) -> f64 + Send + Sync>;
 
 /// java: public static class CalculatorException extends Exception
 pub struct CalculatorException {
@@ -788,6 +810,8 @@ pub struct CalculatorException {
     pub base: crate::unresolved::Exception,
     /// java: public final Object[] args;
     pub args: Vec<compat::Object>,
+    /// java: Throwable.detailMessage (`super(message)`)
+    pub message: String,
 }
 
 impl std::ops::Deref for CalculatorException {
@@ -807,9 +831,8 @@ impl CalculatorException {
     /// java: public CalculatorException(@Translatable String message, Object... args)
     pub fn new(mut message: String, mut args: Vec<compat::Object>) -> Self {
         let __init_args = args.clone();
-        // TODO(fabric2seer): `new Exception(..)`: the port has no `Exception::new`
-        //   java: super(message);
-        let mut this: Self = todo!("constructor");
+        // java: super(message);
+        let mut this: Self = Self { base: crate::unresolved::Exception, args: __init_args, message };
         this
     }
 

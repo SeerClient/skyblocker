@@ -41,7 +41,7 @@ impl ProfileAwareWaypointBase {
     pub fn new_in<__R>(mut pos: BlockPos, type_supplier: Arc<dyn Fn() -> Type>, mut missing_color: Vec<f32>, mut found_color: Vec<f32>, __wrap: impl FnOnce(Self) -> (compat::Shared<dyn ProfileAwareWaypoint>, __R)) -> (compat::Shared<dyn ProfileAwareWaypoint>, __R) {
         let __init_missing_color = missing_color.clone();
         let __init_found_color = found_color.clone();
-        let (_, (__this, __r)) = WaypointBase::new2_in(pos.clone(), type_supplier.clone(), None, move |__base| {
+        let (_, (__this, __r)) = WaypointBase::new2_in(pos.clone(), type_supplier.clone(), /* java: (float[]) null - this class answers its own colours (getRenderColorComponents) */ Vec::new(), move |__base| {
             let this = Self {
                 base: __base,
                 found_profiles: std::collections::HashSet::new(),
@@ -129,10 +129,10 @@ impl dyn ProfileAwareWaypoint {
 
 impl ProfileAwareWaypoint for ProfileAwareWaypointBase {
     fn profile_aware_waypoint_base(&self) -> &ProfileAwareWaypointBase {
-        &self
+        self
     }
     fn profile_aware_waypoint_base_mut(&mut self) -> &mut ProfileAwareWaypointBase {
-        &mut self
+        self
     }
 
 }

@@ -75,19 +75,19 @@ impl ClientBlockPosArgumentType {
     }
 
     /// java: @Override public <S> CompletableFuture<Suggestions> listSuggestions(CommandContext<S> context, SuggestionsBuilder builder)
-    pub fn list_suggestions<S: 'static>(&self, context: &CommandContext<S>, builder: &SuggestionsBuilder) -> mcrust::java::util::concurrent::completable_future::CompletableFuture<Suggestions> {
+    pub fn list_suggestions<S: 'static>(&self, context: &CommandContext<S>, builder: &mut SuggestionsBuilder) -> mcrust::java::util::concurrent::completable_future::CompletableFuture<Suggestions> {
         // TODO(fabric2seer): instanceof an interface (`SharedSuggestionProvider`): Rust cannot test for a trait at run time
         //   java: if (!(context.getSource() instanceof SharedSuggestionProvider commandSource)) return Suggestions.empty();
         let mut string: String = builder.get_remaining().to_string();
         // TODO(fabric2seer): field `DEFAULT_LOCAL` of a value of unknown type
         //   java: Collection<SharedSuggestionProvider.TextCoordinates> collection = !string.isEmpty() && string.charAt(0) == '^' ? Collections.singleton(SharedSuggestionProvider.TextCoordinates.DEFAULT_LOCAL) : commandSource.getRelevantCoordinates();
         let mut collection: Vec<TextCoordinates> = todo!("fabric2seer: the initialiser of `collection` (TODO above)");
-        return shared_suggestion_provider::suggest_coordinates(&string, &collection, &mut builder, &commands::create_validator(|__a0| { self.parse(&mut __a0); }));
+        return shared_suggestion_provider::suggest_coordinates(&string, &collection, builder, &commands::create_validator(|__a0: &mut StringReader| { self.parse(__a0); Ok(()) }));
     }
 
     /// java: @Override public Collection<String> getExamples()
     pub fn get_examples(&self) -> Vec<String> {
-        return mcrust::net::minecraft::commands::arguments::coordinates::block_pos_argument::EXAMPLES;
+        return mcrust::net::minecraft::commands::arguments::coordinates::block_pos_argument::EXAMPLES.iter().map(|example| example.to_string()).collect();
     }
 
 }

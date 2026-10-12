@@ -3,6 +3,17 @@
 #[allow(unused_imports)]
 use crate::prelude::*;
 
+/// `java.lang.Enum<E>`'s surface that generic code reaches (`T extends Enum<T>`): a converted enum answers it from its
+/// own `name()` / `ordinal()` / `values()`.
+pub trait JavaEnum: Sized + 'static {
+    /// java: `Enum.name()`
+    fn java_name(&self) -> &'static str;
+    /// java: `Enum.ordinal()`
+    fn java_ordinal(&self) -> i32;
+    /// java: `getDeclaringClass().getEnumConstants()`
+    fn java_values() -> Vec<Self>;
+}
+
 /// java: public class EnumUtils
 #[derive(Clone)]
 pub struct EnumUtils {}
@@ -26,7 +37,7 @@ impl EnumUtils {
     }
 
     /// java: public static <T> T cycle(List<T> list, int currentIndex)
-    pub fn cycle_2<T: 'static>(list: &Vec<T>, mut current_index: i32) -> T {
+    pub fn cycle_2<T: Clone + 'static>(list: &Vec<T>, mut current_index: i32) -> T {
         return list[((current_index.wrapping_add(1)).wrapping_rem(list.len() as i32)) as usize].clone();
     }
 

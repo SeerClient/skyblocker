@@ -144,10 +144,10 @@ impl dyn SeenWaypoint {
 
 impl SeenWaypoint for SeenWaypointBase {
     fn seen_waypoint_base(&self) -> &SeenWaypointBase {
-        &self
+        self
     }
     fn seen_waypoint_base_mut(&mut self) -> &mut SeenWaypointBase {
-        &mut self
+        self
     }
 
 }

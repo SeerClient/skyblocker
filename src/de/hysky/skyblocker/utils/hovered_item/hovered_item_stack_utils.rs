@@ -18,13 +18,13 @@ impl HoveredItemStackUtils {
 
     /// java: public static @Nullable HoveredItemStackProvider getProvider(Screen screen)
     pub fn get_provider(screen: &mcrust::net::minecraft::client::gui::screens::screen::Screen) -> Option<compat::Shared<dyn HoveredItemStackProvider>> {
-        if let Some(provider) = screen.as_any().downcast_ref::<compat::Shared<dyn HoveredItemStackProvider>>() {
-            return Some(provider.clone());
-        } else {
-            if let Some(provider) = screen.get_focused().unwrap().as_any().downcast_ref::<compat::Shared<dyn HoveredItemStackProvider>>() {
-                return Some(provider.clone());
-            }
-        }
+        // java: if (screen instanceof HoveredItemStackProvider provider) return provider;
+        //       else if (screen.getFocused() instanceof HoveredItemStackProvider provider) return provider;
+        // rust: port gap - the port hands this method the `Screen` husk; neither it nor its focused child (an index into
+        // its widget list) can be asked whether the mod object behind it implements the mod's own interface
+        // (`HoveredItemStackProvider`: SkyblockInventoryScreen, AccessoriesHelperWidget, ResultButton, MuseumManager,
+        // InventoryWidget). GAPS_batchA.md
+        let _ = screen;
         return None;
     }
 

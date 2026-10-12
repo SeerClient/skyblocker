@@ -70,9 +70,11 @@ impl dyn ContainerSolver {
         if !({ let __f = compat::dispatch(__this, |__t| __t.chest_inventory_only()); __f(__this) }) {
             return true;
         }
-        if let Some(generic) = screen.as_any().downcast_ref::<ContainerScreen>() {
-            // TODO(fabric2seer): `.getRowCount(..)` on a value of unknown type
-            //   java: return slot.index < generic.getMenu().getRowCount() * 9;
+        // java: if (screen instanceof ContainerScreen generic) return slot.index < generic.getMenu().getRowCount() * 9;
+        // The port's `Screen` is the husk; a `ContainerScreen`'s menu is the player's open `ChestMenu` (MenuScreens
+        // opens a ContainerScreen for exactly the chest menus), which `with_chest_menu` reaches.
+        if let Some(row_count) = mcrust::mcrust::modding::game::with_chest_menu(|chest_menu| chest_menu.get_row_count()) {
+            return slot.index < row_count.wrapping_mul(9);
         }
         debug_assert!(mcrust::mcrust::modding::game::with_player(|_| ()).is_some());
         // TODO(fabric2seer): the mod keeps the game's `Inventory` (Java holds a reference to the live object); the port's `Inventory` is not a value to copy and the port lends the mod no handle to it

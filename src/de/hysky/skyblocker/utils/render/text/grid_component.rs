@@ -26,13 +26,18 @@ impl GridComponent {
 
     /// java: public static Component of(String group, Component... components)
     pub fn of_2(group: &str, components: &Vec<MutableComponent>) -> MutableComponent {
-        return MutableComponent::create(Contents::new(group.to_string(), components.to_vec()));
+        // java: return MutableComponent.create(new Contents(group, List.of(components)));
+        // rust: port gap - the port's `ComponentContents` is a closed enum of the seven vanilla contents types, so a
+        // mod-defined `ComponentContents` implementation (this record) cannot be wrapped in a component (GAPS_batchA.md)
+        let _contents = Contents::new(group.to_string(), components.to_vec());
+        todo!("rust: port gap - ComponentContents is a closed enum; a mod cannot add GridComponent.Contents")
     }
 
 }
 
 /// java: public record Contents(String group, List<Component> components) implements ComponentContents
-#[derive(Clone, Debug)]
+/// (Java's record equals/hashCode: by `group` and `components`)
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Contents {
     /// java: String group
     pub group: String,

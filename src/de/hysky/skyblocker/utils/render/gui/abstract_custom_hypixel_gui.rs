@@ -15,6 +15,8 @@ pub struct AbstractCustomHypixelGUIBase<T> {
     pub base: AbstractContainerScreen,
     /// java: public boolean isWaitingForServer = true;
     pub is_waiting_for_server: bool,
+    /// the class's type parameter (`T extends AbstractContainerMenu`: the menu type)
+    pub _menu: std::marker::PhantomData<fn() -> T>,
 }
 
 impl<T: 'static> std::ops::Deref for AbstractCustomHypixelGUIBase<T> {
@@ -36,6 +38,7 @@ impl<T: Clone + 'static> AbstractCustomHypixelGUIBase<T> {
         let mut this = Self {
             base: { let mut __s = AbstractContainerScreen::new((&title.get_string()).to_string(), String::new()); __s.image_width = 176; __s.image_height = image_height; __s },
             is_waiting_for_server: true,
+            _menu: std::marker::PhantomData,
         };
         this.inventory_label_y = image_height.wrapping_sub(94);
         // TODO(fabric2seer): `.addSlotListener(..)` on a T
@@ -75,7 +78,10 @@ pub trait AbstractCustomHypixelGUI<T> {
     fn change_handler(&self, new_handler: &compat::Shared<AuctionHouseScreenHandler>) {
         // TODO(fabric2seer): `.removeSlotListener(..)` on a T
         //   java: menu.removeSlotListener(this);
-        self.menu = new_handler;
+        // java: ((AbstractContainerScreenAccessor) this).setHandler(newHandler);
+        // rust: port gap - the port's `AbstractContainerScreen` holds no `menu` field (the menu lives in the game's
+        // container-screen state, which lends the mod no setter), so the handler cannot be swapped (GAPS_batchA.md)
+        let _ = new_handler;
         // TODO(fabric2seer): `.addSlotListener(..)` on a T
         //   java: menu.addSlotListener(this);
     }

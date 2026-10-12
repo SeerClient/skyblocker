@@ -20,7 +20,15 @@ pub static TITLE_CONTAINER: compat::MainThread<Identifier> = compat::MainThread:
 /// java: protected static final float RENDER_SCALE = 0.03f;
 pub const RENDER_SCALE: f32 = 0.03f32;
 /// java: private static final Set<Title> titles = new LinkedHashSet<>();
-pub static TITLES: compat::MainThread<std::collections::HashSet<compat::Shared<Title>>> = compat::MainThread::new(|| std::collections::HashSet::new());
+///
+/// `Title` keeps `Object`'s equals/hashCode, so the set is an identity set (`Arc::ptr_eq`); a `LinkedHashSet`
+/// iterates in insertion order, which a `Vec` with a membership test keeps.
+pub static TITLES: compat::MainThread<Vec<compat::Shared<Title>>> = compat::MainThread::new(|| Vec::new());
+
+/// java: `titles.contains(title)` on the identity set
+fn titles_contain(titles: &[compat::Shared<Title>], title: &compat::Shared<Title>) -> bool {
+    titles.iter().any(|t| std::sync::Arc::ptr_eq(t, title))
+}
 
 /// java: public class TitleContainer
 #[derive(Clone)]
@@ -40,7 +48,9 @@ impl TitleContainer {
             // SAFETY: `ctx` outlives every call made through `graphics` (this callback).
             let graphics = unsafe { ScriptGraphics::new(ctx.gl, &*ctx.minecraft, ctx.gui_width, ctx.gui_height) };
             let _session = graphics.session();
-            TitleContainer::render_5(&graphics, TITLES.get_mut(), SkyblockerConfigManager::get().ui_and_visuals.title_container.x, SkyblockerConfigManager::get().ui_and_visuals.title_container.y, ctx.partial_tick);
+            // java: TitleContainer::render, the HUD element - the port's GuiGraphicsExtractor is stateless; the script
+            // graphics session above scopes the pose stack for the duration of the element
+            TitleContainer::render_5(&GuiGraphicsExtractor::new(), TITLES.get_mut(), SkyblockerConfigManager::get().ui_and_visuals.title_container.x, SkyblockerConfigManager::get().ui_and_visuals.title_container.y, ctx.partial_tick);
         }));
         client_command_registration_callback::EVENT.register(Arc::new(
             |dispatcher: &mut client_command_registration_callback::ClientCommandDispatcher| {
@@ -54,12 +64,14 @@ impl TitleContainer {
 
     /// java: public static boolean containsTitle(Title title)
     pub fn contains_title(title: &compat::Shared<Title>) -> bool {
-        return TITLES.get_mut().contains(title);
+        return titles_contain(TITLES.get_mut(), title);
     }
 
     /// java: public static boolean addTitle(Title title)
     pub fn add_title(mut title: compat::Shared<Title>) -> bool {
-        if TITLES.get_mut().insert(title.clone()) {
+        // java: if (titles.add(title)) - adds only when absent
+        if !titles_contain(TITLES.get_mut(), &title) {
+            TITLES.get_mut().push(title.clone());
             Title::reset_pos(&title);
             return true;
         }
@@ -69,7 +81,7 @@ impl TitleContainer {
     /// java: public static boolean addTitle(Title title, int ticks)
     pub fn add_title_2(title: &compat::Shared<Title>, mut ticks: i32) -> bool {
         if TitleContainer::add_title(title.clone()) {
-            ({ let __r = scheduler::INSTANCE.get_mut(); let __f = compat::dispatch(__r, |__t| __t.schedule()); __f(__r, Arc::new(move || { TitleContainer::remove_title(title); }), ticks) });
+            ({ let __r = scheduler::INSTANCE.get_mut(); let __f = compat::dispatch(__r, |__t| __t.schedule()); let __title = title.clone(); __f(__r, Arc::new(move || { TitleContainer::remove_title(&__title); }), ticks) });
             return true;
         }
         return false;
@@ -102,7 +114,8 @@ impl TitleContainer {
 
     /// java: public static void removeTitle(Title title)
     pub fn remove_title(title: &compat::Shared<Title>) {
-        TITLES.get_mut().remove(title);
+        // java: titles.remove(title);
+        TITLES.get_mut().retain(|t| !std::sync::Arc::ptr_eq(t, title));
     }
 
     /// java: private static void render(GuiGraphicsExtractor graphics, DeltaTracker tickCounter)
@@ -112,7 +125,7 @@ impl TitleContainer {
     }
 
     /// java: protected static void render(GuiGraphicsExtractor graphics, Set<Title> titles, int xPos, int yPos, float tickDelta)
-    pub fn render_5(graphics: &GuiGraphicsExtractor, titles: &std::collections::HashSet<compat::Shared<Title>>, mut x_pos: i32, mut y_pos: i32, mut tick_delta: f32) {
+    pub fn render_5(graphics: &GuiGraphicsExtractor, titles: &[compat::Shared<Title>], mut x_pos: i32, mut y_pos: i32, mut tick_delta: f32) {
         let config = &SkyblockerConfigManager::get().ui_and_visuals.title_container;
         let mut scale: f32 = (config.title_container_scale * RENDER_SCALE);
         let mut direction: Direction = config.direction;
@@ -121,7 +134,7 @@ impl TitleContainer {
     }
 
     /// java: protected static void render(GuiGraphicsExtractor graphics, Set<Title> titles, int xPos, int yPos, float tickDelta, float scale, UIAndVisualsConfig.Direction direction, UIAndVisualsConfig.Alignment al
-    pub fn render_8(graphics: &GuiGraphicsExtractor, titles: &std::collections::HashSet<compat::Shared<Title>>, mut x_pos: i32, mut y_pos: i32, mut tick_delta: f32, mut scale: f32, mut direction: Direction, mut alignment: Alignment) {
+    pub fn render_8(graphics: &GuiGraphicsExtractor, titles: &[compat::Shared<Title>], mut x_pos: i32, mut y_pos: i32, mut tick_delta: f32, mut scale: f32, mut direction: Direction, mut alignment: Alignment) {
         if titles.is_empty() {
             return;
         }
@@ -132,7 +145,7 @@ impl TitleContainer {
         if alignment == Alignment::Middle && direction == Direction::Horizontal {
             x = ((x_pos as f32) - (total_width / (2 as f32)));
         }
-        for title in titles.iter_mut() {
+        for title in titles.iter() {
             let mut x_text_left: f32 = x;
             if alignment == Alignment::Right {
                 x_text_left = (x - ((text_renderer.width_of_cached(&mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(Title::get_text(title))) as f32) * scale));
@@ -163,12 +176,12 @@ impl TitleContainer {
     }
 
     /// java: protected static int getWidth(Font textRenderer, UIAndVisualsConfig.Direction direction, float scale, Set<Title> titles)
-    pub fn get_width(text_renderer: &Font, mut direction: Direction, mut scale: f32, titles: &std::collections::HashSet<compat::Shared<Title>>) -> i32 {
-        return (if direction == Direction::Horizontal { ((((titles.iter().cloned().map(|__a0| Title::get_text(&__a0)).map(|__a0| text_renderer.width_of_cached(&mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(__a0.clone()))).map(|width| width.wrapping_add(10)).sum::<f64>() - (10 as f64)) * (scale as f64))) as i32) } else { ((((titles.iter().cloned().map(|__a0| Title::get_text(&__a0)).map(|__a0| text_renderer.width_of_cached(&mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(__a0.clone()))).max().unwrap_or(0) as f32) * scale)) as i32) });
+    pub fn get_width(text_renderer: &Font, mut direction: Direction, mut scale: f32, titles: &[compat::Shared<Title>]) -> i32 {
+        return (if direction == Direction::Horizontal { ((((titles.iter().cloned().map(|__a0| Title::get_text(&__a0)).map(|__a0| text_renderer.width_of_cached(&mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(__a0.clone()))).map(|width| (width.wrapping_add(10)) as f64).sum::<f64>() - (10 as f64)) * (scale as f64))) as i32) } else { ((((titles.iter().cloned().map(|__a0| Title::get_text(&__a0)).map(|__a0| text_renderer.width_of_cached(&mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(__a0.clone()))).max().unwrap_or(0) as f32) * scale)) as i32) });
     }
 
     /// java: protected static int getHeight(Font textRenderer, UIAndVisualsConfig.Direction direction, float scale, Set<Title> titles)
-    pub fn get_height(text_renderer: &Font, mut direction: Direction, mut scale: f32, titles: &std::collections::HashSet<compat::Shared<Title>>) -> i32 {
+    pub fn get_height(text_renderer: &Font, mut direction: Direction, mut scale: f32, titles: &[compat::Shared<Title>]) -> i32 {
         return (if direction == Direction::Horizontal { ((((mcrust::net::minecraft::client::gui::font::LINE_HEIGHT as f32) * scale)) as i32) } else { ((((((mcrust::net::minecraft::client::gui::font::LINE_HEIGHT).wrapping_add(1)).wrapping_mul(titles.len() as i32) as f32) * scale)) as i32) });
     }
 

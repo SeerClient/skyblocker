@@ -12,7 +12,7 @@ use mcrust::java::util::uuid::Uuid;
 /// java: public static final String TYPE = "prince_killed";
 pub const TYPE: &str = "prince_killed";
 /// java: public static final Codec<DungeonPrinceKilledMessage> CODEC = RecordCodecBuilder.create(instance -> instance.group( Codec.STRING.fieldOf("type").forGetter(DungeonPrinceKilledMessage::type), UUIDUtil.S
-pub static CODEC: compat::MainThread<CodecRef<DungeonPrinceKilledMessage>> = compat::MainThread::new(|| record_codec_builder::create(record_codec_builder::apply2(record_codec_builder::of(|o: &DungeonPrinceKilledMessage| o.r#type(), codec::field_of(mcrust::com::mojang::serialization::codec::string_codec(), "type")), record_codec_builder::of(|o: &DungeonPrinceKilledMessage| o.sender(), codec::field_of(mcrust::net::minecraft::core::uuid_util::string_codec(), "uuid")), move |__a0, __a1| DungeonPrinceKilledMessage::new(__a0.clone(), __a1.clone()))));
+pub static CODEC: compat::MainThread<CodecRef<DungeonPrinceKilledMessage>> = compat::MainThread::new(|| record_codec_builder::create(record_codec_builder::apply2(record_codec_builder::of(|o: &DungeonPrinceKilledMessage| o.r#type(), codec::field_of(mcrust::com::mojang::serialization::codec::string_codec(), "type")), record_codec_builder::of(|o: &DungeonPrinceKilledMessage| o.sender(), codec::field_of(mcrust::net::minecraft::core::uuid_util::string_codec(), "uuid")), move |__a0, __a1| DungeonPrinceKilledMessage::new_canonical(__a0.clone(), __a1.clone()))));
 
 /// java: public record DungeonPrinceKilledMessage(String type, UUID sender) implements Message<DungeonPrinceKilledMessage>
 #[derive(Clone, Debug, PartialEq)]
@@ -26,12 +26,12 @@ pub struct DungeonPrinceKilledMessage {
 impl DungeonPrinceKilledMessage {
     /// java: public DungeonPrinceKilledMessage(UUID uuid)
     pub fn new(mut uuid: Uuid) -> Self {
-        let mut this = Self::new(TYPE.to_string(), uuid.clone());
+        let mut this = Self::new_canonical(TYPE.to_string(), uuid.clone());
         this
     }
 
     /// java: the canonical record constructor
-    pub fn new(mut r#type: String, mut sender: Uuid) -> Self {
+    pub fn new_canonical(mut r#type: String, mut sender: Uuid) -> Self {
         Self { r#type, sender }
     }
 
