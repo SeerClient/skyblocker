@@ -70,11 +70,11 @@ impl SimonSays {
     pub fn on_block_interact(player: &dyn Player, world: &Level, hand: &InteractionHand, hit_result: &BlockHitResult) -> InteractionResult {
         if SimonSays::should_process() {
             let mut pos: BlockPos = hit_result.get_block_pos();
-            let mut block: Arc<Block> = world.get_block_state(&pos).get_block();
+            let mut block: Arc<Block> = world.get_block_state_typed(&pos).get_block();
             if std::ptr::addr_eq(std::sync::Arc::as_ptr(&block), std::sync::Arc::as_ptr(&blocks::blocks().get("stone_button"))) {
                 if BUTTONS_AREA.get_mut().contains_vec(&vec3::at_lower_corner_of(&pos)) {
                     BlockPosSet::add(CLICKED_BUTTONS.get_mut(), &BlockPos::from_vec3i(pos.as_vec3i()));
-                } else if pos == START_BUTTON.get_mut() {
+                } else if pos == *START_BUTTON.get_mut() {
                     SimonSays::reset();
                 }
             }
@@ -101,7 +101,7 @@ impl SimonSays {
             let mut buttons_rendered: i32 = 0;
             for pos in SIMON_PATTERN.get_mut().iter() {
                 let mut button_pos: BlockPos = pos.west();
-                let mut world: ClientLevel = mcrust::mcrust::modding::game::level().unwrap();
+                let mut world: Arc<ClientLevel> = mcrust::mcrust::modding::game::level().unwrap();
                 let mut state: Arc<BlockState> = world.get_block_state_typed(&button_pos);
                 if !(BlockPosSet::contains_block_pos(CLICKED_BUTTONS.get_mut(), &button_pos)) && std::ptr::addr_eq(std::sync::Arc::as_ptr(&state.get_block()), std::sync::Arc::as_ptr(&blocks::blocks().get("stone_button"))) {
                     let mut outline: Option<AABB> = RenderHelper::get_block_bounding_box_3(&world, &state, &button_pos);

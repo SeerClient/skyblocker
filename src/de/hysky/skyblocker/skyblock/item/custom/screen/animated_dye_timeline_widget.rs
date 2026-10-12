@@ -207,7 +207,7 @@ impl AnimatedDyeTimelineWidget {
         let mut dye: AnimatedDye = SkyblockerConfigManager::get().general.custom_animated_dyes.get(&compat::read(__this, |__t| __t.uuid.clone())).cloned().unwrap();
         let mut new_dye: AnimatedDye = AnimatedDye::new(config_frames.clone(), dye.cycle_back(), dye.delay(), dye.duration());
         let __this_1 = compat::RenderThread::new(__this.clone());
-        SkyblockerConfigManager::update_only(Arc::new(move |config| { config.general.custom_animated_dyes.insert(compat::read(__this_1.get(), |__t| __t.uuid.clone()), new_dye.clone()); }));
+        SkyblockerConfigManager::update_only(Arc::new(move |mut config| { config.general.custom_animated_dyes.insert(compat::read(__this_1.get(), |__t| __t.uuid.clone()), new_dye.clone()); }));
     }
 
     /// java: @Override protected void updateWidgetNarration(NarrationElementOutput builder)

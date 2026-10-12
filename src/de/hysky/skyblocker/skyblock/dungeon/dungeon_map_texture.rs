@@ -74,8 +74,9 @@ impl DungeonMapTexture {
 
     /// java: public static void onMapItemDataUpdate(MapId mapId, boolean updateMapTexture)
     pub fn on_map_item_data_update(map_id: &MapId, mut update_map_texture: bool) {
-        if Utils::is_in_dungeons() && !(DungeonManager::is_in_boss()) && map_id == DungeonMap::get_map_id_component(None) {
-            let mut state: MapItemSavedData = map_item::get_saved_data(Some(map_id.clone()), &mcrust::mcrust::modding::game::level().unwrap()).unwrap();
+        if Utils::is_in_dungeons() && !(DungeonManager::is_in_boss()) && *map_id == DungeonMap::get_map_id_component(None) {
+            let state_handle = map_item::get_saved_data(Some(map_id), &mcrust::mcrust::modding::game::level().unwrap()).unwrap();
+            let state = state_handle.lock().unwrap_or_else(|p| p.into_inner());
             if update_map_texture {
                 DungeonMapTexture::update_map_image(&state);
                 DungeonMapTexture::hide_checkmarks(&state);
@@ -89,8 +90,9 @@ impl DungeonMapTexture {
         if DUNGEON_MAP_TEXTURE.get_mut().is_none() {
             return;
         }
-        let mut pixels: Option<NativeImage> = Some(DUNGEON_MAP_TEXTURE.get_mut().as_ref().unwrap().get_pixels().clone());
-        if let Some(pixels) = &pixels {
+        // NativeImage pixels = dungeonMapTexture.getPixels(); - the texture's own image
+        let mut pixels: Option<&mut NativeImage> = Some(DUNGEON_MAP_TEXTURE.get_mut().as_mut().unwrap().get_pixels_mut());
+        if let Some(pixels) = pixels {
             for y in 0..MAP_TEXTURE_SIZE {
                 for x in 0..MAP_TEXTURE_SIZE {
                     let mut i: i32 = x.wrapping_add(y.wrapping_mul(MAP_TEXTURE_SIZE));
@@ -120,19 +122,19 @@ impl DungeonMapTexture {
             return;
         }
         for room in DungeonManager::get_rooms_stream().filter(|__a0| ({ let __f = compat::dispatch(__a0, |__t| __t.is_matched()); __f(__a0) })).filter(|room| !(IGNORED_ROOMS_FOR_CHECKMARK_HIDING.contains(&({ let __f = compat::dispatch(room, |__t| __t.get_type()); __f(room) })))) {
-            DungeonManager::get_room_checkmark_colour(map_data, &room, Arc::new(move |checkmark_pixel| {
+            DungeonManager::get_room_checkmark_colour(map_data, &room, Some(&|checkmark_pixel: Vector2i| {
                 let mut checkmark_pixels: std::collections::HashSet<Vector2i> = std::collections::HashSet::new();
                 let mut visited: std::collections::HashSet<Vector2i> = std::collections::HashSet::new();
                 let mut queue: std::collections::VecDeque<Vector2i> = std::collections::VecDeque::new();
                 queue.push_back(checkmark_pixel.clone());
                 while !queue.is_empty() {
-                    // TODO(fabric2seer): List.remove(..)
-                    //   java: Vector2ic current = queue.remove();
-                    let mut current: Vector2i = todo!("fabric2seer: the initialiser of `current` (TODO above)");
+                    // java: Vector2ic current = queue.remove();
+                    let mut current: Vector2i = queue.pop_front().expect("NoSuchElementException");
                     checkmark_pixels.insert(current.clone());
                     for offset in NEIGHBOUR_OFFSETS.get_mut().iter() {
-                        let neighbour = Vector2i::new_from(&current).add_vector(offset);
-                        if visited.contains(neighbour) || queue.iter().any(|e| *e == neighbour.clone()) {
+                        let mut neighbour = Vector2i::new_from(&current);
+                        neighbour.add_vector(offset);
+                        if visited.contains(&neighbour) || queue.iter().any(|e| *e == neighbour) {
                             continue;
                         } else if neighbour.x() >= 0 && neighbour.x() < MAP_TEXTURE_SIZE && neighbour.y() >= 0 && neighbour.y() < MAP_TEXTURE_SIZE && DungeonManager::matches_checkmark_colour((DungeonMapUtils::get_color(map_data, Some(neighbour.clone()))) as i32) {
                             visited.insert(neighbour.clone());
@@ -150,8 +152,9 @@ impl DungeonMapTexture {
         if DUNGEON_MAP_TEXTURE.get_mut().is_none() {
             return;
         }
-        let mut pixels: Option<NativeImage> = Some(DUNGEON_MAP_TEXTURE.get_mut().as_ref().unwrap().get_pixels().clone());
-        if let Some(pixels) = &pixels {
+        // NativeImage pixels = dungeonMapTexture.getPixels(); - the texture's own image
+        let mut pixels: Option<&mut NativeImage> = Some(DUNGEON_MAP_TEXTURE.get_mut().as_mut().unwrap().get_pixels_mut());
+        if let Some(pixels) = pixels {
             for pixel in checkmark_pixels.iter() {
                 pixels.set_pixel(pixel.x(), pixel.y(), colour);
             }
@@ -164,8 +167,9 @@ impl DungeonMapTexture {
         if DUNGEON_MAP_TEXTURE.get_mut().is_none() {
             return;
         }
-        let mut pixels: Option<NativeImage> = Some(DUNGEON_MAP_TEXTURE.get_mut().as_ref().unwrap().get_pixels().clone());
-        if let Some(pixels) = &pixels {
+        // NativeImage pixels = dungeonMapTexture.getPixels(); - the texture's own image
+        let mut pixels: Option<&mut NativeImage> = Some(DUNGEON_MAP_TEXTURE.get_mut().as_mut().unwrap().get_pixels_mut());
+        if let Some(pixels) = pixels {
             for y in 0..MAP_TEXTURE_SIZE {
                 for x in 0..MAP_TEXTURE_SIZE {
                     pixels.set_pixel(x, y, argb::transparent(mcrust::net::minecraft::util::common_colors::BLACK));

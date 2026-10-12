@@ -122,7 +122,9 @@ impl SupercraftReminder {
         if focused_slot.is_none() || focused_slot.as_ref().unwrap().index != (SUPERCRAFT_SLOT as i32) || !(stack.is_item(&items::items().get("golden_pickaxe"))) {
             return;
         }
-        let mut uuid: String = (focused_slot.as_ref().unwrap().container.get_item((RECIPE_RESULT_SLOT) as i32)).get_uuid();
+        // focusedSlot.container.getItem(RECIPE_RESULT_SLOT) - the container the hovered slot belongs to, in the open menu
+        let __container = focused_slot.as_ref().unwrap().container;
+        let mut uuid: String = compat::with_open_menu(|_, containers| containers.get(__container).get_item((RECIPE_RESULT_SLOT) as i32).duplicate()).unwrap_or_else(mcrust::net::minecraft::world::item::item_stack::empty).get_uuid();
         if !uuid.is_empty() {
             return;
         }

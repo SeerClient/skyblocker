@@ -59,7 +59,7 @@ impl DungeonMapConfigScreen {
 
     /// java: public DungeonMapConfigScreen(@Nullable Screen parent)
     pub fn new_1(mut parent: Option<mcrust::net::minecraft::client::gui::screens::screen::Screen>) -> compat::Shared<Self> {
-        let __init_parent = parent.clone();
+        let __init_parent = parent;
         let __this = compat::shared(Self {
             base: mcrust::net::minecraft::client::gui::screens::screen::Screen::new(component::literal("Dungeon Map Config").get_string()),
             __widgets: Default::default(),
@@ -111,7 +111,7 @@ impl DungeonMapConfigScreen {
     /// java: @Override public void onClose()
     pub fn on_close(__this: &compat::Shared<Self>) {
         let __this_1 = compat::RenderThread::new(__this.clone());
-        SkyblockerConfigManager::update(Arc::new(move |config| {
+        SkyblockerConfigManager::update(Arc::new(move |mut config| {
             config.dungeons.dungeon_map.map_x = compat::read(__this_1.get(), |__t| __t.map_x);
             config.dungeons.dungeon_map.map_y = compat::read(__this_1.get(), |__t| __t.map_y);
             { let __v = compat::read(__this_1.get(), |__t| __t.score_x); compat::write(&config.dungeons.dungeon_score, |__t| __t.score_x = __v); }

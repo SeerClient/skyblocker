@@ -29,7 +29,7 @@ pub struct OptionDropdownWidget {
     /// java: private final int slotId;
     pub slot_id: i32,
     /// java: private final Component name;
-    pub name: Option<MutableComponent>,
+    pub name: std::option::Option<MutableComponent>,
     /// java: private final int maxHeight;
     pub max_height: i32,
     /// java: private final PartyFinderScreen screen;
@@ -39,7 +39,7 @@ pub struct OptionDropdownWidget {
     /// java: private int backButtonId = -1;
     pub back_button_id: i32,
     /// java: private @Nullable Option selectedOption;
-    pub selected_option: Option<compat::Shared<Option>>,
+    pub selected_option: std::option::Option<compat::Shared<Option>>,
     /// java: private boolean isOpen = false;
     pub is_open: bool,
     /// java: private float animationProgress = 0f;
@@ -212,7 +212,6 @@ impl OptionDropdownWidget {
 // NOTE(fabric2seer): entriesCanBeSelected, extractListBackground, extractListSeparators, extractWidgetRenderState, getRowLeft, getRowWidth, mouseClicked, scrollBarX, updateWidgetNarration override(s) of AbstractSelectionList - the port dispatches its own calls, so these run only where the mod calls them; hook the port's method to make the game call them
 
 /// java: private class Header extends AbstractEntry
-#[derive(Clone)]
 pub struct Header {
     /// java: extends AbstractEntry
     pub base: AbstractEntryBase,
@@ -338,7 +337,6 @@ impl ModListEntry for compat::EntryAdapter<Header> {
 }
 
 /// java: public class Option extends AbstractEntry
-#[derive(Clone)]
 pub struct Option {
     /// java: extends AbstractEntry
     pub base: AbstractEntryBase,
@@ -367,7 +365,7 @@ impl std::ops::DerefMut for Option {
 
 impl Option {
     /// java: public Option(String message, @Nullable ItemStack icon, int slotId)
-    pub fn new(mut message: String, mut icon: Option<mcrust::net::minecraft::world::item::item_stack::ItemStack>, mut slot_id: i32) -> compat::Shared<Self> {
+    pub fn new(mut message: String, mut icon: std::option::Option<mcrust::net::minecraft::world::item::item_stack::ItemStack>, mut slot_id: i32) -> compat::Shared<Self> {
         let __init_message = message.clone();
         let __init_icon = icon.clone().unwrap();
         let __init_option_slot_id = slot_id;
@@ -412,15 +410,16 @@ impl Option {
 
     /// java: @Override public boolean equals(Object o)
     pub fn equals(&self, o: &compat::Object) -> bool {
-        if std::ptr::addr_eq(std::sync::Arc::as_ptr(self), std::sync::Arc::as_ptr(o)) {
+        // if (o == null || getClass() != o.getClass()) return false; - an object of this class is held by its handle
+        let Some(that) = o.downcast_ref::<compat::Shared<Option>>() else {
+            return false;
+        };
+        // if (this == o) return true;
+        if self.self_ref.upgrade().is_some_and(|this| std::sync::Arc::ptr_eq(&this, that)) {
             return true;
         }
-        // TODO(fabric2seer): `Entry.getClass` has no Rust method in the port (looked for `get_class` in AbstractSelectionList and JavaSrc)
-        if false /* java: o == null: never null here */ || self.get_class() != compat::type_name_of(&o) {
-            return false;
-        }
-        let mut that: compat::Shared<Option> = o.clone();
-        return (self.message == compat::read(&that, |__t| __t.message.clone()));
+        // Option that = (Option) o; return message.equals(that.message);
+        return (self.message == compat::read(that, |__t| __t.message.clone()));
     }
 
     /// java: @Override public boolean mouseClicked(MouseButtonEvent click, boolean doubled)
@@ -486,7 +485,6 @@ impl ModListEntry for compat::EntryAdapter<Option> {
 }
 
 /// java: abstract static class AbstractEntry extends AbstractSelectionList.Entry<AbstractEntry>
-#[derive(Clone)]
 pub struct AbstractEntryBase {
     /// java: extends net.minecraft.client.gui.components.AbstractSelectionList$Entry
     pub base: mcrust::net::minecraft::client::gui::components::abstract_selection_list::Entry,
@@ -538,7 +536,7 @@ impl compat::RowHalf for dyn AbstractEntry {
         &mut self.abstract_entry_base_mut().base
     }
     fn row_parts(&mut self) -> (&mut mcrust::net::minecraft::client::gui::screens::screen::Screen, &mut compat::WidgetCache) {
-        let __s = &mut self.abstract_entry_base_mut();
+        let __s = self.abstract_entry_base_mut();
         (&mut __s.__row, &mut __s.__widgets)
     }
 }

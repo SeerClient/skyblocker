@@ -184,7 +184,7 @@ impl CustomizeScreen {
     /// java: private void cancel()
     pub fn cancel(__this: &compat::Shared<Self>) {
         let __this_1 = compat::RenderThread::new(__this.clone());
-        SkyblockerConfigManager::update_only(Arc::new(move |config| {
+        SkyblockerConfigManager::update_only(Arc::new(move |mut config| {
             for (uuid, previous_config) in __this_1.get().lock().borrow().previous_configs.iter() {
                 if let Some(trim) = previous_config.armor_trim_id() {
                     config.general.custom_armor_trims.insert(uuid.to_string(), trim.clone());
@@ -459,7 +459,7 @@ impl CustomizeButton {
 
     /// java: @Override protected void extractWidgetRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a)
     pub fn extract_widget_render_state(__this: &compat::Shared<Self>, graphics: &GuiGraphicsExtractor, mut mouse_x: i32, mut mouse_y: i32, mut a: f32) {
-        gui_graphics_extractor::blit_sprite_identifier_with_color(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), mcrust::net::minecraft::client::renderer::render_pipelines::gui_textured(), CUSTOMIZE_BUTTON_TEXTURE.get_mut(), __this.lock().borrow().get_x(), __this.lock().borrow().get_y(), __this.lock().borrow().get_width(), __this.lock().borrow().get_height(), (((if __this.lock().borrow().is_hovered() { (0xFFFAFA96u32 as i32) as f32 } else { (0x80FFFFFFu32 as i32) as f32 })) as f32) as f32);
+        gui_graphics_extractor::blit_sprite_identifier_with_color(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), mcrust::net::minecraft::client::renderer::render_pipelines::gui_textured(), CUSTOMIZE_BUTTON_TEXTURE.get_mut(), __this.lock().borrow().get_x(), __this.lock().borrow().get_y(), __this.lock().borrow().get_width(), __this.lock().borrow().get_height(), (if __this.lock().borrow().is_hovered() { 0xFFFAFA96u32 as i32 } else { 0x80FFFFFFu32 as i32 }));
         __this.lock().borrow().handle_cursor(graphics);
     }
 

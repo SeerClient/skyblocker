@@ -55,13 +55,13 @@ impl MotesTooltip {
     pub fn get_motes_message(mut price: i32, mut count: i32) -> MutableComponent {
         let mut motes_multiplier: f32 = (((SkyblockerConfigManager::get().other_locations.rift.mc_grubber_stacks as f32) * 0.05f32) + (1 as f32));
         let mut total_price: i32 = price.wrapping_mul(count);
-        let mut total_price_string: String = format!("%1$,.1f");
+        let mut total_price_string: String = compat::string_format("%1$,.1f", &[((total_price as f32) * motes_multiplier).into()]);
         if count == 1 {
             return (component::literal(&format!("{} Motes", total_price_string.replace(".0", "")))).with_style_format(ChatFormatting::DarkAqua);
         }
-        let mut each_price_string: String = format!("%1$,.1f");
+        let mut each_price_string: String = compat::string_format("%1$,.1f", &[((price as f32) * motes_multiplier).into()]);
         let mut message: MutableComponent = (component::literal(&format!("{} Motes ", total_price_string.replace(".0", "")))).with_style_format(ChatFormatting::DarkAqua);
-        message.append((component::literal(&format!("({} each)", each_price_string.replace(".0", "")))).with_style_format(ChatFormatting::Gray));
+        message = message.append((component::literal(&format!("({} each)", each_price_string.replace(".0", "")))).with_style_format(ChatFormatting::Gray));
         return message;
     }
 

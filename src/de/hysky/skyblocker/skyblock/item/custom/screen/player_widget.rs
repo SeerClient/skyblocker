@@ -56,7 +56,7 @@ impl std::ops::DerefMut for PlayerWidget {
 impl PlayerWidget {
     /// java: public PlayerWidget(int x, int y, int width, int height, AbstractClientPlayer player)
     pub fn new(mut x: i32, mut y: i32, mut width: i32, mut height: i32, mut player: Box<dyn AbstractClientPlayer>) -> compat::Shared<Self> {
-        let __init_player = player.clone();
+        let __init_player = player; // the widget holds the player the caller made (Java keeps the reference)
         let __this = compat::shared(Self {
             base: AbstractWidget::new(x, y, width, height, (&component::literal("").get_string()).to_string(), WidgetKind::PlainText, OnPress::Inert),
             player: __init_player,
@@ -80,7 +80,7 @@ impl PlayerWidget {
     pub fn extract_widget_render_state(__this: &compat::Shared<Self>, graphics: &GuiGraphicsExtractor, mut mouse_x: i32, mut mouse_y: i32, mut a: f32) {
         gui_graphics_extractor::blit_sprite_identifier(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), mcrust::net::minecraft::client::renderer::render_pipelines::gui_textured(), INNER_SPACE_TEXTURE.get_mut(), __this.lock().borrow().get_x(), __this.lock().borrow().get_y(), __this.lock().borrow().get_width(), __this.lock().borrow().get_height());
         let mut size: f32 = 64.0f32;
-        let mut translation: Vector3f = Vector3f::new((0) as f32, ((__this.lock().borrow().player.get_bb_height() / 2.0f32) + 0.0625f32), (0) as f32);
+        let mut translation: Vector3f = Vector3f::new((0) as f32, (({ use mcrust::net::minecraft::world::entity::entity::Entity as _; __this.lock().borrow().player.base().get_bb_height() } / 2.0f32) + 0.0625f32), (0) as f32);
         let rotation = Quaternionf::new().rotation_xyz(((-compat::read(__this, |__t| __t.x_rotation)) * mcrust::net::minecraft::util::mth::DEG_TO_RAD), ((-compat::read(__this, |__t| __t.y_rotation)) * mcrust::net::minecraft::util::mth::DEG_TO_RAD), *FLIP_ROTATION);
         // TODO(fabric2seer): static call InventoryScreenInvoker.invokeExtractRenderState(..)
         //   java: EntityRenderState renderState = InventoryScreenInvoker.invokeExtractRenderState(this.player);

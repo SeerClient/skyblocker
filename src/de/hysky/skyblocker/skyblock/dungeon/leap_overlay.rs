@@ -64,12 +64,15 @@ pub const BUTTON_HEIGHT: i32 = 50;
 pub const PLAYER_BUTTON_BORDER_THICKNESS: i32 = 2;
 /// java: private static final int HEAD_SIZE = 24;
 pub const PLAYER_BUTTON_HEAD_SIZE: i32 = 24;
-// TODO(fabric2seer): expression not parsed
-//   java:
-/// java: 
-pub static PLAYER_REFERENCE_COMPARATOR: compat::MainThread<Arc<dyn Fn(&PlayerReference, &PlayerReference) -> std::cmp::Ordering>> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `COMPARATOR` - see the TODO above"));
-/// java: 
-pub static PLAYER_REFERENCE_STRING: compat::MainThread<Arc<dyn Fn(&PlayerReference, &PlayerReference) -> std::cmp::Ordering>> = compat::MainThread::new(|| Default::default());
+/// java: private static final Comparator<PlayerReference> COMPARATOR = Comparator.<PlayerReference, String>comparing(ref -> ref.dungeonClass().displayName()).thenComparing(PlayerReference::name);
+/// Compares first by class name then by player name (`String.compareTo`).
+pub static PLAYER_REFERENCE_COMPARATOR: compat::MainThread<Arc<dyn Fn(&PlayerReference, &PlayerReference) -> std::cmp::Ordering>> = compat::MainThread::new(|| {
+    Arc::new(|a: &PlayerReference, b: &PlayerReference| {
+        compat::compare_to(&a.dungeon_class().display_name(), &b.dungeon_class().display_name())
+            .cmp(&0)
+            .then_with(|| compat::compare_to(&a.name(), &b.name()).cmp(&0))
+    })
+});
 
 /// java: public class LeapOverlay extends Screen implements ContainerListener
 pub struct LeapOverlay {
@@ -130,7 +133,8 @@ impl LeapOverlay {
         if LeapOverlay::should_show_map() {
             layout.add_child({ let __w = compat::WidgetAdapter::widget(MapWidget::new(0, 0)); let (__ww, __wh) = (__w.get_width(), __w.get_height()); LayoutElement::widget(compat::write(__this, |__t| __t.add_widget(__w)), __ww, __wh) });
         }
-        let mut grid_widget: GridLayout = GridLayout::new_default().spacing(BUTTON_SPACING);
+        let mut grid_widget: GridLayout = GridLayout::new_default();
+        grid_widget.spacing(BUTTON_SPACING);
         let mut adder: RowHelper = grid_widget.create_row_helper(2);
         for reference in compat::read(__this, |__t| __t.references.clone()) {
             // TODO(fabric2seer): the port's `add_child` ports this Java method with other parameters (grid, child for Java's widget)
@@ -147,18 +151,23 @@ impl LeapOverlay {
     pub fn slot_changed(__this: &compat::Shared<Self>, handler: &AbstractContainerMenu, mut slot_id: i32, stack: &mcrust::net::minecraft::world::item::item_stack::ItemStack) {
         let mut container_slots: i32 = (__this.lock().borrow().handler.with(|__chest| __chest.get_row_count()).unwrap()).wrapping_mul(9);
         if slot_id < container_slots && stack.is_item(&items::items().get("player_head")) && stack.has(mcrust::net::minecraft::core::component::data_components::profile()) {
-            let mut profile: ResolvableProfile = stack.get(mcrust::net::minecraft::core::component::data_components::profile()).unwrap();
+            let mut profile: ResolvableProfile = mcrust::com::mojang::serialization::cast::<ResolvableProfile>(&stack.get(mcrust::net::minecraft::core::component::data_components::profile()).unwrap()).cloned().unwrap();
             let mut uuid: Uuid = profile.partial_profile().id();
             let mut name: String = compat::component_of(stack.get_hover_name()).get_string();
             let mut dungeon_class: DungeonClass = DungeonPlayerManager::get_class_from_player_string(&name);
-            // TODO(fabric2seer): a pattern switch expression
-            //   java: PlayerStatus status = switch (ItemUtils.getConcatenatedLore(stack).toLowerCase(Locale.ENGLISH)) {
-            //   java: 				case String s when s.contains("dead") -> PlayerStatus.DEAD;
-            //   java: 				case String s when s.contains("offline") -> PlayerStatus.OFFLINE;
-            //   java: 				default -> null;
-            //   java: 			};
-            let mut status: PlayerStatus = todo!("fabric2seer: the initialiser of `status` (TODO above)");
-            LeapOverlay::update_reference(__this, PlayerReference::new(uuid.clone(), name.clone(), dungeon_class, Some(status), handler.container_id, slot_id));
+            // java: PlayerStatus status = switch (ItemUtils.getConcatenatedLore(stack).toLowerCase(Locale.ENGLISH)) {
+            //   case String s when s.contains("dead") -> PlayerStatus.DEAD;
+            //   case String s when s.contains("offline") -> PlayerStatus.OFFLINE;
+            //   default -> null; };
+            let lore: String = ItemUtils::get_concatenated_lore(stack).to_lowercase();
+            let mut status: Option<PlayerStatus> = if lore.contains("dead") {
+                Some(PlayerStatus::Dead)
+            } else if lore.contains("offline") {
+                Some(PlayerStatus::Offline)
+            } else {
+                None
+            };
+            LeapOverlay::update_reference(__this, PlayerReference::new(uuid.clone(), name.clone(), dungeon_class, status, handler.container_id, slot_id));
         }
     }
 
@@ -177,10 +186,9 @@ impl LeapOverlay {
 
     /// java: @Override public boolean keyPressed(KeyEvent input)
     pub fn key_pressed(__this: &compat::Shared<Self>, input: &mcrust::net::minecraft::client::input::key_event::KeyEvent) -> bool {
-        // TODO(fabric2seer): `Options.keyInventory` has no Rust field in the port (searched net.minecraft.client.Options and its supertypes)
         if if input.is_escape() && true { LeapOverlay::on_close(__this); true } else { false } {
             return true;
-        } else if compat::minecraft().options.borrow().key_inventory.matches(input) {
+        } else if mcrust::net::minecraft::client::key_mapping::matches("key.inventory", input) {
             LeapOverlay::on_close(__this);
             return true;
         } else if compat::read(&(CONFIG.get_mut())(), |__t| __t.leap_keybinds) {
@@ -208,7 +216,8 @@ impl LeapOverlay {
     /// java: @Override public void tick()
     pub fn tick(__this: &compat::Shared<Self>) {
         ();
-        if !(mcrust::mcrust::modding::game::with_player(|player| player.base.base.base.is_alive()).unwrap_or(false)) || mcrust::mcrust::modding::game::with_player(|player| player.is_removed()).unwrap_or(false) {
+        use mcrust::net::minecraft::world::entity::entity::Entity as _;
+        if !(mcrust::mcrust::modding::game::with_player(|player| mcrust::net::minecraft::world::entity::entity_selector::is_alive(&*player)).unwrap_or(false)) || mcrust::mcrust::modding::game::with_player(|player| player.base().is_removed()).unwrap_or(false) {
             mcrust::mcrust::modding::game::with_player(|player| { player.close_container(); });
         }
     }
@@ -442,7 +451,9 @@ impl PlayerButton {
 // NOTE(fabric2seer): extractContents, onClick override(s) of Button - the port dispatches its own calls, so these run only where the mod calls them; hook the port's method to make the game call them
 
 /// java: private record PlayerReference(UUID uuid, String name, DungeonClass dungeonClass, @Nullable PlayerStatus status, int syncId, int slotId) implements Comparable<PlayerReference>
-#[derive(Clone, Debug, PartialEq)]
+/// `equals` / `hashCode` are the record's overrides (the uuid alone); the `SortedSet` orders by `compareTo`
+/// (`Ord`), as Java's `TreeSet` does - the two disagree exactly as they do in Java.
+#[derive(Clone, Debug)]
 pub struct PlayerReference {
     /// java: UUID uuid
     pub uuid: Uuid,
@@ -496,9 +507,8 @@ impl PlayerReference {
 
     /// java: @Override public boolean equals(Object obj)
     pub fn equals(&self, obj: &compat::Object) -> bool {
-        // TODO(fabric2seer): instanceof with a pattern binding outside an `if` condition
-        //   java: return obj instanceof PlayerReference playerRef && uuid.equals(playerRef.uuid);
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        // java: return obj instanceof PlayerReference playerRef && uuid.equals(playerRef.uuid);
+        obj.downcast_ref::<PlayerReference>().is_some_and(|player_ref| self.uuid == player_ref.uuid)
     }
 
     /// java: @Override public int hashCode()
@@ -508,7 +518,7 @@ impl PlayerReference {
 
     /// java: @Override public int compareTo(LeapOverlay.PlayerReference o)
     pub fn compare_to(&self, o: &PlayerReference) -> i32 {
-        return (PLAYER_REFERENCE_COMPARATOR.get_mut())(self.clone(), o.clone());
+        return compat::ord_int((PLAYER_REFERENCE_COMPARATOR.get())(self, o));
     }
 
     /// java: private void clickSlot()
@@ -520,6 +530,28 @@ impl PlayerReference {
         }
     }
 
+}
+
+impl PartialEq for PlayerReference {
+    /// `equals(Object)`: the uuid.
+    fn eq(&self, other: &PlayerReference) -> bool {
+        self.uuid == other.uuid
+    }
+}
+
+impl Eq for PlayerReference {}
+
+impl PartialOrd for PlayerReference {
+    fn partial_cmp(&self, other: &PlayerReference) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for PlayerReference {
+    /// `compareTo` (`Comparable<PlayerReference>`), which the `TreeSet` orders and finds by.
+    fn cmp(&self, other: &PlayerReference) -> std::cmp::Ordering {
+        self.compare_to(other).cmp(&0)
+    }
 }
 
 /// java: private enum PlayerStatus
@@ -585,11 +617,9 @@ pub struct PlayerStatusFields {
 impl PlayerStatusFields {
     fn new(mut text: MutableComponent, mut overlay_color: i32) -> Self {
         let mut this = Self {
-            text: Default::default(),
-            overlay_color: 0,
+            text: text.clone(),
+            overlay_color: overlay_color,
         };
-        this.text = text.clone();
-        this.overlay_color = overlay_color;
         this
     }
 

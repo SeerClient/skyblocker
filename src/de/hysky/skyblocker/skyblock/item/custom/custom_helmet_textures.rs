@@ -50,7 +50,7 @@ impl CustomHelmetTextures {
             //   java: 						String name = cleanName(stack.get(DataComponents.CUSTOM_NAME).getString());
             //   java: 						TEXTURES.add(new NamedTexture(name, texture, stack.getNeuName()));
             //   java: 					});
-            compat::lock(&TEXTURES).sort_by(|a, b| { let key = |__a0| __a0.internal_name(); key(a).cmp(&key(b)) });
+            compat::lock(&TEXTURES).sort_by(|a, b| { let key = |__a0: &NamedTexture| __a0.internal_name(); compat::compare_to(&key(a), &key(b)).cmp(&0) });
             logger().info(&format!("[Skyblocker] Loaded and sorted {} helmet textures from repo", (compat::lock(&TEXTURES).len() as i32)));
         }
         // TODO(fabric2seer): the `catch (Exception e)` block is not reached in Rust - the try body returns, breaks or continues, so it cannot run inside `catch_unwind`
@@ -71,7 +71,7 @@ impl CustomHelmetTextures {
 
     /// java: public static ResolvableProfile getProfile(String texture)
     pub fn get_profile(mut texture: String) -> ResolvableProfile {
-        return *PROFILE_CACHE.get_mut().entry(texture.clone()).or_insert_with_key(|k| (|t| ResolvableProfile::create_resolved(GameProfile::new(Uuid::name_uuid_from_bytes(&t.as_bytes().to_vec()).unwrap(), "custom", ItemUtils::property_map_with_texture(&t))).unwrap())(k.clone()));
+        return PROFILE_CACHE.get_mut().entry(texture.clone()).or_insert_with_key(|k| (|t: String| ResolvableProfile::create_resolved(GameProfile::new(Uuid::name_uuid_from_bytes(&t.as_bytes().to_vec()).unwrap(), "custom", ItemUtils::property_map_with_texture(&t))).unwrap())(k.clone())).clone();
     }
 
 }

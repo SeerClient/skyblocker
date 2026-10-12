@@ -107,7 +107,7 @@ impl CroesusProfit {
                     let mut matcher: compat::regex::Matcher = chest_value::ESSENCE_PATTERN.matcher(&line_string);
                     if matcher.matches() {
                         let mut r#type: String = matcher.group_named("type").unwrap().to_uppercase();
-                        let mut amount: i32 = RegexUtils::parse_optional_int_from_matcher(&matcher, "amount").unwrap_or(1);
+                        let mut amount: i32 = RegexUtils::parse_optional_int_from_matcher_match_result_string(&matcher, "amount").unwrap_or(1);
                         if r#type == "CRIMSON" {
                             amount = amount.wrapping_mul((ChestValue::compute_crimson_essence_multiplier()) as i32);
                         }
@@ -121,7 +121,7 @@ impl CroesusProfit {
                 } else if true && line_string.contains("Shard") {
                     let mut matcher: compat::regex::Matcher = chest_value::SHARD_PATTERN.matcher(&line_string);
                     if matcher.matches() {
-                        let mut shards: i32 = RegexUtils::parse_optional_int_from_matcher(&matcher, "amount").unwrap_or(1);
+                        let mut shards: i32 = RegexUtils::parse_optional_int_from_matcher_match_result_string(&matcher, "amount").unwrap_or(1);
                         let Some(mut attribute) = Attributes::get_attribute_from_item_name_string(line_string.clone()) else {
                             continue;
                         };
@@ -135,7 +135,7 @@ impl CroesusProfit {
                 } else if true && line_string.contains("Kuudra Teeth") {
                     let mut matcher: compat::regex::Matcher = chest_value::KUUDRA_TEETH_PATTERN.matcher(&line_string);
                     if matcher.matches() {
-                        let mut amount: i32 = RegexUtils::parse_optional_int_from_matcher(&matcher, "amount").unwrap_or(1);
+                        let mut amount: i32 = RegexUtils::parse_optional_int_from_matcher_match_result_string(&matcher, "amount").unwrap_or(1);
                         let mut price_data: Option<f64> = CroesusProfit::get_item_price(__this, "KUUDRA_TEETH");
                         if price_data.is_some() {
                             chest_value = (chest_value + (price_data.clone().unwrap() * (amount as f64)));
@@ -146,7 +146,7 @@ impl CroesusProfit {
                 } else if true && line_string.contains("Heavy Pearl") {
                     let mut matcher: compat::regex::Matcher = chest_value::HEAVY_PEARL_PATTERN.matcher(&line_string);
                     if matcher.matches() {
-                        let mut amount: i32 = RegexUtils::parse_optional_int_from_matcher(&matcher, "amount").unwrap_or(1);
+                        let mut amount: i32 = RegexUtils::parse_optional_int_from_matcher_match_result_string(&matcher, "amount").unwrap_or(1);
                         let mut price_data: Option<f64> = CroesusProfit::get_item_price(__this, "HEAVY_PEARL");
                         if price_data.is_some() {
                             chest_value = (chest_value + (price_data.clone().unwrap() * (amount as f64)));
@@ -323,9 +323,9 @@ impl CroesusProfit {
         for entry in slots.iter().map(|(k, v)| (k.clone(), v.clone())) {
             let mut stack: Option<mcrust::net::minecraft::world::item::item_stack::ItemStack> = Some(entry.1.clone());
             if let Some(stack) = &stack {
-                if stack == best_chest.clone().unwrap() {
+                if best_chest.as_ref().is_some_and(|b| stack.is_same_instance(b)) {
                     highlights.push(ColorHighlight::green(entry.0));
-                } else if stack == second_best_chest.clone().unwrap() && second_best_value > dungeon_key_price_data {
+                } else if second_best_chest.as_ref().is_some_and(|b| stack.is_same_instance(b)) && second_best_value > dungeon_key_price_data {
                     highlights.push(ColorHighlight::yellow(entry.0));
                 }
             }
@@ -340,21 +340,16 @@ impl CroesusProfit {
 
     /// java: @Override public void addToTooltip(@Nullable Slot focusedSlot, ItemStack stack, List<Component> lines)
     pub fn add_to_tooltip_impl(__this: &compat::Shared<Self>, mut focused_slot: Option<Slot>, stack: &mcrust::net::minecraft::world::item::item_stack::ItemStack, lines: &mut Vec<MutableComponent>) {
-        // TODO(fabric2seer): `has_item` takes 1 argument(s) in the port (`containers: &Containers<'_>`), Java passes 0
-        if focused_slot.is_none() || !(focused_slot.as_ref().unwrap().has_item()) {
+        if focused_slot.is_none() || !(compat::slot_has_item(focused_slot.as_ref().unwrap())) {
             return;
         }
-        // TODO(fabric2seer): `get_item` takes 1 argument(s) in the port (`containers: &'a Containers<'_>`), Java passes 0
-        if !(focused_slot.as_ref().unwrap().get_item().is_item(&items::items().get("player_head"))) {
+        let focused_item = compat::slot_item(focused_slot.as_ref().unwrap());
+        if !(focused_item.is_item(&items::items().get("player_head"))) {
             return;
         }
-        // TODO(fabric2seer): `get_item` takes 1 argument(s) in the port (`containers: &'a Containers<'_>`), Java passes 0
-        // rust: let mut value_data: (f64, bool) = CroesusProfit::get_chest_value(__this, focused_slot.as_ref().unwrap().get_item());
-        let mut value_data: (f64, bool) = todo!("fabric2seer: the initialiser of `valueData` (TODO above)");
+        let mut value_data: (f64, bool) = CroesusProfit::get_chest_value(__this, &focused_item);
         let mut value_string: MutableComponent = component::literal(&formatters::INTEGER_NUMBERS.get_mut().format(value_data.0));
-        // TODO(fabric2seer): the condition: Map.Entry.rightBoolean
-        //   java: valueData.rightBoolean(..)
-        if todo!("fabric2seer: the condition (TODO above)") {
+        if value_data.1 {
             value_string = value_string.append_str(" ").append(component::translatable("skyblocker.dungeons.croesusHelper.incompletePriceData"));
         }
         lines.push((constants::PREFIX.get_mut())().append(component::translatable_args("skyblocker.dungeons.croesusHelper.chestValue", vec![mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(value_string.clone())])));

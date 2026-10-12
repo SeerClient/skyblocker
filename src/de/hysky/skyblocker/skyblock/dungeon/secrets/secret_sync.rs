@@ -49,7 +49,7 @@ impl SecretSync {
 
     /// java: public static boolean checkSender(UUID uuid)
     pub fn check_sender(uuid: &Uuid) -> bool {
-        if DungeonPlayerManager::get_players().unwrap().iter().cloned().filter(|__a0| true).any(|player| (uuid == DungeonPlayer::uuid(&player).unwrap())) {
+        if DungeonPlayerManager::get_players().iter().flatten().any(|player| DungeonPlayer::uuid(player).as_ref() == Some(uuid)) {
             return true;
         }
         logger().error(&format!("[Skyblocker Dungeon Secret Sync] Received a message from a player not in the Dungeons run: {}", compat::jstring(&uuid)));
@@ -67,7 +67,7 @@ impl SecretSync {
             return;
         }
         let mut segments: Vec<Vector2i> = ({ let __f = compat::dispatch(room, |__t| __t.get_segments()); __f(room) }).into_iter().collect::<Vec<_>>();
-        WsMessageHandler::send_server_message(Service::DungeonSecrets, &(compat::shared(DungeonRoomMatchMessage::new(mcrust::mcrust::modding::game::with_player(|player| compat::uuid_of(player.base.base.base.base.get_uuid())).unwrap(), ({ let __f = compat::dispatch(room, |__t| __t.get_type()); __f(room) }), ({ let __f = compat::dispatch(room, |__t| __t.get_shape()); __f(room) }), ({ let __f = compat::dispatch(room, |__t| __t.get_direction()); __f(room) }).unwrap(), ({ let __f = compat::dispatch(room, |__t| __t.get_name()); __f(room) }).unwrap(), segments.clone())) as compat::Shared<dyn Message<compat::Object>>));
+        WsMessageHandler::send_server_message(Service::DungeonSecrets, &DungeonRoomMatchMessage::new(mcrust::mcrust::modding::game::with_player(|player| compat::uuid_of(player.base.base.base.base.get_uuid())).unwrap(), ({ let __f = compat::dispatch(room, |__t| __t.get_type()); __f(room) }), ({ let __f = compat::dispatch(room, |__t| __t.get_shape()); __f(room) }), ({ let __f = compat::dispatch(room, |__t| __t.get_direction()); __f(room) }).unwrap(), ({ let __f = compat::dispatch(room, |__t| __t.get_name()); __f(room) }).unwrap(), segments.clone()));
     }
 
     /// java: public static void handleRoomMatch(DungeonRoomMatchMessage msg)
@@ -79,21 +79,20 @@ impl SecretSync {
             return;
         }
         if DungeonManager::get_room_metadata(&msg.room()).is_none() {
-            logger().error(&format!("[Skyblocker Dungeons Secret Sync] Received an invalid room over the websocket, msg: {}", compat::jstring(&msg)));
+            logger().error(&format!("[Skyblocker Dungeons Secret Sync] Received an invalid room over the websocket, msg: {}", format!("{:?}", msg)));
             return;
         }
         if DungeonManager::check_if_segments_exist(&msg.pos()) {
             return;
         }
-        let mut segments: std::collections::HashSet<Vector2i> = msg.pos().to_vec();
-        // TODO(fabric2seer): static call IntSortedSets.unmodifiable(..)
-        //   java: IntSortedSet segmentsX = IntSortedSets.unmodifiable(new IntRBTreeSet(segments.stream().mapToInt(Vector2ic::x).toArray()));
-        let mut segments_x: crate::unresolved::IntSortedSet = todo!("fabric2seer: the initialiser of `segmentsX` (TODO above)");
-        // TODO(fabric2seer): static call IntSortedSets.unmodifiable(..)
-        //   java: IntSortedSet segmentsY = IntSortedSets.unmodifiable(new IntRBTreeSet(segments.stream().mapToInt(Vector2ic::y).toArray()));
-        let mut segments_y: crate::unresolved::IntSortedSet = todo!("fabric2seer: the initialiser of `segmentsY` (TODO above)");
+        // Set<Vector2ic> segments = new HashSet<>(msg.pos());
+        let mut segments: std::collections::HashSet<Vector2i> = msg.pos().into_iter().collect();
+        // IntSortedSet segmentsX = IntSortedSets.unmodifiable(new IntRBTreeSet(segments.stream().mapToInt(Vector2ic::x).toArray()));
+        let mut segments_x: std::collections::BTreeSet<i32> = segments.iter().map(|s| s.x()).collect();
+        // IntSortedSet segmentsY = IntSortedSets.unmodifiable(new IntRBTreeSet(segments.stream().mapToInt(Vector2ic::y).toArray()));
+        let mut segments_y: std::collections::BTreeSet<i32> = segments.iter().map(|s| s.y()).collect();
         if RoomBase::determine_shape_4(msg.room_type(), &segments, &segments_x, &segments_y) != msg.shape() {
-            logger().error(&format!("[Skyblocker Dungeons Secret Sync] Received a room with an invalid shape!, msg: {}", compat::jstring(&msg)));
+            logger().error(&format!("[Skyblocker Dungeons Secret Sync] Received a room with an invalid shape!, msg: {}", format!("{:?}", msg)));
             return;
         }
         let mut new_room: compat::Shared<dyn Room> = (RoomBase::new_7(msg.room_type(), msg.shape(), msg.direction(), msg.room(), segments.clone(), segments_x.clone(), segments_y.clone()) as compat::Shared<dyn Room>);
@@ -106,7 +105,7 @@ impl SecretSync {
         if mcrust::mcrust::modding::game::with_player(|_| ()).is_none() || from_ws {
             return;
         }
-        WsMessageHandler::send_server_message(Service::DungeonSecrets, &(compat::shared(DungeonRoomSecretCountMessage::new(mcrust::mcrust::modding::game::with_player(|player| compat::uuid_of(player.base.base.base.base.get_uuid())).unwrap(), ({ let __f = compat::dispatch(room, |__t| __t.get_name()); __f(room) }).unwrap(), ({ let __f = compat::dispatch(room, |__t| __t.get_found_secret_count()); __f(room) }))) as compat::Shared<dyn Message<compat::Object>>));
+        WsMessageHandler::send_server_message(Service::DungeonSecrets, &DungeonRoomSecretCountMessage::new(mcrust::mcrust::modding::game::with_player(|player| compat::uuid_of(player.base.base.base.base.get_uuid())).unwrap(), ({ let __f = compat::dispatch(room, |__t| __t.get_name()); __f(room) }).unwrap(), ({ let __f = compat::dispatch(room, |__t| __t.get_found_secret_count()); __f(room) })));
     }
 
     /// java: public static void handleSecretCountUpdate(DungeonRoomSecretCountMessage msg)
@@ -128,7 +127,7 @@ impl SecretSync {
         if mcrust::mcrust::modding::game::with_player(|_| ()).is_none() || compat::get_state(&room_preview_server::IS_ACTIVE) {
             return;
         }
-        WsMessageHandler::send_server_message(Service::DungeonSecrets, &(compat::shared(DungeonRoomHideWaypointMessage::new(mcrust::mcrust::modding::game::with_player(|player| compat::uuid_of(player.base.base.base.base.get_uuid())).unwrap(), ({ let __f = compat::dispatch(room, |__t| __t.get_name()); __f(room) }).unwrap(), ({ let __f = compat::dispatch(waypoint, |__t| __t.hash_code()); __f(&compat::view(waypoint, |a| a as compat::Shared<dyn Waypoint>)) }))) as compat::Shared<dyn Message<compat::Object>>));
+        WsMessageHandler::send_server_message(Service::DungeonSecrets, &DungeonRoomHideWaypointMessage::new(mcrust::mcrust::modding::game::with_player(|player| compat::uuid_of(player.base.base.base.base.get_uuid())).unwrap(), ({ let __f = compat::dispatch(room, |__t| __t.get_name()); __f(room) }).unwrap(), ({ let __f = compat::dispatch(waypoint, |__t| __t.hash_code()); __f(&compat::view(waypoint, |a| a as compat::Shared<dyn Waypoint>)) })));
     }
 
     /// java: public static void handleHideWaypoint(DungeonRoomHideWaypointMessage msg)
@@ -152,7 +151,7 @@ impl SecretSync {
         if mcrust::mcrust::modding::game::with_player(|_| ()).is_none() {
             return;
         }
-        WsMessageHandler::send_server_message(Service::DungeonSecrets, &(compat::shared(DungeonBatKilledMessage::new(mcrust::mcrust::modding::game::with_player(|player| compat::uuid_of(player.base.base.base.base.get_uuid())).unwrap())) as compat::Shared<dyn Message<compat::Object>>));
+        WsMessageHandler::send_server_message(Service::DungeonSecrets, &DungeonBatKilledMessage::new(mcrust::mcrust::modding::game::with_player(|player| compat::uuid_of(player.base.base.base.base.get_uuid())).unwrap()));
     }
 
     /// java: public static void handleBatKilled(DungeonBatKilledMessage msg)
@@ -169,7 +168,7 @@ impl SecretSync {
         if mcrust::mcrust::modding::game::with_player(|_| ()).is_none() {
             return;
         }
-        WsMessageHandler::send_server_message(Service::DungeonSecrets, &(compat::shared(DungeonMimicKilledMessage::new(mcrust::mcrust::modding::game::with_player(|player| compat::uuid_of(player.base.base.base.base.get_uuid())).unwrap())) as compat::Shared<dyn Message<compat::Object>>));
+        WsMessageHandler::send_server_message(Service::DungeonSecrets, &DungeonMimicKilledMessage::new(mcrust::mcrust::modding::game::with_player(|player| compat::uuid_of(player.base.base.base.base.get_uuid())).unwrap()));
     }
 
     /// java: public static void handleMimicKilled(DungeonMimicKilledMessage msg)
@@ -186,7 +185,7 @@ impl SecretSync {
         if mcrust::mcrust::modding::game::with_player(|_| ()).is_none() {
             return;
         }
-        WsMessageHandler::send_server_message(Service::DungeonSecrets, &(compat::shared(DungeonPrinceKilledMessage::new(mcrust::mcrust::modding::game::with_player(|player| compat::uuid_of(player.base.base.base.base.get_uuid())).unwrap())) as compat::Shared<dyn Message<compat::Object>>));
+        WsMessageHandler::send_server_message(Service::DungeonSecrets, &DungeonPrinceKilledMessage::new(mcrust::mcrust::modding::game::with_player(|player| compat::uuid_of(player.base.base.base.base.get_uuid())).unwrap()));
     }
 
     /// java: public static void handlePrinceKilled(DungeonPrinceKilledMessage msg)

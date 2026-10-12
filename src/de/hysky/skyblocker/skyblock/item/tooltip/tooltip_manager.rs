@@ -57,11 +57,19 @@ impl TooltipManager {
     /// java: @Init public static void init()
     pub fn init() {
         item_tooltip_callback::EVENT.register(Arc::new(|stack: &ItemStack, _context: &TooltipContext<'_>, flag: TooltipFlag, lines: &mut Vec<FormattedText>| {
-            if let Some(handled_screen) = compat::minecraft().gui.screen().unwrap().as_any().downcast_ref::<AbstractContainerScreen>() {
-                TooltipManager::add_to_tooltip(Some(handled_screen.hovered_slot), &stack, &lines);
+            // `lines` is the tooltip's `List<Component>`: the adders edit it as components and it goes back as the
+            // port's `FormattedText` lines.
+            let mut components: Vec<MutableComponent> = lines.drain(..).map(compat::component_of).collect();
+            if compat::container_screen_open() {
+                // addToTooltip(((AbstractContainerScreenAccessor) handledScreen).getFocusedSlot(), stack, lines);
+                // rust: port gap - `AbstractContainerScreen.hoveredSlot` is not readable by a mod here: the screen object is
+                // not published and the tooltip is built under the game's player lock (`extract_render_state_tail`), so
+                // neither the screen nor `player.containerMenu` answer. GAPS_batchB.md.
+                TooltipManager::add_to_tooltip(None, &stack, &mut components);
             } else {
-                TooltipManager::add_to_tooltip(None, &stack, &lines);
+                TooltipManager::add_to_tooltip(None, &stack, &mut components);
             }
+            lines.extend(components.into_iter().map(mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from));
         }));
         screen_events::AFTER_INIT.register(Arc::new(|screen: &mut Screen, width: i32, height: i32| {
             TooltipManager::on_screen_change(&screen);
@@ -72,16 +80,18 @@ impl TooltipManager {
 
     /// java: private static void onScreenChange(Screen screen)
     pub fn on_screen_change(screen: &mcrust::net::minecraft::client::gui::screens::screen::Screen) {
-        *CURRENT_SCREEN_ADDERS.get_mut() = compat::sorted_by(ADDERS.get_mut().iter().cloned().filter(|__a0| ({ let __f = compat::dispatch(__a0, |__t| __t.is_enabled()); __f(&compat::view(__a0, |a| a as compat::Shared<dyn ContainerMatcher>)) })).filter(|adder| ({ let __f = compat::dispatch(adder, |__t| __t.test()); __f(&compat::view(adder, |a| a as compat::Shared<dyn ContainerMatcher>), screen) })), |a, b| { let key = |__a0| ({ let __f = compat::dispatch(__a0, |__t| __t.get_priority()); __f(__a0) }); key(a).cmp(&key(b)) }).collect::<Vec<_>>();
+        *CURRENT_SCREEN_ADDERS.get_mut() = compat::sorted_by(ADDERS.get_mut().iter().cloned().filter(|__a0| ({ let __f = compat::dispatch(__a0, |__t| __t.is_enabled()); __f(&compat::view(__a0, |a| a as compat::Shared<dyn ContainerMatcher>)) })).filter(|adder| ({ let __f = compat::dispatch(adder, |__t| __t.test()); __f(&compat::view(adder, |a| a as compat::Shared<dyn ContainerMatcher>), screen) })), |a, b| { let key = |__a0: &compat::Shared<dyn TooltipAdder>| ({ let __f = compat::dispatch(__a0, |__t| __t.get_priority()); __f(__a0) }); key(a).cmp(&key(b)) }).collect::<Vec<_>>();
     }
 
     /// java: private static List<Component> addToTooltip(@Nullable Slot focusedSlot, ItemStack stack, List<Component> lines)
-    pub fn add_to_tooltip(mut focused_slot: Option<Slot>, stack: &mcrust::net::minecraft::world::item::item_stack::ItemStack, lines: &Vec<MutableComponent>) -> Vec<MutableComponent> {
+    /// `lines` is edited in place (Java's list); the returned list is the same lines.
+    pub fn add_to_tooltip(mut focused_slot: Option<Slot>, stack: &mcrust::net::minecraft::world::item::item_stack::ItemStack, lines: &mut Vec<MutableComponent>) -> Vec<MutableComponent> {
         if !(Utils::is_on_skyblock()) {
             return lines.clone();
         }
-        for adder in CURRENT_SCREEN_ADDERS.get_mut().iter() {
-            ({ let __f = compat::dispatch(adder, |__t| __t.add_to_tooltip()); __f(adder, focused_slot.clone(), stack, &mut lines) });
+        let adders = CURRENT_SCREEN_ADDERS.get().clone();
+        for adder in adders.iter() {
+            ({ let __f = compat::dispatch(adder, |__t| __t.add_to_tooltip()); __f(adder, focused_slot.clone(), stack, lines) });
         }
         return lines.clone();
     }

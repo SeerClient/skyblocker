@@ -43,7 +43,7 @@ impl InsertTextVisitor {
         let (_, __this) = BaseVisitorBase::new_in(selection_start, selection_end, move |__base| {
             let __h = compat::shared(Self {
                 base: __base,
-                new_text: MutableComponent::create(PlainTextContents::new_literal_contents("".to_string())),
+                new_text: MutableComponent::create(Arc::new(mcrust::net::minecraft::network::chat::component_contents::ComponentContents::Text(PlainTextContents::new_literal_contents("".to_string())))),
                 text: __init_text,
                 insert_as: __init_insert_as,
             });
@@ -54,7 +54,7 @@ impl InsertTextVisitor {
 
     /// java: private void addNewText(MutableComponent newText)
     pub fn add_new_text(__this: &compat::Shared<Self>, new_text: &MutableComponent) {
-        { let (__q0,) = (new_text.clone(),); __this.lock().borrow_mut().new_text.append(__q0) };
+        compat::write(__this, |__t| __t.new_text = std::mem::replace(&mut __t.new_text, component::empty()).append(new_text.clone()));
     }
 
     /// java: public MutableComponent getNewText()

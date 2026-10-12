@@ -76,3 +76,23 @@ impl CompactorPreviewTooltipComponent {
     }
 
 }
+
+/// `implements ClientTooltipComponent`: the game draws the component through these (the bodies above take the
+/// mod's `Font` / `GuiGraphicsExtractor` handles, which do not depend on the arguments the game lends).
+impl mcrust::net::minecraft::client::gui::screens::inventory::tooltip::client_tooltip_component::ClientTooltipComponent for CompactorPreviewTooltipComponent {
+    fn get_height(&self, _font: &dyn mcrust::net::minecraft::client::gui::screens::inventory::tooltip::client_tooltip_component::TooltipFont) -> i32 {
+        CompactorPreviewTooltipComponent::get_height(self, &compat::font())
+    }
+
+    fn get_width(&self, _font: &dyn mcrust::net::minecraft::client::gui::screens::inventory::tooltip::client_tooltip_component::TooltipFont) -> i32 {
+        CompactorPreviewTooltipComponent::get_width(self, &compat::font())
+    }
+
+    fn extracts_image(&self) -> bool {
+        true
+    }
+
+    fn extract_image(&self, _font: &dyn mcrust::net::minecraft::client::gui::screens::inventory::tooltip::client_tooltip_component::TooltipFont, x: i32, y: i32, w: i32, h: i32, _graphics: &mut mcrust::net::minecraft::client::gui::screens::inventory::tooltip::client_tooltip_component::TooltipGraphics<'_>) {
+        CompactorPreviewTooltipComponent::extract_image(self, &compat::font(), x, y, w, h, &GuiGraphicsExtractor::new());
+    }
+}

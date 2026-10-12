@@ -2,6 +2,7 @@
 
 #[allow(unused_imports)]
 use crate::prelude::*;
+use mcrust::net::minecraft::world::entity::entity::Entity as _;
 use crate::de::hysky::skyblocker::config::skyblocker_config_manager::SkyblockerConfigManager;
 use crate::de::hysky::skyblocker::skyblock::dungeon::puzzle::dungeon_puzzle::DungeonPuzzle;
 use crate::de::hysky::skyblocker::skyblock::dungeon::puzzle::dungeon_puzzle::DungeonPuzzleBase;
@@ -35,11 +36,13 @@ pub struct WaterboardPreviewer {
     /// java: private LeverType prospective;
     pub prospective: Option<LeverType>,
     /// java: private ClientLevel world;
-    pub world: Option<ClientLevel>,
+    pub world: Option<Arc<ClientLevel>>,
     /// java: private Room room;
     pub room: Option<compat::Shared<dyn Room>>,
     /// java: private LocalPlayer player;
-    pub player: Option<LocalPlayer>,
+    /// java: private LocalPlayer player - the local player's entity id (Java holds the object; read through
+    /// `game::with_entity`, the same `Mutex` as `Minecraft.player`)
+    pub player: Option<i32>,
 }
 
 impl std::ops::Deref for WaterboardPreviewer {
@@ -111,11 +114,12 @@ impl WaterboardPreviewer {
     /// java: private void findWaterPathVertical(BlockPos root, List<Pair<BlockPos, BlockPos>> waterPath)
     pub fn find_water_path_vertical(__this: &compat::Shared<Self>, root: &BlockPos, water_path: &mut Vec<(BlockPos, BlockPos)>) {
         if WaterboardPreviewer::is_water_passable(__this, &root.below()) {
-            let tail = MutableBlockPos::new_origin().set_vec3i(root.below().as_vec3i());
+            let mut tail = MutableBlockPos::new_origin();
+            tail.set_vec3i(root.below().as_vec3i());
             while WaterboardPreviewer::is_water_passable(__this, &tail.immutable().below()) {
                 tail.move_direction(Direction::Down);
             }
-            water_path.push((root.clone(), BlockPos::from_vec3i(tail)));
+            water_path.push((root.clone(), tail.immutable()));
             WaterboardPreviewer::find_water_path_horizontal(__this, tail.immutable(), water_path);
         }
     }
@@ -123,31 +127,36 @@ impl WaterboardPreviewer {
     /// java: private void findWaterPathHorizontal(BlockPos root, List<Pair<BlockPos, BlockPos>> waterPath)
     pub fn find_water_path_horizontal(__this: &compat::Shared<Self>, mut root: BlockPos, water_path: &mut Vec<(BlockPos, BlockPos)>) {
         if !(WaterboardPreviewer::is_water_passable(__this, &root.below())) {
-            let left = MutableBlockPos::new_origin().set_vec3i(root.as_vec3i());
+            let mut left = MutableBlockPos::new_origin();
+            left.set_vec3i(root.as_vec3i());
             let mut left_steps: i32 = 0;
             while WaterboardPreviewer::is_water_passable(__this, &left.immutable().east()) && !(WaterboardPreviewer::is_water_passable(__this, &left.immutable().below())) && left_steps < 7 {
                 left.move_direction(Direction::East);
                 left_steps += 1;
             }
-            let right = MutableBlockPos::new_origin().set_vec3i(root.as_vec3i());
+            let mut right = MutableBlockPos::new_origin();
+            right.set_vec3i(root.as_vec3i());
             let mut right_steps: i32 = 0;
             while WaterboardPreviewer::is_water_passable(__this, &right.immutable().west()) && !(WaterboardPreviewer::is_water_passable(__this, &right.immutable().below())) && right_steps < 7 {
                 right.move_direction(Direction::West);
                 right_steps += 1;
             }
-            if WaterboardPreviewer::is_water_passable(__this, &left.immutable().below()) && left_steps <= 5 && left_steps < right_steps || !(WaterboardPreviewer::is_water_passable(__this, &right.immutable().below())) {
-                water_path.push((root.clone(), BlockPos::from_vec3i(left)));
+            // If one side has an air block closer to the source than the other side, the water will only flow in that direction.
+            // Skyblock only looks up to 5 blocks away when determining if there is an air block.
+            // If no air is found, the water flows in both directions up to a maximum of 7 blocks away.
+            if WaterboardPreviewer::is_water_passable(__this, &left.immutable().below()) && left_steps <= 5 && (left_steps < right_steps || !(WaterboardPreviewer::is_water_passable(__this, &right.immutable().below()))) {
+                water_path.push((root.clone(), left.immutable()));
                 WaterboardPreviewer::find_water_path_vertical(__this, &left.immutable(), water_path);
-            } else if WaterboardPreviewer::is_water_passable(__this, &right.immutable().below()) && right_steps <= 5 && right_steps < left_steps || !(WaterboardPreviewer::is_water_passable(__this, &left.immutable().below())) {
-                water_path.push((root.clone(), BlockPos::from_vec3i(right)));
+            } else if WaterboardPreviewer::is_water_passable(__this, &right.immutable().below()) && right_steps <= 5 && (right_steps < left_steps || !(WaterboardPreviewer::is_water_passable(__this, &left.immutable().below()))) {
+                water_path.push((root.clone(), right.immutable()));
                 WaterboardPreviewer::find_water_path_vertical(__this, &right.immutable(), water_path);
             } else {
                 if left_steps > 0 {
-                    water_path.push((root.clone(), BlockPos::from_vec3i(left)));
+                    water_path.push((root.clone(), left.immutable()));
                     WaterboardPreviewer::find_water_path_vertical(__this, &left.immutable(), water_path);
                 }
                 if right_steps > 0 {
-                    water_path.push((root.clone(), BlockPos::from_vec3i(right)));
+                    water_path.push((root.clone(), right.immutable()));
                     WaterboardPreviewer::find_water_path_vertical(__this, &right.immutable(), water_path);
                 }
             }
@@ -174,8 +183,10 @@ impl WaterboardPreviewer {
         if !(SkyblockerConfigManager::get().dungeons.puzzle_solvers.preview_lever_effects) {
             return;
         }
-        let mut camera: Vec3 = ({ let __r = &compat::read(__this, |__t| __t.room.clone()).unwrap(); let __f = compat::dispatch(__r, |__t| __t.actual_to_relative_vec3()); __f(__r, &__this.lock().borrow().player.as_ref().unwrap().base.base.base.base.get_eye_position()) });
-        let mut look: Vec3 = ({ let __r = &compat::read(__this, |__t| __t.room.clone()).unwrap(); let __f = compat::dispatch(__r, |__t| __t.actual_to_relative_vec3()); __f(__r, &{ let (__q0,) = (&__this.lock().borrow().player.as_ref().unwrap().base.base.base.base.get_look_angle(),); __this.lock().borrow().player.as_ref().unwrap().base.base.base.base.get_eye_position().add_vec(__q0) }) }).subtract_vec(&camera);
+        let player = compat::read(__this, |__t| __t.player).unwrap();
+        let (eye_position, look_angle) = mcrust::mcrust::modding::game::with_entity(player, |p| (p.base().get_eye_position(), p.base().get_look_angle())).expect("the player");
+        let mut camera: Vec3 = ({ let __r = &compat::read(__this, |__t| __t.room.clone()).unwrap(); let __f = compat::dispatch(__r, |__t| __t.actual_to_relative_vec3()); __f(__r, &eye_position) });
+        let mut look: Vec3 = ({ let __r = &compat::read(__this, |__t| __t.room.clone()).unwrap(); let __f = compat::dispatch(__r, |__t| __t.actual_to_relative_vec3()); __f(__r, &eye_position.add_vec(&look_angle)) }).subtract_vec(&camera);
         let mut t1: f64 = ((((waterboard::BOARD_Z as f64) - 1.5) - camera.z()) / look.z());
         let mut t2: f64 = ((((waterboard::BOARD_Z as f64) + 1.5) - camera.z()) / look.z());
         let mut start: Vec3 = camera.add_vec(&look.scale(t1));
@@ -187,18 +198,23 @@ impl WaterboardPreviewer {
             Some(crate::de::hysky::skyblocker::skyblock::dungeon::secrets::room::Direction::Se) => Direction::North,
             _ => unreachable!("switch expression: no case matched"),
         };
-        let __this_w1 = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
-        { let __v = Some(block_getter::traverse_blocks(&({ let __r = &compat::read(__this, |__t| __t.room.clone()).unwrap(); let __f = compat::dispatch(__r, |__t| __t.relative_to_actual_vec3()); __f(__r, &start) }), &({ let __r = &compat::read(__this, |__t| __t.room.clone()).unwrap(); let __f = compat::dispatch(__r, |__t| __t.relative_to_actual_vec3()); __f(__r, &end) }), None /* java: null */, |_, pos| { let Some(__this_1) = __this_w1.get().upgrade() else { return Default::default(); }; {
-            if ({ let __r = &compat::read((&__this_1), |__t| __t.room.clone()).unwrap(); let __f = compat::dispatch(__r, |__t| __t.actual_to_relative()); __f(__r, &pos) }).get_z() != waterboard::BOARD_Z {
-                return Default::default(); // java: return null
+        // prospective = BlockGetter.traverseBlocks(room.relativeToActual(start), room.relativeToActual(end), null, (_, pos) -> {..}, _ -> null);
+        // a consumer's null continues the traversal: `None` here, a found lever type `Some(Some(..))`
+        let from = ({ let __r = &compat::read(__this, |__t| __t.room.clone()).unwrap(); let __f = compat::dispatch(__r, |__t| __t.relative_to_actual_vec3()); __f(__r, &start) });
+        let to = ({ let __r = &compat::read(__this, |__t| __t.room.clone()).unwrap(); let __f = compat::dispatch(__r, |__t| __t.relative_to_actual_vec3()); __f(__r, &end) });
+        let world = compat::read(__this, |__t| __t.world.clone()).unwrap();
+        let __v: Option<LeverType> = block_getter::traverse_blocks(&from, &to, &(), |_, pos| {
+            if ({ let __r = &compat::read(__this, |__t| __t.room.clone()).unwrap(); let __f = compat::dispatch(__r, |__t| __t.actual_to_relative()); __f(__r, &pos) }).get_z() != waterboard::BOARD_Z {
+                return None; // java: return null
             }
-            let mut lever_type: Option<LeverType> = LeverType::from_block(&(&__this_1).lock().borrow().world.as_ref().unwrap().get_block_state_typed(&pos).get_block());
+            let mut lever_type: Option<LeverType> = LeverType::from_block(&world.get_block_state_typed(&pos).get_block());
             if lever_type.is_none() {
                 let mut alternate_pos: BlockPos = pos.relative(behind);
-                lever_type = LeverType::from_block(&(&__this_1).lock().borrow().world.as_ref().unwrap().get_block_state_typed(&alternate_pos).get_block());
+                lever_type = LeverType::from_block(&world.get_block_state_typed(&alternate_pos).get_block());
             }
-            return lever_type;
-        } }, |_| None)); compat::write(__this, |__t| __t.prospective = __v); }
+            return lever_type.map(Some);
+        }, |_| None);
+        compat::write(__this, |__t| __t.prospective = __v);
     }
 
     /// java: private void extractProspectiveChanges(PrimitiveCollector collector)
@@ -284,8 +300,8 @@ impl WaterboardPreviewer {
         }
         { let __v = mcrust::mcrust::modding::game::level(); compat::write(__this, |__t| __t.world = __v); }
         { let __v = DungeonManager::get_current_room(); compat::write(__this, |__t| __t.room = __v); }
-        // TODO(fabric2seer): `Minecraft.player` held as a value: the port lends the player only inside `game::with_player(|player| ..)` (a mod must never lock it)
-        //   java: player = Minecraft.getInstance().player;
+        // java: player = Minecraft.getInstance().player;
+        { let __v = mcrust::mcrust::modding::game::with_player(|player| player.base().get_id()); compat::write(__this, |__t| __t.player = __v); }
         // java: try {..} catch (Exception e) - an exception here is a panic, caught by `catch_unwind`
         let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             WaterboardPreviewer::find_prospective(__this);

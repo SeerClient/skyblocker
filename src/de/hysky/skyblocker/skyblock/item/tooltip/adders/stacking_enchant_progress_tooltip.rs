@@ -137,8 +137,8 @@ impl StackingEnchantProgressTooltip {
             let mut stacking_enchant_info: Option<StackingEnchantInfo> = None;
             let mut stacking_enchant_level: i32 = 0;
             for enchantment in enchantments.key_set() {
-                if STACKING_ENCHANT_IDS.contains(&enchantment) {
-                    stacking_enchant_info = Some(match enchantment.as_str() {
+                if STACKING_ENCHANT_IDS.contains(enchantment) {
+                    stacking_enchant_info = Some(match enchantment {
                         "expertise" => EXPERTISE_INFO.clone(),
                         "compact" => COMPACT_INFO.clone(),
                         "cultivating" => CULTIVATING_INFO.clone(),

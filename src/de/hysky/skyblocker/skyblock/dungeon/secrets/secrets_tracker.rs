@@ -51,14 +51,17 @@ impl SecretsTracker {
             RunPhase::Start => {
                 CompletableFuture::<()>::run_async(move || (|| {
                     let mut newly_started_run: TrackedRun = TrackedRun::new();
-                    for i in 0..5 {
+                    for i in 0..5i32 {
                         let mut player_name: String = SecretsTracker::get_player_name_at(i.wrapping_add(1));
                         if !player_name.is_empty() {
                             let mut previous_run: Option<TrackedRun> = compat::get_state(&LAST_RUN);
-                            if previous_run.is_some() && compat::millis() <= (compat::get_state(&LAST_RUN_ENDED)).wrapping_add(300000 as i64) && !std::ptr::eq(&previous_run.as_ref().unwrap().players_secret_data().get(&player_name).cloned().unwrap_or_else(|| SECRET_DATA_EMPTY.clone()), &SECRET_DATA_EMPTY) {
-                                newly_started_run.players_secret_data().insert(player_name.clone(), previous_run.as_ref().unwrap().players_secret_data().get(&player_name).cloned().unwrap());
+                            // previousRun.playersSecretData().getOrDefault(playerName, SecretData.EMPTY) != SecretData.EMPTY - Java
+                            // compares with the EMPTY instance; the port's records are values, so a stored entry equal to EMPTY
+                            // (only ever stored as EMPTY itself, by getPlayerSecrets' failure path - or a fetch of 0 / not cached / age 0) counts as it
+                            if previous_run.is_some() && compat::millis() <= (compat::get_state(&LAST_RUN_ENDED)).wrapping_add(300000 as i64) && previous_run.as_ref().unwrap().players_secret_data.get(&player_name).is_some_and(|data| *data != *SECRET_DATA_EMPTY) {
+                                newly_started_run.players_secret_data.insert(player_name.clone(), previous_run.as_ref().unwrap().players_secret_data.get(&player_name).cloned().unwrap());
                             } else {
-                                newly_started_run.players_secret_data().insert(player_name.clone(), SecretsTracker::get_player_secrets(&player_name));
+                                newly_started_run.players_secret_data.insert(player_name.clone(), SecretsTracker::get_player_secrets(&player_name));
                             }
                         }
                     }
@@ -68,15 +71,17 @@ impl SecretsTracker {
             RunPhase::End => {
                 CompletableFuture::<()>::run_async(move || (|| {
                     let mut this_run: Option<TrackedRun> = compat::get_state(&CURRENT_RUN);
-                    if let Some(this_run) = &this_run {
+                    if let Some(mut this_run) = this_run {
                         let mut secrets_found: std::collections::HashMap<String, SecretData> = std::collections::HashMap::new();
-                        for entry in this_run.players_secret_data().iter().map(|(k, v)| (k.clone(), v.clone())) {
-                            let mut player_name: String = entry.0.clone();
-                            let starting_secrets = &entry.1;
+                        // for (Map.Entry<String, SecretData> entry : thisRun.playersSecretData().entrySet()) - `entry.setValue`
+                        // writes the run's own map
+                        let player_names: Vec<String> = this_run.players_secret_data.keys().cloned().collect();
+                        for player_name in player_names {
+                            let starting_secrets: SecretData = this_run.players_secret_data.get(&player_name).cloned().unwrap();
                             let mut secrets_now: SecretData = SecretsTracker::get_player_secrets(&player_name);
                             let mut secrets_player_found: i32 = secrets_now.secrets().wrapping_sub(starting_secrets.secrets());
                             secrets_found.insert(player_name.clone(), secrets_now.updated(secrets_player_found, (starting_secrets.cached() || secrets_now.cached())));
-                            entry.1 = secrets_now.clone();
+                            this_run.players_secret_data.insert(player_name.clone(), secrets_now.clone());
                         }
                         for entry in secrets_found.iter().map(|(k, v)| (k.clone(), v.clone())) {
                             mcrust::mcrust::modding::game::execute(move || { SecretsTracker::send_result_message(&entry.0, &entry.1); });
@@ -126,13 +131,15 @@ impl SecretsTracker {
         let mut uuid: String = ApiUtils::name2_uuid(name);
         if !uuid.is_empty() {
             {
-                // TODO(fabric2seer): `Http.sendHypixelRequest` is not a static method of Http
-                //   java: ApiResponse response = Http.sendHypixelRequest(..);
-                let mut response: crate::unresolved::ApiResponse = todo!("fabric2seer: the initialiser of `response` (TODO above)");
-                // java: try {..} catch (Exception e) - an exception here is a panic, caught by `catch_unwind`; the body's `return` is the closure's value
+                // java: try (ApiResponse response = Http.sendHypixelRequest("player", "?uuid=" + uuid)) {
+                //   return new SecretData(getSecretCountFromAchievements(JsonParser.parseString(response.content()).getAsJsonObject()), response.cached(), response.age());
+                // } catch (Exception e) {..} - an exception here is a panic, caught by `catch_unwind`; the body's `return` is the closure's value
                 match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                    // TODO(fabric2seer): `.content(..)` on a ApiResponse
-                    //   java: return new SecretData(getSecretCountFromAchievements(JsonParser.parseString(response.content()).getAsJsonObject()), response.cached(), response.age());
+                    let mut response: crate::de::hysky::skyblocker::utils::http::ApiResponse = crate::de::hysky::skyblocker::utils::http::Http::send_hypixel_request("player", &format!("?uuid={}", uuid));
+                    let parsed: serde_json::Value = serde_json::from_str(&response.content()).expect("JsonParseException");
+                    let __v = SecretData::new(SecretsTracker::get_secret_count_from_achievements(&compat::json::get_as_json_object(&parsed)), response.cached(), response.age());
+                    response.close();
+                    __v
                 })) {
                     Ok(__v) => return __v,
                     Err(e) => {
@@ -163,12 +170,13 @@ pub struct TrackedRun {
 impl TrackedRun {
     /// java: private TrackedRun()
     pub fn new() -> Self {
-        let mut this = Self::new(std::collections::HashMap::new());
+        let mut this = Self::new_1(std::collections::HashMap::new());
         this
     }
 
     /// java: the canonical record constructor
-    pub fn new(mut players_secret_data: std::collections::HashMap<String, SecretData>) -> Self {
+    /// (the canonical record constructor is `new_N` here: Rust has no overloading and `new` is the explicit one)
+    pub fn new_1(mut players_secret_data: std::collections::HashMap<String, SecretData>) -> Self {
         Self { players_secret_data }
     }
 

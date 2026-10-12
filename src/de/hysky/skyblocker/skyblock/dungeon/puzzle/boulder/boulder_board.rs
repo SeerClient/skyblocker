@@ -15,7 +15,8 @@ pub struct BoulderBoard {
     /// java: private final int width;
     pub width: i32,
     /// java: private final BoulderObject[][] grid;
-    pub grid: Vec<Vec<BoulderObject>>,
+    /// A cell with no object is Java's `null`.
+    pub grid: Vec<Vec<Option<BoulderObject>>>,
 }
 
 impl BoulderBoard {
@@ -23,20 +24,22 @@ impl BoulderBoard {
     pub fn new(mut height: i32, mut width: i32) -> Self {
         let __init_height = height;
         let __init_width = width;
-        let __init_grid = vec![(0..(width) as usize).map(|_| Default::default()).collect::<Vec<_>>(); (height) as usize];
+        // new BoulderObject[height][width]: every cell null
+        let __init_grid: Vec<Vec<Option<BoulderObject>>> = vec![vec![None; (width) as usize]; (height) as usize];
         let mut this = Self {
             height: __init_height,
             width: __init_width,
             grid: __init_grid,
         };
         for z in 0..width {
-            (this.grid[(height.wrapping_sub(1)) as usize])[(z) as usize] = BoulderObject::new(24i32.wrapping_sub(3i32.wrapping_mul(z)), boulder::BASE_Y, 6, "P".to_string());
+            (this.grid[(height.wrapping_sub(1)) as usize])[(z) as usize] = Some(BoulderObject::new(24i32.wrapping_sub(3i32.wrapping_mul(z)), boulder::BASE_Y, 6, "P".to_string()));
         }
         this
     }
 
     /// java: public BoulderObject getObjectAtPosition(int x, int y)
-    pub fn get_object_at_position(&self, mut x: i32, mut y: i32) -> BoulderObject {
+    /// `null` when no object is present.
+    pub fn get_object_at_position(&self, mut x: i32, mut y: i32) -> Option<BoulderObject> {
         if !(self.is_valid_position(x, y)) {
             panic!("IllegalArgumentException: {}", format!("Invalid position: ({}, {})", x, y).to_string());
         }
@@ -45,14 +48,13 @@ impl BoulderBoard {
 
     /// java: public BlockPos getObject3DPosition(int x, int y)
     pub fn get_object3_d_position(&self, mut x: i32, mut y: i32) -> BlockPos {
-        // TODO(fabric2seer): field `Y` of a value of unknown type
-        //   java: return getObjectAtPosition(x, y).get3DPosition().relative(Direction.Axis.Y, -1);
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        // java: return getObjectAtPosition(x, y).get3DPosition().relative(Direction.Axis.Y, -1);
+        return self.get_object_at_position(x, y).expect("NullPointerException: no BoulderObject at the position").get3_d_position().relative_axis(mcrust::net::minecraft::core::direction::Axis::Y, -1);
     }
 
     /// java: public void placeObject(int x, int y, BoulderObject object)
-    pub fn place_object(&self, mut x: i32, mut y: i32, mut object: BoulderObject) {
-        (self.grid[(x) as usize])[(y) as usize] = object.clone();
+    pub fn place_object(&mut self, mut x: i32, mut y: i32, mut object: BoulderObject) {
+        (self.grid[(x) as usize])[(y) as usize] = Some(object);
     }
 
     /// java: public int getHeight()
@@ -75,7 +77,7 @@ impl BoulderBoard {
         let mut board_char_array: Vec<Vec<char>> = vec![vec!['\0'; (self.width) as usize]; (self.height) as usize];
         for x in 0..self.height {
             for y in 0..self.width {
-                let mut boulder_object: Option<BoulderObject> = Some((self.grid[(x) as usize])[(y) as usize].clone());
+                let mut boulder_object: Option<BoulderObject> = (self.grid[(x) as usize])[(y) as usize].clone();
                 (board_char_array[(x) as usize])[(y) as usize] = (if boulder_object.is_some() { compat::char_at(&(boulder_object.as_ref().unwrap().r#type()), 0) } else { '.' });
             }
         }
@@ -87,7 +89,7 @@ impl BoulderBoard {
         let mut sb: String = String::new();
         for x in 0..self.height {
             for y in 0..self.width {
-                let mut boulder_object: Option<BoulderObject> = Some((self.grid[(x) as usize])[(y) as usize].clone());
+                let mut boulder_object: Option<BoulderObject> = (self.grid[(x) as usize])[(y) as usize].clone();
                 let mut display_char: String = (if boulder_object.is_some() { boulder_object.as_ref().unwrap().r#type() } else { ".".to_string() });
                 { sb.push_str(&display_char); };
             }

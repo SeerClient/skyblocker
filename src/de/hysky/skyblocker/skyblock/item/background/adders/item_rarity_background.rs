@@ -60,8 +60,8 @@ impl ColoredItemBackground<crate::de::hysky::skyblocker::skyblock::item::skybloc
     }
 
     /// java: @Override protected SkyblockItemRarity getColorKey(ItemStack stack, Int2ReferenceOpenHashMap<SkyblockItemRarity> cache)
-    fn get_color_key(&mut self, stack: &mcrust::net::minecraft::world::item::item_stack::ItemStack, cache: &mut std::collections::HashMap<i32, SkyblockItemRarity>) -> SkyblockItemRarity {
-        return stack.get_skyblock_rarity();
+    fn get_color_key(&mut self, stack: &mcrust::net::minecraft::world::item::item_stack::ItemStack, cache: &mut std::collections::HashMap<i32, Option<SkyblockItemRarity>>) -> Option<SkyblockItemRarity> {
+        return Some(stack.get_skyblock_rarity());
     }
 
     /// java: @Override protected void extract(GuiGraphicsExtractor context, int x, int y, SkyblockItemRarity rarity)
@@ -73,4 +73,19 @@ impl ColoredItemBackground<crate::de::hysky::skyblocker::skyblock::item::skybloc
         gui_graphics_extractor::blit_sprite_stretched(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), mcrust::net::minecraft::client::renderer::render_pipelines::gui_textured(), &self.get_sprite(), x, y, 16, 16, argb::color_alpha_f32_rgb(SkyblockerConfigManager::get().general.item_info_display.item_background_opacity, (if use_legacy { rarity.fields().legacy_color } else { rarity.fields().color })));
     }
 
+}
+
+impl crate::de::hysky::skyblocker::skyblock::item::background::colored_item_background::AnyColoredItemBackground for ItemRarityBackground {
+    fn on_screen_change(&mut self, title: &str, screen: &mcrust::net::minecraft::client::gui::screens::screen::Screen) {
+        ColoredItemBackground::<SkyblockItemRarity>::on_screen_change(self, title, screen)
+    }
+    fn is_enabled(&self) -> bool {
+        ColoredItemBackground::<SkyblockItemRarity>::is_enabled(self)
+    }
+    fn try_extract(&mut self, stack: &mcrust::net::minecraft::world::item::item_stack::ItemStack, graphics: &GuiGraphicsExtractor, x: i32, y: i32) {
+        ColoredItemBackground::<SkyblockItemRarity>::try_extract(self, stack, graphics, x, y)
+    }
+    fn clear_cache(&mut self) {
+        ColoredItemBackground::<SkyblockItemRarity>::clear_cache(self)
+    }
 }

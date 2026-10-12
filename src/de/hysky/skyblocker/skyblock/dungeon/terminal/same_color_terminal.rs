@@ -24,7 +24,9 @@ pub static INSTANCE: compat::MainThread<compat::Shared<SameColorTerminal>> = com
 /// java: private static final Item[] ORDER = new Item[]{ Items.STAINED_GLASS_PANE.red(), Items.STAINED_GLASS_PANE.orange(), Items.STAINED_GLASS_PANE.yellow(), Items.STAINED_GLASS_PANE.green(), Items.STAINED_GL
 pub static ORDER: compat::MainThread<Vec<Arc<Item>>> = compat::MainThread::new(|| vec![mcrust::net::minecraft::world::item::items::stained_glass_pane().red().clone(), mcrust::net::minecraft::world::item::items::stained_glass_pane().orange().clone(), mcrust::net::minecraft::world::item::items::stained_glass_pane().yellow().clone(), mcrust::net::minecraft::world::item::items::stained_glass_pane().green().clone(), mcrust::net::minecraft::world::item::items::stained_glass_pane().blue().clone()]);
 /// java: private static final ImmutableMap<Item, Integer> INDEX;
-pub static INDEX: compat::MainThread<std::collections::HashMap<Arc<Item>, i32>> = compat::MainThread::new(|| Default::default());
+/// Keyed by the item OBJECT (Java's `Item` has identity equality; the port's `Item` has no `Hash`/`Eq`): pairs
+/// looked up with `Arc::ptr_eq` (`index_of`).
+pub static INDEX: compat::MainThread<Vec<(Arc<Item>, i32)>> = compat::MainThread::new(|| Vec::new());
 
 /// java: public final class SameColorTerminal extends SimpleContainerSolver implements TerminalSolver, SlotTextAdder
 #[derive(Clone)]
@@ -54,15 +56,14 @@ impl SameColorTerminal {
     fn clinit() {
         static ONCE: std::sync::Once = std::sync::Once::new();
         ONCE.call_once(|| {
-            // TODO(fabric2seer): static call ImmutableMap.builderWithExpectedSize(..)
-            //   java: ImmutableMap.Builder<Item, Integer> builder = ImmutableMap.builderWithExpectedSize(ORDER.length);
-            let mut builder: crate::unresolved::Builder = todo!("fabric2seer: the initialiser of `builder` (TODO above)");
+            // ImmutableMap.Builder<Item, Integer> builder = ImmutableMap.builderWithExpectedSize(ORDER.length);
+            let mut builder: Vec<(Arc<Item>, i32)> = Vec::with_capacity(ORDER.get().len());
             for i in 0..(ORDER.get_mut().len() as i32) {
-                // TODO(fabric2seer): `.put(..)` on a Builder
-                //   java: builder.put(ORDER[i], i);
+                // builder.put(ORDER[i], i);
+                builder.push((ORDER.get()[(i) as usize].clone(), i));
             }
-            // TODO(fabric2seer): `.build(..)` on a Builder
-            //   java: INDEX = builder.build();
+            // INDEX = builder.build();
+            *INDEX.get_mut() = builder;
         });
     }
 
@@ -86,8 +87,8 @@ impl SameColorTerminal {
         let mut slot_colors: std::collections::HashMap<i32, i32> = std::collections::HashMap::new();
         for entry in slots.iter().map(|(k, v)| (k.clone(), v.clone())) {
             let mut item: Arc<Item> = entry.1.get_item();
-            let mut idx: i32 = INDEX.get_mut().get(&item).cloned().unwrap();
-            if true /* java: idx != null: never null here */ {
+            // Integer idx = INDEX.get(item); if (idx != null)
+            if let Some(idx) = INDEX.get().iter().find(|(i, _)| Arc::ptr_eq(i, &item)).map(|(_, idx)| *idx) {
                 slot_colors.insert(entry.0, idx);
                 counts[(idx) as usize] += 1;
             }

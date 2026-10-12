@@ -44,7 +44,7 @@ impl SimpleSlotTextAdderBase {
 
     /// java: protected SimpleSlotTextAdder() (built by the most-derived class's `wrap`, then run on its handle)
     pub fn new_0_in<__R>(__wrap: impl FnOnce(Self) -> (compat::Shared<dyn SimpleSlotTextAdder>, __R)) -> (compat::Shared<dyn SimpleSlotTextAdder>, __R) {
-        let (__this, __r) = Self::new6_in(Some(None), __wrap);
+        let (__this, __r) = Self::new6_in(None, __wrap);
         (__this, __r)
     }
 

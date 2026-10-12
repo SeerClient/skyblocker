@@ -77,7 +77,7 @@ impl TerminalHud {
 
     /// java: private boolean playerIsNearTerminal(AbstractClientPlayer player, GoldorWaypointsManager.GoldorWaypoint waypoint)
     pub fn player_is_near_terminal(__this: &compat::Shared<Self>, player: &dyn AbstractClientPlayer, waypoint: &compat::Shared<GoldorWaypoint>) -> bool {
-        return (player.distance_to_sqr_vec(&compat::read(waypoint, |__t| __t.center_pos.clone()).unwrap()) < (25 as f64));
+        return (player.base().distance_to_sqr_vec(&compat::read(waypoint, |__t| __t.center_pos.clone()).unwrap()) < (25 as f64));
     }
 
     /// java: private Component getStatusText(GoldorWaypointsManager.GoldorWaypoint waypoint)
@@ -242,9 +242,9 @@ impl TerminalHud {
             let mut display_text: MutableComponent = component::literal("Gate");
             if compat::read(&(CONFIG.get_mut())(), |__t| __t.show_terminal_status) {
                 if GoldorWaypointsManager::is_gate_destroyed() {
-                    display_text.append_str(" ").append(component::translatable("skyblocker.dungeons.terminalHud.destroyedStatus").with_style_format(ChatFormatting::Green));
+                    display_text = display_text.append_str(" ").append(component::translatable("skyblocker.dungeons.terminalHud.destroyedStatus").with_style_format(ChatFormatting::Green));
                 } else {
-                    display_text.append_str(" ").append(component::translatable("skyblocker.dungeons.terminalHud.incompleteStatus").with_style_format(ChatFormatting::Red));
+                    display_text = display_text.append_str(" ").append(component::translatable("skyblocker.dungeons.terminalHud.incompleteStatus").with_style_format(ChatFormatting::Red));
                 }
             }
             { let (__a0,) = ((PlainTextElement::new(Some(display_text.clone())) as compat::Shared<dyn Element>),); __this.lock().borrow_mut().add_element(__a0) };
@@ -263,7 +263,7 @@ impl TerminalHud {
             status = component::literal(" ").append(component::translatable("skyblocker.dungeons.terminalHud.incompleteStatus").with_style_format(ChatFormatting::Red));
         }
         if compat::read(&(CONFIG.get_mut())(), |__t| __t.show_terminals) {
-            for i in 0..5 {
+            for i in 0..5i32 {
                 { let (__a0,) = ((PlainTextElement::new(Some((component::literal(&format!("Terminal #{}", i.wrapping_add(1)))).append(status.clone()))) as compat::Shared<dyn Element>),); collector.lock().borrow_mut().add_element(__a0) };
             }
         }

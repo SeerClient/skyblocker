@@ -96,7 +96,7 @@ impl IceFill {
     }
 
     /// java: private boolean updateBoard(Level world, Room room, boolean[][] iceFillBoard, BlockPos.MutableBlockPos pos)
-    pub fn update_board(__this: &compat::Shared<Self>, world: &Level, room: &compat::Shared<dyn Room>, ice_fill_board: &Vec<Vec<bool>>, pos: &MutableBlockPos) -> bool {
+    pub fn update_board(__this: &compat::Shared<Self>, world: &Level, room: &compat::Shared<dyn Room>, ice_fill_board: &mut Vec<Vec<bool>>, pos: &mut MutableBlockPos) -> bool {
         let mut board_changed: bool = false;
         {
             let mut row: i32 = 0;
@@ -105,10 +105,11 @@ impl IceFill {
                     let mut col: i32 = 0;
                     while col < ((ice_fill_board[(row) as usize]).len() as i32) {
                         let mut actual_pos: BlockPos = ({ let __f = compat::dispatch(room, |__t| __t.relative_to_actual()); __f(room, &pos.immutable()) });
-                        if world.get_block_state(&actual_pos.below()).is_air() {
+                        // Don't solve the board if the block below is air
+                        if world.get_block_state_typed(&actual_pos.below()).is_air() {
                             return false;
                         }
-                        let mut is_block: bool = !(world.get_block_state(&actual_pos).is_air());
+                        let mut is_block: bool = !(world.get_block_state_typed(&actual_pos).is_air());
                         if (ice_fill_board[(row) as usize])[(col) as usize] != is_block {
                             (ice_fill_board[(row) as usize])[(col) as usize] = is_block;
                             board_changed = true;
@@ -127,18 +128,17 @@ impl IceFill {
     /// java: List<Vector2ic> solve(boolean[][] iceFillBoard)
     pub fn solve(__this: &compat::Shared<Self>, ice_fill_board: &Vec<Vec<bool>>) -> Vec<Vector2i> {
         let mut start: Vector2i = Vector2i::new((ice_fill_board.len() as i32).wrapping_sub(1), ((ice_fill_board[(0) as usize]).len() as i32).wrapping_div(2));
-        // TODO(fabric2seer): static call Booleans.countTrue(..)
-        //   java: int count = iceFillBoard.length * iceFillBoard[0].length - Arrays.stream(iceFillBoard).mapToInt(Booleans::countTrue).sum();
-        let mut count: i32 = todo!("fabric2seer: the initialiser of `count` (TODO above)");
+        // int count = iceFillBoard.length * iceFillBoard[0].length - Arrays.stream(iceFillBoard).mapToInt(Booleans::countTrue).sum();
+        let mut count: i32 = ((ice_fill_board.len() as i32).wrapping_mul((ice_fill_board[(0) as usize]).len() as i32)).wrapping_sub(ice_fill_board.iter().map(|row| row.iter().filter(|b| **b).count() as i32).sum::<i32>());
         let mut visited: Vec<Vec<bool>> = vec![vec![false; (((ice_fill_board[(0) as usize]).len() as i32)) as usize]; ((ice_fill_board.len() as i32)) as usize];
         (visited[(start.x()) as usize])[(start.y()) as usize] = true;
-        let mut new_path: Option<Vec<Vector2i>> = IceFill::solve_dfs(__this, ice_fill_board, count.wrapping_sub(1), &mut vec![start.clone()].into_iter().collect::<Vec<_>>(), &visited);
+        let mut new_path: Option<Vec<Vector2i>> = IceFill::solve_dfs(__this, ice_fill_board, count.wrapping_sub(1), &mut vec![start.clone()], &mut visited);
         return (if new_path.is_some() { new_path.clone() } else { Some(vec![]) }).unwrap();
     }
 
     /// java: private @Nullable List<Vector2ic> solveDfs(boolean[][] iceFillBoard, int count, List<Vector2ic> path, boolean[][] visited)
-    pub fn solve_dfs(__this: &compat::Shared<Self>, ice_fill_board: &Vec<Vec<bool>>, mut count: i32, path: &mut Vec<Vector2i>, visited: &Vec<Vec<bool>>) -> Option<Vec<Vector2i>> {
-        let pos = &mut (path[path.len() - 1]);
+    pub fn solve_dfs(__this: &compat::Shared<Self>, ice_fill_board: &Vec<Vec<bool>>, mut count: i32, path: &mut Vec<Vector2i>, visited: &mut Vec<Vec<bool>>) -> Option<Vec<Vector2i>> {
+        let pos: Vector2i = path[path.len() - 1];
         if count == 0 {
             if pos.x() == 0 && pos.y() == ((ice_fill_board[(0) as usize]).len() as i32).wrapping_div(2) {
                 return Some(path.clone());
@@ -146,9 +146,13 @@ impl IceFill {
                 return None;
             }
         }
-        // TODO(fabric2seer): `new` takes 2 argument(s) in the port (`x: i32, y: i32`), Java passes 0
-        // rust: let mut new_pos_array: Vec<Vector2i> = vec![pos.add_dest(1, 0, &Vector2i::new()).clone(), pos.add_dest(-1, 0, &Vector2i::new()).clone(), pos.add_dest(0, 1, &Vector2i::new()).clone(), pos.add_dest(0, -1, &Vector2i::new()).clone()];
-        let mut new_pos_array: Vec<Vector2i> = todo!("fabric2seer: the initialiser of `newPosArray` (TODO above)");
+        // Vector2ic[] newPosArray = {pos.add(1, 0, new Vector2i()), pos.add(-1, 0, new Vector2i()), pos.add(0, 1, new Vector2i()), pos.add(0, -1, new Vector2i())};
+        let mut new_pos_array: Vec<Vector2i> = vec![
+            *pos.add_dest(1, 0, &mut Vector2i::zero()),
+            *pos.add_dest(-1, 0, &mut Vector2i::zero()),
+            *pos.add_dest(0, 1, &mut Vector2i::zero()),
+            *pos.add_dest(0, -1, &mut Vector2i::zero()),
+        ];
         for new_pos in new_pos_array.iter() {
             if new_pos.x() >= 0 && new_pos.x() < (ice_fill_board.len() as i32) && new_pos.y() >= 0 && new_pos.y() < ((ice_fill_board[(0) as usize]).len() as i32) && !((ice_fill_board[(new_pos.x()) as usize])[(new_pos.y()) as usize]) && !((visited[(new_pos.x()) as usize])[(new_pos.y()) as usize]) {
                 path.push(new_pos.clone());
@@ -231,15 +235,26 @@ impl IceFill {
         let Some(mut room) = DungeonManager::get_current_room() else {
             return;
         };
+        // solve = CompletableFuture.runAsync(() -> {..}) - the task reads the room and writes this object's boards
+        // and paths, which are the mod's render-thread objects in this port, so it runs through the game's executor
+        // (`game::execute`: inline on the render thread) rather than on a pool thread.
         let __this_w1 = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
-        { let __v = Some(CompletableFuture::<()>::run_async(move || (|| { let Some(__this_1) = __this_w1.get().upgrade() else { return Default::default(); }; {
+        let __room = compat::RenderThread::new(room.clone());
+        let __v = Some(CompletableFuture::<()>::run_async(move || {
+            let Some(__this_1) = __this_w1.get().upgrade() else { return; };
+            let room = __room.get();
             let mut pos: MutableBlockPos = MutableBlockPos::new_origin();
             for i in 0..3 {
-                if IceFill::update_board((&__this_1), &mcrust::mcrust::modding::game::level().unwrap(), &room, &(&__this_1).lock().borrow().ice_fill_boards[(i) as usize], pos.set_vec3i((BOARD_ORIGINS.get_mut()[(i) as usize]).as_vec3i())) {
-                    (&__this_1).lock().borrow_mut().ice_fill_paths[(i) as usize] = IceFill::solve((&__this_1), &(&__this_1).lock().borrow().ice_fill_boards[(i) as usize]);
+                let mut board = compat::read(&__this_1, |__t| __t.ice_fill_boards[(i) as usize].clone());
+                let changed = IceFill::update_board(&__this_1, &mcrust::mcrust::modding::game::level().unwrap(), room, &mut board, pos.set_vec3i((BOARD_ORIGINS.get()[(i) as usize]).as_vec3i()));
+                compat::write(&__this_1, |__t| __t.ice_fill_boards[(i) as usize] = board.clone());
+                if changed {
+                    let path = IceFill::solve(&__this_1, &board);
+                    compat::write(&__this_1, |__t| __t.ice_fill_paths[(i) as usize] = path);
                 }
             }
-        } })(), compat::executor)); compat::write(__this, |__t| __t.solve = __v); }
+        }, |task: Box<dyn FnOnce() + Send>| mcrust::mcrust::modding::game::execute(task)));
+        compat::write(__this, |__t| __t.solve = __v);
     }
 
     /// IceFill.tick as the dispatch of Tickable.tick

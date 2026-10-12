@@ -90,7 +90,7 @@ impl DungeonBoss {
 
     /// java: public boolean isInBoss()
     pub fn is_in_boss(&self) -> bool {
-        return (*self != NONE);
+        return (*self != DungeonBoss::None);
     }
 
     /// java: public boolean isFloor(int floor)
@@ -100,7 +100,7 @@ impl DungeonBoss {
 
     /// java: public static DungeonBoss fromMessage(String message)
     pub fn from_message(message: &str) -> DungeonBoss {
-        return BOSSES.get(message).cloned().unwrap_or_else(|| NONE);
+        return BOSSES.get(message).cloned().unwrap_or_else(|| DungeonBoss::None);
     }
 
 }

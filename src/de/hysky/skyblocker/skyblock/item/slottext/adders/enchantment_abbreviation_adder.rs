@@ -221,13 +221,11 @@ impl EnchantmentAbbreviationAdder {
     /// java: public static @Nullable CompoundTag getEnchantments(ItemStack stack)
     pub fn get_enchantments(stack: &mcrust::net::minecraft::world::item::item_stack::ItemStack) -> Option<Tag> {
         let mut nbt: Tag = ItemUtils::get_custom_data(stack);
-        // TODO(fabric2seer): `is_empty` takes 1 argument(s) in the port (`tags: &BTreeMap<String, Tag>`), Java passes 0
-        if compound_tag::is_empty() || !(nbt.contains("enchantments")) {
+        if nbt.compound_is_empty() || !(nbt.contains("enchantments")) {
             return None;
         }
         let mut enchantments: Tag = nbt.get_compound_or_empty("enchantments");
-        // TODO(fabric2seer): `size` takes 1 argument(s) in the port (`tags: &BTreeMap<String, Tag>`), Java passes 0
-        if compound_tag::size() != 1 {
+        if enchantments.compound_size() != 1 {
             return None;
         }
         return Some(enchantments);
@@ -308,7 +306,7 @@ impl EnchantmentAbbreviationAdder {
         let Some(mut enchantments) = EnchantmentAbbreviationAdder::get_enchantments(stack) else {
             return vec![];
         };
-        let mut enchantment_id: String = enchantments.key_set().into_iter().next().unwrap();
+        let mut enchantment_id: String = enchantments.key_set().into_iter().next().unwrap().to_string();
         return EnchantmentAbbreviationAdder::get_abbreviation(__this, &enchantment_id).map(|text| vec![SlotText::top_right(&text)]).unwrap_or_else(|| vec![]);
     }
 

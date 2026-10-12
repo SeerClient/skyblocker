@@ -205,7 +205,7 @@ impl IcePath {
                     while col < ((__this.lock().borrow().silverfish_board[(row) as usize]).len() as i32) {
                         let mut is_block: bool = !((mcrust::mcrust::modding::game::level().unwrap().get_block_state_typed(&({ let __f = compat::dispatch(&room, |__t| __t.relative_to_actual()); __f(&room, &pos.immutable()) }))).is_air());
                         if (__this.lock().borrow().silverfish_board[(row) as usize])[(col) as usize] != is_block {
-                            (__this.lock().borrow().silverfish_board[(row) as usize])[(col) as usize] = is_block;
+                            compat::write(__this, |__t| (__t.silverfish_board[(row) as usize])[(col) as usize] = is_block);
                             board_changed = true;
                         }
                         pos.move_direction(Direction::West);
@@ -267,9 +267,11 @@ impl IcePath {
     /// java: @Override public void reset()
     pub fn reset_impl(__this: &compat::Shared<Self>) {
         <dyn DungeonPuzzle>::reset_body(&compat::view(__this, |a| a as compat::Shared<dyn DungeonPuzzle>));
-        for silverfish_board_row in compat::read(__this, |__t| __t.silverfish_board.clone()) {
-            silverfish_board_row.fill(false);
-        }
+        compat::write(__this, |__t| {
+            for silverfish_board_row in __t.silverfish_board.iter_mut() {
+                silverfish_board_row.fill(false);
+            }
+        });
         { let __v = None; compat::write(__this, |__t| __t.silverfish_pos = __v); }
     }
 

@@ -149,7 +149,7 @@ impl ColorSelectionWidget {
             let mut item_uuid: String = this.current_item.as_ref().unwrap().get_uuid();
             let mut dye: AnimatedDye = SkyblockerConfigManager::get().general.custom_animated_dyes.get(&item_uuid).cloned().unwrap();
             let mut new_dye: AnimatedDye = AnimatedDye::new(dye.keyframes(), dye.cycle_back(), f, dye.duration());
-            SkyblockerConfigManager::update_only(Arc::new(move |config| { config.general.custom_animated_dyes.insert(item_uuid.clone(), new_dye.clone()); }));
+            SkyblockerConfigManager::update_only(Arc::new(move |mut config| { config.general.custom_animated_dyes.insert(item_uuid.clone(), new_dye.clone()); }));
         })));
         let __wa1 = Tooltip::create(DELAY_TOOLTIP_TEXT.get_mut().get_string());
         let __o5 = this.delay_slider.clone().unwrap();
@@ -158,7 +158,7 @@ impl ColorSelectionWidget {
             let mut item_uuid: String = this.current_item.as_ref().unwrap().get_uuid();
             let mut dye: AnimatedDye = SkyblockerConfigManager::get().general.custom_animated_dyes.get(&item_uuid).cloned().unwrap();
             let mut new_dye: AnimatedDye = AnimatedDye::new(dye.keyframes(), dye.cycle_back(), dye.delay(), f);
-            SkyblockerConfigManager::update_only(Arc::new(move |config| { config.general.custom_animated_dyes.insert(item_uuid.clone(), new_dye.clone()); }));
+            SkyblockerConfigManager::update_only(Arc::new(move |mut config| { config.general.custom_animated_dyes.insert(item_uuid.clone(), new_dye.clone()); }));
         })));
         let __wa2 = Tooltip::create(DURATION_TOOLTIP_TEXT.get_mut().get_string());
         let __o6 = this.duration_slider.clone().unwrap();
@@ -236,7 +236,8 @@ impl ColorSelectionWidget {
     pub fn on_picker_color_changed(&mut self, mut argb: i32, mut release: bool) {
         ARGBTextInput::set_argb_color(self.argb_text_input.as_ref().unwrap(), argb);
         if !self.animated {
-            SkyblockerConfigManager::update_only(Arc::new(move |config| { config.general.custom_dye_colors.insert(self.current_item.as_ref().unwrap().get_uuid(), argb::opaque(argb)); }));
+            let __uuid = self.current_item.as_ref().unwrap().get_uuid();
+            SkyblockerConfigManager::update_only(Arc::new(move |mut config| { config.general.custom_dye_colors.insert(__uuid.clone(), argb::opaque(argb)); }));
         } else if release {
             AnimatedDyeTimelineWidget::set_color(self.timeline_widget.as_ref().unwrap(), argb);
         }
@@ -248,7 +249,8 @@ impl ColorSelectionWidget {
         if self.animated {
             AnimatedDyeTimelineWidget::set_color(self.timeline_widget.as_ref().unwrap(), argb);
         } else {
-            SkyblockerConfigManager::update_only(Arc::new(move |config| { config.general.custom_dye_colors.insert(self.current_item.as_ref().unwrap().get_uuid(), argb::opaque(argb)); }));
+            let __uuid = self.current_item.as_ref().unwrap().get_uuid();
+            SkyblockerConfigManager::update_only(Arc::new(move |mut config| { config.general.custom_dye_colors.insert(__uuid.clone(), argb::opaque(argb)); }));
         }
     }
 
@@ -271,9 +273,9 @@ impl ColorSelectionWidget {
         self.animated_checkbox.selected = false;
         self.change_visibilities();
         let mut item_uuid: String = self.current_item.as_ref().unwrap().get_uuid();
-        SkyblockerConfigManager::update_only(Arc::new(move |config| { config.general.custom_dye_colors.remove(&item_uuid); }));
-        SkyblockerConfigManager::update_only(Arc::new(move |config| { config.general.custom_animated_dyes.remove(&item_uuid); }));
-        let mut color: i32 = dyed_item_color::get_or_default(self.current_item.clone(), -1);
+        SkyblockerConfigManager::update_only(Arc::new(move |mut config| { config.general.custom_dye_colors.remove(&item_uuid); }));
+        SkyblockerConfigManager::update_only(Arc::new(move |mut config| { config.general.custom_animated_dyes.remove(&item_uuid); }));
+        let mut color: i32 = dyed_item_color::get_or_default(self.current_item.as_ref().unwrap().get(mcrust::net::minecraft::core::component::data_components::dyed_color()).and_then(|__value| mcrust::com::mojang::serialization::cast::<mcrust::net::minecraft::world::item::component::dyed_item_color::DyedItemColor>(&__value).copied()).as_ref(), -1);
         ARGBTextInput::set_argb_color(self.argb_text_input.as_ref().unwrap(), color);
         ColorPickerWidget::set_argb_color(&self.color_picker, color);
     }
@@ -284,16 +286,16 @@ impl ColorSelectionWidget {
         self.change_visibilities();
         let mut item_uuid: String = self.current_item.as_ref().unwrap().get_uuid();
         if self.animated {
-            SkyblockerConfigManager::update_only(Arc::new(move |config| { config.general.custom_animated_dyes.insert(item_uuid.clone(), AnimatedDye::new(vec![Keyframe::new(mcrust::net::minecraft::util::common_colors::RED, ((0) as f32) as f32), Keyframe::new(mcrust::net::minecraft::util::common_colors::BLUE, ((1) as f32) as f32)], true, ((0) as f32) as f32, 1.0f32)); }));
+            SkyblockerConfigManager::update_only(Arc::new(move |mut config| { config.general.custom_animated_dyes.insert(item_uuid.clone(), AnimatedDye::new(vec![Keyframe::new(mcrust::net::minecraft::util::common_colors::RED, ((0) as f32) as f32), Keyframe::new(mcrust::net::minecraft::util::common_colors::BLUE, ((1) as f32) as f32)], true, ((0) as f32) as f32, 1.0f32)); }));
             AnimatedDyeTimelineWidget::set_animated_dye(self.timeline_widget.as_ref().unwrap(), item_uuid.clone());
             Slider::set_value(self.delay_slider.as_ref().unwrap(), ((0) as f32) as f32);
             Slider::set_value(self.duration_slider.as_ref().unwrap(), ((1) as f32) as f32);
             self.cycle_back_checkbox.selected = true;
         } else {
-            let mut color: i32 = SkyblockerConfigManager::get().general.custom_dye_colors.get(&item_uuid).cloned().unwrap_or_else(|| dyed_item_color::get_or_default(self.current_item.clone(), -1));
+            let mut color: i32 = SkyblockerConfigManager::get().general.custom_dye_colors.get(&item_uuid).cloned().unwrap_or_else(|| dyed_item_color::get_or_default(self.current_item.as_ref().unwrap().get(mcrust::net::minecraft::core::component::data_components::dyed_color()).and_then(|__value| mcrust::com::mojang::serialization::cast::<mcrust::net::minecraft::world::item::component::dyed_item_color::DyedItemColor>(&__value).copied()).as_ref(), -1));
             ColorPickerWidget::set_argb_color(&self.color_picker, color);
             ARGBTextInput::set_argb_color(self.argb_text_input.as_ref().unwrap(), color);
-            SkyblockerConfigManager::update_only(Arc::new(move |config| { config.general.custom_animated_dyes.remove(&item_uuid); }));
+            SkyblockerConfigManager::update_only(Arc::new(move |mut config| { config.general.custom_animated_dyes.remove(&item_uuid); }));
         }
     }
 
@@ -302,7 +304,7 @@ impl ColorSelectionWidget {
         let mut item_uuid: String = self.current_item.as_ref().unwrap().get_uuid();
         let mut dye: AnimatedDye = SkyblockerConfigManager::get().general.custom_animated_dyes.get(&item_uuid).cloned().unwrap();
         let mut new_dye: AnimatedDye = AnimatedDye::new(dye.keyframes(), checked, dye.delay(), dye.duration());
-        SkyblockerConfigManager::update_only(Arc::new(move |config| { config.general.custom_animated_dyes.insert(item_uuid.clone(), new_dye.clone()); }));
+        SkyblockerConfigManager::update_only(Arc::new(move |mut config| { config.general.custom_animated_dyes.insert(item_uuid.clone(), new_dye.clone()); }));
     }
 
     /// java: private void onClickPickDye(Button button)
@@ -330,7 +332,7 @@ impl ColorSelectionWidget {
         self.change_visibilities();
         let mut item_uuid: String = self.current_item.as_ref().unwrap().get_uuid();
         let mut new_dye: AnimatedDye = AnimatedDye::new(key_frames.clone(), cycle_back, ((0) as f32) as f32, ((10) as f32) as f32);
-        SkyblockerConfigManager::update_only(Arc::new(move |config| { config.general.custom_animated_dyes.insert(item_uuid.clone(), new_dye.clone()); }));
+        SkyblockerConfigManager::update_only(Arc::new(move |mut config| { config.general.custom_animated_dyes.insert(item_uuid.clone(), new_dye.clone()); }));
         AnimatedDyeTimelineWidget::set_animated_dye(self.timeline_widget.as_ref().unwrap(), item_uuid.clone());
         AnimatedDyeTimelineWidget::recreate_image(self.timeline_widget.as_ref().unwrap());
     }
@@ -407,8 +409,8 @@ impl ColorSelectionWidget {
         if SkyblockerConfigManager::get().general.custom_armor_model.contains_key(&item_uuid) {
             key = Some(ResourceKey::create(&mcrust::net::minecraft::world::item::equipment::equipment_assets::root_id(), SkyblockerConfigManager::get().general.custom_armor_model.get(&item_uuid).cloned().unwrap()));
         } else if self.current_item.as_ref().unwrap().has(mcrust::net::minecraft::core::component::data_components::equippable()) {
-            let mut component: Equippable = self.current_item.as_ref().unwrap().get(mcrust::net::minecraft::core::component::data_components::equippable()).unwrap();
-            key = component.asset_id();
+            let mut component: Equippable = self.current_item.as_ref().unwrap().get(mcrust::net::minecraft::core::component::data_components::equippable()).and_then(|__value| mcrust::com::mojang::serialization::cast::<Equippable>(&__value).cloned()).expect("NullPointerException");
+            key = component.asset_id().cloned();
         }
         if let Some(key) = &key {
             // TODO(fabric2seer): `.get(..)` on a EquipmentAssetManager
@@ -441,7 +443,7 @@ impl ColorSelectionWidget {
             ColorPickerWidget::set_argb_color(&self.color_picker, color);
         } else {
             self.animated = false;
-            let mut color: i32 = dyed_item_color::get_or_default(self.current_item.clone(), -1);
+            let mut color: i32 = dyed_item_color::get_or_default(self.current_item.as_ref().unwrap().get(mcrust::net::minecraft::core::component::data_components::dyed_color()).and_then(|__value| mcrust::com::mojang::serialization::cast::<mcrust::net::minecraft::world::item::component::dyed_item_color::DyedItemColor>(&__value).copied()).as_ref(), -1);
             ARGBTextInput::set_argb_color(self.argb_text_input.as_ref().unwrap(), color);
             ColorPickerWidget::set_argb_color(&self.color_picker, color);
         }
@@ -516,7 +518,7 @@ impl Slider {
     /// java: @Override protected void updateMessage()
     pub fn update_message(__this: &compat::Shared<Self>) {
         let __r0 = compat::read(__this, |__t| __t.translatable.clone());
-        { let (__q0,) = (mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::translatable_args(&__r0, vec![mcrust::net::minecraft::network::chat::formatted_text::FormattedText::of(formatters::DOUBLE_NUMBERS.get_mut().format(Slider::true_value(__this)))])),); __this.lock().borrow_mut().set_message_text(__q0) };
+        { let (__q0,) = (mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::translatable_args(&__r0, vec![mcrust::net::minecraft::network::chat::formatted_text::FormattedText::of(formatters::DOUBLE_NUMBERS.get_mut().format((Slider::true_value(__this)) as f64))])),); __this.lock().borrow_mut().set_message_text(__q0) };
     }
 
     /// java: private void setValue(float val)

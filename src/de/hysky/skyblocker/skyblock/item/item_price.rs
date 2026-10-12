@@ -90,14 +90,28 @@ impl ItemPrice {
     /// java: private static void refreshItemPrices(LocalPlayer player)
     pub fn refresh_item_prices(player: &LocalPlayer) {
         script_host::send_feedback(&(constants::PREFIX.get_mut())().append(component::translatable("skyblocker.config.helpers.itemPrice.refreshingItemPrices")).to_string());
-        { let (__q0,) = (|e| {
-            logger().error(&format!("[Skyblocker Item Price] Failed to refresh item prices"));
-            script_host::send_feedback(&(constants::PREFIX.get_mut())().append(component::translatable("skyblocker.config.helpers.itemPrice.itemPriceRefreshFailed")).to_string());
-            return Default::default(); // java: return null
-        },); ({ let (__q0, __q1,) = (|| {
-            (item_price_update_event::on_price_update_invoker())();
-            script_host::send_feedback(&(constants::PREFIX.get_mut())().append(component::translatable("skyblocker.config.helpers.itemPrice.refreshedItemPrices")).to_string());
-        }, std::sync::Arc::new(|__t: Box<dyn FnOnce() + Send>| mcrust::mcrust::modding::game::execute(__t)),); (CompletableFuture::all_of(&[vec![tooltip_info_type::NPC.get_mut().clone(), tooltip_info_type::BAZAAR.get_mut().clone(), tooltip_info_type::LOWEST_BINS.get_mut().clone(), tooltip_info_type::ONE_DAY_AVERAGE.get_mut().clone(), tooltip_info_type::THREE_DAY_AVERAGE.get_mut().clone()].into_iter().map(|__a0| __a0.lock().borrow().download_if_enabled()).collect::<Vec<_>>()])).then_run_async(__q0, __q1) }).exceptionally(__q0) };
+        // CompletableFuture.allOf(Stream.of(NPC, BAZAAR, LOWEST_BINS, ONE_DAY_AVERAGE, THREE_DAY_AVERAGE)
+        //   .map(DataTooltipInfoType::downloadIfEnabled).toArray(CompletableFuture[]::new))
+        let downloads = vec![
+            compat::write(tooltip_info_type::NPC.get(), |t| t.download_if_enabled()),
+            compat::write(tooltip_info_type::BAZAAR.get(), |t| t.download_if_enabled()),
+            compat::write(tooltip_info_type::LOWEST_BINS.get(), |t| t.download_if_enabled()),
+            compat::write(tooltip_info_type::ONE_DAY_AVERAGE.get(), |t| t.download_if_enabled()),
+            compat::write(tooltip_info_type::THREE_DAY_AVERAGE.get(), |t| t.download_if_enabled()),
+        ];
+        // .thenRunAsync(() -> {..}, Minecraft.getInstance()).exceptionally(e -> {..; return null;})
+        CompletableFuture::all_of(&downloads)
+            .then_run_async(
+                || {
+                    (item_price_update_event::on_price_update_invoker())();
+                    script_host::send_feedback(&(constants::PREFIX.get_mut())().append(component::translatable("skyblocker.config.helpers.itemPrice.refreshedItemPrices")).to_string());
+                },
+                std::sync::Arc::new(|__t: Box<dyn FnOnce() + Send>| mcrust::mcrust::modding::game::execute(__t)),
+            )
+            .exceptionally(|e| {
+                logger().error(&format!("[Skyblocker Item Price] Failed to refresh item prices: {}", e));
+                script_host::send_feedback(&(constants::PREFIX.get_mut())().append(component::translatable("skyblocker.config.helpers.itemPrice.itemPriceRefreshFailed")).to_string());
+            });
     }
 
 }

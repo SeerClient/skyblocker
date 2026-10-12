@@ -121,18 +121,30 @@ impl TicTacToe {
             return;
         }
         let mut search_box: AABB = AABB::new((mcrust::mcrust::modding::game::with_player(|player| player.base.base.base.base.get_x()).unwrap() - (21 as f64)), (mcrust::mcrust::modding::game::with_player(|player| player.base.base.base.base.get_y()).unwrap() - (21 as f64)), (mcrust::mcrust::modding::game::with_player(|player| player.base.base.base.base.get_z()).unwrap() - (21 as f64)), (mcrust::mcrust::modding::game::with_player(|player| player.base.base.base.base.get_x()).unwrap() + (21 as f64)), (mcrust::mcrust::modding::game::with_player(|player| player.base.base.base.base.get_y()).unwrap() + (21 as f64)), (mcrust::mcrust::modding::game::with_player(|player| player.base.base.base.base.get_z()).unwrap() + (21 as f64)));
-        // TODO(fabric2seer): `.hasFramedMap(..)` on a T
-        //   java: List<ItemFrame> itemFramesThatHoldMaps = client.level.getEntitiesOfClass(ItemFrame.class, searchBox, ItemFrame::hasFramedMap);
-        let mut item_frames_that_hold_maps: Vec<ItemFrame> = todo!("fabric2seer: the initialiser of `itemFramesThatHoldMaps` (TODO above)");
+        // java: List<ItemFrame> itemFramesThatHoldMaps = client.level.getEntitiesOfClass(ItemFrame.class, searchBox, ItemFrame::hasFramedMap);
+        // Each frame as what the loop reads of it: its framed map's id and its block position.
+        let mut item_frames_that_hold_maps: Vec<(Option<mcrust::net::minecraft::world::level::saveddata::maps::map_id::MapId>, BlockPos)> = {
+            use mcrust::net::minecraft::world::level::entity_getter::EntityGetter as _;
+            let frames = mcrust::mcrust::modding::game::level().unwrap().get_entities(None, &search_box, &|entity| item_frame_of(entity).is_some_and(|frame| frame.has_framed_map()));
+            frames
+                .iter()
+                .filter_map(|frame| {
+                    let guard = mcrust::mcrust::modding::game::lock_entity(&**frame, "tic_tac_toe.rs:TicTacToe.tick");
+                    let frame = item_frame_of(&*guard)?;
+                    Some((mcrust::net::minecraft::world::item::map_item::get_map_id(&frame.get_item()), guard.base().block_position()))
+                })
+                .collect()
+        };
         // java: try {..} catch (Exception e) - an exception here is a panic, caught by `catch_unwind`
         let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             if (item_frames_that_hold_maps.len() as i32) != 9 && ((item_frames_that_hold_maps.len() as i32) & 1) == 1 {
                 let mut board: Vec<Vec<char>> = vec![vec!['\0'; (3) as usize]; (3) as usize];
-                for item_frame in item_frames_that_hold_maps.iter() {
-                    let Some(mut map_state) = mcrust::mcrust::modding::game::level().unwrap().get_map_data(&item_frame.get_framed_map_id(&item_frame.get_item()).unwrap()) else {
+                for (framed_map_id, frame_position) in item_frames_that_hold_maps.iter() {
+                    // MapItemSavedData mapState = client.level.getMapData(itemFrame.getFramedMapId(itemFrame.getItem()));
+                    let Some(mut map_state) = mcrust::mcrust::modding::game::level().unwrap().get_map_data(framed_map_id.as_ref().unwrap()) else {
                         continue;
                     };
-                    let mut relative: BlockPos = ({ let __r = &DungeonManager::get_current_room().unwrap(); let __f = compat::dispatch(__r, |__t| __t.actual_to_relative()); __f(__r, &item_frame.base.block_position()) });
+                    let mut relative: BlockPos = ({ let __r = &DungeonManager::get_current_room().unwrap(); let __f = compat::dispatch(__r, |__t| __t.actual_to_relative()); __f(__r, frame_position) });
                     let mut y: i32 = relative.get_y();
                     let mut row: i32 = match y {
                         72 => 0,
@@ -150,7 +162,7 @@ impl TicTacToe {
                     if row == -1 || column == -1 {
                         continue;
                     }
-                    let mut middle_color: i32 = ((map_state.colors[(8256) as usize] as i32) & 0xFF);
+                    let mut middle_color: i32 = ((map_state.lock().unwrap_or_else(|p| p.into_inner()).colors[(8256) as usize] as i32) & 0xFF);
                     if middle_color == 114 {
                         (board[(row) as usize])[(column) as usize] = 'X';
                     } else if middle_color == 33 {
@@ -194,4 +206,12 @@ impl TicTacToe {
         Self::extract_rendering_impl(&compat::view_as::<Self, _, Self>(__this, |a| a), __p0)
     }
 
+}
+
+/// `entity instanceof ItemFrame frame` - `GlowItemFrame extends ItemFrame`, so a glow frame is one too.
+fn item_frame_of(entity: &(dyn mcrust::net::minecraft::world::entity::entity::Entity + Send + Sync)) -> Option<&ItemFrame> {
+    let any = entity.as_any()?;
+    any.downcast_ref::<ItemFrame>().or_else(|| {
+        any.downcast_ref::<mcrust::net::minecraft::world::entity::decoration::glow_item_frame::GlowItemFrame>().map(|glow| &glow.base)
+    })
 }

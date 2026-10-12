@@ -29,7 +29,7 @@ impl SkyblockItemModels {
 
     /// java: private static void updateItemModels()
     pub fn update_item_models() {
-        SkyblockerConfigManager::update(Arc::new(move |config| {
+        SkyblockerConfigManager::update(Arc::new(move |mut config| {
             // java: try {..} catch (Exception e) - an exception here is a panic, caught by `catch_unwind`
             let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                 // TODO(fabric2seer): `.getResourcePack(..)` on a NEUConstants

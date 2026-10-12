@@ -122,10 +122,10 @@ impl SlotTextAdder for HotfPerkLevelAdder {
 impl HotfPerkLevelAdder {
     /// java: @Override protected boolean isNonLeveledItem(ItemStack stack)
     pub fn is_non_leveled_item_impl(__this: &compat::Shared<Self>, stack: &mcrust::net::minecraft::world::item::item_stack::ItemStack) -> bool {
-        let mut item_model: Identifier = stack.get(mcrust::net::minecraft::core::component::data_components::item_model()).unwrap();
-        // TODO(fabric2seer): static `BlockItemIds.PALE_OAK_BUTTON` has no Rust counterpart in the port's BlockItemIds file
-        // rust: return (BlockItemIds::PALE_OAK_BUTTON.item().identifier() == item_model);
-        return todo!("fabric2seer: see the TODO above");
+        // (nullable: the component may be absent)
+        let mut item_model: Option<Identifier> = stack.get(mcrust::net::minecraft::core::component::data_components::item_model()).and_then(|value| mcrust::com::mojang::serialization::cast::<Identifier>(&value).cloned());
+        // BlockItemIds.PALE_OAK_BUTTON.item().identifier().equals(itemModel)
+        return Some(mcrust::net::minecraft::references::block_item_ids::block_item_ids().pale_oak_button.item().identifier()) == item_model.as_ref();
     }
 
     /// HotfPerkLevelAdder.isNonLeveledItem as the dispatch of HeartOfTheXAdder.isNonLeveledItem

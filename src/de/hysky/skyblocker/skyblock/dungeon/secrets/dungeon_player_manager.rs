@@ -24,7 +24,8 @@ pub static PLAYER_GHOST_PATTERN: LazyLock<compat::regex::Pattern> = LazyLock::ne
 /// java: private static boolean dungeonLoaded;
 pub static DUNGEON_LOADED: LazyLock<Mutex<bool>> = LazyLock::new(|| Mutex::new(false));
 /// java: private static final @Nullable DungeonPlayer[] players = new DungeonPlayer[5];
-pub static PLAYERS: compat::MainThread<Option<Vec<compat::Shared<DungeonPlayer>>>> = compat::MainThread::new(|| Some((0..(5) as usize).map(|_| Default::default()).collect::<Vec<_>>()));
+/// `new DungeonPlayer[5]`: each slot null until a player fills it.
+pub static PLAYERS: compat::MainThread<Vec<Option<compat::Shared<DungeonPlayer>>>> = compat::MainThread::new(|| vec![None; 5]);
 
 /// java: public class DungeonPlayerManager
 #[derive(Clone)]
@@ -50,18 +51,20 @@ impl DungeonPlayerManager {
     }
 
     /// java: public static @Nullable DungeonPlayer[] getPlayers()
-    pub fn get_players() -> Option<Vec<compat::Shared<DungeonPlayer>>> {
-        return PLAYERS.get_mut().clone();
+    /// The array (never null); its elements may be.
+    pub fn get_players() -> Vec<Option<compat::Shared<DungeonPlayer>>> {
+        return PLAYERS.get().clone();
     }
 
     /// java: public static Optional<DungeonPlayer> getPlayer(String name)
     pub fn get_player(name: &str) -> Option<compat::Shared<DungeonPlayer>> {
-        return PLAYERS.get_mut().as_ref().unwrap().iter().cloned().filter(|__a0| true).filter(|p| (compat::read(p, |__t| __t.name.clone()) == name)).next();
+        // Arrays.stream(players).filter(Objects::nonNull).filter(p -> p.name().equals(name)).findAny()
+        return PLAYERS.get().iter().flatten().cloned().filter(|p| (compat::read(p, |__t| __t.name.clone()) == name)).next();
     }
 
     /// java: public static DungeonClass getClassFromPlayer(Player player)
     pub fn get_class_from_player(player: &dyn Player) -> DungeonClass {
-        return DungeonPlayerManager::get_class_from_player_string(player.get_game_profile().name());
+        return DungeonPlayerManager::get_class_from_player_string(player.player().get_game_profile().name());
     }
 
     /// java: public static DungeonClass getClassFromPlayer(String name)
@@ -74,18 +77,19 @@ impl DungeonPlayerManager {
         if !(compat::get_state(&DUNGEON_LOADED)) {
             return;
         }
-        for i in 0..5 {
+        for i in 0..5i32 {
             let Some(mut matcher) = DungeonPlayerManager::get_player_from_tab(i.wrapping_add(1)) else {
-                PLAYERS.get_mut().as_mut().unwrap()[(i) as usize] = None;
+                PLAYERS.get_mut()[(i) as usize] = None;
                 continue;
             };
             let mut name: String = matcher.group_named("name").unwrap();
             let mut dungeon_class: DungeonClass = DungeonClass::from(matcher.group_named("class").as_deref().unwrap());
-            let mut dungeon_player: Option<compat::Shared<DungeonPlayer>> = Some(PLAYERS.get_mut().as_ref().unwrap()[(i) as usize].clone());
+            let mut dungeon_player: Option<compat::Shared<DungeonPlayer>> = PLAYERS.get()[(i) as usize].clone();
             if dungeon_player.is_some() && compat::read(dungeon_player.as_ref().unwrap(), |__t| __t.name.clone()) == name {
                 DungeonPlayer::update(dungeon_player.as_ref().unwrap(), dungeon_class);
             } else {
-                PLAYERS.get_mut().as_mut().unwrap()[(i) as usize] = DungeonPlayer::new(name.clone(), dungeon_class);
+                let __v = DungeonPlayer::new(name.clone(), dungeon_class);
+                PLAYERS.get_mut()[(i) as usize] = Some(__v);
             }
         }
     }
@@ -112,7 +116,7 @@ impl DungeonPlayerManager {
         if let Some(__a0) = DungeonPlayerManager::get_player(&name) {
             DungeonPlayer::ghost(&__a0);
         } else {
-            logger().error(&format!("[Skyblocker Dungeon Player Manager] Received ghost message for player '{}' but player was not found in the player list: {}", compat::opt_str(&matcher.group_named("name")), format!("{:?}", PLAYERS.get_mut())));
+            logger().error(&format!("[Skyblocker Dungeon Player Manager] Received ghost message for player '{}' but player was not found in the player list: {}", compat::opt_str(&matcher.group_named("name")), format!("[{}]", PLAYERS.get().iter().map(|p| p.as_ref().map_or("null".to_string(), |p| compat::read(p, |p| p.to_string()))).collect::<Vec<_>>().join(", "))));
         }
         return true;
     }
@@ -120,7 +124,7 @@ impl DungeonPlayerManager {
     /// java: private static void reset()
     pub fn reset() {
         compat::set_state(&DUNGEON_LOADED, false);
-        PLAYERS.get_mut().as_mut().unwrap().fill(None);
+        PLAYERS.get_mut().fill(None);
     }
 
 }
@@ -153,23 +157,34 @@ impl DungeonPlayer {
             last_ghost_time: 0,
         });
         DungeonPlayer::update(&__this, dungeon_class);
-        let __this_1 = compat::RenderThread::new(__this.clone());
-        CompletableFuture::<()>::run_async(move || (|| { minecraft::session_service().session_service().fetch_profile(compat::read(&(*__this_1.get()), |__t| __t.uuid.clone()).unwrap(), false); })(), compat::executor);
+        // Pre-fetches game profiles for rendering skins in the leap overlay and fancy dungeon map.
+        // CompletableFuture.runAsync(() -> Minecraft.getInstance().services().sessionService().fetchProfile(uuid, false), VIRTUAL_THREAD_EXECUTOR)
+        // - the task reads `uuid` (a null one throws inside the task, which the future swallows)
+        let __uuid = compat::read(&__this, |__t| __t.uuid.clone());
+        CompletableFuture::<()>::run_async(move || {
+            if let Some(uuid) = __uuid {
+                minecraft::session_service().fetch_profile(uuid, false);
+            }
+        }, compat::executor);
         __this
     }
 
     /// java: private static @Nullable UUID findPlayerUuid(String name)
     pub fn find_player_uuid(name: &str) -> Option<Uuid> {
         debug_assert!(mcrust::mcrust::modding::game::level().is_some());
-        // TODO(fabric2seer): static call StreamSupport.stream(..)
-        //   java: return StreamSupport.stream(Minecraft.getInstance().level.entitiesForRendering().spliterator(), false)
-        //   java: 					.filter(Player.class::isInstance)
-        //   java: 					.map(Player.class::cast)
-        //   java: 					.filter(player -> player.getGameProfile().name().equals(name))
-        //   java: 					.findAny()
-        //   java: 					.map(Player::getUUID)
-        //   java: 					.orElse(null);
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        // java: return StreamSupport.stream(Minecraft.getInstance().level.entitiesForRendering().spliterator(), false)
+        //   .filter(Player.class::isInstance).map(Player.class::cast).filter(player -> player.getGameProfile().name().equals(name))
+        //   .findAny().map(Player::getUUID).orElse(null);
+        // The level's players are its Player entities (`ClientLevel.players`).
+        use mcrust::net::minecraft::world::entity::entity::Entity as _;
+        let players = mcrust::mcrust::modding::game::level().unwrap().with_players(|players| players.to_vec());
+        return players.iter().find_map(|avatar| {
+            if mcrust::mcrust::modding::game::is_held_here(&**avatar) {
+                return None;
+            }
+            let player = mcrust::mcrust::modding::game::lock_entity(&**avatar, "dungeon_player_manager.rs:DungeonPlayer.findPlayerUuid");
+            (player.get_game_profile_name() == name).then(|| compat::uuid_of(player.base().get_uuid()))
+        });
     }
 
     /// java: private void update(DungeonClass dungeonClass)
@@ -190,8 +205,10 @@ impl DungeonPlayer {
     /// java: public @Nullable UUID uuid()
     pub fn uuid(__this: &compat::Shared<Self>) -> Option<Uuid> {
         if compat::read(__this, |__t| __t.uuid.clone()).is_none() {
-            // TODO(fabric2seer): an assignment used as a value
-            //   java: return uuid = findPlayerUuid(name);
+            // java: return uuid = findPlayerUuid(name); // Try to find the UUID. This shouldn't really happen, but this can act as failsafe.
+            let __v = DungeonPlayer::find_player_uuid(&compat::read(__this, |__t| __t.name.clone()));
+            compat::write(__this, |__t| __t.uuid = __v.clone());
+            return __v;
         }
         return compat::read(__this, |__t| __t.uuid.clone());
     }

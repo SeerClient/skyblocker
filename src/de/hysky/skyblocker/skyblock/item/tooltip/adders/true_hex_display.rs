@@ -115,18 +115,26 @@ impl TrueHexDisplay {
     /// java: @Override public void addToTooltip(@Nullable Slot focusedSlot, ItemStack stack, List<Component> lines)
     pub fn add_to_tooltip_impl(__this: &compat::Shared<Self>, mut focused_slot: Option<Slot>, stack: &mcrust::net::minecraft::world::item::item_stack::ItemStack, lines: &mut Vec<MutableComponent>) {
         let mut item_id: String = stack.get_skyblock_id();
-        if !item_id.is_empty() && item_id.starts_with("DYE_") || item_id.ends_with("_DYE") {
+        if !item_id.is_empty() && (item_id.starts_with("DYE_") || item_id.ends_with("_DYE")) {
             for i in 0..(lines.len() as i32) {
                 let mut line: MutableComponent = (lines[(i) as usize]).copy();
-                let siblings = line.get_siblings();
+                // The hex part is inside the siblings (the copy's own list: the port's component lends it read-only, so
+                // it is edited here and the line rebuilt with it - `lines.set(i, line)` sees every edit, as Java's does)
+                let mut siblings: Vec<MutableComponent> = line.get_siblings().to_vec();
+                let mut set = false;
                 for j in 0..(siblings.len() as i32) {
                     let mut text: MutableComponent = siblings[(j) as usize].clone();
                     let mut stringified: String = text.get_string();
                     if HEX_PATTERN.matcher(&stringified).matches() {
-                        text = text.copy().with_color(stringified.trim().parse::<i32>().expect("NumberFormatException"));
+                        text = text.copy().with_color(compat::integer_decode(&stringified));
                         siblings[(j) as usize] = text.clone();
-                        lines[(i) as usize] = line.clone();
+                        set = true;
                     }
+                }
+                if set {
+                    // lines.set(i, line);
+                    line = MutableComponent::new(line.get_contents().clone(), siblings, line.get_style().clone());
+                    lines[(i) as usize] = line.clone();
                 }
             }
         }

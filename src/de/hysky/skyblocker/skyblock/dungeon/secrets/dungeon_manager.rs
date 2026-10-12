@@ -84,33 +84,30 @@ pub static TEAM_SCORE_PATTERN: LazyLock<compat::regex::Pattern> = LazyLock::new(
 pub static RED_COLOR_COMPONENTS: LazyLock<Vec<f32>> = LazyLock::new(|| vec![((1) as f32) as f32, ((0) as f32) as f32, ((0) as f32) as f32]);
 /// java: protected static final float[] GREEN_COLOR_COMPONENTS = {0, 1, 0};
 pub static GREEN_COLOR_COMPONENTS: LazyLock<Vec<f32>> = LazyLock::new(|| vec![((0) as f32) as f32, ((1) as f32) as f32, ((0) as f32) as f32]);
-// TODO(fabric2seer): static call Object2ByteMap.ofEntries(..)
-//   java: @SuppressWarnings("JavadocReference")
-//   java: 	public static final Object2ByteMap<String> NUMERIC_ID = Object2ByteMap.ofEntries(
-//   java: 			Object2ByteMap.entry("minecraft:stone", (byte) 1),
-//   java: 			Object2ByteMap.entry("minecraft:diorite", (byte) 2),
-//   java: 			Object2ByteMap.entry("minecraft:polished_diorite", (byte) 3),
-//   java: 			Object2ByteMap.entry("minecraft:andesite", (byte) 4),
-//   java: 			Object2ByteMap.entry("minecraft:polished_andesite", (byte) 5),
-//   java: 			Object2ByteMap.entry("minecraft:grass_block", (byte) 6),
-//   java: 			Object2ByteMap.entry("minecraft:dirt", (byte) 7),
-//   java: 			Object2ByteMap.entry("minecraft:coarse_dirt", (byte) 8),
-//   java: 			Object2ByteMap.entry("minecraft:cobblestone", (byte) 9),
-//   java: 			Object2ByteMap.entry("minecraft:bedrock", (byte) 10),
-//   java: 			Object2ByteMap.entry("minecraft:oak_leaves", (byte) 11),
-//   java: 			Object2ByteMap.entry("minecraft:gray_wool", (byte) 12),
-//   java: 			Object2ByteMap.entry("minecraft:double_stone_slab", (byte) 13),
-//   java: 			Object2ByteMap.entry("minecraft:mossy_cobblestone", (byte) 14),
-//   java: 			Object2ByteMap.entry("minecraft:clay", (byte) 15),
-//   java: 			Object2ByteMap.entry("minecraft:stone_bricks", (byte) 16),
-//   java: 			Object2ByteMap.entry("minecraft:mossy_stone_bricks", (byte) 17),
-//   java: 			Object2ByteMap.entry("minecraft:chiseled_stone_bricks", (byte) 18),
-//   java: 			Object2ByteMap.entry("minecraft:gray_terracotta", (byte) 19),
-//   java: 			Object2ByteMap.entry("minecraft:cyan_terracotta", (byte) 20),
-//   java: 			Object2ByteMap.entry("minecraft:black_terracotta", (byte) 21)
-//   java: 	);
 /// java: @SuppressWarnings("JavadocReference") public static final Object2ByteMap<String> NUMERIC_ID = Object2ByteMap.ofEntries( Object2ByteMap.entry("minecraft:stone", (byte) 1), Object2ByteMap.entry("minecra
-pub static NUMERIC_ID: LazyLock<std::collections::HashMap<String, i8>> = LazyLock::new(|| todo!("fabric2seer: the initialiser of `NUMERIC_ID` - see the TODO above"));
+pub static NUMERIC_ID: LazyLock<std::collections::HashMap<String, i8>> = LazyLock::new(|| std::collections::HashMap::from([
+    ("minecraft:stone".to_string(), 1),
+    ("minecraft:diorite".to_string(), 2),
+    ("minecraft:polished_diorite".to_string(), 3),
+    ("minecraft:andesite".to_string(), 4),
+    ("minecraft:polished_andesite".to_string(), 5),
+    ("minecraft:grass_block".to_string(), 6),
+    ("minecraft:dirt".to_string(), 7),
+    ("minecraft:coarse_dirt".to_string(), 8),
+    ("minecraft:cobblestone".to_string(), 9),
+    ("minecraft:bedrock".to_string(), 10),
+    ("minecraft:oak_leaves".to_string(), 11),
+    ("minecraft:gray_wool".to_string(), 12),
+    ("minecraft:double_stone_slab".to_string(), 13),
+    ("minecraft:mossy_cobblestone".to_string(), 14),
+    ("minecraft:clay".to_string(), 15),
+    ("minecraft:stone_bricks".to_string(), 16),
+    ("minecraft:mossy_stone_bricks".to_string(), 17),
+    ("minecraft:chiseled_stone_bricks".to_string(), 18),
+    ("minecraft:gray_terracotta".to_string(), 19),
+    ("minecraft:cyan_terracotta".to_string(), 20),
+    ("minecraft:black_terracotta".to_string(), 21),
+]));
 /// java: @SuppressWarnings("JavadocReference") protected static final Map<String, Map<String, Map<String, int[]>>> ROOMS_DATA = new ConcurrentHashMap<>();
 pub static ROOMS_DATA: LazyLock<Mutex<std::collections::HashMap<String, std::collections::HashMap<String, std::collections::HashMap<String, Vec<i32>>>>>> = LazyLock::new(|| Mutex::new(std::collections::HashMap::new()));
 /// java: private static final Map<String, RoomInfo> ROOMS_INFO = new ConcurrentHashMap<>();
@@ -129,10 +126,8 @@ pub static ROOMS_WAYPOINTS: LazyLock<Mutex<std::collections::HashMap<String, Vec
 pub static WAYPOINT_COLOR_DATA: compat::MainThread<compat::Shared<dyn JsonData<std::collections::HashMap<crate::de::hysky::skyblocker::skyblock::dungeon::secrets::secret_waypoint::Category, Color>>>> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `WAYPOINT_COLOR_DATA` - see the TODO above"));
 /// java: private static final Map<Vector2ic, Room> rooms = new HashMap<>();
 pub static ROOMS: compat::MainThread<std::collections::HashMap<Vector2i, compat::Shared<dyn Room>>> = compat::MainThread::new(|| std::collections::HashMap::new());
-// TODO(fabric2seer): static call HashBasedTable.create(..)
-//   java: private static final Table<String, BlockPos, SecretWaypoint> customWaypoints = HashBasedTable.create();
 /// java: private static final Table<String, BlockPos, SecretWaypoint> customWaypoints = HashBasedTable.create();
-pub static CUSTOM_WAYPOINTS: compat::MainThread<crate::unresolved::Table> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `customWaypoints` - see the TODO above"));
+pub static CUSTOM_WAYPOINTS: compat::MainThread<crate::unresolved::HashBasedTable<String, BlockPos, compat::Shared<SecretWaypoint>>> = compat::MainThread::new(|| crate::unresolved::HashBasedTable::create());
 /// java: private static final Component NOT_MATCHED_TEXT = Component.translatable("skyblocker.dungeons.secrets.notMatched").withColor(TextColor.RED);
 pub static NOT_MATCHED_TEXT: compat::MainThread<MutableComponent> = compat::MainThread::new(|| component::translatable("skyblocker.dungeons.secrets.notMatched").with_color_text(mcrust::net::minecraft::network::chat::text_color::TextColor::RED));
 /// java: private static @Nullable CompletableFuture<Void> roomsLoaded;
@@ -156,13 +151,13 @@ pub static HAS_KEY: LazyLock<Mutex<bool>> = LazyLock::new(|| Mutex::new(false));
 /// java: private static boolean runEnded;
 pub static RUN_ENDED: LazyLock<Mutex<bool>> = LazyLock::new(|| Mutex::new(false));
 /// java: public static final Codec<RoomInfo> CODEC = RecordCodecBuilder.create(instance -> instance.group( Codec.STRING.fieldOf("name").forGetter(RoomInfo::name) ).apply(instance, RoomInfo::new));
-pub static ROOM_INFO_CODEC: compat::MainThread<CodecRef<RoomInfo>> = compat::MainThread::new(|| record_codec_builder::create(record_codec_builder::apply1(record_codec_builder::of(|o: &RoomInfo| o.name(), codec::field_of(mcrust::com::mojang::serialization::codec::string_codec(), "name")), move |__a0| RoomInfo::new(__a0.clone()))));
+pub static ROOM_INFO_CODEC: LazyLock<CodecRef<RoomInfo>> = LazyLock::new(|| record_codec_builder::create(record_codec_builder::apply1(record_codec_builder::of(|o: &RoomInfo| o.name(), codec::field_of(mcrust::com::mojang::serialization::codec::string_codec(), "name")), move |__a0| RoomInfo::new(__a0.clone()))));
 /// java: private static final Codec<RoomWaypoint> CODEC = RecordCodecBuilder.create(instance -> instance.group( Codec.STRING.fieldOf("secretName").forGetter(RoomWaypoint::secretName), SecretWaypoint.Category.C
-pub static ROOM_WAYPOINT_CODEC: compat::MainThread<CodecRef<RoomWaypoint>> = compat::MainThread::new(|| record_codec_builder::create(record_codec_builder::apply5(record_codec_builder::of(|o: &RoomWaypoint| o.secret_name(), codec::field_of(mcrust::com::mojang::serialization::codec::string_codec(), "secretName")), record_codec_builder::of(|o: &RoomWaypoint| o.category(), codec::field_of(secret_waypoint::CATEGORY_CODEC.get_mut().clone(), "category")), record_codec_builder::of(|o: &RoomWaypoint| o.x(), codec::field_of(mcrust::com::mojang::serialization::codec::int_codec(), "x")), record_codec_builder::of(|o: &RoomWaypoint| o.y(), codec::field_of(mcrust::com::mojang::serialization::codec::int_codec(), "y")), record_codec_builder::of(|o: &RoomWaypoint| o.z(), codec::field_of(mcrust::com::mojang::serialization::codec::int_codec(), "z")), move |__a0, __a1, __a2, __a3, __a4| RoomWaypoint::new(__a0.clone(), __a1.clone(), __a2.clone(), __a3.clone(), __a4.clone()))));
+pub static ROOM_WAYPOINT_CODEC: LazyLock<CodecRef<RoomWaypoint>> = LazyLock::new(|| record_codec_builder::create(record_codec_builder::apply5(record_codec_builder::of(|o: &RoomWaypoint| o.secret_name(), codec::field_of(mcrust::com::mojang::serialization::codec::string_codec(), "secretName")), record_codec_builder::of(|o: &RoomWaypoint| o.category(), codec::field_of((*secret_waypoint::CATEGORY_CODEC).clone(), "category")), record_codec_builder::of(|o: &RoomWaypoint| o.x(), codec::field_of(mcrust::com::mojang::serialization::codec::int_codec(), "x")), record_codec_builder::of(|o: &RoomWaypoint| o.y(), codec::field_of(mcrust::com::mojang::serialization::codec::int_codec(), "y")), record_codec_builder::of(|o: &RoomWaypoint| o.z(), codec::field_of(mcrust::com::mojang::serialization::codec::int_codec(), "z")), move |__a0, __a1, __a2, __a3, __a4| RoomWaypoint::new(__a0.clone(), __a1.clone(), __a2.clone(), __a3.clone(), __a4.clone()))));
 /// java: public static final Codec<List<RoomWaypoint>> LIST_CODEC = CODEC.listOf();
-pub static ROOM_WAYPOINT_LIST_CODEC: compat::MainThread<CodecRef<Vec<RoomWaypoint>>> = compat::MainThread::new(|| codec::list(ROOM_WAYPOINT_CODEC.get_mut().clone()));
+pub static ROOM_WAYPOINT_LIST_CODEC: LazyLock<CodecRef<Vec<RoomWaypoint>>> = LazyLock::new(|| codec::list((*ROOM_WAYPOINT_CODEC).clone()));
 /// java: public static final Codec<RoomData> CODEC = RecordCodecBuilder.create(instance -> instance.group( RoomInfo.CODEC.fieldOf("info").forGetter(RoomData::info), RoomWaypoint.LIST_CODEC.fieldOf("secrets").f
-pub static ROOM_DATA_CODEC: compat::MainThread<CodecRef<RoomData>> = compat::MainThread::new(|| record_codec_builder::create(record_codec_builder::apply2(record_codec_builder::of(|o: &RoomData| o.info(), codec::field_of(ROOM_INFO_CODEC.get_mut().clone(), "info")), record_codec_builder::of(|o: &RoomData| o.secrets(), codec::field_of(ROOM_WAYPOINT_LIST_CODEC.get_mut().clone(), "secrets")), move |__a0, __a1| RoomData::new(__a0.clone(), __a1.clone()))));
+pub static ROOM_DATA_CODEC: LazyLock<CodecRef<RoomData>> = LazyLock::new(|| record_codec_builder::create(record_codec_builder::apply2(record_codec_builder::of(|o: &RoomData| o.info(), codec::field_of((*ROOM_INFO_CODEC).clone(), "info")), record_codec_builder::of(|o: &RoomData| o.secrets(), codec::field_of((*ROOM_WAYPOINT_LIST_CODEC).clone(), "secrets")), move |__a0, __a1| RoomData::new(__a0.clone(), __a1.clone()))));
 
 /// java: public class DungeonManager
 #[derive(Clone)]
@@ -197,23 +192,24 @@ impl DungeonManager {
     }
 
     /// java: public static Map<BlockPos, SecretWaypoint> getCustomWaypoints(String room)
-    pub fn get_custom_waypoints(room: &str) -> std::collections::HashMap<BlockPos, compat::Shared<SecretWaypoint>> {
-        // TODO(fabric2seer): `.row(..)` on a Table
-        //   java: return customWaypoints.row(room);
-        todo!("fabric2seer: the value of this function is in a TODO above")
+    /// The row's cells in the table's order (Guava's row view, read once).
+    pub fn get_custom_waypoints(room: &str) -> indexmap::IndexMap<BlockPos, compat::Shared<SecretWaypoint>> {
+        // java: return customWaypoints.row(room);
+        return CUSTOM_WAYPOINTS.get().row(&room.to_string()).into_iter().collect();
     }
 
     /// java: @SuppressWarnings("UnusedReturnValue") public static @Nullable SecretWaypoint addCustomWaypoint(String room, SecretWaypoint waypoint)
     pub fn add_custom_waypoint(mut room: String, mut waypoint: compat::Shared<SecretWaypoint>) -> Option<compat::Shared<SecretWaypoint>> {
-        // TODO(fabric2seer): `.put(..)` on a Table
-        //   java: return customWaypoints.put(room, waypoint.pos, waypoint);
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        // java: return customWaypoints.put(room, waypoint.pos, waypoint);
+        let pos = compat::read(&waypoint, |__t| __t.pos.clone());
+        return CUSTOM_WAYPOINTS.get_mut().put(room, pos, waypoint);
     }
 
     /// java: private static int addCustomWaypoint(CommandContext<FabricClientCommandSource> context, BlockPos pos)
     pub fn add_custom_waypoint_command_context_block_pos(context: &CommandContext<crate::unresolved::FabricClientCommandSource>, pos: &BlockPos) -> i32 {
-        let mut room: compat::Shared<dyn Room> = DungeonManager::get_room_at_physical(pos).unwrap();
-        if DungeonManager::is_room_matched(Some(room.clone())) {
+        let mut room: Option<compat::Shared<dyn Room>> = DungeonManager::get_room_at_physical_vec3i(pos.as_vec3i());
+        if DungeonManager::is_room_matched(room.clone()) {
+            let room: compat::Shared<dyn Room> = room.unwrap();
             ({ let __f = compat::dispatch(&room, |__t| __t.add_custom_waypoint()); __f(&room, context, &({ let __f = compat::dispatch(&room, |__t| __t.actual_to_relative()); __f(&room, pos) })) });
         } else {
             // TODO(fabric2seer): `.sendError(..)` on a FabricClientCommandSource
@@ -231,15 +227,15 @@ impl DungeonManager {
 
     /// java: public static @Nullable SecretWaypoint removeCustomWaypoint(String room, BlockPos pos)
     pub fn remove_custom_waypoint(room: &str, pos: &BlockPos) -> Option<compat::Shared<SecretWaypoint>> {
-        // TODO(fabric2seer): `.remove(..)` on a Table
-        //   java: return customWaypoints.remove(room, pos);
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        // java: return customWaypoints.remove(room, pos);
+        return CUSTOM_WAYPOINTS.get_mut().remove(&room.to_string(), pos);
     }
 
     /// java: private static int removeCustomWaypoint(CommandContext<FabricClientCommandSource> context, BlockPos pos)
     pub fn remove_custom_waypoint_command_context_block_pos(context: &CommandContext<crate::unresolved::FabricClientCommandSource>, pos: &BlockPos) -> i32 {
-        let mut room: compat::Shared<dyn Room> = DungeonManager::get_room_at_physical(pos).unwrap();
-        if DungeonManager::is_room_matched(Some(room.clone())) {
+        let mut room: Option<compat::Shared<dyn Room>> = DungeonManager::get_room_at_physical_vec3i(pos.as_vec3i());
+        if DungeonManager::is_room_matched(room.clone()) {
+            let room: compat::Shared<dyn Room> = room.unwrap();
             ({ let __f = compat::dispatch(&room, |__t| __t.remove_custom_waypoint()); __f(&room, context, &({ let __f = compat::dispatch(&room, |__t| __t.actual_to_relative()); __f(&room, pos) })) });
         } else {
             // TODO(fabric2seer): `.sendError(..)` on a FabricClientCommandSource
@@ -327,14 +323,16 @@ impl DungeonManager {
             let mut dungeon: String = path[(1) as usize].clone();
             let mut room_shape: String = path[(2) as usize].clone();
             let mut room: String = compat::substring2(&(path[(3) as usize]), 0, (compat::str_len(&(path[(3) as usize]))).wrapping_sub(compat::str_len(".skeleton")));
-            compat::lock(&ROOMS_DATA).entry(dungeon.clone()).or_insert_with_key(|k| (|_| std::collections::HashMap::new())(k.clone()));
-            compat::lock(&ROOMS_DATA).get(&dungeon).cloned().unwrap().entry(room_shape.clone()).or_insert_with_key(|k| (|_| std::collections::HashMap::new())(k.clone()));
+            // ROOMS_DATA.computeIfAbsent(dungeon, ..).computeIfAbsent(roomShape, ..) - on the maps themselves
+            compat::lock(&ROOMS_DATA).entry(dungeon.clone()).or_default().entry(room_shape.clone()).or_default();
+            let (__dungeon, __room_shape, __room) = (dungeon.clone(), room_shape.clone(), room.clone());
             dungeon_futures.push((CompletableFuture::<()>::run_async(move || (|| {
-                let mut rooms_map: std::collections::HashMap<String, Vec<i32>> = compat::lock(&ROOMS_DATA).get(&dungeon).cloned().unwrap().get(&room_shape).cloned().unwrap();
-                rooms_map.insert(room.clone(), DungeonManager::read_room(&resource_entry.1));
+                // Map<String, int[]> roomsMap = ROOMS_DATA.get(dungeon).get(roomShape); roomsMap.put(room, readRoom(resource));
+                let room_data: Vec<i32> = DungeonManager::read_room(&resource_entry.1);
+                compat::lock(&ROOMS_DATA).get_mut(&dungeon).unwrap().get_mut(&room_shape).unwrap().insert(room.clone(), room_data);
                 logger().debug(&format!("[Skyblocker Dungeon Secrets] Loaded dungeon room skeleton - dungeon={}, shape={}, room={}", dungeon, room_shape, room));
-            })(), compat::executor)).exceptionally(|e| {
-                logger().error(&format!("[Skyblocker Dungeon Secrets] Failed to load dungeon room skeleton - dungeon={}, shape={}, room={}", dungeon, room_shape, room));
+            })(), compat::executor)).exceptionally(move |e| {
+                logger().error(&format!("[Skyblocker Dungeon Secrets] Failed to load dungeon room skeleton - dungeon={}, shape={}, room={}: {}", __dungeon, __room_shape, __room, e));
                 return Default::default(); // java: return null
             }));
         }
@@ -347,14 +345,16 @@ impl DungeonManager {
             let mut dungeon: String = path[(1) as usize].clone();
             let mut room_shape: String = path[(2) as usize].clone();
             let mut room: String = compat::substring2(&(path[(3) as usize]), 0, (compat::str_len(&(path[(3) as usize]))).wrapping_sub(compat::str_len(".json")));
+            let (__dungeon, __room_shape, __room) = (dungeon.clone(), room_shape.clone(), room.clone());
             dungeon_futures.push((CompletableFuture::<()>::run_async(move || (|| {
                 {
-                    let mut room_json_reader: crate::unresolved::BufferedReader = compat::minecraft().get_resource_manager().open_as_reader(&resource_entry.0).unwrap();
-                    // java: try {..} catch (Exception ex) - an exception here is a panic, caught by `catch_unwind`
+                    // java: try (BufferedReader roomJsonReader = resource.openAsReader()) {..} catch (Exception ex) - an exception
+                    // here (the reader's IOException too) is a panic, caught by `catch_unwind`
                     let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                        // TODO(fabric2seer): static call JsonParser.parseReader(..)
-                        //   java: RoomData roomData = RoomData.CODEC.parse(JsonOps.INSTANCE, JsonParser.parseReader(roomJsonReader)).getOrThrow();
-                        let mut room_data: RoomData = todo!("fabric2seer: the initialiser of `roomData` (TODO above)");
+                        let mut room_json_reader: String = resource_entry.1.open_as_reader().expect("IOException");
+                        // RoomData roomData = RoomData.CODEC.parse(JsonOps.INSTANCE, JsonParser.parseReader(roomJsonReader)).getOrThrow();
+                        let parsed: serde_json::Value = serde_json::from_str(&room_json_reader).expect("JsonParseException");
+                        let mut room_data: RoomData = ROOM_DATA_CODEC.parse(&mcrust::com::mojang::serialization::json_ops::JsonOps::instance(), &compat::json_to_port(&parsed)).get_or_throw().expect("IllegalStateException");
                         compat::lock(&ROOMS_WAYPOINTS).insert(room.clone(), room_data.secrets.clone());
                         compat::lock(&ROOMS_INFO).insert(room.clone(), room_data.info.clone());
                     }));
@@ -363,37 +363,59 @@ impl DungeonManager {
                     }
                 }
                 logger().debug(&format!("[Skyblocker Dungeon Secrets] Loaded dungeon room secrets - dungeon={}, shape={}, room={}", dungeon, room_shape, room));
-            })(), compat::executor)).exceptionally(|e| {
-                logger().error(&format!("[Skyblocker Dungeon Secrets] Failed to load room secrets - dungeon={}, shape={}, room={}", dungeon, room_shape, room));
+            })(), compat::executor)).exceptionally(move |e| {
+                logger().error(&format!("[Skyblocker Dungeon Secrets] Failed to load room secrets - dungeon={}, shape={}, room={}: {}", __dungeon, __room_shape, __room, e));
                 return Default::default(); // java: return null
             }));
         }
-        dungeon_futures.push(CompletableFuture::<()>::run_async(move || (|| {
-            {
-                // TODO(fabric2seer): Files.newBufferedReader
-                //   java: BufferedReader customWaypointsReader = Files.newBufferedReader(..);
-                let mut custom_waypoints_reader: crate::unresolved::BufferedReader = todo!("fabric2seer: the initialiser of `customWaypointsReader` (TODO above)");
-                // java: try {..} catch (NoSuchFileException _) catch (Exception e) - an exception here is a panic, caught by `catch_unwind`
-                let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                    // TODO(fabric2seer): `.fromJson(..)` on a Gson
-                    //   java: SkyblockerMod.GSON.fromJson(customWaypointsReader, JsonObject.class).asMap().forEach((room, waypointsJson) ->
-                    //   java: 						addCustomWaypoints(room, SecretWaypoint.LIST_CODEC.parse(JsonOps.INSTANCE, waypointsJson).resultOrPartial(LOGGER::error).orElseGet(ArrayList::new))
-                    //   java: 				);
-                    logger().debug("[Skyblocker Dungeon Secrets] Loaded custom dungeon secret waypoints");
-                }));
-                if let Err(_) = __result {
+        // dungeonFutures.add(CompletableFuture.runAsync(() -> {
+        //   try (BufferedReader customWaypointsReader = Files.newBufferedReader(CUSTOM_WAYPOINTS_DIR)) {
+        //     SkyblockerMod.GSON.fromJson(customWaypointsReader, JsonObject.class).asMap().forEach((room, waypointsJson) ->
+        //       addCustomWaypoints(room, SecretWaypoint.LIST_CODEC.parse(JsonOps.INSTANCE, waypointsJson).resultOrPartial(LOGGER::error).orElseGet(ArrayList::new)));
+        //     LOGGER.debug(..);
+        //   } catch (NoSuchFileException _) {} catch (Exception e) { LOGGER.error(.., e); }
+        // }, VIRTUAL_THREAD_EXECUTOR));
+        // The file is read on the worker; the waypoints are this mod's render-thread objects (the table, the
+        // codec), so they are built and added through the game's executor.
+        let custom_waypoints_dir: std::path::PathBuf = CUSTOM_WAYPOINTS_DIR.get().clone();
+        dungeon_futures.push(CompletableFuture::<()>::run_async(move || {
+            match std::fs::read_to_string(&custom_waypoints_dir) {
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+                Err(e) => {
+                    logger().error(&format!("[Skyblocker Dungeon Secrets] Failed to load custom dungeon secret waypoints: {}", e));
                 }
-                // TODO(fabric2seer): the second `catch (Exception e)` clause (merged into the first)
-                //   java: {
-                //   java: 				LOGGER.error("[Skyblocker Dungeon Secrets] Failed to load custom dungeon secret waypoints", e);
-                //   java: 			}
+                Ok(text) => mcrust::mcrust::modding::game::execute(move || {
+                    let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                        let json: serde_json::Value = serde_json::from_str(&text).expect("JsonParseException");
+                        for (room, waypoints_json) in compat::json::get_as_json_object(&json) {
+                            let waypoints = secret_waypoint::LIST_CODEC.get().parse(&mcrust::com::mojang::serialization::json_ops::JsonOps::instance(), &compat::json_to_port(&waypoints_json)).result_or_partial_with(|e| logger().error(&e)).unwrap_or_default();
+                            DungeonManager::add_custom_waypoints(&room, &waypoints);
+                        }
+                        logger().debug("[Skyblocker Dungeon Secrets] Loaded custom dungeon secret waypoints");
+                    }));
+                    if let Err(e) = __result {
+                        logger().error(&format!("[Skyblocker Dungeon Secrets] Failed to load custom dungeon secret waypoints: {}", compat::panic_message(&e)));
+                    }
+                }),
             }
-        })(), compat::executor));
-        // TODO(fabric2seer): static call Map.size(..)
-        //   java: roomsLoaded = CompletableFuture.allOf(dungeonFutures.toArray(CompletableFuture[]::new)).thenRun(() -> LOGGER.info("[Skyblocker Dungeon Secrets] Loaded dungeon secrets for {} dungeon(s), {} room shapes, {} rooms, and {} custom secret waypoints total in {} ms", ROOMS_DATA.size(), ROOMS_DATA.values().stream().mapToInt(Map::size).sum(), ROOMS_DATA.values().stream().map(Map::values).flatMap(Collection::stream).mapToInt(Map::size).sum(), customWaypoints.size(), System.currentTimeMillis() - startTime)).exceptionally(e -> {
-        //   java: 			LOGGER.error("[Skyblocker Dungeon Secrets] Failed to load dungeon secrets", e);
-        //   java: 			return null;
-        //   java: 		});
+        }, compat::executor));
+        // roomsLoaded = CompletableFuture.allOf(dungeonFutures..).thenRun(() -> LOGGER.info(.. ROOMS_DATA sizes, customWaypoints.size(), ..))
+        //   .exceptionally(e -> { LOGGER.error("[Skyblocker Dungeon Secrets] Failed to load dungeon secrets", e); return null; });
+        // (the log reads the custom waypoint table, a render-thread object: it is logged through the game's executor)
+        let rooms_loaded = CompletableFuture::<()>::all_of(&dungeon_futures)
+            .then_apply(move |_| {
+                mcrust::mcrust::modding::game::execute(move || {
+                    let (dungeons, shapes, rooms) = {
+                        let data = compat::lock(&ROOMS_DATA);
+                        (data.len(), data.values().map(|m| m.len()).sum::<usize>(), data.values().flat_map(|m| m.values()).map(|m| m.len()).sum::<usize>())
+                    };
+                    logger().info(&format!("[Skyblocker Dungeon Secrets] Loaded dungeon secrets for {} dungeon(s), {} room shapes, {} rooms, and {} custom secret waypoints total in {} ms", dungeons, shapes, rooms, CUSTOM_WAYPOINTS.get().size(), (compat::millis()).wrapping_sub(start_time)));
+                });
+            })
+            .exceptionally(|e| {
+                logger().error(&format!("[Skyblocker Dungeon Secrets] Failed to load dungeon secrets: {}", e));
+            });
+        *ROOMS_LOADED.get_mut() = Some(rooms_loaded);
         logger().info(&format!("[Skyblocker Dungeon Secrets] Started loading dungeon secrets in (blocked main thread for) {} ms", (compat::millis()).wrapping_sub(start_time)));
     }
 
@@ -423,13 +445,13 @@ impl DungeonManager {
     /// java: private static int[] readRoom(Resource resource) throws RuntimeException
     pub fn read_room(resource: &Resource) -> Vec<i32> {
         {
-            // TODO(fabric2seer): `new ObjectInputStream(..)`
-            //   java: ObjectInputStream in = new ObjectInputStream(new InflaterInputStream(resource.open()));
-            let mut r#in: crate::unresolved::ObjectInputStream = todo!("fabric2seer: the initialiser of `in` (TODO above)");
-            // java: try {..} catch (IOException | ClassNotFoundException e) - an exception here is a panic, caught by `catch_unwind`; the body's `return` is the closure's value
+            // java: try (ObjectInputStream in = new ObjectInputStream(new InflaterInputStream(resource.open()))) {
+            //   return (int[]) in.readObject();
+            // } catch (IOException | ClassNotFoundException e) { throw new RuntimeException(e); }
+            // - an exception here is a panic, caught by `catch_unwind`; the body's `return` is the closure's value
             match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                // TODO(fabric2seer): `.readObject(..)` on a ObjectInputStream
-                //   java: return (int[]) in.readObject();
+                let compressed: Vec<u8> = resource.open().expect("IOException");
+                read_serialized_int_array(&inflate_stream(&compressed))
             })) {
                 Ok(__v) => return __v,
                 Err(e) => {
@@ -437,7 +459,6 @@ impl DungeonManager {
                 }
             }
         }
-        todo!("fabric2seer: the value of this function is in a TODO above")
     }
 
     /// java: private static RequiredArgumentBuilder<FabricClientCommandSource, Integer> markSecretsCommand(boolean found)
@@ -487,8 +508,9 @@ impl DungeonManager {
 
     /// java: private static int getRelativePos(FabricClientCommandSource source, BlockPos pos)
     pub fn get_relative_pos_2(source: &crate::unresolved::FabricClientCommandSource, pos: &BlockPos) -> i32 {
-        let mut room: compat::Shared<dyn Room> = DungeonManager::get_room_at_physical(pos).unwrap();
-        if DungeonManager::is_room_matched(Some(room.clone())) {
+        let mut room: Option<compat::Shared<dyn Room>> = DungeonManager::get_room_at_physical_vec3i(pos.as_vec3i());
+        if DungeonManager::is_room_matched(room.clone()) {
+            let room: compat::Shared<dyn Room> = room.unwrap();
             let mut relative_pos: BlockPos = ({ let __r = CURRENT_ROOM.get_mut().as_ref().unwrap(); let __f = compat::dispatch(__r, |__t| __t.actual_to_relative()); __f(__r, pos) });
             // TODO(fabric2seer): `.sendFeedback(..)` on a FabricClientCommandSource
             //   java: source.sendFeedback(Constants.PREFIX.get().append(Component.translatable("skyblocker.dungeons.secrets.posMessage", currentRoom.getName(), currentRoom.getDirection().getSerializedName(), relativePos.getX(), relativePos.getY(), relativePos.getZ())));
@@ -632,11 +654,18 @@ impl DungeonManager {
             return None;
         }
         // TODO(fabric2seer): `with_entities` takes 1 argument(s) in the port (`f: impl FnOnce(&dyn LevelEntityGetter<StoredEntity>) -> R`), Java passes 0
-        for entity in mcrust::mcrust::modding::game::level().unwrap().with_entities() {
-            if let Some(armor_stand) = entity.as_any().unwrap_or(&() as &dyn std::any::Any).downcast_ref::<ArmorStand>() {
-                let mut name: Option<MutableComponent> = armor_stand.base.base.get_custom_name();
-                if name.is_some() && name.as_ref().unwrap().get_string().contains("Mort") {
-                    return Some(armor_stand.base.base.position());
+        // for (var entity : CLIENT.level.entitiesForRendering()) - each entity read under its own lock (never one this
+        // thread already holds)
+        let entities = mcrust::mcrust::modding::game::level().unwrap().with_entities(|getter| getter.get_all());
+        for entity in entities.iter() {
+            if mcrust::mcrust::modding::game::is_held_here(&**entity) {
+                continue;
+            }
+            let entity = mcrust::mcrust::modding::game::lock_entity(&**entity, "dungeon_manager.rs:DungeonManager.getMortArmorStandPos");
+            if entity.as_any().is_some_and(|a| a.is::<ArmorStand>()) {
+                let mut name: Option<mcrust::net::minecraft::network::chat::formatted_text::FormattedText> = entity.base().get_custom_name();
+                if name.is_some() && compat::component_of(name.clone().unwrap()).get_string().contains("Mort") {
+                    return Some(entity.base().position());
                 }
             }
         }
@@ -663,16 +692,17 @@ impl DungeonManager {
             *CURRENT_ROOM.get_mut() = DungeonManager::new_room(Type::Entrance, &vec![PHYSICAL_ENTRANCE_POS.get_mut().clone().unwrap()]);
             (dungeon_events::dungeon_loaded_invoker())();
         }
-        let Some(mut map) = DungeonManager::get_map_state(compat::minecraft()) else {
+        let Some(map_handle) = DungeonManager::get_map_state(compat::minecraft()) else {
             return;
         };
+        let map = map_handle.lock().unwrap_or_else(|p| p.into_inner());
         if MAP_ENTRANCE_POS.get_mut().is_none() || compat::get_state(&MAP_ROOM_SIZE) == 0 {
             let Some(mut map_entrance_pos_and_size) = DungeonMapUtils::get_map_entrance_pos_and_room_size(&map) else {
                 return;
             };
             *MAP_ENTRANCE_POS.get_mut() = Some(map_entrance_pos_and_size.0.clone());
             compat::set_state(&MAP_ROOM_SIZE, map_entrance_pos_and_size.1);
-            logger().info(&format!("[Skyblocker Dungeon Secrets] Started dungeon with map room size {}, map entrance pos {}, player pos {}, and physical entrance pos {}", compat::get_state(&MAP_ROOM_SIZE), compat::opt_str(&MAP_ENTRANCE_POS.get_mut()), compat::opt_str(&mcrust::mcrust::modding::game::with_player(|player| player.position())), compat::opt_str(&PHYSICAL_ENTRANCE_POS.get_mut())));
+            logger().info(&format!("[Skyblocker Dungeon Secrets] Started dungeon with map room size {}, map entrance pos {}, player pos {}, and physical entrance pos {}", compat::get_state(&MAP_ROOM_SIZE), MAP_ENTRANCE_POS.get().map_or("null".to_string(), |p| compat::joml_string(&[p.x() as f64, p.y() as f64])), compat::opt_str(&mcrust::mcrust::modding::game::with_player(|player| player.position())), PHYSICAL_ENTRANCE_POS.get().map_or("null".to_string(), |p| compat::joml_string(&[p.x() as f64, p.y() as f64]))));
         }
         DungeonManager::get_blood_rush_door_pos(&map);
         let mut physical_pos: Vector2i = DungeonMapUtils::get_physical_room_pos(&mcrust::mcrust::modding::game::with_player(|player| player.position()).unwrap());
@@ -710,12 +740,13 @@ impl DungeonManager {
         if !(Utils::is_in_dungeons()) || DungeonManager::is_in_boss() || mcrust::mcrust::modding::game::with_player(|_| ()).is_none() || mcrust::mcrust::modding::game::level().is_none() {
             return;
         }
-        let mut map: Option<MapItemSavedData> = DungeonManager::get_map_state(compat::minecraft());
+        let mut map: Option<std::sync::Arc<std::sync::Mutex<MapItemSavedData>>> = DungeonManager::get_map_state(compat::minecraft());
         if map.is_none() || MAP_ENTRANCE_POS.get_mut().is_none() {
             return;
         }
+        let map = map.as_ref().unwrap().lock().unwrap_or_else(|p| p.into_inner());
         for room in DungeonManager::get_rooms_stream().filter(|__a0| ({ let __f = compat::dispatch(__a0, |__t| __t.is_matched()); __f(__a0) })) {
-            DungeonManager::update_room_checkmark(&room, map.as_ref().unwrap());
+            DungeonManager::update_room_checkmark(&room, &map);
         }
     }
 
@@ -724,7 +755,8 @@ impl DungeonManager {
         if compat::read(room, |__t| __t.room_base().clear_state) == ClearState::GreenChecked {
             return;
         }
-        match DungeonManager::get_room_checkmark_colour(map, room, None) {
+        // the colour is a map byte widened to int (or -1), so narrowing it back loses nothing
+        match DungeonManager::get_room_checkmark_colour(map, room, None) as i8 {
             dungeon_map_utils::GREEN_COLOR => {
                 { let __v = ClearState::GreenChecked; compat::write(room, |__t| __t.room_base_mut().clear_state = __v); }
                 { let __v = false; compat::write(room, |__t| __t.room_base_mut().secret_count_outdated = __v); }
@@ -854,16 +886,19 @@ impl DungeonManager {
 
     /// java: @SuppressWarnings("JavadocReference") public static void onItemPickup(ItemEntity itemEntity)
     pub fn on_item_pickup(item_entity: &ItemEntity) {
-        let mut room: compat::Shared<dyn Room> = DungeonManager::get_room_at_physical(&item_entity.position()).unwrap();
-        if DungeonManager::is_room_matched(Some(room.clone())) {
+        use mcrust::net::minecraft::world::entity::entity::Entity as _;
+        let mut room: Option<compat::Shared<dyn Room>> = DungeonManager::get_room_at_physical(&item_entity.base().position());
+        if DungeonManager::is_room_matched(room.clone()) {
+            let room: compat::Shared<dyn Room> = room.unwrap();
             ({ let __f = compat::dispatch(&room, |__t| __t.on_item_pickup()); __f(&room, item_entity) });
         }
     }
 
     /// java: @SuppressWarnings("JavadocReference") public static void onBatRemoved(AmbientCreature bat)
     pub fn on_bat_removed(bat: &dyn AmbientCreature) {
-        let mut room: compat::Shared<dyn Room> = DungeonManager::get_room_at_physical(&bat.position()).unwrap();
-        if DungeonManager::is_room_matched(Some(room.clone())) {
+        let mut room: Option<compat::Shared<dyn Room>> = DungeonManager::get_room_at_physical(&bat.base().position());
+        if DungeonManager::is_room_matched(room.clone()) {
+            let room: compat::Shared<dyn Room> = room.unwrap();
             ({ let __f = compat::dispatch(&room, |__t| __t.on_bat_removed()); __f(&room, bat) });
         }
     }
@@ -893,11 +928,12 @@ impl DungeonManager {
     }
 
     /// java: private static @Nullable MapItemSavedData getMapState(Minecraft client)
-    pub fn get_map_state(client: &mut mcrust::net::minecraft::client::minecraft::Minecraft) -> Option<MapItemSavedData> {
+    /// The level's map data object (the port keeps it behind its `Mutex`; callers lock it where Java reads it).
+    pub fn get_map_state(client: &mut mcrust::net::minecraft::client::minecraft::Minecraft) -> Option<std::sync::Arc<std::sync::Mutex<MapItemSavedData>>> {
         if mcrust::mcrust::modding::game::with_player(|_| ()).is_none() {
             return None;
         }
-        return map_item::get_saved_data(Some(DungeonMap::get_map_id_component(mcrust::mcrust::modding::game::with_player(|player| player.base.base.get_inventory().get_non_equipment_items()[(8) as usize].clone()))), &mcrust::mcrust::modding::game::level().unwrap());
+        return map_item::get_saved_data(Some(&DungeonMap::get_map_id_component(mcrust::mcrust::modding::game::with_player(|player| player.base.base.get_inventory().get_non_equipment_items()[(8) as usize].clone()))), &mcrust::mcrust::modding::game::level().unwrap());
     }
 
     /// java: public static boolean isClearingDungeon()
@@ -937,7 +973,7 @@ impl DungeonManager {
     /// java: private static void getBloodRushDoorPos(MapItemSavedData map)
     pub fn get_blood_rush_door_pos(map: &MapItemSavedData) {
         if MAP_ENTRANCE_POS.get_mut().is_none() || PHYSICAL_ENTRANCE_POS.get_mut().is_none() || compat::get_state(&MAP_ROOM_SIZE) == 0 {
-            logger().error(&format!("[Skyblocker Dungeon Secrets] Dungeon map info missing with map entrance pos {} and map room size {}", compat::opt_str(&MAP_ENTRANCE_POS.get_mut()), compat::get_state(&MAP_ROOM_SIZE)));
+            logger().error(&format!("[Skyblocker Dungeon Secrets] Dungeon map info missing with map entrance pos {} and map room size {}", MAP_ENTRANCE_POS.get().map_or("null".to_string(), |p| compat::joml_string(&[p.x() as f64, p.y() as f64])), compat::get_state(&MAP_ROOM_SIZE)));
             return;
         }
         let mut n_w_most_room: Vector2i = DungeonMapUtils::get_map_pos_for_nw_most_room(MAP_ENTRANCE_POS.get_mut().as_ref().unwrap(), compat::get_state(&MAP_ROOM_SIZE));
@@ -949,7 +985,7 @@ impl DungeonManager {
                     while y < 128 {
                         let mut color: i8 = DungeonMapUtils::get_color_3(map, x, y);
                         if (color as i32) == 119 || (color as i32) == 18 {
-                            let mut door_pos: Vector2i = DungeonMapUtils::get_physical_pos_from_map(MAP_ENTRANCE_POS.get_mut().as_ref().unwrap(), compat::get_state(&MAP_ROOM_SIZE), PHYSICAL_ENTRANCE_POS.get_mut().as_ref().unwrap(), vec![Vector2i::new(x.wrapping_sub((compat::get_state(&MAP_ROOM_SIZE)).wrapping_div(2)), y.wrapping_sub(compat::get_state(&MAP_ROOM_SIZE)))]);
+                            let mut door_pos: Vector2i = DungeonMapUtils::get_physical_pos_from_map_vector2ic_int_vector2ic_vector2ic(MAP_ENTRANCE_POS.get_mut().as_ref().unwrap(), compat::get_state(&MAP_ROOM_SIZE), PHYSICAL_ENTRANCE_POS.get_mut().clone().unwrap(), &Vector2i::new(x.wrapping_sub((compat::get_state(&MAP_ROOM_SIZE)).wrapping_div(2)), y.wrapping_sub(compat::get_state(&MAP_ROOM_SIZE))));
                             *BLOOD_RUSH_DOOR_BOX.get_mut() = Some(AABB::new((door_pos.x().wrapping_add(14)) as f64, (69) as f64, (door_pos.y().wrapping_add(30)) as f64, (door_pos.x().wrapping_add(17)) as f64, (73) as f64, (door_pos.y().wrapping_add(33)) as f64));
                             return;
                         }
@@ -967,7 +1003,7 @@ impl DungeonManager {
                     while y < 128 {
                         let mut color: i8 = DungeonMapUtils::get_color_3(map, x, y);
                         if (color as i32) == 119 || (color as i32) == 18 {
-                            let mut door_pos: Vector2i = DungeonMapUtils::get_physical_pos_from_map(MAP_ENTRANCE_POS.get_mut().as_ref().unwrap(), compat::get_state(&MAP_ROOM_SIZE), PHYSICAL_ENTRANCE_POS.get_mut().as_ref().unwrap(), vec![Vector2i::new(x.wrapping_sub(compat::get_state(&MAP_ROOM_SIZE)), y.wrapping_sub((compat::get_state(&MAP_ROOM_SIZE)).wrapping_div(2)))]);
+                            let mut door_pos: Vector2i = DungeonMapUtils::get_physical_pos_from_map_vector2ic_int_vector2ic_vector2ic(MAP_ENTRANCE_POS.get_mut().as_ref().unwrap(), compat::get_state(&MAP_ROOM_SIZE), PHYSICAL_ENTRANCE_POS.get_mut().clone().unwrap(), &Vector2i::new(x.wrapping_sub(compat::get_state(&MAP_ROOM_SIZE)), y.wrapping_sub((compat::get_state(&MAP_ROOM_SIZE)).wrapping_div(2))));
                             *BLOOD_RUSH_DOOR_BOX.get_mut() = Some(AABB::new((door_pos.x().wrapping_add(30)) as f64, (69) as f64, (door_pos.y().wrapping_add(14)) as f64, (door_pos.x().wrapping_add(33)) as f64, (73) as f64, (door_pos.y().wrapping_add(17)) as f64));
                             return;
                         }
@@ -980,22 +1016,22 @@ impl DungeonManager {
     }
 
     /// java: public static int getRoomCheckmarkColour(MapItemSavedData mapState, Room room, @Nullable Consumer<Vector2ic> onCheckmarkFound)
-    pub fn get_room_checkmark_colour(map_state: &MapItemSavedData, room: &compat::Shared<dyn Room>, on_checkmark_found: Arc<dyn Fn(Vector2i)>) -> i32 {
+    pub fn get_room_checkmark_colour(map_state: &MapItemSavedData, room: &compat::Shared<dyn Room>, on_checkmark_found: Option<&dyn Fn(Vector2i)>) -> i32 {
         if PHYSICAL_ENTRANCE_POS.get_mut().is_none() || MAP_ENTRANCE_POS.get_mut().is_none() {
             return -1;
         }
         let mut half_room_size: i32 = (compat::get_state(&MAP_ROOM_SIZE)).wrapping_div(2);
         for segment_physical_pos in compat::read(room, |__t| __t.room_base().segments.clone()) {
             let mut top_left_corner: Vector2i = DungeonMapUtils::get_map_pos_from_physical(PHYSICAL_ENTRANCE_POS.get_mut().as_ref().unwrap(), MAP_ENTRANCE_POS.get_mut().clone().unwrap(), compat::get_state(&MAP_ROOM_SIZE), &segment_physical_pos);
-            // TODO(fabric2seer): `new` takes 2 argument(s) in the port (`x: i32, y: i32`), Java passes 0
-            // rust: let middle = top_left_corner.add_dest(half_room_size, half_room_size, &Vector2i::new());
-            let mut middle: Vector2i = todo!("fabric2seer: the initialiser of `middle` (TODO above)");
+            // java: Vector2ic middle = topLeftCorner.add(halfRoomSize, halfRoomSize, new Vector2i());
+            let mut middle: Vector2i = Vector2i::zero();
+            top_left_corner.add_dest(half_room_size, half_room_size, &mut middle);
             for offset in 0..half_room_size {
                 let mut map_pos: Vector2i = Vector2i::new(middle.x(), middle.y().wrapping_add(offset));
                 let mut colour: i32 = (DungeonMapUtils::get_color(map_state, Some(map_pos.clone()))) as i32;
                 if DungeonManager::matches_checkmark_colour(colour) {
-                    if true /* java: on_checkmark_found != null: never null here */ {
-                        (on_checkmark_found)(map_pos.clone());
+                    if let Some(on_checkmark_found) = on_checkmark_found {
+                        on_checkmark_found(map_pos.clone());
                     }
                     return colour;
                 }
@@ -1027,16 +1063,16 @@ impl DungeonManager {
     }
 
     /// java: public static CompletableFuture<Suggestions> suggestRoomTypes(CommandContext<FabricClientCommandSource> ctx, SuggestionsBuilder suggestionsBuilder)
-    pub fn suggest_room_types(ctx: &CommandContext<crate::unresolved::FabricClientCommandSource>, suggestions_builder: &SuggestionsBuilder) -> mcrust::java::util::concurrent::completable_future::CompletableFuture<Suggestions> {
-        return shared_suggestion_provider::suggest(&compat::lock(&ROOMS_DATA).get("catacombs").cloned().unwrap().keys().cloned().collect::<std::collections::HashSet<_>>(), &mut suggestions_builder);
+    pub fn suggest_room_types(ctx: &CommandContext<crate::unresolved::FabricClientCommandSource>, suggestions_builder: &mut SuggestionsBuilder) -> mcrust::java::util::concurrent::completable_future::CompletableFuture<Suggestions> {
+        return shared_suggestion_provider::suggest(&compat::lock(&ROOMS_DATA).get("catacombs").cloned().unwrap().keys().cloned().collect::<Vec<String>>(), suggestions_builder);
     }
 
     /// java: public static CompletableFuture<Suggestions> suggestRooms(String roomType, SuggestionsBuilder suggestionsBuilder)
-    pub fn suggest_rooms(room_type: &str, suggestions_builder: &SuggestionsBuilder) -> mcrust::java::util::concurrent::completable_future::CompletableFuture<Suggestions> {
+    pub fn suggest_rooms(room_type: &str, suggestions_builder: &mut SuggestionsBuilder) -> mcrust::java::util::concurrent::completable_future::CompletableFuture<Suggestions> {
         if compat::lock(&ROOMS_DATA).get("catacombs").cloned().unwrap().get(room_type).cloned().is_none() {
             return Suggestions::empty();
         }
-        return shared_suggestion_provider::suggest(&compat::lock(&ROOMS_DATA).get("catacombs").cloned().unwrap().get(room_type).cloned().unwrap().keys().cloned().collect::<std::collections::HashSet<_>>(), &mut suggestions_builder);
+        return shared_suggestion_provider::suggest(&compat::lock(&ROOMS_DATA).get("catacombs").cloned().unwrap().get(room_type).cloned().unwrap().keys().cloned().collect::<Vec<String>>(), suggestions_builder);
     }
 
     /// java: @VisibleForTesting public static int getLoadedRoomCount()
@@ -1144,4 +1180,70 @@ impl RoomData {
         self.secrets.clone()
     }
 
+}
+
+
+/// `new InflaterInputStream(in)` read to its end: the zlib stream a `.skeleton` resource is (`Inflater` with the
+/// zlib wrapper, as `InflaterInputStream`'s default `new Inflater()`).
+fn inflate_stream(compressed: &[u8]) -> Vec<u8> {
+    let mut inflater = mcrust::java::util::zip::inflater::Inflater::new();
+    inflater.set_input(compressed);
+    let mut out: Vec<u8> = Vec::new();
+    let mut buffer = vec![0u8; 8192];
+    while !inflater.finished() {
+        let n = inflater.inflate(&mut buffer).unwrap_or_else(|e| panic!("ZipException: {}", e.to_string()));
+        if n == 0 && !inflater.finished() {
+            panic!("EOFException: Unexpected end of ZLIB input stream");
+        }
+        out.extend_from_slice(&buffer[..n]);
+    }
+    inflater.end();
+    out
+}
+
+/// `(int[]) new ObjectInputStream(..).readObject()` - Java object serialization of one `int[]`: the stream header
+/// (`STREAM_MAGIC`, `STREAM_VERSION`), `TC_ARRAY`, the class descriptor of `[I` (`TC_CLASSDESC`, name,
+/// serialVersionUID, flags, no fields, `TC_ENDBLOCKDATA`, no superclass), the length and the big-endian ints.
+/// Anything else is the `ClassCastException` / `StreamCorruptedException` Java would throw.
+fn read_serialized_int_array(bytes: &[u8]) -> Vec<i32> {
+    fn next<'a>(bytes: &'a [u8], at: &mut usize, n: usize) -> &'a [u8] {
+        let slice = bytes.get(*at..*at + n).unwrap_or_else(|| panic!("EOFException"));
+        *at += n;
+        slice
+    }
+    let mut at = 0usize;
+    let mut take = |n: usize| next(bytes, &mut at, n);
+    let u16_of = |b: &[u8]| u16::from_be_bytes([b[0], b[1]]);
+    if take(2) != [0xAC, 0xED] || u16_of(take(2)) != 5 {
+        panic!("StreamCorruptedException: invalid stream header");
+    }
+    if take(1)[0] != 0x75 {
+        panic!("ClassCastException: the serialized object is not an array");
+    }
+    if take(1)[0] != 0x72 {
+        panic!("StreamCorruptedException: expected a class descriptor");
+    }
+    let name_len = u16_of(take(2)) as usize;
+    if take(name_len) != b"[I" {
+        panic!("ClassCastException: the serialized array is not an int[]");
+    }
+    take(8); // serialVersionUID
+    take(1); // flags (SC_SERIALIZABLE)
+    if u16_of(take(2)) != 0 {
+        panic!("StreamCorruptedException: an int[] has no fields");
+    }
+    if take(1)[0] != 0x78 || take(1)[0] != 0x70 {
+        panic!("StreamCorruptedException: expected TC_ENDBLOCKDATA and a null superclass");
+    }
+    let len_bytes = take(4);
+    let length = i32::from_be_bytes([len_bytes[0], len_bytes[1], len_bytes[2], len_bytes[3]]);
+    if length < 0 {
+        panic!("NegativeArraySizeException: {}", length);
+    }
+    let mut out = Vec::with_capacity(length as usize);
+    for _ in 0..length {
+        let b = take(4);
+        out.push(i32::from_be_bytes([b[0], b[1], b[2], b[3]]));
+    }
+    out
 }

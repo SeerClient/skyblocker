@@ -215,35 +215,37 @@ impl Pattern {
     }
 
     /// java: @SuppressWarnings("incomplete-switch") private static float setVisibleAndGetOffset(HumanoidModel<?> humanoidModel, EquipmentSlot slot)
-    pub fn set_visible_and_get_offset(humanoid_model: &HumanoidModel, slot: &EquipmentSlot) -> f32 {
-        humanoid_model.head.visible = false;
-        humanoid_model.hat.visible = false;
-        humanoid_model.body.visible = false;
-        humanoid_model.right_arm.visible = false;
-        humanoid_model.left_arm.visible = false;
-        humanoid_model.right_leg.visible = false;
-        humanoid_model.left_leg.visible = false;
+    /// (`humanoidModel.head.visible = ..` - the port reaches a model's part by its field path, `part_fast_mut`)
+    pub fn set_visible_and_get_offset(humanoid_model: &mut HumanoidModel, slot: &EquipmentSlot) -> f32 {
+        use mcrust::net::minecraft::client::model::humanoid_model::HumanoidPart;
+        humanoid_model.part_fast_mut(HumanoidPart::Head).visible = false;
+        humanoid_model.part_fast_mut(HumanoidPart::Hat).visible = false;
+        humanoid_model.part_fast_mut(HumanoidPart::Body).visible = false;
+        humanoid_model.part_fast_mut(HumanoidPart::RightArm).visible = false;
+        humanoid_model.part_fast_mut(HumanoidPart::LeftArm).visible = false;
+        humanoid_model.part_fast_mut(HumanoidPart::RightLeg).visible = false;
+        humanoid_model.part_fast_mut(HumanoidPart::LeftLeg).visible = false;
         match *slot {
             EquipmentSlot::Head => {
-                humanoid_model.head.visible = true;
-                humanoid_model.hat.visible = true;
+                humanoid_model.part_fast_mut(HumanoidPart::Head).visible = true;
+                humanoid_model.part_fast_mut(HumanoidPart::Hat).visible = true;
                 return ((4) as f32) as f32;
             }
             EquipmentSlot::Chest => {
-                humanoid_model.body.visible = true;
-                humanoid_model.right_arm.visible = true;
-                humanoid_model.left_arm.visible = true;
+                humanoid_model.part_fast_mut(HumanoidPart::Body).visible = true;
+                humanoid_model.part_fast_mut(HumanoidPart::RightArm).visible = true;
+                humanoid_model.part_fast_mut(HumanoidPart::LeftArm).visible = true;
                 return ((-6) as f32) as f32;
             }
             EquipmentSlot::Legs => {
-                humanoid_model.body.visible = true;
-                humanoid_model.right_leg.visible = true;
-                humanoid_model.left_leg.visible = true;
+                humanoid_model.part_fast_mut(HumanoidPart::Body).visible = true;
+                humanoid_model.part_fast_mut(HumanoidPart::RightLeg).visible = true;
+                humanoid_model.part_fast_mut(HumanoidPart::LeftLeg).visible = true;
                 return ((-14) as f32) as f32;
             }
             EquipmentSlot::Feet => {
-                humanoid_model.right_leg.visible = true;
-                humanoid_model.left_leg.visible = true;
+                humanoid_model.part_fast_mut(HumanoidPart::RightLeg).visible = true;
+                humanoid_model.part_fast_mut(HumanoidPart::LeftLeg).visible = true;
                 return ((-20) as f32) as f32;
             }
             _ => {}
@@ -254,13 +256,13 @@ impl Pattern {
     /// java: public void setStack(ItemStack newStack)
     pub fn set_stack(__this: &compat::Shared<Self>, mut new_stack: mcrust::net::minecraft::world::item::item_stack::ItemStack) {
         new_stack = new_stack.copy();
-        // TODO(fabric2seer): `copy` takes 1 argument(s) in the port (`tags: &BTreeMap<String, Tag>`), Java passes 0
-        // rust: let mut nbt_copy: Tag = compound_tag::copy();
-        let mut nbt_copy: Tag = todo!("fabric2seer: the initialiser of `nbtCopy` (TODO above)");
+        // Remove the uuid so it doesn't render with the selected trim
+        // CompoundTag nbtCopy = ItemUtils.getCustomData(newStack).copy();
+        let mut nbt_copy: Tag = crate::de::hysky::skyblocker::utils::item_utils::ItemUtils::get_custom_data(&new_stack).copy();
         nbt_copy.remove(item_utils::UUID);
-        new_stack.set(mcrust::net::minecraft::core::component::data_components::custom_data().clone(), Some(CustomData::of(&nbt_copy)));
-        new_stack.set(mcrust::net::minecraft::core::component::data_components::trim().clone(), compat::read(__this, |__t| __t.trim.clone()));
-        { let __v = <_ as mcrust::net::minecraft::core::component::data_component_map::DataComponentGetter>::get(&new_stack, mcrust::net::minecraft::core::component::data_components::equippable()); compat::write(__this, |__t| __t.equippable_component = __v); }
+        new_stack.set(mcrust::net::minecraft::core::component::data_components::custom_data().clone(), Some(mcrust::com::mojang::serialization::obj(CustomData::of(&nbt_copy))));
+        new_stack.set(mcrust::net::minecraft::core::component::data_components::trim().clone(), compat::read(__this, |__t| __t.trim.clone()).map(mcrust::com::mojang::serialization::obj));
+        { let __v = <_ as mcrust::net::minecraft::core::component::data_component_map::DataComponentGetter>::get(&new_stack, mcrust::net::minecraft::core::component::data_components::equippable()).and_then(|__o| mcrust::com::mojang::serialization::cast::<mcrust::net::minecraft::world::item::equipment::equippable::Equippable>(&__o).cloned()); compat::write(__this, |__t| __t.equippable_component = __v); }
         if compat::read(__this, |__t| __t.equippable_component.clone()).is_none() {
             panic!("IllegalArgumentException: {}", "Trimmed stack must contain an equippable component");
         }
@@ -303,7 +305,7 @@ impl Pattern {
             { let __v = ((PATTERN_DEFAULT_ROTATION) as f32) as f32; compat::write(__this, |__t| __t.rotation = __v); }
         }
         let mut slot: EquipmentSlot = *__this.lock().borrow().equippable_component.as_ref().unwrap().slot();
-        let model = PATTERN_EQUIPMENT_MODEL_DATA.get_mut().as_ref().unwrap().get(slot);
+        let model = PATTERN_EQUIPMENT_MODEL_DATA.get_mut().as_mut().unwrap().get_mut(slot);
         // TODO(fabric2seer): `new AvatarRenderState(..)`: the port has no `AvatarRenderState::new`
         // rust: let mut state: AvatarRenderState = AvatarRenderState::new();
         let mut state: AvatarRenderState = todo!("fabric2seer: the initialiser of `state` (TODO above)");
@@ -311,7 +313,7 @@ impl Pattern {
         //   java: EquipmentClientInfo.LayerType layerType = slot == EquipmentSlot.LEGS ? EquipmentClientInfo.LayerType.HUMANOID_LEGGINGS : EquipmentClientInfo.LayerType.HUMANOID;
         let mut layer_type: LayerType = todo!("fabric2seer: the initialiser of `layerType` (TODO above)");
         let mut offset: f32 = Pattern::set_visible_and_get_offset(model, &slot);
-        GuiHelper::equipment(graphics, PATTERN_EQUIPMENT_RENDERER.get_mut().as_ref().unwrap(), &layer_type, &__this.lock().borrow().equippable_component.as_ref().unwrap().asset_id().unwrap_or(mcrust::net::minecraft::world::item::equipment::equipment_assets::iron()), model, &state, &compat::read(__this, |__t| __t.stack.clone()).unwrap(), __this.lock().borrow().get_x(), __this.lock().borrow().get_y(), (__this.lock().borrow().get_x()).wrapping_add(__this.lock().borrow().get_width()), (__this.lock().borrow().get_y()).wrapping_add(__this.lock().borrow().get_height()), compat::read(__this, |__t| __t.rotation), ((14) as f32) as f32, offset);
+        GuiHelper::equipment(graphics, PATTERN_EQUIPMENT_RENDERER.get_mut().as_ref().unwrap(), &layer_type, &__this.lock().borrow().equippable_component.as_ref().unwrap().asset_id().cloned().unwrap_or_else(mcrust::net::minecraft::world::item::equipment::equipment_assets::iron), &model.base, &state, &compat::read(__this, |__t| __t.stack.clone()).unwrap(), __this.lock().borrow().get_x(), __this.lock().borrow().get_y(), (__this.lock().borrow().get_x()).wrapping_add(__this.lock().borrow().get_width()), (__this.lock().borrow().get_y()).wrapping_add(__this.lock().borrow().get_height()), compat::read(__this, |__t| __t.rotation), ((14) as f32) as f32, offset);
     }
 
     /// Pattern.extract as the dispatch of TrimElementButton.extract

@@ -18,21 +18,15 @@ impl BoulderSolver {
     /// java: public static @Nullable List<int[]> aStarSolve(List<GameState> initialStates)
     pub fn a_star_solve(initial_states: &Vec<GameState>) -> Option<Vec<Vec<i32>>> {
         let mut visited: std::collections::HashSet<GameState> = std::collections::HashSet::new();
-        // TODO(fabric2seer): `new PriorityQueue(..)`
-        //   java: PriorityQueue<Pair<GameState, List<int[]>>> queue = new PriorityQueue<>(new AStarComparator());
-        let mut queue: crate::unresolved::PriorityQueue = todo!("fabric2seer: the initialiser of `queue` (TODO above)");
+        // PriorityQueue<Pair<GameState, List<int[]>>> queue = new PriorityQueue<>(new AStarComparator());
+        let mut queue: PriorityQueue = PriorityQueue::new(AStarComparator::new());
         for initial_state in initial_states.iter() {
-            // TODO(fabric2seer): `.add(..)` on a PriorityQueue
-            //   java: queue.add(Pair.of(initialState, new ArrayList<>()));
+            queue.add((initial_state.clone(), Vec::new()));
         }
         let mut max_iterations: i32 = 10000;
         let mut iterations: i32 = 0;
-        // TODO(fabric2seer): the condition: `.isEmpty(..)` on a PriorityQueue
-        //   java: !queue.isEmpty() && iterations < maxIterations
-        while todo!("fabric2seer: the condition (TODO above)") {
-            // TODO(fabric2seer): `.poll(..)` on a PriorityQueue
-            //   java: Pair<GameState, List<int[]>> pair = queue.poll();
-            let mut pair: (GameState, Vec<Vec<i32>>) = todo!("fabric2seer: the initialiser of `pair` (TODO above)");
+        while !queue.is_empty() && iterations < max_iterations {
+            let mut pair: (GameState, Vec<Vec<i32>>) = queue.poll().unwrap();
             let state = &pair.0;
             let path = &mut pair.1;
             if visited.contains(state) {
@@ -46,8 +40,7 @@ impl BoulderSolver {
             for direction in vec![vec![-1, 0], vec![0, -1], vec![0, 1], vec![1, 0]] {
                 let mut new_state: GameState = GameState::new(state.grid.clone(), state.player_x, state.player_y, state.moved_boxes);
                 if new_state.move_player(direction[(0) as usize], direction[(1) as usize]) {
-                    // TODO(fabric2seer): `.add(..)` on a PriorityQueue
-                    //   java: queue.add(Pair.of(newState, new ArrayList<>(path)));
+                    queue.add((new_state, path.clone()));
                 }
             }
             iterations += 1;
@@ -55,6 +48,64 @@ impl BoulderSolver {
         return None;
     }
 
+}
+
+/// `java.util.PriorityQueue<Pair<GameState, List<int[]>>>` ordered by an `AStarComparator`: Java's binary heap
+/// (`siftUp` / `siftDown` with the comparator, `offer` / `poll`), so elements of equal cost come out in the
+/// order Java's heap gives them.
+pub struct PriorityQueue {
+    queue: Vec<(GameState, Vec<Vec<i32>>)>,
+    comparator: AStarComparator,
+}
+
+impl PriorityQueue {
+    pub fn new(comparator: AStarComparator) -> PriorityQueue {
+        PriorityQueue { queue: Vec::new(), comparator }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.queue.is_empty()
+    }
+
+    /// `add` = `offer`: append, then `siftUpUsingComparator`.
+    pub fn add(&mut self, e: (GameState, Vec<Vec<i32>>)) {
+        let mut k = self.queue.len();
+        self.queue.push(e);
+        while k > 0 {
+            let parent = (k - 1) >> 1;
+            if self.comparator.compare(&self.queue[k], &self.queue[parent]) >= 0 {
+                break;
+            }
+            self.queue.swap(k, parent);
+            k = parent;
+        }
+    }
+
+    /// `poll`: the head; the last element is moved to the root and `siftDownUsingComparator`.
+    pub fn poll(&mut self) -> Option<(GameState, Vec<Vec<i32>>)> {
+        if self.queue.is_empty() {
+            return None;
+        }
+        let last = self.queue.len() - 1;
+        self.queue.swap(0, last);
+        let result = self.queue.pop();
+        let n = self.queue.len();
+        let mut k = 0;
+        let half = n >> 1;
+        while k < half {
+            let mut child = (k << 1) + 1;
+            let right = child + 1;
+            if right < n && self.comparator.compare(&self.queue[child], &self.queue[right]) > 0 {
+                child = right;
+            }
+            if self.comparator.compare(&self.queue[k], &self.queue[child]) <= 0 {
+                break;
+            }
+            self.queue.swap(k, child);
+            k = child;
+        }
+        result
+    }
 }
 
 /// java: private static class AStarComparator implements Comparator<Pair<GameState, List<int[]>>>
@@ -76,6 +127,26 @@ impl AStarComparator {
         return compat::ord_int(cost_a.cmp(&cost_b));
     }
 
+}
+
+impl PartialEq for GameState {
+    /// `equals`: `Arrays.deepEquals(grid, ..)` and the three ints.
+    fn eq(&self, other: &GameState) -> bool {
+        self.grid == other.grid && self.player_x == other.player_x && self.player_y == other.player_y && self.moved_boxes == other.moved_boxes
+    }
+}
+
+impl Eq for GameState {}
+
+impl std::hash::Hash for GameState {
+    /// `hashCode`: `Objects.hash(Arrays.deepHashCode(grid), playerX, playerY, movedBoxes)` - the same fields as
+    /// `equals`.
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.grid.hash(state);
+        self.player_x.hash(state);
+        self.player_y.hash(state);
+        self.moved_boxes.hash(state);
+    }
 }
 
 /// java: public static class GameState
@@ -163,7 +234,7 @@ impl GameState {
 
     /// java: private char[][] copyGrid(char[][] original)
     pub fn copy_grid(&self, original: &Vec<Vec<char>>) -> Vec<Vec<char>> {
-        let mut copy: Vec<Vec<char>> = vec!['\0'; ((original.len() as i32)) as usize];
+        let mut copy: Vec<Vec<char>> = vec![Vec::new(); ((original.len() as i32)) as usize];
         for i in 0..(original.len() as i32) {
             copy[(i) as usize] = (original[(i) as usize]).clone();
         }

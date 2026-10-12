@@ -125,11 +125,12 @@ impl TrueHexDyeScreenDisplay {
                 let mut matcher: compat::regex::Matcher = HEX_PATTERN.matcher(&line.get_string());
                 if matcher.matches() {
                     let mut hex: String = matcher.group_named("hex").unwrap();
-                    line = line.copy();
-                    let siblings = line.get_siblings();
-                    siblings.clear();
+                    // line = line.copy(); siblings = line.getSiblings(); siblings.clear(); siblings.add(..); siblings.add(..);
+                    // - the copy with its sibling list replaced (the port's component lends its list read-only)
+                    let mut siblings: Vec<MutableComponent> = Vec::new();
                     siblings.push(component::literal("Hex ").with_style_format(ChatFormatting::DarkGray));
-                    siblings.push(component::literal(&hex).with_color(hex.trim().parse::<i32>().expect("NumberFormatException")));
+                    siblings.push(component::literal(&hex).with_color(compat::integer_decode(&hex)));
+                    line = MutableComponent::new(line.get_contents().clone(), siblings, line.get_style().clone());
                     lines[(i) as usize] = line.clone();
                     return;
                 }

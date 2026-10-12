@@ -85,12 +85,12 @@ impl Trivia {
 
     /// java: private static @Nullable BlockPos updateCorrectBlockPos()
     pub fn update_correct_block_pos() -> Option<BlockPos> {
-        return Some(match compat::lock(&CURRENT_SOLUTION).as_str() {
-            "ⓐ" => CHOICE_A.get_mut().clone(),
-            "ⓑ" => CHOICE_B.get_mut().clone(),
-            "ⓒ" => CHOICE_C.get_mut().clone(),
+        return match compat::lock(&CURRENT_SOLUTION).as_str() {
+            "ⓐ" => Some(CHOICE_A.get_mut().clone()),
+            "ⓑ" => Some(CHOICE_B.get_mut().clone()),
+            "ⓒ" => Some(CHOICE_C.get_mut().clone()),
             _ => None,
-        });
+        };
     }
 
     /// java: @Init(priority = 100) // Load after FairySouls public static void init()

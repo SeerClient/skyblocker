@@ -55,7 +55,7 @@ impl CustomArmorDyeColors {
                     let custom_dye_colors = &SkyblockerConfigManager::get().general.custom_dye_colors;
                     if color == i32::MIN {
                         if custom_dye_colors.contains_key(&item_uuid) {
-                            SkyblockerConfigManager::update(Arc::new(move |config| { config.general.custom_dye_colors.remove(&item_uuid); }));
+                            SkyblockerConfigManager::update(Arc::new(move |mut config| { config.general.custom_dye_colors.remove(&item_uuid); }));
                             // TODO(fabric2seer): `.sendFeedback(..)` on a FabricClientCommandSource
                             //   java: source.sendFeedback(Constants.PREFIX.get().append(Component.translatable("skyblocker.customDyeColors.removed")));
                         } else {
@@ -63,7 +63,7 @@ impl CustomArmorDyeColors {
                             //   java: source.sendFeedback(Constants.PREFIX.get().append(Component.translatable("skyblocker.customDyeColors.neverHad")));
                         }
                     } else {
-                        SkyblockerConfigManager::update(Arc::new(move |config| { config.general.custom_dye_colors.insert(item_uuid.clone(), color); }));
+                        SkyblockerConfigManager::update(Arc::new(move |mut config| { config.general.custom_dye_colors.insert(item_uuid.clone(), color); }));
                         // TODO(fabric2seer): `.sendFeedback(..)` on a FabricClientCommandSource
                         //   java: source.sendFeedback(Constants.PREFIX.get().append(Component.translatable("skyblocker.customDyeColors.added")));
                     }

@@ -84,7 +84,7 @@ pub static SADAN_GIANTS: LazyLock<compat::regex::Pattern> = LazyLock::new(|| com
 /// java: private static final int[] SPLIT_COLORS = { 0xFD5858, 0xFDAB58, 0xFDFD58, 0xABFD58, 0x58FD58, 0x58FDAB, 0x58ABFD, 0x5858FD, 0xAB58FD, 0xFD58FD };
 pub static SPLIT_COLORS: LazyLock<Vec<i32>> = LazyLock::new(|| vec![0xFD5858, 0xFDAB58, 0xFDFD58, 0xABFD58, 0x58FD58, 0x58FDAB, 0x58ABFD, 0x5858FD, 0xAB58FD, 0xFD58FD]);
 /// java: private static final Map<String, List<Split>> FLOOR_SPLITS = new HashMap<>();
-pub static FLOOR_SPLITS: LazyLock<std::collections::HashMap<String, Vec<compat::Shared<Split>>>> = LazyLock::new(|| std::collections::HashMap::new());
+pub static FLOOR_SPLITS: compat::MainThread<std::collections::HashMap<String, Vec<compat::Shared<Split>>>> = compat::MainThread::new(|| std::collections::HashMap::new());
 /// java: private static final Path BEST_FILE = SkyblockerMod.CONFIG_DIR.resolve("dungeon_split_bests.json");
 pub static BEST_FILE: compat::MainThread<std::path::PathBuf> = compat::MainThread::new(|| skyblocker_mod::CONFIG_DIR.get_mut().join("dungeon_split_bests.json"));
 /// java: private static final Codec<Object2ObjectMap<String, Object2LongMap<String>>> BEST_CODEC = CodecUtils.object2ObjectMapCodec(Codec.STRING, CodecUtils.object2LongMapCodec(Codec.STRING));
@@ -137,25 +137,25 @@ impl DungeonSplitsWidget {
         static ONCE: std::sync::Once = std::sync::Once::new();
         ONCE.call_once(|| {
             let mut floor1_splits: Vec<compat::Shared<Split>> = vec![Split::new("skyblocker.dungeons.splits.bloodOpen".to_string(), BLOOD_OPEN.clone()), Split::new("skyblocker.dungeons.splits.bloodClear".to_string(), BLOOD_CLEAR.clone()), Split::new("skyblocker.dungeons.splits.portalEntry".to_string(), F1_ENTRY.clone()), Split::new("skyblocker.dungeons.splits.bonzoSike".to_string(), BONZO_SIKE.clone()), Split::new("skyblocker.dungeons.splits.bonzo".to_string(), DUNGEON_END.clone())];
-            FLOOR_SPLITS.insert("F1".to_string(), floor1_splits.clone());
-            FLOOR_SPLITS.insert("M1".to_string(), floor1_splits.clone());
+            FLOOR_SPLITS.get_mut().insert("F1".to_string(), floor1_splits.clone());
+            FLOOR_SPLITS.get_mut().insert("M1".to_string(), floor1_splits.clone());
             let mut floor2_splits: Vec<compat::Shared<Split>> = vec![Split::new("skyblocker.dungeons.splits.bloodOpen".to_string(), BLOOD_OPEN.clone()), Split::new("skyblocker.dungeons.splits.bloodClear".to_string(), BLOOD_CLEAR.clone()), Split::new("skyblocker.dungeons.splits.portalEntry".to_string(), F2_ENTRY.clone()), Split::new("skyblocker.dungeons.splits.scarfMinions".to_string(), SCARF_MINIONS.clone()), Split::new("skyblocker.dungeons.splits.scarf".to_string(), DUNGEON_END.clone())];
-            FLOOR_SPLITS.insert("F2".to_string(), floor2_splits.clone());
-            FLOOR_SPLITS.insert("M2".to_string(), floor2_splits.clone());
+            FLOOR_SPLITS.get_mut().insert("F2".to_string(), floor2_splits.clone());
+            FLOOR_SPLITS.get_mut().insert("M2".to_string(), floor2_splits.clone());
             let mut floor3_splits: Vec<compat::Shared<Split>> = vec![Split::new("skyblocker.dungeons.splits.bloodOpen".to_string(), BLOOD_OPEN.clone()), Split::new("skyblocker.dungeons.splits.bloodClear".to_string(), BLOOD_CLEAR.clone()), Split::new("skyblocker.dungeons.splits.portalEntry".to_string(), F3_ENTRY.clone()), Split::new("skyblocker.dungeons.splits.guardians".to_string(), GUARDIANS.clone()), Split::new("skyblocker.dungeons.splits.professor".to_string(), PROFESSOR.clone()), Split::new("skyblocker.dungeons.splits.transformedProfessor".to_string(), DUNGEON_END.clone())];
-            FLOOR_SPLITS.insert("F3".to_string(), floor3_splits.clone());
-            FLOOR_SPLITS.insert("M3".to_string(), floor3_splits.clone());
+            FLOOR_SPLITS.get_mut().insert("F3".to_string(), floor3_splits.clone());
+            FLOOR_SPLITS.get_mut().insert("M3".to_string(), floor3_splits.clone());
             let mut floor4_splits: Vec<compat::Shared<Split>> = vec![Split::new("skyblocker.dungeons.splits.bloodOpen".to_string(), BLOOD_OPEN.clone()), Split::new("skyblocker.dungeons.splits.bloodClear".to_string(), BLOOD_CLEAR.clone()), Split::new("skyblocker.dungeons.splits.portalEntry".to_string(), F4_ENTRY.clone()), Split::new("skyblocker.dungeons.splits.thorn".to_string(), DUNGEON_END.clone())];
-            FLOOR_SPLITS.insert("F4".to_string(), floor4_splits.clone());
-            FLOOR_SPLITS.insert("M4".to_string(), floor4_splits.clone());
+            FLOOR_SPLITS.get_mut().insert("F4".to_string(), floor4_splits.clone());
+            FLOOR_SPLITS.get_mut().insert("M4".to_string(), floor4_splits.clone());
             let mut floor5_splits: Vec<compat::Shared<Split>> = vec![Split::new("skyblocker.dungeons.splits.bloodOpen".to_string(), BLOOD_OPEN.clone()), Split::new("skyblocker.dungeons.splits.bloodClear".to_string(), BLOOD_CLEAR.clone()), Split::new("skyblocker.dungeons.splits.portalEntry".to_string(), F5_ENTRY.clone()), Split::new("skyblocker.dungeons.splits.livid".to_string(), DUNGEON_END.clone())];
-            FLOOR_SPLITS.insert("F5".to_string(), floor5_splits.clone());
-            FLOOR_SPLITS.insert("M5".to_string(), floor5_splits.clone());
+            FLOOR_SPLITS.get_mut().insert("F5".to_string(), floor5_splits.clone());
+            FLOOR_SPLITS.get_mut().insert("M5".to_string(), floor5_splits.clone());
             let mut floor6_splits: Vec<compat::Shared<Split>> = vec![Split::new("skyblocker.dungeons.splits.bloodOpen".to_string(), BLOOD_OPEN.clone()), Split::new("skyblocker.dungeons.splits.bloodClear".to_string(), BLOOD_CLEAR.clone()), Split::new("skyblocker.dungeons.splits.portalEntry".to_string(), F6_ENTRY.clone()), Split::new("skyblocker.dungeons.splits.terracottas".to_string(), TERRACOTTAS.clone()), Split::new("skyblocker.dungeons.splits.sadanGiants".to_string(), SADAN_GIANTS.clone()), Split::new("skyblocker.dungeons.splits.sadan".to_string(), DUNGEON_END.clone())];
-            FLOOR_SPLITS.insert("F6".to_string(), floor6_splits.clone());
-            FLOOR_SPLITS.insert("M6".to_string(), floor6_splits.clone());
-            FLOOR_SPLITS.insert("F7".to_string(), vec![Split::new("skyblocker.dungeons.splits.bloodOpen".to_string(), BLOOD_OPEN.clone()), Split::new("skyblocker.dungeons.splits.bloodClear".to_string(), BLOOD_CLEAR.clone()), Split::new("skyblocker.dungeons.splits.portalEntry".to_string(), F7_ENTRY.clone()), Split::new("skyblocker.dungeons.splits.maxor".to_string(), F7_MAXOR.clone()), Split::new("skyblocker.dungeons.splits.storm".to_string(), F7_STORM.clone()), Split::new("skyblocker.dungeons.splits.terminals".to_string(), F7_TERMINALS.clone()), Split::new("skyblocker.dungeons.splits.goldor".to_string(), F7_GOLDOR.clone()), Split::new("skyblocker.dungeons.splits.necron".to_string(), DUNGEON_END.clone())]);
-            FLOOR_SPLITS.insert("M7".to_string(), vec![Split::new("skyblocker.dungeons.splits.bloodOpen".to_string(), BLOOD_OPEN.clone()), Split::new("skyblocker.dungeons.splits.bloodClear".to_string(), BLOOD_CLEAR.clone()), Split::new("skyblocker.dungeons.splits.portalEntry".to_string(), F7_ENTRY.clone()), Split::new("skyblocker.dungeons.splits.maxor".to_string(), F7_MAXOR.clone()), Split::new("skyblocker.dungeons.splits.storm".to_string(), F7_STORM.clone()), Split::new("skyblocker.dungeons.splits.terminals".to_string(), F7_TERMINALS.clone()), Split::new("skyblocker.dungeons.splits.goldor".to_string(), F7_GOLDOR.clone()), Split::new("skyblocker.dungeons.splits.necron".to_string(), F7_NECRON.clone()), Split::new("skyblocker.dungeons.splits.witherKing".to_string(), DUNGEON_END.clone())]);
+            FLOOR_SPLITS.get_mut().insert("F6".to_string(), floor6_splits.clone());
+            FLOOR_SPLITS.get_mut().insert("M6".to_string(), floor6_splits.clone());
+            FLOOR_SPLITS.get_mut().insert("F7".to_string(), vec![Split::new("skyblocker.dungeons.splits.bloodOpen".to_string(), BLOOD_OPEN.clone()), Split::new("skyblocker.dungeons.splits.bloodClear".to_string(), BLOOD_CLEAR.clone()), Split::new("skyblocker.dungeons.splits.portalEntry".to_string(), F7_ENTRY.clone()), Split::new("skyblocker.dungeons.splits.maxor".to_string(), F7_MAXOR.clone()), Split::new("skyblocker.dungeons.splits.storm".to_string(), F7_STORM.clone()), Split::new("skyblocker.dungeons.splits.terminals".to_string(), F7_TERMINALS.clone()), Split::new("skyblocker.dungeons.splits.goldor".to_string(), F7_GOLDOR.clone()), Split::new("skyblocker.dungeons.splits.necron".to_string(), DUNGEON_END.clone())]);
+            FLOOR_SPLITS.get_mut().insert("M7".to_string(), vec![Split::new("skyblocker.dungeons.splits.bloodOpen".to_string(), BLOOD_OPEN.clone()), Split::new("skyblocker.dungeons.splits.bloodClear".to_string(), BLOOD_CLEAR.clone()), Split::new("skyblocker.dungeons.splits.portalEntry".to_string(), F7_ENTRY.clone()), Split::new("skyblocker.dungeons.splits.maxor".to_string(), F7_MAXOR.clone()), Split::new("skyblocker.dungeons.splits.storm".to_string(), F7_STORM.clone()), Split::new("skyblocker.dungeons.splits.terminals".to_string(), F7_TERMINALS.clone()), Split::new("skyblocker.dungeons.splits.goldor".to_string(), F7_GOLDOR.clone()), Split::new("skyblocker.dungeons.splits.necron".to_string(), F7_NECRON.clone()), Split::new("skyblocker.dungeons.splits.witherKing".to_string(), DUNGEON_END.clone())]);
         });
     }
 
@@ -471,11 +471,11 @@ impl DungeonSplitsWidget {
                 let mut segment_time: i64 = (compat::read(&split, |__t| __t.completed_time)).wrapping_sub(previous);
                 let mut diff: i64 = segment_time.wrapping_sub(compat::read(&split, |__t| __t.best_time));
                 let mut fmt: ChatFormatting = (if diff <= (0 as i64) { ChatFormatting::Green } else { ChatFormatting::Red });
-                let mut diff_str: String = format!("%+.2fs");
+                let mut diff_str: String = compat::string_format("%+.2fs", &[((diff as f64) / 1000.0).into()]);
                 mid = (PlainTextElement::new(Some(component::literal(&diff_str).with_style_format(fmt))) as compat::Shared<dyn Element>);
                 right = (PlainTextElement::new(Some((component::literal(&DungeonSplitsWidget::format_time(compat::read(&split, |__t| __t.completed_time)))).with_style_format(ChatFormatting::Yellow))) as compat::Shared<dyn Element>);
                 previous = compat::read(&split, |__t| __t.completed_time);
-            } else if !showing_current && compat::read(__this, |__t| __t.running) || compat::read(__this, |__t| __t.start_time) != 0 {
+            } else if !showing_current && (compat::read(__this, |__t| __t.running) || compat::read(__this, |__t| __t.start_time) != 0) {
                 let mut segment_time: i64 = now.wrapping_sub(previous);
                 mid = (PlainTextElement::new(Some(component::literal(&DungeonSplitsWidget::format_time(segment_time)))) as compat::Shared<dyn Element>);
                 right = (PlainTextElement::new(Some(component::literal(&best_str))) as compat::Shared<dyn Element>);

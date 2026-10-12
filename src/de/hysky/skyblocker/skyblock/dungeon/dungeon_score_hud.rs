@@ -33,10 +33,7 @@ impl DungeonScoreHUD {
     /// java: @Init public static void init()
     pub fn init() {
         hud_render_callback::EVENT.register(Arc::new(|ctx: &mut hud_render_callback::HudRenderContext<'_>| {
-            // SAFETY: `ctx` outlives every call made through `graphics` (this callback).
-            let graphics = unsafe { ScriptGraphics::new(ctx.gl, &*ctx.minecraft, ctx.gui_width, ctx.gui_height) };
-            let _session = graphics.session();
-            DungeonScoreHUD::extract_render_state(&graphics);
+            DungeonScoreHUD::extract_render_state(&ctx.graphics);
         }));
     }
 

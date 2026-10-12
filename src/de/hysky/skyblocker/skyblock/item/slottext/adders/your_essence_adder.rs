@@ -137,7 +137,7 @@ impl YourEssenceAdder {
                     return vec![];
                 }
                 return SlotText::bottom_right_list(&(component::literal(&formatters::SHORT_FLOAT_NUMBERS.get_mut().format((essence_amount.trim().parse::<i32>().expect("NumberFormatException")) as f64))).with_color(slot_text::CREAM));
-            }).unwrap_or((std::sync::Arc::new(vec![]) as compat::Object));
+            }).unwrap_or(vec![]);
         }
         return vec![];
     }

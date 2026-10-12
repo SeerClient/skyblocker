@@ -18,7 +18,7 @@ pub struct GetRenderWidthVisitor {
     /// java: private final MutableComponent text = Component.empty();
     pub text: MutableComponent,
     /// java: private final Font textRenderer;
-    pub text_renderer: Option<Font>,
+    pub text_renderer: Option<Font<'static>>,
 }
 
 impl std::ops::Deref for GetRenderWidthVisitor {
@@ -85,36 +85,42 @@ impl BaseVisitor for GetRenderWidthVisitor {
 impl GetRenderWidthVisitor {
     /// java: @Override protected void visit(Style style, String asString)
     pub fn visit_impl(__this: &compat::Shared<Self>, mut style: Style, mut as_string: String) {
-        if compat::str_len(&as_string) < compat::read(__this, |__t| __t.sel_start) {
-            { let (__q0,) = (component::literal(&as_string).set_style(style.clone()),); __this.lock().borrow_mut().text.append(__q0) };
-            { let __v = (compat::read(__this, |__t| __t.sel_start)).wrapping_sub(compat::str_len(&as_string)); compat::write(__this, |__t| __t.sel_start = __v); }
-            return;
-        }
-        if compat::read(__this, |__t| __t.sel_start) >= 0 {
-            let __r0 = compat::read(__this, |__t| __t.sel_start);
-            { let (__q0,) = ((component::literal(&compat::substring2(&as_string, 0, __r0))).set_style(style.clone()),); __this.lock().borrow_mut().text.append(__q0) };
-            compat::read(__this, |__t| __t.widths.clone()).0;
-            as_string = compat::substring(&as_string, compat::read(__this, |__t| __t.sel_start));
-            { let __v = -1; compat::write(__this, |__t| __t.sel_start = __v); }
-            if compat::read(__this, |__t| __t.sel_size) == 0 {
-                compat::read(__this, |__t| __t.widths.clone()).1;
+        compat::write(__this, |__t| {
+            let GetRenderWidthVisitor { base, widths, text, text_renderer } = __t;
+            let text_renderer = text_renderer.as_ref().unwrap();
+            // textRenderer.width(text)
+            let width = |text: &MutableComponent| text_renderer.width_of(&mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(text.clone()));
+            if compat::str_len(&as_string) < base.sel_start {
+                *text = std::mem::replace(text, component::empty()).append(component::literal(&as_string).set_style(style.clone()));
+                base.sel_start = base.sel_start.wrapping_sub(compat::str_len(&as_string));
+                return;
             }
-        }
-        if compat::read(__this, |__t| __t.sel_size) == 0 {
-            return;
-        }
-        if compat::str_len(&as_string) <= compat::read(__this, |__t| __t.sel_size) {
-            { let (__q0,) = (component::literal(&as_string).set_style(style.clone()),); __this.lock().borrow_mut().text.append(__q0) };
-            { let __v = (compat::read(__this, |__t| __t.sel_size)).wrapping_sub(compat::str_len(&as_string)); compat::write(__this, |__t| __t.sel_size = __v); }
-            if compat::read(__this, |__t| __t.sel_size) == 0 {
-                compat::read(__this, |__t| __t.widths.clone()).1;
+            if base.sel_start >= 0 {
+                *text = std::mem::replace(text, component::empty()).append((component::literal(&compat::substring2(&as_string, 0, base.sel_start))).set_style(style.clone()));
+                // widths.first(textRenderer.width(text));
+                widths.0 = width(text);
+                as_string = compat::substring(&as_string, base.sel_start);
+                base.sel_start = -1;
+                if base.sel_size == 0 {
+                    widths.1 = width(text);
+                }
             }
-        } else {
-            let __r0 = compat::read(__this, |__t| __t.sel_size);
-            { let (__q0,) = ((component::literal(&compat::substring2(&as_string, 0, __r0))).set_style(style.clone()),); __this.lock().borrow_mut().text.append(__q0) };
-            compat::read(__this, |__t| __t.widths.clone()).1;
-            { let __v = 0; compat::write(__this, |__t| __t.sel_size = __v); }
-        }
+            if base.sel_size == 0 {
+                return;
+            }
+            if compat::str_len(&as_string) <= base.sel_size {
+                *text = std::mem::replace(text, component::empty()).append(component::literal(&as_string).set_style(style.clone()));
+                base.sel_size = base.sel_size.wrapping_sub(compat::str_len(&as_string));
+                if base.sel_size == 0 {
+                    widths.1 = width(text);
+                }
+            } else {
+                *text = std::mem::replace(text, component::empty()).append((component::literal(&compat::substring2(&as_string, 0, base.sel_size))).set_style(style.clone()));
+                // widths.second(textRenderer.width(text));
+                widths.1 = width(text);
+                base.sel_size = 0;
+            }
+        });
     }
 
     /// GetRenderWidthVisitor.visit as the dispatch of BaseVisitor.visit

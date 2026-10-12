@@ -100,7 +100,7 @@ impl ItemTab {
             // rust: this.glint_state = states[((this.glint_state.ordinal().wrapping_add(1)).wrapping_rem(states.len() as i32)) as usize];
             (__screen.widget_mut(__index)).set_message_text(mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(this.get_glint_text()));
             let mut uuid: String = this.current_item.get_uuid();
-            SkyblockerConfigManager::update_only(Arc::new(move |config| {
+            SkyblockerConfigManager::update_only(Arc::new(move |mut config| {
                 let custom_glint = &mut config.general.custom_glint;
                 match this.glint_state {
                     TriState::Default => {
@@ -122,7 +122,7 @@ impl ItemTab {
             if uuid.is_empty() {
                 return;
             }
-            SkyblockerConfigManager::update_only(Arc::new(move |config| {
+            SkyblockerConfigManager::update_only(Arc::new(move |mut config| {
                 if identifier.is_none() {
                     config.general.custom_item_model.remove(&uuid);
                 } else {
@@ -167,8 +167,14 @@ impl ItemTab {
                 return this;
             }
         }
-        // TODO(fabric2seer): the mod keeps the game's `Inventory` (Java holds a reference to the live object); the port's `Inventory` is not a value to copy and the port lends the mod no handle to it
-        for stack in mcrust::mcrust::modding::game::with_player(|player| player.base.base.get_inventory().clone()) {
+        // for (ItemStack stack : client.player.getInventory()) - the inventory's stacks, read through the player
+        let __stacks: Vec<mcrust::net::minecraft::world::item::item_stack::ItemStack> = mcrust::mcrust::modding::game::with_player(|player| {
+            use mcrust::net::minecraft::world::container::Container as _;
+            use mcrust::net::minecraft::world::entity::player::player::Player as _;
+            let inventory = player.player().get_inventory();
+            (0..inventory.get_container_size()).map(|i| inventory.get_item(i).duplicate()).collect()
+        }).unwrap_or_default();
+        for stack in __stacks.iter() {
             if !(stack.get_uuid().is_empty()) {
                 this.set_current_item(stack.clone());
                 return this;
@@ -222,7 +228,7 @@ impl ItemTab {
     /// java: private Component getGlintText()
     pub fn get_glint_text(&self) -> MutableComponent {
         return component::translatable_args("skyblocker.customization.item.glint", vec![mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(match self.glint_state {
-            TriState::Default => component::translatable("skyblocker.customization.item.glint.default"),
+            TriState::Default => mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::translatable("skyblocker.customization.item.glint.default")),
             TriState::True => mcrust::net::minecraft::network::chat::common_components::option_on(),
             TriState::False => mcrust::net::minecraft::network::chat::common_components::option_off(),
             _ => unreachable!("switch expression: no case matched"),

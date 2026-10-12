@@ -33,10 +33,10 @@ impl HotbarSlotLock {
 
     /// java: public static void handleInputEvents(LocalPlayer player)
     pub fn handle_input_events(player: &LocalPlayer) {
-        // TODO(fabric2seer): `consume_click` takes 1 argument(s) in the port (`name: &str`), Java passes 0
-        while key_mapping::consume_click() {
+        // the port's key mappings are reached by name
+        while key_mapping::consume_click("key.skyblocker.hotbarSlotLock") {
             let mut selected: i32 = player.base.base.get_inventory().get_selected_slot();
-            SkyblockerConfigManager::update(Arc::new(move |config| {
+            SkyblockerConfigManager::update(Arc::new(move |mut config| {
                 let locked_slots = &mut config.general.locked_slots;
                 if !(locked_slots.iter().any(|e| *e == selected)) {
                     locked_slots.push(selected);

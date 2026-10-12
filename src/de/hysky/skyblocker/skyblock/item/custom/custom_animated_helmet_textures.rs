@@ -19,7 +19,9 @@ use mcrust::com::mojang::serialization::decoder::Decoder as _;
 /// java: private static final Object2ObjectOpenHashMap<String, AnimatedHead> ANIMATED_HEADS = new Object2ObjectOpenHashMap<>();
 pub static ANIMATED_HEADS: compat::MainThread<std::collections::HashMap<String, AnimatedHead>> = compat::MainThread::new(|| std::collections::HashMap::new());
 /// java: private static final Object2ObjectOpenHashMap<AnimatedHead, AnimatedHeadStateTracker> STATE_TRACKERS = new Object2ObjectOpenHashMap<>();
-pub static STATE_TRACKERS: compat::MainThread<std::collections::HashMap<AnimatedHead, AnimatedHeadStateTracker>> = compat::MainThread::new(|| std::collections::HashMap::new());
+/// Keyed by the record (its `equals`); the record holds profiles, which have no `Hash` here, so the map is a list
+/// looked up with `==`.
+pub static STATE_TRACKERS: compat::MainThread<Vec<(AnimatedHead, AnimatedHeadStateTracker)>> = compat::MainThread::new(|| Vec::new());
 /// java: private static int ticks = 0;
 pub static TICKS: LazyLock<Mutex<i32>> = LazyLock::new(|| Mutex::new(0));
 /// java: private static final Codec<ResolvableProfile> FRAME_CODEC = Codec.STRING.xmap(AnimatedHead::fromString, AnimatedHead::toString);
@@ -32,7 +34,8 @@ pub static ANIMATED_HEAD_FRAME_CODEC: compat::MainThread<CodecRef<ResolvableProf
 /// java: private static final Codec<AnimatedHead> CODEC = RecordCodecBuilder.create(instance -> instance.group( Codec.INT.xmap(i -> Math.max(i, 1), Function.identity()).fieldOf("ticks").forGetter(AnimatedHead:
 pub static ANIMATED_HEAD_CODEC: compat::MainThread<CodecRef<AnimatedHead>> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `CODEC` - see the TODO above"));
 /// java: private static final Codec<Map<String, AnimatedHead>> MAP_CODEC = Codec.unboundedMap(Codec.STRING, CODEC);
-pub static ANIMATED_HEAD_MAP_CODEC: compat::MainThread<CodecRef<std::collections::HashMap<String, AnimatedHead>>> = compat::MainThread::new(|| codec::unbounded_map(mcrust::com::mojang::serialization::codec::string_codec(), ANIMATED_HEAD_CODEC.get_mut().clone()));
+/// (the port's `unboundedMap` codec answers the entries as ordered pairs)
+pub static ANIMATED_HEAD_MAP_CODEC: compat::MainThread<CodecRef<Vec<(String, AnimatedHead)>>> = compat::MainThread::new(|| codec::unbounded_map(mcrust::com::mojang::serialization::codec::string_codec(), ANIMATED_HEAD_CODEC.get_mut().clone()));
 
 /// java: public class CustomAnimatedHelmetTextures
 #[derive(Clone)]
@@ -65,7 +68,7 @@ impl CustomAnimatedHelmetTextures {
                 // TODO(fabric2seer): `.readAllBytes(..)` on a InputStream
                 //   java: String data = new String(stream.readAllBytes());
                 let mut data: String = todo!("fabric2seer: the initialiser of `data` (TODO above)");
-                let mut animated_heads: std::collections::HashMap<String, AnimatedHead> = (ANIMATED_HEAD_MAP_CODEC.get_mut().parse(&mcrust::com::mojang::serialization::json_ops::JsonOps::instance(), &compat::json_to_port(&(compat::json::get_as_json_object(&(serde_json::from_str::<serde_json::Value>(&data).expect("JsonSyntaxException")))).get("skins").cloned().unwrap()))).get_or_throw().unwrap();
+                let mut animated_heads: std::collections::HashMap<String, AnimatedHead> = (ANIMATED_HEAD_MAP_CODEC.get_mut().parse(&mcrust::com::mojang::serialization::json_ops::JsonOps::instance(), &compat::json_to_port(&(compat::json::get_as_json_object(&(serde_json::from_str::<serde_json::Value>(&data).expect("JsonSyntaxException")))).get("skins").cloned().unwrap()))).get_or_throw().unwrap().into_iter().collect();
                 mcrust::mcrust::modding::game::execute(move || {
                     ANIMATED_HEADS.get_mut().clear();
                     ANIMATED_HEADS.get_mut().extend(animated_heads.iter().map(|(k, v)| (k.clone(), v.clone())));
@@ -94,7 +97,16 @@ impl CustomAnimatedHelmetTextures {
     pub fn animate_head_texture(id: &str) -> Option<ResolvableProfile> {
         let mut head: Option<AnimatedHead> = ANIMATED_HEADS.get_mut().get(id).cloned();
         if let Some(head) = &head {
-            let tracker = STATE_TRACKERS.get_mut().entry(head.clone()).or_insert_with_key(|k| (|__a0| AnimatedHeadStateTracker::new(__a0.clone()))(k.clone()));
+            // STATE_TRACKERS.computeIfAbsent(head, AnimatedHeadStateTracker::new)
+            let trackers = STATE_TRACKERS.get_mut();
+            let index = match trackers.iter().position(|(k, _)| k == head) {
+                Some(index) => index,
+                None => {
+                    trackers.push((head.clone(), AnimatedHeadStateTracker::new(head.clone())));
+                    trackers.len() - 1
+                }
+            };
+            let tracker = &mut trackers[index].1;
             if tracker.last_recorded_tick == compat::get_state(&TICKS) {
                 return Some(tracker.get_current_frame());
             }
@@ -171,7 +183,7 @@ impl AnimatedHeadStateTracker {
     /// java: private AnimatedHeadStateTracker(AnimatedHead head)
     pub fn new(mut head: AnimatedHead) -> Self {
         let __init_head = head.clone();
-        let __init_current_frame = head.frames()[0];
+        let __init_current_frame = head.frames()[0].clone();
         let mut this = Self {
             head: __init_head,
             last_recorded_tick: 0,
@@ -188,7 +200,7 @@ impl AnimatedHeadStateTracker {
 
     /// java: private ResolvableProfile getCurrentFrame()
     pub fn get_current_frame(&self) -> ResolvableProfile {
-        return self.current_frame;
+        return self.current_frame.clone();
     }
 
 }

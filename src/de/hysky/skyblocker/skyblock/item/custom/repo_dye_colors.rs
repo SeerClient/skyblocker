@@ -9,16 +9,12 @@ use mcrust::com::mojang::serialization::codec::Codec;
 use mcrust::com::mojang::serialization::codec::CodecRef;
 use mcrust::com::mojang::serialization::codecs::record_codec_builder;
 
-// TODO(fabric2seer): static call Object2ObjectMaps.synchronize(..)
-//   java: public static final Map<String, Integer> STATIC_DYES = Object2ObjectMaps.synchronize(new Object2ObjectOpenHashMap<>());
 /// java: public static final Map<String, Integer> STATIC_DYES = Object2ObjectMaps.synchronize(new Object2ObjectOpenHashMap<>());
-pub static STATIC_DYES: LazyLock<Mutex<std::collections::HashMap<String, i32>>> = LazyLock::new(|| Mutex::new(todo!("fabric2seer: the initialiser of `STATIC_DYES` - see the TODO above")));
-// TODO(fabric2seer): static call Object2ObjectMaps.synchronize(..)
-//   java: public static final Map<String, List<Integer>> ANIMATED_DYES = Object2ObjectMaps.synchronize(new Object2ObjectOpenHashMap<>());
+pub static STATIC_DYES: LazyLock<Mutex<std::collections::HashMap<String, i32>>> = LazyLock::new(|| Mutex::new(std::collections::HashMap::new()));
 /// java: public static final Map<String, List<Integer>> ANIMATED_DYES = Object2ObjectMaps.synchronize(new Object2ObjectOpenHashMap<>());
-pub static ANIMATED_DYES: LazyLock<Mutex<std::collections::HashMap<String, Vec<i32>>>> = LazyLock::new(|| Mutex::new(todo!("fabric2seer: the initialiser of `ANIMATED_DYES` - see the TODO above")));
+pub static ANIMATED_DYES: LazyLock<Mutex<std::collections::HashMap<String, Vec<i32>>>> = LazyLock::new(|| Mutex::new(std::collections::HashMap::new()));
 /// java: private static final Codec<Dyes> CODEC = RecordCodecBuilder.create(instance -> instance.group( CodecUtils.object2ObjectMapCodec(Codec.STRING, ExtraCodecs.STRING_RGB_COLOR.listOf()).fieldOf("animated")
-pub static DYES_CODEC: compat::MainThread<CodecRef<Dyes>> = compat::MainThread::new(|| record_codec_builder::create(record_codec_builder::apply2(record_codec_builder::of(|o: &Dyes| o.animated_dyes(), codec::field_of(CodecUtils::object2_object_map_codec(&mcrust::com::mojang::serialization::codec::string_codec(), &codec::list(mcrust::net::minecraft::util::extra_codecs::string_rgb_color().clone())), "animated")), record_codec_builder::of(|o: &Dyes| o.static_dyes(), codec::field_of(codec::unbounded_map(mcrust::com::mojang::serialization::codec::string_codec(), mcrust::net::minecraft::util::extra_codecs::string_rgb_color()), "static")), move |__a0, __a1| Dyes::new(__a0.clone(), __a1.clone()))));
+pub static DYES_CODEC: compat::MainThread<CodecRef<Dyes>> = compat::MainThread::new(|| record_codec_builder::create(record_codec_builder::apply2(record_codec_builder::of(|o: &Dyes| o.animated_dyes(), codec::field_of(CodecUtils::object2_object_map_codec(&mcrust::com::mojang::serialization::codec::string_codec(), &codec::list(mcrust::net::minecraft::util::extra_codecs::string_rgb_color().clone())), "animated")), record_codec_builder::of(|o: &Dyes| o.static_dyes(), codec::field_of(codec::xmap(codec::unbounded_map(mcrust::com::mojang::serialization::codec::string_codec(), mcrust::net::minecraft::util::extra_codecs::string_rgb_color()), |entries: Vec<(String, i32)>| entries.into_iter().collect::<std::collections::HashMap<String, i32>>(), |map: &std::collections::HashMap<String, i32>| map.iter().map(|(k, v)| (k.clone(), *v)).collect::<Vec<_>>()), "static")), move |__a0, __a1| Dyes::new(__a0.clone(), __a1.clone()))));
 
 /// java: public class RepoDyeColors
 #[derive(Clone)]

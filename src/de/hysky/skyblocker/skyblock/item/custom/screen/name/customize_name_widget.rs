@@ -59,7 +59,7 @@ pub struct CustomizeNameWidget {
     /// java: extends net.minecraft.client.gui.components.AbstractContainerWidget
     pub base: AbstractContainerWidget,
     /// java: private final Font textRenderer = client.font;
-    pub text_renderer: Option<Font>,
+    pub text_renderer: Option<Font<'static>>,
     /// java: private String uuid = "";
     pub uuid: String,
     /// java: private Component text = Component.empty();
@@ -111,7 +111,7 @@ impl CustomizeNameWidget {
         // rust: this.grid.add_child_span(this.text_field.clone().unwrap(), 1, 0, 1, 20).unwrap();
         // TODO(fabric2seer): `.add(..)` on a Builder
         //   java: builder.add(textField);
-        this.formatting_buttons = vec![FormattingButton::new("B".to_string(), ChatFormatting::Bold, Arc::new(move |__a0| __a0.is_bold())), FormattingButton::new("I".to_string(), ChatFormatting::Italic, Arc::new(move |__a0| __a0.is_italic())), FormattingButton::new("U".to_string(), ChatFormatting::Underline, Arc::new(move |__a0| __a0.is_underlined())), FormattingButton::new("S".to_string(), ChatFormatting::Strikethrough, Arc::new(move |__a0| __a0.is_strikethrough())), FormattingButton::new("|||".to_string(), ChatFormatting::Obfuscated, Arc::new(move |__a0| __a0.is_obfuscated()))];
+        this.formatting_buttons = vec![FormattingButton::new2("B".to_string(), ChatFormatting::Bold, Arc::new(move |__a0| __a0.is_bold())), FormattingButton::new2("I".to_string(), ChatFormatting::Italic, Arc::new(move |__a0| __a0.is_italic())), FormattingButton::new2("U".to_string(), ChatFormatting::Underline, Arc::new(move |__a0| __a0.is_underlined())), FormattingButton::new2("S".to_string(), ChatFormatting::Strikethrough, Arc::new(move |__a0| __a0.is_strikethrough())), FormattingButton::new2("|||".to_string(), ChatFormatting::Obfuscated, Arc::new(move |__a0| __a0.is_obfuscated()))];
         this.add_formatting_buttons(&mut builder);
         // TODO(fabric2seer): `.add(..)` on a Builder
         //   java: builder.add(grid.addChild(Button.builder(Component.translatable("skyblocker.customItemNames.screen.customColor"), _ ->
@@ -143,8 +143,7 @@ impl CustomizeNameWidget {
             //   java: builder.add(grid.addChild(button, 0, i));
         }
         let mut color_button_index: i32 = 0;
-        // TODO(fabric2seer): static `ChatFormatting.values` has no Rust counterpart in the port
-        for formatting in ChatFormatting::values() {
+        for formatting in mcrust::net::minecraft::chat_formatting::VALUES {
             if TextColor::from_legacy_format(formatting).is_some() {
                 // TODO(fabric2seer): `.add(..)` on a Builder
                 //   java: builder.add(grid.addChild(new ColorButton(formatting), 2, colorButtonIndex++));
@@ -233,11 +232,15 @@ impl CustomizeNameWidget {
         self.text = text.clone();
         self.text_string = text.get_string();
         if update_config && !self.uuid.is_empty() {
-            SkyblockerConfigManager::update_only(Arc::new(move |config| {
-                if compat::is_blank(&self.text_string) {
-                    config.general.custom_item_names.remove(&self.uuid);
+            // the lambda reads this widget's fields: their values now (it runs before update_only returns)
+            let __text_string = self.text_string.clone();
+            let __uuid = self.uuid.clone();
+            let text = text.clone();
+            SkyblockerConfigManager::update_only(Arc::new(move |mut config| {
+                if compat::is_blank(&__text_string) {
+                    config.general.custom_item_names.remove(&__uuid);
                 } else {
-                    config.general.custom_item_names.insert(self.uuid.clone(), text.copy().set_style(mcrust::net::minecraft::network::chat::style::Style::EMPTY.with_italic(Some(false)).with_color_format(Some(ChatFormatting::White))));
+                    config.general.custom_item_names.insert(__uuid.clone(), text.copy().set_style(mcrust::net::minecraft::network::chat::style::Style::EMPTY.with_italic(Some(false)).with_color_format(Some(ChatFormatting::White))));
                 }
             }));
         }
@@ -295,7 +298,9 @@ impl CustomizeNameWidget {
         if ctrl_held {
             self.selection_start = self.get_word_skip_position(left);
         } else {
-            self.selection_start = util::offset_by_codepoints_str(&self.text_string, (self.selection_start) as usize, (if left { -1 } else { 1 }));
+            // Util.offsetByCodepoints(textString, selectionStart, left ? -1 : 1) - over the mod's string indices (one per
+            // code point here; the port's `offset_by_codepoints_str` walks UTF-8 byte positions)
+            self.selection_start = { let __pos = self.selection_start; let __len = compat::str_len(&self.text_string); if left { if __pos > 0 { __pos - 1 } else { __pos } } else if __pos < __len { __pos + 1 } else { __pos } };
         }
         if !shift_held {
             self.selection_end = self.selection_start;

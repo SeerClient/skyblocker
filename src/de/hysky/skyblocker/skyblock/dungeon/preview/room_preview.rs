@@ -50,7 +50,7 @@ impl RoomPreview {
             // rust: compat::minecraft().get_singleplayer_server().stop_server();
         }
         RoomPreviewServer::create_server();
-        RoomPreviewServer::load_room(ctx.get_argument::<String>("type").as_deref().unwrap(), ctx.get_argument::<String>("room").unwrap());
+        RoomPreviewServer::load_room(ctx.get_argument::<String>("type").unwrap(), ctx.get_argument::<String>("room").unwrap().clone());
         return 1;
     }
 

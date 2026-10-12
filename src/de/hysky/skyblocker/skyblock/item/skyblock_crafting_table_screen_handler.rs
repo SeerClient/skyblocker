@@ -51,26 +51,26 @@ impl SkyblockCraftingTableScreenHandler {
             let __this = __this_ref.clone();
             let mut active_slots: Vec<i32> = (if compat::read(&__this, |__t| __t.mirrorverse) { RIFT_NORMAL_SLOTS.clone() } else { NORMAL_SLOTS.clone() });
             for i in 0..rows.wrapping_mul(9) {
-                let original_slot = &__this.lock().borrow().slots[(i) as usize];
-                // TODO(fabric2seer): the condition: Arrays.binarySearch
-                //   java: Arrays.binarySearch(activeSlots, i) >= 0
-                if todo!("fabric2seer: the condition (TODO above)") {
+                let original_slot: Slot = compat::read(&__this, |__t| __t.slots[(i) as usize].clone());
+                // Arrays.binarySearch(activeSlots, i) >= 0 (the slot lists are sorted)
+                if active_slots.binary_search(&i).is_ok() {
                     let mut coords: Vec<i32> = SkyblockCraftingTableScreenHandler::get_coords(&__this, i);
                     let mut slot: Slot = Slot::new(original_slot.container.clone(), original_slot.get_container_slot(), coords[(0) as usize], coords[(1) as usize]);
                     slot.index = i;
-                    __this.lock().borrow_mut().slots[(i) as usize] = slot.clone();
+                    compat::write(&__this, |__t| __t.slots[(i) as usize] = slot.clone());
                 } else {
                     let mut slot: compat::Shared<DisabledSlot> = DisabledSlot::new(original_slot.container.clone(), original_slot.get_container_slot(), -20, -20);
                     { let __v = i; compat::write(&slot, |__t| __t.index = __v); }
-                    __this.lock().borrow_mut().slots[(i) as usize] = compat::slot_with_class(slot.clone());
+                    let __s = compat::slot_with_class(slot.clone());
+                    compat::write(&__this, |__t| __t.slots[(i) as usize] = __s);
                 }
             }
             let mut y_offset: i32 = ((rows.wrapping_sub(4)).wrapping_mul(18)).wrapping_add(19);
-            for i in rows.wrapping_mul(9)..(__this.lock().borrow().slots.len() as i32) {
-                let original_slot = &__this.lock().borrow().slots[(i) as usize];
+            for i in rows.wrapping_mul(9)..(compat::read(&__this, |__t| __t.slots.len()) as i32) {
+                let original_slot: Slot = compat::read(&__this, |__t| __t.slots[(i) as usize].clone());
                 let mut slot: Slot = Slot::new(original_slot.container.clone(), original_slot.get_container_slot(), original_slot.x, original_slot.y.wrapping_sub(y_offset));
                 slot.index = i;
-                __this.lock().borrow_mut().slots[(i) as usize] = slot.clone();
+                compat::write(&__this, |__t| __t.slots[(i) as usize] = slot.clone());
             }
         });
         __this
@@ -140,9 +140,10 @@ impl std::ops::DerefMut for DisabledSlot {
 
 impl DisabledSlot {
     /// java: public DisabledSlot(Container inventory, int index, int x, int y)
-    pub fn new(mut inventory: Box<dyn Container>, mut index: i32, mut x: i32, mut y: i32) -> compat::Shared<Self> {
+    /// `inventory` is the slot's container tag (the port's `Slot` names its container).
+    pub fn new(mut inventory: mcrust::net::minecraft::world::inventory::slot::SlotContainer, mut index: i32, mut x: i32, mut y: i32) -> compat::Shared<Self> {
         let __this = compat::shared(Self {
-            base: Slot::new(inventory.clone(), index, x, y),
+            base: Slot::new(inventory, index, x, y),
         });
         __this
     }

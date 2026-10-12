@@ -71,7 +71,7 @@ impl CustomItemNames {
             //   java: source.sendError(Constants.PREFIX.get().append(Component.translatable("skyblocker.customItemNames.noItemUuid")));
             return 0;
         }
-        SchedulerBase::queue_open_screen(CustomizeScreen::new(None, true));
+        SchedulerBase::queue_open_screen_screen(Box::new(compat::ScreenAdapter::new(CustomizeScreen::new(None, true))));
         return 1;
     }
 
@@ -82,10 +82,13 @@ impl CustomItemNames {
             //   java: String itemUuid = source.getPlayer().getMainHandItem().getUuid();
             let mut item_uuid: String = todo!("fabric2seer: the initialiser of `itemUuid` (TODO above)");
             if !item_uuid.is_empty() {
-                SkyblockerConfigManager::update(Arc::new(move |config| {
+                // Set italic to false if it hasn't been changed (or was already false):
+                // ((MutableComponent) text).setStyle(currentStyle.withItalic(currentStyle.isItalic())) - the update's
+                // lambda runs once, at once, so the component is restyled before it is handed in
+                let current_style = text.get_style();
+                let text = text.set_style(current_style.with_italic(Some(current_style.is_italic())));
+                SkyblockerConfigManager::update(Arc::new(move |mut config| {
                     let custom_item_names = &mut config.general.custom_item_names;
-                    let current_style = text.get_style();
-                    (text.as_any().downcast_ref::<MutableComponent>().unwrap()).set_style(current_style.with_italic(Some(current_style.is_italic())));
                     custom_item_names.insert(item_uuid.clone(), text.clone());
                 }));
                 // TODO(fabric2seer): `.sendFeedback(..)` on a FabricClientCommandSource

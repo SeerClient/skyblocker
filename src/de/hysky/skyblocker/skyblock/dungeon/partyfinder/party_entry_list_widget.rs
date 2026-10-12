@@ -71,14 +71,19 @@ impl PartyEntryListWidget {
     /// java: public void updateDisplay()
     pub fn update_display(__this: &compat::Shared<Self>) {
         let mut entries: Vec<compat::Shared<dyn PartyEntry>> = compat::read(__this, |__t| __t.party_entries.clone()).into_iter().collect::<Vec<_>>();
-        let __this_w1 = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
-        entries.retain(|e| !(|party_entry| { let Some(__this_1) = __this_w1.get().upgrade() else { return Default::default(); }; (!(party_entry.lock().borrow().party_entry_base().note.to_lowercase().contains(&compat::read((&__this_1), |__t| __t.search.clone()))) && !(party_entry.lock().borrow().as_any().is::<compat::Shared<YourParty>>())) })(e));
-        entries.sort_by(|a, b| { let key = |__a0| ({ let __f = compat::dispatch(__a0, |__t| __t.is_locked()); __f(__a0) }); key(a).cmp(&key(b)) });
-        entries.sort_by(|a, b| { let key = |party_entry| !(party_entry.lock().borrow().as_any().is::<compat::Shared<YourParty>>()); key(a).cmp(&key(b)) });
+        let __search: String = compat::read(__this, |__t| __t.search.clone());
+        // partyEntry instanceof PartyEntry.YourParty
+        let is_your_party = |party_entry: &compat::Shared<dyn PartyEntry>| compat::read(party_entry, |__t| __t.as_any().is::<YourParty>());
+        // entries.removeIf(partyEntry -> !partyEntry.note.toLowerCase(Locale.ENGLISH).contains(search) && !(partyEntry instanceof PartyEntry.YourParty));
+        entries.retain(|party_entry| !(!(compat::read(party_entry, |__t| __t.party_entry_base().note.to_lowercase()).contains(&__search)) && !(is_your_party(party_entry))));
+        // entries.sort(Comparator.comparing(PartyEntry::isLocked)); (stable, as List.sort is)
+        entries.sort_by(|a, b| { let key = |__a0: &compat::Shared<dyn PartyEntry>| ({ let __f = compat::dispatch(__a0, |__t| __t.is_locked()); __f(__a0) }); key(a).cmp(&key(b)) });
+        entries.sort_by(|a, b| { let key = |party_entry: &compat::Shared<dyn PartyEntry>| !(is_your_party(party_entry)); key(a).cmp(&key(b)) });
         if entries.is_empty() && !(__this.lock().borrow().party_entries.is_empty()) {
             entries.push((NoParties::new() as compat::Shared<dyn PartyEntry>));
         }
-        { let (__q0,) = (entries.clone(),); __this.lock().borrow_mut().replace_entries(__q0) };
+        // replaceEntries(entries): clearEntries(), then the rows
+        compat::write(__this, |__t| { let __l = &mut __t.base; __l.clear_entries(); for __entry in entries.iter() { __l.add_entry(Box::new(compat::EntryAdapter::new(__entry.clone()))); } });
     }
 
     /// java: public void setSearch(String s)
@@ -105,8 +110,8 @@ impl PartyEntryListWidget {
 
     /// java: @Override public boolean mouseClicked(MouseButtonEvent click, boolean doubled)
     pub fn mouse_clicked(__this: &compat::Shared<Self>, click: &MouseButtonEvent, mut doubled: bool) -> bool {
-        // TODO(fabric2seer): `AbstractContainerWidget.visible` is a field of the port's `AbstractContainerWidget`, which the port's `AbstractSelectionList` does not hold (no Deref, no `base` field)
-        if !(compat::read(__this, |__t| __t.visible)) {
+        // this.visible - the list's own field (ModSelectionList.visible, synced from its widget)
+        if !(compat::read(__this, |__t| __t.base.visible)) {
             return false;
         }
         // TODO(fabric2seer): `AbstractContainerWidget::mouse_clicked` ports `mouseClicked`, but the port's `AbstractSelectionList` holds no `AbstractContainerWidget` (no Deref, no `base` field) to call it on

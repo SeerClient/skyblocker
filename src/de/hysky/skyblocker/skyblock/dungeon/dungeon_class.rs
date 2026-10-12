@@ -104,7 +104,7 @@ impl DungeonClass {
 
     /// java: public static DungeonClass from(String name)
     pub fn from(name: &str) -> DungeonClass {
-        return CLASSES_BY_DISPLAY_NAME.get(name).cloned().unwrap_or_else(|| UNKNOWN);
+        return CLASSES_BY_DISPLAY_NAME.get(name).cloned().unwrap_or_else(|| DungeonClass::Unknown);
     }
 
 }
@@ -126,15 +126,11 @@ pub struct DungeonClassFields {
 impl DungeonClassFields {
     fn new(mut name: String, mut color: i32, mut icon: compat::Shared<FlexibleItemStack>) -> Self {
         let mut this = Self {
-            name: Default::default(),
-            color: 0,
-            glow_color: 0,
-            icon: Default::default(),
+            name: name.clone(),
+            color: argb::opaque(color),
+            glow_color: color,
+            icon: icon.clone(),
         };
-        this.name = name.clone();
-        this.color = argb::opaque(color);
-        this.glow_color = color;
-        this.icon = icon.clone();
         this
     }
 

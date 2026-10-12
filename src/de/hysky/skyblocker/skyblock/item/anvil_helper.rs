@@ -51,8 +51,7 @@ impl AnvilHelper {
     /// java: private @Nullable CompoundTag getEnchantments(ItemStack stack)
     pub fn get_enchantments(__this: &compat::Shared<Self>, stack: &mcrust::net::minecraft::world::item::item_stack::ItemStack) -> Option<Tag> {
         let mut nbt: Tag = ItemUtils::get_custom_data(stack);
-        // TODO(fabric2seer): `is_empty` takes 1 argument(s) in the port (`tags: &BTreeMap<String, Tag>`), Java passes 0
-        if compound_tag::is_empty() || !(nbt.contains("enchantments")) {
+        if nbt.compound_is_empty() || !(nbt.contains("enchantments")) {
             return None;
         }
         return Some(nbt.get_compound_or_empty("enchantments"));

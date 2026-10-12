@@ -144,10 +144,19 @@ impl GoldorWaypointsManager {
         if mcrust::mcrust::modding::game::level().is_none() {
             return;
         }
-        // TODO(fabric2seer): `with_players` takes 1 argument(s) in the port (`f: impl FnOnce(&[Shared<StoredAvatar>]) -> R`), Java passes 0
-        // rust: let mut pos_optional: Option<Vec3> = mcrust::mcrust::modding::game::level().unwrap().with_players().into_iter().filter(|player| (player.get_game_profile().name() == player_name)).next().map(|__a0| __a0.position());
-        let mut pos_optional: Option<Vec3> = todo!("fabric2seer: the initialiser of `posOptional` (TODO above)");
-        if let Some(__a0) = pos_optional.clone().and_then(|pos| waypoints.iter().cloned().filter(|__a0| ({ let __f = compat::dispatch(__a0, |__t| __t.should_render()); __f(&compat::view(__a0, |a| a as compat::Shared<dyn Waypoint>)) })).min_by(|a, b| { let key = |waypoint| waypoint.lock().borrow().center_pos.as_ref().unwrap().distance_to_sqr_vec(&pos); key(a).total_cmp(&key(b)) })) {
+        // client.level.players().stream().filter(player -> player.getGameProfile().name().equals(playerName)).findAny().map(Entity::position)
+        let mut pos_optional: Option<Vec3> = {
+            use mcrust::net::minecraft::world::entity::entity::Entity as _;
+            let players = mcrust::mcrust::modding::game::level().unwrap().with_players(|players| players.to_vec());
+            players.iter().find_map(|avatar| {
+                if mcrust::mcrust::modding::game::is_held_here(&**avatar) {
+                    return None;
+                }
+                let player = mcrust::mcrust::modding::game::lock_entity(&**avatar, "goldor_waypoints_manager.rs:GoldorWaypointsManager.removeNearestWaypoint");
+                (player.get_game_profile_name() == player_name).then(|| player.base().position())
+            })
+        };
+        if let Some(__a0) = pos_optional.clone().and_then(|pos| waypoints.iter().cloned().filter(|__a0| ({ let __f = compat::dispatch(__a0, |__t| __t.should_render()); __f(&compat::view(__a0, |a| a as compat::Shared<dyn Waypoint>)) })).min_by(|a, b| { let key = |waypoint: &compat::Shared<GoldorWaypoint>| waypoint.lock().borrow().center_pos.as_ref().unwrap().distance_to_sqr_vec(&pos); key(a).total_cmp(&key(b)) })) {
             ({ let __f = compat::dispatch(&__a0, |__t| __t.set_found()); __f(&compat::view(&__a0, |a| a as compat::Shared<dyn Waypoint>)) });
         }
         ({ let __r = terminal_hud::INSTANCE.get_mut().as_ref().unwrap(); let __f = compat::dispatch(__r, |__t| __t.update()); __f(&compat::view(__r, |a| a as compat::Shared<dyn ElementBasedWidget>)) });
@@ -172,7 +181,7 @@ impl GoldorWaypointsManager {
     }
 
     /// java: private static @Nullable String getPlayerName(Matcher matcher)
-    pub fn get_player_name(matcher: &compat::regex::Matcher) -> Option<String> {
+    pub fn get_player_name(matcher: &mut compat::regex::Matcher) -> Option<String> {
         return (if matcher.matches() { matcher.group_named("name") } else { None });
     }
 
@@ -189,12 +198,11 @@ impl GoldorWaypointsManager {
                 GoldorWaypointsManager::set_phase_waypoints();
                 ({ let __r = terminal_hud::INSTANCE.get_mut().as_ref().unwrap(); let __f = compat::dispatch(__r, |__t| __t.update()); __f(&compat::view(__r, |a| a as compat::Shared<dyn ElementBasedWidget>)) });
             } else {
-                let mut player_name: String;
-                if true /* java: { player_name = GoldorWaypointsManager::get_player_name(&TERMINAL_ACTIVATED.matcher(&message)).unwrap(); player_name.clone() } != null: never null here */ {
+                if let Some(player_name) = GoldorWaypointsManager::get_player_name(&mut TERMINAL_ACTIVATED.matcher(&message)) {
                     GoldorWaypointsManager::remove_nearest_waypoint(TERMINALS.get_mut(), &player_name);
-                } else if true /* java: { player_name = GoldorWaypointsManager::get_player_name(&DEVICE_ACTIVATED.matcher(&message)).unwrap(); player_name.clone() } != null: never null here */ {
+                } else if let Some(player_name) = GoldorWaypointsManager::get_player_name(&mut DEVICE_ACTIVATED.matcher(&message)) {
                     GoldorWaypointsManager::remove_nearest_waypoint(DEVICES.get_mut(), &player_name);
-                } else if true /* java: { player_name = GoldorWaypointsManager::get_player_name(&LEVER_ACTIVATED.matcher(&message)).unwrap(); player_name.clone() } != null: never null here */ {
+                } else if let Some(player_name) = GoldorWaypointsManager::get_player_name(&mut LEVER_ACTIVATED.matcher(&message)) {
                     GoldorWaypointsManager::remove_nearest_waypoint(LEVERS.get_mut(), &player_name);
                 } else if message == CORE_ENTRANCE {
                     compat::set_state(&ACTIVE, false);

@@ -98,17 +98,17 @@ impl PreviewRoom {
         // TODO(fabric2seer): `IntegratedServer.overworld` has no Rust method in the port (looked for `overworld` in IntegratedServer and its supertypes)
         // rust: let mut level: Level = server.overworld();
         let mut level: Level = todo!("fabric2seer: the initialiser of `level` (TODO above)");
-        let mut block: Option<Arc<Block>> = Some(match compat::read(waypoint, |__t| __t.category.clone()) {
+        let mut block: Option<Arc<Block>> = match compat::read(waypoint, |__t| __t.category.clone()) {
             Some(crate::de::hysky::skyblocker::skyblock::dungeon::secrets::secret_waypoint::Category::Entrance) | Some(crate::de::hysky::skyblocker::skyblock::dungeon::secrets::secret_waypoint::Category::Stonk) | Some(crate::de::hysky::skyblocker::skyblock::dungeon::secrets::secret_waypoint::Category::Aotv) | Some(crate::de::hysky::skyblocker::skyblock::dungeon::secrets::secret_waypoint::Category::Pearl) | Some(crate::de::hysky::skyblocker::skyblock::dungeon::secrets::secret_waypoint::Category::Prince) | Some(crate::de::hysky::skyblocker::skyblock::dungeon::secrets::secret_waypoint::Category::Default) => None,
-            Some(crate::de::hysky::skyblocker::skyblock::dungeon::secrets::secret_waypoint::Category::Bat) => mcrust::net::minecraft::world::level::block::blocks::stained_glass().green().clone(),
-            Some(crate::de::hysky::skyblocker::skyblock::dungeon::secrets::secret_waypoint::Category::Chest) => blocks::blocks().get("chest"),
-            Some(crate::de::hysky::skyblocker::skyblock::dungeon::secrets::secret_waypoint::Category::Fairysoul) => mcrust::net::minecraft::world::level::block::blocks::stained_glass().pink().clone(),
-            Some(crate::de::hysky::skyblocker::skyblock::dungeon::secrets::secret_waypoint::Category::Item) => mcrust::net::minecraft::world::level::block::blocks::stained_glass().blue().clone(),
-            Some(crate::de::hysky::skyblocker::skyblock::dungeon::secrets::secret_waypoint::Category::Lever) => blocks::blocks().get("lever"),
-            Some(crate::de::hysky::skyblocker::skyblock::dungeon::secrets::secret_waypoint::Category::Superboom) => blocks::blocks().get("tnt"),
-            Some(crate::de::hysky::skyblocker::skyblock::dungeon::secrets::secret_waypoint::Category::Wither) | Some(crate::de::hysky::skyblocker::skyblock::dungeon::secrets::secret_waypoint::Category::RedstoneKey) => blocks::blocks().get("player_head"),
+            Some(crate::de::hysky::skyblocker::skyblock::dungeon::secrets::secret_waypoint::Category::Bat) => Some(mcrust::net::minecraft::world::level::block::blocks::stained_glass().green().clone()),
+            Some(crate::de::hysky::skyblocker::skyblock::dungeon::secrets::secret_waypoint::Category::Chest) => Some(blocks::blocks().get("chest")),
+            Some(crate::de::hysky::skyblocker::skyblock::dungeon::secrets::secret_waypoint::Category::Fairysoul) => Some(mcrust::net::minecraft::world::level::block::blocks::stained_glass().pink().clone()),
+            Some(crate::de::hysky::skyblocker::skyblock::dungeon::secrets::secret_waypoint::Category::Item) => Some(mcrust::net::minecraft::world::level::block::blocks::stained_glass().blue().clone()),
+            Some(crate::de::hysky::skyblocker::skyblock::dungeon::secrets::secret_waypoint::Category::Lever) => Some(blocks::blocks().get("lever")),
+            Some(crate::de::hysky::skyblocker::skyblock::dungeon::secrets::secret_waypoint::Category::Superboom) => Some(blocks::blocks().get("tnt")),
+            Some(crate::de::hysky::skyblocker::skyblock::dungeon::secrets::secret_waypoint::Category::Wither) | Some(crate::de::hysky::skyblocker::skyblock::dungeon::secrets::secret_waypoint::Category::RedstoneKey) => Some(blocks::blocks().get("player_head")),
             _ => unreachable!("switch expression: no case matched"),
-        });
+        };
         let Some(mut block) = block.clone() else {
             return;
         };
@@ -132,7 +132,7 @@ impl Room for PreviewRoom {
     }
 
     /// java: @Override protected Direction[] getPossibleDirections(IntSortedSet segmentsX, IntSortedSet segmentsY) (dispatch: the body for this class)
-    fn get_possible_directions(&self) -> fn(&compat::Shared<dyn Room>, &crate::unresolved::IntSortedSet, &crate::unresolved::IntSortedSet) -> Vec<Direction> {
+    fn get_possible_directions(&self) -> fn(&compat::Shared<dyn Room>, &std::collections::BTreeSet<i32>, &std::collections::BTreeSet<i32>) -> Vec<Direction> {
         PreviewRoom::get_possible_directions_dyn
     }
 
@@ -169,12 +169,12 @@ impl Renderable for PreviewRoom {
 
 impl PreviewRoom {
     /// java: @Override protected Direction[] getPossibleDirections(IntSortedSet segmentsX, IntSortedSet segmentsY)
-    pub fn get_possible_directions_impl(__this: &compat::Shared<Self>, segments_x: &crate::unresolved::IntSortedSet, segments_y: &crate::unresolved::IntSortedSet) -> Vec<Direction> {
+    pub fn get_possible_directions_impl(__this: &compat::Shared<Self>, segments_x: &std::collections::BTreeSet<i32>, segments_y: &std::collections::BTreeSet<i32>) -> Vec<Direction> {
         return vec![Direction::Nw];
     }
 
     /// PreviewRoom.getPossibleDirections as the dispatch of Room.getPossibleDirections
-    pub fn get_possible_directions_dyn(__this: &compat::Shared<dyn Room>, __p0: &crate::unresolved::IntSortedSet, __p1: &crate::unresolved::IntSortedSet) -> Vec<Direction> {
+    pub fn get_possible_directions_dyn(__this: &compat::Shared<dyn Room>, __p0: &std::collections::BTreeSet<i32>, __p1: &std::collections::BTreeSet<i32>) -> Vec<Direction> {
         Self::get_possible_directions_impl(&compat::view_as::<Self, _, Self>(__this, |a| a), __p0, __p1)
     }
 

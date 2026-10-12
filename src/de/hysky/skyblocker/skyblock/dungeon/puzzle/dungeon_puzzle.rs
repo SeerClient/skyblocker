@@ -22,7 +22,7 @@ pub struct DungeonPuzzleBase {
 impl DungeonPuzzleBase {
     /// java: public DungeonPuzzle(String puzzleName, String... roomName) (built by the most-derived class's `wrap`, then run on its handle)
     pub fn new_in<__R>(mut puzzle_name: String, mut room_name: Vec<String>, __wrap: impl FnOnce(Self) -> (compat::Shared<dyn DungeonPuzzle>, __R)) -> (compat::Shared<dyn DungeonPuzzle>, __R) {
-        let (__this, __r) = Self::new2_in(puzzle_name.clone(), room_name.to_vec(), __wrap);
+        let (__this, __r) = Self::new2_in(puzzle_name.clone(), room_name.iter().cloned().collect::<std::collections::HashSet<String>>(), __wrap);
         (__this, __r)
     }
 
@@ -40,7 +40,7 @@ impl DungeonPuzzleBase {
         let __this_1 = compat::RenderThread::new(__this.clone());
         dungeon_events::PUZZLE_MATCHED.register(Arc::new(move |room| {
             if (*__this_1.get()).lock().borrow().dungeon_puzzle_base().room_names.contains(({ let __f = compat::dispatch(&room, |__t| __t.get_name()); __f(&room) }).as_ref().unwrap()) {
-                { let (__a0,) = (((*__this_1.get()).clone() as compat::Shared<dyn Tickable>),); room.lock().borrow_mut().add_sub_process(__a0) };
+                { let (__a0, __a1) = (((*__this_1.get()).clone() as compat::Shared<dyn Tickable>), ((*__this_1.get()).clone() as compat::Shared<dyn Renderable>)); room.lock().borrow_mut().add_sub_process(__a0, __a1) };
                 { let __v = true; compat::write(&(*__this_1.get()), |__t| __t.dungeon_puzzle_base_mut().should_solve = __v); }
             }
         }));

@@ -122,13 +122,13 @@ impl AvgBinTooltip {
         if tooltip_info_type::ONE_DAY_AVERAGE.get_mut().lock().borrow().get_data().is_none() && r#type != Average::ThreeDay || tooltip_info_type::THREE_DAY_AVERAGE.get_mut().lock().borrow().get_data().is_none() && r#type != Average::OneDay {
             ItemTooltip::null_warning();
         } else {
-            if r#type == Average::OneDay || r#type == Average::Both && tooltip_info_type::ONE_DAY_AVERAGE.get_mut().lock().borrow().has_or_null_warning(&skyblock_api_id) {
+            if (r#type == Average::OneDay || r#type == Average::Both) && tooltip_info_type::ONE_DAY_AVERAGE.get_mut().lock().borrow().has_or_null_warning(&skyblock_api_id) {
                 // TODO(fabric2seer): `.getDouble(..)` on a T
                 //   java: lines.add(GridComponent.of(
                 //   java: 						Component.literal("1 Day Avg. Price:").withStyle(ChatFormatting.GOLD),
                 //   java: 						ItemTooltip.getCoinsMessage(TooltipInfoType.ONE_DAY_AVERAGE.getData().getDouble(skyblockApiId), stack.getCount())));
             }
-            if r#type == Average::ThreeDay || r#type == Average::Both && tooltip_info_type::THREE_DAY_AVERAGE.get_mut().lock().borrow().has_or_null_warning(&skyblock_api_id) {
+            if (r#type == Average::ThreeDay || r#type == Average::Both) && tooltip_info_type::THREE_DAY_AVERAGE.get_mut().lock().borrow().has_or_null_warning(&skyblock_api_id) {
                 // TODO(fabric2seer): `.getDouble(..)` on a T
                 //   java: lines.add(GridComponent.of(
                 //   java: 						Component.literal("3 Day Avg. Price:").withStyle(ChatFormatting.GOLD),

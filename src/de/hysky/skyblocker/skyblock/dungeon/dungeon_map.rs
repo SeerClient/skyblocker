@@ -47,10 +47,7 @@ impl DungeonMap {
     /// java: @Init public static void init()
     pub fn init() {
         hud_render_callback::EVENT.register(Arc::new(|ctx: &mut hud_render_callback::HudRenderContext<'_>| {
-            // SAFETY: `ctx` outlives every call made through `graphics` (this callback).
-            let graphics = unsafe { ScriptGraphics::new(ctx.gl, &*ctx.minecraft, ctx.gui_width, ctx.gui_height) };
-            let _session = graphics.session();
-            DungeonMap::extract(&mut graphics);
+            DungeonMap::extract(&mut ctx.graphics);
         }));
         client_command_registration_callback::EVENT.register(Arc::new(
             |dispatcher: &mut client_command_registration_callback::ClientCommandDispatcher| {
@@ -91,7 +88,7 @@ impl DungeonMap {
             return None;
         }
         let mut map_id: MapId = DungeonMap::get_map_id_component(mcrust::mcrust::modding::game::with_player(|player| player.base.base.get_inventory().get_non_equipment_items()[(8) as usize].clone()));
-        let Some(mut state) = map_item::get_saved_data(Some(map_id.clone()), &mcrust::mcrust::modding::game::level().unwrap()) else {
+        let Some(mut state) = map_item::get_saved_data(Some(&map_id), &mcrust::mcrust::modding::game::level().unwrap()) else {
             return None;
         };
         let __pose_1 = gui_graphics_extractor::push_pose();
@@ -107,7 +104,7 @@ impl DungeonMap {
         DungeonMapLabels::extract_room_names(graphics);
         let mut hovered_head: Option<Uuid> = None;
         if fancy {
-            hovered_head = DungeonMap::extract_player_heads(graphics, &mcrust::mcrust::modding::game::level().unwrap(), &state, (((mouse_x as f32) / scale)) as f64, (((mouse_y as f32) / scale)) as f64, enlarge.clone());
+            hovered_head = DungeonMap::extract_player_heads(graphics, &mcrust::mcrust::modding::game::level().unwrap(), &state.lock().unwrap_or_else(|p| p.into_inner()), (((mouse_x as f32) / scale)) as f64, (((mouse_y as f32) / scale)) as f64, enlarge.clone());
         }
         gui_graphics_extractor::pop_pose(__pose_1);
         return hovered_head;
@@ -116,7 +113,7 @@ impl DungeonMap {
     /// java: public static MapId getMapIdComponent(@Nullable ItemStack stack)
     pub fn get_map_id_component(mut stack: Option<mcrust::net::minecraft::world::item::item_stack::ItemStack>) -> MapId {
         if stack.is_some() && stack.as_ref().unwrap().is_item(&items::items().get("filled_map")) && stack.as_ref().unwrap().has(mcrust::net::minecraft::core::component::data_components::map_id()) {
-            let mut map_id_component: MapId = stack.as_ref().unwrap().get(mcrust::net::minecraft::core::component::data_components::map_id()).unwrap();
+            let mut map_id_component: MapId = map_item::get_map_id(stack.as_ref().unwrap()).unwrap();
             *CACHED_MAP_ID_COMPONENT.get_mut() = Some(map_id_component.clone());
             return map_id_component;
         } else {
@@ -131,61 +128,62 @@ impl DungeonMap {
         }
         let mut i: i32 = 1;
         let mut hovered: Option<Uuid> = None;
-        for map_decoration in state.decorations.iter().map(|(k, v)| (k.clone(), v.clone())) {
+        for map_decoration in state.decorations.iter() {
+            let players = DungeonPlayerManager::get_players();
             let mut dungeon_player: Option<compat::Shared<DungeonPlayer>> = None;
-            // TODO(fabric2seer): static `MapDecorationTypes.FRAME` has no Rust counterpart in the port's MapDecorationTypes file
-            if map_decoration.1.type_().value() == crate::unresolved::MapDecorationTypes::FRAME.value() {
+            // MapDecorationTypes.FRAME (the registry entry `minecraft:frame`): the self player
+            if map_decoration.1.type_().is_identifier(&Identifier::with_default_namespace("frame")) {
                 if !(SkyblockerConfigManager::get().dungeons.dungeon_map.show_self_head) {
                     continue;
                 }
-                dungeon_player = Some(DungeonPlayerManager::get_players().unwrap()[(0) as usize].clone());
+                dungeon_player = players[(0) as usize].clone();
             } else {
-                while i < (DungeonPlayerManager::get_players().unwrap().len() as i32) && dungeon_player.is_none() || !(DungeonPlayer::alive(dungeon_player.as_ref().unwrap())) {
-                    dungeon_player = Some(DungeonPlayerManager::get_players().unwrap()[(i) as usize].clone());
+                while i < (players.len() as i32) && (dungeon_player.is_none() || !(DungeonPlayer::alive(dungeon_player.as_ref().unwrap()))) {
+                    dungeon_player = players[(i) as usize].clone();
                     i += 1;
                 }
             }
-            if let Some(dungeon_player) = &dungeon_player {
-                if !(DungeonPlayer::alive(dungeon_player)) {
-                    DungeonMap::dungeon_player_error(&map_decoration.0, "not alive", i.wrapping_sub(1), &DungeonPlayerManager::get_players().unwrap(), &state.decorations);
-                    continue;
-                } else if DungeonPlayer::uuid(dungeon_player).is_none() {
-                    DungeonMap::dungeon_player_error(&map_decoration.0, "has null uuid", i.wrapping_sub(1), &DungeonPlayerManager::get_players().unwrap(), &state.decorations);
-                    continue;
-                }
-            } else {
-                DungeonMap::dungeon_player_error(&map_decoration.0, "not found", i.wrapping_sub(1), &DungeonPlayerManager::get_players().unwrap(), &state.decorations);
+            let Some(dungeon_player) = &dungeon_player else {
+                DungeonMap::dungeon_player_error(&map_decoration.0, "not found", i.wrapping_sub(1), &players, &state.decorations);
+                continue;
+            };
+            if !(DungeonPlayer::alive(dungeon_player)) {
+                DungeonMap::dungeon_player_error(&map_decoration.0, "not alive", i.wrapping_sub(1), &players, &state.decorations);
+                continue;
+            } else if DungeonPlayer::uuid(dungeon_player).is_none() {
+                DungeonMap::dungeon_player_error(&map_decoration.0, "has null uuid", i.wrapping_sub(1), &players, &state.decorations);
                 continue;
             }
-            let mut player: PlayerRenderState = PlayerRenderState::of(level, dungeon_player.as_ref().unwrap(), &map_decoration.1);
+            let mut player: PlayerRenderState = PlayerRenderState::of(level, dungeon_player, &map_decoration.1);
             let __pose_1 = gui_graphics_extractor::push_pose();
-            // TODO(fabric2seer): `.x(..)` on a Vector2dc
-            //   java: graphics.pose().translate((float) player.mapPos().x(), (float) player.mapPos().y());
+            gui_graphics_extractor::pose_translate((player.map_pos().x()) as f32, (player.map_pos().y()) as f32);
             gui_graphics_extractor::pose_rotate((((((player.deg() + 180.0f32) as f64).to_radians()) as f32)) as f32);
-            if player.uuid() == enlarge.clone().unwrap() {
+            if enlarge.as_ref().is_some_and(|e| player.uuid() == *e) {
                 gui_graphics_extractor::pose_scale((2) as f32, (2) as f32);
             } else if hovered.is_none() && DungeonMap::is_player_hovered(&player, mouse_x, mouse_y) {
                 gui_graphics_extractor::pose_scale((2) as f32, (2) as f32);
                 hovered = Some(player.uuid());
             }
             GuiHelper::player_head(graphics, -4, -4, 8, &player.uuid());
-            GuiHelper::border(graphics, -5, -5, 10, 10, DungeonPlayer::dungeon_class(dungeon_player.as_ref().unwrap()).color());
-            graphics.fill(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), -1, -7, 1, -5, DungeonPlayer::dungeon_class(dungeon_player.as_ref().unwrap()).color());
+            GuiHelper::border(graphics, -5, -5, 10, 10, DungeonPlayer::dungeon_class(dungeon_player).color());
+            graphics.fill(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), -1, -7, 1, -5, DungeonPlayer::dungeon_class(dungeon_player).color());
             gui_graphics_extractor::pop_pose(__pose_1);
         }
         return hovered;
     }
 
     /// java: private static void dungeonPlayerError(String decorationId, String reason, int i, DungeonPlayerManager.DungeonPlayer[] dungeonPlayers, Map<String, MapDecoration> mapDecorations)
-    pub fn dungeon_player_error(decoration_id: &str, reason: &str, mut i: i32, dungeon_players: &Vec<compat::Shared<DungeonPlayer>>, map_decorations: &std::collections::HashMap<String, MapDecoration>) {
-        logger().error(&format!("[Skyblocker Dungeon Map] Dungeon player for map decoration '{}' {}. Player list index (zero-indexed): {}. Player list: {}. Map decorations: {}", decoration_id, reason, i, format!("{:?}", dungeon_players), compat::jstring(&map_decorations)));
+    /// `mapDecorations` is `MapItemSavedData.decorations` (a `LinkedHashMap`, the port's ordered pairs).
+    pub fn dungeon_player_error(decoration_id: &str, reason: &str, mut i: i32, dungeon_players: &Vec<Option<compat::Shared<DungeonPlayer>>>, map_decorations: &[(String, MapDecoration)]) {
+        // Arrays.toString(dungeonPlayers) and AbstractMap.toString's `{k=v, ...}`
+        let players = format!("[{}]", dungeon_players.iter().map(|p| p.as_ref().map_or("null".to_string(), |p| compat::read(p, |p| p.to_string()))).collect::<Vec<_>>().join(", "));
+        let decorations = format!("{{{}}}", map_decorations.iter().map(|(k, v)| format!("{}={:?}", k, v)).collect::<Vec<_>>().join(", "));
+        logger().error(&format!("[Skyblocker Dungeon Map] Dungeon player for map decoration '{}' {}. Player list index (zero-indexed): {}. Player list: {}. Map decorations: {}", decoration_id, reason, i, players, decorations));
     }
 
     /// java: public static boolean isPlayerHovered(PlayerRenderState player, double mouseX, double mouseY)
     pub fn is_player_hovered(player: &PlayerRenderState, mut mouse_x: f64, mut mouse_y: f64) -> bool {
-        // TODO(fabric2seer): `.distanceSquared(..)` on a Vector2dc
-        //   java: return player.mapPos().distanceSquared(mouseX, mouseY) < 16;
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        return player.map_pos().distance_squared(mouse_x, mouse_y) < 16.0;
     }
 
     /// java: private static void reset()
@@ -235,13 +233,26 @@ impl PlayerRenderState {
 
     /// java: public static PlayerRenderState of(Level world, DungeonPlayerManager.DungeonPlayer dungeonPlayer, MapDecoration mapDecoration)
     pub fn of(world: &Level, dungeon_player: &compat::Shared<DungeonPlayer>, map_decoration: &MapDecoration) -> PlayerRenderState {
-        // TODO(fabric2seer): `Level.getPlayerByUUID` has no Rust method in the port (looked for `get_player_by_uuid` in Level and its supertypes)
-        // rust: let mut player_entity: Option<Box<dyn Player>> = Some(world.get_player_by_uuid(&DungeonPlayer::uuid(dungeon_player).unwrap()));
-        let mut player_entity: Box<dyn Player> = todo!("fabric2seer: the initialiser of `playerEntity` (TODO above)");
-        // TODO(fabric2seer): `new Vector2d(..)`
-        //   java: Vector2dc mapPos = playerEntity != null ? DungeonMapUtils.getMapPosFromPhysical(DungeonManager.getPhysicalEntrancePos(), DungeonManager.getMapEntrancePos(), DungeonManager.getMapRoomSize(), playerEntity.position()) : new Vector2d(mapDecoration.x() / 2d + 64, mapDecoration.y() / 2d + 64);
-        let mut map_pos: crate::unresolved::Vector2dc = todo!("fabric2seer: the initialiser of `mapPos` (TODO above)");
-        let mut deg: f32 = (if true /* java: player_entity != null: never null here */ { player_entity.get_y_rot() } else { (((map_decoration.rot() as i32).wrapping_mul(360) as f32) / 16.0f32) });
+        use mcrust::net::minecraft::world::entity::entity::Entity as _;
+        // Player playerEntity = world.getPlayerByUUID(dungeonPlayer.uuid()); - its position and yaw, read under its
+        // lock (never when this thread already holds it)
+        let player_entity: Option<(mcrust::net::minecraft::world::phys::vec3::Vec3, f32)> = world
+            .get_player_by_uuid(compat::uuid_bits(&DungeonPlayer::uuid(dungeon_player).unwrap()))
+            .and_then(|avatar| {
+                if mcrust::mcrust::modding::game::is_held_here(&*avatar) {
+                    return None;
+                }
+                let guard = mcrust::mcrust::modding::game::lock_entity(&*avatar, "dungeon_map.rs:PlayerRenderState.of");
+                Some((guard.base().position(), guard.base().get_y_rot()))
+            });
+        let mut map_pos: crate::unresolved::Vector2dc = match &player_entity {
+            Some((position, _)) => DungeonMapUtils::get_map_pos_from_physical_vector2ic_vector2ic_int_position(&DungeonManager::get_physical_entrance_pos().unwrap(), &DungeonManager::get_map_entrance_pos().unwrap(), DungeonManager::get_map_room_size(), position),
+            None => crate::unresolved::Vector2d::new((map_decoration.x() as f64) / 2.0 + 64.0, (map_decoration.y() as f64) / 2.0 + 64.0),
+        };
+        let mut deg: f32 = match &player_entity {
+            Some((_, y_rot)) => *y_rot,
+            None => (((map_decoration.rot() as i32).wrapping_mul(360) as f32) / 16.0f32),
+        };
         return PlayerRenderState::new(DungeonPlayer::uuid(dungeon_player).unwrap(), DungeonPlayer::name(dungeon_player), map_pos.clone(), deg);
     }
 

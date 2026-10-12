@@ -65,26 +65,25 @@ impl ColoredItemBackground<i32> for JacobMedalBackground {
     }
 
     /// java: @Override protected Integer getColorKey(ItemStack stack, Int2ReferenceOpenHashMap<Integer> cache)
-    fn get_color_key(&mut self, stack: &mcrust::net::minecraft::world::item::item_stack::ItemStack, cache: &mut std::collections::HashMap<i32, i32>) -> i32 {
+    fn get_color_key(&mut self, stack: &mcrust::net::minecraft::world::item::item_stack::ItemStack, cache: &mut std::collections::HashMap<i32, Option<i32>>) -> Option<i32> {
         if false /* java: stack == null: never null here */ || stack.is_empty() {
-            return Default::default(); // java: return null
+            return None; // java: return null
         }
-        // TODO(fabric2seer): static `System.identityHashCode` has no Rust counterpart in the port
-        // rust: let mut hash_code: i32 = (if stack.get_uuid().is_empty() { System::identity_hash_code(stack.clone()) } else { compat::string_hash_code(&stack.get_uuid()) });
-        let mut hash_code: i32 = todo!("fabric2seer: the initialiser of `hashCode` (TODO above)");
+        // int hashCode = stack.getUuid().isEmpty() ? System.identityHashCode(stack) : stack.getUuid().hashCode();
+        let mut hash_code: i32 = (if stack.get_uuid().is_empty() { compat::identity_hash_code(stack) } else { compat::string_hash_code(&stack.get_uuid()) });
         if cache.contains_key(&hash_code) {
-            return cache.get(&hash_code).copied().unwrap_or_default();
+            return cache.get(&hash_code).copied().flatten();
         }
         let mut matcher: Option<compat::regex::Matcher> = ItemUtils::get_lore_line_if_match(stack, &PATTERN);
         if let Some(matcher) = &matcher {
-            let mut color: i32 = BRACKET_COLORS.get(matcher.group_named("bracket").as_ref().unwrap()).cloned().unwrap();
-            if true /* java: color != null: never null here */ {
-                cache.insert(hash_code, color);
-                return color;
+            // Integer color = BRACKET_COLORS.get(matcher.group("bracket")); if (color != null)
+            if let Some(color) = BRACKET_COLORS.get(matcher.group_named("bracket").as_ref().unwrap()).cloned() {
+                cache.insert(hash_code, Some(color));
+                return Some(color);
             }
         }
         cache.insert(hash_code, None);
-        return Default::default(); // java: return null
+        return None; // java: return null
     }
 
     /// java: @Override protected void extract(GuiGraphicsExtractor context, int x, int y, Integer color)
@@ -95,4 +94,19 @@ impl ColoredItemBackground<i32> for JacobMedalBackground {
         gui_graphics_extractor::blit_sprite_stretched(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), mcrust::net::minecraft::client::renderer::render_pipelines::gui_textured(), &self.get_sprite(), x, y, 16, 16, argb::color_from_float(SkyblockerConfigManager::get().general.item_info_display.item_background_opacity, r, g, b));
     }
 
+}
+
+impl crate::de::hysky::skyblocker::skyblock::item::background::colored_item_background::AnyColoredItemBackground for JacobMedalBackground {
+    fn on_screen_change(&mut self, title: &str, screen: &mcrust::net::minecraft::client::gui::screens::screen::Screen) {
+        ColoredItemBackground::<i32>::on_screen_change(self, title, screen)
+    }
+    fn is_enabled(&self) -> bool {
+        ColoredItemBackground::<i32>::is_enabled(self)
+    }
+    fn try_extract(&mut self, stack: &mcrust::net::minecraft::world::item::item_stack::ItemStack, graphics: &GuiGraphicsExtractor, x: i32, y: i32) {
+        ColoredItemBackground::<i32>::try_extract(self, stack, graphics, x, y)
+    }
+    fn clear_cache(&mut self) {
+        ColoredItemBackground::<i32>::clear_cache(self)
+    }
 }

@@ -110,7 +110,7 @@ impl HeadSelectionWidget {
         }
         let mut uuid: String = __this.lock().borrow().current_item.as_ref().unwrap().get_uuid();
         let __this_1 = compat::RenderThread::new(__this.clone());
-        SkyblockerConfigManager::update_only(Arc::new(move |config| {
+        SkyblockerConfigManager::update_only(Arc::new(move |mut config| {
             if let Some(__sel1) = compat::read(__this_1.get(), |__t| __t.selected_button.clone()).as_ref() && true && (std::ptr::addr_eq(std::sync::Arc::as_ptr(__sel1), std::sync::Arc::as_ptr(&compat::read(__this_1.get(), |__t| __t.none_button.clone()).unwrap())) || compat::read(__sel1, |__t| __t.head_button_base().texture.clone()).is_none()) {
                 config.general.custom_helmet_textures.remove(&uuid);
                 config.general.custom_animated_helmet_textures.remove(&uuid);
@@ -127,7 +127,7 @@ impl HeadSelectionWidget {
     /// java: private void updateButtons()
     pub fn update_buttons(__this: &compat::Shared<Self>) {
         for b in compat::read(__this, |__t| __t.all_buttons.clone()) {
-            { let __v = (b == compat::read(__this, |__t| __t.selected_button.clone()).unwrap()); compat::write(&b, |__t| __t.head_button_base_mut().selected = __v); }
+            { let __v = std::ptr::addr_eq(std::sync::Arc::as_ptr(&b), std::sync::Arc::as_ptr(&compat::read(__this, |__t| __t.selected_button.clone()).unwrap())); compat::write(&b, |__t| __t.head_button_base_mut().selected = __v); }
         }
     }
 
@@ -139,22 +139,21 @@ impl HeadSelectionWidget {
         let mut custom_head_texture: Option<String> = SkyblockerConfigManager::get().general.custom_helmet_textures.get(&uuid).cloned();
         let mut intended_selected: compat::Shared<dyn HeadButton>;
         if let Some(animated_head_id) = &animated_head_id {
-            // TODO(fabric2seer): `.isInstance(..)` on a Class
-            //   java: intendedSelected = this.allButtons.stream()
-            //   java: 					.filter(AnimatedHeadButton.class::isInstance)
-            //   java: 					.map(AnimatedHeadButton.class::cast)
-            //   java: 					.filter(animatedHead -> animatedHead.id.equals(animatedHeadId))
-            //   java: 					.findFirst()
-            //   java: 					.map(HeadButton.class::cast)
-            //   java: 					.orElse(noneButton);
+            // intendedSelected = this.allButtons.stream().filter(AnimatedHeadButton.class::isInstance).map(AnimatedHeadButton.class::cast)
+            //     .filter(animatedHead -> animatedHead.id.equals(animatedHeadId)).findFirst().map(HeadButton.class::cast).orElse(noneButton);
+            intended_selected = compat::read(__this, |__t| __t.all_buttons.clone()).into_iter()
+                .filter(|head| compat::try_view::<AnimatedHeadButton, _>(head).is_some_and(|animated_head| compat::read(&*animated_head, |__t| __t.id.clone()) == *animated_head_id))
+                .next()
+                .unwrap_or_else(|| compat::read(__this, |__t| __t.none_button.clone()).unwrap());
         } else {
             if let Some(custom_head_texture) = &custom_head_texture {
-                // TODO(fabric2seer): not a lambda
-                //   java: intendedSelected = this.allButtons.stream()
-                //   java: 					.filter(Predicate.not(AnimatedHeadButton.class::isInstance))
-                //   java: 					.filter(head -> head.texture != null && head.texture.equals(customHeadTexture))
-                //   java: 					.findFirst()
-                //   java: 					.orElse(noneButton);
+                // intendedSelected = this.allButtons.stream().filter(Predicate.not(AnimatedHeadButton.class::isInstance))
+                //     .filter(head -> head.texture != null && head.texture.equals(customHeadTexture)).findFirst().orElse(noneButton);
+                intended_selected = compat::read(__this, |__t| __t.all_buttons.clone()).into_iter()
+                    .filter(|head| compat::try_view::<AnimatedHeadButton, _>(head).is_none())
+                    .filter(|head| compat::read(head, |__t| __t.head_button_base().texture.clone()).is_some_and(|texture| texture == *custom_head_texture))
+                    .next()
+                    .unwrap_or_else(|| compat::read(__this, |__t| __t.none_button.clone()).unwrap());
             } else {
                 intended_selected = compat::read(__this, |__t| __t.none_button.clone()).unwrap();
             }
@@ -416,7 +415,7 @@ impl HeadButton for HeadButtonBase {
         &self
     }
     fn head_button_base_mut(&mut self) -> &mut HeadButtonBase {
-        &mut self
+        self
     }
 
     fn as_any(&self) -> &dyn std::any::Any {
@@ -488,7 +487,7 @@ impl AnimatedHeadButton {
         let mut profile: Option<ResolvableProfile> = CustomAnimatedHelmetTextures::animate_head_texture(&compat::read(__this, |__t| __t.id.clone()));
         if let Some(profile) = &profile {
             let mut stack: mcrust::net::minecraft::world::item::item_stack::ItemStack = mcrust::net::minecraft::world::item::item_stack::ItemStack::of_one(items::items().get("player_head"));
-            stack.set(mcrust::net::minecraft::core::component::data_components::profile().clone(), Some(*profile));
+            stack.set(mcrust::net::minecraft::core::component::data_components::profile().clone(), Some(mcrust::com::mojang::serialization::obj(profile.clone())));
             return stack;
         }
         return FlexibleItemStack::get_stack_or_throw(ico::BARRIER.get_mut());

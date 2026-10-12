@@ -55,23 +55,21 @@ impl CustomArmorTrims {
 
     /// java: private static void initializeTrimCache()
     pub fn initialize_trim_cache() {
-        let mut client: Option<mcrust::net::minecraft::client::minecraft::Minecraft> = Some(compat::minecraft());
-        if compat::get_state(&TRIMS_INITIALIZED) || client.is_none() && !(crate::de::hysky::skyblocker::debug::debug::Debug::debug_enabled()) {
+        // Minecraft client = Minecraft.getInstance(); (never null once the game runs)
+        if compat::get_state(&TRIMS_INITIALIZED) || false && !(crate::de::hysky::skyblocker::debug::debug::Debug::debug_enabled()) {
             return;
         }
         // java: try {..} catch (Exception e) - an exception here is a panic, caught by `catch_unwind`
         let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             TRIMS_CACHE.get_mut().clear();
             let mut wrapper_lookup: Arc<dyn Provider> = RegistryUtils::get_registry_wrapper_lookup();
-            // TODO(fabric2seer): `Provider.lookupOrThrow` has no Rust method in the port (looked for `lookup_or_throw` in HolderLookup and its supertypes)
-            for material in wrapper_lookup.lookup_or_throw(&mcrust::net::minecraft::core::registries::registries::trim_material()).list_elements().collect::<Vec<_>>() {
-                // TODO(fabric2seer): `Provider.lookupOrThrow` has no Rust method in the port (looked for `lookup_or_throw` in HolderLookup and its supertypes)
-                for pattern in wrapper_lookup.lookup_or_throw(&mcrust::net::minecraft::core::registries::registries::trim_pattern()).list_elements().collect::<Vec<_>>() {
-                    // TODO(fabric2seer): the mod keeps the game's `Holder$Reference` (Java holds a reference to the live object); the port's `Reference` is not a value to copy and the port lends the mod no handle to it
-                    // rust: let mut trim: ArmorTrim = ArmorTrim::new(material.clone(), pattern.clone());
-                    let mut trim: ArmorTrim = todo!("fabric2seer: the initialiser of `trim` (TODO above)");
-                    // TODO(fabric2seer): `.identifier(..)` on a value of unknown type
-                    //   java: TRIMS_CACHE.put(new ArmorTrimId(material.key().identifier(), pattern.key().identifier()), trim);
+            // Provider.lookupOrThrow(key) is the registry's lookup (`lookup_registry_or_throw`)
+            for material in wrapper_lookup.lookup_registry_or_throw(&mcrust::net::minecraft::core::registries::registries::trim_material()).unwrap().list_elements() {
+                for pattern in wrapper_lookup.lookup_registry_or_throw(&mcrust::net::minecraft::core::registries::registries::trim_pattern()).unwrap().list_elements() {
+                    // ArmorTrim trim = new ArmorTrim(material, pattern);
+                    let mut trim: ArmorTrim = ArmorTrim::new(mcrust::net::minecraft::core::holder::Holder::Reference(material.clone()), mcrust::net::minecraft::core::holder::Holder::Reference(pattern.clone()));
+                    // TRIMS_CACHE.put(new ArmorTrimId(material.key().identifier(), pattern.key().identifier()), trim);
+                    TRIMS_CACHE.get_mut().insert(ArmorTrimId::new(material.key().identifier().clone(), pattern.key().identifier().clone()), trim);
                 }
             }
             logger().info("[Skyblocker] Successfully cached all armor trims!");
@@ -98,7 +96,7 @@ impl CustomArmorTrims {
     }
 
     /// java: private static SuggestionProvider<FabricClientCommandSource> getIdSuggestionProvider(ResourceKey<? extends Registry<?>> registryKey)
-    pub fn get_id_suggestion_provider(registry_key: &ResourceKey) -> SuggestionProvider {
+    pub fn get_id_suggestion_provider(registry_key: &ResourceKey) -> SuggestionProvider<crate::unresolved::FabricClientCommandSource> {
         // TODO(fabric2seer): `.getSource(..)` on a value of unknown type
         //   java: return (context, builder) -> context.getSource().suggestRegistryElements(registryKey, SharedSuggestionProvider.ElementSuggestionType.ELEMENTS, builder, context);
         todo!("fabric2seer: the value of this function is in a TODO above")
@@ -116,7 +114,7 @@ impl CustomArmorTrims {
                     let custom_armor_trims = &SkyblockerConfigManager::get().general.custom_armor_trims;
                     if false /* java: material == null: never null here */ && false /* java: pattern == null: never null here */ {
                         if custom_armor_trims.contains_key(&item_uuid) {
-                            SkyblockerConfigManager::update(Arc::new(move |config| { config.general.custom_armor_trims.remove(&item_uuid); }));
+                            SkyblockerConfigManager::update(Arc::new(move |mut config| { config.general.custom_armor_trims.remove(&item_uuid); }));
                             // TODO(fabric2seer): `.sendFeedback(..)` on a FabricClientCommandSource
                             //   java: source.sendFeedback(Constants.PREFIX.get().append(Component.translatable("skyblocker.customArmorTrims.removed")));
                         } else {
@@ -130,7 +128,7 @@ impl CustomArmorTrims {
                             //   java: source.sendError(Constants.PREFIX.get().append(Component.translatable("skyblocker.customArmorTrims.invalidMaterialOrPattern").withColor(TextColor.RED)));
                             return 1;
                         }
-                        SkyblockerConfigManager::update(Arc::new(move |config| { config.general.custom_armor_trims.insert(item_uuid.clone(), trim_id.clone()); }));
+                        SkyblockerConfigManager::update(Arc::new(move |mut config| { config.general.custom_armor_trims.insert(item_uuid.clone(), trim_id.clone()); }));
                         // TODO(fabric2seer): `.sendFeedback(..)` on a FabricClientCommandSource
                         //   java: source.sendFeedback(Constants.PREFIX.get().append(Component.translatable("skyblocker.customArmorTrims.added")));
                     }
@@ -153,7 +151,8 @@ impl CustomArmorTrims {
 }
 
 /// java: public record ArmorTrimId(Identifier material, Identifier pattern) implements Pair<Identifier, Identifier>
-#[derive(Clone, Debug, PartialEq)]
+/// (a record: `equals` / `hashCode` over its two components)
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ArmorTrimId {
     /// java: Identifier material
     pub material: Identifier,

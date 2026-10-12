@@ -196,7 +196,7 @@ impl SkyblockCraftingTableScreen {
     /// java: @Override protected boolean isHovering(int x, int y, int width, int height, double pointX, double pointY)
     pub fn is_hovering(__this: &compat::Shared<Self>, mut x: i32, mut y: i32, mut width: i32, mut height: i32, mut point_x: f64, mut point_y: f64) -> bool {
         let __o1 = compat::read(__this, |__t| __t.recipe_book.clone());
-        return (!(compat::read(__this, |__t| __t.narrow)) || !(compat::write(&__o1, |__t| __t.is_visible())) && __this.lock().borrow_mut().base.is_hovering_box(x, y, width, height, point_x, point_y));
+        return ((!(compat::read(__this, |__t| __t.narrow)) || !(compat::write(&__o1, |__t| __t.is_visible()))) && __this.lock().borrow_mut().base.is_hovering_box(x, y, width, height, point_x, point_y));
     }
 
     /// java: @Override public boolean mouseClicked(MouseButtonEvent click, boolean doubled)

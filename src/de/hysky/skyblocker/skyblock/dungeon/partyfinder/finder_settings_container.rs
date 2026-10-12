@@ -110,48 +110,48 @@ impl FinderSettingsContainer {
                 return false;
             }
             { let __v = true; compat::write(__this, |__t| __t.is_initialized = __v); }
-            for slot in handler.with(|__chest| __chest.menu.slots.clone()) {
-                if slot.index > ((handler.with(|__chest| __chest.get_row_count()).unwrap()).wrapping_mul(9)).wrapping_sub(1) {
+            // handler.slots and what each slot's getItem() answers: (slot.index, slot.getItem())
+            let __slots: Vec<(i32, mcrust::net::minecraft::world::item::item_stack::ItemStack)> = handler.with_slots(|menu, containers| menu.slots.iter().map(|slot| (slot.index, slot.get_item(containers).duplicate())).collect()).unwrap_or_default();
+            let __row_count: i32 = handler.with(|__chest| __chest.get_row_count()).unwrap_or(0);
+            for (slot_index, slot_item) in __slots.iter() {
+                if *slot_index > (__row_count.wrapping_mul(9)).wrapping_sub(1) {
                     break;
                 }
-                // TODO(fabric2seer): `has_item` takes 1 argument(s) in the port (`containers: &Containers<'_>`), Java passes 0
-                if !slot.has_item() {
+                if slot_item.is_empty() {
                     continue;
                 }
-                // TODO(fabric2seer): `get_item` takes 1 argument(s) in the port (`containers: &'a Containers<'_>`), Java passes 0
-                // rust: let stack = slot.get_item();
-                let mut stack: mcrust::net::minecraft::world::item::item_stack::ItemStack = todo!("fabric2seer: the initialiser of `stack` (TODO above)");
+                let mut stack: mcrust::net::minecraft::world::item::item_stack::ItemStack = slot_item.clone();
                 let mut name: String = compat::component_of(stack.get_hover_name()).get_string().to_lowercase();
                 if name.contains("floor") {
-                    { let __v = Some(OptionDropdownWidget::new(screen.clone(), compat::component_of(stack.get_hover_name()), ((__this.lock().borrow().get_x()).wrapping_add((__this.lock().borrow().get_width()).wrapping_div(4))).wrapping_sub(70), (__this.lock().borrow().get_y()).wrapping_add(20), 140, 170, slot.index)); compat::write(__this, |__t| __t.floor_selector = __v); }
-                    if !(FinderSettingsContainer::set_selected_element_from_tooltip(__this, &slot, &stack, &compat::read(__this, |__t| __t.floor_selector.clone()).unwrap())) {
+                    { let __v = Some(OptionDropdownWidget::new(screen.clone(), compat::component_of(stack.get_hover_name()), ((__this.lock().borrow().get_x()).wrapping_add((__this.lock().borrow().get_width()).wrapping_div(4))).wrapping_sub(70), (__this.lock().borrow().get_y()).wrapping_add(20), 140, 170, *slot_index)); compat::write(__this, |__t| __t.floor_selector = __v); }
+                    if !(FinderSettingsContainer::set_selected_element_from_tooltip(__this, *slot_index, &stack, &compat::read(__this, |__t| __t.floor_selector.clone()).unwrap())) {
                         return false;
                     }
                     let __h0 = compat::read(__this, |__t| __t.floor_selector.clone()).unwrap();
                     __this.lock().borrow_mut().initialized_widgets.push(__h0);
                 } else if name.contains("dungeon type") {
-                    { let __v = Some(OptionDropdownWidget::new(screen.clone(), compat::component_of(stack.get_hover_name()), ((__this.lock().borrow().get_x()).wrapping_add((3i32.wrapping_mul(__this.lock().borrow().get_width())).wrapping_div(4))).wrapping_sub(70), (__this.lock().borrow().get_y()).wrapping_add(20), 140, 100, slot.index)); compat::write(__this, |__t| __t.dungeon_type_selector = __v); }
-                    if !(FinderSettingsContainer::set_selected_element_from_tooltip(__this, &slot, &stack, &compat::read(__this, |__t| __t.dungeon_type_selector.clone()).unwrap())) {
+                    { let __v = Some(OptionDropdownWidget::new(screen.clone(), compat::component_of(stack.get_hover_name()), ((__this.lock().borrow().get_x()).wrapping_add((3i32.wrapping_mul(__this.lock().borrow().get_width())).wrapping_div(4))).wrapping_sub(70), (__this.lock().borrow().get_y()).wrapping_add(20), 140, 100, *slot_index)); compat::write(__this, |__t| __t.dungeon_type_selector = __v); }
+                    if !(FinderSettingsContainer::set_selected_element_from_tooltip(__this, *slot_index, &stack, &compat::read(__this, |__t| __t.dungeon_type_selector.clone()).unwrap())) {
                         return false;
                     }
                     let __h0 = compat::read(__this, |__t| __t.dungeon_type_selector.clone()).unwrap();
                     __this.lock().borrow_mut().initialized_widgets.push(__h0);
                 } else if name.contains("groups") {
-                    { let __v = Some(OptionDropdownWidget::new(screen.clone(), compat::component_of(stack.get_hover_name()), ((__this.lock().borrow().get_x()).wrapping_add((__this.lock().borrow().get_width()).wrapping_div(2))).wrapping_sub(70), (__this.lock().borrow().get_y()).wrapping_add(120), 140, 100, slot.index)); compat::write(__this, |__t| __t.sort_groups_selector = __v); }
-                    if !(FinderSettingsContainer::set_selected_element_from_tooltip(__this, &slot, &stack, &compat::read(__this, |__t| __t.sort_groups_selector.clone()).unwrap())) {
+                    { let __v = Some(OptionDropdownWidget::new(screen.clone(), compat::component_of(stack.get_hover_name()), ((__this.lock().borrow().get_x()).wrapping_add((__this.lock().borrow().get_width()).wrapping_div(2))).wrapping_sub(70), (__this.lock().borrow().get_y()).wrapping_add(120), 140, 100, *slot_index)); compat::write(__this, |__t| __t.sort_groups_selector = __v); }
+                    if !(FinderSettingsContainer::set_selected_element_from_tooltip(__this, *slot_index, &stack, &compat::read(__this, |__t| __t.sort_groups_selector.clone()).unwrap())) {
                         return false;
                     }
                     let __h0 = compat::read(__this, |__t| __t.sort_groups_selector.clone()).unwrap();
                     __this.lock().borrow_mut().initialized_widgets.push(__h0);
                 } else if name.contains("class level") {
-                    { let __v = Some(RangedValueWidget::new(screen.clone(), compat::component_of(stack.get_hover_name()), ((__this.lock().borrow().get_x()).wrapping_add((__this.lock().borrow().get_width()).wrapping_div(4))).wrapping_sub(50), (__this.lock().borrow().get_y()).wrapping_add(70), 100, slot.index)); compat::write(__this, |__t| __t.class_level_range = __v); }
+                    { let __v = Some(RangedValueWidget::new(screen.clone(), compat::component_of(stack.get_hover_name()), ((__this.lock().borrow().get_x()).wrapping_add((__this.lock().borrow().get_width()).wrapping_div(4))).wrapping_sub(50), (__this.lock().borrow().get_y()).wrapping_add(70), 100, *slot_index)); compat::write(__this, |__t| __t.class_level_range = __v); }
                     if !(FinderSettingsContainer::set_range_from_tooltip(__this, &stack, &compat::read(__this, |__t| __t.class_level_range.clone()).unwrap())) {
                         return false;
                     }
                     let __h0 = compat::read(__this, |__t| __t.class_level_range.clone()).unwrap();
                     __this.lock().borrow_mut().initialized_widgets.push(__h0);
                 } else if name.contains("dungeon level") {
-                    { let __v = Some(RangedValueWidget::new(screen.clone(), compat::component_of(stack.get_hover_name()), ((__this.lock().borrow().get_x()).wrapping_add((3i32.wrapping_mul(__this.lock().borrow().get_width())).wrapping_div(4))).wrapping_sub(50), (__this.lock().borrow().get_y()).wrapping_add(70), 100, slot.index)); compat::write(__this, |__t| __t.dungeon_level_range = __v); }
+                    { let __v = Some(RangedValueWidget::new(screen.clone(), compat::component_of(stack.get_hover_name()), ((__this.lock().borrow().get_x()).wrapping_add((3i32.wrapping_mul(__this.lock().borrow().get_width())).wrapping_div(4))).wrapping_sub(50), (__this.lock().borrow().get_y()).wrapping_add(70), 100, *slot_index)); compat::write(__this, |__t| __t.dungeon_level_range = __v); }
                     if !(FinderSettingsContainer::set_range_from_tooltip(__this, &stack, &compat::read(__this, |__t| __t.dungeon_level_range.clone()).unwrap())) {
                         return false;
                     }
@@ -179,12 +179,12 @@ impl FinderSettingsContainer {
             // TODO(fabric2seer): `partyFinderButton`, a widget the screen holds, reached outside the screen's own methods
             //   java: screen.partyFinderButton.active = true;
             { let __v = None; compat::write(__this, |__t| __t.currently_opened_option = __v); }
-            for i in ((handler.with(|__chest| __chest.get_row_count()).unwrap()).wrapping_sub(1)).wrapping_mul(9)..(handler.with(|__chest| __chest.get_row_count()).unwrap()).wrapping_mul(9) {
-                let slot = &(handler.with(|__chest| __chest.menu.slots.clone()).unwrap())[(i) as usize];
-                // TODO(fabric2seer): `has_item` takes 1 argument(s) in the port (`containers: &Containers<'_>`), Java passes 0
-                // TODO(fabric2seer): `get_item` takes 1 argument(s) in the port (`containers: &'a Containers<'_>`), Java passes 0
-                if slot.has_item() && slot.get_item().is_item(&items::items().get("arrow")) {
-                    { let __v = slot.index; compat::write(screen, |__t| __t.party_button_slot_id = __v); }
+            let __slots: Vec<(i32, mcrust::net::minecraft::world::item::item_stack::ItemStack)> = handler.with_slots(|menu, containers| menu.slots.iter().map(|slot| (slot.index, slot.get_item(containers).duplicate())).collect()).unwrap_or_default();
+            let __row_count: i32 = handler.with(|__chest| __chest.get_row_count()).unwrap_or(0);
+            for i in (__row_count.wrapping_sub(1)).wrapping_mul(9)..__row_count.wrapping_mul(9) {
+                let (slot_index, slot_item) = &__slots[(i) as usize];
+                if !slot_item.is_empty() && slot_item.is_item(&items::items().get("arrow")) {
+                    { let __v = *slot_index; compat::write(screen, |__t| __t.party_button_slot_id = __v); }
                 }
             }
             return true;
@@ -212,14 +212,16 @@ impl FinderSettingsContainer {
     }
 
     /// java: private int findBackSlotId(ChestMenu handler)
-    pub fn find_back_slot_id(__this: &compat::Shared<Self>, handler: &ChestMenu) -> i32 {
+    /// (`handler` is the menu the mod keeps: `compat::LiveChestMenu`)
+    pub fn find_back_slot_id(__this: &compat::Shared<Self>, handler: &compat::LiveChestMenu) -> i32 {
         let mut back_id: i32 = -1;
-        for i in (handler.get_row_count().wrapping_sub(1)).wrapping_mul(9)..handler.get_row_count().wrapping_mul(9) {
-            let slot = &handler.menu.slots[(i) as usize];
-            // TODO(fabric2seer): `has_item` takes 1 argument(s) in the port (`containers: &Containers<'_>`), Java passes 0
-            // TODO(fabric2seer): `get_item` takes 1 argument(s) in the port (`containers: &'a Containers<'_>`), Java passes 0
-            if slot.has_item() && slot.get_item().is_item(&items::items().get("arrow")) {
-                back_id = slot.index;
+        // handler.slots and what each slot's getItem() answers: (slot.index, slot.getItem())
+        let __slots: Vec<(i32, mcrust::net::minecraft::world::item::item_stack::ItemStack)> = handler.with_slots(|menu, containers| menu.slots.iter().map(|slot| (slot.index, slot.get_item(containers).duplicate())).collect()).unwrap_or_default();
+        let __row_count: i32 = handler.with(|__chest| __chest.get_row_count()).unwrap_or(0);
+        for i in (__row_count.wrapping_sub(1)).wrapping_mul(9)..__row_count.wrapping_mul(9) {
+            let (slot_index, slot_item) = &__slots[(i) as usize];
+            if !slot_item.is_empty() && slot_item.is_item(&items::items().get("arrow")) {
+                back_id = *slot_index;
                 break;
             }
         }
@@ -261,7 +263,8 @@ impl FinderSettingsContainer {
     }
 
     /// java: private boolean setSelectedElementFromTooltip(Slot slot, ItemStack stack, OptionDropdownWidget dropdownWidget)
-    pub fn set_selected_element_from_tooltip(__this: &compat::Shared<Self>, slot: &Slot, stack: &mcrust::net::minecraft::world::item::item_stack::ItemStack, dropdown_widget: &compat::Shared<OptionDropdownWidget>) -> bool {
+    /// `slot_index` is `slot.index`, all the method reads of the slot.
+    pub fn set_selected_element_from_tooltip(__this: &compat::Shared<Self>, slot_index: i32, stack: &mcrust::net::minecraft::world::item::item_stack::ItemStack, dropdown_widget: &compat::Shared<OptionDropdownWidget>) -> bool {
         for text in stack.skyblocker_get_lore_strings() {
             let mut text_lower_case: String = text.to_lowercase();
             if text_lower_case.contains("selected:") {
@@ -309,19 +312,21 @@ impl FinderSettingsContainer {
     }
 
     /// java: private void updateDropdownOptionWidget(ChestMenu handler, @Nullable OptionDropdownWidget dropdownWidget)
-    pub fn update_dropdown_option_widget(__this: &compat::Shared<Self>, handler: &ChestMenu, mut dropdown_widget: Option<compat::Shared<OptionDropdownWidget>>) {
+    /// (`handler` is the menu the mod keeps: `compat::LiveChestMenu`)
+    pub fn update_dropdown_option_widget(__this: &compat::Shared<Self>, handler: &compat::LiveChestMenu, mut dropdown_widget: Option<compat::Shared<OptionDropdownWidget>>) {
         let Some(mut dropdown_widget) = dropdown_widget.clone() else {
             return;
         };
         { let __v = Some(dropdown_widget.clone()); compat::write(__this, |__t| __t.currently_opened_option = __v); }
         let mut entries: Vec<compat::Shared<crate::de::hysky::skyblocker::skyblock::dungeon::partyfinder::option_dropdown_widget::Option>> = Vec::new();
-        for slot in handler.menu.slots.iter() {
-            if slot.index > ((handler.get_row_count().wrapping_sub(1)).wrapping_mul(9)).wrapping_sub(1) {
+        // handler.slots and what each slot's getItem() answers: (slot.index, slot.getItem())
+        let __slots: Vec<(i32, mcrust::net::minecraft::world::item::item_stack::ItemStack)> = handler.with_slots(|menu, containers| menu.slots.iter().map(|slot| (slot.index, slot.get_item(containers).duplicate())).collect()).unwrap_or_default();
+        let __row_count: i32 = handler.with(|__chest| __chest.get_row_count()).unwrap_or(0);
+        for (slot_index, slot_item) in __slots.iter() {
+            if *slot_index > ((__row_count.wrapping_sub(1)).wrapping_mul(9)).wrapping_sub(1) {
                 break;
             }
-            // TODO(fabric2seer): `has_item` takes 1 argument(s) in the port (`containers: &Containers<'_>`), Java passes 0
-            // TODO(fabric2seer): `get_item` takes 1 argument(s) in the port (`containers: &'a Containers<'_>`), Java passes 0
-            if slot.has_item() && !(slot.get_item().is_item(mcrust::net::minecraft::world::item::items::stained_glass_pane().black())) {
+            if !slot_item.is_empty() && !(slot_item.is_item(mcrust::net::minecraft::world::item::items::stained_glass_pane().black())) {
                 // TODO(fabric2seer): not translated (qualified inner-class creation)
                 //   java: entries.add(dropdownWidget.new Option(slot.getItem().getHoverName().getString(), slot.getItem(), slot.index));
             }
@@ -331,23 +336,25 @@ impl FinderSettingsContainer {
     }
 
     /// java: private void updateRangedValue(ChestMenu handler, @Nullable RangedValueWidget valueWidget)
-    pub fn update_ranged_value(__this: &compat::Shared<Self>, handler: &ChestMenu, mut value_widget: Option<compat::Shared<RangedValueWidget>>) {
+    /// (`handler` is the menu the mod keeps: `compat::LiveChestMenu`)
+    pub fn update_ranged_value(__this: &compat::Shared<Self>, handler: &compat::LiveChestMenu, mut value_widget: Option<compat::Shared<RangedValueWidget>>) {
         let Some(mut value_widget) = value_widget.clone() else {
             return;
         };
         { let __v = Some(value_widget.clone()); compat::write(__this, |__t| __t.currently_opened_option = __v); }
         let mut min: i32 = -1;
         let mut max: i32 = -1;
-        for slot in handler.menu.slots.iter() {
-            if slot.index > ((handler.get_row_count().wrapping_sub(1)).wrapping_mul(9)).wrapping_sub(1) {
+        // handler.slots and what each slot's getItem() answers: (slot.index, slot.getItem())
+        let __slots: Vec<(i32, mcrust::net::minecraft::world::item::item_stack::ItemStack)> = handler.with_slots(|menu, containers| menu.slots.iter().map(|slot| (slot.index, slot.get_item(containers).duplicate())).collect()).unwrap_or_default();
+        let __row_count: i32 = handler.with(|__chest| __chest.get_row_count()).unwrap_or(0);
+        for (slot_index, slot_item) in __slots.iter() {
+            if *slot_index > ((__row_count.wrapping_sub(1)).wrapping_mul(9)).wrapping_sub(1) {
                 break;
             }
-            // TODO(fabric2seer): `has_item` takes 1 argument(s) in the port (`containers: &Containers<'_>`), Java passes 0
-            // TODO(fabric2seer): `get_item` takes 1 argument(s) in the port (`containers: &'a Containers<'_>`), Java passes 0
-            if slot.has_item() && compat::component_of(slot.get_item().get_hover_name()).get_string().to_lowercase().contains("min") {
-                min = slot.index;
-            } else if slot.has_item() && compat::component_of(slot.get_item().get_hover_name()).get_string().to_lowercase().contains("max") {
-                max = slot.index;
+            if !slot_item.is_empty() && compat::component_of(slot_item.get_hover_name()).get_string().to_lowercase().contains("min") {
+                min = *slot_index;
+            } else if !slot_item.is_empty() && compat::component_of(slot_item.get_hover_name()).get_string().to_lowercase().contains("max") {
+                max = *slot_index;
             }
         }
         let mut back_id: i32 = FinderSettingsContainer::find_back_slot_id(__this, handler);

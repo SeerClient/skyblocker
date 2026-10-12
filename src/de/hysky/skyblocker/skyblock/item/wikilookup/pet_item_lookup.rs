@@ -38,7 +38,7 @@ impl PetItemLookup {
     }
 
     /// java: private static void lookupPetItem(Matcher matcher, Player player)
-    pub fn lookup_pet_item(matcher: &compat::regex::Matcher, player: &dyn Player) {
+    pub fn lookup_pet_item(matcher: &mut compat::regex::Matcher, player: &dyn Player) {
         if matcher.matches() {
             let mut pet_name: String = (wiki_lookup::REPLACING_FUNCTION.get_mut())(compat::trim(&matcher.group_named("name").unwrap()));
             WikiLookupManager::open_wiki_link_name(&pet_name, player);
@@ -69,7 +69,7 @@ impl PetItemLookup {
     pub fn open_impl(__this: &compat::Shared<Self>, item_stack: &mcrust::net::minecraft::world::item::item_stack::ItemStack, player: &dyn Player) {
         let mut item_name: String = compat::component_of(item_stack.get_hover_name()).get_string();
         let mut pet_info: PetInfo = item_stack.get_pet_info();
-        PetItemLookup::lookup_pet_item(&(PET_MATCHER.get_mut())(pet_info.name().unwrap_or(item_name.clone())), player);
+        PetItemLookup::lookup_pet_item(&mut (PET_MATCHER.get_mut())(pet_info.name().unwrap_or(item_name.clone())), player);
     }
 
     /// PetItemLookup.open as the dispatch of WikiLookup.open

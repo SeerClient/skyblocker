@@ -3,6 +3,7 @@
 #[allow(unused_imports)]
 use crate::prelude::*;
 use crate::de::hysky::skyblocker::skyblock::dungeon::secrets::dungeon_manager;
+use crate::de::hysky::skyblocker::skyblock::dungeon::secrets::dungeon_map_utils::DungeonMapUtils;
 use crate::de::hysky::skyblocker::skyblock::dungeon::secrets::room::Direction;
 use crate::de::hysky::skyblocker::skyblock::dungeon::secrets::room::Room;
 use crate::de::hysky::skyblocker::skyblock::dungeon::secrets::room::RoomBase;
@@ -51,21 +52,19 @@ impl DebugRoom {
 
     /// java: public static DebugRoom ofSinglePossibleRoom(Type type, Vector2ic physicalPositions, String roomName, int[] roomData, Direction direction)
     pub fn of_single_possible_room(mut r#type: Type, physical_positions: &Vector2i, room_name: &str, room_data: &Vec<i32>, mut direction: Direction) -> compat::Shared<DebugRoom> {
-        return DebugRoom::of_single_possible_room(r#type, &vec![physical_positions.clone()], room_name, room_data, direction);
+        return DebugRoom::of_single_possible_room_type_vector2ic_string_int_direction(r#type, &vec![physical_positions.clone()], room_name, room_data, direction);
     }
 
     /// java: public static DebugRoom ofSinglePossibleRoom(Type type, Vector2ic[] physicalPositions, String roomName, int[] roomData, Direction direction)
     pub fn of_single_possible_room_type_vector2ic_string_int_direction(mut r#type: Type, physical_positions: &Vec<Vector2i>, room_name: &str, room_data: &Vec<i32>, mut direction: Direction) -> compat::Shared<DebugRoom> {
         let mut room: compat::Shared<DebugRoom> = DebugRoom::new(r#type, physical_positions.clone());
-        // TODO(fabric2seer): static call IntSortedSets.unmodifiable(..)
-        //   java: IntSortedSet segmentsX = IntSortedSets.unmodifiable(new IntRBTreeSet(room.segments.stream().mapToInt(Vector2ic::x).toArray()));
-        let mut segments_x: crate::unresolved::IntSortedSet = todo!("fabric2seer: the initialiser of `segmentsX` (TODO above)");
-        // TODO(fabric2seer): static call IntSortedSets.unmodifiable(..)
-        //   java: IntSortedSet segmentsY = IntSortedSets.unmodifiable(new IntRBTreeSet(room.segments.stream().mapToInt(Vector2ic::y).toArray()));
-        let mut segments_y: crate::unresolved::IntSortedSet = todo!("fabric2seer: the initialiser of `segmentsY` (TODO above)");
+        // IntSortedSet segmentsX = IntSortedSets.unmodifiable(new IntRBTreeSet(room.segments.stream().mapToInt(Vector2ic::x).toArray()));
+        let mut segments_x: std::collections::BTreeSet<i32> = compat::read(&room, |__t| __t.segments.iter().map(|s| s.x()).collect());
+        // IntSortedSet segmentsY = IntSortedSets.unmodifiable(new IntRBTreeSet(room.segments.stream().mapToInt(Vector2ic::y).toArray()));
+        let mut segments_y: std::collections::BTreeSet<i32> = compat::read(&room, |__t| __t.segments.iter().map(|s| s.y()).collect());
         { let __v = Some(std::collections::HashMap::from([(room_name.to_string(), room_data.clone())])); compat::write(&room, |__t| __t.rooms_data = __v); }
-        // TODO(fabric2seer): static call MutableTriple.of(..)
-        //   java: room.possibleRooms = List.of(MutableTriple.of(direction, DungeonMapUtils.getPhysicalCornerPos(direction, segmentsX, segmentsY), List.of(roomName)));
+        // room.possibleRooms = List.of(MutableTriple.of(direction, DungeonMapUtils.getPhysicalCornerPos(direction, segmentsX, segmentsY), List.of(roomName)));
+        { let __v = Some(vec![crate::unresolved::MutableTripleOf::of(direction, DungeonMapUtils::get_physical_corner_pos(direction, &segments_x, &segments_y), vec![room_name.to_string()])]); compat::write(&room, |__t| __t.possible_rooms = __v); }
         return room;
     }
 

@@ -22,19 +22,18 @@ pub trait DataTooltipInfoType<T>: TooltipInfoType {
     fn has_or_null_warning(&self, member_name: &str) -> bool;
 
     /// java: default CompletableFuture<Void> downloadIfEnabled()
-    fn download_if_enabled(&self) -> mcrust::java::util::concurrent::completable_future::CompletableFuture<()> {
+    fn download_if_enabled(&mut self) -> mcrust::java::util::concurrent::completable_future::CompletableFuture<()> {
         if self.is_data_enabled() {
             return self.download();
         }
-        return CompletableFuture::completed_future(None);
+        return CompletableFuture::completed_future(());
     }
 
     /// java: default CompletableFuture<Void> download()
-    fn download(&mut self) -> mcrust::java::util::concurrent::completable_future::CompletableFuture<()> {
-        // TODO(fabric2seer): CompletableFuture.runAsync of a non-lambda
-        //   java: return CompletableFuture.runAsync(this, SkyblockerMod.VIRTUAL_THREAD_EXECUTOR);
-        todo!("fabric2seer: the value of this function is in a TODO above")
-    }
+    /// The default body is `CompletableFuture.runAsync(this, SkyblockerMod.VIRTUAL_THREAD_EXECUTOR)`: it hands the
+    /// object itself to a worker, so it is written in `DataTooltipInfo`, the interface's one implementation, which
+    /// holds the handle (`self_ref`) that `this` is.
+    fn download(&mut self) -> mcrust::java::util::concurrent::completable_future::CompletableFuture<()>;
 
     /// java: @Override void run();
     fn run(&mut self);

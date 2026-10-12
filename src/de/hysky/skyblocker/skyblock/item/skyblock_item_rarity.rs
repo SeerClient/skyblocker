@@ -119,15 +119,15 @@ impl SkyblockItemRarity {
     /// java: public SkyblockItemRarity recombobulate()
     pub fn recombobulate(&self) -> SkyblockItemRarity {
         return match *self {
-            SkyblockItemRarity::Common => UNCOMMON,
-            SkyblockItemRarity::Uncommon => RARE,
-            SkyblockItemRarity::Rare => EPIC,
-            SkyblockItemRarity::Epic => LEGENDARY,
-            SkyblockItemRarity::Legendary => MYTHIC,
-            SkyblockItemRarity::Mythic => DIVINE,
-            SkyblockItemRarity::Divine => SPECIAL,
-            SkyblockItemRarity::Special | SkyblockItemRarity::VerySpecial | SkyblockItemRarity::Ultimate => VERY_SPECIAL,
-            _ => UNKNOWN,
+            SkyblockItemRarity::Common => SkyblockItemRarity::Uncommon,
+            SkyblockItemRarity::Uncommon => SkyblockItemRarity::Rare,
+            SkyblockItemRarity::Rare => SkyblockItemRarity::Epic,
+            SkyblockItemRarity::Epic => SkyblockItemRarity::Legendary,
+            SkyblockItemRarity::Legendary => SkyblockItemRarity::Mythic,
+            SkyblockItemRarity::Mythic => SkyblockItemRarity::Divine,
+            SkyblockItemRarity::Divine => SkyblockItemRarity::Special,
+            SkyblockItemRarity::Special | SkyblockItemRarity::VerySpecial | SkyblockItemRarity::Ultimate => SkyblockItemRarity::VerySpecial,
+            _ => SkyblockItemRarity::Unknown,
         };
     }
 
@@ -152,20 +152,20 @@ impl SkyblockItemRarity {
 
     /// java: public @Nullable Identifier toTooltipStyle()
     pub fn to_tooltip_style(&self) -> Option<Identifier> {
-        return Some(match *self {
-            SkyblockItemRarity::Common => sky_block_tooltip_styles::COMMON.get_mut().clone(),
-            SkyblockItemRarity::Uncommon => sky_block_tooltip_styles::UNCOMMON.get_mut().clone(),
-            SkyblockItemRarity::Rare => sky_block_tooltip_styles::RARE.get_mut().clone(),
-            SkyblockItemRarity::Epic => sky_block_tooltip_styles::EPIC.get_mut().clone(),
-            SkyblockItemRarity::Legendary => sky_block_tooltip_styles::LEGENDARY.get_mut().clone(),
-            SkyblockItemRarity::Mythic => sky_block_tooltip_styles::MYTHIC.get_mut().clone(),
-            SkyblockItemRarity::Divine => sky_block_tooltip_styles::DIVINE.get_mut().clone(),
-            SkyblockItemRarity::Special => sky_block_tooltip_styles::SPECIAL.get_mut().clone(),
-            SkyblockItemRarity::VerySpecial => sky_block_tooltip_styles::VERY_SPECIAL.get_mut().clone(),
-            SkyblockItemRarity::Ultimate => sky_block_tooltip_styles::ULTIMATE.get_mut().clone(),
-            SkyblockItemRarity::Admin => sky_block_tooltip_styles::ADMIN.get_mut().clone(),
+        return match *self {
+            SkyblockItemRarity::Common => Some(sky_block_tooltip_styles::COMMON.get_mut().clone()),
+            SkyblockItemRarity::Uncommon => Some(sky_block_tooltip_styles::UNCOMMON.get_mut().clone()),
+            SkyblockItemRarity::Rare => Some(sky_block_tooltip_styles::RARE.get_mut().clone()),
+            SkyblockItemRarity::Epic => Some(sky_block_tooltip_styles::EPIC.get_mut().clone()),
+            SkyblockItemRarity::Legendary => Some(sky_block_tooltip_styles::LEGENDARY.get_mut().clone()),
+            SkyblockItemRarity::Mythic => Some(sky_block_tooltip_styles::MYTHIC.get_mut().clone()),
+            SkyblockItemRarity::Divine => Some(sky_block_tooltip_styles::DIVINE.get_mut().clone()),
+            SkyblockItemRarity::Special => Some(sky_block_tooltip_styles::SPECIAL.get_mut().clone()),
+            SkyblockItemRarity::VerySpecial => Some(sky_block_tooltip_styles::VERY_SPECIAL.get_mut().clone()),
+            SkyblockItemRarity::Ultimate => Some(sky_block_tooltip_styles::ULTIMATE.get_mut().clone()),
+            SkyblockItemRarity::Admin => Some(sky_block_tooltip_styles::ADMIN.get_mut().clone()),
             _ => None,
-        });
+        };
     }
 
     /// java: @Override public String getSerializedName()
@@ -196,14 +196,14 @@ impl SkyblockItemRarity {
 
     /// java: public static SkyblockItemRarity fromColor(int color)
     pub fn from_color(mut color: i32) -> SkyblockItemRarity {
-        return SkyblockItemRarity::values().iter().copied().filter(|rarity| (argb::opaque(rarity.fields().color) == argb::opaque(color))).next().unwrap_or(UNKNOWN);
+        return SkyblockItemRarity::values().iter().copied().filter(|rarity| (argb::opaque(rarity.fields().color) == argb::opaque(color))).next().unwrap_or(SkyblockItemRarity::Unknown);
     }
 
 }
 
 impl std::fmt::Display for SkyblockItemRarity {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", SkyblockItemRarity::to_string(*self))
+        write!(f, "{}", SkyblockItemRarity::to_string(self))
     }
 }
 

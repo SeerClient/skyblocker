@@ -78,7 +78,7 @@ impl ArrowAlign {
                 let mut frame_entities_list: Vec<ItemFrame> = ArrowAlign::get_frame_entities_list();
                 for frame_entity in frame_entities_list.iter() {
                     let mut now: i32 = frame_entity.get_rotation();
-                    let mut expect: i32 = compat::lock(&CURRENT_SOLUTION).unwrap()[(ArrowAlign::get_solution_index(&frame_entity.base.block_position())) as usize];
+                    let mut expect: i32 = compat::lock(&CURRENT_SOLUTION).as_ref().unwrap()[(ArrowAlign::get_solution_index(&frame_entity.base.block_position())) as usize];
                     if expect >= 0 {
                         let mut remaining: i32 = ((expect.wrapping_add(8)).wrapping_sub(now)).wrapping_rem(8);
                         if remaining > 0 {

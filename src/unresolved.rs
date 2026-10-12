@@ -409,6 +409,136 @@ pub struct SymbolLookup;
 pub struct T;
 /// TODO(fabric2seer): java com.google.common.collect.Table
 pub struct Table;
+
+/// Apache Commons Lang's `MutableTriple<L, M, R>`: three public fields, the right one settable.
+#[derive(Clone, Debug, PartialEq)]
+pub struct MutableTripleOf<L, M, R> {
+    pub left: L,
+    pub middle: M,
+    pub right: R,
+}
+
+impl<L: Clone, M: Clone, R: Clone> MutableTripleOf<L, M, R> {
+    /// `MutableTriple.of(left, middle, right)`.
+    pub fn of(left: L, middle: M, right: R) -> Self {
+        MutableTripleOf { left, middle, right }
+    }
+    pub fn get_left(&self) -> L {
+        self.left.clone()
+    }
+    pub fn get_middle(&self) -> M {
+        self.middle.clone()
+    }
+    pub fn get_right(&self) -> R {
+        self.right.clone()
+    }
+    pub fn set_right(&mut self, right: R) {
+        self.right = right;
+    }
+}
+
+/// Guava's `HashBasedTable<R, C, V>` (`Table` created by `HashBasedTable.create()`): a map of rows to maps of
+/// columns to values, both LINKED (insertion order, as Guava's `StandardTable` over `LinkedHashMap`s). The methods are
+/// Guava's, with Java's null answers as `None`.
+#[derive(Clone, Debug)]
+pub struct HashBasedTable<R, C, V> {
+    rows: Vec<(R, Vec<(C, V)>)>,
+}
+
+impl<R, C, V> Default for HashBasedTable<R, C, V> {
+    fn default() -> Self {
+        HashBasedTable { rows: Vec::new() }
+    }
+}
+
+impl<R: PartialEq + Clone, C: PartialEq + Clone, V: Clone> HashBasedTable<R, C, V> {
+    /// `HashBasedTable.create()`.
+    pub fn create() -> Self {
+        Self::default()
+    }
+
+    /// `put(row, column, value)`: the previous value, if any.
+    pub fn put(&mut self, row: R, column: C, value: V) -> Option<V> {
+        let cells = match self.rows.iter().position(|(r, _)| *r == row) {
+            Some(i) => &mut self.rows[i].1,
+            None => {
+                self.rows.push((row, Vec::new()));
+                &mut self.rows.last_mut().unwrap().1
+            }
+        };
+        match cells.iter().position(|(c, _)| *c == column) {
+            Some(i) => Some(std::mem::replace(&mut cells[i].1, value)),
+            None => {
+                cells.push((column, value));
+                None
+            }
+        }
+    }
+
+    /// `get(row, column)`.
+    pub fn get(&self, row: &R, column: &C) -> Option<&V> {
+        self.rows.iter().find(|(r, _)| r == row)?.1.iter().find(|(c, _)| c == column).map(|(_, v)| v)
+    }
+
+    /// `remove(row, column)`: the removed value; a row left empty is dropped, as Guava's is.
+    pub fn remove(&mut self, row: &R, column: &C) -> Option<V> {
+        let ri = self.rows.iter().position(|(r, _)| r == row)?;
+        let ci = self.rows[ri].1.iter().position(|(c, _)| c == column)?;
+        let (_, v) = self.rows[ri].1.remove(ci);
+        if self.rows[ri].1.is_empty() {
+            self.rows.remove(ri);
+        }
+        Some(v)
+    }
+
+    /// `containsRow(row)`.
+    pub fn contains_row(&self, row: &R) -> bool {
+        self.rows.iter().any(|(r, _)| r == row)
+    }
+
+    /// `contains(row, column)`.
+    pub fn contains(&self, row: &R, column: &C) -> bool {
+        self.get(row, column).is_some()
+    }
+
+    /// `row(row)`: the row's column -> value cells (a copy; empty for a missing row).
+    pub fn row(&self, row: &R) -> Vec<(C, V)> {
+        self.rows.iter().find(|(r, _)| r == row).map(|(_, cells)| cells.clone()).unwrap_or_default()
+    }
+
+    /// `column(column)`: the column's row -> value cells, in row order (a copy).
+    pub fn column(&self, column: &C) -> Vec<(R, V)> {
+        self.rows
+            .iter()
+            .filter_map(|(r, cells)| cells.iter().find(|(c, _)| c == column).map(|(_, v)| (r.clone(), v.clone())))
+            .collect()
+    }
+
+    /// `values()`, row by row.
+    pub fn values(&self) -> Vec<V> {
+        self.rows.iter().flat_map(|(_, cells)| cells.iter().map(|(_, v)| v.clone())).collect()
+    }
+
+    /// `rowMap()`: every row with its cells (a copy).
+    pub fn row_map(&self) -> Vec<(R, Vec<(C, V)>)> {
+        self.rows.clone()
+    }
+
+    /// `size()`.
+    pub fn size(&self) -> usize {
+        self.rows.iter().map(|(_, cells)| cells.len()).sum()
+    }
+
+    /// `isEmpty()`.
+    pub fn is_empty(&self) -> bool {
+        self.rows.is_empty()
+    }
+
+    /// `clear()`.
+    pub fn clear(&mut self) {
+        self.rows.clear();
+    }
+}
 /// TODO(fabric2seer): java java.time.temporal.Temporal
 pub struct Temporal;
 /// TODO(fabric2seer): java java.time.temporal.TemporalAccessor
@@ -439,8 +569,70 @@ pub struct Util;
 pub struct ValueRange;
 /// TODO(fabric2seer): java org.apache.commons.math3.geometry.euclidean.twod.Vector2D
 pub struct Vector2D;
-/// TODO(fabric2seer): java org.joml.Vector2dc
-pub struct Vector2dc;
+/// `org.joml.Vector2d` / its read-only view `Vector2dc` (JOML 1.10, a library the mod uses that the game crate
+/// has no `Vector2d` of): the methods the mod calls, with JOML's bodies. `sub` / `div` / `mul` / `add` mutate
+/// `this` and return it, as JOML's do.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct Vector2dc {
+    pub x: f64,
+    pub y: f64,
+}
+
+/// `org.joml.Vector2d` (the same class; `Vector2dc` is its interface).
+pub type Vector2d = Vector2dc;
+
+impl Vector2dc {
+    /// `new Vector2d(x, y)`.
+    pub fn new(x: f64, y: f64) -> Vector2dc {
+        Vector2dc { x, y }
+    }
+
+    /// `x()`.
+    pub fn x(&self) -> f64 {
+        self.x
+    }
+
+    /// `y()`.
+    pub fn y(&self) -> f64 {
+        self.y
+    }
+
+    /// `sub(double x, double y)`: `this.x = this.x - x; this.y = this.y - y; return this`.
+    pub fn sub(&mut self, x: f64, y: f64) -> &mut Vector2dc {
+        self.x -= x;
+        self.y -= y;
+        self
+    }
+
+    /// `div(double scalar)` (joml 1.10.8 `div(D, Vector2d)`): `inv = 1.0 / scalar; x * inv, y * inv`.
+    pub fn div(&mut self, scalar: f64) -> &mut Vector2dc {
+        let inv = 1.0 / scalar;
+        self.x *= inv;
+        self.y *= inv;
+        self
+    }
+
+    /// `mul(double scalar)`.
+    pub fn mul(&mut self, scalar: f64) -> &mut Vector2dc {
+        self.x *= scalar;
+        self.y *= scalar;
+        self
+    }
+
+    /// `add(double x, double y)`.
+    pub fn add(&mut self, x: f64, y: f64) -> &mut Vector2dc {
+        self.x += x;
+        self.y += y;
+        self
+    }
+
+    /// `distanceSquared(double x, double y)`: `dx * dx + dy * dy`.
+    pub fn distance_squared(&self, x: f64, y: f64) -> f64 {
+        let dx = self.x - x;
+        let dy = self.y - y;
+        dx * dx + dy * dy
+    }
+}
 /// TODO(fabric2seer): java org.apache.commons.math3.geometry.euclidean.threed.Vector3D
 pub struct Vector3D;
 /// TODO(fabric2seer): java VerifyError

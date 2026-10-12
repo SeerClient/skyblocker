@@ -39,7 +39,7 @@ pub struct TrimSelectionWidget {
     /// java: extends net.minecraft.client.gui.components.AbstractContainerWidget
     pub base: AbstractContainerWidget,
     /// java: private final List<TrimElementButton.Pattern> patternButtons = new ArrayList<>();
-    pub pattern_buttons: Vec<compat::regex::Pattern>,
+    pub pattern_buttons: Vec<compat::Shared<crate::de::hysky::skyblocker::skyblock::item::custom::screen::trim_element_button::Pattern>>,
     /// java: private final List<TrimElementButton> materialButtons = new ArrayList<>();
     pub material_buttons: Vec<compat::Shared<dyn TrimElementButton>>,
     /// java: private FrameLayout layout;
@@ -73,7 +73,7 @@ impl TrimSelectionWidget {
         // TODO(fabric2seer): static `AbstractScrollArea.defaultSettings` has no Rust counterpart in the port
         //   java: super(x, y, width, height, Component.nullToEmpty("Trim Selection"), AbstractScrollArea.defaultSettings(8));
         let mut this: Self = todo!("constructor");
-        let mut pattern_none_button: compat::regex::Pattern = crate::de::hysky::skyblocker::skyblock::item::custom::screen::trim_element_button::Pattern::new(None, None, Arc::new(move |__a0| { this.on_click_pattern(&__a0); }));
+        let mut pattern_none_button: compat::Shared<crate::de::hysky::skyblocker::skyblock::item::custom::screen::trim_element_button::Pattern> = crate::de::hysky::skyblocker::skyblock::item::custom::screen::trim_element_button::Pattern::new(None, None, Arc::new(move |__a0| { this.on_click_pattern(&__a0); }));
         ({ let __f = compat::dispatch(&pattern_none_button, |__t| __t.set_message()); __f(&compat::view(&pattern_none_button, |a| a as compat::Shared<dyn TrimElementButton>), &component::translatable("gui.none")) });
         this.pattern_buttons.push(pattern_none_button.clone());
         // TODO(fabric2seer): `.description(..)` on a value of unknown type
@@ -139,8 +139,8 @@ impl TrimSelectionWidget {
 
     /// java: private void onClickPattern(TrimElementButton button)
     pub fn on_click_pattern(&mut self, button: &compat::Shared<dyn TrimElementButton>) {
-        for pattern_button in self.pattern_buttons.iter_mut() {
-            { let __v = true; compat::write(pattern_button, |__t| __t.trim_element_button_base_mut().active = __v); }
+        for pattern_button in self.pattern_buttons.iter() {
+            { let __v = true; compat::write(pattern_button, |__t: &mut crate::de::hysky::skyblocker::skyblock::item::custom::screen::trim_element_button::Pattern| __t.trim_element_button_base_mut().active = __v); }
         }
         { let __v = false; compat::write(button, |__t| __t.trim_element_button_base_mut().active = __v); }
         self.selected_pattern = ({ let __f = compat::dispatch(button, |__t| __t.get_element()); __f(button) });
@@ -162,13 +162,17 @@ impl TrimSelectionWidget {
         if self.current_item.is_none() {
             return;
         }
-        SkyblockerConfigManager::update_only(Arc::new(move |config| {
+        // the lambda reads this widget's fields: their values now (it runs before update_only returns)
+        let __item_uuid: String = self.current_item.as_ref().unwrap().get_uuid();
+        let __selected_pattern = self.selected_pattern.clone();
+        let __selected_material = self.selected_material.clone();
+        SkyblockerConfigManager::update_only(Arc::new(move |mut config| {
             let trims = &mut config.general.custom_armor_trims;
-            let mut item_uuid: String = self.current_item.as_ref().unwrap().get_uuid();
-            if self.selected_pattern.is_none() {
+            let mut item_uuid: String = __item_uuid.clone();
+            if __selected_pattern.is_none() {
                 trims.remove(&item_uuid);
             } else {
-                trims.insert(item_uuid.clone(), ArmorTrimId::new(self.selected_material.clone().unwrap(), self.selected_pattern.clone().unwrap()));
+                trims.insert(item_uuid.clone(), ArmorTrimId::new(__selected_material.clone().unwrap(), __selected_pattern.clone().unwrap()));
             }
         }));
     }
@@ -246,7 +250,7 @@ impl TrimSelectionWidget {
         self.current_item = Some(current_item.clone());
         let trims = &SkyblockerConfigManager::get().general.custom_armor_trims;
         let mut item_uuid: String = current_item.get_uuid();
-        for button in self.pattern_buttons.iter_mut() {
+        for button in self.pattern_buttons.iter() {
             crate::de::hysky::skyblocker::skyblock::item::custom::screen::trim_element_button::Pattern::set_stack(button, current_item.clone());
         }
         if !(trims.contains_key(&item_uuid)) {

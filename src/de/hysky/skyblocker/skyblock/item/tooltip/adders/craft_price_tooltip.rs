@@ -22,10 +22,10 @@ use mcrust::net::minecraft::world::inventory::slot::Slot;
 use crate::de::hysky::skyblocker::injected::skyblocker_stack::SkyblockerStack as _;
 use crate::de::hysky::skyblocker::skyblock::item::tooltip::info::data_tooltip_info_type::DataTooltipInfoType as _;
 
-// TODO(fabric2seer): static call Object2DoubleMaps.synchronize(..)
-//   java: private static final Map<String, Double> cachedCraftCosts = Object2DoubleMaps.synchronize(new Object2DoubleOpenHashMap<>());
 /// java: private static final Map<String, Double> cachedCraftCosts = Object2DoubleMaps.synchronize(new Object2DoubleOpenHashMap<>());
-pub static CACHED_CRAFT_COSTS: LazyLock<Mutex<std::collections::HashMap<String, f64>>> = LazyLock::new(|| Mutex::new(todo!("fabric2seer: the initialiser of `cachedCraftCosts` - see the TODO above")));
+/// (the synchronized map is the `Mutex`; its monitor is re-entrant and this lock is not, so no caller holds it
+/// across a call that reads the map again)
+pub static CACHED_CRAFT_COSTS: LazyLock<Mutex<std::collections::HashMap<String, f64>>> = LazyLock::new(|| Mutex::new(std::collections::HashMap::new()));
 /// java: private static final int MAX_RECURSION_DEPTH = 15;
 pub const MAX_RECURSION_DEPTH: i32 = 15;
 
@@ -68,11 +68,12 @@ impl CraftPriceTooltip {
 
     /// java: public static double getItemCost(String neuId, int depth)
     pub fn get_item_cost_2(neu_id: &str, mut depth: i32) -> f64 {
-        let mut neu_recipes: Option<std::collections::HashSet<crate::unresolved::NEURecipe>> = NEURepoManager::get_recipes().get(neu_id).cloned();
+        let __recipes = NEURepoManager::get_recipes();
+        let mut neu_recipes: Option<&std::collections::HashSet<crate::unresolved::NEURecipe>> = __recipes.get(neu_id);
         if neu_recipes.is_none() || neu_recipes.as_ref().unwrap().is_empty() {
             return ((-1) as f64) as f64;
         }
-        let mut recipe: Option<crate::unresolved::NEURecipe> = neu_recipes.as_ref().unwrap().iter().cloned().filter(|__a0| CraftPriceTooltip::is_valid_recipe(__a0)).next();
+        let mut recipe: Option<&crate::unresolved::NEURecipe> = neu_recipes.as_ref().unwrap().iter().filter(|__a0| CraftPriceTooltip::is_valid_recipe(__a0)).next();
         if recipe.is_none() {
             return ((-1) as f64) as f64;
         }
@@ -126,7 +127,9 @@ impl CraftPriceTooltip {
 
     /// java: public static boolean isValidRecipe(NEURecipe recipe)
     pub fn is_valid_recipe(recipe: &crate::unresolved::NEURecipe) -> bool {
-        return !(recipe.as_any().is::<crate::unresolved::NEUKatUpgradeRecipe>() || recipe.as_any().is::<crate::unresolved::NEUTradeRecipe>() || recipe.as_any().is::<crate::unresolved::NEUMobDropRecipe>());
+        // `instanceof` the library's recipe subclasses (io.github.moulberry.repo is not ported - GAPS_batchB.md)
+        let recipe: &dyn std::any::Any = recipe;
+        return !(recipe.is::<crate::unresolved::NEUKatUpgradeRecipe>() || recipe.is::<crate::unresolved::NEUTradeRecipe>() || recipe.is::<crate::unresolved::NEUMobDropRecipe>());
     }
 
     /// java: public static void clearCache()
@@ -210,7 +213,16 @@ impl CraftPriceTooltip {
         let mut item_id: String = stack.get_neu_name();
         // java: try {..} catch (Exception e) - the body runs inline: a Rust body does not throw checked exceptions (a panic in it propagates)
         {
-            let mut craft_price: f64 = *compat::lock(&CACHED_CRAFT_COSTS).entry(item_id.clone()).or_insert_with_key(|k| (|__a0| CraftPriceTooltip::get_item_cost(&__a0))(k.clone()));
+            // cachedCraftCosts.computeIfAbsent(itemId, CraftPriceTooltip::getItemCost) - getItemCost reads the map
+            // again, so the cost is computed outside the (non-re-entrant) lock
+            let __cached: Option<f64> = compat::lock(&CACHED_CRAFT_COSTS).get(&item_id).copied();
+            let mut craft_price: f64 = match __cached {
+                Some(cost) => cost,
+                None => {
+                    let cost = CraftPriceTooltip::get_item_cost(&item_id);
+                    *compat::lock(&CACHED_CRAFT_COSTS).entry(item_id.clone()).or_insert(cost)
+                }
+            };
             if craft_price <= (0 as f64) {
                 return;
             }

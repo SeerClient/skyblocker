@@ -45,13 +45,17 @@ pub static ITEM_NAME: compat::MainThread<Arc<dyn Fn(String) -> MutableComponent>
     let Some(mut neu_item) = NEURepoManager::get_item_by_neu_id(&s) else {
         return component::literal(&s);
     };
-    // TODO(fabric2seer): `.getDisplayName(..)` on a NEUItem
-    //   java: return TextTransformer.fromLegacy(neuItem.getDisplayName());
+    // return TextTransformer.fromLegacy(neuItem.getDisplayName());
+    // rust: port gap - `NEUItem.getDisplayName()`: io.github.moulberry.repo (the NEU repo parser library) is not
+    //   ported - `crate::unresolved::NEUItem` is a placeholder with no members (GAPS_batchB.md). The id stands in, as
+    //   for an unknown item, until the library is.
+    let _ = neu_item;
+    return component::literal(&s);
 }));
 /// java: private static final LayoutAppender EMPTY_APPENDER = (_, _, _) -> {};
-pub static EMPTY_APPENDER: compat::MainThread<compat::Shared<dyn LayoutAppender>> = compat::MainThread::new(|| Arc::new(move |_, _, _| {
+pub static EMPTY_APPENDER: compat::MainThread<compat::Shared<dyn LayoutAppender>> = compat::MainThread::new(|| compat::shared(LayoutAppenderLambda(Arc::new(move |_, _, _| {
 
-}));
+}))) as compat::Shared<dyn LayoutAppender>);
 // TODO(fabric2seer): static field Calculation.Type
 //   java: private static final Map<Calculation.Type, LayoutAppender> FORMATTERS = new EnumMap<>(Map.ofEntries(
 //   java: 			Map.entry(Calculation.Type.STAR, new BasicListAppender(
@@ -239,7 +243,7 @@ impl std::ops::DerefMut for ValueBreakdownPopup {
 impl ValueBreakdownPopup {
     /// java: protected ValueBreakdownPopup(Screen backgroundScreen, NetworthResult networthResult)
     pub fn new(mut background_screen: mcrust::net::minecraft::client::gui::screens::screen::Screen, mut networth_result: crate::unresolved::NetworthResult) -> compat::Shared<Self> {
-        let __init_networth_result = networth_result.clone();
+        let __init_networth_result = networth_result;
         // TODO(fabric2seer): class literal
         //   java: this.map = new EnumMap<>(Calculation.Type.class);
         // TODO(fabric2seer): the mod keeps the game's `Screen` (Java holds a reference to the live object); the port's `Screen` is not a value to copy and the port lends the mod no handle to it
@@ -253,31 +257,27 @@ impl ValueBreakdownPopup {
     }
 
     /// java: @Init public static void initClass()
+    /// `ScreenKeyboardEvents.afterKeyPress(screen)` is a per-screen event in Fabric; the port's
+    /// `screen_keyboard_events::AFTER_KEY_PRESS` is one global event (every key the handler processes), so the
+    /// listener is registered once and asks what the per-screen registration encoded: that the open screen is a
+    /// container screen (registered from its `AFTER_INIT` while on Skyblock).
     pub fn init_class() {
-        screen_events::AFTER_INIT.register(Arc::new(|screen: &mut Screen, width: i32, height: i32| {
-            if !(Utils::is_on_skyblock()) {
+        screen_keyboard_events::AFTER_KEY_PRESS.register(Arc::new(|action: i32, key_event: &KeyEvent| {
+            // ScreenEvents.AFTER_INIT: if (!Utils.isOnSkyblock()) return; if (screen instanceof AbstractContainerScreen<?>)
+            if !(Utils::is_on_skyblock()) || !compat::container_screen_open() {
                 return;
             }
-            if let Some(handled_screen) = screen.as_any().downcast_ref::<AbstractContainerScreen>() {
-                screen_keyboard_events::AFTER_KEY_PRESS.register(Arc::new(|action: i32, key_event: &KeyEvent| {
-                    if !(KEY_BINDING.get_mut().matches(&key_event)) {
-                        return;
-                    }
-                    let mut slot: Option<Slot> = Some(handled_screen.hovered_slot);
-                    // TODO(fabric2seer): `has_item` takes 1 argument(s) in the port (`containers: &Containers<'_>`), Java passes 0
-                    if slot.is_none() || !(slot.as_ref().unwrap().has_item()) {
-                        return;
-                    }
-                    // TODO(fabric2seer): `get_item` takes 1 argument(s) in the port (`containers: &'a Containers<'_>`), Java passes 0
-                    // rust: let mut networth: crate::unresolved::NetworthResult = NetworthCalculator::get_item_networth(slot.as_ref().unwrap().get_item());
-                    let mut networth: crate::unresolved::NetworthResult = todo!("fabric2seer: the initialiser of `networth` (TODO above)");
-                    // TODO(fabric2seer): the condition: `.price(..)` on a NetworthResult
-                    //   java: networth.price() > 0
-                    if todo!("fabric2seer: the condition (TODO above)") {
-                        // TODO(fabric2seer): `client`: Fabric passes the Minecraft here; this SeerClient callback does not (take it from ClientTickEvents or a hook)
-                        //   java: client.gui.setScreen(new ValueBreakdownPopup(screen, networth));
-                    }
-                }));
+            if !(mcrust::net::minecraft::client::key_mapping::matches("key.skyblocker.valueBreadownPopup", key_event)) {
+                return;
+            }
+            // Slot slot = ((AbstractContainerScreenAccessor) handledScreen).getFocusedSlot();
+            // rust: port gap - `AbstractContainerScreen.hoveredSlot` is not readable by a mod here (the screen object is
+            //   the game's; no accessor lends it - GAPS_batchB.md), so the slot is Java's null and the listener returns
+            //   at `if (slot == null || !slot.hasItem()) return;`. The rest is `NetworthCalculator.getItemNetworth`
+            //   (net.azureaaron.networth, not ported) and `client.gui.setScreen(new ValueBreakdownPopup(screen, ..))`.
+            let mut slot: Option<Slot> = None;
+            if slot.is_none() || !(compat::slot_has_item(slot.as_ref().unwrap())) {
+                return;
             }
         }));
     }
@@ -291,7 +291,8 @@ impl ValueBreakdownPopup {
     pub fn get_coins_text_2(mut price: f64, mut total_price: f64) -> MutableComponent {
         let mut text: MutableComponent = (component::translatable_args("skyblocker.valueBreakdownPopup.coins", vec![mcrust::net::minecraft::network::chat::formatted_text::FormattedText::of(formatters::FLOAT_NUMBERS.get_mut().format(price))])).with_style_format(ChatFormatting::Gold);
         if total_price > (0 as f64) {
-            text.with_style(&mcrust::net::minecraft::network::chat::style::Style::EMPTY.with_hover_event(Some(HoverEvent::new_show_text(mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::translatable_args("skyblocker.valueBreakdownPopup.totalPricePercent", vec![mcrust::net::minecraft::network::chat::formatted_text::FormattedText::of(formatters::FLOAT_NUMBERS.get_mut().format(((price / total_price) * (100 as f64))))]))))));
+            // text.withStyle(..) - MutableComponent.withStyle sets the text's own style
+            text = text.with_style(&mcrust::net::minecraft::network::chat::style::Style::EMPTY.with_hover_event(Some(HoverEvent::new_show_text(mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::translatable_args("skyblocker.valueBreakdownPopup.totalPricePercent", vec![mcrust::net::minecraft::network::chat::formatted_text::FormattedText::of(formatters::FLOAT_NUMBERS.get_mut().format(((price / total_price) * (100 as f64))))]))))));
         }
         return text;
     }
@@ -312,7 +313,7 @@ impl ValueBreakdownPopup {
     /// java: @Override public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a)
     pub fn extract_render_state(__this: &compat::Shared<Self>, graphics: &GuiGraphicsExtractor, mut mouse_x: i32, mut mouse_y: i32, mut a: f32) {
         ();
-        gui_graphics_extractor::centered_text(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), &mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(compat::read(__this, |__t| __t.title.clone())), (compat::read(__this, |__t| __t.width)).wrapping_div(2), 15, mcrust::net::minecraft::util::common_colors::WHITE);
+        gui_graphics_extractor::centered_text(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), &mcrust::net::minecraft::network::chat::formatted_text::FormattedText::of(compat::read(__this, |__t| __t.title.clone())), (compat::read(__this, |__t| __t.width)).wrapping_div(2), 15, mcrust::net::minecraft::util::common_colors::WHITE);
     }
 
 }
@@ -505,16 +506,16 @@ impl dyn LayoutAppender {
             // TODO(fabric2seer): `.count(..)` on a Calculation
             //   java: empty.append(Component.literal(" x").withStyle(ChatFormatting.GRAY)).append(Component.literal(String.valueOf(calc.count())).withStyle(ChatFormatting.YELLOW));
         }
-        empty.append(component::literal(" (").with_style_format(ChatFormatting::Gray));
+        *empty = empty.clone().append(component::literal(" (").with_style_format(ChatFormatting::Gray));
         // TODO(fabric2seer): `.price(..)` on a Calculation
         //   java: empty.append(getCoinsText(calc.price(), totalPrice));
-        empty.append(component::literal(")").with_style_format(ChatFormatting::Gray));
+        *empty = empty.clone().append(component::literal(")").with_style_format(ChatFormatting::Gray));
     }
 
 }
 
 /// java: private record BasicSingleAppender(Component displayName, Function<String, Component> idFormatter, boolean hideIfWorthNothing) implements LayoutAppender
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct BasicSingleAppender {
     /// java: Component displayName
     pub display_name: MutableComponent,
@@ -527,12 +528,13 @@ pub struct BasicSingleAppender {
 impl BasicSingleAppender {
     /// java: private BasicSingleAppender(Component displayName, Function<String, Component> idFormatter)
     pub fn new(mut display_name: MutableComponent, id_formatter: Arc<dyn Fn(String) -> MutableComponent>) -> Self {
-        let mut this = Self::new(display_name.clone(), id_formatter.clone(), true);
+        let mut this = Self::new_3(display_name.clone(), id_formatter.clone(), true);
         this
     }
 
     /// java: the canonical record constructor
-    pub fn new(mut display_name: MutableComponent, mut id_formatter: Arc<dyn Fn(String) -> MutableComponent>, mut hide_if_worth_nothing: bool) -> Self {
+    /// (the canonical record constructor is `new_N` here: Rust has no overloading and `new` is the explicit one)
+    pub fn new_3(mut display_name: MutableComponent, mut id_formatter: Arc<dyn Fn(String) -> MutableComponent>, mut hide_if_worth_nothing: bool) -> Self {
         Self { display_name, id_formatter, hide_if_worth_nothing }
     }
 
@@ -579,12 +581,12 @@ impl BasicSingleAppender {
             return;
         }
         let mut empty: MutableComponent = component::empty();
-        empty.append(self.display_name());
+        empty = empty.append(self.display_name());
         // TODO(fabric2seer): `.id(..)` on a Calculation
         //   java: Component apply = idFormatter.apply(calc.id());
         let mut apply: MutableComponent = todo!("fabric2seer: the initialiser of `apply` (TODO above)");
         if !(compat::is_blank(&apply.get_string())) {
-            empty.append_str(": ").append(apply.clone());
+            empty = empty.append_str(": ").append(apply.clone());
         }
         // TODO(fabric2seer): `.price(..)` on a NetworthResult
         //   java: appendCountAndPrice(calc, networthResult.price(), empty);
@@ -599,7 +601,7 @@ impl BasicSingleAppender {
 }
 
 /// java: private record BasicListAppender(Component displayName, Function<String, Component> idFormatter) implements LayoutAppender
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct BasicListAppender {
     /// java: Component displayName
     pub display_name: MutableComponent,
@@ -648,7 +650,7 @@ impl BasicListAppender {
             // TODO(fabric2seer): `.id(..)` on a Calculation
             //   java: Component apply = idFormatter.apply(calc.id());
             let mut apply: MutableComponent = todo!("fabric2seer: the initialiser of `apply` (TODO above)");
-            empty.append(apply.clone());
+            empty = empty.append(apply.clone());
             // TODO(fabric2seer): `.price(..)` on a NetworthResult
             //   java: appendCountAndPrice(calc, networthResult.price(), empty);
             // TODO(fabric2seer): `.price(..)` on a Calculation
@@ -664,4 +666,25 @@ impl BasicListAppender {
         compat::read_as::<Self, _, _>(__this, |__s| __s.append_to_impl(__p0, __p1, __p2))
     }
 
+}
+
+/// A lambda as a `LayoutAppender` (the interface's one abstract method, `appendTo`): `EMPTY_APPENDER`.
+pub struct LayoutAppenderLambda(pub Arc<dyn Fn(&crate::unresolved::NetworthResult, &Vec<crate::unresolved::Calculation>, &mut LinearLayout)>);
+
+impl LayoutAppender for LayoutAppenderLambda {
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+
+    /// java: void appendTo(NetworthResult networthResult, List<Calculation> calculations, LinearLayout layout); (the lambda's body)
+    fn append_to(&self) -> fn(&compat::Shared<dyn LayoutAppender>, &crate::unresolved::NetworthResult, &Vec<crate::unresolved::Calculation>, &mut LinearLayout) {
+        LayoutAppenderLambda::append_to_dyn
+    }
+}
+
+impl LayoutAppenderLambda {
+    pub fn append_to_dyn(__this: &compat::Shared<dyn LayoutAppender>, __p0: &crate::unresolved::NetworthResult, __p1: &Vec<crate::unresolved::Calculation>, __p2: &mut LinearLayout) {
+        let __f = compat::read_as::<Self, _, _>(__this, |__s| __s.0.clone());
+        (__f)(__p0, __p1, __p2)
+    }
 }

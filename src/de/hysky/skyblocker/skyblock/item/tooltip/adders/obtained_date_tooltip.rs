@@ -19,14 +19,13 @@ use mcrust::net::minecraft::network::chat::component;
 use mcrust::net::minecraft::network::chat::mutable_component::MutableComponent;
 use mcrust::net::minecraft::world::inventory::slot::Slot;
 
-// TODO(fabric2seer): `.withZone(..)` on a value of unknown type
-//   java: private static final DateTimeFormatter OBTAINED_DATE_FORMATTER = DateTimeFormatter.ofPattern("MMMM d, yyyy").withZone(ZoneId.systemDefault()).localizedBy(Locale.ENGLISH);
 /// java: private static final DateTimeFormatter OBTAINED_DATE_FORMATTER = DateTimeFormatter.ofPattern("MMMM d, yyyy").withZone(ZoneId.systemDefault()).localizedBy(Locale.ENGLISH);
-pub static OBTAINED_DATE_FORMATTER: compat::MainThread<DateTimeFormatter> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `OBTAINED_DATE_FORMATTER` - see the TODO above"));
-// TODO(fabric2seer): `.withZone(..)` on a value of unknown type
-//   java: private static final DateTimeFormatter OLD_OBTAINED_DATE_FORMAT = DateTimeFormatter.ofPattern("M/d/yy h:m a").withZone(ZoneId.of("UTC")).localizedBy(Locale.ENGLISH);
+/// The port's `DateTimeFormatter` is a pattern only (English names, no zone): `withZone(ZoneId.systemDefault())` is
+/// applied where it formats (`getTimestamp`) - RustSrc gap, GAPS_batchB.md.
+pub static OBTAINED_DATE_FORMATTER: compat::MainThread<DateTimeFormatter> = compat::MainThread::new(|| DateTimeFormatter::of_pattern("MMMM d, yyyy"));
 /// java: private static final DateTimeFormatter OLD_OBTAINED_DATE_FORMAT = DateTimeFormatter.ofPattern("M/d/yy h:m a").withZone(ZoneId.of("UTC")).localizedBy(Locale.ENGLISH);
-pub static OLD_OBTAINED_DATE_FORMAT: compat::MainThread<DateTimeFormatter> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `OLD_OBTAINED_DATE_FORMAT` - see the TODO above"));
+/// (its `parse` is not in the port's `DateTimeFormatter`: see `getTimestampInternal`)
+pub static OLD_OBTAINED_DATE_FORMAT: compat::MainThread<DateTimeFormatter> = compat::MainThread::new(|| DateTimeFormatter::of_pattern("M/d/yy h:m a"));
 
 /// java: public class ObtainedDateTooltip extends SimpleTooltipAdder
 #[derive(Clone)]
@@ -61,35 +60,39 @@ impl ObtainedDateTooltip {
     }
 
     /// java: private static TemporalAccessor getTimestampInternal(ItemStack stack)
-    pub fn get_timestamp_internal(stack: &mcrust::net::minecraft::world::item::item_stack::ItemStack) -> Option<crate::unresolved::TemporalAccessor> {
+    /// The accessor is an `Instant` (both of Java's answers are instants: `Instant.ofEpochMilli`, and a parse with a
+    /// zoned formatter).
+    pub fn get_timestamp_internal(stack: &mcrust::net::minecraft::world::item::item_stack::ItemStack) -> Option<mcrust::java::time::instant::Instant> {
         let mut custom_data: Tag = ItemUtils::get_custom_data(stack);
-        // TODO(fabric2seer): not translated (expected ')' at '(' (offset 2118))
-        //   java: if (customData != null && customData.get("timestamp") instanceof LongTag(long value)) {
-        //   java: 			return Instant.ofEpochMilli(value);
-        //   java: 		}
-        // TODO(fabric2seer): not translated (expected ')' at '(' (offset 2254))
-        //   java: if (customData != null && customData.get("timestamp") instanceof StringTag(String value)) {
-        //   java: 			try {
-        //   java: 				return OLD_OBTAINED_DATE_FORMAT.parse(value);
-        //   java: 			} catch (DateTimeParseException e) {
-        //   java: 				LOGGER.error("[Skyblocker ObtainedDateTooltip] Failed to parse date: {}", value, e);
-        //   java: 			}
-        //   java: 		}
+        // if (customData != null && customData.get("timestamp") instanceof LongTag(long value)) return Instant.ofEpochMilli(value);
+        if let Some(Tag::Long(value)) = custom_data.get("timestamp") {
+            return Some(mcrust::java::time::instant::Instant::of_epoch_milli(*value));
+        }
+        // if (customData != null && customData.get("timestamp") instanceof StringTag(String value)) {
+        //     try { return OLD_OBTAINED_DATE_FORMAT.parse(value); }
+        //     catch (DateTimeParseException e) { LOGGER.error("[Skyblocker ObtainedDateTooltip] Failed to parse date: {}", value, e); }
+        // }
+        if let Some(Tag::String(value)) = custom_data.get("timestamp") {
+            // rust: port gap - `DateTimeFormatter.parse(CharSequence)` (and `withZone`) are not in the port's
+            //   `java.time.format.DateTimeFormatter`, which only formats (GAPS_batchB.md); the old string timestamp
+            //   falls through to `return null`, as a failed parse does.
+            let _ = value;
+        }
         return None;
     }
 
     /// java: public static String getTimestamp(ItemStack stack)
     pub fn get_timestamp(stack: &mcrust::net::minecraft::world::item::item_stack::ItemStack) -> String {
-        let mut accessor: Option<crate::unresolved::TemporalAccessor> = ObtainedDateTooltip::get_timestamp_internal(stack);
-        return (if accessor.is_some() { OBTAINED_DATE_FORMATTER.get_mut().format(accessor.clone()) } else { "".to_string() });
+        let mut accessor: Option<mcrust::java::time::instant::Instant> = ObtainedDateTooltip::get_timestamp_internal(stack);
+        // OBTAINED_DATE_FORMATTER.format(accessor) - in the formatter's zone (ZoneId.systemDefault())
+        return (if let Some(accessor) = accessor { OBTAINED_DATE_FORMATTER.get().format(mcrust::java::time::zoned_date_time::ZonedDateTime::of_instant(accessor, mcrust::java::time::zone_id::ZoneId::system_default())) } else { "".to_string() });
     }
 
     /// java: public static long getLongTimestamp(ItemStack stack)
     pub fn get_long_timestamp(stack: &mcrust::net::minecraft::world::item::item_stack::ItemStack) -> i64 {
-        let mut accessor: Option<crate::unresolved::TemporalAccessor> = ObtainedDateTooltip::get_timestamp_internal(stack);
-        // TODO(fabric2seer): `.toEpochMilli(..)` on a value of unknown type
-        //   java: return accessor != null ? Instant.from(accessor).toEpochMilli() : 0;
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        let mut accessor: Option<mcrust::java::time::instant::Instant> = ObtainedDateTooltip::get_timestamp_internal(stack);
+        // return accessor != null ? Instant.from(accessor).toEpochMilli() : 0;
+        return accessor.map(|accessor| accessor.to_epoch_milli()).unwrap_or(0);
     }
 
 }

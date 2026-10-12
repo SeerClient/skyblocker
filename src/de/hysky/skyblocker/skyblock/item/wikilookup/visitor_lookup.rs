@@ -60,21 +60,23 @@ impl VisitorLookup {
 
     /// java: @Override public boolean canSearch(@Nullable String title, Either<Slot, ItemStack> either)
     pub fn can_search_impl(__this: &compat::Shared<Self>, mut title: Option<String>, either: &Either<Slot, mcrust::net::minecraft::world::item::item_stack::ItemStack>) -> bool {
-        let mut optional: Option<Slot> = either.left_value().unwrap();
+        // Optional<Slot> optional = either.left();
+        let mut optional: Option<&Slot> = match either {
+            Either::Left(slot) => Some(slot),
+            Either::Right(_) => None,
+        };
         if optional.is_none() {
             return false;
         }
-        let mut slot: Slot = optional.clone().unwrap();
+        let mut slot: &Slot = optional.unwrap();
         if slot.index <= 9 || slot.index >= 44 {
             return false;
         }
-        // TODO(fabric2seer): `get_item` takes 1 argument(s) in the port (`containers: &'a Containers<'_>`), Java passes 0
-        if slot.get_item().is_item(mcrust::net::minecraft::world::item::items::stained_glass_pane().black()) {
+        if compat::slot_item(slot).is_item(mcrust::net::minecraft::world::item::items::stained_glass_pane().black()) {
             return false;
         }
-        // TODO(fabric2seer): static call StringUtils.isNotEmpty(..)
-        //   java: return StringUtils.isNotEmpty(title) && VISITORS_LOGBOOK_PATTERN.matcher(title).matches();
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        // return StringUtils.isNotEmpty(title) && VISITORS_LOGBOOK_PATTERN.matcher(title).matches();
+        return title.as_deref().is_some_and(|title| !title.is_empty() && VISITORS_LOGBOOK_PATTERN.matcher(title).matches());
     }
 
     /// VisitorLookup.canSearch as the dispatch of WikiLookup.canSearch

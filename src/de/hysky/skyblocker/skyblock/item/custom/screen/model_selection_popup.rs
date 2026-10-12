@@ -87,17 +87,17 @@ impl AbstractPopupScreen for ModelSelectionPopup {
 
     /// java: @Override public void extractBackground(GuiGraphicsExtractor context, int mouseX, int mouseY, float delta) (dispatch: the body for this class)
     fn extract_background(&self) -> fn(&compat::Shared<dyn AbstractPopupScreen>, &mut GuiGraphicsExtractor, i32, i32, f32) {
-        <dyn AbstractSelectionPopup>::extract_background_from::<Self>
+        <dyn AbstractSelectionPopup<compat::Shared<Widget>>>::extract_background_from::<Self>
     }
 
     /// java: @Override public void init() (dispatch: the body for this class)
     fn init(&self) -> fn(&compat::Shared<dyn AbstractPopupScreen>) {
-        <dyn AbstractSelectionPopup>::init_from::<Self>
+        <dyn AbstractSelectionPopup<compat::Shared<Widget>>>::init_from::<Self>
     }
 
     /// java: @Override protected void repositionElements() (dispatch: the body for this class)
     fn reposition_elements(&self) -> fn(&compat::Shared<dyn AbstractPopupScreen>) {
-        <dyn AbstractSelectionPopup>::reposition_elements_from::<Self>
+        <dyn AbstractSelectionPopup<compat::Shared<Widget>>>::reposition_elements_from::<Self>
     }
 
 }
@@ -191,7 +191,7 @@ impl Widget {
     /// java: @SuppressWarnings("deprecation") public Widget(Identifier identifier)
     pub fn new(mut identifier: Identifier) -> compat::Shared<Self> {
         let __init_value = identifier.clone();
-        let __init_icon = mcrust::net::minecraft::world::item::item_stack::ItemStack::with_patch(items::items().get("cat_spawn_egg").built_in_registry_holder(), 1, &(data_component_patch::builder().set(mcrust::net::minecraft::core::component::data_components::item_model().clone(), identifier.clone())).build());
+        let __init_icon = mcrust::net::minecraft::world::item::item_stack::ItemStack::with_patch(/* Items.CAT_SPAWN_EGG.builtInRegistryHolder(): the holder's item */ items::items().get("cat_spawn_egg"), 1, &(data_component_patch::builder().set(mcrust::net::minecraft::core::component::data_components::item_model().clone(), mcrust::com::mojang::serialization::obj(identifier.clone()))).build());
         // TODO(fabric2seer): `fmt` takes 1 argument(s) in the port (`f: &mut fmt::Formatter<'_>`), Java passes 0
         //   java: super(0, 0, 20, 20, Component.literal(identifier.toString()));
         let __this: compat::Shared<Self> = todo!("constructor");

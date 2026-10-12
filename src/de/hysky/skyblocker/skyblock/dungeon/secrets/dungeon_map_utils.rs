@@ -45,7 +45,7 @@ impl DungeonMapUtils {
         if x < 0 || z < 0 || x >= 128 || z >= 128 {
             return (-1) as i8;
         }
-        return map.colors[(x.wrapping_add(z.wrapping_shl((7) as u32))) as usize];
+        return map.colors[(x.wrapping_add(z.wrapping_shl((7) as u32))) as usize] as i8;
     }
 
     /// java: public static boolean isEntranceColor(MapItemSavedData map, int x, int z)
@@ -61,8 +61,8 @@ impl DungeonMapUtils {
     /// java: private static @Nullable Vector2i getMapPlayerPos(MapItemSavedData map)
     pub fn get_map_player_pos(map: &MapItemSavedData) -> Option<Vector2i> {
         for decoration in map.get_decorations() {
-            // TODO(fabric2seer): static `MapDecorationTypes.FRAME` has no Rust counterpart in the port's MapDecorationTypes file
-            if decoration.type_().value() == crate::unresolved::MapDecorationTypes::FRAME.value() {
+            // MapDecorationTypes.FRAME (the registry entry `minecraft:frame`)
+            if decoration.type_().is_identifier(&mcrust::net::minecraft::resources::identifier::Identifier::with_default_namespace("frame")) {
                 return Some(Vector2i::new(((decoration.x() as i32).wrapping_shr((1) as u32)).wrapping_add(64), ((decoration.y() as i32).wrapping_shr((1) as u32)).wrapping_add(64)));
             }
         }
@@ -131,19 +131,24 @@ impl DungeonMapUtils {
             return None;
         };
         let mut offset: Vector2i = Vector2i::new(map_entrance_pos.x().wrapping_rem(map_room_size_with_gap), map_entrance_pos.y().wrapping_rem(map_room_size_with_gap));
-        return Some((map_pos.add(2, 2)).sub_vector(&offset).sub(compat::floor_mod_i32(map_pos.x(), map_room_size_with_gap), compat::floor_mod_i32(map_pos.y(), map_room_size_with_gap)).add_vector(&offset).clone());
+        // Java evaluates the receiver chain `mapPos.add(2, 2).sub(offset)` before the arguments of the next
+        // `sub`, which read the SAME (already moved) vector.
+        map_pos.add(2, 2).sub_vector(&offset);
+        let (floor_x, floor_y) = (compat::floor_mod_i32(map_pos.x(), map_room_size_with_gap), compat::floor_mod_i32(map_pos.y(), map_room_size_with_gap));
+        return Some(map_pos.sub(floor_x, floor_y).add_vector(&offset).clone());
     }
 
     /// java: public static Vector2ic getMapPosFromPhysical(Vector2ic physicalEntrancePos, Vector2ic mapEntrancePos, int mapRoomSize, Vector2ic physicalPos)
     pub fn get_map_pos_from_physical(physical_entrance_pos: &Vector2i, mut map_entrance_pos: Vector2i, mut map_room_size: i32, physical_pos: &Vector2i) -> Vector2i {
-        return ((Vector2i::new_from(physical_pos).sub_vector(physical_entrance_pos).div(((32) as f32) as f32)).mul_scalar(map_room_size.wrapping_add(4))).add_vector(&map_entrance_pos).clone();
+        return ((Vector2i::new_from(physical_pos).sub_vector(physical_entrance_pos).div(32)).mul_scalar(map_room_size.wrapping_add(4))).add_vector(&map_entrance_pos).clone();
     }
 
     /// java: public static Vector2dc getMapPosFromPhysical(Vector2ic physicalEntrancePos, Vector2ic mapEntrancePos, int mapRoomSize, Position physicalPos)
     pub fn get_map_pos_from_physical_vector2ic_vector2ic_int_position(physical_entrance_pos: &Vector2i, map_entrance_pos: &Vector2i, mut map_room_size: i32, physical_pos: &dyn Position) -> crate::unresolved::Vector2dc {
-        // TODO(fabric2seer): `new Vector2d(..)`
-        //   java: return new Vector2d(physicalPos.x(), physicalPos.z()).sub(physicalEntrancePos.x(), physicalEntrancePos.y()).div(32).mul(mapRoomSize + 4).add(mapEntrancePos.x(), mapEntrancePos.y());
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        // java: return new Vector2d(physicalPos.x(), physicalPos.z()).sub(physicalEntrancePos.x(), physicalEntrancePos.y()).div(32).mul(mapRoomSize + 4).add(mapEntrancePos.x(), mapEntrancePos.y());
+        let mut v = crate::unresolved::Vector2d::new(physical_pos.x(), physical_pos.z());
+        v.sub(physical_entrance_pos.x() as f64, physical_entrance_pos.y() as f64).div(32.0).mul(map_room_size.wrapping_add(4) as f64).add(map_entrance_pos.x() as f64, map_entrance_pos.y() as f64);
+        v
     }
 
     /// java: public static Vector2i getMapPosForNWMostRoom(Vector2ic mapEntrancePos, int mapRoomSize)
@@ -172,26 +177,26 @@ impl DungeonMapUtils {
     /// java: public static Vector2ic[] getPhysicalPosFromMap(Vector2ic mapEntrancePos, int mapRoomSize, Vector2ic physicalEntrancePos, Vector2ic... mapPositions)
     pub fn get_physical_pos_from_map(map_entrance_pos: &Vector2i, mut map_room_size: i32, physical_entrance_pos: &Vector2i, map_positions: &mut Vec<Vector2i>) -> Vec<Vector2i> {
         for i in 0..(map_positions.len() as i32) {
-            map_positions[(i) as usize] = DungeonMapUtils::get_physical_pos_from_map(map_entrance_pos, map_room_size, physical_entrance_pos, vec![map_positions[(i) as usize].clone()]);
+            map_positions[(i) as usize] = DungeonMapUtils::get_physical_pos_from_map_vector2ic_int_vector2ic_vector2ic(map_entrance_pos, map_room_size, physical_entrance_pos.clone(), &map_positions[(i) as usize]);
         }
         return map_positions.clone();
     }
 
     /// java: public static Vector2ic getPhysicalPosFromMap(Vector2ic mapEntrancePos, int mapRoomSize, Vector2ic physicalEntrancePos, Vector2ic mapPos)
     pub fn get_physical_pos_from_map_vector2ic_int_vector2ic_vector2ic(map_entrance_pos: &Vector2i, mut map_room_size: i32, mut physical_entrance_pos: Vector2i, map_pos: &Vector2i) -> Vector2i {
-        return ((Vector2i::new_from(map_pos).sub_vector(map_entrance_pos).div(((map_room_size.wrapping_add(4)) as f32) as f32)).mul_scalar(32)).add_vector(&physical_entrance_pos).clone();
+        return ((Vector2i::new_from(map_pos).sub_vector(map_entrance_pos).div(map_room_size.wrapping_add(4))).mul_scalar(32)).add_vector(&physical_entrance_pos).clone();
     }
 
     /// java: public static Vector2ic getPhysicalCornerPos(Room.Direction direction, IntSortedSet segmentsX, IntSortedSet segmentsY)
-    pub fn get_physical_corner_pos(mut direction: Direction, segments_x: &crate::unresolved::IntSortedSet, segments_y: &crate::unresolved::IntSortedSet) -> Vector2i {
-        // TODO(fabric2seer): `.firstInt(..)` on a IntSortedSet
-        //   java: return switch (direction) {
-        //   java: 			case NW -> new Vector2i(segmentsX.firstInt(), segmentsY.firstInt());
-        //   java: 			case NE -> new Vector2i(segmentsX.lastInt() + 30, segmentsY.firstInt());
-        //   java: 			case SW -> new Vector2i(segmentsX.firstInt(), segmentsY.lastInt() + 30);
-        //   java: 			case SE -> new Vector2i(segmentsX.lastInt() + 30, segmentsY.lastInt() + 30);
-        //   java: 		};
-        todo!("fabric2seer: the value of this function is in a TODO above")
+    pub fn get_physical_corner_pos(mut direction: Direction, segments_x: &std::collections::BTreeSet<i32>, segments_y: &std::collections::BTreeSet<i32>) -> Vector2i {
+        let (first_x, last_x) = (*segments_x.first().unwrap(), *segments_x.last().unwrap());
+        let (first_y, last_y) = (*segments_y.first().unwrap(), *segments_y.last().unwrap());
+        return match direction {
+            Direction::Nw => Vector2i::new(first_x, first_y),
+            Direction::Ne => Vector2i::new(last_x.wrapping_add(30), first_y),
+            Direction::Sw => Vector2i::new(first_x, last_y.wrapping_add(30)),
+            Direction::Se => Vector2i::new(last_x.wrapping_add(30), last_y.wrapping_add(30)),
+        };
     }
 
     /// java: public static BlockPos actualToRelative(Room.Direction direction, Vector2ic physicalCornerPos, BlockPos pos)
@@ -245,17 +250,17 @@ impl DungeonMapUtils {
 
     /// java: public static @Nullable Type getRoomType(MapItemSavedData map, Vector2ic mapPos)
     pub fn get_room_type(map: &MapItemSavedData, map_pos: &Vector2i) -> Option<Type> {
-        return Some(match DungeonMapUtils::get_color(map, Some(map_pos.clone())) {
-            GREEN_COLOR => Type::Entrance,
-            63 => Type::Room,
-            66 => Type::Puzzle,
-            62 => Type::Trap,
-            74 => Type::Miniboss,
-            82 => Type::Fairy,
-            18 => Type::Blood,
-            85 => Type::Unknown,
+        return match DungeonMapUtils::get_color(map, Some(map_pos.clone())) {
+            GREEN_COLOR => Some(Type::Entrance),
+            63 => Some(Type::Room),
+            66 => Some(Type::Puzzle),
+            62 => Some(Type::Trap),
+            74 => Some(Type::Miniboss),
+            82 => Some(Type::Fairy),
+            18 => Some(Type::Blood),
+            85 => Some(Type::Unknown),
             _ => None,
-        });
+        };
     }
 
     /// java: public static Vector2ic[] getRoomSegments(MapItemSavedData map, Vector2ic mapPos, int mapRoomSize, byte color)

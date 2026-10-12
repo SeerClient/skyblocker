@@ -112,17 +112,14 @@ impl CreeperBeams {
         for i in 0..(targets.len() as i32) {
             for j in i.wrapping_add(1)..(targets.len() as i32) {
                 let mut beam: Beam = Beam::new(targets[(i) as usize].clone(), targets[(j) as usize].clone());
-                // TODO(fabric2seer): static call Intersectiond.distancePointLine(..)
-                //   java: double dist = Intersectiond.distancePointLine(
-                //   java: 						creeperPos.x, creeperPos.y, creeperPos.z,
-                //   java: 						beam.line[0].x, beam.line[0].y, beam.line[0].z,
-                //   java: 						beam.line[1].x, beam.line[1].y, beam.line[1].z);
-                let mut dist: f64 = todo!("fabric2seer: the initialiser of `dist` (TODO above)");
+                // java: double dist = Intersectiond.distancePointLine(creeperPos.x, creeperPos.y, creeperPos.z,
+                //   beam.line[0].x, beam.line[0].y, beam.line[0].z, beam.line[1].x, beam.line[1].y, beam.line[1].z);
+                let mut dist: f64 = distance_point_line(creeper_pos.x, creeper_pos.y, creeper_pos.z, beam.line[0].x, beam.line[0].y, beam.line[0].z, beam.line[1].x, beam.line[1].y, beam.line[1].z);
                 all_lines.push((beam.clone(), dist));
             }
         }
         let mut result: Vec<Beam> = Vec::new();
-        all_lines.sort_by(|a, b| { let key = |__a0| __a0.1; key(a).total_cmp(&key(b)) });
+        all_lines.sort_by(|a, b| { let key = |__a0: &(Beam, f64)| __a0.1; key(a).total_cmp(&key(b)) });
         while (result.len() as i32) < 5 && !all_lines.is_empty() {
             let solution = &all_lines[0].0;
             result.push(solution.clone());
@@ -207,7 +204,7 @@ impl CreeperBeams {
             let mut targets: Vec<BlockPos> = CreeperBeams::find_targets(&mcrust::mcrust::modding::game::level().unwrap(), BASE.get_mut().as_ref().unwrap());
             *BEAMS.get_mut() = CreeperBeams::find_lines(&creeper_pos, &targets);
         }
-        for b in BEAMS.get_mut().iter() {
+        for b in BEAMS.get_mut().iter_mut() {
             b.update_state(&mcrust::mcrust::modding::game::level().unwrap());
         }
         if !(CreeperBeams::is_target(&mcrust::mcrust::modding::game::level().unwrap(), BASE.get_mut().as_ref().unwrap())) {
@@ -274,7 +271,8 @@ impl Beam {
         let mut this = Self {
             block_one: __init_block_one,
             block_two: __init_block_two,
-            line: (0..(2) as usize).map(|_| Default::default()).collect::<Vec<_>>(),
+            // new Vec3[2], both set below
+            line: vec![Vec3::new(((a.get_x() as f64) + 0.5), ((a.get_y() as f64) + 0.5), ((a.get_z() as f64) + 0.5)), Vec3::new(((b.get_x() as f64) + 0.5), ((b.get_y() as f64) + 0.5), ((b.get_z() as f64) + 0.5))],
             outline_one: None,
             outline_two: None,
             to_do: true,
@@ -309,4 +307,19 @@ impl Beam {
         }
     }
 
+}
+
+/// `org.joml.Intersectiond.distancePointLine(pX, pY, pZ, x0, y0, z0, x1, y1, z1)` (JOML 1.10.8; a library the
+/// game crate does not carry): the distance of the point from the line through the two points.
+fn distance_point_line(p_x: f64, p_y: f64, p_z: f64, x0: f64, y0: f64, z0: f64, x1: f64, y1: f64, z1: f64) -> f64 {
+    let d21x = x1 - x0;
+    let d21y = y1 - y0;
+    let d21z = z1 - z0;
+    let d10x = x0 - p_x;
+    let d10y = y0 - p_y;
+    let d10z = z0 - p_z;
+    let cross_x = d21y * d10z - d21z * d10y;
+    let cross_y = d21z * d10x - d21x * d10z;
+    let cross_z = d21x * d10y - d21y * d10x;
+    ((cross_x * cross_x + cross_y * cross_y + cross_z * cross_z) / (d21x * d21x + d21y * d21y + d21z * d21z)).sqrt()
 }

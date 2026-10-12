@@ -25,7 +25,7 @@ pub static ESSENCE_PATTERN: LazyLock<compat::regex::Pattern> = LazyLock::new(|| 
 /// java: private static final String[] ESSENCE_TYPES = {"WITHER", "SPIDER", "UNDEAD", "DRAGON", "GOLD", "DIAMOND", "ICE", "CRIMSON", "FOREST", "FOSSIL", "SAFARI"};
 pub static ESSENCE_TYPES: LazyLock<Vec<String>> = LazyLock::new(|| vec!["WITHER".to_string(), "SPIDER".to_string(), "UNDEAD".to_string(), "DRAGON".to_string(), "GOLD".to_string(), "DIAMOND".to_string(), "ICE".to_string(), "CRIMSON".to_string(), "FOREST".to_string(), "FOSSIL".to_string(), "SAFARI".to_string()]);
 /// java: private static final Object2LongArrayMap<String> ESSENCE_PRICES = new Object2LongArrayMap<>(ESSENCE_TYPES, new long[ESSENCE_TYPES.length]);
-pub static ESSENCE_PRICES: LazyLock<Mutex<std::collections::HashMap<String, i64>>> = LazyLock::new(|| Mutex::new(ESSENCE_TYPES.clone()));
+pub static ESSENCE_PRICES: LazyLock<Mutex<std::collections::HashMap<String, i64>>> = LazyLock::new(|| Mutex::new(ESSENCE_TYPES.iter().map(|essence_type| (essence_type.clone(), 0i64)).collect()));
 
 /// java: public class EssenceShopPrice extends SimpleTooltipAdder
 #[derive(Clone)]

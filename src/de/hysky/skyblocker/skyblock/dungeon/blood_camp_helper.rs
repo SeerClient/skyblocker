@@ -25,11 +25,15 @@ pub static BOX_COLOR: LazyLock<Vec<f32>> = LazyLock::new(|| vec![1.0f32, 0.0f32,
 /// java: private static final float[] LINE_COLOR = {1f, 1f, 0f};
 pub static LINE_COLOR: LazyLock<Vec<f32>> = LazyLock::new(|| vec![1.0f32, 1.0f32, 0.0f32]);
 /// java: private static final Set<Zombie> WATCHERS = new HashSet<>();
-pub static WATCHERS: compat::MainThread<std::collections::HashSet<Zombie>> = compat::MainThread::new(|| std::collections::HashSet::new());
+/// Java holds the live `Zombie`; the port's entities live in the level, so the set holds each one's id
+/// (identity in the level) and every read goes through `game::with_entity`.
+pub static WATCHERS: compat::MainThread<std::collections::HashSet<i32>> = compat::MainThread::new(|| std::collections::HashSet::new());
 /// java: private static final Map<ArmorStand, TrackedMob> MOBS = new HashMap<>();
-pub static MOBS: compat::MainThread<std::collections::HashMap<ArmorStand, TrackedMob>> = compat::MainThread::new(|| std::collections::HashMap::new());
+/// Keyed by the armor stand's entity id (see `WATCHERS`).
+pub static MOBS: compat::MainThread<std::collections::HashMap<i32, TrackedMob>> = compat::MainThread::new(|| std::collections::HashMap::new());
 /// java: private static final Object2IntMap<Zombie> PENDING_WATCHERS = new Object2IntOpenHashMap<>();
-pub static PENDING_WATCHERS: compat::MainThread<std::collections::HashMap<Zombie, i32>> = compat::MainThread::new(|| std::collections::HashMap::new());
+/// Keyed by the zombie's entity id (see `WATCHERS`).
+pub static PENDING_WATCHERS: compat::MainThread<std::collections::HashMap<i32, i32>> = compat::MainThread::new(|| std::collections::HashMap::new());
 /// java: private static int mobsPredicted = 0;
 pub static MOBS_PREDICTED: LazyLock<Mutex<i32>> = LazyLock::new(|| Mutex::new(0));
 /// java: static final int DELTA_SAMPLES = 5;
@@ -70,9 +74,8 @@ impl BloodCampHelper {
         if !(Utils::is_in_dungeons()) || !(SkyblockerConfigManager::get().dungeons.blood_camp_helper) {
             return;
         }
-        if let Some(zombie) = entity.as_any().unwrap_or(&() as &dyn std::any::Any).downcast_ref::<Zombie>() {
-            // TODO(fabric2seer): the mod keeps the game's `Zombie` (Java holds a reference to the live object); the port's `Zombie` is not a value to copy and the port lends the mod no handle to it
-            // rust: PENDING_WATCHERS.get_mut().insert(zombie.clone(), 1);
+        if entity.as_any().is_some_and(|a| a.is::<Zombie>()) {
+            PENDING_WATCHERS.get_mut().insert(entity.base().get_id(), 1);
         }
     }
 
@@ -81,14 +84,28 @@ impl BloodCampHelper {
         if !(Utils::is_in_dungeons()) || !(SkyblockerConfigManager::get().dungeons.blood_camp_helper) {
             return;
         }
-        if let Some(zombie) = entity.as_any().unwrap_or(&() as &dyn std::any::Any).downcast_ref::<Zombie>() {
-            WATCHERS.get_mut().remove(zombie);
-            PENDING_WATCHERS.get_mut().remove(zombie);
-        } else {
-            if let Some(stand) = entity.as_any().unwrap_or(&() as &dyn std::any::Any).downcast_ref::<ArmorStand>() {
-                MOBS.get_mut().remove(stand);
-            }
+        let id = entity.base().get_id();
+        if entity.as_any().is_some_and(|a| a.is::<Zombie>()) {
+            WATCHERS.get_mut().remove(&id);
+            PENDING_WATCHERS.get_mut().remove(&id);
+        } else if entity.as_any().is_some_and(|a| a.is::<ArmorStand>()) {
+            MOBS.get_mut().remove(&id);
         }
+    }
+
+    /// `entity.isAlive()` of an entity the mod holds by id: an entity no longer in the level was removed
+    /// (`isRemoved()`), so it is not alive.
+    fn is_alive(id: i32) -> bool {
+        mcrust::mcrust::modding::game::with_entity(id, |e| mcrust::net::minecraft::world::entity::entity_selector::is_alive(&*e)).unwrap_or(false)
+    }
+
+    /// `ItemUtils.getHeadTexture(entity.getItemBySlot(EquipmentSlot.HEAD))` when `entity.hasItemInSlot(HEAD)`.
+    fn head_texture(e: &mcrust::net::minecraft::client::multiplayer::client_level::StoredEntity) -> Option<String> {
+        let living = e.as_living_entity()?;
+        if !living.has_item_in_slot(EquipmentSlot::Head) {
+            return None;
+        }
+        Some(ItemUtils::get_head_texture(living.get_item_by_slot(EquipmentSlot::Head)))
     }
 
     /// java: private static void tick()
@@ -97,45 +114,59 @@ impl BloodCampHelper {
             return;
         }
         let mut now: i64 = compat::millis();
-        PENDING_WATCHERS.get_mut().retain(|__k, __v| !(|e| !e.0.base.base.base.base.is_alive())(&(__k.clone(), __v.clone())));
-        // TODO(fabric2seer): Map.replaceAll(..)
-        //   java: PENDING_WATCHERS.replaceAll((_, ticks) -> ticks - 1);
-        PENDING_WATCHERS.get_mut().retain(|__k, __v| !(|e| {
-            if e.1 <= 0 {
-                let zombie = &e.0;
-                if zombie.has_item_in_slot(EquipmentSlot::Head) {
-                    let mut texture: String = ItemUtils::get_head_texture(zombie.get_item_by_slot(EquipmentSlot::Head));
+        PENDING_WATCHERS.get_mut().retain(|id, _| BloodCampHelper::is_alive(*id));
+        // PENDING_WATCHERS.replaceAll((_, ticks) -> ticks - 1);
+        for ticks in PENDING_WATCHERS.get_mut().values_mut() {
+            *ticks -= 1;
+        }
+        let mut new_watchers: Vec<i32> = Vec::new();
+        PENDING_WATCHERS.get_mut().retain(|id, ticks| {
+            if *ticks <= 0 {
+                let texture = mcrust::mcrust::modding::game::with_entity(*id, |zombie| BloodCampHelper::head_texture(zombie)).flatten();
+                if let Some(texture) = texture {
                     if WATCHER_SKINS.contains(&texture) {
-                        // TODO(fabric2seer): the mod keeps the game's `Zombie` (Java holds a reference to the live object); the port's `Zombie` is not a value to copy and the port lends the mod no handle to it
-                        // rust: WATCHERS.get_mut().insert(zombie.clone());
+                        new_watchers.push(*id);
                     }
                 }
-                return true;
+                return false;
             }
-            return false;
-        })(&(__k.clone(), __v.clone())));
-        WATCHERS.get_mut().retain(|watcher| !(!watcher.base.base.base.base.is_alive()));
-        for watcher in WATCHERS.get_mut().iter() {
-            if !watcher.base.base.base.base.is_alive() {
+            true
+        });
+        WATCHERS.get_mut().extend(new_watchers);
+        WATCHERS.get_mut().retain(|watcher| BloodCampHelper::is_alive(*watcher));
+        let watchers: Vec<i32> = WATCHERS.get().iter().copied().collect();
+        for watcher in watchers {
+            let Some(bounds) = mcrust::mcrust::modding::game::with_entity(watcher, |w| {
+                mcrust::net::minecraft::world::entity::entity_selector::is_alive(&*w).then(|| w.base().get_bounding_box().inflate(2.0))
+            })
+            .flatten() else {
                 continue;
-            }
-            // TODO(fabric2seer): `.hasItemInSlot(..)` on a T
-            //   java: var stands = watcher.level().getEntitiesOfClass(
-            //   java: 					ArmorStand.class,
-            //   java: 					watcher.getBoundingBox().inflate(2),
-            //   java: 					stand -> stand.hasItemInSlot(EquipmentSlot.HEAD) && !MOBS.containsKey(stand)
-            //   java: 			);
+            };
+            let Some(level) = mcrust::mcrust::modding::game::level() else {
+                continue;
+            };
+            use mcrust::net::minecraft::world::level::entity_getter::EntityGetter as _;
+            // getEntitiesOfClass(ArmorStand.class, box, stand -> stand.hasItemInSlot(HEAD) && !MOBS.containsKey(stand))
+            let stands = level.get_entities(None, &bounds, &|stand| {
+                stand.as_any().is_some_and(|a| a.is::<ArmorStand>())
+                    && stand.as_living_entity().is_some_and(|l| l.has_item_in_slot(EquipmentSlot::Head))
+                    && !MOBS.get().contains_key(&stand.base().get_id())
+            });
             for stand in stands.iter() {
-                let mut texture: String = ItemUtils::get_head_texture(stand.get_item_by_slot(EquipmentSlot::Head));
+                let (id, texture, position) = {
+                    let guard = mcrust::mcrust::modding::game::lock_entity(&**stand, "blood_camp_helper.rs:BloodCampHelper.tick");
+                    (guard.base().get_id(), BloodCampHelper::head_texture(&*guard).unwrap_or_default(), guard.base().position())
+                };
                 if BLOOD_MOB_SKINS.contains(&texture) {
-                    // TODO(fabric2seer): the mod keeps the game's `ArmorStand` (Java holds a reference to the live object); the port's `ArmorStand` is not a value to copy and the port lends the mod no handle to it
-                    // rust: MOBS.get_mut().insert(stand.clone(), TrackedMob::new(stand.clone()));
+                    MOBS.get_mut().insert(id, TrackedMob::new(id, position));
                 }
             }
         }
-        MOBS.get_mut().retain(|__k, __v| !(|e| !e.0.base.is_alive())(&(__k.clone(), __v.clone())));
-        for mob in MOBS.get_mut().values().cloned() {
-            mob.update(mob.entity.base.base.position(), now);
+        MOBS.get_mut().retain(|id, _| BloodCampHelper::is_alive(*id));
+        for (id, mob) in MOBS.get_mut().iter_mut() {
+            if let Some(position) = mcrust::mcrust::modding::game::with_entity(*id, |e| e.base().position()) {
+                mob.update(position, now);
+            }
         }
     }
 
@@ -144,11 +175,15 @@ impl BloodCampHelper {
         if !(Utils::is_in_dungeons()) || !(SkyblockerConfigManager::get().dungeons.blood_camp_helper) {
             return;
         }
-        for mob in MOBS.get_mut().values().cloned() {
-            if mob.predicted_pos.is_some() {
-                ({ let __f = compat::dispatch(collector, |__t| __t.submit_outlined_box_aabb_float_float_boolean()); __f(collector, &mob.entity.base.base.get_bounding_box().move_by((0.0f32) as f64, (2.0f32) as f64, (0.0f32) as f64), &LINE_COLOR, ((2) as f32) as f32, true) });
-                ({ let __f = compat::dispatch(collector, |__t| __t.submit_lines_from_points()); __f(collector, &vec![mob.entity.base.base.position().add((0.0f32) as f64, (2.0f32) as f64, (0.0f32) as f64), mob.predicted_pos.as_ref().unwrap().add((0.0f32) as f64, (2.0f32) as f64, (0.0f32) as f64)], &LINE_COLOR, 0.5f32, 2.0f32, true) });
-                let mut r#box: AABB = AABB::new((mob.predicted_pos.as_ref().unwrap().x - 0.5), (mob.predicted_pos.as_ref().unwrap().y + (2 as f64)), (mob.predicted_pos.as_ref().unwrap().z - 0.5), (mob.predicted_pos.as_ref().unwrap().x + 0.5), (mob.predicted_pos.as_ref().unwrap().y + (4 as f64)), (mob.predicted_pos.as_ref().unwrap().z + 0.5));
+        let mobs: Vec<(i32, Option<Vec3>)> = MOBS.get().iter().map(|(id, mob)| (*id, mob.predicted_pos.clone())).collect();
+        for (id, predicted_pos) in mobs {
+            if let Some(predicted_pos) = predicted_pos {
+                let Some((bounding_box, position)) = mcrust::mcrust::modding::game::with_entity(id, |e| (e.base().get_bounding_box(), e.base().position())) else {
+                    continue;
+                };
+                ({ let __f = compat::dispatch(collector, |__t| __t.submit_outlined_box_aabb_float_float_boolean()); __f(collector, &bounding_box.move_by((0.0f32) as f64, (2.0f32) as f64, (0.0f32) as f64), &LINE_COLOR, ((2) as f32) as f32, true) });
+                ({ let __f = compat::dispatch(collector, |__t| __t.submit_lines_from_points()); __f(collector, &vec![position.add((0.0f32) as f64, (2.0f32) as f64, (0.0f32) as f64), predicted_pos.add((0.0f32) as f64, (2.0f32) as f64, (0.0f32) as f64)], &LINE_COLOR, 0.5f32, 2.0f32, true) });
+                let mut r#box: AABB = AABB::new((predicted_pos.x - 0.5), (predicted_pos.y + (2 as f64)), (predicted_pos.z - 0.5), (predicted_pos.x + 0.5), (predicted_pos.y + (4 as f64)), (predicted_pos.z + 0.5));
                 ({ let __f = compat::dispatch(collector, |__t| __t.submit_outlined_box_aabb_float_float_boolean()); __f(collector, &r#box, &BOX_COLOR, ((5) as f32) as f32, true) });
             }
         }
@@ -167,7 +202,8 @@ impl BloodCampHelper {
 /// java: private static class TrackedMob
 pub struct TrackedMob {
     /// java: final ArmorStand entity;
-    pub entity: ArmorStand,
+    /// The armor stand's entity id (Java's reference to the live object; read through `game::with_entity`).
+    pub entity: i32,
     /// java: final Vec3 startPos;
     pub start_pos: Vec3,
     /// java: long startTime = -1;
@@ -188,12 +224,12 @@ pub struct TrackedMob {
 
 impl TrackedMob {
     /// java: TrackedMob(ArmorStand entity)
-    pub fn new(mut entity: ArmorStand) -> Self {
-        // TODO(fabric2seer): the mod keeps the game's `ArmorStand` (Java holds a reference to the live object); the port's `ArmorStand` is not a value to copy and the port lends the mod no handle to it
-        //   java: this.entity = entity;
-        let __init_start_pos = entity.base.base.position();
+    /// `entity` is the stand's id and `position` its `entity.position()`, read by the caller under the
+    /// entity's lock.
+    pub fn new(entity: i32, position: Vec3) -> Self {
+        let __init_start_pos = position;
         let mut this = Self {
-            entity: todo!("fabric2seer: the field value (TODO above)"),
+            entity,
             start_pos: __init_start_pos,
             start_time: ((-1) as i64) as i64,
             last_pos: None,

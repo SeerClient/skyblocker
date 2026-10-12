@@ -94,9 +94,14 @@ impl WikiLookupManager {
 
     /// java: public static void openWikiLink(String wikiLink, Player player)
     pub fn open_wiki_link(wiki_link: &str, player: &dyn Player) {
-        (CompletableFuture::<()>::run_async(move || (|| { util::open_uri(wiki_link); })(), compat::executor)).exceptionally(|e| {
-            logger().error(&format!("[Skyblocker] Error while retrieving wiki article: {}", wiki_link));
-            script_host::send_feedback(&(constants::PREFIX.get_mut())().append_str("Error while retrieving wiki article, see logs...").to_string());
+        let __uri = wiki_link.to_string();
+        let wiki_link = wiki_link.to_string();
+        (CompletableFuture::<()>::run_async(move || (|| { util::open_uri(&__uri); })(), compat::executor)).exceptionally(move |e| {
+            logger().error(&format!("[Skyblocker] Error while retrieving wiki article: {} {}", wiki_link, e));
+            // player.sendSystemMessage(..) - on the render thread, where the port's chat and PREFIX live
+            mcrust::mcrust::modding::game::execute(|| {
+                script_host::send_feedback(&(constants::PREFIX.get_mut())().append_str("Error while retrieving wiki article, see logs...").to_string());
+            });
             return Default::default(); // java: return null
         });
     }

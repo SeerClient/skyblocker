@@ -43,11 +43,20 @@ pub static EQUIPMENT: compat::MainThread<Vec<mcrust::net::minecraft::world::item
 pub static EQUIPMENT_RIFT: compat::MainThread<Vec<mcrust::net::minecraft::world::item::item_stack::ItemStack>> = compat::MainThread::new(|| (EMPTY_EQUIPMENT.get_mut())());
 /// java: private static final ItemStack[] EQUIPMENT_SAFARI = EMPTY_EQUIPMENT.get();
 pub static EQUIPMENT_SAFARI: compat::MainThread<Vec<mcrust::net::minecraft::world::item::item_stack::ItemStack>> = compat::MainThread::new(|| (EMPTY_EQUIPMENT.get_mut())());
-// TODO(fabric2seer): `.toArray(..)` on a A
-//   java: private static final Codec<ItemStack[]> CODEC = ItemUtils.EMPTY_ALLOWING_ITEMSTACK_CODEC.listOf(4, 12) // min size at 4 for backwards compat
-//   java: 			.xmap(itemStacks -> itemStacks.toArray(ItemStack[]::new), List::of).fieldOf("items").codec();
-/// java: private static final Codec<ItemStack[]> CODEC = ItemUtils.EMPTY_ALLOWING_ITEMSTACK_CODEC.listOf(4, 12) // min size at 4 for backwards compat .xmap(itemStacks -> itemStacks.toArray(ItemStack[]::new), L
-pub static CODEC: compat::MainThread<CodecRef<Vec<mcrust::net::minecraft::world::item::item_stack::ItemStack>>> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `CODEC` - see the TODO above"));
+/// java: private static final Codec<ItemStack[]> CODEC = ItemUtils.EMPTY_ALLOWING_ITEMSTACK_CODEC.listOf(4, 12) // min size at 4 for backwards compat
+///   .xmap(itemStacks -> itemStacks.toArray(ItemStack[]::new), List::of).fieldOf("items").codec();
+/// (the array and the list are the same `Vec` here, so the xmap is the identity both ways; a `LazyLock` because
+/// `load` parses on a worker)
+pub static CODEC: std::sync::LazyLock<CodecRef<Vec<mcrust::net::minecraft::world::item::item_stack::ItemStack>>> = std::sync::LazyLock::new(|| {
+    mcrust::com::mojang::serialization::map_codec::codec(codec::field_of(
+        codec::xmap(
+            codec::list_sized(crate::de::hysky::skyblocker::utils::item_utils::EMPTY_ALLOWING_ITEMSTACK_CODEC.get().clone(), 4, 12),
+            |item_stacks: Vec<mcrust::net::minecraft::world::item::item_stack::ItemStack>| item_stacks,
+            |item_stacks: &Vec<mcrust::net::minecraft::world::item::item_stack::ItemStack>| item_stacks.clone(),
+        ),
+        "items",
+    ))
+});
 /// java: private static final Identifier SLOT_TEXTURE = Identifier.withDefaultNamespace("container/slot");
 pub static SLOT_TEXTURE: compat::MainThread<Identifier> = compat::MainThread::new(|| Identifier::with_default_namespace("container/slot"));
 /// java: private static final Identifier EMPTY_NECKLACE = SkyblockerMod.id("equipment/empty_necklace");
@@ -61,14 +70,15 @@ pub static EMPTY_HAND: compat::MainThread<Identifier> = compat::MainThread::new(
 /// java: private static final Path FOLDER = SkyblockerMod.CONFIG_DIR.resolve("equipment");
 pub static FOLDER: compat::MainThread<std::path::PathBuf> = compat::MainThread::new(|| skyblocker_mod::CONFIG_DIR.get_mut().join("equipment"));
 /// java: public static final FallbackedTexture<Identifier> BACKGROUND = FallbackedTexture.ofTexture( SkyblockerMod.id("textures/gui/container/skyblock_inventory.png"), INVENTORY_LOCATION);
-pub static BACKGROUND: compat::MainThread<compat::Shared<dyn FallbackedTexture<Identifier>>> = compat::MainThread::new(|| fallbacked_texture::of_texture(&crate::entry::skyblocker_mod::id("textures/gui/container/skyblock_inventory.png"), &INVENTORY_LOCATION));
+pub static BACKGROUND: compat::MainThread<compat::Shared<dyn FallbackedTexture<Identifier>>> = compat::MainThread::new(|| fallbacked_texture::of_texture(&crate::entry::skyblocker_mod::id("textures/gui/container/skyblock_inventory.png"), &abstract_container_screen::inventory_location()));
 
 /// java: @SuppressWarnings("JavadocReference") public class SkyblockInventoryScreen extends InventoryScreen implements HoveredItemStackProvider
 pub struct SkyblockInventoryScreen {
     /// java: extends net.minecraft.client.gui.screens.inventory.InventoryScreen
     pub base: InventoryScreen,
     /// java: private final Slot[] equipmentSlots = new Slot[4];
-    pub equipment_slots: Vec<Slot>,
+    /// (`None` is the array's null before the constructor's loop fills it)
+    pub equipment_slots: Vec<Option<Slot>>,
     /// java: private @Nullable ItemStack hoveredItem;
     pub hovered_item: Option<mcrust::net::minecraft::world::item::item_stack::ItemStack>,
 }
@@ -92,12 +102,16 @@ impl SkyblockInventoryScreen {
         let mut inventory: SimpleContainer = SimpleContainer::of(SkyblockInventoryScreen::get_current_equipment_set());
         let mut textures: Vec<Identifier> = vec![EMPTY_NECKLACE.get_mut().clone(), EMPTY_CLOAK.get_mut().clone(), EMPTY_BELT.get_mut().clone(), EMPTY_HAND.get_mut().clone()];
         let __this = compat::shared(Self {
-            base: InventoryScreen::new(&player),
-            equipment_slots: (0..(4) as usize).map(|_| Default::default()).collect::<Vec<_>>(),
+            // super(player): the port's InventoryScreen takes the two translated captions; the menu it reads is the
+            // player's `inventoryMenu`, which the game lends per call
+            base: InventoryScreen::new(&|key| compat::minecraft().label(key)),
+            equipment_slots: vec![None, None, None, None],
             hovered_item: None,
         });
         for i in 0..4 {
-            // TODO(fabric2seer): the mod keeps the game's `SimpleContainer` (Java holds a reference to the live object); the port's `SimpleContainer` is not a value to copy and the port lends the mod no handle to it
+            // rust: port gap - `new Slot(inventory, ..)` over a mod-owned `SimpleContainer`: the port's `Slot.container`
+            //   is a `SlotContainer` tag naming one of the game's own containers, and it has no tag for a container a mod
+            //   builds (GAPS_batchB.md). The slots stay null until it has one.
             // rust: __this.lock().borrow_mut().equipment_slots[(i) as usize] = compat::slot_with_class(EquipmentSlot::new(inventory.clone(), i, 77, 8i32.wrapping_add(i.wrapping_mul(18)), textures[(i) as usize].clone()));
         }
         __this
@@ -115,7 +129,7 @@ impl SkyblockInventoryScreen {
         let mut resolve: std::path::PathBuf = FOLDER.get_mut().join(&format!("{}.nbt", profile_id));
         // java: try {..} catch (Exception e) - an exception here is a panic, caught by `catch_unwind`
         let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            let mut combined: Vec<mcrust::net::minecraft::world::item::item_stack::ItemStack> = vec![EQUIPMENT.get_mut().clone(), EQUIPMENT_RIFT.get_mut().clone(), EQUIPMENT_SAFARI.get_mut().clone()].into_iter().flat_map(|__a0| __a0.iter().cloned()).collect::<Vec<_>>();
+            let mut combined: Vec<mcrust::net::minecraft::world::item::item_stack::ItemStack> = vec![EQUIPMENT.get_mut().clone(), EQUIPMENT_RIFT.get_mut().clone(), EQUIPMENT_SAFARI.get_mut().clone()].into_iter().flatten().collect::<Vec<_>>();
             // TODO(fabric2seer): `new DataOutputStream(..)`
             //   java: NbtIo.writeUnnamedTagWithFallback(CODEC.encodeStart(NbtOps.INSTANCE, combined).getOrThrow(), new DataOutputStream(Files.newOutputStream(resolve)));
         }));
@@ -127,39 +141,42 @@ impl SkyblockInventoryScreen {
     /// java: private static void load(String profileId)
     pub fn load(profile_id: &str) {
         let mut resolve: std::path::PathBuf = FOLDER.get_mut().join(&format!("{}.nbt", profile_id));
-        (CompletableFuture::supply_async(move || Ok((|| {
+        CompletableFuture::supply_async(move || {
             if !resolve.exists() {
-                return (EMPTY_EQUIPMENT.get_mut())();
+                return Ok(vec![mcrust::net::minecraft::world::item::item_stack::empty(), mcrust::net::minecraft::world::item::item_stack::empty(), mcrust::net::minecraft::world::item::item_stack::empty(), mcrust::net::minecraft::world::item::item_stack::empty()]);
             }
-            // java: try {..} catch (NoSuchFileException _) catch (Exception e) - the body runs inline: a Rust body does not throw checked exceptions (a panic in it propagates)
-            {
-                return (CODEC.get_mut().parse(&mcrust::net::minecraft::nbt::nbt_ops::NbtOps::instance(), &nbt_io::read(&resolve).unwrap())).get_or_throw().unwrap();
+            // try { return CODEC.parse(NbtOps.INSTANCE, NbtIo.read(resolve)).getOrThrow(); }
+            let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| -> Result<Vec<mcrust::net::minecraft::world::item::item_stack::ItemStack>, Option<String>> {
+                // catch (NoSuchFileException _) {} - the file went away after the check: nothing logged
+                let bytes = std::fs::read(&resolve).map_err(|e| if e.kind() == std::io::ErrorKind::NotFound { None } else { Some(e.to_string()) })?;
+                let tag = nbt_io::read(&bytes).map_err(Some)?.ok_or_else(|| Some("empty file".to_string()))?;
+                CODEC.parse(&mcrust::net::minecraft::nbt::nbt_ops::NbtOps::instance(), &mcrust::com::mojang::serialization::obj(tag)).get_or_throw().map_err(|e| Some(e.to_string()))
+            }));
+            match outcome {
+                Ok(Ok(item_stacks)) => return Ok(item_stacks),
+                Ok(Err(None)) => {}
+                // catch (Exception e)
+                Ok(Err(Some(e))) => logger().error(&format!("[Skyblocker] Failed to load Equipment data {}", e)),
+                Err(e) => logger().error(&format!("[Skyblocker] Failed to load Equipment data {}", compat::panic_message(&e))),
             }
-            // TODO(fabric2seer): the `catch (NoSuchFileException _)` block is not reached in Rust - the try body returns, breaks or continues, so it cannot run inside `catch_unwind`
-            //   java: {
-            //   java: 			}
-            // TODO(fabric2seer): the `catch (Exception e)` block is not reached in Rust - the try body returns, breaks or continues, so it cannot run inside `catch_unwind`
-            //   java: {
-            //   java: 				LOGGER.error("[Skyblocker] Failed to load Equipment data", e);
-            //   java: 			}
-            return (EMPTY_EQUIPMENT.get_mut())();
-        })()), compat::executor)).then_accept_async(|item_stacks| {
-            // TODO(fabric2seer): field `length` of a value of unknown type
-            //   java: System.arraycopy(itemStacks, 0, EQUIPMENT, 0, Math.min(itemStacks.length, 4));
-            // TODO(fabric2seer): the condition: field `length` of a value of unknown type
-            //   java: itemStacks.length <= 4
-            if todo!("fabric2seer: the condition (TODO above)") {
+            return Ok(vec![mcrust::net::minecraft::world::item::item_stack::empty(), mcrust::net::minecraft::world::item::item_stack::empty(), mcrust::net::minecraft::world::item::item_stack::empty(), mcrust::net::minecraft::world::item::item_stack::empty()]);
+            // Schedule on main thread to avoid any async weirdness
+        }, compat::executor).then_accept_async(|item_stacks: &Vec<mcrust::net::minecraft::world::item::item_stack::ItemStack>| {
+            // System.arraycopy(itemStacks, 0, EQUIPMENT, 0, Math.min(itemStacks.length, 4));
+            let n = item_stacks.len().min(4);
+            EQUIPMENT.get_mut()[..n].clone_from_slice(&item_stacks[..n]);
+            if item_stacks.len() <= 4 {
                 return;
             }
-            // TODO(fabric2seer): field `length` of a value of unknown type
-            //   java: System.arraycopy(itemStacks, 4, EQUIPMENT_RIFT, 0, Math.clamp(itemStacks.length - 4, 0, 4));
-            // TODO(fabric2seer): the condition: field `length` of a value of unknown type
-            //   java: itemStacks.length <= 8
-            if todo!("fabric2seer: the condition (TODO above)") {
+            // System.arraycopy(itemStacks, 4, EQUIPMENT_RIFT, 0, Math.clamp(itemStacks.length - 4, 0, 4));
+            let n = (item_stacks.len() - 4).clamp(0, 4);
+            EQUIPMENT_RIFT.get_mut()[..n].clone_from_slice(&item_stacks[4..4 + n]);
+            if item_stacks.len() <= 8 {
                 return;
             }
-            // TODO(fabric2seer): field `length` of a value of unknown type
-            //   java: System.arraycopy(itemStacks, 8, EQUIPMENT_SAFARI, 0, Math.clamp(itemStacks.length - 8, 0, 4));
+            // System.arraycopy(itemStacks, 8, EQUIPMENT_SAFARI, 0, Math.clamp(itemStacks.length - 8, 0, 4));
+            let n = (item_stacks.len() - 8).clamp(0, 4);
+            EQUIPMENT_SAFARI.get_mut()[..n].clone_from_slice(&item_stacks[8..8 + n]);
         }, std::sync::Arc::new(|__t: Box<dyn FnOnce() + Send>| mcrust::mcrust::modding::game::execute(__t)));
     }
 
@@ -203,9 +220,8 @@ impl SkyblockInventoryScreen {
 
     /// java: @Override public boolean mouseClicked(MouseButtonEvent click, boolean doubled)
     pub fn mouse_clicked(__this: &compat::Shared<Self>, click: &MouseButtonEvent, mut doubled: bool) -> bool {
-        for equipment_slot in compat::read(__this, |__t| __t.equipment_slots.clone()) {
-            // TODO(fabric2seer): `is_hovering` takes 1 argument(s) in the port (`super_says_hovering: bool`), Java passes 6
-            if { let (__q0, __q1, __q2, __q3, __q4, __q5,) = (equipment_slot.x, equipment_slot.y, 16, 16, click.x(), click.y(),); __this.lock().borrow().is_hovering(__q0, __q1, __q2, __q3, __q4, __q5) } {
+        for equipment_slot in compat::read(__this, |__t| __t.equipment_slots.clone()).into_iter().flatten() {
+            if { let (__q0, __q1, __q2, __q3, __q4, __q5,) = (equipment_slot.x, equipment_slot.y, 16, 16, click.x(), click.y(),); compat::read(__this, |__t| __t.container.is_hovering_box(__q0, __q1, __q2, __q3, __q4, __q5)) } {
                 let mut command: String = (if SkyblockerConfigManager::get().ui_and_visuals.skyblock_inventory_screen.open_equipment_to_stats_page || Utils::is_in_the_rift() || Utils::is_in_safari() { "/stats" } else { "/equipment" }).to_string();
                 MessageScheduler::send_message_after_cooldown(message_scheduler::INSTANCE.get_mut(), &command, true);
                 return true;
@@ -220,7 +236,7 @@ impl SkyblockInventoryScreen {
     pub fn extract_slots(__this: &compat::Shared<Self>, graphics: &GuiGraphicsExtractor, mut mouse_x: i32, mut mouse_y: i32) {
         // TODO(fabric2seer): `extract_slots` takes 7 argument(s) in the port (`recipe_book_component: &RecipeBookComponent, is_bigger_result_slot: bool, gl: &crate::lwjgl::opengl::Gl, gfx: &Minecraft, slot_position: &dyn Fn(usize) -> (i32, i32), resolver: Option< &crate::net::minecraft::client::renderer::item::item_mo ..`), Java passes 3
         // rust: AbstractRecipeBookScreen::extract_slots(graphics, mouse_x, &mouse_y);
-        for equipment_slot in compat::read(__this, |__t| __t.equipment_slots.clone()) {
+        for equipment_slot in compat::read(__this, |__t| __t.equipment_slots.clone()).into_iter().flatten() {
             // TODO(fabric2seer): `is_hovering` takes 1 argument(s) in the port (`super_says_hovering: bool`), Java passes 6
             // rust: let mut hovered: bool = (compat::read(__this, |__t| __t.container.hovered_slot.clone()).is_none() && { let (__q0, __q1, __q2, __q3, __q4, __q5,) = (equipment_slot.x, equipment_slot.y, 16, 16, (mouse_x) as f64, (mouse_y) as f64,); __this.lock().borrow().is_hovering(__q0, __q1, __q2, __q3, __q4, __q5) });
             let mut hovered: bool = todo!("fabric2seer: the initialiser of `hovered` (TODO above)");
@@ -248,13 +264,9 @@ impl SkyblockInventoryScreen {
         if todo!("fabric2seer: the condition (TODO above)") {
             return;
         }
-        for equipment_slot in compat::read(__this, |__t| __t.equipment_slots.clone()) {
-            // TODO(fabric2seer): `is_hovering` takes 1 argument(s) in the port (`super_says_hovering: bool`), Java passes 6
-            // TODO(fabric2seer): `has_item` takes 1 argument(s) in the port (`containers: &Containers<'_>`), Java passes 0
-            if { let (__q0, __q1, __q2, __q3, __q4, __q5,) = (equipment_slot.x, equipment_slot.y, 16, 16, (x) as f64, (y) as f64,); __this.lock().borrow().is_hovering(__q0, __q1, __q2, __q3, __q4, __q5) } && equipment_slot.has_item() {
-                // TODO(fabric2seer): `get_item` takes 1 argument(s) in the port (`containers: &'a Containers<'_>`), Java passes 0
-                // rust: let item_stack = equipment_slot.get_item();
-                let mut item_stack: mcrust::net::minecraft::world::item::item_stack::ItemStack = todo!("fabric2seer: the initialiser of `itemStack` (TODO above)");
+        for equipment_slot in compat::read(__this, |__t| __t.equipment_slots.clone()).into_iter().flatten() {
+            if { let (__q0, __q1, __q2, __q3, __q4, __q5,) = (equipment_slot.x, equipment_slot.y, 16, 16, (x) as f64, (y) as f64,); compat::read(__this, |__t| __t.container.is_hovering_box(__q0, __q1, __q2, __q3, __q4, __q5)) } && compat::slot_has_item(&equipment_slot) {
+                let mut item_stack: mcrust::net::minecraft::world::item::item_stack::ItemStack = compat::slot_item(&equipment_slot);
                 // TODO(fabric2seer): `GuiGraphicsExtractor.setTooltipForNextFrame` has no Rust method in the port (looked for `set_tooltip_for_next_frame` in GuiGraphicsExtractor and its supertypes)
                 // rust: graphics.set_tooltip_for_next_frame(&compat::font(), &item_stack, x, y);
                 { let __v = Some(item_stack.clone()); compat::write(__this, |__t| __t.hovered_item = __v); }
@@ -279,7 +291,7 @@ impl SkyblockInventoryScreen {
         if !(BACKGROUND.get_mut().lock().borrow().is_using_fallback()) {
             return;
         }
-        for i in 0..3 {
+        for i in 0..3i32 {
             gui_graphics_extractor::blit_sprite_identifier(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), mcrust::net::minecraft::client::renderer::render_pipelines::gui_textured(), SLOT_TEXTURE.get_mut(), (compat::read(__this, |__t| __t.container.left_pos)).wrapping_add(76), ((compat::read(__this, |__t| __t.container.top_pos)).wrapping_add(7)).wrapping_add(i.wrapping_mul(18)), 18, 18);
         }
         // TODO(fabric2seer): field `slots` of a T
@@ -296,9 +308,8 @@ impl SkyblockInventoryScreen {
             let window = client.get_window();
             let mut mouse_x = mouse_handler::get_scaled_x_pos(window, mouse.xpos());
             let mut mouse_y = mouse_handler::get_scaled_y_pos(window, mouse.ypos());
-            for equipment_slot in compat::read(__this, |__t| __t.equipment_slots.clone()) {
-                // TODO(fabric2seer): `is_hovering` takes 1 argument(s) in the port (`super_says_hovering: bool`), Java passes 6
-                if __this.lock().borrow().is_hovering(equipment_slot.x, equipment_slot.y, 16, 16, mouse_x, mouse_y) {
+            for equipment_slot in compat::read(__this, |__t| __t.equipment_slots.clone()).into_iter().flatten() {
+                if compat::read(__this, |__t| __t.container.is_hovering_box(equipment_slot.x, equipment_slot.y, 16, 16, mouse_x, mouse_y)) {
                     if mcrust::mcrust::modding::game::with_player(|player| WikiLookupManager::handle_wiki_lookup(&Either::left(equipment_slot.clone()), player, input)).unwrap_or(false) {
                         return true;
                     }
@@ -363,10 +374,11 @@ impl std::ops::DerefMut for EquipmentSlot {
 
 impl EquipmentSlot {
     /// java: private EquipmentSlot(Container inventory, int index, int x, int y, Identifier noItemIcon)
-    pub fn new(mut inventory: Box<dyn Container>, mut index: i32, mut x: i32, mut y: i32, mut no_item_icon: Identifier) -> compat::Shared<Self> {
+    /// `inventory` is the port's `Slot.container` (a `SlotContainer` tag; see the gap in the outer constructor).
+    pub fn new(mut inventory: mcrust::net::minecraft::world::inventory::slot::SlotContainer, mut index: i32, mut x: i32, mut y: i32, mut no_item_icon: Identifier) -> compat::Shared<Self> {
         let __init_no_item_icon = no_item_icon.clone();
         let __this = compat::shared(Self {
-            base: Slot::new(inventory.clone(), index, x, y),
+            base: Slot::new(inventory, index, x, y),
             no_item_icon: __init_no_item_icon,
         });
         __this

@@ -121,7 +121,7 @@ impl LineSmoothener {
     pub fn add_to_tooltip_impl(__this: &compat::Shared<Self>, mut focused_slot: Option<Slot>, stack: &mcrust::net::minecraft::world::item::item_stack::ItemStack, lines: &mut Vec<MutableComponent>) {
         for i in 0..(lines.len() as i32) {
             let line_siblings = (lines[(i) as usize]).get_siblings();
-            if (line_siblings.len() as i32) == 1 && line_siblings[0] == BUMPY_LINE.get_mut() {
+            if (line_siblings.len() as i32) == 1 && line_siblings[0] == *BUMPY_LINE.get() {
                 lines[(i) as usize] = LineSmoothener::create_smooth_line();
             }
         }

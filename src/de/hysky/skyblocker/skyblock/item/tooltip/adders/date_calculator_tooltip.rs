@@ -64,11 +64,12 @@ impl DateCalculatorTooltip {
     }
 
     /// java: private static boolean hasAnyGroup(MatchResult result)
-    pub fn has_any_group(result: &crate::unresolved::MatchResult) -> bool {
-        // TODO(fabric2seer): `.namedGroups(..)` on a MatchResult
-        //   java: for (String group : result.namedGroups().keySet()) {
-        //   java: 			if (result.group(group) != null) return true;
-        //   java: 		}
+    pub fn has_any_group(result: &compat::regex::MatchResult) -> bool {
+        for group in result.named_groups() {
+            if result.group_named(&group).is_some() {
+                return true;
+            }
+        }
         return false;
     }
 
@@ -155,7 +156,7 @@ impl DateCalculatorTooltip {
 
     /// java: @Override public void addToTooltip(@Nullable Slot focusedSlot, ItemStack stack, List<Component> lines)
     pub fn add_to_tooltip_impl(__this: &compat::Shared<Self>, mut focused_slot: Option<Slot>, stack: &mcrust::net::minecraft::world::item::item_stack::ItemStack, lines: &mut Vec<MutableComponent>) {
-        if compat::read(__this, |__t| __t.current_timer.clone()).is_none() || focused_slot.is_none() || focused_slot.as_ref().unwrap().container.as_any().is::<Inventory>() {
+        if compat::read(__this, |__t| __t.current_timer.clone()).is_none() || focused_slot.is_none() || focused_slot.as_ref().unwrap().container == mcrust::net::minecraft::world::inventory::slot::SlotContainer::Inventory {
             return;
         }
         {
@@ -166,9 +167,9 @@ impl DateCalculatorTooltip {
                     if !((({ let __r = &compat::read(__this, |__t| __t.current_timer.clone()).unwrap(); let __f = compat::dispatch(__r, |__t| __t.qualifier()); __f(__r) }))(text.clone())) {
                         break 'continue_1;
                     }
-                    let mut instant: Option<std::time::SystemTime> = ({ let __r = &compat::read(__this, |__t| __t.current_timer.clone()).unwrap(); let __f = compat::dispatch(__r, |__t| __t.get_start_time()); __f(__r, stack, &text) });
+                    let mut instant: Option<mcrust::java::time::instant::Instant> = ({ let __r = &compat::read(__this, |__t| __t.current_timer.clone()).unwrap(); let __f = compat::dispatch(__r, |__t| __t.get_start_time()); __f(__r, stack, &text) });
                     if let Some(instant) = &instant {
-                        lines.insert(({ i += 1; i }) as usize, component::literal(&date_time_formatter::format_iso_instant(instant.clone())).with_style_formats(&[ChatFormatting::Italic, ChatFormatting::DarkGray]));
+                        lines.insert(({ i += 1; i }) as usize, component::literal(&formatters::DATE_FORMATTER.get().format(mcrust::java::time::zoned_date_time::ZonedDateTime::of_instant(*instant, formatters::Formatters::get_time_zone()))).with_style_formats(&[ChatFormatting::Italic, ChatFormatting::DarkGray]));
                     }
                 }
                 i += 1;
@@ -195,7 +196,7 @@ pub trait TimeProvider: compat::DynAny {
     }
 
     /// java: @Nullable Instant getStartTime(ItemStack stack, String qualifiedLine); (dispatch: the body for this class)
-    fn get_start_time(&self) -> fn(&compat::Shared<dyn TimeProvider>, &mcrust::net::minecraft::world::item::item_stack::ItemStack, &str) -> Option<std::time::SystemTime>;
+    fn get_start_time(&self) -> fn(&compat::Shared<dyn TimeProvider>, &mcrust::net::minecraft::world::item::item_stack::ItemStack, &str) -> Option<mcrust::java::time::instant::Instant>;
 
 }
 
@@ -232,7 +233,7 @@ impl TimeProvider for Events {
     }
 
     /// java: @Override public @Nullable Instant getStartTime(ItemStack stack, String qualifiedLine) (dispatch: the body for this class)
-    fn get_start_time(&self) -> fn(&compat::Shared<dyn TimeProvider>, &mcrust::net::minecraft::world::item::item_stack::ItemStack, &str) -> Option<std::time::SystemTime> {
+    fn get_start_time(&self) -> fn(&compat::Shared<dyn TimeProvider>, &mcrust::net::minecraft::world::item::item_stack::ItemStack, &str) -> Option<mcrust::java::time::instant::Instant> {
         Events::get_start_time_dyn
     }
 
@@ -250,23 +251,26 @@ impl Events {
     }
 
     /// java: @Override public @Nullable Instant getStartTime(ItemStack stack, String qualifiedLine)
-    pub fn get_start_time_impl(__this: &compat::Shared<Self>, stack: &mcrust::net::minecraft::world::item::item_stack::ItemStack, qualified_line: &str) -> Option<std::time::SystemTime> {
-        let mut result: Option<crate::unresolved::MatchResult> = TIMER_PATTERN.matcher(qualified_line).results().into_iter().filter(|__a0| DateCalculatorTooltip::has_any_group(__a0)).next();
+    pub fn get_start_time_impl(__this: &compat::Shared<Self>, stack: &mcrust::net::minecraft::world::item::item_stack::ItemStack, qualified_line: &str) -> Option<mcrust::java::time::instant::Instant> {
+        let mut result: Option<compat::regex::MatchResult> = TIMER_PATTERN.matcher(qualified_line).results().into_iter().filter(|__a0| DateCalculatorTooltip::has_any_group(__a0)).next();
         if let Some(result) = &result {
-            // TODO(fabric2seer): `.plus(..)` on a Instant
-            //   java: return Instant.now()
-            //   java: 					.plus(RegexUtils.parseOptionalIntFromMatcher(result, "days").orElse(0), ChronoUnit.DAYS)
-            //   java: 					.plus(RegexUtils.parseOptionalIntFromMatcher(result, "hours").orElse(0), ChronoUnit.HOURS)
-            //   java: 					.plus(RegexUtils.parseOptionalIntFromMatcher(result, "minutes").orElse(0), ChronoUnit.MINUTES)
-            //   java: 					.plusSeconds(RegexUtils.parseOptionalIntFromMatcher(result, "seconds").orElse(0))
-            //   java: 					.plusSeconds(30) // Add 30 seconds to round to the nearest minute
-            //   java: 					.truncatedTo(ChronoUnit.MINUTES);
+            use crate::de::hysky::skyblocker::utils::regex_utils::RegexUtils;
+            // Instant.now().plus(days, DAYS).plus(hours, HOURS).plus(minutes, MINUTES).plusSeconds(seconds)
+            let instant = mcrust::java::time::instant::Instant::now()
+                .plus_seconds((RegexUtils::parse_optional_int_from_matcher_match_result_string(result, "days").unwrap_or(0) as i64) * 86_400)
+                .plus_seconds((RegexUtils::parse_optional_int_from_matcher_match_result_string(result, "hours").unwrap_or(0) as i64) * 3_600)
+                .plus_seconds((RegexUtils::parse_optional_int_from_matcher_match_result_string(result, "minutes").unwrap_or(0) as i64) * 60)
+                .plus_seconds(RegexUtils::parse_optional_int_from_matcher_match_result_string(result, "seconds").unwrap_or(0) as i64)
+                .plus_seconds(30); // Add 30 seconds to round to the nearest minute
+            // .truncatedTo(ChronoUnit.MINUTES) - the epoch second floored to the minute, the nanos dropped
+            let epoch_second = instant.get_epoch_second();
+            return Some(mcrust::java::time::instant::Instant::of_epoch_second(epoch_second - epoch_second.rem_euclid(60)));
         }
         return None;
     }
 
     /// Events.getStartTime as the dispatch of TimeProvider.getStartTime
-    pub fn get_start_time_dyn(__this: &compat::Shared<dyn TimeProvider>, __p0: &mcrust::net::minecraft::world::item::item_stack::ItemStack, __p1: &str) -> Option<std::time::SystemTime> {
+    pub fn get_start_time_dyn(__this: &compat::Shared<dyn TimeProvider>, __p0: &mcrust::net::minecraft::world::item::item_stack::ItemStack, __p1: &str) -> Option<mcrust::java::time::instant::Instant> {
         Self::get_start_time_impl(&compat::view_as::<Self, _, Self>(__this, |a| a), __p0, __p1)
     }
 
@@ -304,7 +308,7 @@ impl TimeProvider for Calendar {
     }
 
     /// java: @Override public @Nullable Instant getStartTime(ItemStack stack, String qualifiedLine) (dispatch: the body for this class)
-    fn get_start_time(&self) -> fn(&compat::Shared<dyn TimeProvider>, &mcrust::net::minecraft::world::item::item_stack::ItemStack, &str) -> Option<std::time::SystemTime> {
+    fn get_start_time(&self) -> fn(&compat::Shared<dyn TimeProvider>, &mcrust::net::minecraft::world::item::item_stack::ItemStack, &str) -> Option<mcrust::java::time::instant::Instant> {
         Calendar::get_start_time_dyn
     }
 
@@ -337,7 +341,7 @@ impl Calendar {
     }
 
     /// java: @Override public @Nullable Instant getStartTime(ItemStack stack, String qualifiedLine)
-    pub fn get_start_time_impl(__this: &compat::Shared<Self>, stack: &mcrust::net::minecraft::world::item::item_stack::ItemStack, qualified_line: &str) -> Option<std::time::SystemTime> {
+    pub fn get_start_time_impl(__this: &compat::Shared<Self>, stack: &mcrust::net::minecraft::world::item::item_stack::ItemStack, qualified_line: &str) -> Option<mcrust::java::time::instant::Instant> {
         if stack.count() > 31 {
             return None;
         }
@@ -350,7 +354,7 @@ impl Calendar {
     }
 
     /// Calendar.getStartTime as the dispatch of TimeProvider.getStartTime
-    pub fn get_start_time_dyn(__this: &compat::Shared<dyn TimeProvider>, __p0: &mcrust::net::minecraft::world::item::item_stack::ItemStack, __p1: &str) -> Option<std::time::SystemTime> {
+    pub fn get_start_time_dyn(__this: &compat::Shared<dyn TimeProvider>, __p0: &mcrust::net::minecraft::world::item::item_stack::ItemStack, __p1: &str) -> Option<mcrust::java::time::instant::Instant> {
         Self::get_start_time_impl(&compat::view_as::<Self, _, Self>(__this, |a| a), __p0, __p1)
     }
 

@@ -57,11 +57,11 @@ impl ItemTooltip {
 
     /// java: public static Component getCoinsMessage(double price, int count, boolean preCounted)
     pub fn get_coins_message_3(mut price: f64, mut count: i32, mut pre_counted: bool) -> MutableComponent {
-        let mut price_string: String = format!("%1$,.1f");
+        let mut price_string: String = compat::string_format("%1$,.1f", &[(if pre_counted { price / (count as f64) } else { price }).into()]);
         if count == 1 {
             return (component::literal(&format!("{} Coins", price_string))).with_style_format(ChatFormatting::DarkAqua);
         }
-        let mut price_string_total: String = format!("%1$,.1f");
+        let mut price_string_total: String = compat::string_format("%1$,.1f", &[(if pre_counted { price } else { price * (count as f64) }).into()]);
         return (component::literal(&format!("{} Coins ", price_string_total))).with_style_format(ChatFormatting::DarkAqua).append((component::literal(&format!("({} each)", price_string))).with_style_format(ChatFormatting::Gray));
     }
 
@@ -77,26 +77,30 @@ impl ItemTooltip {
             if todo!("fabric2seer: the condition (TODO above)") {
                 compat::set_state(&SENT_NULL_WARNING, false);
             }
-            // TODO(fabric2seer): `.cast(..)` on a Class
-            //   java: CompletableFuture.allOf(Stream.of(
-            //   java: 							TooltipInfoType.NPC,
-            //   java: 							TooltipInfoType.BAZAAR,
-            //   java: 							TooltipInfoType.LOWEST_BINS,
-            //   java: 							TooltipInfoType.ONE_DAY_AVERAGE,
-            //   java: 							TooltipInfoType.THREE_DAY_AVERAGE,
-            //   java: 							TooltipInfoType.MOTES,
-            //   java: 							TooltipInfoType.MUSEUM,
-            //   java: 							TooltipInfoType.COLOR,
-            //   java: 							TooltipInfoType.ACCESSORIES,
-            //   java: 							TooltipInfoType.GEORGE)
-            //   java: 					.map(DataTooltipInfoType.class::cast)
-            //   java: 					.map(DataTooltipInfoType::downloadIfEnabled)
-            //   java: 					.toArray(CompletableFuture[]::new)
-            //   java: 			).thenRunAsync(ItemPriceUpdateEvent.ON_PRICE_UPDATE.invoker()::onPriceUpdate, Minecraft.getInstance()
-            //   java: 			).exceptionally(e -> {
-            //   java: 				LOGGER.error("[Skyblocker] Encountered unknown error while downloading tooltip data", e);
-            //   java: 				return null;
-            //   java: 			});
+            // CompletableFuture.allOf(Stream.of(NPC, BAZAAR, LOWEST_BINS, ONE_DAY_AVERAGE, THREE_DAY_AVERAGE, MOTES, MUSEUM,
+            //   COLOR, ACCESSORIES, GEORGE).map(DataTooltipInfoType::downloadIfEnabled)..)
+            //   .thenRunAsync(ItemPriceUpdateEvent.ON_PRICE_UPDATE.invoker()::onPriceUpdate, Minecraft.getInstance())
+            //   .exceptionally(e -> { LOGGER.error(.., e); return null; });
+            let downloads = vec![
+                compat::write(crate::de::hysky::skyblocker::skyblock::item::tooltip::info::tooltip_info_type::NPC.get(), |t| t.download_if_enabled()),
+                compat::write(crate::de::hysky::skyblocker::skyblock::item::tooltip::info::tooltip_info_type::BAZAAR.get(), |t| t.download_if_enabled()),
+                compat::write(crate::de::hysky::skyblocker::skyblock::item::tooltip::info::tooltip_info_type::LOWEST_BINS.get(), |t| t.download_if_enabled()),
+                compat::write(crate::de::hysky::skyblocker::skyblock::item::tooltip::info::tooltip_info_type::ONE_DAY_AVERAGE.get(), |t| t.download_if_enabled()),
+                compat::write(crate::de::hysky::skyblocker::skyblock::item::tooltip::info::tooltip_info_type::THREE_DAY_AVERAGE.get(), |t| t.download_if_enabled()),
+                compat::write(crate::de::hysky::skyblocker::skyblock::item::tooltip::info::tooltip_info_type::MOTES.get(), |t| t.download_if_enabled()),
+                compat::write(crate::de::hysky::skyblocker::skyblock::item::tooltip::info::tooltip_info_type::MUSEUM.get(), |t| t.download_if_enabled()),
+                compat::write(crate::de::hysky::skyblocker::skyblock::item::tooltip::info::tooltip_info_type::COLOR.get(), |t| t.download_if_enabled()),
+                compat::write(crate::de::hysky::skyblocker::skyblock::item::tooltip::info::tooltip_info_type::ACCESSORIES.get(), |t| t.download_if_enabled()),
+                compat::write(crate::de::hysky::skyblocker::skyblock::item::tooltip::info::tooltip_info_type::GEORGE.get(), |t| t.download_if_enabled()),
+            ];
+            mcrust::java::util::concurrent::completable_future::CompletableFuture::all_of(&downloads)
+                .then_run_async(
+                    || (crate::de::hysky::skyblocker::events::item_price_update_event::on_price_update_invoker())(),
+                    std::sync::Arc::new(|__t: Box<dyn FnOnce() + Send>| mcrust::mcrust::modding::game::execute(__t)),
+                )
+                .exceptionally(|e| {
+                    logger().error(&format!("[Skyblocker] Encountered unknown error while downloading tooltip data: {}", e));
+                });
             CraftPriceTooltip::clear_cache();
         }), 1200, true) });
     }

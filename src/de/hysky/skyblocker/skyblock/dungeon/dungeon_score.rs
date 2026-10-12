@@ -158,10 +158,10 @@ impl DungeonScore {
             }
             if compat::read(&(SCORE_CONFIG.get_mut())(), |__t| __t.enable_dungeon_score270_title) {
                 client.gui.hud.reset_title_times();
-                hud::set_title_time(component::null_to_empty(Some(&compat::regex::replace_all(&(SCORE_CONFIG.get_mut())().lock().borrow().dungeon_score270_message, "\\[score]", "270"))));
+                mcrust::net::minecraft::client::multiplayer::client_packet_listener::apply_set_title_text(&mut client.gui.hud, &mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::null_to_empty(Some(&compat::regex::replace_all(&(SCORE_CONFIG.get_mut())().lock().borrow().dungeon_score270_message, "\\[score]", "270")))));
             }
             if compat::read(&(SCORE_CONFIG.get_mut())(), |__t| __t.enable_dungeon_score270_sound) {
-                mcrust::mcrust::modding::game::with_player(|player| { player.play_sound(mcrust::net::minecraft::sounds::sound_events::note_block_pling().value(), 100.0f32, 0.1f32); });
+                mcrust::mcrust::modding::game::with_player(|player| { player.play_sound(mcrust::net::minecraft::sounds::sound_events::note_block_pling().clone(), 100.0f32, 0.1f32); });
             }
             compat::set_state(&SENT270, true);
         }
@@ -178,10 +178,10 @@ impl DungeonScore {
             }
             if compat::read(&(SCORE_CONFIG.get_mut())(), |__t| __t.enable_dungeon_score300_title) {
                 client.gui.hud.reset_title_times();
-                hud::set_title_time(component::null_to_empty(Some(&compat::regex::replace_all(&(SCORE_CONFIG.get_mut())().lock().borrow().dungeon_score300_message, "\\[score]", "300"))));
+                mcrust::net::minecraft::client::multiplayer::client_packet_listener::apply_set_title_text(&mut client.gui.hud, &mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::null_to_empty(Some(&compat::regex::replace_all(&(SCORE_CONFIG.get_mut())().lock().borrow().dungeon_score300_message, "\\[score]", "300")))));
             }
             if compat::read(&(SCORE_CONFIG.get_mut())(), |__t| __t.enable_dungeon_score300_sound) {
-                mcrust::mcrust::modding::game::with_player(|player| { player.play_sound(mcrust::net::minecraft::sounds::sound_events::note_block_pling().value(), 100.0f32, 0.1f32); });
+                mcrust::mcrust::modding::game::with_player(|player| { player.play_sound(mcrust::net::minecraft::sounds::sound_events::note_block_pling().clone(), 100.0f32, 0.1f32); });
             }
             compat::set_state(&SENT300, true);
         }

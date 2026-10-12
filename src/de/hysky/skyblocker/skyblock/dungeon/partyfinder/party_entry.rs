@@ -51,7 +51,8 @@ pub struct PartyEntryBase {
     /// java: extends net.minecraft.client.gui.components.ContainerObjectSelectionList$Entry
     pub base: mcrust::net::minecraft::client::gui::components::abstract_selection_list::Entry,
     /// java: protected final PartyFinderScreen screen;
-    pub screen: compat::Shared<PartyFinderScreen>,
+    /// (`None` is Java's null: `NoParties` passes none)
+    pub screen: Option<compat::Shared<PartyFinderScreen>>,
     /// java: protected final int slotID;
     pub slot_id: i32,
     /// java: Player partyLeader;
@@ -67,7 +68,8 @@ pub struct PartyEntryBase {
     /// java: Identifier partyLeaderSkin = DefaultPlayerSkin.getDefaultTexture();
     pub party_leader_skin: Identifier,
     /// java: Player[] partyMembers = new Player[4];
-    pub party_members: Vec<compat::Shared<Player>>,
+    /// (`None` is an empty member slot - the array's null)
+    pub party_members: Vec<Option<compat::Shared<Player>>>,
     /// java: int minClassLevel = -1;
     pub min_class_level: i32,
     /// java: int minCatacombsLevel = -1;
@@ -97,7 +99,7 @@ impl std::ops::DerefMut for PartyEntryBase {
 
 impl PartyEntryBase {
     /// java: public PartyEntry(Component title, List<Component> tooltips, PartyFinderScreen screen, int slotID) (built by the most-derived class's `wrap`, then run on its handle)
-    pub fn new_in<__R>(mut title: MutableComponent, mut tooltips: Vec<MutableComponent>, mut screen: compat::Shared<PartyFinderScreen>, mut slot_id: i32, __wrap: impl FnOnce(Self) -> (compat::Shared<dyn PartyEntry>, __R)) -> (compat::Shared<dyn PartyEntry>, __R) {
+    pub fn new_in<__R>(mut title: MutableComponent, mut tooltips: Vec<MutableComponent>, mut screen: Option<compat::Shared<PartyFinderScreen>>, mut slot_id: i32, __wrap: impl FnOnce(Self) -> (compat::Shared<dyn PartyEntry>, __R)) -> (compat::Shared<dyn PartyEntry>, __R) {
         let __init_screen = screen.clone();
         let __init_slot_id = slot_id;
         let this = Self {
@@ -111,8 +113,9 @@ impl PartyEntryBase {
             dungeon: "???".to_string(),
             note: "".to_string(),
             floor_skull_properties: mcrust::com::mojang::authlib::properties::property_map::PropertyMap::empty(),
-            party_leader_skin: default_player_skin::get_default_texture().to_string(),
-            party_members: (0..(4) as usize).map(|_| Default::default()).collect::<Vec<_>>(),
+            // DefaultPlayerSkin.getDefaultTexture(): the default skin's `texturePath()` (`textures/<id>.png`)
+            party_leader_skin: Identifier::with_default_namespace(&format!("textures/{}.png", default_player_skin::get_default_texture())),
+            party_members: vec![None, None, None, None],
             min_class_level: -1,
             min_catacombs_level: -1,
             is_locked: false,
@@ -224,7 +227,7 @@ impl PartyEntryBase {
                         } else if j > 3 {
                             { let __v = Some(player.clone()); compat::write(&__this, |__t| __t.party_entry_base_mut().party_leader = __v); }
                         } else {
-                            __this.lock().borrow_mut().party_entry_base_mut().party_members[(j) as usize] = player.clone();
+                            __this.lock().borrow_mut().party_entry_base_mut().party_members[(j) as usize] = Some(player.clone());
                         }
                     }
                     i += 1;
@@ -236,8 +239,8 @@ impl PartyEntryBase {
             {
                 let mut i: i32 = (__this.lock().borrow().party_entry_base().party_members.len() as i32).wrapping_sub(1);
                 while i >= 0 {
-                    if true /* java: __this.lock().borrow().party_entry_base().party_members[(i) as usize] != null: never null here */ {
-                        { let __v = Some(__this.lock().borrow().party_entry_base().party_members[(i) as usize].clone()); compat::write(&__this, |__t| __t.party_entry_base_mut().party_leader = __v); }
+                    if __this.lock().borrow().party_entry_base().party_members[(i) as usize].is_some() {
+                        { let __v = __this.lock().borrow().party_entry_base().party_members[(i) as usize].clone(); compat::write(&__this, |__t| __t.party_entry_base_mut().party_leader = __v); }
                         __this.lock().borrow_mut().party_entry_base_mut().party_members[(i) as usize] = None;
                         break;
                     }
@@ -256,7 +259,7 @@ impl PartyEntryBase {
 
     /// java: public PartyEntry(Component title, List<Component> tooltips, PartyFinderScreen screen, int slotID)
     pub fn new(mut title: MutableComponent, mut tooltips: Vec<MutableComponent>, mut screen: compat::Shared<PartyFinderScreen>, mut slot_id: i32) -> compat::Shared<Self> {
-        Self::new_in(title, tooltips, screen, slot_id, |this| {
+        Self::new_in(title, tooltips, Some(screen), slot_id, |this| {
             let __h = compat::shared(this);
             ((__h.clone() as compat::Shared<dyn PartyEntry>), __h)
         }).1
@@ -276,7 +279,9 @@ pub trait PartyEntry: compat::DynAny {
     }
 
     /// java: @Override public List<? extends NarratableEntry> narratables() (dispatch: the body for this class)
-    fn narratables(&self) -> fn(&compat::Shared<dyn PartyEntry>) -> Vec<Box<dyn NarratableEntry>> {
+    /// (the list's element type is `NarrationSupplier`, `NarratableEntry`'s supertrait: the port's `NarratableEntry`
+    /// is not usable as a trait object - as `utils/render/gui/dropdown_widget.rs` types it)
+    fn narratables(&self) -> fn(&compat::Shared<dyn PartyEntry>) -> Vec<Box<dyn mcrust::net::minecraft::client::gui::narration::narration_supplier::NarrationSupplier>> {
         <dyn PartyEntry>::narratables_body
     }
 
@@ -304,7 +309,7 @@ impl dyn PartyEntry {
     }
 
     /// java: @Override public List<? extends NarratableEntry> narratables()
-    pub fn narratables_body(__this: &compat::Shared<dyn PartyEntry>) -> Vec<Box<dyn NarratableEntry>> {
+    pub fn narratables_body(__this: &compat::Shared<dyn PartyEntry>) -> Vec<Box<dyn mcrust::net::minecraft::client::gui::narration::narration_supplier::NarrationSupplier>> {
         return vec![];
     }
 
@@ -339,14 +344,15 @@ impl dyn PartyEntry {
                 gui_graphics_extractor::text_string_with_drop_shadow(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), Some("H"), 160, 6, mcrust::net::minecraft::util::common_colors::WHITE, true);
             }
         }
-        player_face_extractor::extract_render_state(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), &compat::read(__this, |__t| __t.party_entry_base().party_leader_skin.clone()), 6, 6, 8, true, false, -1);
+        // PlayerFaceExtractor.extractRenderState(graphics, partyLeaderSkin, ..): the port's takes the texture the id names
+        { let __client = compat::minecraft(); let __skin = compat::read(__this, |__t| __t.party_entry_base().party_leader_skin.clone()); if let Some(__texture) = __client.game_renderer.texture_manager().get_texture_or_request(&__skin) { player_face_extractor::extract_render_state(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*__client, __texture, 6, 6, 8, true, false, -1); } }
         for i in 0..(__this.lock().borrow().party_entry_base().party_members.len() as i32) {
-            let mut party_member: Option<compat::Shared<Player>> = Some(__this.lock().borrow().party_entry_base().party_members[(i) as usize].clone());
+            let mut party_member: Option<compat::Shared<Player>> = __this.lock().borrow().party_entry_base().party_members[(i) as usize].clone();
             let Some(mut party_member) = party_member.clone() else {
                 continue;
             };
             gui_graphics_extractor::draw_formatted_text(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), 17i32.wrapping_add(136i32.wrapping_mul(i.wrapping_rem(2))), 24i32.wrapping_add(14i32.wrapping_mul(i.wrapping_div(2))), &mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(Player::to_text(&party_member)), mcrust::net::minecraft::util::common_colors::WHITE);
-            player_face_extractor::extract_render_state(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), &compat::read(&party_member, |__t| __t.skin_texture.clone()), 6i32.wrapping_add(136i32.wrapping_mul(i.wrapping_rem(2))), 24i32.wrapping_add(14i32.wrapping_mul(i.wrapping_div(2))), 8, true, false, -1);
+            { let __client = compat::minecraft(); let __skin = compat::read(&party_member, |__t| __t.skin_texture.clone()); if let Some(__texture) = __client.game_renderer.texture_manager().get_texture_or_request(&__skin) { player_face_extractor::extract_render_state(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*__client, __texture, 6i32.wrapping_add(136i32.wrapping_mul(i.wrapping_rem(2))), 24i32.wrapping_add(14i32.wrapping_mul(i.wrapping_div(2))), 8, true, false, -1); } }
         }
         if compat::read(__this, |__t| __t.party_entry_base().min_class_level) > 0 {
             gui_graphics_extractor::draw_formatted_text(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), 278, 25, &mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::null_to_empty(Some(&format!("Class {}", compat::read(__this, |__t| __t.party_entry_base().min_class_level))))), mcrust::net::minecraft::util::common_colors::WHITE);
@@ -365,8 +371,12 @@ impl dyn PartyEntry {
             }
         }
         let mut stack: mcrust::net::minecraft::world::item::item_stack::ItemStack = mcrust::net::minecraft::world::item::item_stack::ItemStack::of_one(items::items().get("player_head"));
-        let __this_w1 = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
-        stack.set(mcrust::net::minecraft::core::component::data_components::profile().clone(), Some(*SKULL_CACHE.get_mut().entry(format!("SkyblockerCustomPFSkull{}{}", compat::read(__this, |__t| __t.party_entry_base().dungeon.clone()), compat::read(__this, |__t| __t.party_entry_base().floor.clone()))).or_insert_with_key(|k| (|name| { let Some(__this_1) = __this_w1.get().upgrade() else { return Default::default(); }; ResolvableProfile::create_resolved(GameProfile::new(Uuid::random_uuid(), &name, compat::read((&__this_1), |__t| __t.party_entry_base().floor_skull_properties.clone()))).unwrap() })(k.clone()))));
+        // stack.set(DataComponents.PROFILE, SKULL_CACHE.computeIfAbsent("SkyblockerCustomPFSkull" + dungeon + floor,
+        //     name -> ResolvableProfile.createResolved(new GameProfile(UUID.randomUUID(), name, floorSkullProperties))));
+        let __floor_skull_properties = compat::read(__this, |__t| __t.party_entry_base().floor_skull_properties.clone());
+        let __key = format!("SkyblockerCustomPFSkull{}{}", compat::read(__this, |__t| __t.party_entry_base().dungeon.clone()), compat::read(__this, |__t| __t.party_entry_base().floor.clone()));
+        let __profile: ResolvableProfile = SKULL_CACHE.get_mut().entry(__key).or_insert_with_key(|name| ResolvableProfile::create_resolved(GameProfile::new(Uuid::random_uuid(), name, __floor_skull_properties.clone())).expect("createResolved")).clone();
+        stack.set(mcrust::net::minecraft::core::component::data_components::profile().clone(), Some(mcrust::com::mojang::serialization::obj(__profile)));
         graphics.item(&stack, 317, 3);
         let mut text_width: i32 = text_renderer.width(&compat::read(__this, |__t| __t.party_entry_base().floor.clone()));
         gui_graphics_extractor::text_string_with_drop_shadow(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), Some(&compat::read(__this, |__t| __t.party_entry_base().floor.clone())), 314i32.wrapping_sub(text_width), 7, 0xA0000000u32 as i32, false);
@@ -389,8 +399,8 @@ impl dyn PartyEntry {
         if compat::read(__this, |__t| __t.party_entry_base().slot_id) == -1 {
             logger().error(&format!("[Skyblocker] Slot ID is null for {}'s party", compat::read(__this, |__t| __t.party_entry_base().party_leader.clone()).unwrap().lock().borrow().name.get_string()));
         }
-        if click.button() == 0 && !(PartyFinderScreen::is_waiting_for_server(&compat::read(__this, |__t| __t.party_entry_base().screen.clone()))) && compat::read(__this, |__t| __t.party_entry_base().slot_id) != -1 {
-            PartyFinderScreen::click_and_wait_for_server(&compat::read(__this, |__t| __t.party_entry_base().screen.clone()), compat::read(__this, |__t| __t.party_entry_base().slot_id));
+        if click.button() == 0 && !(PartyFinderScreen::is_waiting_for_server(&compat::read(__this, |__t| __t.party_entry_base().screen.clone()).expect("NullPointerException"))) && compat::read(__this, |__t| __t.party_entry_base().slot_id) != -1 {
+            PartyFinderScreen::click_and_wait_for_server(&compat::read(__this, |__t| __t.party_entry_base().screen.clone()).expect("NullPointerException"), compat::read(__this, |__t| __t.party_entry_base().slot_id));
             return true;
         }
         // TODO(fabric2seer): `mouse_clicked` takes 4 argument(s) in the port (`_button: i32, _x: f64, _y: f64, _double_click: bool`), Java passes 2
@@ -403,10 +413,10 @@ impl dyn PartyEntry {
 
 impl PartyEntry for PartyEntryBase {
     fn party_entry_base(&self) -> &PartyEntryBase {
-        &self
+        self
     }
     fn party_entry_base_mut(&mut self) -> &mut PartyEntryBase {
-        &mut self
+        self
     }
 
     fn as_any(&self) -> &dyn std::any::Any {
@@ -421,7 +431,7 @@ impl compat::RowHalf for dyn PartyEntry {
         &mut self.party_entry_base_mut().base
     }
     fn row_parts(&mut self) -> (&mut mcrust::net::minecraft::client::gui::screens::screen::Screen, &mut compat::WidgetCache) {
-        let __s = &mut self.party_entry_base_mut();
+        let __s = self.party_entry_base_mut();
         (&mut __s.__row, &mut __s.__widgets)
     }
 }
@@ -469,7 +479,8 @@ impl Player {
             name: __init_name,
             dungeon_class: __init_dungeon_class,
             class_level: __init_class_level,
-            skin_texture: default_player_skin::get_default_texture().to_string(),
+            // DefaultPlayerSkin.getDefaultTexture(): the default skin's `texturePath()` (`textures/<id>.png`)
+            skin_texture: Identifier::with_default_namespace(&format!("textures/{}.png", default_player_skin::get_default_texture())),
         });
         __this
     }
@@ -616,7 +627,7 @@ impl std::ops::DerefMut for YourParty {
 impl YourParty {
     /// java: public YourParty(Component title, List<Component> tooltips, PartyFinderScreen screen, int deListSlotId)
     pub fn new(mut title: MutableComponent, mut tooltips: Vec<MutableComponent>, mut screen: compat::Shared<PartyFinderScreen>, mut de_list_slot_id: i32) -> compat::Shared<Self> {
-        let (_, __this) = PartyEntryBase::new_in(title.clone(), tooltips.clone(), screen.clone(), de_list_slot_id, move |__base| {
+        let (_, __this) = PartyEntryBase::new_in(title.clone(), tooltips.clone(), Some(screen.clone()), de_list_slot_id, move |__base| {
             let __h = compat::shared(Self {
                 base: __base,
             });

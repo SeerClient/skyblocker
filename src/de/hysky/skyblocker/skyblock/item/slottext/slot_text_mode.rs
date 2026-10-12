@@ -60,6 +60,6 @@ impl SlotTextMode {
 
 impl std::fmt::Display for SlotTextMode {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", SlotTextMode::to_string(*self))
+        write!(f, "{}", SlotTextMode::to_string(self))
     }
 }

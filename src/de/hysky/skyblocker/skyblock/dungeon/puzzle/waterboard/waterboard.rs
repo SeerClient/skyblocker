@@ -97,12 +97,12 @@ impl LeverType {
     /// the constant's constructor data (Java keeps it in the constant's fields)
     pub fn fields(self) -> &'static LeverTypeFields {
         static FIELDS: LazyLock<Vec<LeverTypeFields>> = LazyLock::new(|| vec![
-            LeverTypeFields::new(blocks::blocks().get("coal_block"), BlockPos::new(20, 61, 10), DyeColor::Red, Some(vec![BlockPos::new(0, -2, 0), BlockPos::new(2, -1, 1), None, BlockPos::new(5, -1, 0)])),
-            LeverTypeFields::new(blocks::blocks().get("gold_block"), BlockPos::new(20, 61, 15), DyeColor::Yellow, Some(vec![BlockPos::new(1, -1, 0), BlockPos::new(3, -2, 0), BlockPos::new(-4, -1, 1), BlockPos::new(1, 0, 0)])),
-            LeverTypeFields::new(blocks::blocks().get("quartz_block"), BlockPos::new(20, 61, 20), DyeColor::LightGray, Some(vec![BlockPos::new(1, -4, 1), BlockPos::new(-1, 0, 0), BlockPos::new(1, 0, 0), BlockPos::new(-1, 0, 1)])),
-            LeverTypeFields::new(blocks::blocks().get("diamond_block"), BlockPos::new(10, 61, 20), DyeColor::Cyan, Some(vec![BlockPos::new(0, -5, 1), BlockPos::new(-2, -1, 0), BlockPos::new(-1, 0, 1), BlockPos::new(-3, -4, 1)])),
-            LeverTypeFields::new(blocks::blocks().get("emerald_block"), BlockPos::new(10, 61, 15), DyeColor::Lime, Some(vec![BlockPos::new(-1, -10, 1), BlockPos::new(1, 0, 1), BlockPos::new(-6, 0, 0), BlockPos::new(1, -4, 0)])),
-            LeverTypeFields::new(blocks::blocks().get("terracotta"), BlockPos::new(10, 61, 10), DyeColor::Orange, Some(vec![BlockPos::new(-1, -1, 1), BlockPos::new(0, -3, 1), None, BlockPos::new(-4, -5, 1)])),
+            LeverTypeFields::new(blocks::blocks().get("coal_block"), BlockPos::new(20, 61, 10), DyeColor::Red, Some(vec![Some(BlockPos::new(0, -2, 0)), Some(BlockPos::new(2, -1, 1)), None, Some(BlockPos::new(5, -1, 0))])),
+            LeverTypeFields::new(blocks::blocks().get("gold_block"), BlockPos::new(20, 61, 15), DyeColor::Yellow, Some(vec![Some(BlockPos::new(1, -1, 0)), Some(BlockPos::new(3, -2, 0)), Some(BlockPos::new(-4, -1, 1)), Some(BlockPos::new(1, 0, 0))])),
+            LeverTypeFields::new(blocks::blocks().get("quartz_block"), BlockPos::new(20, 61, 20), DyeColor::LightGray, Some(vec![Some(BlockPos::new(1, -4, 1)), Some(BlockPos::new(-1, 0, 0)), Some(BlockPos::new(1, 0, 0)), Some(BlockPos::new(-1, 0, 1))])),
+            LeverTypeFields::new(blocks::blocks().get("diamond_block"), BlockPos::new(10, 61, 20), DyeColor::Cyan, Some(vec![Some(BlockPos::new(0, -5, 1)), Some(BlockPos::new(-2, -1, 0)), Some(BlockPos::new(-1, 0, 1)), Some(BlockPos::new(-3, -4, 1))])),
+            LeverTypeFields::new(blocks::blocks().get("emerald_block"), BlockPos::new(10, 61, 15), DyeColor::Lime, Some(vec![Some(BlockPos::new(-1, -10, 1)), Some(BlockPos::new(1, 0, 1)), Some(BlockPos::new(-6, 0, 0)), Some(BlockPos::new(1, -4, 0))])),
+            LeverTypeFields::new(blocks::blocks().get("terracotta"), BlockPos::new(10, 61, 10), DyeColor::Orange, Some(vec![Some(BlockPos::new(-1, -1, 1)), Some(BlockPos::new(0, -3, 1)), None, Some(BlockPos::new(-4, -5, 1))])),
             LeverTypeFields::new(blocks::blocks().get("lava"), BlockPos::new(15, 60, 5), DyeColor::LightBlue, None),
         ]);
         &FIELDS[self as usize]
@@ -131,7 +131,7 @@ impl LeverType {
     /// java: public static @Nullable LeverType fromPos(BlockPos leverPos)
     pub fn from_pos(lever_pos: &BlockPos) -> Option<LeverType> {
         for lever_type in LeverType::values() {
-            if lever_pos == lever_type.fields().lever_pos {
+            if *lever_pos == lever_type.fields().lever_pos {
                 return Some(lever_type);
             }
         }
@@ -158,21 +158,18 @@ pub struct LeverTypeFields {
     pub block: Arc<Block>,
     pub lever_pos: BlockPos,
     pub color: DyeColor,
-    pub initial_positions: Option<Vec<BlockPos>>,
+    /// java: public final @Nullable BlockPos[] initialPositions - elements may be null too
+    pub initial_positions: Option<Vec<Option<BlockPos>>>,
 }
 
 impl LeverTypeFields {
-    fn new(mut block: Arc<Block>, mut lever_pos: BlockPos, mut color: DyeColor, mut initial_positions: Option<Vec<BlockPos>>) -> Self {
+    fn new(mut block: Arc<Block>, mut lever_pos: BlockPos, mut color: DyeColor, mut initial_positions: Option<Vec<Option<BlockPos>>>) -> Self {
         let mut this = Self {
-            block: Default::default(),
-            lever_pos: Default::default(),
-            color: Default::default(),
-            initial_positions: None,
+            block: block.clone(),
+            lever_pos: lever_pos.clone(),
+            color: color,
+            initial_positions: initial_positions,
         };
-        this.block = block.clone();
-        this.lever_pos = lever_pos.clone();
-        this.color = color;
-        this.initial_positions = initial_positions.clone().unwrap();
         this
     }
 
@@ -213,7 +210,7 @@ impl LeverTypeArgumentType {
 
     /// java: public static <S> LeverType getLeverType(CommandContext<S> context, String name)
     pub fn get_lever_type<S: 'static>(context: &CommandContext<S>, name: &str) -> LeverType {
-        return context.get_argument::<LeverType>(name).unwrap();
+        return context.get_argument::<LeverType>(name).cloned().unwrap();
     }
 
 }

@@ -121,7 +121,7 @@ impl EnchantmentLevelAdder {
             let Some(mut enchantments) = EnchantmentAbbreviationAdder::get_enchantments(stack) else {
                 return vec![];
             };
-            let mut enchantment_id: String = enchantments.key_set().into_iter().next().unwrap();
+            let mut enchantment_id: String = enchantments.key_set().into_iter().next().unwrap().to_string();
             let mut level: i32 = enchantments.get_int_or(&enchantment_id, 0);
             return vec![SlotText::bottom_left(&component::literal(&level.to_string()).with_color(slot_text::CREAM))];
         } else {

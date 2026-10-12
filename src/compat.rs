@@ -1918,6 +1918,19 @@ impl LiveChestMenu {
         let id = self.container_id;
         mcrust::mcrust::modding::game::with_chest_menu(|chest| (chest.menu.container_id == id).then(|| f(chest))).flatten()
     }
+
+    /// The menu's slots with the containers their `Slot.getItem()` reads (`with_open_menu`), while it is still the
+    /// open one; `None` as for `with`.
+    pub fn with_slots<R>(
+        &self,
+        f: impl FnOnce(
+            &mcrust::net::minecraft::world::inventory::abstract_container_menu::AbstractContainerMenu,
+            &mcrust::net::minecraft::world::inventory::slot::Containers<'_>,
+        ) -> R,
+    ) -> Option<R> {
+        let id = self.container_id;
+        with_open_menu(|menu, containers| (menu.container_id == id).then(|| f(menu, containers))).flatten()
+    }
 }
 
 /// A mod class that extends the game's container menu: its menu half (`base`), the LIVE menu while the game lends

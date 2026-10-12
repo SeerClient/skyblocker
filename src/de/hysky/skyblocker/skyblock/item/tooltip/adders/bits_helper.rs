@@ -195,14 +195,16 @@ impl BitsHelper {
 
     /// java: private Int2ObjectMap<ItemStack> getSlots()
     pub fn get_slots(__this: &compat::Shared<Self>) -> Option<std::collections::HashMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack>> {
-        let client = compat::minecraft();
-        if let Some(screen) = client.gui.screen().unwrap().as_any().downcast_ref::<AbstractContainerScreen>() {
-            let mut handler: AbstractContainerMenu = screen.menu();
-            let mut slots: std::collections::HashMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack> = std::collections::HashMap::new();
-            for i in 0..(handler.slots.len() as i32) {
-                // TODO(fabric2seer): `get_item` takes 1 argument(s) in the port (`containers: &'a Containers<'_>`), Java passes 0
-                // rust: slots.insert(i, handler.get_slot(i).get_item().clone());
-            }
+        // client.gui.screen() instanceof AbstractContainerScreen<?> screen; its getMenu() is the player's open menu
+        if compat::container_screen_open() {
+            let mut slots: std::collections::HashMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack> = compat::with_open_menu(|handler, containers| {
+                let mut slots: std::collections::HashMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack> = std::collections::HashMap::new();
+                for i in 0..(handler.slots.len() as i32) {
+                    // slots.put(i, handler.getSlot(i).getItem()); - the same stack (`duplicate` keeps its identity)
+                    slots.insert(i, handler.get_slot(i).get_item(containers).duplicate());
+                }
+                slots
+            }).unwrap_or_default();
             if !(compat::read(__this, |__t| __t.megamind_in_logs)) {
                 logger().info(&format!("{}\t\t\tNo slots?\n⠀⣞⢽⢪⢣⢣⢣⢫⡺⡵⣝⡮⣗⢷⢽⢽⢽⣮⡷⡽⣜⣜⢮⢺⣜⢷⢽⢝⡽⣝\n⠸⡸⠜⠕⠕⠁⢁⢇⢏⢽⢺⣪⡳⡝⣎⣏⢯⢞⡿⣟⣷⣳⢯⡷⣽⢽⢯⣳⣫⠇\n⠀⠀⢀⢀⢄⢬⢪⡪⡎⣆⡈⠚⠜⠕⠇⠗⠝⢕⢯⢫⣞⣯⣿⣻⡽⣏⢗⣗⠏⠀\n⠀⠪⡪⡪⣪⢪⢺⢸⢢⢓⢆⢤⢀⠀⠀⠀⠀⠈⢊⢞⡾⣿⡯⣏⢮⠷⠁⠀⠀\n⠀⠀⠀⠈⠊⠆⡃⠕⢕⢇⢇⢇⢇⢇⢏⢎⢎⢆⢄⠀⢑⣽⣿⢝⠲⠉⠀⠀⠀⠀\n⠀⠀⠀⠀⠀⡿⠂⠠⠀⡇⢇⠕⢈⣀⠀⠁⠡⠣⡣⡫⣂⣿⠯⢪⠰⠂⠀⠀⠀⠀\n⠀⠀⠀⠀⡦⡙⡂⢀⢤⢣⠣⡈⣾⡃⠠⠄⠀⡄⢱⣌⣶⢏⢊⠂⠀⠀⠀⠀⠀⠀\n⠀⠀⠀⠀⢝⡲⣜⡮⡏⢎⢌⢂⠙⠢⠐⢀⢘⢵⣽⣿⡿⠁⠁⠀⠀⠀⠀⠀⠀⠀\n⠀⠀⠀⠀⠨⣺⡺⡕⡕⡱⡑⡆⡕⡅⡕⡜⡼⢽⡻⠏⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀\n⠀⠀⠀⠀⣼⣳⣫⣾⣵⣗⡵⡱⡡⢣⢑⢕⢜⢕⡝⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀\n⠀⠀⠀⣴⣿⣾⣿⣿⣿⡿⡽⡑⢌⠪⡢⡣⣣⡟⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀\n⠀⠀⠀⡟⡾⣿⢿⢿⢵⣽⣾⣼⣘⢸⢸⣞⡟⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀\n⠀⠀⠀⠀⠁⠇⠡⠩⡫⢿⣝⡻⡮⣒⢽⠋⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀", LOGS_PREFIX));
                 { let __v = true; compat::write(__this, |__t| __t.megamind_in_logs = __v); }

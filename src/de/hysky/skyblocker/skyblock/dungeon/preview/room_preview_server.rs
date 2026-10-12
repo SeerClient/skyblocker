@@ -76,13 +76,15 @@ impl RoomPreviewServer {
         }
         RoomPreviewServer::apply_night_vision(player);
         script_host::send_feedback(&(constants::PREFIX.get_mut())().append_str(&(component::translatable_args("skyblocker.dungeons.roomPreview.joinMessage", vec![mcrust::net::minecraft::network::chat::formatted_text::FormattedText::of(compat::get_state(&SELECTED_ROOM))])).get_string()).to_string());
-        if compat::uuid_of(player.get_uuid()) == compat::minecraft().get_user().get_profile_id() {
-            mcrust::mcrust::modding::game::execute(move || { ({ let __r = scheduler::INSTANCE.get_mut(); let __f = compat::dispatch(__r, |__t| __t.schedule()); __f(__r, Arc::new(move || { RoomPreview::on_join(); }), 5) }); });
-            for msg in ERROR_MESSAGES.get_mut().iter() {
-                script_host::send_feedback(&msg.to_string());
-            }
-            ERROR_MESSAGES.get_mut().clear();
-        }
+        // rust: port gap - `ServerPlayer` is a server-side class: this port has no integrated server (MinecraftServer's
+        // instance half / IntegratedServer are unported, RustSrc NEXT_STEPS 000rr), so no ServerPlayer ever joins. GAPS_batchB.md.
+        // rust: if compat::uuid_of(player.get_uuid()) == compat::minecraft().get_user().get_profile_id() {
+        // rust:     mcrust::mcrust::modding::game::execute(move || { ({ let __r = scheduler::INSTANCE.get_mut(); let __f = compat::dispatch(__r, |__t| __t.schedule()); __f(__r, Arc::new(move || { RoomPreview::on_join(); }), 5) }); });
+        // rust:     for msg in ERROR_MESSAGES.get_mut().iter() {
+        // rust:         script_host::send_feedback(&msg.to_string());
+        // rust:     }
+        // rust:     ERROR_MESSAGES.get_mut().clear();
+        // rust: }
     }
 
     /// java: public static void applyNightVision(ServerPlayer player)
@@ -90,7 +92,8 @@ impl RoomPreviewServer {
         if !(compat::get_state(&IS_ACTIVE)) {
             return;
         }
-        player.add_effect(MobEffectInstance::with_visibility(*mcrust::net::minecraft::world::effect::mob_effects::night_vision(), -1, 1, false, false));
+        // rust: port gap - `ServerPlayer.addEffect`: no integrated server in this port (RustSrc NEXT_STEPS 000rr). GAPS_batchB.md.
+        // rust: player.add_effect(MobEffectInstance::with_visibility(*mcrust::net::minecraft::world::effect::mob_effects::night_vision(), -1, 1, false, false));
     }
 
     /// java: private static void checkServer(MinecraftServer server)
@@ -98,25 +101,27 @@ impl RoomPreviewServer {
         if compat::get_state(&IS_ACTIVE) {
             return;
         }
-        // TODO(fabric2seer): `MinecraftServer.getWorldData` has no Rust method in the port (looked for `get_world_data` in MinecraftServer and its supertypes)
-        // TODO(fabric2seer): `WorldData.getLevelName` has no Rust method in the port (looked for `get_level_name` in WorldData and its supertypes)
-        if !(server.get_world_data().get_level_name() == SAVE_NAME) {
-            return;
-        }
-        // TODO(fabric2seer): `MinecraftServer.getCommandStorage` has no Rust method in the port (looked for `get_command_storage` in MinecraftServer and its supertypes)
-        // TODO(fabric2seer): `CommandStorage.get` has no Rust method in the port (looked for `get` in CommandStorage and its supertypes)
-        // rust: let mut preview_data: Tag = server.get_command_storage().get(&crate::entry::skyblocker_mod::id(SAVE_NAME));
-        let mut preview_data: Tag = todo!("fabric2seer: the initialiser of `previewData` (TODO above)");
-        // TODO(fabric2seer): `is_empty` takes 1 argument(s) in the port (`tags: &BTreeMap<String, Tag>`), Java passes 0
-        if compound_tag::is_empty() {
-            return;
-        }
-        // TODO(fabric2seer): `MinecraftServer.getCommandStorage` has no Rust method in the port (looked for `get_command_storage` in MinecraftServer and its supertypes)
-        // TODO(fabric2seer): `CommandStorage.get` has no Rust method in the port (looked for `get` in CommandStorage and its supertypes)
-        // rust: compat::set_state(&IS_ACTIVE, server.get_command_storage().get(&crate::entry::skyblocker_mod::id(SAVE_NAME)).get_boolean_or("isActive", false));
-        // TODO(fabric2seer): `MinecraftServer.getCommandStorage` has no Rust method in the port (looked for `get_command_storage` in MinecraftServer and its supertypes)
-        // TODO(fabric2seer): `CommandStorage.get` has no Rust method in the port (looked for `get` in CommandStorage and its supertypes)
-        // rust: compat::set_state(&SELECTED_ROOM, server.get_command_storage().get(&crate::entry::skyblocker_mod::id(SAVE_NAME)).get_string_or("selectedRoom", ""));
+        // rust: port gap - `MinecraftServer.getWorldData` / `getCommandStorage`: no integrated server in this port
+        // (RustSrc NEXT_STEPS 000rr), so no MinecraftServer reaches this. GAPS_batchB.md. The Java body:
+        //   TODO(fabric2seer): `MinecraftServer.getWorldData` has no Rust method in the port (looked for `get_world_data` in MinecraftServer and its supertypes)
+        //   TODO(fabric2seer): `WorldData.getLevelName` has no Rust method in the port (looked for `get_level_name` in WorldData and its supertypes)
+        // rust: if !(server.get_world_data().get_level_name() == SAVE_NAME) {
+        // rust:     return;
+        // rust: }
+        //   TODO(fabric2seer): `MinecraftServer.getCommandStorage` has no Rust method in the port (looked for `get_command_storage` in MinecraftServer and its supertypes)
+        //   TODO(fabric2seer): `CommandStorage.get` has no Rust method in the port (looked for `get` in CommandStorage and its supertypes)
+        //   rust: let mut preview_data: Tag = server.get_command_storage().get(&crate::entry::skyblocker_mod::id(SAVE_NAME));
+        // rust: let mut preview_data: Tag = todo!("fabric2seer: the initialiser of `previewData` (TODO above)");
+        //   TODO(fabric2seer): `is_empty` takes 1 argument(s) in the port (`tags: &BTreeMap<String, Tag>`), Java passes 0
+        // rust: if compound_tag::is_empty() {
+        // rust:     return;
+        // rust: }
+        //   TODO(fabric2seer): `MinecraftServer.getCommandStorage` has no Rust method in the port (looked for `get_command_storage` in MinecraftServer and its supertypes)
+        //   TODO(fabric2seer): `CommandStorage.get` has no Rust method in the port (looked for `get` in CommandStorage and its supertypes)
+        //   rust: compat::set_state(&IS_ACTIVE, server.get_command_storage().get(&crate::entry::skyblocker_mod::id(SAVE_NAME)).get_boolean_or("isActive", false));
+        //   TODO(fabric2seer): `MinecraftServer.getCommandStorage` has no Rust method in the port (looked for `get_command_storage` in MinecraftServer and its supertypes)
+        //   TODO(fabric2seer): `CommandStorage.get` has no Rust method in the port (looked for `get` in CommandStorage and its supertypes)
+        //   rust: compat::set_state(&SELECTED_ROOM, server.get_command_storage().get(&crate::entry::skyblocker_mod::id(SAVE_NAME)).get_string_or("selectedRoom", ""));
     }
 
     /// java: private static void reset()

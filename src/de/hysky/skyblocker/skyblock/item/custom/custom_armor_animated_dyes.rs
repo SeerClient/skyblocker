@@ -12,7 +12,9 @@ use mcrust::net::minecraft::commands::command_build_context::CommandBuildContext
 use crate::de::hysky::skyblocker::injected::skyblocker_stack::SkyblockerStack as _;
 
 /// java: private static final Object2ObjectOpenHashMap<AnimatedDye, AnimatedDyeStateTracker> STATE_TRACKER_MAP = new Object2ObjectOpenHashMap<>();
-pub static STATE_TRACKER_MAP: LazyLock<Mutex<std::collections::HashMap<AnimatedDye, AnimatedDyeStateTracker>>> = LazyLock::new(|| Mutex::new(std::collections::HashMap::new()));
+/// Keyed by the record (its `equals`); `AnimatedDye` holds floats, which have no `Hash`, so the map is a list
+/// looked up with `==`.
+pub static STATE_TRACKER_MAP: LazyLock<Mutex<Vec<(AnimatedDye, AnimatedDyeStateTracker)>>> = LazyLock::new(|| Mutex::new(Vec::new()));
 /// java: private static final float DEFAULT_DELAY = 0;
 pub const DEFAULT_DELAY: f32 = ((0) as f32) as f32;
 /// java: private static int frames;
@@ -80,7 +82,7 @@ impl CustomArmorAnimatedDyes {
                     let custom_animated_dyes = &SkyblockerConfigManager::get().general.custom_animated_dyes;
                     if color1 == i32::MIN && color2 == i32::MIN {
                         if custom_animated_dyes.contains_key(&item_uuid) {
-                            SkyblockerConfigManager::update(Arc::new(move |config| { config.general.custom_animated_dyes.remove(&item_uuid); }));
+                            SkyblockerConfigManager::update(Arc::new(move |mut config| { config.general.custom_animated_dyes.remove(&item_uuid); }));
                             // TODO(fabric2seer): `.sendFeedback(..)` on a FabricClientCommandSource
                             //   java: source.sendFeedback(Constants.PREFIX.get().append(Component.translatable("skyblocker.customAnimatedDyes.removed")));
                         } else {
@@ -89,7 +91,7 @@ impl CustomArmorAnimatedDyes {
                         }
                     } else {
                         let mut animated_dye: AnimatedDye = AnimatedDye::new(vec![Keyframe::new(color1, ((0) as f32) as f32), Keyframe::new(color2, ((1) as f32) as f32)], cycle_back, delay, duration);
-                        SkyblockerConfigManager::update(Arc::new(move |config| { config.general.custom_animated_dyes.insert(item_uuid.clone(), animated_dye.clone()); }));
+                        SkyblockerConfigManager::update(Arc::new(move |mut config| { config.general.custom_animated_dyes.insert(item_uuid.clone(), animated_dye.clone()); }));
                         // TODO(fabric2seer): `.sendFeedback(..)` on a FabricClientCommandSource
                         //   java: source.sendFeedback(Constants.PREFIX.get().append(Component.translatable("skyblocker.customAnimatedDyes.added")));
                     }
@@ -110,14 +112,22 @@ impl CustomArmorAnimatedDyes {
 
     /// java: public static int animateColorTransition(AnimatedDye animatedDye)
     pub fn animate_color_transition(mut animated_dye: AnimatedDye) -> i32 {
-        let mut tracked_state: AnimatedDyeStateTracker = compat::lock(&STATE_TRACKER_MAP).entry(animated_dye.clone()).or_insert_with_key(|k| (|__a0| AnimatedDyeStateTracker::new(__a0.clone()))(k.clone())).clone();
+        // AnimatedDyeStateTracker trackedState = STATE_TRACKER_MAP.computeIfAbsent(animatedDye, AnimatedDyeStateTracker::new);
+        let delta_ticks = compat::minecraft().get_delta_tracker().get_game_time_delta_ticks();
+        let mut map = compat::lock(&STATE_TRACKER_MAP);
+        let index = match map.iter().position(|(dye, _)| *dye == animated_dye) {
+            Some(index) => index,
+            None => {
+                map.push((animated_dye.clone(), AnimatedDyeStateTracker::new(animated_dye.clone())));
+                map.len() - 1
+            }
+        };
+        let tracked_state = &mut map[index].1;
         if tracked_state.last_recorded_frame == compat::get_state(&FRAMES) {
             return tracked_state.last_color;
         }
         tracked_state.last_recorded_frame = compat::get_state(&FRAMES);
-        // TODO(fabric2seer): `DeltaTracker.getGameTimeDeltaTicks` has no Rust method in the port (looked for `get_game_time_delta_ticks` in DeltaTracker and its supertypes)
-        // rust: return tracked_state.interpolate(&animated_dye, compat::minecraft().get_delta_tracker().get_game_time_delta_ticks());
-        return todo!("fabric2seer: see the TODO above");
+        return tracked_state.interpolate(&animated_dye, delta_ticks);
     }
 
     /// java: public static void cleanTrackers()

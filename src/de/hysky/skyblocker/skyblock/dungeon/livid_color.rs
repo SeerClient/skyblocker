@@ -25,7 +25,9 @@ use mcrust::net::minecraft::core::registry::Registry as _;
 use mcrust::net::minecraft::network::chat::component::Component as _;
 
 /// java: private static final Map<Block, ChatFormatting> WOOL_TO_FORMATTING = Map.of( Blocks.WOOL.red(), ChatFormatting.RED, Blocks.WOOL.yellow(), ChatFormatting.YELLOW, Blocks.WOOL.lime(), ChatFormatting.GREE
-pub static WOOL_TO_FORMATTING: compat::MainThread<std::collections::HashMap<Arc<Block>, ChatFormatting>> = compat::MainThread::new(|| std::collections::HashMap::from([(mcrust::net::minecraft::world::level::block::blocks::wool().red().clone(), ChatFormatting::Red), (mcrust::net::minecraft::world::level::block::blocks::wool().yellow().clone(), ChatFormatting::Yellow), (mcrust::net::minecraft::world::level::block::blocks::wool().lime().clone(), ChatFormatting::Green), (mcrust::net::minecraft::world::level::block::blocks::wool().green().clone(), ChatFormatting::DarkGreen), (mcrust::net::minecraft::world::level::block::blocks::wool().blue().clone(), ChatFormatting::Blue), (mcrust::net::minecraft::world::level::block::blocks::wool().magenta().clone(), ChatFormatting::LightPurple), (mcrust::net::minecraft::world::level::block::blocks::wool().purple().clone(), ChatFormatting::DarkPurple), (mcrust::net::minecraft::world::level::block::blocks::wool().gray().clone(), ChatFormatting::Gray), (mcrust::net::minecraft::world::level::block::blocks::wool().white().clone(), ChatFormatting::White)]));
+/// Keyed by the block OBJECT (Java's `Block` has identity equality; the port's `Block` has no `Hash`/`Eq`), so a
+/// list of pairs looked up with `Arc::ptr_eq`.
+pub static WOOL_TO_FORMATTING: compat::MainThread<Vec<(Arc<Block>, ChatFormatting)>> = compat::MainThread::new(|| Vec::from([(mcrust::net::minecraft::world::level::block::blocks::wool().red().clone(), ChatFormatting::Red), (mcrust::net::minecraft::world::level::block::blocks::wool().yellow().clone(), ChatFormatting::Yellow), (mcrust::net::minecraft::world::level::block::blocks::wool().lime().clone(), ChatFormatting::Green), (mcrust::net::minecraft::world::level::block::blocks::wool().green().clone(), ChatFormatting::DarkGreen), (mcrust::net::minecraft::world::level::block::blocks::wool().blue().clone(), ChatFormatting::Blue), (mcrust::net::minecraft::world::level::block::blocks::wool().magenta().clone(), ChatFormatting::LightPurple), (mcrust::net::minecraft::world::level::block::blocks::wool().purple().clone(), ChatFormatting::DarkPurple), (mcrust::net::minecraft::world::level::block::blocks::wool().gray().clone(), ChatFormatting::Gray), (mcrust::net::minecraft::world::level::block::blocks::wool().white().clone(), ChatFormatting::White)]));
 /// java: private static final Map<String, ChatFormatting> LIVID_TO_FORMATTING = Map.of( "Hockey Livid", ChatFormatting.RED, "Arcade Livid", ChatFormatting.YELLOW, "Smile Livid", ChatFormatting.GREEN, "Frog Liv
 pub static LIVID_TO_FORMATTING: compat::MainThread<std::collections::HashMap<String, ChatFormatting>> = compat::MainThread::new(|| std::collections::HashMap::from([("Hockey Livid".to_string(), ChatFormatting::Red), ("Arcade Livid".to_string(), ChatFormatting::Yellow), ("Smile Livid".to_string(), ChatFormatting::Green), ("Frog Livid".to_string(), ChatFormatting::DarkGreen), ("Scream Livid".to_string(), ChatFormatting::Blue), ("Crossed Livid".to_string(), ChatFormatting::LightPurple), ("Purple Livid".to_string(), ChatFormatting::DarkPurple), ("Doctor Livid".to_string(), ChatFormatting::Gray), ("Vendetta Livid".to_string(), ChatFormatting::White)]));
 /// java: private static final Supplier<DungeonsConfig.Livid> CONFIG = () -> SkyblockerConfigManager.get().dungeons.livid;
@@ -76,7 +78,7 @@ impl LividColor {
             return;
         }
         let mut current_color: Arc<Block> = (mcrust::mcrust::modding::game::level().unwrap().get_block_state_typed(&BlockPos::new(5, 110, 42))).get_block();
-        if !(WOOL_TO_FORMATTING.get_mut().contains_key(&current_color) && !(std::ptr::addr_eq(std::sync::Arc::as_ptr(&current_color), std::sync::Arc::as_ptr(LAST_COLOR.get_mut())))) {
+        if !(WOOL_TO_FORMATTING.get().iter().any(|(block, _)| Arc::ptr_eq(block, &current_color)) && !(std::ptr::addr_eq(std::sync::Arc::as_ptr(&current_color), std::sync::Arc::as_ptr(LAST_COLOR.get_mut())))) {
             return;
         }
         if !(compat::get_state(&IS_INITIALIZED)) && mcrust::mcrust::modding::game::with_player(|player| player.base.base.base.has_effect(mcrust::net::minecraft::world::effect::mob_effects::blindness())).unwrap_or(false) {
@@ -85,18 +87,24 @@ impl LividColor {
         } else if compat::get_state(&IS_INITIALIZED) && (compat::millis()).wrapping_sub(compat::get_state(&TOGGLE_TIME)) >= OFFSET_DURATION {
             LividColor::on_livid_color_found(client, &current_color);
             if !(compat::get_state(&CORRECT_LIVID_ID_FOUND)) {
-                // TODO(fabric2seer): static field Map.Entry
-                //   java: String lividName = LIVID_TO_FORMATTING.entrySet().stream()
-                //   java: 						.filter(entry -> entry.getValue() == color)
-                //   java: 						.map(Map.Entry::getKey)
-                //   java: 						.findFirst()
-                //   java: 						.orElse("unknown");
-                let mut livid_name: String = todo!("fabric2seer: the initialiser of `lividName` (TODO above)");
-                // TODO(fabric2seer): `with_players` takes 1 argument(s) in the port (`f: impl FnOnce(&[Shared<StoredAvatar>]) -> R`), Java passes 0
-                // TODO(fabric2seer): `get_name_player` takes 1 argument(s) in the port (`game_profile_name: &str`), Java passes 0
-                // rust: if let Some(entity) = mcrust::mcrust::modding::game::level().unwrap().with_players().into_iter().filter(|entity| (compat::component_of(player::get_name_player()).get_string() == livid_name)).next() {
-                // rust: compat::set_state(&CORRECT_LIVID_ID, entity.get_id());
-                // rust: }
+                let color = *COLOR.get();
+                let mut livid_name: String = LIVID_TO_FORMATTING.get().iter().find(|(_, formatting)| **formatting == color).map(|(name, _)| name.clone()).unwrap_or_else(|| "unknown".to_string());
+                // client.level.players().stream().filter(entity -> entity.getName().getString().equals(lividName)).findFirst()
+                //     .ifPresent(entity -> correctLividId = entity.getId());
+                {
+                    use mcrust::net::minecraft::world::entity::entity::Entity as _;
+                    let players = mcrust::mcrust::modding::game::level().unwrap().with_players(|players| players.to_vec());
+                    let found = players.iter().find_map(|avatar| {
+                        if mcrust::mcrust::modding::game::is_held_here(&**avatar) {
+                            return None;
+                        }
+                        let entity = mcrust::mcrust::modding::game::lock_entity(&**avatar, "livid_color.rs:LividColor.update");
+                        (entity.get_game_profile_name() == livid_name).then(|| entity.base().get_id())
+                    });
+                    if let Some(id) = found {
+                        compat::set_state(&CORRECT_LIVID_ID, id);
+                    }
+                }
                 compat::set_state(&CORRECT_LIVID_ID_FOUND, true);
             }
             *LAST_COLOR.get_mut() = current_color.clone();
@@ -105,16 +113,16 @@ impl LividColor {
 
     /// java: private static void onLividColorFound(Minecraft client, Block color)
     pub fn on_livid_color_found(client: &mut mcrust::net::minecraft::client::minecraft::Minecraft, color: &Arc<Block>) {
-        *COLOR.get_mut() = WOOL_TO_FORMATTING.get_mut().get(color).cloned().unwrap();
-        let mut color_string: String = mcrust::net::minecraft::core::registries::built_in_registries::block().get_key(color).unwrap().path().to_string();
+        *COLOR.get_mut() = WOOL_TO_FORMATTING.get().iter().find(|(block, _)| Arc::ptr_eq(block, color)).map(|(_, formatting)| *formatting).unwrap();
+        let mut color_string: String = mcrust::net::minecraft::core::registries::built_in_registries::block().get_key(&color.erased_obj()).unwrap().path().to_string();
         color_string = (compat::substring2(&color_string, 0, (compat::str_len(&color_string)).wrapping_sub(5))).to_uppercase();
-        let mut message: MutableComponent = { let (__q0,) = (COLOR.get_mut(),); (component::literal(&compat::regex::replace_all(&(CONFIG.get_mut())().lock().borrow().livid_color_text, "\\[color]", &color_string))).with_style_format(__q0) };
+        let mut message: MutableComponent = { let (__q0,) = (*COLOR.get(),); (component::literal(&compat::regex::replace_all(&(CONFIG.get_mut())().lock().borrow().livid_color_text, "\\[color]", &color_string))).with_style_format(__q0) };
         if compat::read(&(CONFIG.get_mut())(), |__t| __t.enable_livid_color_text) {
             MessageScheduler::send_message_after_cooldown(message_scheduler::INSTANCE.get_mut(), &format!("/pc {}", (constants::PREFIX.get_mut())().append(message.clone()).get_string()), true);
         }
         if compat::read(&(CONFIG.get_mut())(), |__t| __t.enable_livid_color_title) {
             client.gui.hud.reset_title_times();
-            hud::set_title_time(message.clone());
+            mcrust::net::minecraft::client::multiplayer::client_packet_listener::apply_set_title_text(&mut client.gui.hud, &mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(message.clone()));
         }
     }
 

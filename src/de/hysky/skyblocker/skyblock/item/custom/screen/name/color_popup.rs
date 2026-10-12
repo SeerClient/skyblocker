@@ -92,14 +92,16 @@ impl ColorPopup {
         { let (__q0,) = (compat::WidgetAdapter::widget(color_picker.clone()),); __this.lock().borrow_mut().add_renderable_widget(__q0) };
         { let (__q0,) = (compat::WidgetAdapter::widget(argb.clone()),); __this.lock().borrow_mut().add_renderable_widget(__q0) };
         let __this_w1 = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
+        let __color_picker = compat::RenderThread::new(std::sync::Arc::downgrade(&color_picker)); // captured weakly: the two widgets refer to each other
         ARGBTextInput::set_on_change(&argb, Arc::new(move |color| { let Some(__this_1) = __this_w1.get().upgrade() else { return Default::default(); }; {
-            ColorPickerWidget::set_argb_color(&color_picker, color);
-            compat::read((&__this_1), |__t| __t.current_color.clone()).0;
+            if let Some(__color_picker) = __color_picker.get().upgrade() { ColorPickerWidget::set_argb_color(&__color_picker, color); }
+            compat::write((&__this_1), |__t| __t.current_color.0 = color); // currentColor.first(color)
         } }));
         let __this_w2 = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
+        let __argb = compat::RenderThread::new(std::sync::Arc::downgrade(&argb)); // captured weakly: the two widgets refer to each other
         ColorPickerWidget::set_on_color_change(&color_picker, Arc::new(move |color, _| { let Some(__this_2) = __this_w2.get().upgrade() else { return Default::default(); }; {
-            ARGBTextInput::set_argb_color(&argb, color);
-            compat::read((&__this_2), |__t| __t.current_color.clone()).0;
+            if let Some(__argb) = __argb.get().upgrade() { ARGBTextInput::set_argb_color(&__argb, color); }
+            compat::write((&__this_2), |__t| __t.current_color.0 = color); // currentColor.first(color)
         } }));
         // TODO(fabric2seer): the port's `add_child_width` ports this Java method with other parameters (grid, child, column_width for Java's widget, column_width)
         // TODO(fabric2seer): `add_child_width` takes 3 argument(s) in the port (`grid: &mut GridLayout, child: LayoutElement, column_width: i32`), Java passes 2
@@ -120,24 +122,28 @@ impl ColorPopup {
         { let (__q0,) = (compat::WidgetAdapter::widget(color_picker_end.clone()),); __this.lock().borrow_mut().add_renderable_widget(__q0) };
         { let (__q0,) = (compat::WidgetAdapter::widget(argb_end.clone()),); __this.lock().borrow_mut().add_renderable_widget(__q0) };
         let __this_w1 = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
+        let __color_picker_start = compat::RenderThread::new(std::sync::Arc::downgrade(&color_picker_start)); // captured weakly: the two widgets refer to each other
         ARGBTextInput::set_on_change(&argb_start, Arc::new(move |color| { let Some(__this_1) = __this_w1.get().upgrade() else { return Default::default(); }; {
-            ColorPickerWidget::set_argb_color(&color_picker_start, color);
-            compat::read((&__this_1), |__t| __t.current_color.clone()).0;
+            if let Some(__color_picker_start) = __color_picker_start.get().upgrade() { ColorPickerWidget::set_argb_color(&__color_picker_start, color); }
+            compat::write((&__this_1), |__t| __t.current_color.0 = color); // currentColor.first(color)
         } }));
         let __this_w2 = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
+        let __argb_start = compat::RenderThread::new(std::sync::Arc::downgrade(&argb_start)); // captured weakly: the two widgets refer to each other
         ColorPickerWidget::set_on_color_change(&color_picker_start, Arc::new(move |color, _| { let Some(__this_2) = __this_w2.get().upgrade() else { return Default::default(); }; {
-            ARGBTextInput::set_argb_color(&argb_start, color);
-            compat::read((&__this_2), |__t| __t.current_color.clone()).0;
+            if let Some(__argb_start) = __argb_start.get().upgrade() { ARGBTextInput::set_argb_color(&__argb_start, color); }
+            compat::write((&__this_2), |__t| __t.current_color.0 = color); // currentColor.first(color)
         } }));
         let __this_w3 = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
+        let __color_picker_end = compat::RenderThread::new(std::sync::Arc::downgrade(&color_picker_end)); // captured weakly: the two widgets refer to each other
         ARGBTextInput::set_on_change(&argb_end, Arc::new(move |color| { let Some(__this_3) = __this_w3.get().upgrade() else { return Default::default(); }; {
-            ColorPickerWidget::set_argb_color(&color_picker_end, color);
-            compat::read((&__this_3), |__t| __t.current_color.clone()).1;
+            if let Some(__color_picker_end) = __color_picker_end.get().upgrade() { ColorPickerWidget::set_argb_color(&__color_picker_end, color); }
+            compat::write((&__this_3), |__t| __t.current_color.1 = color); // currentColor.second(color)
         } }));
         let __this_w4 = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
+        let __argb_end = compat::RenderThread::new(std::sync::Arc::downgrade(&argb_end)); // captured weakly: the two widgets refer to each other
         ColorPickerWidget::set_on_color_change(&color_picker_end, Arc::new(move |color, _| { let Some(__this_4) = __this_w4.get().upgrade() else { return Default::default(); }; {
-            ARGBTextInput::set_argb_color(&argb_end, color);
-            compat::read((&__this_4), |__t| __t.current_color.clone()).1;
+            if let Some(__argb_end) = __argb_end.get().upgrade() { ARGBTextInput::set_argb_color(&__argb_end, color); }
+            compat::write((&__this_4), |__t| __t.current_color.1 = color); // currentColor.second(color)
         } }));
         // TODO(fabric2seer): the port's `add_child` ports this Java method with other parameters (grid, child for Java's widget)
         // TODO(fabric2seer): `add_child` takes 2 argument(s) in the port (`grid: &mut GridLayout, child: LayoutElement`), Java passes 1

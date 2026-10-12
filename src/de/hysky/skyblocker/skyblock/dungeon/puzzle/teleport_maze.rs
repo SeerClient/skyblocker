@@ -82,7 +82,7 @@ impl TeleportMaze {
             return;
         }
         TeleportMaze::process_teleport(__this, &mcrust::mcrust::modding::game::level().unwrap(), &prev_player, &player);
-        let mut nearest_pad: BlockPos = TELEPORT_PADS.get_mut().iter().cloned().min_by(|a, b| { let key = |pad| pad.dist_sqr(&player); key(a).total_cmp(&key(b)) }).unwrap();
+        let mut nearest_pad: BlockPos = TELEPORT_PADS.get_mut().iter().cloned().min_by(|a, b| { let key = |pad: &BlockPos| pad.dist_sqr(&player); key(a).total_cmp(&key(b)) }).unwrap();
         TeleportMaze::process_teleport(__this, &mcrust::mcrust::modding::game::level().unwrap(), &nearest_pad, &prev_player);
     }
 
@@ -99,7 +99,7 @@ impl TeleportMaze {
         if pos.get_x() == 15 && pos.get_z() == 12 {
             return Some(RoomType::Entrance);
         }
-        return ROOM_CENTERS.get_mut().iter().cloned().filter(|center| (center.get_x().wrapping_sub(3) <= pos.get_x() && pos.get_x() <= center.get_x().wrapping_add(3) && center.get_z().wrapping_sub(3) <= pos.get_z() && pos.get_z() <= center.get_z().wrapping_add(3))).next().map(|__a0| ({ let __r = &DungeonManager::get_current_room().unwrap(); let __f = compat::dispatch(__r, |__t| __t.relative_to_actual()); __f(__r, &__a0) })).map(|__a0| world.get_block_state(&__a0)).map(|__a0| __a0.get_block()).and_then(|__a0| RoomType::from_block(&__a0));
+        return ROOM_CENTERS.get_mut().iter().cloned().filter(|center| (center.get_x().wrapping_sub(3) <= pos.get_x() && pos.get_x() <= center.get_x().wrapping_add(3) && center.get_z().wrapping_sub(3) <= pos.get_z() && pos.get_z() <= center.get_z().wrapping_add(3))).next().map(|__a0| ({ let __r = &DungeonManager::get_current_room().unwrap(); let __f = compat::dispatch(__r, |__t| __t.relative_to_actual()); __f(__r, &__a0) })).map(|__a0| world.get_block_state_typed(&__a0)).map(|__a0| __a0.get_block()).and_then(|__a0| RoomType::from_block(&__a0));
     }
 
 }
@@ -297,11 +297,9 @@ pub struct RoomTypeFields {
 impl RoomTypeFields {
     fn new(mut block: Arc<Block>, mut dye_color: DyeColor) -> Self {
         let mut this = Self {
-            block: Default::default(),
-            color_components: Default::default(),
+            block: block.clone(),
+            color_components: ColorUtils::get_float_components_dye_color(&dye_color),
         };
-        this.block = block.clone();
-        this.color_components = ColorUtils::get_float_components_dye_color(&dye_color);
         this
     }
 

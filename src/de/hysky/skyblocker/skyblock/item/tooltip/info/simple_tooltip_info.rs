@@ -57,10 +57,10 @@ impl dyn SimpleTooltipInfo {
 
 impl SimpleTooltipInfo for SimpleTooltipInfoBase {
     fn simple_tooltip_info_base(&self) -> &SimpleTooltipInfoBase {
-        &self
+        self
     }
     fn simple_tooltip_info_base_mut(&mut self) -> &mut SimpleTooltipInfoBase {
-        &mut self
+        self
     }
 
 }

@@ -28,7 +28,9 @@ pub static COLOR_FROM_NAME: compat::MainThread<std::collections::HashMap<String,
     value
 });
 /// java: private static final Map<Item, DyeColor> itemColor;
-pub static ITEM_COLOR: compat::MainThread<std::collections::HashMap<Arc<Item>, DyeColor>> = compat::MainThread::new(|| Default::default());
+/// Keyed by the item OBJECT (Java's `Item` has identity equality; the port's `Item` has no `Hash`/`Eq`): pairs
+/// looked up with `Arc::ptr_eq` (`item_color`). A later `put` of the same item replaces its value, as `Map.put`.
+pub static ITEM_COLOR: compat::MainThread<Vec<(Arc<Item>, DyeColor)>> = compat::MainThread::new(|| Vec::new());
 
 /// java: public final class ColorTerminal extends SimpleContainerSolver implements TerminalSolver, StackDisplayModifier
 #[derive(Clone)]
@@ -58,24 +60,36 @@ impl ColorTerminal {
     fn clinit() {
         static ONCE: std::sync::Once = std::sync::Once::new();
         ONCE.call_once(|| {
-            // TODO(fabric2seer): static `DyeColor.values` has no Rust counterpart in the port
-            for color in DyeColor::values() {
+            for color in mcrust::net::minecraft::world::item::dye_color::VALUES {
                 COLOR_FROM_NAME.get_mut().insert(color.get_name().to_uppercase(), color);
             }
             COLOR_FROM_NAME.get_mut().insert("SILVER".to_string(), DyeColor::LightGray);
             COLOR_FROM_NAME.get_mut().insert("LIGHT BLUE".to_string(), DyeColor::LightBlue);
-            *ITEM_COLOR.get_mut() = std::collections::HashMap::new();
-            // TODO(fabric2seer): static `DyeColor.values` has no Rust counterpart in the port
-            for color in DyeColor::values() {
+            *ITEM_COLOR.get_mut() = Vec::new();
+            for color in mcrust::net::minecraft::world::item::dye_color::VALUES {
                 for item in vec!["dye".to_string(), "wool".to_string(), "stained_glass".to_string(), "terracotta".to_string()] {
-                    ITEM_COLOR.get_mut().insert(mcrust::net::minecraft::core::registries::built_in_registries::item().get_value_by_identifier(&Identifier::with_default_namespace(&format!("{}_{}", color.get_name(), item))).unwrap(), color);
+                    ColorTerminal::put_item_color(mcrust::net::minecraft::core::registries::built_in_registries::item().get_value_by_identifier(&Identifier::with_default_namespace(&format!("{}_{}", color.get_name(), item))).unwrap(), color);
                 }
             }
-            ITEM_COLOR.get_mut().insert(items::items().get("bone_meal"), DyeColor::White);
-            ITEM_COLOR.get_mut().insert(items::items().get("lapis_lazuli"), DyeColor::Blue);
-            ITEM_COLOR.get_mut().insert(items::items().get("cocoa_beans"), DyeColor::Brown);
-            ITEM_COLOR.get_mut().insert(items::items().get("ink_sac"), DyeColor::Black);
+            ColorTerminal::put_item_color(items::items().get("bone_meal"), DyeColor::White);
+            ColorTerminal::put_item_color(items::items().get("lapis_lazuli"), DyeColor::Blue);
+            ColorTerminal::put_item_color(items::items().get("cocoa_beans"), DyeColor::Brown);
+            ColorTerminal::put_item_color(items::items().get("ink_sac"), DyeColor::Black);
         });
+    }
+
+    /// `itemColor.put(item, color)`.
+    fn put_item_color(item: Arc<Item>, color: DyeColor) {
+        let map = ITEM_COLOR.get_mut();
+        match map.iter().position(|(i, _)| Arc::ptr_eq(i, &item)) {
+            Some(index) => map[index].1 = color,
+            None => map.push((item, color)),
+        }
+    }
+
+    /// `itemColor.get(item)` - `null` for an item that is not a colour.
+    fn item_color(item: &Arc<Item>) -> Option<DyeColor> {
+        ITEM_COLOR.get().iter().find(|(i, _)| Arc::ptr_eq(i, item)).map(|(_, color)| *color)
     }
 
     /// java: public ColorTerminal()
@@ -205,7 +219,7 @@ impl ColorTerminal {
         let mut highlights: Vec<ColorHighlight> = Vec::new();
         for slot in slots.iter().map(|(k, v)| (k.clone(), v.clone())) {
             let item_stack = &slot.1;
-            if !item_stack.has_foil() && compat::read(__this, |__t| __t.target_color.clone()).unwrap() == ITEM_COLOR.get_mut().get(&item_stack.get_item()).cloned().unwrap() {
+            if !item_stack.has_foil() && compat::read(__this, |__t| __t.target_color.clone()) == ColorTerminal::item_color(&item_stack.get_item()) {
                 highlights.push(ColorHighlight::green(slot.0));
             }
         }
@@ -219,7 +233,7 @@ impl ColorTerminal {
 
     /// java: @Override public boolean onClickSlot(int slot, ItemStack stack, int screenId, int button)
     pub fn on_click_slot_impl(__this: &compat::Shared<Self>, mut slot: i32, stack: &mcrust::net::minecraft::world::item::item_stack::ItemStack, mut screen_id: i32, mut button: i32) -> bool {
-        if stack.has_foil() || !(compat::read(__this, |__t| __t.target_color.clone()).unwrap() == ITEM_COLOR.get_mut().get(&stack.get_item()).cloned().unwrap()) {
+        if stack.has_foil() || !(compat::read(__this, |__t| __t.target_color.clone()) == ColorTerminal::item_color(&stack.get_item())) {
             return ({ let __f = compat::dispatch(__this, |__t| __t.should_block_incorrect_clicks()); __f(&compat::view(__this, |a| a as compat::Shared<dyn TerminalSolver>)) });
         }
         return false;
@@ -232,7 +246,7 @@ impl ColorTerminal {
 
     /// java: @Override public ItemStack modifyDisplayStack(int slotIndex, ItemStack stack)
     pub fn modify_display_stack_impl(__this: &compat::Shared<Self>, mut slot_index: i32, stack: &mcrust::net::minecraft::world::item::item_stack::ItemStack) -> mcrust::net::minecraft::world::item::item_stack::ItemStack {
-        return (if slot_index >= 54 || compat::read(__this, |__t| __t.target_color.clone()).is_some() && compat::read(__this, |__t| __t.target_color.clone()).unwrap() == ITEM_COLOR.get_mut().get(&stack.get_item()).cloned().unwrap() { stack.clone() } else { mcrust::net::minecraft::world::item::item_stack::empty() });
+        return (if slot_index >= 54 || compat::read(__this, |__t| __t.target_color.clone()).is_some() && compat::read(__this, |__t| __t.target_color.clone()) == ColorTerminal::item_color(&stack.get_item()) { stack.clone() } else { mcrust::net::minecraft::world::item::item_stack::empty() });
     }
 
     /// ColorTerminal.modifyDisplayStack as the dispatch of StackDisplayModifier.modifyDisplayStack

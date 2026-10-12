@@ -1,0 +1,50 @@
+# PATTERNS - batch B (`skyblock/dungeon/`, `skyblock/item/`)
+
+Converter (fabric2seer) mistakes fixed repeatedly in batch B. Paths are relative to
+`src/de/hysky/skyblocker/skyblock/`. Counts are sites fixed in this batch (mod-wide counts where measured).
+The first table changes BEHAVIOUR silently (it compiles): those are the ones to fix in the converter first.
+
+## Silent behaviour changes
+
+| # | Wrong shape emitted | Correct shape | Count | Example |
+|---|---|---|---|---|
+| S1 | **parentheses dropped around `a \|\| b` inside `&&`** (kept only under `!(..)`): Java `(a \|\| b) && c` became `a \|\| b && c` | restore the parentheses | 12 fixed; a Java-side scan finds **60 candidate sites mod-wide** | `dungeon/dungeon_map.rs:129`, `dungeon/secrets/room.rs` `notInDoorway`, `item/slottext/slot_text_manager.rs:141`, `item/tooltip/adders/avg_bin_tooltip.rs` x2 |
+| S2 | `String.format(Locale.X, "%1$,.1f", v)` / `String.format("%+.2fs", v)` -> `format!("%1$,.1f")`: the format string printed literally, the arguments DROPPED | `compat::string_format(fmt, &[v.into()])` (new: Java Formatter semantics) | 5 (8 mod-wide) | `item/tooltip/item_tooltip.rs:60,64`, `item/tooltip/adders/motes_tooltip.rs:58,62`, `dungeon/dungeon_splits_widget.rs:474` |
+| S3 | fastutil mutable pair setters `pair.first(v)` / `.second(v)` / `.left(v)` emitted as a READ statement `compat::read(.., \|t\| t.pair.clone()).0;` (a no-op) | `compat::write(.., \|t\| t.pair.0 = v)` | 10 (25 mod-wide; `fancybars/status_bars_config_screen.rs` has 12) | `item/custom/screen/name/color_popup.rs:97`, `name/visitor/get_render_width_visitor.rs:96` |
+| S4 | `x != null` / `x == null` on a value that IS nullable (array element, `Optional`-less field) emitted as the constant `true` / `false` "never null here"; nullable arrays `new T[n]` emitted as `Vec<T>` | `Vec<Option<T>>` and `.is_some()` / `.is_none()` | 9 (162 "never null here" sites mod-wide; most are right, the array/field ones are not) | `item/tooltip/backpack_preview.rs` `STORAGES` (4 sites), `dungeon/partyfinder/party_entry.rs` `partyMembers` |
+| S5 | `Integer.decode(s)` -> `s.trim().parse::<i32>()` (fails on `#RRGGBB` / `0x..`) | `compat::integer_decode(s)` (new) | 3 | `item/tooltip/adders/true_hex_display.rs`, `true_hex_dye_screen_display.rs`, `color_tooltip.rs:65` |
+| S6 | `return` inside a `forEach` lambda emitted as `return` from the enclosing method | `continue` | 1 (pattern risk mod-wide) | `item/custom/screen/dye_select_popup.rs` (FAIRY dyes) |
+| S7 | a Java `MutableComponent.append(..)` / `withStyle(..)` statement (mutates in place) emitted as a call whose result is dropped | `x = x.append(..)` / `*p = p.clone().append(..)` | 9 | `item/value_breakdown_popup.rs` x6, `dungeon/terminal/terminal_hud.rs`, `item/tooltip/adders/motes_tooltip.rs` |
+| S8 | `Util.offsetByCodepoints(str, pos, ±1)` on a mod string index -> the port's `offset_by_codepoints_str`, which walks UTF-8 BYTE positions | offset over the mod's char index | 1 | `item/custom/screen/name/customize_name_widget.rs:298` |
+
+## Compile errors
+
+| # | Wrong shape emitted | Correct shape | Count | Example |
+|---|---|---|---|---|
+| 1 | a game entity kept by value (`Set<Zombie>`, `Map<ArmorStand,..>`) | entity id + `game::with_entity` / `lock_entity` | 12 | `dungeon/blood_camp_helper.rs`, `dungeon/puzzle/tic_tac_toe.rs` |
+| 2 | `slot.hasItem()` / `slot.getItem()` with no `Containers` | `compat::slot_item` / `slot_has_item`, or a `(index, item)` snapshot through `compat::with_open_menu` / the new `LiveChestMenu::with_slots` | 30 | `dungeon/croesus_profit.rs:344`, `dungeon/partyfinder/party_finder_screen.rs` `updatePartyFinderPage`, `partyfinder/finder_settings_container.rs` |
+| 3 | `screen instanceof AbstractContainerScreen` -> `screen.as_any().downcast_ref::<AbstractContainerScreen>()` | `compat::container_screen_open()` | 6 | `item/tooltip/adders/bits_helper.rs:199`, `item/tooltip/backpack_preview.rs:71`, `item/value_breakdown_popup.rs:261` |
+| 4 | data component reads/writes as their value types (`stack.get(X).unwrap()` typed `Identifier`; `stack.set(X, Some(value))`) | `stack.get(X).and_then(\|o\| cast::<T>(&o).cloned())`; `stack.set(X, Some(obj(value)))` | 14 | `item/slottext/adders/hotf_perk_level_adder.rs:125`, `item/custom/screen/trim_element_button.rs:261-263`, `color_selection_widget.rs:410` |
+| 5 | `fn x_base_mut(&mut self) -> &mut XBase { &mut self }` / `&mut self.x_base_mut()` in `row_parts` | `self` / `self.x_base_mut()` | 7 | `item/tooltip/info/simple_tooltip_info.rs`, `item/custom/screen/dye_select_popup.rs:392`, `dungeon/partyfinder/party_entry.rs:409,434` |
+| 6 | `update(Arc::new(move \|config\| ..))` mutating a by-value config; lambdas capturing `self` of a `&mut self` method into `Arc<dyn Fn>` (`'static`) | `move \|mut config\|`; capture the field VALUES before the call (it runs before `update_only` returns) | 20 | `item/custom/screen/color_selection_widget.rs:239,251`, `name/customize_name_widget.rs:236`, `trim_selection_widget.rs:165` |
+| 7 | enum constants unqualified inside the enum's own methods | `Enum::Variant` | 14 | `dungeon/dungeon_boss.rs:93`, `item/skyblock_item_rarity.rs:122-130` |
+| 8 | `Display` impl calling `T::to_string(*self)` where `to_string(&self)` | `T::to_string(self)` | 3 | `item/slottext/slot_text_mode.rs:63` |
+| 9 | a struct with non-`Default` fields built with `Default::default()` then assigned (`Fields::new`, `new Slot[4]`, `new ItemStack[4]`, `Player`/`RemotePlayer` fields) | build directly / `vec![None; n]` / the Java initialiser | 9 | `dungeon/dungeon_class.rs:132`, `item/tooltip/adders/color_tooltip.rs:329`, `item/custom/screen/armor_tab.rs:130,138` |
+| 10 | a record's canonical constructor and an explicit one both named `new` | canonical one `new_N` | 3 | `item/item_cooldowns.rs`, `item/value_breakdown_popup.rs` |
+| 11 | `Vec<Box<dyn NarratableEntry>>` (not dyn-compatible in the port) | `Vec<Box<dyn NarrationSupplier>>` (as batch A) | 2 (8 mod-wide) | `dungeon/partyfinder/party_entry.rs:279` |
+| 12 | `CompoundTag.isEmpty()/size()` as 0-arg free functions; `keySet()` elements `&str` compared with `String` sets | `tag.compound_is_empty()` / `compound_size()`; `set.contains(key)` | 5 | `item/slottext/adders/enchantment_level_adder.rs`, `tooltip/adders/stacking_enchant_progress_tooltip.rs:140` |
+| 13 | `Codec.unboundedMap` statics typed `HashMap` (the port's codec answers `Vec<(K,V)>`) | `codec::xmap(.., collect, to_vec)` | 4 | `item/tooltip/info/tooltip_info_type.rs` MUSEUM/COLOR |
+| 14 | codec / path statics typed `MainThread` but read by async loaders | `LazyLock` (codecs are `Send + Sync`) / `LazyLock<Mutex<..>>` for a `volatile` field | 6 | `dungeon/secrets/dungeon_manager.rs` room codecs, `item/skyblock_inventory_screen.rs` `CODEC`, `item/tooltip/backpack_preview.rs` `STORAGE_CODEC`, `SAVE_DIR` |
+| 15 | `new X(..)` of a game object the mod keeps (`SimpleContainer`, `SignBlockEntity`) cloned/stored by value | the mod's own `SimpleContainer`; the level's shared `Arc<dyn BlockEntityObj>` (as `ClientLevel.get_block_entity` answers) | 4 | `item/tooltip/backpack_preview.rs` `Storage`, `dungeon/partyfinder/party_finder_screen.rs` `sign` |
+| 16 | closure params untyped in sort / `min_by` / `retain` keys (E0282) | annotate the parameter type | 9 | `dungeon/goldor_waypoints_manager.rs`, `dungeon/partyfinder/party_entry_list_widget.rs:75` |
+| 17 | `instanceof` emitted as `as_any().is::<compat::Shared<X>>()` (always false) | `as_any().is::<X>()` | 1 (silent) | `dungeon/partyfinder/party_entry_list_widget.rs:78` |
+| 18 | a Java inner class named like a std/regex type (`Option`, `Pattern`) resolved to the std/regex one in field and local types | qualify `std::option::Option`; use the inner class's path | 6 | `dungeon/partyfinder/option_dropdown_widget.rs:32,42,370`, `item/custom/screen/trim_selection_widget.rs:42,76` |
+| 19 | a `MainThread` static compared or passed by value (`x == STATIC.get_mut()`) | `*STATIC.get()` | 4 | `dungeon/device/simon_says.rs:77`, `item/tooltip/adders/line_smoothener.rs:124` |
+| 20 | `level.getBlockState(pos)` answering an erased object | `get_block_state_typed` | 6 | `dungeon/device/simon_says.rs`, `dungeon/puzzle/ice_fill.rs` |
+| 21 | `Comparable` block-state values used as bool/int | `== Comparable::Boolean(true)` / `Comparable::Integer(n)` | 4 | `dungeon/device/lights_on.rs:64`, `target_practice.rs:58` |
+| 22 | `vec![A::new(), B::new()]` into `Vec<Shared<dyn Trait>>` | cast each element | 4 | `item/slottext/slot_text_manager.rs` ADDERS, `item/background/item_background_manager.rs` |
+| 23 | identity-keyed `HashSet`/`HashMap` over `Block`, `Item`, adders | `Vec` + `Arc::ptr_eq` | 6 | `dungeon/livid_color.rs`, `dungeon/terminal/color_terminal.rs` |
+| 24 | key mappings: `KEY.matches(e)` / `KEY.consumeClick()` on unported `KeyMapping` statics | `key_mapping::matches("key.x", e)` / `consume_click("key.x")` | 4 | `dungeon/leap_overlay.rs:183`, `item/hotbar_slot_lock.rs`, `item/value_breakdown_popup.rs` |
+| 25 | port APIs whose shape differs from Java's: `PlayerFaceExtractor` takes the resolved `AbstractTexture`; `DefaultPlayerSkin.getDefaultTexture()` answers the asset id, not the texture path; `DyedItemColor.getOrDefault` takes the component | `texture_manager().get_texture_or_request(&id)`; `textures/<id>.png`; read + cast the component first | 7 | `dungeon/partyfinder/party_entry.rs:342,349,114`, `item/custom/screen/color_selection_widget.rs:276` |
+| 26 | `CompletableFuture.supplyAsync(..).thenAcceptAsync(..)` with the catch blocks dropped ("not reached in Rust") and `System.arraycopy` over `length` of unknown type | `catch_unwind` + `Result` arms; slice copies | 3 | `item/skyblock_inventory_screen.rs` `load`, `item/tooltip/backpack_preview.rs` `loadStorages` / `saveStorage` |
+| 27 | async tasks touching mod objects on `compat::executor` (MainThread statics / `RenderThread` handles panic off-thread) | network/IO half on the worker, object half through `game::execute` | 6 | `dungeon/puzzle/ice_fill.rs`, `item/tooltip/info/data_tooltip_info.rs`, `item/wikilookup/wiki_lookup_manager.rs` |

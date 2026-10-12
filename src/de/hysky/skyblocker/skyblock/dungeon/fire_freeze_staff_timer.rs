@@ -36,9 +36,6 @@ impl FireFreezeStaffTimer {
     /// java: @Init public static void init()
     pub fn init() {
         hud_render_callback::EVENT.register(Arc::new(|ctx: &mut hud_render_callback::HudRenderContext<'_>| {
-            // SAFETY: `ctx` outlives every call made through `graphics` (this callback).
-            let graphics = unsafe { ScriptGraphics::new(ctx.gl, &*ctx.minecraft, ctx.gui_width, ctx.gui_height) };
-            let _session = graphics.session();
             let mut client = (&mut *ctx.minecraft);
             if client.gui.screen().is_some() {
                 return;
@@ -57,7 +54,7 @@ impl FireFreezeStaffTimer {
                 let mut renderer: Font = compat::font();
                 let mut width: i32 = (client.get_window().get_gui_scaled_width()).wrapping_div(2);
                 let mut height: i32 = (client.get_window().get_gui_scaled_height()).wrapping_div(2);
-                graphics.centered_text(component::literal("Fire Freeze ").append(message.clone()).to_string(), width, height, mcrust::net::minecraft::util::common_colors::WHITE);
+                mcrust::net::minecraft::client::gui::gui_graphics_extractor::centered_text(ctx.gl, &*client, &mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::literal("Fire Freeze ").append(message.clone())), width, height, mcrust::net::minecraft::util::common_colors::WHITE);
             }
         }));
         // TODO(fabric2seer): ClientReceiveMessageEvents.ALLOW_GAME.register: no SeerClient equivalent yet

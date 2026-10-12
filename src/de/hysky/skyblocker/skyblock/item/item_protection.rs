@@ -60,7 +60,7 @@ impl ItemProtection {
             |dispatcher: &mut client_command_registration_callback::ClientCommandDispatcher| {
                 dispatcher.register("skyblocker", |ctx| {
                     if ctx.args.first().map(|s| &**s) == Some("protectItem") {
-                        ItemProtection::protect_my_item(&ctx);
+                        ItemProtection::protect_my_item(ctx);
                         return Ok(());
                     }
                     #[allow(unreachable_code)]
@@ -95,29 +95,28 @@ impl ItemProtection {
     }
 
     /// java: private static int protectMyItem(FabricClientCommandSource source)
-    pub fn protect_my_item(source: &crate::unresolved::FabricClientCommandSource) -> i32 {
-        // TODO(fabric2seer): `.getPlayer(..)` on a FabricClientCommandSource
-        //   java: ItemStack heldItem = source.getPlayer().getMainHandItem();
-        let mut held_item: mcrust::net::minecraft::world::item::item_stack::ItemStack = todo!("fabric2seer: the initialiser of `heldItem` (TODO above)");
+    /// `source` is the port's client command source (`ClientCommandContext`: its feedback goes to chat as text).
+    pub fn protect_my_item(source: &client_command_registration_callback::ClientCommandContext<'_>) -> i32 {
+        // ItemStack heldItem = source.getPlayer().getMainHandItem();
+        let mut held_item: mcrust::net::minecraft::world::item::item_stack::ItemStack = {
+            use mcrust::net::minecraft::world::entity::living_entity::LivingEntity as _;
+            mcrust::mcrust::modding::game::with_player(|player| player.get_main_hand_item().clone()).unwrap_or_else(mcrust::net::minecraft::world::item::item_stack::empty)
+        };
         if Utils::is_on_skyblock() {
             let mut item_uuid: String = held_item.get_uuid();
             if !item_uuid.is_empty() {
                 if !(SkyblockerConfigManager::get().general.protected_items.contains(&item_uuid)) {
-                    SkyblockerConfigManager::update(Arc::new(move |config| { config.general.protected_items.insert(item_uuid.clone()); }));
-                    // TODO(fabric2seer): `.sendFeedback(..)` on a FabricClientCommandSource
-                    //   java: source.sendFeedback(Constants.PREFIX.get().append(getAddedMessage(heldItem)));
+                    SkyblockerConfigManager::update(Arc::new(move |mut config| { config.general.protected_items.insert(item_uuid.clone()); }));
+                    source.send_feedback(&(constants::PREFIX.get_mut())().append(ItemProtection::get_added_message(&held_item)).get_string());
                 } else {
-                    SkyblockerConfigManager::update(Arc::new(move |config| { config.general.protected_items.remove(&item_uuid); }));
-                    // TODO(fabric2seer): `.sendFeedback(..)` on a FabricClientCommandSource
-                    //   java: source.sendFeedback(Constants.PREFIX.get().append(Component.translatable("skyblocker.itemProtection.removed", heldItem.getHoverName())));
+                    SkyblockerConfigManager::update(Arc::new(move |mut config| { config.general.protected_items.remove(&item_uuid); }));
+                    source.send_feedback(&(constants::PREFIX.get_mut())().append(component::translatable_args("skyblocker.itemProtection.removed", vec![held_item.get_hover_name()])).get_string());
                 }
             } else {
-                // TODO(fabric2seer): `.sendFeedback(..)` on a FabricClientCommandSource
-                //   java: source.sendFeedback(Constants.PREFIX.get().append(NO_UUID_TEXT));
+                source.send_feedback(&(constants::PREFIX.get_mut())().append(NO_UUID_TEXT.get().clone()).get_string());
             }
         } else {
-            // TODO(fabric2seer): `.sendFeedback(..)` on a FabricClientCommandSource
-            //   java: source.sendFeedback(Constants.PREFIX.get().append(UNABLE_TO_PROTECT_TEXT));
+            source.send_feedback(&(constants::PREFIX.get_mut())().append(UNABLE_TO_PROTECT_TEXT.get().clone()).get_string());
         }
         return 1;
     }
@@ -139,12 +138,12 @@ impl ItemProtection {
         let mut item_uuid: String = held_item.get_uuid();
         if !item_uuid.is_empty() {
             if !(SkyblockerConfigManager::get().general.protected_items.contains(&item_uuid)) {
-                SkyblockerConfigManager::update(Arc::new(move |config| { config.general.protected_items.insert(item_uuid.clone()); }));
+                SkyblockerConfigManager::update(Arc::new(move |mut config| { config.general.protected_items.insert(item_uuid.clone()); }));
                 if notify_configuration {
                     mcrust::mcrust::modding::game::with_player(|player| { script_host::send_feedback(&(constants::PREFIX.get_mut())().append(ItemProtection::get_added_message(held_item)).to_string()); });
                 }
             } else {
-                SkyblockerConfigManager::update(Arc::new(move |config| { config.general.protected_items.remove(&item_uuid); }));
+                SkyblockerConfigManager::update(Arc::new(move |mut config| { config.general.protected_items.remove(&item_uuid); }));
                 if notify_configuration {
                     mcrust::mcrust::modding::game::with_player(|player| { script_host::send_feedback(&(constants::PREFIX.get_mut())().append(component::translatable_args("skyblocker.itemProtection.removed", vec![mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(compat::component_of(held_item.get_hover_name()))])).to_string()); });
                 }
@@ -161,8 +160,8 @@ impl ItemProtection {
 
     /// java: public static void handleHotbarKeyPressed(LocalPlayer player)
     pub fn handle_hotbar_key_pressed(player: &LocalPlayer) {
-        // TODO(fabric2seer): `consume_click` takes 1 argument(s) in the port (`name: &str`), Java passes 0
-        while key_mapping::consume_click() {
+        // the port's key mappings are reached by name
+        while key_mapping::consume_click("key.skyblocker.itemProtection") {
             let held_item = player.get_main_hand_item();
             ItemProtection::handle_key_pressed(held_item);
         }
@@ -213,7 +212,7 @@ impl ItemProtection {
             return InteractionResult::Pass;
         }
         if let Some(item_frame) = entity.as_any().unwrap_or(&() as &dyn std::any::Any).downcast_ref::<ItemFrame>() && item_frame.get_item().is_empty() {
-            if ItemProtection::is_item_protected(Some(player_entity.get_item_in_hand(*hand).clone())) || HotbarSlotLock::is_locked(player_entity.get_inventory().get_selected_slot()) {
+            if ItemProtection::is_item_protected(Some(player_entity.get_item_in_hand(*hand).clone())) || HotbarSlotLock::is_locked(player_entity.player().get_inventory().get_selected_slot()) {
                 return InteractionResult::Fail;
             }
         }

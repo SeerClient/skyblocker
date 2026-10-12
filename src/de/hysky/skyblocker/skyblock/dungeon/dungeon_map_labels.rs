@@ -103,7 +103,7 @@ impl DungeonMapLabels {
         let Some(mut label_pos) = DungeonMapLabels::get_pos_for_label(room, map_room_size, mcrust::net::minecraft::client::gui::font::LINE_HEIGHT) else {
             return;
         };
-        let mut map_pos: crate::unresolved::Vector2dc = DungeonMapUtils::get_map_pos_from_physical(entrance_pos, map_entrance_pos.clone(), map_room_size, &label_pos);
+        let mut map_pos: crate::unresolved::Vector2dc = DungeonMapUtils::get_map_pos_from_physical_vector2ic_vector2ic_int_position(entrance_pos, map_entrance_pos, map_room_size, &label_pos);
         let Some(mut room_info) = DungeonManager::get_room_metadata(({ let __f = compat::dispatch(room, |__t| __t.get_name()); __f(room) }).as_deref().unwrap()) else {
             return;
         };
@@ -117,9 +117,10 @@ impl DungeonMapLabels {
         };
         let mut width: f32 = ((DungeonMapLabels::get_max_width(room, map_room_size) as f32) / LABEL_SCALE);
         let mut text: MutableComponent = DungeonMapLabels::get_label_for_room(room, &room_name);
-        let mut lines: Vec<Seq> = text_renderer.split(&mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(text.clone()), ((width) as i32));
-        // TODO(fabric2seer): `.x(..)` on a Vector2dc
-        //   java: LABELS.put(room.getName(), new RoomLabel(lines, (int) mapPos.x(), (int) mapPos.y(), color));
+        // Font.split(text, width) = Language.getInstance().getVisualOrder(splitter.splitLines(text, width, Style.EMPTY));
+        // the port's `Font::split` answers the lines before the visual order
+        let mut lines: Vec<Seq> = mcrust::net::minecraft::locale::language::get_instance().get_visual_order_list(&text_renderer.split(&mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(text.clone()), ((width) as i32)));
+        LABELS.get_mut().insert(({ let __f = compat::dispatch(room, |__t| __t.get_name()); __f(room) }).unwrap(), RoomLabel::new(lines, (map_pos.x()) as i32, (map_pos.y()) as i32, color));
     }
 
     /// java: private static Component getLabelForRoom(Room room, String roomName)
@@ -147,11 +148,10 @@ impl DungeonMapLabels {
             return;
         }
         let mut text_renderer: Font = compat::font();
-        for label in LABELS.get_mut().values().cloned() {
+        for label in LABELS.get().values() {
             let __pose_1 = gui_graphics_extractor::push_pose();
             gui_graphics_extractor::pose_translate((label.x) as f32, (label.y) as f32);
-            // TODO(fabric2seer): Matrix3x2fStack.scale
-            //   java: graphics.pose().scale(LABEL_SCALE);
+            gui_graphics_extractor::pose_scale(LABEL_SCALE, LABEL_SCALE);
             DungeonMapLabels::extract_text(graphics, &text_renderer, &label.text_lines, label.color);
             gui_graphics_extractor::pop_pose(__pose_1);
         }
@@ -198,7 +198,7 @@ impl DungeonMapLabels {
             }
             _ => {}
         }
-        result.as_ref().unwrap().sub_dest(0, font_height.wrapping_div(2), result.as_ref().unwrap());
+        result.as_mut().unwrap().sub(0, font_height.wrapping_div(2));
         return Some(Vec3::new((result.as_ref().unwrap().x()) as f64, (0) as f64, (result.as_ref().unwrap().y()) as f64));
     }
 
@@ -229,7 +229,7 @@ impl DungeonMapLabels {
     pub fn extract_text(graphics: &GuiGraphicsExtractor, text_renderer: &Font, lines: &Vec<Seq>, mut color: i32) {
         let mut y: i32 = (if (lines.len() as i32) > 1 { (-(mcrust::net::minecraft::client::gui::font::LINE_HEIGHT).wrapping_div(2)).wrapping_mul((lines.len() as i32).wrapping_sub(1)) } else { 0 });
         for ordered_text in lines.iter() {
-            let mut text_width: i32 = (text_renderer.width_of_sequence(ordered_text)).wrapping_div(2);
+            let mut text_width: i32 = (text_renderer.width_of_sequence(&**ordered_text)).wrapping_div(2);
             GuiHelper::outlined_text_gui_graphics_extractor_formatted_char_sequence_int_int_int_int(graphics, ordered_text, (-text_width), y, color, mcrust::net::minecraft::util::common_colors::BLACK);
             y = y.wrapping_add(9);
         }
@@ -319,22 +319,18 @@ impl RoomLabelType {
 
     /// java: @Override public String getSerializedName()
     pub fn get_serialized_name(&self) -> String {
-        // TODO(fabric2seer): call to `name(..)` (not a method of this class)
-        //   java: return name();
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        return self.name().to_string();
     }
 
     /// java: @Override public String toString()
     pub fn to_string(&self) -> String {
-        // TODO(fabric2seer): call to `name(..)` (not a method of this class)
-        //   java: return I18n.get("skyblocker.config.dungeons.map.roomLabelType." + name());
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        return mcrust::net::minecraft::client::resources::language::i18n::get(&format!("skyblocker.config.dungeons.map.roomLabelType.{}", self.name()), &[]);
     }
 
 }
 
 impl std::fmt::Display for RoomLabelType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", RoomLabelType::to_string(*self))
+        write!(f, "{}", RoomLabelType::to_string(self))
     }
 }

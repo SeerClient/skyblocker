@@ -55,11 +55,11 @@ impl TargetPractice {
             return;
         }
         if pos == PRESSURE_PLATE.get_mut() && std::ptr::addr_eq(std::sync::Arc::as_ptr(&new_state.get_block()), std::sync::Arc::as_ptr(&blocks::blocks().get("light_weighted_pressure_plate"))) {
-            if new_state.get_value(&mcrust::net::minecraft::world::level::block::state::properties::block_state_properties::power()) < ACTIVATION_THRESHOLD {
+            if new_state.get_value(&mcrust::net::minecraft::world::level::block::state::properties::block_state_properties::power()) < mcrust::net::minecraft::world::level::block::state::properties::property::Comparable::Integer(ACTIVATION_THRESHOLD) {
                 TargetPractice::reset();
                 return;
             }
-            if std::ptr::addr_eq(std::sync::Arc::as_ptr(&old_state.get_block()), std::sync::Arc::as_ptr(&blocks::blocks().get("light_weighted_pressure_plate"))) && old_state.get_value(&mcrust::net::minecraft::world::level::block::state::properties::block_state_properties::power()) == UNACTIVATED {
+            if std::ptr::addr_eq(std::sync::Arc::as_ptr(&old_state.get_block()), std::sync::Arc::as_ptr(&blocks::blocks().get("light_weighted_pressure_plate"))) && old_state.get_value(&mcrust::net::minecraft::world::level::block::state::properties::block_state_properties::power()) == mcrust::net::minecraft::world::level::block::state::properties::property::Comparable::Integer(UNACTIVATED) {
                 TargetPractice::reset();
                 return;
             }

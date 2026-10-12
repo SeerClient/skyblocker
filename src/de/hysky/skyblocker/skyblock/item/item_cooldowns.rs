@@ -158,12 +158,13 @@ pub struct CooldownEntry {
 impl CooldownEntry {
     /// java: public CooldownEntry(int cooldown)
     pub fn new(mut cooldown: i32) -> Self {
-        let mut this = Self::new(cooldown, compat::millis());
+        let mut this = Self::new_2(cooldown, compat::millis());
         this
     }
 
     /// java: the canonical record constructor
-    pub fn new(mut cooldown: i32, mut start_time: i64) -> Self {
+    /// (the canonical record constructor is `new_N` here: Rust has no overloading and `new` is the explicit one)
+    pub fn new_2(mut cooldown: i32, mut start_time: i64) -> Self {
         Self { cooldown, start_time }
     }
 

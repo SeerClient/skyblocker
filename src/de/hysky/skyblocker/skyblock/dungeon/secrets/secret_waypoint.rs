@@ -49,10 +49,9 @@ pub static SECRET_ITEMS: LazyLock<Vec<String>> = LazyLock::new(|| vec!["Candycom
 pub static CONFIG: compat::MainThread<Arc<dyn Fn() -> compat::Shared<SecretWaypoints>>> = compat::MainThread::new(|| Arc::new(move || SkyblockerConfigManager::get().dungeons.secret_waypoints.clone()));
 /// java: static final Supplier<Type> TYPE_SUPPLIER = () -> CONFIG.get().waypointType;
 pub static TYPE_SUPPLIER: compat::MainThread<Arc<dyn Fn() -> Type>> = compat::MainThread::new(|| Arc::new(move || compat::read(&(CONFIG.get_mut())(), |__t| __t.waypoint_type)));
-// TODO(fabric2seer): `from_enum` takes 2 argument(s) in the port (`values: Vec<E>, serialized_name: impl Fn(&E) -> String + Send + Sync + Copy + 'static`), Java passes 1
-//   java: public static final Codec<Category> CODEC = StringRepresentable.fromEnum(Category::values);
 /// java: public static final Codec<Category> CODEC = StringRepresentable.fromEnum(Category::values);
-pub static CATEGORY_CODEC: compat::MainThread<CodecRef<Category>> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `CODEC` - see the TODO above"));
+/// (a `LazyLock`: the codec is Send + Sync, and the room loading reads it off the render thread, as Java does)
+pub static CATEGORY_CODEC: LazyLock<CodecRef<Category>> = LazyLock::new(|| mcrust::net::minecraft::util::string_representable::from_enum(Category::values(), |e: &Category| e.get_serialized_name()));
 
 /// java: public class SecretWaypoint extends DistancedNamedWaypoint
 #[derive(Clone)]
@@ -117,13 +116,19 @@ impl SecretWaypoint {
     }
 
     /// java: static ToDoubleFunction<SecretWaypoint> getSquaredDistanceToFunction(Entity entity)
+    /// The entity's position is read when the function is made (both callers apply it at once, inside the stream
+    /// the entity was handed to).
     pub fn get_squared_distance_to_function(entity: &dyn Entity) -> Arc<dyn Fn(compat::Shared<SecretWaypoint>) -> f64> {
-        return Arc::new(move |secret_waypoint| entity.distance_to_sqr_vec(&compat::read(&secret_waypoint, |__t| __t.center_pos.clone()).unwrap()));
+        // Entity.distanceToSqr(Vec3) = the position's distanceToSqr
+        let position = entity.base().position();
+        return Arc::new(move |secret_waypoint| position.distance_to_sqr_vec(&compat::read(&secret_waypoint, |__t| __t.center_pos.clone()).unwrap()));
     }
 
     /// java: static Predicate<SecretWaypoint> getRangePredicate(Entity entity)
+    /// See `get_squared_distance_to_function`.
     pub fn get_range_predicate(entity: &dyn Entity) -> Arc<dyn Fn(compat::Shared<SecretWaypoint>) -> bool> {
-        return Arc::new(move |secret_waypoint| entity.position().closer_than(&compat::read(&secret_waypoint, |__t| __t.center_pos.clone()).unwrap(), (16) as f64));
+        let position = entity.base().position();
+        return Arc::new(move |secret_waypoint| position.closer_than(&compat::read(&secret_waypoint, |__t| __t.center_pos.clone()).unwrap(), (16) as f64));
     }
 
     /// java: boolean needsInteraction()
@@ -298,7 +303,7 @@ impl SecretWaypoint {
 
     /// java: @Override protected AABB getRenderBox()
     pub fn get_render_box_impl(__this: &compat::Shared<Self>) -> AABB {
-        if compat::read(&SkyblockerConfigManager::get().dungeons.secret_waypoints, |__t| __t.adaptive_box_size) && compat::read(__this, |__t| __t.category.clone()).unwrap() == Category::Wither || compat::read(__this, |__t| __t.category.clone()).unwrap() == Category::RedstoneKey {
+        if compat::read(&SkyblockerConfigManager::get().dungeons.secret_waypoints, |__t| __t.adaptive_box_size) && (compat::read(__this, |__t| __t.category.clone()).unwrap() == Category::Wither || compat::read(__this, |__t| __t.category.clone()).unwrap() == Category::RedstoneKey) {
             let mut r#box: Option<AABB> = RenderHelper::get_block_bounding_box(&mcrust::mcrust::modding::game::level().unwrap(), &compat::read(__this, |__t| __t.pos.clone()).unwrap());
             if let Some(r#box) = &r#box {
                 return r#box.clone();
@@ -415,32 +420,32 @@ impl Category {
 
     /// java: static Category get(JsonObject waypointJson)
     pub fn get(waypoint_json: &serde_json::Map<String, serde_json::Value>) -> Category {
-        return (CATEGORY_CODEC.get_mut().parse(&mcrust::com::mojang::serialization::json_ops::JsonOps::instance(), &compat::json_to_port(&waypoint_json.get("category").cloned().unwrap()))).result_or_partial_with(|__a0| { logger().error(&__a0); }).unwrap_or(Category::Default);
+        return (CATEGORY_CODEC.parse(&mcrust::com::mojang::serialization::json_ops::JsonOps::instance(), &compat::json_to_port(&waypoint_json.get("category").cloned().unwrap()))).result_or_partial_with(|__a0| { logger().error(&__a0); }).unwrap_or(Category::Default);
     }
 
     /// java: boolean needsInteraction()
     pub fn needs_interaction(&self) -> bool {
-        return (*self == CHEST || *self == WITHER || *self == REDSTONE_KEY);
+        return (*self == Category::Chest || *self == Category::Wither || *self == Category::RedstoneKey);
     }
 
     /// java: boolean isLever()
     pub fn is_lever(&self) -> bool {
-        return (*self == LEVER);
+        return (*self == Category::Lever);
     }
 
     /// java: boolean needsItemPickup()
     pub fn needs_item_pickup(&self) -> bool {
-        return (*self == ITEM);
+        return (*self == Category::Item);
     }
 
     /// java: boolean isBat()
     pub fn is_bat(&self) -> bool {
-        return (*self == BAT);
+        return (*self == Category::Bat);
     }
 
     /// java: boolean isPrince()
     pub fn is_prince(&self) -> bool {
-        return (*self == PRINCE);
+        return (*self == Category::Prince);
     }
 
     /// java: boolean isEnabled()
@@ -462,27 +467,24 @@ impl Category {
 
 impl std::fmt::Display for Category {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", Category::to_string(*self))
+        write!(f, "{}", Category::to_string(self))
     }
 }
 
 /// the constructor data of each Category constant
 pub struct CategoryFields {
     pub name: String,
-    pub enabled_predicate: Arc<dyn Fn(compat::Shared<SecretWaypoints>) -> bool>,
+    pub enabled_predicate: Arc<dyn Fn(compat::Shared<SecretWaypoints>) -> bool + Send + Sync>,
     pub color_components: Vec<f32>,
 }
 
 impl CategoryFields {
-    fn new(mut name: String, enabled_predicate: Arc<dyn Fn(compat::Shared<SecretWaypoints>) -> bool>, mut int_color_components: Vec<i32>) -> Self {
+    fn new(mut name: String, enabled_predicate: Arc<dyn Fn(compat::Shared<SecretWaypoints>) -> bool + Send + Sync>, mut int_color_components: Vec<i32>) -> Self {
         let mut this = Self {
-            name: Default::default(),
-            enabled_predicate: Default::default(),
-            color_components: Default::default(),
+            name: name.clone(),
+            enabled_predicate: enabled_predicate.clone(),
+            color_components: vec![0.0; ((int_color_components.len() as i32)) as usize],
         };
-        this.name = name.clone();
-        this.enabled_predicate = enabled_predicate.clone();
-        this.color_components = vec![0.0; ((int_color_components.len() as i32)) as usize];
         for i in 0..(int_color_components.len() as i32) {
             this.color_components[(i) as usize] = ((int_color_components[(i) as usize] as f32) / 255.0f32);
         }
@@ -526,7 +528,7 @@ impl CategoryArgumentType {
 
     /// java: static <S> Category getCategory(CommandContext<S> context, String name)
     pub fn get_category<S: 'static>(context: &CommandContext<S>, name: &str) -> Category {
-        return context.get_argument::<Category>(name).unwrap();
+        return context.get_argument::<Category>(name).cloned().unwrap();
     }
 
 }

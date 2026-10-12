@@ -209,8 +209,9 @@ impl DyeSelectPopup {
         layout.add_child(SpacerElement::height(15).as_layout_element());
         layout.add_child_with({ let __w = compat::string_widget(0, 0, -1, 9, component::translatable_args("skyblocker.customization.armor.pickDye.dyes", vec![mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::translatable("skyblocker.customization.armor.pickDye.dyes.animated"))])); let (__ww, __wh) = (__w.get_width(), __w.get_height()); LayoutElement::widget(compat::write(__this, |__t| __t.add_widget(__w)), __ww, __wh) }, header_layout.clone());
         for (name, colors) in compat::lock(&repo_dye_colors::ANIMATED_DYES).iter() {
+            // `return` inside the forEach lambda: skip this entry
             if name.starts_with("FAIRY") {
-                return;
+                continue;
             }
             let __this_2 = compat::RenderThread::new(__this.clone());
             layout.add_child(AnimatedDyeColor::new(name.to_string(), colors.clone(), OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| { compat::lend_screen(__this_2.get(), __screen, || { let mut __pidx = compat::WidgetRef::Screen(__index); { DyeSelectPopup::select_animated_dye(__this_2.get(), &compat::write(__this_2.get(), |__t| { let __s = &mut *__t; let __r = &mut __pidx; __s.base.__widgets.with(&mut __s.base.base, __r, |__w| __w.clone()) }), colors); } }) }))));
@@ -386,10 +387,10 @@ impl dyn StaticDyeButton {
 
 impl StaticDyeButton for StaticDyeButtonBase {
     fn static_dye_button_base(&self) -> &StaticDyeButtonBase {
-        &self
+        self
     }
     fn static_dye_button_base_mut(&mut self) -> &mut StaticDyeButtonBase {
-        &mut self
+        self
     }
 
     fn as_any(&self) -> &dyn std::any::Any {

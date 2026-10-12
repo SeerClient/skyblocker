@@ -62,7 +62,7 @@ impl ColorTooltip {
     pub fn add_exotic_tooltip(lines: &mut Vec<MutableComponent>, stack: &mcrust::net::minecraft::world::item::item_stack::ItemStack, internal_id: &str, color_hex: &str, expected_hex: &str, existing_tooltip: &str) {
         if true /* java: expected_hex != null: never null here */ && !(compat::equals_ignore_case(&color_hex, expected_hex)) && !(ColorTooltip::is_exception(internal_id, color_hex)) && !(ColorTooltip::intended_dyed(&ItemUtils::get_custom_data(stack))) {
             let mut r#type: DyeType = ColorTooltip::check_dye_type(stack, color_hex);
-            lines.insert((1) as usize, (component::literal(&format!("{}{}(", existing_tooltip, compat::jstring(&ChatFormatting::DarkGray)))).append((r#type).get_translated_text()).append(component::literal(" - ")).append((component::literal(&format!("#{}", color_hex))).with_color((format!("0x{}", color_hex)).trim().parse::<i32>().expect("NumberFormatException"))).append(component::literal(")").with_style_format(ChatFormatting::DarkGray)));
+            lines.insert((1) as usize, (component::literal(&format!("{}{}(", existing_tooltip, compat::jstring(&ChatFormatting::DarkGray)))).append((r#type).get_translated_text()).append(component::literal(" - ")).append((component::literal(&format!("#{}", color_hex))).with_color(compat::integer_decode(&format!("0x{}", color_hex)))).append(component::literal(")").with_style_format(ChatFormatting::DarkGray)));
         }
     }
 
@@ -324,13 +324,11 @@ pub struct DyeTypeFields {
 
 impl DyeTypeFields {
     fn new(mut name: String, mut formatting: ChatFormatting) -> Self {
-        let mut this = Self {
-            name: Default::default(),
-            formatting: Default::default(),
-        };
-        this.name = name.clone();
-        this.formatting = formatting;
-        this
+        // this.name = name; this.formatting = formatting;
+        Self {
+            name: name.clone(),
+            formatting: formatting,
+        }
     }
 
 }

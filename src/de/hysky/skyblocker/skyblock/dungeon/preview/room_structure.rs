@@ -32,41 +32,33 @@ impl RoomStructure {
 
     /// java: public static CompoundTag createCompound(List<SkeletonBlock> blockData)
     pub fn create_compound(block_data: &Vec<SkeletonBlock>) -> Tag {
-        let mut structure: Tag = mcrust::net::minecraft::nbt::compound_tag::Tag::compound();
+        let mut structure: Tag = Tag::compound();
         structure.put("size", RoomStructure::get_size(block_data));
-        let mut sorted_palette: Vec<Tag> = (0..((dungeon_manager::NUMERIC_ID.len() as i32)) as usize).map(|_| Default::default()).collect::<Vec<_>>();
-        // TODO(fabric2seer): Map.object2ByteEntrySet(..)
-        //   java: for (var entry : DungeonManager.NUMERIC_ID.object2ByteEntrySet()) {
-        //   java: 			CompoundTag paletteBlock = new CompoundTag();
-        //   java: 			paletteBlock.put("Name", StringTag.valueOf(entry.getKey()));
-        //   java: 			sortedPalette[entry.getByteValue() - 1] = paletteBlock; // Subtract 1 because NUMERIC_ID starts at 1.
-        //   java: 		}
-        // TODO(fabric2seer): `new ListTag(..)`: the port has no `ListTag::new`
-        // rust: let mut palette: Tag = Tag::new();
-        let mut palette: Tag = todo!("fabric2seer: the initialiser of `palette` (TODO above)");
-        // TODO(fabric2seer): `ListTag.addAll` has no Rust method in the port (looked for `add_all` in ListTag and JavaSrc)
-        // rust: palette.add_all(&sorted_palette.to_vec());
-        structure.put("palette", palette.clone());
-        // TODO(fabric2seer): `new ListTag(..)`: the port has no `ListTag::new`
-        // rust: let mut blocks: Tag = Tag::new();
-        let mut blocks: Tag = todo!("fabric2seer: the initialiser of `blocks` (TODO above)");
-        for block in block_data.iter() {
-            let mut nbt_block: Tag = mcrust::net::minecraft::nbt::compound_tag::Tag::compound();
-            // TODO(fabric2seer): `new ListTag(..)`: the port has no `ListTag::new`
-            // rust: let mut pos_list: Tag = Tag::new();
-            let mut pos_list: Tag = todo!("fabric2seer: the initialiser of `posList` (TODO above)");
-            // TODO(fabric2seer): `add` takes 3 argument(s) in the port (`elements: &mut Vec<Tag>, index: usize, tag: Tag`), Java passes 1
-            // rust: list_tag::add(&mut int_tag::value_of(block.x()));
-            // TODO(fabric2seer): `add` takes 3 argument(s) in the port (`elements: &mut Vec<Tag>, index: usize, tag: Tag`), Java passes 1
-            // rust: list_tag::add(&mut int_tag::value_of(block.y()));
-            // TODO(fabric2seer): `add` takes 3 argument(s) in the port (`elements: &mut Vec<Tag>, index: usize, tag: Tag`), Java passes 1
-            // rust: list_tag::add(&mut int_tag::value_of(block.z()));
-            nbt_block.put("pos", pos_list.clone());
-            nbt_block.put("state", int_tag::value_of((block.block_type() as i32).wrapping_sub(1)));
-            // TODO(fabric2seer): `add` takes 3 argument(s) in the port (`elements: &mut Vec<Tag>, index: usize, tag: Tag`), Java passes 1
-            // rust: list_tag::add(&mut nbt_block);
+        // CompoundTag[] sortedPalette = new CompoundTag[DungeonManager.NUMERIC_ID.size()];
+        let mut sorted_palette: Vec<Option<Tag>> = vec![None; dungeon_manager::NUMERIC_ID.len()];
+        for (key, byte_value) in dungeon_manager::NUMERIC_ID.iter() {
+            let mut palette_block: Tag = Tag::compound();
+            palette_block.put("Name", Tag::String(key.clone()));
+            // Subtract 1 because NUMERIC_ID starts at 1.
+            sorted_palette[((*byte_value as i32) - 1) as usize] = Some(palette_block);
         }
-        structure.put("blocks", blocks.clone());
+        // ListTag palette = new ListTag(); palette.addAll(Arrays.asList(sortedPalette));
+        let palette_elements: Vec<Tag> = sorted_palette.into_iter().map(|t| t.expect("NUMERIC_ID's ids are 1..=size")).collect();
+        let palette: Tag = Tag::List(list_tag::identify_raw_element_type(&palette_elements), palette_elements.into());
+        structure.put("palette", palette);
+        let mut block_elements: Vec<Tag> = Vec::new();
+        for block in block_data.iter() {
+            let mut nbt_block: Tag = Tag::compound();
+            let pos_elements: Vec<Tag> = vec![int_tag::value_of(block.x()), int_tag::value_of(block.y()), int_tag::value_of(block.z())];
+            let pos_list: Tag = Tag::List(list_tag::identify_raw_element_type(&pos_elements), pos_elements.into());
+            nbt_block.put("pos", pos_list);
+            // Subtract 1 because NUMERIC_ID starts at 1.
+            nbt_block.put("state", int_tag::value_of((block.block_type() as i32).wrapping_sub(1)));
+            let index = block_elements.len();
+            list_tag::add(&mut block_elements, index, nbt_block);
+        }
+        let blocks: Tag = Tag::List(list_tag::identify_raw_element_type(&block_elements), block_elements.into());
+        structure.put("blocks", blocks);
         return structure;
     }
 
@@ -98,15 +90,8 @@ impl RoomStructure {
                 min_z = block.z();
             }
         }
-        // TODO(fabric2seer): `new ListTag(..)`: the port has no `ListTag::new`
-        // rust: let mut size_list: Tag = Tag::new();
-        let mut size_list: Tag = todo!("fabric2seer: the initialiser of `sizeList` (TODO above)");
-        // TODO(fabric2seer): `add` takes 3 argument(s) in the port (`elements: &mut Vec<Tag>, index: usize, tag: Tag`), Java passes 1
-        // rust: list_tag::add(&mut int_tag::value_of(max_x.wrapping_sub(min_x)));
-        // TODO(fabric2seer): `add` takes 3 argument(s) in the port (`elements: &mut Vec<Tag>, index: usize, tag: Tag`), Java passes 1
-        // rust: list_tag::add(&mut int_tag::value_of(max_y.wrapping_sub(min_y)));
-        // TODO(fabric2seer): `add` takes 3 argument(s) in the port (`elements: &mut Vec<Tag>, index: usize, tag: Tag`), Java passes 1
-        // rust: list_tag::add(&mut int_tag::value_of(max_z.wrapping_sub(min_z)));
+        let size_elements: Vec<Tag> = vec![int_tag::value_of(max_x.wrapping_sub(min_x)), int_tag::value_of(max_y.wrapping_sub(min_y)), int_tag::value_of(max_z.wrapping_sub(min_z))];
+        let mut size_list: Tag = Tag::List(list_tag::identify_raw_element_type(&size_elements), size_elements.into());
         return size_list;
     }
 

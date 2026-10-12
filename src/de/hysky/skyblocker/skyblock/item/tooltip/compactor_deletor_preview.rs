@@ -63,7 +63,7 @@ impl CompactorDeletorPreview {
             // rust: gui_graphics_extractor::tooltip(&mut compat::font(), &components, &x, y, mcrust::net::minecraft::client::gui::screens::inventory::tooltip::default_tooltip_positioner::DefaultTooltipPositioner::INSTANCE, &stack.get(mcrust::net::minecraft::core::component::data_components::tooltip_style()).unwrap());
             return true;
         }
-        components.insert((target_index) as usize, CompactorPreviewTooltipComponent::new(slots.clone(), dimensions.clone()));
+        components.insert((target_index) as usize, Box::new(CompactorPreviewTooltipComponent::new(slots.clone(), dimensions.clone())));
         if custom_data.contains("PERSONAL_DELETOR_ACTIVE") {
             // TODO(fabric2seer): the port's `create_text` ports this Java method with other parameters ( for Java's char_sequence)
             // TODO(fabric2seer): `create_text` takes 0 argument(s) in the port (``), Java passes 1

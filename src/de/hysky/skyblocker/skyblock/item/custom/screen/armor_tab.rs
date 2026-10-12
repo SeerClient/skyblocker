@@ -127,7 +127,8 @@ impl ArmorTab {
         //   java: 	};
         let mut this = Self {
             base: GridLayoutTab::new(mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::translatable("skyblocker.customization.armor"))),
-            armor: (0..(4) as usize).map(|_| Default::default()).collect::<Vec<_>>(),
+            // new ItemStack[4] - every element is written below, before any read
+            armor: (0..(4) as usize).map(|_| mcrust::net::minecraft::world::item::item_stack::empty()).collect::<Vec<_>>(),
             parent: __init_parent,
             selected_slot: 0,
             trim_selection_widget: None,
@@ -135,7 +136,15 @@ impl ArmorTab {
             head_selection_widget: None,
             model_field_container: None,
             nothing_customizable: false,
-            player: Default::default(),
+            // new RemotePlayer(CLIENT.level, CLIENT.getGameProfile()) {..}
+            // rust: port gap - the anonymous subclass's overrides (isInvisibleTo, onEquipItem, isModelPartShown, getId) have
+            //   no home: the port's entity classes take no mod subclass; and `Minecraft.getGameProfile()` is not ported - its
+            //   `new GameProfile(user.getProfileId(), user.getName())` arm is used (GAPS_batchB.md).
+            player: {
+                let __client = compat::minecraft();
+                let __user = __client.get_user();
+                RemotePlayer::new(mcrust::net::minecraft::world::entity::entity_dimensions::scalable(0.6, 1.8), &mcrust::com::mojang::authlib::game_profile::GameProfile::without_properties(mcrust::java::util::uuid::Uuid::from_string(&mcrust::net::minecraft::client::user::dashed_uuid(&__user.get_profile_id())).expect("User.getProfileId"), __user.get_name()))
+            },
         };
         { this.layout.row_spacing(PADDING.wrapping_div(2)); this.layout.column_spacing(PADDING); &mut this.layout };
         let mut list: Vec<mcrust::net::minecraft::world::item::item_stack::ItemStack> = mcrust::mcrust::modding::game::with_player(|player| ItemUtils::get_armor(player)).unwrap();
@@ -427,7 +436,7 @@ impl ModelFieldContainer {
             if uuid.is_empty() {
                 return;
             }
-            SkyblockerConfigManager::update_only(Arc::new(move |config| {
+            SkyblockerConfigManager::update_only(Arc::new(move |mut config| {
                 if identifier.is_none() {
                     config.general.custom_armor_model.remove(&uuid);
                 } else {
@@ -450,7 +459,7 @@ impl ModelFieldContainer {
     }
 
     /// java: @Override public void setX(int x)
-    pub fn set_x(&self, mut x: i32) {
+    pub fn set_x(&mut self, mut x: i32) {
         self.base.set_x(x);
         // TODO(fabric2seer): `align_in_dimension` takes 4 argument(s) in the port (`pos: i32, length: i32, widget_length: i32, align: f32`), Java passes 5
         // TODO(fabric2seer): a lambda for a parameter the port does not type as a closure (`Consumer<Integer>`)
@@ -469,7 +478,7 @@ impl ModelFieldContainer {
     }
 
     /// java: @Override public void setY(int y)
-    pub fn set_y(&self, mut y: i32) {
+    pub fn set_y(&mut self, mut y: i32) {
         self.base.set_y(y);
         // TODO(fabric2seer): `align_in_dimension` takes 4 argument(s) in the port (`pos: i32, length: i32, widget_length: i32, align: f32`), Java passes 5
         // TODO(fabric2seer): a lambda for a parameter the port does not type as a closure (`Consumer<Integer>`)

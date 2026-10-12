@@ -2,6 +2,7 @@
 
 #[allow(unused_imports)]
 use crate::prelude::*;
+use mcrust::net::minecraft::world::entity::entity::Entity as _;
 use crate::de::hysky::skyblocker::config::skyblocker_config_manager::SkyblockerConfigManager;
 use crate::de::hysky::skyblocker::events::server_tick_callback;
 use crate::de::hysky::skyblocker::skyblock::dungeon::puzzle::dungeon_puzzle::DungeonPuzzle;
@@ -59,11 +60,13 @@ pub struct WaterboardOneFlow {
     /// java: private final List<Mark> marks = new ArrayList<>();
     pub marks: Vec<Mark>,
     /// java: private @Nullable ClientLevel world;
-    pub world: Option<ClientLevel>,
+    pub world: Option<Arc<ClientLevel>>,
     /// java: private @Nullable Room room;
     pub room: Option<compat::Shared<dyn Room>>,
     /// java: private @Nullable LocalPlayer player;
-    pub player: Option<LocalPlayer>,
+    /// java: private @Nullable LocalPlayer player - the local player's entity id (Java holds the object; read
+    /// through `game::with_entity`, the same `Mutex` as `Minecraft.player`)
+    pub player: Option<i32>,
     /// java: private int variant;
     pub variant: i32,
     /// java: private @Nullable String doors;
@@ -155,11 +158,13 @@ impl WaterboardOneFlow {
     /// java: private static void loadSolutions(Minecraft client)
     pub fn load_solutions(client: &mut mcrust::net::minecraft::client::minecraft::Minecraft) {
         {
-            let mut reader: crate::unresolved::BufferedReader = client.get_resource_manager().open_as_reader(WATER_TIMES.get_mut()).unwrap();
-            // java: try {..} catch (Exception e) - an exception here is a panic, caught by `catch_unwind`
+            // java: try (BufferedReader reader = client.getResourceManager().openAsReader(WATER_TIMES)) {
+            //   SOLUTIONS = JsonParser.parseReader(reader).getAsJsonObject(); } catch (Exception e) {..}
+            // - an exception here (the resource's IOException too) is a panic, caught by `catch_unwind`
             let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                // TODO(fabric2seer): static call JsonParser.parseReader(..)
-                //   java: SOLUTIONS = JsonParser.parseReader(reader).getAsJsonObject();
+                let mut reader: String = client.get_resource_manager().open_as_reader(WATER_TIMES.get()).expect("IOException");
+                let parsed: serde_json::Value = serde_json::from_str(&reader).expect("JsonParseException");
+                compat::set_state(&SOLUTIONS, Some(compat::json::get_as_json_object(&parsed)));
             }));
             if let Err(e) = __result {
                 logger().error(&format!("[Skyblocker Waterboard] Failed to load solutions json"));
@@ -201,14 +206,14 @@ impl WaterboardOneFlow {
             return;
         }
         if !(compat::read(__this, |__t| __t.finished)) {
-            let mut data: serde_json::Map<String, serde_json::Value> = compat::json::get_as_json_object(&(compat::json::get_as_json_object(&(compat::lock(&SOLUTIONS).unwrap().get(&compat::read(__this, |__t| __t.variant).to_string()).cloned().unwrap()))).get(compat::read(__this, |__t| __t.doors.clone()).as_deref().unwrap()).cloned().unwrap());
+            let mut data: serde_json::Map<String, serde_json::Value> = compat::json::get_as_json_object(&(compat::json::get_as_json_object(&(compat::lock(&SOLUTIONS).as_ref().unwrap().get(&compat::read(__this, |__t| __t.variant).to_string()).cloned().unwrap()))).get(compat::read(__this, |__t| __t.doors.clone()).as_deref().unwrap()).cloned().unwrap());
             { let __v = Some(WaterboardOneFlow::setup_solution(__this, &data)); compat::write(__this, |__t| __t.solution = __v); }
         }
     }
 
     /// java: private EnumMap<LeverType, DoubleList> makeEmptySolution()
     pub fn make_empty_solution(__this: &compat::Shared<Self>) -> std::collections::HashMap<LeverType, Vec<f64>> {
-        let mut solution: std::collections::HashMap<LeverType, Vec<f64>> = std::any::TypeId::of::<LeverType>();
+        let mut solution: std::collections::HashMap<LeverType, Vec<f64>> = std::collections::HashMap::new();
         for lever_type in LeverType::values() {
             solution.insert(lever_type, Vec::new());
         }
@@ -219,8 +224,9 @@ impl WaterboardOneFlow {
     pub fn find_variant(__this: &compat::Shared<Self>) -> i32 {
         let mut first_switches: std::collections::HashSet<LeverType> = std::collections::HashSet::new();
         let mut first_switch_blocks: AABB = AABB::encapsulating_full_blocks(&({ let __r = &compat::read(__this, |__t| __t.room.clone()).unwrap(); let __f = compat::dispatch(__r, |__t| __t.relative_to_actual()); __f(__r, &waterboard::WATER_ENTRANCE_POSITION.get_mut().offset(-1, -1, 0)) }), &({ let __r = &compat::read(__this, |__t| __t.room.clone()).unwrap(); let __f = compat::dispatch(__r, |__t| __t.relative_to_actual()); __f(__r, &waterboard::WATER_ENTRANCE_POSITION.get_mut().offset(1, 0, 1)) }));
-        // TODO(fabric2seer): `ClientLevel.getBlockStates` has no Rust method in the port (looked for `get_block_states` in ClientLevel and its supertypes)
-        for state in __this.lock().borrow().world.as_ref().unwrap().get_block_states(&first_switch_blocks).collect::<Vec<_>>() {
+        // world.getBlockStates(box) = BlockPos.betweenClosedStream(box).map(this::getBlockState) (BlockGetter:41-43)
+        let world = compat::read(__this, |__t| __t.world.clone()).unwrap();
+        for state in BlockPos::between_closed_stream_aabb(&first_switch_blocks).map(|pos| world.get_block_state_typed(&pos)).collect::<Vec<_>>() {
             let mut lever_type: Option<LeverType> = LeverType::from_block(&state.get_block());
             if let Some(lever_type) = &lever_type {
                 first_switches.insert(*lever_type);
@@ -295,7 +301,7 @@ impl WaterboardOneFlow {
 
     /// java: private boolean isLeverActive(LeverType leverType)
     pub fn is_lever_active(__this: &compat::Shared<Self>, mut lever_type: LeverType) -> bool {
-        let mut offset: Option<BlockPos> = Some(lever_type.fields().initial_positions[((compat::read(__this, |__t| __t.variant)).wrapping_sub(1)) as usize].clone());
+        let mut offset: Option<BlockPos> = lever_type.fields().initial_positions.as_ref().expect("NullPointerException: initialPositions")[((compat::read(__this, |__t| __t.variant)).wrapping_sub(1)) as usize].clone();
         let Some(mut offset) = offset.clone() else {
             return false;
         };
@@ -350,7 +356,7 @@ impl WaterboardOneFlow {
                 let mut lever_type: Option<LeverType> = LeverType::from_pos(&({ let __r = &compat::read(__this, |__t| __t.room.clone()).unwrap(); let __f = compat::dispatch(__r, |__t| __t.actual_to_relative()); __f(__r, &block_hit_result.get_block_pos()) }));
                 if let Some(lever_type) = &lever_type {
                     let mut times: Vec<f64> = __this.lock().borrow().solution.as_ref().unwrap().get(lever_type).cloned().unwrap();
-                    if compat::read(__this, |__t| __t.water_start_millis) == (0 as i64) && *lever_type != LeverType::Water && times.is_empty() || times[0] != 0.0 {
+                    if compat::read(__this, |__t| __t.water_start_millis) == (0 as i64) && *lever_type != LeverType::Water && (times.is_empty() || times[0] != 0.0) {
                         // TODO(fabric2seer): List.addFirst(..)
                         //   java: times.addFirst(0.0);
                     } else {
@@ -380,9 +386,11 @@ impl WaterboardOneFlow {
         { let __v = false; compat::write(__this, |__t| __t.finished = __v); }
         { let __v = ((0) as i64) as i64; compat::write(__this, |__t| __t.water_start_millis = __v); }
         { let __v = ((0) as i64) as i64; compat::write(__this, |__t| __t.current_time_millis = __v); }
-        for mark in compat::read(__this, |__t| __t.marks.clone()) {
-            mark.reached = false;
-        }
+        compat::write(__this, |__t| {
+            for mark in __t.marks.iter_mut() {
+                mark.reached = false;
+            }
+        });
     }
 
 }
@@ -441,8 +449,8 @@ impl WaterboardOneFlow {
         }
         { let __v = mcrust::mcrust::modding::game::level(); compat::write(__this, |__t| __t.world = __v); }
         { let __v = DungeonManager::get_current_room(); compat::write(__this, |__t| __t.room = __v); }
-        // TODO(fabric2seer): `Minecraft.player` held as a value: the port lends the player only inside `game::with_player(|player| ..)` (a mod must never lock it)
-        //   java: player = client.player;
+        // java: player = client.player;
+        { let __v = mcrust::mcrust::modding::game::with_player(|player| player.base().get_id()); compat::write(__this, |__t| __t.player = __v); }
         if compat::read(__this, |__t| __t.solution.clone()).is_none() && !(compat::read(__this, |__t| __t.finished)) && compat::read(__this, |__t| __t.solve.clone()).is_none() {
             let __this_w1 = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
             let __this_w2 = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
