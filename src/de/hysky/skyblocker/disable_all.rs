@@ -89,10 +89,10 @@ impl DisableAll {
 
     /// java: protected static void disableAll()
     pub fn disable_all_0() {
-        SkyblockerConfigManager::update(Arc::new(move |config| {
+        SkyblockerConfigManager::update(Arc::new(move |config: &mut crate::de::hysky::skyblocker::config::skyblocker_config::SkyblockerConfig| {
             // java: try {..} catch (Exception e) - an exception here is a panic, caught by `catch_unwind`
             let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                DisableAll::disable_entries(&config);
+                DisableAll::disable_entries(&mut *config);
             }));
             if let Err(e) = __result {
                 panic!("RuntimeException: {}", compat::panic_message(&e));
@@ -103,7 +103,9 @@ impl DisableAll {
     }
 
     /// java: protected static void disableEntries(Object target) throws IllegalAccessException
-    pub fn disable_entries(target: &compat::Object) {
+    pub fn disable_entries(target: &mut dyn std::any::Any) {
+        // rust: port gap - Java reflection (`getDeclaredFields`, `Field.set`, `@EnumDisabledValue`) over the config
+        // object has no Rust counterpart; the walk below is the converter's record of it (GAPS_batchF.md)
         // TODO(fabric2seer): `.getDeclaredFields(..)` on a Class
         //   java: for (Field field : target.getClass().getDeclaredFields()) {
         //   java: 			if (Modifier.isStatic(field.getModifiers())) continue;

@@ -50,19 +50,19 @@ pub struct OverlayScreen {
     /// java: extends net.minecraft.client.gui.screens.Screen
     pub base: mcrust::net::minecraft::client::gui::screens::screen::Screen,
     /// java: private EditBox searchField;
-    pub search_field: Option<EditBox>,
+    pub search_field: Option<compat::WidgetRef>,
     /// java: private Button finishedButton;
     pub finished_button: Option<compat::WidgetRef>,
     /// java: private Button maxPetButton;
     pub max_pet_button: Option<compat::WidgetRef>,
     /// java: private Button dungeonStarButton;
     pub dungeon_star_button: Option<compat::WidgetRef>,
-    /// java: private Button[] suggestionButtons;
-    pub suggestion_buttons: Vec<AbstractWidget>,
+    /// java: private Button[] suggestionButtons; (references to the screen's widgets; elements null until built)
+    pub suggestion_buttons: Vec<Option<compat::WidgetRef>>,
     /// java: private Button[] historyButtons;
-    pub history_buttons: Vec<AbstractWidget>,
+    pub history_buttons: Vec<Option<compat::WidgetRef>>,
     /// java: private Button[] deleteButtons;
-    pub delete_buttons: Vec<AbstractWidget>,
+    pub delete_buttons: Vec<Option<compat::WidgetRef>>,
     /// the screen's widgets as this object last saw them (see `compat::WidgetCache`)
     pub __widgets: compat::WidgetCache,
 }
@@ -103,52 +103,58 @@ impl OverlayScreen {
         let mut row_width: i32 = ((((compat::read(__this, |__t| __t.width) as f64) * 0.4)) as i32);
         let mut start_x: i32 = ((((compat::read(__this, |__t| __t.width) as f64) * 0.5)) as i32).wrapping_sub(row_width.wrapping_div(2));
         let mut start_y: i32 = ((((((((compat::read(__this, |__t| __t.height) as f64) * 0.5)) as i32) as f64) - (((ROW_HEIGHT as f64) * (((1i32.wrapping_add(SkyblockerConfigManager::get().ui_and_visuals.search_overlay.max_suggestions) as f64) + 0.75) + (SkyblockerConfigManager::get().ui_and_visuals.search_overlay.history_length as f64))) / (2 as f64)))) as i32);
-        // TODO(fabric2seer): `new` takes 5 argument(s) in the port (`splitter: &StringSplitter<W>, x: i32, y: i32, width: i32, height: i32`), Java passes 6
-        // rust: { let __v = Some(EditBox::new(&compat::font(), component::translatable("gui.recipebook.search_hint"), start_x, start_y, row_width.wrapping_sub(ROW_HEIGHT), ROW_HEIGHT)); compat::write(__this, |__t| __t.search_field = __v); }
-        // TODO(fabric2seer): `set_value` takes 2 argument(s) in the port (`splitter: &StringSplitter<W>, value: &str`), Java passes 1
-        // rust: { let (__q0,) = (&compat::get_state(&search_over_manager::SEARCH),); __this.lock().borrow_mut().search_field.as_mut().unwrap().set_value(__q0) };
-        { let (__q0,) = (Responder::Lambda(ResponderLambda::new(move |__a0| { SearchOverManager::update_search(__a0.to_string()); })),); __this.lock().borrow_mut().search_field.as_mut().unwrap().set_responder(__q0) };
-        __this.lock().borrow_mut().search_field.as_mut().unwrap().set_max_length(30);
+        // java: this.searchField = new EditBox(font, startX, startY, rowWidth - rowHeight, rowHeight, Component.translatable("gui.recipebook.search_hint"));
+        { let __v = Some(compat::WidgetRef::value(compat::edit_box(start_x, start_y, row_width.wrapping_sub(ROW_HEIGHT), ROW_HEIGHT, component::translatable("gui.recipebook.search_hint")))); compat::write(__this, |__t| __t.search_field = __v); }
+        // java: searchField.setValue(SearchOverManager.search); searchField.setResponder(SearchOverManager::updateSearch); searchField.setMaxLength(30);
+        let __search = compat::get_state(&search_over_manager::SEARCH);
+        OverlayScreen::with_search_field(__this, |__w| compat::set_edit_box_value(__w, &__search));
+        OverlayScreen::with_search_field(__this, |__w| compat::with_edit_box(__w, |__e| __e.set_responder(Responder::Lambda(ResponderLambda::new(move |__a0| { SearchOverManager::update_search(__a0.to_string()); })))));
+        OverlayScreen::with_search_field(__this, |__w| compat::with_edit_box(__w, |__e| __e.set_max_length(30)));
+        // (the screen takes the search field first: Java's `addRenderableWidget(searchField)` comes before the layouts'
+        // widgets, and a layout here holds its widgets by their index in the screen's list)
+        compat::write(__this, |__t| { let __s = &mut *__t; let __r = __s.search_field.as_mut().unwrap(); __s.__widgets.add(&mut __s.base, __r, false) });
         let __this_w1 = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
         { let __v = (Some((button::builder(component::literal("").get_string(), OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| { let Some(__this_1) = __this_w1.get().upgrade() else { return Default::default(); }; compat::lend_screen(&__this_1, __screen, || { let mut __pidx = compat::WidgetRef::Screen(__index); { OverlayScreen::on_close((&__this_1)); } }) })))).pos((start_x.wrapping_add(row_width)).wrapping_sub(ROW_HEIGHT), start_y).size(*SPECIAL_BUTTON_SIZE, *SPECIAL_BUTTON_SIZE).build())).map(compat::WidgetRef::value); compat::write(__this, |__t| { let __s = &mut *__t; __s.finished_button = __v; }); }
         let mut total_suggestions: i32 = SkyblockerConfigManager::get().ui_and_visuals.search_overlay.max_suggestions;
-        { let __v = (0..(total_suggestions) as usize).map(|_| Default::default()).collect::<Vec<_>>(); compat::write(__this, |__t| __t.suggestion_buttons = __v); }
-        // TODO(fabric2seer): field `VERTICAL` of a value of unknown type
-        //   java: LinearLayout suggestionLayoutWidget = new LinearLayout(startX, startY + rowHeight, LinearLayout.Orientation.VERTICAL);
-        let mut suggestion_layout_widget: LinearLayout = todo!("fabric2seer: the initialiser of `suggestionLayoutWidget` (TODO above)");
+        // java: this.suggestionButtons = new Button[totalSuggestions];
+        { let __v = vec![None; (total_suggestions).max(0) as usize]; compat::write(__this, |__t| __t.suggestion_buttons = __v); }
+        // java: LinearLayout suggestionLayoutWidget = new LinearLayout(startX, startY + rowHeight, LinearLayout.Orientation.VERTICAL);
+        let mut suggestion_layout_widget: LinearLayout = LinearLayout::new(start_x, start_y.wrapping_add(ROW_HEIGHT), mcrust::net::minecraft::client::gui::layouts::linear_layout::Orientation::Vertical);
         for i in 0..total_suggestions {
             let __this_w2 = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
-            __this.lock().borrow_mut().suggestion_buttons[(i) as usize] = (button::builder(component::empty().get_string(), OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| { let Some(__this_2) = __this_w2.get().upgrade() else { return Default::default(); }; compat::lend_screen(&__this_2, __screen, || { let mut __pidx = compat::WidgetRef::Screen(__index); {
+            let __button = (button::builder(component::empty().get_string(), OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| { let Some(__this_2) = __this_w2.get().upgrade() else { return Default::default(); }; compat::lend_screen(&__this_2, __screen, || { let mut __pidx = compat::WidgetRef::Screen(__index); {
                 SearchOverManager::update_search((compat::write((&__this_2), |__t| { let __s = &mut *__t; let __r = &mut __pidx; __s.__widgets.with(&mut __s.base, __r, |__w| compat::component_of(__w.get_message_component())) })).get_string());
                 OverlayScreen::on_close((&__this_2));
             } }) })))).size(row_width, ROW_HEIGHT).build();
-            suggestion_layout_widget.add_child({ let __w = __this.lock().borrow().suggestion_buttons[(i) as usize].clone(); let (__ww, __wh) = (__w.get_width(), __w.get_height()); LayoutElement::widget(compat::write(__this, |__t| __t.add_widget(__w)), __ww, __wh) });
-            (__this.lock().borrow_mut().suggestion_buttons[(i) as usize]).visible = false;
+            compat::write(__this, |__t| __t.suggestion_buttons[(i) as usize] = Some(compat::WidgetRef::value(__button)));
+            // java: suggestionLayoutWidget.addChild(suggestionButtons[i]);
+            suggestion_layout_widget.add_child(OverlayScreen::button_layout_element(__this, ButtonArray::Suggestion, i));
+            OverlayScreen::with_button(__this, ButtonArray::Suggestion, i, |__w| __w.visible = false);
         }
         let mut history_offset: i32 = ((((ROW_HEIGHT as f64) * ((total_suggestions as f64) + 1.75))) as i32);
         let mut history_length: i32 = SkyblockerConfigManager::get().ui_and_visuals.search_overlay.history_length;
-        { let __v = (0..(history_length) as usize).map(|_| Default::default()).collect::<Vec<_>>(); compat::write(__this, |__t| __t.history_buttons = __v); }
-        { let __v = (0..(history_length) as usize).map(|_| Default::default()).collect::<Vec<_>>(); compat::write(__this, |__t| __t.delete_buttons = __v); }
+        { let __v = vec![None; (history_length).max(0) as usize]; compat::write(__this, |__t| __t.history_buttons = __v); }
+        { let __v = vec![None; (history_length).max(0) as usize]; compat::write(__this, |__t| __t.delete_buttons = __v); }
         let mut history_grid_widget: GridLayout = GridLayout::new(start_x, start_y.wrapping_add(history_offset));
         let mut history_adder: RowHelper = history_grid_widget.create_row_helper(2);
         for i in 0..history_length {
             let __this_w3 = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
-            __this.lock().borrow_mut().history_buttons[(i) as usize] = (button::builder(component::empty().get_string(), OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| { let Some(__this_3) = __this_w3.get().upgrade() else { return Default::default(); }; compat::lend_screen(&__this_3, __screen, || { let mut __pidx = compat::WidgetRef::Screen(__index); {
+            let __button = (button::builder(component::empty().get_string(), OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| { let Some(__this_3) = __this_w3.get().upgrade() else { return Default::default(); }; compat::lend_screen(&__this_3, __screen, || { let mut __pidx = compat::WidgetRef::Screen(__index); {
                 compat::set_state(&search_over_manager::SEARCH, (compat::write((&__this_3), |__t| { let __s = &mut *__t; let __r = &mut __pidx; __s.__widgets.with(&mut __s.base, __r, |__w| compat::component_of(__w.get_message_component())) })).get_string());
                 SearchOverManager::update_search((compat::write((&__this_3), |__t| { let __s = &mut *__t; let __r = &mut __pidx; __s.__widgets.with(&mut __s.base, __r, |__w| compat::component_of(__w.get_message_component())) })).get_string());
                 OverlayScreen::on_close((&__this_3));
             } }) })))).size(row_width.wrapping_sub(ROW_HEIGHT), ROW_HEIGHT).build();
-            (__this.lock().borrow_mut().history_buttons[(i) as usize]).visible = false;
-            // TODO(fabric2seer): the port's `add_child` ports this Java method with other parameters (grid, child for Java's widget)
-            // TODO(fabric2seer): `add_child` takes 2 argument(s) in the port (`grid: &mut GridLayout, child: LayoutElement`), Java passes 1
-            // rust: history_adder.add_child(&mut __this.lock().borrow().history_buttons[(i) as usize]).unwrap();
+            compat::write(__this, |__t| __t.history_buttons[(i) as usize] = Some(compat::WidgetRef::value(__button)));
+            OverlayScreen::with_button(__this, ButtonArray::History, i, |__w| __w.visible = false);
+            // java: historyAdder.addChild(historyButtons[i]);
+            history_adder.add_child(&mut history_grid_widget, OverlayScreen::button_layout_element(__this, ButtonArray::History, i)).unwrap();
             let mut slot_id: i32 = i;
             let __this_w4 = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
-            __this.lock().borrow_mut().delete_buttons[(i) as usize] = (button::builder(component::empty().get_string(), OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| { let Some(__this_4) = __this_w4.get().upgrade() else { return Default::default(); }; compat::lend_screen(&__this_4, __screen, || { let mut __pidx = compat::WidgetRef::Screen(__index); { OverlayScreen::remove_history_item((&__this_4), slot_id); } }) })))).size(*SPECIAL_BUTTON_SIZE, *SPECIAL_BUTTON_SIZE).tooltip_text(Some(Tooltip::create(component::translatable("skyblocker.config.general.searchOverlay.deleteTooltip").get_string()).message.clone())).build();
-            (__this.lock().borrow_mut().delete_buttons[(i) as usize]).visible = false;
-            // TODO(fabric2seer): the port's `add_child` ports this Java method with other parameters (grid, child for Java's widget)
-            // TODO(fabric2seer): `add_child` takes 2 argument(s) in the port (`grid: &mut GridLayout, child: LayoutElement`), Java passes 1
-            // rust: history_adder.add_child(&mut __this.lock().borrow().delete_buttons[(i) as usize]).unwrap();
+            let __button = (button::builder(component::empty().get_string(), OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| { let Some(__this_4) = __this_w4.get().upgrade() else { return Default::default(); }; compat::lend_screen(&__this_4, __screen, || { let mut __pidx = compat::WidgetRef::Screen(__index); { OverlayScreen::remove_history_item((&__this_4), slot_id); } }) })))).size(*SPECIAL_BUTTON_SIZE, *SPECIAL_BUTTON_SIZE).tooltip_text(Some(Tooltip::create(component::translatable("skyblocker.config.general.searchOverlay.deleteTooltip").get_string()).message.clone())).build();
+            compat::write(__this, |__t| __t.delete_buttons[(i) as usize] = Some(compat::WidgetRef::value(__button)));
+            OverlayScreen::with_button(__this, ButtonArray::Delete, i, |__w| __w.visible = false);
+            // java: historyAdder.addChild(deleteButtons[i]);
+            history_adder.add_child(&mut history_grid_widget, OverlayScreen::button_layout_element(__this, ButtonArray::Delete, i)).unwrap();
         }
         OverlayScreen::update_history_buttons(__this);
         if compat::get_state(&search_over_manager::LOCATION) == SearchLocation::Auction {
@@ -164,8 +170,8 @@ impl OverlayScreen {
         }
         { suggestion_layout_widget.arrange_elements(); let mut __vw = Vec::new(); LayoutElement::Grid(suggestion_layout_widget.wrapped.clone()).visit_widgets(&mut __vw); for (__i, __x, __y) in __vw { compat::write(__this, |__t| __t.widget_mut(__i).set_position(__x, __y)); } };
         { history_grid_widget.arrange_elements(); let mut __vw = Vec::new(); LayoutElement::Grid(history_grid_widget.clone()).visit_widgets(&mut __vw); for (__i, __x, __y) in __vw { compat::write(__this, |__t| __t.widget_mut(__i).set_position(__x, __y)); } };
-        let __r0 = compat::read(__this, |__t| __t.search_field.clone());
-        { let (__q0,) = (__r0.unwrap(),); __this.lock().borrow_mut().add_renderable_widget(__q0) };
+        // java: addRenderableWidget(searchField); suggestionLayoutWidget.visitWidgets(this::addRenderableWidget); historyGridWidget.visitWidgets(..);
+        compat::write(__this, |__t| { let __s = &mut *__t; let __r = __s.search_field.as_mut().unwrap(); __s.__widgets.add(&mut __s.base, __r, true) });
         { let mut __vw = Vec::new(); LayoutElement::Grid(suggestion_layout_widget.wrapped.clone()).visit_widgets(&mut __vw); for (__i, _, _) in __vw { compat::write(__this, |__t| __t.mark_renderable(__i)); } };
         { let mut __vw = Vec::new(); LayoutElement::Grid(history_grid_widget.clone()).visit_widgets(&mut __vw); for (__i, _, _) in __vw { compat::write(__this, |__t| __t.mark_renderable(__i)); } };
         compat::write(__this, |__t| { let __s = &mut *__t; let __r = __s.finished_button.as_mut().unwrap(); __s.__widgets.add(&mut __s.base, __r, true) });
@@ -173,8 +179,44 @@ impl OverlayScreen {
             compat::write(__this, |__t| { let __s = &mut *__t; let __r = __s.max_pet_button.as_mut().unwrap(); __s.__widgets.add(&mut __s.base, __r, true) });
             compat::write(__this, |__t| { let __s = &mut *__t; let __r = __s.dungeon_star_button.as_mut().unwrap(); __s.__widgets.add(&mut __s.base, __r, true) });
         }
-        let __r0 = compat::read(__this, |__t| __t.search_field.clone());
-        { let (__q0,) = (__r0.unwrap(),); __this.lock().borrow_mut().set_initial_focus_on(__q0) };
+        // java: this.setInitialFocus(searchField);
+        if let Some(compat::WidgetRef::Screen(__index)) = compat::read(__this, |__t| __t.search_field.clone()) {
+            __this.lock().borrow_mut().set_initial_focus_on(__index);
+        }
+    }
+
+    /// One access through the search field reference (`searchField.x(..)`).
+    fn with_search_field<R>(__this: &compat::Shared<Self>, f: impl FnOnce(&mut AbstractWidget) -> R) -> R {
+        compat::write(__this, |__t| { let __s = &mut *__t; let __r = __s.search_field.as_mut().expect("NullPointerException"); __s.__widgets.with(&mut __s.base, __r, f) })
+    }
+
+    /// One access through `buttons[i]` of one of the three button arrays (`suggestionButtons[i].visible = false`).
+    fn with_button<R>(__this: &compat::Shared<Self>, which: ButtonArray, i: i32, f: impl FnOnce(&mut AbstractWidget) -> R) -> R {
+        compat::write(__this, |__t| {
+            let __s = &mut *__t;
+            let __array = match which {
+                ButtonArray::Suggestion => &mut __s.suggestion_buttons,
+                ButtonArray::History => &mut __s.history_buttons,
+                ButtonArray::Delete => &mut __s.delete_buttons,
+            };
+            let __r = __array[(i) as usize].as_mut().expect("NullPointerException");
+            __s.__widgets.with(&mut __s.base, __r, f)
+        })
+    }
+
+    /// `layout.addChild(buttons[i])`: the button joins the screen's list (a layout holds it by index).
+    fn button_layout_element(__this: &compat::Shared<Self>, which: ButtonArray, i: i32) -> LayoutElement {
+        let (__i, __ww, __wh) = compat::write(__this, |__t| {
+            let __s = &mut *__t;
+            let __array = match which {
+                ButtonArray::Suggestion => &mut __s.suggestion_buttons,
+                ButtonArray::History => &mut __s.history_buttons,
+                ButtonArray::Delete => &mut __s.delete_buttons,
+            };
+            let __r = __array[(i) as usize].as_mut().expect("NullPointerException");
+            __s.__widgets.add_to_layout(&mut __s.base, __r)
+        });
+        LayoutElement::widget(__i, __ww, __wh)
     }
 
     /// java: @Override public boolean mouseClicked(MouseButtonEvent click, boolean doubled)
@@ -209,10 +251,10 @@ impl OverlayScreen {
     pub fn update_stars(__this: &compat::Shared<Self>) {
         let mut stars: MutableComponent = component::empty();
         for i in 0..compat::get_state(&search_over_manager::DUNGEON_STARS) {
-            stars.append((component::literal("✪")).with_style_format((if i < 5 { ChatFormatting::Yellow } else { ChatFormatting::Red })));
+            stars = stars.append((component::literal("✪")).with_style_format((if i < 5 { ChatFormatting::Yellow } else { ChatFormatting::Red })));
         }
         for i in compat::get_state(&search_over_manager::DUNGEON_STARS)..10 {
-            stars.append(component::literal("✪"));
+            stars = stars.append(component::literal("✪"));
         }
         let __wa1 = stars.clone();
         compat::write(__this, |__t| { let __s = &mut *__t; let __r = __s.dungeon_star_button.as_mut().unwrap(); __s.__widgets.with(&mut __s.base, __r, |__w| __w.set_message_text(mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(__wa1.clone()))) });
@@ -230,13 +272,13 @@ impl OverlayScreen {
         for i in 0..history_length {
             let mut text: String = SearchOverManager::get_history(i);
             if text.is_empty() {
-                (__this.lock().borrow_mut().history_buttons[(i) as usize]).visible = false;
-                (__this.lock().borrow_mut().delete_buttons[(i) as usize]).visible = false;
+                OverlayScreen::with_button(__this, ButtonArray::History, i, |__w| __w.visible = false);
+                OverlayScreen::with_button(__this, ButtonArray::Delete, i, |__w| __w.visible = false);
                 continue;
             }
-            { let (__q0,) = (mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::literal(&text)),); (__this.lock().borrow().history_buttons[(i) as usize]).set_message_text(__q0) };
-            (__this.lock().borrow_mut().history_buttons[(i) as usize]).visible = true;
-            (__this.lock().borrow_mut().delete_buttons[(i) as usize]).visible = true;
+            { let (__q0,) = (mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::literal(&text)),); OverlayScreen::with_button(__this, ButtonArray::History, i, |__w| __w.set_message_text(__q0)) };
+            OverlayScreen::with_button(__this, ButtonArray::History, i, |__w| __w.visible = true);
+            OverlayScreen::with_button(__this, ButtonArray::Delete, i, |__w| __w.visible = true);
         }
     }
 
@@ -257,16 +299,21 @@ impl OverlayScreen {
         ();
         let mut render_offset: i32 = (ROW_HEIGHT.wrapping_sub(16)).wrapping_div(2);
         gui_graphics_extractor::blit_sprite_identifier(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), mcrust::net::minecraft::client::renderer::render_pipelines::gui_textured(), SEARCH_ICON_TEXTURE.get_mut(), (compat::write(__this, |__t| { let __s = &mut *__t; let __r = __s.finished_button.as_mut().unwrap(); __s.__widgets.with(&mut __s.base, __r, |__w| __w.get_x()) })).wrapping_add(render_offset), (compat::write(__this, |__t| { let __s = &mut *__t; let __r = __s.finished_button.as_mut().unwrap(); __s.__widgets.with(&mut __s.base, __r, |__w| __w.get_y()) })).wrapping_add(render_offset), 16, 16);
-        if (__this.lock().borrow().history_buttons.len() as i32) > 0 && true /* java: __this.lock().borrow().history_buttons[(0) as usize] != null: never null here */ {
-            gui_graphics_extractor::draw_formatted_char_sequence_with_drop_shadow(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), &mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::translatable("skyblocker.config.general.searchOverlay.historyLabel")), ((__this.lock().borrow().history_buttons[(0) as usize]).get_x()).wrapping_add(render_offset), ((__this.lock().borrow().history_buttons[(0) as usize]).get_y()).wrapping_sub(ROW_HEIGHT.wrapping_div(2)), 0xFFFFFFFFu32 as i32, true);
+        // java: if (historyButtons.length > 0 && historyButtons[0] != null)
+        if (__this.lock().borrow().history_buttons.len() as i32) > 0 && compat::read(__this, |__t| __t.history_buttons[(0) as usize].is_some()) {
+            let (__hx, __hy) = OverlayScreen::with_button(__this, ButtonArray::History, 0, |__w| (__w.get_x(), __w.get_y()));
+            gui_graphics_extractor::draw_formatted_char_sequence_with_drop_shadow(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), &mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::translatable("skyblocker.config.general.searchOverlay.historyLabel")), __hx.wrapping_add(render_offset), __hy.wrapping_sub(ROW_HEIGHT.wrapping_div(2)), 0xFFFFFFFFu32 as i32, true);
         }
         for i in 0..(__this.lock().borrow().suggestion_buttons.len() as i32) {
-            OverlayScreen::extract_item_and_tooltip(__this, graphics, mouse_x, mouse_y, &SearchOverManager::get_suggestion_id(i), &__this.lock().borrow().suggestion_buttons[(i) as usize], render_offset);
+            let __button = OverlayScreen::with_button(__this, ButtonArray::Suggestion, i, |__w| __w.clone());
+            OverlayScreen::extract_item_and_tooltip(__this, graphics, mouse_x, mouse_y, &SearchOverManager::get_suggestion_id(i), &__button, render_offset);
         }
         for i in 0..(__this.lock().borrow().history_buttons.len() as i32) {
-            OverlayScreen::extract_item_and_tooltip(__this, graphics, mouse_x, mouse_y, &SearchOverManager::get_history_id(i), &__this.lock().borrow().history_buttons[(i) as usize], render_offset);
+            let __button = OverlayScreen::with_button(__this, ButtonArray::History, i, |__w| __w.clone());
+            OverlayScreen::extract_item_and_tooltip(__this, graphics, mouse_x, mouse_y, &SearchOverManager::get_history_id(i), &__button, render_offset);
         }
-        for delete_button in compat::read(__this, |__t| __t.delete_buttons.clone()) {
+        for __i in 0..(__this.lock().borrow().delete_buttons.len() as i32) {
+            let delete_button = OverlayScreen::with_button(__this, ButtonArray::Delete, __i, |__w| __w.clone());
             if !delete_button.visible {
                 break;
             }
@@ -299,22 +346,22 @@ impl OverlayScreen {
         for i in 0..SkyblockerConfigManager::get().ui_and_visuals.search_overlay.max_suggestions {
             let mut text: String = SearchOverManager::get_suggestion(i);
             if !text.is_empty() {
-                (__this.lock().borrow_mut().suggestion_buttons[(i) as usize]).visible = true;
-                let mut is_new_text: bool = !(text == (compat::component_of((__this.lock().borrow().suggestion_buttons[(i) as usize]).get_message_component())).get_string());
+                OverlayScreen::with_button(__this, ButtonArray::Suggestion, i, |__w| __w.visible = true);
+                let mut is_new_text: bool = !(text == OverlayScreen::with_button(__this, ButtonArray::Suggestion, i, |__w| compat::component_of(__w.get_message_component()).get_string()));
                 if !is_new_text {
                     continue;
                 }
-                { let (__q0,) = (mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::literal(&text)),); (__this.lock().borrow().suggestion_buttons[(i) as usize]).set_message_text(__q0) };
+                { let (__q0,) = (mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::literal(&text)),); OverlayScreen::with_button(__this, ButtonArray::Suggestion, i, |__w| __w.set_message_text(__q0)) };
             } else {
-                (__this.lock().borrow_mut().suggestion_buttons[(i) as usize]).visible = false;
+                OverlayScreen::with_button(__this, ButtonArray::Suggestion, i, |__w| __w.visible = false);
             }
         }
     }
 
     /// java: @Override public boolean keyPressed(KeyEvent input)
     pub fn key_pressed(__this: &compat::Shared<Self>, input: &mcrust::net::minecraft::client::input::key_event::KeyEvent) -> bool {
-        // TODO(fabric2seer): `can_consume_input` takes 2 argument(s) in the port (`is_active: bool, is_focused: bool`), Java passes 0
-        if input.is_confirmation() && __this.lock().borrow().search_field.as_ref().unwrap().can_consume_input() {
+        // java: searchField.canConsumeInput() - `isActive() && isFocused() && isEditable()`, the first two the widget's
+        if input.is_confirmation() && OverlayScreen::with_search_field(__this, |__w| { let (__active, __focused) = (__w.visible && __w.active, __w.is_focused()); compat::with_edit_box(__w, |__e| __e.can_consume_input(__active, __focused)).unwrap_or(false) }) {
             OverlayScreen::on_close(__this);
             return true;
         }
@@ -395,3 +442,11 @@ impl ModScreen for compat::ScreenAdapter<OverlayScreen> {
 }
 
 // NOTE(fabric2seer): extractBackground, extractRenderState, init, isPauseScreen, keyPressed, mouseClicked, onClose, tick override(s) of Screen - the port dispatches its own calls, so these run only where the mod calls them; hook the port's method to make the game call them
+
+/// Which of the screen's three button arrays a reference is in.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ButtonArray {
+    Suggestion,
+    History,
+    Delete,
+}

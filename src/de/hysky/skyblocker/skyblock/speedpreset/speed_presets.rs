@@ -30,16 +30,16 @@ impl SpeedPresets {
     /// java: private SpeedPresets()
     pub fn new() -> Self {
         let mut this = Self {
-            presets: (compat::shared(JsonDataBase::new(PRESETS_FILE.get_mut().clone(), MAP_CODEC.get_mut().clone(), SpeedPresets::create_default_map())) as compat::Shared<dyn JsonData<compat::Object>>),
+            presets: (compat::shared(JsonDataBase::new(PRESETS_FILE.get_mut().clone(), MAP_CODEC.get_mut().clone(), SpeedPresets::create_default_map())) as compat::Shared<dyn JsonData<std::collections::HashMap<String, i32>>>),
         };
         this
     }
 
     /// java: public static SpeedPresets getInstance()
     pub fn get_instance() -> SpeedPresets {
-        // TODO(fabric2seer): not translated (expected ':' at '=' (offset 1778))
-        //   java: return instance == null ? instance = new SpeedPresets() : instance;
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        // java: return instance == null ? instance = new SpeedPresets() : instance;
+        // (the object's one field is a shared handle, so the copy handed out is the same instance's data)
+        return INSTANCE.get_mut().get_or_insert_with(SpeedPresets::new).clone();
     }
 
     /// java: public static CommandNode<FabricClientCommandSource> getCommandNode()

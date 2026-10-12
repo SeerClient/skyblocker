@@ -1122,11 +1122,10 @@ impl UIAndVisualsCategory {
     }
 
     /// java: public static <T> Predicate<T> distinctByKey(Function<? super T, ?> keyExtractor)
-    pub fn distinct_by_key<T: Clone + 'static>(key_extractor: Arc<dyn Fn(T) -> compat::Object>) -> Arc<dyn Fn(T) -> bool> {
-        // TODO(fabric2seer): static call ConcurrentHashMap.newKeySet(..)
-        //   java: Set<Object> seen = ConcurrentHashMap.newKeySet();
-        let mut seen: std::collections::HashSet<compat::Object> = todo!("fabric2seer: the initialiser of `seen` (TODO above)");
-        return Arc::new(move |t| seen.insert((key_extractor)(t.clone())));
+    pub fn distinct_by_key<T: 'static, K: std::hash::Hash + Eq + 'static>(key_extractor: Arc<dyn Fn(&T) -> K>) -> Arc<dyn Fn(&T) -> bool> {
+        // java: Set<Object> seen = ConcurrentHashMap.newKeySet(); (the key's own equals/hashCode)
+        let seen: std::sync::Mutex<std::collections::HashSet<K>> = std::sync::Mutex::new(std::collections::HashSet::new());
+        return Arc::new(move |t| compat::lock(&seen).insert((key_extractor)(t)));
     }
 
 }

@@ -85,7 +85,7 @@ impl SkyblockItemRarity {
 
     /// the constant's constructor data (Java keeps it in the constant's fields)
     pub fn fields(self) -> &'static SkyblockItemRarityFields {
-        static FIELDS: LazyLock<Vec<SkyblockItemRarityFields>> = LazyLock::new(|| vec![
+        static FIELDS: LazyLock<Vec<SkyblockItemRarityFields>> = LazyLock::new(|| { let mut __fields = vec![
             SkyblockItemRarityFields::new_1(mcrust::net::minecraft::network::chat::text_color::TextColor::WHITE),
             SkyblockItemRarityFields::new_1(mcrust::net::minecraft::network::chat::text_color::TextColor::GREEN),
             SkyblockItemRarityFields::new(sky_block_colors::BLUE.get_mut().clone(), mcrust::net::minecraft::network::chat::text_color::TextColor::BLUE),
@@ -98,7 +98,13 @@ impl SkyblockItemRarity {
             SkyblockItemRarityFields::new(sky_block_colors::DARK_RED.get_mut().clone(), mcrust::net::minecraft::network::chat::text_color::TextColor::DARK_RED),
             SkyblockItemRarityFields::new(sky_block_colors::DARK_RED.get_mut().clone(), mcrust::net::minecraft::network::chat::text_color::TextColor::DARK_RED),
             SkyblockItemRarityFields::new_1(mcrust::net::minecraft::network::chat::text_color::TextColor::DARK_GRAY),
-        ]);
+        ];
+            // java: this.name = this.name().replace("_", " "); (the constructor reads the constant's own name)
+            for (__i, __f) in __fields.iter_mut().enumerate() {
+                __f.name = SkyblockItemRarity::VALUES[__i].name().replace("_", " ");
+            }
+            __fields
+        });
         &FIELDS[self as usize]
     }
 
@@ -170,9 +176,7 @@ impl SkyblockItemRarity {
 
     /// java: @Override public String getSerializedName()
     pub fn get_serialized_name(&self) -> String {
-        // TODO(fabric2seer): call to `name(..)` (not a method of this class)
-        //   java: return this.name();
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        return self.name().to_string();
     }
 
     /// java: @Override public String toString()
@@ -187,11 +191,8 @@ impl SkyblockItemRarity {
 
     /// java: public static Optional<SkyblockItemRarity> containsName(String name)
     pub fn contains_name(name: &str) -> Option<SkyblockItemRarity> {
-        // TODO(fabric2seer): static call Streams.findLast(..)
-        //   java: return Streams.findLast(Arrays.stream(SkyblockItemRarity.values())
-        //   java: 				.filter(rarity -> name.contains(rarity.toString()))
-        //   java: 		);
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        // java: Streams.findLast(Arrays.stream(values()).filter(rarity -> name.contains(rarity.toString())))
+        return SkyblockItemRarity::VALUES.iter().copied().filter(|rarity| name.contains(&*SkyblockItemRarity::to_string(rarity))).last();
     }
 
     /// java: public static SkyblockItemRarity fromColor(int color)
@@ -227,8 +228,7 @@ impl SkyblockItemRarityFields {
             b: 0.0,
             legacy_color: 0,
         };
-        // TODO(fabric2seer): call to `name(..)` (not a method of this class)
-        //   java: this.name = this.name().replace("_", " ");
+        // java: this.name = this.name().replace("_", " "); - written by `SkyblockItemRarity::fields`, which knows the constant
         this.color = color.get_value();
         this.r = argb::red_float(this.color);
         this.g = argb::green_float(this.color);
@@ -238,17 +238,8 @@ impl SkyblockItemRarityFields {
     }
 
     fn new_1(mut color: TextColor) -> Self {
-        let mut this = Self {
-            name: Default::default(),
-            color: 0,
-            r: 0.0,
-            g: 0.0,
-            b: 0.0,
-            legacy_color: 0,
-        };
-        // TODO(fabric2seer): this statement
-        //   java: this(color, color);
-        this
+        // java: this(color, color);
+        Self::new(color.clone(), color)
     }
 
 }

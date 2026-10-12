@@ -84,7 +84,7 @@ impl<Submit: Clone + 'static> PrimitiveFeatureRendererBase<Submit> {
 }
 
 /// java: the virtual methods of PrimitiveFeatureRenderer (implemented by PrimitiveFeatureRendererBase and every subclass)
-pub trait PrimitiveFeatureRenderer<Submit> {
+pub trait PrimitiveFeatureRenderer<Submit: Clone + 'static> {
     fn primitive_feature_renderer_base(&self) -> &PrimitiveFeatureRendererBase<Submit>;
     fn primitive_feature_renderer_base_mut(&mut self) -> &mut PrimitiveFeatureRendererBase<Submit>;
     fn as_any(&self) -> &dyn std::any::Any;

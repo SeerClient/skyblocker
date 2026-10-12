@@ -411,11 +411,9 @@ impl CrystalsLocationsManager {
             return;
         }
         if compat::get_state(&UPDATED_TIME) && compat::get_state(&UPDATED_LOCATION) {
-            // TODO(batchD): cross-package - `WsStateManager::subscribe_server` (utils/ws) takes
-            // `Shared<dyn Message<Shared<dyn Message<Object>>>>` for Java's `Message<? extends Message<?>>`, a type no
-            // concrete message (`impl Message<Self>`) converts to; its owner should take an erased encodable message.
-            //   java: WsStateManager.subscribeServer(Service.CRYSTAL_WAYPOINTS, Optional.of(CrystalsWaypointSubscribeMessage.create(CLIENT.level)));
-            let _ = CrystalsWaypointSubscribeMessage::create(&mcrust::mcrust::modding::game::level().unwrap());
+            // java: WsStateManager.subscribeServer(Service.CRYSTAL_WAYPOINTS, Optional.of(CrystalsWaypointSubscribeMessage.create(CLIENT.level)));
+            let message = CrystalsWaypointSubscribeMessage::create(&mcrust::mcrust::modding::game::level().unwrap());
+            WsStateManager::subscribe_server(Service::CrystalWaypoints, Some(&message as &dyn crate::de::hysky::skyblocker::utils::ws::message::message::AnyMessage));
             compat::set_state(&UPDATED_TIME, false);
             compat::set_state(&UPDATED_LOCATION, false);
         }
@@ -437,10 +435,8 @@ impl CrystalsLocationsManager {
         if category == CrystalHollowsLocationsCategory::FairyGrotto && !(SkyblockerConfigManager::get().mining.crystals_waypoints.share_fairy_grotto) {
             return;
         }
-        // TODO(batchD): cross-package - `WsMessageHandler::send_server_message` (utils/ws) takes the same unconstructible
-        // `Shared<dyn Message<Shared<dyn Message<Object>>>>` (see `update`).
-        //   java: WsMessageHandler.sendServerMessage(Service.CRYSTAL_WAYPOINTS, new CrystalsWaypointMessage(category, CLIENT.player.blockPosition()));
-        let _ = CrystalsWaypointMessage::new(category, mcrust::mcrust::modding::game::with_player(|player| player.base.base.base.base.block_position()).unwrap());
+        // java: WsMessageHandler.sendServerMessage(Service.CRYSTAL_WAYPOINTS, new CrystalsWaypointMessage(category, CLIENT.player.blockPosition()));
+        WsMessageHandler::send_server_message(Service::CrystalWaypoints, &CrystalsWaypointMessage::new(category, mcrust::mcrust::modding::game::with_player(|player| player.base.base.base.base.block_position()).unwrap()));
         compat::lock(&WAYPOINTS_SENT2_SOCKET).push(category);
     }
 

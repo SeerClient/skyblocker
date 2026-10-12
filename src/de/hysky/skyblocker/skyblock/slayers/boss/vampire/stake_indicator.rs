@@ -31,11 +31,9 @@ impl StakeIndicator {
             TitleContainer::remove_title(TITLE.get_mut());
             return;
         }
-        let mut slayer_entity: Option<Box<dyn Entity>> = SlayerManager::get_slayer_armor_stand();
-        // TODO(fabric2seer): `Component.toString` has no Rust method in the port (looked for `to_string` in Component and JavaSrc)
-        // TODO(fabric2seer): the condition: `.contains(..)` on a value of unknown type
-        //   java: slayerEntity != null && slayerEntity.getName().toString().contains("҉")
-        if todo!("fabric2seer: the condition (TODO above)") {
+        let mut slayer_entity: Option<i32> = SlayerManager::get_slayer_armor_stand();
+        // `Component.toString()` is the port's `Display` of the component (Java's `literal{..}[style=..]` form)
+        if slayer_entity.is_some_and(|id| mcrust::mcrust::modding::game::with_entity(id, |e| compat::component_of(e.get_name()).to_string().contains("҉")).unwrap_or(false)) {
             TitleContainer::add_title_and_play_sound(TITLE.get_mut());
         } else {
             TitleContainer::remove_title(TITLE.get_mut());

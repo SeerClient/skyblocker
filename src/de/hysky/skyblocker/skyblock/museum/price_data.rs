@@ -39,12 +39,14 @@ impl PriceData {
         if Donation::is_set(&donation) {
             let mut total_l_bin_price: f64 = ((0) as f64) as f64;
             let mut total_craft_cost: f64 = ((0) as f64) as f64;
-            for piece in Donation::get_set(&donation) {
+            for (piece_index, piece) in Donation::get_set(&donation).into_iter().enumerate() {
                 let mut l_bin_price: f64 = ItemUtils::get_item_price_string(Some(piece.0.clone())).unwrap_or(((0) as f64) as f64);
                 let mut craft_cost: f64 = ItemUtils::get_craft_cost(&piece.0);
                 total_l_bin_price = (total_l_bin_price + l_bin_price);
                 total_craft_cost = (total_craft_cost + craft_cost);
-                piece.1;
+                // java: piece.right(new PriceData(lBinPrice, craftCost)); - the pair inside the donation's own list
+                let piece_price_data = PriceData::new(l_bin_price, craft_cost);
+                compat::write(&donation, |__t| __t.set[piece_index].1 = Some(piece_price_data));
             }
             { let __v = total_l_bin_price; compat::write(&__this, |__t| __t.l_bin_price = __v); }
             { let __v = total_craft_cost; compat::write(&__this, |__t| __t.craft_cost = __v); }

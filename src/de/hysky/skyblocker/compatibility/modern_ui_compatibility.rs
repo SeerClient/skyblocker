@@ -74,40 +74,61 @@ impl ModernUICompatibility {
         }
         let mut offset: f32 = 0.5f32;
         let mut text_renderer: Font = compat::font();
+        // the port draws a `FormattedText` where Java draws the `FormattedCharSequence`
+        let __outline_text = sequence_text(&**outline_text);
+        let __text = sequence_text(&**text);
         let __pose_1 = gui_graphics_extractor::push_pose();
         gui_graphics_extractor::pose_translate((offset) as f32, (0) as f32);
-        gui_graphics_extractor::draw_formatted_char_sequence_with_drop_shadow(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), outline_text, x, y, outline_color, false);
+        gui_graphics_extractor::draw_formatted_char_sequence_with_drop_shadow(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), &__outline_text, x, y, outline_color, false);
         gui_graphics_extractor::pop_pose(__pose_1);
         let __pose_2 = gui_graphics_extractor::push_pose();
         gui_graphics_extractor::pose_translate((offset) as f32, (offset) as f32);
-        gui_graphics_extractor::draw_formatted_char_sequence_with_drop_shadow(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), outline_text, x, y, outline_color, false);
+        gui_graphics_extractor::draw_formatted_char_sequence_with_drop_shadow(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), &__outline_text, x, y, outline_color, false);
         gui_graphics_extractor::pop_pose(__pose_2);
         let __pose_3 = gui_graphics_extractor::push_pose();
         gui_graphics_extractor::pose_translate((offset) as f32, ((-offset)) as f32);
-        gui_graphics_extractor::draw_formatted_char_sequence_with_drop_shadow(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), outline_text, x, y, outline_color, false);
+        gui_graphics_extractor::draw_formatted_char_sequence_with_drop_shadow(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), &__outline_text, x, y, outline_color, false);
         gui_graphics_extractor::pop_pose(__pose_3);
         let __pose_4 = gui_graphics_extractor::push_pose();
         gui_graphics_extractor::pose_translate(((-offset)) as f32, (0) as f32);
-        gui_graphics_extractor::draw_formatted_char_sequence_with_drop_shadow(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), outline_text, x, y, outline_color, false);
+        gui_graphics_extractor::draw_formatted_char_sequence_with_drop_shadow(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), &__outline_text, x, y, outline_color, false);
         gui_graphics_extractor::pop_pose(__pose_4);
         let __pose_5 = gui_graphics_extractor::push_pose();
         gui_graphics_extractor::pose_translate(((-offset)) as f32, (offset) as f32);
-        gui_graphics_extractor::draw_formatted_char_sequence_with_drop_shadow(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), outline_text, x, y, outline_color, false);
+        gui_graphics_extractor::draw_formatted_char_sequence_with_drop_shadow(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), &__outline_text, x, y, outline_color, false);
         gui_graphics_extractor::pop_pose(__pose_5);
         let __pose_6 = gui_graphics_extractor::push_pose();
         gui_graphics_extractor::pose_translate(((-offset)) as f32, ((-offset)) as f32);
-        gui_graphics_extractor::draw_formatted_char_sequence_with_drop_shadow(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), outline_text, x, y, outline_color, false);
+        gui_graphics_extractor::draw_formatted_char_sequence_with_drop_shadow(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), &__outline_text, x, y, outline_color, false);
         gui_graphics_extractor::pop_pose(__pose_6);
         let __pose_7 = gui_graphics_extractor::push_pose();
         gui_graphics_extractor::pose_translate((0) as f32, (offset) as f32);
-        gui_graphics_extractor::draw_formatted_char_sequence_with_drop_shadow(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), outline_text, x, y, outline_color, false);
+        gui_graphics_extractor::draw_formatted_char_sequence_with_drop_shadow(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), &__outline_text, x, y, outline_color, false);
         gui_graphics_extractor::pop_pose(__pose_7);
         let __pose_8 = gui_graphics_extractor::push_pose();
         gui_graphics_extractor::pose_translate((0) as f32, ((-offset)) as f32);
-        gui_graphics_extractor::draw_formatted_char_sequence_with_drop_shadow(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), outline_text, x, y, outline_color, false);
+        gui_graphics_extractor::draw_formatted_char_sequence_with_drop_shadow(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), &__outline_text, x, y, outline_color, false);
         gui_graphics_extractor::pop_pose(__pose_8);
-        gui_graphics_extractor::draw_formatted_char_sequence_with_drop_shadow(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), text, x, y, color, false);
+        gui_graphics_extractor::draw_formatted_char_sequence_with_drop_shadow(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), &__text, x, y, color, false);
         return true;
     }
 
+}
+
+/// The port draws a `FormattedText` where Java draws a `FormattedCharSequence`: the sequence's styled
+/// characters, gathered back into runs of one style each.
+fn sequence_text(seq: &dyn FormattedCharSequence) -> mcrust::net::minecraft::network::chat::formatted_text::FormattedText {
+    use mcrust::net::minecraft::network::chat::formatted_text::FormattedText;
+    use mcrust::net::minecraft::network::chat::style::Style;
+    let mut runs: Vec<(Style, String)> = Vec::new();
+    seq.accept(&mut |_position: i32, style: &Style, codepoint: u32| {
+        if let Some(c) = char::from_u32(codepoint) {
+            match runs.last_mut() {
+                Some((s, text)) if s == style => text.push(c),
+                _ => runs.push((style.clone(), c.to_string())),
+            }
+        }
+        true
+    });
+    FormattedText::composite(runs.into_iter().map(|(style, text)| FormattedText::of_styled(text, style)).collect())
 }

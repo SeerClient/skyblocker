@@ -7,5 +7,6 @@ use crate::de::hysky::skyblocker::config::skyblocker_config_manager::SkyblockerC
 
 
 pub fn get_mod_config_screen_factory() -> crate::unresolved::ConfigScreenFactory {
-    return Arc::new(move |__a0| SkyblockerConfigManager::create_gui(Some(__a0.clone())));
+    // java: return SkyblockerConfigManager::createGUI;
+    return Arc::new(move |__a0: mcrust::net::minecraft::client::gui::screens::screen::Screen| SkyblockerConfigManager::create_gui(Some(__a0)));
 }

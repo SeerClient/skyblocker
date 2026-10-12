@@ -84,7 +84,7 @@ impl std::ops::DerefMut for CustomizeScreen {
 impl CustomizeScreen {
     /// java: public CustomizeScreen(@Nullable Screen previousScreen, boolean item)
     pub fn new(mut previous_screen: Option<mcrust::net::minecraft::client::gui::screens::screen::Screen>, mut item: bool) -> compat::Shared<Self> {
-        let __init_previous_screen = previous_screen.clone();
+        let __init_previous_screen = previous_screen;
         let __init_item = item;
         let __this = compat::shared(Self {
             base: mcrust::net::minecraft::client::gui::screens::screen::Screen::new((if compat::random() < 0.01 { component::translatable("skyblocker.customization.titleSecret") } else { component::translatable("skyblocker.customization.title") }).with_style_format(ChatFormatting::Gray).with_style_fn(|style| style.with_shadow_color(0)).get_string()),

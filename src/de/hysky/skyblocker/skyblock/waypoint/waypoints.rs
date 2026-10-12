@@ -101,7 +101,7 @@ impl LocationMultimap {
     /// `remove(key, value)`: the first group of the key that `equals` the value (`ArrayList.remove(Object)`).
     pub fn remove(&mut self, key: Location, value: &compat::Shared<WaypointGroup>) -> bool {
         let Some(list) = self.map.get_mut(&key) else { return false };
-        let Some(index) = list.iter().position(|group| waypoint_group_equals(group, value)) else { return false };
+        let Some(index) = list.iter().position(|group| WaypointGroup::equals_shared(group, value)) else { return false };
         list.remove(index);
         true
     }
@@ -141,41 +141,9 @@ impl LocationMultimap {
         }
         keys.iter().all(|key| {
             let (a, b) = (&self.map[key], &other.map[key]);
-            a.len() == b.len() && a.iter().zip(b.iter()).all(|(a, b)| waypoint_group_equals(a, b))
+            a.len() == b.len() && a.iter().zip(b.iter()).all(|(a, b)| WaypointGroup::equals_shared(a, b))
         })
     }
-}
-
-/// `WaypointGroup.equals(Object)`, the `@GenEquals` body: every non-transient field - `name`, `island`, `waypoints`
-/// (`List.equals`, element by element with `NamedWaypoint.equals`), `ordered`, `renderThroughWalls`, `waypointType`.
-/// rust: the owners' bodies (`WaypointGroup.equals`, `NamedWaypoint.equals`, `Waypoint.equals`, utils/waypoint) are
-/// `todo!` and take a `compat::Object` no `Shared` group can become; the Java bodies are read here until they are
-/// ported, and this should then call them.
-pub(crate) fn waypoint_group_equals(a: &compat::Shared<WaypointGroup>, b: &compat::Shared<WaypointGroup>) -> bool {
-    if Arc::ptr_eq(a, b) {
-        return true;
-    }
-    let (a_fields, a_waypoints) = compat::read(a, |t| ((t.name.clone(), t.island, t.ordered, t.render_through_walls, t.waypoint_type), t.waypoints.clone()));
-    let (b_fields, b_waypoints) = compat::read(b, |t| ((t.name.clone(), t.island, t.ordered, t.render_through_walls, t.waypoint_type), t.waypoints.clone()));
-    a_fields == b_fields && a_waypoints.len() == b_waypoints.len() && a_waypoints.iter().zip(b_waypoints.iter()).all(|(a, b)| named_waypoint_equals(a, b))
-}
-
-/// `NamedWaypoint.equals:` `this == obj || super.equals(obj) && obj instanceof NamedWaypoint w && name.equals(w.name)`,
-/// with `Waypoint.equals:246-248`: `pos`, `typeSupplier.get()`, `colorComponents` (`Arrays.equals`), `alpha`,
-/// `lineWidth`, `throughWalls`, `enabled`. See `waypoint_group_equals`.
-pub(crate) fn named_waypoint_equals(a: &compat::Shared<dyn NamedWaypoint>, b: &compat::Shared<dyn NamedWaypoint>) -> bool {
-    if std::ptr::addr_eq(Arc::as_ptr(a), Arc::as_ptr(b)) {
-        return true;
-    }
-    let read = |w: &compat::Shared<dyn NamedWaypoint>| compat::read(w, |t| {
-        let base = t.waypoint_base();
-        (base.pos.clone(), base.type_supplier.clone(), base.color_components.clone(), base.alpha, base.line_width, base.through_walls, base.enabled, t.named_waypoint_base().name.clone())
-    });
-    let (a, b) = (read(a), read(b));
-    // `typeSupplier.get()` is called outside the borrow: a supplier may read the config.
-    let a_type = a.1.as_ref().map(|supplier| supplier());
-    let b_type = b.1.as_ref().map(|supplier| supplier());
-    a.0 == b.0 && a_type == b_type && a.2 == b.2 && a.3 == b.3 && a.4 == b.4 && a.5 == b.5 && a.6 == b.6 && a.7 == b.7
 }
 
 /// java: public class Waypoints

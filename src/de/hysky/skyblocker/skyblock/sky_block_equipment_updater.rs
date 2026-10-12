@@ -134,10 +134,10 @@ impl dyn SkyBlockEquipmentUpdater {
 
 impl SkyBlockEquipmentUpdater for SkyBlockEquipmentUpdaterBase {
     fn sky_block_equipment_updater_base(&self) -> &SkyBlockEquipmentUpdaterBase {
-        &self
+        self
     }
     fn sky_block_equipment_updater_base_mut(&mut self) -> &mut SkyBlockEquipmentUpdaterBase {
-        &mut self
+        self
     }
 
 }

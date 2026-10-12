@@ -169,7 +169,7 @@ impl TicTacToe {
                         (board[(row) as usize])[(column) as usize] = 'O';
                     }
                 }
-                let mut best_move: BoardIndex = TicTacToeUtils::get_best_move(&board);
+                let mut best_move: BoardIndex = TicTacToeUtils::get_best_move(&mut board);
                 let mut next_x: f64 = ((8) as f64) as f64;
                 let mut next_y: f64 = ((72i32.wrapping_sub(best_move.row())) as f64) as f64;
                 let mut next_z: f64 = ((17i32.wrapping_sub(best_move.column())) as f64) as f64;

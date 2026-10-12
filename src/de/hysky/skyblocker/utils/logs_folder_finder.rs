@@ -44,20 +44,17 @@ impl LogsFolderFinder {
 
     /// java: private static Path computeFolder()
     pub fn compute_folder() -> std::path::PathBuf {
-        let mut context: crate::unresolved::LoggerContext;
-        // TODO(fabric2seer): the condition: static call LogManager.getFactory(..)
-        //   java: LogManager.getFactory(..).isClassLoaderDependent(..)
-        if todo!("fabric2seer: the condition (TODO above)") {
-            // TODO(fabric2seer): static call LogManager.getContext(..)
-            //   java: context = LogManager.getContext(Minecraft.class.getClassLoader(), false);
-        } else {
-            // TODO(fabric2seer): static call LogManager.getContext(..)
-            //   java: context = LogManager.getContext(false);
-        }
-        let Some(instance) = context.as_any().downcast_ref::<crate::unresolved::LoggerContext>() else {
-            logger().warn(&format!("Could not compute logs folder, expected instance of LoggerContext got {}", compat::jstring(&compat::type_name_of(&context))));
+        // java: LoggerContext context = LogManager.getFactory().isClassLoaderDependent()
+        //         ? LogManager.getContext(Minecraft.class.getClassLoader(), false) : LogManager.getContext(false);
+        // java: if (!(context instanceof LoggerContext instance)) { LOGGER.warn(..); return getFallbackFolder(); }
+        // rust: port gap - the game logs without log4j, so there is no `LoggerContext` (and no file appender) to ask
+        //   (GAPS_batchE.md): the `instanceof` arm is the one taken
+        let context: Option<crate::unresolved::LoggerContext> = None;
+        let Some(instance) = context else {
+            logger().warn("Could not compute logs folder, expected instance of LoggerContext got null");
             return LogsFolderFinder::get_fallback_folder();
         };
+        let _ = instance;
         // TODO(fabric2seer): `.getConfiguration(..)` on a LoggerContext
         //   java: Map<String, Appender> appenders = instance.getConfiguration().getAppenders();
         let mut appenders: std::collections::HashMap<String, crate::unresolved::Appender> = todo!("fabric2seer: the initialiser of `appenders` (TODO above)");

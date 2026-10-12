@@ -12,7 +12,7 @@ pub struct Donation {
     /// java: private final String id;
     pub id: String,
     /// java: private final List<ObjectObjectMutablePair<String, PriceData>> set;
-    pub set: Vec<(String, compat::Shared<PriceData>)>,
+    pub set: Vec<(String, Option<compat::Shared<PriceData>>)>,
     /// java: private final List<String> downgrades = new ArrayList<>();
     pub downgrades: Vec<String>,
     /// java: private final int xp;
@@ -33,7 +33,7 @@ pub struct Donation {
 
 impl Donation {
     /// java: public Donation(String category, String id, List<ObjectObjectMutablePair<String, PriceData>> set, int xp)
-    pub fn new(mut category: String, mut id: String, mut set: Vec<(String, compat::Shared<PriceData>)>, mut xp: i32) -> compat::Shared<Self> {
+    pub fn new(mut category: String, mut id: String, mut set: Vec<(String, Option<compat::Shared<PriceData>>)>, mut xp: i32) -> compat::Shared<Self> {
         let __init_category = category.clone();
         let __init_id = id.clone();
         let __init_set = set.clone();
@@ -97,7 +97,7 @@ impl Donation {
 
     /// java: public boolean hasDiscount()
     pub fn has_discount(__this: &compat::Shared<Self>) -> bool {
-        return (compat::read(__this, |__t| __t.discount.clone()).is_some() && compat::read(__this, |__t| __t.discount.clone()).1 > 0.0);
+        return (compat::read(__this, |__t| __t.discount.as_ref().is_some_and(|discount| discount.1 > 0.0)));
     }
 
     /// java: public void addDowngrade(String downgrade)
@@ -137,7 +137,7 @@ impl Donation {
     }
 
     /// java: public List<ObjectObjectMutablePair<String, PriceData>> getSet()
-    pub fn get_set(__this: &compat::Shared<Self>) -> Vec<(String, compat::Shared<PriceData>)> {
+    pub fn get_set(__this: &compat::Shared<Self>) -> Vec<(String, Option<compat::Shared<PriceData>>)> {
         return compat::read(__this, |__t| __t.set.clone());
     }
 

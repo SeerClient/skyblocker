@@ -54,14 +54,17 @@ impl CalculatorCommand {
     /// java: private static int doCalculation(String calculation)
     pub fn do_calculation(calculation: &str) -> i32 {
         let mut text: MutableComponent = (constants::PREFIX.get_mut())();
-        // java: try {..} catch (Calculator.CalculatorException e) - an exception here is a panic, caught by `catch_unwind`
-        let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            text.append(component::literal(calculation).with_style_format(ChatFormatting::Aqua));
-            text.append_str(" = ");
-            text.append(component::literal(&formatters::DOUBLE_NUMBERS.get_mut().format(Calculator::calculate(calculation.to_string()))).with_style_format(ChatFormatting::Green));
-        }));
+        // java: try { text.append(calculation (aqua)); text.append(" = "); text.append(format(Calculator.calculate(calculation)) (green)); }
+        // catch (Calculator.CalculatorException e) {..} - the exception is a panic of `calculate`, caught by `catch_unwind`;
+        // the two appends before it run either way, as they do in Java (`append` answers the component: assigned back)
+        let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| Calculator::calculate(calculation.to_string())));
+        text = text.append(component::literal(calculation).with_style_format(ChatFormatting::Aqua));
+        text = text.append_str(" = ");
+        if let Ok(__value) = &__result {
+            text = text.append(component::literal(&formatters::DOUBLE_NUMBERS.get_mut().format(__value.clone())).with_style_format(ChatFormatting::Green));
+        }
         if let Err(e) = __result {
-            text.append(component::translatable("skyblocker.config.uiAndVisuals.inputCalculator.invalidEquation").with_style_format(ChatFormatting::Red));
+            text = text.append(component::translatable("skyblocker.config.uiAndVisuals.inputCalculator.invalidEquation").with_style_format(ChatFormatting::Red));
             // TODO(fabric2seer): field `args` of a exception
             //   java: text.append(Component.literal(": ").append(Component.translatable(e.getMessage(), e.args)).withStyle(ChatFormatting.RED));
         }

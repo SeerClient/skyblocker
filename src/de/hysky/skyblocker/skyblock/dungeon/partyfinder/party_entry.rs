@@ -140,12 +140,12 @@ impl PartyEntryBase {
             } else if lower_case.contains("class level") {
                 let mut matcher: compat::regex::Matcher = NUMBERS_PATTERN.matcher(&lower_case);
                 if matcher.find() {
-                    { let __v = matcher.group(0).unwrap().trim().parse::<i32>().expect("NumberFormatException"); compat::write(&__this, |__t| __t.party_entry_base_mut().min_class_level = __v); }
+                    { let __v = matcher.group(0).unwrap().parse::<i32>().expect("NumberFormatException"); compat::write(&__this, |__t| __t.party_entry_base_mut().min_class_level = __v); }
                 }
             } else if lower_case.contains("dungeon level") {
                 let mut matcher: compat::regex::Matcher = NUMBERS_PATTERN.matcher(&lower_case);
                 if matcher.find() {
-                    { let __v = matcher.group(0).unwrap().trim().parse::<i32>().expect("NumberFormatException"); compat::write(&__this, |__t| __t.party_entry_base_mut().min_catacombs_level = __v); }
+                    { let __v = matcher.group(0).unwrap().parse::<i32>().expect("NumberFormatException"); compat::write(&__this, |__t| __t.party_entry_base_mut().min_catacombs_level = __v); }
                 }
             } else if lower_case.contains("floor:") {
                 { let __v = compat::trim(&((compat::regex::split(&tooltip_text.as_ref().unwrap(), ":"))[(1) as usize])); compat::write(&__this, |__t| __t.party_entry_base_mut().floor = __v); }
@@ -215,7 +215,7 @@ impl PartyEntryBase {
                         let mut class_level: i32 = -1;
                         let mut matcher: compat::regex::Matcher = (compat::regex::Pattern::compile("\\((\\d+)\\)")).matcher(&parts[(1) as usize]);
                         if matcher.find() {
-                            class_level = matcher.group(1).unwrap().trim().parse::<i32>().expect("NumberFormatException");
+                            class_level = matcher.group(1).unwrap().parse::<i32>().expect("NumberFormatException");
                         }
                         let mut player: compat::Shared<Player> = Player::new(player_name.clone(), class_name.clone(), class_level);
                         // TODO(fabric2seer): `.ifPresent(..)` on a value of unknown type

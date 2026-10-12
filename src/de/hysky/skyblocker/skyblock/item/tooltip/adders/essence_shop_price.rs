@@ -139,7 +139,7 @@ impl EssenceShopPrice {
     pub fn add_to_tooltip_impl(__this: &compat::Shared<Self>, mut focused_slot: Option<Slot>, stack: &mcrust::net::minecraft::world::item::item_stack::ItemStack, lines: &mut Vec<MutableComponent>) {
         let mut lore: String = ItemUtils::concatenate_lore(lines);
         let mut essence_matcher: compat::regex::Matcher = ESSENCE_PATTERN.matcher(&lore);
-        let mut cost: Option<i64> = RegexUtils::find_long_from_matcher(&essence_matcher);
+        let mut cost: Option<i64> = RegexUtils::find_long_from_matcher(&mut essence_matcher);
         if cost.is_none() {
             return;
         }

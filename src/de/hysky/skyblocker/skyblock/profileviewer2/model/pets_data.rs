@@ -78,8 +78,10 @@ impl Pet {
     }
 
     /// java: @GenToString @Override public native String toString();
+    /// The body the build's `ObjectProcessor` generates: `java.lang.runtime.ObjectMethods`' toString -
+    /// `Pet[f=String.valueOf(f), ..]` over every non-static, non-transient field in declaration order.
     pub fn to_string(&self) -> String {
-        todo!("native method: its body is generated at build time by an annotation processor (@GenToString)")
+        format!("Pet[uuid={}, type={}, exp={}, tier={}, heldItem={}, candyUsed={}, skin={}]", compat::opt_str(&self.uuid), self.r#type, mcrust::javacompat::java_double_to_string(self.exp), self.tier, compat::opt_str(&self.held_item), self.candy_used, compat::opt_str(&self.skin))
     }
 
 }

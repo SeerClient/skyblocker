@@ -1,0 +1,65 @@
+src/mixins/abstract_container_screen_mixin.rs:82:101: error[E0308]: mismatched types: expected `SkyblockerConfig`, found `&SkyblockerConfig`
+src/mixins/abstract_sign_edit_screen_mixin.rs:52:118: error[E0308]: mismatched types: expected `Vec<AbstractWidget>`, found `Vec<Option<AbstractWidget>>`
+src/de/hysky/skyblocker/hud/hud_processor.rs:27:99: error[E0277]: the trait bound `ClassDesc: std::clone::Clone` is not satisfied: the trait `std::clone::Clone` is not implemented for `ClassDesc`
+src/de/hysky/skyblocker/hud/hud_processor.rs:27:108: error[E0599]: `Cloned<std::collections::hash_map::Keys<'_, ClassDesc, i32>>` is not an iterator: `Cloned<std::collections::hash_map::Keys<'_, ClassDesc, i32>>` is not an iterator
+src/de/hysky/skyblocker/hud/hud_processor.rs:28:81: error[E0599]: the method `get` exists for struct `std::collections::HashMap<ClassDesc, i32>`, but its trait bounds were not satisfied: method cannot be called on `std::collections::HashMap<ClassDesc, i32>` due to unsatisfied trait bounds
+src/de/hysky/skyblocker/hud/hud_reader.rs:37:144: error[E0599]: the method `clone` exists for enum `std::option::Option<RuntimeInvisibleAnnotationsAttribute>`, but its trait bounds were not satisfied: method cannot be called due to unsatisfied trait bounds
+src/de/hysky/skyblocker/object/object_method_generation.rs:31:25: error[E0599]: no method named `clone` found for struct `ClassDesc` in the current scope: method not found in `ClassDesc`
+src/de/hysky/skyblocker/object/object_method_generation.rs:36:21: error[E0599]: no method named `clone` found for struct `MethodReference` in the current scope: method not found in `MethodReference`
+src/de/hysky/skyblocker/object/object_method_generation.rs:46:31: error[E0599]: the method `clone` exists for struct `Vec<FieldReference>`, but its trait bounds were not satisfied
+src/de/hysky/skyblocker/object/object_method_generation.rs:51:31: error[E0599]: the method `clone` exists for enum `std::option::Option<ClassDesc>`, but its trait bounds were not satisfied: method cannot be called on `std::option::Option<ClassDesc>` due to unsatisfied trait bounds
+src/de/hysky/skyblocker/object/object_method_injector.rs:22:156: error[E0277]: the trait bound `ObjectMethodGeneration: std::clone::Clone` is not satisfied: unsatisfied trait bound
+src/de/hysky/skyblocker/object/object_method_injector.rs:22:165: error[E0599]: `Cloned<std::slice::Iter<'_, ObjectMethodGeneration>>` is not an iterator: `Cloned<std::slice::Iter<'_, ObjectMethodGeneration>>` is not an iterator
+src/de/hysky/skyblocker/object/object_method_injector.rs:90:37: error[E0308]: mismatched types: expected `ConstantDesc`, found `ClassDesc`
+src/de/hysky/skyblocker/object/object_method_injector.rs:91:37: error[E0308]: mismatched types: expected `ConstantDesc`, found `String`
+src/de/hysky/skyblocker/object/object_method_injector.rs:121:95: error[E0599]: the method `clone` exists for struct `Vec<ConstantDesc>`, but its trait bounds were not satisfied
+src/de/hysky/skyblocker/object/object_method_reader.rs:101:178: error[E0599]: no method named `clone` found for struct `ClassDesc` in the current scope: method not found in `ClassDesc`
+src/de/hysky/skyblocker/object/object_method_reader.rs:101:232: error[E0599]: the method `clone` exists for struct `Vec<FieldReference>`, but its trait bounds were not satisfied
+src/de/hysky/skyblocker/object/object_method_reader.rs:101:279: error[E0599]: no method named `clone` found for struct `ClassDesc` in the current scope: method not found in `ClassDesc`
+src/de/hysky/skyblocker/object/object_method_reader.rs:101:187: error[E0308]: mismatched types: expected `MethodReference`, found `&MethodReference`
+src/de/hysky/skyblocker/object/object_method_reader.rs:102:41: error[E0599]: the method `clone` exists for struct `Vec<ObjectMethodGeneration>`, but its trait bounds were not satisfied
+src/de/hysky/skyblocker/object/object_method_reader.rs:108:70: error[E0599]: no method named `clone` found for mutable reference `&mut MethodTypeDesc` in the current scope: method not found in `&mut MethodTypeDesc`
+src/de/hysky/skyblocker/object/object_method_reader.rs:109:75: error[E0599]: no method named `clone` found for mutable reference `&mut MethodTypeDesc` in the current scope: method not found in `&mut MethodTypeDesc`
+src/de/hysky/skyblocker/object/object_method_reader.rs:110:75: error[E0599]: no method named `clone` found for mutable reference `&mut MethodTypeDesc` in the current scope: method not found in `&mut MethodTypeDesc`
+src/de/hysky/skyblocker/object/object_processor.rs:26:126: error[E0599]: the method `clone` exists for struct `Vec<ObjectMethodGeneration>`, but its trait bounds were not satisfied
+src/de/hysky/skyblocker/processor.rs:36:63: error[E0599]: no method named `clone` found for struct `ClassModel` in the current scope: method not found in `ClassModel`
+src/de/hysky/skyblocker/processor.rs:49:39: error[E0277]: the trait bound `ClassModel: std::clone::Clone` is not satisfied: the trait `std::clone::Clone` is not implemented for `ClassModel`
+src/de/hysky/skyblocker/processor.rs:49:22: error[E0277]: the trait bound `ClassModel: std::clone::Clone` is not satisfied: the trait `std::clone::Clone` is not implemented for `ClassModel`
+src/de/hysky/skyblocker/processor.rs:56:38: error[E0599]: no method named `clone` found for struct `ClassDesc` in the current scope: method not found in `ClassDesc`
+src/de/hysky/skyblocker/processor.rs:123:105: error[E0599]: no method named `clone` found for struct `InputStream` in the current scope: method not found in `InputStream`
+src/de/hysky/skyblocker/processor.rs:175:66: error[E0308]: mismatched types: expected `ClassDesc`, found `&ClassDesc`
+src/de/hysky/skyblocker/processor.rs:177:20: error[E0599]: the method `clone` exists for enum `std::option::Option<ClassDesc>`, but its trait bounds were not satisfied: method cannot be called on `std::option::Option<ClassDesc>` due to unsatisfied trait bounds
+src/de/hysky/skyblocker/skyblock/chat/chat_rules_handler.rs:99:80: error[E0277]: the trait bound `BasicToast: Toast` is not satisfied: unsatisfied trait bound
+src/de/hysky/skyblocker/skyblock/chat/filters/autopet_filter.rs:93:76: error[E0277]: the trait bound `BasicToast: Toast` is not satisfied: unsatisfied trait bound
+src/de/hysky/skyblocker/skyblock/chat/filters/rare_crop_filter.rs:104:76: error[E0277]: the trait bound `BasicToast: Toast` is not satisfied: unsatisfied trait bound
+src/de/hysky/skyblocker/skyblock/dungeon/secrets/secret_sync.rs:70:72: error[E0308]: mismatched types: expected `&Arc<ReentrantMutex<RawMutex, ..., ...>>`, found `&DungeonRoomMatchMessage`
+src/de/hysky/skyblocker/skyblock/dungeon/secrets/secret_sync.rs:108:72: error[E0308]: mismatched types: expected `&Arc<ReentrantMutex<RawMutex, ..., ...>>`, found `&DungeonRoomSecretCountMessage`
+src/de/hysky/skyblocker/skyblock/dungeon/secrets/secret_sync.rs:130:72: error[E0308]: mismatched types: expected `&Arc<ReentrantMutex<RawMutex, ..., ...>>`, found `&DungeonRoomHideWaypointMessage`
+src/de/hysky/skyblocker/skyblock/dungeon/secrets/secret_sync.rs:154:72: error[E0308]: mismatched types: expected `&Arc<ReentrantMutex<RawMutex, ..., ...>>`, found `&DungeonBatKilledMessage`
+src/de/hysky/skyblocker/skyblock/dungeon/secrets/secret_sync.rs:171:72: error[E0308]: mismatched types: expected `&Arc<ReentrantMutex<RawMutex, ..., ...>>`, found `&DungeonMimicKilledMessage`
+src/de/hysky/skyblocker/skyblock/dungeon/secrets/secret_sync.rs:188:72: error[E0308]: mismatched types: expected `&Arc<ReentrantMutex<RawMutex, ..., ...>>`, found `&DungeonPrinceKilledMessage`
+src/de/hysky/skyblocker/skyblock/itemlist/item_stack_builder.rs:118:89: error[E0277]: the trait bound `std::collections::HashMap<unresolved::Rarity, PetNumbers>: std::clone::Clone` is not satisfied: the trait `std::clone::Clone` is not implemented for `std::collections::HashMap<unresolved::Rarity, PetNumbers>`
+src/de/hysky/skyblocker/skyblock/itemlist/item_stack_builder.rs:118:107: error[E0599]: the method `get` exists for struct `std::collections::HashMap<unresolved::Rarity, PetNumbers>`, but its trait bounds were not satisfied: method cannot be called due to unsatisfied trait bounds
+src/de/hysky/skyblocker/disable_all.rs:95:45: error: lifetime may not live long enough: coercion requires that `'1` must outlive `'static`
+src/de/hysky/skyblocker/skyblock/entity/mob_bounding_boxes.rs:46:24: error[E0433]: cannot find type `SkyblockerConfigManager` in this scope: use of undeclared type `SkyblockerConfigManager`
+src/de/hysky/skyblocker/skyblock/entity/mob_bounding_boxes.rs:55:20: error[E0433]: cannot find type `SkyblockerConfigManager` in this scope: use of undeclared type `SkyblockerConfigManager`
+src/de/hysky/skyblocker/skyblock/accessories/accessories_helper_widget.rs:147:47: error[E0308]: mismatched types: expected `LinearLayout`, found `()`
+src/de/hysky/skyblocker/skyblock/barn/glowing_mushrooms.rs:75:133: error[E0282]: type annotations needed
+src/de/hysky/skyblocker/skyblock/crimson/dojo/tenacity_test_helper.rs:57:40: error[E0599]: no associated item named `Block` found for struct `HitResult` in the current scope: associated item not found in `HitResult`
+src/de/hysky/skyblocker/skyblock/crimson/dojo/tenacity_test_helper.rs:78:24: error[E0599]: no associated item named `Block` found for struct `HitResult` in the current scope: associated item not found in `HitResult`
+src/de/hysky/skyblocker/skyblock/rift/enigma_souls.rs:206:90: error[E0599]: no method named `base` found for mutable reference `&mut LocalPlayer` in the current scope: field, not a method
+src/de/hysky/skyblocker/skyblock/chest_value.rs:304:68: error[E0381]: used binding `coins_line` isn't initialized: `coins_line` used here but it isn't initialized
+src/de/hysky/skyblocker/skyblock/compact_damage.rs:91:36: error[E0382]: use of moved value: `prettier_custom_name`: value used here after move
+src/de/hysky/skyblocker/skyblock/events/event_notifications.rs:184:31: error[E0596]: cannot borrow `entry.1` as mutable, as `entry` is not declared as mutable: cannot borrow as mutable
+src/de/hysky/skyblocker/utils/render/title/title_container_config_screen.rs:162:27: error[E0053]: method `save_pos` has an incompatible type for trait: types differ in mutability
+src/de/hysky/skyblocker/skyblock/auction/auction_browser_screen.rs:197:64: error[E0277]: the trait bound `CategoryTabWidget: WidgetHalf` is not satisfied: unsatisfied trait bound
+src/de/hysky/skyblocker/skyblock/auction/auction_browser_screen.rs:197:64: error[E0277]: the trait bound `WidgetAdapter<CategoryTabWidget>: ModWidget` is not satisfied: unsatisfied trait bound
+src/de/hysky/skyblocker/skyblock/auction/auction_browser_screen.rs:210:64: error[E0277]: the trait bound `CategoryTabWidget: WidgetHalf` is not satisfied: unsatisfied trait bound
+src/de/hysky/skyblocker/skyblock/auction/auction_browser_screen.rs:210:64: error[E0277]: the trait bound `WidgetAdapter<CategoryTabWidget>: ModWidget` is not satisfied: unsatisfied trait bound
+src/de/hysky/skyblocker/skyblock/auction/auction_browser_screen.rs:578:87: error[E0433]: cannot find type `WidgetKind` in this scope: use of undeclared type `WidgetKind`
+src/de/hysky/skyblocker/skyblock/chocolatefactory/egg_finder.rs:259:76: error[E0308]: mismatched types: expected `Arc<ReentrantMutex<RawMutex, ..., ...>>`, found `EggWaypointMessage`
+src/de/hysky/skyblocker/skyblock/end/ender_nodes.rs:99:123: error[E0282]: type annotations needed
+src/de/hysky/skyblocker/skyblock/teleport/predictive_smooth_aote.rs:316:88: error[E0599]: no method named `get_name` found for reference `&i32` in the current scope: method not found in `&i32`
+src/de/hysky/skyblocker/skyblock/auction/auction_browser_screen.rs:427:25: error[E0594]: cannot assign to `*string`, which is behind a `&` reference: `string` is a `&` reference, so it cannot be written to
+src/de/hysky/skyblocker/skyblock/speedpreset/speed_preset_list_widget.rs:408:9: error[E0507]: cannot move out of dereference of `std::cell::RefMut<'_, SpeedPresetEntry>`: move occurs because value has type `LinearLayout`, which does not implement the `Copy` trait
+src/de/hysky/skyblocker/utils/render/title/title_container_config_screen.rs:258:22: error[E0596]: cannot borrow `full_config.ui_and_visuals.title_container` as mutable, as it is behind a `&` reference: `full_config` is a `&` reference, so it cannot be borrowed as mutable

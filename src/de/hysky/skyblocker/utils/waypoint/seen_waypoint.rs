@@ -123,13 +123,19 @@ impl dyn SeenWaypoint {
     /// java: @Override public void tick(Minecraft client)
     pub fn tick_body(__this: &compat::Shared<dyn SeenWaypoint>, client: &mut mcrust::net::minecraft::client::minecraft::Minecraft) {
         if !(compat::read(__this, |__t| __t.seen_waypoint_base().seen)) && { let __f = compat::dispatch(__this, |__t| __t.is_enabled()); __f(&compat::view(__this, |a| a as compat::Shared<dyn Waypoint>)) } && mcrust::mcrust::modding::game::level().is_some() && mcrust::mcrust::modding::game::with_player(|_| ()).is_some() && mcrust::mcrust::modding::game::level().unwrap().get_chunk_for_collisions((__this.lock().borrow().seen_waypoint_base().pos.as_ref().unwrap().get_x()).wrapping_shr((4) as u32), (__this.lock().borrow().seen_waypoint_base().pos.as_ref().unwrap().get_z()).wrapping_shr((4) as u32)).is_some() {
-            // TODO(fabric2seer): field `OUTLINE` of a value of unknown type
-            //   java: BlockHitResult blockHitResult = client.level.clip(new ClipContext(client.player.getEyePosition(), Vec3.atCenterOf(pos), ClipContext.Block.OUTLINE, ClipContext.Fluid.NONE, client.player));
-            let mut block_hit_result: BlockHitResult = todo!("fabric2seer: the initialiser of `blockHitResult` (TODO above)");
-            // TODO(fabric2seer): static `HitResult.Type` has no Rust counterpart in the port's HitResult file
-            // TODO(fabric2seer): the condition: field `MISS` of a value of unknown type
-            //   java: blockHitResult.getType() == HitResult.Type.MISS || blockHitResult.getBlockPos().equals(pos)
-            if todo!("fabric2seer: the condition (TODO above)") {
+            // java: BlockHitResult blockHitResult = client.level.clip(new ClipContext(client.player.getEyePosition(), Vec3.atCenterOf(pos), ClipContext.Block.OUTLINE, ClipContext.Fluid.NONE, client.player));
+            let pos: BlockPos = compat::read(__this, |__t| __t.seen_waypoint_base().pos.clone()).unwrap();
+            let level = mcrust::mcrust::modding::game::level().unwrap();
+            let Some(block_hit_result): Option<BlockHitResult> = mcrust::mcrust::modding::game::with_player(|player| {
+                use mcrust::net::minecraft::world::level::block_getter::BlockGetter as _;
+                use mcrust::net::minecraft::world::level::clip_context;
+                let collision_context = mcrust::net::minecraft::world::phys::shapes::collision_context::of(&*player, &*level);
+                level.clip(&ClipContext::new(player.base.base.base.base.get_eye_position(), vec3::at_center_of(&pos), clip_context::Block::Outline, clip_context::Fluid::None, &*collision_context))
+            }) else {
+                return;
+            };
+            // java: if (blockHitResult.getType() == HitResult.Type.MISS || blockHitResult.getBlockPos().equals(pos))
+            if block_hit_result.get_type() == mcrust::net::minecraft::world::phys::hit_result::Type::Miss || block_hit_result.get_block_pos() == pos {
                 { let __v = true; compat::write(__this, |__t| __t.seen_waypoint_base_mut().seen = __v); }
             }
         }

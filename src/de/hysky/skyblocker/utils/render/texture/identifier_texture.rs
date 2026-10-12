@@ -82,4 +82,9 @@ impl FallbackedTexture<mcrust::net::minecraft::resources::identifier::Identifier
         return self.current_texture == self.fallback;
     }
 
+    /// java: @Override public Identifier get() (the inherent `get` on the handle is the same body)
+    fn get(&self) -> mcrust::net::minecraft::resources::identifier::Identifier {
+        return self.current_texture.clone();
+    }
+
 }

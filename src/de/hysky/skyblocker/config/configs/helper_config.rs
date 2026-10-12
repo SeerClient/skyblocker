@@ -267,16 +267,14 @@ impl FishingHookDisplay {
 
     /// java: @Override public String toString()
     pub fn to_string(&self) -> String {
-        // TODO(fabric2seer): call to `name(..)` (not a method of this class)
-        //   java: return I18n.get("skyblocker.config.helpers.fishing.fishingHookDisplay." + name());
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        return mcrust::net::minecraft::client::resources::language::i18n::get(&format!("skyblocker.config.helpers.fishing.fishingHookDisplay.{}", self.name()), &[]);
     }
 
 }
 
 impl std::fmt::Display for FishingHookDisplay {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", FishingHookDisplay::to_string(*self))
+        write!(f, "{}", FishingHookDisplay::to_string(self))
     }
 }
 

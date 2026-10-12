@@ -144,7 +144,7 @@ impl dyn ExperimentSolver {
 
     /// java: @Override public ItemStack modifyDisplayStack(int slotIndex, ItemStack stack)
     pub fn modify_display_stack_body(__this: &compat::Shared<dyn ExperimentSolver>, mut slot_index: i32, stack: &mcrust::net::minecraft::world::item::item_stack::ItemStack) -> mcrust::net::minecraft::world::item::item_stack::ItemStack {
-        if __this.lock().borrow().as_any().is::<compat::Shared<SuperpairsSolver>>() || __this.lock().borrow().as_any().is::<compat::Shared<UltrasequencerSolver>>() && ({ let __f = compat::dispatch(__this, |__t| __t.get_state()); __f(__this) }) == State::Show {
+        if (crate::de::hysky::skyblocker::utils::container::container_matcher::ContainerMatcher::as_any(&*__this.lock().borrow()).is::<SuperpairsSolver>() || crate::de::hysky::skyblocker::utils::container::container_matcher::ContainerMatcher::as_any(&*__this.lock().borrow()).is::<UltrasequencerSolver>()) && ({ let __f = compat::dispatch(__this, |__t| __t.get_state()); __f(__this) }) == State::Show {
             let mut display_stack: Option<mcrust::net::minecraft::world::item::item_stack::ItemStack> = ({ let __f = compat::dispatch(__this, |__t| __t.get_slots()); __f(__this) }).get(&slot_index).cloned();
             return (if display_stack.is_some() { display_stack.clone() } else { Some(stack.clone()) }).unwrap();
         }

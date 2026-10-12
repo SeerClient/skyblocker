@@ -164,22 +164,22 @@ impl AuctionBrowserScreen {
     pub fn init(__this: &compat::Shared<Self>) {
         ();
         let __this_w1 = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
-        { let __v = Some(SortWidget::new((compat::read(__this, |__t| __t.left_pos)).wrapping_add(25), (compat::read(__this, |__t| __t.top_pos)).wrapping_add(81), Arc::new(move |__a0| { let Some(__this_1) = __this_w1.get().upgrade() else { return Default::default(); }; { let (__a0,) = (__a0.clone(),); (&__this_1).lock().borrow_mut().click_slot_1(__a0) } }))); compat::write(__this, |__t| __t.sort_widget = __v); }
-        __this.lock().borrow_mut().sort_widget.as_mut().unwrap().set_slot_id(SORT_BUTTON_SLOT);
+        { let __v = Some(SortWidget::new((compat::read(__this, |__t| __t.left_pos)).wrapping_add(25), (compat::read(__this, |__t| __t.top_pos)).wrapping_add(81), Arc::new(move |__a0: i32, __a1: i32| { let Some(__this_1) = __this_w1.get().upgrade() else { return; }; (&__this_1).lock().borrow_mut().click_slot(__a0, __a1) }))); compat::write(__this, |__t| __t.sort_widget = __v); }
+        compat::write(&compat::read(__this, |__t| __t.sort_widget.clone()).unwrap(), |__t| __t.set_slot_id(SORT_BUTTON_SLOT));
         let __r0 = compat::read(__this, |__t| __t.sort_widget.clone());
         { let (__q0,) = (compat::WidgetAdapter::widget(__r0.unwrap()),); __this.lock().borrow_mut().screen.add_renderable_widget(__q0) };
         let __this_w2 = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
-        { let __v = Some(AuctionTypeWidget::new((compat::read(__this, |__t| __t.left_pos)).wrapping_add(134), (compat::read(__this, |__t| __t.top_pos)).wrapping_add(77), Arc::new(move |__a0| { let Some(__this_2) = __this_w2.get().upgrade() else { return Default::default(); }; { let (__a0,) = (__a0.clone(),); (&__this_2).lock().borrow_mut().click_slot_1(__a0) } }))); compat::write(__this, |__t| __t.auction_type_widget = __v); }
-        __this.lock().borrow_mut().auction_type_widget.as_mut().unwrap().set_slot_id(AUCTION_TYPE_BUTTON_SLOT);
+        { let __v = Some(AuctionTypeWidget::new((compat::read(__this, |__t| __t.left_pos)).wrapping_add(134), (compat::read(__this, |__t| __t.top_pos)).wrapping_add(77), Arc::new(move |__a0: i32, __a1: i32| { let Some(__this_2) = __this_w2.get().upgrade() else { return; }; (&__this_2).lock().borrow_mut().click_slot(__a0, __a1) }))); compat::write(__this, |__t| __t.auction_type_widget = __v); }
+        compat::write(&compat::read(__this, |__t| __t.auction_type_widget.clone()).unwrap(), |__t| __t.set_slot_id(AUCTION_TYPE_BUTTON_SLOT));
         let __r0 = compat::read(__this, |__t| __t.auction_type_widget.clone());
         { let (__q0,) = (compat::WidgetAdapter::widget(__r0.unwrap()),); __this.lock().borrow_mut().screen.add_renderable_widget(__q0) };
         let __this_w3 = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
-        { let __v = Some(RarityWidget::new((compat::read(__this, |__t| __t.left_pos)).wrapping_add(73), (compat::read(__this, |__t| __t.top_pos)).wrapping_add(80), Arc::new(move |__a0| { let Some(__this_3) = __this_w3.get().upgrade() else { return Default::default(); }; { let (__a0,) = (__a0.clone(),); (&__this_3).lock().borrow_mut().click_slot_1(__a0) } }))); compat::write(__this, |__t| __t.rarity_widget = __v); }
+        { let __v = Some(RarityWidget::new((compat::read(__this, |__t| __t.left_pos)).wrapping_add(73), (compat::read(__this, |__t| __t.top_pos)).wrapping_add(80), Arc::new(move |__a0: i32, __a1: i32| { let Some(__this_3) = __this_w3.get().upgrade() else { return; }; (&__this_3).lock().borrow_mut().click_slot(__a0, __a1) }))); compat::write(__this, |__t| __t.rarity_widget = __v); }
         RarityWidget::set_slot_id(&compat::read(__this, |__t| __t.rarity_widget.clone()).unwrap(), RARITY_BUTTON_SLOT);
         let __r0 = compat::read(__this, |__t| __t.rarity_widget.clone());
         { let (__q0,) = (compat::WidgetAdapter::widget(__r0.unwrap()),); __this.lock().borrow_mut().screen.add_renderable_widget(__q0) };
         let __this_w4 = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
-        { let __v = Some(ScaledTextButtonWidget::new((compat::read(__this, |__t| __t.left_pos)).wrapping_add(10), (compat::read(__this, |__t| __t.top_pos)).wrapping_add(77), 12, 12, component::literal("↻"), OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| { let Some(__this_4) = __this_w4.get().upgrade() else { return Default::default(); }; { AuctionBrowserScreen::on_reset_pressed((&__this_4), (__screen.widget_mut(__index))); } })))); compat::write(__this, |__t| __t.reset_filters_button = __v); }
+        { let __v = Some(ScaledTextButtonWidget::new((compat::read(__this, |__t| __t.left_pos)).wrapping_add(10), (compat::read(__this, |__t| __t.top_pos)).wrapping_add(77), 12, 12, component::literal("↻"), OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| { let Some(__this_4) = __this_w4.get().upgrade() else { return Default::default(); }; { AuctionBrowserScreen::on_reset_pressed((&__this_4), (__screen.widget_mut(__index))); } }))).base); compat::write(__this, |__t| __t.reset_filters_button = __v); }
         let __r0 = compat::read(__this, |__t| __t.reset_filters_button.clone());
         { let (__q0,) = (__r0.unwrap(),); __this.lock().borrow_mut().screen.add_renderable_widget(__q0) };
         { let (__q0,) = (Tooltip::create(component::literal("Reset Filters").get_string()),); __this.lock().borrow_mut().reset_filters_button.as_mut().unwrap().set_tooltip(__q0) };
@@ -191,10 +191,10 @@ impl AuctionBrowserScreen {
         if __this.lock().borrow().category_tab_widgets.is_empty() {
             for i in 0..6 {
                 let __this_w6 = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
-                let mut category_tab_widget: compat::Shared<CategoryTabWidget> = CategoryTabWidget::new(mcrust::net::minecraft::world::item::item_stack::ItemStack::of_one(items::items().get("sponge")), Arc::new(move |__a0| { let Some(__this_6) = __this_w6.get().upgrade() else { return Default::default(); }; { let (__a0,) = (__a0.clone(),); (&__this_6).lock().borrow_mut().click_slot_1(__a0) } }), i);
+                let mut category_tab_widget: compat::Shared<CategoryTabWidget> = CategoryTabWidget::new(mcrust::net::minecraft::world::item::item_stack::ItemStack::of_one(items::items().get("sponge")), Arc::new(move |__a0: i32, __a1: i32| { let Some(__this_6) = __this_w6.get().upgrade() else { return; }; (&__this_6).lock().borrow_mut().click_slot(__a0, __a1) }), i);
                 let __h0 = category_tab_widget.clone();
                 __this.lock().borrow_mut().category_tab_widgets.push(__h0);
-                { let (__q0,) = (category_tab_widget.clone(),); __this.lock().borrow_mut().screen.add_widget(__q0) };
+                { let (__q0,) = (compat::WidgetAdapter::widget(category_tab_widget.clone()),); __this.lock().borrow_mut().screen.add_widget(__q0) };
                 let __wa1 = (compat::read(__this, |__t| __t.left_pos)).wrapping_sub(30);
                 let __wa2 = ((compat::read(__this, |__t| __t.top_pos)).wrapping_add(3)).wrapping_add(i.wrapping_mul(28));
                 let __o7 = category_tab_widget.clone();
@@ -207,7 +207,7 @@ impl AuctionBrowserScreen {
                 let __wa4 = ((compat::read(__this, |__t| __t.top_pos)).wrapping_add(3)).wrapping_add(i.wrapping_mul(28));
                 let __o8 = category_tab_widget.clone();
                 compat::write(&__o8, |__t| __t.set_position(__wa3, __wa4));
-                { let (__q0,) = (category_tab_widget.clone(),); __this.lock().borrow_mut().screen.add_widget(__q0) };
+                { let (__q0,) = (compat::WidgetAdapter::widget(category_tab_widget.clone()),); __this.lock().borrow_mut().screen.add_widget(__q0) };
             }
         }
     }
@@ -274,7 +274,7 @@ impl AuctionBrowserScreen {
     /// java: @Override protected void extractSlot(GuiGraphicsExtractor graphics, Slot slot, int mouseX, int mouseY)
     pub fn extract_slot(__this: &compat::Shared<Self>, graphics: &mut GuiGraphicsExtractor, slot: &Slot, mut mouse_x: i32, mut mouse_y: i32) {
         // TODO(fabric2seer): `has_item` takes 1 argument(s) in the port (`containers: &Containers<'_>`), Java passes 0
-        if SkyblockerConfigManager::get().ui_and_visuals.fancy_auction_house.highlight_cheap_bin && slot.has_item() && __this.lock().borrow().is_slot_highlighted.get(&slot.index).cloned().unwrap_or_else(|| false) {
+        if SkyblockerConfigManager::get().ui_and_visuals.fancy_auction_house.highlight_cheap_bin && compat::slot_has_item(slot) && __this.lock().borrow().is_slot_highlighted.get(&slot.index).cloned().unwrap_or_else(|| false) {
             GuiHelper::border(graphics, slot.x, slot.y, 16, 16, (Color::new_with_alpha(0, 255, 0, 100)).get_rgb());
         }
         compat::call_super();
@@ -353,8 +353,9 @@ impl AuctionBrowserScreen {
             let mut str: String = chat_formatting::strip_formatting(&compat::trim(&tooltip[0]));
             str = compat::substring2(&str, 1, (compat::str_len(&str)).wrapping_sub(1));
             let mut parts: Vec<String> = compat::regex::split(&str, "/");
-            { let __v = ((parts[(0) as usize]).replace(",", "")).trim().parse::<i32>().expect("NumberFormatException"); compat::write(__this, |__t| __t.current_page = __v); }
-            { let __v = ((parts[(1) as usize]).replace(",", "")).trim().parse::<i32>().expect("NumberFormatException"); compat::write(__this, |__t| __t.total_pages = __v); }
+            // java: Integer.parseInt(parts[0].replace(",", "")) - no trim
+            { let __v = ((parts[(0) as usize]).replace(",", "")).parse::<i32>().expect("java.lang.NumberFormatException"); compat::write(__this, |__t| __t.current_page = __v); }
+            { let __v = ((parts[(1) as usize]).replace(",", "")).parse::<i32>().expect("java.lang.NumberFormatException"); compat::write(__this, |__t| __t.total_pages = __v); }
         }));
         if let Err(e) = __result {
             logger().error(&format!("[Skyblocker Fancy Auction House] Failed to parse page arrow"));
@@ -423,7 +424,7 @@ impl AbstractCustomHypixelGUI<compat::Shared<crate::de::hysky::skyblocker::skybl
                 let mut tooltip_search: Vec<String> = stack.skyblocker_get_lore_strings();
                 for string in tooltip_search.iter() {
                     if string.contains("Filtered:") {
-                        *string = chat_formatting::strip_formatting(string);
+                        let string: String = chat_formatting::strip_formatting(string);
                         let mut split_search: Vec<String> = compat::regex::split(&string, ":");
                         if (split_search.len() as i32) < 2 {
                             self.search = "".to_string();
@@ -435,22 +436,16 @@ impl AbstractCustomHypixelGUI<compat::Shared<crate::de::hysky::skyblocker::skybl
                 }
             }
             _ => {
-                // TODO(fabric2seer): `AbstractContainerScreen.menu` has no Rust field in the port (searched net.minecraft.client.gui.screens.inventory.AbstractContainerScreen and its supertypes)
-                // TODO(fabric2seer): `AbstractContainerMenu.getRowCount` has no Rust method in the port (looked for `get_row_count` in AbstractContainerMenu and JavaSrc)
-                // TODO(fabric2seer): the condition: `.getRowCount(..)` on a T
-                //   java: slotId < this.menu.getRowCount() * 9 && slotId % 9 == 0
-                if todo!("fabric2seer: the condition (TODO above)") {
+                // java: slotId < this.menu.getRowCount() * 9 && slotId % 9 == 0 (`menu` is the handler this callback is given)
+                let row_count: i32 = compat::read(handler, |__t| __t.get_row_count());
+                if slot_id < row_count.wrapping_mul(9) && slot_id.wrapping_rem(9) == 0 {
                     let mut category_tab_widget: compat::Shared<CategoryTabWidget> = self.category_tab_widgets[(slot_id.wrapping_div(9)) as usize].clone();
                     CategoryTabWidget::set_slot_id(&category_tab_widget, slot_id);
-                    // TODO(fabric2seer): `get_item` takes 1 argument(s) in the port (`containers: &'a Containers<'_>`), Java passes 0
-                    // rust: let __wa2 = slot_id;
-                    // rust: let __o2 = handler.clone();
-                    // rust: ({ let __f = compat::dispatch(&category_tab_widget, |__t| __t.set_icon()); __f(&compat::view(&category_tab_widget, |a| a as compat::Shared<dyn SideTabButtonWidget>), &mut (compat::write(&__o2, |__t| (__t.get_slot(__wa2)).clone())).get_item()) });
-                    // TODO(fabric2seer): `get_item` takes 1 argument(s) in the port (`containers: &'a Containers<'_>`), Java passes 0
-                    // rust: let __wa3 = slot_id;
-                    // rust: let __o3 = handler.clone();
-                    // rust: let mut tooltip_default: Vec<String> = (compat::write(&__o3, |__t| (__t.get_slot(__wa3)).clone())).get_item().skyblocker_get_lore_strings();
-                    let mut tooltip_default: Vec<String> = todo!("fabric2seer: the initialiser of `tooltipDefault` (TODO above)");
+                    // java: categoryTabWidget.setIcon(handler.getSlot(slotId).getItem()); - the slot's item is the `stack` this
+                    // slot-change callback carries (the menu's own slots hold no item in the port: they read the containers)
+                    ({ let __f = compat::dispatch(&category_tab_widget, |__t| __t.set_icon()); __f(&compat::view(&category_tab_widget, |a| a as compat::Shared<dyn SideTabButtonWidget>), &mut stack.clone()) });
+                    // java: List<String> tooltipDefault = handler.getSlot(slotId).getItem().skyblocker$getLoreStrings();
+                    let mut tooltip_default: Vec<String> = stack.skyblocker_get_lore_strings();
                     {
                         let mut j: i32 = (tooltip_default.len() as i32).wrapping_sub(1);
                         while j >= 0 {
@@ -467,8 +462,7 @@ impl AbstractCustomHypixelGUI<compat::Shared<crate::de::hysky::skyblocker::skybl
                             j -= 1;
                         }
                     }
-                let __o4 = handler.clone();
-                } else if slot_id > 9 && slot_id < ((compat::write(&__o4, |__t| __t.get_row_count())).wrapping_sub(1)).wrapping_mul(9) && slot_id.wrapping_rem(9) > 1 && slot_id.wrapping_rem(9) < 8 {
+                } else if slot_id > 9 && slot_id < (row_count.wrapping_sub(1)).wrapping_mul(9) && slot_id.wrapping_rem(9) > 1 && slot_id.wrapping_rem(9) < 8 {
                     let mut data: Option<std::collections::HashMap<String, f64>> = tooltip_info_type::THREE_DAY_AVERAGE.get_mut().lock().borrow().get_data();
                     if !(SkyblockerConfigManager::get().ui_and_visuals.fancy_auction_house.highlight_cheap_bin) || data.is_none() {
                         return;
@@ -580,10 +574,12 @@ impl std::ops::DerefMut for ScaledTextButtonWidget {
 impl ScaledTextButtonWidget {
     /// java: protected ScaledTextButtonWidget(int x, int y, int width, int height, Component message, OnPress onPress)
     pub fn new(mut x: i32, mut y: i32, mut width: i32, mut height: i32, mut message: MutableComponent, mut on_press: OnPress) -> Self {
-        // TODO(fabric2seer): `.get(..)` on a value of unknown type
-        //   java: super(x, y, width, height, message, onPress, Supplier::get);
-        let mut this: Self = todo!("constructor");
-        this
+        // java: super(x, y, width, height, message, onPress, Supplier::get); - a Button (the default narration supplier)
+        let mut base = AbstractWidget::new(x, y, width, height, message.get_string(), mcrust::net::minecraft::client::gui::components::abstract_widget::WidgetKind::Button, on_press);
+        base.set_message_text(mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(message));
+        // rust: port gap (GAPS_batchB L4) - this Button subclass overrides extractContents (scaled text); the port's Button
+        // draws itself and has no subclass slot, so the widget is drawn as a plain Button
+        Self { base }
     }
 
     /// java: @Override public void extractContents(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a)

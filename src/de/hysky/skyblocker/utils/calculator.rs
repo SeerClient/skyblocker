@@ -64,7 +64,7 @@ impl Calculator {
         input = (input.replace(" ", "")).to_lowercase().replace("x", "*");
         let mut i: i32 = 0;
         while i < compat::str_len(&input) {
-            tokens.push(match compat::char_at(&input, i) {
+            let __token = match compat::char_at(&input, i) {
                 '+' | '-' | '*' | '/' | '%' | '^' => 'yield_2: {
                     let mut op: String = compat::char_at(&input, i).to_string();
                     let mut operator: Option<Operator> = (OPERATOR_OPERATOR_MAP.get_mut())(op.clone());
@@ -126,7 +126,8 @@ impl Calculator {
                     i = i.wrapping_add((compat::str_len(&func)).wrapping_sub(1));
                     break 'yield_6 (compat::shared(FunctionToken::new(function.clone())) as compat::Shared<dyn AbstractToken>);
                 }
-            });
+            };
+            tokens.push(__token);
             i += 1;
         }
         return tokens;

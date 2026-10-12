@@ -35,7 +35,7 @@ impl ItemFilter {
         self.categories.clear();
         self.categories.push("All".to_string());
         self.categories.extend(compat::lock(&museum_item_cache::MUSEUM_CATEGORIES).iter().cloned());
-        compat::remove_item(&mut self.categories, &"special");
+        compat::remove_item(&mut self.categories, &"special".to_string());
         self.filter_index = self.filter_index.min((self.categories.len() as i32).wrapping_sub(1));
     }
 
@@ -66,10 +66,11 @@ impl ItemFilter {
         let mut i: i32 = 0;
         for category in self.categories.iter() {
             let mut category_name: String = (if compat::str_len(&category) < 2 { category.to_string() } else { format!("{}{}", (compat::substring2(&category, 0, 1)).to_uppercase(), compat::substring(&category, 1)) });
-            tooltip.append(self.get_filter_text(i, &component::literal(&category_name)));
+            // java: tooltip.append(..) - appends in place
+            tooltip = tooltip.append(self.get_filter_text(i, &component::literal(&category_name)));
             i = i.wrapping_add(1);
         }
-        (tooltip.append_str("\n")).append(component::translatable("skyblocker.museum.hud.filter.switch").with_style_format(ChatFormatting::Yellow));
+        tooltip = (tooltip.append_str("\n")).append(component::translatable("skyblocker.museum.hud.filter.switch").with_style_format(ChatFormatting::Yellow));
         return Tooltip::create(tooltip.get_string());
     }
 

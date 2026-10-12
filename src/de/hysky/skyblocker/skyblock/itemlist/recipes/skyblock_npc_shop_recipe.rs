@@ -200,7 +200,7 @@ impl SkyblockNpcShopRecipe {
 
     /// java: @Override public Identifier getRecipeIdentifier()
     pub fn get_recipe_identifier_impl(__this: &compat::Shared<Self>) -> Identifier {
-        return Identifier::from_namespace_and_path("skyblock", &format!("{}_{}", __this.lock().borrow().output.get_skyblock_id().to_lowercase().replace(';', &'_'.to_string()), FlexibleItemStack::count(&compat::read(__this, |__t| __t.output.clone()))));
+        return Identifier::from_namespace_and_path("skyblock", &format!("{}_{}", compat::read(&compat::read(__this, |__t| __t.output.clone()), |__s| __s.get_skyblock_id()).to_lowercase().replace(';', &'_'.to_string()), FlexibleItemStack::count(&compat::read(__this, |__t| __t.output.clone()))));
     }
 
     /// SkyblockNpcShopRecipe.getRecipeIdentifier as the dispatch of SkyblockRecipe.getRecipeIdentifier

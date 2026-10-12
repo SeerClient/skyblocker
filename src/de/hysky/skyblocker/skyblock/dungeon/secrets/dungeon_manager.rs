@@ -201,7 +201,8 @@ impl DungeonManager {
     /// java: @SuppressWarnings("UnusedReturnValue") public static @Nullable SecretWaypoint addCustomWaypoint(String room, SecretWaypoint waypoint)
     pub fn add_custom_waypoint(mut room: String, mut waypoint: compat::Shared<SecretWaypoint>) -> Option<compat::Shared<SecretWaypoint>> {
         // java: return customWaypoints.put(room, waypoint.pos, waypoint);
-        let pos = compat::read(&waypoint, |__t| __t.pos.clone());
+        // (Guava's `put` rejects a null column: `checkNotNull`)
+        let pos = compat::read(&waypoint, |__t| __t.pos.clone()).expect("NullPointerException");
         return CUSTOM_WAYPOINTS.get_mut().put(room, pos, waypoint);
     }
 

@@ -27,9 +27,11 @@ pub struct EventToastBase {
     /// java: private final long eventEndTime;
     pub event_end_time: i64,
     /// java: protected final List<FormattedCharSequence> message;
-    pub message: Vec<Seq>,
+    ///
+    /// The lines as the port's `Font.split` answers them and its sequence draw takes them (`FormattedText`).
+    pub message: Vec<mcrust::net::minecraft::network::chat::formatted_text::FormattedText>,
     /// java: protected final List<FormattedCharSequence> messageNow;
-    pub message_now: Vec<Seq>,
+    pub message_now: Vec<mcrust::net::minecraft::network::chat::formatted_text::FormattedText>,
     /// java: protected int messageWidth;
     pub message_width: i32,
     /// java: protected int messageNowWidth;
@@ -53,7 +55,7 @@ impl EventToastBase {
             event_start_time: __init_event_start_time,
             event_end_time: __init_event_end_time,
             message: __init_message,
-            message_now: Default::default(),
+            message_now: Vec::new(),
             message_width: 0,
             message_now_width: 0,
             icon: None,
@@ -61,10 +63,10 @@ impl EventToastBase {
         };
         let (__h, __r) = __wrap(this);
         let __this = __h;
-        { let __v = compat::read(&__this, |__t| __t.event_toast_base().message.clone()).into_iter().map(|__a0| renderer.width_of_sequence(&__a0)).max().unwrap_or(150); compat::write(&__this, |__t| __t.event_toast_base_mut().message_width = __v); }
+        { let __v = compat::read(&__this, |__t| __t.event_toast_base().message.clone()).into_iter().map(|__a0| renderer.width_of_cached(&__a0)).max().unwrap_or(150); compat::write(&__this, |__t| __t.event_toast_base_mut().message_width = __v); }
         let mut formatted_now: MutableComponent = (component::translatable_args("skyblocker.events.startsNow", vec![mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::literal(&name).with_style_format(ChatFormatting::Yellow))])).with_style_format(ChatFormatting::White);
         { let __v = renderer.split(&mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(formatted_now.clone()), 150); compat::write(&__this, |__t| __t.event_toast_base_mut().message_now = __v); }
-        { let __v = compat::read(&__this, |__t| __t.event_toast_base().message_now.clone()).into_iter().map(|__a0| renderer.width_of_sequence(&__a0)).max().unwrap_or(150); compat::write(&__this, |__t| __t.event_toast_base_mut().message_now_width = __v); }
+        { let __v = compat::read(&__this, |__t| __t.event_toast_base().message_now.clone()).into_iter().map(|__a0| renderer.width_of_cached(&__a0)).max().unwrap_or(150); compat::write(&__this, |__t| __t.event_toast_base_mut().message_now_width = __v); }
         { let __v = Some(icon.clone()); compat::write(&__this, |__t| __t.event_toast_base_mut().icon = __v); }
         { let __v = (event_start_time.wrapping_sub((compat::millis()).wrapping_div(1000 as i64)) < (0 as i64)); compat::write(&__this, |__t| __t.event_toast_base_mut().started = __v); }
         (__this, __r)
@@ -117,7 +119,7 @@ pub trait EventToast: compat::DynAny {
     }
 
     /// java: @Override public Visibility getWantedVisibility() (dispatch: the body for this class)
-    fn get_wanted_visibility(&self) -> fn(&compat::Shared<dyn EventToast>) -> crate::unresolved::Visibility {
+    fn get_wanted_visibility(&self) -> fn(&compat::Shared<dyn EventToast>) -> mcrust::net::minecraft::client::gui::components::toasts::toast::Visibility {
         <dyn EventToast>::get_wanted_visibility_body
     }
 
@@ -177,15 +179,12 @@ impl dyn EventToast {
     }
 
     /// java: @Override public Visibility getWantedVisibility()
-    pub fn get_wanted_visibility_body(__this: &compat::Shared<dyn EventToast>) -> crate::unresolved::Visibility {
+    pub fn get_wanted_visibility_body(__this: &compat::Shared<dyn EventToast>) -> mcrust::net::minecraft::client::gui::components::toasts::toast::Visibility {
         let mut current_time: i64 = (compat::millis()).wrapping_div(1000 as i64);
         if compat::read(__this, |__t| __t.event_toast_base().toast_time) > (5000 as i64) || current_time > compat::read(__this, |__t| __t.event_toast_base().event_end_time) {
-            // TODO(fabric2seer): static field Visibility.HIDE
-            //   java: return Visibility.HIDE;
+            return mcrust::net::minecraft::client::gui::components::toasts::toast::Visibility::Hide;
         }
-        // TODO(fabric2seer): static field Visibility.SHOW
-        //   java: return Visibility.SHOW;
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        return mcrust::net::minecraft::client::gui::components::toasts::toast::Visibility::Show;
     }
 
     /// java: @Override public void update(ToastManager manager, long time)
@@ -197,14 +196,52 @@ impl dyn EventToast {
 
 impl EventToast for EventToastBase {
     fn event_toast_base(&self) -> &EventToastBase {
-        &self
+        self
     }
     fn event_toast_base_mut(&mut self) -> &mut EventToastBase {
-        &mut self
+        self
     }
 
     fn as_any(&self) -> &dyn std::any::Any {
         self
     }
 
+}
+
+/// `EventToast implements Toast`: the object as the game's `Toast`, for `ToastManager.addToast` - each of the
+/// interface's methods dispatches to the class's own (`compat::dispatch`, so a subclass's overrides run).
+pub struct EventToastAdapter(pub compat::Shared<dyn EventToast>);
+
+impl mcrust::net::minecraft::client::gui::components::toasts::toast::Toast for EventToastAdapter {
+    fn get_wanted_visibility(&self) -> mcrust::net::minecraft::client::gui::components::toasts::toast::Visibility {
+        let __f = compat::dispatch(&self.0, |__t| __t.get_wanted_visibility());
+        __f(&self.0)
+    }
+
+    fn update(&mut self, manager: &ToastManager, fully_visible_for_ms: i64) {
+        let __f = compat::dispatch(&self.0, |__t| __t.update());
+        __f(&self.0, manager, fully_visible_for_ms)
+    }
+
+    fn extract_render_state(
+        &self,
+        _graphics: &mut mcrust::net::minecraft::client::gui::screens::inventory::tooltip::client_tooltip_component::TooltipGraphics<'_>,
+        _font: &mcrust::net::minecraft::client::gui::font::font_set::FontSet,
+        fully_visible_for_ms: i64,
+    ) {
+        // the class's body draws through the `gui_graphics_extractor` functions (the frame's own state), as the HUD
+        // callbacks do; its `graphics` is the extractor those functions stand for
+        let __f = compat::dispatch(&self.0, |__t| __t.extract_render_state());
+        __f(&self.0, &GuiGraphicsExtractor::new(), &compat::font(), fully_visible_for_ms)
+    }
+
+    fn width(&self) -> i32 {
+        let __f = compat::dispatch(&self.0, |__t| __t.width());
+        __f(&self.0)
+    }
+
+    fn height(&self) -> i32 {
+        let __f = compat::dispatch(&self.0, |__t| __t.height());
+        __f(&self.0)
+    }
 }

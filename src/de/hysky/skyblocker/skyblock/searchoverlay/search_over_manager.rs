@@ -308,7 +308,7 @@ impl SearchOverManager {
         compat::set_state(&IS_COMMAND, false);
         compat::set_state(&LOCATION, location);
         if SkyblockerConfigManager::get().ui_and_visuals.search_overlay.keep_previous_searches {
-            let mut messages: Vec<MutableComponent> = SIGN.get_mut().as_ref().unwrap().get_text(compat::get_state(&SIGN_FRONT)).get_messages(compat::minecraft().is_text_filtering_enabled()).clone();
+            let mut messages: Vec<MutableComponent> = SIGN.get_mut().as_ref().unwrap().get_text(compat::get_state(&SIGN_FRONT)).get_messages(compat::minecraft().is_text_filtering_enabled()).iter().cloned().map(compat::component_of).collect::<Vec<_>>();
             compat::set_state(&SEARCH, (messages[(0) as usize]).get_string());
             if !(((messages[(1) as usize]).get_string()).is_empty()) {
                 if !(compat::lock(&SEARCH).ends_with(" ")) {
@@ -345,19 +345,22 @@ impl SearchOverManager {
 
     /// java: private static Set<String> getMuseumSuggestions()
     pub fn get_museum_suggestions() -> std::collections::HashSet<String> {
-        // TODO(fabric2seer): Collectors.partitioningBy
-        //   java: Map<Boolean, List<Donation>> types = MuseumItemCache.MUSEUM_DONATIONS.stream().collect(Collectors.partitioningBy(Donation::isSet));
-        let mut types: std::collections::HashMap<bool, Vec<compat::Shared<Donation>>> = todo!("fabric2seer: the initialiser of `types` (TODO above)");
-        let mut items = types.get(&false).cloned().unwrap().iter().cloned().map(|__a0| Donation::get_id(&__a0)).filter(|__a0| MuseumItemCache::has_item_in_museum(__a0)).map(|__a0| ItemRepository::get_item_stack(&__a0)).filter(|__a0| true).map(|__a0| FlexibleItemStack::get_stack_or_throw(&__a0)).map(|__a0| compat::component_of(__a0.get_hover_name())).map(|__a0| __a0.get_string());
-        let mut sets = types.get(&true).cloned().unwrap().iter().cloned().map(|__a0| Donation::get_id(&__a0)).filter(|__a0| MuseumItemCache::has_item_in_museum(__a0)).map(|__a0| compat::lock(&museum_item_cache::ARMOR_NAMES).get(&__a0).cloned());
-        // TODO(fabric2seer): static call Streams.concat(..)
-        //   java: return Streams.concat(items, sets).collect(Collectors.toSet());
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        // java: Map<Boolean, List<Donation>> types = MuseumItemCache.MUSEUM_DONATIONS.stream().collect(Collectors.partitioningBy(Donation::isSet));
+        let (sets_donations, items_donations): (Vec<compat::Shared<Donation>>, Vec<compat::Shared<Donation>>) = museum_item_cache::MUSEUM_DONATIONS.get().iter().cloned().partition(|__d| Donation::is_set(__d));
+        // java: types.get(false).stream().map(Donation::getId).filter(MuseumItemCache::hasItemInMuseum).map(ItemRepository::getItemStack)
+        //   .filter(Objects::nonNull).map(FlexibleItemStack::getStackOrThrow).map(ItemStack::getHoverName).map(Component::getString)
+        let items = items_donations.iter().map(|__a0| Donation::get_id(__a0)).filter(|__a0| MuseumItemCache::has_item_in_museum(__a0)).filter_map(|__a0| ItemRepository::get_item_stack(&__a0)).map(|__a0| FlexibleItemStack::get_stack_or_throw(&__a0)).map(|__a0| compat::component_of(__a0.get_hover_name())).map(|__a0| __a0.get_string());
+        // java: types.get(true).stream().map(Donation::getId).filter(MuseumItemCache::hasItemInMuseum).map(MuseumItemCache.ARMOR_NAMES::get)
+        // (a set id with no armor name maps to null in Java, which the set then holds; a Rust set of names cannot)
+        let sets = sets_donations.iter().map(|__a0| Donation::get_id(__a0)).filter(|__a0| MuseumItemCache::has_item_in_museum(__a0)).filter_map(|__a0| compat::lock(&museum_item_cache::ARMOR_NAMES).get(&__a0).cloned());
+        // java: return Streams.concat(items, sets).collect(Collectors.toSet());
+        return items.chain(sets).collect::<std::collections::HashSet<String>>();
     }
 
     /// java: protected static String[] updateSuggestions(Set<String> items, int totalSuggestions)
     pub fn update_suggestions(items: &std::collections::HashSet<String>, mut total_suggestions: i32) -> Vec<String> {
-        return compat::sorted_by(items.iter().cloned(), |a, b| (|a, b| b.cmp(a))(&(|__a0| SearchOverManager::should_front_load(__a0))(a), &(|__a0| SearchOverManager::should_front_load(__a0))(b))).filter(|item| item.to_lowercase().contains(&compat::lock(&SEARCH).to_lowercase())).take((total_suggestions) as usize).collect::<Vec<_>>();
+        // java: .sorted(Comparator.comparing(SearchOverManager::shouldFrontLoad, Comparator.reverseOrder()))
+        return compat::sorted_by(items.iter().cloned(), |a: &String, b: &String| SearchOverManager::should_front_load(b).cmp(&SearchOverManager::should_front_load(a))).filter(|item| item.to_lowercase().contains(&compat::lock(&SEARCH).to_lowercase())).take((total_suggestions) as usize).collect::<Vec<_>>();
     }
 
     /// java: private static boolean shouldFrontLoad(String name)
@@ -461,22 +464,22 @@ impl SearchOverManager {
     /// java: private static List<String> addToHistory(List<String> history, String search, int historyLength)
     pub fn add_to_history(mut history: Vec<String>, mut search: String, mut history_length: i32) -> Vec<String> {
         if history.is_empty() || !(history.iter().any(|e| *e == search.clone())) {
-            // TODO(fabric2seer): List.addFirst(..)
-            //   java: history.addFirst(search);
+            // java: history.addFirst(search);
+            history.insert(0, search.clone());
             if (history.len() as i32) > history_length {
                 history = history[(0) as usize..(history_length) as usize].to_vec();
             }
         } else {
             compat::remove_item(&mut history, &search.clone());
-            // TODO(fabric2seer): List.addFirst(..)
-            //   java: history.addFirst(search);
+            // java: history.addFirst(search);
+            history.insert(0, search.clone());
         }
         return history;
     }
 
     /// java: @SuppressWarnings("incomplete-switch") private static void saveHistory()
     pub fn save_history() {
-        SkyblockerConfigManager::update_only(Arc::new(move |full_config| {
+        SkyblockerConfigManager::update_only(Arc::new(move |mut full_config| {
             let config = &mut full_config.ui_and_visuals.search_overlay;
             match compat::get_state(&LOCATION) {
                 SearchLocation::Auction => {
@@ -576,7 +579,7 @@ impl SearchOverManager {
     pub fn push_sign() {
         let mut split: (String, String) = SearchOverManager::split_string(&compat::get_state(&SEARCH));
         if mcrust::mcrust::modding::game::with_player(|_| ()).is_some() && SIGN.get_mut().is_some() {
-            let mut messages: Vec<MutableComponent> = SIGN.get_mut().as_ref().unwrap().get_text(compat::get_state(&SIGN_FRONT)).get_messages(compat::minecraft().is_text_filtering_enabled()).clone();
+            let mut messages: Vec<MutableComponent> = SIGN.get_mut().as_ref().unwrap().get_text(compat::get_state(&SIGN_FRONT)).get_messages(compat::minecraft().is_text_filtering_enabled()).iter().cloned().map(compat::component_of).collect::<Vec<_>>();
             // TODO(fabric2seer): `ClientPacketListener.send` has no Rust method in the port (looked for `send` in ClientPacketListener and its supertypes)
             // rust: mcrust::mcrust::modding::game::with_player(|player| { player.connection.as_ref().unwrap().send(&ServerboundSignUpdatePacket::new(SIGN.get_mut().as_ref().unwrap().get_block_pos(), compat::get_state(&SIGN_FRONT), split.0.clone(), split.1.clone(), (messages[(2) as usize]).get_string(), (messages[(3) as usize]).get_string())); });
         }

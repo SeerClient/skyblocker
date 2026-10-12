@@ -79,7 +79,7 @@ pub fn arrange_inputs(mut width: i32, mut height: i32, mut centered_item: Option
 
 /// java: static boolean shouldOffsetArrow(int size)
 pub fn should_offset_arrow(mut size: i32) -> bool {
-    return (should_split(size) && size.wrapping_rem(2) == 1 || size >= 8);
+    return (should_split(size) && (size.wrapping_rem(2) == 1 || size >= 8));
 }
 
 /// java: static List<SkyblockRecipe.RecipeSlot> arrangeOutputs(int width, int height, boolean offsetY, int inputSize, FlexibleItemStack output)

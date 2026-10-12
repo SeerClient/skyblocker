@@ -72,7 +72,7 @@ impl PreviewRoom {
             for waypoint in room_waypoints.iter() {
                 let mut secret_name: String = waypoint.secret_name();
                 let mut secret_index_matcher: compat::regex::Matcher = room::SECRET_INDEX.matcher(&secret_name);
-                let mut secret_index: i32 = (if secret_index_matcher.find() { secret_index_matcher.group(1).unwrap().trim().parse::<i32>().expect("NumberFormatException") } else { 0 });
+                let mut secret_index: i32 = (if secret_index_matcher.find() { secret_index_matcher.group(1).unwrap().parse::<i32>().expect("NumberFormatException") } else { 0 });
                 let mut pos: BlockPos = DungeonMapUtils::relative_to_actual(({ let __f = compat::dispatch(__this, |__t| __t.get_direction()); __f(&compat::view(__this, |a| a as compat::Shared<dyn Room>)) }).unwrap(), &({ let __f = compat::dispatch(__this, |__t| __t.get_physical_corner_pos()); __f(&compat::view(__this, |a| a as compat::Shared<dyn Room>)) }).unwrap(), waypoint);
                 let mut secret_waypoint: compat::Shared<SecretWaypoint> = SecretWaypoint::new(secret_index, waypoint.category(), secret_name.clone(), pos.clone());
                 // TODO(fabric2seer): `.put(..)` on a Table
@@ -80,7 +80,7 @@ impl PreviewRoom {
                 PreviewRoom::show_secret_in_level(__this, &secret_waypoint);
             }
         }
-        let mut custom_waypoints: std::collections::HashMap<BlockPos, compat::Shared<SecretWaypoint>> = DungeonManager::get_custom_waypoints(&compat::get_state(&room_preview_server::SELECTED_ROOM));
+        let mut custom_waypoints: indexmap::IndexMap<BlockPos, compat::Shared<SecretWaypoint>> = DungeonManager::get_custom_waypoints(&compat::get_state(&room_preview_server::SELECTED_ROOM));
         for (pos, secret_waypoint) in custom_waypoints.iter() {
             // TODO(fabric2seer): `.put(..)` on a Table
             //   java: secretWaypoints.put(..);

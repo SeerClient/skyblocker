@@ -66,7 +66,10 @@ impl ItemRepository {
         // java: try {..} catch (Exception e) - an exception here is a panic, caught by `catch_unwind`
         let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             mcrust::mcrust::modding::game::execute(move || {
-                minecraft::get_connection(client).unwrap().handle_update_recipes(&packet);
+                // java: client.getConnection().handleUpdateRecipes(packet);
+                // rust: port gap - `minecraft::get_connection` answers the play listener's sinks, not the game's
+                // `ClientPacketListener`, so a mod cannot hand it a packet to handle (GAPS_batchF.md)
+                let _ = &packet;
                 if *jei_compatibility::JEI_LOADED {
                     crate::entry::skyblocker_jei_plugin::trick_jei_into_loading_recipes();
                 }
@@ -87,7 +90,14 @@ impl ItemRepository {
         StackOverlays::load_overlays();
         NEURepoManager::for_each_item(Arc::new(move |__a0| { ItemRepository::load_item(&__a0); }));
         StackOverlays::clean_up_overlays();
-        ITEMS.get_mut().sort_by(|a, b| (|a, b| (|a, b| { let key = |stack| compat::regex::replace_all(&stack.lock().borrow().get_skyblock_id(), ".\\d+$", ""); key(a).cmp(&key(b)) })(a, b).then_with(|| (|a, b| { let key = |stack| compat::str_len(&stack.lock().borrow().get_skyblock_id()); key(a).cmp(&key(b)) })(a, b)))(a, b).then_with(|| (|a, b| { let key = |__a0| __a0.lock().borrow().get_skyblock_id(); key(a).cmp(&key(b)) })(a, b)));
+        // java: items.sort(Comparator.<FlexibleItemStack, String>comparing(stack -> stack.getSkyblockId().replaceAll(".\\d+$", ""))
+        //   .thenComparingInt(stack -> stack.getSkyblockId().length()).thenComparing(FlexibleItemStack::getSkyblockId));
+        ITEMS.get_mut().sort_by(|a: &compat::Shared<FlexibleItemStack>, b: &compat::Shared<FlexibleItemStack>| {
+            let (a_id, b_id) = (compat::read(a, |__s| __s.get_skyblock_id()), compat::read(b, |__s| __s.get_skyblock_id()));
+            compat::compare_to(&compat::regex::replace_all(&a_id, ".\\d+$", ""), &compat::regex::replace_all(&b_id, ".\\d+$", "")).cmp(&0)
+                .then_with(|| compat::str_len(&a_id).cmp(&compat::str_len(&b_id)))
+                .then_with(|| compat::compare_to(&a_id, &b_id).cmp(&0))
+        });
         compat::set_state(&ITEMS_IMPORTED, true);
         NEURepoManager::for_each_item(Arc::new(move |__a0| { ItemRepository::load_recipes(&__a0); }));
         recipe_item_stack_cache::CACHE.get_mut().clear();
@@ -107,7 +117,7 @@ impl ItemRepository {
             // TODO(fabric2seer): the condition: `is` is not a method of FlexibleItemStack
             //   java: stack.is(Items.ENCHANTED_BOOK) && stack.getSkyblockId().contains(";")
             if todo!("fabric2seer: the condition (TODO above)") {
-                ItemUtils::get_custom_data(&stack).put_string("id", "ENCHANTED_BOOK");
+                compat::read(&stack, |__s| ItemUtils::get_custom_data(__s)).put_string("id", "ENCHANTED_BOOK");
             }
             ITEMS.get_mut().push(stack.clone());
             // TODO(fabric2seer): `.getSkyblockItemId(..)` on a NEUItem
@@ -176,7 +186,8 @@ impl ItemRepository {
 
     /// java: public static Stream<FlexibleItemStack> getItemsStream()
     pub fn get_items_stream() -> Box<dyn Iterator<Item = compat::Shared<FlexibleItemStack>>> {
-        return Box::new((if compat::get_state(&ITEMS_IMPORTED) { ITEMS.get_mut().iter().cloned() } else { std::iter::empty() }));
+        let __items: Vec<compat::Shared<FlexibleItemStack>> = if compat::get_state(&ITEMS_IMPORTED) { ITEMS.get().clone() } else { Vec::new() };
+        return Box::new(__items.into_iter());
     }
 
     /// java: public static Map<String, @NEUId String> getBazaarStocks()
@@ -196,23 +207,30 @@ impl ItemRepository {
     }
 
     /// java: public static Supplier<FlexibleItemStack> getItemStackSupplier(String neuId)
-    pub fn get_item_stack_supplier(neu_id: &str) -> Arc<dyn Fn() -> compat::Shared<FlexibleItemStack>> {
-        return Arc::new(move || ITEMS_MAP.get_mut().get(neu_id).cloned());
+    /// (the supplier answers Java's nullable stack)
+    pub fn get_item_stack_supplier(neu_id: &str) -> Arc<dyn Fn() -> Option<compat::Shared<FlexibleItemStack>>> {
+        let neu_id: String = neu_id.to_string();
+        return Arc::new(move || ITEMS_MAP.get().get(&neu_id).cloned());
     }
 
     /// java: public static Stream<SkyblockRecipe> getRecipesStream()
     pub fn get_recipes_stream() -> Box<dyn Iterator<Item = compat::Shared<dyn SkyblockRecipe>>> {
-        return Box::new((if compat::get_state(&FILES_IMPORTED) { RECIPES.get_mut().iter().cloned() } else { std::iter::empty() }));
+        let __recipes: Vec<compat::Shared<dyn SkyblockRecipe>> = if compat::get_state(&FILES_IMPORTED) { RECIPES.get().clone() } else { Vec::new() };
+        return Box::new(__recipes.into_iter());
     }
 
     /// java: public static Stream<SkyblockRecipe> getRecipes(ItemStack stack)
     pub fn get_recipes(stack: &mcrust::net::minecraft::world::item::item_stack::ItemStack) -> Box<dyn Iterator<Item = compat::Shared<dyn SkyblockRecipe>> + '_> {
-        return Box::new(NEURepoManager::get_recipes().get(&stack.get_neu_name()).cloned().unwrap_or_else(|| std::collections::HashSet::from([])).into_iter().map(|__a0| ItemRepository::to_skyblock_recipe(&__a0)).filter(|__a0| true));
+        // java: NEURepoManager.getRecipes().getOrDefault(stack.getNeuName(), Set.of()).stream().map(ItemRepository::toSkyblockRecipe).filter(Objects::nonNull)
+        let __recipes: Vec<compat::Shared<dyn SkyblockRecipe>> = NEURepoManager::get_recipes().get(&stack.get_neu_name()).map(|__set| __set.iter().filter_map(|__a0| ItemRepository::to_skyblock_recipe(__a0)).collect()).unwrap_or_default();
+        return Box::new(__recipes.into_iter());
     }
 
     /// java: public static Stream<SkyblockRecipe> getUsages(ItemStack stack)
     pub fn get_usages(stack: &mcrust::net::minecraft::world::item::item_stack::ItemStack) -> Box<dyn Iterator<Item = compat::Shared<dyn SkyblockRecipe>> + '_> {
-        return Box::new(NEURepoManager::get_usages().get(&stack.get_neu_name()).cloned().unwrap_or_else(|| std::collections::HashSet::from([])).into_iter().map(|__a0| ItemRepository::to_skyblock_recipe(&__a0)).filter(|__a0| true));
+        // java: NEURepoManager.getUsages().getOrDefault(stack.getNeuName(), Set.of()).stream().map(ItemRepository::toSkyblockRecipe).filter(Objects::nonNull)
+        let __usages: Vec<compat::Shared<dyn SkyblockRecipe>> = NEURepoManager::get_usages().get(&stack.get_neu_name()).map(|__set| __set.iter().filter_map(|__a0| ItemRepository::to_skyblock_recipe(__a0)).collect()).unwrap_or_default();
+        return Box::new(__usages.into_iter());
     }
 
     /// java: private static @Nullable SkyblockRecipe toSkyblockRecipe(NEURecipe neuRecipe)
@@ -258,7 +276,7 @@ impl ItemRepository {
 }
 
 /// java: private record AfterImportTask(Runnable runnable, boolean async)
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct AfterImportTask {
     /// java: Runnable runnable
     pub runnable: Arc<dyn Fn()>,

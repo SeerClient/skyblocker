@@ -46,13 +46,13 @@ impl StorageOverlayScreenHandler {
             StorageOverlayScreenHandler::shift_inventory(&__this, (height.wrapping_sub(y_offset)).wrapping_sub(113));
             if !is_backpack {
                 for i in 0..rows.wrapping_mul(9) {
-                    let slot = &__this.lock().borrow().slots[(i) as usize];
-                    __this.lock().borrow_mut().slots[(i) as usize] = compat::slot_with_class(InactiveSlot::new(slot.container.clone(), slot.get_container_slot(), slot.x, slot.y));
+                    let slot: Slot = compat::read(&__this, |__t| __t.slots[(i) as usize].clone());
+                    __this.lock().borrow_mut().slots[(i) as usize] = compat::slot_with_class(InactiveSlot::new(slot.container, slot.get_container_slot(), slot.x, slot.y));
                 }
             } else {
                 for i in 0..9 {
-                    let slot = &__this.lock().borrow().slots[(i) as usize];
-                    __this.lock().borrow_mut().slots[(i) as usize] = compat::slot_with_class(InactiveSlot::new(slot.container.clone(), slot.get_container_slot(), slot.x, slot.y));
+                    let slot: Slot = compat::read(&__this, |__t| __t.slots[(i) as usize].clone());
+                    __this.lock().borrow_mut().slots[(i) as usize] = compat::slot_with_class(InactiveSlot::new(slot.container, slot.get_container_slot(), slot.x, slot.y));
                 }
                 StorageOverlayScreenHandler::update_backpack_slots(&__this, height);
             }
@@ -69,8 +69,8 @@ impl StorageOverlayScreenHandler {
     /// java: public void shiftInventory(int shift)
     pub fn shift_inventory(__this: &compat::Shared<Self>, mut shift: i32) {
         for i in (compat::read(__this, |__t| __t.rows)).wrapping_mul(9)..(__this.lock().borrow().slots.len() as i32) {
-            let original_slot = &__this.lock().borrow().slots[(i) as usize];
-            let mut slot: Slot = Slot::new(original_slot.container.clone(), original_slot.get_container_slot(), original_slot.x, original_slot.y.wrapping_add(shift));
+            let original_slot: Slot = compat::read(__this, |__t| __t.slots[(i) as usize].clone());
+            let mut slot: Slot = Slot::new(original_slot.container, original_slot.get_container_slot(), original_slot.x, original_slot.y.wrapping_add(shift));
             slot.index = i;
             __this.lock().borrow_mut().slots[(i) as usize] = slot.clone();
         }
@@ -79,8 +79,8 @@ impl StorageOverlayScreenHandler {
     /// java: public void updateBackpackSlots(int height)
     pub fn update_backpack_slots(__this: &compat::Shared<Self>, mut height: i32) {
         for i in 9..(compat::read(__this, |__t| __t.rows)).wrapping_mul(9) {
-            let original_slot = &__this.lock().borrow().slots[(i) as usize];
-            let mut slot: Slot = Slot::new(original_slot.container.clone(), original_slot.get_container_slot(), 0, -20).with_mod_slot(std::sync::Arc::new(compat::SlotFns { is_active: Some(Box::new(move |__slot: &Slot, __super: bool| {
+            let original_slot: Slot = compat::read(__this, |__t| __t.slots[(i) as usize].clone());
+            let mut slot: Slot = Slot::new(original_slot.container, original_slot.get_container_slot(), 0, -20).with_mod_slot(std::sync::Arc::new(compat::SlotFns { is_active: Some(Box::new(move |__slot: &Slot, __super: bool| {
                 return (__slot.y > 8 && __slot.y < height.wrapping_sub(94));
             })), is_highlightable: Some(Box::new(move |__slot: &Slot, __super: bool| {
                 return (__slot.y > 8 && __slot.y < height.wrapping_sub(94));
@@ -95,12 +95,15 @@ impl StorageOverlayScreenHandler {
         for i in 9..(compat::read(__this, |__t| __t.rows)).wrapping_mul(9) {
             let mut item_x: i32 = x.wrapping_add(((i.wrapping_sub(9)).wrapping_rem(columns)).wrapping_mul(18));
             let mut item_y: i32 = y.wrapping_add(((i.wrapping_sub(9)).wrapping_div(columns)).wrapping_mul(18));
-            let slot = &__this.lock().borrow().slots[(i) as usize];
-            let mut slot_accessor: crate::unresolved::SlotAccessor = slot;
-            // TODO(fabric2seer): `.setX(..)` on a SlotAccessor
-            //   java: slotAccessor.setX(itemX);
-            // TODO(fabric2seer): `.setY(..)` on a SlotAccessor
-            //   java: slotAccessor.setY(itemY);
+            // java: Slot slot = this.slots.get(i); SlotAccessor slotAccessor = (SlotAccessor) slot; slotAccessor.setX(itemX); slotAccessor.setY(itemY);
+            // (`this.slots` is the menu this object rides on: the player's open one, where the screen draws and
+            // hit-tests the slots)
+            let _ = mcrust::mcrust::modding::game::with_abstract_container_menu(|__menu| {
+                if let Some(slot) = __menu.slots.get_mut((i) as usize) {
+                    slot.x = item_x;
+                    slot.y = item_y;
+                }
+            });
         }
     }
 
@@ -139,9 +142,10 @@ impl std::ops::DerefMut for InactiveSlot {
 
 impl InactiveSlot {
     /// java: InactiveSlot(Container container, int slot, int x, int y)
-    pub fn new(mut container: Box<dyn Container>, mut slot: i32, mut x: i32, mut y: i32) -> compat::Shared<Self> {
+    /// (`container` is the port's tag of the container the slot reads)
+    pub fn new(mut container: mcrust::net::minecraft::world::inventory::slot::SlotContainer, mut slot: i32, mut x: i32, mut y: i32) -> compat::Shared<Self> {
         let __this = compat::shared(Self {
-            base: Slot::new(container.clone(), slot, x, y),
+            base: Slot::new(container, slot, x, y),
         });
         __this
     }

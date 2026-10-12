@@ -32,6 +32,7 @@ use mcrust::net::minecraft::world::entity::decoration::armor_stand::ArmorStand;
 use mcrust::net::minecraft::world::phys::aabb::AABB;
 use mcrust::net::minecraft::network::chat::component::Component as _;
 use mcrust::net::minecraft::world::entity::item_owner::ItemOwner as _;
+use mcrust::net::minecraft::world::entity::entity::Entity as _;
 use mcrust::net::minecraft::world::level::entity_getter::EntityGetter as _;
 
 /// java: private static final Pattern EGG_FOUND_PATTERN = Pattern.compile("^(?:HOPPITY'S HUNT You found a Chocolate|You have already collected this Chocolate) (Breakfast|Lunch|Dinner|Brunch|Déjeuner|Supper) Eg
@@ -43,15 +44,15 @@ pub static LOCATIONS: LazyLock<std::collections::HashSet<Location>> = LazyLock::
 // TODO(fabric2seer): `.get(..)` on a AtomicReference
 //   java: private static boolean isSpring = SkyblockTime.skyblockSeason.get() == SkyblockTime.Season.SPRING;
 /// java: private static boolean isSpring = SkyblockTime.skyblockSeason.get() == SkyblockTime.Season.SPRING;
-pub static IS_SPRING: LazyLock<Mutex<bool>> = LazyLock::new(|| Mutex::new(todo!("fabric2seer: the initialiser of `isSpring` - see the TODO above")));
+pub static IS_SPRING: LazyLock<Mutex<bool>> = LazyLock::new(|| Mutex::new(compat::get_state(&skyblock_time::SKYBLOCK_SEASON) == Season::Spring));
 // TODO(fabric2seer): `from_values` takes 2 argument(s) in the port (`values: Vec<E>, serialized_name: impl Fn(&E) -> String + Send + Sync + Copy + 'static`), Java passes 1
 //   java: public static final Codec<EggType> CODEC = StringRepresentable.fromValues(EggType::values);
 /// java: public static final Codec<EggType> CODEC = StringRepresentable.fromValues(EggType::values);
-pub static EGG_TYPE_CODEC: compat::MainThread<CodecRef<EggType>> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `CODEC` - see the TODO above"));
+pub static EGG_TYPE_CODEC: compat::MainThread<CodecRef<EggType>> = compat::MainThread::new(|| mcrust::net::minecraft::util::string_representable::from_values(EggType::values(), |egg_type: &EggType| egg_type.get_serialized_name()));
 // TODO(fabric2seer): static call ObjectImmutableList.of(..)
 //   java: public static final ObjectImmutableList<EggType> entries = ObjectImmutableList.of(EggType.values());
 /// java: public static final ObjectImmutableList<EggType> entries = ObjectImmutableList.of(EggType.values());
-pub static EGG_TYPE_ENTRIES: LazyLock<Vec<EggType>> = LazyLock::new(|| todo!("fabric2seer: the initialiser of `entries` - see the TODO above"));
+pub static EGG_TYPE_ENTRIES: LazyLock<Vec<EggType>> = LazyLock::new(|| EggType::values());
 
 /// java: public class EggFinder
 #[derive(Clone)]
@@ -78,9 +79,8 @@ impl EggFinder {
             if !(compat::get_state(&IS_SPRING)) {
                 return;
             }
-            // TODO(fabric2seer): `.get(..)` on a AtomicReference
-            //   java: int dayNumber = SkyblockTime.skyblockMonth.get().ordinal() * 31 + SkyblockTime.skyblockDay.get();
-            let mut day_number: i32 = todo!("fabric2seer: the initialiser of `dayNumber` (TODO above)");
+            // java: int dayNumber = SkyblockTime.skyblockMonth.get().ordinal() * 31 + SkyblockTime.skyblockDay.get();
+            let mut day_number: i32 = compat::get_state(&skyblock_time::SKYBLOCK_MONTH).ordinal().wrapping_mul(31).wrapping_add(compat::lock(&skyblock_time::SKYBLOCK_DAY).load(std::sync::atomic::Ordering::SeqCst));
             let mut is_odd: bool = (day_number.wrapping_rem(2) == 1);
             for r#type in EGG_TYPE_ENTRIES.iter().copied() {
                 if hour == (r#type).fields().reset_hour && is_odd == (r#type).fields().odd_day {
@@ -134,7 +134,7 @@ impl EggFinder {
     /// java: public static void onWebsocketMessage(EggWaypointMessage message)
     pub fn on_websocket_message(message: &EggWaypointMessage) {
         let mut egg_type: EggType = message.egg_type();
-        egg_type.fields().egg = Egg::new(message.coordinates(), egg_type);
+        egg_type.fields().egg = Some(Egg::new(message.coordinates(), egg_type));
         egg_type.on_egg_received();
     }
 
@@ -152,7 +152,7 @@ impl EggFinder {
         if !(compat::get_state(&IS_SPRING)) || !(LOCATIONS.contains(&location)) || !(SkyblockerConfigManager::get().helpers.chocolate_factory.enable_egg_finder) {
             return;
         }
-        WsStateManager::subscribe_island(Service::EggWaypoints, &None);
+        WsStateManager::subscribe_island(Service::EggWaypoints, None);
     }
 
     /// java: public static boolean checkIfEgg(ArmorStand armorStand, EggType eggType)
@@ -183,7 +183,7 @@ impl EggFinder {
             return;
         }
         for r#type in EGG_TYPE_ENTRIES.iter().copied() {
-            let mut egg: Option<compat::Shared<Egg>> = Some((r#type).fields().egg.clone());
+            let mut egg: Option<compat::Shared<Egg>> = (r#type).fields().egg.clone();
             if let Some(egg) = &egg {
                 ({ let __f = compat::dispatch(egg, |__t| __t.extract_rendering()); __f(&compat::view(egg, |a| a as compat::Shared<dyn Renderable>), collector) });
             }
@@ -198,7 +198,7 @@ impl EggFinder {
         let mut matcher: compat::regex::Matcher = NO_EGGS_PATTERN.matcher(&text.get_string());
         if matcher.matches() {
             for r#type in EGG_TYPE_ENTRIES.iter().copied() {
-                let mut egg: Option<compat::Shared<Egg>> = Some((r#type).fields().egg.clone());
+                let mut egg: Option<compat::Shared<Egg>> = (r#type).fields().egg.clone();
                 let Some(mut egg) = egg.clone() else {
                     continue;
                 };
@@ -217,8 +217,8 @@ impl EggFinder {
                 return true;
             };
             egg_type.fields().collected = true;
-            if true /* java: egg_type.fields().egg != null: never null here */ {
-                ({ let __r = &egg_type.fields().egg; let __f = compat::dispatch(__r, |__t| __t.set_found()); __f(&compat::view(__r, |a| a as compat::Shared<dyn Waypoint>)) });
+            if let Some(egg) = egg_type.fields().egg.clone() {
+                ({ let __r = &egg; let __f = compat::dispatch(__r, |__t| __t.set_found()); __f(&compat::view(__r, |a| a as compat::Shared<dyn Waypoint>)) });
                 return true;
             }
             logger().info("[Skyblocker Egg Finder] Discovered a new egg!");
@@ -226,22 +226,34 @@ impl EggFinder {
             if mcrust::mcrust::modding::game::with_player(|_| ()).is_none() || mcrust::mcrust::modding::game::level().is_none() {
                 return true;
             }
-            // TODO(fabric2seer): the port's `get_entities_of_class` ports this Java method with other parameters (base_class, except, bb, selector for Java's base_class, bb, selector)
-            // TODO(fabric2seer): `get_entities_of_class` takes 4 argument(s) in the port (`base_class: crate::net::minecraft::world::level::entity::entity_type_test::EntityClass, except: Option<i32>, bb: &AABB, selector: &dyn Fn(&(dyn Entity + Send + Sync)) -> bool`), Java passes 3
-            // TODO(fabric2seer): a lambda for a parameter the port does not type as a closure (`Predicate<? super T>`)
+            // java: client.level.getEntitiesOfClass(ArmorStand.class, AABB.ofSize(client.player.position(), 4f, 4f, 4f), entity -> checkIfEgg(entity, eggType))
+            // (the port's class filter has no ArmorStand.class: the base class Entity plus the instanceof the class test makes)
             // rust: let mut entities: Vec<ArmorStand> = mcrust::mcrust::modding::game::level().unwrap().get_entities_of_class(std::any::TypeId::of::<ArmorStand>(), Some(AABB::of_size(&mcrust::mcrust::modding::game::with_player(|player| player.position()).unwrap(), (4.0f32) as f64, (4.0f32) as f64, (4.0f32) as f64)), |entity| EggFinder::check_if_egg(&entity, egg_type));
-            let mut entities: Vec<ArmorStand> = todo!("fabric2seer: the initialiser of `entities` (TODO above)");
+            let Some(player_position) = mcrust::mcrust::modding::game::with_player(|player| player.position()) else {
+                return true;
+            };
+            let level = mcrust::mcrust::modding::game::level().unwrap();
+            let entities: Vec<mcrust::net::minecraft::world::level::entity_getter::SharedEntity> = level.get_entities_of_class(
+                mcrust::net::minecraft::world::level::entity::entity_type_test::EntityClass::Entity,
+                None,
+                &AABB::of_size(&player_position, (4.0f32) as f64, (4.0f32) as f64, (4.0f32) as f64),
+                &|entity| entity.as_any().and_then(|any| any.downcast_ref::<ArmorStand>()).is_some_and(|armor_stand| EggFinder::check_if_egg(armor_stand, egg_type)),
+            );
             if (entities.len() as i32) != 1 {
                 return true;
             }
-            egg_type.fields().egg = Egg::new(entities[0].base.base.block_position().above_n(2), egg_type);
-            ({ let __r = &egg_type.fields().egg; let __f = compat::dispatch(__r, |__t| __t.set_found()); __f(&compat::view(__r, |a| a as compat::Shared<dyn Waypoint>)) });
+            let block_position = mcrust::mcrust::modding::game::lock_entity(&*entities[0], "skyblocker EggFinder.onChatMessage").base().block_position();
+            let egg = Egg::new(block_position.above_n(2), egg_type);
+            egg_type.fields().egg = Some(egg.clone());
+            ({ let __r = &egg; let __f = compat::dispatch(__r, |__t| __t.set_found()); __f(&compat::view(__r, |a| a as compat::Shared<dyn Waypoint>)) });
             egg_type.send_egg_message();
-            if { let __r = &egg_type.fields().egg; let __f = compat::dispatch(__r, |__t| __t.equals()); __f(&compat::view(__r, |a| a as compat::Shared<dyn Waypoint>), &egg_type.fields().prev_egg) } {
+            // java: egg.equals(prevEgg) - Object.equals takes a null prevEgg (false)
+            let prev_egg: Option<compat::Shared<Egg>> = egg_type.fields().prev_egg.clone();
+            if prev_egg.is_some_and(|prev_egg| waypoint_equals(&egg, &prev_egg)) {
                 logger().info("[Skyblocker Egg Finder] Not sharing this egg to the WebSocket - matches previous location");
                 return true;
             }
-            WsMessageHandler::send_location_message(Service::EggWaypoints, &(compat::shared(EggWaypointMessage::new(egg_type, compat::read(&egg_type.fields().egg, |__t| __t.pos.clone()).unwrap(), None)) as compat::Shared<dyn Message<compat::Object>>));
+            WsMessageHandler::send_location_message(Service::EggWaypoints, &EggWaypointMessage::new(egg_type, compat::read(&egg, |__t| __t.pos.clone()).unwrap(), None));
         }
         // TODO(fabric2seer): the `catch (IllegalArgumentException e)` block is not reached in Rust - the try body returns, breaks or continues, so it cannot run inside `catch_unwind`
         //   java: {
@@ -302,22 +314,31 @@ impl EggType {
     }
 
     /// the constant's constructor data (Java keeps it in the constant's fields)
-    pub fn fields(self) -> &'static EggTypeFields {
-        static FIELDS: LazyLock<Vec<EggTypeFields>> = LazyLock::new(|| vec![
+    /// (the constants' mutable fields `collected` / `egg` / `prevEgg` hold render-thread objects, so the table is a
+    /// render-thread static, mutable as Java's enum fields are)
+    pub fn fields(self) -> &'static mut EggTypeFields {
+        static FIELDS: compat::MainThread<Vec<EggTypeFields>> = compat::MainThread::new(|| { let mut __fields = vec![
             EggTypeFields::new("Breakfast".to_string(), mcrust::net::minecraft::network::chat::text_color::TextColor::GOLD.get_value(), 7, "ewogICJ0aW1lc3RhbXAiIDogMTcxMTQ2MjY3MzE0OSwKICAicHJvZmlsZUlkIiA6ICJiN2I4ZTlhZjEwZGE0NjFmOTY2YTQxM2RmOWJiM2U4OCIsCiAgInByb2ZpbGVOYW1lIiA6ICJBbmFiYW5hbmFZZzciLAogICJzaWduYXR1cmVSZXF1aXJlZCIgOiB0cnVlLAogICJ0ZXh0dXJlcyIgOiB7CiAgICAiU0tJTiIgOiB7CiAgICAgICJ1cmwiIDogImh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvYTQ5MzMzZDg1YjhhMzE1ZDAzMzZlYjJkZjM3ZDhhNzE0Y2EyNGM1MWI4YzYwNzRmMWI1YjkyN2RlYjUxNmMyNCIKICAgIH0KICB9Cn0".to_string(), true),
             EggTypeFields::new("Lunch".to_string(), mcrust::net::minecraft::network::chat::text_color::TextColor::BLUE.get_value(), 14, "ewogICJ0aW1lc3RhbXAiIDogMTcxMTQ2MjU2ODExMiwKICAicHJvZmlsZUlkIiA6ICI3NzUwYzFhNTM5M2Q0ZWQ0Yjc2NmQ4ZGUwOWY4MjU0NiIsCiAgInByb2ZpbGVOYW1lIiA6ICJSZWVkcmVsIiwKICAic2lnbmF0dXJlUmVxdWlyZWQiIDogdHJ1ZSwKICAidGV4dHVyZXMiIDogewogICAgIlNLSU4iIDogewogICAgICAidXJsIiA6ICJodHRwOi8vdGV4dHVyZXMubWluZWNyYWZ0Lm5ldC90ZXh0dXJlLzdhZTZkMmQzMWQ4MTY3YmNhZjk1MjkzYjY4YTRhY2Q4NzJkNjZlNzUxZGI1YTM0ZjJjYmM2NzY2YTAzNTZkMGEiCiAgICB9CiAgfQp9".to_string(), true),
             EggTypeFields::new("Dinner".to_string(), mcrust::net::minecraft::network::chat::text_color::TextColor::GREEN.get_value(), 21, "ewogICJ0aW1lc3RhbXAiIDogMTcxMTQ2MjY0OTcwMSwKICAicHJvZmlsZUlkIiA6ICI3NGEwMzQxNWY1OTI0ZTA4YjMyMGM2MmU1NGE3ZjJhYiIsCiAgInByb2ZpbGVOYW1lIiA6ICJNZXp6aXIiLAogICJzaWduYXR1cmVSZXF1aXJlZCIgOiB0cnVlLAogICJ0ZXh0dXJlcyIgOiB7CiAgICAiU0tJTiIgOiB7CiAgICAgICJ1cmwiIDogImh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvZTVlMzYxNjU4MTlmZDI4NTBmOTg1NTJlZGNkNzYzZmY5ODYzMTMxMTkyODNjMTI2YWNlMGM0Y2M0OTVlNzZhOCIKICAgIH0KICB9Cn0".to_string(), true),
-            todo!("BRUNCH"),
-            todo!("DEJEUNER"),
-            todo!("SUPPER"),
-        ]);
-        &FIELDS[self as usize]
+        ];
+            // java: BRUNCH("Brunch", BREAKFAST.color, BREAKFAST.resetHour, BREAKFAST.texture, false), DEJEUNER(..LUNCH..), SUPPER(..DINNER..)
+            let brunch = EggTypeFields::new("Brunch".to_string(), __fields[0].color, __fields[0].reset_hour, __fields[0].texture.clone(), false);
+            let dejeuner = EggTypeFields::new("D\u{e9}jeuner".to_string(), __fields[1].color, __fields[1].reset_hour, __fields[1].texture.clone(), false);
+            let supper = EggTypeFields::new("Supper".to_string(), __fields[2].color, __fields[2].reset_hour, __fields[2].texture.clone(), false);
+            __fields.push(brunch);
+            __fields.push(dejeuner);
+            __fields.push(supper);
+            __fields
+        });
+        &mut FIELDS.get_mut()[self as usize]
     }
 
     /// java: public void onEggReceived()
     pub fn on_egg_received(&mut self) {
         if self.fields().collected {
-            ({ let __r = &self.fields().egg; let __f = compat::dispatch(__r, |__t| __t.set_found()); __f(&compat::view(__r, |a| a as compat::Shared<dyn Waypoint>)) });
+            // java: egg.setFound() - a NullPointerException for a null egg
+            ({ let __r = self.fields().egg.as_ref().expect("java.lang.NullPointerException: EggType.egg"); let __f = compat::dispatch(__r, |__t| __t.set_found()); __f(&compat::view(__r, |a| a as compat::Shared<dyn Waypoint>)) });
         } else if SkyblockerConfigManager::get().helpers.chocolate_factory.send_egg_found_messages {
             self.send_egg_message();
         }
@@ -326,14 +347,13 @@ impl EggType {
     /// java: public void sendEggMessage()
     pub fn send_egg_message(&self) {
         let mut egg_name: MutableComponent = (component::translatable_args("skyblocker.helpers.hoppitysHunt.chocolateEgg", vec![mcrust::net::minecraft::network::chat::formatted_text::FormattedText::of(self.fields().name.clone())])).with_color(self.fields().color);
-        mcrust::mcrust::modding::game::with_player(|player| { script_host::send_feedback(&{ let (__q0,) = (|style| (style.with_click_event(Some(ClickEvent::new_run_command(format!("/skyblocker eggFinder shareLocation {}", compat::jstring(&self)))))).with_hover_event(Some(HoverEvent::new_show_text(mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::translatable("skyblocker.helpers.hoppitysHunt.shareEggPrompt").with_style_format(ChatFormatting::Green))))),); (constants::PREFIX.get_mut())().append(component::translatable_args("skyblocker.helpers.hoppitysHunt.newEggDiscovered", vec![mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(egg_name.clone()), mcrust::net::minecraft::network::chat::formatted_text::FormattedText::of(self.fields().egg.lock().borrow().pos.as_ref().unwrap().as_vec3i().to_short_string())])).with_style_fn(__q0) }.to_string()); });
+        mcrust::mcrust::modding::game::with_player(|player| { script_host::send_feedback(&{ let (__q0,) = (|style: &mcrust::net::minecraft::network::chat::style::Style| (style.with_click_event(Some(ClickEvent::new_run_command(format!("/skyblocker eggFinder shareLocation {}", compat::jstring(&self)))))).with_hover_event(Some(HoverEvent::new_show_text(mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::translatable("skyblocker.helpers.hoppitysHunt.shareEggPrompt").with_style_format(ChatFormatting::Green))))),); (constants::PREFIX.get_mut())().append(component::translatable_args("skyblocker.helpers.hoppitysHunt.newEggDiscovered", vec![mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(egg_name.clone()), mcrust::net::minecraft::network::chat::formatted_text::FormattedText::of(self.fields().egg.as_ref().expect("java.lang.NullPointerException: EggType.egg").lock().borrow().pos.as_ref().unwrap().as_vec3i().to_short_string())])).with_style_fn(__q0) }.to_string()); });
     }
 
     /// java: @Override public String toString()
     pub fn to_string(&self) -> String {
-        // TODO(fabric2seer): static call WordUtils.capitalizeFully(..)
-        //   java: return WordUtils.capitalizeFully(this.name());
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        // java: return WordUtils.capitalizeFully(this.name());
+        return compat::capitalize_fully(self.name());
     }
 
     /// java: @Override public String getSerializedName()
@@ -356,7 +376,7 @@ impl EggType {
 
 impl std::fmt::Display for EggType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", EggType::to_string(*self))
+        write!(f, "{}", EggType::to_string(self))
     }
 }
 
@@ -448,4 +468,12 @@ impl Renderable for Egg {
         <dyn Waypoint>::extract_rendering_from::<Self>
     }
 
+}
+
+/// java: `egg.equals(prevEgg)` - `Waypoint.equals(Object)` (an `Egg` keeps its superclass's), dispatched on the egg
+fn waypoint_equals(this: &compat::Shared<Egg>, other: &compat::Shared<Egg>) -> bool {
+    let this = compat::view(this, |a| a as compat::Shared<dyn Waypoint>);
+    let other = compat::view(other, |a| a as compat::Shared<dyn Waypoint>);
+    let __f = compat::dispatch(&*this, |__t| __t.equals());
+    __f(&this, &other)
 }

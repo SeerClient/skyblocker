@@ -159,7 +159,7 @@ impl HudConfigScreen for TitleContainerConfigScreen {
     }
 
     /// java: @Override protected void savePos(SkyblockerConfig fullConfig, List<BasicWidget> widgets) (dispatch: the body for this class)
-    fn save_pos(&self) -> fn(&compat::Shared<dyn HudConfigScreen>, &SkyblockerConfig, &Vec<compat::Shared<dyn BasicWidget>>) {
+    fn save_pos(&self) -> fn(&compat::Shared<dyn HudConfigScreen>, &mut SkyblockerConfig, &Vec<compat::Shared<dyn BasicWidget>>) {
         TitleContainerConfigScreen::save_pos_dyn
     }
 
@@ -253,7 +253,7 @@ impl TitleContainerConfigScreen {
     }
 
     /// java: @Override protected void savePos(SkyblockerConfig fullConfig, List<BasicWidget> widgets)
-    pub fn save_pos_impl(__this: &compat::Shared<Self>, full_config: &SkyblockerConfig, widgets: &Vec<compat::Shared<dyn BasicWidget>>) {
+    pub fn save_pos_impl(__this: &compat::Shared<Self>, full_config: &mut SkyblockerConfig, widgets: &Vec<compat::Shared<dyn BasicWidget>>) {
         let mut default_pos: Vec<(i32, i32)> = ({ let __f = compat::dispatch(__this, |__t| __t.get_config_pos()); __f(&compat::view(__this, |a| a as compat::Shared<dyn HudConfigScreen>), full_config) });
         let config = &mut full_config.ui_and_visuals.title_container;
         config.x = (if ({ let __r = &widgets[0]; let __f = compat::dispatch(__r, |__t| __t.get_x()); __f(__r) }) != default_pos[0].0 { ({ let __r = &widgets[0]; let __f = compat::dispatch(__r, |__t| __t.get_x()); __f(__r) }) } else { -1 });
@@ -264,7 +264,7 @@ impl TitleContainerConfigScreen {
     }
 
     /// TitleContainerConfigScreen.savePos as the dispatch of HudConfigScreen.savePos
-    pub fn save_pos_dyn(__this: &compat::Shared<dyn HudConfigScreen>, __p0: &SkyblockerConfig, __p1: &Vec<compat::Shared<dyn BasicWidget>>) {
+    pub fn save_pos_dyn(__this: &compat::Shared<dyn HudConfigScreen>, __p0: &mut SkyblockerConfig, __p1: &Vec<compat::Shared<dyn BasicWidget>>) {
         Self::save_pos_impl(&compat::view_as::<Self, _, Self>(__this, |a| a), __p0, __p1)
     }
 
@@ -327,4 +327,31 @@ impl ModScreen for compat::ScreenAdapter<TitleContainerConfigScreen> {
         self.call(|__h| ({ let __f = compat::dispatch(__h, |__t| __t.on_close()); __f(&compat::view(__h, |a| a as compat::Shared<dyn HudConfigScreen>)) }))
     }
 
+}
+
+/// `Enum<UIAndVisualsConfig.Direction>` for generic code (this screen's `EnumUtils.cycle(direction)`).
+impl crate::de::hysky::skyblocker::utils::enum_utils::JavaEnum for Direction {
+    fn java_name(&self) -> &'static str {
+        self.name()
+    }
+    fn java_ordinal(&self) -> i32 {
+        self.ordinal()
+    }
+    fn java_values() -> Vec<Self> {
+        Self::values()
+    }
+}
+
+/// `Enum<UIAndVisualsConfig.Alignment>` for generic code (this screen's `EnumUtils.cycle(alignment)` /
+/// `EnumUtils.cycleBackwards(alignment)`).
+impl crate::de::hysky::skyblocker::utils::enum_utils::JavaEnum for Alignment {
+    fn java_name(&self) -> &'static str {
+        self.name()
+    }
+    fn java_ordinal(&self) -> i32 {
+        self.ordinal()
+    }
+    fn java_values() -> Vec<Self> {
+        Self::values()
+    }
 }

@@ -309,7 +309,7 @@ impl WidgetsListScreen {
     pub fn extract_render_state(__this: &compat::Shared<Self>, graphics: &mut GuiGraphicsExtractor, mut mouse_x: i32, mut mouse_y: i32, mut a: f32) {
         ();
         if minecraft::has_control_down() {
-            let mut max: i32 = __this.lock().borrow().preview_columns.iter().cloned().flat_map(|__a0| __a0.iter().cloned()).map(|__a0| compat::font().width_of_cached(&mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(__a0.clone()))).max().unwrap_or(0);
+            let mut max: i32 = __this.lock().borrow().preview_columns.iter().cloned().flat_map(|__a0| __a0.into_iter()).map(|__a0| compat::font().width_of_cached(&mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(__a0.clone()))).max().unwrap_or(0);
             if max <= 0 {
                 return;
             }

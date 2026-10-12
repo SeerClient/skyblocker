@@ -15,6 +15,8 @@ use crate::de::hysky::skyblocker::utils::item_utils::ItemUtils;
 use crate::de::hysky::skyblocker::utils::lz_string::LZString;
 use crate::de::hysky::skyblocker::utils::render::level_render_extraction_callback;
 use crate::de::hysky::skyblocker::utils::render::primitive::primitive_collector::PrimitiveCollector;
+use crate::de::hysky::skyblocker::utils::render::primitive::primitive_collector_impl::PrimitiveCollectorImpl;
+use crate::de::hysky::skyblocker::utils::render::primitive::vanilla_renderer::VanillaRenderer;
 use crate::de::hysky::skyblocker::utils::utils::Utils;
 use crate::entry::skyblocker_mod;
 use mcrust::com::mojang::blaze3d::vertex::pose_stack::PoseStack;
@@ -55,7 +57,7 @@ pub static GREENHOUSE_CORNER: compat::MainThread<Option<BlockPos>> = compat::Mai
 /// java: private static long lastBlockChangeTimeMs;
 pub static LAST_BLOCK_CHANGE_TIME_MS: LazyLock<Mutex<i64>> = LazyLock::new(|| Mutex::new(0));
 /// java: public static final JsonData<Object2ObjectMap<String, String>> PRESETS_DATA = new JsonData<>(SkyblockerMod.CONFIG_DIR.resolve("greenhouse_presets.json"), CodecUtils.object2ObjectMapCodec(Codec.STRING,
-pub static PRESETS_DATA: compat::MainThread<compat::Shared<dyn JsonData<std::collections::HashMap<String, String>>>> = compat::MainThread::new(|| (compat::shared(JsonDataBase::new(skyblocker_mod::CONFIG_DIR.get_mut().join("greenhouse_presets.json"), CodecUtils::object2_object_map_codec(&mcrust::com::mojang::serialization::codec::string_codec(), &mcrust::com::mojang::serialization::codec::string_codec()), std::collections::HashMap::new())) as compat::Shared<dyn JsonData<compat::Object>>));
+pub static PRESETS_DATA: compat::MainThread<compat::Shared<dyn JsonData<std::collections::HashMap<String, String>>>> = compat::MainThread::new(|| (compat::shared(JsonDataBase::new(skyblocker_mod::CONFIG_DIR.get_mut().join("greenhouse_presets.json"), CodecUtils::object2_object_map_codec(&mcrust::com::mojang::serialization::codec::string_codec(), &mcrust::com::mojang::serialization::codec::string_codec()), std::collections::HashMap::new())) as compat::Shared<dyn JsonData<std::collections::HashMap<String, String>>>));
 /// java: private static final Set<String> IGNORE_NAMES = Set.of( "PlantboyRoots", "godseedPillar" );
 pub static IGNORE_NAMES: LazyLock<std::collections::HashSet<String>> = LazyLock::new(|| std::collections::HashSet::from(["PlantboyRoots".to_string(), "godseedPillar".to_string()]));
 
@@ -130,7 +132,7 @@ impl GreenhousePaste {
         if GREENHOUSE_CORNER.get_mut().is_none() {
             return;
         }
-        if ((GREENHOUSE_CORNER.get_mut().as_ref().unwrap().get_x()).wrapping_sub(1) as f64) > e.get_x() || ((GREENHOUSE_CORNER.get_mut().as_ref().unwrap().get_x()).wrapping_add(11) as f64) < e.get_x() || ((GREENHOUSE_CORNER.get_mut().as_ref().unwrap().get_z()).wrapping_sub(1) as f64) > e.get_z() || ((GREENHOUSE_CORNER.get_mut().as_ref().unwrap().get_z()).wrapping_add(11) as f64) < e.get_z() {
+        if ((GREENHOUSE_CORNER.get_mut().as_ref().unwrap().get_x()).wrapping_sub(1) as f64) > e.base().get_x() || ((GREENHOUSE_CORNER.get_mut().as_ref().unwrap().get_x()).wrapping_add(11) as f64) < e.base().get_x() || ((GREENHOUSE_CORNER.get_mut().as_ref().unwrap().get_z()).wrapping_sub(1) as f64) > e.base().get_z() || ((GREENHOUSE_CORNER.get_mut().as_ref().unwrap().get_z()).wrapping_add(11) as f64) < e.base().get_z() {
             return;
         }
         GreenhousePaste::locate_greenhouse();
@@ -322,9 +324,9 @@ impl GreenhousePaste {
         plot_pos = BlockPos::new((((((plot_pos.get_x() as f64) / 96.0)) as i32).wrapping_mul(96)).wrapping_sub(240), 60, (((((plot_pos.get_z() as f64) / 96.0)) as i32).wrapping_mul(96)).wrapping_sub(240));
         let mut plot_other_corner: BlockPos = BlockPos::new(plot_pos.get_x().wrapping_add(96), 90, plot_pos.get_z().wrapping_add(96));
         let mut detection_box: AABB = AABB::new((plot_pos.get_x()) as f64, (plot_pos.get_y()) as f64, (plot_pos.get_z()) as f64, (plot_other_corner.get_x()) as f64, (plot_other_corner.get_y()) as f64, (plot_other_corner.get_z()) as f64);
-        // TODO(fabric2seer): `get_entities` takes 3 argument(s) in the port (`except: Option<i32>, bb: &crate::net::minecraft::world::phys::aabb::AABB, selector: &dyn Fn( &(dyn crate::net::minecraft::world::entity::entity::Entity + Send + Sync), ) -> bool`), Java passes 2
-        for entity in mcrust::mcrust::modding::game::level().unwrap().get_entities(None, &detection_box) {
-            let mut custom: Option<MutableComponent> = entity.get_custom_name();
+        // `level.getEntities(null, box)` is `getEntities(null, box, EntitySelector.NO_SPECTATORS)`
+        for entity in mcrust::mcrust::modding::game::level().unwrap().get_entities_no_spectators(None, &detection_box) {
+            let mut custom: Option<MutableComponent> = mcrust::mcrust::modding::game::lock_entity(&*entity, "greenhouse_paste.rs:isInGreenhouse").base().get_custom_name().map(compat::component_of);
             if custom.is_some() && custom.as_ref().unwrap().get_string().contains("Carpenter") {
                 return true;
             }
@@ -355,10 +357,15 @@ impl GreenhousePaste {
     pub fn get_crop_id_at_position(level: &Level, pos: &BlockPos) -> i32 {
         let mut detection_box: AABB = AABB::new((pos.get_x()) as f64, (pos.get_y()) as f64, (pos.get_z()) as f64, (pos.get_x().wrapping_add(1)) as f64, (pos.get_y().wrapping_add(6)) as f64, (pos.get_z().wrapping_add(1)) as f64);
         for entity in level.get_entities_no_spectators(None, &detection_box) {
-            let Some(armor_stand) = entity.as_any().unwrap_or(&() as &dyn std::any::Any).downcast_ref::<ArmorStand>() else {
-                continue;
+            // `entity instanceof ArmorStand armorStand` and its head item, read under the entity's lock
+            let head = {
+                let guard = mcrust::mcrust::modding::game::lock_entity(&*entity, "greenhouse_paste.rs:getCropIdAtPosition");
+                let Some(armor_stand) = guard.as_any().unwrap_or(&() as &dyn std::any::Any).downcast_ref::<ArmorStand>() else {
+                    continue;
+                };
+                armor_stand.get_item_by_slot(EquipmentSlot::Head).clone()
             };
-            let head = armor_stand.get_item_by_slot(EquipmentSlot::Head);
+            let head = &head;
             if head.is_empty() {
                 continue;
             }
@@ -384,7 +391,7 @@ impl GreenhousePaste {
             }
             return crop_by_texture.id();
         }
-        let mut state: Arc<BlockState> = level.get_block_state(&pos.above());
+        let mut state: Arc<BlockState> = level.get_block_state_typed(&pos.above());
         let mut block: Arc<Block> = state.get_block();
         for crop in greenhouse_crops::CROP_ID_MAP.get_mut().values().cloned() {
             if !crop.is_head() && std::ptr::addr_eq(std::sync::Arc::as_ptr(&crop.crop_block()), std::sync::Arc::as_ptr(&block)) {
@@ -414,21 +421,25 @@ impl GreenhousePaste {
         }
         let mut pos: BlockPos = GREENHOUSE_CORNER.get_mut().as_ref().unwrap().offset(x, 0, z);
         let mut detection_box: AABB = AABB::new((pos.get_x()) as f64, (pos.get_y()) as f64, (pos.get_z()) as f64, (pos.get_x().wrapping_add(1)) as f64, (pos.get_y().wrapping_add(6)) as f64, (pos.get_z().wrapping_add(1)) as f64);
-        let mut found_armor_stand: Option<ArmorStand> = None;
-        // TODO(fabric2seer): `get_entities` takes 3 argument(s) in the port (`except: Option<i32>, bb: &crate::net::minecraft::world::phys::aabb::AABB, selector: &dyn Fn( &(dyn crate::net::minecraft::world::entity::entity::Entity + Send + Sync), ) -> bool`), Java passes 2
-        for entity in mcrust::mcrust::modding::game::level().unwrap().get_entities(None, &detection_box) {
-            let Some(armor_stand) = entity.as_any().unwrap_or(&() as &dyn std::any::Any).downcast_ref::<ArmorStand>() else {
-                continue;
+        // the stand's position (x, y, z): all Java reads of `foundArmorStand`
+        let mut found_armor_stand: Option<(f64, f64, f64)> = None;
+        // `level.getEntities(null, box)` is `getEntities(null, box, EntitySelector.NO_SPECTATORS)`
+        for entity in mcrust::mcrust::modding::game::level().unwrap().get_entities_no_spectators(None, &detection_box) {
+            let (head, position) = {
+                let guard = mcrust::mcrust::modding::game::lock_entity(&*entity, "greenhouse_paste.rs:adjustForPlantBoy");
+                let Some(armor_stand) = guard.as_any().unwrap_or(&() as &dyn std::any::Any).downcast_ref::<ArmorStand>() else {
+                    continue;
+                };
+                (armor_stand.get_item_by_slot(EquipmentSlot::Head).clone(), (armor_stand.base.base.get_x(), armor_stand.base.base.get_y(), armor_stand.base.base.get_z()))
             };
-            let head = armor_stand.get_item_by_slot(EquipmentSlot::Head);
+            let head = &head;
             if head.is_empty() {
                 continue;
             }
             let mut name_component: MutableComponent = compat::component_of(head.get_hover_name());
             let mut name: String = name_component.get_string();
             if name.contains("Plantboy") && !(name.contains("Advance")) {
-                // TODO(fabric2seer): the mod keeps the game's `ArmorStand` (Java holds a reference to the live object); the port's `ArmorStand` is not a value to copy and the port lends the mod no handle to it
-                // rust: found_armor_stand = Some(armor_stand.clone());
+                found_armor_stand = Some(position);
                 break;
             }
         }
@@ -436,8 +447,9 @@ impl GreenhousePaste {
         } else {
             return;
         }
-        found_armor_stand.as_ref().unwrap().base.base.position().add(-0.2, (0) as f64, -0.2);
-        let mut bottom_left: BlockPos = BlockPos::new((((found_armor_stand.as_ref().unwrap().base.base.get_x()).floor()) as i32), (((found_armor_stand.as_ref().unwrap().base.base.get_y()).floor()) as i32), (((found_armor_stand.as_ref().unwrap().base.base.get_z()).floor()) as i32));
+        // java: foundArmorStand.position().add(-0.2, 0, -0.2); - a value that is dropped
+        let (found_x, found_y, found_z) = found_armor_stand.unwrap();
+        let mut bottom_left: BlockPos = BlockPos::new(((found_x.floor()) as i32), ((found_y.floor()) as i32), ((found_z.floor()) as i32));
         (compat::lock(&GREENHOUSE)[(bottom_left.get_x().wrapping_sub(GREENHOUSE_CORNER.get_mut().as_ref().unwrap().get_x())) as usize])[(bottom_left.get_z().wrapping_sub(GREENHOUSE_CORNER.get_mut().as_ref().unwrap().get_z())) as usize] = 26;
         (compat::lock(&GREENHOUSE)[((bottom_left.get_x().wrapping_sub(GREENHOUSE_CORNER.get_mut().as_ref().unwrap().get_x())).wrapping_add(1)) as usize])[(bottom_left.get_z().wrapping_sub(GREENHOUSE_CORNER.get_mut().as_ref().unwrap().get_z())) as usize] = 26;
         (compat::lock(&GREENHOUSE)[(bottom_left.get_x().wrapping_sub(GREENHOUSE_CORNER.get_mut().as_ref().unwrap().get_x())) as usize])[((bottom_left.get_z().wrapping_sub(GREENHOUSE_CORNER.get_mut().as_ref().unwrap().get_z())).wrapping_add(1)) as usize] = 26;
@@ -579,36 +591,17 @@ impl GreenhousePaste {
                     // TODO(fabric2seer): `Minecraft.playerSkinRenderCache` has no Rust method in the port (looked for `player_skin_render_cache` in Minecraft and its supertypes)
                     // rust: let mut render_type: RenderType = compat::minecraft().player_skin_render_cache().get_or_default(&profile).render_type();
                     let mut render_type: RenderType = todo!("fabric2seer: the initialiser of `renderType` (TODO above)");
-                    { let (__a0, __a1,) = (None /* java: null */, &Arc::new(move |_, world_state, submit_node_collector| {
-                        let mut matrices: PoseStack = PoseStack::new();
-                        // TODO(fabric2seer): field `cameraRenderState` of a value of unknown type
-                        //   java: matrices.translate(
-                        //   java: 										pos.getX() - worldState.cameraRenderState.pos.x,
-                        //   java: 										pos.getY() - worldState.cameraRenderState.pos.y,
-                        //   java: 										pos.getZ() - worldState.cameraRenderState.pos.z
-                        //   java: 								);
-                        matrices.mul_pose_transformation(mcrust::net::minecraft::client::renderer::blockentity::skull_block_renderer::transformations().free_transformations(0));
-                        let mut skull_state: State = State::new();
-                        skull_state.animation_pos = 0.0f32;
-                        model.setup_anim(skull_state.clone());
-                        // TODO(fabric2seer): `.submitModel(..)` on a value of unknown type
-                        //   java: submitNodeCollector.submitModel(
-                        //   java: 										model,
-                        //   java: 										skullState,
-                        //   java: 										matrices,
-                        //   java: 										renderType,
-                        //   java: 										LightCoordsUtil.FULL_BRIGHT,
-                        //   java: 										OverlayTexture.pack(PREVIEW_TINT, false),
-                        //   java: 										0,
-                        //   java: 										null
-                        //   java: 								);
-                    }),); collector.lock().borrow_mut().submit_vanilla(__a0, __a1) };
+                    // collector.submitVanilla(null, (_, worldState, submitNodeCollector) -> {..}): the lambda is
+                    // `SkullPreviewRenderer`; `submitVanilla` is generic, so it is reached on the one implementation
+                    let renderer: compat::Shared<dyn VanillaRenderer<Option<()>>> = compat::shared(SkullPreviewRenderer { pos: pos.clone(), model: std::cell::RefCell::new(model), render_type }) as compat::Shared<dyn VanillaRenderer<Option<()>>>;
+                    compat::write_as::<PrimitiveCollectorImpl, dyn PrimitiveCollector, _>(collector, |collector| collector.submit_vanilla(&None, &renderer));
                 } else {
                     let mut block_state: Arc<BlockState> = target_crop.crop_block().default_block_state();
-                    if target_crop.crop_block().as_any().is::<Block>() {
-                        // TODO(fabric2seer): static `CropBlock.AGE` has no Rust counterpart in the port's CropBlock file
-                        // TODO(fabric2seer): `BlockState.setValue` has no Rust method in the port (looked for `set_value` in BlockState and its supertypes)
-                        // rust: block_state = target_crop.crop_block().default_block_state().set_value(&Block::AGE, 7);
+                    // rust: port gap - `instanceof CropBlock`: the port's `Block` carries no class identity (GAPS_batchG). Of the
+                    // blocks a `Crop` names (CROP_ID_MAP), the CropBlocks (wheat, carrots, potatoes) are exactly the
+                    // ones whose state has `CropBlock.AGE` (= `BlockStateProperties.AGE_7`)
+                    if target_crop.crop_block().default_block_state().has_property(&mcrust::net::minecraft::world::level::block::state::properties::block_state_properties::age_7()) {
+                        block_state = target_crop.crop_block().default_block_state().set_value(&mcrust::net::minecraft::world::level::block::state::properties::block_state_properties::age_7(), mcrust::net::minecraft::world::level::block::state::properties::property::Comparable::Integer(7));
                     }
                     ({ let __f = compat::dispatch(collector, |__t| __t.submit_block_hologram()); __f(collector, &pos, &block_state, PREVIEW_ALPHA) });
                 }
@@ -725,5 +718,40 @@ impl LayoutSite {
 impl std::fmt::Display for LayoutSite {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(self.name())
+    }
+}
+
+/// `renderPreview`'s `(_, worldState, submitNodeCollector) -> {..}` lambda: it captures `pos`, `model` (whose
+/// `setupAnim` it calls) and `renderType`.
+struct SkullPreviewRenderer {
+    pos: BlockPos,
+    model: std::cell::RefCell<SkullModelBase>,
+    render_type: RenderType,
+}
+
+impl VanillaRenderer<Option<()>> for SkullPreviewRenderer {
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+
+    fn submit_vanilla(&self, _state: &Option<()>, world_state: &mcrust::net::minecraft::client::renderer::state::level::level_render_state::LevelRenderState, submit_node_collector: &dyn mcrust::net::minecraft::client::renderer::submit_node_collector::SubmitNodeCollector) {
+        let pos = &self.pos;
+        let mut matrices: PoseStack = PoseStack::new();
+        matrices.translate_d((pos.get_x() as f64) - world_state.camera_render_state.pos.x, (pos.get_y() as f64) - world_state.camera_render_state.pos.y, (pos.get_z() as f64) - world_state.camera_render_state.pos.z);
+        matrices.mul_pose_transformation(mcrust::net::minecraft::client::renderer::blockentity::skull_block_renderer::transformations().free_transformations(0));
+        let mut skull_state: State = State::new();
+        skull_state.animation_pos = 0.0f32;
+        self.model.borrow_mut().setup_anim(skull_state.clone());
+        // TODO(fabric2seer): `.submitModel(..)` on a value of unknown type
+        //   java: submitNodeCollector.submitModel(
+        //   java: 										model,
+        //   java: 										skullState,
+        //   java: 										matrices,
+        //   java: 										renderType,
+        //   java: 										LightCoordsUtil.FULL_BRIGHT,
+        //   java: 										OverlayTexture.pack(PREVIEW_TINT, false),
+        //   java: 										0,
+        //   java: 										null
+        //   java: 								);
     }
 }

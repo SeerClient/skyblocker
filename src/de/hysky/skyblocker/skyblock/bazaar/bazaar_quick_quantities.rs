@@ -27,23 +27,42 @@ impl BazaarQuickQuantities {
     }
 
     /// java: public static @Nullable Button[] getButtons(int width, String[] messages)
-    pub fn get_buttons(mut width: i32, messages: &mut Vec<String>) -> Option<Vec<AbstractWidget>> {
-        let mut buttons: Vec<AbstractWidget> = (0..(4) as usize).map(|_| Default::default()).collect::<Vec<_>>();
+    /// (Java's `@Nullable Button[]`: the ELEMENTS are nullable - the clipboard button is absent unless the clipboard
+    /// holds a number)
+    pub fn get_buttons(mut width: i32, messages: &mut Vec<String>) -> Option<Vec<Option<AbstractWidget>>> {
+        let mut buttons: Vec<Option<AbstractWidget>> = vec![None; 4];
         let config = &SkyblockerConfigManager::get().ui_and_visuals.bazaar_quick_quantities;
         let mut x: i32 = (width.wrapping_div(2)).wrapping_add(50);
         let mut y: i32 = 45;
-        buttons[(0) as usize] = (button::builder(component::null_to_empty(Some(&config.slot1_quantity.to_string())).get_string(), OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| { BazaarQuickQuantities::on_button_pressed(messages, config.slot1_quantity); })))).bounds(x, y.wrapping_add(20), 50, 20).build();
-        buttons[(1) as usize] = (button::builder(component::null_to_empty(Some(&config.slot2_quantity.to_string())).get_string(), OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| { BazaarQuickQuantities::on_button_pressed(messages, config.slot2_quantity); })))).bounds(x, y.wrapping_add(40), 50, 20).build();
-        buttons[(2) as usize] = (button::builder(component::null_to_empty(Some(&config.slot3_quantity.to_string())).get_string(), OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| { BazaarQuickQuantities::on_button_pressed(messages, config.slot3_quantity); })))).bounds(x, y.wrapping_add(60), 50, 20).build();
-        // TODO(fabric2seer): `get_clipboard` takes 1 argument(s) in the port (`clipboard: &mut dyn ClipboardAccess`), Java passes 0
-        // rust: let mut clipboard: String = compat::minecraft().keyboard_handler.get_clipboard().replace(",", "");
-        let mut clipboard: String = todo!("fabric2seer: the initialiser of `clipboard` (TODO above)");
-        // TODO(fabric2seer): the condition: static call NumberUtils.isCreatable(..)
-        //   java: clipboard.length() <= 5 && NumberUtils.isCreatable(clipboard)
-        if todo!("fabric2seer: the condition (TODO above)") {
+        // java: each button's action is `_ -> onButtonPressed(messages, config.slotNQuantity)` over the sign screen's own
+        // `messages` array.
+        // rust: port gap - a button's press is handed the screen's `Screen` half, not the sign screen, so the action
+        // cannot reach the sign's `messages`; it writes into the array as it was lent here (GAPS_batchF.md)
+        let __messages = compat::RenderThread::new(std::sync::Arc::new(std::sync::Mutex::new(messages.clone())));
+        let (__q1, __q2, __q3) = (config.slot1_quantity, config.slot2_quantity, config.slot3_quantity);
+        let __m = __messages.clone();
+        buttons[(0) as usize] = Some((button::builder(component::null_to_empty(Some(&__q1.to_string())).get_string(), OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| { BazaarQuickQuantities::on_button_pressed(&mut __m.get().lock().unwrap_or_else(|p| p.into_inner()), __q1); })))).bounds(x, y.wrapping_add(20), 50, 20).build());
+        let __m = __messages.clone();
+        buttons[(1) as usize] = Some((button::builder(component::null_to_empty(Some(&__q2.to_string())).get_string(), OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| { BazaarQuickQuantities::on_button_pressed(&mut __m.get().lock().unwrap_or_else(|p| p.into_inner()), __q2); })))).bounds(x, y.wrapping_add(40), 50, 20).build());
+        let __m = __messages.clone();
+        buttons[(2) as usize] = Some((button::builder(component::null_to_empty(Some(&__q3.to_string())).get_string(), OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| { BazaarQuickQuantities::on_button_pressed(&mut __m.get().lock().unwrap_or_else(|p| p.into_inner()), __q3); })))).bounds(x, y.wrapping_add(60), 50, 20).build());
+        // java: String clipboard = client.keyboardHandler.getClipboard().replace(",", "");
+        let mut clipboard: String = {
+            let mut __memory = mcrust::net::minecraft::client::gui::components::edit_box::MemoryClipboard::default();
+            match mcrust::net::minecraft::client::minecraft::GlfwClipboard::published() {
+                Some(mut __glfw) => compat::minecraft().keyboard_handler.get_clipboard(&mut __glfw),
+                None => compat::minecraft().keyboard_handler.get_clipboard(&mut __memory),
+            }
+        }.replace(",", "");
+        // java: if (clipboard.length() <= 5 && NumberUtils.isCreatable(clipboard))
+        if compat::str_len(&clipboard) <= 5 && is_creatable(&clipboard) {
             let mut text: MutableComponent = component::literal(&clipboard);
-            text.with_style_fn(|style| style.with_color_format(Some(ChatFormatting::Aqua)));
-            buttons[(3) as usize] = (button::builder(text.get_string(), OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| { BazaarQuickQuantities::on_button_pressed_string_string(messages, clipboard.clone()); })))).bounds(x, y.wrapping_add(80), 50, 20).build();
+            // java: text.withStyle(style -> style.withColor(ChatFormatting.AQUA)); - `MutableComponent.withStyle` restyles
+            // `text` itself (and answers it): assigned back
+            text = text.with_style_fn(|style| style.with_color_format(Some(ChatFormatting::Aqua)));
+            let __m = __messages.clone();
+            let __clipboard = clipboard.clone();
+            buttons[(3) as usize] = Some((button::builder(text.get_string(), OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| { BazaarQuickQuantities::on_button_pressed_string_string(&mut __m.get().lock().unwrap_or_else(|p| p.into_inner()), __clipboard.clone()); })))).bounds(x, y.wrapping_add(80), 50, 20).build());
         }
         return Some(buttons);
     }
@@ -64,4 +83,28 @@ impl BazaarQuickQuantities {
         }
     }
 
+}
+
+/// Apache commons-lang `NumberUtils.isCreatable(str)` for the strings a clipboard can hold here (at most five
+/// characters): a decimal with an optional sign, fraction and exponent and one trailing type qualifier
+/// (`f F d D l L`), or a `0x`/`0X`/`#` hexadecimal; never blank, never a leading or trailing space.
+fn is_creatable(s: &str) -> bool {
+    if s.is_empty() || s.trim() != s {
+        return false;
+    }
+    let unsigned = s.strip_prefix('-').or_else(|| s.strip_prefix('+')).unwrap_or(s);
+    if let Some(hex) = unsigned.strip_prefix("0x").or_else(|| unsigned.strip_prefix("0X")).or_else(|| unsigned.strip_prefix('#')) {
+        return !hex.is_empty() && hex.chars().all(|c| c.is_ascii_hexdigit());
+    }
+    let (body, qualifier) = match unsigned.chars().last() {
+        Some(c) if "fFdDlL".contains(c) => (&unsigned[..unsigned.len() - 1], Some(c)),
+        _ => (unsigned, None),
+    };
+    if body.is_empty() || !body.chars().next().is_some_and(|c| c.is_ascii_digit() || c == '.') {
+        return false;
+    }
+    if matches!(qualifier, Some('l') | Some('L')) {
+        return body.chars().all(|c| c.is_ascii_digit());
+    }
+    body.parse::<f64>().is_ok() && body.chars().all(|c| c.is_ascii_digit() || c == '.' || c == 'e' || c == 'E' || c == '-' || c == '+')
 }

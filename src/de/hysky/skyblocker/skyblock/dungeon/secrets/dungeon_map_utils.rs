@@ -297,7 +297,7 @@ impl DungeonMapUtils {
                 queue.push_back(new_map_pos.clone());
             }
         }
-        logger().debug(&format!("[Skyblocker] Found dungeon room segments: {}", format!("{:?}", segments.iter().cloned().collect::<Vec<_>>())));
+        logger().debug(&format!("[Skyblocker] Found dungeon room segments: {}", format!("[{}]", segments.iter().map(|s| compat::joml_string(&[s.x() as f64, s.y() as f64])).collect::<Vec<_>>().join(", "))));
         return segments.iter().cloned().collect::<Vec<_>>();
     }
 

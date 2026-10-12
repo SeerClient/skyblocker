@@ -13,6 +13,8 @@ use mcrust::net::minecraft::world::inventory::slot::Slot;
 pub struct AuctionHouseScreenHandler {
     /// java: extends net.minecraft.world.inventory.ChestMenu
     pub base: AbstractContainerMenu,
+    /// java: ChestMenu.containerRows (the superclass's field, answered by getRowCount())
+    pub container_rows: i32,
 }
 
 impl std::ops::Deref for AuctionHouseScreenHandler {
@@ -34,34 +36,52 @@ impl AuctionHouseScreenHandler {
         let mut y_offset: i32 = (rows.wrapping_sub(4)).wrapping_mul(18);
         let __this = compat::shared(Self {
             base: AbstractContainerMenu::new(0),
+            container_rows: rows,
         });
         // java: the constructor's body - run on the server's menu when the game attaches this object
         compat::defer_menu_init(&__this, move |__this_ref| {
             let __this = __this_ref.clone();
-            for i in rows.wrapping_mul(9)..(__this.lock().borrow().slots.len() as i32) {
-                let slot = &__this.lock().borrow().slots[(i) as usize];
-                let mut slot_accessor: crate::unresolved::SlotAccessor = slot;
-                // TODO(fabric2seer): `.setY(..)` on a SlotAccessor
-                //   java: slotAccessor.setY(slot.y + 2 - yOffset);
+            // Shift player inventory by 2 pixels and also remove the yOffset
+            let slot_count: i32 = compat::read(&__this, |__t| __t.slots.len() as i32);
+            for i in rows.wrapping_mul(9)..slot_count {
+                // java: SlotAccessor slotAccessor = (SlotAccessor) slot; slotAccessor.setY(slot.y + 2 - yOffset);
+                compat::write(&__this, |__t| {
+                    let slot = &mut __t.slots[i as usize];
+                    slot.y = slot.y.wrapping_add(2).wrapping_sub(y_offset);
+                });
             }
+            // disable ALL THE OTHER SLOTS MWAHAHAHA and also move the good ones around and stuff
             for i in 0..rows.wrapping_mul(9) {
                 let mut line_i: i32 = i.wrapping_rem(9);
-                let slot = &__this.lock().borrow().slots[(i) as usize];
                 if !is_view && i > 9 && i < (rows.wrapping_sub(1)).wrapping_mul(9) && line_i > 1 && line_i < 8 {
                     let mut mini_inventory_slot: i32 = (line_i.wrapping_sub(2)).wrapping_add(((i.wrapping_div(9)).wrapping_sub(1)).wrapping_mul(6));
-                    let mut slot_accessor: crate::unresolved::SlotAccessor = slot;
-                    // TODO(fabric2seer): `.setX(..)` on a SlotAccessor
-                    //   java: slotAccessor.setX(8 + miniInventorySlot % 8 * 18);
-                    // TODO(fabric2seer): `.setY(..)` on a SlotAccessor
-                    //   java: slotAccessor.setY(18 + miniInventorySlot / 8 * 18);
+                    // java: slotAccessor.setX(8 + miniInventorySlot % 8 * 18); slotAccessor.setY(18 + miniInventorySlot / 8 * 18);
+                    compat::write(&__this, |__t| {
+                        let slot = &mut __t.slots[i as usize];
+                        slot.x = 8i32.wrapping_add(mini_inventory_slot.wrapping_rem(8).wrapping_mul(18));
+                        slot.y = 18i32.wrapping_add(mini_inventory_slot.wrapping_div(8).wrapping_mul(18));
+                    });
                 } else {
-                    __this.lock().borrow_mut().slots[(i) as usize] = Slot::new(slot.container.clone(), slot.get_container_slot(), slot.x, slot.y).with_mod_slot(std::sync::Arc::new(compat::SlotFns { is_active: Some(Box::new(move |__slot: &Slot, __super: bool| {
-                    return false;
-                })), ..Default::default() }));
+                    // java: slots.set(i, new Slot(slot.container, slot.getContainerSlot(), slot.x, slot.y) { isActive() -> false });
+                    compat::write(&__this, |__t| {
+                        let slot = &__t.slots[i as usize];
+                        let replacement = Slot::new(slot.container.clone(), slot.get_container_slot(), slot.x, slot.y).with_mod_slot(std::sync::Arc::new(compat::SlotFns {
+                            is_active: Some(Box::new(move |__slot: &Slot, __super: bool| {
+                                return false;
+                            })),
+                            ..Default::default()
+                        }));
+                        __t.slots[i as usize] = replacement;
+                    });
                 }
             }
         });
         __this
+    }
+
+    /// java: ChestMenu.getRowCount() (inherited)
+    pub fn get_row_count(&self) -> i32 {
+        self.container_rows
     }
 
     /// java: public static AuctionHouseScreenHandler of(ChestMenu original, boolean isView)

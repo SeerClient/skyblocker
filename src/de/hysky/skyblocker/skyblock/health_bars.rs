@@ -16,6 +16,8 @@ use mcrust::net::minecraft::network::chat::mutable_component::MutableComponent;
 use mcrust::net::minecraft::resources::identifier::Identifier;
 use mcrust::net::minecraft::world::entity::decoration::armor_stand::ArmorStand;
 use mcrust::net::minecraft::world::entity::entity::Entity;
+use mcrust::net::minecraft::world::phys::vec3::Vec3;
+use crate::de::hysky::skyblocker::utils::color_utils::ColorUtils;
 use mcrust::net::minecraft::network::chat::component::Component as _;
 
 /// java: private static final Identifier HEALTH_BAR_BACKGROUND_TEXTURE = Identifier.withDefaultNamespace("textures/gui/sprites/boss_bar/white_background.png");
@@ -29,9 +31,13 @@ pub static HEALTH_ONLY_PATTERN: LazyLock<compat::regex::Pattern> = LazyLock::new
 /// java: private static final List<String> DISALLOWED_DUNGEON_MOBS = List.of("Blaze", "The Professor", "Guardian");
 pub static DISALLOWED_DUNGEON_MOBS: LazyLock<Vec<String>> = LazyLock::new(|| vec!["Blaze".to_string(), "The Professor".to_string(), "Guardian".to_string()]);
 /// java: private static final Object2FloatOpenHashMap<ArmorStand> healthValues = new Object2FloatOpenHashMap<>();
-pub static HEALTH_VALUES: compat::MainThread<std::collections::HashMap<ArmorStand, f32>> = compat::MainThread::new(|| std::collections::HashMap::new());
+///
+/// Keyed by entity id (Java's key is the live stand, compared by identity).
+pub static HEALTH_VALUES: compat::MainThread<std::collections::HashMap<i32, f32>> = compat::MainThread::new(|| std::collections::HashMap::new());
 /// java: private static final Object2LongOpenHashMap<ArmorStand> mobStartingHealth = new Object2LongOpenHashMap<>();
-pub static MOB_STARTING_HEALTH: compat::MainThread<std::collections::HashMap<ArmorStand, i64>> = compat::MainThread::new(|| std::collections::HashMap::new());
+///
+/// Keyed by entity id, as `HEALTH_VALUES`.
+pub static MOB_STARTING_HEALTH: compat::MainThread<std::collections::HashMap<i32, i64>> = compat::MainThread::new(|| std::collections::HashMap::new());
 
 /// java: public class HealthBars
 #[derive(Clone)]
@@ -63,11 +69,9 @@ impl HealthBars {
 
     /// java: public static void onEntityDespawn(Entity entity, ClientLevel clientWorld)
     pub fn on_entity_despawn(entity: &dyn Entity, client_world: &ClientLevel) {
-        if let Some(armor_stand_entity) = entity.as_any().unwrap_or(&() as &dyn std::any::Any).downcast_ref::<ArmorStand>() {
-            // TODO(fabric2seer): Map.removeFloat(..)
-            //   java: healthValues.removeFloat(armorStandEntity);
-            // TODO(fabric2seer): Map.removeLong(..)
-            //   java: mobStartingHealth.removeLong(armorStandEntity);
+        if entity.as_any().is_some_and(|a| a.is::<ArmorStand>()) {
+            HEALTH_VALUES.get_mut().remove(&entity.base().get_id());
+            MOB_STARTING_HEALTH.get_mut().remove(&entity.base().get_id());
         }
     }
 
@@ -77,50 +81,44 @@ impl HealthBars {
     }
 
     /// java: public static void healthBar(ArmorStand armorStand)
-    pub fn health_bar(mut armor_stand: ArmorStand) {
-        if !armor_stand.is_invisible_field() || !armor_stand.base.base.has_custom_name() || !armor_stand.base.base.is_custom_name_visible() || !(SkyblockerConfigManager::get().ui_and_visuals.health_bars.enabled) {
+    ///
+    /// `armor_stand` is lent by the packet handler that holds it.
+    pub fn health_bar(armor_stand: &ArmorStand) {
+        let id: i32 = armor_stand.base.base.get_id();
+        if !armor_stand.base.base.is_invisible() || !armor_stand.base.base.has_custom_name() || !armor_stand.base.base.is_custom_name_visible() || !(SkyblockerConfigManager::get().ui_and_visuals.health_bars.enabled) {
             return;
         }
         if armor_stand.base.is_dead_or_dying() {
-            // TODO(fabric2seer): Map.removeFloat(..)
-            //   java: healthValues.removeFloat(armorStand);
-            // TODO(fabric2seer): Map.removeLong(..)
-            //   java: mobStartingHealth.removeLong(armorStand);
+            HEALTH_VALUES.get_mut().remove(&id);
+            MOB_STARTING_HEALTH.get_mut().remove(&id);
             return;
         }
-        if armor_stand.base.base.get_custom_name().is_none() {
+        let Some(custom_name) = armor_stand.base.base.get_custom_name().map(compat::component_of) else {
             return;
-        }
-        let mut health_matcher: compat::regex::Matcher = HEALTH_PATTERN.matcher(&armor_stand.base.base.get_custom_name().unwrap().get_string());
+        };
+        let mut health_matcher: compat::regex::Matcher = HEALTH_PATTERN.matcher(&custom_name.get_string());
         if !health_matcher.find() {
-            // TODO(fabric2seer): the mod keeps the game's `ArmorStand` (Java holds a reference to the live object); the port's `ArmorStand` is not a value to copy and the port lends the mod no handle to it
-            // rust: HealthBars::health_only_check(armor_stand.clone());
+            HealthBars::health_only_check(armor_stand);
             return;
         }
-        // TODO(fabric2seer): `.floatValue(..)` on a Number
-        //   java: float firstValue = Formatters.parseNumber(healthMatcher.group(1).toUpperCase(Locale.ENGLISH)).floatValue();
-        let mut first_value: f32 = todo!("fabric2seer: the initialiser of `firstValue` (TODO above)");
-        // TODO(fabric2seer): `.floatValue(..)` on a Number
-        //   java: float secondValue = Formatters.parseNumber(healthMatcher.group(4).toUpperCase(Locale.ENGLISH)).floatValue();
-        let mut second_value: f32 = todo!("fabric2seer: the initialiser of `secondValue` (TODO above)");
+        let mut first_value: f32 = Formatters::parse_number(&health_matcher.group(1).unwrap().to_uppercase()).float_value();
+        let mut second_value: f32 = Formatters::parse_number(&health_matcher.group(4).unwrap().to_uppercase()).float_value();
         let mut health: f32 = (first_value / second_value);
-        // TODO(fabric2seer): the mod keeps the game's `ArmorStand` (Java holds a reference to the live object); the port's `ArmorStand` is not a value to copy and the port lends the mod no handle to it
-        // rust: HEALTH_VALUES.get_mut().insert(armor_stand.clone(), health);
+        HEALTH_VALUES.get_mut().insert(id, health);
         let mut remove_value: bool = SkyblockerConfigManager::get().ui_and_visuals.health_bars.remove_health_from_name;
         let mut remove_max: bool = SkyblockerConfigManager::get().ui_and_visuals.health_bars.remove_max_health_from_name;
         if !remove_value && !remove_max {
             return;
         }
-        if HealthBars::is_disallowed_mob(&armor_stand.base.base.get_custom_name().unwrap().get_string()) {
+        if HealthBars::is_disallowed_mob(&custom_name.get_string()) {
             return;
         }
         let mut cleaned_text: MutableComponent = component::empty();
-        let parts = armor_stand.base.base.get_custom_name().unwrap().get_siblings();
+        let parts = custom_name.get_siblings();
         let mut health_start_index: i32 = -1;
         for i in 0..(parts.len() as i32) {
-            // TODO(fabric2seer): the condition: static call StringUtils.join(..)
-            //   java: i < parts.size() - 4 && StringUtils.join(parts.subList(i + 1, i + 5).stream().map(Component::getString).toArray(), "").equals(healthMatcher.group(0))
-            if todo!("fabric2seer: the condition (TODO above)") {
+            // StringUtils.join(parts.subList(i + 1, i + 5).stream().map(Component::getString).toArray(), "")
+            if i < (parts.len() as i32).wrapping_sub(4) && Some(parts[(i.wrapping_add(1)) as usize..(i.wrapping_add(5)) as usize].iter().map(|part| part.get_string()).collect::<Vec<String>>().join("")) == health_matcher.group(0) {
                 health_start_index = i;
             }
             if health_start_index != -1 {
@@ -153,54 +151,50 @@ impl HealthBars {
                     _ => {}
                 }
             }
-            cleaned_text.append(parts[(i) as usize].clone());
+            cleaned_text = cleaned_text.append(parts[(i) as usize].clone());
         }
-        // TODO(fabric2seer): `ArmorStand.skyblocker$setCustomName` has no Rust method in the port (looked for `skyblocker_set_custom_name` in ArmorStand and JavaSrc)
-        // rust: armor_stand.skyblocker_set_custom_name(&cleaned_text);
+        armor_stand.skyblocker_set_custom_name(&cleaned_text);
     }
 
     /// java: private static void healthOnlyCheck(ArmorStand armorStand)
-    pub fn health_only_check(mut armor_stand: ArmorStand) {
+    pub fn health_only_check(armor_stand: &ArmorStand) {
+        let id: i32 = armor_stand.base.base.get_id();
         if !(SkyblockerConfigManager::get().ui_and_visuals.health_bars.apply_to_health_only_mobs) || armor_stand.base.base.get_custom_name().is_none() {
             return;
         }
-        let mut health_only_matcher: compat::regex::Matcher = HEALTH_ONLY_PATTERN.matcher(&armor_stand.base.base.get_custom_name().unwrap().get_string());
+        let custom_name: MutableComponent = compat::component_of(armor_stand.base.base.get_custom_name().unwrap());
+        let mut health_only_matcher: compat::regex::Matcher = HEALTH_ONLY_PATTERN.matcher(&custom_name.get_string());
         if !health_only_matcher.find() {
             return;
         }
-        // TODO(fabric2seer): `.longValue(..)` on a Number
-        //   java: long currentHealth = Formatters.parseNumber(healthOnlyMatcher.group(1).toUpperCase(Locale.ENGLISH)).longValue();
-        let mut current_health: i64 = todo!("fabric2seer: the initialiser of `currentHealth` (TODO above)");
-        if !(MOB_STARTING_HEALTH.get_mut().contains_key(&armor_stand)) {
-            // TODO(fabric2seer): the mod keeps the game's `ArmorStand` (Java holds a reference to the live object); the port's `ArmorStand` is not a value to copy and the port lends the mod no handle to it
-            // rust: MOB_STARTING_HEALTH.get_mut().insert(armor_stand.clone(), current_health);
+        let mut current_health: i64 = Formatters::parse_number(&health_only_matcher.group(1).unwrap().to_uppercase()).long_value();
+        if !(MOB_STARTING_HEALTH.get_mut().contains_key(&id)) {
+            MOB_STARTING_HEALTH.get_mut().insert(id, current_health);
         }
-        let mut health: f32 = (((current_health) as f32) / (MOB_STARTING_HEALTH.get_mut().get(&armor_stand).copied().unwrap_or_default() as f32));
-        // TODO(fabric2seer): the mod keeps the game's `ArmorStand` (Java holds a reference to the live object); the port's `ArmorStand` is not a value to copy and the port lends the mod no handle to it
-        // rust: HEALTH_VALUES.get_mut().insert(armor_stand.clone(), health);
+        let mut health: f32 = (((current_health) as f32) / (MOB_STARTING_HEALTH.get_mut().get(&id).copied().unwrap_or_default() as f32));
+        HEALTH_VALUES.get_mut().insert(id, health);
         if !(SkyblockerConfigManager::get().ui_and_visuals.health_bars.remove_health_from_name) {
             return;
         }
-        if HealthBars::is_disallowed_mob(&armor_stand.base.base.get_custom_name().unwrap().get_string()) {
+        if HealthBars::is_disallowed_mob(&custom_name.get_string()) {
             return;
         }
         let mut cleaned_text: MutableComponent = component::empty();
-        let parts = armor_stand.base.base.get_custom_name().unwrap().get_siblings();
+        let parts = custom_name.get_siblings();
         {
             let mut i: i32 = 0;
             while i < (parts.len() as i32) {
                 'continue_1: {
-                    if i < (parts.len() as i32).wrapping_sub(2) && Some(&*(parts[(i.wrapping_add(1)) as usize..(i.wrapping_add(3)) as usize].to_vec().into_iter().map(|__a0| __a0.get_string()).map(|s| s.to_string()).collect::<Vec<String>>().join(""))) == health_only_matcher.group(0).as_deref() {
+                    if i < (parts.len() as i32).wrapping_sub(2) && Some(parts[(i.wrapping_add(1)) as usize..(i.wrapping_add(3)) as usize].iter().map(|part| part.get_string()).collect::<Vec<String>>().join("")) == health_only_matcher.group(0) {
                         i = i.wrapping_add(2);
                         break 'continue_1;
                     }
-                    cleaned_text.append(parts[(i) as usize].clone());
+                    cleaned_text = cleaned_text.append(parts[(i) as usize].clone());
                 }
                 i += 1;
             }
         }
-        // TODO(fabric2seer): `ArmorStand.skyblocker$setCustomName` has no Rust method in the port (looked for `skyblocker_set_custom_name` in ArmorStand and JavaSrc)
-        // rust: armor_stand.skyblocker_set_custom_name(&cleaned_text);
+        armor_stand.skyblocker_set_custom_name(&cleaned_text);
     }
 
     /// java: private static void extractRendering(PrimitiveCollector collector)
@@ -213,31 +207,27 @@ impl HealthBars {
         let empty_color = &SkyblockerConfigManager::get().ui_and_visuals.health_bars.empty_bar_color;
         let mut hide_full_health: bool = SkyblockerConfigManager::get().ui_and_visuals.health_bars.hide_full_health;
         let mut scale: f32 = SkyblockerConfigManager::get().ui_and_visuals.health_bars.scale;
-        // TODO(fabric2seer): `DeltaTracker.getGameTimeDeltaPartialTick` has no Rust method in the port (looked for `get_game_time_delta_partial_tick` in DeltaTracker and its supertypes)
-        // rust: let mut tick_delta: f32 = RenderHelper::get_tick_counter().get_game_time_delta_partial_tick(false);
-        let mut tick_delta: f32 = todo!("fabric2seer: the initialiser of `tickDelta` (TODO above)");
+        let mut tick_delta: f32 = RenderHelper::get_tick_counter().get_game_time_delta_partial_tick(false);
         let mut width: f32 = scale;
         let mut height: f32 = (scale * 0.1f32);
-        // TODO(fabric2seer): Map.object2FloatEntrySet(..)
-        //   java: for (Object2FloatMap.Entry<ArmorStand> healthValue : healthValues.object2FloatEntrySet()) {
-        //   java: 			//if the health bar is full and the setting is enabled to hide it stop rendering it
-        //   java: 			float health = healthValue.getFloatValue();
-        //   java: 			if (hideFullHealth && health == 1) {
-        //   java: 				continue;
-        //   java: 			}
-        //   java:
-        //   java: 			ArmorStand armorStand = healthValue.getKey();
-        //   java: 			//only render health bar if name is visible
-        //   java: 			if (!armorStand.shouldShowName()) {
-        //   java: 				return;
-        //   java: 			}
-        //   java: 			//gets the mixed color of the health bar
-        //   java: 			int mixedColor = ColorUtils.interpolate(health, emptyColor.getRGB(), halfColor.getRGB(), fullColor.getRGB());
-        //   java: 			float[] components = ColorUtils.getFloatComponents(mixedColor);
-        //   java: 			// Render the health bar texture with scaling based on health percentage
-        //   java: 			collector.submitTexturedQuad(armorStand.getEyePosition(tickDelta).add(0, 0.25 - height, 0), width, height, 1f, 1f, new Vec3(width * -0.5f, 0, 0), HEALTH_BAR_BACKGROUND_TEXTURE, components, 1f, true);
-        //   java: 			collector.submitTexturedQuad(armorStand.getEyePosition(tickDelta).add(0, 0.25 - height, 0), width * health, height, health, 1f, new Vec3(width * -0.5f, 0, -0.003f), HEALTH_BAR_TEXTURE, components, 1f, true);
-        //   java: 		}
+        let health_values: Vec<(i32, f32)> = HEALTH_VALUES.get().iter().map(|(k, v)| (*k, *v)).collect();
+        for (armor_stand, health) in health_values {
+            if hide_full_health && health == 1.0 {
+                continue;
+            }
+            // the stand by id: (shouldShowName, eye position); a stand the level dropped is not drawn
+            let Some((should_show_name, eye_position)) = mcrust::mcrust::modding::game::with_entity(armor_stand, |e| (e.should_show_name(), e.base().get_eye_position_partial(tick_delta))) else {
+                continue;
+            };
+            if !should_show_name {
+                return;
+            }
+            let mut mixed_color: i32 = ColorUtils::interpolate_2((health) as f64, &vec![empty_color.get_rgb(), half_color.get_rgb(), full_color.get_rgb()]);
+            let mut components: Vec<f32> = ColorUtils::get_float_components(mixed_color);
+            let position = eye_position.add((0) as f64, (0.25 - (height as f64)), (0) as f64);
+            ({ let __f = compat::dispatch(collector, |__t| __t.submit_textured_quad()); __f(collector, &position, width, height, 1.0f32, 1.0f32, &Vec3::new(((width * -0.5f32) as f64), (0) as f64, (0) as f64), HEALTH_BAR_BACKGROUND_TEXTURE.get(), &components, 1.0f32, true) });
+            ({ let __f = compat::dispatch(collector, |__t| __t.submit_textured_quad()); __f(collector, &position, (width * health), height, health, 1.0f32, &Vec3::new(((width * -0.5f32) as f64), (0) as f64, (-0.003f32) as f64), HEALTH_BAR_TEXTURE.get(), &components, 1.0f32, true) });
+        }
     }
 
 }

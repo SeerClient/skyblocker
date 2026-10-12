@@ -1,652 +1,491 @@
 //! Ported from de.hysky.skyblocker.skyblock.shortcut.ShortcutsConfigListWidget by fabric2seer.
+//!
+//! The list is the game's `ModSelectionList` (a `ContainerObjectSelectionList`); this class's overrides are its
+//! `ModList` class (`ShortcutsConfigListWidget`), and each row class is a `ModListEntry` the list holds. The inner
+//! classes reach their list (`ShortcutsConfigListWidget.this`) through the `list` the game lends each row method, and
+//! the list's own methods below take that list (`&mut AbstractSelectionList`) as Java's `this`.
 
 #[allow(unused_imports)]
 use crate::prelude::*;
+use mcrust::net::minecraft::network::chat::component::Component as _;
 use crate::de::hysky::skyblocker::skyblock::shortcut::keybind_widget::KeybindWidget;
 use crate::de::hysky::skyblocker::skyblock::shortcut::shortcut_key_binding::ShortcutKeyBinding;
 use crate::de::hysky::skyblocker::skyblock::shortcut::shortcuts;
 use crate::de::hysky::skyblocker::skyblock::shortcut::shortcuts::Shortcuts;
+use crate::de::hysky::skyblocker::skyblock::shortcut::shortcuts::ShortcutsRecord;
 use crate::de::hysky::skyblocker::skyblock::shortcut::shortcuts_config_screen::ShortcutsConfigScreen;
+use crate::de::hysky::skyblocker::utils::data::json_data::JsonData as _;
+use mcrust::com::mojang::blaze3d::platform::input_constants;
+use mcrust::mcrust::modding::widgets::ListKind;
 use mcrust::mcrust::modding::widgets::ModList;
 use mcrust::mcrust::modding::widgets::ModListEntry;
+use mcrust::mcrust::modding::widgets::ModListEntrySlot;
 use mcrust::mcrust::modding::widgets::ModSelectionList;
+use mcrust::mcrust::modding::widgets::ModWidgetSlot;
 use mcrust::mcrust::modding::widgets::WidgetRenderContext;
 use mcrust::net::minecraft::chat_formatting::ChatFormatting;
 use mcrust::net::minecraft::client::gui::components::abstract_selection_list::AbstractSelectionList;
+use mcrust::net::minecraft::client::gui::components::abstract_selection_list::Entry;
 use mcrust::net::minecraft::client::gui::components::abstract_widget::AbstractWidget;
-use mcrust::net::minecraft::client::gui::components::edit_box::EditBox;
-use mcrust::net::minecraft::client::gui::components::events::gui_event_listener::GuiEventListener;
 use mcrust::net::minecraft::client::gui::components::tooltip::Tooltip;
 use mcrust::net::minecraft::client::gui::gui_graphics_extractor;
-use mcrust::net::minecraft::client::gui::gui_graphics_extractor::GuiGraphicsExtractor;
-use mcrust::net::minecraft::client::gui::narration::narratable_entry::NarratableEntry;
 use mcrust::net::minecraft::client::input::character_event::CharacterEvent;
+use mcrust::net::minecraft::client::input::key_event::KeyEvent;
 use mcrust::net::minecraft::client::input::mouse_button_event::MouseButtonEvent;
 use mcrust::net::minecraft::network::chat::component;
+use mcrust::net::minecraft::network::chat::formatted_text::FormattedText;
 use mcrust::net::minecraft::network::chat::mutable_component::MutableComponent;
-use crate::de::hysky::skyblocker::utils::data::json_data::JsonData as _;
-use mcrust::net::minecraft::client::gui::components::renderable::Renderable as _;
-use mcrust::net::minecraft::network::chat::component::Component as _;
+use mcrust::net::minecraft::network::chat::text_color::TextColor;
+use mcrust::net::minecraft::util::common_colors;
 
 /// java: private static final int TEXT_Y_OFFSET = 5 + 2;
-pub const TEXT_Y_OFFSET: i32 = 5i32.wrapping_add(2);
+pub const TEXT_Y_OFFSET: i32 = 5 + 2;
 /// java: private static final int TEXT_FIELD_PADDING = 2;
 pub const TEXT_FIELD_PADDING: i32 = 2;
 
 /// java: public class ShortcutsConfigListWidget extends ContainerObjectSelectionList<ShortcutsConfigListWidget.AbstractShortcutEntry>
+/// - the list's class: its overrides, asked by the game's list bodies.
 pub struct ShortcutsConfigListWidget {
-    /// java: extends net.minecraft.client.gui.components.ContainerObjectSelectionList
-    pub base: ModSelectionList,
-    /// java: private final ShortcutsConfigScreen screen;
-    pub screen: compat::Shared<ShortcutsConfigScreen>,
-}
-
-impl std::ops::Deref for ShortcutsConfigListWidget {
-    type Target = AbstractSelectionList;
-    fn deref(&self) -> &Self::Target {
-        &self.base.list
-    }
-}
-
-impl std::ops::DerefMut for ShortcutsConfigListWidget {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.base.list
-    }
+    /// java: private final ShortcutsConfigScreen screen; (the screen holds the list: a weak reference back)
+    pub screen: compat::RenderThread<compat::WeakShared<ShortcutsConfigScreen>>,
 }
 
 impl ShortcutsConfigListWidget {
     /// java: public ShortcutsConfigListWidget(Minecraft minecraftClient, ShortcutsConfigScreen screen, int width, int height, int y)
-    pub fn new(minecraft_client: &mut mcrust::net::minecraft::client::minecraft::Minecraft, mut screen: compat::Shared<ShortcutsConfigScreen>, mut width: i32, mut height: i32, mut y: i32) -> compat::Shared<Self> {
-        let __init_screen = screen.clone();
-        // TODO(fabric2seer): `.commands(..)` on a T
-        //   java: ShortcutCategoryEntry<String> commandCategory = new ShortcutCategoryEntry<>(Shortcuts.shortcuts.getData().commands(), CommandShortcutEntry::new, "skyblocker.shortcuts.command.target", "skyblocker.shortcuts.command.replacement");
-        let mut command_category: compat::Shared<ShortcutCategoryEntry<String>> = todo!("fabric2seer: the initialiser of `commandCategory` (TODO above)");
-        let __this = compat::shared(Self {
-            base: mcrust::mcrust::modding::widgets::ModSelectionList::new(mcrust::mcrust::modding::widgets::ListKind::Container, width, height, y, 24),
-            screen: __init_screen,
-        });
-        if Shortcuts::is_shortcuts_loaded() {
-            for command_target in compat::sorted(command_category.lock().borrow().shortcuts_map.keys().cloned()) {
-                let __entry = ((CommandShortcutEntryBase::new_2(command_category.clone(), command_target.clone()) as compat::Shared<dyn CommandShortcutEntry>) as compat::Shared<dyn AbstractShortcutEntry>);
-                compat::write(&__this, |__t| { let __l = &mut __t.base; (__l.add_entry(Box::new(compat::EntryAdapter::new(__entry))) as i32) });
+    /// - the game's list widget, built with this class and its rows (`addRenderableWidget` takes it)
+    pub fn new(screen: &compat::Shared<ShortcutsConfigScreen>, width: i32, height: i32, y: i32) -> AbstractWidget {
+        // java: super(minecraftClient, width, height, y, 24); this.screen = screen;
+        let class = ShortcutsConfigListWidget { screen: compat::RenderThread::new(std::sync::Arc::downgrade(screen)) };
+        let mut list = ModSelectionList::with_class(ListKind::Container, width, height, y, 24, Arc::new(class));
+        let loaded = Shortcuts::is_shortcuts_loaded();
+        let data: Option<ShortcutsRecord> = loaded.then(|| shortcuts::SHORTCUTS.get().lock().borrow().get_data());
+
+        let command_category = ShortcutCategoryEntry::new(&mut list.list, CategoryKind::Commands, "skyblocker.shortcuts.command.target", "skyblocker.shortcuts.command.replacement", None);
+        if let Some(data) = &data {
+            for command_target in compat::sorted(data.commands.keys().cloned()) {
+                let entry = CommandShortcutEntry::new_2(&list.list, command_category.clone(), &command_target);
+                add_entry(&mut list.list, Box::new(entry));
             }
         } else {
-            let __entry = (ShortcutLoadingEntry::new() as compat::Shared<dyn AbstractShortcutEntry>);
-            compat::write(&__this, |__t| { let __l = &mut __t.base; (__l.add_entry(Box::new(compat::EntryAdapter::new(__entry))) as i32) });
+            add_entry(&mut list.list, Box::new(ShortcutLoadingEntry::new()));
         }
-        // TODO(fabric2seer): `.commandArgs(..)` on a T
-        //   java: ShortcutCategoryEntry<String> commandArgCategory = new ShortcutCategoryEntry<>(Shortcuts.shortcuts.getData().commandArgs(), CommandArgShortcutEntry::new, "skyblocker.shortcuts.commandArg.target", "skyblocker.shortcuts.commandArg.replacement", "skyblocker.shortcuts.commandArg.tooltip");
-        let mut command_arg_category: compat::Shared<ShortcutCategoryEntry<String>> = todo!("fabric2seer: the initialiser of `commandArgCategory` (TODO above)");
-        if Shortcuts::is_shortcuts_loaded() {
-            for command_arg_target in compat::sorted(command_arg_category.lock().borrow().shortcuts_map.keys().cloned()) {
-                let __entry = (CommandArgShortcutEntry::new_2(command_arg_category.clone(), command_arg_target.clone()) as compat::Shared<dyn AbstractShortcutEntry>);
-                compat::write(&__this, |__t| { let __l = &mut __t.base; (__l.add_entry(Box::new(compat::EntryAdapter::new(__entry))) as i32) });
+        let command_arg_category = ShortcutCategoryEntry::new(&mut list.list, CategoryKind::CommandArgs, "skyblocker.shortcuts.commandArg.target", "skyblocker.shortcuts.commandArg.replacement", Some("skyblocker.shortcuts.commandArg.tooltip"));
+        if let Some(data) = &data {
+            for command_arg_target in compat::sorted(data.command_args.keys().cloned()) {
+                let entry = CommandArgShortcutEntry::new_2(&list.list, command_arg_category.clone(), &command_arg_target);
+                add_entry(&mut list.list, Box::new(entry));
             }
         } else {
-            let __entry = (ShortcutLoadingEntry::new() as compat::Shared<dyn AbstractShortcutEntry>);
-            compat::write(&__this, |__t| { let __l = &mut __t.base; (__l.add_entry(Box::new(compat::EntryAdapter::new(__entry))) as i32) });
+            add_entry(&mut list.list, Box::new(ShortcutLoadingEntry::new()));
         }
-        // TODO(fabric2seer): `.keyBindings(..)` on a T
-        //   java: ShortcutCategoryEntry<ShortcutKeyBinding> keybindCategory = new ShortcutCategoryEntry<>(Shortcuts.shortcuts.getData().keyBindings(), KeybindShortcutEntry::new, "skyblocker.shortcuts.keyBinding.target", "skyblocker.shortcuts.keyBinding.replacement", "skyblocker.shortcuts.keyBinding.tooltip");
-        let mut keybind_category: compat::Shared<ShortcutCategoryEntry<compat::Shared<ShortcutKeyBinding>>> = todo!("fabric2seer: the initialiser of `keybindCategory` (TODO above)");
-        if Shortcuts::is_shortcuts_loaded() {
-            for key_binding in compat::sorted(keybind_category.lock().borrow().shortcuts_map.keys().cloned()) {
-                // TODO(fabric2seer): `.copy(..)` on a T
-                //   java: addEntry(new KeybindShortcutEntry(keybindCategory, keyBinding.copy()));
+        let keybind_category = ShortcutCategoryEntry::new(&mut list.list, CategoryKind::KeyBindings, "skyblocker.shortcuts.keyBinding.target", "skyblocker.shortcuts.keyBinding.replacement", Some("skyblocker.shortcuts.keyBinding.tooltip"));
+        if let Some(data) = &data {
+            for key_binding in compat::sorted(data.key_bindings.keys().cloned()) {
+                let mut entry = KeybindShortcutEntry::new_2(&list.list, keybind_category.clone(), key_binding.copy());
+                let index = list.list.entry_count();
+                entry.update(&list.list, index);
+                add_entry(&mut list.list, Box::new(entry));
             }
         } else {
-            let __entry = (ShortcutLoadingEntry::new() as compat::Shared<dyn AbstractShortcutEntry>);
-            compat::write(&__this, |__t| { let __l = &mut __t.base; (__l.add_entry(Box::new(compat::EntryAdapter::new(__entry))) as i32) });
+            add_entry(&mut list.list, Box::new(ShortcutLoadingEntry::new()));
         }
-        __this
+        let (x, y, w, h) = (list.list.get_x(), list.list.get_y(), list.list.get_width(), list.list.get_height());
+        ModWidgetSlot::widget(x, y, w, h, String::new(), Box::new(list))
     }
 
-    /// java: @Override public int getRowWidth()
-    pub fn get_row_width(__this: &compat::Shared<Self>) -> i32 {
-        return ((compat::super_answer::<i32>()).wrapping_add(100)).wrapping_add(2i32.wrapping_mul(TEXT_FIELD_PADDING));
-    }
-
-    /// java: @Override protected int scrollBarX()
-    pub fn scroll_bar_x(__this: &compat::Shared<Self>) -> i32 {
-        return compat::super_answer::<i32>();
+    /// The screen this list belongs to, while it is alive.
+    fn screen(&self) -> Option<compat::Shared<ShortcutsConfigScreen>> {
+        self.screen.get().upgrade()
     }
 
     /// java: protected Optional<ShortcutCategoryEntry<?>> getCategory()
-    pub fn get_category(__this: &compat::Shared<Self>) -> Option<compat::Shared<ShortcutCategoryEntry<compat::Object>>> {
-        // TODO(fabric2seer): a pattern switch expression
-        //   java: return switch (getSelected()) {
-        //   java: 			case ShortcutCategoryEntry<?> category -> Optional.of(category);
-        //   java: 			case ShortcutEntry<?> shortcutEntry -> Optional.of(shortcutEntry.category);
-        //   java:
-        //   java: 			case null, default -> Optional.empty();
-        //   java: 		};
-        todo!("fabric2seer: the value of this function is in a TODO above")
-    }
-
-    /// java: @Override public void setSelected(ShortcutsConfigListWidget.@Nullable AbstractShortcutEntry entry)
-    pub fn set_selected(__this: &compat::Shared<Self>, mut entry: Option<compat::Shared<dyn AbstractShortcutEntry>>) {
-        compat::call_super();
-        ShortcutsConfigScreen::update_buttons(&compat::read(__this, |__t| __t.screen.clone()));
+    pub fn get_category(list: &AbstractSelectionList) -> Option<std::sync::Arc<CategoryInfo>> {
+        // java: switch (getSelected()) { case ShortcutCategoryEntry<?> c -> c; case ShortcutEntry<?> e -> e.category; default -> empty }
+        let selected = list.get_selected()?;
+        let slot = list.entry_object(selected)?;
+        if let Some(category) = slot.with::<ShortcutCategoryEntry, _>(|c| c.category.clone()) {
+            return Some(category);
+        }
+        with_shortcut_entry(slot, |e| e.category())
     }
 
     /// java: protected void addShortcutAfterSelected()
-    pub fn add_shortcut_after_selected(__this: &compat::Shared<Self>) {
-        if let Some(category) = ShortcutsConfigListWidget::get_category(__this) {
-            let mut new_entries: Vec<compat::Shared<dyn AbstractShortcutEntry>> = compat::write(__this, |__t| { let __l = &mut __t.base; compat::list_entries::<dyn AbstractShortcutEntry>(__l) }).into_iter().collect::<Vec<_>>();
-            let mut new_entry: compat::Shared<dyn ShortcutEntry<compat::Object>> = ((compat::read(&category, |__t| __t.entry_supplier.clone()).unwrap()))();
-            new_entries.insert((((compat::write(__this, |__t| { let __l = &mut __t.base; compat::list_entries::<dyn AbstractShortcutEntry>(__l) })).iter().position(|e| *e == compat::write(__this, |__t| { let __l = &mut __t.base; __l.get_selected().and_then(|__i| compat::entry_at::<dyn AbstractShortcutEntry>(__l, __i)) }).unwrap()).map_or(-1, |i| i as i32)).wrapping_add(1)) as usize, (new_entry.clone() as compat::Shared<dyn AbstractShortcutEntry>));
-            { let (__q0,) = (new_entries.clone(),); __this.lock().borrow_mut().replace_entries(__q0) };
-            ShortcutsConfigListWidget::set_selected(__this, Some((new_entry.clone() as compat::Shared<dyn AbstractShortcutEntry>)));
-        }
+    pub fn add_shortcut_after_selected(list: &mut AbstractSelectionList) {
+        let Some(category) = ShortcutsConfigListWidget::get_category(list) else {
+            return;
+        };
+        // java: ArrayList<AbstractShortcutEntry> newEntries = new ArrayList<>(children());
+        let mut new_entries: Vec<Entry> = list.children().to_vec();
+        // java: ShortcutEntry<?> newEntry = category.entrySupplier.get();
+        let new_entry: Box<dyn ModListEntry> = category.new_entry(list);
+        // java: newEntries.add(children().indexOf(getSelected()) + 1, newEntry); (indexOf of null is -1)
+        let index = list.get_selected().map_or(0, |selected| selected + 1);
+        let height = list.default_entry_height;
+        let mut row = Entry::new(height);
+        row.object = Some(ModListEntrySlot::new(new_entry));
+        new_entries.insert(index, row);
+        list.replace_entries(new_entries);
+        // java: setSelected(newEntry); - through the class (this override)
+        list.set_selected(Some(index), false);
     }
 
     /// java: protected void updatePositions()
-    pub fn update_positions(__this: &compat::Shared<Self>) {
-        for child in compat::write(__this, |__t| { let __l = &mut __t.base; compat::list_entries::<dyn AbstractShortcutEntry>(__l) }) {
-            ({ let __f = compat::dispatch(&child, |__t| __t.update_positions()); __f(&child) });
+    pub fn update_positions(list: &AbstractSelectionList) {
+        let width = list.get_width();
+        for i in 0..list.entry_count() {
+            if let Some(slot) = list.entry_object(i) {
+                with_any_entry(slot, |e| e.update_positions(width));
+            }
         }
     }
 
     /// java: protected void updateKeybinds()
-    pub fn update_keybinds(__this: &compat::Shared<Self>) {
-        // TODO(fabric2seer): `.isInstance(..)` on a Class
-        //   java: children().stream().filter(KeybindShortcutEntry.class::isInstance).map(KeybindShortcutEntry.class::cast).forEach(KeybindShortcutEntry::update);
+    /// (`current` is a row that is inside one of its own methods - the one whose widget asked for this - updated
+    /// directly, since the list cannot lend it again)
+    pub fn update_keybinds(list: &AbstractSelectionList, current: Option<(usize, &mut KeybindShortcutEntry)>) {
+        let current_index = current.as_ref().map(|(i, _)| *i);
+        for i in 0..list.entry_count() {
+            if Some(i) == current_index {
+                continue;
+            }
+            if let Some(slot) = list.entry_object(i) {
+                slot.with::<KeybindShortcutEntry, _>(|e| e.update(list, i));
+            }
+        }
+        if let Some((i, e)) = current {
+            e.update(list, i);
+        }
     }
 
     /// java: protected boolean stopEditing()
-    pub fn stop_editing(__this: &compat::Shared<Self>) -> bool {
-        // TODO(fabric2seer): `.isInstance(..)` on a Class
-        //   java: boolean bl = children().stream().filter(KeybindShortcutEntry.class::isInstance).map(KeybindShortcutEntry.class::cast).anyMatch(KeybindShortcutEntry::stopEditing);
-        let mut bl: bool = todo!("fabric2seer: the initialiser of `bl` (TODO above)");
-        ShortcutsConfigScreen::check_for_duplicates(&compat::read(__this, |__t| __t.screen.clone()));
-        return bl;
+    pub fn stop_editing(list: &AbstractSelectionList) -> bool {
+        // java: children().stream().filter(KeybindShortcutEntry.class::isInstance)...anyMatch(KeybindShortcutEntry::stopEditing)
+        let mut bl = false;
+        for i in 0..list.entry_count() {
+            if let Some(slot) = list.entry_object(i)
+                && slot.with::<KeybindShortcutEntry, _>(|e| e.stop_editing()).unwrap_or(false)
+            {
+                bl = true;
+                break;
+            }
+        }
+        bl
     }
 
     /// java: @Override public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick)
-    pub fn mouse_clicked(__this: &compat::Shared<Self>, event: &MouseButtonEvent, mut double_click: bool) -> bool {
-        // TODO(fabric2seer): `AbstractContainerWidget::mouse_clicked` ports `mouseClicked`, but the port's `AbstractSelectionList` holds no `AbstractContainerWidget` (no Deref, no `base` field) to call it on
-        if { let (__q0, __q1,) = (event.clone(), double_click,); __this.lock().borrow_mut().base.list.mouse_clicked(__q0, __q1) } {
+    fn mouse_clicked_body(&self, list: &mut ModSelectionList, event: &MouseButtonEvent, double_click: bool, super_mouse_clicked: &mut dyn FnMut(&mut ModSelectionList) -> bool) -> bool {
+        if super_mouse_clicked(list) {
             return true;
         }
-        if ShortcutsConfigListWidget::stop_editing(__this) {
-            ShortcutsConfigListWidget::update_keybinds(__this);
+        if ShortcutsConfigListWidget::stop_editing(&list.list) {
+            ShortcutsConfigListWidget::update_keybinds(&list.list, None);
         }
-        ShortcutsConfigScreen::check_for_duplicates(&compat::read(__this, |__t| __t.screen.clone()));
+        if let Some(screen) = self.screen() {
+            ShortcutsConfigScreen::check_for_duplicates_with(&screen, &list.list);
+        }
         return false;
     }
 
-    /// java: @Override protected boolean entriesCanBeSelected()
-    pub fn entries_can_be_selected(__this: &compat::Shared<Self>) -> bool {
-        return true;
-    }
-
     /// java: @Override protected void removeEntry(AbstractShortcutEntry entry)
-    pub fn remove_entry(__this: &compat::Shared<Self>, entry: &compat::Shared<dyn AbstractShortcutEntry>) {
-        let __entry = entry.clone();
-        compat::write(__this, |__t| { let __l = &mut __t.base; { if let Some(__i) = compat::entry_index::<dyn AbstractShortcutEntry>(__l, &__entry) { __l.remove_entry(__i); } } });
+    pub fn remove_entry(list: &mut AbstractSelectionList, index: usize) {
+        list.remove_entry(index);
     }
 
     /// java: protected boolean hasChanges()
-    pub fn has_changes(__this: &compat::Shared<Self>) -> bool {
-        let mut not_empty_shortcuts: Vec<compat::Shared<dyn ShortcutEntry<compat::Object>>> = ShortcutsConfigListWidget::get_not_empty_shortcuts(__this).collect::<Vec<_>>();
-        // TODO(fabric2seer): `.size(..)` on a T
-        //   java: return notEmptyShortcuts.length != Shortcuts.shortcuts.getData().size() || Arrays.stream(notEmptyShortcuts).anyMatch(ShortcutEntry::isChanged);
-        todo!("fabric2seer: the value of this function is in a TODO above")
+    pub fn has_changes(list: &AbstractSelectionList) -> bool {
+        // java: notEmptyShortcuts.length != Shortcuts.shortcuts.getData().size() || anyMatch(ShortcutEntry::isChanged)
+        let not_empty = ShortcutsConfigListWidget::get_not_empty_shortcuts(list);
+        let size = shortcuts::SHORTCUTS.get().lock().borrow().get_data().size();
+        return (not_empty.len() as i32) != size
+            || not_empty.iter().any(|&i| list.entry_object(i).and_then(|slot| with_shortcut_entry(slot, |e| e.is_changed())).unwrap_or(false));
     }
 
     /// java: protected boolean hasDuplicates()
-    pub fn has_duplicates(__this: &compat::Shared<Self>) -> bool {
+    pub fn has_duplicates(list: &AbstractSelectionList) -> bool {
         let mut keys: std::collections::HashSet<String> = std::collections::HashSet::new();
-        for entry in compat::write(__this, |__t| { let __l = &mut __t.base; compat::list_entries::<dyn AbstractShortcutEntry>(__l) }) {
-            if let Some(shortcut_entry) = entry.lock().borrow().as_any().downcast_ref::<compat::Shared<dyn ShortcutEntry<compat::Object>>>() {
-                let mut key: String = shortcut_entry.lock().borrow().key();
-                if keys.contains(&key) {
-                    return true;
-                }
-                keys.insert(key.clone());
+        for i in 0..list.entry_count() {
+            let Some(key) = list.entry_object(i).and_then(|slot| with_shortcut_entry(slot, |e| e.key())) else {
+                continue;
+            };
+            if keys.contains(&key) {
+                return true;
             }
+            keys.insert(key);
         }
         return false;
     }
 
     /// java: protected void saveShortcuts()
-    pub fn save_shortcuts(__this: &compat::Shared<Self>) {
-        // TODO(fabric2seer): `.clear(..)` on a T
-        //   java: Shortcuts.shortcuts.getData().clear();
-        for __a0 in ShortcutsConfigListWidget::get_not_empty_shortcuts(__this) {
-            __a0.lock().borrow().save();
+    pub fn save_shortcuts(list: &AbstractSelectionList) {
+        // java: Shortcuts.shortcuts.getData().clear();
+        with_shortcuts_data(|data| data.clear());
+        for i in ShortcutsConfigListWidget::get_not_empty_shortcuts(list) {
+            if let Some(slot) = list.entry_object(i) {
+                with_shortcut_entry(slot, |e| e.save());
+            }
         }
-        shortcuts::SHORTCUTS.get_mut().lock().borrow().save();
+        // Save shortcuts to disk
+        shortcuts::SHORTCUTS.get().lock().borrow().save();
     }
 
-    /// java: private Stream<? extends ShortcutEntry<?>> getNotEmptyShortcuts()
-    pub fn get_not_empty_shortcuts(__this: &compat::Shared<Self>) -> Box<dyn Iterator<Item = compat::Shared<dyn ShortcutEntry<compat::Object>>> + '_> {
-        // TODO(fabric2seer): `.isInstance(..)` on a Class
-        //   java: return children().stream().filter(ShortcutEntry.class::isInstance).map(e -> (ShortcutEntry<?>) e).filter(ShortcutEntry::isNotEmpty);
-        todo!("fabric2seer: the value of this function is in a TODO above")
-    }
-
-}
-
-/// ShortcutsConfigListWidget's list (the port's `ModSelectionList`) until the game takes it (`compat::attach_list`)
-impl compat::ListHalf for ShortcutsConfigListWidget {
-    fn list_half(&mut self) -> &mut ModSelectionList {
-        &mut self.base
+    /// java: private Stream<? extends ShortcutEntry<?>> getNotEmptyShortcuts() (the rows' positions)
+    pub fn get_not_empty_shortcuts(list: &AbstractSelectionList) -> Vec<usize> {
+        (0..list.entry_count())
+            .filter(|&i| list.entry_object(i).and_then(|slot| with_shortcut_entry(slot, |e| e.is_not_empty())).unwrap_or(false))
+            .collect()
     }
 }
 
 /// ShortcutsConfigListWidget's overrides of the list's own methods, asked by the port's list bodies
-impl ModList for compat::ListClass<ShortcutsConfigListWidget> {
+impl ModList for ShortcutsConfigListWidget {
     /// java: @Override public int getRowWidth()
-    fn get_row_width(&self, list: &AbstractSelectionList, super_answer: i32) -> i32 {
-        self.ask(list, super_answer, |__h| ShortcutsConfigListWidget::get_row_width(__h))
+    fn get_row_width(&self, _list: &AbstractSelectionList, super_answer: i32) -> i32 {
+        return super_answer + 100 + 2 * TEXT_FIELD_PADDING;
     }
 
     /// java: @Override protected int scrollBarX()
-    fn scroll_bar_x(&self, list: &AbstractSelectionList, super_answer: i32) -> i32 {
-        self.ask(list, super_answer, |__h| ShortcutsConfigListWidget::scroll_bar_x(__h))
+    fn scroll_bar_x(&self, _list: &AbstractSelectionList, super_answer: i32) -> i32 {
+        return super_answer;
     }
 
     /// java: @Override protected boolean entriesCanBeSelected()
-    fn entries_can_be_selected(&self, list: &AbstractSelectionList, super_answer: bool) -> bool {
-        self.ask(list, super_answer, |__h| ShortcutsConfigListWidget::entries_can_be_selected(__h))
-    }
-
-    /// java: @Override public void setSelected(ShortcutsConfigListWidget.@Nullable AbstractShortcutEntry entry)
-    fn set_selected(&self, list: &mut AbstractSelectionList, selected: Option<usize>, super_set_selected: &mut dyn FnMut(&mut AbstractSelectionList, Option<usize>)) {
-        super_set_selected(list, selected);
-        let __entry = selected.and_then(|__i| compat::row_object::<dyn AbstractShortcutEntry>(list, __i));
-        compat::with_super(&mut || {}, || self.ask(list, (), |__h| ShortcutsConfigListWidget::set_selected(__h, __entry.clone())))
-    }
-
-}
-
-// NOTE(fabric2seer): entriesCanBeSelected, getRowWidth, mouseClicked, removeEntry, scrollBarX, setSelected override(s) of ContainerObjectSelectionList - the port dispatches its own calls, so these run only where the mod calls them; hook the port's method to make the game call them
-
-/// java: public abstract static class AbstractShortcutEntry extends ContainerObjectSelectionList.Entry<AbstractShortcutEntry>
-pub struct AbstractShortcutEntryBase {
-    /// java: extends net.minecraft.client.gui.components.ContainerObjectSelectionList$Entry
-    pub base: mcrust::net::minecraft::client::gui::components::abstract_selection_list::Entry,
-    /// the row's widgets (`children()`): lent to the object by its `compat::EntryAdapter`
-    pub __row: mcrust::net::minecraft::client::gui::screens::screen::Screen,
-    /// the screen's widgets as this object last saw them (see `compat::WidgetCache`)
-    pub __widgets: compat::WidgetCache,
-}
-
-impl std::ops::Deref for AbstractShortcutEntryBase {
-    type Target = mcrust::net::minecraft::client::gui::components::abstract_selection_list::Entry;
-    fn deref(&self) -> &Self::Target {
-        &self.base
-    }
-}
-
-impl std::ops::DerefMut for AbstractShortcutEntryBase {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.base
-    }
-}
-
-impl AbstractShortcutEntryBase {
-    /// java: the implicit no-argument constructor (built by the most-derived class's `wrap`, then run on its handle)
-    pub fn new_in<__R>(__wrap: impl FnOnce(Self) -> (compat::Shared<dyn AbstractShortcutEntry>, __R)) -> (compat::Shared<dyn AbstractShortcutEntry>, __R) {
-        let this = Self {
-            base: mcrust::net::minecraft::client::gui::components::abstract_selection_list::Entry::new(0),
-            __widgets: Default::default(),
-            __row: mcrust::net::minecraft::client::gui::screens::screen::Screen::new(String::new()),
-        };
-        let (__h, __r) = __wrap(this);
-        let __this = __h;
-        (__this, __r)
-    }
-
-}
-
-/// java: the virtual methods of AbstractShortcutEntry (implemented by AbstractShortcutEntryBase and every subclass)
-pub trait AbstractShortcutEntry: compat::DynAny {
-    fn abstract_shortcut_entry_base(&self) -> &AbstractShortcutEntryBase;
-    fn abstract_shortcut_entry_base_mut(&mut self) -> &mut AbstractShortcutEntryBase;
-    fn as_any(&self) -> &dyn std::any::Any;
-
-    /// java: protected void updatePositions() (dispatch: the body for this class)
-    fn update_positions(&self) -> fn(&compat::Shared<dyn AbstractShortcutEntry>) {
-        <dyn AbstractShortcutEntry>::update_positions_body
-    }
-
-    /// java: @Override public boolean mouseClicked(MouseButtonEvent click, boolean doubled) (dispatch: the body for this class)
-    fn mouse_clicked(&self) -> fn(&compat::Shared<dyn AbstractShortcutEntry>, &MouseButtonEvent, bool) -> bool {
-        <dyn AbstractShortcutEntry>::mouse_clicked_body
-    }
-
-}
-
-impl dyn AbstractShortcutEntry {
-    /// java: protected void updatePositions()
-    pub fn update_positions_body(__this: &compat::Shared<dyn AbstractShortcutEntry>) {
-    }
-
-    /// java: @Override public boolean mouseClicked(MouseButtonEvent click, boolean doubled)
-    pub fn mouse_clicked_body(__this: &compat::Shared<dyn AbstractShortcutEntry>, click: &MouseButtonEvent, mut doubled: bool) -> bool {
-        // TODO(fabric2seer): `mouse_clicked` takes 4 argument(s) in the port (`_button: i32, _x: f64, _y: f64, _double_click: bool`), Java passes 2
-        // TODO(fabric2seer): `mouse_clicked` is a method of the port's trait `GuiEventListener`, which the port's `Entry` does not implement
-        // rust: { let (__q0, __q1,) = (click.clone(), doubled,); __this.lock().borrow_mut().abstract_shortcut_entry_base_mut().base.mouse_clicked(__q0, __q1) };
+    fn entries_can_be_selected(&self, _list: &AbstractSelectionList, _super_answer: bool) -> bool {
         return true;
     }
 
-}
-
-/// AbstractShortcutEntry's row box and its widgets, lent by its `compat::EntryAdapter` for each call
-impl compat::RowHalf for dyn AbstractShortcutEntry {
-    fn entry_half(&mut self) -> &mut mcrust::net::minecraft::client::gui::components::abstract_selection_list::Entry {
-        &mut self.abstract_shortcut_entry_base_mut().base
-    }
-    fn row_parts(&mut self) -> (&mut mcrust::net::minecraft::client::gui::screens::screen::Screen, &mut compat::WidgetCache) {
-        let __s = &mut self.abstract_shortcut_entry_base_mut();
-        (&mut __s.__row, &mut __s.__widgets)
-    }
-}
-
-/// AbstractShortcutEntry as a row of the game's list (`addEntry` attaches it)
-impl ModListEntry for compat::EntryAdapter<dyn AbstractShortcutEntry> {
-    /// java: @Override public void extractContent(GuiGraphicsExtractor graphics, int mouseX, int mouseY, boolean hovered, float a)
-    fn extract_content(&mut self, list: &mut ModSelectionList, index: usize, context: &mut WidgetRenderContext<'_>, mouse_x: i32, mouse_y: i32, hovered: bool, a: f32) {
-        self.lend(Some(list.list.entry(index)), |__h| { if let Some(__c) = compat::try_view::<ShortcutLoadingEntry, _>(__h) { return ShortcutLoadingEntry::extract_content(&*__c, &context.graphics, mouse_x, mouse_y, hovered, a); }  });
-        // the row's widgets (Java's `child.extractRenderState(..)` over `children()`)
-        context.extract_widgets(&mut self.row, mouse_x, mouse_y);
-    }
-
-    fn children(&mut self) -> Option<&mut mcrust::net::minecraft::client::gui::screens::screen::Screen> {
-        Some(&mut self.row)
-    }
-
-    /// java: @Override public boolean mouseClicked(MouseButtonEvent click, boolean doubled)
-    fn mouse_clicked(&mut self, list: &mut ModSelectionList, index: usize, event: &MouseButtonEvent, double_click: bool) -> bool {
-        self.lend(Some(list.list.entry(index)), |__h| { if let Some(__c) = compat::try_view::<CommandArgShortcutEntry, _>(__h) { return ({ let __f = compat::dispatch(&*__c, |__t| __t.mouse_clicked()); __f(&compat::view(&*__c, |a| a as compat::Shared<dyn AbstractShortcutEntry>), event, double_click) }); } if let Some(__c) = compat::try_view::<KeybindShortcutEntry, _>(__h) { return ({ let __f = compat::dispatch(&*__c, |__t| __t.mouse_clicked()); __f(&compat::view(&*__c, |a| a as compat::Shared<dyn AbstractShortcutEntry>), event, double_click) }); } if let Some(__c) = compat::try_view::<ShortcutLoadingEntry, _>(__h) { return ({ let __f = compat::dispatch(&*__c, |__t| __t.mouse_clicked()); __f(&compat::view(&*__c, |a| a as compat::Shared<dyn AbstractShortcutEntry>), event, double_click) }); } false })
-    }
-
-}
-
-/// java: protected class ShortcutCategoryEntry<T> extends AbstractShortcutEntry
-pub struct ShortcutCategoryEntry<T> {
-    /// java: extends AbstractShortcutEntry
-    pub base: AbstractShortcutEntryBase,
-    /// java: private final Map<T, String> shortcutsMap;
-    pub shortcuts_map: std::collections::HashMap<T, String>,
-    /// java: private final Supplier<ShortcutEntry<T>> entrySupplier;
-    pub entry_supplier: Option<Arc<dyn Fn() -> compat::Shared<dyn ShortcutEntry<T>>>>,
-    /// java: private final Component targetName;
-    pub target_name: Option<MutableComponent>,
-    /// java: private final Component replacementName;
-    pub replacement_name: Option<MutableComponent>,
-    /// java: private final @Nullable Component tooltip;
-    pub tooltip: Option<MutableComponent>,
-    /// the object's own shared handle: Java's `this` handed to other objects
-    pub self_ref: compat::WeakShared<Self>,
-}
-
-impl<T: 'static> std::ops::Deref for ShortcutCategoryEntry<T> {
-    type Target = AbstractShortcutEntryBase;
-    fn deref(&self) -> &Self::Target {
-        &self.base
-    }
-}
-
-impl<T: 'static> std::ops::DerefMut for ShortcutCategoryEntry<T> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.base
-    }
-}
-
-impl<T: Clone + 'static> ShortcutCategoryEntry<T> {
-    /// java: private ShortcutCategoryEntry(Map<T, String> shortcutsMap, Function<ShortcutCategoryEntry<T>, ShortcutEntry<T>> entryFactory, @Translatable String targetName, @Translatable String replacementName)
-    pub fn new(mut shortcuts_map: std::collections::HashMap<T, String>, entry_factory: Arc<dyn Fn(compat::Shared<ShortcutCategoryEntry<T>>) -> compat::Shared<dyn ShortcutEntry<T>>>, mut target_name: String, mut replacement_name: String) -> compat::Shared<Self> {
-        let __this = Self::new3(shortcuts_map.clone(), entry_factory.clone(), target_name.clone(), replacement_name.clone(), Some(None));
-        __this
-    }
-
-    /// java: private ShortcutCategoryEntry(Map<T, String> shortcutsMap, Function<ShortcutCategoryEntry<T>, ShortcutEntry<T>> entryFactory, @Translatable String targetName, @Translatable String replacementName, @Tr
-    pub fn new2(mut shortcuts_map: std::collections::HashMap<T, String>, entry_factory: Arc<dyn Fn(compat::Shared<ShortcutCategoryEntry<T>>) -> compat::Shared<dyn ShortcutEntry<T>>>, mut target_name: String, mut replacement_name: String, mut tooltip: String) -> compat::Shared<Self> {
-        let __this = Self::new3(shortcuts_map.clone(), entry_factory.clone(), target_name.clone(), replacement_name.clone(), Some(component::translatable(&tooltip)));
-        __this
-    }
-
-    /// java: private ShortcutCategoryEntry(Map<T, String> shortcutsMap, Function<ShortcutCategoryEntry<T>, ShortcutEntry<T>> entryFactory, @Translatable String targetName, @Translatable String replacementName, @Nu
-    pub fn new3(mut shortcuts_map: std::collections::HashMap<T, String>, entry_factory: Arc<dyn Fn(compat::Shared<ShortcutCategoryEntry<T>>) -> compat::Shared<dyn ShortcutEntry<T>>>, mut target_name: String, mut replacement_name: String, mut tooltip: Option<MutableComponent>) -> compat::Shared<Self> {
-        let __init_shortcuts_map = shortcuts_map.clone();
-        let (_, __this) = AbstractShortcutEntryBase::new_in(move |__base| {
-            let __h = compat::shared(Self {
-                base: __base,
-                self_ref: std::sync::Weak::new(),
-                shortcuts_map: __init_shortcuts_map,
-                entry_supplier: None,
-                target_name: None,
-                replacement_name: None,
-                tooltip: None,
-            });
-            compat::write(&__h, |__t| __t.self_ref = std::sync::Arc::downgrade(&__h));
-            ((__h.clone() as compat::Shared<dyn AbstractShortcutEntry>), __h)
-        });
-        let __this_w1 = compat::RenderThread::new(std::sync::Arc::downgrade(&__this));
-        { let __v = Some(Arc::new(move || { let Some(__this_1) = __this_w1.get().upgrade() else { return Default::default(); }; (entry_factory)(__this_1) })); compat::write(&__this, |__t| __t.entry_supplier = __v); }
-        { let __v = Some(component::translatable(&target_name)); compat::write(&__this, |__t| __t.target_name = __v); }
-        { let __v = Some(component::translatable(&replacement_name)); compat::write(&__this, |__t| __t.replacement_name = __v); }
-        { let __v = tooltip.clone(); compat::write(&__this, |__t| __t.tooltip = __v); }
-        // TODO(fabric2seer): `Entry.addEntry` has no Rust method in the port (looked for `add_entry` in ContainerObjectSelectionList and JavaSrc)
-        // rust: let __h0 = &__this;
-        // rust: __this.lock().borrow().add_entry(__h0);
-        __this
-    }
-
-    /// java: @Override public List<? extends GuiEventListener> children()
-    pub fn children(__this: &compat::Shared<Self>) -> Vec<Box<dyn GuiEventListener>> {
-        return vec![];
-    }
-
-    /// java: @Override public List<? extends NarratableEntry> narratables()
-    pub fn narratables(__this: &compat::Shared<Self>) -> Vec<Box<dyn NarratableEntry>> {
-        // TODO(fabric2seer): `new NarratableEntry(..) {..}` (an anonymous class with state or several methods)
-        //   java: return List.of(new NarratableEntry() {
-        //   java: 				@Override
-        //   java: 				public NarrationPriority narrationPriority() {
-        //   java: 					return NarrationPriority.HOVERED;
-        //   java: 				}
-        //   java:
-        //   java: 				@Override
-        //   java: 				public void updateNarration(NarrationElementOutput builder) {
-        //   java: 					builder.add(NarratedElementType.TITLE, targetName, replacementName);
-        //   java: 				}
-        //   java: 			});
-        todo!("fabric2seer: the value of this function is in a TODO above")
-    }
-
-    /// java: @Override public void extractContent(GuiGraphicsExtractor graphics, int mouseX, int mouseY, boolean hovered, float a)
-    pub fn extract_content(__this: &compat::Shared<Self>, graphics: &mut GuiGraphicsExtractor, mut mouse_x: i32, mut mouse_y: i32, mut hovered: bool, mut a: f32) {
-        // TODO(fabric2seer): unknown name `minecraft`
-        //   java: graphics.centeredText(minecraft.font, targetName, getContentXMiddle() - 85, getY() + TEXT_Y_OFFSET, CommonColors.WHITE);
-        // TODO(fabric2seer): unknown name `minecraft`
-        //   java: graphics.centeredText(minecraft.font, replacementName, getContentXMiddle() + 85, getY() + TEXT_Y_OFFSET, CommonColors.WHITE);
-        if compat::read(__this, |__t| __t.tooltip.clone()).is_some() && { let (__q0, __q1,) = ((mouse_x) as f64, (mouse_y) as f64,); __this.lock().borrow().is_mouse_over(__q0, __q1) } {
-            // TODO(fabric2seer): the port's `set_tooltip_for_next_frame` ports this Java method with other parameters (tooltip_for_next_frame, component for Java's component, x, y)
-            // TODO(fabric2seer): `set_tooltip_for_next_frame` takes 2 argument(s) in the port (`tooltip_for_next_frame: &mut Option<DeferredTooltip>, component: crate::net::minecraft::network::chat::formatted_text::FormattedText`), Java passes 3
-            // rust: gui_graphics_extractor::set_tooltip_for_next_frame(compat::read(__this, |__t| __t.tooltip.clone()).as_mut().unwrap(), mouse_x, mouse_y);
+    /// java: @Override public void setSelected(@Nullable AbstractShortcutEntry entry)
+    fn set_selected(&self, list: &mut AbstractSelectionList, selected: Option<usize>, super_set_selected: &mut dyn FnMut(&mut AbstractSelectionList, Option<usize>)) {
+        super_set_selected(list, selected);
+        if let Some(screen) = self.screen() {
+            ShortcutsConfigScreen::update_buttons_with(&screen, list);
         }
     }
 
+    /// java: @Override public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick)
+    fn mouse_clicked(&self, list: &mut ModSelectionList, event: &MouseButtonEvent, double_click: bool, super_mouse_clicked: &mut dyn FnMut(&mut ModSelectionList) -> bool) -> bool {
+        self.mouse_clicked_body(list, event, double_click, super_mouse_clicked)
+    }
 }
 
-impl<T: Clone + 'static> AbstractShortcutEntry for ShortcutCategoryEntry<T> {
-    fn abstract_shortcut_entry_base(&self) -> &AbstractShortcutEntryBase {
-        &self.base
+/// `addEntry(entry)` of a row object.
+fn add_entry(list: &mut AbstractSelectionList, entry: Box<dyn ModListEntry>) -> usize {
+    let mut row = Entry::new(0);
+    row.object = Some(ModListEntrySlot::new(entry));
+    list.add_entry(row)
+}
+
+/// `Shortcuts.shortcuts.getData()` - the live record (Java's `getData()` hands out the object itself).
+pub fn with_shortcuts_data<R>(f: impl FnOnce(&mut ShortcutsRecord) -> R) -> R {
+    let handle = shortcuts::SHORTCUTS.get().clone();
+    let guard = handle.lock();
+    let mut data = guard.borrow_mut();
+    f(data.json_data_base_mut().data.as_mut().expect("Shortcuts data"))
+}
+
+/// `entry instanceof ShortcutEntry<?> e` on a row object, `e` handed to `f`.
+pub fn with_shortcut_entry<R>(slot: &ModListEntrySlot, f: impl FnOnce(&mut dyn ShortcutEntry) -> R) -> Option<R> {
+    if slot.is::<CommandArgShortcutEntry>() {
+        return slot.with::<CommandArgShortcutEntry, _>(|e| f(e));
     }
-    fn abstract_shortcut_entry_base_mut(&mut self) -> &mut AbstractShortcutEntryBase {
-        &mut self.base
+    if slot.is::<CommandShortcutEntry>() {
+        return slot.with::<CommandShortcutEntry, _>(|e| f(e));
+    }
+    if slot.is::<KeybindShortcutEntry>() {
+        return slot.with::<KeybindShortcutEntry, _>(|e| f(e));
+    }
+    None
+}
+
+/// Any row of this list as an `AbstractShortcutEntry`.
+fn with_any_entry<R>(slot: &ModListEntrySlot, f: impl FnOnce(&mut dyn AbstractShortcutEntry) -> R) -> Option<R> {
+    if slot.is::<ShortcutCategoryEntry>() {
+        return slot.with::<ShortcutCategoryEntry, _>(|e| f(e));
+    }
+    if slot.is::<ShortcutLoadingEntry>() {
+        return slot.with::<ShortcutLoadingEntry, _>(|e| f(e));
+    }
+    if slot.is::<CommandArgShortcutEntry>() {
+        return slot.with::<CommandArgShortcutEntry, _>(|e| f(e));
+    }
+    if slot.is::<CommandShortcutEntry>() {
+        return slot.with::<CommandShortcutEntry, _>(|e| f(e));
+    }
+    if slot.is::<KeybindShortcutEntry>() {
+        return slot.with::<KeybindShortcutEntry, _>(|e| f(e));
+    }
+    None
+}
+
+/// java: public abstract static class AbstractShortcutEntry extends ContainerObjectSelectionList.Entry<AbstractShortcutEntry>
+pub trait AbstractShortcutEntry {
+    /// java: protected void updatePositions() (`width` is the list's)
+    fn update_positions(&mut self, width: i32) {
+        let _ = width;
+    }
+}
+
+/// java: AbstractShortcutEntry.mouseClicked - `super.mouseClicked(click, doubled); return true;` (`super` is the
+/// container row's: the children)
+fn abstract_entry_mouse_clicked(children: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, event: &MouseButtonEvent) -> bool {
+    children.mouse_clicked(event.button(), event.x(), event.y());
+    true
+}
+
+/// The category kinds: which map of `Shortcuts.shortcuts.getData()` a category edits, and which row class its
+/// `entrySupplier` makes (Java's `ShortcutCategoryEntry<T>` with its `entryFactory`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CategoryKind {
+    /// `ShortcutCategoryEntry<String>` over `commands()`, `CommandShortcutEntry::new`
+    Commands,
+    /// `ShortcutCategoryEntry<String>` over `commandArgs()`, `CommandArgShortcutEntry::new`
+    CommandArgs,
+    /// `ShortcutCategoryEntry<ShortcutKeyBinding>` over `keyBindings()`, `KeybindShortcutEntry::new`
+    KeyBindings,
+}
+
+/// java: protected class ShortcutCategoryEntry<T> - its fields, which the category's entries share (`category`)
+pub struct CategoryInfo {
+    /// java: private final Map<T, String> shortcutsMap; (the map of the live record this kind names)
+    pub kind: CategoryKind,
+    /// java: private final Component targetName;
+    pub target_name: MutableComponent,
+    /// java: private final Component replacementName;
+    pub replacement_name: MutableComponent,
+    /// java: private final @Nullable Component tooltip;
+    pub tooltip: Option<MutableComponent>,
+}
+
+// SAFETY: a category is made and read on the render thread only (the list's rows are; see `RowThread`).
+unsafe impl Send for CategoryInfo {}
+unsafe impl Sync for CategoryInfo {}
+
+impl CategoryInfo {
+    /// java: private final Supplier<ShortcutEntry<T>> entrySupplier; - `() -> entryFactory.apply(this)`
+    pub fn new_entry(self: &std::sync::Arc<CategoryInfo>, list: &AbstractSelectionList) -> Box<dyn ModListEntry> {
+        match self.kind {
+            CategoryKind::Commands => Box::new(CommandShortcutEntry::new(list, self.clone())),
+            CategoryKind::CommandArgs => Box::new(CommandArgShortcutEntry::new(list, self.clone())),
+            CategoryKind::KeyBindings => {
+                let mut entry = KeybindShortcutEntry::new(list, self.clone());
+                entry.update(list, usize::MAX);
+                Box::new(entry)
+            }
+        }
+    }
+}
+
+/// Pins a row object to the render thread: the game holds rows as `Send` objects, and a row's widgets are not -
+/// every method a row implements checks the thread first.
+pub struct RowThread(std::thread::ThreadId);
+
+impl RowThread {
+    fn new() -> RowThread {
+        RowThread(std::thread::current().id())
     }
 
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
+    fn check(&self) {
+        assert!(std::thread::current().id() == self.0, "a mod list row was reached off the render thread");
+    }
+}
+
+/// java: protected class ShortcutCategoryEntry<T> extends AbstractShortcutEntry
+pub struct ShortcutCategoryEntry {
+    /// the category's fields (`shortcutsMap`, `entrySupplier`, `targetName`, `replacementName`, `tooltip`)
+    pub category: std::sync::Arc<CategoryInfo>,
+    pub thread: RowThread,
+}
+
+// SAFETY: see `RowThread`.
+unsafe impl Send for ShortcutCategoryEntry {}
+
+impl ShortcutCategoryEntry {
+    /// java: private ShortcutCategoryEntry(Map<T, String> shortcutsMap, Function<..> entryFactory, String targetName, String replacementName[, String tooltip])
+    /// - ends in `addEntry(this)`
+    pub fn new(list: &mut AbstractSelectionList, kind: CategoryKind, target_name: &str, replacement_name: &str, tooltip: Option<&str>) -> std::sync::Arc<CategoryInfo> {
+        let category = std::sync::Arc::new(CategoryInfo {
+            kind,
+            target_name: component::translatable(target_name),
+            replacement_name: component::translatable(replacement_name),
+            tooltip: tooltip.map(component::translatable),
+        });
+        add_entry(list, Box::new(ShortcutCategoryEntry { category: category.clone(), thread: RowThread::new() }));
+        category
+    }
+}
+
+impl AbstractShortcutEntry for ShortcutCategoryEntry {}
+
+impl ModListEntry for ShortcutCategoryEntry {
+    /// java: @Override public void extractContent(GuiGraphicsExtractor graphics, int mouseX, int mouseY, boolean hovered, float a)
+    fn extract_content(&mut self, list: &mut ModSelectionList, index: usize, context: &mut WidgetRenderContext<'_>, mouse_x: i32, mouse_y: i32, _hovered: bool, _a: f32) {
+        self.thread.check();
+        let entry = list.list.entry(index);
+        gui_graphics_extractor::centered_text(context.gl, context.minecraft, &FormattedText::from(self.category.target_name.clone()), entry.get_content_x_middle() - 85, entry.get_y() + TEXT_Y_OFFSET, common_colors::WHITE);
+        gui_graphics_extractor::centered_text(context.gl, context.minecraft, &FormattedText::from(self.category.replacement_name.clone()), entry.get_content_x_middle() + 85, entry.get_y() + TEXT_Y_OFFSET, common_colors::WHITE);
+        if self.category.tooltip.is_some() && entry.is_mouse_over(mouse_x as f64, mouse_y as f64) {
+            // java: graphics.setTooltipForNextFrame(tooltip, mouseX, mouseY);
+            // rust: port gap - the frame's deferred tooltip is not reachable from a mod's list row (GAPS_batchE.md)
+        }
     }
 
+    /// java: @Override public List<? extends NarratableEntry> narratables() - one entry narrating `TITLE: targetName, replacementName`
+    fn get_narration(&self) -> FormattedText {
+        FormattedText::from(self.category.target_name.clone().append_str(", ").append(self.category.replacement_name.clone()))
+    }
+
+    /// java: @Override public List<? extends GuiEventListener> children() - `List.of()`
+    fn children(&mut self) -> Option<&mut mcrust::net::minecraft::client::gui::screens::screen::Screen> {
+        None
+    }
+
+    /// java: AbstractShortcutEntry.mouseClicked - `return true` (no children)
+    fn mouse_clicked(&mut self, _list: &mut ModSelectionList, _index: usize, _event: &MouseButtonEvent, _double_click: bool) -> bool {
+        true
+    }
 }
 
 /// java: private class ShortcutLoadingEntry extends AbstractShortcutEntry
 pub struct ShortcutLoadingEntry {
-    /// java: extends AbstractShortcutEntry
-    pub base: AbstractShortcutEntryBase,
     /// java: private final Component text;
     pub text: MutableComponent,
+    pub thread: RowThread,
 }
 
-impl std::ops::Deref for ShortcutLoadingEntry {
-    type Target = AbstractShortcutEntryBase;
-    fn deref(&self) -> &Self::Target {
-        &self.base
-    }
-}
-
-impl std::ops::DerefMut for ShortcutLoadingEntry {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.base
-    }
-}
+// SAFETY: see `RowThread`.
+unsafe impl Send for ShortcutLoadingEntry {}
 
 impl ShortcutLoadingEntry {
     /// java: private ShortcutLoadingEntry()
-    pub fn new() -> compat::Shared<Self> {
-        let __init_text = component::translatable("skyblocker.shortcuts.notLoaded");
-        let (_, __this) = AbstractShortcutEntryBase::new_in(move |__base| {
-            let __h = compat::shared(Self {
-                base: __base,
-                text: __init_text,
-            });
-            ((__h.clone() as compat::Shared<dyn AbstractShortcutEntry>), __h)
-        });
-        __this
+    pub fn new() -> ShortcutLoadingEntry {
+        ShortcutLoadingEntry { text: component::translatable("skyblocker.shortcuts.notLoaded"), thread: RowThread::new() }
     }
+}
 
-    /// java: @Override public List<? extends GuiEventListener> children()
-    pub fn children(__this: &compat::Shared<Self>) -> Vec<Box<dyn GuiEventListener>> {
-        return vec![];
-    }
+impl AbstractShortcutEntry for ShortcutLoadingEntry {}
 
-    /// java: @Override public List<? extends NarratableEntry> narratables()
-    pub fn narratables(__this: &compat::Shared<Self>) -> Vec<Box<dyn NarratableEntry>> {
-        // TODO(fabric2seer): `new NarratableEntry(..) {..}` (an anonymous class with state or several methods)
-        //   java: return List.of(new NarratableEntry() {
-        //   java: 				@Override
-        //   java: 				public NarrationPriority narrationPriority() {
-        //   java: 					return NarrationPriority.HOVERED;
-        //   java: 				}
-        //   java:
-        //   java: 				@Override
-        //   java: 				public void updateNarration(NarrationElementOutput builder) {
-        //   java: 					builder.add(NarratedElementType.TITLE, text);
-        //   java: 				}
-        //   java: 			});
-        todo!("fabric2seer: the value of this function is in a TODO above")
-    }
-
+impl ModListEntry for ShortcutLoadingEntry {
     /// java: @Override public void extractContent(GuiGraphicsExtractor graphics, int mouseX, int mouseY, boolean hovered, float a)
-    pub fn extract_content(__this: &compat::Shared<Self>, graphics: &GuiGraphicsExtractor, mut mouse_x: i32, mut mouse_y: i32, mut hovered: bool, mut a: f32) {
-        // TODO(fabric2seer): unknown name `minecraft`
-        //   java: graphics.centeredText(minecraft.font, text, this.getWidth() / 2, this.getY() + TEXT_Y_OFFSET, CommonColors.WHITE);
+    fn extract_content(&mut self, list: &mut ModSelectionList, index: usize, context: &mut WidgetRenderContext<'_>, _mouse_x: i32, _mouse_y: i32, _hovered: bool, _a: f32) {
+        self.thread.check();
+        let entry = list.list.entry(index);
+        gui_graphics_extractor::centered_text(context.gl, context.minecraft, &FormattedText::from(self.text.clone()), entry.get_width() / 2, entry.get_y() + TEXT_Y_OFFSET, common_colors::WHITE);
     }
 
-}
-
-impl AbstractShortcutEntry for ShortcutLoadingEntry {
-    fn abstract_shortcut_entry_base(&self) -> &AbstractShortcutEntryBase {
-        &self.base
-    }
-    fn abstract_shortcut_entry_base_mut(&mut self) -> &mut AbstractShortcutEntryBase {
-        &mut self.base
+    /// java: @Override public List<? extends NarratableEntry> narratables() - `TITLE: text`
+    fn get_narration(&self) -> FormattedText {
+        FormattedText::from(self.text.clone())
     }
 
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
+    /// java: AbstractShortcutEntry.mouseClicked - `return true` (no children)
+    fn mouse_clicked(&mut self, _list: &mut ModSelectionList, _index: usize, _event: &MouseButtonEvent, _double_click: bool) -> bool {
+        true
     }
-
-}
-
-/// ShortcutLoadingEntry's row box and its widgets, lent by its `compat::EntryAdapter` for each call
-impl compat::RowHalf for ShortcutLoadingEntry {
-    fn entry_half(&mut self) -> &mut mcrust::net::minecraft::client::gui::components::abstract_selection_list::Entry {
-        &mut self.base.base
-    }
-    fn row_parts(&mut self) -> (&mut mcrust::net::minecraft::client::gui::screens::screen::Screen, &mut compat::WidgetCache) {
-        let __s = &mut self.base;
-        (&mut __s.__row, &mut __s.__widgets)
-    }
-}
-
-/// ShortcutLoadingEntry as a row of the game's list (`addEntry` attaches it)
-impl ModListEntry for compat::EntryAdapter<ShortcutLoadingEntry> {
-    /// java: @Override public void extractContent(GuiGraphicsExtractor graphics, int mouseX, int mouseY, boolean hovered, float a)
-    fn extract_content(&mut self, list: &mut ModSelectionList, index: usize, context: &mut WidgetRenderContext<'_>, mouse_x: i32, mouse_y: i32, hovered: bool, a: f32) {
-        self.lend(Some(list.list.entry(index)), |__h| ShortcutLoadingEntry::extract_content(__h, &context.graphics, mouse_x, mouse_y, hovered, a));
-        // the row's widgets (Java's `child.extractRenderState(..)` over `children()`)
-        context.extract_widgets(&mut self.row, mouse_x, mouse_y);
-    }
-
-    fn children(&mut self) -> Option<&mut mcrust::net::minecraft::client::gui::screens::screen::Screen> {
-        Some(&mut self.row)
-    }
-
-    /// java: @Override public boolean mouseClicked(MouseButtonEvent click, boolean doubled)
-    fn mouse_clicked(&mut self, list: &mut ModSelectionList, index: usize, event: &MouseButtonEvent, double_click: bool) -> bool {
-        self.lend(Some(list.list.entry(index)), |__h| ({ let __f = compat::dispatch(__h, |__t| __t.mouse_clicked()); __f(&compat::view(__h, |a| a as compat::Shared<dyn AbstractShortcutEntry>), event, double_click) }))
-    }
-
 }
 
 /// java: protected abstract class ShortcutEntry<T> extends AbstractShortcutEntry
-pub struct ShortcutEntryBase<T> {
-    /// java: extends AbstractShortcutEntry
-    pub base: AbstractShortcutEntryBase,
+pub trait ShortcutEntry: AbstractShortcutEntry {
     /// java: protected final ShortcutCategoryEntry<T> category;
-    pub category: compat::Shared<ShortcutCategoryEntry<T>>,
-    /// java: protected final EditBox replacement;
-    pub replacement: EditBox,
-}
-
-impl<T: 'static> std::ops::Deref for ShortcutEntryBase<T> {
-    type Target = AbstractShortcutEntryBase;
-    fn deref(&self) -> &Self::Target {
-        &self.base
-    }
-}
-
-impl<T: 'static> std::ops::DerefMut for ShortcutEntryBase<T> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.base
-    }
-}
-
-impl<T: Clone + 'static> ShortcutEntryBase<T> {
-    /// java: private ShortcutEntry(ShortcutCategoryEntry<T> category, T targetKey) (built by the most-derived class's `wrap`, then run on its handle)
-    pub fn new_in<__R>(mut category: compat::Shared<ShortcutCategoryEntry<T>>, mut target_key: T, __wrap: impl FnOnce(Self) -> (compat::Shared<dyn ShortcutEntry>, __R)) -> (compat::Shared<dyn ShortcutEntry>, __R) {
-        let __init_category = category.clone();
-        // TODO(fabric2seer): `new` takes 5 argument(s) in the port (`splitter: &StringSplitter<W>, x: i32, y: i32, width: i32, height: i32`), Java passes 6
-        //   java: replacement = new EditBox(Minecraft.getInstance().font, width / 2 + 10, TEXT_Y_OFFSET, 150, 20, category.replacementName);
-        let (_, (__this, __r)) = AbstractShortcutEntryBase::new_in(move |__base| {
-            let this = Self {
-                base: __base,
-                category: __init_category,
-                replacement: todo!("fabric2seer: the field value (TODO above)"),
-            };
-            let (__h, __r) = __wrap(this);
-            ((__h.clone() as compat::Shared<dyn AbstractShortcutEntry>), (__h, __r))
-        });
-        __this.lock().borrow_mut().shortcut_entry_base_mut().replacement.set_max_length(256);
-        // TODO(fabric2seer): `set_value` takes 2 argument(s) in the port (`splitter: &StringSplitter<W>, value: &str`), Java passes 1
-        // rust: { let (__q0,) = (&category.lock().borrow().shortcuts_map.get(&target_key).cloned().unwrap_or_else(|| "".to_string()),); __this.lock().borrow_mut().shortcut_entry_base_mut().replacement.set_value(__q0) };
-        (__this, __r)
-    }
-
-}
-
-/// java: the virtual methods of ShortcutEntry (implemented by ShortcutEntryBase and every subclass)
-pub trait ShortcutEntry<T>: AbstractShortcutEntry {
-    fn shortcut_entry_base(&self) -> &ShortcutEntryBase<T>;
-    fn shortcut_entry_base_mut(&mut self) -> &mut ShortcutEntryBase<T>;
+    fn category(&self) -> std::sync::Arc<CategoryInfo>;
 
     /// java: protected abstract boolean isNotEmpty();
     fn is_not_empty(&self) -> bool;
@@ -660,304 +499,229 @@ pub trait ShortcutEntry<T>: AbstractShortcutEntry {
     /// java: protected abstract String key();
     fn key(&self) -> String;
 
-    /// java: @Override public void extractContent(GuiGraphicsExtractor graphics, int mouseX, int mouseY, boolean hovered, float a)
-    fn extract_content(&mut self, graphics: &mut GuiGraphicsExtractor, mut mouse_x: i32, mut mouse_y: i32, mut hovered: bool, mut a: f32) {
-        // TODO(fabric2seer): `set_y` takes 2 argument(s) in the port (`y: i32, splitter: &StringSplitter<W>`), Java passes 1
-        // rust: { let __s0 = (self.shortcut_entry_base().get_y()).wrapping_add(TEXT_FIELD_PADDING); self.shortcut_entry_base_mut().replacement.set_y(__s0) };
-        // TODO(fabric2seer): `extract_render_state` is a method of the port's trait `Renderable`, which the port's `EditBox` does not implement
-        // rust: self.shortcut_entry_base_mut().replacement.extract_render_state(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), mouse_x, mouse_y, a);
-        // TODO(fabric2seer): unknown name `minecraft`
-        //   java: graphics.centeredText(minecraft.font, "→", this.getX() + this.getWidth() / 2, this.getY() + TEXT_Y_OFFSET, CommonColors.WHITE);
-    }
-
+    /// java: toString() - the delete warning names the shortcut by it
+    fn to_display_string(&self) -> String;
 }
 
-// ShortcutEntry.updatePositions implements AbstractShortcutEntry.updatePositions: it is emitted in each concrete subclass's `impl AbstractShortcutEntry` (Rust has no inherited impls)
-/// java: protected class CommandShortcutEntry extends ShortcutEntry<String>
-pub struct CommandShortcutEntryBase {
-    /// java: extends ShortcutEntry
-    pub base: ShortcutEntryBase<String>,
-    /// java: private final List<EditBox> children;
-    pub children: Vec<EditBox>,
-    /// java: private final EditBox target;
-    pub target: Option<EditBox>,
+/// java: ShortcutEntry's fields: `category` and `replacement`, in the row's widgets (`children()`)
+pub struct ShortcutEntryBase {
+    /// java: protected final ShortcutCategoryEntry<T> category;
+    pub category: std::sync::Arc<CategoryInfo>,
+    /// the row's widgets (`children()`), the `EditBox`es and the key button
+    pub children: mcrust::net::minecraft::client::gui::screens::screen::Screen,
+    /// java: protected final EditBox replacement; (its position in `children`)
+    pub replacement: usize,
+    pub thread: RowThread,
 }
 
-impl std::ops::Deref for CommandShortcutEntryBase {
-    type Target = ShortcutEntryBase<String>;
-    fn deref(&self) -> &Self::Target {
-        &self.base
-    }
-}
-
-impl std::ops::DerefMut for CommandShortcutEntryBase {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.base
-    }
-}
-
-impl CommandShortcutEntryBase {
-    /// java: private CommandShortcutEntry(ShortcutCategoryEntry<String> category) (built by the most-derived class's `wrap`, then run on its handle)
-    pub fn new_in<__R>(mut category: compat::Shared<ShortcutCategoryEntry<String>>, __wrap: impl FnOnce(Self) -> (compat::Shared<dyn CommandShortcutEntry>, __R)) -> (compat::Shared<dyn CommandShortcutEntry>, __R) {
-        let (__this, __r) = Self::new_2_in(category.clone(), "".to_string(), __wrap);
-        (__this, __r)
-    }
-
-    /// java: private CommandShortcutEntry(ShortcutCategoryEntry<String> category)
-    pub fn new(mut category: compat::Shared<ShortcutCategoryEntry<String>>) -> compat::Shared<Self> {
-        Self::new_in(category, |this| {
-            let __h = compat::shared(this);
-            ((__h.clone() as compat::Shared<dyn CommandShortcutEntry>), __h)
-        }).1
-    }
-
-    /// java: private CommandShortcutEntry(ShortcutCategoryEntry<String> category, String targetString) (built by the most-derived class's `wrap`, then run on its handle)
-    pub fn new_2_in<__R>(mut category: compat::Shared<ShortcutCategoryEntry<String>>, mut target_string: String, __wrap: impl FnOnce(Self) -> (compat::Shared<dyn CommandShortcutEntry>, __R)) -> (compat::Shared<dyn CommandShortcutEntry>, __R) {
-        // TODO(fabric2seer): `new` takes 5 argument(s) in the port (`splitter: &StringSplitter<W>, x: i32, y: i32, width: i32, height: i32`), Java passes 6
-        //   java: target = new EditBox(Minecraft.getInstance().font, width / 2 - 160, TEXT_Y_OFFSET, 150, 20, category.targetName);
-        let this = Self {
-            base: ShortcutEntryBase::<String>::new(category.clone(), target_string.clone()),
-            children: Default::default(),
-            target: todo!("fabric2seer: the field value (TODO above)"),
+impl ShortcutEntryBase {
+    /// java: private ShortcutEntry(ShortcutCategoryEntry<T> category, T targetKey) - `replacement`, valued from the map
+    /// (the subclass puts it in `children` at Java's `List.of(.., replacement)` position)
+    fn new(list: &AbstractSelectionList, category: std::sync::Arc<CategoryInfo>, replacement_value: String) -> (ShortcutEntryBase, AbstractWidget) {
+        // java: replacement = new EditBox(font, width / 2 + 10, TEXT_Y_OFFSET, 150, 20, category.replacementName);
+        let mut replacement = compat::edit_box(list.get_width() / 2 + 10, TEXT_Y_OFFSET, 150, 20, category.replacement_name.clone());
+        compat::with_edit_box(&mut replacement, |e| e.set_max_length(256)); // same as chat
+        compat::set_edit_box_value(&mut replacement, &replacement_value);
+        let base = ShortcutEntryBase {
+            category,
+            children: mcrust::net::minecraft::client::gui::screens::screen::Screen::new(String::new()),
+            replacement: usize::MAX,
+            thread: RowThread::new(),
         };
-        let (__h, __r) = __wrap(this);
-        let __this = __h;
-        __this.lock().borrow_mut().command_shortcut_entry_base_mut().target.as_mut().unwrap().set_max_length(256);
-        // TODO(fabric2seer): `set_value` takes 2 argument(s) in the port (`splitter: &StringSplitter<W>, value: &str`), Java passes 1
-        // rust: __this.lock().borrow_mut().command_shortcut_entry_base_mut().target.as_mut().unwrap().set_value(&target_string);
-        { let __v = vec![compat::read(&__this, |__t| __t.command_shortcut_entry_base().target.clone()).unwrap(), compat::read(&__this, |__t| __t.command_shortcut_entry_base().replacement.clone())]; compat::write(&__this, |__t| __t.command_shortcut_entry_base_mut().children = __v); }
-        (__this, __r)
+        (base, replacement)
+    }
+
+    /// `replacement.getValue()`
+    pub fn replacement_value(&self) -> String {
+        compat::edit_box_value(self.children.widget(self.replacement))
+    }
+
+    /// java: ShortcutEntry.extractContent - `replacement` at the row's top, then the arrow
+    fn extract_content(&mut self, list: &ModSelectionList, index: usize, context: &WidgetRenderContext<'_>) {
+        let entry = list.list.entry(index);
+        self.children.widget_mut(self.replacement).set_y(entry.get_y() + TEXT_FIELD_PADDING);
+        gui_graphics_extractor::centered_text(context.gl, context.minecraft, &FormattedText::of("→"), entry.get_x() + entry.get_width() / 2, entry.get_y() + TEXT_Y_OFFSET, common_colors::WHITE);
+    }
+
+    /// java: ShortcutEntry.updatePositions
+    fn update_positions(&mut self, width: i32) {
+        self.children.widget_mut(self.replacement).set_x(width / 2 + 10);
+    }
+}
+
+/// java: protected class CommandShortcutEntry extends ShortcutEntry<String>
+pub struct CommandShortcutEntry {
+    /// java: extends ShortcutEntry<String>
+    pub base: ShortcutEntryBase,
+    /// java: private final EditBox target; (its position in `children` - `List.of(target, replacement)`)
+    pub target: usize,
+}
+
+// SAFETY: see `RowThread`.
+unsafe impl Send for CommandShortcutEntry {}
+
+impl CommandShortcutEntry {
+    /// java: private CommandShortcutEntry(ShortcutCategoryEntry<String> category)
+    pub fn new(list: &AbstractSelectionList, category: std::sync::Arc<CategoryInfo>) -> CommandShortcutEntry {
+        Self::new_2(list, category, "")
     }
 
     /// java: private CommandShortcutEntry(ShortcutCategoryEntry<String> category, String targetString)
-    pub fn new_2(mut category: compat::Shared<ShortcutCategoryEntry<String>>, mut target_string: String) -> compat::Shared<Self> {
-        Self::new_2_in(category, target_string, |this| {
-            let __h = compat::shared(this);
-            ((__h.clone() as compat::Shared<dyn CommandShortcutEntry>), __h)
-        }).1
+    pub fn new_2(list: &AbstractSelectionList, category: std::sync::Arc<CategoryInfo>, target_string: &str) -> CommandShortcutEntry {
+        // java: super(category, targetString); - replacement.setValue(category.shortcutsMap.getOrDefault(targetKey, ""))
+        let replacement_value = with_shortcuts_data(|data| match category.kind {
+            CategoryKind::CommandArgs => data.command_args.get(target_string).cloned(),
+            _ => data.commands.get(target_string).cloned(),
+        })
+        .unwrap_or_default();
+        let (mut base, replacement) = ShortcutEntryBase::new(list, category.clone(), replacement_value);
+        // java: target = new EditBox(font, width / 2 - 160, TEXT_Y_OFFSET, 150, 20, category.targetName);
+        let mut target = compat::edit_box(list.get_width() / 2 - 160, TEXT_Y_OFFSET, 150, 20, category.target_name.clone());
+        compat::with_edit_box(&mut target, |e| e.set_max_length(256)); // same as chat
+        compat::set_edit_box_value(&mut target, target_string);
+        // java: children = List.of(target, replacement);
+        let target = base.children.add_renderable_widget(target);
+        base.replacement = base.children.add_renderable_widget(replacement);
+        CommandShortcutEntry { base, target }
     }
 
+    /// `target.getValue()`
+    pub fn target_value(&self) -> String {
+        compat::edit_box_value(self.base.children.widget(self.target))
+    }
+
+    /// The map this row's category edits.
+    fn with_map<R>(&self, f: impl FnOnce(&mut std::collections::HashMap<String, String>) -> R) -> R {
+        let kind = self.base.category.kind;
+        with_shortcuts_data(|data| match kind {
+            CategoryKind::CommandArgs => f(&mut data.command_args),
+            _ => f(&mut data.commands),
+        })
+    }
+
+    fn extract(&mut self, list: &mut ModSelectionList, index: usize, context: &mut WidgetRenderContext<'_>, mouse_x: i32, mouse_y: i32) {
+        self.base.thread.check();
+        // java: super.extractContent(..); target.setY(this.getY() + TEXT_FIELD_PADDING); target.extractRenderState(..);
+        self.base.extract_content(list, index, context);
+        let y = list.list.entry(index).get_y();
+        self.base.children.widget_mut(self.target).set_y(y + TEXT_FIELD_PADDING);
+        context.extract_widgets(&mut self.base.children, mouse_x, mouse_y);
+    }
 }
 
-impl std::fmt::Display for CommandShortcutEntryBase {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.to_string())
-    }
-}
-
-/// java: the virtual methods of CommandShortcutEntry (implemented by CommandShortcutEntryBase and every subclass)
-pub trait CommandShortcutEntry: ShortcutEntry {
-    fn command_shortcut_entry_base(&self) -> &CommandShortcutEntryBase;
-    fn command_shortcut_entry_base_mut(&mut self) -> &mut CommandShortcutEntryBase;
-
-    /// java: @Override public String toString() (dispatch: the body for this class)
-    fn to_string(&self) -> fn(&compat::Shared<dyn CommandShortcutEntry>) -> String {
-        <dyn CommandShortcutEntry>::to_string_body
-    }
-
-    /// java: @Override public List<? extends GuiEventListener> children() (dispatch: the body for this class)
-    fn children(&self) -> fn(&compat::Shared<dyn CommandShortcutEntry>) -> Vec<Box<dyn GuiEventListener>> {
-        <dyn CommandShortcutEntry>::children_body
-    }
-
-    /// java: @Override public List<? extends NarratableEntry> narratables() (dispatch: the body for this class)
-    fn narratables(&self) -> fn(&compat::Shared<dyn CommandShortcutEntry>) -> Vec<Box<dyn NarratableEntry>> {
-        <dyn CommandShortcutEntry>::narratables_body
-    }
-
-}
-
-impl dyn CommandShortcutEntry {
-    /// java: @Override public String toString()
-    pub fn to_string_body(__this: &compat::Shared<dyn CommandShortcutEntry>) -> String {
-        return format!("{} → {}", __this.lock().borrow().command_shortcut_entry_base().target.as_ref().unwrap().get_value(), __this.lock().borrow().command_shortcut_entry_base().replacement.get_value());
-    }
-
-    /// java: @Override public List<? extends GuiEventListener> children()
-    pub fn children_body(__this: &compat::Shared<dyn CommandShortcutEntry>) -> Vec<Box<dyn GuiEventListener>> {
-        return compat::read(__this, |__t| __t.command_shortcut_entry_base().children.clone());
-    }
-
-    /// java: @Override public List<? extends NarratableEntry> narratables()
-    pub fn narratables_body(__this: &compat::Shared<dyn CommandShortcutEntry>) -> Vec<Box<dyn NarratableEntry>> {
-        return compat::read(__this, |__t| __t.command_shortcut_entry_base().children.clone());
-    }
-
-    /// java: @Override protected boolean isNotEmpty()
-    pub fn is_not_empty_body(__this: &compat::Shared<dyn CommandShortcutEntry>) -> bool {
-        return (!(__this.lock().borrow().command_shortcut_entry_base().target.as_ref().unwrap().get_value().is_empty()) && !(__this.lock().borrow().command_shortcut_entry_base().replacement.get_value().is_empty()));
-    }
-
-    /// java: @Override protected boolean isChanged()
-    pub fn is_changed_body(__this: &compat::Shared<dyn CommandShortcutEntry>) -> bool {
-        return (!(compat::read(__this, |__t| __t.command_shortcut_entry_base().category.clone()).lock().borrow().shortcuts_map.contains_key(&__this.lock().borrow().command_shortcut_entry_base().target.as_ref().unwrap().get_value())) || !(compat::read(__this, |__t| __t.command_shortcut_entry_base().category.clone()).lock().borrow().shortcuts_map.get(&__this.lock().borrow().command_shortcut_entry_base().target.as_ref().unwrap().get_value()).cloned().as_deref() == Some(&*(__this.lock().borrow().command_shortcut_entry_base().replacement.get_value()))));
-    }
-
-    /// java: @Override protected void save()
-    pub fn save_body(__this: &compat::Shared<dyn CommandShortcutEntry>) {
-        let __r0 = compat::read(__this, |__t| __t.command_shortcut_entry_base().category.clone());
-        __r0.lock().borrow_mut().shortcuts_map.insert(__this.lock().borrow().command_shortcut_entry_base().target.as_ref().unwrap().get_value(), __this.lock().borrow().command_shortcut_entry_base().replacement.get_value());
-    }
-
-    /// java: @Override protected String key()
-    pub fn key_body(__this: &compat::Shared<dyn CommandShortcutEntry>) -> String {
-        return __this.lock().borrow().command_shortcut_entry_base().target.as_ref().unwrap().get_value();
-    }
-
-    /// java: @Override public void extractContent(GuiGraphicsExtractor graphics, int mouseX, int mouseY, boolean hovered, float a)
-    pub fn extract_content_body(__this: &compat::Shared<dyn CommandShortcutEntry>, graphics: &mut GuiGraphicsExtractor, mut mouse_x: i32, mut mouse_y: i32, mut hovered: bool, mut a: f32) {
-        __this.base.extract_content(graphics, mouse_x, mouse_y, hovered, a);
-        // TODO(fabric2seer): `set_y` takes 2 argument(s) in the port (`y: i32, splitter: &StringSplitter<W>`), Java passes 1
-        // rust: { let (__q0,) = ((__this.lock().borrow().command_shortcut_entry_base().get_y()).wrapping_add(TEXT_FIELD_PADDING),); __this.lock().borrow_mut().command_shortcut_entry_base_mut().target.as_mut().unwrap().set_y(__q0) };
-        // TODO(fabric2seer): `extract_render_state` is a method of the port's trait `Renderable`, which the port's `EditBox` does not implement
-        // rust: { let (__q0, __q1, __q2, __q3, __q4,) = (mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), mouse_x, mouse_y, a,); __this.lock().borrow_mut().command_shortcut_entry_base_mut().target.as_mut().unwrap().extract_render_state(__q0, __q1, __q2, __q3, __q4) };
-    }
-
+impl AbstractShortcutEntry for CommandShortcutEntry {
     /// java: @Override protected void updatePositions()
-    pub fn update_positions_body(__this: &compat::Shared<dyn CommandShortcutEntry>) {
-        __this.base.update_positions();
-        // TODO(fabric2seer): `set_x` takes 2 argument(s) in the port (`x: i32, splitter: &StringSplitter<W>`), Java passes 1
-        // rust: let __r0 = compat::read(__this, |__t| __t.command_shortcut_entry_base().width);
-        // rust: { let (__q0,) = (((__r0).wrapping_div(2)).wrapping_sub(160),); __this.lock().borrow_mut().command_shortcut_entry_base_mut().target.as_mut().unwrap().set_x(__q0) };
+    fn update_positions(&mut self, width: i32) {
+        self.base.update_positions(width);
+        self.base.children.widget_mut(self.target).set_x(width / 2 - 160);
     }
-
-    /// CommandShortcutEntry.updatePositions as the dispatch of AbstractShortcutEntry.updatePositions for the concrete class `__C`
-    pub fn update_positions_from<__C: CommandShortcutEntry + 'static>(__this: &compat::Shared<dyn AbstractShortcutEntry>) {
-        <dyn CommandShortcutEntry>::update_positions_body(&compat::view_as::<__C, _, _>(__this, |a| a as compat::Shared<dyn CommandShortcutEntry>))
-    }
-
 }
 
-impl CommandShortcutEntry for CommandShortcutEntryBase {
-    fn command_shortcut_entry_base(&self) -> &CommandShortcutEntryBase {
-        &self
-    }
-    fn command_shortcut_entry_base_mut(&mut self) -> &mut CommandShortcutEntryBase {
-        &mut self
-    }
-
-}
-
-impl ShortcutEntry<String> for CommandShortcutEntryBase {
-    fn shortcut_entry_base(&self) -> &ShortcutEntryBase<String> {
-        &self.base
-    }
-    fn shortcut_entry_base_mut(&mut self) -> &mut ShortcutEntryBase<String> {
-        &mut self.base
+impl ShortcutEntry for CommandShortcutEntry {
+    fn category(&self) -> std::sync::Arc<CategoryInfo> {
+        self.base.category.clone()
     }
 
     /// java: @Override protected boolean isNotEmpty()
     fn is_not_empty(&self) -> bool {
-        return (!(self.target.as_ref().unwrap().get_value().is_empty()) && !(self.replacement.get_value().is_empty()));
+        return !self.target_value().is_empty() && !self.base.replacement_value().is_empty();
     }
 
     /// java: @Override protected boolean isChanged()
     fn is_changed(&self) -> bool {
-        return (!(self.category.lock().borrow().shortcuts_map.contains_key(&self.target.as_ref().unwrap().get_value())) || !(self.category.lock().borrow().shortcuts_map.get(&self.target.as_ref().unwrap().get_value()).cloned().as_deref() == Some(&*(self.replacement.get_value()))));
+        let (target, replacement) = (self.target_value(), self.base.replacement_value());
+        self.with_map(|map| !map.contains_key(&target) || map.get(&target).map(|v| *v != replacement).unwrap_or(true))
     }
 
     /// java: @Override protected void save()
     fn save(&self) {
-        let __h0 = self.target.as_ref().unwrap().get_value();
-        let __h1 = self.replacement.get_value();
-        self.category.lock().borrow_mut().shortcuts_map.insert(__h0, __h1);
+        let (target, replacement) = (self.target_value(), self.base.replacement_value());
+        self.with_map(|map| map.insert(target, replacement));
     }
 
     /// java: @Override protected String key()
     fn key(&self) -> String {
-        return self.target.as_ref().unwrap().get_value();
+        return self.target_value();
     }
 
-    /// java: @Override public void extractContent(GuiGraphicsExtractor graphics, int mouseX, int mouseY, boolean hovered, float a)
-    fn extract_content(&mut self, graphics: &mut GuiGraphicsExtractor, mut mouse_x: i32, mut mouse_y: i32, mut hovered: bool, mut a: f32) {
-        self.base.extract_content(graphics, mouse_x, mouse_y, hovered, a);
-        // TODO(fabric2seer): `set_y` takes 2 argument(s) in the port (`y: i32, splitter: &StringSplitter<W>`), Java passes 1
-        // rust: { let __s0 = self.get_y().wrapping_add(TEXT_FIELD_PADDING); self.target.as_mut().unwrap().set_y(__s0) };
-        // TODO(fabric2seer): `extract_render_state` is a method of the port's trait `Renderable`, which the port's `EditBox` does not implement
-        // rust: self.target.as_mut().unwrap().extract_render_state(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), mouse_x, mouse_y, a);
+    /// java: @Override public String toString()
+    fn to_display_string(&self) -> String {
+        return format!("{} → {}", self.target_value(), self.base.replacement_value());
     }
-
 }
 
-impl AbstractShortcutEntry for CommandShortcutEntryBase {
-    fn abstract_shortcut_entry_base(&self) -> &AbstractShortcutEntryBase {
-        &self.base.base
-    }
-    fn abstract_shortcut_entry_base_mut(&mut self) -> &mut AbstractShortcutEntryBase {
-        &mut self.base.base
+impl ModListEntry for CommandShortcutEntry {
+    /// java: @Override public void extractContent(GuiGraphicsExtractor graphics, int mouseX, int mouseY, boolean hovered, float a)
+    fn extract_content(&mut self, list: &mut ModSelectionList, index: usize, context: &mut WidgetRenderContext<'_>, mouse_x: i32, mouse_y: i32, _hovered: bool, _a: f32) {
+        self.extract(list, index, context, mouse_x, mouse_y);
     }
 
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
+    /// java: @Override public List<? extends GuiEventListener> children() - `List.of(target, replacement)`
+    fn children(&mut self) -> Option<&mut mcrust::net::minecraft::client::gui::screens::screen::Screen> {
+        Some(&mut self.base.children)
     }
 
-    /// java: @Override protected void updatePositions() (dispatch: the body for this class)
-    fn update_positions(&self) -> fn(&compat::Shared<dyn AbstractShortcutEntry>) {
-        <dyn CommandShortcutEntry>::update_positions_from::<Self>
+    /// java: AbstractShortcutEntry.mouseClicked
+    fn mouse_clicked(&mut self, _list: &mut ModSelectionList, _index: usize, event: &MouseButtonEvent, _double_click: bool) -> bool {
+        self.base.thread.check();
+        abstract_entry_mouse_clicked(&mut self.base.children, event)
     }
 
+    /// `ContainerEventHandler.keyPressed` - the focused child
+    fn key_pressed(&mut self, _list: &mut ModSelectionList, _index: usize, event: &KeyEvent) -> bool {
+        self.base.thread.check();
+        compat::children_key_pressed(&mut self.base.children, event)
+    }
+
+    /// `ContainerEventHandler.charTyped` - the focused child
+    fn char_typed(&mut self, _list: &mut ModSelectionList, _index: usize, event: &CharacterEvent) -> bool {
+        self.base.thread.check();
+        compat::children_char_typed(&mut self.base.children, event)
+    }
 }
 
 /// java: protected class CommandArgShortcutEntry extends CommandShortcutEntry
 pub struct CommandArgShortcutEntry {
     /// java: extends CommandShortcutEntry
-    pub base: CommandShortcutEntryBase,
+    pub base: CommandShortcutEntry,
 }
 
-impl std::ops::Deref for CommandArgShortcutEntry {
-    type Target = CommandShortcutEntryBase;
-    fn deref(&self) -> &Self::Target {
-        &self.base
-    }
-}
-
-impl std::ops::DerefMut for CommandArgShortcutEntry {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.base
-    }
-}
+// SAFETY: see `RowThread`.
+unsafe impl Send for CommandArgShortcutEntry {}
 
 impl CommandArgShortcutEntry {
     /// java: private CommandArgShortcutEntry(ShortcutCategoryEntry<String> category)
-    pub fn new(mut category: compat::Shared<ShortcutCategoryEntry<String>>) -> compat::Shared<Self> {
-        let (_, __this) = CommandShortcutEntryBase::new_in(category.clone(), move |__base| {
-            let __h = compat::shared(Self {
-                base: __base,
-            });
-            ((__h.clone() as compat::Shared<dyn CommandShortcutEntry>), __h)
-        });
-        __this
+    pub fn new(list: &AbstractSelectionList, category: std::sync::Arc<CategoryInfo>) -> CommandArgShortcutEntry {
+        CommandArgShortcutEntry { base: CommandShortcutEntry::new(list, category) }
     }
 
     /// java: private CommandArgShortcutEntry(ShortcutCategoryEntry<String> category, String targetString)
-    pub fn new_2(mut category: compat::Shared<ShortcutCategoryEntry<String>>, mut target_string: String) -> compat::Shared<Self> {
-        let (_, __this) = CommandShortcutEntryBase::new_2_in(category.clone(), target_string.clone(), move |__base| {
-            let __h = compat::shared(Self {
-                base: __base,
-            });
-            ((__h.clone() as compat::Shared<dyn CommandShortcutEntry>), __h)
-        });
-        __this
+    pub fn new_2(list: &AbstractSelectionList, category: std::sync::Arc<CategoryInfo>, target_string: &str) -> CommandArgShortcutEntry {
+        CommandArgShortcutEntry { base: CommandShortcutEntry::new_2(list, category, target_string) }
     }
-
 }
 
-impl CommandShortcutEntry for CommandArgShortcutEntry {
-    fn command_shortcut_entry_base(&self) -> &CommandShortcutEntryBase {
-        &self.base
+impl AbstractShortcutEntry for CommandArgShortcutEntry {
+    fn update_positions(&mut self, width: i32) {
+        self.base.update_positions(width);
     }
-    fn command_shortcut_entry_base_mut(&mut self) -> &mut CommandShortcutEntryBase {
-        &mut self.base
-    }
-
 }
 
-impl ShortcutEntry<compat::Object> for CommandArgShortcutEntry {
-    fn shortcut_entry_base(&self) -> &ShortcutEntryBase<compat::Object> {
-        &self.base.base
+impl ShortcutEntry for CommandArgShortcutEntry {
+    fn category(&self) -> std::sync::Arc<CategoryInfo> {
+        self.base.category()
     }
-    fn shortcut_entry_base_mut(&mut self) -> &mut ShortcutEntryBase<compat::Object> {
-        &mut self.base.base
+
+    fn is_not_empty(&self) -> bool {
+        self.base.is_not_empty()
+    }
+
+    fn is_changed(&self) -> bool {
+        self.base.is_changed()
+    }
+
+    fn save(&self) {
+        self.base.save()
     }
 
     /// java: @Override protected String key()
@@ -965,317 +729,263 @@ impl ShortcutEntry<compat::Object> for CommandArgShortcutEntry {
         return format!("arg{}", self.base.key());
     }
 
-    /// java: @Override protected boolean isNotEmpty()
-    fn is_not_empty(&self) -> bool {
-        return (!(self.target.as_ref().unwrap().get_value().is_empty()) && !(self.replacement.get_value().is_empty()));
-    }
-
-    /// java: @Override protected boolean isChanged()
-    fn is_changed(&self) -> bool {
-        return (!(self.category.lock().borrow().shortcuts_map.contains_key(&self.target.as_ref().unwrap().get_value())) || !(self.category.lock().borrow().shortcuts_map.get(&self.target.as_ref().unwrap().get_value()).cloned().as_deref() == Some(&*(self.replacement.get_value()))));
-    }
-
-    /// java: @Override protected void save()
-    fn save(&self) {
-        let __h0 = self.target.as_ref().unwrap().get_value();
-        let __h1 = self.replacement.get_value();
-        self.category.lock().borrow_mut().shortcuts_map.insert(__h0, __h1);
-    }
-
-}
-
-impl AbstractShortcutEntry for CommandArgShortcutEntry {
-    fn abstract_shortcut_entry_base(&self) -> &AbstractShortcutEntryBase {
-        &self.base.base.base
-    }
-    fn abstract_shortcut_entry_base_mut(&mut self) -> &mut AbstractShortcutEntryBase {
-        &mut self.base.base.base
-    }
-
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
-    }
-
-    /// java: @Override protected void updatePositions() (dispatch: the body for this class)
-    fn update_positions(&self) -> fn(&compat::Shared<dyn AbstractShortcutEntry>) {
-        <dyn CommandShortcutEntry>::update_positions_from::<Self>
-    }
-
-}
-
-/// CommandArgShortcutEntry's row box and its widgets, lent by its `compat::EntryAdapter` for each call
-impl compat::RowHalf for CommandArgShortcutEntry {
-    fn entry_half(&mut self) -> &mut mcrust::net::minecraft::client::gui::components::abstract_selection_list::Entry {
-        &mut self.base.base.base.base
-    }
-    fn row_parts(&mut self) -> (&mut mcrust::net::minecraft::client::gui::screens::screen::Screen, &mut compat::WidgetCache) {
-        let __s = &mut self.base.base.base;
-        (&mut __s.__row, &mut __s.__widgets)
+    fn to_display_string(&self) -> String {
+        self.base.to_display_string()
     }
 }
 
-/// CommandArgShortcutEntry as a row of the game's list (`addEntry` attaches it)
-impl ModListEntry for compat::EntryAdapter<CommandArgShortcutEntry> {
-    /// java: extractContent (not overridden here)
+impl ModListEntry for CommandArgShortcutEntry {
     fn extract_content(&mut self, list: &mut ModSelectionList, index: usize, context: &mut WidgetRenderContext<'_>, mouse_x: i32, mouse_y: i32, hovered: bool, a: f32) {
-        let _ = (list, index, hovered, a);
-        // the row's widgets (Java's `child.extractRenderState(..)` over `children()`)
-        context.extract_widgets(&mut self.row, mouse_x, mouse_y);
+        self.base.extract_content(list, index, context, mouse_x, mouse_y, hovered, a);
     }
 
     fn children(&mut self) -> Option<&mut mcrust::net::minecraft::client::gui::screens::screen::Screen> {
-        Some(&mut self.row)
+        self.base.children()
     }
 
-    /// java: @Override public boolean mouseClicked(MouseButtonEvent click, boolean doubled)
     fn mouse_clicked(&mut self, list: &mut ModSelectionList, index: usize, event: &MouseButtonEvent, double_click: bool) -> bool {
-        self.lend(Some(list.list.entry(index)), |__h| ({ let __f = compat::dispatch(__h, |__t| __t.mouse_clicked()); __f(&compat::view(__h, |a| a as compat::Shared<dyn AbstractShortcutEntry>), event, double_click) }))
+        self.base.mouse_clicked(list, index, event, double_click)
     }
 
+    fn key_pressed(&mut self, list: &mut ModSelectionList, index: usize, event: &KeyEvent) -> bool {
+        self.base.key_pressed(list, index, event)
+    }
+
+    fn char_typed(&mut self, list: &mut ModSelectionList, index: usize, event: &CharacterEvent) -> bool {
+        self.base.char_typed(list, index, event)
+    }
 }
 
 /// java: protected class KeybindShortcutEntry extends ShortcutEntry<ShortcutKeyBinding>
 pub struct KeybindShortcutEntry {
-    /// java: extends ShortcutEntry
-    pub base: ShortcutEntryBase<compat::Shared<ShortcutKeyBinding>>,
-    /// java: private final List<AbstractWidget> children;
-    pub children: Vec<AbstractWidget>,
-    /// java: private final ShortcutKeyBinding keyBinding;
-    pub key_binding: Option<compat::Shared<ShortcutKeyBinding>>,
-    /// java: private final KeybindWidget keybindButton;
-    pub keybind_button: Option<KeybindWidget>,
+    /// java: extends ShortcutEntry<ShortcutKeyBinding>
+    pub base: ShortcutEntryBase,
+    /// java: private final ShortcutKeyBinding keyBinding; - shared with `keybindButton`, which edits it
+    pub key_binding: compat::Shared<ShortcutKeyBinding>,
+    /// java: private final KeybindWidget keybindButton; (the object, and its position in `children`)
+    pub keybind_button: compat::Shared<KeybindWidget>,
+    pub keybind_button_index: usize,
     /// java: private boolean conflicting = false;
     pub conflicting: bool,
     /// java: private boolean duplicate = false;
     pub duplicate: bool,
-    /// the object's own shared handle: Java's `this` handed to other objects
-    pub self_ref: compat::WeakShared<Self>,
+    /// `ShortcutsConfigListWidget.this::updateKeybinds`, which the button's update listener runs: the button is
+    /// reached through this row's own call, so the listener marks it and the row runs it as the call returns
+    pub update_requested: std::rc::Rc<std::cell::Cell<bool>>,
 }
 
-impl std::ops::Deref for KeybindShortcutEntry {
-    type Target = ShortcutEntryBase<compat::Shared<ShortcutKeyBinding>>;
-    fn deref(&self) -> &Self::Target {
-        &self.base
-    }
-}
-
-impl std::ops::DerefMut for KeybindShortcutEntry {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.base
-    }
-}
+// SAFETY: see `RowThread`.
+unsafe impl Send for KeybindShortcutEntry {}
 
 impl KeybindShortcutEntry {
     /// java: private KeybindShortcutEntry(ShortcutCategoryEntry<ShortcutKeyBinding> category)
-    pub fn new(mut category: compat::Shared<ShortcutCategoryEntry<compat::Shared<ShortcutKeyBinding>>>) -> compat::Shared<Self> {
-        let __this = Self::new_2(category.clone(), ShortcutKeyBinding::new(vec![mcrust::com::mojang::blaze3d::platform::input_constants::unknown()]));
-        __this
+    pub fn new(list: &AbstractSelectionList, category: std::sync::Arc<CategoryInfo>) -> KeybindShortcutEntry {
+        Self::new_2(list, category, ShortcutKeyBinding::new(vec![input_constants::unknown()]))
     }
 
-    /// java: @SuppressWarnings("JavadocReference") private KeybindShortcutEntry(ShortcutCategoryEntry<ShortcutKeyBinding> category, ShortcutKeyBinding keyBinding)
-    pub fn new_2(mut category: compat::Shared<ShortcutCategoryEntry<compat::Shared<ShortcutKeyBinding>>>, mut key_binding: compat::Shared<ShortcutKeyBinding>) -> compat::Shared<Self> {
-        let __init_key_binding = Some(key_binding.clone());
-        let __this = compat::shared(Self {
-            base: ShortcutEntryBase::<compat::Shared<ShortcutKeyBinding>>::new(category.clone(), key_binding.clone()),
-            self_ref: std::sync::Weak::new(),
-            children: Default::default(),
-            key_binding: __init_key_binding,
-            keybind_button: None,
-            conflicting: false,
-            duplicate: false,
-        });
-        compat::write(&__this, |__t| __t.self_ref = std::sync::Arc::downgrade(&__this));
-        // TODO(fabric2seer): `.get(..)` on a value of unknown type
-        //   java: keybindButton = new KeybindWidget(keyBinding, width / 2 - 160, TEXT_Y_OFFSET, 150, 20, keyBinding.getBoundKeysText(),
-        //   java: 					textSupplier -> keyBinding.isUnbound()
-        //   java: 							? Component.translatable("narrator.controls.unbound", replacement.getValue())
-        //   java: 							: Component.translatable("narrator.controls.bound", replacement.getValue(), textSupplier.get()),
-        //   java: 					ShortcutsConfigListWidget.this::updateKeybinds);
-        // TODO(fabric2seer): `ShortcutsConfigListWidget.this` (the enclosing instance of an inner class)
-        //   java: replacement.setResponder(_ -> ShortcutsConfigListWidget.this.updateKeybinds());
-        { let __v = vec![compat::read(&__this, |__t| __t.keybind_button.clone()).unwrap(), compat::read(&__this, |__t| __t.replacement.clone())]; compat::write(&__this, |__t| __t.children = __v); }
-        KeybindShortcutEntry::update(&__this);
-        __this
+    /// java: private KeybindShortcutEntry(ShortcutCategoryEntry<ShortcutKeyBinding> category, ShortcutKeyBinding keyBinding)
+    /// (its closing `update()` needs the list's other rows: the caller runs it once the row has a position)
+    pub fn new_2(list: &AbstractSelectionList, category: std::sync::Arc<CategoryInfo>, key_binding: ShortcutKeyBinding) -> KeybindShortcutEntry {
+        // java: super(category, keyBinding);
+        let replacement_value = with_shortcuts_data(|data| data.key_bindings.get(&key_binding).cloned()).unwrap_or_default();
+        let (mut base, replacement) = ShortcutEntryBase::new(list, category, replacement_value);
+        let bound_keys_text = key_binding.get_bound_keys_text();
+        let key_binding = compat::shared(key_binding);
+        let update_requested = std::rc::Rc::new(std::cell::Cell::new(false));
+        let request = update_requested.clone();
+        // java: keybindButton = new KeybindWidget(keyBinding, width / 2 - 160, TEXT_Y_OFFSET, 150, 20, keyBinding.getBoundKeysText(),
+        //   textSupplier -> keyBinding.isUnbound() ? translatable("narrator.controls.unbound", replacement.getValue())
+        //                                          : translatable("narrator.controls.bound", replacement.getValue(), textSupplier.get()),
+        //   ShortcutsConfigListWidget.this::updateKeybinds);
+        // rust: port gap - the narration supplier reads `replacement` and `keyBinding` live in Java; the port's
+        //   `CreateNarration` is data, so the default narration stands (GAPS_batchE.md)
+        let keybind_button = KeybindWidget::new(key_binding.clone(), list.get_width() / 2 - 160, TEXT_Y_OFFSET, 150, 20, bound_keys_text, Arc::new(move || request.set(true)));
+        // java: replacement.setResponder(_ -> ShortcutsConfigListWidget.this.updateKeybinds()); - see `run_requested_update`
+        // java: children = List.of(keybindButton, replacement);
+        let keybind_button_index = base.children.add_renderable_widget(KeybindWidget::widget(keybind_button.clone()));
+        base.replacement = base.children.add_renderable_widget(replacement);
+        KeybindShortcutEntry { base, key_binding, keybind_button, keybind_button_index, conflicting: false, duplicate: false, update_requested }
     }
 
-    /// java: @Override public String toString()
-    pub fn to_string(&self) -> String {
-        return format!("{} → {}", ShortcutKeyBinding::get_bound_keys_text(self.key_binding.as_ref().unwrap()).get_string(), self.replacement.get_value());
+    /// The key button's message (`getMessage()`): the widget half the game holds.
+    fn button_message(&self) -> MutableComponent {
+        let widget = self.base.children.widget(self.keybind_button_index);
+        match &widget.message_text {
+            Some(text) => compat::component_of(text.clone()),
+            None => component::literal(&widget.message),
+        }
     }
 
-    /// java: @Override public List<? extends GuiEventListener> children()
-    pub fn children(__this: &compat::Shared<Self>) -> Vec<Box<dyn GuiEventListener>> {
-        return compat::read(__this, |__t| __t.children.clone());
+    /// `keybindButton.setMessage(message)`
+    fn set_button_message(&mut self, message: MutableComponent) {
+        self.base.children.widget_mut(self.keybind_button_index).set_message_text(FormattedText::from(message));
     }
 
-    /// java: @Override public List<? extends NarratableEntry> narratables()
-    pub fn narratables(__this: &compat::Shared<Self>) -> Vec<Box<dyn NarratableEntry>> {
-        return compat::read(__this, |__t| __t.children.clone());
-    }
-
-    /// java: protected void update()
-    pub fn update(__this: &compat::Shared<Self>) {
-        let __r0 = compat::read(__this, |__t| __t.key_binding.clone());
-        { let (__q0,) = (mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(ShortcutKeyBinding::get_bound_keys_text(&__r0.unwrap())),); __this.lock().borrow_mut().keybind_button.as_mut().unwrap().set_message_text(__q0) };
-        { let __v = false; compat::write(__this, |__t| __t.conflicting = __v); }
-        { let __v = false; compat::write(__this, |__t| __t.duplicate = __v); }
+    /// java: protected void update() (`index` is this row's position: Java's `keyBinding != other.keyBinding` skips it)
+    pub fn update(&mut self, list: &AbstractSelectionList, index: usize) {
+        let key_binding: ShortcutKeyBinding = compat::read(&self.key_binding, |k| k.clone());
+        self.set_button_message(key_binding.get_bound_keys_text());
+        self.conflicting = false;
+        self.duplicate = false;
         let mut conflict_text: MutableComponent = component::empty();
         let mut duplicate_text: MutableComponent = component::empty();
-        if !(ShortcutKeyBinding::is_unbound(&compat::read(__this, |__t| __t.key_binding.clone()).unwrap())) {
-            // TODO(fabric2seer): unknown name `minecraft`
-            //   java: for (KeyMapping otherKeyBinding : minecraft.options.keyMappings) {
-            //   java: 					if (keyBinding.getBoundKeysTranslationKey().contains(otherKeyBinding.saveString())) {
-            //   java: 						if (conflicting) {
-            //   java: 							conflictText.append(", ");
-            //   java: 						}
-            //   java: 						conflicting = true;
-            //   java: 						conflictText.append(Component.translatable(otherKeyBinding.getName()));
-            //   java: 					}
-            //   java: 				}
-            // TODO(fabric2seer): `ShortcutsConfigListWidget.this` (the enclosing instance of an inner class)
-            //   java: for (AbstractShortcutEntry shortcut : ShortcutsConfigListWidget.this.children()) {
-            //   java: 					if (shortcut instanceof KeybindShortcutEntry keyBindingShortcut && keyBinding != keyBindingShortcut.keyBinding && keyBinding.equals(keyBindingShortcut.keyBinding)) {
-            //   java: 						if (duplicate) {
-            //   java: 							duplicateText.append(", ");
-            //   java: 						}
-            //   java: 						duplicate = true;
-            //   java: 						// We display the replacement command to help users identify which shortcuts have conflicting keybinds.
-            //   java: 						duplicateText.append(keyBindingShortcut.replacement.getValue());
-            //   java: 					}
-            //   java: 				}
+        if !key_binding.is_unbound() {
+            // Check for conflicts with regular keybinds
+            let names = key_binding.get_bound_keys_translation_key();
+            for other_key_binding in mcrust::net::minecraft::client::key_mapping::key_mappings() {
+                // java: otherKeyBinding.saveString() - the mapping's live key
+                let save_string = mcrust::net::minecraft::client::key_mapping::key_of(other_key_binding.get_name()).map(|k| k.get_name().to_string()).unwrap_or_else(|| other_key_binding.save_string().to_string());
+                if names.contains(&save_string) {
+                    if self.conflicting {
+                        conflict_text = conflict_text.append_str(", ");
+                    }
+                    self.conflicting = true;
+                    conflict_text = conflict_text.append(component::translatable(other_key_binding.get_name()));
+                }
+            }
+            // Check for conflicts with other keybind shortcuts
+            for i in 0..list.entry_count() {
+                if i == index {
+                    continue;
+                }
+                let Some(other) = list.entry_object(i).and_then(|slot| slot.with::<KeybindShortcutEntry, _>(|e| (compat::read(&e.key_binding, |k| k.clone()), e.base.replacement_value()))) else {
+                    continue;
+                };
+                if key_binding == other.0 {
+                    if self.duplicate {
+                        duplicate_text = duplicate_text.append_str(", ");
+                    }
+                    self.duplicate = true;
+                    // We display the replacement command to help users identify which shortcuts have conflicting keybinds.
+                    duplicate_text = duplicate_text.append_str(&other.1);
+                }
+            }
         }
-        if compat::read(__this, |__t| __t.duplicate) {
-            { let (__q0,) = (mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::literal("[ ").append(compat::component_of(__this.lock().borrow().keybind_button.as_ref().unwrap().get_message_component()).copy().with_style_format(ChatFormatting::White)).append_str(" ]").with_color_text(mcrust::net::minecraft::network::chat::text_color::TextColor::RED)),); __this.lock().borrow_mut().keybind_button.as_mut().unwrap().set_message_text(__q0) };
-            { let (__q0,) = (Tooltip::create((component::translatable_args("skyblocker.shortcuts.keyBinding.duplicate", vec![mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(duplicate_text.clone())])).get_string()),); __this.lock().borrow_mut().keybind_button.as_mut().unwrap().set_tooltip(__q0) };
-        } else if compat::read(__this, |__t| __t.conflicting) {
-            { let (__q0,) = (mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::literal("[ ").append(compat::component_of(__this.lock().borrow().keybind_button.as_ref().unwrap().get_message_component()).copy().with_style_format(ChatFormatting::White)).append_str(" ]").with_color_text(mcrust::net::minecraft::network::chat::text_color::TextColor::YELLOW)),); __this.lock().borrow_mut().keybind_button.as_mut().unwrap().set_message_text(__q0) };
-            { let (__q0,) = (Tooltip::create((component::translatable_args("controls.keybinds.duplicateKeybinds", vec![mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(conflict_text.clone())])).get_string()),); __this.lock().borrow_mut().keybind_button.as_mut().unwrap().set_tooltip(__q0) };
+        let tooltip: Option<Tooltip>;
+        if self.duplicate {
+            let message = component::literal("[ ").append(self.button_message().with_style_format(ChatFormatting::White)).append_str(" ]").with_color_text(TextColor::RED);
+            self.set_button_message(message);
+            tooltip = Some(Tooltip::create_text(FormattedText::from(component::translatable_args("skyblocker.shortcuts.keyBinding.duplicate", vec![FormattedText::from(duplicate_text)]))));
+        } else if self.conflicting {
+            let message = component::literal("[ ").append(self.button_message().with_style_format(ChatFormatting::White)).append_str(" ]").with_color_text(TextColor::YELLOW);
+            self.set_button_message(message);
+            tooltip = Some(Tooltip::create_text(FormattedText::from(component::translatable_args("controls.keybinds.duplicateKeybinds", vec![FormattedText::from(conflict_text)]))));
         } else {
-            __this.lock().borrow_mut().keybind_button.as_mut().unwrap().set_tooltip(None);
+            tooltip = None;
         }
-        if __this.lock().borrow().keybind_button.as_ref().unwrap().is_editing() {
-            { let (__q0,) = (mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from((component::literal("> ")).append(compat::component_of(__this.lock().borrow().keybind_button.as_ref().unwrap().get_message_component()).copy().with_style_formats(&[ChatFormatting::White, ChatFormatting::Underline])).append_str(" <").with_style_format(ChatFormatting::Yellow)),); __this.lock().borrow_mut().keybind_button.as_mut().unwrap().set_message_text(__q0) };
+        let button = self.base.children.widget_mut(self.keybind_button_index);
+        match tooltip {
+            Some(tooltip) => button.set_tooltip(tooltip),
+            // java: keybindButton.setTooltip(null);
+            None => button.tooltip = None,
+        }
+        if compat::read(&self.keybind_button, |b| b.is_editing()) {
+            let message = component::literal("> ").append(self.button_message().with_style_formats(&[ChatFormatting::White, ChatFormatting::Underline])).append_str(" <").with_style_format(ChatFormatting::Yellow);
+            self.set_button_message(message);
         }
     }
 
     /// java: protected boolean stopEditing()
-    pub fn stop_editing(__this: &compat::Shared<Self>) -> bool {
-        return __this.lock().borrow_mut().keybind_button.as_mut().unwrap().stop_editing();
+    pub fn stop_editing(&mut self) -> bool {
+        return compat::write(&self.keybind_button, |b| b.stop_editing());
     }
 
+    /// After a call into the row's widgets: the key button's update listener and the replacement's responder
+    /// (`ShortcutsConfigListWidget.this::updateKeybinds`), which ran inside it.
+    fn run_requested_update(&mut self, list: &ModSelectionList, index: usize, replacement_before: &str) {
+        if self.update_requested.replace(false) || self.base.replacement_value() != replacement_before {
+            ShortcutsConfigListWidget::update_keybinds(&list.list, Some((index, self)));
+        }
+    }
 }
 
-impl std::fmt::Display for KeybindShortcutEntry {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", KeybindShortcutEntry::to_string(self))
+impl AbstractShortcutEntry for KeybindShortcutEntry {
+    /// java: @Override protected void updatePositions()
+    fn update_positions(&mut self, width: i32) {
+        self.base.update_positions(width);
+        self.base.children.widget_mut(self.keybind_button_index).set_x(width / 2 - 160);
     }
 }
 
-impl ShortcutEntry<compat::Shared<crate::de::hysky::skyblocker::skyblock::shortcut::shortcut_key_binding::ShortcutKeyBinding>> for KeybindShortcutEntry {
-    fn shortcut_entry_base(&self) -> &ShortcutEntryBase<compat::Shared<crate::de::hysky::skyblocker::skyblock::shortcut::shortcut_key_binding::ShortcutKeyBinding>> {
-        &self.base
-    }
-    fn shortcut_entry_base_mut(&mut self) -> &mut ShortcutEntryBase<compat::Shared<crate::de::hysky::skyblocker::skyblock::shortcut::shortcut_key_binding::ShortcutKeyBinding>> {
-        &mut self.base
+impl ShortcutEntry for KeybindShortcutEntry {
+    fn category(&self) -> std::sync::Arc<CategoryInfo> {
+        self.base.category.clone()
     }
 
     /// java: @Override protected boolean isNotEmpty()
     fn is_not_empty(&self) -> bool {
-        return (!(ShortcutKeyBinding::is_unbound(self.key_binding.as_ref().unwrap())) && !(self.replacement.get_value().is_empty()));
+        return !compat::read(&self.key_binding, |k| k.is_unbound()) && !self.base.replacement_value().is_empty();
     }
 
     /// java: @Override protected boolean isChanged()
     fn is_changed(&self) -> bool {
-        return (!(self.category.lock().borrow().shortcuts_map.contains_key(self.key_binding.as_ref().unwrap())) || !(self.category.lock().borrow().shortcuts_map.get(self.key_binding.as_ref().unwrap()).cloned().as_deref() == Some(&*(self.replacement.get_value()))));
+        let (key_binding, replacement) = (compat::read(&self.key_binding, |k| k.clone()), self.base.replacement_value());
+        with_shortcuts_data(|data| !data.key_bindings.contains_key(&key_binding) || data.key_bindings.get(&key_binding).map(|v| *v != replacement).unwrap_or(true))
     }
 
     /// java: @Override protected void save()
     fn save(&self) {
-        let __h0 = self.key_binding.clone().unwrap();
-        let __h1 = self.replacement.get_value();
-        self.category.lock().borrow_mut().shortcuts_map.insert(__h0, __h1);
+        let (key_binding, replacement) = (compat::read(&self.key_binding, |k| k.clone()), self.base.replacement_value());
+        with_shortcuts_data(|data| data.key_bindings.insert(key_binding, replacement));
     }
 
-    /// java: @Override protected String key()
+    /// java: @Override protected String key() - `keyBinding.getBoundKeysTranslationKey().toString()` (a `List`'s `[a, b]`)
     fn key(&self) -> String {
-        return format!("{:?}", ShortcutKeyBinding::get_bound_keys_translation_key(self.key_binding.as_ref().unwrap()));
+        return format!("[{}]", compat::read(&self.key_binding, |k| k.get_bound_keys_translation_key()).join(", "));
     }
 
+    /// java: @Override public String toString() - used in the delete warning screen, so the localized text
+    fn to_display_string(&self) -> String {
+        return format!("{} → {}", compat::read(&self.key_binding, |k| k.get_bound_keys_text()).get_string(), self.base.replacement_value());
+    }
+}
+
+impl ModListEntry for KeybindShortcutEntry {
     /// java: @Override public void extractContent(GuiGraphicsExtractor graphics, int mouseX, int mouseY, boolean hovered, float a)
-    fn extract_content(&mut self, graphics: &mut GuiGraphicsExtractor, mut mouse_x: i32, mut mouse_y: i32, mut hovered: bool, mut a: f32) {
-        self.base.extract_content(graphics, mouse_x, mouse_y, hovered, a);
-        { let __s0 = self.get_y().wrapping_add(TEXT_FIELD_PADDING); self.keybind_button.as_mut().unwrap().set_y(__s0) };
-        // TODO(fabric2seer): `extract_render_state` is a method of the port's trait `Renderable`, which the port's `AbstractWidget` does not implement
-        // rust: self.keybind_button.as_mut().unwrap().extract_render_state(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), mouse_x, mouse_y, a);
+    fn extract_content(&mut self, list: &mut ModSelectionList, index: usize, context: &mut WidgetRenderContext<'_>, mouse_x: i32, mouse_y: i32, _hovered: bool, _a: f32) {
+        self.base.thread.check();
+        // java: super.extractContent(..); keybindButton.setY(this.getY() + TEXT_FIELD_PADDING); keybindButton.extractRenderState(..);
+        self.base.extract_content(list, index, context);
+        let entry = list.list.entry(index);
+        let (y, height) = (entry.get_y(), entry.get_height());
+        self.base.children.widget_mut(self.keybind_button_index).set_y(y + TEXT_FIELD_PADDING);
+        context.extract_widgets(&mut self.base.children, mouse_x, mouse_y);
         if self.conflicting || self.duplicate {
-            let mut color: i32 = (if self.duplicate { mcrust::net::minecraft::util::common_colors::RED } else { mcrust::net::minecraft::util::common_colors::YELLOW });
-            graphics.fill(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), (self.keybind_button.as_ref().unwrap().get_x()).wrapping_sub(6), self.get_y(), (self.keybind_button.as_ref().unwrap().get_x()).wrapping_sub(3), self.get_y().wrapping_add(self.get_height()), color);
+            let color: i32 = if self.duplicate { common_colors::RED } else { common_colors::YELLOW };
+            let x = self.base.children.widget(self.keybind_button_index).get_x();
+            context.graphics.fill(context.gl, x - 6, y, x - 3, y + height, color);
         }
     }
 
-}
-
-impl AbstractShortcutEntry for KeybindShortcutEntry {
-    fn abstract_shortcut_entry_base(&self) -> &AbstractShortcutEntryBase {
-        &self.base.base
-    }
-    fn abstract_shortcut_entry_base_mut(&mut self) -> &mut AbstractShortcutEntryBase {
-        &mut self.base.base
-    }
-
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
-    }
-
-    /// java: @Override protected void updatePositions() (dispatch: the body for this class)
-    fn update_positions(&self) -> fn(&compat::Shared<dyn AbstractShortcutEntry>) {
-        KeybindShortcutEntry::update_positions_dyn
-    }
-
-}
-
-impl KeybindShortcutEntry {
-    /// java: @Override protected void updatePositions()
-    pub fn update_positions_impl(__this: &compat::Shared<Self>) {
-        __this.base.update_positions();
-        let __r0 = compat::read(__this, |__t| __t.width);
-        { let (__q0,) = (((__r0).wrapping_div(2)).wrapping_sub(160),); __this.lock().borrow_mut().keybind_button.as_mut().unwrap().set_x(__q0) };
-    }
-
-    /// KeybindShortcutEntry.updatePositions as the dispatch of AbstractShortcutEntry.updatePositions
-    pub fn update_positions_dyn(__this: &compat::Shared<dyn AbstractShortcutEntry>) {
-        Self::update_positions_impl(&compat::view_as::<Self, _, Self>(__this, |a| a))
-    }
-
-}
-
-/// KeybindShortcutEntry's row box and its widgets, lent by its `compat::EntryAdapter` for each call
-impl compat::RowHalf for KeybindShortcutEntry {
-    fn entry_half(&mut self) -> &mut mcrust::net::minecraft::client::gui::components::abstract_selection_list::Entry {
-        &mut self.base.base.base
-    }
-    fn row_parts(&mut self) -> (&mut mcrust::net::minecraft::client::gui::screens::screen::Screen, &mut compat::WidgetCache) {
-        let __s = &mut self.base.base;
-        (&mut __s.__row, &mut __s.__widgets)
-    }
-}
-
-/// KeybindShortcutEntry as a row of the game's list (`addEntry` attaches it)
-impl ModListEntry for compat::EntryAdapter<KeybindShortcutEntry> {
-    /// java: extractContent (not overridden here)
-    fn extract_content(&mut self, list: &mut ModSelectionList, index: usize, context: &mut WidgetRenderContext<'_>, mouse_x: i32, mouse_y: i32, hovered: bool, a: f32) {
-        let _ = (list, index, hovered, a);
-        // the row's widgets (Java's `child.extractRenderState(..)` over `children()`)
-        context.extract_widgets(&mut self.row, mouse_x, mouse_y);
-    }
-
+    /// java: @Override public List<? extends GuiEventListener> children() - `List.of(keybindButton, replacement)`
     fn children(&mut self) -> Option<&mut mcrust::net::minecraft::client::gui::screens::screen::Screen> {
-        Some(&mut self.row)
+        Some(&mut self.base.children)
     }
 
-    /// java: @Override public boolean mouseClicked(MouseButtonEvent click, boolean doubled)
-    fn mouse_clicked(&mut self, list: &mut ModSelectionList, index: usize, event: &MouseButtonEvent, double_click: bool) -> bool {
-        self.lend(Some(list.list.entry(index)), |__h| ({ let __f = compat::dispatch(__h, |__t| __t.mouse_clicked()); __f(&compat::view(__h, |a| a as compat::Shared<dyn AbstractShortcutEntry>), event, double_click) }))
+    /// java: AbstractShortcutEntry.mouseClicked
+    fn mouse_clicked(&mut self, list: &mut ModSelectionList, index: usize, event: &MouseButtonEvent, _double_click: bool) -> bool {
+        self.base.thread.check();
+        let before = self.base.replacement_value();
+        let answer = abstract_entry_mouse_clicked(&mut self.base.children, event);
+        self.run_requested_update(list, index, &before);
+        answer
     }
 
+    /// `ContainerEventHandler.keyPressed` - the focused child
+    fn key_pressed(&mut self, list: &mut ModSelectionList, index: usize, event: &KeyEvent) -> bool {
+        self.base.thread.check();
+        let before = self.base.replacement_value();
+        let answer = compat::children_key_pressed(&mut self.base.children, event);
+        self.run_requested_update(list, index, &before);
+        answer
+    }
+
+    /// `ContainerEventHandler.charTyped` - the focused child
+    fn char_typed(&mut self, list: &mut ModSelectionList, index: usize, event: &CharacterEvent) -> bool {
+        self.base.thread.check();
+        let before = self.base.replacement_value();
+        let answer = compat::children_char_typed(&mut self.base.children, event);
+        self.run_requested_update(list, index, &before);
+        answer
+    }
 }

@@ -183,7 +183,7 @@ impl TunerSolver {
             return 0;
         }
         let mut clicks: i32 = TunerSolver::calculate_clicks(dye_index, target_index);
-        logger().info(&format!("Color solved: Dye={}, Target={}, Required clicks={}", compat::component_of(dye_stack.as_ref().unwrap().get_hover_name()).get_string(), compat::component_of(target_pane.as_ref().unwrap().get_hover_name()).get_string(), (if clicks >= 0 { format!("+{}", clicks) } else { clicks })));
+        logger().info(&format!("Color solved: Dye={}, Target={}, Required clicks={}", compat::component_of(dye_stack.as_ref().unwrap().get_hover_name()).get_string(), compat::component_of(target_pane.as_ref().unwrap().get_hover_name()).get_string(), (if clicks >= 0 { format!("+{}", clicks) } else { clicks.to_string() })));
         return clicks;
     }
 
@@ -408,7 +408,7 @@ impl TunerSolver {
                 return;
             }
             let mut clicks: i32 = TunerSolver::calculate_pitch_clicks(current_index, target_index);
-            logger().info(&format!("Pitch solved: Current={}, Target={}, Required clicks={}", compat::opt_str(&compat::read(__this, |__t| __t.current_pitch.clone())), target_pitch, (if clicks >= 0 { format!("+{}", clicks) } else { clicks })));
+            logger().info(&format!("Pitch solved: Current={}, Target={}, Required clicks={}", compat::opt_str(&compat::read(__this, |__t| __t.current_pitch.clone())), target_pitch, (if clicks >= 0 { format!("+{}", clicks) } else { clicks.to_string() })));
             { let __v = clicks; compat::write(__this, |__t| __t.pitch_clicks = __v); }
             { let __v = true; compat::write(__this, |__t| __t.pitch_solved = __v); }
             __this.lock().borrow_mut().recent_pitches.clear();
@@ -431,7 +431,7 @@ impl TunerSolver {
             if current_index != -1 && target_index != -1 {
                 { let __v = TunerSolver::calculate_speed_clicks(current_index, target_index); compat::write(__this, |__t| __t.speed_clicks = __v); }
                 { let __v = true; compat::write(__this, |__t| __t.speed_solved = __v); }
-                logger().info(&format!("Speed solved: Current={}, Target={}, Ticks={}, Required clicks={}", current_speed, compat::read(__this, |__t| __t.target_speed), compat::read(__this, |__t| __t.last_speed_ticks), (if compat::read(__this, |__t| __t.speed_clicks) >= 0 { format!("+{}", compat::read(__this, |__t| __t.speed_clicks)) } else { compat::read(__this, |__t| __t.speed_clicks) })));
+                logger().info(&format!("Speed solved: Current={}, Target={}, Ticks={}, Required clicks={}", current_speed, compat::read(__this, |__t| __t.target_speed), compat::read(__this, |__t| __t.last_speed_ticks), (if compat::read(__this, |__t| __t.speed_clicks) >= 0 { format!("+{}", compat::read(__this, |__t| __t.speed_clicks)) } else { compat::read(__this, |__t| __t.speed_clicks).to_string() })));
             } else {
                 logger().warn(&format!("Invalid speed indices: current={}, target={}", current_speed, compat::read(__this, |__t| __t.target_speed)));
             }

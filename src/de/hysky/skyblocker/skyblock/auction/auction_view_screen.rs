@@ -125,7 +125,12 @@ impl AuctionViewScreen {
     pub fn init(__this: &compat::Shared<Self>) {
         ();
         { let __v = LinearLayout::vertical(); compat::write(__this, |__t| __t.vertical_layout = __v); }
-        __this.lock().borrow_mut().vertical_layout.spacing(2).default_cell_setting().align_horizontally_center();
+        // java: verticalLayout.spacing(2).defaultCellSetting().alignHorizontallyCenter(); - `spacing` answers `this`
+        compat::write(__this, |__t| {
+            let layout = std::mem::replace(&mut __t.vertical_layout, LinearLayout::vertical());
+            __t.vertical_layout = layout.spacing(2);
+            __t.vertical_layout.default_cell_setting().align_horizontally_center();
+        });
         // TODO(fabric2seer): field `SCROLLING` of a value of unknown type
         //   java: priceTextWidget = new StringWidget(isBinAuction ? Component.translatable("skyblocker.fancyAuctionHouse.price") : Component.translatable("skyblocker.fancyAuctionHouse.newBid"), font).setMaxWidth(imageWidth - 10, StringWidget.TextOverflow.SCROLLING);
         // TODO(fabric2seer): a widget put in a layout outside a mod screen's own methods: the port's layouts hold a widget by its index in the screen's widget list
@@ -220,8 +225,13 @@ impl AuctionViewScreen {
 
     /// java: private void updateLayout()
     pub fn update_layout(__this: &compat::Shared<Self>) {
-        __this.lock().borrow_mut().vertical_layout.arrange_elements();
-        frame_layout::center_in_rectangle(&LayoutElement::Grid(compat::read(__this, |__t| __t.vertical_layout.clone()).wrapped), compat::read(__this, |__t| __t.left_pos), (compat::read(__this, |__t| __t.top_pos)).wrapping_add(36), compat::read(__this, |__t| __t.image_width), 60);
+        // java: verticalLayout.arrangeElements(); FrameLayout.centerInRectangle(verticalLayout, leftPos, topPos + 36, imageWidth, 60);
+        // (the port's layout is a value: centred in place through `LayoutBack`, then written back)
+        let (left_pos, top_pos, image_width) = compat::read(__this, |__t| (__t.left_pos, __t.top_pos, __t.image_width));
+        compat::write(__this, |__t| {
+            __t.vertical_layout.arrange_elements();
+            frame_layout::center_in_rectangle(&mut *compat::LayoutBack::grid(&mut __t.vertical_layout.wrapped), left_pos, top_pos.wrapping_add(36), image_width, 60);
+        });
     }
 
     /// java: @Override public void extractBackground(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a)
@@ -381,7 +391,7 @@ impl AbstractCustomHypixelGUI<compat::Shared<crate::de::hysky::skyblocker::skybl
         // TODO(fabric2seer): `AbstractContainerMenu.getRowCount` has no Rust method in the port (looked for `get_row_count` in AbstractContainerMenu and JavaSrc)
         let __o1 = handler.clone();
         let __o2 = handler.clone();
-        if stack.is_item(mcrust::net::minecraft::world::item::items::stained_glass_pane().black()) || slot_id >= (compat::write(&__o2, |__t| __t.get_row_count())).wrapping_mul(9) {
+        if stack.is_item(mcrust::net::minecraft::world::item::items::stained_glass_pane().black()) || slot_id >= (compat::read(&__o2, |__t| __t.get_row_count())).wrapping_mul(9) {
             return;
         }
         if slot_id == 13 {

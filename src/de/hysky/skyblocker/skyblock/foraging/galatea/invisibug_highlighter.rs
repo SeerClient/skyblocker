@@ -17,11 +17,12 @@ use mcrust::net::minecraft::core::particles::particle_options::ParticleOptions a
 use mcrust::net::minecraft::world::level::entity_getter::EntityGetter as _;
 
 /// java: private static final Object2LongOpenHashMap<Vec3> invisibugLocations = new Object2LongOpenHashMap<>();
-pub static INVISIBUG_LOCATIONS: compat::MainThread<std::collections::HashMap<Vec3, i64>> = compat::MainThread::new(|| std::collections::HashMap::new());
+/// (`Vec3` keys by `Vec3.equals`, which the port's `Vec3` has as `PartialEq` but not as `Hash`: kept as a list of entries)
+pub static INVISIBUG_LOCATIONS: compat::MainThread<Vec<(Vec3, i64)>> = compat::MainThread::new(|| Vec::new());
 /// java: private static final long PARTICLE_EXPIRY = 500;
 pub const PARTICLE_EXPIRY: i64 = ((500) as i64) as i64;
 /// java: private static final float[] COLOR = new float[3];
-pub static COLOR: LazyLock<Vec<f32>> = LazyLock::new(|| vec![0.0; (3) as usize]);
+pub static COLOR: compat::MainThread<Vec<f32>> = compat::MainThread::new(|| vec![0.0; (3) as usize]);
 /// java: private static final float ALPHA = 0.20f;
 pub const ALPHA: f32 = 0.2f32;
 /// java: private static final Vec3 HIGHLIGHT_SIZE = new Vec3(0.5f, 0.5f, 0.5f);
@@ -55,21 +56,37 @@ impl InvisibugHighlighter {
 
     /// java: private static boolean isNearPet(ClientLevel level, Vec3 pos)
     pub fn is_near_pet(level: &ClientLevel, pos: &Vec3) -> bool {
-        // TODO(fabric2seer): `.distanceToSqr(..)` on a T
-        //   java: return level.getEntitiesOfClass(ArmorStand.class, AABB.ofSize(pos, 10, 10, 10)).stream()
-        //   java: 				.min(Comparator.comparingDouble(armorStand -> armorStand.distanceToSqr(pos)))
-        //   java: 				.map(armorStand -> armorStand.hasItemInSlot(EquipmentSlot.MAINHAND) || armorStand.getCustomName() != null)
-        //   java: 				.orElse(false);
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        // java: level.getEntitiesOfClass(ArmorStand.class, AABB.ofSize(pos, 10, 10, 10)) - `EntitySelector.NO_SPECTATORS`
+        // over the armor stands (the port's class tests stop at LivingEntity; the type is ArmorStand's)
+        let armor_stands = level.get_entities(None, &AABB::of_size(pos, (10) as f64, (10) as f64, (10) as f64), &|entity| {
+            compat::is_entity_type(entity, "armor_stand") && mcrust::net::minecraft::world::entity::entity_selector::no_spectators(entity)
+        });
+        // java: .min(Comparator.comparingDouble(armorStand -> armorStand.distanceToSqr(pos)))
+        let mut closest: Option<(f64, bool)> = None;
+        for armor_stand in armor_stands.iter() {
+            let Some((distance, is_pet)) = compat::with_entity_handle(armor_stand, |armor_stand| {
+                use mcrust::net::minecraft::world::entity::living_entity::LivingEntity as _;
+                let is_pet = armor_stand.as_living_entity().is_some_and(|living| living.has_item_in_slot(mcrust::net::minecraft::world::entity::equipment_slot::EquipmentSlot::Mainhand))
+                    || armor_stand.base().get_custom_name().is_some();
+                (armor_stand.base().distance_to_sqr_vec(pos), is_pet)
+            }) else {
+                continue;
+            };
+            // `Stream.min` keeps the first of equal elements
+            if closest.map_or(true, |(best, _)| distance < best) {
+                closest = Some((distance, is_pet));
+            }
+        }
+        // java: .map(armorStand -> armorStand.hasItemInSlot(EquipmentSlot.MAINHAND) || armorStand.getCustomName() != null).orElse(false)
+        return closest.map_or(false, |(_, is_pet)| is_pet);
     }
 
     /// java: private static void onParticle(ClientboundLevelParticlesPacket packet)
     pub fn on_particle(packet: &ClientboundLevelParticlesPacket) {
-        if InvisibugHighlighter::is_active() && mcrust::net::minecraft::core::particles::particle_types::crit() == packet.get_particle().unwrap().get_type() && mcrust::mcrust::modding::game::level().is_some() {
+        if InvisibugHighlighter::is_active() && packet.get_particle().is_some_and(|particle| compat::particle_type_is(particle, mcrust::net::minecraft::core::particles::particle_types::crit())) && mcrust::mcrust::modding::game::level().is_some() {
             let mut pos: Vec3 = Vec3::new(packet.get_x(), packet.get_y(), packet.get_z());
-            // TODO(fabric2seer): the port's `get_entities_of_class_no_spectators` ports this Java method with other parameters (base_class, except, bb for Java's base_class, bb)
-            // TODO(fabric2seer): `get_entities_of_class_no_spectators` takes 3 argument(s) in the port (`base_class: crate::net::minecraft::world::level::entity::entity_type_test::EntityClass, except: Option<i32>, bb: &AABB`), Java passes 2
-            if (mcrust::mcrust::modding::game::level().unwrap().get_entities_of_class_no_spectators(std::any::TypeId::of::<Box<dyn LivingEntity>>(), Some(AABB::of_size(&pos, (1) as f64, (1) as f64, (1) as f64)))).is_empty() && !(InvisibugHighlighter::is_near_pet(&mcrust::mcrust::modding::game::level().unwrap(), &pos)) {
+            let __level = mcrust::mcrust::modding::game::level().unwrap();
+            if (__level.get_entities_of_class_no_spectators(mcrust::net::minecraft::world::level::entity::entity_type_test::EntityClass::LivingEntity, None, &AABB::of_size(&pos, (1) as f64, (1) as f64, (1) as f64))).is_empty() && !(InvisibugHighlighter::is_near_pet(&__level, &pos)) {
                 InvisibugHighlighter::handle_invisibug_particle(pos.clone());
             }
         }
@@ -77,8 +94,13 @@ impl InvisibugHighlighter {
 
     /// java: private static void handleInvisibugParticle(Vec3 pos)
     pub fn handle_invisibug_particle(mut pos: Vec3) {
-        INVISIBUG_LOCATIONS.get_mut().retain(|__k, _| !(|e| (e.distance_to_sqr_vec(&pos) <= (1 as f64)))(__k));
-        INVISIBUG_LOCATIONS.get_mut().insert(pos.clone(), compat::millis());
+        INVISIBUG_LOCATIONS.get_mut().retain(|(__k, _)| !(__k.distance_to_sqr_vec(&pos) <= (1 as f64)));
+        // java: invisibugLocations.put(pos, System.currentTimeMillis()) (replaces an equal key's value)
+        let __now = compat::millis();
+        match INVISIBUG_LOCATIONS.get_mut().iter_mut().find(|(__k, _)| *__k == pos) {
+            Some(__e) => __e.1 = __now,
+            None => INVISIBUG_LOCATIONS.get_mut().push((pos.clone(), __now)),
+        }
     }
 
     /// java: private static void extractRendering(PrimitiveCollector collector)
@@ -87,12 +109,13 @@ impl InvisibugHighlighter {
             return;
         }
         let mut now: i64 = compat::millis();
-        // TODO(fabric2seer): Map.object2LongEntrySet(..)
-        //   java: invisibugLocations.object2LongEntrySet().removeIf(e -> now - e.getLongValue() > PARTICLE_EXPIRY);
-        // TODO(fabric2seer): `.getRGBColorComponents(..)` on a Color
-        //   java: SkyblockerConfigManager.get().hunting.moongladeMobs.invisibugGlowColor.getRGBColorComponents(COLOR);
-        for pos in INVISIBUG_LOCATIONS.get_mut().keys().cloned() {
-            ({ let __f = compat::dispatch(collector, |__t| __t.submit_filled_box_5()); __f(collector, &pos.subtract_vec(&HIGHLIGHT_SIZE.get_mut().scale(0.5)), HIGHLIGHT_SIZE.get_mut(), &COLOR, ALPHA, false) });
+        // java: invisibugLocations.object2LongEntrySet().removeIf(e -> now - e.getLongValue() > PARTICLE_EXPIRY);
+        INVISIBUG_LOCATIONS.get_mut().retain(|(_, __time)| !(now.wrapping_sub(*__time) > PARTICLE_EXPIRY));
+        // java: SkyblockerConfigManager.get().hunting.moongladeMobs.invisibugGlowColor.getRGBColorComponents(COLOR);
+        let __components = SkyblockerConfigManager::get().hunting.moonglade_mobs.invisibug_glow_color.get_rgb_color_components(None);
+        COLOR.get_mut().copy_from_slice(&__components);
+        for pos in INVISIBUG_LOCATIONS.get().iter().map(|(__k, _)| __k.clone()).collect::<Vec<_>>() {
+            ({ let __f = compat::dispatch(collector, |__t| __t.submit_filled_box_5()); __f(collector, &pos.subtract_vec(&HIGHLIGHT_SIZE.get_mut().scale(0.5)), HIGHLIGHT_SIZE.get_mut(), COLOR.get(), ALPHA, false) });
         }
     }
 

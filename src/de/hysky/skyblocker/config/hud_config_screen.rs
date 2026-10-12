@@ -45,13 +45,13 @@ impl std::ops::DerefMut for HudConfigScreenBase {
 impl HudConfigScreenBase {
     /// java: public HudConfigScreen(Component title, @Nullable Screen parent, BasicWidget widget) (built by the most-derived class's `wrap`, then run on its handle)
     pub fn new_in<__R>(mut title: MutableComponent, mut parent: Option<mcrust::net::minecraft::client::gui::screens::screen::Screen>, mut widget: compat::Shared<dyn BasicWidget>, __wrap: impl FnOnce(Self) -> (compat::Shared<dyn HudConfigScreen>, __R)) -> (compat::Shared<dyn HudConfigScreen>, __R) {
-        let (__this, __r) = Self::new2_in(title.clone(), parent.clone(), vec![widget.clone()], __wrap);
+        let (__this, __r) = Self::new2_in(title.clone(), parent, vec![widget.clone()], __wrap);
         (__this, __r)
     }
 
     /// java: public HudConfigScreen(Component title, @Nullable Screen parent, List<BasicWidget> widgets) (built by the most-derived class's `wrap`, then run on its handle)
     pub fn new2_in<__R>(mut title: MutableComponent, mut parent: Option<mcrust::net::minecraft::client::gui::screens::screen::Screen>, mut widgets: Vec<compat::Shared<dyn BasicWidget>>, __wrap: impl FnOnce(Self) -> (compat::Shared<dyn HudConfigScreen>, __R)) -> (compat::Shared<dyn HudConfigScreen>, __R) {
-        let __init_parent = parent.clone();
+        let __init_parent = parent;
         let __init_widgets = widgets.clone();
         let this = Self {
             base: mcrust::net::minecraft::client::gui::screens::screen::Screen::new(title.get_string()),
@@ -124,7 +124,9 @@ pub trait HudConfigScreen: compat::DynAny {
     }
 
     /// java: protected abstract void savePos(SkyblockerConfig configManager, List<BasicWidget> widgets); (dispatch: the body for this class)
-    fn save_pos(&self) -> fn(&compat::Shared<dyn HudConfigScreen>, &SkyblockerConfig, &Vec<compat::Shared<dyn BasicWidget>>);
+    ///
+    /// `fullConfig` is the live config, mutated in place (`&mut`), as Java's does.
+    fn save_pos(&self) -> fn(&compat::Shared<dyn HudConfigScreen>, &mut SkyblockerConfig, &Vec<compat::Shared<dyn BasicWidget>>);
 
 }
 
@@ -205,7 +207,7 @@ impl dyn HudConfigScreen {
     /// java: @Override public final void onClose()
     pub fn on_close_body(__this: &compat::Shared<dyn HudConfigScreen>) {
         let __this_1 = compat::RenderThread::new(__this.clone());
-        SkyblockerConfigManager::update(Arc::new(move |config| { ({ let __f = compat::dispatch(__this_1.get(), |__t| __t.save_pos()); __f(__this_1.get(), &config, &compat::read(__this_1.get(), |__t| __t.hud_config_screen_base().widgets.clone())) }); }));
+        SkyblockerConfigManager::update(Arc::new(move |config| { ({ let __f = compat::dispatch(__this_1.get(), |__t| __t.save_pos()); __f(__this_1.get(), config, &compat::read(__this_1.get(), |__t| __t.hud_config_screen_base().widgets.clone())) }); }));
         mcrust::mcrust::modding::game::set_screen_to_parent();
     }
 

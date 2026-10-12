@@ -124,7 +124,8 @@ impl RaffleTaskHighlight {
     /// java: @Override public List<ColorHighlight> getColors(Int2ObjectMap<ItemStack> slots)
     pub fn get_colors_impl(__this: &compat::Shared<Self>, slots: &mut std::collections::HashMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack>) -> Vec<ColorHighlight> {
         let mut highlights: Vec<ColorHighlight> = Vec::with_capacity((21) as usize);
-        let mut set: std::collections::HashSet<(_, _)> = slots.iter().map(|(k, v)| (k.clone(), v.clone())).collect::<Vec<_>>();
+        // slots.int2ObjectEntrySet()
+        let mut set: Vec<(i32, mcrust::net::minecraft::world::item::item_stack::ItemStack)> = slots.iter().map(|(k, v)| (k.clone(), v.clone())).collect::<Vec<_>>();
         for entry in set.iter() {
             let item_stack = &entry.1;
             if !(item_stack.is_item(&items::items().get("paper"))) && !(item_stack.is_item(&items::items().get("map"))) && !(item_stack.is_item(&items::items().get("filled_map"))) {

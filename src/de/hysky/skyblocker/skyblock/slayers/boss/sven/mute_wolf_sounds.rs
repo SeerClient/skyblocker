@@ -26,10 +26,8 @@ impl MuteWolfSounds {
 
     /// java: private static boolean onSound(SoundEvent sound)
     pub fn on_sound(sound: &SoundEvent) -> bool {
-        if SkyblockerConfigManager::get().slayers.wolf_slayer.mute_wolf_sounds && Utils::is_in_park() || Utils::is_in_hub() {
-            // TODO(fabric2seer): `fmt` takes 1 argument(s) in the port (`f: &mut fmt::Formatter<'_>`), Java passes 0
-            // rust: return !(sound.location().fmt().contains("minecraft:entity.wolf."));
-            return todo!("fabric2seer: see the TODO above");
+        if SkyblockerConfigManager::get().slayers.wolf_slayer.mute_wolf_sounds && (Utils::is_in_park() || Utils::is_in_hub()) {
+            return !(sound.location().to_string().contains("minecraft:entity.wolf."));
         }
         return true;
     }

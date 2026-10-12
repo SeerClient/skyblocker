@@ -97,7 +97,7 @@ impl CallTrevor {
             return false;
         }
         let mut call_message: MutableComponent = (constants::PREFIX.get_mut())().append(component::translatable("skyblocker.config.otherLocations.barn.callTrevor.message"));
-        call_message.with_style_fn(|style| (style.with_click_event(Some(ClickEvent::new_run_command("/call trevor".to_string())))).with_color_format(Some(ChatFormatting::Aqua)));
+        call_message = call_message.with_style_fn(|style| (style.with_click_event(Some(ClickEvent::new_run_command("/call trevor".to_string())))).with_color_format(Some(ChatFormatting::Aqua)));
         mcrust::mcrust::modding::game::with_player(|player| { script_host::send_feedback(&call_message.to_string()); });
         return false;
     }

@@ -159,12 +159,12 @@ impl CopyUnderbidPrice {
     /// java: @Override public void markDirty()
     pub fn mark_dirty_impl(__this: &compat::Shared<Self>) {
         let client = compat::minecraft();
-        let Some(screen) = client.gui.screen().unwrap().as_any().downcast_ref::<ContainerScreen>() else {
+        // java: if (!(client.screen instanceof ContainerScreen screen)) return; - the port names the open screen by its kind
+        if !matches!(client.gui.screen_kind, mcrust::net::minecraft::client::gui::gui::ScreenKind::Container) {
             return;
-        };
-        // TODO(fabric2seer): `.getSlot(..)` on a value of unknown type
-        //   java: ItemStack stack = screen.getMenu().getSlot(13).getItem();
-        let mut stack: mcrust::net::minecraft::world::item::item_stack::ItemStack = todo!("fabric2seer: the initialiser of `stack` (TODO above)");
+        }
+        // java: ItemStack stack = screen.getMenu().getSlot(13).getItem(); - the screen's menu is the player's open menu
+        let mut stack: mcrust::net::minecraft::world::item::item_stack::ItemStack = compat::with_open_menu(|menu, containers| menu.slots[13].get_item(containers).duplicate()).unwrap_or_else(mcrust::net::minecraft::world::item::item_stack::empty);
         if stack.is_empty() {
             { let __v = false; compat::write(__this, |__t| __t.copied = __v); }
             { let __v = mcrust::net::minecraft::world::item::item_stack::empty(); compat::write(__this, |__t| __t.previous_item = __v); }
@@ -182,8 +182,14 @@ impl CopyUnderbidPrice {
             return;
         }
         let mut underbid: i64 = ((price) as i64).wrapping_sub(1 as i64);
-        // TODO(fabric2seer): `set_clipboard` takes 2 argument(s) in the port (`clipboard: &mut dyn ClipboardAccess, value: &str`), Java passes 1
-        // rust: client.keyboard_handler.set_clipboard(&mut underbid.to_string());
+        // java: client.keyboardHandler.setClipboard(String.valueOf(underbid));
+        {
+            let mut __memory = mcrust::net::minecraft::client::gui::components::edit_box::MemoryClipboard::default();
+            match mcrust::net::minecraft::client::minecraft::GlfwClipboard::published() {
+                Some(mut __glfw) => client.keyboard_handler.set_clipboard(&mut __glfw, &underbid.to_string()),
+                None => client.keyboard_handler.set_clipboard(&mut __memory, &underbid.to_string()),
+            }
+        }
         if mcrust::mcrust::modding::game::with_player(|_| ()).is_some() {
             let mut price_text: MutableComponent = (component::literal(&formatters::INTEGER_NUMBERS.get_mut().format((underbid) as f64))).with_style_format(ChatFormatting::Gold);
             mcrust::mcrust::modding::game::with_player(|player| { script_host::send_feedback(&(constants::PREFIX.get_mut())().append((component::translatable_args("skyblocker.copyUnderbidPrice.copied", vec![mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(price_text.clone())])).with_style_format(ChatFormatting::Gray)).to_string()); });

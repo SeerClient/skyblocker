@@ -47,7 +47,7 @@ impl std::ops::DerefMut for AuctionTypeWidget {
 
 impl AuctionTypeWidget {
     /// java: public AuctionTypeWidget(int x, int y, SlotClickHandler slotClick)
-    pub fn new(mut x: i32, mut y: i32, mut slot_click: compat::Shared<dyn SlotClickHandler>) -> compat::Shared<Self> {
+    pub fn new(mut x: i32, mut y: i32, mut slot_click: SlotClickHandler) -> compat::Shared<Self> {
         let __this = compat::shared(Self {
             base: SliderWidgetBase::<Option>::new(x, y, 17, 17, component::literal("Auction Type Widget"), slot_click.clone(), Option::All),
         });
@@ -194,77 +194,36 @@ pub struct OptionFields {
 
 impl OptionFields {
     fn new(mut texture_name: String) -> Self {
-        let mut this = Self {
-            texture: Default::default(),
-            hover_texture: Default::default(),
-        };
-        this.texture = crate::entry::skyblocker_mod::id(&format!("{}{}", OPTION_PREFIX, texture_name));
-        this.hover_texture = crate::entry::skyblocker_mod::id(&format!("{}{}_hover", OPTION_PREFIX, texture_name));
-        this
+        Self {
+            texture: crate::entry::skyblocker_mod::id(&format!("{}{}", OPTION_PREFIX, texture_name)),
+            hover_texture: crate::entry::skyblocker_mod::id(&format!("{}{}_hover", OPTION_PREFIX, texture_name)),
+        }
     }
 
 }
 
 impl OptionInfo for Option {
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
+    fn is_vertical(&self) -> bool {
+        Option::is_vertical(self)
     }
 
-    fn is_vertical(&self) -> fn(&compat::Shared<dyn OptionInfo>) -> bool {
-        Option::is_vertical_dyn
+    fn get_offset(&self) -> i32 {
+        Option::get_offset(self)
     }
 
-    fn get_offset(&self) -> fn(&compat::Shared<dyn OptionInfo>) -> i32 {
-        Option::get_offset_dyn
+    fn get_option_size(&self) -> Vec<i32> {
+        Option::get_option_size(self)
     }
 
-    fn get_option_size(&self) -> fn(&compat::Shared<dyn OptionInfo>) -> Vec<i32> {
-        Option::get_option_size_dyn
+    fn get_option_texture(&self) -> Identifier {
+        Option::get_option_texture(self)
     }
 
-    fn get_option_texture(&self) -> fn(&compat::Shared<dyn OptionInfo>) -> Identifier {
-        Option::get_option_texture_dyn
+    fn get_back_texture(&self) -> Identifier {
+        Option::get_back_texture(self)
     }
 
-    fn get_back_texture(&self) -> fn(&compat::Shared<dyn OptionInfo>) -> Identifier {
-        Option::get_back_texture_dyn
+    fn get_hover_texture(&self) -> Identifier {
+        Option::get_hover_texture(self)
     }
-
-    fn get_hover_texture(&self) -> fn(&compat::Shared<dyn OptionInfo>) -> Identifier {
-        Option::get_hover_texture_dyn
-    }
-
-}
-
-impl Option {
-    /// Option.isVertical as the dispatch of OptionInfo.isVertical
-    pub fn is_vertical_dyn(__this: &compat::Shared<dyn OptionInfo>) -> bool {
-        compat::read_as::<Option, _, _>(__this, |__e| __e.is_vertical())
-    }
-
-    /// Option.getOffset as the dispatch of OptionInfo.getOffset
-    pub fn get_offset_dyn(__this: &compat::Shared<dyn OptionInfo>) -> i32 {
-        compat::read_as::<Option, _, _>(__this, |__e| __e.get_offset())
-    }
-
-    /// Option.getOptionSize as the dispatch of OptionInfo.getOptionSize
-    pub fn get_option_size_dyn(__this: &compat::Shared<dyn OptionInfo>) -> Vec<i32> {
-        compat::read_as::<Option, _, _>(__this, |__e| __e.get_option_size())
-    }
-
-    /// Option.getOptionTexture as the dispatch of OptionInfo.getOptionTexture
-    pub fn get_option_texture_dyn(__this: &compat::Shared<dyn OptionInfo>) -> Identifier {
-        compat::read_as::<Option, _, _>(__this, |__e| __e.get_option_texture())
-    }
-
-    /// Option.getBackTexture as the dispatch of OptionInfo.getBackTexture
-    pub fn get_back_texture_dyn(__this: &compat::Shared<dyn OptionInfo>) -> Identifier {
-        compat::read_as::<Option, _, _>(__this, |__e| __e.get_back_texture())
-    }
-
-    /// Option.getHoverTexture as the dispatch of OptionInfo.getHoverTexture
-    pub fn get_hover_texture_dyn(__this: &compat::Shared<dyn OptionInfo>) -> Identifier {
-        compat::read_as::<Option, _, _>(__this, |__e| __e.get_hover_texture())
-    }
-
 }

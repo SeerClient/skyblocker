@@ -20,7 +20,9 @@ pub static NO_GLOW: LazyLock<i32> = LazyLock::new(|| todo!("fabric2seer: the ini
 /// java: private static final List<MobGlowAdder> ADDERS = new ArrayList<>();
 pub static ADDERS: compat::MainThread<Vec<compat::Shared<dyn MobGlowAdder>>> = compat::MainThread::new(|| Vec::new());
 /// java: private static final Object2IntMap<Entity> CACHE = new Object2IntOpenHashMap<>();
-pub static CACHE: compat::MainThread<std::collections::HashMap<Box<dyn Entity>, i32>> = compat::MainThread::new(|| std::collections::HashMap::new());
+///
+/// Keyed by entity id (Java's key is the live entity, compared by identity).
+pub static CACHE: compat::MainThread<std::collections::HashMap<i32, i32>> = compat::MainThread::new(|| std::collections::HashMap::new());
 
 /// java: public class MobGlow
 #[derive(Clone)]
@@ -45,7 +47,7 @@ impl MobGlow {
     /// java: private static int applyCustomGlow(Entity entity, EntityRenderState state)
     pub fn apply_custom_glow(entity: &dyn Entity, state: &EntityRenderState) -> i32 {
         let mut allow_glow_in_livid: bool = LividColor::allow_glow();
-        let mut custom_glow: bool = MobGlow::has_or_compute_mob_glow(entity.clone());
+        let mut custom_glow: bool = MobGlow::has_or_compute_mob_glow(entity);
         let mut allow_glow: bool = (allow_glow_in_livid && state.appears_glowing() || custom_glow);
         if allow_glow && custom_glow {
             return argb::opaque(MobGlow::get_mob_glow(entity));
@@ -64,13 +66,13 @@ impl MobGlow {
     }
 
     /// java: public static boolean hasOrComputeMobGlow(Entity entity)
-    pub fn has_or_compute_mob_glow(mut entity: Box<dyn Entity>) -> bool {
-        if CACHE.get_mut().contains_key(&entity) {
+    pub fn has_or_compute_mob_glow(entity: &dyn Entity) -> bool {
+        if CACHE.get_mut().contains_key(&entity.base().get_id()) {
             return true;
         }
-        let mut color: i32 = MobGlow::compute_mob_glow(&entity);
+        let mut color: i32 = MobGlow::compute_mob_glow(entity);
         if color != *NO_GLOW {
-            CACHE.get_mut().insert(entity.clone(), color);
+            CACHE.get_mut().insert(entity.base().get_id(), color);
             return true;
         }
         return false;
@@ -78,12 +80,13 @@ impl MobGlow {
 
     /// java: public static int getMobGlow(Entity entity)
     pub fn get_mob_glow(entity: &dyn Entity) -> i32 {
-        return CACHE.get_mut().get(entity).copied().unwrap_or_default();
+        // Object2IntMap.getInt: 0 for an absent key
+        return CACHE.get_mut().get(&entity.base().get_id()).copied().unwrap_or_default();
     }
 
     /// java: public static int getMobGlowOrDefault(Entity entity, int defaultColor)
     pub fn get_mob_glow_or_default(entity: &dyn Entity, mut default_color: i32) -> i32 {
-        return CACHE.get_mut().get(entity).cloned().unwrap_or_else(|| default_color);
+        return CACHE.get_mut().get(&entity.base().get_id()).cloned().unwrap_or_else(|| default_color);
     }
 
     /// java: public static void clearCache()
@@ -106,36 +109,56 @@ impl MobGlow {
 
     /// java: public static String getArmorStandName(Entity entity)
     pub fn get_armor_stand_name(entity: &dyn Entity) -> String {
-        let mut armor_stands: Vec<ArmorStand> = MobGlow::get_armor_stands(entity);
+        let mut armor_stands: Vec<i32> = MobGlow::get_armor_stands(entity);
         if armor_stands.is_empty() {
             return "".to_string();
         }
-        return compat::component_of(armor_stands[0].get_name()).get_string();
+        return mcrust::mcrust::modding::game::with_entity(armor_stands[0], |e| e.get_name().get_string()).unwrap_or_default();
     }
 
     /// java: public static List<ArmorStand> getArmorStands(Entity entity)
-    pub fn get_armor_stands(entity: &dyn Entity) -> Vec<ArmorStand> {
-        // TODO(fabric2seer): `Entity.level` has no Rust method in the port (looked for `level` in Entity and its supertypes)
-        // rust: return MobGlow::get_armor_stands_2(&entity.level(), &entity.get_bounding_box());
-        return todo!("fabric2seer: see the TODO above");
+    ///
+    /// The stands by entity id (read them through `game::with_entity`). `entity` is lent by a caller that may hold
+    /// it, so the sweep leaves it out and it is checked here: it answers for itself through its own reference.
+    pub fn get_armor_stands(entity: &dyn Entity) -> Vec<i32> {
+        let Some(level) = mcrust::mcrust::modding::game::level() else {
+            return Vec::new();
+        };
+        return MobGlow::get_armor_stands_except(&level, &entity.base().get_bounding_box(), Some(entity));
     }
 
     /// java: public static List<ArmorStand> getArmorStands(Level world, AABB box)
-    pub fn get_armor_stands_2(world: &Level, r#box: &AABB) -> Vec<ArmorStand> {
-        // TODO(fabric2seer): static `EntitySelector.ENTITY_NOT_BEING_RIDDEN` has no Rust counterpart in the port's EntitySelector file
-        // TODO(fabric2seer): the port's `get_entities_of_class` ports this Java method with other parameters (base_class, except, bb, selector for Java's base_class, bb, selector)
-        // TODO(fabric2seer): `get_entities_of_class` takes 4 argument(s) in the port (`base_class: crate::net::minecraft::world::level::entity::entity_type_test::EntityClass, except: Option<i32>, bb: &AABB, selector: &dyn Fn(&(dyn Entity + Send + Sync)) -> bool`), Java passes 3
-        // rust: return world.get_entities_of_class(std::any::TypeId::of::<ArmorStand>(), Some((r#box).inflate3((0) as f64, (2) as f64, (0) as f64)), &crate::unresolved::EntitySelector::ENTITY_NOT_BEING_RIDDEN);
-        return todo!("fabric2seer: see the TODO above");
+    pub fn get_armor_stands_2(world: &Level, r#box: &AABB) -> Vec<i32> {
+        return MobGlow::get_armor_stands_except(world, r#box, None);
+    }
+
+    /// `world.getEntitiesOfClass(ArmorStand.class, box.inflate(0, 2, 0), EntitySelector.ENTITY_NOT_BEING_RIDDEN)`, with
+    /// `held` (an entity the caller holds) tested through its own reference instead of the level's lock.
+    fn get_armor_stands_except(world: &Level, r#box: &AABB, held: Option<&dyn Entity>) -> Vec<i32> {
+        use mcrust::net::minecraft::world::level::entity_getter::EntityGetter as _;
+        let bounds = (r#box).inflate3((0) as f64, (2) as f64, (0) as f64);
+        let is_stand = |e: &dyn Entity| e.as_any().is_some_and(|a| a.is::<ArmorStand>());
+        let mut stands: Vec<i32> = Vec::new();
+        if let Some(held) = held {
+            // the held entity is in the box it was asked about; ENTITY_NOT_BEING_RIDDEN = alive, no passengers, not riding
+            let alive = match held.as_living_entity() {
+                Some(living) => living.living().is_alive(),
+                None => held.base().is_alive(),
+            };
+            if is_stand(held) && alive && !held.base().is_vehicle() && !held.base().is_passenger() {
+                stands.push(held.base().get_id());
+            }
+        }
+        let found = world.get_entities(held.map(|h| h.base().get_id()), &bounds, &|e| is_stand(e) && mcrust::net::minecraft::world::entity::entity_selector::entity_not_being_ridden(e));
+        stands.extend(found.iter().map(|stand| mcrust::mcrust::modding::game::lock_entity(&**stand, "mob_glow.rs:getArmorStands").base().get_id()));
+        return stands;
     }
 
     /// java: public static String getArmorStandNameTrick(Entity entity)
     pub fn get_armor_stand_name_trick(entity: &dyn Entity) -> String {
-        // TODO(fabric2seer): `Entity.level` has no Rust method in the port (looked for `level` in Entity and its supertypes)
-        // TODO(fabric2seer): `Level.getEntity` has no Rust method in the port (looked for `get_entity` in Level and its supertypes)
-        // rust: let mut possible_name_tag: Box<dyn Entity> = entity.level().get_entity(entity.get_id().wrapping_add(1));
-        let mut possible_name_tag: Box<dyn Entity> = todo!("fabric2seer: the initialiser of `possibleNameTag` (TODO above)");
-        return (if possible_name_tag.as_any().unwrap_or(&() as &dyn std::any::Any).is::<ArmorStand>() { possible_name_tag.get_plain_text_name() } else { "ERR NO ARMR STAND".to_string() });
+        // entity.level().getEntity(entity.getId() + 1)
+        let possible_name_tag = mcrust::mcrust::modding::game::with_entity(entity.base().get_id().wrapping_add(1), |e| (e.as_any().is_some_and(|a| a.is::<ArmorStand>()), e.get_plain_text_name()));
+        return (if let Some((true, name)) = possible_name_tag { name } else { "ERR NO ARMR STAND".to_string() });
     }
 
 }

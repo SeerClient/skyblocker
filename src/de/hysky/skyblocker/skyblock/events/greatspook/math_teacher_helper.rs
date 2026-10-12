@@ -37,7 +37,8 @@ impl MathTeacherHelper {
             return message.clone();
         }
         let siblings = message.get_siblings();
-        if *message.get_contents() != PlainTextContents::Empty || (siblings.len() as i32) != 3 {
+        // `message.getContents() != PlainTextContents.EMPTY`: the EMPTY singleton
+        if !matches!(&**message.get_contents(), mcrust::net::minecraft::network::chat::component_contents::ComponentContents::Text(PlainTextContents::Empty)) || (siblings.len() as i32) != 3 {
             return message.clone();
         }
         if !(siblings[0].get_string() == "QUICK MATHS! ") {
@@ -46,8 +47,8 @@ impl MathTeacherHelper {
         let mut expression: String = ((siblings[(2) as usize]).get_string()).replace('x', &'*'.to_string());
         // java: try {..} catch (Exception e) - an exception here is a panic, caught by `catch_unwind`; the body's `return` is the closure's value
         match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            let mut result: String = format!("{:.0}", Calculator::calculate(expression.clone()));
-            return (message.copy().append_str(" = ")).append(component::literal(&result).with_style_format(ChatFormatting::Aqua)).append(mcrust::net::minecraft::network::chat::common_components::space()).append(component::translatable("text.skyblocker.clickToSend").with_style_format(ChatFormatting::Green).with_style_fn(|style| (style.with_click_event(Some(ClickEvent::new_run_command(format!("/ac {}", result))))).with_hover_event(Some(HoverEvent::new_show_text(mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from((constants::PREFIX.get_mut())().append(component::translatable("text.skyblocker.clickToSend.@Tooltip"))))))));
+            let mut result: String = compat::string_format("%.0f", &[Calculator::calculate(expression.clone()).into()]);
+            return (message.copy().append_str(" = ")).append(component::literal(&result).with_style_format(ChatFormatting::Aqua)).append(compat::component_of(mcrust::net::minecraft::network::chat::common_components::space())).append(component::translatable("text.skyblocker.clickToSend").with_style_format(ChatFormatting::Green).with_style_fn(|style| (style.with_click_event(Some(ClickEvent::new_run_command(format!("/ac {}", result))))).with_hover_event(Some(HoverEvent::new_show_text(mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from((constants::PREFIX.get_mut())().append(component::translatable("text.skyblocker.clickToSend.@Tooltip"))))))));
         })) {
             Ok(__v) => return __v,
             Err(e) => {

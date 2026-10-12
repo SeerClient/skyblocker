@@ -233,7 +233,7 @@ impl std::ops::DerefMut for CustomEntry {
 
 impl CustomEntry {
     /// java: protected CustomEntry(T element) (`T` is the enclosing CustomDropdownWidget's)
-    pub fn new<T: 'static>(element: T) -> compat::Shared<Self> {
+    pub fn new<T: Clone + 'static>(element: T) -> compat::Shared<Self> {
         let (_, __this) = EntryBase::new_in(element.clone(), move |__base| {
             let __h = compat::shared(Self {
                 base: __base,

@@ -87,13 +87,13 @@ impl SackMessagePrice {
                     }
                 }
             }
-            text_list.push(mcrust::net::minecraft::network::chat::common_components::NEW_LINE);
+            text_list.push(component::literal(mcrust::net::minecraft::network::chat::common_components::NEW_LINE));
             text_list.push(LineSmoothener::create_smooth_line());
-            text_list.push(mcrust::net::minecraft::network::chat::common_components::NEW_LINE);
+            text_list.push(component::literal(mcrust::net::minecraft::network::chat::common_components::NEW_LINE));
             text_list.push(component::empty().append(component::literal("NPC Sell Price: ").with_style_format(ChatFormatting::Yellow)).append((if npc_price > (0 as f64) { ItemTooltip::get_coins_message(npc_price, 1) } else { component::literal("No data").with_style_format(ChatFormatting::Red) })));
-            text_list.push(mcrust::net::minecraft::network::chat::common_components::NEW_LINE);
+            text_list.push(component::literal(mcrust::net::minecraft::network::chat::common_components::NEW_LINE));
             text_list.push(component::empty().append(component::literal("Bazaar Buy Price: ").with_style_format(ChatFormatting::Gold)).append((if bazaar_buy_price > (0 as f64) { ItemTooltip::get_coins_message(bazaar_buy_price, 1) } else { component::literal("No data").with_style_format(ChatFormatting::Red) })));
-            text_list.push(mcrust::net::minecraft::network::chat::common_components::NEW_LINE);
+            text_list.push(component::literal(mcrust::net::minecraft::network::chat::common_components::NEW_LINE));
             text_list.push(component::empty().append(component::literal("Bazaar Sell Price: ").with_style_format(ChatFormatting::Gold)).append((if bazaar_sell_price > (0 as f64) { ItemTooltip::get_coins_message(bazaar_sell_price, 1) } else { component::literal("No data").with_style_format(ChatFormatting::Red) })));
         }
         return copy;
@@ -110,7 +110,7 @@ impl SackMessagePrice {
         //   java: 			copy.setStyle(Style.EMPTY.withHoverEvent(new ShowText(deepCopy(showText))).applyTo(text.getStyle()));
         //   java: 		} else copy.setStyle(text.getStyle());
         for sibling in text.get_siblings().iter() {
-            copy.append(SackMessagePrice::deep_copy(sibling));
+            copy = copy.append(SackMessagePrice::deep_copy(sibling));
         }
         return copy;
     }

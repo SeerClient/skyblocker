@@ -49,9 +49,9 @@ impl PetCache {
     pub fn init() {
         CACHED_PETS.get_mut().lock().borrow_mut().load();
         screen_events::BEFORE_INIT.register(Arc::new(|screen: &mut Screen, width: i32, height: i32| {
-            if Utils::is_on_skyblock() && let Some(generic_container_screen) = screen.as_any().downcast_ref::<ContainerScreen>() {
-                // TODO(fabric2seer): `Screen::get_title` ports `getTitle`, but the port's `ContainerScreen` holds no `Screen` (no Deref, no `base` field) to call it on
-                if generic_container_screen.get_title().to_string().starts_with("Pets") {
+            // `screen instanceof ContainerScreen genericContainerScreen`: the screen's kind; the title is the `Screen` half
+            if Utils::is_on_skyblock() && matches!(compat::minecraft().gui.screen_kind, mcrust::net::minecraft::client::gui::gui::ScreenKind::Container) {
+                if screen.get_title().to_string().starts_with("Pets") {
                     compat::set_state(&SHOULD_LOOK4_PETS, true);
                     // TODO(fabric2seer): ScreenEvents.afterTick(..).register: no SeerClient equivalent yet
                     //   java: ScreenEvents.afterTick(screen).register(_ -> {
@@ -152,11 +152,10 @@ impl PetCache {
                 let mut stack: mcrust::net::minecraft::world::item::item_stack::ItemStack = ItemRepository::get_items_stream().filter(|s| compat::component_of(FlexibleItemStack::get_stack_or_throw(s).get_hover_name()).get_string().contains(&format!("] {}", name))).next().map(|__a0| FlexibleItemStack::get_stack_or_throw(&__a0)).unwrap_or(mcrust::net::minecraft::world::item::item_stack::empty());
                 if !stack.is_empty() {
                     let mut copied: mcrust::net::minecraft::world::item::item_stack::ItemStack = stack.copy();
-                    // TODO(fabric2seer): `.copyTag(..)` on a value of unknown type
-                    //   java: CompoundTag customData = copied.getOrDefault(DataComponents.CUSTOM_DATA, CustomData.EMPTY).copyTag();
-                    let mut custom_data: Tag = todo!("fabric2seer: the initialiser of `customData` (TODO above)");
+                    // java: CompoundTag customData = copied.getOrDefault(DataComponents.CUSTOM_DATA, CustomData.EMPTY).copyTag();
+                    let mut custom_data: Tag = crate::de::hysky::skyblocker::utils::item_utils::ItemUtils::get_custom_data(&copied);
                     custom_data.put_string("id", "PET");
-                    copied.set(mcrust::net::minecraft::core::component::data_components::custom_data().clone(), Some(CustomData::of(&custom_data)));
+                    copied.set(mcrust::net::minecraft::core::component::data_components::custom_data().clone(), Some(mcrust::com::mojang::serialization::obj(CustomData::of(&custom_data))));
                     let mut r#type: String = (if !(copied.get_pet_info().is_empty()) { copied.get_pet_info().r#type() } else { name.to_uppercase().replace(" ", "_") });
                     let mut pet_info: PetInfo = PetInfo::new(Some(name.clone()), r#type.clone(), exp, rarity, None, None, None);
                     ProfiledData::put(CACHED_PETS.get_mut(), pet_info.clone());

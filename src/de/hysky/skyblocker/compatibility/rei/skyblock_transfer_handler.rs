@@ -54,7 +54,7 @@ impl SkyblockTransferHandler {
         // TODO(fabric2seer): unknown name `itemStack`
         //   java: String neuId = itemStack.getNeuName();
         let mut neu_id: String = todo!("fabric2seer: the initialiser of `neuId` (TODO above)");
-        if !(NEURepoManager::get_recipes().contains_key(&neu_id)) || !NEURepoManager::get_recipes().get(&neu_id).cloned().unwrap().iter().cloned().any(|recipe| recipe.as_any().is::<crate::unresolved::NEUCraftingRecipe>()) {
+        if !(NEURepoManager::get_recipes().contains_key(&neu_id)) || !NEURepoManager::get_recipes().get(&neu_id).unwrap().iter().any(|recipe| (recipe as &dyn std::any::Any).is::<crate::unresolved::NEUCraftingRecipe>()) {
             // TODO(fabric2seer): static call ApplicabilityResult.createApplicableWithError(..)
             //   java: return ApplicabilityResult.createApplicableWithError(Component.translatable("skyblocker.rei.transfer.noRecipe"));
         }
@@ -78,8 +78,8 @@ impl SkyblockTransferHandler {
 
     /// java: private void checkScreen(String skyblockId)
     pub fn check_screen(&mut self, mut skyblock_id: String) {
-        let mut current_screen: mcrust::net::minecraft::client::gui::screens::screen::Screen = compat::minecraft().gui.screen().unwrap();
-        if !(current_screen.as_any().is::<ContainerScreen>()) {
+        // `currentScreen instanceof ContainerScreen`: the screen's kind
+        if !matches!(compat::minecraft().gui.screen_kind, mcrust::net::minecraft::client::gui::gui::ScreenKind::Container) {
             self.fail_count = 0;
             self.failed_item = skyblock_id.clone();
         }
@@ -109,7 +109,9 @@ impl SkyblockTransferHandler {
             //   java: return Result.createSuccessful();
         }
         MessageScheduler::send_message_after_cooldown(message_scheduler::INSTANCE.get_mut(), &format!("/viewrecipe {}", skyblock_id), false);
-        ({ let __r = scheduler::INSTANCE.get_mut(); let __f = compat::dispatch(__r, |__t| __t.schedule()); __f(__r, Arc::new(move || { self.check_screen(skyblock_id.clone()); }), 5) });
+        // rust: port gap - `Scheduler.INSTANCE.schedule(() -> checkScreen(skyblockId), 5)`: the handler is REI's object (the REI
+        // library is the `crate::unresolved` placeholders, GAPS_batchG) and the port holds no shared handle to it for the task
+        let _ = &skyblock_id;
         // TODO(fabric2seer): static call Result.createSuccessful(..)
         //   java: return Result.createSuccessful();
         todo!("fabric2seer: the value of this function is in a TODO above")

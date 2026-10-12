@@ -36,7 +36,9 @@ pub static CONFIG_PATH: compat::MainThread<std::path::PathBuf> = compat::MainThr
 //   java: @VisibleForTesting
 //   java: 	protected static final Comparator<Version> VERSION_COMPARATOR = Version::compareTo;
 /// java: @VisibleForTesting protected static final Comparator<Version> VERSION_COMPARATOR = Version::compareTo;
-pub static VERSION_COMPARATOR: compat::MainThread<Arc<dyn Fn(&mcrust::mcrust::modding::version::Version, &mcrust::mcrust::modding::version::Version) -> std::cmp::Ordering>> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `VERSION_COMPARATOR` - see the TODO above"));
+// Every comparison in this class is between two `SemanticVersion`s (Fabric's `SemanticVersion extends Version`);
+// `Version.compareTo` over two semantic versions is the port's `SemanticVersion: Ord`.
+pub static VERSION_COMPARATOR: compat::MainThread<Arc<dyn Fn(&mcrust::mcrust::modding::version::SemanticVersion, &mcrust::mcrust::modding::version::SemanticVersion) -> std::cmp::Ordering>> = compat::MainThread::new(|| Arc::new(|a: &mcrust::mcrust::modding::version::SemanticVersion, b: &mcrust::mcrust::modding::version::SemanticVersion| a.cmp(b)));
 /// java: @VisibleForTesting protected static final Codec<SemanticVersion> SEMANTIC_VERSION_CODEC = Codec.STRING.comapFlatMap(UpdateNotifications::parseVersion, SemanticVersion::toString);
 pub static SEMANTIC_VERSION_CODEC: compat::MainThread<CodecRef<mcrust::mcrust::modding::version::SemanticVersion>> = compat::MainThread::new(|| codec::comap_flat_map(mcrust::com::mojang::serialization::codec::string_codec(), |__a0| UpdateNotifications::parse_version(&compat::jstring(&__a0)), |__a0| compat::jstring(&__a0)));
 /// java: @VisibleForTesting protected static final Codec<SemanticVersion> MINECRAFT_VERSION_CODEC = Codec.STRING.comapFlatMap(UpdateNotifications::parseMinecraftVersion, SemanticVersion::toString);
@@ -44,7 +46,7 @@ pub static MINECRAFT_VERSION_CODEC: compat::MainThread<CodecRef<mcrust::mcrust::
 // TODO(fabric2seer): the port's `new` ports this Java method with other parameters ( for Java's display_time)
 //   java: private static final SystemToast.SystemToastId TOAST_TYPE = new SystemToast.SystemToastId(10000L);
 /// java: private static final SystemToast.SystemToastId TOAST_TYPE = new SystemToast.SystemToastId(10000L);
-pub static TOAST_TYPE: compat::MainThread<SystemToastId> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `TOAST_TYPE` - see the TODO above"));
+pub static TOAST_TYPE: compat::MainThread<SystemToastId> = compat::MainThread::new(|| SystemToastId::with_display_time(10000i64));
 /// java: private static final ProfiledData<Config> CONFIG = new ProfiledData<>(CONFIG_PATH, Config.CODEC);
 pub static CONFIG: compat::MainThread<compat::Shared<ProfiledData<Config>>> = compat::MainThread::new(|| ProfiledData::new(CONFIG_PATH.get_mut().clone(), CONFIG_CODEC.get_mut().clone()));
 /// java: private static boolean sentUpdateNotification;
@@ -62,7 +64,7 @@ pub static MR_VERSION_LIST_CODEC: compat::MainThread<CodecRef<Vec<MrVersion>>> =
 // TODO(fabric2seer): `from_values` takes 2 argument(s) in the port (`values: Vec<E>, serialized_name: impl Fn(&E) -> String + Send + Sync + Copy + 'static`), Java passes 1
 //   java: private static final Codec<Channel> CODEC = StringRepresentable.fromValues(Channel::values);
 /// java: private static final Codec<Channel> CODEC = StringRepresentable.fromValues(Channel::values);
-pub static CHANNEL_CODEC: compat::MainThread<CodecRef<Channel>> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `CODEC` - see the TODO above"));
+pub static CHANNEL_CODEC: compat::MainThread<CodecRef<Channel>> = compat::MainThread::new(|| mcrust::net::minecraft::util::string_representable::from_values(Channel::values(), |c: &Channel| c.get_serialized_name()));
 
 /// java: public class UpdateNotifications
 #[derive(Clone)]
@@ -84,8 +86,8 @@ impl UpdateNotifications {
             if LOADED.get_mut().is_none() {
                 *LOADED.get_mut() = Some(CONFIG.get_mut().lock().borrow_mut().init());
             }
-            // TODO(fabric2seer): no overload of `tryCheckForNewVersion` takes 1 argument(s)
-            //   java: loaded.thenRunAsync(UpdateNotifications::tryCheckForNewVersion, Minecraft.getInstance());
+            // java: loaded.thenRunAsync(UpdateNotifications::tryCheckForNewVersion, Minecraft.getInstance());
+            LOADED.get_mut().as_ref().unwrap().then_run(|| mcrust::mcrust::modding::game::execute(UpdateNotifications::try_check_for_new_version));
         }));
     }
 
@@ -109,8 +111,8 @@ impl UpdateNotifications {
             let mut mr_versions: Vec<MrVersion> = (MR_VERSION_LIST_CODEC.get_mut().parse(&mcrust::com::mojang::serialization::json_ops::JsonOps::instance(), &compat::json_to_port(&serde_json::from_str::<serde_json::Value>(&response).expect("JsonSyntaxException")))).get_or_throw().unwrap();
             compat::set_state(&SENT_UPDATE_NOTIFICATION, true);
             let mut optimal_version: Option<MrVersion> = UpdateNotifications::get_optimal_version(&current_mod_version, &current_minecraft_version, &mr_versions);
-            if optimal_version.is_some() && !(UpdateNotifications::should_discard(&current_mod_version, &optimal_version.clone().unwrap().version())) {
-                let mut new_version: MrVersion = optimal_version.clone().unwrap();
+            if optimal_version.is_some() && !(UpdateNotifications::should_discard(&current_mod_version, &optimal_version.as_ref().unwrap().version())) {
+                let mut new_version: MrVersion = optimal_version.unwrap();
                 let mut download_link: String = format!("https://modrinth.com/mod/skyblocker-liap/version/{}", new_version.id());
                 let mut version_text: MutableComponent = component::literal(&new_version.name()).with_style_fn(|style| style.apply_format(ChatFormatting::Gray).with_underlined(Some(true)).with_click_event(Some(ClickEvent::new_open_url(Uri::create(&download_link).unwrap()))));
                 mcrust::mcrust::modding::game::execute(move || {
@@ -118,9 +120,11 @@ impl UpdateNotifications {
                         return;
                     }
                     mcrust::mcrust::modding::game::with_player(|player| { script_host::send_feedback(&(constants::PREFIX.get_mut())().append(component::translatable_args("skyblocker.updateNotifications.newUpdateMessage", vec![mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(version_text.clone())])).to_string()); });
-                    // TODO(fabric2seer): static `Component.translatableEscape` has no Rust counterpart in the port
-                    // TODO(fabric2seer): `add` takes 5 argument(s) in the port (`toast_manager: &mut ToastManager, font: &FontSet, id: SystemToastId, title: &FormattedText, message: Option<&FormattedText>`), Java passes 4
-                    // rust: system_toast::add(&mut compat::minecraft().gui.toast_manager(), TOAST_TYPE.get_mut(), component::translatable("skyblocker.updateNotifications.newUpdateToast.title"), &mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(Component::translatable_escape("skyblocker.updateNotifications.newUpdateToast.description".to_string(), new_version.version())));
+                    // java: SystemToast.add(MINECRAFT.gui.toastManager(), TOAST_TYPE, Component.translatable(..title), Component.translatableEscape(..description, newVersion.version()));
+                    let client = compat::minecraft();
+                    let title = mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::translatable("skyblocker.updateNotifications.newUpdateToast.title"));
+                    let description = mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::translatable_escape("skyblocker.updateNotifications.newUpdateToast.description", vec![mcrust::net::minecraft::network::chat::formatted_text::FormattedText::of(new_version.version().to_string())]));
+                    system_toast::add(&mut client.gui.toast_manager().borrow_mut(), &client.font, *TOAST_TYPE.get(), &title, Some(&description));
                 });
             }
         }));
@@ -138,7 +142,7 @@ impl UpdateNotifications {
         {
             let mut newest_version_used: Option<mcrust::mcrust::modding::version::SemanticVersion> = UpdateNotifications::get_config().newest_version_used();
             let mut current_mod_version: mcrust::mcrust::modding::version::SemanticVersion = MOD_VERSION.get_mut().as_semantic().cloned().expect("ClassCastException: not a SemanticVersion");
-            let mut should_introduce_update: bool = (newest_version_used.is_none() || (VERSION_COMPARATOR.get_mut())(current_mod_version.clone(), newest_version_used.clone().unwrap()) > 0);
+            let mut should_introduce_update: bool = (newest_version_used.is_none() || (VERSION_COMPARATOR.get())(&current_mod_version, newest_version_used.as_ref().unwrap()) == std::cmp::Ordering::Greater);
             if !should_introduce_update {
                 return;
             }
@@ -146,7 +150,7 @@ impl UpdateNotifications {
             let mut configure_text: MutableComponent = component::translatable("skyblocker.updateNotifications.configureNewVersionHere").with_style_fn(|style| style.apply_format(ChatFormatting::Gray).with_underlined(Some(true)).with_click_event(Some(ClickEvent::new_run_command(format!("/skyblocker config {}", version_tag_string)))));
             let mut new_version_text: MutableComponent = component::translatable_args("skyblocker.updateNotifications.configureNewVersion", vec![mcrust::net::minecraft::network::chat::formatted_text::FormattedText::of(skyblocker_mod::VERSION.clone()), mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(configure_text.clone())]);
             mcrust::mcrust::modding::game::with_player(|player| { script_host::send_feedback(&(constants::PREFIX.get_mut())().append(new_version_text.clone()).to_string()); });
-            UpdateNotifications::set_config(Arc::new(move |config| config.with_newest_version_used(&current_mod_version)));
+            UpdateNotifications::set_config(Arc::new(move |config: Config| config.with_newest_version_used(&current_mod_version)));
         }
         // TODO(fabric2seer): the `catch (Exception e)` block is not reached in Rust - the try body returns, breaks or continues, so it cannot run inside `catch_unwind`
         //   java: {
@@ -156,38 +160,34 @@ impl UpdateNotifications {
 
     /// java: @VisibleForTesting protected static Optional<MrVersion> getOptimalVersion(SemanticVersion currentModVersion, SemanticVersion currentMinecraftVersion, List<MrVersion> mrVersions)
     pub fn get_optimal_version(current_mod_version: &mcrust::mcrust::modding::version::SemanticVersion, current_minecraft_version: &mcrust::mcrust::modding::version::SemanticVersion, mr_versions: &Vec<MrVersion>) -> Option<MrVersion> {
-        let mut config: Config = (if crate::de::hysky::skyblocker::debug::debug::Debug::is_test_environment() { CONFIG_DEFAULT.get_mut().clone() } else { UpdateNotifications::get_config() });
-        let mut eligible_mod_versions: Vec<MrVersion> = mr_versions.iter().cloned().filter(|release_version| config.encompassing_channels().iter().any(|e| *e == release_version.channel())).filter(|release_version| ((VERSION_COMPARATOR.get_mut())(release_version.version(), current_mod_version.clone()) > 0)).collect::<Vec<_>>();
+        let mut config: Config = (if crate::de::hysky::skyblocker::debug::debug::Debug::is_test_environment() { CONFIG_DEFAULT.get().clone() } else { UpdateNotifications::get_config() });
+        let comparator = VERSION_COMPARATOR.get();
+        let mut eligible_mod_versions: Vec<MrVersion> = mr_versions.iter().filter(|release_version| config.encompassing_channels().contains(&release_version.channel())).filter(|release_version| comparator(&release_version.version, current_mod_version) == std::cmp::Ordering::Greater).cloned().collect::<Vec<_>>();
         if eligible_mod_versions.is_empty() {
             return None;
         }
-        // TODO(fabric2seer): Collections.max
-        //   java: SemanticVersion newestModVersion = Collections.max(eligibleModVersions, Comparator.comparing(MrVersion::version)).version();
-        let mut newest_mod_version: mcrust::mcrust::modding::version::SemanticVersion = todo!("fabric2seer: the initialiser of `newestModVersion` (TODO above)");
-        let mut latest_mod_version_for_current_minecraft_version: Option<MrVersion> = eligible_mod_versions.iter().cloned().filter(|release_version| ((VERSION_COMPARATOR.get_mut())(release_version.version(), newest_mod_version.clone()) == 0)).filter(|release_version| release_version.minecraft_versions().into_iter().any(|version| ((VERSION_COMPARATOR.get_mut())(version.clone(), current_minecraft_version.clone()) == 0))).next();
+        // java: SemanticVersion newestModVersion = Collections.max(eligibleModVersions, Comparator.comparing(MrVersion::version)).version();
+        // (`Collections.max` keeps the FIRST of equal maxima, `Iterator::max_by` the last; only the version is read, so it is the same)
+        let mut newest_mod_version: mcrust::mcrust::modding::version::SemanticVersion = eligible_mod_versions.iter().max_by(|a, b| a.version.cmp(&b.version)).unwrap().version();
+        let mut latest_mod_version_for_current_minecraft_version: Option<MrVersion> = eligible_mod_versions.iter().filter(|release_version| comparator(&release_version.version, &newest_mod_version) == std::cmp::Ordering::Equal).filter(|release_version| release_version.minecraft_versions.iter().any(|version| comparator(version, current_minecraft_version) == std::cmp::Ordering::Equal)).next().cloned();
         if latest_mod_version_for_current_minecraft_version.is_some() {
             return latest_mod_version_for_current_minecraft_version;
         }
-        return eligible_mod_versions.iter().cloned().filter(|release_version| ((VERSION_COMPARATOR.get_mut())(release_version.version(), newest_mod_version.clone()) == 0)).max_by(|a, b| (|a, b| (VERSION_COMPARATOR.get_mut())(a, b))(&(|__a0| __a0.newest_minecraft_version_supported())(a), &(|__a0| __a0.newest_minecraft_version_supported())(b)));
+        // java: Stream.max keeps the LAST of equal maxima, as `Iterator::max_by` does
+        return eligible_mod_versions.iter().filter(|release_version| comparator(&release_version.version, &newest_mod_version) == std::cmp::Ordering::Equal).max_by(|a, b| comparator(&a.newest_minecraft_version_supported(), &b.newest_minecraft_version_supported())).cloned();
     }
 
     /// java: private static DataResult<SemanticVersion> parseVersion(String version)
     pub fn parse_version(version: &str) -> DataResult<mcrust::mcrust::modding::version::SemanticVersion> {
-        // TODO(fabric2seer): String.transform(..)
-        //   java: String formattedVersion = version.transform(s -> s.charAt(0) == 'v' ? s.substring(1) : s);
-        let mut formatted_version: String = todo!("fabric2seer: the initialiser of `formattedVersion` (TODO above)");
-        // java: try {..} catch (VersionParsingException _) - an exception here is a panic, caught by `catch_unwind`; the body's `return` is the closure's value
-        match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            return DataResult::success(mcrust::mcrust::modding::version::SemanticVersion::parse(&formatted_version).expect("VersionParsingException"));
-        })) {
-            Ok(__v) => return __v,
+        // java: String formattedVersion = version.transform(s -> s.charAt(0) == 'v' ? s.substring(1) : s);
+        let mut formatted_version: String = if compat::char_at(version, 0) == 'v' { compat::substring(version, 1) } else { version.to_string() };
+        // java: try {..} catch (VersionParsingException _) - `SemanticVersion::parse` answers the exception as `Err`
+        match mcrust::mcrust::modding::version::SemanticVersion::parse(&formatted_version) {
+            Ok(parsed) => return DataResult::success(parsed),
             Err(_) => {
-                // TODO(fabric2seer): a lambda for a parameter the port does not type as a closure (`Supplier<String>`)
-                // rust: return DataResult::error(|| format!("Failed to parse semantic version from string: {}", formatted_version));
-                return todo!("fabric2seer: see the TODO above");
+                return DataResult::error(Arc::new(move || format!("Failed to parse semantic version from string: {}", formatted_version)));
             }
         }
-        todo!("fabric2seer: the value of this function is in a TODO above")
     }
 
     /// java: private static DataResult<SemanticVersion> parseMinecraftVersion(String minecraftVersion)
@@ -200,14 +200,18 @@ impl UpdateNotifications {
 
     /// java: private static boolean isUnofficialAlphaOrBeta(SemanticVersion version)
     pub fn is_unofficial_alpha_or_beta(version: &mcrust::mcrust::modding::version::SemanticVersion) -> bool {
-        // TODO(fabric2seer): a pattern switch expression
-        //   java: return switch (version.getPrereleaseKey().orElse("")) {
-        //   java: 			case String s when s.startsWith("alpha") -> s.substring(5).charAt(0) == '-';
-        //   java: 			case String s when s.startsWith("beta") -> s.substring(4).charAt(0) == '-';
-        //   java:
-        //   java: 			default -> false;
-        //   java: 		};
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        // java: return switch (version.getPrereleaseKey().orElse("")) {
+        //   case String s when s.startsWith("alpha") -> s.substring(5).charAt(0) == '-';
+        //   case String s when s.startsWith("beta") -> s.substring(4).charAt(0) == '-';
+        //   default -> false; };
+        let s: &str = version.prerelease.as_deref().unwrap_or("");
+        if s.starts_with("alpha") {
+            return compat::char_at(&compat::substring(s, 5), 0) == '-';
+        }
+        if s.starts_with("beta") {
+            return compat::char_at(&compat::substring(s, 4), 0) == '-';
+        }
+        false
     }
 
     /// java: @VisibleForTesting protected static boolean shouldDiscard(SemanticVersion currentVersion, SemanticVersion latestVersion)
@@ -226,17 +230,18 @@ impl UpdateNotifications {
 
     /// java: public static Config getConfig()
     pub fn get_config() -> Config {
-        return ProfiledData::compute_if_absent_3(CONFIG.get_mut(), &Utils::get_uuid(), "".to_string(), Arc::new(move || CONFIG_DEFAULT.get_mut().clone()));
+        return ProfiledData::compute_if_absent_3(CONFIG.get(), &Utils::get_uuid(), "".to_string(), Arc::new(move || CONFIG_DEFAULT.get().clone()));
     }
 
     /// java: public static void setConfig(UnaryOperator<Config> updater)
     pub fn set_config(updater: Arc<dyn Fn(Config) -> Config>) {
-        ProfiledData::put_3(CONFIG.get_mut(), &Utils::get_uuid(), "".to_string(), (updater)(UpdateNotifications::get_config()));
+        ProfiledData::put_3(CONFIG.get(), &Utils::get_uuid(), "".to_string(), (updater)(UpdateNotifications::get_config()));
     }
 
 }
 
 /// java: public record Config(boolean enabled, Channel channel, Optional<SemanticVersion> newestVersionUsed)
+#[derive(Clone)]
 pub struct Config {
     /// java: boolean enabled
     pub enabled: bool,
@@ -294,6 +299,7 @@ impl Config {
 }
 
 /// java: @VisibleForTesting protected record MrVersion(String id, String name, SemanticVersion version, List<SemanticVersion> minecraftVersions, Channel channel)
+#[derive(Clone)]
 pub struct MrVersion {
     /// java: String id
     pub id: String,
@@ -340,7 +346,7 @@ impl MrVersion {
 
     /// java: private SemanticVersion newestMinecraftVersionSupported()
     pub fn newest_minecraft_version_supported(&self) -> mcrust::mcrust::modding::version::SemanticVersion {
-        return self.minecraft_versions().into_iter().max_by(|a, b| (VERSION_COMPARATOR.get_mut())(a, b)).unwrap();
+        return self.minecraft_versions.iter().max_by(|a, b| (VERSION_COMPARATOR.get())(a, b)).cloned().unwrap();
     }
 
 }
@@ -387,22 +393,21 @@ impl Channel {
 
     /// java: @Override public String toString()
     pub fn to_string(&self) -> String {
-        // TODO(fabric2seer): call to `name(..)` (not a method of this class)
-        //   java: return I18n.get("skyblocker.config.general.updateNotifications.updateChannel.channel." + name());
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        // java: return I18n.get("skyblocker.config.general.updateNotifications.updateChannel.channel." + name());
+        mcrust::net::minecraft::client::resources::language::i18n::get(&format!("skyblocker.config.general.updateNotifications.updateChannel.channel.{}", self.name()), &[])
     }
 
     /// java: @Override public String getSerializedName()
     pub fn get_serialized_name(&self) -> String {
-        // TODO(fabric2seer): call to `name(..)` (not a method of this class)
-        //   java: return name().toLowerCase(Locale.ENGLISH);
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        // java: return name().toLowerCase(Locale.ENGLISH);
+        self.name().to_lowercase()
     }
 
 }
 
 impl std::fmt::Display for Channel {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", Channel::to_string(*self))
+        write!(f, "{}", Channel::to_string(self))
+
     }
 }

@@ -170,7 +170,9 @@ impl BazaarHelper {
         if slot_id < 10 {
             return vec![];
         }
-        if slot_id > slot.container.get_container_size().wrapping_sub(11) {
+        // java: slot.container.getContainerSize() - the open menu's container the slot names
+        let __container_size: i32 = compat::with_open_menu(|_, containers| containers.get(slot.container).get_container_size()).unwrap_or(0);
+        if slot_id > __container_size.wrapping_sub(11) {
             return vec![];
         }
         let mut column: i32 = slot_id.wrapping_rem(9);

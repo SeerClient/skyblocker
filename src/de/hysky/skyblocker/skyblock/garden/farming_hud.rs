@@ -17,10 +17,10 @@ use mcrust::net::minecraft::world::level::block::blocks;
 use crate::de::hysky::skyblocker::injected::skyblocker_stack::SkyblockerStack as _;
 use mcrust::net::minecraft::world::entity::living_entity::LivingEntity as _;
 
-// TODO(fabric2seer): static `NumberFormat.getInstance` has no Rust counterpart in the port
-//   java: public static final NumberFormat NUMBER_FORMAT = NumberFormat.getInstance(Locale.US);
 /// java: public static final NumberFormat NUMBER_FORMAT = NumberFormat.getInstance(Locale.US);
-pub static NUMBER_FORMAT: compat::MainThread<DecimalFormat> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `NUMBER_FORMAT` - see the TODO above"));
+///
+/// `NumberFormat.getInstance(Locale.US)` is the US NUMBER pattern `#,##0.###`.
+pub static NUMBER_FORMAT: compat::MainThread<DecimalFormat> = compat::MainThread::new(|| DecimalFormat::new("#,##0.###", mcrust::java::text::decimal_format_symbols::get_instance(Locale::Us)));
 /// java: private static final Pattern FARMING_XP = Pattern.compile("\\+(?<xp>\\d+(?:\\.\\d+)?) Farming \\((?:(?<percent>[\\d,]+(?:\\.\\d+)?%)|(?<current>[\\d,]+)/(?<max>[\\d,]+k?))\\)");
 pub static FARMING_XP: LazyLock<compat::regex::Pattern> = LazyLock::new(|| compat::regex::Pattern::compile("\\+(?<xp>\\d+(?:\\.\\d+)?) Farming \\((?:(?<percent>[\\d,]+(?:\\.\\d+)?%)|(?<current>[\\d,]+)/(?<max>[\\d,]+k?))\\)"));
 /// java: private static final int STATS_WINDOW = 5_000;
@@ -32,7 +32,9 @@ pub static COUNTER: compat::MainThread<std::collections::VecDeque<(i64, i64)>> =
 // TODO(fabric2seer): `new LongArrayFIFOQueue(..)`
 //   java: private static final LongPriorityQueue blockBreaks = new LongArrayFIFOQueue();
 /// java: private static final LongPriorityQueue blockBreaks = new LongArrayFIFOQueue();
-pub static BLOCK_BREAKS: compat::MainThread<crate::unresolved::LongPriorityQueue> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `blockBreaks` - see the TODO above"));
+///
+/// `LongArrayFIFOQueue`: first in, first out (`enqueue` at the back, `dequeueLong` / `firstLong` at the front).
+pub static BLOCK_BREAKS: compat::MainThread<std::collections::VecDeque<i64>> = compat::MainThread::new(|| std::collections::VecDeque::new());
 /// java: private static final Queue<FloatLongPair> farmingXp = new ArrayDeque<>();
 pub static FARMING_XP_2: compat::MainThread<std::collections::VecDeque<(f32, i64)>> = compat::MainThread::new(|| std::collections::VecDeque::new());
 /// java: private static float farmingXpPercentProgress;
@@ -54,16 +56,13 @@ impl FarmingHud {
     pub fn init() {
         client_tick_events::END_CLIENT_TICK.register(Arc::new(|minecraft: &mut Minecraft| {
             if FarmingHud::should_render() {
-                if !(COUNTER.get_mut().is_empty()) && (COUNTER.get_mut().front().cloned().1).wrapping_add(STATS_WINDOW as i64) < compat::millis() {
+                if !(COUNTER.get_mut().is_empty()) && (COUNTER.get_mut().front().cloned().unwrap().1).wrapping_add(STATS_WINDOW as i64) < compat::millis() {
                     COUNTER.get_mut().pop_front();
                 }
-                // TODO(fabric2seer): the condition: `.isEmpty(..)` on a LongPriorityQueue
-                //   java: !blockBreaks.isEmpty() && blockBreaks.firstLong() + STATS_WINDOW < System.currentTimeMillis()
-                if todo!("fabric2seer: the condition (TODO above)") {
-                    // TODO(fabric2seer): `.dequeueLong(..)` on a LongPriorityQueue
-                    //   java: blockBreaks.dequeueLong();
+                if !(BLOCK_BREAKS.get_mut().is_empty()) && (BLOCK_BREAKS.get_mut().front().cloned().unwrap()).wrapping_add(STATS_WINDOW as i64) < compat::millis() {
+                    BLOCK_BREAKS.get_mut().pop_front();
                 }
-                if !(FARMING_XP_2.get_mut().is_empty()) && (FARMING_XP_2.get_mut().front().cloned().1).wrapping_add(STATS_WINDOW as i64) < compat::millis() {
+                if !(FARMING_XP_2.get_mut().is_empty()) && (FARMING_XP_2.get_mut().front().cloned().unwrap().1).wrapping_add(STATS_WINDOW as i64) < compat::millis() {
                     FARMING_XP_2.get_mut().pop_front();
                 }
                 debug_assert!(mcrust::mcrust::modding::game::with_player(|_| ()).is_some());
@@ -98,8 +97,7 @@ impl FarmingHud {
             if !(mcrust::mcrust::modding::game::with_player(|player| player.get_main_hand_item().get_neu_name().starts_with("CACTUS_KNIFE")).unwrap_or(false)) {
                 return;
             }
-            // TODO(fabric2seer): `.enqueue(..)` on a LongPriorityQueue
-            //   java: blockBreaks.enqueue(System.currentTimeMillis());
+            BLOCK_BREAKS.get_mut().push_back(compat::millis());
         }));
         // TODO(fabric2seer): ClientReceiveMessageEvents.ALLOW_GAME.register: no SeerClient equivalent yet
         //   java: ClientReceiveMessageEvents.ALLOW_GAME.register((message, overlay) -> {
@@ -128,8 +126,7 @@ impl FarmingHud {
     /// java: @SuppressWarnings("SameParameterValue") private static boolean tryGetCounter(ItemStack stack, CounterType counterType)
     pub fn try_get_counter(stack: &mcrust::net::minecraft::world::item::item_stack::ItemStack, mut counter_type: CounterType) -> bool {
         let mut custom_data: Tag = ItemUtils::get_custom_data(stack);
-        // TODO(fabric2seer): `is_empty` takes 1 argument(s) in the port (`tags: &BTreeMap<String, Tag>`), Java passes 0
-        if compound_tag::is_empty() || !(custom_data.get(&counter_type.fields().nbt_key).unwrap().as_any().is::<Tag>()) {
+        if custom_data.compound_is_empty() || !(custom_data.get(&counter_type.fields().nbt_key).is_some_and(|tag| tag.is_numeric())) {
             return true;
         }
         let mut count: i64 = custom_data.get_long_or(&counter_type.fields().nbt_key, (0) as i64);
@@ -137,7 +134,7 @@ impl FarmingHud {
             COUNTER.get_mut().clear();
             compat::set_state(&COUNTER_TYPE, counter_type);
         }
-        if COUNTER.get_mut().is_empty() || COUNTER.get_mut().back().cloned().0 != count {
+        if COUNTER.get_mut().is_empty() || COUNTER.get_mut().back().cloned().unwrap().0 != count {
             COUNTER.get_mut().push_back((count, compat::millis()));
         }
         return false;
@@ -155,7 +152,7 @@ impl FarmingHud {
 
     /// java: public static long counter()
     pub fn counter() -> i64 {
-        return (if COUNTER.get_mut().is_empty() { ((0) as i64) as i64 } else { COUNTER.get_mut().back().cloned().0 });
+        return (if COUNTER.get_mut().is_empty() { ((0) as i64) as i64 } else { COUNTER.get_mut().back().cloned().unwrap().0 });
     }
 
     /// java: public static float cropsPerMinute()
@@ -170,20 +167,12 @@ impl FarmingHud {
 
     /// java: public static double blockBreaks()
     pub fn block_breaks() -> f64 {
-        // TODO(fabric2seer): the condition: `.isEmpty(..)` on a LongPriorityQueue
-        //   java: blockBreaks.isEmpty(..)
-        if todo!("fabric2seer: the condition (TODO above)") {
+        if BLOCK_BREAKS.get_mut().is_empty() {
             return ((0) as f64) as f64;
         }
-        // TODO(fabric2seer): `.firstLong(..)` on a LongPriorityQueue
-        //   java: long firstTimestamp = blockBreaks.firstLong();
-        let mut first_timestamp: i64 = todo!("fabric2seer: the initialiser of `firstTimestamp` (TODO above)");
-        // TODO(fabric2seer): `.lastLong(..)` on a LongPriorityQueue
-        //   java: long lastTimestamp = blockBreaks.lastLong();
-        let mut last_timestamp: i64 = todo!("fabric2seer: the initialiser of `lastTimestamp` (TODO above)");
-        // TODO(fabric2seer): `.size(..)` on a LongPriorityQueue
-        //   java: return Math.round((blockBreaks.size() - 1) / (double) (lastTimestamp - firstTimestamp) * 10000) / 10d;
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        let mut first_timestamp: i64 = *BLOCK_BREAKS.get_mut().front().unwrap();
+        let mut last_timestamp: i64 = *BLOCK_BREAKS.get_mut().back().unwrap();
+        return (compat::java_round_f64((((BLOCK_BREAKS.get_mut().len() as i32) - 1) as f64) / ((last_timestamp.wrapping_sub(first_timestamp)) as f64) * (10000 as f64)) as f64) / 10.0;
     }
 
     /// java: public static float farmingXpPercentProgress()
@@ -196,9 +185,7 @@ impl FarmingHud {
         if FARMING_XP_2.get_mut().is_empty() {
             return ((0) as f64) as f64;
         }
-        // TODO(fabric2seer): Map.Entry.leftFloat
-        //   java: return Math.round(farmingXp.peek().leftFloat() * blockBreaks() * 3600 * 10) / 10d;
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        return (compat::java_round_f64((FARMING_XP_2.get_mut().front().unwrap().0 as f64) * FarmingHud::block_breaks() * (3600 as f64) * (10 as f64)) as f64) / 10.0;
     }
 
 }

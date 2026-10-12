@@ -42,7 +42,8 @@ pub static THROWABLE_AXES: LazyLock<std::collections::HashSet<String>> = LazyLoc
 /// java: private static final BlockPos[] NEIGHBOR_OFFSETS = { new BlockPos(-1, -1, -1), new BlockPos(-1, -1, 0), new BlockPos(-1, -1, 1), new BlockPos(-1, 0, -1), new BlockPos(-1, 0, 0), new BlockPos(-1, 0, 1)
 pub static NEIGHBOR_OFFSETS: compat::MainThread<Vec<BlockPos>> = compat::MainThread::new(|| vec![BlockPos::new(-1, -1, -1), BlockPos::new(-1, -1, 0), BlockPos::new(-1, -1, 1), BlockPos::new(-1, 0, -1), BlockPos::new(-1, 0, 0), BlockPos::new(-1, 0, 1), BlockPos::new(-1, 1, -1), BlockPos::new(-1, 1, 0), BlockPos::new(-1, 1, 1), BlockPos::new(0, -1, -1), BlockPos::new(0, -1, 0), BlockPos::new(0, -1, 1), BlockPos::new(0, 0, -1), BlockPos::new(0, 0, 1), BlockPos::new(0, 1, -1), BlockPos::new(0, 1, 0), BlockPos::new(0, 1, 1), BlockPos::new(1, -1, -1), BlockPos::new(1, -1, 0), BlockPos::new(1, -1, 1), BlockPos::new(1, 0, -1), BlockPos::new(1, 0, 0), BlockPos::new(1, 0, 1), BlockPos::new(1, 1, -1), BlockPos::new(1, 1, 0), BlockPos::new(1, 1, 1)]);
 /// java: private static final Map<Block, Float> TOUGHNESS_MAP = Map.of( Blocks.STRIPPED_SPRUCE_LOG, 10f, Blocks.STRIPPED_SPRUCE_WOOD, 10f, Blocks.MANGROVE_LOG, 50f, Blocks.MANGROVE_WOOD, 50f, Blocks.STRIPPED_B
-pub static TOUGHNESS_MAP: compat::MainThread<std::collections::HashMap<Arc<Block>, f32>> = compat::MainThread::new(|| std::collections::HashMap::from([(blocks::blocks().get("stripped_spruce_log"), 10.0f32), (blocks::blocks().get("stripped_spruce_wood"), 10.0f32), (blocks::blocks().get("mangrove_log"), 50.0f32), (blocks::blocks().get("mangrove_wood"), 50.0f32), (blocks::blocks().get("stripped_birch_log"), 150.0f32), (blocks::blocks().get("stripped_birch_wood"), 150.0f32), (blocks::blocks().get("stripped_mangrove_log"), 150.0f32), (blocks::blocks().get("stripped_mangrove_wood"), 150.0f32)]));
+/// (keyed by the block's identity, as `Map.of` over `Block`s that keep `Object.equals`)
+pub static TOUGHNESS_MAP: compat::MainThread<Vec<(Arc<Block>, f32)>> = compat::MainThread::new(|| Vec::from([(blocks::blocks().get("stripped_spruce_log"), 10.0f32), (blocks::blocks().get("stripped_spruce_wood"), 10.0f32), (blocks::blocks().get("mangrove_log"), 50.0f32), (blocks::blocks().get("mangrove_wood"), 50.0f32), (blocks::blocks().get("stripped_birch_log"), 150.0f32), (blocks::blocks().get("stripped_birch_wood"), 150.0f32), (blocks::blocks().get("stripped_mangrove_log"), 150.0f32), (blocks::blocks().get("stripped_mangrove_wood"), 150.0f32)]));
 /// java: @VisibleForTesting protected static final Map<String, List<Integer>> REQUIRED_SWEEP_VALUES = Map.ofEntries( Map.entry("FIG", List.of(7, 9, 11, 16, 21, 26, 34, 42, 50, 62, 74, 86, 102, 118, 134, 154, 1
 pub static REQUIRED_SWEEP_VALUES: LazyLock<std::collections::HashMap<String, Vec<i32>>> = LazyLock::new(|| std::collections::HashMap::from([("FIG".to_string(), vec![7, 9, 11, 16, 21, 26, 34, 42, 50, 62, 74, 86, 102, 118, 134, 154, 174, 194, 214, 234]), ("MANGROVE".to_string(), vec![50, 55, 60, 75, 90, 105, 130, 155, 180, 230, 280, 330, 405, 480, 555, 655, 755, 855, 955, 1055]), ("HELIX".to_string(), vec![150, 160, 170, 200, 230, 260, 320, 380, 440, 540, 640, 740, 890, 1040, 1190, 1390, 1590, 1790, 1990, 2190])]));
 
@@ -231,13 +232,14 @@ impl SweepOverlay {
 
     /// java: private static float getToughness(BlockState state)
     pub fn get_toughness(state: &Arc<BlockState>) -> f32 {
-        return TOUGHNESS_MAP.get_mut().get(&state.get_block()).cloned().unwrap_or_else(|| 1.0f32);
+        let __block = state.get_block();
+        return TOUGHNESS_MAP.get().iter().find(|(__k, _)| Arc::ptr_eq(__k, &__block)).map(|(_, __v)| *__v).unwrap_or_else(|| 1.0f32);
     }
 
     /// java: private static void submitConnectedLogs(PrimitiveCollector collector, BlockHitResult blockHitResult, BlockState state, boolean isThrown)
     pub fn submit_connected_logs(collector: &compat::Shared<dyn PrimitiveCollector>, block_hit_result: &BlockHitResult, state: &Arc<BlockState>, mut is_thrown: bool) {
         let mut start_pos: BlockPos = block_hit_result.get_block_pos();
-        let mut world: Level = mcrust::mcrust::modding::game::level().unwrap();
+        let mut world: Arc<mcrust::net::minecraft::client::multiplayer::client_level::ClientLevel> = mcrust::mcrust::modding::game::level().unwrap();
         let mut sweep_stat: f32 = SweepOverlay::get_sweep_stat();
         if sweep_stat <= (0 as f32) {
             return;
@@ -258,7 +260,7 @@ impl SweepOverlay {
         BlockPosSet::add(&visited, &start_pos);
         while wood_count < max_wood && !queue.is_empty() {
             let mut pos: BlockPos = queue.pop_front().unwrap();
-            let mut current_state: Arc<BlockState> = world.get_block_state(&pos);
+            let mut current_state: Arc<BlockState> = world.get_block_state_typed(&pos);
             if !(SweepOverlay::is_log(&current_state)) {
                 continue;
             }
@@ -269,8 +271,8 @@ impl SweepOverlay {
                 if BlockPosSet::contains_block_pos(&visited, &neighbor) || queue.iter().any(|e| *e == neighbor.clone()) {
                     continue;
                 }
-                let mut neighbor_state: Arc<BlockState> = world.get_block_state(&neighbor);
-                if SweepOverlay::is_log(&world.get_block_state(&neighbor)) && SweepOverlay::should_be_chopped(&current_state, &neighbor_state) {
+                let mut neighbor_state: Arc<BlockState> = world.get_block_state_typed(&neighbor);
+                if SweepOverlay::is_log(&world.get_block_state_typed(&neighbor)) && SweepOverlay::should_be_chopped(&current_state, &neighbor_state) {
                     queue.push_back(neighbor.clone());
                     BlockPosSet::add(&visited, &neighbor);
                 }
@@ -280,8 +282,8 @@ impl SweepOverlay {
 
     /// java: public static void configCallback(Color color)
     pub fn config_callback(color: &Color) {
-        // TODO(fabric2seer): `.getRGBComponents(..)` on a Color
-        //   java: colorComponents = color.getRGBComponents(null);
+        // java: colorComponents = color.getRGBComponents(null);
+        compat::set_state(&COLOR_COMPONENTS, color.get_rgb_components(None).to_vec());
     }
 
 }

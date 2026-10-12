@@ -47,10 +47,10 @@ impl Kuudra {
     pub fn init() {
         DATA.get_mut().lock().borrow_mut().load();
         screen_events::AFTER_INIT.register(Arc::new(|screen: &mut Screen, width: i32, height: i32| {
-            if Utils::is_on_skyblock() && let Some(generic_container_screen) = screen.as_any().downcast_ref::<ContainerScreen>() {
-                // TODO(fabric2seer): `.getTitle(..)` on a value of unknown type
-                //   java: String title = screen.getTitle().getString();
-                let mut title: String = todo!("fabric2seer: the initialiser of `title` (TODO above)");
+            // `screen instanceof ContainerScreen genericContainerScreen`: the screen's kind (the vanilla `ContainerScreen`
+            // object itself is not lent to the listener - its uses below stay with the TODOs)
+            if Utils::is_on_skyblock() && matches!(compat::minecraft().gui.screen_kind, mcrust::net::minecraft::client::gui::gui::ScreenKind::Container) {
+                let mut title: String = screen.get_title().to_string();
                 let mut faction_shop_matcher: compat::regex::Matcher = FACTION_SHOP_PATTERN.matcher(&title);
                 if true && faction_shop_matcher.matches() {
                     // TODO(fabric2seer): ScreenEvents.afterTick(..).register: no SeerClient equivalent yet
@@ -101,12 +101,12 @@ impl Kuudra {
                 if todo!("fabric2seer: the condition (TODO above)") {
                     continue;
                 }
-                let mut amount: i32 = found_string.trim().parse::<i32>().expect("NumberFormatException");
+                let mut amount: i32 = found_string.parse::<i32>().expect("NumberFormatException");
                 kuudra_key_prices.insert(kuudra_key.get_skyblock_id(), amount);
             }
         }
         let mut stored_data: KuudraProfileData = Kuudra::get_kuudra_profile_data();
-        if faction != stored_data.faction() || !(kuudra_key_prices == &stored_data.kuudra_key_prices()) {
+        if faction != stored_data.faction() || !(kuudra_key_prices == stored_data.kuudra_key_prices()) {
             let mut new_data: KuudraProfileData = KuudraProfileData::new(faction, stored_data.kuudra_pet(), kuudra_key_prices.clone());
             ProfiledData::put(DATA.get_mut(), new_data.clone());
             DATA.get_mut().lock().borrow().save();

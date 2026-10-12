@@ -66,7 +66,11 @@ impl EditBidPopup {
         // TODO(fabric2seer): the mod keeps the game's `SignBlockEntity` (Java holds a reference to the live object); the port's `SignBlockEntity` is not a value to copy and the port lends the mod no handle to it
         //   java: this.signBlockEntity = signBlockEntity;
         let __init_sign_front = sign_front;
-        let (_, __this) = AbstractPopupScreenBase::new_in(component::literal("Edit Bid"), auction_view_screen.clone(), move |__base| {
+        // java: super(Component.literal("Edit Bid"), auctionViewScreen);
+        // rust: port gap (GAPS_batchA #19) - the popup base keeps its background as the game's `Screen` value; a mod screen
+        // (AuctionViewScreen) is not one, so an empty screen stands in (the base's own background field is still a TODO)
+        let _ = &auction_view_screen;
+        let (_, __this) = AbstractPopupScreenBase::new_in(component::literal("Edit Bid"), mcrust::net::minecraft::client::gui::screens::screen::Screen::new(String::new()), move |__base| {
             let __h = compat::shared(Self {
                 base: __base,
                 layout: LinearLayout::vertical(),
@@ -96,7 +100,9 @@ impl EditBidPopup {
     }
 
     /// java: private void done(Button widget)
-    pub fn done(__this: &compat::Shared<Self>, widget: &AbstractWidget) {
+    /// (`widget` is Java's nullable `Button`: the text field's enter callback passes `null`)
+    pub fn done<'a>(__this: &compat::Shared<Self>, widget: impl Into<Option<&'a AbstractWidget>>) {
+        let _widget: Option<&AbstractWidget> = widget.into();
         if SkyblockerConfigManager::get().ui_and_visuals.input_calculator.enabled {
             if !(EditBidPopup::is_string_good(__this, &SignCalculator::get_new_value(false))) {
                 return;
@@ -166,14 +172,20 @@ impl EditBidPopup {
     pub fn init_impl(__this: &compat::Shared<Self>) {
         <dyn AbstractPopupScreen>::init_body(&compat::view(__this, |a| a as compat::Shared<dyn AbstractPopupScreen>));
         { let __v = LinearLayout::vertical(); compat::write(__this, |__t| __t.layout = __v); }
-        __this.lock().borrow_mut().layout.spacing(8).default_cell_setting().align_horizontally_center();
+        // java: layout.spacing(8).defaultCellSetting().alignHorizontallyCenter(); - `spacing` answers `this`
+        compat::write(__this, |__t| {
+            let layout = std::mem::replace(&mut __t.layout, LinearLayout::vertical());
+            __t.layout = layout.spacing(8);
+            __t.layout.default_cell_setting().align_horizontally_center();
+        });
         let __this_w1 = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
-        { let __v = Some((EnterConfirmTextFieldWidget::new(compat::font(), 120, 15, component::empty(), Arc::new(move || { let Some(__this_1) = __this_w1.get().upgrade() else { return Default::default(); }; { EditBidPopup::done((&__this_1), None /* java: null */); } })) as compat::Shared<dyn FilteredEditBox>)); compat::write(__this, |__t| __t.text_field_widget = __v); }
+        { let __v = Some((EnterConfirmTextFieldWidget::new(compat::font(), 120, 15, component::empty(), Arc::new(move || { let Some(__this_1) = __this_w1.get().upgrade() else { return Default::default(); }; { EditBidPopup::done((&__this_1), None::<&AbstractWidget> /* java: null */); } })) as compat::Shared<dyn FilteredEditBox>)); compat::write(__this, |__t| __t.text_field_widget = __v); }
         let __this_w2 = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
         ({ let __r = &compat::read(__this, |__t| __t.text_field_widget.clone()).unwrap(); let __f = compat::dispatch(__r, |__t| __t.set_filter()); __f(__r, Arc::new(move |__a0| { let Some(__this_2) = __this_w2.get().upgrade() else { return Default::default(); }; EditBidPopup::is_string_good((&__this_2), &__a0) })) });
         { let (__q0,) = ({ let __w = compat::string_widget(0, 0, -1, 9, (component::literal("- Set Bid -")).with_style(&mcrust::net::minecraft::network::chat::style::Style::EMPTY.with_bold(Some(true)))); let (__ww, __wh) = (__w.get_width(), __w.get_height()); LayoutElement::widget(compat::write(__this, |__t| __t.add_widget(__w)), __ww, __wh) },); __this.lock().borrow_mut().layout.add_child(__q0) };
-        let __r0 = compat::read(__this, |__t| __t.text_field_widget.clone());
-        { let (__q0,) = (__r0.unwrap(),); __this.lock().borrow_mut().layout.add_child(__q0) };
+        // java: layout.addChild(textFieldWidget);
+        // rust: port gap (GAPS_batchA #3) - the text field is a mod subclass of EditBox (FilteredEditBox); the port has no
+        // widget adapter for an EditBox subclass, so it cannot join the screen's widgets or this layout
         let __r0 = compat::read(__this, |__t| __t.minimum_bid.clone());
         { let (__q0,) = ({ let __w = compat::string_widget(0, 0, -1, 9, component::literal(&format!("Minimum Bid: {}", __r0))); let (__ww, __wh) = (__w.get_width(), __w.get_height()); LayoutElement::widget(compat::write(__this, |__t| __t.add_widget(__w)), __ww, __wh) },); __this.lock().borrow_mut().layout.add_child(__q0) };
         let mut horizontal: LinearLayout = LinearLayout::horizontal();
@@ -185,10 +197,22 @@ impl EditBidPopup {
         horizontal.add_child({ let __w = (button::builder(component::literal("Done").get_string(), OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| { let Some(__this_4) = __this_w4.get().upgrade() else { return Default::default(); }; compat::lend_screen(&__this_4, __screen, || { let mut __pidx = compat::WidgetRef::Screen(__index); { EditBidPopup::done((&__this_4), &compat::write((&__this_4), |__t| { let __s = &mut *__t; let __r = &mut __pidx; __s.base.__widgets.with(&mut __s.base.base, __r, |__w| __w.clone()) })); } }) })))).width(80).build(); let (__ww, __wh) = (__w.get_width(), __w.get_height()); LayoutElement::widget(compat::write(__this, |__t| __t.add_widget(__w)), __ww, __wh) });
         { let (__q0,) = (LayoutElement::Grid(horizontal.clone().wrapped),); __this.lock().borrow_mut().layout.add_child(__q0) };
         { let mut __vw = Vec::new(); LayoutElement::Grid(__this.lock().borrow().layout.wrapped.clone()).visit_widgets(&mut __vw); for (__i, _, _) in __vw { compat::write(__this, |__t| __t.mark_renderable(__i)); } };
-        { __this.lock().borrow_mut().layout.arrange_elements(); let mut __vw = Vec::new(); LayoutElement::Grid(__this.lock().borrow().layout.wrapped.clone()).visit_widgets(&mut __vw); for (__i, __x, __y) in __vw { compat::write(__this, |__t| __t.widget_mut(__i).set_position(__x, __y)); } };
-        frame_layout::center_in_rectangle_of(&LayoutElement::Grid(compat::read(__this, |__t| __t.layout.clone()).wrapped), __this.lock().borrow().get_rectangle());
-        let __r0 = compat::read(__this, |__t| __t.text_field_widget.clone());
-        { let (__q0,) = (__r0.unwrap(),); __this.lock().borrow_mut().set_initial_focus_on(__q0) };
+        // java: layout.arrangeElements(); FrameLayout.centerInRectangle(layout, getRectangle()); - the widgets take their
+        // positions from the centred layout
+        {
+            let mut layout: LinearLayout = compat::read(__this, |__t| __t.layout.clone());
+            layout.arrange_elements();
+            let rectangle = compat::read(__this, |__t| __t.get_rectangle());
+            frame_layout::center_in_rectangle_of(&mut *compat::LayoutBack::grid(&mut layout.wrapped), rectangle);
+            let mut __vw = Vec::new();
+            LayoutElement::Grid(layout.wrapped.clone()).visit_widgets(&mut __vw);
+            for (__i, __x, __y) in __vw {
+                compat::write(__this, |__t| __t.widget_mut(__i).set_position(__x, __y));
+            }
+            compat::write(__this, |__t| __t.layout = layout);
+        }
+        // java: setInitialFocus(textFieldWidget);
+        // rust: port gap (GAPS_batchA #3) - the text field is not one of the screen's widgets (see above), so it has no index to focus
     }
 
     /// EditBidPopup.init as the dispatch of AbstractPopupScreen.init

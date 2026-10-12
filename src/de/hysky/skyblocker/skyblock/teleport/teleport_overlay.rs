@@ -62,9 +62,8 @@ impl TeleportOverlay {
                     }
                 }
                 "ASPECT_OF_THE_END" | "ASPECT_OF_THE_VOID" => {
-                    // TODO(fabric2seer): `Options.keyShift` has no Rust field in the port (searched net.minecraft.client.Options and its supertypes)
-                    // TODO(fabric2seer): `is_down` takes 1 argument(s) in the port (`name: &str`), Java passes 0
-                    if SkyblockerConfigManager::get().ui_and_visuals.teleport_overlay.enable_ether_transmission && key_mapping::is_down() && custom_data.get_int_or("ethermerge", 0) == 1 {
+                    // java: client.options.keyShift.isDown()
+                    if SkyblockerConfigManager::get().ui_and_visuals.teleport_overlay.enable_ether_transmission && key_mapping::is_down("key.sneak") && custom_data.get_int_or("ethermerge", 0) == 1 {
                         TeleportOverlay::extract_rendering_4(collector, &custom_data, 57, true);
                     } else if SkyblockerConfigManager::get().ui_and_visuals.teleport_overlay.enable_instant_transmission {
                         TeleportOverlay::extract_rendering_4(collector, &custom_data, 8, false);

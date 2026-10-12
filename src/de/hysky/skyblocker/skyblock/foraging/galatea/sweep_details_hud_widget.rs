@@ -157,7 +157,7 @@ impl ElementCollector for SweepDetailsHudWidget {
 
     /// java: public <T extends Element> T addElement(T c)
     fn add_element(&mut self, mut c: compat::Shared<dyn Element>) -> compat::Shared<dyn Element> {
-        ({ let __f = compat::dispatch(&c, |__t| __t.set_parent()); __f(&c, self.clone()) });
+        ({ let __f = compat::dispatch(&c, |__t| __t.set_parent()); __f(&c, self.hud_widget_base().as_parent()) });
         self.elements.push(c.clone());
         return c;
     }
@@ -184,11 +184,11 @@ impl SweepDetailsHudWidget {
         { let (__a0,) = ((PlainTextElement::new(Some(component::translatable_args("skyblocker.galatea.hud.sweepDetails.toughness", vec![mcrust::net::minecraft::network::chat::formatted_text::FormattedText::of(compat::get_state(&sweep_details_listener::TOUGHNESS))]))) as compat::Shared<dyn Element>),); __this.lock().borrow_mut().add_element(__a0) };
         let mut sweep_amount: MutableComponent;
         if compat::get_state(&sweep_details_listener::MAX_SWEEP) > compat::get_state(&sweep_details_listener::LAST_SWEEP) {
-            let mut last_sweep: MutableComponent = component::literal(&formatters::DOUBLE_NUMBERS.get_mut().format(compat::get_state(&sweep_details_listener::LAST_SWEEP))).with_color(mcrust::net::minecraft::util::common_colors::SOFT_RED);
-            let mut this_sweep: MutableComponent = component::literal(&formatters::DOUBLE_NUMBERS.get_mut().format(compat::get_state(&sweep_details_listener::MAX_SWEEP))).with_color(mcrust::net::minecraft::util::common_colors::GREEN);
+            let mut last_sweep: MutableComponent = component::literal(&formatters::DOUBLE_NUMBERS.get_mut().format(compat::get_state(&sweep_details_listener::LAST_SWEEP) as f64)).with_color(mcrust::net::minecraft::util::common_colors::SOFT_RED);
+            let mut this_sweep: MutableComponent = component::literal(&formatters::DOUBLE_NUMBERS.get_mut().format(compat::get_state(&sweep_details_listener::MAX_SWEEP) as f64)).with_color(mcrust::net::minecraft::util::common_colors::GREEN);
             sweep_amount = last_sweep.append(component::literal(" (").with_color(mcrust::net::minecraft::util::common_colors::WHITE)).append(this_sweep.clone()).append(component::literal(")").with_color(mcrust::net::minecraft::util::common_colors::WHITE));
         } else {
-            sweep_amount = component::literal(&formatters::DOUBLE_NUMBERS.get_mut().format(compat::get_state(&sweep_details_listener::MAX_SWEEP))).with_color(mcrust::net::minecraft::util::common_colors::GREEN);
+            sweep_amount = component::literal(&formatters::DOUBLE_NUMBERS.get_mut().format(compat::get_state(&sweep_details_listener::MAX_SWEEP) as f64)).with_color(mcrust::net::minecraft::util::common_colors::GREEN);
         }
         { let (__a0,) = ((PlainTextElement::new(Some(component::translatable_args("skyblocker.galatea.hud.sweepDetails.sweep", vec![mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(sweep_amount.clone())]))) as compat::Shared<dyn Element>),); __this.lock().borrow_mut().add_element(__a0) };
         { let (__a0,) = ((PlainTextElement::new(Some(component::translatable_args("skyblocker.galatea.hud.sweepDetails.logs", vec![mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::literal(&compat::get_state(&sweep_details_listener::LOGS)).with_color(mcrust::net::minecraft::util::common_colors::GREEN))]))) as compat::Shared<dyn Element>),); __this.lock().borrow_mut().add_element(__a0) };

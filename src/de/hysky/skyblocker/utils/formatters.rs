@@ -12,18 +12,18 @@ use mcrust::net::minecraft::util::util;
 
 /// java: public static final NumberFormat INTEGER_NUMBERS = NumberFormat.getIntegerInstance(Locale.US);
 pub static INTEGER_NUMBERS: compat::MainThread<DecimalFormat> = compat::MainThread::new(|| number_format::get_integer_instance(Locale::Us));
-// TODO(fabric2seer): static `NumberFormat.getInstance` has no Rust counterpart in the port
-//   java: public static final NumberFormat TRIPLE_NUMBERS = Util.make(NumberFormat.getInstance(Locale.US), nf -> nf.setMaximumFractionDigits(3));
 /// java: public static final NumberFormat TRIPLE_NUMBERS = Util.make(NumberFormat.getInstance(Locale.US), nf -> nf.setMaximumFractionDigits(3));
-pub static TRIPLE_NUMBERS: compat::MainThread<DecimalFormat> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `TRIPLE_NUMBERS` - see the TODO above"));
-// TODO(fabric2seer): static `NumberFormat.getInstance` has no Rust counterpart in the port
-//   java: public static final NumberFormat DOUBLE_NUMBERS = Util.make(NumberFormat.getInstance(Locale.US), nf -> nf.setMaximumFractionDigits(2));
+/// (`NumberFormat.getInstance(Locale.US)` is a `DecimalFormat` over the US number pattern `#,##0.###`; with at most 3
+/// fraction digits that is the pattern `#,##0.###`)
+pub static TRIPLE_NUMBERS: compat::MainThread<DecimalFormat> = compat::MainThread::new(|| DecimalFormat::new("#,##0.###", mcrust::java::text::decimal_format_symbols::get_instance(Locale::Us)));
 /// java: public static final NumberFormat DOUBLE_NUMBERS = Util.make(NumberFormat.getInstance(Locale.US), nf -> nf.setMaximumFractionDigits(2));
-pub static DOUBLE_NUMBERS: compat::MainThread<DecimalFormat> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `DOUBLE_NUMBERS` - see the TODO above"));
-// TODO(fabric2seer): static `NumberFormat.getInstance` has no Rust counterpart in the port
-//   java: public static final NumberFormat FLOAT_NUMBERS = Util.make(NumberFormat.getInstance(Locale.US), nf -> nf.setMaximumFractionDigits(1));
+/// (`NumberFormat.getInstance(Locale.US)` is a `DecimalFormat` over the US number pattern `#,##0.###`; with at most 2
+/// fraction digits that is the pattern `#,##0.##`)
+pub static DOUBLE_NUMBERS: compat::MainThread<DecimalFormat> = compat::MainThread::new(|| DecimalFormat::new("#,##0.##", mcrust::java::text::decimal_format_symbols::get_instance(Locale::Us)));
 /// java: public static final NumberFormat FLOAT_NUMBERS = Util.make(NumberFormat.getInstance(Locale.US), nf -> nf.setMaximumFractionDigits(1));
-pub static FLOAT_NUMBERS: compat::MainThread<DecimalFormat> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `FLOAT_NUMBERS` - see the TODO above"));
+/// (`NumberFormat.getInstance(Locale.US)` is a `DecimalFormat` over the US number pattern `#,##0.###`; with at most 1
+/// fraction digits that is the pattern `#,##0.#`)
+pub static FLOAT_NUMBERS: compat::MainThread<DecimalFormat> = compat::MainThread::new(|| DecimalFormat::new("#,##0.#", mcrust::java::text::decimal_format_symbols::get_instance(Locale::Us)));
 // TODO(fabric2seer): static `NumberFormat.Style` has no Rust counterpart in the port's NumberFormat file
 //   java: public static final NumberFormat SHORT_INTEGER_NUMBERS = NumberFormat.getCompactNumberInstance(Locale.US, NumberFormat.Style.SHORT);
 /// java: public static final NumberFormat SHORT_INTEGER_NUMBERS = NumberFormat.getCompactNumberInstance(Locale.US, NumberFormat.Style.SHORT);

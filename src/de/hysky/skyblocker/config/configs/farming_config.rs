@@ -238,22 +238,18 @@ impl Type {
 
     /// java: @Override public String getSerializedName()
     pub fn get_serialized_name(&self) -> String {
-        // TODO(fabric2seer): call to `name(..)` (not a method of this class)
-        //   java: return name().toLowerCase(Locale.ENGLISH);
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        return self.name().to_lowercase();
     }
 
     /// java: @Override public String toString()
     pub fn to_string(&self) -> String {
-        // TODO(fabric2seer): call to `name(..)` (not a method of this class)
-        //   java: return I18n.get("skyblocker.config.farming.farmingHud.type." + name());
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        return mcrust::net::minecraft::client::resources::language::i18n::get(&format!("skyblocker.config.farming.farmingHud.type.{}", self.name()), &[]);
     }
 
 }
 
 impl std::fmt::Display for Type {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", Type::to_string(*self))
+        write!(f, "{}", Type::to_string(self))
     }
 }

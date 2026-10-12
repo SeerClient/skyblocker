@@ -75,9 +75,11 @@ impl CaxtonCompatibility {
             return None;
         }
         // java: try {..} catch (IllegalAccessException | NoSuchFieldException e) - an exception here is a panic, caught by `catch_unwind`; the body's `return` is the closure's value
-        match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            // TODO(fabric2seer): `.getField(..)` on a Class
-            //   java: return Optional.of((RenderPipeline) clazz.getField(name).get(null));
+        match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| -> Option<RenderPipeline> {
+            // java: return Optional.of((RenderPipeline) clazz.getField(name).get(null));
+            // rust: port gap - reflection into another mod's classes (`Class.getField(..).get(null)`) has no Rust
+            // counterpart; it fails as `NoSuchFieldException` would (GAPS_batchF.md)
+            panic!("NoSuchFieldException: {}", name)
         })) {
             Ok(__v) => return __v,
             Err(e) => {

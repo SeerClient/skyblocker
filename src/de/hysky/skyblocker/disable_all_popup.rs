@@ -40,7 +40,7 @@ impl DisableAllPopup {
     /// java: public void open(Screen parent)
     pub fn open(&self, parent: &mcrust::net::minecraft::client::gui::screens::screen::Screen) {
         let mut confirm_prefix: MutableComponent = component::translatable("text.skyblocker.confirm").with_color(mcrust::net::minecraft::util::common_colors::RED).with_style_fn(|style| style.with_bold(Some(true)));
-        let mut confirm_component: MutableComponent = CountdownComponent::new(DELAY_S, compat::TimeUnit::Seconds, confirm_prefix.clone(), mcrust::net::minecraft::network::chat::style::Style::EMPTY);
+        let mut confirm_component: compat::Shared<CountdownComponent> = CountdownComponent::new(DELAY_S, compat::TimeUnit::Seconds, confirm_prefix.clone(), mcrust::net::minecraft::network::chat::style::Style::EMPTY);
         // TODO(fabric2seer): `addButton` on a void
         //   java: PopupScreen.Builder builder = new PopupScreen.Builder(parent, Component.translatable("skyblocker.disableAll.popup.title"))
         //   java: 				.addMessage(Component.translatable("skyblocker.disableAll.popup.warning", Component.translatable("skyblocker.disableAll.popup.seriousWarning").withColor(CommonColors.SOFT_RED)))

@@ -223,7 +223,7 @@ impl SkyblockKatUpgradeRecipe {
 
     /// java: @Override public Identifier getRecipeIdentifier()
     pub fn get_recipe_identifier_impl(__this: &compat::Shared<Self>) -> Identifier {
-        return Identifier::from_namespace_and_path("skyblock", &__this.lock().borrow().upgraded_pet.as_ref().unwrap().get_skyblock_id().to_lowercase().replace(';', &'_'.to_string()));
+        return Identifier::from_namespace_and_path("skyblock", &compat::read(&compat::read(__this, |__t| __t.upgraded_pet.clone()).unwrap(), |__s| __s.get_skyblock_id()).to_lowercase().replace(';', &'_'.to_string()));
     }
 
     /// SkyblockKatUpgradeRecipe.getRecipeIdentifier as the dispatch of SkyblockRecipe.getRecipeIdentifier

@@ -59,7 +59,7 @@ impl SnapshotDebug {
             ({ let __f = compat::dispatch(collector, |__t| __t.submit_text()); __f(collector, &component::null_to_empty(Some(&format!("Skyblocker on {}!", shared_constants::get_current_version().name()))), &Vec3::new(175.5, 67.5, -7.5), false) });
             ({ let __f = compat::dispatch(collector, |__t| __t.submit_cylinder()); __f(collector, &vec3::at_center_of(&BlockPos::new(172, 78, 44)), ((12) as f32) as f32, ((12) as f32) as f32, 32, *CYAN) });
             ({ let __f = compat::dispatch(collector, |__t| __t.submit_cylinder()); __f(collector, &vec3::at_center_of(&BlockPos::new(144, 78, 44)), ((12) as f32) as f32, ((12) as f32) as f32, 32, *BLUE) });
-            ({ let __f = compat::dispatch(collector, |__t| __t.submit_block_hologram()); __f(collector, &BlockPos::new(183, 65, 9), &blocks::blocks().get("diamond_block").default_block_state(), 0.5f32) });
+            ({ let __f = compat::dispatch(collector, |__t| __t.submit_block_hologram()); __f(collector, &BlockPos::new(183, 65, 9), &blocks::blocks().get("DIAMOND_BLOCK").default_block_state(), 0.5f32) });
         } else if SnapshotDebug::is_in_snapshot() {
             ({ let __f = compat::dispatch(collector, |__t| __t.submit_filled_box_with_beacon_beam()); __f(collector, &BlockPos::new(-3, 63, 5), &RED, ALPHA, true) });
             ({ let __f = compat::dispatch(collector, |__t| __t.submit_outlined_box()); __f(collector, &BlockPos::new(-3, 63, 5), &RED, ((5) as f32) as f32, true) });

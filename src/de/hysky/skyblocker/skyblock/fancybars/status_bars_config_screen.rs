@@ -160,10 +160,10 @@ impl StatusBarsConfigScreen {
                             inserted = true;
                             if !(__this.lock().borrow().current_insert_location.equals(bar_snap.bar_anchor().unwrap(), bar_snap.x(), neighbor_insert_y)) {
                                 if compat::read(&compat::read(__this, |__t| __t.cursor_bar.clone()).unwrap(), |__t| __t.status_bar_base().anchor.clone()).is_some() {
-                                    compat::read(__this, |__t| __t.bars.clone()).lock().borrow().bar_positioner.remove_bar_bar_anchor_int_status_bar(compat::read(&compat::read(__this, |__t| __t.cursor_bar.clone()).unwrap(), |__t| __t.status_bar_base().anchor.clone()).unwrap(), compat::read(&compat::read(__this, |__t| __t.cursor_bar.clone()).unwrap(), |__t| __t.status_bar_base().grid_y), &compat::read(__this, |__t| __t.cursor_bar.clone()).unwrap());
+                                    { let __bars = compat::read(__this, |__t| __t.bars.clone()); compat::write(&__bars, |__b| __b.bar_positioner.remove_bar_bar_anchor_int_status_bar(compat::read(&compat::read(__this, |__t| __t.cursor_bar.clone()).unwrap(), |__t| __t.status_bar_base().anchor.clone()).unwrap(), compat::read(&compat::read(__this, |__t| __t.cursor_bar.clone()).unwrap(), |__t| __t.status_bar_base().grid_y), &compat::read(__this, |__t| __t.cursor_bar.clone()).unwrap())); }
                                 }
-                                compat::read(__this, |__t| __t.bars.clone()).lock().borrow().bar_positioner.add_row_2(bar_snap.bar_anchor().unwrap(), neighbor_insert_y);
-                                compat::read(__this, |__t| __t.bars.clone()).lock().borrow().bar_positioner.add_bar(bar_snap.bar_anchor().unwrap(), neighbor_insert_y, compat::read(__this, |__t| __t.cursor_bar.clone()).unwrap());
+                                { let __bars = compat::read(__this, |__t| __t.bars.clone()); compat::write(&__bars, |__b| __b.bar_positioner.add_row_2(bar_snap.bar_anchor().unwrap(), neighbor_insert_y)); }
+                                { let __bars = compat::read(__this, |__t| __t.bars.clone()); compat::write(&__bars, |__b| __b.bar_positioner.add_bar(bar_snap.bar_anchor().unwrap(), neighbor_insert_y, compat::read(__this, |__t| __t.cursor_bar.clone()).unwrap())); }
                                 { let __v = BarLocation::of(&compat::read(__this, |__t| __t.cursor_bar.clone()).unwrap()); compat::write(__this, |__t| __t.current_insert_location = __v); }
                                 update_positions = true;
                             }
@@ -172,9 +172,9 @@ impl StatusBarsConfigScreen {
                             inserted = true;
                             if !(__this.lock().borrow().current_insert_location.equals(bar_snap.bar_anchor().unwrap(), neighbor_insert_x, bar_snap.y())) {
                                 if compat::read(&compat::read(__this, |__t| __t.cursor_bar.clone()).unwrap(), |__t| __t.status_bar_base().anchor.clone()).is_some() {
-                                    compat::read(__this, |__t| __t.bars.clone()).lock().borrow().bar_positioner.remove_bar_bar_anchor_int_status_bar(compat::read(&compat::read(__this, |__t| __t.cursor_bar.clone()).unwrap(), |__t| __t.status_bar_base().anchor.clone()).unwrap(), compat::read(&compat::read(__this, |__t| __t.cursor_bar.clone()).unwrap(), |__t| __t.status_bar_base().grid_y), &compat::read(__this, |__t| __t.cursor_bar.clone()).unwrap());
+                                    { let __bars = compat::read(__this, |__t| __t.bars.clone()); compat::write(&__bars, |__b| __b.bar_positioner.remove_bar_bar_anchor_int_status_bar(compat::read(&compat::read(__this, |__t| __t.cursor_bar.clone()).unwrap(), |__t| __t.status_bar_base().anchor.clone()).unwrap(), compat::read(&compat::read(__this, |__t| __t.cursor_bar.clone()).unwrap(), |__t| __t.status_bar_base().grid_y), &compat::read(__this, |__t| __t.cursor_bar.clone()).unwrap())); }
                                 }
-                                compat::read(__this, |__t| __t.bars.clone()).lock().borrow().bar_positioner.add_bar_4(bar_snap.bar_anchor().unwrap(), bar_snap.y(), neighbor_insert_x, compat::read(__this, |__t| __t.cursor_bar.clone()).unwrap());
+                                { let __bars = compat::read(__this, |__t| __t.bars.clone()); compat::write(&__bars, |__b| __b.bar_positioner.add_bar_4(bar_snap.bar_anchor().unwrap(), bar_snap.y(), neighbor_insert_x, compat::read(__this, |__t| __t.cursor_bar.clone()).unwrap())); }
                                 { let __v = BarLocation::of(&compat::read(__this, |__t| __t.cursor_bar.clone()).unwrap()); compat::write(__this, |__t| __t.current_insert_location = __v); }
                                 update_positions = true;
                             }
@@ -205,17 +205,17 @@ impl StatusBarsConfigScreen {
                         continue;
                     }
                     if compat::read(&compat::read(__this, |__t| __t.cursor_bar.clone()).unwrap(), |__t| __t.status_bar_base().anchor.clone()).is_some() {
-                        compat::read(__this, |__t| __t.bars.clone()).lock().borrow().bar_positioner.remove_bar_bar_anchor_int_status_bar(compat::read(&compat::read(__this, |__t| __t.cursor_bar.clone()).unwrap(), |__t| __t.status_bar_base().anchor.clone()).unwrap(), compat::read(&compat::read(__this, |__t| __t.cursor_bar.clone()).unwrap(), |__t| __t.status_bar_base().grid_y), &compat::read(__this, |__t| __t.cursor_bar.clone()).unwrap());
+                        { let __bars = compat::read(__this, |__t| __t.bars.clone()); compat::write(&__bars, |__b| __b.bar_positioner.remove_bar_bar_anchor_int_status_bar(compat::read(&compat::read(__this, |__t| __t.cursor_bar.clone()).unwrap(), |__t| __t.status_bar_base().anchor.clone()).unwrap(), compat::read(&compat::read(__this, |__t| __t.cursor_bar.clone()).unwrap(), |__t| __t.status_bar_base().grid_y), &compat::read(__this, |__t| __t.cursor_bar.clone()).unwrap())); }
                     }
-                    compat::read(__this, |__t| __t.bars.clone()).lock().borrow().bar_positioner.add_row(bar_anchor);
-                    compat::read(__this, |__t| __t.bars.clone()).lock().borrow().bar_positioner.add_bar(bar_anchor, 0, compat::read(__this, |__t| __t.cursor_bar.clone()).unwrap());
+                    { let __bars = compat::read(__this, |__t| __t.bars.clone()); compat::write(&__bars, |__b| __b.bar_positioner.add_row(bar_anchor)); }
+                    { let __bars = compat::read(__this, |__t| __t.bars.clone()); compat::write(&__bars, |__b| __b.bar_positioner.add_bar(bar_anchor, 0, compat::read(__this, |__t| __t.cursor_bar.clone()).unwrap())); }
                     { let __v = BarLocation::of(&compat::read(__this, |__t| __t.cursor_bar.clone()).unwrap()); compat::write(__this, |__t| __t.current_insert_location = __v); }
                     FancyStatusBars::update_positions(&compat::read(__this, |__t| __t.bars.clone()), true);
                 }
             }
             if !inserted {
                 if compat::read(&compat::read(__this, |__t| __t.cursor_bar.clone()).unwrap(), |__t| __t.status_bar_base().anchor.clone()).is_some() {
-                    compat::read(__this, |__t| __t.bars.clone()).lock().borrow().bar_positioner.remove_bar_bar_anchor_int_status_bar(compat::read(&compat::read(__this, |__t| __t.cursor_bar.clone()).unwrap(), |__t| __t.status_bar_base().anchor.clone()).unwrap(), compat::read(&compat::read(__this, |__t| __t.cursor_bar.clone()).unwrap(), |__t| __t.status_bar_base().grid_y), &compat::read(__this, |__t| __t.cursor_bar.clone()).unwrap());
+                    { let __bars = compat::read(__this, |__t| __t.bars.clone()); compat::write(&__bars, |__b| __b.bar_positioner.remove_bar_bar_anchor_int_status_bar(compat::read(&compat::read(__this, |__t| __t.cursor_bar.clone()).unwrap(), |__t| __t.status_bar_base().anchor.clone()).unwrap(), compat::read(&compat::read(__this, |__t| __t.cursor_bar.clone()).unwrap(), |__t| __t.status_bar_base().grid_y), &compat::read(__this, |__t| __t.cursor_bar.clone()).unwrap())); }
                 }
                 { let __v = bar_positioner::BAR_LOCATION_NULL.clone(); compat::write(__this, |__t| __t.current_insert_location = __v); }
                 FancyStatusBars::update_positions(&compat::read(__this, |__t| __t.bars.clone()), true);
@@ -319,14 +319,16 @@ impl StatusBarsConfigScreen {
                                     break;
                                 }
                             }
-                            compat::read(__this, |__t| __t.resize_hover.clone()).0;
-                            compat::read(__this, |__t| __t.resize_hover.clone()).1;
+                            // java: resizeHover.first(bar); resizeHover.right(right);
+                            compat::write(__this, |__t| __t.resize_hover.0 = Some(bar.clone()));
+                            compat::write(__this, |__t| __t.resize_hover.1 = right);
                             // TODO(fabric2seer): static `CursorTypes.RESIZE_EW` has no Rust counterpart in the port's CursorTypes file
                             // TODO(fabric2seer): `GuiGraphicsExtractor.requestCursor` has no Rust method in the port (looked for `request_cursor` in GuiGraphicsExtractor and its supertypes)
                             // rust: graphics.request_cursor(&CursorTypes::RESIZE_EW);
                             break 'rect_loop;
                         } else {
-                            compat::read(__this, |__t| __t.resize_hover.clone()).0;
+                            // java: resizeHover.first(null);
+                            compat::write(__this, |__t| __t.resize_hover.0 = None);
                         }
                     }
                 }
@@ -340,8 +342,9 @@ impl StatusBarsConfigScreen {
         FancyStatusBars::update_positions(&compat::read(__this, |__t| __t.bars.clone()), true);
         { let __v = Some(EditBarWidget::new(0, 0, __this.clone())); compat::write(__this, |__t| __t.edit_bar_widget = __v); }
         __this.lock().borrow_mut().edit_bar_widget.as_mut().unwrap().visible = false;
-        let __r0 = compat::read(__this, |__t| __t.edit_bar_widget.clone());
-        { let (__q0,) = (__r0.unwrap(),); __this.lock().borrow_mut().add_widget(__q0) };
+        // java: addWidget(editBarWidget);
+        // rust: port gap (GAPS_batchB L3) - EditBarWidget is a mod composite widget (AbstractContainerWidget with child
+        // option widgets); the port has no adapter that makes one a screen listener, so it is held as a field and asked directly
         let mut values: Vec<compat::Shared<dyn StatusBar>> = compat::read(__this, |__t| __t.bars.clone()).lock().borrow().status_bars.values().cloned().collect::<Vec<_>>();
         for __a0 in values.iter() {
             StatusBarsConfigScreen::setup(__this, __a0);
@@ -371,15 +374,17 @@ impl StatusBarsConfigScreen {
 
     /// java: private void setup(StatusBar statusBar)
     pub fn setup(__this: &compat::Shared<Self>, status_bar: &compat::Shared<dyn StatusBar>) {
-        { let (__q0,) = (status_bar.clone(),); __this.lock().borrow_mut().add_renderable_widget(__q0) };
+        // java: addRenderableWidget(statusBar);
+        // rust: port gap (GAPS_batchH #2) - a StatusBar is a mod `Renderable + GuiEventListener + LayoutElement`, not an
+        // AbstractWidget; the port's screens hold only AbstractWidgets, so the bar cannot join the screen's widget list
         let __this_w1 = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
-        ({ let __f = compat::dispatch(status_bar, |__t| __t.set_on_click()); __f(status_bar, Arc::new(move |__a0, __a1| { let Some(__this_1) = __this_w1.get().upgrade() else { return Default::default(); }; { StatusBarsConfigScreen::on_bar_click((&__this_1), __a0.clone(), &__a1); } })) });
+        ({ let __f = compat::dispatch(status_bar, |__t| __t.set_on_click()); __f(status_bar, Some(Arc::new(move |__a0: compat::Shared<dyn StatusBar>, __a1: MouseButtonEvent| { let Some(__this_1) = __this_w1.get().upgrade() else { return Default::default(); }; { StatusBarsConfigScreen::on_bar_click((&__this_1), __a0.clone(), &__a1); } }))) });
     }
 
     /// java: @Override public void removed()
     pub fn removed(__this: &compat::Shared<Self>) {
         ();
-        for status_bar in compat::read(__this, |__t| __t.bars.clone()).lock().borrow().status_bars.values().cloned() {
+        for status_bar in compat::read(&compat::read(__this, |__t| __t.bars.clone()), |__b| __b.status_bars.values().cloned().collect::<Vec<_>>()) {
             ({ let __f = compat::dispatch(&status_bar, |__t| __t.set_on_click()); __f(&status_bar, None) });
         }
         if compat::read(__this, |__t| __t.cursor_bar.clone()).is_some() {
@@ -403,7 +408,7 @@ impl StatusBarsConfigScreen {
             { let __v = true; compat::write(&compat::read(__this, |__t| __t.cursor_bar.clone()).unwrap(), |__t| __t.status_bar_base_mut().enabled = __v); }
             { let __v = BarLocation::of(&compat::read(__this, |__t| __t.cursor_bar.clone()).unwrap()); compat::write(__this, |__t| __t.current_insert_location = __v); }
             if compat::read(&status_bar, |__t| __t.status_bar_base().anchor.clone()).is_some() {
-                compat::read(__this, |__t| __t.bars.clone()).lock().borrow().bar_positioner.remove_bar_bar_anchor_int_status_bar(compat::read(&status_bar, |__t| __t.status_bar_base().anchor.clone()).unwrap(), compat::read(&status_bar, |__t| __t.status_bar_base().grid_y), &status_bar);
+                { let __bars = compat::read(__this, |__t| __t.bars.clone()); compat::write(&__bars, |__b| __b.bar_positioner.remove_bar_bar_anchor_int_status_bar(compat::read(&status_bar, |__t| __t.status_bar_base().anchor.clone()).unwrap(), compat::read(&status_bar, |__t| __t.status_bar_base().grid_y), &status_bar)); }
             }
             FancyStatusBars::update_positions(&compat::read(__this, |__t| __t.bars.clone()), true);
             ({ let __r = &compat::read(__this, |__t| __t.cursor_bar.clone()).unwrap(); let __f = compat::dispatch(__r, |__t| __t.set_x()); __f(__r, (compat::read(__this, |__t| __t.width)).wrapping_add(5)) });
@@ -435,7 +440,9 @@ impl StatusBarsConfigScreen {
     pub fn mouse_released(__this: &compat::Shared<Self>, click: &MouseButtonEvent) -> bool {
         if compat::read(__this, |__t| __t.cursor_bar.clone()).is_some() {
             { let __v = false; compat::write(&compat::read(__this, |__t| __t.cursor_bar.clone()).unwrap(), |__t| __t.status_bar_base_mut().in_mouse = __v); }
-            if std::ptr::eq(&compat::read(__this, |__t| __t.current_insert_location.clone()), &bar_positioner::BAR_LOCATION_NULL) {
+            // java: currentInsertLocation == BarLocation.NULL - an identity test on the NULL constant; the port's record is a
+            // value, so it is compared by value (BarLocation(null, -1, -1) is only ever NULL itself: a real location has an anchor)
+            if compat::read(__this, |__t| __t.current_insert_location.clone()) == *bar_positioner::BAR_LOCATION_NULL {
                 { let __v = ((((click.x() + (__this.lock().borrow().cursor_offset.x() as f64)) / (compat::read(__this, |__t| __t.width) as f64))) as f32); compat::write(&compat::read(__this, |__t| __t.cursor_bar.clone()).unwrap(), |__t| __t.status_bar_base_mut().x = __v); }
                 { let __v = ((((click.y() + (__this.lock().borrow().cursor_offset.y() as f64)) / (compat::read(__this, |__t| __t.height) as f64))) as f32); compat::write(&compat::read(__this, |__t| __t.cursor_bar.clone()).unwrap(), |__t| __t.status_bar_base_mut().y = __v); }
                 { let __v = (compat::read(&compat::read(__this, |__t| __t.cursor_bar.clone()).unwrap(), |__t| __t.status_bar_base().width)).clamp((((BAR_MINIMUM_WIDTH) as f32) / (compat::read(__this, |__t| __t.width) as f32)), (1 as f32)); compat::write(&compat::read(__this, |__t| __t.cursor_bar.clone()).unwrap(), |__t| __t.status_bar_base_mut().width = __v); }
@@ -457,8 +464,9 @@ impl StatusBarsConfigScreen {
                 { let __v = (((({ let __r = bar.as_ref().unwrap(); let __f = compat::dispatch(__r, |__t| __t.get_x()); __f(__r) })) as f32) / (compat::read(__this, |__t| __t.width) as f32)); compat::write(bar.as_ref().unwrap(), |__t| __t.status_bar_base_mut().x = __v); }
                 { let __v = (((({ let __r = bar.as_ref().unwrap(); let __f = compat::dispatch(__r, |__t| __t.get_width()); __f(__r) })) as f32) / (compat::read(__this, |__t| __t.width) as f32)); compat::write(bar.as_ref().unwrap(), |__t| __t.status_bar_base_mut().width = __v); }
             }
-            compat::read(__this, |__t| __t.resized_bars.clone()).0;
-            compat::read(__this, |__t| __t.resized_bars.clone()).1;
+            // java: resizedBars.left(null); resizedBars.right(null);
+            compat::write(__this, |__t| __t.resized_bars.0 = None);
+            compat::write(__this, |__t| __t.resized_bars.1 = None);
             StatusBarsConfigScreen::update_screen_rects(__this);
             return true;
         }
@@ -469,34 +477,39 @@ impl StatusBarsConfigScreen {
     pub fn mouse_clicked(__this: &compat::Shared<Self>, click: &MouseButtonEvent, mut doubled: bool) -> bool {
         let mut first: Option<compat::Shared<dyn StatusBar>> = compat::read(__this, |__t| __t.resize_hover.clone()).0.clone();
         if !({ let (__q0, __q1,) = (click.x(), click.y(),); __this.lock().borrow().edit_bar_widget.as_ref().unwrap().is_mouse_over(__q0, __q1) }) && click.button() == 0 && first.is_some() {
-            let mut bar_anchor: Option<BarAnchor> = compat::read(first.as_ref().unwrap(), |__t| __t.status_bar_base().anchor.clone());
-            if let Some(bar_anchor) = &bar_anchor {
-                // TODO(fabric2seer): the condition: Map.Entry.rightBoolean
-                //   java: resizeHover.rightBoolean(..)
-                if todo!("fabric2seer: the condition (TODO above)") {
-                    compat::read(__this, |__t| __t.resized_bars.clone()).0;
-                    if compat::read(__this, |__t| __t.bars.clone()).lock().borrow().bar_positioner.has_neighbor(*bar_anchor, compat::read(first.as_ref().unwrap(), |__t| __t.status_bar_base().grid_y), compat::read(first.as_ref().unwrap(), |__t| __t.status_bar_base().grid_x), true) {
-                        compat::read(__this, |__t| __t.resized_bars.clone()).1;
+            let first_bar: compat::Shared<dyn StatusBar> = first.clone().unwrap();
+            let mut bar_anchor: Option<BarAnchor> = compat::read(&first_bar, |__t| __t.status_bar_base().anchor.clone());
+            let right_boolean: bool = compat::read(__this, |__t| __t.resize_hover.1);
+            let (grid_x, grid_y) = compat::read(&first_bar, |__t| (__t.status_bar_base().grid_x, __t.status_bar_base().grid_y));
+            let bars = compat::read(__this, |__t| __t.bars.clone());
+            if let Some(bar_anchor) = bar_anchor {
+                if right_boolean {
+                    // java: resizedBars.left(first);
+                    compat::write(__this, |__t| __t.resized_bars.0 = Some(first_bar.clone()));
+                    if compat::read(&bars, |__b| __b.bar_positioner.has_neighbor(bar_anchor, grid_y, grid_x, true)) {
+                        let neighbor = compat::read(&bars, |__b| __b.bar_positioner.get_bar(bar_anchor, grid_y, grid_x + (if bar_anchor.is_right() { 1 } else { -1 })));
+                        compat::write(__this, |__t| __t.resized_bars.1 = Some(neighbor));
                     } else {
-                        compat::read(__this, |__t| __t.resized_bars.clone()).1;
+                        compat::write(__this, |__t| __t.resized_bars.1 = None);
                     }
                 } else {
-                    compat::read(__this, |__t| __t.resized_bars.clone()).1;
-                    if compat::read(__this, |__t| __t.bars.clone()).lock().borrow().bar_positioner.has_neighbor(*bar_anchor, compat::read(first.as_ref().unwrap(), |__t| __t.status_bar_base().grid_y), compat::read(first.as_ref().unwrap(), |__t| __t.status_bar_base().grid_x), false) {
-                        compat::read(__this, |__t| __t.resized_bars.clone()).0;
+                    // java: resizedBars.right(first);
+                    compat::write(__this, |__t| __t.resized_bars.1 = Some(first_bar.clone()));
+                    if compat::read(&bars, |__b| __b.bar_positioner.has_neighbor(bar_anchor, grid_y, grid_x, false)) {
+                        let neighbor = compat::read(&bars, |__b| __b.bar_positioner.get_bar(bar_anchor, grid_y, grid_x + (if bar_anchor.is_right() { -1 } else { 1 })));
+                        compat::write(__this, |__t| __t.resized_bars.0 = Some(neighbor));
                     } else {
-                        compat::read(__this, |__t| __t.resized_bars.clone()).0;
+                        compat::write(__this, |__t| __t.resized_bars.0 = None);
                     }
                 }
             } else {
-                // TODO(fabric2seer): the condition: Map.Entry.rightBoolean
-                //   java: resizeHover.rightBoolean(..)
-                if todo!("fabric2seer: the condition (TODO above)") {
-                    compat::read(__this, |__t| __t.resized_bars.clone()).0;
-                    compat::read(__this, |__t| __t.resized_bars.clone()).1;
+                // if they have no anchor no need to do any checking
+                if right_boolean {
+                    compat::write(__this, |__t| __t.resized_bars.0 = Some(first_bar.clone()));
+                    compat::write(__this, |__t| __t.resized_bars.1 = None);
                 } else {
-                    compat::read(__this, |__t| __t.resized_bars.clone()).1;
-                    compat::read(__this, |__t| __t.resized_bars.clone()).0;
+                    compat::write(__this, |__t| __t.resized_bars.1 = Some(first_bar.clone()));
+                    compat::write(__this, |__t| __t.resized_bars.0 = None);
                 }
             }
             { let __v = true; compat::write(__this, |__t| __t.resizing = __v); }

@@ -46,32 +46,42 @@ impl MirrorverseWaypoints {
     }
 
     /// java: static void load(Minecraft client)
+    ///
+    /// The read runs on the executor (Java's `runAsync`); the waypoints are render-thread objects, so they are built
+    /// through `game::execute`, and `waypointsLoaded` completes after them.
     pub fn load(client: &mut mcrust::net::minecraft::client::minecraft::Minecraft) {
-        *WAYPOINTS_LOADED.get_mut() = Some(CompletableFuture::<()>::run_async(move || (|| {
-            {
-                let mut reader: crate::unresolved::BufferedReader = client.get_resource_manager().open_as_reader(WAYPOINTS_JSON.get_mut()).unwrap();
-                // java: try {..} catch (IOException e) - an exception here is a panic, caught by `catch_unwind`
+        let manager = client.get_resource_manager();
+        let waypoints_json: Identifier = WAYPOINTS_JSON.get().clone();
+        let waypoints_loaded: CompletableFuture<()> = CompletableFuture::new();
+        *WAYPOINTS_LOADED.get_mut() = Some(waypoints_loaded.clone());
+        compat::executor(Box::new(move || {
+            // try (BufferedReader reader = client.getResourceManager().openAsReader(WAYPOINTS_JSON)) {..} catch (IOException e) {..}
+            let reader: Result<String, String> = manager.open_as_reader(&waypoints_json);
+            mcrust::mcrust::modding::game::execute(move || {
                 let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                    // TODO(fabric2seer): static call JsonParser.parseReader(..)
-                    //   java: JsonArray sections = JsonParser.parseReader(reader).getAsJsonObject().get("sections").getAsJsonArray();
-                    let mut sections: Vec<serde_json::Value> = todo!("fabric2seer: the initialiser of `sections` (TODO above)");
+                    let reader: String = reader.clone().unwrap_or_else(|e| panic!("IOException: {e}"));
+                    // JsonArray sections = JsonParser.parseReader(reader).getAsJsonObject().get("sections").getAsJsonArray();
+                    let json: serde_json::Value = serde_json::from_str(&reader).unwrap_or_else(|e| panic!("JsonSyntaxException: {e}"));
+                    let mut sections: Vec<serde_json::Value> = compat::json::get_as_json_array_of(&json, "sections");
                     *LAVA_PATH_WAYPOINTS.get_mut() = MirrorverseWaypoints::load_waypoints(&compat::json::get_as_json_array(&((compat::json::get_as_json_object(&(sections[(0) as usize]))).get("waypoints").cloned().unwrap())));
                     *UPSIDE_DOWN_WAYPOINTS.get_mut() = MirrorverseWaypoints::load_waypoints(&compat::json::get_as_json_array(&((compat::json::get_as_json_object(&(sections[(1) as usize]))).get("waypoints").cloned().unwrap())));
                     *TURBULATOR_WAYPOINTS.get_mut() = MirrorverseWaypoints::load_waypoints(&compat::json::get_as_json_array(&((compat::json::get_as_json_object(&(sections[(2) as usize]))).get("waypoints").cloned().unwrap())));
                 }));
                 if let Err(e) = __result {
-                    logger().error(&format!("[Skyblocker] Mirrorverse Waypoints failed to load ;("));
+                    logger().error(&format!("[Skyblocker] Mirrorverse Waypoints failed to load ;( {}", compat::panic_message(&e)));
                 }
-            }
-        })(), compat::executor));
+                waypoints_loaded.complete(());
+            });
+        }));
     }
 
     /// java: private static Waypoint[] loadWaypoints(JsonArray waypointsJson)
     pub fn load_waypoints(waypoints_json: &Vec<serde_json::Value>) -> Vec<compat::Shared<dyn Waypoint>> {
-        let mut waypoints: Vec<compat::Shared<dyn Waypoint>> = (0..((waypoints_json.len() as i32)) as usize).map(|_| Default::default()).collect::<Vec<_>>();
+        // new Waypoint[waypointsJson.size()], each element written in order
+        let mut waypoints: Vec<compat::Shared<dyn Waypoint>> = Vec::with_capacity(waypoints_json.len());
         for i in 0..(waypoints_json.len() as i32) {
             let mut point: serde_json::Map<String, serde_json::Value> = compat::json::get_as_json_object(&(waypoints_json[(i) as usize]));
-            waypoints[(i) as usize] = (WaypointBase::new6(BlockPos::new(compat::json::get_as_int(&point.get("x").cloned().unwrap()), compat::json::get_as_int(&point.get("y").cloned().unwrap()), compat::json::get_as_int(&point.get("z").cloned().unwrap())), WAYPOINT_TYPE.get_mut().clone(), COLOR_COMPONENTS.clone(), false) as compat::Shared<dyn Waypoint>);
+            waypoints.push(WaypointBase::new6(BlockPos::new(compat::json::get_as_int(&point.get("x").cloned().unwrap()), compat::json::get_as_int(&point.get("y").cloned().unwrap()), compat::json::get_as_int(&point.get("z").cloned().unwrap())), WAYPOINT_TYPE.get_mut().clone(), COLOR_COMPONENTS.clone(), false) as compat::Shared<dyn Waypoint>);
         }
         return waypoints;
     }

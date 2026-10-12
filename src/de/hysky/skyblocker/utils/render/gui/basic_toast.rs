@@ -102,7 +102,42 @@ impl BasicToast {
 
     /// java: @Override public Object getToken()
     pub fn get_token(&self) -> Token {
-        return self.token;
+        return self.token.clone();
     }
 
+}
+
+/// java: `public class BasicToast implements Toast` - the interface's methods, each the class's own body above
+/// (`ToastManager.addToast` takes the object as the game's `Toast`).
+impl mcrust::net::minecraft::client::gui::components::toasts::toast::Toast for BasicToast {
+    fn get_wanted_visibility(&self) -> Visibility {
+        BasicToast::get_wanted_visibility(self)
+    }
+
+    fn update(&mut self, manager: &ToastManager, fully_visible_for_ms: i64) {
+        BasicToast::update(self, manager, fully_visible_for_ms)
+    }
+
+    fn extract_render_state(
+        &self,
+        _graphics: &mut mcrust::net::minecraft::client::gui::screens::inventory::tooltip::client_tooltip_component::TooltipGraphics<'_>,
+        _font: &mcrust::net::minecraft::client::gui::font::font_set::FontSet,
+        fully_visible_for_ms: i64,
+    ) {
+        // the class's body draws through the `gui_graphics_extractor` functions (the frame's own state), as
+        // `EventToastAdapter` does; its `graphics` is the extractor those functions stand for
+        BasicToast::extract_render_state(self, &GuiGraphicsExtractor::new(), &compat::font(), fully_visible_for_ms)
+    }
+
+    fn get_token(&self) -> Token {
+        BasicToast::get_token(self)
+    }
+
+    fn width(&self) -> i32 {
+        BasicToast::width(self)
+    }
+
+    fn height(&self) -> i32 {
+        BasicToast::height(self)
+    }
 }

@@ -18,6 +18,8 @@ pub struct AbstractSkyblockRecipeCategoryBase<T> {
     pub gui_helper: crate::unresolved::IGuiHelper,
     /// java: protected final ICraftingGridHelper craftingGridHelper;
     pub crafting_grid_helper: crate::unresolved::ICraftingGridHelper,
+    /// java: the recipe type parameter `T` (used only in the methods)
+    pub _recipe: std::marker::PhantomData<fn() -> T>,
 }
 
 impl<T: 'static> std::ops::Deref for AbstractSkyblockRecipeCategoryBase<T> {
@@ -35,8 +37,8 @@ impl<T: 'static> std::ops::DerefMut for AbstractSkyblockRecipeCategoryBase<T> {
 
 impl<T: Clone + 'static> AbstractSkyblockRecipeCategoryBase<T> {
     /// java: protected AbstractSkyblockRecipeCategory(IGuiHelper guiHelper, IRecipeType<T> recipeType, Component title, FlexibleItemStack icon)
-    pub fn new(mut gui_helper: crate::unresolved::IGuiHelper, mut recipe_type: crate::unresolved::IRecipeType, mut title: MutableComponent, mut icon: compat::Shared<FlexibleItemStack>) -> Self {
-        let __init_gui_helper = gui_helper.clone();
+    pub fn new(mut gui_helper: crate::unresolved::IGuiHelper, recipe_type: &crate::unresolved::IRecipeType, mut title: MutableComponent, mut icon: compat::Shared<FlexibleItemStack>) -> Self {
+        let __init_gui_helper = gui_helper;
         // TODO(fabric2seer): `.createCraftingGridHelper(..)` on a IGuiHelper
         //   java: this.craftingGridHelper = guiHelper.createCraftingGridHelper();
         // TODO(fabric2seer): `.createDrawableItemLike(..)` on a IGuiHelper

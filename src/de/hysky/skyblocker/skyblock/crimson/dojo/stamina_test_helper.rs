@@ -22,7 +22,9 @@ pub static WALL_HOLES: compat::MainThread<Vec<AABB>> = compat::MainThread::new(|
 /// java: private static final List<AABB> lastHoles = new ArrayList<>();
 pub static LAST_HOLES: compat::MainThread<Vec<AABB>> = compat::MainThread::new(|| Vec::new());
 /// java: private static final Map<AABB, HoleDirection> holeDirections = new HashMap<>();
-pub static HOLE_DIRECTIONS: compat::MainThread<std::collections::HashMap<AABB, HoleDirection>> = compat::MainThread::new(|| std::collections::HashMap::new());
+///
+/// Keyed by `AabbKey`: `AABB` is a value class (`equals`/`hashCode` over its six doubles).
+pub static HOLE_DIRECTIONS: compat::MainThread<std::collections::HashMap<AabbKey, HoleDirection>> = compat::MainThread::new(|| std::collections::HashMap::new());
 /// java: private static BlockPos middleBase;
 pub static MIDDLE_BASE: compat::MainThread<Option<BlockPos>> = compat::MainThread::new(|| None);
 
@@ -58,15 +60,15 @@ impl StaminaTestHelper {
         for wall in walls.iter() {
             WALL_HOLES.get_mut().extend(StaminaTestHelper::find_holes_in_box(wall).into_iter());
         }
-        let mut last_hole_directions: std::collections::HashMap<AABB, HoleDirection> = HOLE_DIRECTIONS.get_mut().clone();
+        let mut last_hole_directions: std::collections::HashMap<AabbKey, HoleDirection> = HOLE_DIRECTIONS.get_mut().clone();
         HOLE_DIRECTIONS.get_mut().clear();
         for hole in WALL_HOLES.get_mut().iter() {
             let mut hole_direction: HoleDirection = StaminaTestHelper::get_whole_direction(hole);
             if hole_direction == HoleDirection::Unchanged {
-                HOLE_DIRECTIONS.get_mut().insert(hole.clone(), last_hole_directions.get(hole).cloned().unwrap());
+                HOLE_DIRECTIONS.get_mut().insert(AabbKey::of(hole), last_hole_directions.get(&AabbKey::of(hole)).cloned().unwrap());
                 continue;
             }
-            HOLE_DIRECTIONS.get_mut().insert(hole.clone(), hole_direction);
+            HOLE_DIRECTIONS.get_mut().insert(AabbKey::of(hole), hole_direction);
         }
     }
 
@@ -233,7 +235,7 @@ impl StaminaTestHelper {
         }
         let mut player_pos: BlockPos = mcrust::mcrust::modding::game::with_player(|player| player.base.base.base.base.block_position()).unwrap();
         for hole in WALL_HOLES.get_mut().iter() {
-            let mut color: Vec<f32> = (if StaminaTestHelper::is_hole_incoming(hole, HOLE_DIRECTIONS.get_mut().get(hole).cloned().unwrap(), &player_pos) { INCOMING_COLOR.clone() } else { OUTGOING_COLOR.clone() });
+            let mut color: Vec<f32> = (if StaminaTestHelper::is_hole_incoming(hole, HOLE_DIRECTIONS.get_mut().get(&AabbKey::of(hole)).cloned().unwrap(), &player_pos) { INCOMING_COLOR.clone() } else { OUTGOING_COLOR.clone() });
             ({ let __f = compat::dispatch(collector, |__t| __t.submit_filled_box_aabb_float_float_boolean()); __f(collector, hole, &color, 0.3f32, false) });
         }
     }
@@ -305,5 +307,17 @@ impl HoleDirection {
 impl std::fmt::Display for HoleDirection {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(self.name())
+    }
+}
+
+/// `AABB` as a map key: Java's `AABB.equals` compares the six doubles with `Double.compare` and `hashCode` hashes
+/// `Double.doubleToLongBits` of each - so the key is those bits (NaN canonicalised, as `doubleToLongBits` does).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct AabbKey([u64; 6]);
+
+impl AabbKey {
+    pub fn of(aabb: &AABB) -> AabbKey {
+        let bits = |d: f64| if d.is_nan() { 0x7ff8000000000000u64 } else { d.to_bits() };
+        AabbKey([bits(aabb.min_x), bits(aabb.min_y), bits(aabb.min_z), bits(aabb.max_x), bits(aabb.max_y), bits(aabb.max_z)])
     }
 }

@@ -2,9 +2,11 @@
 
 #[allow(unused_imports)]
 use crate::prelude::*;
+use crate::de::hysky::skyblocker::skyblock::auction::slot_click_handler;
 use crate::de::hysky::skyblocker::skyblock::auction::slot_click_handler::SlotClickHandler;
 use crate::de::hysky::skyblocker::utils::render::gui::side_tab_button_widget::SideTabButtonWidget;
 use crate::de::hysky::skyblocker::utils::render::gui::side_tab_button_widget::SideTabButtonWidgetBase;
+use crate::de::hysky::skyblocker::utils::render::texture::fallbacked_texture;
 use crate::de::hysky::skyblocker::utils::render::texture::fallbacked_texture::FallbackedTexture;
 use mcrust::net::minecraft::client::gui::components::widget_sprites::WidgetSprites;
 use mcrust::net::minecraft::client::gui::gui_graphics_extractor;
@@ -12,14 +14,14 @@ use mcrust::net::minecraft::client::gui::gui_graphics_extractor::GuiGraphicsExtr
 use mcrust::net::minecraft::client::input::mouse_button_event::MouseButtonEvent;
 
 /// java: @SuppressWarnings("unchecked") private static final @Nullable FallbackedTexture<WidgetSprites>[] SPRITES = new FallbackedTexture[6];
-pub static SPRITES: compat::MainThread<Option<Vec<compat::Shared<dyn FallbackedTexture<WidgetSprites>>>>> = compat::MainThread::new(|| Some((0..(6) as usize).map(|_| Default::default()).collect::<Vec<_>>()));
+pub static SPRITES: compat::MainThread<Vec<Option<compat::Shared<dyn FallbackedTexture<WidgetSprites>>>>> = compat::MainThread::new(|| vec![None; 6]);
 
 /// java: public class CategoryTabWidget extends SideTabButtonWidget
 pub struct CategoryTabWidget {
     /// java: extends SideTabButtonWidget
     pub base: SideTabButtonWidgetBase,
     /// java: private final SlotClickHandler slotClick;
-    pub slot_click: compat::Shared<dyn SlotClickHandler>,
+    pub slot_click: SlotClickHandler,
     /// java: private int slotId = -1;
     pub slot_id: i32,
 }
@@ -39,7 +41,7 @@ impl std::ops::DerefMut for CategoryTabWidget {
 
 impl CategoryTabWidget {
     /// java: public CategoryTabWidget(ItemStack icon, SlotClickHandler slotClick, int id)
-    pub fn new(mut icon: mcrust::net::minecraft::world::item::item_stack::ItemStack, mut slot_click: compat::Shared<dyn SlotClickHandler>, mut id: i32) -> compat::Shared<Self> {
+    pub fn new(mut icon: mcrust::net::minecraft::world::item::item_stack::ItemStack, mut slot_click: SlotClickHandler, mut id: i32) -> compat::Shared<Self> {
         let __init_slot_click = slot_click.clone();
         let (_, __this) = SideTabButtonWidgetBase::new_in(0, 0, false, CategoryTabWidget::get_sprites(id), icon.clone(), move |__base| {
             let __h = compat::shared(Self {
@@ -54,19 +56,21 @@ impl CategoryTabWidget {
 
     /// java: private static WidgetSprites getSprites(int index)
     pub fn get_sprites(mut index: i32) -> WidgetSprites {
-        let mut sprite: Option<compat::Shared<dyn FallbackedTexture<WidgetSprites>>> = Some(SPRITES.get_mut().as_ref().unwrap()[(index) as usize].clone());
-        let Some(mut sprite) = sprite.clone() else {
-            // TODO(fabric2seer): an assignment used as a value
-            //   java: return (SPRITES[index] = FallbackedTexture.ofWidgetSprites(
-            //   java: 				new WidgetSprites(
-            //   java: 						SkyblockerMod.id("auctions_gui/category_tab_" + (index + 1)),
-            //   java: 						SkyblockerMod.id("auctions_gui/category_tab_selected_" + (index + 1))
-            //   java: 				),
-            //   java: 				RecipeBookTabButton.SPRITES)).get();
+        let sprite: Option<compat::Shared<dyn FallbackedTexture<WidgetSprites>>> = SPRITES.get()[index as usize].clone();
+        let Some(sprite) = sprite else {
+            // java: return (SPRITES[index] = FallbackedTexture.ofWidgetSprites(new WidgetSprites(..), RecipeBookTabButton.SPRITES)).get();
+            let created = fallbacked_texture::of_widget_sprites(
+                &WidgetSprites::with_focused(
+                    crate::entry::skyblocker_mod::id(&format!("auctions_gui/category_tab_{}", index.wrapping_add(1))),
+                    crate::entry::skyblocker_mod::id(&format!("auctions_gui/category_tab_selected_{}", index.wrapping_add(1))),
+                ),
+                &recipe_book_tab_button_sprites(),
+            );
+            SPRITES.get_mut()[index as usize] = Some(created.clone());
+            return compat::read(&created, |__t| __t.get());
         };
-        // TODO(fabric2seer): `get` is not a method of FallbackedTexture
-        //   java: return sprite.get();
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        // java: return sprite.get();
+        return compat::read(&sprite, |__t| __t.get())
     }
 
     /// java: public void setSlotId(int slotId)
@@ -123,7 +127,7 @@ impl CategoryTabWidget {
             return;
         }
         <dyn SideTabButtonWidget>::on_click_body(&compat::view(__this, |a| a as compat::Shared<dyn SideTabButtonWidget>), click, doubled);
-        ({ let __r = &compat::read(__this, |__t| __t.slot_click.clone()); let __f = compat::dispatch(__r, |__t| __t.click_1()); __f(__r, compat::read(__this, |__t| __t.slot_id)) });
+        slot_click_handler::click_1(&compat::read(__this, |__t| __t.slot_click.clone()), compat::read(__this, |__t| __t.slot_id));
     }
 
     /// CategoryTabWidget.onClick as the dispatch of SideTabButtonWidget.onClick
@@ -131,4 +135,47 @@ impl CategoryTabWidget {
         Self::on_click_impl(&compat::view_as::<Self, _, Self>(__this, |a| a), __p0, __p1)
     }
 
+}
+
+/// CategoryTabWidget's widget half (`super`'s fields: x, y, size, message, ...), lent by the game for each call
+impl compat::WidgetHalf for CategoryTabWidget {
+    fn widget_half(&mut self) -> &mut mcrust::net::minecraft::client::gui::components::abstract_widget::AbstractWidget {
+        &mut self.base.base
+    }
+}
+
+/// CategoryTabWidget as the game's widget: `compat::WidgetAdapter::widget(handle)` where Java hands it on
+/// (`AuctionBrowserScreen.init`'s `addWidget`)
+impl mcrust::mcrust::modding::widgets::ModWidget for compat::WidgetAdapter<CategoryTabWidget> {
+    /// java: `AbstractButton.extractWidgetRenderState:32-35` - `this.extractContents(graphics, mouseX, mouseY, a)`, which
+    /// this class overrides
+    fn extract_widget_render_state(&mut self, widget: &mcrust::net::minecraft::client::gui::components::abstract_widget::AbstractWidget, context: &mut mcrust::mcrust::modding::widgets::WidgetRenderContext<'_>, mouse_x: i32, mouse_y: i32, a: f32) {
+        self.lend_ref(widget, |__h| {
+            let __v = compat::view(__h, |a| a as compat::Shared<dyn SideTabButtonWidget>);
+            let __f = compat::dispatch(&*__v, |__t| __t.extract_contents());
+            __f(&__v, &mut context.graphics, mouse_x, mouse_y, a)
+        })
+    }
+
+    /// java: `Button.updateWidgetNarration` - `defaultButtonNarrationText(output)`
+    fn update_widget_narration(&mut self, widget: &mcrust::net::minecraft::client::gui::components::abstract_widget::AbstractWidget, output: &mut dyn mcrust::net::minecraft::client::gui::narration::narration_element_output::NarrationElementOutput) {
+        widget.default_button_narration_text(output);
+    }
+
+    /// java: @Override public void onClick(MouseButtonEvent click, boolean doubled)
+    fn on_click(&mut self, widget: &mut mcrust::net::minecraft::client::gui::components::abstract_widget::AbstractWidget, event: &MouseButtonEvent, double_click: bool) {
+        self.lend(widget, |__h| {
+            let __v = compat::view(__h, |a| a as compat::Shared<dyn SideTabButtonWidget>);
+            let __f = compat::dispatch(&*__v, |__t| __t.on_click());
+            __f(&__v, event, double_click)
+        })
+    }
+}
+
+/// java: `RecipeBookTabButton.SPRITES` (private static final, widened by the mod) = `new WidgetSprites(
+/// Identifier.withDefaultNamespace("recipe_book/tab"), Identifier.withDefaultNamespace("recipe_book/tab_selected"))` -
+/// the port keeps its two names as functions
+fn recipe_book_tab_button_sprites() -> WidgetSprites {
+    use mcrust::net::minecraft::client::gui::screens::recipebook::recipe_book_tab_button;
+    WidgetSprites::with_focused(recipe_book_tab_button::tab_sprite(), recipe_book_tab_button::tab_selected_sprite())
 }

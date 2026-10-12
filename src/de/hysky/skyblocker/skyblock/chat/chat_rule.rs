@@ -457,17 +457,73 @@ impl ChatRule {
         let Some(chat_rule) = o.downcast_ref::<compat::Shared<ChatRule>>() else {
             return false;
         };
-        return (ChatRule::get_enabled(&self.self_ref.upgrade().unwrap()) == ChatRule::get_enabled(chat_rule) && ChatRule::get_partial_match(&self.self_ref.upgrade().unwrap()) == ChatRule::get_partial_match(chat_rule) && ChatRule::get_regex(&self.self_ref.upgrade().unwrap()) == ChatRule::get_regex(chat_rule) && ChatRule::get_ignore_case(&self.self_ref.upgrade().unwrap()) == ChatRule::get_ignore_case(chat_rule) && ChatRule::get_include_formatting(&self.self_ref.upgrade().unwrap()) == ChatRule::get_include_formatting(chat_rule) && ChatRule::get_hide_message(&self.self_ref.upgrade().unwrap()) == ChatRule::get_hide_message(chat_rule) && ChatRule::get_name(&self.self_ref.upgrade().unwrap()) == ChatRule::get_name(chat_rule) && ChatRule::get_filter(&self.self_ref.upgrade().unwrap()) == ChatRule::get_filter(chat_rule) && ChatRule::get_valid_locations(&self.self_ref.upgrade().unwrap()) == &ChatRule::get_valid_locations(chat_rule) && ChatRule::get_chat_message(&self.self_ref.upgrade().unwrap()).as_deref() == ChatRule::get_chat_message(chat_rule).as_deref() && ChatRule::get_action_bar_message(&self.self_ref.upgrade().unwrap()).as_deref() == ChatRule::get_action_bar_message(chat_rule).as_deref() && ChatRule::get_announcement_message(&self.self_ref.upgrade().unwrap()).unwrap() == ChatRule::get_announcement_message(chat_rule).unwrap() && ChatRule::get_toast_message(&self.self_ref.upgrade().unwrap()).unwrap() == ChatRule::get_toast_message(chat_rule).unwrap() && ChatRule::get_custom_sound(&self.self_ref.upgrade().unwrap()).unwrap() == ChatRule::get_custom_sound(chat_rule).unwrap());
+        let this = self.self_ref.upgrade().unwrap();
+        // java: getEnabled() == .. && getName().equals(..) && getValidLocations().equals(..) && Objects.equals(getChatMessage(), ..) && ..
+        return ChatRule::get_enabled(&this) == ChatRule::get_enabled(chat_rule)
+            && ChatRule::get_partial_match(&this) == ChatRule::get_partial_match(chat_rule)
+            && ChatRule::get_regex(&this) == ChatRule::get_regex(chat_rule)
+            && ChatRule::get_ignore_case(&this) == ChatRule::get_ignore_case(chat_rule)
+            && ChatRule::get_include_formatting(&this) == ChatRule::get_include_formatting(chat_rule)
+            && ChatRule::get_hide_message(&this) == ChatRule::get_hide_message(chat_rule)
+            && ChatRule::get_name(&this) == ChatRule::get_name(chat_rule)
+            && ChatRule::get_filter(&this) == ChatRule::get_filter(chat_rule)
+            && ChatRule::get_valid_locations(&this) == ChatRule::get_valid_locations(chat_rule)
+            && ChatRule::get_chat_message(&this) == ChatRule::get_chat_message(chat_rule)
+            && ChatRule::get_action_bar_message(&this) == ChatRule::get_action_bar_message(chat_rule)
+            && objects_equals(&ChatRule::get_announcement_message(&this), &ChatRule::get_announcement_message(chat_rule), |a, b| compat::read(a, |a| compat::read(b, |b| a.fields_equal(b))))
+            && objects_equals(&ChatRule::get_toast_message(&this), &ChatRule::get_toast_message(chat_rule), |a, b| compat::read(a, |a| compat::read(b, |b| a.fields_equal(b))))
+            && ChatRule::get_custom_sound(&this) == ChatRule::get_custom_sound(chat_rule);
     }
 
     /// java: @Override public int hashCode()
     pub fn hash_code(&self) -> i32 {
-        return compat::hash_code(&(&ChatRule::get_name(&self.self_ref.upgrade().unwrap()), &ChatRule::get_enabled(&self.self_ref.upgrade().unwrap()), &ChatRule::get_partial_match(&self.self_ref.upgrade().unwrap()), &ChatRule::get_regex(&self.self_ref.upgrade().unwrap()), &ChatRule::get_ignore_case(&self.self_ref.upgrade().unwrap()), &ChatRule::get_include_formatting(&self.self_ref.upgrade().unwrap()), &ChatRule::get_filter(&self.self_ref.upgrade().unwrap()), &ChatRule::get_valid_locations(&self.self_ref.upgrade().unwrap()), &ChatRule::get_hide_message(&self.self_ref.upgrade().unwrap()), &ChatRule::get_chat_message(&self.self_ref.upgrade().unwrap()).unwrap(), &ChatRule::get_action_bar_message(&self.self_ref.upgrade().unwrap()).unwrap(), &ChatRule::get_action_bar_message(&self.self_ref.upgrade().unwrap()).unwrap(), &ChatRule::get_announcement_message(&self.self_ref.upgrade().unwrap()).unwrap(), &ChatRule::get_toast_message(&self.self_ref.upgrade().unwrap()).unwrap(), &ChatRule::get_custom_sound(&self.self_ref.upgrade().unwrap()).unwrap(),));
+        let this = self.self_ref.upgrade().unwrap();
+        // java: return Objects.hash(getName(), getEnabled(), getPartialMatch(), getRegex(), getIgnoreCase(), getIncludeFormatting(),
+        //   getFilter(), getValidLocations(), getHideMessage(), getChatMessage(), getActionBarMessage(), getActionBarMessage(),
+        //   getAnnouncementMessage(), getToastMessage(), getCustomSound());
+        return objects_hash(&[
+            compat::string_hash_code(&ChatRule::get_name(&this)),
+            boolean_hash_code(ChatRule::get_enabled(&this)),
+            boolean_hash_code(ChatRule::get_partial_match(&this)),
+            boolean_hash_code(ChatRule::get_regex(&this)),
+            boolean_hash_code(ChatRule::get_ignore_case(&this)),
+            boolean_hash_code(ChatRule::get_include_formatting(&this)),
+            compat::string_hash_code(&ChatRule::get_filter(&this)),
+            // `AbstractSet.hashCode`: the sum of the elements' hash codes
+            ChatRule::get_valid_locations(&this).iter().fold(0i32, |h, l| h.wrapping_add(compat::hash_code(l))),
+            boolean_hash_code(ChatRule::get_hide_message(&this)),
+            ChatRule::get_chat_message(&this).as_deref().map(compat::string_hash_code).unwrap_or(0),
+            ChatRule::get_action_bar_message(&this).as_deref().map(compat::string_hash_code).unwrap_or(0),
+            ChatRule::get_action_bar_message(&this).as_deref().map(compat::string_hash_code).unwrap_or(0),
+            ChatRule::get_announcement_message(&this).map(|m| compat::read(&m, |m| m.hash_code())).unwrap_or(0),
+            ChatRule::get_toast_message(&this).map(|m| compat::read(&m, |m| m.hash_code())).unwrap_or(0),
+            ChatRule::get_custom_sound(&this).map(|e| sound_event_hash_code(&e)).unwrap_or(0),
+        ]);
     }
 
     /// java: @Override @GenToString public native String toString();
+    /// The body the build's `ObjectProcessor` generates: `java.lang.runtime.ObjectMethods`' toString -
+    /// `ChatRule[f=String.valueOf(f), ..]` over every non-static, non-transient field in declaration order.
     pub fn to_string(&self) -> String {
-        todo!("native method: its body is generated at build time by an annotation processor (@GenToString)")
+        format!(
+            "ChatRule[name={}, pattern={}, enabled={}, isPartialMatch={}, isRegex={}, isIgnoreCase={}, includeFormatting={}, filter={}, validLocations={}, hideMessage={}, chatMessage={}, actionBarMessage={}, announcementMessage={}, toastMessage={}, customSound={}]",
+            self.name,
+            // `Pattern.toString()` is its source
+            self.pattern.as_ref().map_or_else(|| "null".to_string(), |p| p.pattern().to_string()),
+            self.enabled,
+            self.is_partial_match,
+            self.is_regex,
+            self.is_ignore_case,
+            self.include_formatting,
+            self.filter,
+            enum_set_to_string(&self.valid_locations),
+            self.hide_message,
+            compat::opt_str(&self.chat_message),
+            compat::opt_str(&self.action_bar_message),
+            self.announcement_message.as_ref().map_or_else(|| "null".to_string(), |m| compat::read(m, |m| m.to_string())),
+            self.toast_message.as_ref().map_or_else(|| "null".to_string(), |m| compat::read(m, |m| m.to_string())),
+            self.custom_sound.as_ref().map_or_else(|| "null".to_string(), sound_event_to_string),
+        )
     }
 
 }
@@ -574,18 +630,38 @@ impl ToastMessage {
     }
 
     /// java: @Override @GenToString public native String toString();
+    /// The body the build's `ObjectProcessor` generates: `java.lang.runtime.ObjectMethods`' toString -
+    /// `ToastMessage[f=String.valueOf(f), ..]` over every non-static, non-transient field in declaration order.
     pub fn to_string(&self) -> String {
-        todo!("native method: its body is generated at build time by an annotation processor (@GenToString)")
+        // `Optional.toString()`: "Optional[" + value + "]" / "Optional.empty"; `FlexibleItemStack` keeps `Object.toString`
+        let icon = match &self.icon {
+            Some(icon) => format!("Optional[de.hysky.skyblocker.utils.FlexibleItemStack@{:x}]", std::sync::Arc::as_ptr(icon) as *const () as usize as u32),
+            None => "Optional.empty".to_string(),
+        };
+        format!("ToastMessage[icon={}, message={}, displayDuration={}]", icon, self.message, self.display_duration)
     }
 
     /// java: @Override @GenEquals public native boolean equals(Object obj);
+    /// (the body `ObjectProcessor` generates: `java.lang.runtime.ObjectMethods`' equals - the same class, every field
+    /// `Objects.equals`)
     pub fn equals(&self, obj: &compat::Object) -> bool {
-        todo!("native method: its body is generated at build time by an annotation processor (@GenEquals)")
+        let Some(other) = obj.downcast_ref::<compat::Shared<ToastMessage>>() else {
+            return false;
+        };
+        return compat::read(other, |other| self.fields_equal(other));
+    }
+
+    /// The generated equals' field comparison: `icon` (an `Optional<FlexibleItemStack>`, a class that keeps
+    /// `Object.equals`: identity), `message`, `displayDuration`.
+    pub fn fields_equal(&self, other: &ToastMessage) -> bool {
+        objects_equals(&self.icon, &other.icon, |a, b| std::sync::Arc::ptr_eq(a, b)) && self.message == other.message && self.display_duration == other.display_duration
     }
 
     /// java: @Override @GenHashCode public native int hashCode();
+    /// (`ObjectMethods`' hashCode: `31 * h + hash(field)` over the fields in order, from 0)
     pub fn hash_code(&self) -> i32 {
-        todo!("native method: its body is generated at build time by an annotation processor (@GenHashCode)")
+        let icon: i32 = self.icon.as_ref().map(|i| std::sync::Arc::as_ptr(i) as *const () as usize as i32).unwrap_or(0);
+        return [icon, compat::string_hash_code(&self.message), long_hash_code(self.display_duration)].iter().fold(0i32, |h, e| h.wrapping_mul(31).wrapping_add(*e));
     }
 
 }
@@ -624,18 +700,30 @@ impl AnnouncementMessage {
     }
 
     /// java: @Override @GenToString public native String toString();
+    /// The body the build's `ObjectProcessor` generates: `java.lang.runtime.ObjectMethods`' toString -
+    /// `AnnouncementMessage[f=String.valueOf(f), ..]` over every non-static, non-transient field in declaration order.
     pub fn to_string(&self) -> String {
-        todo!("native method: its body is generated at build time by an annotation processor (@GenToString)")
+        format!("AnnouncementMessage[message={}, displayDuration={}]", self.message, self.display_duration)
     }
 
     /// java: @Override @GenEquals public native boolean equals(Object obj);
+    /// (the body `ObjectProcessor` generates: `java.lang.runtime.ObjectMethods`' equals)
     pub fn equals(&self, obj: &compat::Object) -> bool {
-        todo!("native method: its body is generated at build time by an annotation processor (@GenEquals)")
+        let Some(other) = obj.downcast_ref::<compat::Shared<AnnouncementMessage>>() else {
+            return false;
+        };
+        return compat::read(other, |other| self.fields_equal(other));
+    }
+
+    /// The generated equals' field comparison: `message`, `displayDuration`.
+    pub fn fields_equal(&self, other: &AnnouncementMessage) -> bool {
+        self.message == other.message && self.display_duration == other.display_duration
     }
 
     /// java: @Override @GenHashCode public native int hashCode();
+    /// (`ObjectMethods`' hashCode: `31 * h + hash(field)` over the fields in order, from 0)
     pub fn hash_code(&self) -> i32 {
-        todo!("native method: its body is generated at build time by an annotation processor (@GenHashCode)")
+        return [compat::string_hash_code(&self.message), long_hash_code(self.display_duration)].iter().fold(0i32, |h, e| h.wrapping_mul(31).wrapping_add(*e));
     }
 
 }
@@ -644,4 +732,50 @@ impl std::fmt::Display for AnnouncementMessage {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", AnnouncementMessage::to_string(self))
     }
+}
+
+/// java: `Objects.equals(a, b)` over two nullable references, with the class's own `equals` for two non-null ones
+fn objects_equals<T: ?Sized>(a: &Option<compat::Shared<T>>, b: &Option<compat::Shared<T>>, equals: impl Fn(&compat::Shared<T>, &compat::Shared<T>) -> bool) -> bool {
+    match (a, b) {
+        (None, None) => true,
+        (Some(a), Some(b)) => std::sync::Arc::ptr_eq(a, b) || equals(a, b),
+        _ => false,
+    }
+}
+
+/// java: `Objects.hash(values...)` - `Arrays.hashCode`: `31 * h + hashCode(e)` from 1
+fn objects_hash(hashes: &[i32]) -> i32 {
+    hashes.iter().fold(1i32, |h, e| h.wrapping_mul(31).wrapping_add(*e))
+}
+
+/// java: `Boolean.hashCode(b)`
+fn boolean_hash_code(b: bool) -> i32 {
+    if b { 1231 } else { 1237 }
+}
+
+/// java: `Long.hashCode(v)` - `(int) (v ^ (v >>> 32))`
+fn long_hash_code(v: i64) -> i32 {
+    (v ^ ((v as u64) >> 32) as i64) as i32
+}
+
+/// java: `SoundEvent.hashCode()` (a record: `31 * location.hashCode() + fixedRange.hashCode()`)
+fn sound_event_hash_code(e: &mcrust::net::minecraft::sounds::sound_event::SoundEvent) -> i32 {
+    let fixed_range: i32 = e.fixed_range().map(|f| f.to_bits() as i32).unwrap_or(0);
+    e.location().java_hash_code().wrapping_mul(31).wrapping_add(fixed_range)
+}
+
+/// java: `EnumSet.toString()` (`AbstractCollection.toString`): "[" + the elements in ordinal order, ", "-joined + "]"
+fn enum_set_to_string(set: &std::collections::HashSet<Location>) -> String {
+    let mut elements: Vec<&Location> = set.iter().collect();
+    elements.sort();
+    format!("[{}]", elements.iter().map(|l| l.to_string()).collect::<Vec<_>>().join(", "))
+}
+
+/// java: `SoundEvent.toString()` (a record: `SoundEvent[location=.., fixedRange=Optional[..]]`)
+fn sound_event_to_string(e: &SoundEvent) -> String {
+    let fixed_range = match e.fixed_range() {
+        Some(f) => format!("Optional[{}]", mcrust::javacompat::java_float_to_string(f)),
+        None => "Optional.empty".to_string(),
+    };
+    format!("SoundEvent[location={}, fixedRange={}]", e.location(), fixed_range)
 }

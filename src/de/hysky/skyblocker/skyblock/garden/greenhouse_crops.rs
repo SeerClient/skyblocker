@@ -47,7 +47,7 @@ impl GreenhouseCrops {
 }
 
 /// java: public record Crop( String name, String armorStandName, int id, boolean isHead, Block cropBlock, @Nullable String headSkin, FlexibleItemStack displayStack )
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct Crop {
     /// java: String name
     pub name: String,
@@ -68,18 +68,18 @@ pub struct Crop {
 impl Crop {
     /// java: public Crop(String name, String armorStandName, int id, String headSkin)
     pub fn new(mut name: String, mut armor_stand_name: String, mut id: i32, mut head_skin: String) -> Self {
-        let mut this = Self::new(name.clone(), armor_stand_name.clone(), id, true, blocks::blocks().get("air"), Some(head_skin.clone()), ItemUtils::create_skull(&head_skin));
+        let mut this = Self::new_7(name.clone(), armor_stand_name.clone(), id, true, blocks::blocks().get("air"), Some(head_skin.clone()), ItemUtils::create_skull(&head_skin));
         this
     }
 
     /// java: public Crop(String name, String armorStandName, int id, Block cropBlock)
     pub fn new2(mut name: String, mut armor_stand_name: String, mut id: i32, mut crop_block: Arc<Block>) -> Self {
-        let mut this = Self::new(name.clone(), armor_stand_name.clone(), id, false, crop_block.clone(), None, flexible_item_stack::EMPTY.get_mut().clone());
+        let mut this = Self::new_7(name.clone(), armor_stand_name.clone(), id, false, crop_block.clone(), None, flexible_item_stack::EMPTY.get_mut().clone());
         this
     }
 
     /// java: the canonical record constructor
-    pub fn new(mut name: String, mut armor_stand_name: String, mut id: i32, mut is_head: bool, mut crop_block: Arc<Block>, mut head_skin: Option<String>, mut display_stack: compat::Shared<FlexibleItemStack>) -> Self {
+    pub fn new_7(mut name: String, mut armor_stand_name: String, mut id: i32, mut is_head: bool, mut crop_block: Arc<Block>, mut head_skin: Option<String>, mut display_stack: compat::Shared<FlexibleItemStack>) -> Self {
         Self { name, armor_stand_name, id, is_head, crop_block, head_skin, display_stack }
     }
 

@@ -61,8 +61,9 @@ impl DungeonGlowAdder {
 
     /// java: public static boolean isStarred(Entity entity)
     pub fn is_starred(entity: &dyn Entity) -> bool {
-        let mut armor_stands: Vec<ArmorStand> = MobGlow::get_armor_stands(entity);
-        return (!armor_stands.is_empty() && compat::component_of(armor_stands[0].get_name()).get_string().contains("✯"));
+        // the stands by id
+        let mut armor_stands: Vec<i32> = MobGlow::get_armor_stands(entity);
+        return (!armor_stands.is_empty() && mcrust::mcrust::modding::game::with_entity(armor_stands[0], |e| e.get_name().get_string().contains("✯")).unwrap_or(false));
     }
 
 }

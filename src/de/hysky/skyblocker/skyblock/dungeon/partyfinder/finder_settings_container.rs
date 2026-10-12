@@ -39,9 +39,57 @@ pub struct FinderSettingsContainer {
     /// java: private @Nullable RangedValueWidget dungeonLevelRange;
     pub dungeon_level_range: Option<compat::Shared<RangedValueWidget>>,
     /// java: private @Nullable AbstractContainerWidget currentlyOpenedOption = null;
-    pub currently_opened_option: Option<AbstractContainerWidget>,
+    pub currently_opened_option: Option<OptionWidget>,
     /// java: private final List<AbstractContainerWidget> initializedWidgets = new ArrayList<>();
-    pub initialized_widgets: Vec<AbstractContainerWidget>,
+    pub initialized_widgets: Vec<OptionWidget>,
+}
+
+/// java: an `AbstractContainerWidget` reference this container holds - always one of its option widgets
+/// (`OptionDropdownWidget extends AbstractSelectionList extends AbstractContainerWidget`, `RangedValueWidget extends
+/// AbstractContainerWidget`). The handle of the object, so `==` is identity and a call dispatches to the override.
+#[derive(Clone)]
+pub enum OptionWidget {
+    Dropdown(compat::Shared<OptionDropdownWidget>),
+    Ranged(compat::Shared<RangedValueWidget>),
+}
+
+impl OptionWidget {
+    /// java: `a == b` on two `AbstractContainerWidget` references
+    pub fn ptr_eq(&self, other: &OptionWidget) -> bool {
+        match (self, other) {
+            (OptionWidget::Dropdown(a), OptionWidget::Dropdown(b)) => Arc::ptr_eq(a, b),
+            (OptionWidget::Ranged(a), OptionWidget::Ranged(b)) => Arc::ptr_eq(a, b),
+            _ => false,
+        }
+    }
+
+    /// java: `widget.mouseClicked(click, doubled)` - both classes override it
+    pub fn mouse_clicked(&self, click: &MouseButtonEvent, doubled: bool) -> bool {
+        match self {
+            OptionWidget::Dropdown(w) => OptionDropdownWidget::mouse_clicked(w, click, doubled),
+            OptionWidget::Ranged(w) => RangedValueWidget::mouse_clicked(w, click, doubled),
+        }
+    }
+
+    /// java: `widget.isMouseOver(x, y)` (neither class overrides it)
+    pub fn is_mouse_over(&self, x: f64, y: f64) -> bool {
+        match self {
+            OptionWidget::Dropdown(w) => compat::read(w, |__t| __t.base.is_mouse_over(x, y)),
+            OptionWidget::Ranged(w) => compat::read(w, |__t| __t.base.is_mouse_over(x, y)),
+        }
+    }
+}
+
+impl From<compat::Shared<OptionDropdownWidget>> for OptionWidget {
+    fn from(w: compat::Shared<OptionDropdownWidget>) -> OptionWidget {
+        OptionWidget::Dropdown(w)
+    }
+}
+
+impl From<compat::Shared<RangedValueWidget>> for OptionWidget {
+    fn from(w: compat::Shared<RangedValueWidget>) -> OptionWidget {
+        OptionWidget::Ranged(w)
+    }
 }
 
 impl std::ops::Deref for FinderSettingsContainer {
@@ -60,9 +108,18 @@ impl std::ops::DerefMut for FinderSettingsContainer {
 impl FinderSettingsContainer {
     /// java: public FinderSettingsContainer(int x, int y, int height)
     pub fn new(mut x: i32, mut y: i32, mut height: i32) -> compat::Shared<Self> {
-        // TODO(fabric2seer): static `AbstractScrollArea.defaultSettings` has no Rust counterpart in the port
-        //   java: super(x, y, 336, height, Component.empty(), AbstractScrollArea.defaultSettings(4));
-        let __this: compat::Shared<Self> = todo!("constructor");
+        // java: super(x, y, 336, height, Component.empty(), AbstractScrollArea.defaultSettings(4));
+        let __this: compat::Shared<Self> = compat::shared(Self {
+            base: AbstractContainerWidget::new_with_scrollbar_settings(x, y, 336, height, mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::empty()), mcrust::net::minecraft::client::gui::components::abstract_scroll_area::ScrollbarSettings::default_settings(4.0)),
+            is_initialized: false,
+            floor_selector: None,
+            dungeon_type_selector: None,
+            sort_groups_selector: None,
+            class_level_range: None,
+            dungeon_level_range: None,
+            currently_opened_option: None,
+            initialized_widgets: Vec::new(),
+        });
         __this
     }
 
@@ -128,35 +185,35 @@ impl FinderSettingsContainer {
                         return false;
                     }
                     let __h0 = compat::read(__this, |__t| __t.floor_selector.clone()).unwrap();
-                    __this.lock().borrow_mut().initialized_widgets.push(__h0);
+                    __this.lock().borrow_mut().initialized_widgets.push(__h0.into());
                 } else if name.contains("dungeon type") {
                     { let __v = Some(OptionDropdownWidget::new(screen.clone(), compat::component_of(stack.get_hover_name()), ((__this.lock().borrow().get_x()).wrapping_add((3i32.wrapping_mul(__this.lock().borrow().get_width())).wrapping_div(4))).wrapping_sub(70), (__this.lock().borrow().get_y()).wrapping_add(20), 140, 100, *slot_index)); compat::write(__this, |__t| __t.dungeon_type_selector = __v); }
                     if !(FinderSettingsContainer::set_selected_element_from_tooltip(__this, *slot_index, &stack, &compat::read(__this, |__t| __t.dungeon_type_selector.clone()).unwrap())) {
                         return false;
                     }
                     let __h0 = compat::read(__this, |__t| __t.dungeon_type_selector.clone()).unwrap();
-                    __this.lock().borrow_mut().initialized_widgets.push(__h0);
+                    __this.lock().borrow_mut().initialized_widgets.push(__h0.into());
                 } else if name.contains("groups") {
                     { let __v = Some(OptionDropdownWidget::new(screen.clone(), compat::component_of(stack.get_hover_name()), ((__this.lock().borrow().get_x()).wrapping_add((__this.lock().borrow().get_width()).wrapping_div(2))).wrapping_sub(70), (__this.lock().borrow().get_y()).wrapping_add(120), 140, 100, *slot_index)); compat::write(__this, |__t| __t.sort_groups_selector = __v); }
                     if !(FinderSettingsContainer::set_selected_element_from_tooltip(__this, *slot_index, &stack, &compat::read(__this, |__t| __t.sort_groups_selector.clone()).unwrap())) {
                         return false;
                     }
                     let __h0 = compat::read(__this, |__t| __t.sort_groups_selector.clone()).unwrap();
-                    __this.lock().borrow_mut().initialized_widgets.push(__h0);
+                    __this.lock().borrow_mut().initialized_widgets.push(__h0.into());
                 } else if name.contains("class level") {
                     { let __v = Some(RangedValueWidget::new(screen.clone(), compat::component_of(stack.get_hover_name()), ((__this.lock().borrow().get_x()).wrapping_add((__this.lock().borrow().get_width()).wrapping_div(4))).wrapping_sub(50), (__this.lock().borrow().get_y()).wrapping_add(70), 100, *slot_index)); compat::write(__this, |__t| __t.class_level_range = __v); }
                     if !(FinderSettingsContainer::set_range_from_tooltip(__this, &stack, &compat::read(__this, |__t| __t.class_level_range.clone()).unwrap())) {
                         return false;
                     }
                     let __h0 = compat::read(__this, |__t| __t.class_level_range.clone()).unwrap();
-                    __this.lock().borrow_mut().initialized_widgets.push(__h0);
+                    __this.lock().borrow_mut().initialized_widgets.push(__h0.into());
                 } else if name.contains("dungeon level") {
                     { let __v = Some(RangedValueWidget::new(screen.clone(), compat::component_of(stack.get_hover_name()), ((__this.lock().borrow().get_x()).wrapping_add((3i32.wrapping_mul(__this.lock().borrow().get_width())).wrapping_div(4))).wrapping_sub(50), (__this.lock().borrow().get_y()).wrapping_add(70), 100, *slot_index)); compat::write(__this, |__t| __t.dungeon_level_range = __v); }
                     if !(FinderSettingsContainer::set_range_from_tooltip(__this, &stack, &compat::read(__this, |__t| __t.dungeon_level_range.clone()).unwrap())) {
                         return false;
                     }
                     let __h0 = compat::read(__this, |__t| __t.dungeon_level_range.clone()).unwrap();
-                    __this.lock().borrow_mut().initialized_widgets.push(__h0);
+                    __this.lock().borrow_mut().initialized_widgets.push(__h0.into());
                 }
             }
         }
@@ -243,17 +300,13 @@ impl FinderSettingsContainer {
                 }
                 let mut le_min: i32 = -1;
                 let mut le_max: i32 = -1;
-                // java: try {..} catch (NumberFormatException _) - an exception here is a panic, caught by `catch_unwind`
-                let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                    le_min = (compat::trim(&(min_and_max[(0) as usize]))).trim().parse::<i32>().expect("NumberFormatException");
-                }));
-                if let Err(_) = __result {
+                // java: try { leMin = Integer.parseInt(minAndMax[0].trim()); } catch (NumberFormatException _) {}
+                if let Ok(v) = compat::trim(&(min_and_max[(0) as usize])).parse::<i32>() {
+                    le_min = v;
                 }
-                // java: try {..} catch (NumberFormatException _) - an exception here is a panic, caught by `catch_unwind`
-                let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                    le_max = (compat::trim(&(min_and_max[(1) as usize]))).trim().parse::<i32>().expect("NumberFormatException");
-                }));
-                if let Err(_) = __result {
+                // java: try { leMax = Integer.parseInt(minAndMax[1].trim()); } catch (NumberFormatException _) {}
+                if let Ok(v) = compat::trim(&(min_and_max[(1) as usize])).parse::<i32>() {
+                    le_max = v;
                 }
                 RangedValueWidget::set_min_and_max(widget, le_min, le_max);
                 return true;
@@ -286,10 +339,17 @@ impl FinderSettingsContainer {
         if !(compat::read(__this, |__t| __t.is_initialized)) {
             return false;
         }
-        if std::ptr::eq(&compat::read(__this, |__t| __t.currently_opened_option.clone()).unwrap(), &compat::read(__this, |__t| __t.class_level_range.clone()).unwrap()) {
-            return FinderSettingsContainer::update_values(__this, sign, front, &compat::read(__this, |__t| __t.class_level_range.clone()).unwrap());
-        } else if std::ptr::eq(&compat::read(__this, |__t| __t.currently_opened_option.clone()).unwrap(), &compat::read(__this, |__t| __t.dungeon_level_range.clone()).unwrap()) {
-            return FinderSettingsContainer::update_values(__this, sign, front, &compat::read(__this, |__t| __t.dungeon_level_range.clone()).unwrap());
+        // java: currentlyOpenedOption == classLevelRange (reference identity; two nulls are equal)
+        let __same = |opened: &Option<OptionWidget>, range: &Option<compat::Shared<RangedValueWidget>>| match (opened, range) {
+            (None, None) => true,
+            (Some(o), Some(r)) => o.ptr_eq(&OptionWidget::Ranged(r.clone())),
+            _ => false,
+        };
+        let __opened = compat::read(__this, |__t| __t.currently_opened_option.clone());
+        if __same(&__opened, &compat::read(__this, |__t| __t.class_level_range.clone())) {
+            return FinderSettingsContainer::update_values(__this, sign, front, &compat::read(__this, |__t| __t.class_level_range.clone()).expect("NullPointerException"));
+        } else if __same(&__opened, &compat::read(__this, |__t| __t.dungeon_level_range.clone())) {
+            return FinderSettingsContainer::update_values(__this, sign, front, &compat::read(__this, |__t| __t.dungeon_level_range.clone()).expect("NullPointerException"));
         }
         return false;
     }
@@ -317,7 +377,7 @@ impl FinderSettingsContainer {
         let Some(mut dropdown_widget) = dropdown_widget.clone() else {
             return;
         };
-        { let __v = Some(dropdown_widget.clone()); compat::write(__this, |__t| __t.currently_opened_option = __v); }
+        { let __v = Some(OptionWidget::Dropdown(dropdown_widget.clone())); compat::write(__this, |__t| __t.currently_opened_option = __v); }
         let mut entries: Vec<compat::Shared<crate::de::hysky::skyblocker::skyblock::dungeon::partyfinder::option_dropdown_widget::Option>> = Vec::new();
         // handler.slots and what each slot's getItem() answers: (slot.index, slot.getItem())
         let __slots: Vec<(i32, mcrust::net::minecraft::world::item::item_stack::ItemStack)> = handler.with_slots(|menu, containers| menu.slots.iter().map(|slot| (slot.index, slot.get_item(containers).duplicate())).collect()).unwrap_or_default();
@@ -341,7 +401,7 @@ impl FinderSettingsContainer {
         let Some(mut value_widget) = value_widget.clone() else {
             return;
         };
-        { let __v = Some(value_widget.clone()); compat::write(__this, |__t| __t.currently_opened_option = __v); }
+        { let __v = Some(OptionWidget::Ranged(value_widget.clone())); compat::write(__this, |__t| __t.currently_opened_option = __v); }
         let mut min: i32 = -1;
         let mut max: i32 = -1;
         // handler.slots and what each slot's getItem() answers: (slot.index, slot.getItem())
@@ -385,8 +445,11 @@ impl FinderSettingsContainer {
     }
 
     /// java: public boolean canInteract(AbstractContainerWidget widget)
-    pub fn can_interact(__this: &compat::Shared<Self>, widget: &AbstractContainerWidget) -> bool {
-        return (compat::read(__this, |__t| __t.currently_opened_option.clone()).is_none() || std::ptr::eq(&compat::read(__this, |__t| __t.currently_opened_option.clone()).unwrap(), widget));
+    /// (`widget` is Java's nullable reference: `None` is `null`)
+    pub fn can_interact(__this: &compat::Shared<Self>, widget: Option<&OptionWidget>) -> bool {
+        // java: return currentlyOpenedOption == null || currentlyOpenedOption == widget;
+        let __opened = compat::read(__this, |__t| __t.currently_opened_option.clone());
+        return (__opened.is_none() || widget.is_some_and(|w| __opened.as_ref().unwrap().ptr_eq(w)));
     }
 
     /// java: public boolean hasOpenOption()
@@ -397,9 +460,30 @@ impl FinderSettingsContainer {
     /// java: @Override public boolean mouseClicked(MouseButtonEvent click, boolean doubled)
     pub fn mouse_clicked(__this: &compat::Shared<Self>, click: &MouseButtonEvent, mut doubled: bool) -> bool {
         if FinderSettingsContainer::has_open_option(__this) {
-            return { let (__q0, __q1,) = (click.clone(), doubled,); __this.lock().borrow_mut().currently_opened_option.as_mut().unwrap().mouse_clicked(__q0, __q1) };
+            let __opened = compat::read(__this, |__t| __t.currently_opened_option.clone()).unwrap();
+            return __opened.mouse_clicked(click, doubled);
         }
-        return { let (__q0, __q1,) = (click.clone(), doubled,); __this.lock().borrow_mut().base.mouse_clicked(__q0, __q1) };
+        // java: return super.mouseClicked(click, doubled); - AbstractContainerWidget.mouseClicked:
+        // `boolean scrolling = this.updateScrolling(event); return ContainerEventHandler.super.mouseClicked(event, doubleClick) || scrolling;`
+        // updateScrolling answers false: the scrollbar is never visible (contentHeight() is 0)
+        let scrolling: bool = false;
+        // ContainerEventHandler.mouseClicked: the first child under the mouse (`getChildAt`) takes the click
+        let __children = FinderSettingsContainer::children(__this);
+        let __child = __children.iter().enumerate().find(|(_, c)| c.is_mouse_over(click.x(), click.y())).map(|(i, c)| (i, c.clone()));
+        let consumed: bool = match __child {
+            None => false,
+            Some((__index, widget)) => {
+                // `&& widget.shouldTakeFocusAfterInteraction()` - the default `true`
+                if widget.mouse_clicked(click, doubled) {
+                    compat::write(__this, |__t| { __t.base.set_focused(Some(__index)); });
+                    if click.button() == 0 {
+                        compat::write(__this, |__t| __t.base.set_dragging(true));
+                    }
+                }
+                true
+            }
+        };
+        return consumed || scrolling;
     }
 
     /// java: @Override protected void extractWidgetRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a)
@@ -455,9 +539,10 @@ impl FinderSettingsContainer {
     }
 
     /// java: @Override public List<? extends GuiEventListener> children()
-    pub fn children(__this: &compat::Shared<Self>) -> Vec<Box<dyn GuiEventListener>> {
+    pub fn children(__this: &compat::Shared<Self>) -> Vec<OptionWidget> {
         return compat::read(__this, |__t| __t.initialized_widgets.clone());
     }
+
 
     /// java: @Override protected void updateWidgetNarration(NarrationElementOutput builder)
     pub fn update_widget_narration(__this: &compat::Shared<Self>, builder: &dyn NarrationElementOutput) {
@@ -476,3 +561,135 @@ impl FinderSettingsContainer {
 }
 
 // NOTE(fabric2seer): children, contentHeight, extractWidgetRenderState, mouseClicked, scrollRate, setRectangle, updateWidgetNarration override(s) of AbstractContainerWidget - the port dispatches its own calls, so these run only where the mod calls them; hook the port's method to make the game call them
+
+/// FinderSettingsContainer's container half (`super`'s fields)
+impl ContainerWidgetHalf for FinderSettingsContainer {
+    fn container_half(&mut self) -> &mut AbstractContainerWidget {
+        &mut self.base
+    }
+}
+
+/// FinderSettingsContainer as the game's widget: `ContainerWidgetAdapter::widget(handle)` where Java hands it on
+impl mcrust::mcrust::modding::widgets::ModWidget for ContainerWidgetAdapter<FinderSettingsContainer> {
+    /// java: @Override protected void extractWidgetRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a)
+    fn extract_widget_render_state(&mut self, _widget: &mcrust::net::minecraft::client::gui::components::abstract_widget::AbstractWidget, context: &mut mcrust::mcrust::modding::widgets::WidgetRenderContext<'_>, mouse_x: i32, mouse_y: i32, a: f32) {
+        self.lend(|__h| FinderSettingsContainer::extract_widget_render_state(__h, &context.graphics, mouse_x, mouse_y, a))
+    }
+
+    /// java: @Override protected void updateWidgetNarration(NarrationElementOutput builder)
+    fn update_widget_narration(&mut self, _widget: &mcrust::net::minecraft::client::gui::components::abstract_widget::AbstractWidget, output: &mut dyn NarrationElementOutput) {
+        self.lend(|__h| FinderSettingsContainer::update_widget_narration(__h, &*output))
+    }
+
+    /// java: @Override public boolean mouseClicked(MouseButtonEvent click, boolean doubled)
+    fn mouse_clicked(&mut self, _widget: &mut mcrust::net::minecraft::client::gui::components::abstract_widget::AbstractWidget, event: &MouseButtonEvent, double_click: bool) -> bool {
+        self.lend(|__h| FinderSettingsContainer::mouse_clicked(__h, event, double_click))
+    }
+
+    fn container_widget_mut(&mut self) -> Option<&mut AbstractContainerWidget> {
+        Some(self.part_mut())
+    }
+}
+
+/// A mod class that `extends AbstractContainerWidget` (this container, `RangedValueWidget`, `ChatRuleConfigScreen
+/// .ContentContainer`, ..): its container half (`base`), which holds `super`'s fields.
+///
+/// (A helper for the batch's container widgets; it belongs beside `compat::WidgetHalf` - see PATTERNS_batchF.md.)
+pub(crate) trait ContainerWidgetHalf {
+    fn container_half(&mut self) -> &mut AbstractContainerWidget;
+}
+
+/// The fields of a container widget's box the game keeps on its own `AbstractWidget` and syncs into the part
+/// (`AbstractContainerWidget::sync_from_widget` / `sync_to_widget`).
+#[derive(Clone, Copy, PartialEq)]
+struct ContainerBox {
+    x: i32,
+    y: i32,
+    width: i32,
+    height: i32,
+    active: bool,
+    visible: bool,
+}
+
+impl ContainerBox {
+    fn of(w: &AbstractContainerWidget) -> ContainerBox {
+        ContainerBox { x: w.get_x(), y: w.get_y(), width: w.width, height: w.height, active: w.active, visible: w.visible }
+    }
+
+    fn write(&self, w: &mut AbstractContainerWidget) {
+        w.set_x(self.x);
+        w.set_y(self.y);
+        w.width = self.width;
+        w.height = self.height;
+        w.active = self.active;
+        w.visible = self.visible;
+    }
+}
+
+/// A mod object that `extends AbstractContainerWidget`, as the game's `ModWidget`: Java's ONE object is the mod's
+/// object (its fields, its `base`) plus the game's `AbstractWidget` in the screen's list. The game syncs that
+/// widget into `part` before each call (`ModWidget::container_widget_mut`); `lend` brings it into the object's
+/// `base` - keeping a box field the mod's own code changed since the last call (`setRectangle` from the screen),
+/// which then reaches the game's widget through `part` - and copies the object's box back into `part` after the
+/// call, which the game writes back onto its widget for a call that holds it (`sync_to_widget`).
+pub(crate) struct ContainerWidgetAdapter<C: 'static> {
+    object: compat::RenderThread<compat::Shared<C>>,
+    part: AbstractContainerWidget,
+    /// the game's box as of the last call: a field of the object's `base` that differs from it was set by the mod
+    synced: ContainerBox,
+}
+
+impl<C: ContainerWidgetHalf + 'static> ContainerWidgetAdapter<C> {
+    /// `new MyContainer(..)` handed to the game (`addRenderableWidget`, a layout): the game's widget, built from
+    /// the object's own box, with the object attached.
+    pub(crate) fn widget(object: compat::Shared<C>) -> mcrust::net::minecraft::client::gui::components::abstract_widget::AbstractWidget
+    where
+        ContainerWidgetAdapter<C>: mcrust::mcrust::modding::widgets::ModWidget,
+    {
+        let part: AbstractContainerWidget = compat::write(&object, |__t| __t.container_half().clone());
+        let synced = ContainerBox::of(&part);
+        let message: String = part.get_message().get_string();
+        let mut widget = mcrust::mcrust::modding::widgets::ModWidgetSlot::widget(synced.x, synced.y, synced.width, synced.height, message, Box::new(ContainerWidgetAdapter { object: compat::RenderThread::new(object), part, synced }));
+        widget.active = synced.active;
+        widget.visible = synced.visible;
+        widget
+    }
+
+    /// The mod object.
+    pub(crate) fn object(&self) -> &compat::Shared<C> {
+        self.object.get()
+    }
+
+    /// The part the game syncs (`container_widget_mut`).
+    pub(crate) fn part_mut(&mut self) -> &mut AbstractContainerWidget {
+        &mut self.part
+    }
+
+    /// One of the object's methods, with its `base` brought up to the live widget first and its box handed back
+    /// after.
+    pub(crate) fn lend<R>(&mut self, f: impl FnOnce(&compat::Shared<C>) -> R) -> R {
+        let object: compat::Shared<C> = self.object.get().clone();
+        let live = ContainerBox::of(&self.part);
+        let synced = self.synced;
+        let hovered = self.part.is_hovered;
+        compat::write(&object, |__t| {
+            let half = __t.container_half();
+            let mine = ContainerBox::of(half);
+            let merged = ContainerBox {
+                x: if mine.x != synced.x { mine.x } else { live.x },
+                y: if mine.y != synced.y { mine.y } else { live.y },
+                width: if mine.width != synced.width { mine.width } else { live.width },
+                height: if mine.height != synced.height { mine.height } else { live.height },
+                active: if mine.active != synced.active { mine.active } else { live.active },
+                visible: if mine.visible != synced.visible { mine.visible } else { live.visible },
+            };
+            merged.write(half);
+            half.is_hovered = hovered;
+        });
+        self.synced = live;
+        let out = f(&object);
+        let after = compat::write(&object, |__t| ContainerBox::of(__t.container_half()));
+        after.write(&mut self.part);
+        out
+    }
+}

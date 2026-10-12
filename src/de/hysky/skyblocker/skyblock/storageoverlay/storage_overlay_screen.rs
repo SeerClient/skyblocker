@@ -2,6 +2,8 @@
 
 #[allow(unused_imports)]
 use crate::prelude::*;
+use crate::de::hysky::skyblocker::skyblock::dungeon::partyfinder::finder_settings_container::ContainerWidgetAdapter;
+use crate::de::hysky::skyblocker::skyblock::dungeon::partyfinder::finder_settings_container::ContainerWidgetHalf;
 use crate::de::hysky::skyblocker::config::skyblocker_config_manager::SkyblockerConfigManager;
 use crate::de::hysky::skyblocker::skyblock::item::background::item_background_manager::ItemBackgroundManager;
 use crate::de::hysky::skyblocker::skyblock::item::item_protection::ItemProtection;
@@ -168,7 +170,7 @@ impl StorageOverlayScreen {
     /// java: public static boolean enabled(String title)
     pub fn enabled(title: &str) -> bool {
         compat::set_state(&OPEN_STORAGE, BackpackPreview::get_storage_index_from_title(title));
-        let mut enabled: bool = (SkyblockerConfigManager::get().ui_and_visuals.storage_overlay.enabled && title == "storage" || compat::get_state(&OPEN_STORAGE) != -1 && !(compat::get_state(&DISABLE_ON_NEXT_LOAD)));
+        let mut enabled: bool = (SkyblockerConfigManager::get().ui_and_visuals.storage_overlay.enabled && (title == "storage" || compat::get_state(&OPEN_STORAGE) != -1) && !(compat::get_state(&DISABLE_ON_NEXT_LOAD)));
         compat::set_state(&DISABLE_ON_NEXT_LOAD, false);
         return enabled;
     }
@@ -292,7 +294,8 @@ impl StorageOverlayScreen {
 
     /// java: @Override protected boolean isHovering(Slot slot, double xm, double ym)
     pub fn is_hovering(__this: &compat::Shared<Self>, slot: &Slot, mut xm: f64, mut ym: f64) -> bool {
-        return (__this.lock().borrow_mut().base.is_hovering_slot(slot, xm, ym) && compat::read(__this, |__t| __t.grid.clone()).is_none() || slot.container.as_any().is::<Inventory>() || (({ let __r = &compat::read(__this, |__t| __t.grid.clone()).unwrap(); let __f = compat::dispatch(__r, |__t| __t.get_grid_rectangle()); __f(&compat::view(__r, |a| a as compat::Shared<dyn SearchableGridWidget>)) })).contains_point(((xm) as i32), ((ym) as i32)));
+        // java: super.isHovering(slot, xm, ym) && (grid == null || slot.container instanceof Inventory || grid.getGridRectangle().containsPoint(..))
+        return (__this.lock().borrow_mut().base.is_hovering_slot(slot, xm, ym) && (compat::read(__this, |__t| __t.grid.clone()).is_none() || slot.container == mcrust::net::minecraft::world::inventory::slot::SlotContainer::Inventory || (({ let __r = &compat::read(__this, |__t| __t.grid.clone()).unwrap(); let __f = compat::dispatch(__r, |__t| __t.get_grid_rectangle()); __f(&compat::view(__r, |a| a as compat::Shared<dyn SearchableGridWidget>)) })).contains_point(((xm) as i32), ((ym) as i32))));
     }
 
     /// java: @Override protected void init()
@@ -305,7 +308,7 @@ impl StorageOverlayScreen {
         ({ let __r = &compat::read(__this, |__t| __t.grid.clone()).unwrap(); let __f = compat::dispatch(__r, |__t| __t.set_search()); __f(&compat::view(__r, |a| a as compat::Shared<dyn SearchableGridWidget>), &compat::get_state(&SAVED_SEARCH)) });
         ({ let __r = &compat::read(__this, |__t| __t.grid.clone()).unwrap(); let __f = compat::dispatch(__r, |__t| __t.set_scroll_amount()); __f(&compat::view(__r, |a| a as compat::Shared<dyn SearchableGridWidget>), compat::get_state(&SAVED_SCROLL)) });
         let __r0 = compat::read(__this, |__t| __t.grid.clone());
-        { let (__q0,) = (__r0.unwrap(),); __this.lock().borrow_mut().screen.add_renderable_widget(__q0) };
+        { let (__q0,) = (ContainerWidgetAdapter::widget(__r0.unwrap()),); __this.lock().borrow_mut().screen.add_renderable_widget(__q0) };
         // TODO(fabric2seer): field `VERTICAL` of a value of unknown type
         //   java: LinearLayout extraButtons = new LinearLayout(width - 90, height - 84, LinearLayout.Orientation.VERTICAL);
         let mut extra_buttons: LinearLayout = todo!("fabric2seer: the initialiser of `extraButtons` (TODO above)");
@@ -355,7 +358,7 @@ impl StorageOverlayScreen {
 
     /// java: @Override protected void extractSlot(GuiGraphicsExtractor graphics, Slot slot, int mouseX, int mouseY)
     pub fn extract_slot(__this: &compat::Shared<Self>, graphics: &mut GuiGraphicsExtractor, slot: &Slot, mut mouse_x: i32, mut mouse_y: i32) {
-        if slot.container.as_any().is::<Inventory>() || compat::read(__this, |__t| __t.grid.clone()).is_none() {
+        if slot.container == mcrust::net::minecraft::world::inventory::slot::SlotContainer::Inventory || compat::read(__this, |__t| __t.grid.clone()).is_none() {
             compat::call_super();
         } else {
             let mut rectangle: ScreenRectangle = ({ let __r = &compat::read(__this, |__t| __t.grid.clone()).unwrap(); let __f = compat::dispatch(__r, |__t| __t.get_grid_rectangle()); __f(&compat::view(__r, |a| a as compat::Shared<dyn SearchableGridWidget>)) });
@@ -381,8 +384,8 @@ impl StorageOverlayScreen {
 
     /// java: @Override public boolean mouseScrolled(double x, double y, double scrollX, double scrollY)
     pub fn mouse_scrolled(__this: &compat::Shared<Self>, mut x: f64, mut y: f64, mut scroll_x: f64, mut scroll_y: f64) -> bool {
-        // TODO(fabric2seer): `has_item` takes 1 argument(s) in the port (`containers: &Containers<'_>`), Java passes 0
-        if compat::read(__this, |__t| __t.hovered_slot.clone()).is_some() && __this.lock().borrow().hovered_slot.as_ref().unwrap().has_item() {
+        // java: if (this.hoveredSlot != null && this.hoveredSlot.hasItem())
+        if compat::read(__this, |__t| __t.hovered_slot.clone()).is_some() && compat::with_open_menu(|__menu, __containers| __menu.slots.get(compat::read(__this, |__t| __t.hovered_slot).unwrap() as usize).is_some_and(|__slot| __slot.has_item(__containers))).unwrap_or(false) {
             return false;
         }
         // TODO(fabric2seer): Optional.mouseScrolled
@@ -392,12 +395,12 @@ impl StorageOverlayScreen {
 
     /// java: @Override public boolean keyPressed(KeyEvent event)
     pub fn key_pressed(__this: &compat::Shared<Self>, event: &mcrust::net::minecraft::client::input::key_event::KeyEvent) -> bool {
-        // TODO(fabric2seer): `get_current_focus_path` takes 1 argument(s) in the port (`own_index: usize`), Java passes 0
-        // TODO(fabric2seer): `get_current_focus_path` is a method of the port's trait `GuiEventListener`, which the port's `AbstractContainerScreen` does not implement
-        // rust: let mut focus_path: Option<ComponentPath> = __this.lock().borrow().get_current_focus_path();
-        let mut focus_path: ComponentPath = todo!("fabric2seer: the initialiser of `focusPath` (TODO above)");
-        // TODO(fabric2seer): `Options.keyInventory` has no Rust field in the port (searched net.minecraft.client.Options and its supertypes)
-        if compat::minecraft().options.borrow().key_inventory.matches(event) && true /* java: focus_path != null: never null here */ && focus_path.leaf_component().as_any().is::<EditBox>() {
+        // java: ComponentPath focusPath = this.getCurrentFocusPath();
+        //   if (this.minecraft.options.keyInventory.matches(event) && focusPath != null && focusPath.leafComponent() instanceof EditBox)
+        // (the focus path's leaf among the screen's own widgets: the focused child, when it is an edit box; an edit box
+        // inside the backpack grid is in the grid object's own widgets, which the screen's focus does not reach)
+        let __focused_edit_box: bool = compat::read(__this, |__t| __t.base.screen.get_focused().is_some_and(|__i| matches!(__t.base.screen.widget(__i).kind, mcrust::net::minecraft::client::gui::components::abstract_widget::WidgetKind::EditBox(_))));
+        if key_mapping::matches("key.inventory", event) && __focused_edit_box {
             return true;
         }
         return false;
@@ -510,9 +513,10 @@ impl BackpackGridWidget {
         // TODO(fabric2seer): super statement
         //   java: super(x, y, width, height, Component.literal("BackPack grid"), expectedWidth, maxStoragesPerRow, packed, true);
         let mut storage_loaded: bool = false;
-        let mut storages: Vec<compat::Shared<Storage>> = BackpackPreview::get_storages().unwrap();
+        // java: BackpackPreview.@Nullable Storage[] storages = BackpackPreview.getStorages(); - the ELEMENTS are nullable
+        let mut storages: Vec<Option<compat::Shared<Storage>>> = BackpackPreview::get_storages();
         for i in 0..(storages.len() as i32) {
-            let mut storage: Option<compat::Shared<Storage>> = Some(storages[(i) as usize].clone());
+            let mut storage: Option<compat::Shared<Storage>> = storages[(i) as usize].clone();
             let mut open: bool = (compat::get_state(&OPEN_STORAGE) == i);
             if let Some(storage) = &storage {
                 storage_loaded = true;
@@ -586,7 +590,9 @@ impl BackpackGridWidget {
         if compat::read(__this, |__t| __t.reload_button.clone()).is_some() {
             return vec![compat::read(__this, |__t| __t.reload_button.clone()).unwrap()];
         }
-        return compat::read(__this, |__t| __t.backpack_widgets.clone()).into_iter().filter(|backpack| BackpackWidget::matches(backpack, &input)).collect::<Vec<_>>();
+        // java: return backpackWidgets.stream().filter(backpack -> backpack.matches(input)).toList(); - the widgets
+        // themselves, each the game's widget over the same object
+        return compat::read(__this, |__t| __t.backpack_widgets.clone()).into_iter().filter(|backpack| BackpackWidget::matches(backpack, &input)).map(compat::WidgetAdapter::widget).collect::<Vec<_>>();
     }
 
     /// BackpackGridWidget.filterWidgets as the dispatch of SearchableGridWidget.filterWidgets
@@ -597,11 +603,9 @@ impl BackpackGridWidget {
     /// java: @Override protected void extractWidgetRenderState(GuiGraphicsExtractor context, int mouseX, int mouseY, float deltaTicks)
     pub fn extract_widget_render_state_impl(__this: &compat::Shared<Self>, context: &GuiGraphicsExtractor, mut mouse_x: i32, mut mouse_y: i32, mut delta_ticks: f32) {
         <dyn SearchableGridWidget>::extract_widget_render_state_body(&compat::view(__this, |a| a as compat::Shared<dyn SearchableGridWidget>), context, mouse_x, mouse_y, delta_ticks);
-        let __o1 = compat::read(__this, |__t| __t.open_backpack.clone()).unwrap();
-        let __o2 = compat::read(__this, |__t| __t.open_backpack.clone()).unwrap();
-        let __o3 = compat::read(__this, |__t| __t.open_backpack.clone()).unwrap();
-        let __o4 = compat::read(__this, |__t| __t.open_backpack.clone()).unwrap();
-        if compat::read(__this, |__t| __t.open_backpack.clone()).is_some() && compat::write(&__o3, |__t| __t.get_bottom()) < (__this.lock().borrow().get_y()).wrapping_add(HEADER_H) || compat::write(&__o4, |__t| __t.get_y()) >= __this.lock().borrow().get_bottom() {
+        // java: if (openBackpack != null && (openBackpack.getBottom() < getY() + HEADER_H || openBackpack.getY() >= getBottom()))
+        let __open = compat::read(__this, |__t| __t.open_backpack.clone());
+        if let Some(__o) = &__open && (compat::write(__o, |__t| __t.get_bottom()) < (__this.lock().borrow().get_y()).wrapping_add(HEADER_H) || compat::write(__o, |__t| __t.get_y()) >= __this.lock().borrow().get_bottom()) {
             // TODO(fabric2seer): `handler` is a field of the enclosing instance (StorageOverlayScreen.this) - an inner class has no outer reference in Rust
             //   java: handler.moveBackpackSlots(0, -1000, 9);
         }
@@ -821,3 +825,33 @@ impl ModWidget for compat::WidgetAdapter<BackpackWidget> {
 }
 
 // NOTE(fabric2seer): extractWidgetRenderState, onClick, updateWidgetNarration override(s) of AbstractWidget - the port dispatches its own calls, so these run only where the mod calls them; hook the port's method to make the game call them
+
+/// BackpackGridWidget's container half (`SearchableGridWidget extends AbstractContainerWidget`)
+impl ContainerWidgetHalf for BackpackGridWidget {
+    fn container_half(&mut self) -> &mut mcrust::net::minecraft::client::gui::components::abstract_container_widget::AbstractContainerWidget {
+        &mut self.base.base
+    }
+}
+
+/// BackpackGridWidget as the game's widget (`this.addRenderableWidget(grid)`): its methods dispatch through
+/// `SearchableGridWidget` (the class's overrides, else the base bodies)
+impl ModWidget for ContainerWidgetAdapter<BackpackGridWidget> {
+    /// java: SearchableGridWidget.extractWidgetRenderState (BackpackGridWidget overrides it)
+    fn extract_widget_render_state(&mut self, _widget: &AbstractWidget, context: &mut mcrust::mcrust::modding::widgets::WidgetRenderContext<'_>, mouse_x: i32, mouse_y: i32, a: f32) {
+        self.lend(|__h| { let __v = compat::view(__h, |a| a as compat::Shared<dyn SearchableGridWidget>); let __f = compat::dispatch(&__v, |__t| __t.extract_widget_render_state()); __f(&__v, &context.graphics, mouse_x, mouse_y, a) })
+    }
+
+    /// java: SearchableGridWidget.updateWidgetNarration
+    fn update_widget_narration(&mut self, _widget: &AbstractWidget, output: &mut dyn mcrust::net::minecraft::client::gui::narration::narration_element_output::NarrationElementOutput) {
+        self.lend(|__h| { let __v = compat::view(__h, |a| a as compat::Shared<dyn SearchableGridWidget>); let __f = compat::dispatch(&__v, |__t| __t.update_widget_narration()); __f(&__v, &*output) })
+    }
+
+    /// java: SearchableGridWidget.mouseScrolled
+    fn mouse_scrolled(&mut self, _widget: &mut AbstractWidget, x: f64, y: f64, scroll_x: f64, scroll_y: f64) -> bool {
+        self.lend(|__h| { let __v = compat::view(__h, |a| a as compat::Shared<dyn SearchableGridWidget>); let __f = compat::dispatch(&__v, |__t| __t.mouse_scrolled()); __f(&__v, x, y, scroll_x, scroll_y) })
+    }
+
+    fn container_widget_mut(&mut self) -> Option<&mut mcrust::net::minecraft::client::gui::components::abstract_container_widget::AbstractContainerWidget> {
+        Some(self.part_mut())
+    }
+}

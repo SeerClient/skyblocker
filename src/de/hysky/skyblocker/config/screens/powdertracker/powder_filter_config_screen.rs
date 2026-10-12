@@ -27,10 +27,12 @@ pub struct PowderFilterConfigScreen {
     pub base: mcrust::net::minecraft::client::gui::screens::screen::Screen,
     /// java: private final @Nullable Screen parent;
     pub parent: Option<mcrust::net::minecraft::client::gui::screens::screen::Screen>,
-    /// java: private final List<String> filters;
-    pub filters: Vec<String>,
+    /// java: private final List<String> filters; - one list, shared with the `ItemTickList` (its checkboxes write it)
+    pub filters: compat::Shared<Vec<String>>,
     /// java: private final List<String> allItems;
     pub all_items: Vec<String>,
+    /// `init`'s `itemTickList` (the buttons' lambdas capture it): the list's class object and the game's list widget
+    pub item_tick_list: Option<(Arc<ItemTickList<String>>, mcrust::mcrust::modding::widgets::ModWidgetSlot)>,
     /// the screen's widgets as this object last saw them (see `compat::WidgetCache`)
     pub __widgets: compat::WidgetCache,
 }
@@ -51,8 +53,9 @@ impl std::ops::DerefMut for PowderFilterConfigScreen {
 impl PowderFilterConfigScreen {
     /// java: public PowderFilterConfigScreen(@Nullable Screen parent, List<String> allItems)
     pub fn new(mut parent: Option<mcrust::net::minecraft::client::gui::screens::screen::Screen>, mut all_items: Vec<String>) -> compat::Shared<Self> {
-        let __init_parent = parent.clone();
-        let __init_filters = SkyblockerConfigManager::get().mining.crystal_hollows.powder_tracker_filter.iter().cloned().collect::<Vec<_>>();
+        let __init_parent = parent;
+        // java: new ArrayList<>(SkyblockerConfigManager.get().mining.crystalHollows.powderTrackerFilter); // Copy the list so we can undo changes when necessary
+        let __init_filters = compat::shared(SkyblockerConfigManager::get().mining.crystal_hollows.powder_tracker_filter.iter().cloned().collect::<Vec<_>>());
         let __init_all_items = all_items.clone();
         let __this = compat::shared(Self {
             base: mcrust::net::minecraft::client::gui::screens::screen::Screen::new(component::null_to_empty(Some("Powder Mining Tracker Filter Config")).get_string()),
@@ -60,58 +63,116 @@ impl PowderFilterConfigScreen {
             parent: __init_parent,
             filters: __init_filters,
             all_items: __init_all_items,
+            item_tick_list: None,
         });
         __this
     }
 
+    /// `itemTickList.x(..)`: the list object and its widget's list, lent for `f` (no borrow of this screen held).
+    fn with_list<R>(__this: &compat::Shared<Self>, f: impl FnOnce(&ItemTickList<String>, &mut mcrust::net::minecraft::client::gui::components::abstract_selection_list::AbstractSelectionList) -> R) -> R {
+        let (class, slot) = compat::read(__this, |__t| __t.item_tick_list.clone()).expect("PowderFilterConfigScreen.itemTickList before init()");
+        slot.with::<mcrust::mcrust::modding::widgets::ModSelectionList, _>(|l| f(&class, &mut l.list)).expect("the item tick list reached from inside its own method")
+    }
+
     /// java: @Override protected void init()
     pub fn init(__this: &compat::Shared<Self>) {
-        // TODO(fabric2seer): `Screen.addRenderableOnly` has no Rust method in the port (looked for `add_renderable_only` in Screen and its supertypes)
-        // rust: __this.lock().borrow().add_renderable_only(&Arc::new(move |context, _, _, _| {
-        // rust: // TODO(fabric2seer): `.centeredText(..)` on a value of unknown type
-        // rust: //   java: context.centeredText(minecraft.font, Component.translatable("skyblocker.config.mining.crystalHollows.powderTrackerFilter.screenTitle").withStyle(ChatFormatting.BOLD), width / 2, (32 - minecraft.font.lineHeight) / 2, CommonColors.WHITE);
-        // rust: }));
-        let __r0 = compat::read(__this, |__t| __t.width);
-        let __r1 = compat::read(__this, |__t| __t.height);
-        let __r2 = compat::read(__this, |__t| __t.filters.clone());
-        let __r3 = compat::read(__this, |__t| __t.all_items.clone());
-        let mut item_tick_list: compat::Shared<ItemTickList<String>> = { let (__q0,) = (compat::attach_list(ItemTickList::init(&ItemTickList::new(compat::minecraft(), __r0, (__r1).wrapping_sub(96), 32, 24, __r2, __r3))),); __this.lock().borrow_mut().add_renderable_widget(__q0) };
+        // java: addRenderableOnly((context, _, _, _) -> context.centeredText(..)); - see `extract_render_state`
+        let (width, height) = compat::read(__this, |__t| (__t.width, __t.height));
+        // java: ItemTickList<String> itemTickList = addRenderableWidget(new ItemTickList<>(Minecraft.getInstance(), width, height - 96, 32, 24, filters, allItems).init());
+        let (filters, all_items) = compat::read(__this, |__t| (__t.filters.clone(), __t.all_items.clone()));
+        let (class, widget) = ItemTickList::new(width, height - 96, 32, 24, filters, all_items);
+        let slot = widget.mod_widget().expect("ItemTickList's widget");
+        slot.with::<mcrust::mcrust::modding::widgets::ModSelectionList, _>(|l| class.init(&mut l.list)).expect("ItemTickList.init");
+        compat::write(__this, |__t| {
+            __t.item_tick_list = Some((class, slot));
+            __t.add_renderable_widget(widget);
+        });
+        //Grid code gratuitously stolen from WaypointsScreen. Same goes for the y and heights above.
         let mut grid_widget: GridLayout = GridLayout::new_default();
-        grid_widget.default_cell_setting().padding_horizontal(5).padding_vertical(2);
+        // java: gridWidget.defaultCellSetting().paddingHorizontal(5).paddingVertical(2); - on the layout's own settings
+        let __settings = grid_widget.default_cell_setting();
+        *__settings = __settings.clone().padding_horizontal(5).padding_vertical(2);
         let mut adder: RowHelper = grid_widget.create_row_helper(2);
-        // TODO(fabric2seer): the port's `add_child` ports this Java method with other parameters (grid, child for Java's widget)
-        // TODO(fabric2seer): `add_child` takes 2 argument(s) in the port (`grid: &mut GridLayout, child: LayoutElement`), Java passes 1
-        // rust: let __this_1 = compat::RenderThread::new(__this.clone());
-        // rust: adder.add_child(&mut (button::builder(component::translatable("text.skyblocker.reset").get_string(), OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| { compat::lend_screen(__this_1.get(), __screen, || { let mut __pidx = compat::WidgetRef::Screen(__index); {
-        // rust: __this_1.get().lock().borrow_mut().filters.clear();
-        // rust: ItemTickList::clear_and_init(&item_tick_list);
-        // rust: } }) })))).build()).unwrap();
-        // TODO(fabric2seer): the port's `add_child` ports this Java method with other parameters (grid, child for Java's widget)
-        // TODO(fabric2seer): `add_child` takes 2 argument(s) in the port (`grid: &mut GridLayout, child: LayoutElement`), Java passes 1
-        // rust: let __this_2 = compat::RenderThread::new(__this.clone());
-        // rust: adder.add_child(&mut (button::builder(component::translatable("text.skyblocker.undo").get_string(), OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| { compat::lend_screen(__this_2.get(), __screen, || { let mut __pidx = compat::WidgetRef::Screen(__index); {
-        // rust: __this_2.get().lock().borrow_mut().filters.clear();
-        // rust: let __h0 = SkyblockerConfigManager::get().mining.crystal_hollows.powder_tracker_filter.iter().cloned();
-        // rust: __this_2.get().lock().borrow_mut().filters.extend(__h0);
-        // rust: ItemTickList::clear_and_init(&item_tick_list);
-        // rust: } }) })))).build()).unwrap();
-        // TODO(fabric2seer): the port's `add_child_width` ports this Java method with other parameters (grid, child, column_width for Java's widget, column_width)
-        // TODO(fabric2seer): `add_child_width` takes 3 argument(s) in the port (`grid: &mut GridLayout, child: LayoutElement, column_width: i32`), Java passes 2
-        // rust: let __this_3 = compat::RenderThread::new(__this.clone());
-        // rust: adder.add_child_width(&mut (button::builder(mcrust::net::minecraft::network::chat::common_components::gui_done().get_string(), OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| { compat::lend_screen(__this_3.get(), __screen, || { let mut __pidx = compat::WidgetRef::Screen(__index); {
-        // rust: PowderFilterConfigScreen::save_filters(__this_3.get());
-        // rust: PowderFilterConfigScreen::on_close(__this_3.get());
-        // rust: } }) })))).width(((mcrust::net::minecraft::client::gui::components::button::DEFAULT_WIDTH).wrapping_mul(2)).wrapping_add(10)).build(), 2).unwrap();
-        { grid_widget.arrange_elements(); let mut __vw = Vec::new(); LayoutElement::Grid(grid_widget.clone()).visit_widgets(&mut __vw); for (__i, __x, __y) in __vw { compat::write(__this, |__t| __t.widget_mut(__i).set_position(__x, __y)); } };
-        frame_layout::center_in_rectangle(&mut *compat::LayoutBack::grid(&mut grid_widget), 0, (compat::read(__this, |__t| __t.height)).wrapping_sub(64), compat::read(__this, |__t| __t.width), 64);
-        { let mut __vw = Vec::new(); LayoutElement::Grid(grid_widget.clone()).visit_widgets(&mut __vw); for (__i, _, _) in __vw { compat::write(__this, |__t| __t.mark_renderable(__i)); } };
+
+        let __this_w = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
+        let reset = button::builder(component::translatable("text.skyblocker.reset").get_string(), OnPress::Lambda(PressLambda::new(move |_screen, _index| {
+            let Some(__this) = __this_w.get().upgrade() else { return; };
+            // java: filters.clear(); itemTickList.clearAndInit();
+            let filters = compat::read(&__this, |__t| __t.filters.clone());
+            compat::write(&filters, |f| f.clear());
+            PowderFilterConfigScreen::with_list(&__this, |class, list| class.clear_and_init(list));
+        })))
+        .build();
+        PowderFilterConfigScreen::add_to_grid(__this, &mut grid_widget, &mut adder, reset, 1);
+
+        let __this_w = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
+        let undo = button::builder(component::translatable("text.skyblocker.undo").get_string(), OnPress::Lambda(PressLambda::new(move |_screen, _index| {
+            let Some(__this) = __this_w.get().upgrade() else { return; };
+            // java: filters.clear(); filters.addAll(SkyblockerConfigManager.get().mining.crystalHollows.powderTrackerFilter); itemTickList.clearAndInit();
+            let filters = compat::read(&__this, |__t| __t.filters.clone());
+            compat::write(&filters, |f| {
+                f.clear();
+                f.extend(SkyblockerConfigManager::get().mining.crystal_hollows.powder_tracker_filter.iter().cloned());
+            });
+            PowderFilterConfigScreen::with_list(&__this, |class, list| class.clear_and_init(list));
+        })))
+        .build();
+        PowderFilterConfigScreen::add_to_grid(__this, &mut grid_widget, &mut adder, undo, 1);
+
+        let __this_w = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
+        let done = button::builder(mcrust::net::minecraft::network::chat::common_components::gui_done().get_string(), OnPress::Lambda(PressLambda::new(move |_screen, _index| {
+            let Some(__this) = __this_w.get().upgrade() else { return; };
+            PowderFilterConfigScreen::save_filters(&__this);
+            PowderFilterConfigScreen::on_close(&__this);
+        })))
+        .width((mcrust::net::minecraft::client::gui::components::button::DEFAULT_WIDTH * 2) + 10)
+        .build();
+        PowderFilterConfigScreen::add_to_grid(__this, &mut grid_widget, &mut adder, done, 2);
+
+        // java: gridWidget.arrangeElements(); FrameLayout.centerInRectangle(gridWidget, 0, this.height - 64, this.width, 64);
+        grid_widget.arrange_elements();
+        frame_layout::center_in_rectangle(&mut *compat::LayoutBack::grid(&mut grid_widget), 0, height - 64, width, 64);
+        // java: gridWidget.visitWidgets(this::addRenderableWidget);
+        let mut __vw = Vec::new();
+        LayoutElement::Grid(grid_widget.clone()).visit_widgets(&mut __vw);
+        compat::write(__this, |__t| {
+            for (__i, __x, __y) in __vw {
+                __t.widget_mut(__i).set_position(__x, __y);
+                __t.mark_renderable(__i);
+            }
+        });
+    }
+
+    /// `adder.addChild(button[, occupiedColumns])`: the button joins the screen's widgets (by index) and the grid.
+    fn add_to_grid(__this: &compat::Shared<Self>, grid: &mut GridLayout, adder: &mut RowHelper, button: mcrust::net::minecraft::client::gui::components::abstract_widget::AbstractWidget, columns: i32) {
+        let (w, h) = (button.get_width(), button.get_height());
+        let index = compat::write(__this, |__t| __t.add_widget(button));
+        if columns == 1 {
+            adder.add_child(grid, LayoutElement::widget(index, w, h)).expect("GridLayout.addChild");
+        } else {
+            adder.add_child_width(grid, LayoutElement::widget(index, w, h), columns).expect("GridLayout.addChild");
+        }
+    }
+
+    /// `addRenderableOnly((context, _, _, _) -> ..)`, the title. (The port's screen keeps no mod renderables; this
+    /// draws after the widgets, and the title band, `y < 32`, is outside the list.)
+    pub fn extract_render_state(__this: &compat::Shared<Self>, context: &mut ScreenRenderContext<'_>) {
+        let width = compat::read(__this, |__t| __t.width);
+        // java: context.centeredText(minecraft.font, Component.translatable("..screenTitle").withStyle(ChatFormatting.BOLD), width / 2, (32 - minecraft.font.lineHeight) / 2, CommonColors.WHITE);
+        let title = mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::translatable("skyblocker.config.mining.crystalHollows.powderTrackerFilter.screenTitle").with_style_format(mcrust::net::minecraft::chat_formatting::ChatFormatting::Bold));
+        let line_height = mcrust::net::minecraft::client::gui::font::LINE_HEIGHT;
+        mcrust::net::minecraft::client::gui::gui_graphics_extractor::centered_text(context.gl, context.minecraft, &title, width / 2, (32 - line_height) / 2, mcrust::net::minecraft::util::common_colors::WHITE);
     }
 
     /// java: public void saveFilters()
     pub fn save_filters(__this: &compat::Shared<Self>) {
-        let __this_1 = compat::RenderThread::new(__this.clone());
-        SkyblockerConfigManager::update(Arc::new(move |config| { config.mining.crystal_hollows.powder_tracker_filter = compat::read(__this_1.get(), |__t| __t.filters.clone()); }));
-        PowderMiningTracker::recalculate_all(powder_mining_tracker::INSTANCE.get_mut());
+        // java: SkyblockerConfigManager.update(config -> config.mining.crystalHollows.powderTrackerFilter = filters);
+        let filters = compat::read(__this, |__t| __t.filters.clone());
+        SkyblockerConfigManager::update(Arc::new(move |config: &mut crate::de::hysky::skyblocker::config::skyblocker_config::SkyblockerConfig| {
+            config.mining.crystal_hollows.powder_tracker_filter = compat::read(&filters, |f| f.clone());
+        }));
+        // java: PowderMiningTracker.INSTANCE.recalculateAll();
+        PowderMiningTracker::recalculate_all(powder_mining_tracker::INSTANCE.get());
     }
 
     /// java: @Override public void onClose()
@@ -141,6 +202,11 @@ impl ModScreen for compat::ScreenAdapter<PowderFilterConfigScreen> {
     /// java: @Override protected void init()
     fn init(&mut self, screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen) {
         self.lend(screen, |__h| PowderFilterConfigScreen::init(__h))
+    }
+
+    /// `addRenderableOnly`'s title (see `PowderFilterConfigScreen::extract_render_state`)
+    fn extract_render_state(&mut self, screen: &mcrust::net::minecraft::client::gui::screens::screen::Screen, context: &mut ScreenRenderContext<'_>, _mouse_x: i32, _mouse_y: i32, _a: f32) {
+        self.lend_ref(screen, |__h| PowderFilterConfigScreen::extract_render_state(__h, context))
     }
 
     /// java: Screen.tick (the base body)

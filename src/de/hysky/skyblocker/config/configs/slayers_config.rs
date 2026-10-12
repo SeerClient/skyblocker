@@ -49,12 +49,10 @@ pub struct SlayersConfig {
 impl SlayersConfig {
     /// java: the implicit no-argument constructor
     pub fn new() -> Self {
-        // TODO(fabric2seer): the initialiser of `highlightColor`: `new` takes 3 argument(s) in the port (`r: i32, g: i32, b: i32`), Java passes 2
-        //   java: public Color highlightColor = new Color(0xFFFF4800, true);
         let mut this = Self {
             highlight_minis: HighlightSlayerEntities::Glow,
             highlight_bosses: HighlightSlayerEntities::Glow,
-            highlight_color: Default::default(),
+            highlight_color: Color::from_rgba((0xFFFF4800_u32 as i32), true),
             display_bossbar: true,
             boss_spawn_alert: true,
             mini_boss_spawn_alert: true,
@@ -118,16 +116,14 @@ impl HighlightSlayerEntities {
 
     /// java: @Override public String toString()
     pub fn to_string(&self) -> String {
-        // TODO(fabric2seer): call to `name(..)` (not a method of this class)
-        //   java: return I18n.get("skyblocker.config.slayer.highlightBosses." + name());
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        return mcrust::net::minecraft::client::resources::language::i18n::get(&format!("skyblocker.config.slayer.highlightBosses.{}", self.name()), &[]);
     }
 
 }
 
 impl std::fmt::Display for HighlightSlayerEntities {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", HighlightSlayerEntities::to_string(*self))
+        write!(f, "{}", HighlightSlayerEntities::to_string(self))
     }
 }
 
@@ -338,15 +334,13 @@ impl FirePillar {
 
     /// java: @Override public String toString()
     pub fn to_string(&self) -> String {
-        // TODO(fabric2seer): call to `name(..)` (not a method of this class)
-        //   java: return I18n.get("skyblocker.config.slayer.blazeSlayer.enableFirePillarAnnouncer.mode." + name());
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        return mcrust::net::minecraft::client::resources::language::i18n::get(&format!("skyblocker.config.slayer.blazeSlayer.enableFirePillarAnnouncer.mode.{}", self.name()), &[]);
     }
 
 }
 
 impl std::fmt::Display for FirePillar {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", FirePillar::to_string(*self))
+        write!(f, "{}", FirePillar::to_string(self))
     }
 }

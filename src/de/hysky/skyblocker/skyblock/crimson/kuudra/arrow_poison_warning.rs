@@ -41,11 +41,14 @@ impl ArrowPoisonWarning {
     pub fn try_warn(mut new_slot: i32) {
         if Utils::is_in_kuudra() && compat::read(&(CONFIG.get_mut())(), |__t| __t.no_arrow_poison_warning) && compat::get_state(&kuudra::PHASE) == KuudraPhase::Dps && new_slot != 8 {
             let client = compat::minecraft();
-            // TODO(fabric2seer): the mod keeps the game's `Inventory` (Java holds a reference to the live object); the port's `Inventory` is not a value to copy and the port lends the mod no handle to it
-            // rust: let mut inventory: Inventory = mcrust::mcrust::modding::game::with_player(|player| player.base.base.get_inventory().clone()).unwrap();
-            let mut inventory: Inventory = todo!("fabric2seer: the initialiser of `inventory` (TODO above)");
-            let held_item = inventory.get_item(new_slot);
-            if held_item.get_item().as_any().is::<Item>() {
+            // client.player.getInventory(), read through the player
+            let scan: Option<(bool, i32)> = mcrust::mcrust::modding::game::with_player(|player| {
+                let inventory = player.base.base.get_inventory();
+                let held_item = inventory.get_item(new_slot);
+                // `heldItem.getItem() instanceof BowItem`: the one `BowItem` is the registered `bow`
+                if !std::sync::Arc::ptr_eq(&held_item.get_item(), &mcrust::net::minecraft::world::item::items::items().get("bow")) {
+                    return None;
+                }
                 let mut has_toxic_arrow_poison: bool = false;
                 let mut arrow_poison_amount: i32 = 0;
                 for i in 0..inventory.get_container_size() {
@@ -56,6 +59,9 @@ impl ArrowPoisonWarning {
                         arrow_poison_amount = arrow_poison_amount.wrapping_add(stack.get_count());
                     }
                 }
+                Some((has_toxic_arrow_poison, arrow_poison_amount))
+            }).flatten();
+            if let Some((has_toxic_arrow_poison, arrow_poison_amount)) = scan {
                 if !has_toxic_arrow_poison {
                     TitleContainer::add_title_and_play_sound_2(NONE_TITLE.get_mut(), THREE_SECONDS);
                 } else if arrow_poison_amount < compat::read(&(CONFIG.get_mut())(), |__t| __t.arrow_poison_threshold) {

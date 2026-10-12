@@ -47,7 +47,7 @@ impl ChatPositionShare {
             |dispatcher: &mut client_command_registration_callback::ClientCommandDispatcher| {
                 dispatcher.register("skyblocker", |ctx| {
                     if ctx.args.first().map(|s| &**s) == Some("sharePosition") {
-                        ChatPositionShare::share_player_position(&ctx);
+                        ChatPositionShare::share_player_position(ctx);
                         return Ok(());
                     }
                     #[allow(unreachable_code)]
@@ -55,7 +55,7 @@ impl ChatPositionShare {
                 });
                 dispatcher.register("skyblocker", |ctx| {
                     if ctx.args.first().map(|s| &**s) == Some("shareCoords") {
-                        ChatPositionShare::share_player_position(&ctx);
+                        ChatPositionShare::share_player_position(ctx);
                         return Ok(());
                     }
                     #[allow(unreachable_code)]
@@ -68,10 +68,10 @@ impl ChatPositionShare {
     }
 
     /// java: private static int sharePlayerPosition(FabricClientCommandSource source)
-    pub fn share_player_position(source: &crate::unresolved::FabricClientCommandSource) -> i32 {
-        // TODO(fabric2seer): `.getPosition(..)` on a FabricClientCommandSource
-        //   java: Vec3 pos = source.getPosition();
-        let mut pos: Vec3 = todo!("fabric2seer: the initialiser of `pos` (TODO above)");
+    /// (`source` is SeerClient's client command context: `FabricClientCommandSource`'s position is the player's)
+    pub fn share_player_position(source: &client_command_registration_callback::ClientCommandContext<'_>) -> i32 {
+        // java: Vec3 pos = source.getPosition(); - `client.player.position()`
+        let mut pos: Vec3 = mcrust::mcrust::modding::game::with_player(|player| player.base.base.base.base.position()).expect("NullPointerException");
         MessageScheduler::send_message_after_cooldown(message_scheduler::INSTANCE.get_mut(), &format!("x: {}, y: {}, z: {} | {}", ((pos.x()) as i32), ((pos.y()) as i32), ((pos.z()) as i32), ({ let __r = &Utils::get_area(); let __f = compat::dispatch(__r, |__t| __t.display_name()); __f(__r) })), true);
         return 1;
     }

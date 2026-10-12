@@ -143,10 +143,10 @@ impl dyn SkyblockRecipeResultButton {
 
 impl SkyblockRecipeResultButton for SkyblockRecipeResultButtonBase {
     fn skyblock_recipe_result_button_base(&self) -> &SkyblockRecipeResultButtonBase {
-        &self
+        self
     }
     fn skyblock_recipe_result_button_base_mut(&mut self) -> &mut SkyblockRecipeResultButtonBase {
-        &mut self
+        self
     }
 
     fn as_any(&self) -> &dyn std::any::Any {

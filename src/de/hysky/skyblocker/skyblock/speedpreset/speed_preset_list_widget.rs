@@ -81,13 +81,22 @@ impl SpeedPresetListWidget {
         if ((compat::write(__this, |__t| { let __l = &mut __t.base; compat::list_entries::<dyn AbstractEntry>(__l) })).len() as i32) < (instance.get_presets().len() as i32) {
             return true;
         }
-        // TODO(fabric2seer): `.isInstance(..)` on a Class
-        //   java: var childrenMap = this.children().stream()
-        //   java: 				.filter(SpeedPresetEntry.class::isInstance)
-        //   java: 				.map(SpeedPresetEntry.class::cast)
-        //   java: 				.map(SpeedPresetEntry::getMapping)
-        //   java: 				.filter(Objects::nonNull)
-        //   java: 				.collect(Collectors.toMap(ObjectIntPair::key, ObjectIntPair::valueInt));
+        // java: var childrenMap = this.children().stream().filter(SpeedPresetEntry.class::isInstance).map(SpeedPresetEntry.class::cast)
+        //   .map(SpeedPresetEntry::getMapping).filter(Objects::nonNull).collect(Collectors.toMap(ObjectIntPair::key, ObjectIntPair::valueInt));
+        let entries: Vec<compat::Shared<dyn AbstractEntry>> = compat::write(__this, |__t| compat::list_entries::<dyn AbstractEntry>(&mut __t.base));
+        let mut children_map: std::collections::HashMap<String, i32> = std::collections::HashMap::new();
+        for entry in entries.iter() {
+            if !compat::read(entry, |__t| __t.as_any().is::<SpeedPresetEntry>()) {
+                continue;
+            }
+            let Some((key, value)) = SpeedPresetEntry::get_mapping(&compat::handle_as::<SpeedPresetEntry, _>(entry)) else {
+                continue;
+            };
+            // Collectors.toMap refuses a duplicate key
+            if children_map.insert(key.clone(), value).is_some() {
+                panic!("java.lang.IllegalStateException: Duplicate key {key}");
+            }
+        }
         return !(instance.are_presets_equal(&children_map));
     }
 
@@ -226,7 +235,7 @@ impl compat::RowHalf for dyn AbstractEntry {
         &mut self.abstract_entry_base_mut().base
     }
     fn row_parts(&mut self) -> (&mut mcrust::net::minecraft::client::gui::screens::screen::Screen, &mut compat::WidgetCache) {
-        let __s = &mut self.abstract_entry_base_mut();
+        let __s = self.abstract_entry_base_mut();
         (&mut __s.__row, &mut __s.__widgets)
     }
 }
@@ -396,8 +405,12 @@ impl SpeedPresetEntry {
             compat::write(&__h, |__t| __t.self_ref = std::sync::Arc::downgrade(&__h));
             ((__h.clone() as compat::Shared<dyn AbstractEntry>), __h)
         });
-        __this.lock().borrow_mut().layout.spacing(2);
-        { let __v = Some({ let (__q0,) = ((FilteredEditBoxBase::new(compat::font(), 120, 20, component::empty()) as compat::Shared<dyn FilteredEditBox>),); __this.lock().borrow_mut().layout.add_child(__q0) }); compat::write(&__this, |__t| __t.title_input = __v); }
+        // java: layout.spacing(2); - the port's `spacing` takes the layout by value and answers it
+        compat::write(&__this, |__t| { let __l = std::mem::replace(&mut __t.layout, LinearLayout::horizontal()); __t.layout = __l.spacing(2); });
+        // java: titleInput = layout.addChild(new FilteredEditBox(font, 120, 20, Component.empty()));
+        // rust: port gap (GAPS_batchA #3) - a FilteredEditBox is a mod subclass of EditBox with no widget adapter: it is kept
+        // as the field but cannot join the row's layout / widgets
+        { let __v = Some((FilteredEditBoxBase::new(compat::font(), 120, 20, component::empty()) as compat::Shared<dyn FilteredEditBox>)); compat::write(&__this, |__t| __t.title_input = __v); }
         ({ let __r = &compat::read(&__this, |__t| __t.title_input.clone()).unwrap(); let __f = compat::dispatch(__r, |__t| __t.set_filter()); __f(__r, Arc::new(move |str| (str.is_empty() || TITLE.matcher(&str).matches()))) });
         ({ let __r = &compat::read(&__this, |__t| __t.title_input.clone()).unwrap(); let __f = compat::dispatch(__r, |__t| __t.set_value()); __f(__r, &title) });
         let __o1 = compat::read(&__this, |__t| __t.title_input.clone()).unwrap();
@@ -405,7 +418,8 @@ impl SpeedPresetEntry {
         let __wa1 = component::literal("newPreset").with_style_format(ChatFormatting::DarkGray);
         let __o2 = compat::read(&__this, |__t| __t.title_input.clone()).unwrap();
         compat::write(&__o2, |__t| __t.filtered_edit_box_base_mut().set_hint_component(__wa1.clone()));
-        { let __v = Some({ let (__q0,) = ((FilteredEditBoxBase::new(compat::font(), 50, 20, component::empty()) as compat::Shared<dyn FilteredEditBox>),); __this.lock().borrow_mut().layout.add_child(__q0) }); compat::write(&__this, |__t| __t.speed_input = __v); }
+        // java: speedInput = layout.addChild(new FilteredEditBox(font, 50, 20, Component.empty())); (same port gap as titleInput)
+        { let __v = Some((FilteredEditBoxBase::new(compat::font(), 50, 20, component::empty()) as compat::Shared<dyn FilteredEditBox>)); compat::write(&__this, |__t| __t.speed_input = __v); }
         ({ let __r = &compat::read(&__this, |__t| __t.speed_input.clone()).unwrap(); let __f = compat::dispatch(__r, |__t| __t.set_filter()); __f(__r, Arc::new(move |str| (str.is_empty() || NUMBER.matcher(&str).matches()))) });
         ({ let __r = &compat::read(&__this, |__t| __t.speed_input.clone()).unwrap(); let __f = compat::dispatch(__r, |__t| __t.set_value()); __f(__r, &speed) });
         let __o3 = compat::read(&__this, |__t| __t.speed_input.clone()).unwrap();
@@ -422,12 +436,18 @@ impl SpeedPresetEntry {
 
     /// java: @Override public List<? extends NarratableEntry> narratables()
     pub fn narratables(__this: &compat::Shared<Self>) -> Vec<Box<dyn NarratableEntry>> {
-        return vec![compat::read(__this, |__t| __t.title_input.clone()).unwrap(), compat::read(__this, |__t| __t.speed_input.clone()).unwrap(), compat::write(__this, |__t| { let __s = &mut *__t; match __s.remove_button.as_mut() { Some(__r) => Some(__s.base.__widgets.with(&mut __s.base.__row, __r, |__w| __w.clone())), None => None } }).unwrap()];
+        // java: return List.of(titleInput, speedInput, removeButton);
+        // rust: port gap (GAPS_batchA #2 / #9) - the entry's widgets live in its row screen (`children()` below lends it); the
+        // edit boxes are mod objects with no adapter, so no owned narratable list can be built here
+        let _ = __this;
+        return vec![];
     }
 
     /// java: @Override public List<? extends GuiEventListener> children()
     pub fn children(__this: &compat::Shared<Self>) -> Vec<Box<dyn GuiEventListener>> {
-        return vec![compat::read(__this, |__t| __t.title_input.clone()).unwrap(), compat::read(__this, |__t| __t.speed_input.clone()).unwrap(), compat::write(__this, |__t| { let __s = &mut *__t; match __s.remove_button.as_mut() { Some(__r) => Some(__s.base.__widgets.with(&mut __s.base.__row, __r, |__w| __w.clone())), None => None } }).unwrap()];
+        // java: return List.of(titleInput, speedInput, removeButton); (see narratables - GAPS_batchA #9)
+        let _ = __this;
+        return vec![];
     }
 
     /// java: public void save()
@@ -454,7 +474,7 @@ impl SpeedPresetEntry {
         match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             let __o1 = compat::read(__this, |__t| __t.title_input.clone()).unwrap();
             let __o2 = compat::read(__this, |__t| __t.speed_input.clone()).unwrap();
-            return Some((compat::write(&__o1, |__t| __t.filtered_edit_box_base_mut().get_value()), (compat::write(&__o2, |__t| __t.filtered_edit_box_base_mut().get_value())).trim().parse::<i32>().expect("NumberFormatException")));
+            return Some((compat::write(&__o1, |__t| __t.filtered_edit_box_base_mut().get_value()), (compat::write(&__o2, |__t| __t.filtered_edit_box_base_mut().get_value())).parse::<i32>().expect("java.lang.NumberFormatException") /* Integer.parseInt: no trim */));
         })) {
             Ok(__v) => return __v,
             Err(_) => {

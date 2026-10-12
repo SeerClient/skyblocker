@@ -61,8 +61,22 @@ impl PositionedWidget {
     }
 
     /// java: @GenToString @Override public native String toString();
+    /// The body the build's `ObjectProcessor` generates: `java.lang.runtime.ObjectMethods`' toString -
+    /// `PositionedWidget[widget=.., rule=.., fromTab=.., positioned=.., visible=..]`.
+    /// `widget` is a `HudWidget`, which keeps `Object.toString` (`getClass().getName() + "@" + toHexString(hashCode())`,
+    /// and `HudWidget.hashCode()` is `getInternalID().hashCode()`); the port has no runtime class name for a
+    /// `dyn HudWidget`, so the internal id stands in for the class name (as `ElementBasedWidget`'s log does).
+    /// `rule` is a record (`PositionRule[parent=Optional[..], parentPoint=Point[..], ..]`).
     pub fn to_string(&self) -> String {
-        todo!("native method: its body is generated at build time by an annotation processor (@GenToString)")
+        let id = { let __f = compat::dispatch(&self.widget, |__t| __t.get_internal_id()); __f(&self.widget) };
+        let hash = { let __f = compat::dispatch(&self.widget, |__t| __t.hash_code()); __f(&self.widget) };
+        let point = |p: &crate::de::hysky::skyblocker::skyblock::tabhud::screenbuilder::pipeline::position_rule::Point| format!("Point[verticalPoint={}, horizontalPoint={}]", p.vertical_point, p.horizontal_point);
+        let parent = match &self.rule.parent {
+            Some(p) => format!("Optional[{}]", p),
+            None => "Optional.empty".to_string(),
+        };
+        let rule = format!("PositionRule[parent={}, parentPoint={}, thisPoint={}, relativeX={}, relativeY={}]", parent, point(&self.rule.parent_point), point(&self.rule.this_point), self.rule.relative_x, self.rule.relative_y);
+        format!("PositionedWidget[widget={}@{:x}, rule={}, fromTab={}, positioned={}, visible={}]", id, hash as u32, rule, self.from_tab, self.positioned, self.visible)
     }
 
 }

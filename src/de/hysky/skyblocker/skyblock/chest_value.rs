@@ -73,10 +73,10 @@ impl ChestValue {
     pub fn init() {
         screen_events::AFTER_INIT.register(Arc::new(|screen: &mut Screen, width: i32, height: i32| {
             compat::set_state(&HIDE_CHEST_NAME_LABEL, false);
-            if Utils::is_on_skyblock() && let Some(generic_container_screen) = screen.as_any().downcast_ref::<ContainerScreen>() && !(crate::entry::catharsis_compatibility::is_gui_element_hidden("skyblocker:chestValueButton")) {
-                // TODO(fabric2seer): `.getTitle(..)` on a value of unknown type
-                //   java: Component title = screen.getTitle();
-                let mut title: MutableComponent = todo!("fabric2seer: the initialiser of `title` (TODO above)");
+            // `screen instanceof ContainerScreen genericContainerScreen`: the screen's kind (the vanilla `ContainerScreen`
+            // object itself is not lent to the listener - its menu and accessor reads below stay with the TODOs)
+            if Utils::is_on_skyblock() && matches!(compat::minecraft().gui.screen_kind, mcrust::net::minecraft::client::gui::gui::ScreenKind::Container) && !(crate::entry::catharsis_compatibility::is_gui_element_hidden("skyblocker:chestValueButton")) {
+                let mut title: MutableComponent = compat::component_of(mcrust::net::minecraft::network::chat::formatted_text::FormattedText::of(screen.get_title().to_string()));
                 let mut title_string: String = title.get_string();
                 let mut chest_type: Option<RewardChestType> = (if DUNGEON_CHESTS.contains(&title_string) { Some(RewardChestType::Dungeon) } else { (if KUUDRA_CHESTS.contains(&title_string) { Some(RewardChestType::Kuudra) } else { None }) });
                 if let Some(chest_type) = &chest_type {
@@ -120,14 +120,11 @@ impl ChestValue {
             let mut has_incomplete_data: bool = false;
             let mut used_kismet: bool = false;
             let mut slots: Vec<Slot> = handler.menu.slots[(0) as usize..(handler.get_row_count().wrapping_mul(9)) as usize].to_vec();
-            // TODO(fabric2seer): `get_item` takes 1 argument(s) in the port (`containers: &'a Containers<'_>`), Java passes 0
-            if ((slots[(31) as usize]).get_item()).is_empty() || ((slots[(50) as usize]).get_item()).is_empty() {
+            if compat::slot_item(&slots[(31) as usize]).is_empty() || compat::slot_item(&slots[(50) as usize]).is_empty() {
                 return None;
             }
             for slot in slots.iter() {
-                // TODO(fabric2seer): `get_item` takes 1 argument(s) in the port (`containers: &'a Containers<'_>`), Java passes 0
-                // rust: let stack = slot.get_item();
-                let mut stack: mcrust::net::minecraft::world::item::item_stack::ItemStack = todo!("fabric2seer: the initialiser of `stack` (TODO above)");
+                let mut stack: mcrust::net::minecraft::world::item::item_stack::ItemStack = compat::slot_item(slot);
                 if stack.is_empty() {
                     continue;
                 }
@@ -148,7 +145,7 @@ impl ChestValue {
                     let mut matcher: Option<compat::regex::Matcher> = Some(ESSENCE_PATTERN.matcher(&name));
                     if matcher.as_mut().unwrap().matches() {
                         let mut r#type: String = matcher.as_mut().unwrap().group_named("type").unwrap().to_uppercase();
-                        let mut amount: i32 = RegexUtils::parse_optional_int_from_matcher(matcher.as_ref().unwrap(), "amount").unwrap_or(1);
+                        let mut amount: i32 = RegexUtils::parse_optional_int_from_matcher_match_result_string(matcher.as_ref().unwrap(), "amount").unwrap_or(1);
                         let mut price_data: Option<f64> = ItemUtils::get_item_price_string(Some(skyblock_api_id.clone()));
                         if r#type == "CRIMSON" {
                             amount = ((((amount as f32) * ChestValue::compute_crimson_essence_multiplier())) as i32);
@@ -164,7 +161,7 @@ impl ChestValue {
                 if name.contains("Shard") && !(name.contains("Reroll")) {
                     let mut matcher: Option<compat::regex::Matcher> = Some(SHARD_PATTERN.matcher(&name));
                     if matcher.as_mut().unwrap().matches() {
-                        let mut shards: i32 = RegexUtils::parse_optional_int_from_matcher(matcher.as_ref().unwrap(), "amount").unwrap_or(1);
+                        let mut shards: i32 = RegexUtils::parse_optional_int_from_matcher_match_result_string(matcher.as_ref().unwrap(), "amount").unwrap_or(1);
                         let Some(mut attribute) = Attributes::get_attribute_from_item_name(&stack) else {
                             logger().warn(&format!("[Skyblocker Profit Calculator] Encountered unknown shard {}", name));
                             continue;
@@ -195,7 +192,7 @@ impl ChestValue {
                             if todo!("fabric2seer: the condition (TODO above)") {
                                 continue;
                             }
-                            profit = (profit - (found_string.trim().parse::<i32>().expect("NumberFormatException") as f64));
+                            profit = (profit - (found_string.parse::<i32>().expect("NumberFormatException") as f64));
                         }
                         RewardChestType::Kuudra => {
                             let Some(mut key) = ItemUtils::get_lore_line_if(&stack, Arc::new(move |__a0| KUUDRA_KEYS.contains_key(&__a0))) else {
@@ -298,22 +295,24 @@ impl ChestValue {
                 _ => unreachable!("switch expression: no case matched"),
             };
             for slot in slots.iter() {
-                // TODO(fabric2seer): `get_item` takes 1 argument(s) in the port (`containers: &'a Containers<'_>`), Java passes 0
-                // rust: let stack = slot.get_item();
-                let mut stack: mcrust::net::minecraft::world::item::item_stack::ItemStack = todo!("fabric2seer: the initialiser of `stack` (TODO above)");
+                let mut stack: mcrust::net::minecraft::world::item::item_stack::ItemStack = compat::slot_item(slot);
                 if stack.is_empty() {
                     continue;
                 }
-                let mut coins_line: String;
-                if screen_type == ScreenType::Minion && slot.index == 28 && stack.is_item(&items::items().get("hopper")) && true /* java: { coins_line = ItemUtils::get_lore_line_if(&stack, Arc::new(move |s| s.contains("Held Coins:"))).unwrap(); coins_line.clone() } != null: never null here */ {
+                // java: String coinsLine;
+                //   if (screenType == ScreenType.MINION && slot.index == 28 && stack.is(Items.HOPPER) && (coinsLine = ItemUtils.getLoreLineIf(stack, s -> s.contains("Held Coins:"))) != null)
+                let coins_line: Option<String> = if screen_type == ScreenType::Minion && slot.index == 28 && stack.is_item(&items::items().get("hopper")) {
+                    ItemUtils::get_lore_line_if(&stack, Arc::new(move |s: String| s.contains("Held Coins:")))
+                } else {
+                    None
+                };
+                if let Some(coins_line) = coins_line {
                     let mut source: String = (compat::regex::split(&coins_line, ":"))[(1) as usize].clone();
-                    // java: try {..} catch (ParseException _) - an exception here is a panic, caught by `catch_unwind`
-                    let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                        // TODO(fabric2seer): `.parse(..)` on a value of unknown type
-                        //   java: value += NumberFormat.getNumberInstance(java.util.Locale.US).parse(source.trim()).doubleValue();
-                    }));
-                    if let Err(_) = __result {
-                        logger().warn(&format!("[Skyblocker] Failed to parse `{}`", source));
+                    // java: try { value += NumberFormat.getNumberInstance(java.util.Locale.US).parse(source.trim()).doubleValue(); }
+                    //   catch (ParseException _) { LOGGER.warn("[Skyblocker] Failed to parse `{}`", source); }
+                    match number_instance_us_parse(&compat::trim(&source)) {
+                        Some(parsed) => value += parsed,
+                        None => logger().warn(&format!("[Skyblocker] Failed to parse `{}`", source)),
                     }
                     continue;
                 }
@@ -366,7 +365,7 @@ impl ChestValue {
 
     /// java: static Component getProfitText(long profit, boolean hasIncompleteData)
     pub fn get_profit_text(mut profit: i64, mut has_incomplete_data: bool) -> MutableComponent {
-        return (component::literal(&format!("{}{} Coins", (if profit > (0 as i64) { " +".to_string() } else { ' ' }), formatters::INTEGER_NUMBERS.get_mut().format((profit) as f64)))).with_style_format(ChestValue::get_profit_color(has_incomplete_data, profit));
+        return (component::literal(&format!("{}{} Coins", (if profit > (0 as i64) { " +" } else { " " }), formatters::INTEGER_NUMBERS.get_mut().format((profit) as f64)))).with_style_format(ChestValue::get_profit_color(has_incomplete_data, profit));
     }
 
     /// java: static ChatFormatting getProfitColor(boolean hasIncompleteData, long profit)
@@ -395,12 +394,12 @@ impl ChestValue {
         compat::set_state(&HIDE_CHEST_NAME_LABEL, true);
         // TODO(fabric2seer): Fabric API `Screens.getWidgets` has no SeerClient equivalent
         //   java: Screens.getWidgets(genericContainerScreen).removeIf(ChestValueTextWidget.class::isInstance);
-        let mut inner_width: i32 = generic_container_screen.image_width.wrapping_sub(8);
-        let mut x: i32 = generic_container_screen.left_pos;
-        let mut y: i32 = generic_container_screen.top_pos;
+        let mut inner_width: i32 = generic_container_screen.container.image_width.wrapping_sub(8);
+        let mut x: i32 = generic_container_screen.container.left_pos;
+        let mut y: i32 = generic_container_screen.container.top_pos;
         let mut max_chest_value_width: i32 = ((inner_width.wrapping_div(2)).wrapping_sub(2)).max(inner_width.wrapping_sub(compat::font().width_of_cached(&mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(title.clone()))));
         let mut chest_value_width: i32 = (compat::font().width_of_cached(&mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(chest_value.clone()))).min(max_chest_value_width);
-        let mut chest_value_widget: AbstractWidget = ChestValueTextWidget::new(chest_value_width, mcrust::net::minecraft::client::gui::font::LINE_HEIGHT, chest_value.clone(), compat::font());
+        let mut chest_value_widget: ChestValueTextWidget = ChestValueTextWidget::new(chest_value_width, mcrust::net::minecraft::client::gui::font::LINE_HEIGHT, chest_value.clone(), compat::font());
         // TODO(fabric2seer): `width` takes 2 argument(s) in the port (`max_width: i32, text_width: i32`), Java passes 0
         // rust: chest_value_widget.set_position(((x.wrapping_add(inner_width)).wrapping_sub(string_widget::width())).wrapping_add(4), y.wrapping_add(6));
         // TODO(fabric2seer): Fabric API `Screens.getWidgets` has no SeerClient equivalent
@@ -571,4 +570,80 @@ impl std::fmt::Display for RewardChestType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(self.name())
     }
+}
+
+/// java: `NumberFormat.getNumberInstance(Locale.US).parse(text).doubleValue()` - `DecimalFormat("#,##0.###")`'s
+/// `parse(String)`: the longest prefix of `text` that is a number - an optional `-`, digits with `,` grouping
+/// separators (a trailing `,` is not taken), at most one `.` (no `,` after it), and an `E` exponent; `NaN` and the
+/// infinity sign as the symbols. `None` is the `ParseException` (nothing at the start parsed).
+/// rust: port gap - `DecimalFormat.parse` / `NumberFormat.getNumberInstance` (java/text has `new` + `format`); the
+/// JDK body is reproduced here for this one caller (GAPS_batchI.md)
+fn number_instance_us_parse(text: &str) -> Option<f64> {
+    let chars: Vec<char> = text.chars().collect();
+    if text.starts_with("NaN") {
+        return Some(f64::NAN);
+    }
+    let mut i: usize = 0;
+    let negative = chars.first() == Some(&'-');
+    if negative {
+        i = 1;
+    }
+    if chars.get(i) == Some(&'∞') {
+        return Some(if negative { f64::NEG_INFINITY } else { f64::INFINITY });
+    }
+    let mut number = String::new();
+    let mut saw_digit = false;
+    let mut saw_decimal = false;
+    let mut exponent: i32 = 0;
+    while i < chars.len() {
+        let c = chars[i];
+        if let Some(digit) = c.to_digit(10) {
+            number.push(char::from_digit(digit, 10).unwrap_or('0'));
+            saw_digit = true;
+            i += 1;
+        } else if c == '.' {
+            if saw_decimal {
+                break;
+            }
+            saw_decimal = true;
+            number.push('.');
+            i += 1;
+        } else if c == ',' {
+            // a grouping separator: skipped (and not taken at all when no digit follows - nothing reads the position)
+            if saw_decimal {
+                break;
+            }
+            i += 1;
+        } else if c == 'E' && saw_digit {
+            // `subparse` of the exponent: an optional `-`, then digits; without digits the `E` is not taken
+            let mut j = i + 1;
+            let exponent_negative = chars.get(j) == Some(&'-');
+            if exponent_negative {
+                j += 1;
+            }
+            let start = j;
+            while j < chars.len() && chars[j].is_ascii_digit() {
+                j += 1;
+            }
+            if j == start {
+                break;
+            }
+            let digits: String = chars[start..j].iter().collect();
+            exponent = digits.parse::<i32>().unwrap_or(i32::MAX);
+            if exponent_negative {
+                exponent = -exponent;
+            }
+            break;
+        } else {
+            break;
+        }
+    }
+    if !saw_digit {
+        return None;
+    }
+    let mut parsed: f64 = number.parse::<f64>().ok()?;
+    if exponent != 0 {
+        parsed *= 10f64.powi(exponent);
+    }
+    Some(if negative { -parsed } else { parsed })
 }

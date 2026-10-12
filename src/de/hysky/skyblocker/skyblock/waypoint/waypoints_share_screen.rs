@@ -28,7 +28,6 @@ use mcrust::net::minecraft::client::input::mouse_button_event::MouseButtonEvent;
 use mcrust::net::minecraft::client::input::mouse_button_info::MouseButtonInfo;
 use mcrust::net::minecraft::network::chat::component;
 use mcrust::net::minecraft::network::chat::component::Component as _;
-use crate::de::hysky::skyblocker::skyblock::waypoint::waypoints::named_waypoint_equals;
 
 /// java: public class WaypointsShareScreen extends AbstractWaypointsScreen<WaypointsScreen>
 pub struct WaypointsShareScreen {
@@ -36,7 +35,7 @@ pub struct WaypointsShareScreen {
     pub base: AbstractWaypointsScreenBase<compat::Shared<WaypointsScreen>>,
     /// java: private final Set<NamedWaypoint> selectedWaypoints = new HashSet<>();
     /// A `HashSet` keyed by `NamedWaypoint.equals` / `hashCode` (structural, not identity): the members are kept in a
-    /// list and asked with `named_waypoint_equals`.
+    /// list and asked with `NamedWaypoint.equals` (`<dyn NamedWaypoint>::equals_shared`).
     pub selected_waypoints: Vec<compat::Shared<dyn NamedWaypoint>>,
     /// java: private boolean overrideLocation = false;
     pub override_location: bool,
@@ -246,17 +245,17 @@ impl AbstractWaypointsScreen<compat::Shared<crate::de::hysky::skyblocker::skyblo
 
     /// java: @Override protected boolean isEnabled(NamedWaypoint waypoint)
     fn is_enabled(&self, waypoint: &compat::Shared<dyn NamedWaypoint>) -> bool {
-        return self.selected_waypoints.iter().any(|w| named_waypoint_equals(w, waypoint));
+        return self.selected_waypoints.iter().any(|w| <dyn NamedWaypoint>::equals_shared(w, waypoint));
     }
 
     /// java: @Override protected void enabledChanged(NamedWaypoint waypoint, boolean enabled)
     fn enabled_changed(&mut self, waypoint: &compat::Shared<dyn NamedWaypoint>, mut enabled: bool) {
         if enabled {
             // `Set.add`: only when no equal member is there.
-            if !self.selected_waypoints.iter().any(|w| named_waypoint_equals(w, waypoint)) {
+            if !self.selected_waypoints.iter().any(|w| <dyn NamedWaypoint>::equals_shared(w, waypoint)) {
                 self.selected_waypoints.push(waypoint.clone());
             }
-        } else if let Some(index) = self.selected_waypoints.iter().position(|w| named_waypoint_equals(w, waypoint)) {
+        } else if let Some(index) = self.selected_waypoints.iter().position(|w| <dyn NamedWaypoint>::equals_shared(w, waypoint)) {
             self.selected_waypoints.remove(index);
         }
     }

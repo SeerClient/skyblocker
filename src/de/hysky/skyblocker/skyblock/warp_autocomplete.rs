@@ -84,7 +84,7 @@ impl WarpAutocomplete {
 
     /// java: private static void saveWarpsToFile(Object2BooleanMap<String> warps)
     pub fn save_warps_to_file(warps: &std::collections::HashMap<String, bool>) {
-        let mut result: Option<serde_json::Value> = (MAP_CODEC.get_mut().encode_start(&mcrust::com::mojang::serialization::json_ops::JsonOps::instance(), warps)).result().unwrap();
+        let mut result: Option<serde_json::Value> = (MAP_CODEC.get_mut().encode_start(&mcrust::com::mojang::serialization::json_ops::JsonOps::instance(), warps)).result().map(|o| compat::json_from_port(&o));
         if result.is_none() {
             return;
         }

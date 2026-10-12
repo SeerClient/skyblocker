@@ -229,8 +229,10 @@ impl DungeonPlayer {
     }
 
     /// java: @Override @GenToString public native String toString();
+    /// The body the build's `ObjectProcessor` generates: `java.lang.runtime.ObjectMethods`' toString -
+    /// `DungeonPlayer[f=String.valueOf(f), ..]` over every non-static, non-transient field in declaration order.
     pub fn to_string(&self) -> String {
-        todo!("native method: its body is generated at build time by an annotation processor (@GenToString)")
+        format!("DungeonPlayer[uuid={}, name={}, dungeonClass={}, alive={}, lastGhostTime={}]", compat::opt_str(&self.uuid), self.name, self.dungeon_class, self.alive, self.last_ghost_time)
     }
 
 }

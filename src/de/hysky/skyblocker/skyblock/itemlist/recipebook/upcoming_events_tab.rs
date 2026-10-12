@@ -243,7 +243,7 @@ impl EventRenderer {
             return components;
         }
         if self.event_name == event_notifications::JACOBS && event.extras().left_value().is_some() {
-            components.push(JacobsTooltip::new(event.extras().left_value().unwrap()));
+            components.push(Box::new(JacobsTooltip::new(event.extras().left_value().unwrap())));
         } else if self.event_name == event_notifications::MAYOR_JERRY && event.extras().right_value().is_some() {
             let mut jerry_info: JerryPerks = event.extras().right_value().unwrap();
             let mut mayor_text: MutableComponent = (component::translatable_args("skyblocker.events.tab.currentJerryMayor", vec![mcrust::net::minecraft::network::chat::formatted_text::FormattedText::of(jerry_info.mayor_name())])).with_style_format(ChatFormatting::DarkGreen);
@@ -314,4 +314,24 @@ impl JacobsTooltip {
         }
     }
 
+}
+
+/// `implements ClientTooltipComponent`: the game draws the component through these (the bodies above take the
+/// mod's `Font` / `GuiGraphicsExtractor` handles, which do not depend on the arguments the game lends).
+impl mcrust::net::minecraft::client::gui::screens::inventory::tooltip::client_tooltip_component::ClientTooltipComponent for JacobsTooltip {
+    fn get_height(&self, _font: &dyn mcrust::net::minecraft::client::gui::screens::inventory::tooltip::client_tooltip_component::TooltipFont) -> i32 {
+        JacobsTooltip::get_height(self, &compat::font())
+    }
+
+    fn get_width(&self, _font: &dyn mcrust::net::minecraft::client::gui::screens::inventory::tooltip::client_tooltip_component::TooltipFont) -> i32 {
+        JacobsTooltip::get_width(self, &compat::font())
+    }
+
+    fn extracts_image(&self) -> bool {
+        true
+    }
+
+    fn extract_image(&self, _font: &dyn mcrust::net::minecraft::client::gui::screens::inventory::tooltip::client_tooltip_component::TooltipFont, x: i32, y: i32, w: i32, h: i32, _graphics: &mut mcrust::net::minecraft::client::gui::screens::inventory::tooltip::client_tooltip_component::TooltipGraphics<'_>) {
+        JacobsTooltip::extract_image(self, &compat::font(), x, y, w, h, &mcrust::net::minecraft::client::gui::gui_graphics_extractor::GuiGraphicsExtractor::new());
+    }
 }

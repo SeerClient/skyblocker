@@ -60,7 +60,7 @@ impl TerracottaPuzzle {
                             if !(state.is_block(mcrust::net::minecraft::world::level::block::blocks::glazed_terracotta().orange())) || !(state.has_property(&mcrust::net::minecraft::world::level::block::state::properties::block_state_properties::horizontal_facing())) {
                                 break 'continue_2;
                             }
-                            let mut facing: Direction = state.get_value(&mcrust::net::minecraft::world::level::block::state::properties::block_state_properties::horizontal_facing());
+                            let mut facing: Direction = compat::direction_value(state.get_value(&mcrust::net::minecraft::world::level::block::state::properties::block_state_properties::horizontal_facing()));
                             solutions.push(DIRECTION_MAPPINGS.get_mut().get(&facing).cloned().unwrap());
                         }
                         y -= 1;
@@ -85,7 +85,7 @@ impl TerracottaPuzzle {
             if !(state.is_block(mcrust::net::minecraft::world::level::block::blocks::glazed_terracotta().orange())) || !(state.has_property(&mcrust::net::minecraft::world::level::block::state::properties::block_state_properties::horizontal_facing())) {
                 continue;
             }
-            let mut floor_direction: Direction = state.get_value(&mcrust::net::minecraft::world::level::block::state::properties::block_state_properties::horizontal_facing());
+            let mut floor_direction: Direction = compat::direction_value(state.get_value(&mcrust::net::minecraft::world::level::block::state::properties::block_state_properties::horizontal_facing()));
             let mut clockwise_rotations: i32 = 0;
             let mut last_clockwise_rotation: Direction = floor_direction;
             let mut counterclockwise_rotations: i32 = 0;

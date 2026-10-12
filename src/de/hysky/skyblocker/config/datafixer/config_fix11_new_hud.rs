@@ -4,9 +4,12 @@
 use crate::prelude::*;
 use crate::de::hysky::skyblocker::config::datafixer::config_data_fix::ConfigDataFix;
 use crate::de::hysky::skyblocker::config::datafixer::config_data_fix::ConfigDataFixBase;
+use crate::de::hysky::skyblocker::config::datafixer::config_data_fixer;
+use mcrust::com::mojang::datafixers::data_fix::{self, DataFix, DataFixFields};
+use mcrust::com::mojang::datafixers::dsl;
 use mcrust::com::mojang::datafixers::schemas::schema::Schema;
-use mcrust::com::mojang::datafixers::type_rewrite_rule::TypeRewriteRule;
-use mcrust::com::mojang::datafixers::util::pair::Pair;
+use mcrust::com::mojang::datafixers::type_rewrite_rule::{self, TypeRewriteRule};
+use mcrust::com::mojang::datafixers::typed::Typed;
 use mcrust::com::mojang::serialization::dynamic::Dynamic;
 use mcrust::com::mojang::serialization::dynamic_like::DynamicLike as _;
 
@@ -17,38 +20,118 @@ pub static LOCATION_WIDGETS: LazyLock<std::collections::HashMap<String, Vec<Stri
 pub struct ConfigFix11NewHud {
     /// java: extends ConfigDataFix
     pub base: ConfigDataFixBase,
+    /// java: `this`, captured by the rule's lambdas (`this::fix`)
+    self_ref: std::sync::Weak<ConfigFix11NewHud>,
     /// java: private @Nullable Dynamic<?> mainConfig;
-    pub main_config: Option<Dynamic>,
-}
-
-impl std::ops::Deref for ConfigFix11NewHud {
-    type Target = ConfigDataFixBase;
-    fn deref(&self) -> &Self::Target {
-        &self.base
-    }
-}
-
-impl std::ops::DerefMut for ConfigFix11NewHud {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.base
-    }
+    main_config: std::sync::Mutex<Option<Dynamic>>,
 }
 
 impl ConfigFix11NewHud {
     /// java: public ConfigFix11NewHud(Schema outputSchema, boolean changesType)
-    pub fn new(mut output_schema: Arc<Schema>, mut changes_type: bool) -> compat::Shared<Self> {
-        let (_, __this) = ConfigDataFixBase::new_in(output_schema.clone(), changes_type, move |__base| {
-            let __h = compat::shared(Self {
-                base: __base,
-                main_config: None,
-            });
-            ((__h.clone() as compat::Shared<dyn ConfigDataFix>), __h)
+    pub fn new(output_schema: Arc<Schema>, changes_type: bool) -> Arc<Self> {
+        Arc::new_cyclic(|self_ref: &std::sync::Weak<ConfigFix11NewHud>| Self {
+            base: ConfigDataFixBase::new(output_schema, changes_type),
+            self_ref: self_ref.clone(),
+            main_config: std::sync::Mutex::new(None),
+        })
+    }
+
+    /// java: private <T> Dynamic<T> collect(Dynamic<T> dynamic)
+    pub fn collect(&self, dynamic: &Dynamic) -> Dynamic {
+        // Fix enable pickobulus helper
+        let dynamic = self.fix_version(dynamic).update("mining", |mining| {
+            mining
+                .update("pickobulusHelper", |pickobulus_helper| {
+                    pickobulus_helper.set_field_if_present("enablePickobulusHelper", mining.get("enablePickobulusHelper").result())
+                })
+                .remove("enablePickobulusHelper")
         });
-        __this
+
+        *self.main_config.lock().unwrap() = Some(dynamic.clone());
+        return dynamic;
+    }
+
+    /// java: private <T> Dynamic<T> fix(Dynamic<T> dynamic)
+    pub fn fix(&self, dynamic: &Dynamic) -> Dynamic {
+        let updated: Dynamic = self
+            .fix_version(dynamic)
+            .rename_and_fix_field("positions", "configs", |locations| self.fix_widgets(locations))
+            .set(
+                "copies",
+                &dynamic.create_map(vec![
+                    (dynamic.create_string("hud"), dynamic.empty_map()),
+                    (dynamic.create_string("tab"), dynamic.empty_map()),
+                    (dynamic.create_string("secondary_tab"), dynamic.empty_map()),
+                ]),
+            );
+        *self.main_config.lock().unwrap() = None;
+        return updated;
+    }
+
+    /// Fixes the map of skyblock locations to widgets.
+    /// java: private <T> Dynamic<T> fixWidgets(Dynamic<T> locations)
+    pub fn fix_widgets(&self, mut locations: Dynamic) -> Dynamic {
+        // it was possible for widgets to be enabled but to not have a position, add them if they
+        for (key, value) in LOCATION_WIDGETS.iter() {
+            if locations.get(key).result().is_none() {
+                locations = locations.set(key, &locations.empty_map());
+            }
+            locations = locations.update(key, |location| self.fix_missing_widgets_for_location(value, location));
+        }
+        return locations.update_map_values(|location| self.fix_widgets_for_location(location));
+    }
+
+    /// Fixes widgets that are enabled but don't have a position configured for this location.
+    /// It would default to the top left in the old system.
+    /// java: private <T> Dynamic<T> fixMissingWidgetsForLocation(String[] missingWidgets, Dynamic<T> location)
+    pub fn fix_missing_widgets_for_location(&self, missing_widgets: &[String], mut location: Dynamic) -> Dynamic {
+        let mut last_added: Option<String> = None;
+        for widget in missing_widgets.iter() {
+            if self.is_enabled(widget) && location.get(widget).result().is_none() {
+                location = location.set(widget, &ConfigFix11NewHud::create_default_widget(&location, last_added.clone()));
+                last_added = Some(widget.clone());
+            }
+        }
+        return location;
+    }
+
+    /// Fixes widgets in this skyblock location and returns a map of layers to widgets.
+    /// java: private Pair<Dynamic<?>, Dynamic<?>> fixWidgetsForLocation(Pair<Dynamic<?>, Dynamic<?>> location)
+    pub fn fix_widgets_for_location(&self, location: (Dynamic, Dynamic)) -> (Dynamic, Dynamic) {
+        let location_id: Dynamic = location.0;
+        // java: new HashMap<>(Map.of(..)) keyed by Dynamic.equals - a list with equality lookup
+        let mut layers: Vec<(Dynamic, Dynamic)> = vec![
+            (location_id.create_string("hud"), location_id.empty_map()),
+            (location_id.create_string("tab"), location_id.empty_map()),
+            (location_id.create_string("secondary_tab"), location_id.empty_map()),
+        ];
+        // java: getMapValues().getOrThrow()
+        let widgets = location.1.get_map_values().get_or_throw().unwrap_or_else(|e| panic!("java.lang.IllegalStateException: {e}"));
+        for (widget_id, widget) in widgets {
+            self.fix_widget_and_layer(ConfigFix11NewHud::fix_widget_id(&widget_id).as_string_or(""), &widget, &mut layers);
+        }
+        // java: layers.replaceAll((_, widgets) -> locationId.emptyMap().set("widgets", widgets));
+        for layer in layers.iter_mut() {
+            layer.1 = location_id.empty_map().set("widgets", &layer.1);
+        }
+        let map = location_id.create_map(layers);
+        return (location_id, map);
+    }
+
+    /// java: private <T> void fixWidgetAndLayer(String widgetIdNew, Dynamic<T> widget, Map<Dynamic<?>, Dynamic<?>> layers)
+    pub fn fix_widget_and_layer(&self, widget_id_new: String, widget: &Dynamic, layers: &mut Vec<(Dynamic, Dynamic)>) {
+        if !self.is_enabled(&widget_id_new) {
+            return;
+        }
+        // java: layers.computeIfPresent(fixWidgetLayer(widget, widgetIdNew), (_, widgets) -> widgets.set(widgetIdNew, fixWidget(widget)));
+        let key = ConfigFix11NewHud::fix_widget_layer(widget, &widget_id_new);
+        if let Some(entry) = layers.iter_mut().find(|(k, _)| *k == key) {
+            entry.1 = entry.1.set(&widget_id_new, &ConfigFix11NewHud::fix_widget(widget));
+        }
     }
 
     /// java: private static <T> Dynamic<T> fixWidgetId(Dynamic<T> widgetId)
-    pub fn fix_widget_id<T: 'static>(widget_id: &Dynamic) -> Dynamic {
+    pub fn fix_widget_id(widget_id: &Dynamic) -> Dynamic {
         return match widget_id.as_string_or("").as_str() {
             "sweepDetails" => widget_id.create_string("sweep_details"),
             "Lasso HUD" => widget_id.create_string("hud_lasso"),
@@ -58,149 +141,113 @@ impl ConfigFix11NewHud {
         };
     }
 
+    /// Returns the layer the widget should be on.
     /// java: private static <T> Dynamic<T> fixWidgetLayer(Dynamic<T> widget, String widgetId)
-    pub fn fix_widget_layer<T: 'static>(widget: &Dynamic, widget_id: &str) -> Dynamic {
-        let mut layer: String = match widget.get("layer").as_string_or("DEFAULT").as_str() {
-            "HUD" => "hud".to_string(),
-            "MAIN_TAB" => "tab".to_string(),
-            "SECONDARY_TAB" => "secondary_tab".to_string(),
-            _ => (if widget_id.contains("hud") || widget_id == "sweep_details" || widget_id == "powder_mining_tracker" || widget_id == "dungeon_splits" || widget_id == "item_pickup" { "hud" } else { "tab" }).to_string(),
+    pub fn fix_widget_layer(widget: &Dynamic, widget_id: &str) -> Dynamic {
+        let layer: &str = match widget.get("layer").as_string_or("DEFAULT").as_str() {
+            "HUD" => "hud",
+            "MAIN_TAB" => "tab",
+            "SECONDARY_TAB" => "secondary_tab",
+            _ => {
+                if widget_id.contains("hud") || widget_id == "sweep_details" || widget_id == "powder_mining_tracker" || widget_id == "dungeon_splits" || widget_id == "item_pickup" {
+                    "hud"
+                } else {
+                    "tab"
+                }
+            }
         };
-        return widget.create_string(&layer);
+        return widget.create_string(layer);
     }
 
     /// java: private static <T> Dynamic<T> fixWidget(Dynamic<T> widget)
-    pub fn fix_widget<T: 'static>(widget: &mut Dynamic) -> Dynamic {
-        return (widget.empty_map().set("config", &widget.empty_map())).set("position", &widget.remove("layer").replace_field("parent", "parent", ConfigFix11NewHud::fix_widget_parent(widget)));
+    pub fn fix_widget(widget: &Dynamic) -> Dynamic {
+        return widget
+            .empty_map()
+            .set("config", &widget.empty_map())
+            .set("position", &widget.remove("layer").replace_field("parent", "parent", ConfigFix11NewHud::fix_widget_parent(widget)));
     }
 
+    /// Returns the parent of the widget or empty if the parent is the screen.
     /// java: private static <T> Optional<Dynamic<T>> fixWidgetParent(Dynamic<T> widget)
-    pub fn fix_widget_parent<T: 'static>(widget: &Dynamic) -> Option<Dynamic> {
-        return (if widget.get("parent").as_string_or("screen") == "screen" { None } else { (widget.get("parent").map(|__a0| ConfigFix11NewHud::fix_widget_id(&__a0))).result() }).unwrap();
-    }
-
-    /// java: private static <T> Dynamic<T> createDefaultWidget(Dynamic<T> base, @Nullable String parent)
-    pub fn create_default_widget<T: 'static>(base: &Dynamic, mut parent: Option<String>) -> Dynamic {
-        return (base.empty_map().set_field_if_present("parent", parent.clone().map(|__a0| base.create_string(&__a0)))).set("parent_anchor", &(base.empty_map().set("v", &base.create_string((if parent.is_none() { "TOP" } else { "BOTTOM" })))).set("h", &base.create_string("LEFT"))).set("this_anchor", &(base.empty_map().set("v", &base.create_string("TOP"))).set("h", &base.create_string("LEFT"))).set("relative_x", &base.create_int((if parent.is_none() { 5 } else { 0 }))).set("relative_y", &base.create_int((if parent.is_none() { 5 } else { 2 })));
-    }
-
-    /// java: @Override protected TypeRewriteRule makeRule()
-    pub fn make_rule(__this: &compat::Shared<Self>) -> TypeRewriteRule {
-        // TODO(fabric2seer): `.getSimpleName(..)` on a value of unknown type
-        //   java: return TypeRewriteRule.seq(fixTypeEverywhereTyped(
-        //   java: 						getClass().getSimpleName(),
-        //   java: 						getInputSchema().getType(ConfigDataFixer.CONFIG_TYPE),
-        //   java: 						typed -> typed.update(DSL.remainderFinder(), this::collect)),
-        //   java: 				fixTypeEverywhereTyped(
-        //   java: 						getClass().getSimpleName(),
-        //   java: 						getInputSchema().getType(ConfigDataFixer.HUD_WIDGETS_TYPE),
-        //   java: 						typed -> typed.update(DSL.remainderFinder(), this::fix))
-        //   java: 		);
-        todo!("fabric2seer: the value of this function is in a TODO above")
-    }
-
-    /// java: private <T> Dynamic<T> collect(Dynamic<T> dynamic)
-    pub fn collect<T: 'static>(__this: &compat::Shared<Self>, mut dynamic: Dynamic) -> Dynamic {
-        dynamic = { let (__q0, __q1,) = ("mining", |mining| (mining.update("pickobulusHelper", |pickobulus_helper| pickobulus_helper.set_field_if_present("enablePickobulusHelper", mining.get("enablePickobulusHelper").result()))).remove("enablePickobulusHelper"),); __this.lock().borrow().fix_version(&mut dynamic).update(__q0, __q1) };
-        { let __v = Some(dynamic.clone()); compat::write(__this, |__t| __t.main_config = __v); }
-        return dynamic;
-    }
-
-    /// java: private <T> Dynamic<T> fix(Dynamic<T> dynamic)
-    pub fn fix<T: 'static>(__this: &compat::Shared<Self>, dynamic: &mut Dynamic) -> Dynamic {
-        // TODO(fabric2seer): `Dynamic.createMap` has no Rust method in the port (looked for `create_map` in Dynamic and its supertypes)
-        // rust: let __this_w1 = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
-        // rust: let mut updated: Dynamic = { let (__q0, __q1,) = ("copies", &dynamic.create_map(&std::collections::HashMap::from([(dynamic.create_string("hud"), dynamic.empty_map()), (dynamic.create_string("tab"), dynamic.empty_map()), (dynamic.create_string("secondary_tab"), dynamic.empty_map())])),); ({ let (__q0, __q1, __q2,) = ("positions", "configs", |__a0| { let Some(__this_1) = __this_w1.get().upgrade() else { return Default::default(); }; ConfigFix11NewHud::fix_widgets((&__this_1), __a0.clone()) },); __this.lock().borrow().fix_version(dynamic).rename_and_fix_field(__q0, __q1, __q2) }).set(__q0, __q1) };
-        let mut updated: Dynamic = todo!("fabric2seer: the initialiser of `updated` (TODO above)");
-        { let __v = None; compat::write(__this, |__t| __t.main_config = __v); }
-        return updated;
-    }
-
-    /// java: private <T> Dynamic<T> fixWidgets(Dynamic<T> locations)
-    pub fn fix_widgets<T: 'static>(__this: &compat::Shared<Self>, mut locations: Dynamic) -> Dynamic {
-        for entry in LOCATION_WIDGETS.iter().map(|(k, v)| (k.clone(), v.clone())) {
-            if locations.get(&entry.0).result().is_none() {
-                locations = locations.set(&entry.0, &locations.empty_map());
-            }
-            let __this_w1 = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
-            locations = locations.update(&entry.0, |location| { let Some(__this_1) = __this_w1.get().upgrade() else { return Default::default(); }; ConfigFix11NewHud::fix_missing_widgets_for_location((&__this_1), &entry.1, location.clone()) });
-        }
-        let __this_w2 = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
-        return locations.update_map_values(|__a0| { let Some(__this_2) = __this_w2.get().upgrade() else { return Default::default(); }; ConfigFix11NewHud::fix_widgets_for_location((&__this_2), &__a0) });
-    }
-
-    /// java: private <T> Dynamic<T> fixMissingWidgetsForLocation(String[] missingWidgets, Dynamic<T> location)
-    pub fn fix_missing_widgets_for_location<T: 'static>(__this: &compat::Shared<Self>, missing_widgets: &Vec<String>, mut location: Dynamic) -> Dynamic {
-        let mut last_added: Option<String> = None;
-        for widget in missing_widgets.iter() {
-            if ConfigFix11NewHud::is_enabled(__this, widget) && location.get(widget).result().is_none() {
-                location = location.set(widget, &ConfigFix11NewHud::create_default_widget(&location, last_added.clone()));
-                last_added = Some(widget.to_string());
-            }
-        }
-        return location;
-    }
-
-    /// java: private Pair<Dynamic<?>, Dynamic<?>> fixWidgetsForLocation(Pair<Dynamic<?>, Dynamic<?>> location)
-    pub fn fix_widgets_for_location(__this: &compat::Shared<Self>, location: &(Dynamic, Dynamic)) -> (Dynamic, Dynamic) {
-        let location_id = &location.0;
-        let mut layers: std::collections::HashMap<Dynamic, Dynamic> = std::collections::HashMap::from([(location_id.create_string("hud"), location_id.empty_map()), (location_id.create_string("tab"), location_id.empty_map()), (location_id.create_string("secondary_tab"), location_id.empty_map())]);
-        for (widget_id, widget) in location.1.get_map_values().get_or_throw().unwrap().iter() {
-            ConfigFix11NewHud::fix_widget_and_layer(__this, ConfigFix11NewHud::fix_widget_id(widget_id).as_string_or(""), &mut widget, &mut layers);
-        }
-        // TODO(fabric2seer): Map.replaceAll(..)
-        //   java: layers.replaceAll((_, widgets) -> locationId.emptyMap().set("widgets", widgets));
-        // TODO(fabric2seer): `Dynamic.createMap` has no Rust method in the port (looked for `create_map` in Dynamic and its supertypes)
-        // rust: return Pair::of(location_id.clone(), location_id.create_map(&layers));
-        return todo!("fabric2seer: see the TODO above");
-    }
-
-    /// java: private <T> void fixWidgetAndLayer(String widgetIdNew, Dynamic<T> widget, Map<Dynamic<?>, Dynamic<?>> layers)
-    pub fn fix_widget_and_layer<T: 'static>(__this: &compat::Shared<Self>, mut widget_id_new: String, widget: &mut Dynamic, layers: &mut std::collections::HashMap<Dynamic, Dynamic>) {
-        if !(ConfigFix11NewHud::is_enabled(__this, &widget_id_new)) {
-            return;
-        }
-        // TODO(fabric2seer): Map.computeIfPresent(..)
-        //   java: layers.computeIfPresent(
-        //   java: 				fixWidgetLayer(widget, widgetIdNew),
-        //   java: 				(_, widgets) -> widgets.set(widgetIdNew, fixWidget(widget))
-        //   java: 		);
-    }
-
-    /// java: private boolean isEnabled(String widgetId)
-    pub fn is_enabled(__this: &compat::Shared<Self>, widget_id: &str) -> bool {
-        if compat::read(__this, |__t| __t.main_config.clone()).is_none() {
-            return true;
-        }
-        return match widget_id.as_str() {
-            "dungeon_splits" | "Dungeon Splits" => __this.lock().borrow().main_config.as_ref().unwrap().get("dungeons").get("dungeonSplits").as_boolean_or(true),
-            "hud_farming" => __this.lock().borrow().main_config.as_ref().unwrap().get("farming").get("farmingHud").get("enabled").as_boolean_or(true),
-            "hud_treeprogress" => __this.lock().borrow().main_config.as_ref().unwrap().get("foraging").get("moongladeMarsh").get("enableTreeBreakProgress").as_boolean_or(true),
-            "sweep_details" | "sweepDetails" => __this.lock().borrow().main_config.as_ref().unwrap().get("foraging").get("moongladeMarsh").get("enableSweepDetailsWidget").as_boolean_or(true),
-            "hud_fishing" => __this.lock().borrow().main_config.as_ref().unwrap().get("helpers").get("fishing").get("enableFishingHud").as_boolean_or(true),
-            "hud_lasso" | "Lasso HUD" => __this.lock().borrow().main_config.as_ref().unwrap().get("hunting").get("lassoHud").get("enabled").as_boolean_or(true),
-            "powder_mining_tracker" => __this.lock().borrow().main_config.as_ref().unwrap().get("mining").get("crystalHollows").get("enablePowderTracker").as_boolean_or(true),
-            "hud_crystals" => __this.lock().borrow().main_config.as_ref().unwrap().get("mining").get("crystalsHud").get("enabled").as_boolean_or(true),
-            "hud_pickobulus" => __this.lock().borrow().main_config.as_ref().unwrap().get("mining").get("pickobulusHelper").get("enablePickobulusHud").as_boolean_or(true),
-            "hud_end" => __this.lock().borrow().main_config.as_ref().unwrap().get("otherLocations").get("end").get("hudEnabled").as_boolean_or(true),
-            "hud_slayer" => __this.lock().borrow().main_config.as_ref().unwrap().get("slayers").get("enableHud").as_boolean_or(true),
-            "item_pickup" | "Item Pickup" => __this.lock().borrow().main_config.as_ref().unwrap().get("uiAndVisuals").get("itemPickup").get("enabled").as_boolean_or(true),
-            _ => true,
+    pub fn fix_widget_parent(widget: &Dynamic) -> Option<Dynamic> {
+        return if widget.get("parent").as_string_or("screen") == "screen" {
+            None
+        } else {
+            widget.get("parent").map(|parent| ConfigFix11NewHud::fix_widget_id(&parent)).result()
         };
     }
 
+    /// java: private static <T> Dynamic<T> createDefaultWidget(Dynamic<T> base, @Nullable String parent)
+    pub fn create_default_widget(base: &Dynamic, parent: Option<String>) -> Dynamic {
+        return base
+            .empty_map()
+            .set_field_if_present("parent", parent.as_ref().map(|parent| base.create_string(parent)))
+            .set("parent_anchor", &base.empty_map().set("v", &base.create_string(if parent.is_none() { "TOP" } else { "BOTTOM" })).set("h", &base.create_string("LEFT")))
+            .set("this_anchor", &base.empty_map().set("v", &base.create_string("TOP")).set("h", &base.create_string("LEFT")))
+            .set("relative_x", &base.create_int(if parent.is_none() { 5 } else { 0 }))
+            .set("relative_y", &base.create_int(if parent.is_none() { 5 } else { 2 }));
+    }
+
+    /// java: private boolean isEnabled(String widgetId)
+    pub fn is_enabled(&self, widget_id: &str) -> bool {
+        let guard = self.main_config.lock().unwrap();
+        let Some(main_config) = guard.as_ref() else {
+            return true;
+        };
+        return match widget_id {
+            "dungeon_splits" | "Dungeon Splits" => main_config.get("dungeons").get("dungeonSplits").as_boolean_or(true),
+            "hud_farming" => main_config.get("farming").get("farmingHud").get("enabled").as_boolean_or(true),
+            "hud_treeprogress" => main_config.get("foraging").get("moongladeMarsh").get("enableTreeBreakProgress").as_boolean_or(true),
+            "sweep_details" | "sweepDetails" => main_config.get("foraging").get("moongladeMarsh").get("enableSweepDetailsWidget").as_boolean_or(true),
+            "hud_fishing" => main_config.get("helpers").get("fishing").get("enableFishingHud").as_boolean_or(true),
+            "hud_lasso" | "Lasso HUD" => main_config.get("hunting").get("lassoHud").get("enabled").as_boolean_or(true),
+            "powder_mining_tracker" => main_config.get("mining").get("crystalHollows").get("enablePowderTracker").as_boolean_or(true),
+            "hud_crystals" => main_config.get("mining").get("crystalsHud").get("enabled").as_boolean_or(true),
+            "hud_pickobulus" => main_config.get("mining").get("pickobulusHelper").get("enablePickobulusHud").as_boolean_or(true),
+            "hud_end" => main_config.get("otherLocations").get("end").get("hudEnabled").as_boolean_or(true),
+            "hud_slayer" => main_config.get("slayers").get("enableHud").as_boolean_or(true),
+            "item_pickup" | "Item Pickup" => main_config.get("uiAndVisuals").get("itemPickup").get("enabled").as_boolean_or(true),
+            _ => true,
+        };
+    }
+}
+
+impl DataFix for ConfigFix11NewHud {
+    fn data_fix(&self) -> &DataFixFields {
+        &self.base.fields
+    }
+
+    /// java: @Override protected TypeRewriteRule makeRule()
+    fn make_rule(&self) -> TypeRewriteRule {
+        let this = self.self_ref.clone();
+        let this2 = self.self_ref.clone();
+        return type_rewrite_rule::seq2(
+            data_fix::fix_type_everywhere_typed_same(
+                "ConfigFix11NewHud", // java: getClass().getSimpleName()
+                self.get_input_schema()
+                    .get_type(config_data_fixer::CONFIG_TYPE.get())
+                    .unwrap_or_else(|e| panic!("java.lang.IllegalArgumentException: {e}")),
+                Arc::new(move |typed: Typed| {
+                    let Some(this) = this.upgrade() else { return Err("ConfigFix11NewHud: the fix was dropped".to_string()) };
+                    typed.update(&dsl::remainder_finder(), &|dynamic| this.collect(&dynamic))
+                }),
+            ),
+            data_fix::fix_type_everywhere_typed_same(
+                "ConfigFix11NewHud", // java: getClass().getSimpleName()
+                self.get_input_schema()
+                    .get_type(config_data_fixer::HUD_WIDGETS_TYPE.get())
+                    .unwrap_or_else(|e| panic!("java.lang.IllegalArgumentException: {e}")),
+                Arc::new(move |typed: Typed| {
+                    let Some(this) = this2.upgrade() else { return Err("ConfigFix11NewHud: the fix was dropped".to_string()) };
+                    typed.update(&dsl::remainder_finder(), &|dynamic| this.fix(&dynamic))
+                }),
+            ),
+        );
+    }
 }
 
 impl ConfigDataFix for ConfigFix11NewHud {
     fn config_data_fix_base(&self) -> &ConfigDataFixBase {
         &self.base
     }
-    fn config_data_fix_base_mut(&mut self) -> &mut ConfigDataFixBase {
-        &mut self.base
-    }
-
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
-    }
-
 }

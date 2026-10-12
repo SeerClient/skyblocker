@@ -37,7 +37,7 @@ impl LowerSensitivity {
 
     /// java: private static boolean isInBarn(Player player)
     pub fn is_in_barn(player: &dyn Player) -> bool {
-        return (player.get_x() <= 35.5 && player.get_x() >= -32.5 && player.get_z() <= -4.5 && player.get_z() >= -46.5);
+        return (player.base().get_x() <= 35.5 && player.base().get_x() >= -32.5 && player.base().get_z() <= -4.5 && player.base().get_z() >= -46.5);
     }
 
     /// java: public static void lowerSensitivity(boolean lowerSensitivity)

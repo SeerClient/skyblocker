@@ -16,7 +16,8 @@ pub static MAX_QUANTITY_PATTERN: LazyLock<compat::regex::Pattern> = LazyLock::ne
 /// java: private static final String PAGE_TITLE = "How many do you want\\?";
 pub const PAGE_TITLE: &str = "How many do you want\\?";
 /// java: public static final BazaarMax INSTANCE = new BazaarMax();
-pub static INSTANCE: LazyLock<BazaarMax> = LazyLock::new(|| BazaarMax::new());
+/// (a mutable singleton - `checkMaxValue` writes `lastSeenMax` - reached on the render thread only)
+pub static INSTANCE: compat::MainThread<BazaarMax> = compat::MainThread::new(|| BazaarMax::new());
 
 /// java: public final class BazaarMax
 #[derive(Clone)]
@@ -42,9 +43,9 @@ impl BazaarMax {
         let mut has_buy_order_quantity: bool = false;
         let mut has_click_to_specify: bool = false;
         let mut max_quantity_matcher: Option<compat::regex::Matcher> = None;
-        // TODO(fabric2seer): `get_item` takes 1 argument(s) in the port (`containers: &'a Containers<'_>`), Java passes 0
-        // rust: let stack = focused_slot.get_item();
-        let mut stack: mcrust::net::minecraft::world::item::item_stack::ItemStack = todo!("fabric2seer: the initialiser of `stack` (TODO above)");
+        // java: ItemStack stack = focusedSlot.getItem(); - the port's slot reads its item through the open menu's
+        // containers (`compat::slot_item`)
+        let mut stack: mcrust::net::minecraft::world::item::item_stack::ItemStack = compat::slot_item(&focused_slot);
         let mut lines: Vec<String> = stack.skyblocker_get_lore_strings();
         for line in lines.iter() {
             if BUY_ORDER_QUANTITY == line {
@@ -61,11 +62,9 @@ impl BazaarMax {
             }
         }
         if has_buy_order_quantity && has_click_to_specify && max_quantity_matcher.is_some() {
-            // java: try {..} catch (NumberFormatException _) - an exception here is a panic, caught by `catch_unwind`
-            let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                self.last_seen_max = (max_quantity_matcher.as_mut().unwrap().group(1).unwrap().replace(",", "")).trim().parse::<i32>().expect("NumberFormatException");
-            }));
-            if let Err(_) = __result {
+            // java: try { lastSeenMax = Integer.parseInt(maxQuantityMatcher.group(1).replace(",", "")); } catch (NumberFormatException _) {}
+            if let Ok(__v) = (max_quantity_matcher.as_mut().unwrap().group(1).unwrap().replace(",", "")).parse::<i32>() {
+                self.last_seen_max = __v;
             }
         }
     }
@@ -75,7 +74,7 @@ impl BazaarMax {
         if self.last_seen_max < 0 {
             return;
         }
-        match current_line.as_str() {
+        match current_line {
             "max " => {
                 // TODO(fabric2seer): `remove_chars_from_cursor` takes 2 argument(s) in the port (`message: &str, count: i32`), Java passes 1
                 // rust: sign_field.remove_chars_from_cursor(&-4.to_string());

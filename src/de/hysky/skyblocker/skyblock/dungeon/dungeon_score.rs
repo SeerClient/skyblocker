@@ -368,7 +368,7 @@ impl DungeonScore {
     /// java: private static int getCompletedRooms()
     pub fn get_completed_rooms() -> i32 {
         let mut matcher: Option<compat::regex::Matcher> = PlayerListManager::regex_at(43, &COMPLETED_ROOMS_PATTERN);
-        return (if matcher.is_some() { matcher.as_mut().unwrap().group_named("rooms").unwrap().trim().parse::<i32>().expect("NumberFormatException") } else { 0 });
+        return (if matcher.is_some() { matcher.as_mut().unwrap().group_named("rooms").unwrap().parse::<i32>().expect("NumberFormatException") } else { 0 });
     }
 
     /// java: private static int getExtraCompletedRooms()
@@ -403,7 +403,7 @@ impl DungeonScore {
     /// java: private static int getPuzzleCount()
     pub fn get_puzzle_count() -> i32 {
         let mut matcher: Option<compat::regex::Matcher> = PlayerListManager::regex_at(47, &PUZZLE_COUNT_PATTERN);
-        return (if matcher.is_some() { matcher.as_mut().unwrap().group_named("count").unwrap().trim().parse::<i32>().expect("NumberFormatException") } else { 0 });
+        return (if matcher.is_some() { matcher.as_mut().unwrap().group_named("count").unwrap().parse::<i32>().expect("NumberFormatException") } else { 0 });
     }
 
     /// java: private static int getPuzzlePenalty()
@@ -432,7 +432,7 @@ impl DungeonScore {
         if matcher.is_none() {
             matcher = PlayerListManager::regex_at(32, &CRYPTS_PATTERN);
         }
-        return (if matcher.is_some() { matcher.as_mut().unwrap().group_named("crypts").unwrap().trim().parse::<i32>().expect("NumberFormatException") } else { 0 });
+        return (if matcher.is_some() { matcher.as_mut().unwrap().group_named("crypts").unwrap().parse::<i32>().expect("NumberFormatException") } else { 0 });
     }
 
     /// java: private static boolean hasSpiritPet(@Nullable JsonObject player, String name)

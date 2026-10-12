@@ -39,6 +39,7 @@ use mcrust::net::minecraft::world::phys::vec3::Vec3;
 use mcrust::org::joml::vector2i::Vector2i;
 use mcrust::net::minecraft::network::chat::component::Component as _;
 use mcrust::net::minecraft::world::level::block_getter::BlockGetter as _;
+use mcrust::net::minecraft::core::defaulted_registry::DefaultedRegistry as _;
 
 /// java: public static final Pattern SECRET_INDEX = Pattern.compile("^(\\d+)");
 pub static SECRET_INDEX: LazyLock<compat::regex::Pattern> = LazyLock::new(|| compat::regex::Pattern::compile("^(\\d+)"));
@@ -80,7 +81,8 @@ pub struct RoomBase {
     /// java: private @Nullable BlockPosSet checkedBlocks = new BlockPosSet();
     pub checked_blocks: Option<compat::Shared<BlockPosSet>>,
     /// java: protected @Nullable CompletableFuture<Void> findRoom;
-    pub find_room: Option<mcrust::java::util::concurrent::completable_future::CompletableFuture<()>>,
+    /// (the search reads and writes this room, which is not `Send`: a `compat::LocalFuture`, run on the render thread)
+    pub find_room: Option<compat::LocalFuture<()>>,
     /// java: private int doubleCheckBlocks;
     pub double_check_blocks: i32,
     /// java: protected MatchState matchState = MatchState.MATCHING;
@@ -512,7 +514,7 @@ impl dyn Room {
 
     /// java: @Override public String toString()
     pub fn to_string_body(__this: &compat::Shared<dyn Room>) -> String {
-        return compat::read(__this, |__t| __t.room_base().to_string());
+        return compat::read(__this, |__t| std::string::ToString::to_string(__t.room_base()));
     }
 
     /// java: private Shape determineShape(IntSortedSet segmentsX, IntSortedSet segmentsY)
@@ -591,7 +593,8 @@ impl dyn Room {
     pub fn add_custom_waypoint_1_body(__this: &compat::Shared<dyn Room>, relative_waypoint: &compat::Shared<SecretWaypoint>) {
         let mut actual_waypoint: compat::Shared<SecretWaypoint> = SecretWaypoint::relative_to_actual(relative_waypoint, &__this.clone());
         // secretWaypoints.put(actualWaypoint.secretIndex, actualWaypoint.pos, actualWaypoint);
-        let (secret_index, pos) = compat::read(&actual_waypoint, |__t| (__t.secret_index, __t.pos.clone()));
+        // (Guava's `put` rejects a null column: `checkNotNull`)
+        let (secret_index, pos) = compat::read(&actual_waypoint, |__t| (__t.secret_index, __t.pos.clone().expect("NullPointerException")));
         compat::write(__this, |__t| __t.room_base_mut().secret_waypoints.put(secret_index, pos, actual_waypoint.clone()));
     }
 
@@ -643,19 +646,22 @@ impl dyn Room {
         if mcrust::mcrust::modding::game::with_player(|_| ()).is_none() {
             return;
         }
-        let __this_w1 = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
-        let __this_w2 = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
-        { let __v = Some({ let (__q0,) = (|e| { let Some(__this_2) = __this_w2.get().upgrade() else { return Default::default(); }; {
-            logger().error(&format!("[Skyblocker Dungeon Secrets] Encountered an unknown exception while matching room {}", compat::read(&__this_2, |__t| __t.room_base().to_string())));
-            return Default::default(); // java: return null
-        } },); (CompletableFuture::<()>::run_async(move || (|| { let Some(__this_1) = __this_w1.get().upgrade() else { return Default::default(); }; {
+        let __this_w1 = std::sync::Arc::downgrade(__this);
+        let __this_w2 = std::sync::Arc::downgrade(__this);
+        // java: findRoom = CompletableFuture.runAsync(() -> {..}).exceptionally(e -> {..});
+        // rust: the search reads and writes this room (not `Send`), so it runs deferred on the render thread
+        // (`compat::LocalFuture::supply_local`) rather than on a worker
+        { let __v = Some(compat::LocalFuture::<()>::supply_local(move || { let Some(__this_1) = __this_w1.upgrade() else { return Default::default(); }; {
             for pos in BlockPos::between_closed_pos(&mcrust::mcrust::modding::game::with_player(|player| player.base.base.base.base.block_position().offset(-5, -5, -5)).unwrap(), &mcrust::mcrust::modding::game::with_player(|player| player.base.base.base.base.block_position().offset(5, 5, 5)).unwrap()) {
                 debug_assert!(compat::read((&__this_1), |__t| __t.room_base().checked_blocks.clone()).is_some());
                 if (&__this_1).lock().borrow().room_base().segments.contains(&DungeonMapUtils::get_physical_room_pos_vec3i(pos.as_vec3i())) && RoomBase::not_in_doorway(&pos) && BlockPosSet::add(&compat::read((&__this_1), |__t| __t.room_base().checked_blocks.clone()).unwrap(), &pos) && { let __f = compat::dispatch((&__this_1), |__t| __t.check_block()); __f((&__this_1), &mcrust::mcrust::modding::game::level().unwrap(), &pos) } {
                     break;
                 }
             }
-        } })(), compat::executor)).exceptionally(__q0) }); compat::write(__this, |__t| __t.room_base_mut().find_room = __v); }
+        } }).exceptionally_async(move |e: String| { let Some(__this_2) = __this_w2.upgrade() else { return Default::default(); }; {
+            logger().error(&format!("[Skyblocker Dungeon Secrets] Encountered an unknown exception while matching room {}", compat::read(&__this_2, |__t| std::string::ToString::to_string(__t.room_base()))));
+            return Default::default(); // java: return null
+        } })); compat::write(__this, |__t| __t.room_base_mut().find_room = __v); }
     }
 
     /// Room.tick as the dispatch of Tickable.tick for the concrete class `__C`
@@ -667,7 +673,7 @@ impl dyn Room {
     pub fn check_block_body(__this: &compat::Shared<dyn Room>, world: &ClientLevel, pos: &BlockPos) -> bool {
         // byte id = DungeonManager.NUMERIC_ID.getByte(BuiltInRegistries.BLOCK.getKey(world.getBlockState(pos).getBlock()).toString());
         // (`getByte` of a missing key is the map's default return value, 0)
-        let block_key: String = mcrust::net::minecraft::core::registries::built_in_registries::block().get_key(&world.get_block_state_typed(pos).get_block().erased_obj()).unwrap().to_string();
+        let block_key: String = mcrust::net::minecraft::core::registries::built_in_registries::block().get_key_defaulted(&world.get_block_state_typed(pos).get_block().erased_obj()).to_string();
         let mut id: i8 = dungeon_manager::NUMERIC_ID.get(&block_key).copied().unwrap_or(0);
         if (id as i32) == 0 {
             return false;
@@ -768,7 +774,7 @@ impl dyn Room {
             for waypoint in room_waypoints.iter() {
                 let mut secret_name: String = waypoint.secret_name();
                 let mut secret_index_matcher: compat::regex::Matcher = SECRET_INDEX.matcher(&secret_name);
-                let mut secret_index: i32 = (if secret_index_matcher.find() { secret_index_matcher.group(1).unwrap().trim().parse::<i32>().expect("NumberFormatException") } else { 0 });
+                let mut secret_index: i32 = (if secret_index_matcher.find() { secret_index_matcher.group(1).unwrap().parse::<i32>().expect("NumberFormatException") } else { 0 });
                 let mut pos: BlockPos = DungeonMapUtils::relative_to_actual(direction.clone().unwrap(), physical_corner_pos.as_ref().unwrap(), waypoint);
                 // secretWaypoints.put(secretIndex, pos, new SecretWaypoint(secretIndex, waypoint.category(), secretName, pos));
                 let __w = SecretWaypoint::new(secret_index, waypoint.category(), secret_name.clone(), pos.clone());
@@ -869,7 +875,7 @@ impl dyn Room {
         if !matcher.find() {
             return;
         }
-        { let __v = matcher.group(1).unwrap().trim().parse::<i32>().expect("NumberFormatException"); compat::write(__this, |__t| __t.room_base_mut().secrets_found = __v); }
+        { let __v = matcher.group(1).unwrap().parse::<i32>().expect("NumberFormatException"); compat::write(__this, |__t| __t.room_base_mut().secrets_found = __v); }
         { let __v = false; compat::write(__this, |__t| __t.room_base_mut().secret_count_outdated = __v); }
         (dungeon_events::secret_count_updated_invoker())(__this.clone(), false);
     }
@@ -880,7 +886,12 @@ impl dyn Room {
         if state.is_block(&blocks::blocks().get("chest")) || state.is_block(&blocks::blocks().get("trapped_chest")) {
             { let __v = Some(pos.clone()); compat::write(__this, |__t| __t.room_base_mut().last_chest_secret = __v); }
             { let __v = compat::millis(); compat::write(__this, |__t| __t.room_base_mut().last_chest_secret_time = __v); }
+            // the lambda captures `world`: the client's level (the object `world` is), held by its handle
+            let __world = mcrust::mcrust::modding::game::level();
             ({ let __r = scheduler::INSTANCE.get_mut(); let __f = compat::dispatch(__r, |__t| __t.schedule()); __f(__r, Arc::new(move || {
+                let Some(world) = __world.as_deref() else {
+                    return;
+                };
                 if !(world.get_block_state_typed(&pos).is_air()) {
                     return;
                 }

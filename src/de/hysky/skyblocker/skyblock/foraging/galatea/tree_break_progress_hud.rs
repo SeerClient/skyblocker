@@ -27,7 +27,8 @@ use mcrust::net::minecraft::world::entity::entity::Entity as _;
 /// java: private static @Nullable TreeBreakProgressHud instance;
 pub static INSTANCE: compat::MainThread<Option<compat::Shared<TreeBreakProgressHud>>> = compat::MainThread::new(|| None);
 /// java: private static final Int2ObjectMap<ArmorStand> armorstands = new Int2ObjectOpenHashMap<>();
-pub static ARMORSTANDS: compat::MainThread<std::collections::HashMap<i32, ArmorStand>> = compat::MainThread::new(|| std::collections::HashMap::new());
+/// (the armor stands' ids: the level keeps the entities, `game::with_entity` reaches them)
+pub static ARMORSTANDS: compat::MainThread<std::collections::HashSet<i32>> = compat::MainThread::new(|| std::collections::HashSet::new());
 
 /// java: @RegisterWidget public class TreeBreakProgressHud extends ElementBasedWidget
 #[derive(Clone)]
@@ -79,11 +80,10 @@ impl TreeBreakProgressHud {
     }
 
     /// java: public static void onEntityUpdate(ArmorStand entity)
-    pub fn on_entity_update(mut entity: ArmorStand) {
+    pub fn on_entity_update(entity: &ArmorStand) {
         Self::clinit();
         if entity.base.base.get_custom_name().is_some() {
-            // TODO(fabric2seer): the mod keeps the game's `ArmorStand` (Java holds a reference to the live object); the port's `ArmorStand` is not a value to copy and the port lends the mod no handle to it
-            // rust: ARMORSTANDS.get_mut().insert(entity.base.base.get_id(), entity.clone());
+            ARMORSTANDS.get_mut().insert(entity.base.base.get_id());
         }
     }
 
@@ -93,37 +93,55 @@ impl TreeBreakProgressHud {
         return INSTANCE.get_mut().clone().unwrap();
     }
 
-    /// java: private @Nullable ArmorStand getClosestTree()
-    pub fn get_closest_tree(__this: &compat::Shared<Self>) -> Option<ArmorStand> {
-        if mcrust::mcrust::modding::game::with_player(|_| ()).is_none() {
+    /// java: private @Nullable ArmorStand getClosestTree() (the armor stand's entity id)
+    pub fn get_closest_tree(__this: &compat::Shared<Self>) -> Option<i32> {
+        let Some(player_pos) = mcrust::mcrust::modding::game::with_player(|player| player.base().position()) else {
             return None;
-        }
-        return ARMORSTANDS.get_mut().values().cloned().filter(|entity| {
-            let Some(mut name) = entity.base.base.get_custom_name() else {
-                return false;
+        };
+        // java: armorstands.values().stream().filter(..).min(Comparator.comparingDouble(entity -> entity.distanceToSqr(player)))
+        let mut closest: Option<(i32, f64)> = None;
+        for id in ARMORSTANDS.get().iter().copied().collect::<Vec<_>>() {
+            let Some(Some(distance)) = mcrust::mcrust::modding::game::with_entity(id, |entity| {
+                let Some(mut name) = entity.base().get_custom_name() else {
+                    return None;
+                };
+                let mut string: String = name.get_string();
+                if !(string.contains("FIG TREE") || string.contains("MANGROVE TREE") || string.contains("HELIX TREE")) {
+                    return None;
+                }
+                Some(entity.base().distance_to_sqr_vec(&player_pos))
+            }) else {
+                continue;
             };
-            let mut string: String = name.get_string();
-            return (string.contains("FIG TREE") || string.contains("MANGROVE TREE") || string.contains("HELIX TREE"));
-        }).min_by(|a, b| { let key = |e| mcrust::mcrust::modding::game::with_player(|player| e.base.base.distance_to_sqr_entity(player)); key(a).total_cmp(&key(b)) });
+            if closest.map_or(true, |(_, best)| distance < best) {
+                closest = Some((id, distance));
+            }
+        }
+        return closest.map(|(id, _)| id);
     }
 
     /// java: private boolean isOwnTree(@Nullable ArmorStand tree)
-    pub fn is_own_tree(__this: &compat::Shared<Self>, mut tree: Option<ArmorStand>) -> bool {
+    pub fn is_own_tree(__this: &compat::Shared<Self>, mut tree: Option<i32>) -> bool {
         if mcrust::mcrust::modding::game::with_player(|_| ()).is_none() {
             return false;
         }
-        let Some(mut tree) = tree.clone() else {
+        let Some(mut tree) = tree else {
             return false;
         };
-        let mut tree_pos: Vec3 = tree.base.base.position();
-        let mut grouped_armor_stands: Vec<ArmorStand> = ARMORSTANDS.get_mut().values().cloned().filter(|e| {
-            let mut pos: Vec3 = e.base.base.position();
-            return ((pos.x - tree_pos.x).abs() < 0.1 && (pos.y - tree_pos.y).abs() < (2 as f64) && (pos.z - tree_pos.z).abs() < 0.1);
-        }).collect::<Vec<_>>();
+        let Some(mut tree_pos) = mcrust::mcrust::modding::game::with_entity(tree, |e| e.base().position()) else {
+            return false;
+        };
         let mut player_name: String = mcrust::mcrust::modding::game::with_player(|player| compat::component_of(player.get_name()).get_string()).unwrap();
-        return grouped_armor_stands.iter().cloned().any(|armor_stand| {
-            let mut name: String = compat::component_of(armor_stand.get_name()).get_string();
-            return (name.contains(&player_name) || name.contains(" players"));
+        // java: armorstands.values().stream().filter(near the tree).anyMatch(name contains the player's name or " players")
+        return ARMORSTANDS.get().iter().copied().collect::<Vec<_>>().into_iter().any(|id| {
+            mcrust::mcrust::modding::game::with_entity(id, |armor_stand| {
+                let mut pos: Vec3 = armor_stand.base().position();
+                if !((pos.x - tree_pos.x).abs() < 0.1 && (pos.y - tree_pos.y).abs() < (2 as f64) && (pos.z - tree_pos.z).abs() < 0.1) {
+                    return false;
+                }
+                let mut name: String = compat::component_of(armor_stand.get_name()).get_string();
+                return (name.contains(&player_name) || name.contains(" players"));
+            }).unwrap_or(false)
         });
     }
 
@@ -210,7 +228,7 @@ impl ElementCollector for TreeBreakProgressHud {
 
     /// java: public <T extends Element> T addElement(T c)
     fn add_element(&mut self, mut c: compat::Shared<dyn Element>) -> compat::Shared<dyn Element> {
-        ({ let __f = compat::dispatch(&c, |__t| __t.set_parent()); __f(&c, self.clone()) });
+        ({ let __f = compat::dispatch(&c, |__t| __t.set_parent()); __f(&c, self.hud_widget_base().as_parent()) });
         self.elements.push(c.clone());
         return c;
     }
@@ -230,16 +248,18 @@ impl TreeBreakProgressHud {
 
     /// java: @Override public void updateContent()
     pub fn update_content_impl(__this: &compat::Shared<Self>) {
-        let mut world: Option<ClientLevel> = mcrust::mcrust::modding::game::level();
-        let mut closest: Option<ArmorStand> = None;
+        let mut world: Option<Arc<ClientLevel>> = mcrust::mcrust::modding::game::level();
+        let mut closest: Option<i32> = None;
         if mcrust::mcrust::modding::game::with_player(|_| ()).is_none() || world.is_none() {
             return;
         }
         closest = TreeBreakProgressHud::get_closest_tree(__this);
-        if closest.is_none() || !(TreeBreakProgressHud::is_own_tree(__this, closest.clone())) {
+        if closest.is_none() || !(TreeBreakProgressHud::is_own_tree(__this, closest)) {
             return;
         }
-        let mut closest_name: String = compat::component_of(closest.as_ref().unwrap().get_name()).get_string();
+        let Some(mut closest_name) = mcrust::mcrust::modding::game::with_entity(closest.unwrap(), |closest| compat::component_of(closest.get_name()).get_string()) else {
+            return;
+        };
         let mut tree_name: String = (if closest_name.contains("HELIX") { "Helix Tree" } else { (if closest_name.contains("FIG") { "Fig Tree" } else { "Mangrove Tree" }) }).to_string();
         let mut wood_icon: compat::Shared<FlexibleItemStack> = (if closest_name.contains("HELIX") { ico::STRIPPED_MANGROVE_LOG.get_mut().clone() } else { (if closest_name.contains("FIG") { ico::STRIPPED_SPRUCE_WOOD.get_mut().clone() } else { ico::MANGROVE_LOG.get_mut().clone() }) });
         ({ let __f = compat::dispatch(__this, |__t| __t.add_simple_ico_text_flexible_item_stack_string_chat_formatting_string()); __f(&compat::view(__this, |a| a as compat::Shared<dyn ElementCollector>), Some(wood_icon.clone()), &format!("{} ", tree_name), &ChatFormatting::Green, &compat::regex::replace_all(&closest_name, "[^0-9%]", "")) });

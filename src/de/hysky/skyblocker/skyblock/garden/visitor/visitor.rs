@@ -18,12 +18,12 @@ pub struct Visitor {
 impl Visitor {
     /// java: public Visitor(Component name, ItemStack head)
     pub fn new(mut name: MutableComponent, mut head: mcrust::net::minecraft::world::item::item_stack::ItemStack) -> Self {
-        let mut this = Self::new(name.clone(), head.clone(), std::collections::HashMap::new());
+        let mut this = Self::new_3(name.clone(), head.clone(), std::collections::HashMap::new());
         this
     }
 
     /// java: the canonical record constructor
-    pub fn new(mut name: MutableComponent, mut head: mcrust::net::minecraft::world::item::item_stack::ItemStack, mut required_items: std::collections::HashMap<MutableComponent, i32>) -> Self {
+    pub fn new_3(mut name: MutableComponent, mut head: mcrust::net::minecraft::world::item::item_stack::ItemStack, mut required_items: std::collections::HashMap<MutableComponent, i32>) -> Self {
         Self { name, head, required_items }
     }
 

@@ -41,7 +41,7 @@ pub static DEFENSE_STATUS: LazyLock<compat::regex::Pattern> = LazyLock::new(|| c
 /// java: private static final Pattern MANA_USE = Pattern.compile("-([\\d,]+) Mana \\(.*?\\)");
 pub static MANA_USE: LazyLock<compat::regex::Pattern> = LazyLock::new(|| compat::regex::Pattern::compile("-([\\d,]+) Mana \\(.*?\\)"));
 /// java: private static final Pattern MANA_STATUS = Pattern.compile(String.format("(?<mana>[\\d,]+)/(?<max>[\\d,]+)[✎%s] ?(?:Mana|(?<overflow>[\\d,]+)[ʬ%s])?", SkyBlockIcons.MANA, SkyBlockIcons.OVERFLOW_MANA))
-pub static MANA_STATUS: LazyLock<compat::regex::Pattern> = LazyLock::new(|| compat::regex::Pattern::compile(&format!("(?<mana>[\\d,]+)/(?<max>[\\d,]+)[✎{}] ?(?:Mana|(?<overflow>[\\d,]+)[ʬ{}])?", sky_block_icons::MANA, sky_block_icons::OVERFLOW_MANA)));
+pub static MANA_STATUS: LazyLock<compat::regex::Pattern> = LazyLock::new(|| compat::regex::Pattern::compile(&format!("(?<mana>[\\d,]+)/(?<max>[\\d,]+)[✎{}] ?(?:Mana|(?<overflow>[\\d,]+)[ʬ{}])?", *sky_block_icons::MANA, sky_block_icons::OVERFLOW_MANA)));
 /// java: private static Component lastMessage = Component.empty();
 pub static LAST_MESSAGE: compat::MainThread<MutableComponent> = compat::MainThread::new(|| component::empty());
 /// java: private static Component lastReturn = Component.empty();
@@ -161,7 +161,7 @@ impl StatusBarTracker {
             return text;
         }
         let mut now: i64 = compat::millis();
-        if LAST_MESSAGE.get_mut() == text && (compat::get_state(&LAST_MESSAGE_TIME)).wrapping_add(337 as i64) > now {
+        if *LAST_MESSAGE.get() == text && (compat::get_state(&LAST_MESSAGE_TIME)).wrapping_add(337 as i64) > now {
             return LAST_RETURN.get_mut().clone();
         }
         *LAST_MESSAGE.get_mut() = text.clone();
@@ -284,7 +284,7 @@ impl StatusBarTracker {
     /// java: private static void updateVitality(Matcher m)
     pub fn update_vitality(m: &compat::regex::Matcher) {
         if !(SkyblockerConfigManager::get().ui_and_visuals.bars.has_seen_vitality_at_least_once) {
-            SkyblockerConfigManager::update_only(Arc::new(move |config| { config.ui_and_visuals.bars.has_seen_vitality_at_least_once = true; }));
+            SkyblockerConfigManager::update_only(Arc::new(move |mut config| { config.ui_and_visuals.bars.has_seen_vitality_at_least_once = true; }));
             FancyStatusBars::make_vitality_visible(fancy_status_bars::INSTANCE.get_mut());
         }
         EstimatedResource::update(&compat::get_state(&VITALITY), Resource::new(RegexUtils::parse_int_from_matcher_matcher_string(m, "vitality"), RegexUtils::parse_int_from_matcher_matcher_string(m, "max"), 0));

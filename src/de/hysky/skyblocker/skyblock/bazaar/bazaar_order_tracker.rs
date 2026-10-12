@@ -81,20 +81,20 @@ impl BazaarOrderTracker {
         }
         let mut skyblock_id: String = stack.get_skyblock_id();
         let mut unit_price: f64 = (((matchers[(0) as usize]).group(1).unwrap()).replace(",", "")).trim().parse::<f64>().expect("NumberFormatException");
-        let mut amount: i32 = (((matchers[(1) as usize]).group(1).unwrap()).replace(",", "")).trim().parse::<i32>().expect("NumberFormatException");
+        let mut amount: i32 = (((matchers[(1) as usize]).group(1).unwrap()).replace(",", "")).parse::<i32>().expect("NumberFormatException");
         let __h0 = Order::new(skyblock_id.clone(), unit_price, amount, (slot_id < 18));
         __this.lock().borrow_mut().orders.insert(slot_id, __h0);
     }
 
     /// java: private void addOrderMarker(List<Component> lines, boolean sell)
     pub fn add_order_marker(__this: &compat::Shared<Self>, lines: &mut Vec<MutableComponent>, mut sell: bool) {
-        let Some(screen) = compat::minecraft().gui.screen().unwrap().as_any().downcast_ref::<ContainerScreen>() else {
+        // java: if (!(client.screen instanceof ContainerScreen screen)) return;
+        if !matches!(compat::minecraft().gui.screen_kind, mcrust::net::minecraft::client::gui::gui::ScreenKind::Container) {
             return;
-        };
-        // TODO(fabric2seer): field `slots` of a value of unknown type
-        //   java: String skyblockId = screen.getMenu().slots.get(13).getItem().getSkyblockId();
-        let mut skyblock_id: String = todo!("fabric2seer: the initialiser of `skyblockId` (TODO above)");
-        let mut your_orders: Vec<Order> = compat::sorted_by(__this.lock().borrow().orders.values().cloned().filter(|o| (o.sell() == sell)).filter(|o| (o.skyblock_id() == skyblock_id)), |a, b| { let key = |__a0| __a0.unit_price(); key(a).total_cmp(&key(b)) }).collect::<Vec<_>>();
+        }
+        // java: String skyblockId = screen.getMenu().slots.get(13).getItem().getSkyblockId(); - the screen's menu is the player's open one
+        let mut skyblock_id: String = compat::with_open_menu(|menu, containers| menu.slots[13].get_item(containers).duplicate()).unwrap_or_else(mcrust::net::minecraft::world::item::item_stack::empty).get_skyblock_id();
+        let mut your_orders: Vec<Order> = compat::sorted_by(__this.lock().borrow().orders.values().cloned().filter(|o| (o.sell() == sell)).filter(|o| (o.skyblock_id() == skyblock_id)), |a, b| { let key = |__a0: &Order| __a0.unit_price(); key(a).total_cmp(&key(b)) }).collect::<Vec<_>>();
         if your_orders.is_empty() {
             return;
         }

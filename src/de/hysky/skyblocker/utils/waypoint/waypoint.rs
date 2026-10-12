@@ -13,10 +13,8 @@ use mcrust::net::minecraft::world::phys::aabb::AABB;
 pub const DEFAULT_HIGHLIGHT_ALPHA: f32 = 0.5f32;
 /// java: protected static final float DEFAULT_LINE_WIDTH = 5f;
 pub const DEFAULT_LINE_WIDTH: f32 = 5.0f32;
-// TODO(fabric2seer): `from_enum` takes 2 argument(s) in the port (`values: Vec<E>, serialized_name: impl Fn(&E) -> String + Send + Sync + Copy + 'static`), Java passes 1
-//   java: public static final Codec<Type> CODEC = StringRepresentable.fromEnum(Type::values);
 /// java: public static final Codec<Type> CODEC = StringRepresentable.fromEnum(Type::values);
-pub static TYPE_CODEC: compat::MainThread<CodecRef<Type>> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `CODEC` - see the TODO above"));
+pub static TYPE_CODEC: compat::MainThread<CodecRef<Type>> = compat::MainThread::new(|| mcrust::net::minecraft::util::string_representable::from_enum(Type::values(), |e: &Type| e.get_serialized_name()));
 
 /// java: public class Waypoint implements Renderable
 #[derive(Clone)]
@@ -264,8 +262,15 @@ pub trait Waypoint: Renderable {
     }
 
     /// java: @Override public boolean equals(Object obj) (dispatch: the body for this class)
-    fn equals(&self) -> fn(&compat::Shared<dyn Waypoint>, &compat::Object) -> bool {
+    /// (`obj` is the other waypoint: every caller compares a waypoint with a waypoint)
+    fn equals(&self) -> fn(&compat::Shared<dyn Waypoint>, &compat::Shared<dyn Waypoint>) -> bool {
         <dyn Waypoint>::equals_body
+    }
+
+    /// java: `obj instanceof NamedWaypoint waypoint` (`NamedWaypoint.equals`) - the object's `NamedWaypoint` part when
+    /// its class is a `NamedWaypoint` (every `impl NamedWaypoint` answers its own; a plain `Waypoint` is not one).
+    fn as_named_waypoint(&self) -> Option<&crate::de::hysky::skyblocker::utils::waypoint::named_waypoint::NamedWaypointBase> {
+        None
     }
 
 }
@@ -398,10 +403,25 @@ impl dyn Waypoint {
     }
 
     /// java: @Override public boolean equals(Object obj)
-    pub fn equals_body(__this: &compat::Shared<dyn Waypoint>, obj: &compat::Object) -> bool {
-        // TODO(fabric2seer): super.equals() of java.lang.Object
-        //   java: return super.equals(obj) || obj instanceof Waypoint other && pos.equals(other.pos) && typeSupplier.get() == other.typeSupplier.get() && Arrays.equals(colorComponents, other.colorComponents) && alpha == other.alpha && lineWidth == other.lineWidth && throughWalls == other.throughWalls && enabled == other.enabled;
-        todo!("fabric2seer: the value of this function is in a TODO above")
+    pub fn equals_body(__this: &compat::Shared<dyn Waypoint>, obj: &compat::Shared<dyn Waypoint>) -> bool {
+        // java: return super.equals(obj) || obj instanceof Waypoint other && pos.equals(other.pos) && typeSupplier.get() == other.typeSupplier.get() && Arrays.equals(colorComponents, other.colorComponents) && alpha == other.alpha && lineWidth == other.lineWidth && throughWalls == other.throughWalls && enabled == other.enabled;
+        // `super.equals(obj)` is `Object.equals`: the same object
+        if std::ptr::addr_eq(std::sync::Arc::as_ptr(__this), std::sync::Arc::as_ptr(obj)) {
+            return true;
+        }
+        // each side read in its own borrow; `typeSupplier.get()` runs outside them (a supplier reads the config)
+        let read = |w: &compat::Shared<dyn Waypoint>| compat::read(w, |t| {
+            let base = t.waypoint_base();
+            (base.pos.clone(), base.type_supplier.clone(), base.color_components.clone(), base.alpha, base.line_width, base.through_walls, base.enabled)
+        });
+        let (this, other) = (read(__this), read(obj));
+        this.0 == other.0
+            && this.1.as_ref().map(|supplier| supplier()) == other.1.as_ref().map(|supplier| supplier())
+            && float_arrays_equal(&this.2, &other.2)
+            && this.3 == other.3
+            && this.4 == other.4
+            && this.5 == other.5
+            && this.6 == other.6
     }
 
 }
@@ -501,4 +521,12 @@ impl std::fmt::Display for Type {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", Type::to_string(self))
     }
+}
+
+/// java: `Arrays.equals(float[], float[])` - the same length and every pair equal by `Float.floatToIntBits` (so
+/// NaN equals NaN and `0.0f` does not equal `-0.0f`)
+fn float_arrays_equal(a: &[f32], b: &[f32]) -> bool {
+    // `floatToIntBits`: every NaN collapses to the canonical `0x7fc00000`
+    let bits = |f: &f32| if f.is_nan() { 0x7fc00000u32 } else { f.to_bits() };
+    a.len() == b.len() && a.iter().map(bits).eq(b.iter().map(bits))
 }

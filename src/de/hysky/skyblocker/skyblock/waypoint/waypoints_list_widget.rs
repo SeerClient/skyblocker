@@ -2,7 +2,7 @@
 
 #[allow(unused_imports)]
 use crate::prelude::*;
-use crate::de::hysky::skyblocker::skyblock::waypoint::waypoints::{named_waypoint_equals, waypoint_group_equals, LocationMultimap};
+use crate::de::hysky::skyblocker::skyblock::waypoint::waypoints::LocationMultimap;
 use crate::de::hysky::skyblocker::utils::waypoint::waypoint_group;
 use mcrust::net::minecraft::client::gui::components::abstract_widget::WidgetKind;
 use mcrust::net::minecraft::client::gui::layouts::layout_settings::LayoutSettings;
@@ -117,7 +117,7 @@ fn index_of_entry(children: &[compat::Shared<dyn AbstractWaypointEntry>], entry:
 
 /// `group.waypoints().indexOf(waypoint)`: `List.indexOf` asks `NamedWaypoint.equals`; -1 when absent.
 fn index_of_waypoint(group: &compat::Shared<WaypointGroup>, waypoint: &compat::Shared<dyn NamedWaypoint>) -> i32 {
-    compat::read(group, |g| g.waypoints.iter().position(|w| named_waypoint_equals(w, waypoint)).map_or(-1, |i| i as i32))
+    compat::read(group, |g| g.waypoints.iter().position(|w| <dyn NamedWaypoint>::equals_shared(w, waypoint)).map_or(-1, |i| i as i32))
 }
 
 impl WaypointsListWidget {
@@ -199,7 +199,7 @@ impl WaypointsListWidget {
             let mut selected_group_entry: compat::Shared<WaypointGroupEntry> = selected_group_entry_optional.clone().unwrap();
             // `waypoints.indexOf(selectedGroupEntry.group)`: `List.indexOf` asks `WaypointGroup.equals`.
             let selected_group = compat::read(&selected_group_entry, |__t| __t.group.clone()).unwrap();
-            index = (WaypointsListWidget::waypoint_groups(__this).iter().position(|e| waypoint_group_equals(e, &selected_group)).map_or(-1, |i| i as i32)).wrapping_add(1);
+            index = (WaypointsListWidget::waypoint_groups(__this).iter().position(|e| WaypointGroup::equals_shared(e, &selected_group)).map_or(-1, |i| i as i32)).wrapping_add(1);
         }
         let __h0 = (index) as usize;
         let __h1 = compat::read(&group_entry, |__t| __t.group.clone()).unwrap();
@@ -1025,7 +1025,10 @@ impl WaypointEntry {
             // `groupEntry.group.waypoints().remove(waypoint)`: the group's own list, the first equal waypoint.
             let group = compat::read(__group_entry_rt.get(), |__t| __t.group.clone()).unwrap();
             let waypoint = compat::read(&__this_16, |__t| __t.waypoint.clone()).unwrap();
-            compat::write(&group, |__g| { if let Some(__i) = __g.waypoints.iter().position(|w| named_waypoint_equals(w, &waypoint)) { __g.waypoints.remove(__i); } });
+            // the index is found under a READ borrow: `equals` calls the waypoints' type suppliers, and a converted
+            // waypoint's supplier reads this group (`this::waypointType`)
+            let __index = compat::read(&group, |__g| __g.waypoints.iter().position(|w| <dyn NamedWaypoint>::equals_shared(w, &waypoint)));
+            if let Some(__i) = __index { compat::write(&group, |__g| { __g.waypoints.remove(__i); }); }
             // TODO(fabric2seer): `WaypointsListWidget.this` (the enclosing instance of an inner class)
             //   java: WaypointsListWidget.this.updateEntries();
         } }) })), true)).size(20, 20).sprite(DELETE_ICON.get_mut().clone(), ICON_WIDTH, ICON_HEIGHT).build().unwrap();

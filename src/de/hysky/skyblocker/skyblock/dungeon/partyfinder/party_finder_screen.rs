@@ -3,6 +3,7 @@
 #[allow(unused_imports)]
 use crate::prelude::*;
 use crate::de::hysky::skyblocker::skyblock::dungeon::partyfinder::finder_settings_container::FinderSettingsContainer;
+use crate::de::hysky::skyblocker::skyblock::dungeon::partyfinder::finder_settings_container::ContainerWidgetAdapter;
 use crate::de::hysky::skyblocker::skyblock::dungeon::partyfinder::party_entry::NoParties;
 use crate::de::hysky::skyblocker::skyblock::dungeon::partyfinder::party_entry::PartyEntry;
 use crate::de::hysky::skyblocker::skyblock::dungeon::partyfinder::party_entry::PartyEntryBase;
@@ -240,7 +241,7 @@ impl PartyFinderScreen {
         // rust: { let __v = Some(EditBox::new(&compat::font(), component::literal("Search..."), (compat::write(__this, |__t| { let __s = &mut *__t; let __r = __s.party_entry_list_widget.as_mut().unwrap(); __s.__widgets.with(&mut __s.base, __r, |__w| __w.mod_widget().and_then(|__ms| __ms.with::<mcrust::mcrust::modding::widgets::ModSelectionList, _>(|__l| __l.list.get_row_left())).expect("a mod list reached from inside its own method")) })).wrapping_add(12), entry_list_top_y.wrapping_sub(12), ((compat::write(__this, |__t| { let __s = &mut *__t; let __r = __s.party_entry_list_widget.as_mut().unwrap(); __s.__widgets.with(&mut __s.base, __r, |__w| __w.mod_widget().and_then(|__ms| __ms.with::<mcrust::mcrust::modding::widgets::ModSelectionList, _>(|__l| { let __h = &__l.class::<compat::ListClass<PartyEntryListWidget>>().map(|__c| __c.object().clone()).expect("a mod list without its class"); compat::lend_list(__h, __l, || PartyEntryListWidget::get_row_width(__h)) })).expect("a mod list reached from inside its own method")) })).wrapping_sub(12i32.wrapping_mul(3))).wrapping_sub(6), 12)); compat::write(__this, |__t| __t.search_field = __v); }
         { let __q0 = SEARCH_TEXT.get().clone(); compat::write(__this, |__t| { let __s = &mut *__t; let __r = __s.search_field.as_mut().unwrap(); __s.__widgets.with(&mut __s.base, __r, |__w| if let mcrust::net::minecraft::client::gui::components::abstract_widget::WidgetKind::EditBox(__e) = &mut __w.kind { __e.set_hint_component(mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(__q0)); }) }); }
         let __this_w1 = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
-        { let (__q0,) = (Responder::Lambda(ResponderLambda::new(move |s| { let Some(__this_1) = __this_w1.get().upgrade() else { return Default::default(); }; { let __wa1 = s.to_string(); compat::write((&__this_1), |__t| { let __s = &mut *__t; let __r = __s.party_entry_list_widget.as_mut().unwrap(); __s.__widgets.with(&mut __s.base, __r, |__w| __w.mod_widget().and_then(|__ms| __ms.with::<mcrust::mcrust::modding::widgets::ModSelectionList, _>(|__l| { let __h = &__l.class::<compat::ListClass<PartyEntryListWidget>>().map(|__c| __c.object().clone()).expect("a mod list without its class"); compat::lend_list(__h, __l, || PartyEntryListWidget::set_search(__h, &__wa1)) })).expect("a mod list reached from inside its own method")) }); } })),); __this.lock().borrow_mut().search_field.as_mut().unwrap().set_responder(__q0) };
+        { let (__q0,) = (Responder::Lambda(ResponderLambda::new(move |s| { let Some(__this_1) = __this_w1.get().upgrade() else { return Default::default(); }; { let __wa1 = s.to_string(); compat::write((&__this_1), |__t| { let __s = &mut *__t; let __r = __s.party_entry_list_widget.as_mut().unwrap(); __s.__widgets.with(&mut __s.base, __r, |__w| __w.mod_widget().and_then(|__ms| __ms.with::<mcrust::mcrust::modding::widgets::ModSelectionList, _>(|__l| { let __h = &__l.class::<compat::ListClass<PartyEntryListWidget>>().map(|__c| __c.object().clone()).expect("a mod list without its class"); compat::lend_list(__h, __l, || PartyEntryListWidget::set_search(__h, &__wa1)) })).expect("a mod list reached from inside its own method")) }); } })),); compat::write(__this, |__t| { let __s = &mut *__t; let __r = __s.search_field.as_mut().unwrap(); __s.__widgets.with(&mut __s.base, __r, |__w| if let mcrust::net::minecraft::client::gui::components::abstract_widget::WidgetKind::EditBox(__e) = &mut __w.kind { __e.set_responder(__q0); }) }) };
         let __this_w2 = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
         { let __v = (Some((button::builder((component::literal("⟳")).set_style(mcrust::net::minecraft::network::chat::style::Style::EMPTY.with_color_format(Some(ChatFormatting::Green))).get_string(), OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| { let Some(__this_2) = __this_w2.get().upgrade() else { return Default::default(); }; compat::lend_screen(&__this_2, __screen, || { let mut __pidx = compat::WidgetRef::Screen(__index); {
             if compat::read((&__this_2), |__t| __t.refresh_slot_id) != -1 {
@@ -302,7 +303,7 @@ impl PartyFinderScreen {
         compat::write(__this, |__t| { let __s = &mut *__t; let __r = __s.settings_button.as_mut().unwrap(); __s.__widgets.add(&mut __s.base, __r, true) });
         compat::write(__this, |__t| { let __s = &mut *__t; let __r = __s.create_party_button.as_mut().unwrap(); __s.__widgets.add(&mut __s.base, __r, true) });
         let __r0 = compat::read(__this, |__t| __t.settings_container.clone());
-        { let (__q0,) = (__r0.unwrap(),); __this.lock().borrow_mut().add_renderable_widget(__q0) };
+        { let (__q0,) = (ContainerWidgetAdapter::widget(__r0.unwrap()),); __this.lock().borrow_mut().add_renderable_widget(__q0) };
         if crate::de::hysky::skyblocker::debug::debug::Debug::debug_enabled() {
             { let (__q0,) = ((button::builder(component::null_to_empty(Some("DEBUG")).get_string(), OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| { compat::set_state(&DEBUG, !(compat::get_state(&DEBUG))); })))).bounds((compat::read(__this, |__t| __t.width)).wrapping_sub(40), 0, 40, 20).build(),); __this.lock().borrow_mut().add_renderable_widget(__q0) };
         }
@@ -505,7 +506,7 @@ impl PartyFinderScreen {
                 }
                 let stack = slot_item;
                 if stack.is_item(&items::items().get("player_head")) {
-                    parties.push((PartyEntryBase::new(compat::component_of(stack.get_hover_name()), ItemUtils::get_lore(&stack), __this.clone(), *slot_index) as compat::Shared<dyn PartyEntry>));
+                    parties.push((PartyEntryBase::new(compat::component_of(stack.get_hover_name()), ItemUtils::get_lore(stack), __this.clone(), *slot_index) as compat::Shared<dyn PartyEntry>));
                 } else if stack.is_item(&items::items().get("arrow")) && compat::component_of(stack.get_hover_name()).get_string().to_lowercase().contains("previous") {
                     { let __v = *slot_index; compat::write(__this, |__t| __t.prev_page_slot_id = __v); }
                     { let __v = true; compat::write(__this, |__t| { let __s = &mut *__t; let __r = __s.previous_page_button.as_mut().unwrap(); __s.__widgets.with(&mut __s.base, __r, |__w| __w.active = __v) }); }
@@ -598,7 +599,7 @@ impl PartyFinderScreen {
             PartyFinderScreen::update(__this);
         }
         debug_assert!(mcrust::mcrust::modding::game::with_player(|_| ()).is_some());
-        if !(mcrust::mcrust::modding::game::with_player(|player| player.base.base.base.is_alive()).unwrap_or(false)) || mcrust::mcrust::modding::game::with_player(|player| { use mcrust::net::minecraft::world::entity::entity::Entity as _; player.is_removed() }).unwrap_or(false) && compat::read(__this, |__t| __t.current_page.clone()).unwrap() != Page::Sign {
+        if !(mcrust::mcrust::modding::game::with_player(|player| player.base.base.base.is_alive()).unwrap_or(false)) || mcrust::mcrust::modding::game::with_player(|player| player.base.base.base.base.is_removed()).unwrap_or(false) && compat::read(__this, |__t| __t.current_page.clone()).unwrap() != Page::Sign {
             mcrust::mcrust::modding::game::with_player(|player| { player.close_container(); });
         }
     }

@@ -41,7 +41,7 @@ use mcrust::net::minecraft::network::chat::component::Component as _;
 /// java: private static final int MAX_TEXT_WIDTH = 124;
 pub const MAX_TEXT_WIDTH: i32 = 124;
 /// java: private static final String ELLIPSIS_STRING = CommonComponents.ELLIPSIS.getString();
-pub static ELLIPSIS_STRING: LazyLock<String> = LazyLock::new(|| mcrust::net::minecraft::network::chat::common_components::ELLIPSIS.get_string());
+pub static ELLIPSIS_STRING: LazyLock<String> = LazyLock::new(|| mcrust::net::minecraft::network::chat::common_components::ELLIPSIS.to_string());
 
 /// java: public class SkyblockRecipeResults implements RecipeAreaDisplay
 pub struct SkyblockRecipeResults {
@@ -111,17 +111,16 @@ impl SkyblockRecipeResults {
                 if SkyblockRecipeResults::is_mouse_hovering_text(__this, x.wrapping_add(11), y.wrapping_add(31), mouse_x, mouse_y) {
                     { let __v = Some(component::literal(&craft_text)); compat::write(__this, |__t| __t.hovered_text = __v); }
                 }
-                craft_text = format!("{}{}", text_renderer.plain_substr_by_width(&craft_text, MAX_TEXT_WIDTH), ELLIPSIS_STRING);
+                craft_text = format!("{}{}", text_renderer.plain_substr_by_width(&craft_text, MAX_TEXT_WIDTH), *ELLIPSIS_STRING);
             }
             gui_graphics_extractor::text_string(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), Some(&craft_text), x.wrapping_add(11), y.wrapping_add(31), mcrust::net::minecraft::util::common_colors::WHITE);
         }
         let mut item_name: MutableComponent = compat::component_of((FlexibleItemStack::get_stack_or_throw(&({ let __f = compat::dispatch(&recipe, |__t| __t.get_outputs()); __f(&recipe) })[0])).get_hover_name());
         if text_renderer.width_of_cached(&mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(item_name.clone())) > MAX_TEXT_WIDTH {
-            let mut trimmed: mcrust::net::minecraft::network::chat::formatted_text::FormattedText = mcrust::net::minecraft::network::chat::formatted_text::FormattedText::composite(vec![mcrust::net::minecraft::network::chat::formatted_text::FormattedText::of(compat::jstring(&text_renderer.substr_by_width(&mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(item_name.clone()), MAX_TEXT_WIDTH))), mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(mcrust::net::minecraft::network::chat::common_components::ELLIPSIS)]);
-            // TODO(fabric2seer): `Language.getVisualOrder` has no Rust method in the port (looked for `get_visual_order` in Language and its supertypes)
-            // rust: let mut ordered: Seq = language::get_instance().get_visual_order(trimmed);
-            let mut ordered: Seq = todo!("fabric2seer: the initialiser of `ordered` (TODO above)");
-            gui_graphics_extractor::draw_formatted_char_sequence(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), &ordered, x.wrapping_add(11), y.wrapping_add(43), mcrust::net::minecraft::util::common_colors::WHITE);
+            let mut trimmed: mcrust::net::minecraft::network::chat::formatted_text::FormattedText = mcrust::net::minecraft::network::chat::formatted_text::FormattedText::composite(vec![text_renderer.substr_by_width(&mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(item_name.clone()), MAX_TEXT_WIDTH), mcrust::net::minecraft::network::chat::formatted_text::FormattedText::of(mcrust::net::minecraft::network::chat::common_components::ELLIPSIS)]);
+            // java: FormattedCharSequence ordered = Language.getInstance().getVisualOrder(trimmed);
+            let mut ordered: Seq = language::get_instance().get_visual_order(&trimmed);
+            gui_graphics_extractor::draw_formatted_char_sequence(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), &sequence_text(&*ordered), x.wrapping_add(11), y.wrapping_add(43), mcrust::net::minecraft::util::common_colors::WHITE);
             if SkyblockRecipeResults::is_mouse_hovering_text(__this, x.wrapping_add(11), y.wrapping_add(43), mouse_x, mouse_y) {
                 { let __v = Some(item_name.clone()); compat::write(__this, |__t| __t.hovered_text = __v); }
             }
@@ -160,25 +159,25 @@ impl SkyblockRecipeResults {
             __this.lock().borrow_mut().recipe_slot_buttons.clear();
             if let Some(__sel1) = recipe.as_ref() && let Some(__view2) = compat::try_view::<SkyblockCraftingRecipe, _>(__sel1) {
                 { let __v = Some(mcrust::net::minecraft::world::item::item_stack::ItemStack::of_one(items::items().get("crafting_table"))); compat::write(__this, |__t| __t.recipe_icon = __v); }
-                let __h0 = ({ let __r = &__this.lock().borrow().result_buttons[(5) as usize]; let __f = compat::dispatch(__r, |__t| __t.set_display_stack()); __f(__r, FlexibleItemStack::get_stack_or_throw(&SkyblockCraftingRecipe::get_grid((&*__view2))[0])) });
+                let __h0 = ({ let __r = &compat::read(__this, |__t| __t.result_buttons[(5) as usize].clone()); let __f = compat::dispatch(__r, |__t| __t.set_display_stack()); __f(__r, FlexibleItemStack::get_stack_or_throw(&SkyblockCraftingRecipe::get_grid((&*__view2))[0])) });
                 __this.lock().borrow_mut().recipe_slot_buttons.push(__h0);
-                let __h0 = ({ let __r = &__this.lock().borrow().result_buttons[(6) as usize]; let __f = compat::dispatch(__r, |__t| __t.set_display_stack()); __f(__r, FlexibleItemStack::get_stack_or_throw(&SkyblockCraftingRecipe::get_grid((&*__view2))[(1) as usize])) });
+                let __h0 = ({ let __r = &compat::read(__this, |__t| __t.result_buttons[(6) as usize].clone()); let __f = compat::dispatch(__r, |__t| __t.set_display_stack()); __f(__r, FlexibleItemStack::get_stack_or_throw(&SkyblockCraftingRecipe::get_grid((&*__view2))[(1) as usize])) });
                 __this.lock().borrow_mut().recipe_slot_buttons.push(__h0);
-                let __h0 = ({ let __r = &__this.lock().borrow().result_buttons[(7) as usize]; let __f = compat::dispatch(__r, |__t| __t.set_display_stack()); __f(__r, FlexibleItemStack::get_stack_or_throw(&SkyblockCraftingRecipe::get_grid((&*__view2))[(2) as usize])) });
+                let __h0 = ({ let __r = &compat::read(__this, |__t| __t.result_buttons[(7) as usize].clone()); let __f = compat::dispatch(__r, |__t| __t.set_display_stack()); __f(__r, FlexibleItemStack::get_stack_or_throw(&SkyblockCraftingRecipe::get_grid((&*__view2))[(2) as usize])) });
                 __this.lock().borrow_mut().recipe_slot_buttons.push(__h0);
-                let __h0 = ({ let __r = &__this.lock().borrow().result_buttons[(10) as usize]; let __f = compat::dispatch(__r, |__t| __t.set_display_stack()); __f(__r, FlexibleItemStack::get_stack_or_throw(&SkyblockCraftingRecipe::get_grid((&*__view2))[(3) as usize])) });
+                let __h0 = ({ let __r = &compat::read(__this, |__t| __t.result_buttons[(10) as usize].clone()); let __f = compat::dispatch(__r, |__t| __t.set_display_stack()); __f(__r, FlexibleItemStack::get_stack_or_throw(&SkyblockCraftingRecipe::get_grid((&*__view2))[(3) as usize])) });
                 __this.lock().borrow_mut().recipe_slot_buttons.push(__h0);
-                let __h0 = ({ let __r = &__this.lock().borrow().result_buttons[(11) as usize]; let __f = compat::dispatch(__r, |__t| __t.set_display_stack()); __f(__r, FlexibleItemStack::get_stack_or_throw(&SkyblockCraftingRecipe::get_grid((&*__view2))[(4) as usize])) });
+                let __h0 = ({ let __r = &compat::read(__this, |__t| __t.result_buttons[(11) as usize].clone()); let __f = compat::dispatch(__r, |__t| __t.set_display_stack()); __f(__r, FlexibleItemStack::get_stack_or_throw(&SkyblockCraftingRecipe::get_grid((&*__view2))[(4) as usize])) });
                 __this.lock().borrow_mut().recipe_slot_buttons.push(__h0);
-                let __h0 = ({ let __r = &__this.lock().borrow().result_buttons[(12) as usize]; let __f = compat::dispatch(__r, |__t| __t.set_display_stack()); __f(__r, FlexibleItemStack::get_stack_or_throw(&SkyblockCraftingRecipe::get_grid((&*__view2))[(5) as usize])) });
+                let __h0 = ({ let __r = &compat::read(__this, |__t| __t.result_buttons[(12) as usize].clone()); let __f = compat::dispatch(__r, |__t| __t.set_display_stack()); __f(__r, FlexibleItemStack::get_stack_or_throw(&SkyblockCraftingRecipe::get_grid((&*__view2))[(5) as usize])) });
                 __this.lock().borrow_mut().recipe_slot_buttons.push(__h0);
-                let __h0 = ({ let __r = &__this.lock().borrow().result_buttons[(15) as usize]; let __f = compat::dispatch(__r, |__t| __t.set_display_stack()); __f(__r, FlexibleItemStack::get_stack_or_throw(&SkyblockCraftingRecipe::get_grid((&*__view2))[(6) as usize])) });
+                let __h0 = ({ let __r = &compat::read(__this, |__t| __t.result_buttons[(15) as usize].clone()); let __f = compat::dispatch(__r, |__t| __t.set_display_stack()); __f(__r, FlexibleItemStack::get_stack_or_throw(&SkyblockCraftingRecipe::get_grid((&*__view2))[(6) as usize])) });
                 __this.lock().borrow_mut().recipe_slot_buttons.push(__h0);
-                let __h0 = ({ let __r = &__this.lock().borrow().result_buttons[(16) as usize]; let __f = compat::dispatch(__r, |__t| __t.set_display_stack()); __f(__r, FlexibleItemStack::get_stack_or_throw(&SkyblockCraftingRecipe::get_grid((&*__view2))[(7) as usize])) });
+                let __h0 = ({ let __r = &compat::read(__this, |__t| __t.result_buttons[(16) as usize].clone()); let __f = compat::dispatch(__r, |__t| __t.set_display_stack()); __f(__r, FlexibleItemStack::get_stack_or_throw(&SkyblockCraftingRecipe::get_grid((&*__view2))[(7) as usize])) });
                 __this.lock().borrow_mut().recipe_slot_buttons.push(__h0);
-                let __h0 = ({ let __r = &__this.lock().borrow().result_buttons[(17) as usize]; let __f = compat::dispatch(__r, |__t| __t.set_display_stack()); __f(__r, FlexibleItemStack::get_stack_or_throw(&SkyblockCraftingRecipe::get_grid((&*__view2))[(8) as usize])) });
+                let __h0 = ({ let __r = &compat::read(__this, |__t| __t.result_buttons[(17) as usize].clone()); let __f = compat::dispatch(__r, |__t| __t.set_display_stack()); __f(__r, FlexibleItemStack::get_stack_or_throw(&SkyblockCraftingRecipe::get_grid((&*__view2))[(8) as usize])) });
                 __this.lock().borrow_mut().recipe_slot_buttons.push(__h0);
-                let __h0 = ({ let __r = &__this.lock().borrow().result_buttons[(14) as usize]; let __f = compat::dispatch(__r, |__t| __t.set_display_stack()); __f(__r, FlexibleItemStack::get_stack_or_throw(&SkyblockCraftingRecipe::get_result((&*__view2)))) });
+                let __h0 = ({ let __r = &compat::read(__this, |__t| __t.result_buttons[(14) as usize].clone()); let __f = compat::dispatch(__r, |__t| __t.set_display_stack()); __f(__r, FlexibleItemStack::get_stack_or_throw(&SkyblockCraftingRecipe::get_result((&*__view2)))) });
                 __this.lock().borrow_mut().recipe_slot_buttons.push(__h0);
             } else if let Some(__sel3) = recipe.as_ref() && let Some(__view4) = compat::try_view::<SkyblockForgeRecipe, _>(__sel3) {
                 { let __v = Some(mcrust::net::minecraft::world::item::item_stack::ItemStack::of_one(items::items().get("lava_bucket"))); compat::write(__this, |__t| __t.recipe_icon = __v); }
@@ -200,12 +199,13 @@ impl SkyblockRecipeResults {
                     let __h0 = ({ let __r = &(SkyblockRecipeResultButtonBase::new_2(x, y) as compat::Shared<dyn SkyblockRecipeResultButton>); let __f = compat::dispatch(__r, |__t| __t.set_display_stack()); __f(__r, FlexibleItemStack::get_stack_or_throw(&(({ let __r = (&*__view4); let __f = compat::dispatch(__r, |__t| __t.get_inputs()); __f(&compat::view(__r, |a| a as compat::Shared<dyn SkyblockRecipe>)) }))[(i) as usize])) });
                     __this.lock().borrow_mut().recipe_slot_buttons.push(__h0);
                 }
-                let __h0 = ({ let __r = &__this.lock().borrow().result_buttons[(14) as usize]; let __f = compat::dispatch(__r, |__t| __t.set_display_stack()); __f(__r, FlexibleItemStack::get_stack_or_throw(&SkyblockForgeRecipe::get_result((&*__view4)))) });
+                let __h0 = ({ let __r = &compat::read(__this, |__t| __t.result_buttons[(14) as usize].clone()); let __f = compat::dispatch(__r, |__t| __t.set_display_stack()); __f(__r, FlexibleItemStack::get_stack_or_throw(&SkyblockForgeRecipe::get_result((&*__view4)))) });
                 __this.lock().borrow_mut().recipe_slot_buttons.push(__h0);
-            } else if let Some(__sel5) = recipe.as_ref() && let Some(centered_recipe) = __sel5.lock().borrow().as_any().downcast_ref::<compat::Shared<dyn CenteredRecipe>>() {
+            } else if let Some(__centered) = recipe.as_ref().and_then(as_centered_recipe) {
+                let centered_recipe = &__centered;
                 { let __v = Some(FlexibleItemStack::get_stack_or_throw(&({ let __f = compat::dispatch(centered_recipe, |__t| __t.get_icon()); __f(centered_recipe) }))); compat::write(__this, |__t| __t.recipe_icon = __v); }
                 if ({ let __f = compat::dispatch(centered_recipe, |__t| __t.get_representative()); __f(centered_recipe) }).is_some() {
-                    let __h0 = ({ let __r = &__this.lock().borrow().result_buttons[(8) as usize]; let __f = compat::dispatch(__r, |__t| __t.set_display_stack()); __f(__r, FlexibleItemStack::get_stack_or_throw(&({ let __f = compat::dispatch(centered_recipe, |__t| __t.get_representative()); __f(centered_recipe) }).unwrap())) });
+                    let __h0 = ({ let __r = &compat::read(__this, |__t| __t.result_buttons[(8) as usize].clone()); let __f = compat::dispatch(__r, |__t| __t.set_display_stack()); __f(__r, FlexibleItemStack::get_stack_or_throw(&({ let __f = compat::dispatch(centered_recipe, |__t| __t.get_representative()); __f(centered_recipe) }).unwrap())) });
                     __this.lock().borrow_mut().recipe_slot_buttons.push(__h0);
                 }
                 let mut slots_per_row: i32 = 3;
@@ -224,7 +224,7 @@ impl SkyblockRecipeResults {
                     let __h0 = ({ let __r = &(SkyblockRecipeResultButtonBase::new_2(x, y) as compat::Shared<dyn SkyblockRecipeResultButton>); let __f = compat::dispatch(__r, |__t| __t.set_display_stack()); __f(__r, FlexibleItemStack::get_stack_or_throw(&(({ let __f = compat::dispatch(centered_recipe, |__t| __t.get_inputs()); __f(&compat::view(centered_recipe, |a| a as compat::Shared<dyn SkyblockRecipe>)) }))[(i) as usize])) });
                     __this.lock().borrow_mut().recipe_slot_buttons.push(__h0);
                 }
-                let __h0 = ({ let __r = &__this.lock().borrow().result_buttons[(14) as usize]; let __f = compat::dispatch(__r, |__t| __t.set_display_stack()); __f(__r, FlexibleItemStack::get_stack_or_throw(&(({ let __f = compat::dispatch(centered_recipe, |__t| __t.get_outputs()); __f(&compat::view(centered_recipe, |a| a as compat::Shared<dyn SkyblockRecipe>)) }))[0])) });
+                let __h0 = ({ let __r = &compat::read(__this, |__t| __t.result_buttons[(14) as usize].clone()); let __f = compat::dispatch(__r, |__t| __t.set_display_stack()); __f(__r, FlexibleItemStack::get_stack_or_throw(&(({ let __f = compat::dispatch(centered_recipe, |__t| __t.get_outputs()); __f(&compat::view(centered_recipe, |a| a as compat::Shared<dyn SkyblockRecipe>)) }))[0])) });
                 __this.lock().borrow_mut().recipe_slot_buttons.push(__h0);
             } else {
             }
@@ -233,9 +233,9 @@ impl SkyblockRecipeResults {
             for i in 0..(__this.lock().borrow().result_buttons.len() as i32) {
                 let mut index: i32 = ((compat::read(__this, |__t| __t.current_page)).wrapping_mul(__this.lock().borrow().result_buttons.len() as i32)).wrapping_add(i);
                 if index < (__this.lock().borrow().search_results.len() as i32) {
-                    ({ let __r = &__this.lock().borrow().result_buttons[(i) as usize]; let __f = compat::dispatch(__r, |__t| __t.set_display_stack()); __f(__r, __this.lock().borrow().search_results[(index) as usize].clone()) });
+                    ({ let __r = &compat::read(__this, |__t| __t.result_buttons[(i) as usize].clone()); let __f = compat::dispatch(__r, |__t| __t.set_display_stack()); __f(__r, compat::read(__this, |__t| __t.search_results[(index) as usize].clone())) });
                 } else {
-                    ({ let __r = &__this.lock().borrow().result_buttons[(i) as usize]; let __f = compat::dispatch(__r, |__t| __t.clear_display_stack()); __f(__r) });
+                    ({ let __r = &compat::read(__this, |__t| __t.result_buttons[(i) as usize].clone()); let __f = compat::dispatch(__r, |__t| __t.clear_display_stack()); __f(__r) });
                 }
             }
         }
@@ -255,8 +255,7 @@ impl SkyblockRecipeResults {
     pub fn get_hovered_item_stack(__this: &compat::Shared<Self>, mut mouse_x: f64, mut mouse_y: f64) -> Option<mcrust::net::minecraft::world::item::item_stack::ItemStack> {
         let __wa1 = mouse_x;
         let __wa2 = mouse_y;
-        let __o1 = btn.clone();
-        return compat::read(__this, |__t| __t.result_buttons.clone()).into_iter().filter(|btn| compat::write(&__o1, |__t| __t.skyblock_recipe_result_button_base_mut().is_mouse_over(__wa1, __wa2))).next().and_then(|__a0| ({ let __f = compat::dispatch(&__a0, |__t| __t.get_display_stack()); __f(&__a0) }));
+        return compat::read(__this, |__t| __t.result_buttons.clone()).into_iter().filter(|btn| compat::write(btn, |__t| __t.skyblock_recipe_result_button_base_mut().is_mouse_over(__wa1, __wa2))).next().and_then(|__a0| ({ let __f = compat::dispatch(&__a0, |__t| __t.get_display_stack()); __f(&__a0) }));
     }
 
 }
@@ -420,11 +419,11 @@ impl SkyblockRecipeResults {
     /// java: @Override public boolean mouseClicked(MouseButtonEvent click, boolean doubled)
     pub fn mouse_clicked_impl(__this: &compat::Shared<Self>, click: &MouseButtonEvent, mut doubled: bool) -> bool {
         // TODO(fabric2seer): `mouse_clicked` takes 3 argument(s) in the port (`button: i32, x: f64, y: f64`), Java passes 2
-        if { let (__q0, __q1,) = (click.clone(), doubled,); __this.lock().borrow().next_page_button.as_ref().unwrap().mouse_clicked(__q0, __q1) }.is_some() {
+        if { let (__q0, __q1,) = (click.clone(), doubled,); __this.lock().borrow().next_page_button.as_ref().unwrap().mouse_clicked(__q0.button(), __q0.x(), __q0.y()).is_some() } {
             { let __v = compat::read(__this, |__t| __t.current_page) + 1; compat::write(__this, |__t| __t.current_page = __v); }
             SkyblockRecipeResults::update_result_buttons(__this);
             return true;
-        } else if { let (__q0, __q1,) = (click.clone(), doubled,); __this.lock().borrow().prev_page_button.as_ref().unwrap().mouse_clicked(__q0, __q1) }.is_some() {
+        } else if { let (__q0, __q1,) = (click.clone(), doubled,); __this.lock().borrow().prev_page_button.as_ref().unwrap().mouse_clicked(__q0.button(), __q0.x(), __q0.y()).is_some() } {
             { let __v = compat::read(__this, |__t| __t.current_page) - 1; compat::write(__this, |__t| __t.current_page = __v); }
             SkyblockRecipeResults::update_result_buttons(__this);
             return true;
@@ -451,7 +450,7 @@ impl SkyblockRecipeResults {
             let __wa7 = click.clone();
             let __wa8 = doubled;
             let __o4 = result_button.clone();
-            if compat::write(&__o4, |__t| __t.skyblock_recipe_result_button_base_mut().mouse_clicked(__wa7.clone(), __wa8).is_some()) {
+            if compat::write(&__o4, |__t| __t.skyblock_recipe_result_button_base_mut().mouse_clicked(__wa7.button(), __wa7.x(), __wa7.y()).is_some()) {
                 let mut item_id: String = ({ let __f = compat::dispatch(&result_button, |__t| __t.get_display_stack()); __f(&result_button) }).unwrap().get_skyblock_id();
                 if item_id.is_empty() {
                     continue;
@@ -495,4 +494,36 @@ impl SkyblockRecipeResults {
         Self::key_pressed_impl(&compat::view_as::<Self, _, Self>(__this, |a| a), __p0, __p1, __p2)
     }
 
+}
+
+/// java: `recipe instanceof CenteredRecipe centeredRecipe` - the recipe as a `CenteredRecipe` when its class is one of
+/// the interface's implementers
+fn as_centered_recipe(recipe: &compat::Shared<dyn SkyblockRecipe>) -> Option<compat::Shared<dyn CenteredRecipe>> {
+    use crate::de::hysky::skyblocker::skyblock::itemlist::recipes::skyblock_kat_upgrade_recipe::SkyblockKatUpgradeRecipe;
+    use crate::de::hysky::skyblocker::skyblock::itemlist::recipes::skyblock_npc_shop_recipe::SkyblockNpcShopRecipe;
+    if compat::try_view::<SkyblockKatUpgradeRecipe, _>(recipe).is_some() {
+        return Some(compat::handle_as::<SkyblockKatUpgradeRecipe, _>(recipe) as compat::Shared<dyn CenteredRecipe>);
+    }
+    if compat::try_view::<SkyblockNpcShopRecipe, _>(recipe).is_some() {
+        return Some(compat::handle_as::<SkyblockNpcShopRecipe, _>(recipe) as compat::Shared<dyn CenteredRecipe>);
+    }
+    None
+}
+
+/// The port draws a `FormattedText` where Java draws a `FormattedCharSequence`: the sequence's styled
+/// characters, gathered back into runs of one style each.
+fn sequence_text(seq: &dyn FormattedCharSequence) -> mcrust::net::minecraft::network::chat::formatted_text::FormattedText {
+    use mcrust::net::minecraft::network::chat::formatted_text::FormattedText;
+    use mcrust::net::minecraft::network::chat::style::Style;
+    let mut runs: Vec<(Style, String)> = Vec::new();
+    seq.accept(&mut |_position: i32, style: &Style, codepoint: u32| {
+        if let Some(c) = char::from_u32(codepoint) {
+            match runs.last_mut() {
+                Some((s, text)) if s == style => text.push(c),
+                _ => runs.push((style.clone(), c.to_string())),
+            }
+        }
+        true
+    });
+    FormattedText::composite(runs.into_iter().map(|(style, text)| FormattedText::of_styled(text, style)).collect())
 }

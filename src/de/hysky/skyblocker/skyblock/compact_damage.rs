@@ -40,11 +40,11 @@ impl CompactDamage {
         let Some(mut custom_name) = entity.base.base.get_custom_name() else {
             return;
         };
-        let Some(mut prettier_custom_name) = CompactDamage::compact_damage_component(&custom_name) else {
+        let Some(mut prettier_custom_name) = CompactDamage::compact_damage_component(&compat::component_of(custom_name)) else {
             return;
         };
-        // TODO(fabric2seer): `ArmorStand.skyblocker$setCustomName` has no Rust method in the port (looked for `skyblocker_set_custom_name` in ArmorStand and JavaSrc)
-        // rust: entity.skyblocker_set_custom_name(&prettier_custom_name);
+        // the `EntityMixin` field (`SkyblockerEntity`, an attachment of the entity)
+        entity.skyblocker_set_custom_name(&prettier_custom_name);
     }
 
     /// java: @VisibleForTesting public static @Nullable Component compactDamage(Component customName)
@@ -61,41 +61,34 @@ impl CompactDamage {
         }
         let mut is_crit: bool = !(matcher.group(1).unwrap().is_empty());
         let mut dmg: String = compat::regex::replace_all(&custom_name_string, "\\D", "");
-        // TODO(fabric2seer): the condition: static call NumberUtils.isParsable(..)
-        //   java: !NumberUtils.isParsable(dmg)
-        if todo!("fabric2seer: the condition (TODO above)") {
+        // java: !NumberUtils.isParsable(dmg) - commons-lang is not ported; `dmg` holds only the digits (`\D` removed), and
+        // for such a string `isParsable` is non-emptiness
+        if dmg.is_empty() {
             return None;
         }
         let mut text_color: Option<TextColor> = siblings[0].get_style().get_color();
         let mut prettier_custom_name: MutableComponent = component::empty();
-        let mut prettified_dmg: String = CompactDamage::prettify_damage_number(dmg.trim().parse::<i64>().expect("NumberFormatException"), config.max_precision);
+        let mut prettified_dmg: String = CompactDamage::prettify_damage_number(dmg.parse::<i64>().expect("NumberFormatException"), config.max_precision);
         if is_crit {
             let mut dmg_symbol: String = matcher.group(1).unwrap();
             prettified_dmg = format!("{}{}{}", dmg_symbol, prettified_dmg, dmg_symbol);
             let mut length: i32 = compat::str_len(&prettified_dmg);
             for i in 0..length {
-                // TODO(fabric2seer): `.getRGB(..)` on a Color
-                //   java: prettierCustomName.append(Component.literal(prettifiedDmg.substring(i, i + 1)).withColor(
-                //   java: 						OkLabColor.interpolate(
-                //   java: 								config.critDamageGradientStart.getRGB() & 0x00_FF_FF_FF,
-                //   java: 								config.critDamageGradientEnd.getRGB() & 0x00_FF_FF_FF,
-                //   java: 								i / (length - 1.0f)
-                //   java: 						)
-                //   java: 				));
+                prettier_custom_name = prettier_custom_name.append(component::literal(&compat::substring2(&prettified_dmg, i, i.wrapping_add(1))).with_color(crate::de::hysky::skyblocker::utils::ok_lab_color::OkLabColor::interpolate(config.crit_damage_gradient_start.get_rgb() & 0x00_FF_FF_FF, config.crit_damage_gradient_end.get_rgb() & 0x00_FF_FF_FF, (i as f32) / ((length as f32) - 1.0f32))));
             }
-            prettier_custom_name.set_style(custom_name.get_style().clone());
+            prettier_custom_name = prettier_custom_name.set_style(custom_name.get_style().clone());
         } else {
             let mut color: i32;
-            if text_color.is_none() || std::ptr::eq(text_color.as_ref().unwrap(), &TextColor::from_legacy_format(ChatFormatting::Gray).unwrap()) {
-                // TODO(fabric2seer): `.getRGB(..)` on a Color
-                //   java: color = config.normalDamageColor.getRGB() & 0x00_FF_FF_FF;
+            // `textColor == TextColor.fromLegacyFormat(GRAY)`: the legacy colours are interned, so identity is value equality
+            if text_color.is_none() || *text_color.as_ref().unwrap() == TextColor::from_legacy_format(ChatFormatting::Gray).unwrap() {
+                color = config.normal_damage_color.get_rgb() & 0x00_FF_FF_FF;
             } else {
                 color = text_color.as_ref().unwrap().get_value();
             }
             prettier_custom_name = component::literal(&prettified_dmg).set_style(custom_name.get_style().clone()).with_color(color);
         }
         if !(matcher.group(2).unwrap().is_empty()) {
-            prettier_custom_name.append(component::literal(matcher.group(2).as_deref().unwrap()).set_style((siblings[siblings.len() - 1]).get_style().clone()));
+            prettier_custom_name = prettier_custom_name.append(component::literal(matcher.group(2).as_deref().unwrap()).set_style((siblings[siblings.len() - 1]).get_style().clone()));
         }
         return Some(prettier_custom_name);
     }

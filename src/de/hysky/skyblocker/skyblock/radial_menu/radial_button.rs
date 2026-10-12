@@ -79,9 +79,8 @@ impl RadialButton {
 
     /// java: @Override public ScreenRectangle getRectangle()
     pub fn get_rectangle(&self) -> ScreenRectangle {
-        // TODO(fabric2seer): `.getRectangle(..)` on a value of unknown type
-        //   java: return GuiEventListener.super.getRectangle();
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        // java: return GuiEventListener.super.getRectangle(); - `ScreenRectangle.empty()`
+        return ScreenRectangle::empty();
     }
 
     /// java: @Override public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float deltaTicks)
@@ -107,7 +106,7 @@ impl RadialButton {
         graphics.item(&self.icon, ((icon_pos.x) as i32), ((icon_pos.y) as i32));
         graphics.item_decorations(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), &self.icon, ((icon_pos.x) as i32), ((icon_pos.y) as i32));
         SlotTextManager::extract_slot_text_7(graphics, &compat::font(), None, &self.icon, self.linked_slot, ((icon_pos.x) as i32), ((icon_pos.y) as i32));
-        if hovered && GuiHelper::has_shift_down() || SkyblockerConfigManager::get().ui_and_visuals.radial_menu.tooltips_without_shift {
+        if hovered && (GuiHelper::has_shift_down() || SkyblockerConfigManager::get().ui_and_visuals.radial_menu.tooltips_without_shift) {
             if compat::minecraft().gui.screen().is_some() && compat::minecraft().gui.screen().unwrap().get_title().to_string() == "Storage" {
                 BackpackPreview::extract_preview(graphics, &compat::minecraft().gui.screen().unwrap(), self.linked_slot, mouse_x, mouse_y);
             } else {
@@ -118,22 +117,19 @@ impl RadialButton {
     }
 
     /// java: @Override public NarrationPriority narrationPriority()
-    pub fn narration_priority(&self) -> crate::unresolved::NarrationPriority {
+    pub fn narration_priority(&self) -> mcrust::net::minecraft::client::gui::narration::narratable_entry::NarrationPriority {
+        use mcrust::net::minecraft::client::gui::narration::narratable_entry::NarrationPriority;
         if self.is_focused() {
-            // TODO(fabric2seer): field `FOCUSED` of a value of unknown type
-            //   java: return NarratableEntry.NarrationPriority.FOCUSED;
+            return NarrationPriority::Focused;
         } else {
-            // TODO(fabric2seer): field `HOVERED` of a value of unknown type
-            //   java: return this.getHovered.getAsBoolean() ? NarratableEntry.NarrationPriority.HOVERED : NarratableEntry.NarrationPriority.NONE;
+            return if (self.get_hovered)() { NarrationPriority::Hovered } else { NarrationPriority::None };
         }
-        todo!("fabric2seer: the value of this function is in a TODO above")
     }
 
     /// java: @Override public boolean isActive()
     pub fn is_active(&self) -> bool {
-        // TODO(fabric2seer): `.isActive(..)` on a value of unknown type
-        //   java: return NarratableEntry.super.isActive();
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        // java: return NarratableEntry.super.isActive(); - `true`
+        return true;
     }
 
     /// java: @Override public Collection<? extends NarratableEntry> getNarratables()
@@ -189,4 +185,45 @@ impl RadialButton {
         return false;
     }
 
+}
+
+impl RadialButton {
+    /// `addRenderableWidget(button)`: the game's widget drawing this button (`Renderable`) and narrating it. The
+    /// button is immutable (every field `final`), so the widget's copy and the screen's `buttons` entry are the same
+    /// value. As a `GuiEventListener` it keeps the interface's defaults: never under the mouse, takes no click.
+    pub fn widget(button: RadialButton) -> AbstractWidget {
+        mcrust::mcrust::modding::widgets::ModWidgetSlot::widget(0, 0, 0, 0, String::new(), Box::new(RadialButtonWidget { button: compat::RenderThread::new(button) }))
+    }
+}
+
+/// `RadialButton` in the screen's widget list (see `RadialButton::widget`).
+pub struct RadialButtonWidget {
+    pub button: compat::RenderThread<RadialButton>,
+}
+
+impl mcrust::mcrust::modding::widgets::ModWidget for RadialButtonWidget {
+    /// java: @Override public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float deltaTicks)
+    fn extract_widget_render_state(&mut self, _widget: &AbstractWidget, context: &mut mcrust::mcrust::modding::widgets::WidgetRenderContext<'_>, mouse_x: i32, mouse_y: i32, a: f32) {
+        self.button.get().extract_render_state(&mut context.graphics, mouse_x, mouse_y, a);
+    }
+
+    /// java: @Override public void updateNarration(NarrationElementOutput builder)
+    fn update_widget_narration(&mut self, _widget: &AbstractWidget, output: &mut dyn NarrationElementOutput) {
+        self.button.get().update_narration(output);
+    }
+
+    /// `GuiEventListener.mouseClicked` - `false`
+    fn mouse_clicked(&mut self, _widget: &mut AbstractWidget, _event: &mcrust::net::minecraft::client::input::mouse_button_event::MouseButtonEvent, _double_click: bool) -> bool {
+        false
+    }
+
+    /// `GuiEventListener.isMouseOver` - `false`
+    fn is_mouse_over(&self, _widget: &AbstractWidget, _mouse_x: f64, _mouse_y: f64) -> bool {
+        false
+    }
+
+    /// java: @Override public NarrationPriority narrationPriority()
+    fn narration_priority(&self, _widget: &AbstractWidget, _super_answer: mcrust::net::minecraft::client::gui::narration::narratable_entry::NarrationPriority) -> mcrust::net::minecraft::client::gui::narration::narratable_entry::NarrationPriority {
+        self.button.get().narration_priority()
+    }
 }

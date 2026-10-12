@@ -121,7 +121,7 @@ impl CreeperBeams {
         let mut result: Vec<Beam> = Vec::new();
         all_lines.sort_by(|a, b| { let key = |__a0: &(Beam, f64)| __a0.1; key(a).total_cmp(&key(b)) });
         while (result.len() as i32) < 5 && !all_lines.is_empty() {
-            let solution = &all_lines[0].0;
+            let solution: Beam = all_lines[0].0.clone();
             result.push(solution.clone());
             all_lines.remove(0);
             all_lines.retain(|beam| !(solution.contains_component_of(&beam.0)));

@@ -35,7 +35,16 @@ use mcrust::net::minecraft::network::chat::component::Component as _;
 //   java: 			Object2ObjectMap.entry(Items.DYED_TERRACOTTA.pink(), Items.STAINED_GLASS.pink())
 //   java: 	);
 /// java: public static final Object2ObjectMap<Item, Item> TERRACOTTA_TO_GLASS = Object2ObjectMap.ofEntries( Object2ObjectMap.entry(Items.DYED_TERRACOTTA.red(), Items.STAINED_GLASS.red()), Object2ObjectMap.entr
-pub static TERRACOTTA_TO_GLASS: compat::MainThread<std::collections::HashMap<Arc<Item>, Arc<Item>>> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `TERRACOTTA_TO_GLASS` - see the TODO above"));
+/// (`Item` keeps `Object.equals`: the map is its entries, looked up by identity)
+pub static TERRACOTTA_TO_GLASS: compat::MainThread<Vec<(Arc<Item>, Arc<Item>)>> = compat::MainThread::new(|| {
+    use mcrust::net::minecraft::world::item::items;
+    vec![(items::dyed_terracotta().red().clone(), items::stained_glass().red().clone()), (items::dyed_terracotta().orange().clone(), items::stained_glass().orange().clone()), (items::dyed_terracotta().yellow().clone(), items::stained_glass().yellow().clone()), (items::dyed_terracotta().lime().clone(), items::stained_glass().lime().clone()), (items::dyed_terracotta().green().clone(), items::stained_glass().green().clone()), (items::dyed_terracotta().cyan().clone(), items::stained_glass().cyan().clone()), (items::dyed_terracotta().light_blue().clone(), items::stained_glass().light_blue().clone()), (items::dyed_terracotta().blue().clone(), items::stained_glass().blue().clone()), (items::dyed_terracotta().purple().clone(), items::stained_glass().purple().clone()), (items::dyed_terracotta().pink().clone(), items::stained_glass().pink().clone())]
+});
+
+/// java: `TERRACOTTA_TO_GLASS.get(item)` - `null` (`None`) for an item that is not a key
+fn terracotta_to_glass(item: &Arc<Item>) -> Option<Arc<Item>> {
+    TERRACOTTA_TO_GLASS.get().iter().find(|(k, _)| Arc::ptr_eq(k, item)).map(|(_, v)| v.clone())
+}
 
 /// java: public final class ChronomatronSolver extends ExperimentSolver implements ContainerListener
 pub struct ChronomatronSolver {
@@ -104,7 +113,7 @@ impl ChronomatronSolver {
                     if compat::read(__this, |__t| __t.chronomatron_current_slot) == 0 {
                         if stack.has_foil() {
                             if (__this.lock().borrow().chronomatron_slots.len() as i32) <= compat::read(__this, |__t| __t.chronomatron_chain_length_count) {
-                                let __h0 = TERRACOTTA_TO_GLASS.get_mut().get(&stack.get_item()).cloned().unwrap();
+                                let __h0 = terracotta_to_glass(&stack.get_item()).expect("NullPointerException");
                                 __this.lock().borrow_mut().chronomatron_slots.push(__h0);
                                 ({ let __f = compat::dispatch(__this, |__t| __t.set_state()); __f(&compat::view(__this, |a| a as compat::Shared<dyn ExperimentSolver>), State::Wait) });
                             } else {
@@ -276,7 +285,7 @@ impl ChronomatronSolver {
                 let mut index: i32 = index_stack.0;
                 let stack = &index_stack.1;
                 let mut item: Arc<Item> = __this.lock().borrow().chronomatron_slots[(compat::read(__this, |__t| __t.chronomatron_current_ordinal)) as usize].clone();
-                if stack.is_item(&item) || std::ptr::addr_eq(std::sync::Arc::as_ptr(&TERRACOTTA_TO_GLASS.get_mut().get(&stack.get_item()).cloned().unwrap()), std::sync::Arc::as_ptr(&item)) {
+                if stack.is_item(&item) || /* java: item == TERRACOTTA_TO_GLASS.get(stack.getItem()) */ terracotta_to_glass(&stack.get_item()).is_some_and(|__g| Arc::ptr_eq(&__g, &item)) {
                     highlights.push(ColorHighlight::green(index));
                 }
             }
@@ -293,7 +302,7 @@ impl ChronomatronSolver {
     pub fn on_click_slot_impl(__this: &compat::Shared<Self>, mut slot: i32, stack: &mcrust::net::minecraft::world::item::item_stack::ItemStack, mut screen_id: i32, mut button: i32) -> bool {
         if ({ let __f = compat::dispatch(__this, |__t| __t.get_state()); __f(&compat::view(__this, |a| a as compat::Shared<dyn ExperimentSolver>)) }) == State::Show {
             let mut item: Arc<Item> = __this.lock().borrow().chronomatron_slots[(compat::read(__this, |__t| __t.chronomatron_current_ordinal)) as usize].clone();
-            if stack.is_item(&item) || std::ptr::addr_eq(std::sync::Arc::as_ptr(&TERRACOTTA_TO_GLASS.get_mut().get(&stack.get_item()).cloned().unwrap()), std::sync::Arc::as_ptr(&item)) {
+            if stack.is_item(&item) || /* java: item == TERRACOTTA_TO_GLASS.get(stack.getItem()) */ terracotta_to_glass(&stack.get_item()).is_some_and(|__g| Arc::ptr_eq(&__g, &item)) {
                 // TODO(fabric2seer): the condition: ++/-- inside an expression
                 //   java: ++chronomatronCurrentOrdinal >= chronomatronSlots.size()
                 if todo!("fabric2seer: the condition (TODO above)") {
@@ -333,7 +342,7 @@ impl ChronomatronSolver {
         { let __v = 0; compat::write(__this, |__t| __t.chronomatron_chain_length_count = __v); }
         { let __v = 0; compat::write(__this, |__t| __t.chronomatron_current_slot = __v); }
         { let __v = 0; compat::write(__this, |__t| __t.chronomatron_current_ordinal = __v); }
-        if compat::read(__this, |__t| __t.screen.clone()).is_some() {
+        if compat::read(__this, |__t| __t.screen.is_some()) {
             // TODO(fabric2seer): `removeSlotListener` on a Object
             //   java: screen.getMenu().removeSlotListener(this);
         }

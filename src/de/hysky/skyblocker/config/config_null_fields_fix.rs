@@ -19,10 +19,10 @@ impl ConfigNullFieldsFix {
 
     /// java: public static void init()
     pub fn init() {
-        SkyblockerConfigManager::update(Arc::new(move |config| {
+        SkyblockerConfigManager::update(Arc::new(move |mut config| {
             // java: try {..} catch (Exception e) - an exception here is a panic, caught by `catch_unwind`
             let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                ConfigNullFieldsFix::fix_null_fields((std::sync::Arc::new(config.clone()) as compat::Object), &SkyblockerConfig::new());
+                ConfigNullFieldsFix::fix_null_fields(config, &SkyblockerConfig::new());
             }));
             if let Err(e) = __result {
                 logger().error(&format!("[Skyblocker Config Null Fields Fixer] Failed to ensure that the config has no null fields! You may encounter crashes :("));
@@ -31,7 +31,10 @@ impl ConfigNullFieldsFix {
     }
 
     /// java: private static void fixNullFields(Object config, Object defaultConfig) throws Exception
-    pub fn fix_null_fields(mut config: compat::Object, default_config: &compat::Object) {
+    ///
+    /// `Object` parameters: the objects themselves (`&dyn Any`).
+    /// rust: port gap - the body walks `getDeclaredFields()` (Java reflection), which Rust has no counterpart for (GAPS_batchG).
+    pub fn fix_null_fields(config: &mut dyn std::any::Any, default_config: &dyn std::any::Any) {
         // TODO(fabric2seer): `.getDeclaredFields(..)` on a Class
         //   java: for (Field field : config.getClass().getDeclaredFields()) {
         //   java: 			field.setAccessible(true);

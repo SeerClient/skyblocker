@@ -89,7 +89,9 @@ impl SkyblockRecipeBookComponent {
 
     /// java: @Override protected void initVisuals()
     pub fn init_visuals(__this: &compat::Shared<Self>) {
-        { let __v = (if compat::read(__this, |__t| __t.width_too_narrow) { 0 } else { OFFSET_X_POSITION }); compat::write(__this, |__t| __t.x_offset = __v); }
+        // java: this.xOffset = this.widthTooNarrow ? 0 : OFFSET_X_POSITION;
+        // rust: port gap - `RecipeBookComponent.xOffset` / `widthTooNarrow` (protected) are private to the port's class, so a
+        // mod subclass cannot write them (GAPS_batchF.md)
         // TODO(fabric2seer): `.invokeGetXOrigin(..)` on a RecipeBookComponentAccessor
         //   java: int left = accessor().invokeGetXOrigin();
         let mut left: i32 = todo!("fabric2seer: the initialiser of `left` (TODO above)");
@@ -147,16 +149,16 @@ impl SkyblockRecipeBookComponent {
         }
         if compat::read(__this, |__t| __t.current_tab.clone()).is_some() {
             let __this_w4 = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
-            { let __v = compat::read(__this, |__t| __t.tab_buttons.clone()).into_iter().filter(|button| { let Some(__this_4) = __this_w4.get().upgrade() else { return Default::default(); }; (button.0 == compat::read((&__this_4), |__t| __t.current_tab.clone()).0) }).next(); compat::write(__this, |__t| __t.current_tab = __v); }
+            { let __v = compat::read(__this, |__t| __t.tab_buttons.clone()).into_iter().filter(|button| { let Some(__this_4) = __this_w4.get().upgrade() else { return Default::default(); }; std::sync::Arc::ptr_eq(&button.0, &compat::read((&__this_4), |__t| __t.current_tab.clone()).expect("NullPointerException").0) }).next(); compat::write(__this, |__t| __t.current_tab = __v); }
         }
         if compat::read(__this, |__t| __t.current_tab.clone()).is_none() {
             { let __v = Some(__this.lock().borrow().tab_buttons[0].clone()); compat::write(__this, |__t| __t.current_tab = __v); }
         }
-        SkyblockRecipeTabButton::select(&compat::read(__this, |__t| __t.current_tab.clone()).1);
+        SkyblockRecipeTabButton::select(&compat::read(__this, |__t| __t.current_tab.clone()).expect("NullPointerException").1);
         SkyblockRecipeBookComponent::update_tabs(__this, false);
-        ({ let __r = &compat::read(__this, |__t| __t.current_tab.clone()).0; let __f = compat::dispatch(__r, |__t| __t.initialize()); __f(&compat::view(__r, |a| a as compat::Shared<dyn RecipeAreaDisplay>), compat::minecraft(), left, top) });
+        ({ let __r = &compat::read(__this, |__t| __t.current_tab.clone()).expect("NullPointerException").0; let __f = compat::dispatch(__r, |__t| __t.initialize()); __f(&compat::view(__r, |a| a as compat::Shared<dyn RecipeAreaDisplay>), compat::minecraft(), left, top) });
         // TODO(fabric2seer): `RecipeBookComponent.searchBox` has no Rust field in the port (searched net.minecraft.client.gui.screens.recipebook.RecipeBookComponent and its supertypes)
-        // rust: ({ let __r = &compat::read(__this, |__t| __t.current_tab.clone()).0; let __f = compat::dispatch(__r, |__t| __t.update_search_results()); __f(&compat::view(__r, |a| a as compat::Shared<dyn RecipeAreaDisplay>), &__this.lock().borrow().search_box.get_value().to_lowercase(), CyclingTextureWidget::get_current(&compat::read(__this, |__t| __t.filter_option.clone()).unwrap())) });
+        // rust: ({ let __r = &compat::read(__this, |__t| __t.current_tab.clone()).expect("NullPointerException").0; let __f = compat::dispatch(__r, |__t| __t.update_search_results()); __f(&compat::view(__r, |a| a as compat::Shared<dyn RecipeAreaDisplay>), &__this.lock().borrow().search_box.get_value().to_lowercase(), CyclingTextureWidget::get_current(&compat::read(__this, |__t| __t.filter_option.clone()).unwrap())) });
     }
 
     /// java: @Override public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta)
@@ -179,21 +181,21 @@ impl SkyblockRecipeBookComponent {
                 // rust: let __o1 = tab_button.1.clone();
                 // rust: compat::write(&__o1, |__t| __t.extract_render_state(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), __wa2, __wa3, __wa4));
             }
-            ({ let __r = &compat::read(__this, |__t| __t.current_tab.clone()).0; let __f = compat::dispatch(__r, |__t| __t.extract_render_state()); __f(&compat::view(__r, |a| a as compat::Shared<dyn RecipeAreaDisplay>), graphics, left, top, mouse_x, mouse_y, delta) });
+            ({ let __r = &compat::read(__this, |__t| __t.current_tab.clone()).expect("NullPointerException").0; let __f = compat::dispatch(__r, |__t| __t.extract_render_state()); __f(&compat::view(__r, |a| a as compat::Shared<dyn RecipeAreaDisplay>), graphics, left, top, mouse_x, mouse_y, delta) });
         }
     }
 
     /// java: @Override public void extractTooltip(GuiGraphicsExtractor graphics, int x, int y, @Nullable Slot slot)
-    pub fn extract_tooltip(__this: &compat::Shared<Self>, graphics: &GuiGraphicsExtractor, mut x: i32, mut y: i32, mut slot: Option<Slot>) {
+    pub fn extract_tooltip(__this: &compat::Shared<Self>, graphics: &mut GuiGraphicsExtractor, mut x: i32, mut y: i32, mut slot: Option<Slot>) {
         if __this.lock().borrow().is_visible() {
-            ({ let __r = &compat::read(__this, |__t| __t.current_tab.clone()).0; let __f = compat::dispatch(__r, |__t| __t.extract_tooltip()); __f(&compat::view(__r, |a| a as compat::Shared<dyn RecipeAreaDisplay>), &mut graphics, x, y) });
+            ({ let __r = &compat::read(__this, |__t| __t.current_tab.clone()).expect("NullPointerException").0; let __f = compat::dispatch(__r, |__t| __t.extract_tooltip()); __f(&compat::view(__r, |a| a as compat::Shared<dyn RecipeAreaDisplay>), graphics, x, y) });
         }
     }
 
     /// java: @Override public boolean mouseClicked(MouseButtonEvent click, boolean doubled)
     pub fn mouse_clicked(__this: &compat::Shared<Self>, click: &MouseButtonEvent, mut doubled: bool) -> bool {
         if __this.lock().borrow().is_visible() && !(mcrust::mcrust::modding::game::with_player(|player| player.is_spectator()).unwrap_or(false)) {
-            if { let __r = &compat::read(__this, |__t| __t.current_tab.clone()).0; let __f = compat::dispatch(__r, |__t| __t.mouse_clicked()); __f(&compat::view(__r, |a| a as compat::Shared<dyn RecipeAreaDisplay>), click, doubled) } {
+            if { let __r = &compat::read(__this, |__t| __t.current_tab.clone()).expect("NullPointerException").0; let __f = compat::dispatch(__r, |__t| __t.mouse_clicked()); __f(&compat::view(__r, |a| a as compat::Shared<dyn RecipeAreaDisplay>), click, doubled) } {
                 return true;
             } else {
                 for tab_button in compat::read(__this, |__t| __t.tab_buttons.clone()) {
@@ -204,13 +206,14 @@ impl SkyblockRecipeBookComponent {
                     let __wa3 = click.clone();
                     let __wa4 = doubled;
                     let __o2 = tab_button.1.clone();
-                    if compat::write(&__o2, |__t| __t.mouse_clicked(__wa3.clone(), __wa4).is_some()) {
-                        if compat::read(__this, |__t| __t.current_tab.clone()).unwrap() != tab_button {
+                    if compat::write(&__o2, |__t| __t.mouse_clicked(__wa3.button(), __wa3.x(), __wa3.y()).is_some()) {
+                        // java: if (currentTab != tabButton) - the same pair object
+                        if !compat::read(__this, |__t| __t.current_tab.clone()).is_some_and(|__c| std::sync::Arc::ptr_eq(&__c.0, &tab_button.0) && std::sync::Arc::ptr_eq(&__c.1, &tab_button.1)) {
                             if compat::read(__this, |__t| __t.current_tab.clone()).is_some() {
-                                SkyblockRecipeTabButton::unselect(&compat::read(__this, |__t| __t.current_tab.clone()).1);
+                                SkyblockRecipeTabButton::unselect(&compat::read(__this, |__t| __t.current_tab.clone()).expect("NullPointerException").1);
                             }
                             { let __v = Some(tab_button.clone()); compat::write(__this, |__t| __t.current_tab = __v); }
-                            SkyblockRecipeTabButton::select(&compat::read(__this, |__t| __t.current_tab.clone()).1);
+                            SkyblockRecipeTabButton::select(&compat::read(__this, |__t| __t.current_tab.clone()).expect("NullPointerException").1);
                         }
                         return true;
                     }
@@ -228,7 +231,7 @@ impl SkyblockRecipeBookComponent {
             let window = client.get_window();
             let mut mouse_x = (mouse.xpos() * (((window.get_gui_scaled_width()) as f64) / ((window.get_screen_width()) as f64)));
             let mut mouse_y = (mouse.ypos() * (((window.get_gui_scaled_height()) as f64) / ((window.get_screen_height()) as f64)));
-            if { let __r = &compat::read(__this, |__t| __t.current_tab.clone()).0; let __f = compat::dispatch(__r, |__t| __t.key_pressed()); __f(&compat::view(__r, |a| a as compat::Shared<dyn RecipeAreaDisplay>), mouse_x, mouse_y, input) } {
+            if { let __r = &compat::read(__this, |__t| __t.current_tab.clone()).expect("NullPointerException").0; let __f = compat::dispatch(__r, |__t| __t.key_pressed()); __f(&compat::view(__r, |a| a as compat::Shared<dyn RecipeAreaDisplay>), mouse_x, mouse_y, input) } {
                 return true;
             }
         }
@@ -244,7 +247,7 @@ impl SkyblockRecipeBookComponent {
         } else {
             let mut bl: bool = (mouse_x < ((x) as f64) || mouse_y < ((y) as f64) || mouse_x >= ((x.wrapping_add(background_width)) as f64) || mouse_y >= ((y.wrapping_add(background_height)) as f64));
             let mut bl2: bool = (((x.wrapping_sub(147)) as f64) < mouse_x && mouse_x < ((x) as f64) && ((y) as f64) < mouse_y && mouse_y < ((y.wrapping_add(background_height)) as f64));
-            let __o1 = compat::read(__this, |__t| __t.current_tab.clone()).1.clone();
+            let __o1 = compat::read(__this, |__t| __t.current_tab.clone()).expect("NullPointerException").1.clone();
             return (bl && !bl2 && !(compat::write(&__o1, |__t| __t.is_hovered_or_focused())));
         }
     }
@@ -275,7 +278,7 @@ impl SkyblockRecipeBookComponent {
         // TODO(fabric2seer): `RecipeBookComponent.searchBox` has no Rust field in the port (searched net.minecraft.client.gui.screens.recipebook.RecipeBookComponent and its supertypes)
         // rust: let mut query: String = __this.lock().borrow().search_box.get_value().to_lowercase();
         let mut query: String = todo!("fabric2seer: the initialiser of `query` (TODO above)");
-        ({ let __r = &compat::read(__this, |__t| __t.current_tab.clone()).0; let __f = compat::dispatch(__r, |__t| __t.update_search_results_3()); __f(&compat::view(__r, |a| a as compat::Shared<dyn RecipeAreaDisplay>), query.clone(), filter_option, true) });
+        ({ let __r = &compat::read(__this, |__t| __t.current_tab.clone()).expect("NullPointerException").0; let __f = compat::dispatch(__r, |__t| __t.update_search_results_3()); __f(&compat::view(__r, |a| a as compat::Shared<dyn RecipeAreaDisplay>), query.clone(), filter_option, true) });
     }
 
     /// java: @Override protected void checkSearchStringUpdate()
@@ -288,13 +291,16 @@ impl SkyblockRecipeBookComponent {
         // rust: let mut query: String = __this.lock().borrow().search_box.get_value().to_lowercase();
         let mut query: String = todo!("fabric2seer: the initialiser of `query` (TODO above)");
         FunUtils::recipe_book_easter_egg(&query);
-        __this.lock().borrow_mut().pirate_speech_for_the_people(&query);
-        ({ let __r = &compat::read(__this, |__t| __t.current_tab.clone()).0; let __f = compat::dispatch(__r, |__t| __t.update_search_results()); __f(&compat::view(__r, |a| a as compat::Shared<dyn RecipeAreaDisplay>), &query, CyclingTextureWidget::get_current(&compat::read(__this, |__t| __t.filter_option.clone()).unwrap())) });
+        // java: this.pirateSpeechForThePeople(query);
+        // rust: port gap - `RecipeBookComponent.pirateSpeechForThePeople` (private in Java too, reached through the mod's
+        // accessor) is private to the port's class (GAPS_batchF.md)
+        ({ let __r = &compat::read(__this, |__t| __t.current_tab.clone()).expect("NullPointerException").0; let __f = compat::dispatch(__r, |__t| __t.update_search_results()); __f(&compat::view(__r, |a| a as compat::Shared<dyn RecipeAreaDisplay>), &query, CyclingTextureWidget::get_current(&compat::read(__this, |__t| __t.filter_option.clone()).unwrap())) });
     }
 
     /// java: private RecipeBookComponentAccessor accessor()
-    pub fn accessor(__this: &compat::Shared<Self>) -> crate::unresolved::RecipeBookComponentAccessor {
-        return __this;
+    /// (`(RecipeBookComponentAccessor) this`: the object itself)
+    pub fn accessor(__this: &compat::Shared<Self>) -> compat::Shared<Self> {
+        return __this.clone();
     }
 
     /// java: @Override protected void updateCollections(boolean resetCurrentPage, boolean filteringCraftable)
@@ -302,7 +308,7 @@ impl SkyblockRecipeBookComponent {
         // TODO(fabric2seer): `RecipeBookComponent.searchBox` has no Rust field in the port (searched net.minecraft.client.gui.screens.recipebook.RecipeBookComponent and its supertypes)
         debug_assert!(true /* java: compat::read(__this, |__t| __t.search_box.clone()) != null: never null here */);
         // TODO(fabric2seer): `RecipeBookComponent.searchBox` has no Rust field in the port (searched net.minecraft.client.gui.screens.recipebook.RecipeBookComponent and its supertypes)
-        // rust: ({ let __r = &compat::read(__this, |__t| __t.current_tab.clone()).0; let __f = compat::dispatch(__r, |__t| __t.update_search_results()); __f(&compat::view(__r, |a| a as compat::Shared<dyn RecipeAreaDisplay>), &__this.lock().borrow().search_box.get_value().to_lowercase(), CyclingTextureWidget::get_current(&compat::read(__this, |__t| __t.filter_option.clone()).unwrap())) });
+        // rust: ({ let __r = &compat::read(__this, |__t| __t.current_tab.clone()).expect("NullPointerException").0; let __f = compat::dispatch(__r, |__t| __t.update_search_results()); __f(&compat::view(__r, |a| a as compat::Shared<dyn RecipeAreaDisplay>), &__this.lock().borrow().search_box.get_value().to_lowercase(), CyclingTextureWidget::get_current(&compat::read(__this, |__t| __t.filter_option.clone()).unwrap())) });
     }
 
     /// java: @Override protected @Nullable WidgetSprites getFilterButtonTextures()

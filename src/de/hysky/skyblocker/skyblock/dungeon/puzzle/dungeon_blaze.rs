@@ -92,7 +92,7 @@ impl DungeonBlaze {
             if blaze_name.contains("Blaze") && blaze_name.contains("/") {
                 // java: try {..} catch (NumberFormatException e) - an exception here is a panic, caught by `catch_unwind`
                 let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                    let mut health: i32 = (compat::regex::replace_all(&(compat::substring2(&blaze_name, (compat::index_of(&blaze_name, "/")).wrapping_add(1), (compat::str_len(&blaze_name)).wrapping_sub(1))), ",", "")).trim().parse::<i32>().expect("NumberFormatException");
+                    let mut health: i32 = (compat::regex::replace_all(&(compat::substring2(&blaze_name, (compat::index_of(&blaze_name, "/")).wrapping_add(1), (compat::str_len(&blaze_name)).wrapping_sub(1))), ",", "")).parse::<i32>().expect("NumberFormatException");
                     blazes.push((blaze_id, health));
                 }));
                 if let Err(e) = __result {

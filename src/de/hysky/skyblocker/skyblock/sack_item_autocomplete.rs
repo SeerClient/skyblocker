@@ -52,8 +52,11 @@ impl SackItemAutocomplete {
                 let mut sack_item_ids: std::collections::HashSet<String> = todo!("fabric2seer: the initialiser of `sackItemIds` (TODO above)");
                 let mut sack_items: std::collections::HashSet<String> = sack_item_ids.iter().cloned().map(|neu_id| {
                     let mut stack: Option<crate::unresolved::NEUItem> = NEURepoManager::get_item_by_neu_id(&neu_id);
-                    // TODO(fabric2seer): `.getDisplayName(..)` on a NEUItem
-                    //   java: return stack != null ? ChatFormatting.stripFormatting(stack.getDisplayName()) : neuId;
+                    // java: return stack != null ? ChatFormatting.stripFormatting(stack.getDisplayName()) : neuId;
+                    // rust: port gap - `NEUItem.getDisplayName` (the NEU repo parser is a `crate::unresolved` placeholder,
+                    // GAPS_batchB L1): a found item's display name cannot be read, so its id stands in
+                    let _ = stack;
+                    return neu_id.clone();
                 }).map(|name| compat::trim(&BAD_CHARACTERS.matcher(&compat::jstring(&name)).replace_all(""))).collect::<std::collections::HashSet<_>>();
                 *LONG_COMMAND_NODE.get_mut() = Some(SackItemAutocomplete::create_command_node("getfromsacks", &sack_items));
                 *SHORT_COMMAND_NODE.get_mut() = Some(SackItemAutocomplete::create_command_node("gfs", &sack_items));

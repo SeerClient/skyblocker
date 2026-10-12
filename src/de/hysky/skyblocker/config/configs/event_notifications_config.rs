@@ -73,16 +73,14 @@ impl Criterion {
 
     /// java: @Override public String toString()
     pub fn to_string(&self) -> String {
-        // TODO(fabric2seer): call to `name(..)` (not a method of this class)
-        //   java: return I18n.get("skyblocker.config.eventNotifications.criterion." + name());
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        return mcrust::net::minecraft::client::resources::language::i18n::get(&format!("skyblocker.config.eventNotifications.criterion.{}", self.name()), &[]);
     }
 
 }
 
 impl std::fmt::Display for Criterion {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", Criterion::to_string(*self))
+        write!(f, "{}", Criterion::to_string(self))
     }
 }
 
@@ -172,29 +170,30 @@ impl Sound {
             SoundFields::new(None),
             SoundFields::new(Some(mcrust::net::minecraft::sounds::sound_events::bell_block().clone())),
             SoundFields::new(Some(mcrust::net::minecraft::sounds::sound_events::arrow_hit_player().clone())),
-            SoundFields::new(Some(mcrust::net::minecraft::sounds::sound_events::note_block_pling().value())),
-            todo!("GOAT"),
+            SoundFields::new(Some(mcrust::net::minecraft::sounds::sound_events::note_block_pling().clone())),
+            // java: GOAT(SoundEvents.GOAT_HORN_SOUND_VARIANTS.getFirst().value()) - the first variant, `item.goat_horn.sound.0`
+            SoundFields::new(mcrust::net::minecraft::sounds::sound_events::registry_entries().iter()
+                .find(|(id, _)| *id == mcrust::net::minecraft::resources::identifier::Identifier::with_default_namespace("item.goat_horn.sound.0"))
+                .map(|(_, event)| (*event).clone())),
         ]);
         &FIELDS[self as usize]
     }
 
     /// java: public @Nullable SoundEvent getSoundEvent()
     pub fn get_sound_event(&self) -> Option<SoundEvent> {
-        return Some(self.fields().sound_event.clone());
+        return self.fields().sound_event.clone();
     }
 
     /// java: @Override public String toString()
     pub fn to_string(&self) -> String {
-        // TODO(fabric2seer): call to `name(..)` (not a method of this class)
-        //   java: return I18n.get("skyblocker.config.eventNotifications.notificationSound.sound." + name());
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        return mcrust::net::minecraft::client::resources::language::i18n::get(&format!("skyblocker.config.eventNotifications.notificationSound.sound.{}", self.name()), &[]);
     }
 
 }
 
 impl std::fmt::Display for Sound {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", Sound::to_string(*self))
+        write!(f, "{}", Sound::to_string(self))
     }
 }
 
@@ -205,11 +204,7 @@ pub struct SoundFields {
 
 impl SoundFields {
     fn new(mut sound_event: Option<SoundEvent>) -> Self {
-        let mut this = Self {
-            sound_event: None,
-        };
-        this.sound_event = sound_event.clone().unwrap();
-        this
+        Self { sound_event }
     }
 
 }

@@ -363,8 +363,13 @@ impl Waypoint for GoldorWaypoint {
     }
 
     /// java: @Override public boolean equals(Object obj) (dispatch: the body for this class)
-    fn equals(&self) -> fn(&compat::Shared<dyn Waypoint>, &compat::Object) -> bool {
+    fn equals(&self) -> fn(&compat::Shared<dyn Waypoint>, &compat::Shared<dyn Waypoint>) -> bool {
         <dyn NamedWaypoint>::equals_from::<Self>
+    }
+
+    /// java: `instanceof NamedWaypoint` - this class is one
+    fn as_named_waypoint(&self) -> Option<&crate::de::hysky::skyblocker::utils::waypoint::named_waypoint::NamedWaypointBase> {
+        Some(self.named_waypoint_base())
     }
 
 }

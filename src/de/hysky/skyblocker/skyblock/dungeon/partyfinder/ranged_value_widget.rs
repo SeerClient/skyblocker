@@ -3,6 +3,10 @@
 #[allow(unused_imports)]
 use crate::prelude::*;
 use crate::de::hysky::skyblocker::skyblock::dungeon::partyfinder::finder_settings_container::FinderSettingsContainer;
+use crate::de::hysky::skyblocker::skyblock::dungeon::partyfinder::finder_settings_container::OptionWidget;
+use crate::de::hysky::skyblocker::skyblock::dungeon::partyfinder::finder_settings_container::ContainerWidgetAdapter;
+use crate::de::hysky::skyblocker::skyblock::dungeon::partyfinder::finder_settings_container::ContainerWidgetHalf;
+
 use crate::de::hysky::skyblocker::skyblock::dungeon::partyfinder::party_finder_screen;
 use crate::de::hysky::skyblocker::skyblock::dungeon::partyfinder::party_finder_screen::PartyFinderScreen;
 use mcrust::net::minecraft::client::gui::components::abstract_container_widget::AbstractContainerWidget;
@@ -76,9 +80,23 @@ impl RangedValueWidget {
         let __init_screen = screen.clone();
         let __init_name = name.clone();
         let __init_input = ModifiedTextFieldWidget::new(compat::font(), x, y.wrapping_add(25), width.wrapping_sub(15), 15, component::empty());
-        // TODO(fabric2seer): static `AbstractScrollArea.defaultSettings` has no Rust counterpart in the port
-        //   java: super(x, y, width, 45, Component.empty(), AbstractScrollArea.defaultSettings(4));
-        let __this: compat::Shared<Self> = todo!("constructor");
+        // java: super(x, y, width, 45, Component.empty(), AbstractScrollArea.defaultSettings(4));
+        let __this: compat::Shared<Self> = compat::shared(Self {
+            base: AbstractContainerWidget::new_with_scrollbar_settings(x, y, width, 45, mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::empty()), mcrust::net::minecraft::client::gui::components::abstract_scroll_area::ScrollbarSettings::default_settings(4.0)),
+            screen: __init_screen,
+            slot_id: __init_slot_id,
+            name: __init_name,
+            min_slot_id: -1,
+            max_slot_id: -1,
+            back_slot_id: -1,
+            min: -1,
+            max: -1,
+            state: State::Closed,
+            input: __init_input,
+            ok_button: None,
+            self_ref: std::sync::Weak::new(),
+        });
+        compat::write(&__this, |__t| __t.self_ref = std::sync::Arc::downgrade(&__this));
         // TODO(fabric2seer): `EditBox.setVisible` has no Rust method in the port (looked for `set_visible` in EditBox and its supertypes)
         // rust: __this.lock().borrow().input.set_visible(false);
         __this.lock().borrow_mut().input.set_max_length(3);
@@ -91,15 +109,17 @@ impl RangedValueWidget {
     }
 
     /// java: @Override public List<? extends GuiEventListener> children()
-    pub fn children(__this: &compat::Shared<Self>) -> Vec<Box<dyn GuiEventListener>> {
-        return vec![compat::read(__this, |__t| __t.input.clone()), compat::read(__this, |__t| __t.ok_button.clone()).unwrap()];
+    pub fn children(__this: &compat::Shared<Self>) -> Vec<RangedValueChild> {
+        // java: return List.of(input, okButton); - references to the two child fields, not copies
+        return vec![RangedValueChild::Input, RangedValueChild::OkButton];
     }
 
     /// java: public void updateConfirmButton(String string)
     pub fn update_confirm_button(__this: &compat::Shared<Self>, string: &str) {
-        // java: try {..} catch (NumberFormatException _) - an exception here is a panic, caught by `catch_unwind`
-        let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            let mut i: i32 = compat::trim(&string).trim().parse::<i32>().expect("NumberFormatException");
+        // java: try { int i = Integer.parseInt(string.trim()); .. } catch (NumberFormatException _) { .. } - the parse's
+        // `Err` is the catch block
+        let __parsed: Result<i32, std::num::ParseIntError> = compat::trim(&string).parse::<i32>();
+        let __result: Result<(), ()> = __parsed.map(|i| {
             if i < 0 || i > 999 {
                 __this.lock().borrow_mut().ok_button.as_mut().unwrap().active = false;
                 __this.lock().borrow_mut().input.set_good(false);
@@ -111,7 +131,7 @@ impl RangedValueWidget {
                 __this.lock().borrow_mut().ok_button.as_mut().unwrap().active = active1;
                 __this.lock().borrow_mut().input.set_good(active1);
             }
-        }));
+        }).map_err(|_| ());
         if let Err(_) = __result {
             __this.lock().borrow_mut().ok_button.as_mut().unwrap().active = false;
             __this.lock().borrow_mut().input.set_good(false);
@@ -217,24 +237,22 @@ impl RangedValueWidget {
 
     /// java: private void sendPacket()
     pub fn send_packet(__this: &compat::Shared<Self>) {
-        let mut sign: Option<SignBlockEntity> = PartyFinderScreen::get_sign(&compat::read(__this, |__t| __t.screen.clone()));
+        // `sign` is the level's block entity object (a `SignBlockEntity`), as the screen keeps it
+        let mut sign: Option<std::sync::Arc<dyn mcrust::net::minecraft::world::level::block::entity::block_entity::BlockEntityObj>> = PartyFinderScreen::get_sign(&compat::read(__this, |__t| __t.screen.clone()));
         let mut input_trimmed: String = compat::trim(&__this.lock().borrow().input.get_value());
         if compat::read(__this, |__t| __t.state) == State::ModifyingMin {
-            // java: try {..} catch (NumberFormatException _) - an exception here is a panic, caught by `catch_unwind`
-            let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                { let __v = input_trimmed.trim().parse::<i32>().expect("NumberFormatException"); compat::write(__this, |__t| __t.min = __v); }
-            }));
-            if let Err(_) = __result {
+            // java: try { min = Integer.parseInt(inputTrimmed); } catch (NumberFormatException _) {}
+            if let Ok(__v) = input_trimmed.parse::<i32>() {
+                compat::write(__this, |__t| __t.min = __v);
             }
         } else if compat::read(__this, |__t| __t.state) == State::ModifyingMax {
-            // java: try {..} catch (NumberFormatException _) - an exception here is a panic, caught by `catch_unwind`
-            let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                { let __v = input_trimmed.trim().parse::<i32>().expect("NumberFormatException"); compat::write(__this, |__t| __t.max = __v); }
-            }));
-            if let Err(_) = __result {
+            // java: try { max = Integer.parseInt(inputTrimmed); } catch (NumberFormatException _) {}
+            if let Ok(__v) = input_trimmed.parse::<i32>() {
+                compat::write(__this, |__t| __t.max = __v);
             }
         }
         if let Some(sign) = &sign {
+            let sign: &SignBlockEntity = sign.as_sign().expect("ClassCastException: SignBlockEntity");
             let messages = (sign.get_text(PartyFinderScreen::is_sign_front(&compat::read(__this, |__t| __t.screen.clone())))).get_messages((PartyFinderScreen::get_client(&compat::read(__this, |__t| __t.screen.clone()))).is_text_filtering_enabled());
             // TODO(fabric2seer): `ClientPacketListener.send` has no Rust method in the port (looked for `send` in ClientPacketListener and its supertypes)
             // rust: mcrust::mcrust::modding::game::with_player(|player| { player.connection.as_ref().unwrap().send(&ServerboundSignUpdatePacket::new(sign.get_block_pos(), PartyFinderScreen::is_sign_front(&compat::read(__this, |__t| __t.screen.clone())), input_trimmed.clone(), (messages[(1) as usize]).get_string(), (messages[(2) as usize]).get_string(), (messages[(3) as usize]).get_string())); });
@@ -244,7 +262,7 @@ impl RangedValueWidget {
 
     /// java: @Override public boolean mouseClicked(MouseButtonEvent click, boolean doubled)
     pub fn mouse_clicked(__this: &compat::Shared<Self>, click: &MouseButtonEvent, mut doubled: bool) -> bool {
-        if PartyFinderScreen::is_waiting_for_server(&compat::read(__this, |__t| __t.screen.clone())) || !(FinderSettingsContainer::can_interact(&PartyFinderScreen::get_settings_container(&compat::read(__this, |__t| __t.screen.clone())), __this)) {
+        if PartyFinderScreen::is_waiting_for_server(&compat::read(__this, |__t| __t.screen.clone())) || !(FinderSettingsContainer::can_interact(&PartyFinderScreen::get_settings_container(&compat::read(__this, |__t| __t.screen.clone())), Some(&OptionWidget::Ranged(__this.clone())))) {
             return false;
         }
         if !(compat::read(__this, |__t| __t.visible)) {
@@ -293,7 +311,14 @@ impl RangedValueWidget {
                 return true;
             }
             _ => {
-                return { let (__q0, __q1,) = (click.clone(), doubled,); __this.lock().borrow_mut().base.mouse_clicked(__q0, __q1) };
+                // java: return super.mouseClicked(click, doubled); - AbstractContainerWidget.mouseClicked:
+                // `updateScrolling(event)` (false: contentHeight() is 0, so no scrollbar) `||`
+                // ContainerEventHandler.mouseClicked over children() (the input and the OK button)
+                // rust: port gap - the two children are an EditBox and a Button this object holds outside any screen,
+                // and the port's EditBox / AbstractWidget take a click only through a screen's widget pass, so no
+                // child takes it here (GAPS_batchF.md)
+                let scrolling: bool = false;
+                return scrolling;
             }
         }
         todo!("fabric2seer: the value of this function is in a TODO above")
@@ -332,6 +357,15 @@ impl RangedValueWidget {
 }
 
 // NOTE(fabric2seer): children, contentHeight, extractWidgetRenderState, mouseClicked, scrollRate, setX, setY, updateWidgetNarration override(s) of AbstractContainerWidget - the port dispatches its own calls, so these run only where the mod calls them; hook the port's method to make the game call them
+
+/// java: an element of `children()` (`List.of(input, okButton)`) - a reference to one of the widget's two child fields
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RangedValueChild {
+    /// `input`
+    Input,
+    /// `okButton`
+    OkButton,
+}
 
 /// java: public enum State
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -409,16 +443,19 @@ impl std::ops::DerefMut for ModifiedTextFieldWidget {
 impl ModifiedTextFieldWidget {
     /// java: public ModifiedTextFieldWidget(Font textRenderer, int x, int y, int width, int height, Component text)
     pub fn new(mut text_renderer: Font, mut x: i32, mut y: i32, mut width: i32, mut height: i32, mut text: MutableComponent) -> Self {
-        // TODO(fabric2seer): `new` takes 5 argument(s) in the port (`splitter: &StringSplitter<W>, x: i32, y: i32, width: i32, height: i32`), Java passes 6
-        //   java: super(textRenderer, x, y, width, height, text);
-        let mut this: Self = todo!("constructor");
+        // java: super(textRenderer, x, y, width, height, text); - the port's EditBox measures through the font's
+        // splitter; its message (`text`, the narration) is the widget half's, which this box is in none of yet
+        let mut this: Self = Self { base: EditBox::new(&text_renderer.splitter(), x, y, width, height), is_good: false };
         this
     }
 
     /// java: @Override public boolean keyPressed(KeyEvent input)
     pub fn key_pressed(&self, input: &mcrust::net::minecraft::client::input::key_event::KeyEvent) -> bool {
-        // TODO(fabric2seer): `AbstractWidget::is_focused` ports `isFocused`, but the port's `EditBox` holds no `AbstractWidget` (no Deref, no `base` field) to call it on
-        if !self.is_focused() {
+        // java: if (!isFocused()) return false;
+        // rust: port gap - an EditBox's focus lives in the screen's widget tree (`Screen.focused`), and this one is
+        // in no screen, so it is never focused (GAPS_batchF.md)
+        let __is_focused: bool = false;
+        if !__is_focused {
             return false;
         }
         if input.is_confirmation() && self.is_good {
@@ -439,3 +476,32 @@ impl ModifiedTextFieldWidget {
 }
 
 // NOTE(fabric2seer): keyPressed override(s) of EditBox - the port dispatches its own calls, so these run only where the mod calls them; hook the port's method to make the game call them
+
+/// RangedValueWidget's container half (`super`'s fields)
+impl ContainerWidgetHalf for RangedValueWidget {
+    fn container_half(&mut self) -> &mut AbstractContainerWidget {
+        &mut self.base
+    }
+}
+
+/// RangedValueWidget as the game's widget: `ContainerWidgetAdapter::widget(handle)` where Java hands it on
+impl mcrust::mcrust::modding::widgets::ModWidget for ContainerWidgetAdapter<RangedValueWidget> {
+    /// java: @Override protected void extractWidgetRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a)
+    fn extract_widget_render_state(&mut self, _widget: &AbstractWidget, context: &mut mcrust::mcrust::modding::widgets::WidgetRenderContext<'_>, mouse_x: i32, mouse_y: i32, a: f32) {
+        self.lend(|__h| RangedValueWidget::extract_widget_render_state(__h, &mut context.graphics, mouse_x, mouse_y, a))
+    }
+
+    /// java: @Override protected void updateWidgetNarration(NarrationElementOutput builder)
+    fn update_widget_narration(&mut self, _widget: &AbstractWidget, output: &mut dyn NarrationElementOutput) {
+        self.lend(|__h| RangedValueWidget::update_widget_narration(__h, &*output))
+    }
+
+    /// java: @Override public boolean mouseClicked(MouseButtonEvent click, boolean doubled)
+    fn mouse_clicked(&mut self, _widget: &mut AbstractWidget, event: &MouseButtonEvent, double_click: bool) -> bool {
+        self.lend(|__h| RangedValueWidget::mouse_clicked(__h, event, double_click))
+    }
+
+    fn container_widget_mut(&mut self) -> Option<&mut AbstractContainerWidget> {
+        Some(self.part_mut())
+    }
+}

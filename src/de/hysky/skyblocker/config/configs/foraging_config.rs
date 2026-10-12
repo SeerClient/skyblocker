@@ -108,12 +108,10 @@ pub struct SweepOverlay {
 impl SweepOverlay {
     /// java: the implicit no-argument constructor
     pub fn new() -> Self {
-        // TODO(fabric2seer): the initialiser of `sweepOverlayColor`: `new` takes 3 argument(s) in the port (`r: i32, g: i32, b: i32`), Java passes 2
-        //   java: public Color sweepOverlayColor = new Color(0x40FF9600, true);
         let mut this = Self {
             enable_sweep_overlay: true,
             enable_thrown_ability_overlay: true,
-            sweep_overlay_color: Default::default(),
+            sweep_overlay_color: Color::from_rgba(0x40FF9600, true),
         };
         this
     }

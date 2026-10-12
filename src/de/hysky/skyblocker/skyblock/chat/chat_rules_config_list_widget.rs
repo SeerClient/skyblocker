@@ -91,7 +91,9 @@ impl ChatRulesConfigListWidget {
     /// java: protected void addRuleAfterSelected()
     pub fn add_rule_after_selected(__this: &compat::Shared<Self>) {
         { let __v = true; compat::write(__this, |__t| __t.has_changed = __v); }
-        let mut new_index: i32 = ((compat::write(__this, |__t| { let __l = &mut __t.base; compat::list_entries::<dyn AbstractChatRuleEntry>(__l) })).iter().position(|e| *e == compat::write(__this, |__t| { let __l = &mut __t.base; __l.get_selected().and_then(|__i| compat::entry_at::<dyn AbstractChatRuleEntry>(__l, __i)) }).unwrap()).map_or(-1, |i| i as i32)).max(0);
+        // java: int newIndex = Math.max(children().indexOf(getSelected()), 0); - `indexOf(null)` is -1; the rows keep identity equality
+        let __selected: Option<compat::Shared<dyn AbstractChatRuleEntry>> = compat::write(__this, |__t| { let __l = &mut __t.base; __l.get_selected().and_then(|__i| compat::entry_at::<dyn AbstractChatRuleEntry>(__l, __i)) });
+        let mut new_index: i32 = ((compat::write(__this, |__t| { let __l = &mut __t.base; compat::list_entries::<dyn AbstractChatRuleEntry>(__l) })).iter().position(|e| __selected.as_ref().is_some_and(|s| std::sync::Arc::ptr_eq(e, s))).map_or(-1, |i| i as i32)).max(0);
         // TODO(fabric2seer): `.add(..)` on a T
         //   java: ChatRulesHandler.CHAT_RULE_LIST.getData().add(newIndex, new ChatRule());
         ChatRulesConfigListWidget::update_entries(__this);
@@ -111,13 +113,14 @@ impl ChatRulesConfigListWidget {
     }
 
     /// java: @Override public boolean mouseClicked(MouseButtonEvent click, boolean doubled)
-    pub fn mouse_clicked(__this: &compat::Shared<Self>, click: &MouseButtonEvent, mut doubled: bool) -> bool {
-        // TODO(fabric2seer): `AbstractContainerWidget::mouse_clicked` ports `mouseClicked`, but the port's `AbstractSelectionList` holds no `AbstractContainerWidget` (no Deref, no `base` field) to call it on
-        if { let (__q0, __q1,) = (click.clone(), doubled,); __this.lock().borrow_mut().base.list.mouse_clicked(__q0, __q1) } {
+    /// (`super_mouse_clicked` is `super.mouseClicked(click, doubled)`; the game's call is the `ModList` override below, on
+    /// the live list)
+    pub fn mouse_clicked(__this: &compat::Shared<Self>, click: &MouseButtonEvent, mut doubled: bool, super_mouse_clicked: &mut dyn FnMut() -> bool) -> bool {
+        if super_mouse_clicked() {
             return true;
         }
-        let __entry = None;
-        compat::write(__this, |__t| { let __l = &mut __t.base; { let __i = __entry.as_ref().and_then(|__e| compat::entry_index::<dyn AbstractChatRuleEntry>(__l, __e)); __l.set_selected(__i); } });
+        // java: setSelected(null);
+        compat::write(__this, |__t| { let __l = &mut __t.base; __l.set_selected(None); });
         return false;
     }
 
@@ -151,6 +154,17 @@ impl ModList for compat::ListClass<ChatRulesConfigListWidget> {
     /// java: @Override protected boolean entriesCanBeSelected()
     fn entries_can_be_selected(&self, list: &AbstractSelectionList, super_answer: bool) -> bool {
         self.ask(list, super_answer, |__h| ChatRulesConfigListWidget::entries_can_be_selected(__h))
+    }
+
+    /// java: @Override public boolean mouseClicked(MouseButtonEvent click, boolean doubled)
+    /// `{ if (super.mouseClicked(click, doubled)) return true; setSelected(null); return false; }` on the live list
+    fn mouse_clicked(&self, list: &mut ModSelectionList, event: &MouseButtonEvent, double_click: bool, super_mouse_clicked: &mut dyn FnMut(&mut ModSelectionList) -> bool) -> bool {
+        let _ = (event, double_click);
+        if super_mouse_clicked(list) {
+            return true;
+        }
+        list.set_selected(None);
+        false
     }
 
 }
@@ -222,7 +236,7 @@ impl compat::RowHalf for dyn AbstractChatRuleEntry {
         &mut self.abstract_chat_rule_entry_base_mut().base
     }
     fn row_parts(&mut self) -> (&mut mcrust::net::minecraft::client::gui::screens::screen::Screen, &mut compat::WidgetCache) {
-        let __s = &mut self.abstract_chat_rule_entry_base_mut();
+        let __s = self.abstract_chat_rule_entry_base_mut();
         (&mut __s.__row, &mut __s.__widgets)
     }
 }
@@ -354,7 +368,7 @@ pub struct ChatRuleEntry {
     /// java: private final StringWidget nameWidget;
     pub name_widget: Option<compat::WidgetRef>,
     /// java: private final List<? extends GuiEventListener> children;
-    pub children: Vec<Box<dyn GuiEventListener>>,
+    pub children: Vec<AbstractWidget>,
     /// java: private final LinearLayout layout;
     pub layout: Option<LinearLayout>,
     /// the object's own shared handle: Java's `this` handed to other objects
@@ -408,7 +422,7 @@ impl ChatRuleEntry {
         //   java: 						chatRule.setEnabled(value);
         //   java: 					})
         //   java: 					.build(), s -> s.padding(16, 4, 23, 0));
-        let mut enabled_check: Checkbox = todo!("fabric2seer: the initialiser of `enabledCheck` (TODO above)");
+        let mut enabled_check: AbstractWidget = todo!("fabric2seer: the initialiser of `enabledCheck` (TODO above)");
         // TODO(fabric2seer): unknown name `minecraft`
         //   java: Button openConfigButton = layout.addChild(Button.builder(Component.translatable("skyblocker.config.chat.chatRules.screen.editRule"), _ -> minecraft.gui.setScreen(new ChatRuleConfigScreen(screen, chatRuleIndex))).size(50, 20).tooltip(Tooltip.create(Component.translatable("skyblocker.config.chat.chatRules.screen.editRule.@Tooltip"))).build());
         let mut open_config_button: AbstractWidget = todo!("fabric2seer: the initialiser of `openConfigButton` (TODO above)");
@@ -476,7 +490,7 @@ impl ChatRuleEntry {
     }
 
     /// java: @Override public List<? extends GuiEventListener> children()
-    pub fn children(__this: &compat::Shared<Self>) -> Vec<Box<dyn GuiEventListener>> {
+    pub fn children(__this: &compat::Shared<Self>) -> Vec<AbstractWidget> {
         return compat::read(__this, |__t| __t.children.clone());
     }
 

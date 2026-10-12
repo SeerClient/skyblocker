@@ -53,9 +53,11 @@ impl LazerTimer {
     pub fn extract_rendering(collector: &compat::Shared<dyn PrimitiveCollector>) {
         if compat::get_state(&ACTIVE) {
             let mut boss_fight: Option<compat::Shared<BossFight>> = SlayerManager::get_boss_fight();
-            if boss_fight.is_some() && boss_fight.as_ref().unwrap().lock().borrow().boss.get_vehicle().is_some() {
-                let mut text: MutableComponent = (component::literal(&format!("{:.1}s", compat::get_state(&REMAINING_TIME)))).with_style_format(ChatFormatting::Aqua);
-                ({ let __f = compat::dispatch(collector, |__t| __t.submit_text_4()); __f(collector, &text, &{ let (__q0, __q1, __q2,) = ((0) as f64, 1.5, (0) as f64,); boss_fight.as_ref().unwrap().lock().borrow().boss.position().add(__q0, __q1, __q2) }, ((3) as f32) as f32, true) });
+            // the boss by id: (vehicle, position)
+            let boss = boss_fight.as_ref().and_then(|b| mcrust::mcrust::modding::game::with_entity(compat::read(b, |__t| __t.boss), |e| (e.base().get_vehicle(), e.base().position())));
+            if let Some((Some(_), boss_position)) = boss {
+                let mut text: MutableComponent = (component::literal(&compat::string_format("%.1fs", &[compat::get_state(&REMAINING_TIME).into()]))).with_style_format(ChatFormatting::Aqua);
+                ({ let __f = compat::dispatch(collector, |__t| __t.submit_text_4()); __f(collector, &text, &{ let (__q0, __q1, __q2,) = ((0) as f64, 1.5, (0) as f64,); boss_position.add(__q0, __q1, __q2) }, ((3) as f32) as f32, true) });
             }
         }
     }

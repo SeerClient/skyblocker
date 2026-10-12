@@ -49,27 +49,25 @@ impl ConfigBackupManager {
 
     /// java: public static void backupConfig(ConfigType type)
     pub fn backup_config_1(mut r#type: ConfigType) {
-        // java: try {..} catch (Exception e) - the body runs inline: a Rust body does not throw checked exceptions (a panic in it propagates)
-        {
+        // java: try {..} catch (Exception e) - an exception in the body is a panic, caught by `catch_unwind`
+        let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             if !(((r#type).fields().path).exists()) {
                 return;
             }
             std::fs::create_dir_all(BACKUP_DIR.get_mut()).expect("IOException");
             let mut backups: Vec<std::path::PathBuf> = ConfigBackupManager::list_backups_1(r#type);
-            // TODO(fabric2seer): the condition: Files.mismatch
-            //   java: !backups.isEmpty() && Files.mismatch(type.path, backups.getFirst()) == -1
-            if todo!("fabric2seer: the condition (TODO above)") {
+            // java: Files.mismatch(type.path, backups.getFirst()) == -1 - the two files have the same bytes
+            if !backups.is_empty() && std::fs::read(&(r#type).fields().path).expect("IOException") == std::fs::read(&backups[0]).expect("IOException") {
                 return;
             }
             let mut backup: std::path::PathBuf = BACKUP_DIR.get_mut().join(&(r#type).get_backup_file_name());
-            // TODO(fabric2seer): static field StandardCopyOption.REPLACE_EXISTING
-            //   java: Files.copy(type.path, backup, StandardCopyOption.REPLACE_EXISTING);
+            // java: Files.copy(type.path, backup, StandardCopyOption.REPLACE_EXISTING);
+            std::fs::copy(&(r#type).fields().path, &backup).expect("IOException");
             ConfigBackupManager::clean_old_backups(r#type);
+        }));
+        if let Err(e) = __result {
+            logger().error(&format!("[Skyblocker] Failed to backup config! {}", compat::panic_message(&e)));
         }
-        // TODO(fabric2seer): the `catch (Exception e)` block is not reached in Rust - the try body returns, breaks or continues, so it cannot run inside `catch_unwind`
-        //   java: {
-        //   java: 			LOGGER.error("[Skyblocker] Failed to backup config!", e);
-        //   java: 		}
     }
 
     /// java: public static List<Path> listBackups() throws IOException
@@ -84,7 +82,7 @@ impl ConfigBackupManager {
         }
         {
             let mut stream = std::fs::read_dir(BACKUP_DIR.get_mut()).expect("IOException").filter_map(|e| e.ok()).map(|e| e.path());
-            return compat::sorted_by(stream.clone().filter(|__a0| (r#type).is_of_type(__a0)), |a, b| b.cmp(a)).collect::<Vec<_>>();
+            return compat::sorted_by(stream.filter(|__a0| (r#type).is_of_type(__a0)), |a, b| b.cmp(a)).collect::<Vec<_>>();
         }
     }
 
@@ -94,8 +92,8 @@ impl ConfigBackupManager {
             logger().error(&format!("[Skyblocker Config Backup Manager] Attempted to restore a backup that is not of type MAIN: {}", backup.display()));
             return;
         }
-        // TODO(fabric2seer): static field StandardCopyOption.REPLACE_EXISTING
-        //   java: Files.copy(backup, SkyblockerConfigManager.getConfigPath(), StandardCopyOption.REPLACE_EXISTING);
+        // java: Files.copy(backup, SkyblockerConfigManager.getConfigPath(), StandardCopyOption.REPLACE_EXISTING);
+        std::fs::copy(backup, SkyblockerConfigManager::get_config_path()).expect("IOException");
         SkyblockerConfigManager::reload();
     }
 

@@ -81,12 +81,11 @@ impl StatusBarType {
 
     /// java: public static StatusBarType from(String id)
     pub fn from(id: &str) -> StatusBarType {
-        // TODO(fabric2seer): call to `values(..)` (not a method of this class)
-        //   java: for (StatusBarType type : values()) {
-        //   java: 			if (type.id.equals(id)) {
-        //   java: 				return type;
-        //   java: 			}
-        //   java: 		}
+        for r#type in StatusBarType::values() {
+            if r#type.fields().id == id {
+                return r#type;
+            }
+        }
         panic!("IllegalArgumentException: {}", format!("Unknown status bar type: {}", id).to_string());
     }
 
@@ -122,7 +121,7 @@ impl StatusBarType {
 
     /// java: public @Nullable Color getTextColor()
     pub fn get_text_color(&self) -> Option<Color> {
-        return Some(self.fields().text_color.clone());
+        return self.fields().text_color.clone();
     }
 
     /// java: public Component getName()
@@ -163,25 +162,7 @@ pub struct StatusBarTypeFields {
 
 impl StatusBarTypeFields {
     fn new(mut id: String, mut default_anchor: BarAnchor, mut default_grid_y: i32, mut colors: Vec<Color>, mut has_overflow: bool, mut has_max: bool, mut text_color: Option<Color>, mut name: MutableComponent) -> Self {
-        let mut this = Self {
-            id: Default::default(),
-            default_anchor: Default::default(),
-            default_grid_y: 0,
-            colors: Default::default(),
-            has_overflow: false,
-            has_max: false,
-            text_color: None,
-            name: Default::default(),
-        };
-        this.id = id.clone();
-        this.default_anchor = default_anchor;
-        this.default_grid_y = default_grid_y;
-        this.colors = colors.clone();
-        this.has_overflow = has_overflow;
-        this.has_max = has_max;
-        this.text_color = text_color.clone().unwrap();
-        this.name = name.clone();
-        this
+        Self { id, default_anchor, default_grid_y, colors, has_overflow, has_max, text_color, name }
     }
 
 }

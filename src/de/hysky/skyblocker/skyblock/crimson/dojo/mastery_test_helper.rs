@@ -71,7 +71,7 @@ impl MasteryTestHelper {
         for pos in BLOCK_ORDER.get_mut().iter() {
             let mut block_end_time: i64 = END_TIMES.get_mut().get(pos).copied().unwrap_or_default();
             let mut seconds_time: f32 = ((block_end_time.wrapping_sub(current_time) as f32) / 1000.0f32).max((0 as f32));
-            ({ let __f = compat::dispatch(collector, |__t| __t.submit_text_4()); __f(collector, &component::literal(&FORMATTER.get_mut().format(seconds_time)), &vec3::at_center_of(&pos.offset(0, 1, 0)), ((3) as f32) as f32, true) });
+            ({ let __f = compat::dispatch(collector, |__t| __t.submit_text_4()); __f(collector, &component::literal(&FORMATTER.get_mut().format(seconds_time as f64)), &vec3::at_center_of(&pos.offset(0, 1, 0)), ((3) as f32) as f32, true) });
         }
     }
 

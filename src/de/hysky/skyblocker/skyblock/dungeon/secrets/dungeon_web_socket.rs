@@ -37,7 +37,7 @@ impl DungeonWebSocket {
 
     /// java: private static void connect()
     pub fn connect() {
-        WsStateManager::subscribe_server(Service::DungeonSecrets, &None);
+        WsStateManager::subscribe_server(Service::DungeonSecrets, None);
     }
 
     /// java: public static void handleMessage(Type type, Optional<Dynamic<?>> rawMsg)

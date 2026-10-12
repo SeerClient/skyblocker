@@ -12,6 +12,9 @@ use crate::de::hysky::skyblocker::utils::render::gui::searchable_grid_widget::Se
 use crate::de::hysky::skyblocker::utils::render::gui::searchable_grid_widget::SearchableGridWidgetBase;
 use mcrust::java::text::decimal_format_symbols::Locale;
 use mcrust::mcrust::modding::widgets::ModWidget;
+use mcrust::com::mojang::blaze3d::platform::cursor::cursor_type::CursorType;
+use mcrust::com::mojang::blaze3d::platform::cursor::cursor_types::CursorTypes;
+use mcrust::net::minecraft::client::gui::components::events::gui_event_listener::GuiEventListener as _;
 use mcrust::mcrust::modding::widgets::WidgetRenderContext;
 use mcrust::net::minecraft::client::gui::components::abstract_widget::AbstractWidget;
 use mcrust::net::minecraft::client::gui::components::abstract_widget::OnPress;
@@ -255,7 +258,8 @@ impl HeadSelectionWidget {
         HeadSelectionWidget::update_buttons(__this);
         let mut s: String = search.to_lowercase();
         let __this_w1 = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
-        return compat::read(__this, |__t| __t.all_buttons.clone()).into_iter().filter(|b| { let Some(__this_1) = __this_w1.get().upgrade() else { return Default::default(); }; (std::ptr::addr_eq(std::sync::Arc::as_ptr(b), std::sync::Arc::as_ptr(&compat::read((&__this_1), |__t| __t.none_button.clone()).unwrap())) || b.lock().borrow().head_button_base().name.to_lowercase().contains(&s)) }).collect::<Vec<_>>();
+        // (each button handed to the grid as the game's widget over the same button object)
+        return compat::read(__this, |__t| __t.all_buttons.clone()).into_iter().filter(|b| { let Some(__this_1) = __this_w1.get().upgrade() else { return Default::default(); }; (std::ptr::addr_eq(std::sync::Arc::as_ptr(b), std::sync::Arc::as_ptr(&compat::read((&__this_1), |__t| __t.none_button.clone()).unwrap())) || b.lock().borrow().head_button_base().name.to_lowercase().contains(&s)) }).map(|b| compat::WidgetAdapter::<dyn HeadButton>::widget(b)).collect::<Vec<_>>();
     }
 
     /// HeadSelectionWidget.filterWidgets as the dispatch of SearchableGridWidget.filterWidgets
@@ -396,7 +400,8 @@ impl dyn HeadButton {
         if __this.lock().borrow().head_button_base().is_hovered() {
             graphics.fill(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), __this.lock().borrow().head_button_base().get_x(), __this.lock().borrow().head_button_base().get_y(), (__this.lock().borrow().head_button_base().get_x()).wrapping_add(__this.lock().borrow().head_button_base().get_width()), (__this.lock().borrow().head_button_base().get_y()).wrapping_add(__this.lock().borrow().head_button_base().get_height()), 0x20FFFFFF);
         }
-        __this.lock().borrow().head_button_base().handle_cursor(graphics);
+        // java: this.handleCursor(graphics); - the port asks every widget for its cursor after the frame
+        //   (`ModWidget::handle_cursor` below answers it)
     }
 
     /// java: @Override public void onClick(MouseButtonEvent click, boolean doubled)
@@ -500,28 +505,119 @@ impl AnimatedHeadButton {
 
 }
 
-/// AnimatedHeadButton's widget half (`super`'s fields: x, y, size, message, ...), lent by the game for each call
-impl compat::WidgetHalf for AnimatedHeadButton {
+/// HeadButton's widget half (`super`'s fields: x, y, size, message, ...), lent by the game for each call - for both
+/// classes (`HeadButton`, `AnimatedHeadButton`), as Java's `filteredWidgets` hold either
+impl compat::WidgetHalf for dyn HeadButton {
     fn widget_half(&mut self) -> &mut AbstractWidget {
-        &mut self.base.base
+        &mut self.head_button_base_mut().base
     }
 }
 
-/// AnimatedHeadButton as the game's widget: `compat::WidgetAdapter::widget(handle)` where Java hands it on
-impl ModWidget for compat::WidgetAdapter<AnimatedHeadButton> {
+/// A HeadButton as the game's widget: `compat::WidgetAdapter::widget(handle)` where Java hands it on
+impl ModWidget for compat::WidgetAdapter<dyn HeadButton> {
     /// java: @Override protected void extractWidgetRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a)
     fn extract_widget_render_state(&mut self, widget: &AbstractWidget, context: &mut WidgetRenderContext<'_>, mouse_x: i32, mouse_y: i32, a: f32) {
-        self.lend_ref(widget, |__h| ({ let __f = compat::dispatch(__h, |__t| __t.extract_widget_render_state()); __f(&compat::view(__h, |a| a as compat::Shared<dyn HeadButton>), &mut context.graphics, mouse_x, mouse_y, a) }))
+        self.lend_ref(widget, |__h| ({ let __f = compat::dispatch(__h, |__t| __t.extract_widget_render_state()); __f(__h, &mut context.graphics, mouse_x, mouse_y, a) }))
     }
 
     /// java: @Override protected void updateWidgetNarration(NarrationElementOutput builder)
     fn update_widget_narration(&mut self, widget: &AbstractWidget, output: &mut dyn NarrationElementOutput) {
-        self.lend_ref(widget, |__h| ({ let __f = compat::dispatch(__h, |__t| __t.update_widget_narration()); __f(&compat::view(__h, |a| a as compat::Shared<dyn HeadButton>), output) }))
+        self.lend_ref(widget, |__h| ({ let __f = compat::dispatch(__h, |__t| __t.update_widget_narration()); __f(__h, output) }))
     }
 
     /// java: @Override public void onClick(MouseButtonEvent click, boolean doubled)
     fn on_click(&mut self, widget: &mut AbstractWidget, event: &MouseButtonEvent, double_click: bool) {
-        self.lend(widget, |__h| ({ let __f = compat::dispatch(__h, |__t| __t.on_click()); __f(&compat::view(__h, |a| a as compat::Shared<dyn HeadButton>), event, double_click) }))
+        self.lend(widget, |__h| ({ let __f = compat::dispatch(__h, |__t| __t.on_click()); __f(__h, event, double_click) }))
     }
 
+    /// `this.handleCursor(graphics)` from `extractWidgetRenderState` - `AbstractWidget.handleCursor:68-72`
+    fn handle_cursor(&self, widget: &AbstractWidget, cursors: &CursorTypes) -> Option<CursorType> {
+        widget.handle_cursor(cursors)
+    }
+}
+
+/// HeadSelectionWidget as the game's widget (`layout.addChild(headSelectionWidget, ..)`): Java's `visible` is the
+/// object's own (the armor tab sets it), the box the game's layouts move reaches the object through its `setX` /
+/// `setY` overrides.
+pub struct HeadSelectionWidgetSlot {
+    object: compat::RenderThread<compat::Shared<HeadSelectionWidget>>,
+    /// the game's x and y as of the last call
+    snap: std::cell::Cell<(i32, i32)>,
+}
+
+impl HeadSelectionWidget {
+    /// The game's widget over this object. Java's `getX()` is the layout's x plus 2 (`setX` override), so the layout
+    /// cell starts 2 before it.
+    pub fn widget(this: &compat::Shared<Self>) -> AbstractWidget {
+        let (x, y, w, h) = compat::read(this, |__t| (__t.get_x(), __t.get_y(), __t.get_width(), __t.get_height()));
+        let slot = HeadSelectionWidgetSlot { object: compat::RenderThread::new(this.clone()), snap: std::cell::Cell::new((x - 2, y - 2)) };
+        mcrust::mcrust::modding::widgets::ModWidgetSlot::widget(x - 2, y - 2, w, h, "HeadSelection", Box::new(slot))
+    }
+}
+
+impl HeadSelectionWidgetSlot {
+    /// what the game changed (a layout moving the widget) through the object's `setX` / `setY`; the pass's hover
+    fn sync(&self, widget: &AbstractWidget) {
+        let object = self.object.get();
+        let (sx, sy) = self.snap.get();
+        if widget.get_x() != sx {
+            HeadSelectionWidget::set_x_impl(object, widget.get_x());
+        }
+        if widget.get_y() != sy {
+            HeadSelectionWidget::set_y_impl(object, widget.get_y());
+        }
+        self.snap.set((widget.get_x(), widget.get_y()));
+        let hovered = widget.is_hovered();
+        compat::write(object, |__t| __t.base.base.is_hovered = hovered);
+    }
+
+    fn visible(&self) -> bool {
+        compat::read(self.object.get(), |__t| __t.base.base.visible)
+    }
+}
+
+impl ModWidget for HeadSelectionWidgetSlot {
+    /// java: AbstractWidget.extractRenderState - `if (visible)`, then `extractWidgetRenderState`
+    fn extract_widget_render_state(&mut self, widget: &AbstractWidget, context: &mut WidgetRenderContext<'_>, mouse_x: i32, mouse_y: i32, a: f32) {
+        self.sync(widget);
+        if self.visible() {
+            HeadSelectionWidget::extract_widget_render_state_impl(self.object.get(), &context.graphics, mouse_x, mouse_y, a);
+        }
+    }
+
+    /// java: SearchableGridWidget.updateWidgetNarration - empty
+    fn update_widget_narration(&mut self, _widget: &AbstractWidget, _output: &mut dyn NarrationElementOutput) {}
+
+    /// java: AbstractContainerWidget.mouseClicked - `ContainerEventHandler.super.mouseClicked(..)` over `children()`
+    fn mouse_clicked(&mut self, widget: &mut AbstractWidget, event: &MouseButtonEvent, double_click: bool) -> bool {
+        self.sync(widget);
+        if !self.visible() {
+            return false;
+        }
+        let object = self.object.get();
+        let handle = compat::view(object, |a| a as compat::Shared<dyn SearchableGridWidget>);
+        let mut children = ({ let __f = compat::dispatch(&*handle, |__t| __t.children()); __f(&*handle) });
+        for child in children.iter_mut() {
+            if child.mouse_clicked(event.button(), event.x(), event.y(), double_click) {
+                return true;
+            }
+        }
+        false
+    }
+
+    /// java: @Override public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount)
+    fn mouse_scrolled(&mut self, widget: &mut AbstractWidget, x: f64, y: f64, scroll_x: f64, scroll_y: f64) -> bool {
+        self.sync(widget);
+        if !self.visible() {
+            return false;
+        }
+        let object = self.object.get();
+        let handle = compat::view(object, |a| a as compat::Shared<dyn SearchableGridWidget>);
+        ({ let __f = compat::dispatch(&*handle, |__t| __t.mouse_scrolled()); __f(&*handle, x, y, scroll_x, scroll_y) })
+    }
+
+    /// java: AbstractWidget.isMouseOver - `isActive() && ..` over the object's box (its `visible`)
+    fn is_mouse_over(&self, _widget: &AbstractWidget, mouse_x: f64, mouse_y: f64) -> bool {
+        compat::read(self.object.get(), |__t| __t.base.base.is_mouse_over(mouse_x, mouse_y))
+    }
 }

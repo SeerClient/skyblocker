@@ -80,55 +80,73 @@ impl KuudraWaypoints {
 
     /// java: private static void load(Minecraft client)
     pub fn load(client: &mut mcrust::net::minecraft::client::minecraft::Minecraft) {
-        let mut safe_spots: mcrust::java::util::concurrent::completable_future::CompletableFuture<()> = KuudraWaypoints::load_waypoints(client, &crate::entry::skyblocker_mod::id("crimson/kuudra/safe_spot_waypoints.json"), SAFE_SPOT_WAYPOINTS.get_mut(), &SAFE_SPOT_COLOR);
-        let mut pearls: mcrust::java::util::concurrent::completable_future::CompletableFuture<()> = KuudraWaypoints::load_waypoints(client, &crate::entry::skyblocker_mod::id("crimson/kuudra/pearl_waypoints.json"), PEARL_WAYPOINTS.get_mut(), &PEARL_COLOR);
-        // TODO(fabric2seer): an assignment used as a value
-        //   java: CompletableFuture.allOf(safeSpots, pearls).whenComplete((_, _) -> loaded = true);
+        let mut safe_spots: mcrust::java::util::concurrent::completable_future::CompletableFuture<()> = KuudraWaypoints::load_waypoints(client, &crate::entry::skyblocker_mod::id("crimson/kuudra/safe_spot_waypoints.json"), &SAFE_SPOT_WAYPOINTS, &SAFE_SPOT_COLOR);
+        let mut pearls: mcrust::java::util::concurrent::completable_future::CompletableFuture<()> = KuudraWaypoints::load_waypoints(client, &crate::entry::skyblocker_mod::id("crimson/kuudra/pearl_waypoints.json"), &PEARL_WAYPOINTS, &PEARL_COLOR);
+        // CompletableFuture.allOf(safeSpots, pearls).whenComplete((_, _) -> loaded = true)
+        CompletableFuture::all_of(&[safe_spots, pearls]).when_complete(Box::new(|_| compat::set_state(&LOADED, true)));
     }
 
     /// java: private static CompletableFuture<Void> loadWaypoints(Minecraft client, Identifier file, ObjectArrayList<Waypoint> list, float[] colorComponents)
-    pub fn load_waypoints(client: &mut mcrust::net::minecraft::client::minecraft::Minecraft, file: &Identifier, list: &Vec<compat::Shared<dyn Waypoint>>, color_components: &Vec<f32>) -> mcrust::java::util::concurrent::completable_future::CompletableFuture<()> {
-        return (CompletableFuture::supply_async(move || Ok((|| {
-            {
-                let mut reader: crate::unresolved::BufferedReader = client.get_resource_manager().open_as_reader(file).unwrap();
-                // java: try {..} catch (Exception e) - an exception here is a panic, caught by `catch_unwind`; the body's `return` is the closure's value
-                match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                    return (CODEC.get_mut())(color_components.clone()).parse(&mcrust::com::mojang::serialization::json_ops::JsonOps::instance(), &compat::json_to_port(&KuudraWaypoints::get_waypoints(&reader))).get_or_throw().unwrap();
-                })) {
-                    Ok(__v) => return __v,
+    ///
+    /// The read and the JSON parse run on the executor (Java's `supplyAsync`); the waypoints are render-thread objects,
+    /// so the codec builds them in the `thenAcceptAsync(list::addAll, client)` half, on the render thread.
+    pub fn load_waypoints(client: &mut mcrust::net::minecraft::client::minecraft::Minecraft, file: &Identifier, list: &'static compat::MainThread<Vec<compat::Shared<dyn Waypoint>>>, color_components: &Vec<f32>) -> mcrust::java::util::concurrent::completable_future::CompletableFuture<()> {
+        let manager = client.get_resource_manager();
+        let file: Identifier = file.clone();
+        let color_components: Vec<f32> = color_components.clone();
+        let done: CompletableFuture<()> = CompletableFuture::new();
+        let done_task = done.clone();
+        compat::executor(Box::new(move || {
+            // try (BufferedReader reader = client.getResourceManager().openAsReader(file)) { .. getWaypoints(reader) ..
+            let waypoints: Result<serde_json::Value, String> = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                let reader: String = manager.open_as_reader(&file).unwrap_or_else(|e| panic!("IOException: {e}"));
+                KuudraWaypoints::get_waypoints(&reader)
+            }))
+            .map_err(|e| compat::panic_message(&e));
+            mcrust::mcrust::modding::game::execute(move || {
+                let parsed: Vec<compat::Shared<dyn Waypoint>> = match waypoints.and_then(|waypoints| {
+                    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| (CODEC.get())(color_components.clone()).parse(&mcrust::com::mojang::serialization::json_ops::JsonOps::instance(), &compat::json_to_port(&waypoints)).get_or_throw().unwrap())).map_err(|e| compat::panic_message(&e))
+                }) {
+                    Ok(parsed) => parsed,
                     Err(e) => {
-                        logger().error(&format!("[Skyblocker Kuudra Waypoints] Failed to load kuudra waypoints from: {}", compat::jstring(&file)));
-                        return vec![];
+                        logger().error(&format!("[Skyblocker Kuudra Waypoints] Failed to load kuudra waypoints from: {} {}", compat::jstring(&file), e));
+                        vec![]
                     }
-                }
-            }
-        })()), compat::executor)).then_accept_async(|__a0| list.extend(__a0.iter().cloned()), std::sync::Arc::new(|__t: Box<dyn FnOnce() + Send>| mcrust::mcrust::modding::game::execute(__t)));
+                };
+                list.get_mut().extend(parsed);
+                done_task.complete(());
+            });
+        }));
+        return done;
     }
 
     /// java: private static JsonElement getWaypoints(BufferedReader reader)
-    pub fn get_waypoints(reader: &crate::unresolved::BufferedReader) -> serde_json::Value {
-        // TODO(fabric2seer): static call JsonParser.parseReader(..)
-        //   java: return JsonParser.parseReader(reader).getAsJsonObject().getAsJsonArray("waypoints");
-        todo!("fabric2seer: the value of this function is in a TODO above")
+    pub fn get_waypoints(reader: &str) -> serde_json::Value {
+        // JsonParser.parseReader(reader).getAsJsonObject().getAsJsonArray("waypoints")
+        let json: serde_json::Value = serde_json::from_str(reader).unwrap_or_else(|e| panic!("JsonSyntaxException: {e}"));
+        return serde_json::Value::Array(compat::json::get_as_json_array_of(&json, "waypoints"));
     }
 
     /// java: private static void tick()
     pub fn tick() {
         let client = compat::minecraft();
         let mut config: compat::Shared<Kuudra> = SkyblockerConfigManager::get().crimson_isle.kuudra.clone();
-        if Utils::is_in_kuudra() && compat::read(&config, |__t| __t.supply_waypoints) || compat::read(&config, |__t| __t.fuel_waypoints) || compat::read(&config, |__t| __t.ballista_build_waypoints) && mcrust::mcrust::modding::game::with_player(|_| ()).is_some() {
+        if Utils::is_in_kuudra() && (compat::read(&config, |__t| __t.supply_waypoints) || compat::read(&config, |__t| __t.fuel_waypoints) || compat::read(&config, |__t| __t.ballista_build_waypoints)) && mcrust::mcrust::modding::game::with_player(|_| ()).is_some() {
             let mut search_box: AABB = mcrust::mcrust::modding::game::with_player(|player| player.base.base.base.base.get_bounding_box().inflate(500.0)).unwrap();
             let mut supplies: Vec<compat::Shared<dyn Waypoint>> = Vec::new();
             let mut fuel_cells: Vec<compat::Shared<dyn Waypoint>> = Vec::new();
-            if compat::read(&config, |__t| __t.supply_waypoints) || compat::read(&config, |__t| __t.fuel_waypoints) && mcrust::mcrust::modding::game::level().is_some() {
-                // TODO(fabric2seer): `.getY(..)` on a T
-                //   java: List<Giant> giants = client.level.getEntitiesOfClass(Giant.class, searchBox, giant -> giant.getY() < 67);
-                let mut giants: Vec<Giant> = todo!("fabric2seer: the initialiser of `giants` (TODO above)");
-                for giant in giants.iter() {
-                    let mut yaw_offset: f64 = ((giant.base.base.base.base.base.get_y_rot() + (115 as f32))) as f64;
-                    let mut x: f64 = (giant.base.base.base.base.base.get_x() + (4.5 * (yaw_offset * (mcrust::net::minecraft::util::mth::DEG_TO_RAD as f64)).cos()));
+            if (compat::read(&config, |__t| __t.supply_waypoints) || compat::read(&config, |__t| __t.fuel_waypoints)) && mcrust::mcrust::modding::game::level().is_some() {
+                use mcrust::net::minecraft::world::level::entity_getter::EntityGetter as _;
+                // client.level.getEntitiesOfClass(Giant.class, searchBox, giant -> giant.getY() < 67): (yRot, x, z) of each
+                let giants: Vec<(f32, f64, f64)> = mcrust::mcrust::modding::game::level().unwrap().get_entities(None, &search_box, &|e| e.as_any().is_some_and(|a| a.is::<Giant>()) && e.base().get_y() < (67 as f64)).iter().map(|giant| {
+                    let guard = mcrust::mcrust::modding::game::lock_entity(&**giant, "kuudra_waypoints.rs:tick");
+                    (guard.base().get_y_rot(), guard.base().get_x(), guard.base().get_z())
+                }).collect();
+                for (giant_y_rot, giant_x, giant_z) in giants.iter().copied() {
+                    let mut yaw_offset: f64 = ((giant_y_rot + (115 as f32))) as f64;
+                    let mut x: f64 = (giant_x + (4.5 * (yaw_offset * (mcrust::net::minecraft::util::mth::DEG_TO_RAD as f64)).cos()));
                     let mut y: f64 = ((75) as f64) as f64;
-                    let mut z: f64 = (giant.base.base.base.base.base.get_z() + (4.5 * (yaw_offset * (mcrust::net::minecraft::util::mth::DEG_TO_RAD as f64)).sin()));
+                    let mut z: f64 = (giant_z + (4.5 * (yaw_offset * (mcrust::net::minecraft::util::mth::DEG_TO_RAD as f64)).sin()));
                     let mut waypoint: compat::Shared<dyn Waypoint> = (WaypointBase::new6(BlockPos::containing(x, y, z), SUPPLIES_AND_FUEL_TYPE.get_mut().clone(), SUPPLIES_COLOR.clone(), false) as compat::Shared<dyn Waypoint>);
                     if compat::get_state(&kuudra::PHASE) == KuudraPhase::Dps {
                         fuel_cells.push(waypoint.clone());
@@ -139,13 +157,15 @@ impl KuudraWaypoints {
             }
             let mut ballista_build_spots: Vec<compat::Shared<dyn Waypoint>> = Vec::new();
             if compat::read(&config, |__t| __t.ballista_build_waypoints) && mcrust::mcrust::modding::game::level().is_some() {
-                // TODO(fabric2seer): `.hasCustomName(..)` on a T
-                //   java: List<ArmorStand> armorStands = client.level.getEntitiesOfClass(ArmorStand.class, searchBox, ArmorStand::hasCustomName);
-                let mut armor_stands: Vec<ArmorStand> = todo!("fabric2seer: the initialiser of `armorStands` (TODO above)");
-                for armor_stand in armor_stands.iter() {
-                    let mut name: String = compat::component_of(armor_stand.get_name()).get_string();
+                use mcrust::net::minecraft::world::level::entity_getter::EntityGetter as _;
+                // client.level.getEntitiesOfClass(ArmorStand.class, searchBox, ArmorStand::hasCustomName): (name, blockPosition) of each
+                let armor_stands: Vec<(String, BlockPos)> = mcrust::mcrust::modding::game::level().unwrap().get_entities(None, &search_box, &|e| e.as_any().is_some_and(|a| a.is::<ArmorStand>()) && e.base().has_custom_name()).iter().map(|stand| {
+                    let guard = mcrust::mcrust::modding::game::lock_entity(&**stand, "kuudra_waypoints.rs:tick");
+                    (guard.get_name().get_string(), guard.base().block_position())
+                }).collect();
+                for (name, block_position) in armor_stands {
                     if compat::read(&config, |__t| __t.ballista_build_waypoints) && name.contains("SNEAK + PUNCH") {
-                        ballista_build_spots.push((WaypointBase::new5(armor_stand.base.base.block_position(), Arc::new(move || Type::Waypoint), SUPPLIES_COLOR.clone(), false) as compat::Shared<dyn Waypoint>));
+                        ballista_build_spots.push((WaypointBase::new6(block_position, Arc::new(move || Type::Waypoint), SUPPLIES_COLOR.clone(), false) as compat::Shared<dyn Waypoint>));
                     }
                 }
             }

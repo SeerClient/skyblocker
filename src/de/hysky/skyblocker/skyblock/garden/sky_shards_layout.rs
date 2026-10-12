@@ -31,22 +31,24 @@ impl SkyShardsLayout {
 
     /// java: private static @Nullable String decompress(String code) throws Exception
     pub fn decompress(code: &str) -> Option<String> {
+        // rust: port gap - `Base64.getUrlDecoder()` and `new Inflater(true)` (raw deflate) are not ported (GAPS_batchG)
         // TODO(fabric2seer): `.decode(..)` on a value of unknown type
         //   java: byte[] compressed = Base64.getUrlDecoder().decode(code);
-        let mut compressed: Vec<i8> = todo!("fabric2seer: the initialiser of `compressed` (TODO above)");
+        let mut compressed: Vec<u8> = todo!("fabric2seer: the initialiser of `compressed` (TODO above)");
         {
             // TODO(fabric2seer): `new InflaterInputStream(..)`
             //   java: InputStream in = new InflaterInputStream(new ByteArrayInputStream(compressed), new Inflater(true));
             let mut r#in: crate::unresolved::InputStream = todo!("fabric2seer: the initialiser of `in` (TODO above)");
             // TODO(fabric2seer): `.readNBytes(..)` on a InputStream
             //   java: byte[] decompressed = in.readNBytes(MAX_DECOMPRESSED_BYTES);
-            let mut decompressed: Vec<i8> = todo!("fabric2seer: the initialiser of `decompressed` (TODO above)");
+            let mut decompressed: Vec<u8> = todo!("fabric2seer: the initialiser of `decompressed` (TODO above)");
             // TODO(fabric2seer): the condition: `.read(..)` on a InputStream
             //   java: in.read() != -1
             if todo!("fabric2seer: the condition (TODO above)") {
                 return None;
             }
-            return Some(decompressed.iter().collect::<String>());
+            // new String(decompressed, StandardCharsets.UTF_8): malformed input becomes U+FFFD
+            return Some(String::from_utf8_lossy(&decompressed).into_owned());
         }
         todo!("fabric2seer: the value of this function is in a TODO above")
     }

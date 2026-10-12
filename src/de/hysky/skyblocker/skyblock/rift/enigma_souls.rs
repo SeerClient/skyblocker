@@ -57,47 +57,64 @@ impl EnigmaSouls {
     }
 
     /// java: static void load(Minecraft client)
+    ///
+    /// The reads run on the executor (Java's `runAsync`); the waypoints are render-thread objects, so they are built
+    /// through `game::execute`, and `soulsLoaded` completes after them.
     pub fn load(client: &mut mcrust::net::minecraft::client::minecraft::Minecraft) {
-        *SOULS_LOADED.get_mut() = Some(CompletableFuture::<()>::run_async(move || (|| {
-            {
-                let mut reader: crate::unresolved::BufferedReader = client.get_resource_manager().open_as_reader(WAYPOINTS_JSON.get_mut()).unwrap();
-                // java: try {..} catch (IOException e) - an exception here is a panic, caught by `catch_unwind`
-                let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                    // TODO(fabric2seer): static call JsonParser.parseReader(..)
-                    //   java: JsonObject file = JsonParser.parseReader(reader).getAsJsonObject();
-                    let mut file: serde_json::Map<String, serde_json::Value> = todo!("fabric2seer: the initialiser of `file` (TODO above)");
-                    let mut waypoints: Vec<serde_json::Value> = compat::json::get_as_json_array(&file.get("waypoints").cloned().unwrap());
-                    for i in 0..(waypoints.len() as i32) {
-                        let mut waypoint: serde_json::Map<String, serde_json::Value> = compat::json::get_as_json_object(&(waypoints[(i) as usize]));
-                        let mut pos: BlockPos = BlockPos::new(compat::json::get_as_int(&waypoint.get("x").cloned().unwrap()), compat::json::get_as_int(&waypoint.get("y").cloned().unwrap()), compat::json::get_as_int(&waypoint.get("z").cloned().unwrap()));
-                        SOUL_WAYPOINTS.get_mut().insert(pos.clone(), (EnigmaSoul::new(pos.clone(), TYPE_SUPPLIER.get_mut().clone(), GREEN.clone(), RED.clone()) as compat::Shared<dyn ProfileAwareWaypoint>));
+        let manager = client.get_resource_manager();
+        let waypoints_json: Identifier = WAYPOINTS_JSON.get().clone();
+        let found_souls_file: std::path::PathBuf = FOUND_SOULS_FILE.get().clone();
+        let souls_loaded: CompletableFuture<()> = CompletableFuture::new();
+        *SOULS_LOADED.get_mut() = Some(souls_loaded.clone());
+        compat::executor(Box::new(move || {
+            // try (BufferedReader reader = client.getResourceManager().openAsReader(WAYPOINTS_JSON)) { JsonParser.parseReader(reader) ..
+            let waypoints_file: Result<String, String> = manager.open_as_reader(&waypoints_json);
+            // try (BufferedReader reader = Files.newBufferedReader(FOUND_SOULS_FILE)) {..} catch (NoSuchFileException _) {}
+            let found_souls: Result<Option<String>, std::io::Error> = match std::fs::read_to_string(&found_souls_file) {
+                Ok(text) => Ok(Some(text)),
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
+                Err(e) => Err(e),
+            };
+            mcrust::mcrust::modding::game::execute(move || {
+                match waypoints_file {
+                    Err(e) => logger().error(&format!("[Skyblocker] There was an error while loading enigma soul waypoints! {}", e)),
+                    Ok(reader) => {
+                        let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                            let file: serde_json::Value = serde_json::from_str(&reader).unwrap_or_else(|e| panic!("JsonSyntaxException: {e}"));
+                            let file: serde_json::Map<String, serde_json::Value> = compat::json::get_as_json_object(&file);
+                            let mut waypoints: Vec<serde_json::Value> = compat::json::get_as_json_array(&file.get("waypoints").cloned().unwrap());
+                            for i in 0..(waypoints.len() as i32) {
+                                let mut waypoint: serde_json::Map<String, serde_json::Value> = compat::json::get_as_json_object(&(waypoints[(i) as usize]));
+                                let mut pos: BlockPos = BlockPos::new(compat::json::get_as_int(&waypoint.get("x").cloned().unwrap()), compat::json::get_as_int(&waypoint.get("y").cloned().unwrap()), compat::json::get_as_int(&waypoint.get("z").cloned().unwrap()));
+                                SOUL_WAYPOINTS.get_mut().insert(pos.clone(), (EnigmaSoul::new(pos.clone(), TYPE_SUPPLIER.get_mut().clone(), GREEN.clone(), RED.clone()) as compat::Shared<dyn ProfileAwareWaypoint>));
+                            }
+                        }));
+                        if let Err(e) = __result {
+                            logger().error(&format!("[Skyblocker] There was an error while loading enigma soul waypoints! {}", compat::panic_message(&e)));
+                        }
                     }
-                }));
-                if let Err(e) = __result {
-                    logger().error(&format!("[Skyblocker] There was an error while loading enigma soul waypoints!"));
                 }
-            }
-            {
-                // TODO(fabric2seer): Files.newBufferedReader
-                //   java: BufferedReader reader = Files.newBufferedReader(..);
-                let mut reader: crate::unresolved::BufferedReader = todo!("fabric2seer: the initialiser of `reader` (TODO above)");
-                // java: try {..} catch (NoSuchFileException _) catch (IOException e) - an exception here is a panic, caught by `catch_unwind`
-                let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                    // TODO(fabric2seer): static call JsonParser.parseReader(..)
-                    //   java: for (Map.Entry<String, JsonElement> profile : JsonParser.parseReader(reader).getAsJsonObject().asMap().entrySet()) {
-                    //   java: 					for (JsonElement foundSoul : profile.getValue().getAsJsonArray().asList()) {
-                    //   java: 						SOUL_WAYPOINTS.get(PosUtils.parsePosString(foundSoul.getAsString())).setFound(profile.getKey());
-                    //   java: 					}
-                    //   java: 				}
-                }));
-                if let Err(_) = __result {
+                match found_souls {
+                    // catch (NoSuchFileException _) {}
+                    Ok(None) => {}
+                    Err(e) => logger().error(&format!("[Skyblocker] There was an error while loading found enigma souls! {}", e)),
+                    Ok(Some(reader)) => {
+                        // not under the IOException catch in Java: a parse failure ends the task (the future completes)
+                        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                            let json: serde_json::Value = serde_json::from_str(&reader).unwrap_or_else(|e| panic!("JsonSyntaxException: {e}"));
+                            for (profile, found) in compat::json::get_as_json_object(&json) {
+                                for found_soul in compat::json::get_as_json_array(&found) {
+                                    let soul = SOUL_WAYPOINTS.get().get(&PosUtils::parse_pos_string(&compat::json::get_as_string(&found_soul))).cloned().expect("NullPointerException");
+                                    let __f = compat::dispatch(&soul, |__t| __t.set_found_1());
+                                    __f(&soul, profile.clone());
+                                }
+                            }
+                        }));
+                    }
                 }
-                // TODO(fabric2seer): the second `catch (IOException e)` clause (merged into the first)
-                //   java: {
-                //   java: 				LOGGER.error("[Skyblocker] There was an error while loading found enigma souls!", e);
-                //   java: 			}
-            }
-        })(), compat::executor));
+                souls_loaded.complete(());
+            });
+        }));
     }
 
     /// java: static void save(Minecraft client)
@@ -112,23 +129,17 @@ impl EnigmaSouls {
         let mut json: serde_json::Map<String, serde_json::Value> = serde_json::Map::new();
         for found_souls_for_profile in found_souls.iter().map(|(k, v)| (k.clone(), v.clone())) {
             let mut found_souls_json: Vec<serde_json::Value> = Vec::new();
-            for found_soul in found_souls_for_profile.1.lock().borrow().iter() {
-                found_souls_json.push(compat::json::to_value(PosUtils::get_pos_string(found_soul)));
+            // for (BlockPos foundSoul : foundSoulsForProfile.getValue())
+            for found_soul in BlockPosSet::to_array_1::<BlockPos>(&found_souls_for_profile.1, Vec::new()).into_iter().flatten() {
+                found_souls_json.push(serde_json::Value::String(PosUtils::get_pos_string(&found_soul)));
             }
-            json.insert(found_souls_for_profile.0.clone(), compat::json::to_value(found_souls_json.clone()));
+            json.insert(found_souls_for_profile.0.clone(), serde_json::Value::Array(found_souls_json));
         }
-        {
-            // TODO(fabric2seer): Files.newBufferedWriter
-            //   java: BufferedWriter writer = Files.newBufferedWriter(..);
-            let mut writer: crate::unresolved::BufferedWriter = todo!("fabric2seer: the initialiser of `writer` (TODO above)");
-            // java: try {..} catch (IOException e) - an exception here is a panic, caught by `catch_unwind`
-            let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                // TODO(fabric2seer): `.toJson(..)` on a Gson
-                //   java: SkyblockerMod.GSON.toJson(json, writer);
-            }));
-            if let Err(e) = __result {
-                logger().error(&format!("[Skyblocker] There was an error while saving found enigma souls!"));
-            }
+        // java: try (BufferedWriter writer = Files.newBufferedWriter(FOUND_SOULS_FILE)) { SkyblockerMod.GSON.toJson(json, writer); }
+        // catch (IOException e) {..} (GSON is `setPrettyPrinting()`)
+        let text: String = serde_json::to_string_pretty(&serde_json::Value::Object(json)).unwrap_or_default();
+        if let Err(e) = std::fs::write(FOUND_SOULS_FILE.get(), text) {
+            logger().error(&format!("[Skyblocker] There was an error while saving found enigma souls! {}", e));
         }
     }
 
@@ -137,7 +148,7 @@ impl EnigmaSouls {
         let config = &SkyblockerConfigManager::get().other_locations.rift;
         if Utils::is_in_the_rift() && config.enigma_soul_waypoints && SOULS_LOADED.get_mut().as_ref().unwrap().is_done() {
             for soul in SOUL_WAYPOINTS.get_mut().values().cloned() {
-                if { let __f = compat::dispatch(&soul, |__t| __t.should_render()); __f(&soul) } || config.highlight_found_enigma_souls {
+                if { let __f = compat::dispatch(&soul, |__t| __t.should_render()); __f(&compat::view(&soul, |a| a as compat::Shared<dyn Waypoint>)) } || config.highlight_found_enigma_souls {
                     ({ let __f = compat::dispatch(&soul, |__t| __t.extract_rendering()); __f(&compat::view(&soul, |a| a as compat::Shared<dyn Renderable>), collector) });
                 }
             }
@@ -192,12 +203,19 @@ impl EnigmaSouls {
         if !(SOULS_LOADED.get_mut().as_ref().unwrap().is_done()) || mcrust::mcrust::modding::game::with_player(|_| ()).is_none() {
             return;
         }
-        // TODO(fabric2seer): Optional.ifPresent
-        //   java: SOUL_WAYPOINTS.values().stream()
-        //   java: 				.filter(Waypoint::shouldRender)
-        //   java: 				.min(Comparator.comparingDouble(soul -> soul.pos.distToCenterSqr(player.position())))
-        //   java: 				.filter(soul -> soul.pos.distToCenterSqr(player.position()) <= 16)
-        //   java: 				.ifPresent(asFound ? Waypoint::setFound : Waypoint::setMissing);
+        let player_position = mcrust::mcrust::modding::game::with_player(|player| player.base.base.base.base.position()).unwrap();
+        let dist = |soul: &compat::Shared<dyn ProfileAwareWaypoint>| compat::read(soul, |__t| __t.profile_aware_waypoint_base().pos.clone()).unwrap().dist_to_center_sqr(player_position.x, player_position.y, player_position.z);
+        let souls: Vec<compat::Shared<dyn ProfileAwareWaypoint>> = SOUL_WAYPOINTS.get().values().cloned().collect();
+        let closest = souls
+            .into_iter()
+            .filter(|soul| { let __f = compat::dispatch(soul, |__t| __t.should_render()); __f(&compat::view(soul, |a| a as compat::Shared<dyn Waypoint>)) })
+            .min_by(|a, b| dist(a).total_cmp(&dist(b)))
+            .filter(|soul| dist(soul) <= (16 as f64));
+        if let Some(soul) = closest {
+            let soul: compat::Shared<dyn Waypoint> = compat::view(&soul, |a| a as compat::Shared<dyn Waypoint>).clone();
+            let __f = if as_found { compat::dispatch(&soul, |__t| __t.set_found()) } else { compat::dispatch(&soul, |__t| __t.set_missing()) };
+            __f(&soul);
+        }
     }
 
 }

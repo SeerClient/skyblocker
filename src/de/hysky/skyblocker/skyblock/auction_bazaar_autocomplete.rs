@@ -38,17 +38,17 @@ impl AuctionBazaarAutocomplete {
     }
 
     /// java: public static CompletableFuture<Suggestions> suggestBzs(CommandContext<FabricClientCommandSource> context, SuggestionsBuilder builder)
-    pub fn suggest_bzs(context: &CommandContext<crate::unresolved::FabricClientCommandSource>, builder: &SuggestionsBuilder) -> mcrust::java::util::concurrent::completable_future::CompletableFuture<Suggestions> {
-        return shared_suggestion_provider::suggest(&SearchOverManager::get_bazaar_items(), &mut builder);
+    pub fn suggest_bzs(context: &CommandContext<crate::unresolved::FabricClientCommandSource>, builder: &mut SuggestionsBuilder) -> mcrust::java::util::concurrent::completable_future::CompletableFuture<Suggestions> {
+        return shared_suggestion_provider::suggest(&SearchOverManager::get_bazaar_items().into_iter().collect::<Vec<String>>(), builder);
     }
 
     /// java: private static void createNodes()
     pub fn create_nodes() {
         if SkyblockerConfigManager::get().ui_and_visuals.search_overlay.command_autocomplete {
-            *AHS_NODE.get_mut() = Some(AuctionBazaarAutocomplete::create_node("ahs", Arc::new(move || SearchOverManager::get_auction_items())));
-            *AHSEARCH_NODE.get_mut() = Some(AuctionBazaarAutocomplete::create_node("ahsearch", Arc::new(move || SearchOverManager::get_auction_items())));
-            *BZ_NODE.get_mut() = Some(AuctionBazaarAutocomplete::create_node("bz", Arc::new(move || SearchOverManager::get_bazaar_items())));
-            *BAZAAR_NODE.get_mut() = Some(AuctionBazaarAutocomplete::create_node("bazaar", Arc::new(move || SearchOverManager::get_bazaar_items())));
+            *AHS_NODE.get_mut() = Some(AuctionBazaarAutocomplete::create_node("ahs", Arc::new(move || SearchOverManager::get_auction_items().into_iter().collect::<Vec<String>>())));
+            *AHSEARCH_NODE.get_mut() = Some(AuctionBazaarAutocomplete::create_node("ahsearch", Arc::new(move || SearchOverManager::get_auction_items().into_iter().collect::<Vec<String>>())));
+            *BZ_NODE.get_mut() = Some(AuctionBazaarAutocomplete::create_node("bz", Arc::new(move || SearchOverManager::get_bazaar_items().into_iter().collect::<Vec<String>>())));
+            *BAZAAR_NODE.get_mut() = Some(AuctionBazaarAutocomplete::create_node("bazaar", Arc::new(move || SearchOverManager::get_bazaar_items().into_iter().collect::<Vec<String>>())));
         }
     }
 

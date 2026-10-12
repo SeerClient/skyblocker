@@ -54,7 +54,7 @@ pub trait TooltipInfoType: compat::DynAny {
 }
 
 /// java: private static SkyblockerConfig getConfig()
-pub fn get_config() -> SkyblockerConfig {
+pub fn get_config() -> &'static SkyblockerConfig {
     return SkyblockerConfigManager::get();
 }
 

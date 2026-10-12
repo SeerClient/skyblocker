@@ -181,7 +181,7 @@ impl ElementCollector for FishingHudWidget {
 
     /// java: public <T extends Element> T addElement(T c)
     fn add_element(&mut self, mut c: compat::Shared<dyn Element>) -> compat::Shared<dyn Element> {
-        ({ let __f = compat::dispatch(&c, |__t| __t.set_parent()); __f(&c, self.clone()) });
+        ({ let __f = compat::dispatch(&c, |__t| __t.set_parent()); __f(&c, self.hud_widget_base().as_parent()) });
         self.elements.push(c.clone());
         return c;
     }
@@ -223,7 +223,7 @@ impl FishingHudWidget {
             { let (__a0,) = (Elements::progress_component_flexible_item_stack_component_component_float(Some(ico::CLOCK.get_mut().clone()), &component::null_to_empty(Some("Bobber Time")), &SkyblockTime::format_time(((max_time - time)) as f64), ((100 as f32) - ((time / max_time) * (100 as f32)))),); __this.lock().borrow_mut().add_element(__a0) };
         }
         if SkyblockerConfigManager::get().helpers.fishing.fishing_hook_display == FishingHookDisplay::Hud && fishing_hook_display_helper::FISHING_HOOK_ARMOR_STAND.get_mut().is_some() {
-            let mut rod_reel_timer: String = compat::component_of(fishing_hook_display_helper::FISHING_HOOK_ARMOR_STAND.get_mut().as_ref().unwrap().get_name()).get_string();
+            let mut rod_reel_timer: String = fishing_hook_display_helper::FishingHookDisplayHelper::armor_stand_name().get_string();
             ({ let __f = compat::dispatch(__this, |__t| __t.add_simple_ico_text_flexible_item_stack_string_chat_formatting_string()); __f(&compat::view(__this, |a| a as compat::Shared<dyn ElementCollector>), Some(ico::CLOCK.get_mut().clone()), "Reel Timer: ", &(if rod_reel_timer == "!!!" { ChatFormatting::Red } else { ChatFormatting::Yellow }), &rod_reel_timer) });
         }
     }
@@ -240,7 +240,7 @@ impl FishingHudWidget {
             { let (__a0,) = (Elements::progress_component_flexible_item_stack_component_component_float(Some(ico::CLOCK.get_mut().clone()), &component::null_to_empty(Some("Time Left")), &component::null_to_empty(Some("1m")), ((60.0f32 / (SkyblockerConfigManager::get().helpers.fishing.timer_length as f32)) * (100 as f32))),); collector.lock().borrow_mut().add_element(__a0) };
         }
         if compat::read(__this, |__t| __t.show_fishing_timer) {
-            { let (__a0,) = (Elements::progress_component_flexible_item_stack_component_float_int(Some(ico::CLOCK.get_mut().clone()), &component::null_to_empty(Some("Bobber Time")), SkyblockTime::format_time(((15) as f64) as f64), 75),); collector.lock().borrow_mut().add_element(__a0) };
+            { let (__a0,) = (Elements::progress_component_flexible_item_stack_component_component_float(Some(ico::CLOCK.get_mut().clone()), &component::null_to_empty(Some("Bobber Time")), &SkyblockTime::format_time(((15) as f64) as f64), 75 as f32),); collector.lock().borrow_mut().add_element(__a0) };
         }
         if SkyblockerConfigManager::get().helpers.fishing.fishing_hook_display == FishingHookDisplay::Hud {
             ({ let __f = compat::dispatch(collector, |__t| __t.add_simple_ico_text_flexible_item_stack_string_chat_formatting_string()); __f(collector, Some(ico::CLOCK.get_mut().clone()), "Reel Timer: ", &ChatFormatting::Yellow, "???") });

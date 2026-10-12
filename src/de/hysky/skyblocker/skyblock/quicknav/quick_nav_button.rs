@@ -29,9 +29,9 @@ use mcrust::net::minecraft::network::chat::component::Component as _;
 /// java: private static final long TOGGLE_DURATION = 1000;
 pub const TOGGLE_DURATION: i64 = ((1000) as i64) as i64;
 /// java: @SuppressWarnings("unchecked") private static final @Nullable FallbackedTexture<Identifier>[] TAB_TEXTURES = new FallbackedTexture[14];
-pub static TAB_TEXTURES: compat::MainThread<Option<Vec<compat::Shared<dyn FallbackedTexture<Identifier>>>>> = compat::MainThread::new(|| Some((0..(14) as usize).map(|_| Default::default()).collect::<Vec<_>>()));
+pub static TAB_TEXTURES: compat::MainThread<Vec<Option<compat::Shared<dyn FallbackedTexture<Identifier>>>>> = compat::MainThread::new(|| (0..(14) as usize).map(|_| None).collect::<Vec<_>>());
 /// java: @SuppressWarnings("unchecked") private static final @Nullable FallbackedTexture<Identifier>[] TAB_TEXTURES_SELECTED = new FallbackedTexture[14];
-pub static TAB_TEXTURES_SELECTED: compat::MainThread<Option<Vec<compat::Shared<dyn FallbackedTexture<Identifier>>>>> = compat::MainThread::new(|| Some((0..(14) as usize).map(|_| Default::default()).collect::<Vec<_>>()));
+pub static TAB_TEXTURES_SELECTED: compat::MainThread<Vec<Option<compat::Shared<dyn FallbackedTexture<Identifier>>>>> = compat::MainThread::new(|| (0..(14) as usize).map(|_| None).collect::<Vec<_>>());
 
 /// java: @Environment(value = EnvType.CLIENT) public class QuickNavButton extends AbstractWidget
 #[derive(Clone)]
@@ -97,19 +97,24 @@ impl QuickNavButtonBase {
             { let __v = None; compat::write(&__this, |__t| __t.quick_nav_button_base_mut().tooltip = __v); }
             return (__this, __r);
         }
-        let mut tip: Tooltip;
-        // java: try {..} catch (Exception _) - an exception here is a panic, caught by `catch_unwind`
-        let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            // TODO(fabric2seer): `.fromJson(..)` on a Gson
-            //   java: setTooltip(tip = Tooltip.create(ComponentSerialization.CODEC.decode(JsonOps.INSTANCE, SkyblockerMod.GSON.fromJson(tooltip, JsonElement.class)).getOrThrow().getFirst()));
-        }));
-        if let Err(_) = __result {
-            { let (__q0,) = ({ tip = Tooltip::create(component::literal(&tooltip).get_string()); tip.clone() },); __this.lock().borrow_mut().quick_nav_button_base_mut().set_tooltip(__q0) };
-        }
+        // java: try { setTooltip(tip = Tooltip.create(ComponentSerialization.CODEC.decode(JsonOps.INSTANCE, SkyblockerMod.GSON.fromJson(tooltip, JsonElement.class)).getOrThrow().getFirst())); }
+        //       catch (Exception _) { setTooltip(tip = Tooltip.create(Component.literal(tooltip))); }
+        let __decoded: Option<mcrust::net::minecraft::network::chat::formatted_text::FormattedText> = serde_json::from_str::<serde_json::Value>(&tooltip).ok().and_then(|json| {
+            use mcrust::com::mojang::serialization::decoder::Decoder as _;
+            mcrust::net::minecraft::network::chat::component_serialization::codec()
+                .decode(&mcrust::com::mojang::serialization::json_ops::JsonOps::instance(), &compat::json_to_port(&json))
+                .get_or_throw()
+                .ok()
+                .map(|(component, _)| component)
+        });
+        let mut tip: Tooltip = match __decoded {
+            Some(component) => Tooltip::create_text(component),
+            None => Tooltip::create_text(mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::literal(&tooltip))),
+        };
+        { let (__q0,) = (tip.clone(),); __this.lock().borrow_mut().quick_nav_button_base_mut().set_tooltip(__q0) };
         { let __v = Some(tip.clone()); compat::write(&__this, |__t| __t.quick_nav_button_base_mut().tooltip = __v); }
-        // TODO(fabric2seer): `AbstractWidget.setTooltipDelay` has no Rust method in the port (looked for `set_tooltip_delay` in AbstractWidget and its supertypes)
-        // rust: let __h0 = &std::time::Duration::from_millis((100) as u64);
-        // rust: __this.lock().borrow().quick_nav_button_base().set_tooltip_delay(__h0);
+        // java: setTooltipDelay(Duration.ofMillis(100));
+        __this.lock().borrow_mut().quick_nav_button_base_mut().set_tooltip_delay(100);
         (__this, __r)
     }
 
@@ -204,20 +209,19 @@ impl dyn QuickNavButton {
 
     /// java: private void updateCoordinates()
     pub fn update_coordinates_body(__this: &compat::Shared<dyn QuickNavButton>) {
-        if let Some(handled_screen) = ScreenUtils::get_underlying_screen().unwrap().as_any().downcast_ref::<AbstractContainerScreen>() {
-            let mut accessible_screen = handled_screen;
-            let mut x: i32 = accessible_screen.left_pos;
-            let mut y: i32 = accessible_screen.top_pos;
-            let mut h: i32 = accessible_screen.image_height;
-            if handled_screen.as_any().is::<ContainerScreen>() {
-                h -= 1;
-            }
-            let mut w: i32 = accessible_screen.image_width;
-            let __r0 = compat::read(__this, |__t| __t.quick_nav_button_base().index);
-            { let (__q0,) = (((x.wrapping_add(((__r0).wrapping_rem(7)).wrapping_mul(25))).wrapping_add(w.wrapping_div(2))).wrapping_sub(176i32.wrapping_div(2)),); __this.lock().borrow_mut().quick_nav_button_base_mut().set_x(__q0) };
-            let __r0 = compat::read(__this, |__t| __t.quick_nav_button_base().index);
-            { let (__q0,) = ((if __r0 < 7 { y.wrapping_sub(28) } else { (y.wrapping_add(h)).wrapping_sub(4) }),); __this.lock().borrow_mut().quick_nav_button_base_mut().set_y(__q0) };
+        // java: if (ScreenUtils.getUnderlyingScreen() instanceof AbstractContainerScreen<?> handledScreen) - the open container
+        // screen's panel (`AbstractContainerScreenAccessor.getX/getY/getImageWidth/getImageHeight`); `ContainerScreen` is
+        // the generic chest screen
+        let Some((x, y, w, mut h, is_container_screen)) = compat::container_screen_panel() else {
+            return;
+        };
+        if is_container_screen {
+            h -= 1; // they messed up the height on these.
         }
+        let __r0 = compat::read(__this, |__t| __t.quick_nav_button_base().index);
+        { let (__q0,) = (((x.wrapping_add(((__r0).wrapping_rem(7)).wrapping_mul(25))).wrapping_add(w.wrapping_div(2))).wrapping_sub(176i32.wrapping_div(2)),); __this.lock().borrow_mut().quick_nav_button_base_mut().set_x(__q0) };
+        let __r0 = compat::read(__this, |__t| __t.quick_nav_button_base().index);
+        { let (__q0,) = ((if __r0 < 7 { y.wrapping_sub(28) } else { (y.wrapping_add(h)).wrapping_sub(4) }),); __this.lock().borrow_mut().quick_nav_button_base_mut().set_y(__q0) };
     }
 
     /// java: @Override public void onClick(MouseButtonEvent click, boolean doubled)
@@ -226,7 +230,8 @@ impl dyn QuickNavButton {
             { let __v = true; compat::write(__this, |__t| __t.quick_nav_button_base_mut().temporary_toggled = __v); }
             { let __v = compat::millis(); compat::write(__this, |__t| __t.quick_nav_button_base_mut().toggle_time = __v); }
             if compat::read(__this, |__t| __t.quick_nav_button_base().command.clone()).is_none() || __this.lock().borrow().quick_nav_button_base().command.as_ref().unwrap().is_empty() {
-                mcrust::mcrust::modding::game::with_player(|player| { script_host::send_feedback(&(constants::PREFIX.get_mut())().append((component::literal(&format!("Quick Nav button index {} has no command!", (compat::read(__this, |__t| __t.quick_nav_button_base().index)).wrapping_add(1)))).with_style_format(ChatFormatting::Red)).to_string()); });
+                let __index = compat::read(__this, |__t| __t.quick_nav_button_base().index);
+                mcrust::mcrust::modding::game::with_player(|player| { script_host::send_feedback(&(constants::PREFIX.get_mut())().append((component::literal(&format!("Quick Nav button index {} has no command!", (__index).wrapping_add(1)))).with_style_format(ChatFormatting::Red)).to_string()); });
             } else {
                 MessageScheduler::send_message_after_cooldown(message_scheduler::INSTANCE.get_mut(), compat::read(__this, |__t| __t.quick_nav_button_base().command.clone()).as_deref().unwrap(), true);
             }
@@ -249,26 +254,29 @@ impl dyn QuickNavButton {
             { let __v = ((compat::read(__this, |__t| __t.quick_nav_button_base().alpha)).wrapping_add(10)).min(255); compat::write(__this, |__t| __t.quick_nav_button_base_mut().alpha = __v); }
         }
         let mut tab_texture: Identifier = ({ let __f = compat::dispatch(__this, |__t| __t.get_texture()); __f(__this) });
-        gui_graphics_extractor::blit_sprite_identifier_with_color(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), mcrust::net::minecraft::client::renderer::render_pipelines::gui_textured(), &tab_texture, __this.lock().borrow().quick_nav_button_base().get_x(), __this.lock().borrow().quick_nav_button_base().get_y(), compat::read(__this, |__t| __t.quick_nav_button_base().width), compat::read(__this, |__t| __t.quick_nav_button_base().height), (((if compat::read(__this, |__t| __t.quick_nav_button_base().render_in_front) { (argb::color_alpha_rgb(compat::read(__this, |__t| __t.quick_nav_button_base().alpha), -1)) as f32 } else { (-1) as f32 })) as f32) as f32);
+        gui_graphics_extractor::blit_sprite_identifier_with_color(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), mcrust::net::minecraft::client::renderer::render_pipelines::gui_textured(), &tab_texture, __this.lock().borrow().quick_nav_button_base().get_x(), __this.lock().borrow().quick_nav_button_base().get_y(), compat::read(__this, |__t| __t.quick_nav_button_base().width), compat::read(__this, |__t| __t.quick_nav_button_base().height), (if compat::read(__this, |__t| __t.quick_nav_button_base().render_in_front) { argb::color_alpha_rgb(compat::read(__this, |__t| __t.quick_nav_button_base().alpha), -1) } else { -1 }));
         let mut y_offset: i32 = (if compat::read(__this, |__t| __t.quick_nav_button_base().index) < 7 { 1 } else { -1 });
         graphics.item(&compat::read(__this, |__t| __t.quick_nav_button_base().icon.clone()), (__this.lock().borrow().quick_nav_button_base().get_x()).wrapping_add(5), ((__this.lock().borrow().quick_nav_button_base().get_y()).wrapping_add(8)).wrapping_add(y_offset));
-        __this.lock().borrow().quick_nav_button_base().handle_cursor(graphics);
+        // java: this.handleCursor(graphics); - the port asks it of the widget after the draw (`ModWidget::handle_cursor`, below)
     }
 
     /// java: private Identifier getTexture()
     pub fn get_texture_body(__this: &compat::Shared<dyn QuickNavButton>) -> Identifier {
-        let mut textures = (if compat::read(__this, |__t| __t.quick_nav_button_base().render_in_front) { TAB_TEXTURES_SELECTED.get_mut().clone() } else { TAB_TEXTURES.get_mut().clone() });
-        let mut texture: Option<compat::Shared<dyn FallbackedTexture<Identifier>>> = Some(textures[(compat::read(__this, |__t| __t.quick_nav_button_base().index)) as usize].clone());
+        let render_in_front = compat::read(__this, |__t| __t.quick_nav_button_base().render_in_front);
+        let index = compat::read(__this, |__t| __t.quick_nav_button_base().index);
+        let textures = if render_in_front { &TAB_TEXTURES_SELECTED } else { &TAB_TEXTURES };
+        let mut texture: Option<compat::Shared<dyn FallbackedTexture<Identifier>>> = textures.get()[(index) as usize].clone();
         if let Some(texture) = &texture {
-            // TODO(fabric2seer): `get` is not a method of FallbackedTexture
-            //   java: return texture.get();
+            return fallbacked_texture_get(texture);
         }
-        // TODO(fabric2seer): an assignment used as a value
-        //   java: return (textures[index] = FallbackedTexture.ofGuiSprite(
-        //   java: 				SkyblockerMod.id("quick_nav/tab_" + (isTopTab() ? "top" : "bottom") + "_" + (renderInFront ? "selected" : "unselected") + "_" + (index % 7 + 1)),
-        //   java: 				Identifier.withDefaultNamespace("container/creative_inventory/tab_" + (isTopTab() ? "top" : "bottom") + "_" + (renderInFront ? "selected" : "unselected") + "_" + (index % 7 + 1))
-        //   java: 		)).get();
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        // Construct the texture identifier based on the index and toggled state
+        let is_top_tab = ({ let __f = compat::dispatch(__this, |__t| __t.is_top_tab()); __f(__this) });
+        let __texture = crate::de::hysky::skyblocker::utils::render::texture::fallbacked_texture::of_gui_sprite(
+            &skyblocker_mod::id(&format!("quick_nav/tab_{}_{}_{}", (if is_top_tab { "top" } else { "bottom" }), (if render_in_front { "selected" } else { "unselected" }), (index.wrapping_rem(7)).wrapping_add(1))),
+            &Identifier::with_default_namespace(&format!("container/creative_inventory/tab_{}_{}_{}", (if is_top_tab { "top" } else { "bottom" }), (if render_in_front { "selected" } else { "unselected" }), (index.wrapping_rem(7)).wrapping_add(1))),
+        );
+        textures.get_mut()[(index) as usize] = Some(__texture.clone());
+        return fallbacked_texture_get(&__texture);
     }
 
     /// java: @Override protected void updateWidgetNarration(NarrationElementOutput builder)
@@ -282,11 +290,61 @@ impl QuickNavButton for QuickNavButtonBase {
         &self
     }
     fn quick_nav_button_base_mut(&mut self) -> &mut QuickNavButtonBase {
-        &mut self
+        self
     }
 
     fn as_any(&self) -> &dyn std::any::Any {
         self
     }
 
+}
+
+/// `FallbackedTexture<Identifier>.get()` (`extends Supplier<T>`): the port's `FallbackedTexture` trait has no `get`
+/// (utils/render/texture, another batch's file), so it is read off the one implementation of the `Identifier` kind.
+fn fallbacked_texture_get(texture: &compat::Shared<dyn FallbackedTexture<Identifier>>) -> Identifier {
+    compat::read(texture, |t| {
+        t.as_any()
+            .downcast_ref::<crate::de::hysky::skyblocker::utils::render::texture::identifier_texture::IdentifierTexture>()
+            .map(|t| t.current_texture.clone())
+            .expect("FallbackedTexture<Identifier> is an IdentifierTexture")
+    })
+}
+
+/// QuickNavButton's widget half (`super`'s fields: x, y, size, message, ...), lent by the game for each call - for
+/// every class of the hierarchy (the mixin hands the game `List<QuickNavButton>`, whose elements are of any class)
+impl compat::WidgetHalf for dyn QuickNavButton {
+    fn widget_half(&mut self) -> &mut AbstractWidget {
+        &mut self.quick_nav_button_base_mut().base
+    }
+}
+
+impl QuickNavButtonBase {
+    /// `screen.addWidget(quickNavButton)` / `addRenderableWidget(..)`: the game's widget with the button attached.
+    pub fn widget(button: compat::Shared<dyn QuickNavButton>) -> AbstractWidget {
+        compat::WidgetAdapter::widget(button)
+    }
+}
+
+/// QuickNavButton as the game's widget: `QuickNavButtonBase::widget(handle)` where Java hands it on. Each call
+/// dispatches to the object's class (QuickNavButton or QuickNavConfirmationButton).
+impl mcrust::mcrust::modding::widgets::ModWidget for compat::WidgetAdapter<dyn QuickNavButton> {
+    /// java: @Override public void extractWidgetRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta)
+    fn extract_widget_render_state(&mut self, widget: &AbstractWidget, context: &mut mcrust::mcrust::modding::widgets::WidgetRenderContext<'_>, mouse_x: i32, mouse_y: i32, a: f32) {
+        self.lend_ref(widget, |__h| ({ let __f = compat::dispatch(__h, |__t| __t.extract_widget_render_state()); __f(__h, &context.graphics, mouse_x, mouse_y, a) }))
+    }
+
+    /// java: @Override protected void updateWidgetNarration(NarrationElementOutput builder)
+    fn update_widget_narration(&mut self, widget: &AbstractWidget, output: &mut dyn NarrationElementOutput) {
+        self.lend_ref(widget, |__h| ({ let __f = compat::dispatch(__h, |__t| __t.update_widget_narration()); __f(__h, output) }))
+    }
+
+    /// java: @Override public void onClick(MouseButtonEvent click, boolean doubled)
+    fn on_click(&mut self, widget: &mut AbstractWidget, event: &MouseButtonEvent, double_click: bool) {
+        self.lend(widget, |__h| ({ let __f = compat::dispatch(__h, |__t| __t.on_click()); __f(__h, event, double_click) }))
+    }
+
+    /// java: `this.handleCursor(graphics)` at the end of `extractWidgetRenderState` - `AbstractWidget.handleCursor`'s body
+    fn handle_cursor(&self, widget: &AbstractWidget, cursors: &mcrust::com::mojang::blaze3d::platform::cursor::cursor_types::CursorTypes) -> Option<mcrust::com::mojang::blaze3d::platform::cursor::cursor_type::CursorType> {
+        widget.handle_cursor(cursors)
+    }
 }

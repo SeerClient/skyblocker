@@ -6,10 +6,8 @@ use mcrust::com::mojang::serialization::codec::Codec;
 use mcrust::com::mojang::serialization::codec::CodecRef;
 use mcrust::net::minecraft::chat_formatting::ChatFormatting;
 
-// TODO(fabric2seer): `from_enum` takes 2 argument(s) in the port (`values: Vec<E>, serialized_name: impl Fn(&E) -> String + Send + Sync + Copy + 'static`), Java passes 1
-//   java: public static final Codec<SlayerTier> CODEC = StringRepresentable.fromEnum(SlayerTier::values);
 /// java: public static final Codec<SlayerTier> CODEC = StringRepresentable.fromEnum(SlayerTier::values);
-pub static CODEC: compat::MainThread<CodecRef<SlayerTier>> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `CODEC` - see the TODO above"));
+pub static CODEC: compat::MainThread<CodecRef<SlayerTier>> = compat::MainThread::new(|| mcrust::net::minecraft::util::string_representable::from_enum(SlayerTier::values(), |e: &SlayerTier| e.get_serialized_name()));
 
 /// java: public enum SlayerTier implements StringRepresentable
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -70,7 +68,7 @@ impl SlayerTier {
     }
 
     /// java: public static SlayerTier valueOf(@Nullable String name, String slayerName)
-    pub fn value_of(mut name: Option<String>, slayer_name: &str) -> SlayerTier {
+    pub fn value_of_2(name: Option<String>, slayer_name: &str) -> SlayerTier {
         if slayer_name.contains("Conjoined Brood") {
             return SlayerTier::V;
         }
@@ -80,12 +78,10 @@ impl SlayerTier {
         if slayer_name.contains("Bloodfiend") && name.is_none() {
             return SlayerTier::V;
         }
-        let Some(mut name) = name.clone() else {
+        let Some(name) = name else {
             return SlayerTier::I;
         };
-        // TODO(fabric2seer): no overload of `valueOf` takes 1 argument(s)
-        //   java: return SlayerTier.valueOf(name);
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        return SlayerTier::value_of(&name);
     }
 
     /// java: @Override public String getSerializedName()
@@ -103,19 +99,13 @@ impl std::fmt::Display for SlayerTier {
 
 /// the constructor data of each SlayerTier constant
 pub struct SlayerTierFields {
-    pub name: Option<String>,
+    pub name: String,
     pub color: ChatFormatting,
 }
 
 impl SlayerTierFields {
-    fn new(mut name: String, mut color: ChatFormatting) -> Self {
-        let mut this = Self {
-            name: None,
-            color: Default::default(),
-        };
-        this.name = name.clone();
-        this.color = color;
-        this
+    fn new(name: String, color: ChatFormatting) -> Self {
+        Self { name, color }
     }
 
 }

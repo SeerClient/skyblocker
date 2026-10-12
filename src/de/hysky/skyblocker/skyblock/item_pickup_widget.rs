@@ -105,8 +105,9 @@ impl ItemPickupWidget {
         *INSTANCE.get_mut() = Some(__this.clone());
         // TODO(fabric2seer): ClientReceiveMessageEvents.ALLOW_GAME.register: no SeerClient equivalent yet
         //   java: ClientReceiveMessageEvents.ALLOW_GAME.register(instance::onChatMessage);
-        client_play_connection_events::JOIN.register(Arc::new(|listener: &mut ClientPacketListener| {
-            { let __v = true; compat::write(&__this, |__t| __t.changing_lobby = __v); }
+        let __this_j = compat::RenderThread::new(__this.clone());
+        client_play_connection_events::JOIN.register(Arc::new(move |listener: &mut ClientPacketListener| {
+            { let __v = true; compat::write(&(*__this_j.get()), |__t| __t.changing_lobby = __v); }
         }));
         let __this_2 = compat::RenderThread::new(__this.clone());
         skyblock_events::LOCATION_CHANGE.register(Arc::new(move |_| { let __this_1 = compat::RenderThread::new((*__this_2.get()).clone()); ({ let __r = scheduler::INSTANCE.get_mut(); let __f = compat::dispatch(__r, |__t| __t.schedule()); __f(__r, Arc::new(move || { { let __v = false; compat::write(&(*__this_1.get()), |__t| __t.changing_lobby = __v); } }), LOBBY_CHANGE_DELAY) }); }));
@@ -123,6 +124,10 @@ impl ItemPickupWidget {
         if NEURepoManager::is_loading() || !(ItemRepository::files_imported()) {
             return ItemUtils::get_named_placeholder(item_name);
         }
+        // rust: port gap - `NEUItem.getSkyblockItemId` (the NEU repo parser is a `crate::unresolved` placeholder,
+        // GAPS_batchB L1): the item found by name cannot be resolved to its id, so the placeholder is answered
+        let _item = NEURepoManager::get_item_by_name(item_name).into_iter().flatten().next();
+        return ItemUtils::get_named_placeholder(item_name);
         // TODO(fabric2seer): `.getSkyblockItemId(..)` on a NEUItem
         //   java: return NEURepoManager.getItemByName(itemName)
         //   java: 				.stream()
@@ -131,7 +136,6 @@ impl ItemPickupWidget {
         //   java: 				.map(NEUItem::getSkyblockItemId)
         //   java: 				.map(ItemRepository::getItemStack)
         //   java: 				.orElseGet(() -> ItemUtils.getNamedPlaceholder(itemName));
-        todo!("fabric2seer: the value of this function is in a TODO above")
     }
 
     /// java: @SuppressWarnings("SameReturnValue") private boolean onChatMessage(Component message, boolean overlay)
@@ -142,21 +146,17 @@ impl ItemPickupWidget {
         if !(compat::read(__this, |__t| __t.sack_notifications)) {
             return true;
         }
-        let mut hover_event: Option<HoverEvent> = message.get_siblings()[0].get_style().get_hover_event();
-        // TODO(fabric2seer): static `HoverEvent.Action` has no Rust counterpart in the port's HoverEvent file
-        // TODO(fabric2seer): the condition: field `SHOW_TEXT` of a value of unknown type
-        //   java: hoverEvent == null || hoverEvent.action() != HoverEvent.Action.SHOW_TEXT
-        if todo!("fabric2seer: the condition (TODO above)") {
+        let mut hover_event: Option<HoverEvent> = message.get_siblings()[0].get_style().get_hover_event().cloned();
+        if hover_event.is_none() || hover_event.as_ref().unwrap().action() != mcrust::net::minecraft::network::chat::hover_event::Action::ShowText {
             return true;
         }
-        let mut hover_message: String = (hover_event.as_ref().unwrap().as_any().downcast_ref::<HoverEvent>().unwrap()).value_of_show_text().unwrap().get_string();
+        // `((HoverEvent.ShowText) hoverEvent).value().getString()`
+        let mut hover_message: String = hover_event.as_ref().unwrap().value_of_show_text().unwrap().get_string();
         let mut split: bool = compat::read(__this, |__t| __t.split_notifications);
         let mut matcher: compat::regex::Matcher = CHANGE_REGEX.matcher(&chat_formatting::strip_formatting(&hover_message));
         while matcher.find() {
             let mut item: mcrust::net::minecraft::world::item::item_stack::ItemStack = FlexibleItemStack::get_stack_or_throw(&ItemPickupWidget::get_item(matcher.group(3).as_deref().unwrap()));
-            // TODO(fabric2seer): `.intValue(..)` on a Number
-            //   java: int count = Formatters.parseNumber(matcher.group(2)).intValue();
-            let mut count: i32 = todo!("fabric2seer: the initialiser of `count` (TODO above)");
+            let mut count: i32 = Formatters::parse_number(matcher.group(2).as_deref().unwrap()).int_value();
             if matcher.group(1).as_deref() == Some(&*("+")) {
                 ItemPickupWidget::update_count(__this, &mut (if split { compat::read(__this, |__t| __t.added_sack_count.clone()) } else { compat::read(__this, |__t| __t.added_count.clone()) }), &item, count);
             } else if matcher.group(1).as_deref() == Some(&*("-")) {
@@ -306,7 +306,7 @@ impl ElementCollector for ItemPickupWidget {
 
     /// java: public <T extends Element> T addElement(T c)
     fn add_element(&mut self, mut c: compat::Shared<dyn Element>) -> compat::Shared<dyn Element> {
-        ({ let __f = compat::dispatch(&c, |__t| __t.set_parent()); __f(&c, self.clone()) });
+        ({ let __f = compat::dispatch(&c, |__t| __t.set_parent()); __f(&c, self.hud_widget_base().as_parent()) });
         self.elements.push(c.clone());
         return c;
     }
@@ -428,7 +428,7 @@ impl ItemPickupWidget {
         output.write_bool("sack_notifications", compat::read(__this, |__t| __t.sack_notifications));
         output.write_bool("split_sack", compat::read(__this, |__t| __t.split_notifications));
         output.write_bool("show_item_name", compat::read(__this, |__t| __t.show_item_name));
-        output.write_number("lifetime", &compat::read(__this, |__t| __t.lifetime));
+        output.write_number("lifetime", &mcrust::java::lang::number::Number::Float(compat::read(__this, |__t| __t.lifetime)));
     }
 
     /// ItemPickupWidget.save as the dispatch of HudWidget.save

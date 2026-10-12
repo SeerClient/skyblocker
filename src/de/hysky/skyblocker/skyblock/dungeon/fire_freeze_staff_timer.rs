@@ -47,7 +47,7 @@ impl FireFreezeStaffTimer {
                 }
                 let mut message: MutableComponent;
                 if compat::get_state(&FIRE_FREEZE_TIMER) > (0 as i64) {
-                    message = component::literal("in ").append((component::literal(&format!("{}s", format!("{:.2}", (((compat::get_state(&FIRE_FREEZE_TIMER)) as f32) / (1000 as f32)))))).with_style_format(ChatFormatting::Yellow));
+                    message = component::literal("in ").append((component::literal(&format!("{}s", compat::string_format("%.2f", &[(((compat::get_state(&FIRE_FREEZE_TIMER)) as f32) / (1000 as f32)).into()])))).with_style_format(ChatFormatting::Yellow));
                 } else {
                     message = component::literal("NOW").with_style_format(ChatFormatting::Red);
                 }
@@ -85,7 +85,7 @@ impl FireFreezeStaffTimer {
             }
             let mut message: MutableComponent;
             if compat::get_state(&FIRE_FREEZE_TIMER) > (0 as i64) {
-                message = component::literal("in ").append((component::literal(&format!("{}s", format!("{:.2}", (((compat::get_state(&FIRE_FREEZE_TIMER)) as f32) / (1000 as f32)))))).with_style_format(ChatFormatting::Yellow));
+                message = component::literal("in ").append((component::literal(&format!("{}s", compat::string_format("%.2f", &[(((compat::get_state(&FIRE_FREEZE_TIMER)) as f32) / (1000 as f32)).into()])))).with_style_format(ChatFormatting::Yellow));
             } else {
                 message = component::literal("NOW").with_style_format(ChatFormatting::Red);
             }

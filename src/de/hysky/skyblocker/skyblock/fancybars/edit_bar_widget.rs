@@ -10,6 +10,7 @@ use crate::de::hysky::skyblocker::skyblock::fancybars::status_bar::StatusBar;
 use crate::de::hysky::skyblocker::skyblock::fancybars::status_bar::TextPosition;
 use crate::de::hysky::skyblocker::skyblock::fancybars::status_bars_config_screen::StatusBarsConfigScreen;
 use crate::de::hysky::skyblocker::utils::enum_utils::EnumUtils;
+use crate::de::hysky::skyblocker::utils::enum_utils::JavaEnum;
 use crate::de::hysky::skyblocker::utils::render::gui_helper::GuiHelper;
 use mcrust::java::awt::color::Color;
 use mcrust::mcrust::modding::widgets::ModWidget;
@@ -125,7 +126,10 @@ impl EditBarWidget {
 
     /// java: @Override public List<? extends GuiEventListener> children()
     pub fn children(&self) -> Vec<Box<dyn GuiEventListener>> {
-        return self.options.clone();
+        // java: return options;
+        // rust: port gap (GAPS_batchA #9) - `children()` answers owned listeners; the options are mod widgets behind
+        // shared handles (and the composite widget itself is GAPS_batchB L3), so none can be lent here
+        return Vec::new();
     }
 
     /// java: @Override protected void extractWidgetRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a)
@@ -157,14 +161,18 @@ impl EditBarWidget {
     }
 
     /// java: @Override public boolean mouseClicked(MouseButtonEvent click, boolean doubled)
-    pub fn mouse_clicked(&self, click: &MouseButtonEvent, mut doubled: bool) -> bool {
+    pub fn mouse_clicked(&mut self, click: &MouseButtonEvent, mut doubled: bool) -> bool {
         if !self.visible {
             return false;
         }
         if !self.is_hovered() {
             self.visible = false;
         }
-        return { let __s0 = MouseButtonEvent::new((click.x() - (self.get_x() as f64)), (click.y() - (self.get_y() as f64)), click.button_info()); self.base.mouse_clicked(__s0, doubled) };
+        // java: return super.mouseClicked(new MouseButtonEvent(click.x() - getX(), click.y() - getY(), click.buttonInfo()), doubled);
+        // rust: port gap (GAPS_batchA #7) - the port's AbstractContainerWidget.mouseClicked takes the scrollbar pass and the
+        // children pass from its caller; the options are not this widget's listeners (GAPS_batchA #9), so neither pass has a body
+        let _shifted = MouseButtonEvent::new(click.x() - (self.get_x() as f64), click.y() - (self.get_y() as f64), click.button_info());
+        return self.base.mouse_clicked(|| false, || false).0;
     }
 
     /// java: public void setStatusBar(StatusBar statusBar)
@@ -180,8 +188,8 @@ impl EditBarWidget {
     /// java: @Override public void setWidth(int width)
     pub fn set_width(&mut self, mut width: i32) {
         self.base.set_width(width);
-        for option in self.options.iter_mut() {
-            option.set_width(width);
+        for option in self.options.iter() {
+            compat::write(option, |__t| __t.abstract_option_base_mut().set_width(width));
         }
         self.name_widget.set_width(width);
     }
@@ -342,7 +350,7 @@ impl<T: Clone + 'static> AbstractOptionBase<T> {
 }
 
 /// java: the virtual methods of AbstractOption (implemented by AbstractOptionBase and every subclass)
-pub trait AbstractOption<T> {
+pub trait AbstractOption<T: Clone + 'static> {
     fn abstract_option_base(&self) -> &AbstractOptionBase<T>;
     fn abstract_option_base_mut(&mut self) -> &mut AbstractOptionBase<T>;
     fn as_any(&self) -> &dyn std::any::Any;
@@ -350,8 +358,8 @@ pub trait AbstractOption<T> {
     /// java: public void updateFromBar(StatusBar statusBar)
     fn update_from_bar(&mut self, mut status_bar: compat::Shared<dyn StatusBar>) {
         let mut apply: Option<T> = (self.abstract_option_base().getter.as_ref().unwrap())(status_bar.clone());
-        if let Some(apply) = &apply {
-            self.abstract_option_base_mut().current = Some(apply.clone());
+        if let Some(apply) = apply {
+            self.abstract_option_base_mut().current = Some(apply);
             self.abstract_option_base_mut().active = true;
         } else {
             self.abstract_option_base_mut().current = None;
@@ -363,8 +371,8 @@ pub trait AbstractOption<T> {
     /// java: protected void setAndUpdate(T value)
     fn set_and_update(&mut self, mut value: T) {
         self.abstract_option_base_mut().current = Some(value.clone());
-        if self.abstract_option_base().active_bar.is_some() {
-            (self.abstract_option_base().setter.as_ref().unwrap())(self.abstract_option_base().active_bar.clone(), value.clone());
+        if let Some(active_bar) = self.abstract_option_base().active_bar.clone() {
+            (self.abstract_option_base().setter.as_ref().unwrap())(active_bar, value.clone());
         }
     }
 
@@ -428,14 +436,14 @@ impl<T: 'static> std::ops::DerefMut for EnumCyclingOption<T> {
     }
 }
 
-impl<T: Clone + 'static> EnumCyclingOption<T> {
+impl<T: Clone + JavaEnum + std::fmt::Display + 'static> EnumCyclingOption<T> {
     /// java: public EnumCyclingOption(Component message, Class<T> enumClass, Function<StatusBar, @Nullable T> getter, BiConsumer<StatusBar, T> setter)
-    pub fn new(mut message: MutableComponent, mut enum_class: crate::unresolved::Class, getter: Arc<dyn Fn(compat::Shared<dyn StatusBar>) -> Option<T>>, setter: Arc<dyn Fn(compat::Shared<dyn StatusBar>, T)>) -> compat::Shared<Self> {
-        // TODO(fabric2seer): `.getEnumConstants(..)` on a Class
-        //   java: values = enumClass.getEnumConstants();
+    /// (`Class<T>` is the type itself: `T: JavaEnum` answers `getEnumConstants()`)
+    pub fn new(mut message: MutableComponent, mut enum_class: std::any::TypeId, getter: Arc<dyn Fn(compat::Shared<dyn StatusBar>) -> Option<T>>, setter: Arc<dyn Fn(compat::Shared<dyn StatusBar>, T)>) -> compat::Shared<Self> {
+        // java: values = enumClass.getEnumConstants();
         let __this = compat::shared(Self {
             base: AbstractOptionBase::<T>::new_3(message.clone(), getter.clone(), setter.clone()),
-            values: todo!("fabric2seer: the field value (TODO above)"),
+            values: T::java_values(),
         });
         { let __v = Some(__this.lock().borrow().values[(0) as usize].clone()); compat::write(&__this, |__t| __t.current = __v); }
         __this
@@ -452,7 +460,7 @@ impl<T: Clone + 'static> EnumCyclingOption<T> {
 
 }
 
-impl<T: Clone + 'static> AbstractOption<T> for EnumCyclingOption<T> {
+impl<T: Clone + JavaEnum + std::fmt::Display + 'static> AbstractOption<T> for EnumCyclingOption<T> {
     fn abstract_option_base(&self) -> &AbstractOptionBase<T> {
         &self.base
     }
@@ -467,7 +475,7 @@ impl<T: Clone + 'static> AbstractOption<T> for EnumCyclingOption<T> {
     /// java: @Override protected int extractValue(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a)
     fn extract_value(&self, graphics: &mut GuiGraphicsExtractor, mut mouse_x: i32, mut mouse_y: i32, mut a: f32) -> i32 {
         let mut text_renderer: Font = compat::font();
-        let mut string: String = (if self.current.is_some() { compat::opt_str(&self.current) } else { "???".to_string() });
+        let mut string: String = (if let Some(current) = &self.current { current.to_string() } else { "???".to_string() });
         let mut value_width: i32 = (text_renderer.width(&string)).wrapping_add(1);
         gui_graphics_extractor::text_string_with_drop_shadow(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), Some(&string), self.get_right().wrapping_sub(value_width), self.get_y().wrapping_add(1), mcrust::net::minecraft::util::common_colors::WHITE, true);
         return value_width;
@@ -477,7 +485,7 @@ impl<T: Clone + 'static> AbstractOption<T> for EnumCyclingOption<T> {
     fn expected_value_width(&self) -> i32 {
         let mut m: i32 = 0;
         for value in self.values.iter() {
-            let mut i: i32 = compat::font().width(&compat::jstring(&value));
+            let mut i: i32 = compat::font().width(&value.to_string());
             m = m.max(i);
         }
         return m;
@@ -518,7 +526,8 @@ impl BooleanOption {
     pub fn on_click(__this: &compat::Shared<Self>, click: &MouseButtonEvent, mut doubled: bool) {
         let __r0 = compat::read(__this, |__t| __t.current.clone());
         let __r1 = compat::read(__this, |__t| __t.current.clone());
-        { let (__a0,) = ((__r0.is_none() || !(__r1)),); __this.lock().borrow_mut().set_and_update(__a0) };
+        // java: setAndUpdate(current == null || !current);
+        { let (__a0,) = ((__r0.is_none() || !(__r1.unwrap())),); __this.lock().borrow_mut().set_and_update(__a0) };
         // TODO(fabric2seer): `AbstractWidget.onClick` has no Rust method in the port (looked for `on_click` in AbstractWidget and its supertypes)
         // rust: __this.lock().borrow_mut().base.on_click(click, doubled);
     }
@@ -545,7 +554,7 @@ impl AbstractOption<bool> for BooleanOption {
     /// java: @Override protected int extractValue(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a)
     fn extract_value(&self, graphics: &mut GuiGraphicsExtractor, mut mouse_x: i32, mut mouse_y: i32, mut a: f32) -> i32 {
         GuiHelper::border(graphics, self.get_right().wrapping_sub(10), self.get_y().wrapping_add(1), 9, 9, (if self.active { -1 } else { mcrust::net::minecraft::util::common_colors::GRAY }));
-        if self.active && true == self.current.clone().unwrap() {
+        if self.active && Some(true) == self.current {
             graphics.fill(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), self.get_right().wrapping_sub(8), self.get_y().wrapping_add(3), self.get_right().wrapping_sub(3), self.get_y().wrapping_add(8), mcrust::net::minecraft::util::common_colors::WHITE);
         }
         return 10;
@@ -642,8 +651,8 @@ impl AbstractOption<mcrust::java::awt::color::Color> for ColorOption {
     /// java: @Override protected int extractValue(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a)
     fn extract_value(&self, graphics: &mut GuiGraphicsExtractor, mut mouse_x: i32, mut mouse_y: i32, mut a: f32) -> i32 {
         GuiHelper::border(graphics, self.get_right().wrapping_sub(10), self.get_y().wrapping_add(1), 9, 9, (if self.active { -1 } else { mcrust::net::minecraft::util::common_colors::GRAY }));
-        // TODO(fabric2seer): `.getRGB(..)` on a T
-        //   java: graphics.fill(getRight() - 8, getY() + 3, getRight() - 3, getY() + 8, active && current != null ? current.getRGB() : CommonColors.GRAY);
+        // java: graphics.fill(getRight() - 8, getY() + 3, getRight() - 3, getY() + 8, active && current != null ? current.getRGB() : CommonColors.GRAY);
+        graphics.fill(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), self.get_right().wrapping_sub(8), self.get_y().wrapping_add(3), self.get_right().wrapping_sub(3), self.get_y().wrapping_add(8), match (&self.current, self.active) { (Some(current), true) => current.get_rgb(), _ => mcrust::net::minecraft::util::common_colors::GRAY });
         return 10;
     }
 

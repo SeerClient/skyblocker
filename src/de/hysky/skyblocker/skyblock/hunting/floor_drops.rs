@@ -70,8 +70,8 @@ impl FloorDrops {
         if !(FloorDrops::should_process()) {
             return;
         }
-        let mut particle_type: ParticleType = packet.get_particle().unwrap().get_type();
-        if !(mcrust::net::minecraft::core::particles::particle_types::happy_villager().get_type() == particle_type) {
+        // java: ParticleType<?> particleType = packet.getParticle().getType(); if (!ParticleTypes.HAPPY_VILLAGER.getType().equals(particleType)) return;
+        if !packet.get_particle().is_some_and(|particle| compat::particle_type_is(particle, mcrust::net::minecraft::core::particles::particle_types::happy_villager())) {
             return;
         }
         let mut x: f64 = packet.get_x();
@@ -81,7 +81,7 @@ impl FloorDrops {
         if mcrust::mcrust::modding::game::level().is_some() {
             let mut string_item_count: i32 = FloorDrops::count_string_item_displays(&pos);
             if string_item_count == 3 {
-                FOREST_NODES.get_mut().entry(pos.clone()).or_insert_with_key(|k| (|__a0| ForestNode::new(__a0.clone()))(k.clone()));
+                FOREST_NODES.get_mut().entry(pos.clone()).or_insert_with_key(|k: &BlockPos| ForestNode::new(k.clone()));
             }
         }
     }
@@ -91,17 +91,20 @@ impl FloorDrops {
         let Some(mut world) = mcrust::mcrust::modding::game::level() else {
             return 0;
         };
-        // TODO(fabric2seer): the port's `get_entities_of_class` ports this Java method with other parameters (base_class, except, bb, selector for Java's base_class, bb, selector)
-        // TODO(fabric2seer): `get_entities_of_class` takes 4 argument(s) in the port (`base_class: crate::net::minecraft::world::level::entity::entity_type_test::EntityClass, except: Option<i32>, bb: &AABB, selector: &dyn Fn(&(dyn Entity + Send + Sync)) -> bool`), Java passes 3
-        // TODO(fabric2seer): a lambda for a parameter the port does not type as a closure (`Predicate<? super T>`)
-        // rust: let mut entities: Vec<ItemDisplay> = world.get_entities_of_class(std::any::TypeId::of::<ItemDisplay>(), Some(AABB::of_size(&vec3::at_center_of(pos), 1.0, 1.0, 1.0)), |_| true);
-        let mut entities: Vec<ItemDisplay> = todo!("fabric2seer: the initialiser of `entities` (TODO above)");
-        return (((entities.iter().cloned().filter(|entity| {
-            let Some(mut state) = entity.item_render_state() else {
-                return false;
-            };
-            let stack = state.item_stack();
-            return (!stack.is_empty() && std::ptr::addr_eq(std::sync::Arc::as_ptr(&stack.get_item()), std::sync::Arc::as_ptr(&items::items().get("string"))));
+        // java: world.getEntitiesOfClass(Display.ItemDisplay.class, AABB.ofSize(Vec3.atCenterOf(pos), 1, 1, 1), _ -> true)
+        // (the port's class tests stop at LivingEntity; the entity type is ItemDisplay's)
+        let entities = world.get_entities(None, &AABB::of_size(&vec3::at_center_of(pos), 1.0, 1.0, 1.0), &|entity| compat::is_entity_type(entity, "item_display"));
+        return (((entities.iter().filter(|entity| {
+            compat::with_entity_handle(entity, |entity| {
+                let Some(entity) = entity.as_any().and_then(|any| any.downcast_ref::<ItemDisplay>()) else {
+                    return false;
+                };
+                let Some(mut state) = entity.item_render_state() else {
+                    return false;
+                };
+                let stack = state.item_stack();
+                return (!stack.is_empty() && std::ptr::addr_eq(std::sync::Arc::as_ptr(&stack.get_item()), std::sync::Arc::as_ptr(&items::items().get("string"))));
+            }).unwrap_or(false)
         }).count() as i64)) as i32);
     }
 

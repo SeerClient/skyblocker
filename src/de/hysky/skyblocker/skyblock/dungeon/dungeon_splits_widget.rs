@@ -300,7 +300,7 @@ impl DungeonSplitsWidget {
         }
         { let __v = Some(compat::read(__this, |__t| __t.floor.clone())); compat::write(__this, |__t| __t.loaded_floor = __v); }
         __this.lock().borrow_mut().splits.clear();
-        let mut group: Option<Vec<compat::Shared<Split>>> = FLOOR_SPLITS.get(&compat::read(__this, |__t| __t.floor.clone())).cloned();
+        let mut group: Option<Vec<compat::Shared<Split>>> = FLOOR_SPLITS.get().get(&compat::read(__this, |__t| __t.floor.clone())).cloned();
         if let Some(group) = &group {
             let mut data: std::collections::HashMap<String, std::collections::HashMap<String, i64>> = ProfiledData::compute_if_absent(BEST_SPLITS.get_mut(), Arc::new(move || std::collections::HashMap::new()));
             let mut floor_data: Option<std::collections::HashMap<String, i64>> = data.get(&compat::read(__this, |__t| __t.floor.clone())).cloned();
@@ -446,7 +446,8 @@ impl ElementCollector for DungeonSplitsWidget {
 
     /// java: public <T extends Element> T addElement(T c)
     fn add_element(&mut self, mut c: compat::Shared<dyn Element>) -> compat::Shared<dyn Element> {
-        ({ let __f = compat::dispatch(&c, |__t| __t.set_parent()); __f(&c, self.clone()) });
+        // java: c.setParent(this);
+        ({ let __f = compat::dispatch(&c, |__t| __t.set_parent()); __f(&c, self.hud_widget_base().as_parent()) });
         self.elements.push(c.clone());
         return c;
     }

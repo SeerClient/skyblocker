@@ -27,7 +27,8 @@ pub static DOUBLE_HOOK_PATTERN: LazyLock<compat::regex::Pattern> = LazyLock::new
 /// java: public static final int SEA_CREATURE_CAP = 10;
 pub const SEA_CREATURE_CAP: i32 = 10;
 /// java: private static final SequencedMap<Entity, LiveSeaCreature> seaCreatures = new LinkedHashMap<>();
-pub static SEA_CREATURES: compat::MainThread<indexmap::IndexMap<Box<dyn Entity>, LiveSeaCreature>> = compat::MainThread::new(|| indexmap::IndexMap::new());
+/// (keyed by the entity's id: the level keeps the entity; Java's key is the object, compared by identity)
+pub static SEA_CREATURES: compat::MainThread<indexmap::IndexMap<i32, LiveSeaCreature>> = compat::MainThread::new(|| indexmap::IndexMap::new());
 /// java: private static @Nullable SeaCreature lastCatch;
 pub static LAST_CATCH: LazyLock<Mutex<Option<SeaCreature>>> = LazyLock::new(|| Mutex::new(None));
 /// java: private static boolean doubleHook = false;
@@ -55,17 +56,17 @@ impl SeaCreatureTracker {
 
     /// java: private static void onEntityDespawn(Entity entity, ClientLevel clientWorld)
     pub fn on_entity_despawn(entity: &dyn Entity, client_world: &ClientLevel) {
-        SEA_CREATURES.get_mut().shift_remove(entity);
+        SEA_CREATURES.get_mut().shift_remove(&entity.base().get_id());
     }
 
     /// java: public static void onEntitySpawn(ArmorStand armorStand)
-    pub fn on_entity_spawn(mut armor_stand: ArmorStand) {
+    pub fn on_entity_spawn(armor_stand: &ArmorStand) {
         if !armor_stand.is_invisible_field() || !armor_stand.base.base.has_custom_name() || !armor_stand.base.base.is_custom_name_visible() || compat::get_state(&LAST_CATCH).is_none() {
             return;
         }
         if compat::component_of(armor_stand.get_name()).get_string().contains(&compat::lock(&LAST_CATCH).unwrap().fields().name) {
-            // TODO(fabric2seer): the mod keeps the game's `ArmorStand` (Java holds a reference to the live object); the port's `ArmorStand` is not a value to copy and the port lends the mod no handle to it
-            // rust: SEA_CREATURES.get_mut().insert(armor_stand.clone(), LiveSeaCreature::new(compat::get_state(&LAST_CATCH), armor_stand.clone(), compat::millis()));
+            let __id = armor_stand.base.base.get_id();
+            SEA_CREATURES.get_mut().insert(__id, LiveSeaCreature::new(compat::get_state(&LAST_CATCH).unwrap(), __id, compat::millis()));
             if compat::get_state(&DOUBLE_HOOK) {
                 compat::set_state(&DOUBLE_HOOK, false);
             } else {
@@ -97,9 +98,8 @@ impl SeaCreatureTracker {
         if rarity_threshold == SkyblockItemRarity::Unknown {
             return;
         }
-        // TODO(fabric2seer): Map.sequencedValues(..)
-        //   java: SeaCreature lastCreature = seaCreatures.sequencedValues().getLast().seaCreature;
-        let mut last_creature: SeaCreature = todo!("fabric2seer: the initialiser of `lastCreature` (TODO above)");
+        // java: SeaCreature lastCreature = seaCreatures.sequencedValues().getLast().seaCreature;
+        let mut last_creature: SeaCreature = SEA_CREATURES.get().values().last().expect("NoSuchElementException").sea_creature;
         let mut last_creature_rarity: SkyblockItemRarity = last_creature.fields().rarity;
         if compat::ord_int(last_creature_rarity.cmp(&rarity_threshold)) >= 0 {
             TitleContainer::add_title_2(&Title::new_1(component::literal(&last_creature.fields().name).with_color(last_creature_rarity.fields().color)), 60);
@@ -145,9 +145,8 @@ impl SeaCreatureTracker {
 
     /// java: protected static long getOldestSeaCreatureAge()
     pub fn get_oldest_sea_creature_age() -> i64 {
-        // TODO(fabric2seer): Map.sequencedValues(..)
-        //   java: return System.currentTimeMillis() - seaCreatures.sequencedValues().getFirst().spawnTime;
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        // java: return System.currentTimeMillis() - seaCreatures.sequencedValues().getFirst().spawnTime;
+        return compat::millis().wrapping_sub(SEA_CREATURES.get().values().next().expect("NoSuchElementException").spawn_time);
     }
 
     /// java: protected static Boolean isCreaturesAlive()
@@ -174,15 +173,15 @@ impl SeaCreatureTracker {
 pub struct LiveSeaCreature {
     /// java: SeaCreature seaCreature
     pub sea_creature: SeaCreature,
-    /// java: Entity entity
-    pub entity: Box<dyn Entity>,
+    /// java: Entity entity (the entity's id)
+    pub entity: i32,
     /// java: Long spawnTime
     pub spawn_time: i64,
 }
 
 impl LiveSeaCreature {
     /// java: the canonical record constructor
-    pub fn new(mut sea_creature: SeaCreature, mut entity: Box<dyn Entity>, mut spawn_time: i64) -> Self {
+    pub fn new(mut sea_creature: SeaCreature, mut entity: i32, mut spawn_time: i64) -> Self {
         Self { sea_creature, entity, spawn_time }
     }
 
@@ -192,8 +191,8 @@ impl LiveSeaCreature {
     }
 
     /// java: the record accessor `entity()`
-    pub fn entity(&self) -> Box<dyn Entity> {
-        self.entity.clone()
+    pub fn entity(&self) -> i32 {
+        self.entity
     }
 
     /// java: the record accessor `spawnTime()`

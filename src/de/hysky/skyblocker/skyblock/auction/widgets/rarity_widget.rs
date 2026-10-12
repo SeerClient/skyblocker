@@ -41,7 +41,7 @@ pub struct RarityWidget {
     /// java: extends net.minecraft.client.gui.components.AbstractWidget
     pub base: AbstractWidget,
     /// java: private final SlotClickHandler onClick;
-    pub on_click: compat::Shared<dyn SlotClickHandler>,
+    pub on_click: SlotClickHandler,
     /// java: private int slotId = -1;
     pub slot_id: i32,
     /// java: private List<Component> tooltip = List.of();
@@ -67,7 +67,7 @@ impl std::ops::DerefMut for RarityWidget {
 
 impl RarityWidget {
     /// java: public RarityWidget(int x, int y, SlotClickHandler onClick)
-    pub fn new(mut x: i32, mut y: i32, mut on_click: compat::Shared<dyn SlotClickHandler>) -> compat::Shared<Self> {
+    pub fn new(mut x: i32, mut y: i32, mut on_click: SlotClickHandler) -> compat::Shared<Self> {
         let __init_on_click = on_click.clone();
         let __this = compat::shared(Self {
             base: AbstractWidget::new(x, y, 48, 11, (&(component::literal("rarity selector thing, hi mom")).get_string()).to_string(), WidgetKind::PlainText, OnPress::Inert),
@@ -141,9 +141,9 @@ impl RarityWidget {
             return;
         }
         if RarityWidget::is_on_left_arrow(__this, click.x()) {
-            ({ let __r = &compat::read(__this, |__t| __t.on_click.clone()); let __f = compat::dispatch(__r, |__t| __t.click()); __f(__r, compat::read(__this, |__t| __t.slot_id), 1) });
+            (compat::read(__this, |__t| __t.on_click.clone()))(compat::read(__this, |__t| __t.slot_id), 1);
         } else if RarityWidget::is_on_right_arrow(__this, click.x()) {
-            ({ let __r = &compat::read(__this, |__t| __t.on_click.clone()); let __f = compat::dispatch(__r, |__t| __t.click()); __f(__r, compat::read(__this, |__t| __t.slot_id), 0) });
+            (compat::read(__this, |__t| __t.on_click.clone()))(compat::read(__this, |__t| __t.slot_id), 0);
         }
     }
 

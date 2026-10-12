@@ -27,6 +27,7 @@ use mcrust::net::minecraft::world::phys::vec3;
 use mcrust::net::minecraft::world::phys::vec3::Vec3;
 use mcrust::net::minecraft::network::chat::component::Component as _;
 use mcrust::net::minecraft::world::entity::living_entity::LivingEntity as _;
+use mcrust::net::minecraft::world::level::entity::level_entity_getter::LevelEntityGetter as _;
 
 /// java: private static final float[] RED_COLOR_COMPONENTS = { 1.0f, 0.0f, 0.0f };
 pub static RED_COLOR_COMPONENTS: LazyLock<Vec<f32>> = LazyLock::new(|| vec![1.0f32, 0.0f32, 0.0f32]);
@@ -102,12 +103,26 @@ impl BeaconHighlighter {
         if mcrust::mcrust::modding::game::level().is_none() || !(Utils::is_in_the_end()) || !(SlayerManager::is_fighting_slayer_type(SlayerType::Voidgloom)) || !(SkyblockerConfigManager::get().slayers.enderman_slayer.highlight_beacons) {
             return;
         }
-        for beacon_entity_path in BEACON_ENTITY_PATHS.get_mut().iter().map(|(k, v)| (k.clone(), v.clone())) {
-            // TODO(fabric2seer): `ClientLevel.getEntity` has no Rust method in the port (looked for `get_entity` in ClientLevel and its supertypes)
-            // rust: let mut entity: Option<Box<dyn Entity>> = Some(mcrust::mcrust::modding::game::level().unwrap().get_entity(&beacon_entity_path.0));
-            let mut entity: Box<dyn Entity> = todo!("fabric2seer: the initialiser of `entity` (TODO above)");
-            if true /* java: entity != null: never null here */ && !(beacon_entity_path.1[beacon_entity_path.1.len() - 1] == entity.position()) {
-                beacon_entity_path.1.push(entity.get_eye_position());
+        let level = mcrust::mcrust::modding::game::level().unwrap();
+        let keys: Vec<Uuid> = BEACON_ENTITY_PATHS.get().keys().cloned().collect();
+        for key in keys {
+            // `CLIENT.level.getEntity(uuid)` = `getEntities().get(uuid)`
+            let entity = level.with_entities(|getter| getter.get_by_uuid(compat::uuid_bits(&key)));
+            let Some(entity) = entity else {
+                continue;
+            };
+            if mcrust::mcrust::modding::game::is_held_here(&*entity) {
+                continue;
+            }
+            let (position, eye_position) = {
+                let guard = mcrust::mcrust::modding::game::lock_entity(&*entity, "beacon_highlighter.rs:updateBeaconEntities");
+                (guard.base().position(), guard.base().get_eye_position())
+            };
+            let Some(path) = BEACON_ENTITY_PATHS.get_mut().get_mut(&key) else {
+                continue;
+            };
+            if !(path[path.len() - 1] == position) {
+                path.push(eye_position);
             }
         }
     }
@@ -115,14 +130,17 @@ impl BeaconHighlighter {
     /// java: private static void onBlockStateUpdate(BlockPos pos, @Nullable BlockState oldState, BlockState newState)
     pub fn on_block_state_update(pos: &BlockPos, mut old_state: Option<Arc<BlockState>>, new_state: &Arc<BlockState>) {
         if Utils::is_in_the_end() && SlayerManager::is_fighting_slayer_type(SlayerType::Voidgloom) && SkyblockerConfigManager::get().slayers.enderman_slayer.highlight_beacons {
-            // TODO(fabric2seer): Map.removeLong(..)
-            //   java: BEACONS.removeLong(pos);
+            BEACONS.get_mut().remove(pos);
             if new_state.is_block(&blocks::blocks().get("beacon")) {
                 BEACONS.get_mut().insert(pos.immutable(), compat::millis());
                 compat::set_state(&BEACON_THROWN, false);
             } else if old_state.is_none() || old_state.as_ref().unwrap().is_block(&blocks::blocks().get("beacon")) {
-                let mut closest_path: Vec<Vec3> = BEACON_ENTITY_PATHS.get_mut().values().cloned().min_by(|a, b| { let key = |path| (path[path.len() - 1]).distance_to_sqr_vec(&vec3::at_center_of(pos)); key(a).total_cmp(&key(b)) }).filter(|path| ((path[path.len() - 1]).distance_to_sqr_vec(&vec3::at_center_of(pos)) < (4 as f64))).unwrap();
-                BEACON_ENTITY_PATHS.get_mut().retain(|_, __v| !(|path| (path == closest_path))(__v));
+                let key = |path: &Vec<Vec3>| (path[path.len() - 1]).distance_to_sqr_vec(&vec3::at_center_of(pos));
+                // the closest path, by its key (Java removes that list object: `path == closestPath`)
+                let mut closest_path: Option<Uuid> = BEACON_ENTITY_PATHS.get().iter().min_by(|a, b| key(a.1).total_cmp(&key(b.1))).filter(|(_, path)| key(path) < (4 as f64)).map(|(uuid, _)| uuid.clone());
+                if let Some(closest_path) = &closest_path {
+                    BEACON_ENTITY_PATHS.get_mut().remove(closest_path);
+                }
             }
         }
     }

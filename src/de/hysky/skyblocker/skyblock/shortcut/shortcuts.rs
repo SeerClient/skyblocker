@@ -25,7 +25,7 @@ use mcrust::net::minecraft::network::chat::mutable_component::MutableComponent;
 /// java: private static final Path SHORTCUTS_FILE = SkyblockerMod.CONFIG_DIR.resolve("shortcuts.json");
 pub static SHORTCUTS_FILE: compat::MainThread<std::path::PathBuf> = compat::MainThread::new(|| skyblocker_mod::CONFIG_DIR.get_mut().join("shortcuts.json"));
 /// java: public static final JsonData<ShortcutsRecord> shortcuts = new JsonData<>(SHORTCUTS_FILE, ShortcutsRecord.CODEC, getDefaultShortcuts());
-pub static SHORTCUTS: compat::MainThread<compat::Shared<dyn JsonData<ShortcutsRecord>>> = compat::MainThread::new(|| (compat::shared(JsonDataBase::new(SHORTCUTS_FILE.get_mut().clone(), SHORTCUTS_RECORD_CODEC.get_mut().clone(), Shortcuts::get_default_shortcuts())) as compat::Shared<dyn JsonData<compat::Object>>));
+pub static SHORTCUTS: compat::MainThread<compat::Shared<dyn JsonData<ShortcutsRecord>>> = compat::MainThread::new(|| (compat::shared(JsonDataBase::new(SHORTCUTS_FILE.get_mut().clone(), SHORTCUTS_RECORD_CODEC.clone(), Shortcuts::get_default_shortcuts())) as compat::Shared<dyn JsonData<ShortcutsRecord>>));
 /// java: private static final List<InputConstants.Key> pressedKeys = new ArrayList<>();
 pub static PRESSED_KEYS: compat::MainThread<Vec<Key>> = compat::MainThread::new(|| Vec::new());
 /// java: private static final long KEY_BINDING_COOLDOWN = 200;
@@ -34,15 +34,28 @@ pub const KEY_BINDING_COOLDOWN: i64 = ((200) as i64) as i64;
 pub static NOT_LOADED_TEXT: compat::MainThread<MutableComponent> = compat::MainThread::new(|| component::translatable("skyblocker.shortcuts.notLoaded").with_color_text(mcrust::net::minecraft::network::chat::text_color::TextColor::RED).with_style_format(ChatFormatting::Bold));
 /// java: private static long lastKeyBindingCommandTime;
 pub static LAST_KEY_BINDING_COMMAND_TIME: LazyLock<Mutex<i64>> = LazyLock::new(|| Mutex::new(0));
-// TODO(fabric2seer): static call Object2ObjectMaps.emptyMap(..)
-//   java: @VisibleForTesting
-//   java: 		static final Codec<ShortcutsRecord> CODEC = RecordCodecBuilder.create(instance -> instance.group(
-//   java: 				CodecUtils.object2ObjectMapCodec(Codec.STRING, Codec.STRING).fieldOf("commands").forGetter(ShortcutsRecord::commands),
-//   java: 				CodecUtils.object2ObjectMapCodec(Codec.STRING, Codec.STRING).fieldOf("commandArgs").forGetter(ShortcutsRecord::commandArgs),
-//   java: 				CodecUtils.mutableOptional(CodecUtils.object2ObjectMapCodec(ShortcutKeyBinding.CODEC, Codec.STRING).optionalFieldOf("keyBindings", Object2ObjectMaps.emptyMap()), Object2ObjectOpenHashMap::new).forGetter(ShortcutsRecord::keyBindings)
-//   java: 		).apply(instance, ShortcutsRecord::new));
-/// java: @VisibleForTesting static final Codec<ShortcutsRecord> CODEC = RecordCodecBuilder.create(instance -> instance.group( CodecUtils.object2ObjectMapCodec(Codec.STRING, Codec.STRING).fieldOf("commands").fo
-pub static SHORTCUTS_RECORD_CODEC: compat::MainThread<CodecRef<ShortcutsRecord>> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `CODEC` - see the TODO above"));
+/// java: @VisibleForTesting static final Codec<ShortcutsRecord> CODEC = RecordCodecBuilder.create(instance -> instance.group(
+///   CodecUtils.object2ObjectMapCodec(Codec.STRING, Codec.STRING).fieldOf("commands").forGetter(ShortcutsRecord::commands),
+///   CodecUtils.object2ObjectMapCodec(Codec.STRING, Codec.STRING).fieldOf("commandArgs").forGetter(ShortcutsRecord::commandArgs),
+///   CodecUtils.mutableOptional(CodecUtils.object2ObjectMapCodec(ShortcutKeyBinding.CODEC, Codec.STRING).optionalFieldOf("keyBindings", Object2ObjectMaps.emptyMap()), Object2ObjectOpenHashMap::new).forGetter(ShortcutsRecord::keyBindings)
+/// ).apply(instance, ShortcutsRecord::new));
+/// (`LazyLock`: `JsonData` loads and saves on a worker thread)
+pub static SHORTCUTS_RECORD_CODEC: LazyLock<CodecRef<ShortcutsRecord>> = LazyLock::new(|| {
+    let string_map = || CodecUtils::object2_object_map_codec(&codec::string_codec(), &codec::string_codec());
+    record_codec_builder::create(record_codec_builder::apply3(
+        record_codec_builder::of(|o: &ShortcutsRecord| o.commands(), codec::field_of(string_map(), "commands")),
+        record_codec_builder::of(|o: &ShortcutsRecord| o.command_args(), codec::field_of(string_map(), "commandArgs")),
+        record_codec_builder::of(
+            |o: &ShortcutsRecord| o.key_bindings(),
+            CodecUtils::mutable_optional(
+                &codec::optional_field_of(CodecUtils::object2_object_map_codec(&shortcut_key_binding::CODEC.clone(), &codec::string_codec()), "keyBindings", std::collections::HashMap::new()),
+                // java: Object2ObjectOpenHashMap::new - a mutable copy of the (possibly immutable) empty default
+                Arc::new(|map: std::collections::HashMap<ShortcutKeyBinding, String>| map),
+            ),
+        ),
+        move |__a0, __a1, __a2| ShortcutsRecord::new(__a0.clone(), __a1.clone(), __a2.clone()),
+    ))
+});
 
 /// java: public class Shortcuts
 #[derive(Clone)]
@@ -110,29 +123,7 @@ impl Shortcuts {
                     logger().warn("[Skyblocker Shortcuts] Shortcuts not loaded yet, skipping command registration");
                     return;
                 }
-                // TODO(fabric2seer): field `commands` of a T
-                //   java: for (String key : shortcuts.getData().commands.keySet()) {
-                //   java: 			if (key.startsWith("/")) {
-                //   java: 				dispatcher.register(literal(key.substring(1)));
-                //   java: 			}
-                //   java: 		}
-                // TODO(fabric2seer): field `commandArgs` of a T
-                //   java: for (Map.Entry<String, String> set : shortcuts.getData().commandArgs.entrySet()) {
-                //   java: 			if (set.getKey().startsWith("/")) {
-                //   java: 				CommandNode<FabricClientCommandSource> redirectLocation = dispatcher.getRoot();
-                //   java: 				for (String word : set.getValue().substring(1).split(" ")) {
-                //   java: 					redirectLocation = redirectLocation.getChild(word);
-                //   java: 					if (redirectLocation == null) {
-                //   java: 						break;
-                //   java: 					}
-                //   java: 				}
-                //   java: 				if (redirectLocation == null) {
-                //   java: 					dispatcher.register(literal(set.getKey().substring(1)).then(argument("args", StringArgumentType.greedyString())));
-                //   java: 				} else {
-                //   java: 					dispatcher.register(literal(set.getKey().substring(1)).redirect(redirectLocation));
-                //   java: 				}
-                //   java: 			}
-                //   java: 		}
+                Shortcuts::register_shortcut_commands(dispatcher.dispatcher());
             },
         ));
         // TODO(fabric2seer): ClientSendMessageEvents.MODIFY_COMMAND.register: no SeerClient equivalent yet
@@ -246,29 +237,37 @@ impl Shortcuts {
             logger().warn("[Skyblocker Shortcuts] Shortcuts not loaded yet, skipping command registration");
             return;
         }
-        // TODO(fabric2seer): field `commands` of a T
-        //   java: for (String key : shortcuts.getData().commands.keySet()) {
-        //   java: 			if (key.startsWith("/")) {
-        //   java: 				dispatcher.register(literal(key.substring(1)));
-        //   java: 			}
-        //   java: 		}
-        // TODO(fabric2seer): field `commandArgs` of a T
-        //   java: for (Map.Entry<String, String> set : shortcuts.getData().commandArgs.entrySet()) {
-        //   java: 			if (set.getKey().startsWith("/")) {
-        //   java: 				CommandNode<FabricClientCommandSource> redirectLocation = dispatcher.getRoot();
-        //   java: 				for (String word : set.getValue().substring(1).split(" ")) {
-        //   java: 					redirectLocation = redirectLocation.getChild(word);
-        //   java: 					if (redirectLocation == null) {
-        //   java: 						break;
-        //   java: 					}
-        //   java: 				}
-        //   java: 				if (redirectLocation == null) {
-        //   java: 					dispatcher.register(literal(set.getKey().substring(1)).then(argument("args", StringArgumentType.greedyString())));
-        //   java: 				} else {
-        //   java: 					dispatcher.register(literal(set.getKey().substring(1)).redirect(redirectLocation));
-        //   java: 				}
-        //   java: 			}
-        //   java: 		}
+        // (the callback above registers these: the port hands its listener the Fabric-side dispatcher)
+    }
+
+    /// java: the shortcut half of `registerCommands`: each command shortcut as a literal, each command argument
+    /// shortcut as a redirect to the command it stands for (or a literal taking the rest as `args`)
+    pub fn register_shortcut_commands(dispatcher: &CommandDispatcher<mcrust::mcrust::modding::events::client_command_registration_callback::FabricClientCommandSource>) {
+        use mcrust::com::mojang::brigadier::builder::argument_builder::ArgumentBuilder as _;
+        use mcrust::mcrust::modding::events::client_command_registration_callback::{argument, literal};
+        let data = SHORTCUTS.get().lock().borrow().get_data();
+        for key in data.commands.keys() {
+            if key.starts_with("/") {
+                dispatcher.register(&literal(&compat::substring(key, 1)));
+            }
+        }
+        for (set_key, set_value) in data.command_args.iter() {
+            if set_key.starts_with("/") {
+                let mut redirect_location = Some(dispatcher.get_root().clone());
+                for word in compat::regex::split(&compat::substring(set_value, 1), " ") {
+                    redirect_location = redirect_location.and_then(|node| node.get_child(&word));
+                    if redirect_location.is_none() {
+                        break;
+                    }
+                }
+                let mut node = literal(&compat::substring(set_key, 1));
+                match redirect_location {
+                    None => node.then(&argument("args", Arc::new(mcrust::com::mojang::brigadier::arguments::string_argument_type::StringArgumentType::greedy_string()))),
+                    Some(redirect_location) => node.redirect(redirect_location),
+                }
+                dispatcher.register(&node);
+            }
+        }
     }
 
     /// java: private static String modifyCommand(String command)
@@ -282,14 +281,13 @@ impl Shortcuts {
         }
         command = format!("/{}", command);
         if SkyblockerConfigManager::get().general.shortcuts.enable_command_shortcuts {
-            // TODO(fabric2seer): field `commands` of a T
-            //   java: command = shortcuts.getData().commands.getOrDefault(command, command);
+            command = SHORTCUTS.get().lock().borrow().get_data().commands.get(&command).cloned().unwrap_or(command);
         }
         if SkyblockerConfigManager::get().general.shortcuts.enable_command_arg_shortcuts {
             let mut message_args: Vec<String> = compat::regex::split(&command, " ");
             for i in 0..(message_args.len() as i32) {
-                // TODO(fabric2seer): field `commandArgs` of a T
-                //   java: messageArgs[i] = shortcuts.getData().commandArgs.getOrDefault(messageArgs[i], messageArgs[i]);
+                let __arg = message_args[(i) as usize].clone();
+                message_args[(i) as usize] = SHORTCUTS.get().lock().borrow().get_data().command_args.get(&__arg).cloned().unwrap_or(__arg);
             }
             command = message_args.iter().map(|s| s.to_string()).collect::<Vec<String>>().join(" ");
         }
@@ -305,18 +303,21 @@ impl Shortcuts {
             logger().warn(&format!("[Skyblocker Shortcuts] Shortcuts not loaded yet, skipping key binding check for key: {}", compat::jstring(&key)));
             return;
         }
-        // TODO(fabric2seer): field `keyBindings` of a T
-        //   java: String command = shortcuts.getData().keyBindings.get(new ShortcutKeyBinding(List.of(key)));
-        let mut command: String = todo!("fabric2seer: the initialiser of `command` (TODO above)");
-        if false /* java: command == null: never null here */ {
-            if PRESSED_KEYS.get_mut().is_empty() || !(PRESSED_KEYS.get_mut()[PRESSED_KEYS.get_mut().len() - 1] == key) {
+        let __key_bindings = SHORTCUTS.get().lock().borrow().get_data().key_bindings;
+        let mut command: Option<String> = __key_bindings.get(&ShortcutKeyBinding::new(vec![key.clone()])).cloned();
+        // Check for combinations
+        if command.is_none() {
+            // This should never happen, but the last pressed key was not added to the list!
+            if PRESSED_KEYS.get().is_empty() || !(PRESSED_KEYS.get()[PRESSED_KEYS.get().len() - 1] == *key) {
                 Shortcuts::set_key_pressed(key.clone(), true);
                 logger().warn(&format!("[Skyblocker Shortcuts] Key {} was not in the pressed keys list when it should be. Check if `setKeyPressed` is always called before `onKeyPressed`.", compat::jstring(&key)));
             }
-            // TODO(fabric2seer): field `keyBindings` of a T
-            //   java: command = shortcuts.getData().keyBindings.get(new ShortcutKeyBinding(pressedKeys));
+            command = __key_bindings.get(&ShortcutKeyBinding::new(PRESSED_KEYS.get().clone())).cloned();
         }
-        if false /* java: command == null: never null here */ || (compat::get_state(&LAST_KEY_BINDING_COMMAND_TIME)).wrapping_add(KEY_BINDING_COOLDOWN) > compat::millis() {
+        let Some(command) = command else {
+            return;
+        };
+        if (compat::get_state(&LAST_KEY_BINDING_COMMAND_TIME)).wrapping_add(KEY_BINDING_COOLDOWN) > compat::millis() {
             return;
         }
         MessageScheduler::send_message_after_cooldown(message_scheduler::INSTANCE.get_mut(), &command, true);
@@ -347,12 +348,12 @@ pub struct ShortcutsRecord {
     /// java: Object2ObjectMap<String, String> commandArgs
     pub command_args: std::collections::HashMap<String, String>,
     /// java: Object2ObjectMap<ShortcutKeyBinding, String> keyBindings
-    pub key_bindings: std::collections::HashMap<compat::Shared<ShortcutKeyBinding>, String>,
+    pub key_bindings: std::collections::HashMap<ShortcutKeyBinding, String>,
 }
 
 impl ShortcutsRecord {
     /// java: the canonical record constructor
-    pub fn new(mut commands: std::collections::HashMap<String, String>, mut command_args: std::collections::HashMap<String, String>, mut key_bindings: std::collections::HashMap<compat::Shared<ShortcutKeyBinding>, String>) -> Self {
+    pub fn new(mut commands: std::collections::HashMap<String, String>, mut command_args: std::collections::HashMap<String, String>, mut key_bindings: std::collections::HashMap<ShortcutKeyBinding, String>) -> Self {
         Self { commands, command_args, key_bindings }
     }
 
@@ -367,7 +368,7 @@ impl ShortcutsRecord {
     }
 
     /// java: the record accessor `keyBindings()`
-    pub fn key_bindings(&self) -> std::collections::HashMap<compat::Shared<ShortcutKeyBinding>, String> {
+    pub fn key_bindings(&self) -> std::collections::HashMap<ShortcutKeyBinding, String> {
         self.key_bindings.clone()
     }
 

@@ -41,7 +41,7 @@ impl ItemStackBuilder {
     pub fn from_neu_item(item: &crate::unresolved::NEUItem) -> compat::Shared<FlexibleItemStack> {
         // java: try {..} catch (Exception e) - an exception here is a panic, caught by `catch_unwind`; the body's `return` is the closure's value
         match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            let mut nbt: Tag = mcrust::net::minecraft::nbt::compound_tag::Tag::compound();
+            let mut nbt: Tag = Tag::compound();
             // TODO(fabric2seer): `.getNbttag(..)` on a NEUItem
             //   java: CompoundTag tag = LegacyStringNbtReader.parse(item.getNbttag());
             let mut tag: Tag = todo!("fabric2seer: the initialiser of `tag` (TODO above)");
@@ -114,7 +114,7 @@ impl ItemStackBuilder {
         //   java: 				Rarity.VERY_SPECIAL // phoenix
         //   java: 		};
         let mut rarities: Vec<crate::unresolved::Rarity> = todo!("fabric2seer: the initialiser of `rarities` (TODO above)");
-        let rarity = &rarities[(((compat::regex::split(&internal_name, ";"))[(1) as usize]).trim().parse::<i32>().expect("NumberFormatException")) as usize];
+        let rarity = &rarities[(((compat::regex::split(&internal_name, ";"))[(1) as usize]).parse::<i32>().expect("NumberFormatException")) as usize];
         let mut data: crate::unresolved::PetNumbers = PET_NUMS.get_mut().get(&pet_name).cloned().unwrap().get(rarity).cloned().unwrap();
         // TODO(fabric2seer): `.getLowLevel(..)` on a PetNumbers
         //   java: int minLevel = data.getLowLevel();
@@ -129,7 +129,8 @@ impl ItemStackBuilder {
         // TODO(fabric2seer): `.getStatsAtHighLevel(..)` on a PetNumbers
         //   java: Map<String, Double> statNumsMax = data.getStatsAtHighLevel().getStatNumbers();
         let mut stat_nums_max: std::collections::HashMap<String, f64> = todo!("fabric2seer: the initialiser of `statNumsMax` (TODO above)");
-        let mut entry_set: std::collections::HashSet<(String, f64)> = stat_nums_min.iter().map(|(k, v)| (k.clone(), v.clone())).collect::<Vec<_>>();
+        // java: Set<Map.Entry<String, Double>> entrySet = statNumsMin.entrySet(); - the entries, iterated
+        let mut entry_set: Vec<(String, f64)> = stat_nums_min.iter().map(|(k, v)| (k.clone(), v.clone())).collect::<Vec<_>>();
         for entry in entry_set.iter() {
             let mut key: String = entry.0.clone();
             let mut left: String = format!("\\{{{}\\}}", key);

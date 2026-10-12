@@ -56,9 +56,10 @@ pub const BUTTON_SIZE: i32 = 20;
 /// java: private static final int BUTTONS_PER_PAGE = 12;
 pub const BUTTONS_PER_PAGE: i32 = 12;
 /// java: private static final ItemSorter ITEM_SORTER = new ItemSorter();
-pub static ITEM_SORTER: LazyLock<ItemSorter> = LazyLock::new(|| ItemSorter::new());
+/// (a mutable object behind a `final` field: a render-thread static)
+pub static ITEM_SORTER: compat::MainThread<ItemSorter> = compat::MainThread::new(|| ItemSorter::new());
 /// java: private static final ItemFilter ITEM_FILTER = new ItemFilter();
-pub static ITEM_FILTER: LazyLock<ItemFilter> = LazyLock::new(|| ItemFilter::new());
+pub static ITEM_FILTER: compat::MainThread<ItemFilter> = compat::MainThread::new(|| ItemFilter::new());
 /// java: private static String searchQuery = "";
 pub static SEARCH_QUERY: LazyLock<Mutex<String>> = LazyLock::new(|| Mutex::new("".to_string()));
 /// java: private static int currentPage = 0;
@@ -147,7 +148,7 @@ impl MuseumManager {
         // rust: 
         // rust: }))); compat::write(&__this, |__t| __t.prev_page_button = __v); }
         *DONATIONS.get_mut() = MuseumItemCache::get_donations();
-        ITEM_FILTER.update_categories();
+        ITEM_FILTER.get_mut().update_categories();
         for i in 0..BUTTONS_PER_PAGE {
             let mut button: compat::Shared<DonationButton> = DonationButton::new(((__this.lock().borrow().get_x()).wrapping_add(11)).wrapping_add(31i32.wrapping_mul(i.wrapping_rem(4))), ((__this.lock().borrow().get_y()).wrapping_add(34)).wrapping_add(31i32.wrapping_mul(i.wrapping_div(4))));
             let __h0 = button.clone();
@@ -155,21 +156,24 @@ impl MuseumManager {
         }
         let __this_w1 = compat::RenderThread::new(std::sync::Arc::downgrade(&__this));
         { let __v = Some((button::builder(component::empty().get_string(), OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| { let Some(__this_1) = __this_w1.get().upgrade() else { return Default::default(); }; {
-            ITEM_SORTER.cycle_sort_mode(&compat::read(&__this_1, |__t| __t.filtered_donations.clone()));
+            // java: ITEM_SORTER.cycleSortMode(filteredDonations); - sorts the list in place
+            compat::write(&__this_1, |__t| ITEM_SORTER.get_mut().cycle_sort_mode(&mut __t.filtered_donations));
             (__screen.widget_mut(__index)).set_tooltip(ITEM_SORTER.get_tooltip());
             compat::set_state(&CURRENT_PAGE, 0);
             MuseumManager::update_buttons(&__this_1);
         } })))).tooltip_text(Some(ITEM_SORTER.get_tooltip().message.clone())).pos((__this.lock().borrow().get_x()).wrapping_add(95), (__this.lock().borrow().get_y()).wrapping_add(11)).size(BUTTON_SIZE, BUTTON_SIZE).build()); compat::write(&__this, |__t| __t.sort_button = __v); }
         let __this_w2 = compat::RenderThread::new(std::sync::Arc::downgrade(&__this));
         { let __v = Some((button::builder(component::empty().get_string(), OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| { let Some(__this_2) = __this_w2.get().upgrade() else { return Default::default(); }; {
-            ITEM_FILTER.cycle_filter_mode(DONATIONS.get_mut(), &mut compat::read(&__this_2, |__t| __t.filtered_donations.clone()));
-            ITEM_SORTER.apply_sort(&compat::read(&__this_2, |__t| __t.filtered_donations.clone()));
+            // java: ITEM_FILTER.cycleFilterMode(donations, filteredDonations); ITEM_SORTER.applySort(filteredDonations); - in place
+            compat::write(&__this_2, |__t| ITEM_FILTER.get_mut().cycle_filter_mode(DONATIONS.get(), &mut __t.filtered_donations));
+            compat::write(&__this_2, |__t| ITEM_SORTER.get().apply_sort(&mut __t.filtered_donations));
             (__screen.widget_mut(__index)).set_tooltip(ITEM_FILTER.get_tooltip());
             compat::set_state(&CURRENT_PAGE, 0);
             MuseumManager::update_buttons(&__this_2);
         } })))).tooltip_text(Some(ITEM_FILTER.get_tooltip().message.clone())).pos((__this.lock().borrow().get_x()).wrapping_add(116), (__this.lock().borrow().get_y()).wrapping_add(11)).size(BUTTON_SIZE, BUTTON_SIZE).build()); compat::write(&__this, |__t| __t.filter_button = __v); }
-        ITEM_FILTER.apply_filter(DONATIONS.get_mut(), &mut compat::read(&__this, |__t| __t.filtered_donations.clone()));
-        ITEM_SORTER.apply_sort(&compat::read(&__this, |__t| __t.filtered_donations.clone()));
+        // java: ITEM_FILTER.applyFilter(donations, filteredDonations); ITEM_SORTER.applySort(filteredDonations); - in place
+        compat::write(&__this, |__t| ITEM_FILTER.get().apply_filter(DONATIONS.get(), &mut __t.filtered_donations));
+        compat::write(&__this, |__t| ITEM_SORTER.get().apply_sort(&mut __t.filtered_donations));
         MuseumManager::update_search_results(&__this, false);
         // TODO(fabric2seer): Fabric API `Screens.getWidgets` has no SeerClient equivalent
         //   java: Screens.getWidgets(screen).add(this);
@@ -295,7 +299,8 @@ impl MuseumManager {
     pub fn extract_tooltip(__this: &compat::Shared<Self>, graphics: &mut GuiGraphicsExtractor, mut x: i32, mut y: i32) {
         if compat::read(__this, |__t| __t.hovered_donation_button.clone()).is_some() {
             let mut tooltip: Vec<MutableComponent> = DonationButton::get_item_tooltip(&compat::read(__this, |__t| __t.hovered_donation_button.clone()).unwrap());
-            let mut tooltip_style: Identifier = (DonationButton::get_item(&compat::read(__this, |__t| __t.hovered_donation_button.clone()).unwrap())).get(mcrust::net::minecraft::core::component::data_components::tooltip_style()).unwrap();
+            // java: Identifier tooltipStyle = hoveredDonationButton.getItem().get(DataComponents.TOOLTIP_STYLE); (nullable)
+            let mut tooltip_style: Option<Identifier> = (DonationButton::get_item(&compat::read(__this, |__t| __t.hovered_donation_button.clone()).unwrap())).get(mcrust::net::minecraft::core::component::data_components::tooltip_style()).and_then(|o| mcrust::com::mojang::serialization::cast::<Identifier>(&o).cloned());
             // TODO(fabric2seer): the port's `set_component_tooltip_for_next_frame_styled` ports this Java method with other parameters (tooltip_for_next_frame, lines for Java's lines, xo, yo, style)
             // TODO(fabric2seer): `set_component_tooltip_for_next_frame_styled` takes 2 argument(s) in the port (`tooltip_for_next_frame: &mut Option<DeferredTooltip>, lines: Vec<crate::net::minecraft::network::chat::formatted_text::FormattedText>`), Java passes 5
             // rust: gui_graphics_extractor::set_component_tooltip_for_next_frame_styled(TEXT_RENDERER.get_mut(), tooltip.clone(), x, y, tooltip_style.clone());
@@ -306,32 +311,41 @@ impl MuseumManager {
     pub fn mouse_clicked(__this: &compat::Shared<Self>, click: &MouseButtonEvent, mut doubled: bool) -> bool {
         // TODO(fabric2seer): `mouse_clicked` takes 3 argument(s) in the port (`button: i32, x: f64, y: f64`), Java passes 2
         // TODO(fabric2seer): `AbstractWidget::mouse_clicked` ports `mouseClicked`, but the port's `EditBox` holds no `AbstractWidget` (no Deref, no `base` field) to call it on
-        if { let (__q0, __q1,) = (click.clone(), doubled,); __this.lock().borrow().search_field.as_ref().unwrap().mouse_clicked(__q0, __q1) }.is_some() {
-            // TODO(fabric2seer): `set_focused_at` takes 2 argument(s) in the port (`focused: bool, millis: i64`), Java passes 1
-            // rust: __this.lock().borrow_mut().search_field.as_mut().unwrap().set_focused_at(true);
+        // java: if (searchField.mouseClicked(click, doubled)) { searchField.setFocused(true); return true; }
+        // rust: port gap (GAPS_batchA #3) - the port's EditBox answers a click through `on_click(splitter, ..)` with its focus
+        // and active state held by the screen's widget tree; a mod widget's own EditBox field has neither, so its click is not tested
+        let search_field_clicked: bool = false;
+        if search_field_clicked {
+            __this.lock().borrow_mut().search_field.as_mut().unwrap().set_focused_at(true, mcrust::net::minecraft::util::util::get_millis());
             return true;
-        } else if { let (__q0, __q1,) = (click.clone(), doubled,); __this.lock().borrow().next_page_button.as_ref().unwrap().mouse_clicked(__q0, __q1) }.is_some() {
+        } else if { let (__q0, __q1,) = (click.clone(), doubled,); __this.lock().borrow().next_page_button.as_ref().unwrap().mouse_clicked(__q0.button(), __q0.x(), __q0.y()).is_some() || { let _ = __q1; false } } {
             compat::set_state(&CURRENT_PAGE, compat::get_state(&CURRENT_PAGE) + 1);
             MuseumManager::update_buttons(__this);
             return true;
-        } else if { let (__q0, __q1,) = (click.clone(), doubled,); __this.lock().borrow().prev_page_button.as_ref().unwrap().mouse_clicked(__q0, __q1) }.is_some() {
+        } else if { let (__q0, __q1,) = (click.clone(), doubled,); __this.lock().borrow().prev_page_button.as_ref().unwrap().mouse_clicked(__q0.button(), __q0.x(), __q0.y()).is_some() || { let _ = __q1; false } } {
             compat::set_state(&CURRENT_PAGE, compat::get_state(&CURRENT_PAGE) - 1);
             MuseumManager::update_buttons(__this);
             return true;
-        } else if { let (__q0, __q1,) = (click.clone(), doubled,); __this.lock().borrow().filter_button.as_ref().unwrap().mouse_clicked(__q0, __q1) }.is_some() {
+        } else if { let (__q0, __q1,) = (click.clone(), doubled,); __this.lock().borrow().filter_button.as_ref().unwrap().mouse_clicked(__q0.button(), __q0.x(), __q0.y()).is_some() || { let _ = __q1; false } } {
+            // rust: port gap (GAPS_batchB L3) - Java's mouseClicked also runs the button's onPress; the port's OnPress::Lambda
+            // runs against the screen that holds the button, and this button is a field of a mod widget, not a screen widget
             return true;
-        } else if { let (__q0, __q1,) = (click.clone(), doubled,); __this.lock().borrow().sort_button.as_ref().unwrap().mouse_clicked(__q0, __q1) }.is_some() {
+        } else if { let (__q0, __q1,) = (click.clone(), doubled,); __this.lock().borrow().sort_button.as_ref().unwrap().mouse_clicked(__q0.button(), __q0.x(), __q0.y()).is_some() || { let _ = __q1; false } } {
+            // rust: port gap (GAPS_batchB L3) - the onPress lambda is not run (see the filter button above)
             return true;
         }
-        // TODO(fabric2seer): `set_focused_at` takes 2 argument(s) in the port (`focused: bool, millis: i64`), Java passes 1
-        // rust: __this.lock().borrow_mut().search_field.as_mut().unwrap().set_focused_at(false);
+        // java: searchField.setFocused(false);
+        __this.lock().borrow_mut().search_field.as_mut().unwrap().set_focused_at(false, mcrust::net::minecraft::util::util::get_millis());
         return false;
     }
 
     /// java: @Override public boolean charTyped(CharacterEvent input)
     pub fn char_typed(__this: &compat::Shared<Self>, input: &CharacterEvent) -> bool {
-        // TODO(fabric2seer): `char_typed` takes 4 argument(s) in the port (`splitter: &StringSplitter<W>, c: char, focused: bool, active: bool`), Java passes 1
-        if __this.lock().borrow_mut().search_field.as_mut().unwrap().char_typed(input) {
+        // java: if (searchField.charTyped(input)) {..}
+        // rust: port gap (GAPS_batchA #3) - EditBox.charTyped takes the font's splitter and the focus / active state the
+        // screen's widget tree holds; this EditBox is a field of a mod widget
+        let search_field_typed: bool = { let _ = input; false };
+        if search_field_typed {
             MuseumManager::update_search_results(__this, true);
             return true;
         }
@@ -340,10 +354,11 @@ impl MuseumManager {
 
     /// java: @Override public boolean keyPressed(KeyEvent input)
     pub fn key_pressed(__this: &compat::Shared<Self>, input: &mcrust::net::minecraft::client::input::key_event::KeyEvent) -> bool {
-        // TODO(fabric2seer): `can_consume_input` takes 2 argument(s) in the port (`is_active: bool, is_focused: bool`), Java passes 0
-        // TODO(fabric2seer): `Options.keyInventory` has no Rust field in the port (searched net.minecraft.client.Options and its supertypes)
-        // TODO(fabric2seer): `key_pressed` takes 5 argument(s) in the port (`splitter: &StringSplitter<W>, event: KeyEvent, focused: bool, active: bool, clipboard: &mut dyn ClipboardAccess`), Java passes 1
-        if __this.lock().borrow().search_field.as_ref().unwrap().can_consume_input() && compat::minecraft().options.borrow().key_inventory.matches(input) || __this.lock().borrow_mut().search_field.as_mut().unwrap().key_pressed(input) {
+        // java: if (searchField.canConsumeInput() && CLIENT.options.keyInventory.matches(input) || searchField.keyPressed(input)) {..}
+        // rust: port gap (GAPS_batchA #3) - canConsumeInput / keyPressed need the focus / active state (and keyPressed the
+        // splitter and clipboard) that the screen's widget tree holds; this EditBox is a field of a mod widget
+        let search_field_consumes: bool = false;
+        if (search_field_consumes && key_mapping::matches("key.inventory", input)) || search_field_consumes {
             MuseumManager::update_search_results(__this, true);
             return true;
         }

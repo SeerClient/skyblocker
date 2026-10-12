@@ -66,6 +66,11 @@ impl FallbackedTexture<mcrust::net::minecraft::client::gui::components::widget_s
         return (self.enabled.lock().borrow().is_using_fallback() || self.disabled.lock().borrow().is_using_fallback() || self.enabled_focused.lock().borrow().is_using_fallback() || self.disabled_focused.lock().borrow().is_using_fallback());
     }
 
+    /// java: @Override public WidgetSprites get() (the inherent `get` is the same body)
+    fn get(&self) -> mcrust::net::minecraft::client::gui::components::widget_sprites::WidgetSprites {
+        return self.sprites.clone();
+    }
+
 }
 
 /// java: record Helper(WidgetSprites sprites, WidgetSprites fallback)

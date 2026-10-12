@@ -107,7 +107,7 @@ pub fn get_item_stack(input: &crate::unresolved::NEUIngredient) -> compat::Share
             FlexibleItemStack::set(computed_stack.as_ref().unwrap(), mcrust::net::minecraft::core::component::data_components::item_name().clone(), component::literal("Skyblock Coins").with_style_format(ChatFormatting::Gold));
             FlexibleItemStack::set(computed_stack.as_ref().unwrap(), mcrust::net::minecraft::core::component::data_components::enchantment_glint_override().clone(), true);
             let mut format: String = NUMBER_FORMAT.get_mut().format((amount) as f64);
-            FlexibleItemStack::set(computed_stack.as_ref().unwrap(), mcrust::net::minecraft::core::component::data_components::lore().clone(), ItemLore::new(vec![(component::literal(&format).with_style_format(ChatFormatting::Gold).with_style_fn(|style| style.with_italic(Some(false)))).append(component::literal(" coins"))]).unwrap());
+            FlexibleItemStack::set(computed_stack.as_ref().unwrap(), mcrust::net::minecraft::core::component::data_components::lore().clone(), ItemLore::new(vec![mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from((component::literal(&format).with_style_format(ChatFormatting::Gold).with_style_fn(|style| style.with_italic(Some(false)))).append(component::literal(" coins")))]).unwrap());
         } else {
             logger().warn(&format!("[Skyblocker Recipe] Unable to find item {}", id));
             computed_stack = Some(ItemUtils::get_named_placeholder(&id));
@@ -118,7 +118,7 @@ pub fn get_item_stack(input: &crate::unresolved::NEUIngredient) -> compat::Share
 }
 
 /// java: record RecipeSlot(int x, int y, FlexibleItemStack stack, boolean showBackground)
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct RecipeSlot {
     /// java: int x
     pub x: i32,
@@ -133,12 +133,12 @@ pub struct RecipeSlot {
 impl RecipeSlot {
     /// java: public RecipeSlot(int x, int y, FlexibleItemStack stack)
     pub fn new(mut x: i32, mut y: i32, mut stack: compat::Shared<FlexibleItemStack>) -> Self {
-        let mut this = Self::new(x, y, stack.clone(), true);
+        let mut this = Self::new_canonical(x, y, stack.clone(), true);
         this
     }
 
     /// java: the canonical record constructor
-    pub fn new(mut x: i32, mut y: i32, mut stack: compat::Shared<FlexibleItemStack>, mut show_background: bool) -> Self {
+    pub fn new_canonical(mut x: i32, mut y: i32, mut stack: compat::Shared<FlexibleItemStack>, mut show_background: bool) -> Self {
         Self { x, y, stack, show_background }
     }
 

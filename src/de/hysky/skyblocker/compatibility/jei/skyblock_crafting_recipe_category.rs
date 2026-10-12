@@ -39,7 +39,7 @@ impl SkyblockCraftingRecipeCategory {
     /// java: protected SkyblockCraftingRecipeCategory(IGuiHelper guiHelper)
     pub fn new(mut gui_helper: crate::unresolved::IGuiHelper) -> Self {
         let mut this = Self {
-            base: AbstractSkyblockRecipeCategoryBase::<compat::Shared<SkyblockCraftingRecipe>>::new(gui_helper.clone(), RECIPE_TYPE.get_mut().clone(), TITLE.get_mut().clone(), ItemUtils::get_skyblocker_stack()),
+            base: AbstractSkyblockRecipeCategoryBase::<compat::Shared<SkyblockCraftingRecipe>>::new(gui_helper, RECIPE_TYPE.get(), TITLE.get_mut().clone(), ItemUtils::get_skyblocker_stack()),
         };
         this
     }

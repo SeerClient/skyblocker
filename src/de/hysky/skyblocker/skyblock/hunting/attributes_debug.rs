@@ -32,21 +32,22 @@ pub static FAMILY_PATTERN: LazyLock<compat::regex::Pattern> = LazyLock::new(|| c
 pub static ALIGNMENT_PATTERN: LazyLock<compat::regex::Pattern> = LazyLock::new(|| compat::regex::Pattern::compile("^(?:COMMON|UNCOMMON|RARE|EPIC|LEGENDARY) (?<alignment>[\\w ]+) SHARD \\(ID [A-Z0-9]+\\)"));
 /// java: private static final Map<String, Attribute> DUMPED_ATTRIBUTES = new Object2ObjectOpenHashMap<>();
 pub static DUMPED_ATTRIBUTES: LazyLock<Mutex<std::collections::HashMap<String, Attribute>>> = LazyLock::new(|| Mutex::new(std::collections::HashMap::new()));
-// TODO(fabric2seer): `PrimitiveCodec.listOf` has no Rust method in the port (looked for `list_of` in PrimitiveCodec and its supertypes)
-//   java: private static final Codec<Attribute> CODEC = RecordCodecBuilder.create(instance -> instance.group(
-//   java: 				Codec.STRING.fieldOf("bazaarName").forGetter(Attribute::bazaarName),
-//   java: 				Codec.STRING.fieldOf("displayName").forGetter(Attribute::displayName),
-//   java: 				Codec.STRING.fieldOf("rarity").forGetter(Attribute::rarity),
-//   java: 				Codec.STRING.fieldOf("internalName").forGetter(Attribute::internalName),
-//   java: 				Codec.STRING.fieldOf("abilityName").forGetter(Attribute::abilityName),
-//   java: 				Codec.STRING.fieldOf("alignment").forGetter(Attribute::alignment),
-//   java: 				Codec.STRING.listOf().fieldOf("family").forGetter(Attribute::family),
-//   java: 				Codec.STRING.fieldOf("shardId").forGetter(Attribute::shardId)
-//   java: 		).apply(instance, Attribute::new));
-/// java: private static final Codec<Attribute> CODEC = RecordCodecBuilder.create(instance -> instance.group( Codec.STRING.fieldOf("bazaarName").forGetter(Attribute::bazaarName), Codec.STRING.fieldOf("displayNa
-pub static ATTRIBUTE_CODEC: compat::MainThread<CodecRef<Attribute>> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `CODEC` - see the TODO above"));
+/// java: private static final Codec<Attribute> CODEC = RecordCodecBuilder.create(instance -> instance.group(
+///   Codec.STRING.fieldOf("bazaarName"), .. Codec.STRING.listOf().fieldOf("family"), Codec.STRING.fieldOf("shardId")).apply(instance, Attribute::new));
+/// (`LazyLock`: `exportAttributes` encodes on a worker thread)
+pub static ATTRIBUTE_CODEC: LazyLock<CodecRef<Attribute>> = LazyLock::new(|| record_codec_builder::create(record_codec_builder::apply8(record_codec_builder::of(|o: &Attribute| o.bazaar_name(), codec::field_of(mcrust::com::mojang::serialization::codec::string_codec(), "bazaarName")), record_codec_builder::of(|o: &Attribute| o.display_name(), codec::field_of(mcrust::com::mojang::serialization::codec::string_codec(), "displayName")), record_codec_builder::of(|o: &Attribute| o.rarity(), codec::field_of(mcrust::com::mojang::serialization::codec::string_codec(), "rarity")), record_codec_builder::of(|o: &Attribute| o.internal_name(), codec::field_of(mcrust::com::mojang::serialization::codec::string_codec(), "internalName")), record_codec_builder::of(|o: &Attribute| o.ability_name(), codec::field_of(mcrust::com::mojang::serialization::codec::string_codec(), "abilityName")), record_codec_builder::of(|o: &Attribute| o.alignment(), codec::field_of(mcrust::com::mojang::serialization::codec::string_codec(), "alignment")), record_codec_builder::of(|o: &Attribute| o.family(), codec::field_of(codec::list(mcrust::com::mojang::serialization::codec::string_codec()), "family")), record_codec_builder::of(|o: &Attribute| o.shard_id(), codec::field_of(mcrust::com::mojang::serialization::codec::string_codec(), "shardId")), move |__a0, __a1, __a2, __a3, __a4, __a5, __a6, __a7| Attribute::new(__a0.clone(), __a1.clone(), __a2.clone(), __a3.clone(), __a4.clone(), __a5.clone(), __a6.clone(), __a7.clone()))));
 /// java: public static final Codec<List<Attribute>> LIST_CODEC = CODEC.listOf();
-pub static ATTRIBUTE_LIST_CODEC: compat::MainThread<CodecRef<Vec<Attribute>>> = compat::MainThread::new(|| codec::list(ATTRIBUTE_CODEC.get_mut().clone()));
+pub static ATTRIBUTE_LIST_CODEC: LazyLock<CodecRef<Vec<Attribute>>> = LazyLock::new(|| codec::list(ATTRIBUTE_CODEC.clone()));
+/// java: private static final Path ATTRIBUTE_EXPORT_DEST (read on the export worker; built from `CONFIG_DIR` on the render thread)
+static ATTRIBUTE_EXPORT_DEST_PATH: std::sync::OnceLock<std::path::PathBuf> = std::sync::OnceLock::new();
+/// Which of the two menus the open container screen is (`ScreenEvents.AFTER_INIT` records it; see `init`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum OpenMenu {
+    AttributeMenu,
+    HuntingBox,
+}
+/// The open container screen's menu as `AFTER_INIT` found it (`None` for any other screen).
+pub static OPEN_MENU: compat::MainThread<Option<OpenMenu>> = compat::MainThread::new(|| None);
 
 /// java: public class AttributesDebug
 #[derive(Clone)]
@@ -61,50 +62,67 @@ impl AttributesDebug {
     }
 
     /// java: @Init public static void init()
+    ///
+    /// Java registers a per-screen `ScreenKeyboardEvents.afterKeyPress(screen)` listener from `AFTER_INIT` over the
+    /// attribute menu or the hunting box it found. The port's `AFTER_KEY_PRESS` is one global event, so the screen
+    /// `AFTER_INIT` found is recorded (`OPEN_MENU`, rewritten for every screen) and ONE listener asks it.
     pub fn init() {
         if !(crate::de::hysky::skyblocker::debug::debug::Debug::debug_enabled()) && !(SkyblockerConfigManager::get().debug.enable_repo_dev) {
             return;
         }
+        let _ = ATTRIBUTE_EXPORT_DEST_PATH.set(ATTRIBUTE_EXPORT_DEST.get().clone());
         screen_events::AFTER_INIT.register(Arc::new(|screen: &mut Screen, width: i32, height: i32| {
-            let mut attribute_menu: Option<AbstractContainerScreen> = AttributesDebug::check_for_attribute_menu(&screen);
-            if let Some(attribute_menu) = &attribute_menu {
-                screen_keyboard_events::AFTER_KEY_PRESS.register(Arc::new(|action: i32, key_event: &KeyEvent| {
-                    // TODO(fabric2seer): `.key(..)` on a value of unknown type
-                    //   java: if (input.key() == InputConstants.KEY_G) {
-                    //   java: 						dumpAttributes(attributeMenu);
-                    //   java: 					} else if (input.key() == InputConstants.KEY_J) {
-                    //   java: 						exportAttributes(attributeMenu);
-                    //   java: 					}
-                }));
+            *OPEN_MENU.get_mut() = if AttributesDebug::check_for_attribute_menu(&screen) {
+                Some(OpenMenu::AttributeMenu)
+            } else if AttributesDebug::check_for_hunting_box(&screen) {
+                Some(OpenMenu::HuntingBox)
+            } else {
+                None
+            };
+        }));
+        screen_keyboard_events::AFTER_KEY_PRESS.register(Arc::new(|action: i32, input: &KeyEvent| {
+            if !compat::container_screen_open() {
                 return;
             }
-            let mut hunting_box: Option<AbstractContainerScreen> = AttributesDebug::check_for_hunting_box(&screen);
-            if let Some(hunting_box) = &hunting_box {
-                screen_keyboard_events::AFTER_KEY_PRESS.register(Arc::new(|action: i32, key_event: &KeyEvent| {
-                    // TODO(fabric2seer): `.key(..)` on a value of unknown type
-                    //   java: if (input.key() == InputConstants.KEY_G) {
-                    //   java: 						fixAttributes(huntingBox);
-                    //   java: 					} else if (input.key() == InputConstants.KEY_J) {
-                    //   java: 						exportAttributes(huntingBox);
-                    //   java: 					}
-                }));
+            match *OPEN_MENU.get() {
+                Some(OpenMenu::AttributeMenu) => {
+                    if input.key() == mcrust::com::mojang::blaze3d::platform::input_constants::KEY_G {
+                        AttributesDebug::dump_attributes();
+                    } else if input.key() == mcrust::com::mojang::blaze3d::platform::input_constants::KEY_J {
+                        AttributesDebug::export_attributes();
+                    }
+                }
+                Some(OpenMenu::HuntingBox) => {
+                    if input.key() == mcrust::com::mojang::blaze3d::platform::input_constants::KEY_G {
+                        AttributesDebug::fix_attributes();
+                    } else if input.key() == mcrust::com::mojang::blaze3d::platform::input_constants::KEY_J {
+                        AttributesDebug::export_attributes();
+                    }
+                }
+                None => {}
             }
         }));
     }
 
     /// java: private static Int2ObjectMap<ItemStack> getSlots(AbstractContainerScreen<?> screen)
-    pub fn get_slots(screen: &AbstractContainerScreen) -> std::collections::HashMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack> {
-        // TODO(fabric2seer): field `slots` of a Object
-        //   java: @SuppressWarnings("unchecked")
-        //   java: 		Int2ObjectMap<ItemStack> slots = ContainerSolverManager.slotMap(screen.getMenu().slots.subList(0, ((AbstractContainerScreen<ChestMenu>) screen).getMenu().getRowCount() * 9));
-        let mut slots: std::collections::HashMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack> = todo!("fabric2seer: the initialiser of `slots` (TODO above)");
+    /// (`screen.getMenu()` is the player's open menu, read live)
+    pub fn get_slots() -> std::collections::HashMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack> {
+        // java: ContainerSolverManager.slotMap(screen.getMenu().slots.subList(0, ((AbstractContainerScreen<ChestMenu>) screen).getMenu().getRowCount() * 9));
+        let rows: i32 = mcrust::mcrust::modding::game::with_chest_menu(|chest| chest.get_row_count()).expect("ClassCastException: the menu is not a ChestMenu");
+        let mut slots: std::collections::HashMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack> = compat::with_open_menu(|menu, containers| {
+            let mut slot_map = std::collections::HashMap::new();
+            for i in 0..rows.wrapping_mul(9) {
+                slot_map.insert(i, menu.slots[(i) as usize].get_item(containers).duplicate());
+            }
+            slot_map
+        }).unwrap_or_default();
         container_solver::trim_edges(&mut slots, 6);
         return slots;
     }
 
     /// java: private static void dumpAttributes(AbstractContainerScreen<?> screen)
-    pub fn dump_attributes(screen: &AbstractContainerScreen) {
-        let mut slots: std::collections::HashMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack> = AttributesDebug::get_slots(screen);
+    pub fn dump_attributes() {
+        let mut slots: std::collections::HashMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack> = AttributesDebug::get_slots();
         for stack in slots.values().cloned() {
             if stack.is_empty() {
                 continue;
@@ -123,9 +141,8 @@ impl AttributesDebug {
                 let mut rarity: String = rarity_matcher.as_mut().unwrap().group_named("rarity").unwrap();
                 let mut bazaar_name_guess: String = format!("SHARD_{}", (shard_name.replace(' ', &'_'.to_string())).to_uppercase());
                 let mut neu_id_guess: String = format!("ATTRIBUTE_SHARD_{};1", (ability_name.replace("'", "")).replace(' ', &'_'.to_string()).to_uppercase());
-                // TODO(fabric2seer): `.containsKey(..)` on a T
-                //   java: boolean hasDataForId = TooltipInfoType.BAZAAR.getData().containsKey(bazaarNameGuess);
-                let mut has_data_for_id: bool = todo!("fabric2seer: the initialiser of `hasDataForId` (TODO above)");
+                // java: boolean hasDataForId = TooltipInfoType.BAZAAR.getData().containsKey(bazaarNameGuess);
+                let mut has_data_for_id: bool = compat::read(tooltip_info_type::BAZAAR.get(), |__t| __t.get_data()).expect("NullPointerException: BAZAAR data").contains_key(&bazaar_name_guess);
                 if !has_data_for_id {
                     logger().warn(&format!("[Skyblocker Attributes Debug] No data found for shard. Shard Name: {}", shard_name));
                 }
@@ -138,8 +155,8 @@ impl AttributesDebug {
     }
 
     /// java: private static void fixAttributes(AbstractContainerScreen<?> screen)
-    pub fn fix_attributes(screen: &AbstractContainerScreen) {
-        let mut slots: std::collections::HashMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack> = AttributesDebug::get_slots(screen);
+    pub fn fix_attributes() {
+        let mut slots: std::collections::HashMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack> = AttributesDebug::get_slots();
         for stack in slots.values().cloned() {
             if stack.is_empty() {
                 continue;
@@ -152,16 +169,17 @@ impl AttributesDebug {
             let mut family_matcher: Option<compat::regex::Matcher> = ItemUtils::get_lore_line_if_match(&stack, &FAMILY_PATTERN);
             let mut alignment_matcher: Option<compat::regex::Matcher> = ItemUtils::get_lore_line_if_match(&stack, &ALIGNMENT_PATTERN);
             if let Some(alignment_matcher) = &alignment_matcher {
-                // TODO(fabric2seer): Map.computeIfPresent(..)
-                //   java: DUMPED_ATTRIBUTES.computeIfPresent(abilityName, (_, o) -> {
-                //   java: 					String alignment = WordUtils.capitalizeFully(alignmentMatcher.group("alignment"));
-                //   java: 					return new Attribute(o.bazaarName, o.displayName, o.rarity, o.internalName,
-                //   java: 							o.abilityName, alignment, o.family, o.shardId);
-                //   java: 				});
+                // java: DUMPED_ATTRIBUTES.computeIfPresent(abilityName, (_, o) -> new Attribute(.., WordUtils.capitalizeFully(alignmentMatcher.group("alignment")), ..));
+                if let Some(o) = compat::lock(&DUMPED_ATTRIBUTES).get_mut(&ability_name) {
+                    let mut alignment: String = compat::capitalize_fully(&alignment_matcher.group_named("alignment").unwrap());
+                    *o = Attribute::new(o.bazaar_name.clone(), o.display_name.clone(), o.rarity.clone(), o.internal_name.clone(), o.ability_name.clone(), alignment, o.family.clone(), o.shard_id.clone());
+                }
             }
             if let Some(family_matcher) = &family_matcher {
                 let mut family: String = family_matcher.group_named("family").unwrap();
-                let mut families: Vec<String> = compat::lock(&DUMPED_ATTRIBUTES).get(&ability_name).cloned().unwrap().family();
+                // java: List<String> families = DUMPED_ATTRIBUTES.get(abilityName).family(); ...forEach(families::add) - the record's own list
+                let mut __dumped = compat::lock(&DUMPED_ATTRIBUTES);
+                let families: &mut Vec<String> = &mut __dumped.get_mut(&ability_name).expect("NullPointerException").family;
                 for __a0 in (compat::regex::split(&family, ",| and ")).iter().cloned().map(|__a0| compat::trim(&__a0)) {
                     families.push(__a0.clone());
                 }
@@ -170,8 +188,8 @@ impl AttributesDebug {
     }
 
     /// java: private static void exportAttributes(AbstractContainerScreen<?> screen)
-    pub fn export_attributes(screen: &AbstractContainerScreen) {
-        let mut copy: Vec<Attribute> = compat::sorted_by(compat::distinct(compat::lock(&DUMPED_ATTRIBUTES).values().cloned()), |a, b| { let key = |attribute| {
+    pub fn export_attributes() {
+        let mut copy: Vec<Attribute> = compat::sorted_by(compat::distinct(compat::lock(&DUMPED_ATTRIBUTES).values().cloned()), |a, b| { let key = |attribute: &Attribute| {
             if compat::str_len(&attribute.shard_id) == 3 {
                 return attribute.shard_id.clone();
             }
@@ -180,7 +198,7 @@ impl AttributesDebug {
         CompletableFuture::<()>::run_async(move || (|| {
             // java: try {..} catch (Exception e) - an exception here is a panic, caught by `catch_unwind`
             let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                std::fs::write(ATTRIBUTE_EXPORT_DEST.get_mut(), &compat::jstring(&(ATTRIBUTE_LIST_CODEC.get_mut().encode_start(&mcrust::com::mojang::serialization::json_ops::JsonOps::instance(), &copy)).get_or_throw().unwrap())).expect("IOException");
+                std::fs::write(ATTRIBUTE_EXPORT_DEST_PATH.get().expect("ATTRIBUTE_EXPORT_DEST"), compat::json::to_string(&compat::json_from_port(&(ATTRIBUTE_LIST_CODEC.encode_start(&mcrust::com::mojang::serialization::json_ops::JsonOps::instance(), &copy)).get_or_throw().unwrap()))).expect("IOException");
             }));
             if let Err(e) = __result {
                 logger().error(&format!("[Skyblocker Attributes Debug] Failed to export attributes!"));
@@ -189,23 +207,15 @@ impl AttributesDebug {
     }
 
     /// java: private static @Nullable AbstractContainerScreen<?> checkForAttributeMenu(Screen screen)
-    pub fn check_for_attribute_menu(screen: &mcrust::net::minecraft::client::gui::screens::screen::Screen) -> Option<AbstractContainerScreen> {
-        if let Some(container_screen) = screen.as_any().downcast_ref::<AbstractContainerScreen>() && container_screen.screen.get_title().to_string().ends_with("Attribute Menu") {
-            // TODO(fabric2seer): the mod keeps the game's `AbstractContainerScreen` (Java holds a reference to the live object); the port's `AbstractContainerScreen` is not a value to copy and the port lends the mod no handle to it
-            // rust: return Some(container_screen.clone());
-            return todo!("fabric2seer: see the TODO above");
-        }
-        return None;
+    /// (whether `screen` - the `Screen` half `AFTER_INIT` hands over - is that container screen: the screen object
+    /// itself is the game's, and the menu it shows is the player's open one, which `get_slots` reads)
+    pub fn check_for_attribute_menu(screen: &mcrust::net::minecraft::client::gui::screens::screen::Screen) -> bool {
+        return compat::container_screen_open() && screen.title.ends_with("Attribute Menu");
     }
 
     /// java: private static @Nullable AbstractContainerScreen<?> checkForHuntingBox(Screen screen)
-    pub fn check_for_hunting_box(screen: &mcrust::net::minecraft::client::gui::screens::screen::Screen) -> Option<AbstractContainerScreen> {
-        if let Some(container_screen) = screen.as_any().downcast_ref::<AbstractContainerScreen>() && container_screen.screen.get_title().to_string().ends_with("Hunting Box") {
-            // TODO(fabric2seer): the mod keeps the game's `AbstractContainerScreen` (Java holds a reference to the live object); the port's `AbstractContainerScreen` is not a value to copy and the port lends the mod no handle to it
-            // rust: return Some(container_screen.clone());
-            return todo!("fabric2seer: see the TODO above");
-        }
-        return None;
+    pub fn check_for_hunting_box(screen: &mcrust::net::minecraft::client::gui::screens::screen::Screen) -> bool {
+        return compat::container_screen_open() && screen.title.ends_with("Hunting Box");
     }
 
 }

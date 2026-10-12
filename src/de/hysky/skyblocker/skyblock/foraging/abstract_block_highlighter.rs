@@ -25,26 +25,26 @@ pub struct AbstractBlockHighlighterBase {
     /// java: protected final float[] colour;
     pub colour: Vec<f32>,
     /// java: protected final BiPredicate<ClientLevel, BlockPos> posPredicate;
-    pub pos_predicate: Option<Arc<dyn Fn(ClientLevel, BlockPos) -> bool>>,
+    pub pos_predicate: Option<Arc<dyn Fn(&ClientLevel, BlockPos) -> bool>>,
     /// java: protected final Predicate<BlockState> statePredicate;
-    pub state_predicate: Option<Arc<dyn Fn(Arc<BlockState>) -> bool>>,
+    pub state_predicate: Option<Arc<dyn Fn(&BlockState) -> bool>>,
 }
 
 impl AbstractBlockHighlighterBase {
     /// java: protected AbstractBlockHighlighter(Block target, DyeColor colour) (built by the most-derived class's `wrap`, then run on its handle)
     pub fn new_in<__R>(mut target: Arc<Block>, mut colour: DyeColor, __wrap: impl FnOnce(Self) -> (compat::Shared<dyn AbstractBlockHighlighter>, __R)) -> (compat::Shared<dyn AbstractBlockHighlighter>, __R) {
-        let (__this, __r) = Self::new2_in(Arc::new(move |state| state.is_block(&target)), colour, __wrap);
+        let (__this, __r) = Self::new2_in(Arc::new(move |state: &BlockState| state.is_block(&target)), colour, __wrap);
         (__this, __r)
     }
 
     /// java: protected AbstractBlockHighlighter(Predicate<BlockState> statePredicate, DyeColor colour) (built by the most-derived class's `wrap`, then run on its handle)
-    pub fn new2_in<__R>(state_predicate: Arc<dyn Fn(Arc<BlockState>) -> bool>, mut colour: DyeColor, __wrap: impl FnOnce(Self) -> (compat::Shared<dyn AbstractBlockHighlighter>, __R)) -> (compat::Shared<dyn AbstractBlockHighlighter>, __R) {
-        let (__this, __r) = Self::new_3_in(Arc::new(move |_, _| true), state_predicate.clone(), ColorUtils::get_float_components_dye_color(&colour), __wrap);
+    pub fn new2_in<__R>(state_predicate: Arc<dyn Fn(&BlockState) -> bool>, mut colour: DyeColor, __wrap: impl FnOnce(Self) -> (compat::Shared<dyn AbstractBlockHighlighter>, __R)) -> (compat::Shared<dyn AbstractBlockHighlighter>, __R) {
+        let (__this, __r) = Self::new_3_in(Arc::new(move |_: &ClientLevel, _: BlockPos| true), state_predicate.clone(), ColorUtils::get_float_components_dye_color(&colour), __wrap);
         (__this, __r)
     }
 
     /// java: protected AbstractBlockHighlighter(BiPredicate<ClientLevel, BlockPos> posPredicate, Predicate<BlockState> statePredicate, float[] colour) (built by the most-derived class's `wrap`, then run on its handle)
-    pub fn new_3_in<__R>(pos_predicate: Arc<dyn Fn(ClientLevel, BlockPos) -> bool>, state_predicate: Arc<dyn Fn(Arc<BlockState>) -> bool>, mut colour: Vec<f32>, __wrap: impl FnOnce(Self) -> (compat::Shared<dyn AbstractBlockHighlighter>, __R)) -> (compat::Shared<dyn AbstractBlockHighlighter>, __R) {
+    pub fn new_3_in<__R>(pos_predicate: Arc<dyn Fn(&ClientLevel, BlockPos) -> bool>, state_predicate: Arc<dyn Fn(&BlockState) -> bool>, mut colour: Vec<f32>, __wrap: impl FnOnce(Self) -> (compat::Shared<dyn AbstractBlockHighlighter>, __R)) -> (compat::Shared<dyn AbstractBlockHighlighter>, __R) {
         let __init_pos_predicate = Some(pos_predicate.clone());
         let __init_state_predicate = Some(state_predicate.clone());
         let __init_colour = colour.clone();
@@ -111,8 +111,9 @@ impl dyn AbstractBlockHighlighter {
         //   java: ClientChunkEvents.CHUNK_UNLOAD.register(this::onChunkUnload);
         let __this_1 = compat::RenderThread::new(__this.clone());
         level_render_extraction_callback::EVENT.register(Arc::new(move |__a0| { ({ let __f = compat::dispatch(__this_1.get(), |__t| __t.extract_rendering()); __f(__this_1.get(), &__a0) }); }));
-        client_play_connection_events::JOIN.register(Arc::new(|listener: &mut ClientPacketListener| {
-            ({ let __f = compat::dispatch(__this, |__t| __t.reset()); __f(__this) });
+        let __this_3 = compat::RenderThread::new(__this.clone());
+        client_play_connection_events::JOIN.register(Arc::new(move |listener: &mut ClientPacketListener| {
+            ({ let __f = compat::dispatch(__this_3.get(), |__t| __t.reset()); __f(__this_3.get()) });
         }));
         let __this_2 = compat::RenderThread::new(__this.clone());
         world_events::BLOCK_STATE_UPDATE.register(Arc::new(move |__a0, __a1, __a2| { ({ let __f = compat::dispatch(__this_2.get(), |__t| __t.on_block_update()); __f(__this_2.get(), __a0.clone(), &__a1, &__a2) }); }));
@@ -123,7 +124,9 @@ impl dyn AbstractBlockHighlighter {
         if !({ let __f = compat::dispatch(__this, |__t| __t.should_process()); __f(__this) }) {
             return;
         }
-        if ((compat::read(__this, |__t| __t.abstract_block_highlighter_base().pos_predicate.clone()).unwrap()))(mcrust::mcrust::modding::game::level(), pos.clone()) && ((compat::read(__this, |__t| __t.abstract_block_highlighter_base().state_predicate.clone()).unwrap()))(new_state.clone()) {
+        // java: Objects.requireNonNull(Minecraft.getInstance().level)
+        let __level = mcrust::mcrust::modding::game::level().expect("NullPointerException: Minecraft.level");
+        if ((compat::read(__this, |__t| __t.abstract_block_highlighter_base().pos_predicate.clone()).unwrap()))(&__level, pos.clone()) && ((compat::read(__this, |__t| __t.abstract_block_highlighter_base().state_predicate.clone()).unwrap()))(&**new_state) {
             BlockPosSet::add(&compat::read(__this, |__t| __t.abstract_block_highlighter_base().highlighted_blocks.clone()), &pos);
         } else {
             BlockPosSet::remove_block_pos(&compat::read(__this, |__t| __t.abstract_block_highlighter_base().highlighted_blocks.clone()), &pos);
@@ -135,11 +138,12 @@ impl dyn AbstractBlockHighlighter {
         if !({ let __f = compat::dispatch(__this, |__t| __t.should_process()); __f(__this) }) {
             return;
         }
-        let __this_1 = compat::RenderThread::new(__this.clone());
-        chunk.access.find_blocks(&compat::read(__this, |__t| __t.abstract_block_highlighter_base().state_predicate.clone()).unwrap(), &mut |pos, _| {
-            // TODO(fabric2seer): the mod keeps the game's `ClientLevel` (Java holds a reference to the live object); the port's `ClientLevel` is not a value to copy and the port lends the mod no handle to it
-            if ((compat::read(__this_1.get(), |__t| __t.abstract_block_highlighter_base().pos_predicate.clone()).unwrap()))(level.clone(), pos.clone()) {
-                BlockPosSet::add(&compat::read(__this_1.get(), |__t| __t.abstract_block_highlighter_base().highlighted_blocks.clone()), &pos);
+        let __state_predicate = compat::read(__this, |__t| __t.abstract_block_highlighter_base().state_predicate.clone()).unwrap();
+        let __pos_predicate = compat::read(__this, |__t| __t.abstract_block_highlighter_base().pos_predicate.clone()).unwrap();
+        let __highlighted_blocks = compat::read(__this, |__t| __t.abstract_block_highlighter_base().highlighted_blocks.clone());
+        chunk.access.find_blocks(&*__state_predicate, &mut |pos, _| {
+            if (__pos_predicate)(level, pos.clone()) {
+                BlockPosSet::add(&__highlighted_blocks, &pos);
             }
         });
     }
@@ -150,16 +154,12 @@ impl dyn AbstractBlockHighlighter {
             return;
         }
         let mut iterator = BlockPosSet::iterator(&compat::read(__this, |__t| __t.abstract_block_highlighter_base().highlighted_blocks.clone()));
-        // TODO(fabric2seer): the condition: Iterator.hasNext - use a `for` loop / `while let Some(x) = it.next()`
-        //   java: iterator.hasNext(..)
-        while todo!("fabric2seer: the condition (TODO above)") {
+        while iterator.has_next() {
             let mut pos: BlockPos = iterator.next().unwrap();
-            // TODO(fabric2seer): `ClientLevel.getChunk` has no Rust method in the port (looked for `get_chunk` in ClientLevel and its supertypes)
-            // rust: let mut holder: ChunkAccess = world.get_chunk(&pos);
-            let mut holder: ChunkAccess = todo!("fabric2seer: the initialiser of `holder` (TODO above)");
-            if std::ptr::eq(&holder, chunk) {
-                // TODO(fabric2seer): Stream.remove
-                //   java: iterator.remove();
+            // java: ChunkAccess holder = world.getChunk(pos); if (holder.equals(chunk)) - the same chunk object
+            let mut holder: Option<Arc<LevelChunk>> = world.get_chunk(pos.get_x() >> 4, pos.get_z() >> 4);
+            if holder.as_ref().is_some_and(|holder| std::ptr::eq(Arc::as_ptr(holder), chunk)) {
+                iterator.remove();
             }
         }
     }
@@ -171,7 +171,7 @@ impl dyn AbstractBlockHighlighter {
             return;
         }
         for highlight in BlockPosSet::iterate_mut(&compat::read(__this, |__t| __t.abstract_block_highlighter_base().highlighted_blocks.clone())) {
-            let mut outline: Option<AABB> = RenderHelper::get_block_bounding_box(&mcrust::mcrust::modding::game::level().unwrap(), &highlight);
+            let mut outline: Option<AABB> = RenderHelper::get_block_bounding_box(&mcrust::mcrust::modding::game::level().unwrap(), &highlight.immutable());
             if let Some(outline) = &outline {
                 ({ let __f = compat::dispatch(collector, |__t| __t.submit_filled_box_aabb_float_float_boolean()); __f(collector, outline, &compat::read(__this, |__t| __t.abstract_block_highlighter_base().colour.clone()), 0.4f32, false) });
             }

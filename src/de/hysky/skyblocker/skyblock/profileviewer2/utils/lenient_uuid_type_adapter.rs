@@ -27,7 +27,7 @@ impl LenientUuidTypeAdapter {
 
     /// java: @Override public JsonElement serialize(UUID src, Type typeOfSrc, JsonSerializationContext context)
     pub fn serialize(&self, src: &Uuid, type_of_src: &crate::unresolved::Type, context: &crate::unresolved::JsonSerializationContext) -> serde_json::Value {
-        return (mcrust::net::minecraft::core::uuid_util::authlib_codec().encode_start(&mcrust::com::mojang::serialization::json_ops::JsonOps::instance(), src)).get_or_throw().unwrap();
+        return compat::json_from_port(&(mcrust::net::minecraft::core::uuid_util::authlib_codec().encode_start(&mcrust::com::mojang::serialization::json_ops::JsonOps::instance(), src)).get_or_throw().unwrap());
     }
 
 }

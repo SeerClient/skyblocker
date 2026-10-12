@@ -41,11 +41,24 @@ pub static ACCESSORY_DATA: LazyLock<Mutex<std::collections::HashMap<String, Acce
 //   java: 				Codec.STRING.listOf().optionalFieldOf("recombobulatedAccessories", List.of()).xmap(ObjectOpenHashSet::new, List::copyOf).forGetter(ProfileAccessoryData::recombobulatedAccessories)
 //   java: 		).apply(instance, ProfileAccessoryData::new));
 /// java: private static final Codec<ProfileAccessoryData> CODEC = RecordCodecBuilder.create(instance -> instance.group( Codec.unboundedMap(Codec.INT, Codec.STRING.listOf().xmap(ObjectOpenHashSet::new, ObjectAr
-pub static PROFILE_ACCESSORY_DATA_CODEC: compat::MainThread<CodecRef<ProfileAccessoryData>> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `CODEC` - see the TODO above"));
+pub static PROFILE_ACCESSORY_DATA_CODEC: compat::MainThread<CodecRef<ProfileAccessoryData>> = compat::MainThread::new(|| {
+    // Codec.STRING.listOf().xmap(ObjectOpenHashSet::new, ObjectArrayList::new / List::copyOf)
+    let string_set = || codec::xmap(codec::list(codec::string_codec()), |list: Vec<String>| list.into_iter().collect::<std::collections::HashSet<String>>(), |set: &std::collections::HashSet<String>| set.iter().cloned().collect::<Vec<String>>());
+    record_codec_builder::create(record_codec_builder::apply2(
+        // Codec.unboundedMap(Codec.INT, ..).xmap(Int2ObjectOpenHashMap::new, Int2ObjectOpenHashMap::new).fieldOf("pages")
+        record_codec_builder::of(|o: &ProfileAccessoryData| o.pages(), codec::field_of(codec::xmap(codec::unbounded_map(codec::int_codec(), string_set()), |entries: Vec<(i32, std::collections::HashSet<String>)>| entries.into_iter().collect::<std::collections::HashMap<_, _>>(), |map: &std::collections::HashMap<i32, std::collections::HashSet<String>>| map.iter().map(|(k, v)| (*k, v.clone())).collect::<Vec<_>>()), "pages")),
+        // .optionalFieldOf("recombobulatedAccessories", List.of()).xmap(ObjectOpenHashSet::new, List::copyOf): the empty
+        // default maps to the empty set, so the xmap is applied to the element codec instead
+        record_codec_builder::of(|o: &ProfileAccessoryData| o.recombobulated_accessories(), codec::optional_field_of(string_set(), "recombobulatedAccessories", std::collections::HashSet::new())),
+        move |__a0, __a1| ProfileAccessoryData::new(__a0.clone(), __a1.clone()),
+    ))
+});
 /// java: private static final Codec<Accessory> CODEC = RecordCodecBuilder.create(instance -> instance.group( Codec.STRING.fieldOf("id").forGetter(Accessory::id), Codec.STRING.optionalFieldOf("family").forGette
 pub static ACCESSORY_CODEC: compat::MainThread<CodecRef<Accessory>> = compat::MainThread::new(|| record_codec_builder::create(record_codec_builder::apply6(record_codec_builder::of(|o: &Accessory| o.id(), codec::field_of(mcrust::com::mojang::serialization::codec::string_codec(), "id")), record_codec_builder::of(|o: &Accessory| o.family(), codec::optional_field_of_opt(mcrust::com::mojang::serialization::codec::string_codec(), "family")), record_codec_builder::of(|o: &Accessory| o.tier(), codec::optional_field_of(mcrust::com::mojang::serialization::codec::int_codec(), "tier", 0)), record_codec_builder::of(|o: &Accessory| o.origin(), codec::optional_field_of_opt(mcrust::com::mojang::serialization::codec::string_codec(), "origin")), record_codec_builder::of(|o: &Accessory| o.enrichable(), codec::optional_field_of(mcrust::com::mojang::serialization::codec::bool_codec(), "enrichable", true)), record_codec_builder::of(|o: &Accessory| o.recombobulatable(), codec::optional_field_of(mcrust::com::mojang::serialization::codec::bool_codec(), "recombobulatable", true)), move |__a0, __a1, __a2, __a3, __a4, __a5| Accessory::new(__a0.clone(), __a1.clone(), __a2.clone(), __a3.clone(), __a4.clone(), __a5.clone()))));
 /// java: public static final Codec<Map<String, Accessory>> MAP_CODEC = Codec.unboundedMap(Codec.STRING, CODEC);
-pub static ACCESSORY_MAP_CODEC: compat::MainThread<CodecRef<std::collections::HashMap<String, Accessory>>> = compat::MainThread::new(|| codec::unbounded_map(mcrust::com::mojang::serialization::codec::string_codec(), ACCESSORY_CODEC.get_mut().clone()));
+///
+/// The port's `unboundedMap` answers the entries as a list; the map is built over it.
+pub static ACCESSORY_MAP_CODEC: compat::MainThread<CodecRef<std::collections::HashMap<String, Accessory>>> = compat::MainThread::new(|| codec::xmap(codec::unbounded_map(mcrust::com::mojang::serialization::codec::string_codec(), ACCESSORY_CODEC.get_mut().clone()), |entries: Vec<(String, Accessory)>| entries.into_iter().collect::<std::collections::HashMap<_, _>>(), |map: &std::collections::HashMap<String, Accessory>| map.iter().map(|(k, v)| (k.clone(), v.clone())).collect::<Vec<_>>()));
 
 /// java: public class AccessoriesHelper
 #[derive(Clone)]
@@ -63,10 +76,10 @@ impl AccessoriesHelper {
     pub fn init() {
         COLLECTED_ACCESSORIES.get_mut().lock().borrow_mut().init();
         screen_events::AFTER_INIT.register(Arc::new(|screen: &mut Screen, width: i32, height: i32| {
-            if Utils::is_on_skyblock() && { let __r = tooltip_info_type::ACCESSORIES.get_mut(); let __f = compat::dispatch(__r, |__t| __t.is_tooltip_enabled()); __f(&compat::view(__r, |a| a as compat::Shared<dyn TooltipInfoType>)) } && !(Utils::get_profile_id().is_empty()) && let Some(generic_container_screen) = screen.as_any().downcast_ref::<ContainerScreen>() && !(crate::entry::catharsis_compatibility::is_gui_element_hidden("skyblocker:accessoriesHelper")) {
-                // TODO(fabric2seer): `Screen::get_title` ports `getTitle`, but the port's `ContainerScreen` holds no `Screen` (no Deref, no `base` field) to call it on
-                // rust: let mut matcher: compat::regex::Matcher = ACCESSORY_BAG_TITLE.matcher(&generic_container_screen.get_title().to_string());
-                let mut matcher: compat::regex::Matcher = todo!("fabric2seer: the initialiser of `matcher` (TODO above)");
+            if Utils::is_on_skyblock() && { let __r = tooltip_info_type::ACCESSORIES.get_mut(); let __f = compat::dispatch(__r, |__t| __t.is_tooltip_enabled()); __f(&compat::view(__r, |a| a as compat::Shared<dyn TooltipInfoType>)) } && matches!(compat::minecraft().gui.screen_kind, mcrust::net::minecraft::client::gui::gui::ScreenKind::Container) && !(crate::entry::catharsis_compatibility::is_gui_element_hidden("skyblocker:accessoriesHelper")) {
+                // `screen instanceof ContainerScreen genericContainerScreen`: the screen's kind; its title is the
+                // `Screen` half the listener is handed
+                let mut matcher: compat::regex::Matcher = ACCESSORY_BAG_TITLE.matcher(&screen.get_title().to_string());
                 if matcher.matches() {
                     // TODO(fabric2seer): ScreenEvents.afterTick(..).register: no SeerClient equivalent yet
                     //   java: ScreenEvents.afterTick(screen).register(_ -> {
@@ -75,7 +88,9 @@ impl AccessoriesHelper {
                     //   java:
                     //   java: 						collectAccessories(handler.slots.subList(0, handler.getRowCount() * 9), page);
                     //   java: 					});
-                    AccessoriesHelperWidget::attach_to_screen(generic_container_screen);
+                    // rust: port gap - `AccessoriesHelperWidget.attachToScreen(genericContainerScreen)`: the vanilla
+                    // `ContainerScreen` object is not lent to an AFTER_INIT listener (GAPS_batchG), so the widget is not attached
+                    let _ = AccessoriesHelperWidget::attach_to_screen;
                 }
             }
         }));
@@ -86,25 +101,16 @@ impl AccessoriesHelper {
         if !(COLLECTED_ACCESSORIES.get_mut().lock().borrow().is_loaded()) {
             return;
         }
-        // TODO(fabric2seer): not a lambda
-        //   java: List<String> accessoryIds = slots.stream()
-        //   java: 				.map(Slot::getItem)
-        //   java: 				.map(ItemStack::getSkyblockId)
-        //   java: 				.filter(NON_EMPTY)
-        //   java: 				.toList();
-        let mut accessory_ids: Vec<String> = todo!("fabric2seer: the initialiser of `accessoryIds` (TODO above)");
-        // TODO(fabric2seer): not a lambda
-        //   java: List<String> recombobulated = slots.stream()
-        //   java: 				.map(Slot::getItem)
-        //   java: 				.filter(stack -> ItemUtils.getCustomData(stack).getIntOr("rarity_upgrades", 0) > 0)
-        //   java: 				.map(ItemStack::getSkyblockId)
-        //   java: 				.filter(NON_EMPTY)
-        //   java: 				.toList();
-        let mut recombobulated: Vec<String> = todo!("fabric2seer: the initialiser of `recombobulated` (TODO above)");
+        // `Slot::getItem` of the open menu's slots
+        let items: Vec<mcrust::net::minecraft::world::item::item_stack::ItemStack> = slots.iter().map(|slot| compat::slot_item(slot)).collect();
+        let mut accessory_ids: Vec<String> = items.iter().map(|stack| stack.get_skyblock_id()).filter(|s| (NON_EMPTY.get())(s.clone())).collect();
+        let mut recombobulated: Vec<String> = items.iter().filter(|stack| ItemUtils::get_custom_data(*stack).get_int_or("rarity_upgrades", 0) > 0).map(|stack| stack.get_skyblock_id()).filter(|s| (NON_EMPTY.get())(s.clone())).collect();
         let mut data: ProfileAccessoryData = ProfiledData::compute_if_absent(COLLECTED_ACCESSORIES.get_mut(), Arc::new(move || ProfileAccessoryData::create_default()));
-        { for __x in data.pages().get(&page).cloned().unwrap_or_else(|| EMPTY.clone()).into_iter() { data.recombobulated_accessories().remove(&__x); } };
-        data.recombobulated_accessories().extend(recombobulated.iter().cloned());
-        data.pages().insert(page, accessory_ids.iter().cloned().collect::<std::collections::HashSet<_>>());
+        { for __x in data.pages.get(&page).cloned().unwrap_or_else(|| EMPTY.clone()).into_iter() { data.recombobulated_accessories.remove(&__x); } };
+        data.recombobulated_accessories.extend(recombobulated.iter().cloned());
+        data.pages.insert(page, accessory_ids.iter().cloned().collect::<std::collections::HashSet<_>>());
+        // the record's sets ARE the stored data in Java; the port's `computeIfAbsent` answers a copy, so it is put back
+        ProfiledData::put(COLLECTED_ACCESSORIES.get_mut(), data);
     }
 
     /// java: public static Pair<AccessoryReport, String> calculateReport4Accessory(String accessoryId)
@@ -164,28 +170,20 @@ impl AccessoriesHelper {
 
     /// java: public static Set<Accessory> getCollectedAccessories()
     pub fn get_collected_accessories() -> std::collections::HashSet<Accessory> {
-        // TODO(fabric2seer): `.pages(..)` on a T
-        //   java: return COLLECTED_ACCESSORIES.computeIfAbsent(ProfileAccessoryData::createDefault).pages().values().stream()
-        //   java: 				.flatMap(ObjectOpenHashSet::stream)
-        //   java: 				.filter(ACCESSORY_DATA::containsKey)
-        //   java: 				.map(ACCESSORY_DATA::get)
-        //   java: 				.collect(Collectors.toSet());
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        let data: ProfileAccessoryData = ProfiledData::compute_if_absent(COLLECTED_ACCESSORIES.get_mut(), Arc::new(move || ProfileAccessoryData::create_default()));
+        let accessory_data = compat::lock(&ACCESSORY_DATA);
+        return data.pages.values().flat_map(|set| set.iter()).filter_map(|id| accessory_data.get(id).cloned()).collect::<std::collections::HashSet<Accessory>>();
     }
 
     /// java: public static boolean hasAccessory(String accessoryId)
     pub fn has_accessory(accessory_id: &str) -> bool {
-        // TODO(fabric2seer): `.pages(..)` on a T
-        //   java: return COLLECTED_ACCESSORIES.computeIfAbsent(ProfileAccessoryData::createDefault).pages().values().stream()
-        //   java: 				.anyMatch(set -> set.contains(accessoryId));
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        let data: ProfileAccessoryData = ProfiledData::compute_if_absent(COLLECTED_ACCESSORIES.get_mut(), Arc::new(move || ProfileAccessoryData::create_default()));
+        return data.pages.values().any(|set| set.contains(accessory_id));
     }
 
     /// java: public static boolean isRecombobulated(String accessoryId)
     pub fn is_recombobulated(accessory_id: &str) -> bool {
-        // TODO(fabric2seer): `.recombobulatedAccessories(..)` on a T
-        //   java: return hasAccessory(accessoryId) && COLLECTED_ACCESSORIES.computeIfAbsent(ProfileAccessoryData::createDefault).recombobulatedAccessories().contains(accessoryId);
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        return AccessoriesHelper::has_accessory(accessory_id) && ProfiledData::compute_if_absent(COLLECTED_ACCESSORIES.get_mut(), Arc::new(move || ProfileAccessoryData::create_default())).recombobulated_accessories.contains(accessory_id);
     }
 
     /// java: public static void refreshData(Map<String, Accessory> data)
@@ -228,7 +226,7 @@ impl ProfileAccessoryData {
 }
 
 /// java: public record Accessory(String id, Optional<String> family, int tier, Optional<String> origin, boolean enrichable, boolean recombobulatable)
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Accessory {
     /// java: String id
     pub id: String,

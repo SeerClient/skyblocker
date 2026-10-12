@@ -3,6 +3,7 @@
 #[allow(unused_imports)]
 use crate::prelude::*;
 use crate::de::hysky::skyblocker::skyblock::dungeon::partyfinder::finder_settings_container::FinderSettingsContainer;
+use crate::de::hysky::skyblocker::skyblock::dungeon::partyfinder::finder_settings_container::OptionWidget;
 use crate::de::hysky::skyblocker::skyblock::dungeon::partyfinder::party_finder_screen;
 use crate::de::hysky::skyblocker::skyblock::dungeon::partyfinder::party_finder_screen::PartyFinderScreen;
 use mcrust::mcrust::modding::widgets::ModListEntry;
@@ -73,7 +74,7 @@ impl OptionDropdownWidget {
         __this.lock().borrow_mut().set_x(x);
         { let __v = Some(name.clone()); compat::write(&__this, |__t| __t.name = __v); }
         let __r0 = compat::read(&__this, |__t| __t.header.clone());
-        { let (__q0,) = (__r0,); __this.lock().borrow_mut().add_entry(__q0) };
+        { let (__q0,) = (row_entry(__r0),); __this.lock().borrow_mut().add_entry(__q0) };
         __this
     }
 
@@ -99,7 +100,7 @@ impl OptionDropdownWidget {
 
     /// java: @Override public boolean mouseClicked(MouseButtonEvent click, boolean doubled)
     pub fn mouse_clicked(__this: &compat::Shared<Self>, click: &MouseButtonEvent, mut doubled: bool) -> bool {
-        if !(FinderSettingsContainer::can_interact(&PartyFinderScreen::get_settings_container(&compat::read(__this, |__t| __t.screen.clone())), __this)) {
+        if !(FinderSettingsContainer::can_interact(&PartyFinderScreen::get_settings_container(&compat::read(__this, |__t| __t.screen.clone())), Some(&OptionWidget::Dropdown(__this.clone())))) {
             return false;
         }
         if compat::read(__this, |__t| __t.is_open) {
@@ -185,7 +186,7 @@ impl OptionDropdownWidget {
         // rust: let __h0 = &compat::read(__this, |__t| __t.header.clone());
         // rust: __this.lock().borrow().clear_entries_except(__h0);
         for __a0 in entries.iter() {
-            { let (__q0,) = (__a0.clone(),); __this.lock().borrow_mut().add_entry(__q0) };
+            { let (__q0,) = (row_entry(__a0.clone()),); __this.lock().borrow_mut().add_entry(__q0) };
         }
         { let __v = back_button_id; compat::write(__this, |__t| __t.back_button_id = __v); }
     }
@@ -553,4 +554,16 @@ impl ModListEntry for compat::EntryAdapter<dyn AbstractEntry> {
         self.lend(Some(list.list.entry(index)), |__h| { if let Some(__c) = compat::try_view::<Header, _>(__h) { return Header::mouse_clicked(&*__c, event, double_click); } if let Some(__c) = compat::try_view::<Option, _>(__h) { return Option::mouse_clicked(&*__c, event, double_click); } false })
     }
 
+}
+
+/// java: `addEntry(row)` on the list's `AbstractSelectionList` half - the port's `Entry` is the row's box, and the
+/// row OBJECT rides on it (`Entry.object`), as every mod list's rows do.
+fn row_entry<E: ?Sized + 'static>(row: compat::Shared<E>) -> mcrust::net::minecraft::client::gui::components::abstract_selection_list::Entry
+where
+    E: compat::RowHalf,
+    compat::EntryAdapter<E>: ModListEntry,
+{
+    let mut entry = mcrust::net::minecraft::client::gui::components::abstract_selection_list::Entry::new(0);
+    entry.object = Some(mcrust::mcrust::modding::widgets::ModListEntrySlot::new(Box::new(compat::EntryAdapter::new(row))));
+    entry
 }

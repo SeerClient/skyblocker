@@ -35,17 +35,27 @@ impl FirePillarAnnouncer {
             return;
         }
         if Utils::is_in_crimson() && SlayerManager::is_fighting_slayer_type(SlayerType::Demonlord) {
-            let mut entity_name: String = compat::component_of(entity.get_name()).get_string();
+            let mut entity_name: String = entity.get_name().get_string();
             let mut matcher: compat::regex::Matcher = FIRE_PILLAR_PATTERN.matcher(&entity_name);
             if matcher.matches() {
-                let mut seconds: i32 = matcher.group(1).unwrap().trim().parse::<i32>().expect("NumberFormatException");
+                let mut seconds: i32 = matcher.group(1).unwrap().parse::<i32>().expect("NumberFormatException");
                 if seconds > 5 {
                     return;
                 }
-                let mut reference_entity: Option<Box<dyn Entity>> = SlayerManager::get_slayer_armor_stand();
-                // TODO(fabric2seer): the condition: `Minecraft.player` held as a value: the port lends the player only inside `game::with_player(|player| ..)` (a mod must never lock it)
-                //   java: !(referenceEntity != null ? referenceEntity : Minecraft.getInstance().player).blockPosition().closerToCenterThan(entity.position(), 22)
-                if todo!("fabric2seer: the condition (TODO above)") {
+                let mut reference_entity: Option<i32> = SlayerManager::get_slayer_armor_stand();
+                let entity_position = entity.base().position();
+                // `entity` is held by the caller: a reference that IS it is read through it
+                let reference_block_pos = match reference_entity {
+                    Some(id) if id == entity.base().get_id() => Some(entity.base().block_position()),
+                    Some(id) => mcrust::mcrust::modding::game::with_entity(id, |e| e.base().block_position()),
+                    None => mcrust::mcrust::modding::game::with_player(|player| player.base().block_position()),
+                };
+                // `referenceEntity` is the live stand in Java: a stand the level dropped still answers its last position;
+                // here it answers nothing, and the check is skipped as for a null player
+                let Some(reference_block_pos) = reference_block_pos else {
+                    return;
+                };
+                if !reference_block_pos.closer_to_center_than(&entity_position, (22) as f64) {
                     return;
                 }
                 FirePillarAnnouncer::announce_fire_pillar_details(&entity_name);

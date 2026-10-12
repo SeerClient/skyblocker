@@ -77,7 +77,7 @@ impl SkyBlockResourcePackDownloader {
                 logger().info("[Skyblocker Resource Pack Downloader] Successfully downloaded the SkyBlock pack!");
                 return true;
             } else if pack_url.is_none() {
-                logger().warn(&format!("[Skyblocker Resource Pack Downloader] Could not find a version of the SkyBlock pack for format {}.", CURRENT_RESOURCE_PACK_VERSION));
+                logger().warn(&format!("[Skyblocker Resource Pack Downloader] Could not find a version of the SkyBlock pack for format {}.", *CURRENT_RESOURCE_PACK_VERSION));
             }
         }
         // TODO(fabric2seer): the `catch (Exception e)` block is not reached in Rust - the try body returns, breaks or continues, so it cannot run inside `catch_unwind`

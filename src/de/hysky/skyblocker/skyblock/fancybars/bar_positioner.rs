@@ -8,25 +8,29 @@ use crate::de::hysky::skyblocker::skyblock::fancybars::status_bar::StatusBar;
 use mcrust::net::minecraft::client::gui::navigation::screen_position::ScreenPosition;
 use mcrust::net::minecraft::client::gui::navigation::screen_rectangle::ScreenRectangle;
 
-// TODO(fabric2seer): call to `values(..)` (not a method of this class)
-//   java: private static final List<BarAnchor> cached = List.of(values());
 /// java: private static final List<BarAnchor> cached = List.of(values());
-pub static BAR_ANCHOR_CACHED: LazyLock<Vec<BarAnchor>> = LazyLock::new(|| todo!("fabric2seer: the initialiser of `cached` - see the TODO above"));
+pub static BAR_ANCHOR_CACHED: LazyLock<Vec<BarAnchor>> = LazyLock::new(|| BarAnchor::values());
 /// java: public static final BarLocation NULL = new BarLocation(null, -1, -1);
 pub static BAR_LOCATION_NULL: LazyLock<BarLocation> = LazyLock::new(|| BarLocation::new(None, -1, -1));
+
+/// java: `list.indexOf(bar)` / `lastIndexOf(bar)` over status bars - `StatusBar` keeps `Object.equals`, so identity.
+fn index_of(list: &[compat::Shared<dyn StatusBar>], bar: &compat::Shared<dyn StatusBar>) -> i32 {
+    list.iter().position(|e| Arc::ptr_eq(e, bar)).map_or(-1, |i| i as i32)
+}
 
 /// java: public class BarPositioner
 #[derive(Clone)]
 pub struct BarPositioner {
     /// java: private final Map<BarAnchor, LinkedList<LinkedList<StatusBar>>> map = new EnumMap<>(BarAnchor.class);
-    pub map: std::collections::HashMap<BarAnchor, Vec<Vec<compat::Shared<dyn StatusBar>>>>,
+    /// (an EnumMap iterates in ordinal order: `BarAnchor`'s `Ord` is its declaration order)
+    pub map: std::collections::BTreeMap<BarAnchor, Vec<Vec<compat::Shared<dyn StatusBar>>>>,
 }
 
 impl BarPositioner {
     /// java: public BarPositioner()
     pub fn new() -> Self {
         let mut this = Self {
-            map: std::any::TypeId::of::<BarAnchor>(),
+            map: std::collections::BTreeMap::new(),
         };
         for value in BarAnchor::values() {
             this.map.insert(value, Vec::new());
@@ -34,119 +38,140 @@ impl BarPositioner {
         this
     }
 
+    /// java: map.get(barAnchor) - every anchor is put by the constructor
+    fn rows(&self, bar_anchor: BarAnchor) -> &Vec<Vec<compat::Shared<dyn StatusBar>>> {
+        self.map.get(&bar_anchor).expect("java.lang.NullPointerException: BarPositioner.map")
+    }
+
+    /// java: map.get(barAnchor), for a mutation of the list itself
+    fn rows_mut(&mut self, bar_anchor: BarAnchor) -> &mut Vec<Vec<compat::Shared<dyn StatusBar>>> {
+        self.map.get_mut(&bar_anchor).expect("java.lang.NullPointerException: BarPositioner.map")
+    }
+
     /// java: public int getRowCount(BarAnchor barAnchor)
-    pub fn get_row_count(&self, mut bar_anchor: BarAnchor) -> i32 {
-        return (self.map.get(&bar_anchor).cloned().unwrap().len() as i32);
+    pub fn get_row_count(&self, bar_anchor: BarAnchor) -> i32 {
+        return self.rows(bar_anchor).len() as i32;
     }
 
+    /// Adds a row to the end of an anchor
     /// java: public void addRow(BarAnchor barAnchor)
-    pub fn add_row(&self, mut bar_anchor: BarAnchor) {
-        self.map.get(&bar_anchor).cloned().unwrap().push(Vec::new());
+    pub fn add_row(&mut self, bar_anchor: BarAnchor) {
+        self.rows_mut(bar_anchor).push(Vec::new());
     }
 
+    /// Adds a row at the specified index
     /// java: public void addRow(BarAnchor barAnchor, int row)
-    pub fn add_row_2(&self, mut bar_anchor: BarAnchor, mut row: i32) {
-        let mut rows: Vec<Vec<compat::Shared<dyn StatusBar>>> = self.map.get(&bar_anchor).cloned().unwrap();
+    pub fn add_row_2(&mut self, bar_anchor: BarAnchor, row: i32) {
+        let rows = self.rows_mut(bar_anchor);
         for i in row..(rows.len() as i32) {
-            for bar in (rows[(i) as usize]).iter() {
-                { let __v = compat::read(bar, |__t| __t.status_bar_base().grid_y) + 1; compat::write(bar, |__t| __t.status_bar_base_mut().grid_y = __v); }
+            for bar in rows[i as usize].iter() {
+                compat::write(bar, |__t| __t.status_bar_base_mut().grid_y += 1);
             }
         }
-        rows.insert((row) as usize, Vec::new());
+        rows.insert(row as usize, Vec::new());
     }
 
+    /// adds a bar to the end of a row
     /// java: public void addBar(BarAnchor barAnchor, int row, StatusBar bar)
-    pub fn add_bar(&self, mut bar_anchor: BarAnchor, mut row: i32, mut bar: compat::Shared<dyn StatusBar>) {
-        let status_bars = &mut (self.map.get(&bar_anchor).cloned().unwrap()[(row) as usize]);
+    pub fn add_bar(&mut self, bar_anchor: BarAnchor, row: i32, bar: compat::Shared<dyn StatusBar>) {
+        let status_bars = &mut self.rows_mut(bar_anchor)[row as usize];
         status_bars.push(bar.clone());
-        { let __v = row; compat::write(&bar, |__t| __t.status_bar_base_mut().grid_y = __v); }
-        // TODO(fabric2seer): List.lastIndexOf(..)
-        //   java: bar.gridX = statusBars.lastIndexOf(bar);
-        { let __v = Some(bar_anchor); compat::write(&bar, |__t| __t.status_bar_base_mut().anchor = __v); }
+        compat::write(&bar, |__t| __t.status_bar_base_mut().grid_y = row);
+        // java: bar.gridX = statusBars.lastIndexOf(bar); // optimization baby, start with the end!
+        let grid_x = status_bars.iter().rposition(|e| Arc::ptr_eq(e, &bar)).map_or(-1, |i| i as i32);
+        compat::write(&bar, |__t| __t.status_bar_base_mut().grid_x = grid_x);
+        compat::write(&bar, |__t| __t.status_bar_base_mut().anchor = Some(bar_anchor));
     }
 
+    /// adds a bar to the specified x in a row
     /// java: public void addBar(BarAnchor barAnchor, int row, int x, StatusBar bar)
-    pub fn add_bar_4(&self, mut bar_anchor: BarAnchor, mut row: i32, mut x: i32, mut bar: compat::Shared<dyn StatusBar>) {
-        let status_bars = &mut (self.map.get(&bar_anchor).cloned().unwrap()[(row) as usize]);
+    pub fn add_bar_4(&mut self, bar_anchor: BarAnchor, row: i32, x: i32, bar: compat::Shared<dyn StatusBar>) {
+        let status_bars = &mut self.rows_mut(bar_anchor)[row as usize];
         for i in x..(status_bars.len() as i32) {
-            { let __v = compat::read(&status_bars[(i) as usize], |__t| __t.status_bar_base().grid_x) + 1; compat::write(&status_bars[(i) as usize], |__t| __t.status_bar_base_mut().grid_x = __v); }
+            compat::write(&status_bars[i as usize], |__t| __t.status_bar_base_mut().grid_x += 1);
         }
-        status_bars.insert((x) as usize, bar.clone());
-        { let __v = row; compat::write(&bar, |__t| __t.status_bar_base_mut().grid_y = __v); }
-        { let __v = status_bars.iter().position(|e| *e == bar.clone()).map_or(-1, |i| i as i32); compat::write(&bar, |__t| __t.status_bar_base_mut().grid_x = __v); }
-        { let __v = Some(bar_anchor); compat::write(&bar, |__t| __t.status_bar_base_mut().anchor = __v); }
+        status_bars.insert(x as usize, bar.clone());
+        compat::write(&bar, |__t| __t.status_bar_base_mut().grid_y = row);
+        let grid_x = index_of(status_bars, &bar);
+        compat::write(&bar, |__t| __t.status_bar_base_mut().grid_x = grid_x);
+        compat::write(&bar, |__t| __t.status_bar_base_mut().anchor = Some(bar_anchor));
     }
 
+    /// removes the specified bar at x on the row. If it's row is empty after being removed, the row will be auto removed
     /// java: public void removeBar(BarAnchor barAnchor, int row, int x)
-    pub fn remove_bar(&self, mut bar_anchor: BarAnchor, mut row: i32, mut x: i32) {
-        let status_bars = &mut (self.map.get(&bar_anchor).cloned().unwrap()[(row) as usize]);
-        let mut remove: compat::Shared<dyn StatusBar> = status_bars.remove((x) as usize);
-        { let __v = None; compat::write(&remove, |__t| __t.status_bar_base_mut().anchor = __v); }
+    pub fn remove_bar(&mut self, bar_anchor: BarAnchor, row: i32, x: i32) {
+        let status_bars = &mut self.rows_mut(bar_anchor)[row as usize];
+        let remove: compat::Shared<dyn StatusBar> = status_bars.remove(x as usize);
+        compat::write(&remove, |__t| __t.status_bar_base_mut().anchor = None);
         for i in x..(status_bars.len() as i32) {
-            { let __v = compat::read(&status_bars[(i) as usize], |__t| __t.status_bar_base().grid_x) - 1; compat::write(&status_bars[(i) as usize], |__t| __t.status_bar_base_mut().grid_x = __v); }
+            compat::write(&status_bars[i as usize], |__t| __t.status_bar_base_mut().grid_x -= 1);
         }
         if status_bars.is_empty() {
             self.remove_row(bar_anchor, row);
         }
     }
 
+    /// removes the specified bar on the row. If it's row is empty after being removed, the row will be auto removed
     /// java: public void removeBar(BarAnchor barAnchor, int row, StatusBar bar)
-    pub fn remove_bar_bar_anchor_int_status_bar(&self, mut bar_anchor: BarAnchor, mut row: i32, bar: &compat::Shared<dyn StatusBar>) {
-        let bar_row = &mut (self.map.get(&bar_anchor).cloned().unwrap()[(row) as usize]);
-        let mut x: i32 = bar_row.iter().position(|e| *e == bar.clone()).map_or(-1, |i| i as i32);
+    pub fn remove_bar_bar_anchor_int_status_bar(&mut self, bar_anchor: BarAnchor, row: i32, bar: &compat::Shared<dyn StatusBar>) {
+        let bar_row = &mut self.rows_mut(bar_anchor)[row as usize];
+        let x: i32 = index_of(bar_row, bar);
         if x < 0 {
             return;
         }
-        compat::remove_item(&mut *bar_row, &bar.clone());
-        { let __v = None; compat::write(bar, |__t| __t.status_bar_base_mut().anchor = __v); }
+        bar_row.remove(x as usize);
+        compat::write(bar, |__t| __t.status_bar_base_mut().anchor = None);
         for i in x..(bar_row.len() as i32) {
-            { let __v = compat::read(&bar_row[(i) as usize], |__t| __t.status_bar_base().grid_x) - 1; compat::write(&bar_row[(i) as usize], |__t| __t.status_bar_base_mut().grid_x = __v); }
+            compat::write(&bar_row[i as usize], |__t| __t.status_bar_base_mut().grid_x -= 1);
         }
         if bar_row.is_empty() {
             self.remove_row(bar_anchor, row);
         }
     }
 
+    /// row must be empty
     /// java: public void removeRow(BarAnchor barAnchor, int row)
-    pub fn remove_row(&self, mut bar_anchor: BarAnchor, mut row: i32) {
-        let bar_row = &self.map.get(&bar_anchor).cloned().unwrap()[(row) as usize];
+    pub fn remove_row(&mut self, bar_anchor: BarAnchor, row: i32) {
+        let bar_row = &self.rows(bar_anchor)[row as usize];
         if !bar_row.is_empty() {
-            panic!("IllegalStateException: {}", format!("Can't remove a non-empty row ({},{})", compat::jstring(&bar_anchor), row).to_string());
+            panic!("IllegalStateException: {}", format!("Can't remove a non-empty row ({},{})", compat::jstring(&bar_anchor), row));
         }
-        self.map.get(&bar_anchor).cloned().unwrap().remove((row) as usize);
-        for i in row..(self.map.get(&bar_anchor).cloned().unwrap().len() as i32) {
-            for status_bar in (self.map.get(&bar_anchor).cloned().unwrap()[(i) as usize]).iter() {
-                { let __v = compat::read(status_bar, |__t| __t.status_bar_base().grid_y) - 1; compat::write(status_bar, |__t| __t.status_bar_base_mut().grid_y = __v); }
+        let rows = self.rows_mut(bar_anchor);
+        rows.remove(row as usize);
+        for i in row..(rows.len() as i32) {
+            for status_bar in rows[i as usize].iter() {
+                compat::write(status_bar, |__t| __t.status_bar_base_mut().grid_y -= 1);
             }
         }
     }
 
     /// java: public LinkedList<StatusBar> getRow(BarAnchor barAnchor, int row)
-    pub fn get_row(&self, mut bar_anchor: BarAnchor, mut row: i32) -> Vec<compat::Shared<dyn StatusBar>> {
-        return self.map.get(&bar_anchor).cloned().unwrap()[(row) as usize].clone();
+    pub fn get_row(&self, bar_anchor: BarAnchor, row: i32) -> Vec<compat::Shared<dyn StatusBar>> {
+        return self.rows(bar_anchor)[row as usize].clone();
     }
 
     /// java: public StatusBar getBar(BarAnchor barAnchor, int row, int x)
-    pub fn get_bar(&self, mut bar_anchor: BarAnchor, mut row: i32, mut x: i32) -> compat::Shared<dyn StatusBar> {
-        return (self.map.get(&bar_anchor).cloned().unwrap()[(row) as usize])[(x) as usize].clone();
+    pub fn get_bar(&self, bar_anchor: BarAnchor, row: i32, x: i32) -> compat::Shared<dyn StatusBar> {
+        return self.rows(bar_anchor)[row as usize][x as usize].clone();
     }
 
     /// java: public boolean hasNeighbor(BarAnchor barAnchor, int row, int x, boolean right)
-    pub fn has_neighbor(&self, mut bar_anchor: BarAnchor, mut row: i32, mut x: i32, mut right: bool) -> bool {
-        let status_bars = &self.map.get(&bar_anchor).cloned().unwrap()[(row) as usize];
+    pub fn has_neighbor(&self, bar_anchor: BarAnchor, row: i32, x: i32, right: bool) -> bool {
+        let status_bars = &self.rows(bar_anchor)[row as usize];
         if bar_anchor.is_right() {
-            return (right && x < (status_bars.len() as i32).wrapping_sub(1) || !right && x > 0);
+            return (right && x < (status_bars.len() as i32).wrapping_sub(1)) || (!right && x > 0);
         } else {
-            return (right && x > 0 || !right && x < (status_bars.len() as i32).wrapping_sub(1));
+            return (right && x > 0) || (!right && x < (status_bars.len() as i32).wrapping_sub(1));
         }
     }
 
     /// java: public void clear()
     pub fn clear(&mut self) {
-        // TODO(fabric2seer): Map.replaceAll(..)
-        //   java: map.replaceAll((_, _) -> new LinkedList<>());
+        // java: map.replaceAll((_, _) -> new LinkedList<>());
+        for rows in self.map.values_mut() {
+            *rows = Vec::new();
+        }
     }
-
 }
 
 /// java: public enum BarAnchor
@@ -212,7 +237,7 @@ impl BarAnchor {
         static FIELDS: LazyLock<Vec<BarAnchorFields>> = LazyLock::new(|| vec![
             BarAnchorFields::new_4(true, false, Arc::new(move |scaled_width, scaled_height| ScreenPosition::new(((scaled_width.wrapping_div(2)).wrapping_sub(91)).wrapping_sub(2), scaled_height.wrapping_sub(5))), SizeRule::free_size(25, 2, 6)),
             BarAnchorFields::new_4(true, true, Arc::new(move |scaled_width, scaled_height| ScreenPosition::new(((scaled_width.wrapping_div(2)).wrapping_add(91)).wrapping_add(2), scaled_height.wrapping_sub(5))), SizeRule::free_size(25, 2, 6)),
-            BarAnchorFields::new(true, true, Arc::new(move |scaled_width, scaled_height| ScreenPosition::new((scaled_width.wrapping_div(2)).wrapping_sub(91), scaled_height.wrapping_sub(if FancyStatusBars::is_experience_fancy_bar_enabled(fancy_status_bars::INSTANCE.get_mut()) { 23 } else { 35 }))), SizeRule::target_size(12, 182, 2), Arc::new(move |anchor_position| ScreenRectangle::new_at(anchor_position.x(), anchor_position.y().wrapping_sub(20), 182, 20))),
+            BarAnchorFields::new(true, true, Arc::new(move |scaled_width, scaled_height| ScreenPosition::new((scaled_width.wrapping_div(2)).wrapping_sub(91), scaled_height.wrapping_sub(if FancyStatusBars::is_experience_fancy_bar_enabled(fancy_status_bars::INSTANCE.get_mut()) { 23 } else { 35 }))), SizeRule::target_size_3(12, 182, 2), Arc::new(move |anchor_position| ScreenRectangle::new_at(anchor_position.x(), anchor_position.y().wrapping_sub(20), 182, 20))),
             BarAnchorFields::new_4(false, true, Arc::new(move |_, _| ScreenPosition::new(5, 5)), SizeRule::free_size(25, 2, 6)),
             BarAnchorFields::new_4(false, false, Arc::new(move |scaled_width, _| ScreenPosition::new(scaled_width.wrapping_sub(5), 5)), SizeRule::free_size(25, 2, 6)),
             BarAnchorFields::new_4(true, true, Arc::new(move |_, scaled_height| ScreenPosition::new(5, scaled_height.wrapping_sub(5))), SizeRule::free_size(25, 2, 6)),
@@ -263,44 +288,33 @@ impl std::fmt::Display for BarAnchor {
 
 /// the constructor data of each BarAnchor constant
 pub struct BarAnchorFields {
-    pub position_provider: Option<AnchorPositionProvider>,
-    pub hitbox_provider: Option<AnchorHitboxProvider>,
+    pub position_provider: AnchorPositionProvider,
+    pub hitbox_provider: AnchorHitboxProvider,
     pub up: bool,
     pub right: bool,
-    pub size_rule: Option<SizeRule>,
+    pub size_rule: SizeRule,
 }
 
 impl BarAnchorFields {
-    fn new(mut up: bool, mut right: bool, position_provider: AnchorPositionProvider, mut size_rule: SizeRule, hitbox_provider: AnchorHitboxProvider) -> Self {
-        let mut this = Self {
-            position_provider: None,
-            hitbox_provider: None,
-            up: false,
-            right: false,
-            size_rule: None,
-        };
-        this.position_provider = position_provider.clone();
-        this.up = up;
-        this.right = right;
-        this.hitbox_provider = hitbox_provider.clone();
-        this.size_rule = size_rule.clone();
-        this
+    /// java: BarAnchor(boolean up, boolean right, AnchorPositionProvider positionProvider, SizeRule sizeRule, AnchorHitboxProvider hitboxProvider)
+    fn new(up: bool, right: bool, position_provider: AnchorPositionProvider, size_rule: SizeRule, hitbox_provider: AnchorHitboxProvider) -> Self {
+        Self { position_provider, hitbox_provider, up, right, size_rule }
     }
 
-    fn new_4(mut up: bool, mut right: bool, position_provider: AnchorPositionProvider, mut size_rule: SizeRule) -> Self {
-        let mut this = Self {
-            position_provider: None,
-            hitbox_provider: None,
-            up: false,
-            right: false,
-            size_rule: None,
-        };
-        // TODO(fabric2seer): this statement
-        //   java: this(up, right, positionProvider, sizeRule,
-        //   java: 					anchorPosition -> new ScreenRectangle(anchorPosition.x() - (right ? 0 : 20), anchorPosition.y() - (up ? 20 : 0), 20, 20));
-        this
+    /// java: BarAnchor(boolean up, boolean right, AnchorPositionProvider positionProvider, SizeRule sizeRule)
+    fn new_4(up: bool, right: bool, position_provider: AnchorPositionProvider, size_rule: SizeRule) -> Self {
+        // java: this(up, right, positionProvider, sizeRule,
+        //         anchorPosition -> new ScreenRectangle(anchorPosition.x() - (right ? 0 : 20), anchorPosition.y() - (up ? 20 : 0), 20, 20));
+        Self::new(
+            up,
+            right,
+            position_provider,
+            size_rule,
+            Arc::new(move |anchor_position: ScreenPosition| {
+                ScreenRectangle::new_at(anchor_position.x().wrapping_sub(if right { 0 } else { 20 }), anchor_position.y().wrapping_sub(if up { 20 } else { 0 }), 20, 20)
+            }),
+        )
     }
-
 }
 
 /// java: public record SizeRule(boolean isTargetSize, int targetSize, int totalWidth, int widthPerSize, int minSize, int maxSize)
@@ -362,7 +376,8 @@ impl SizeRule {
     }
 
     /// java: public static SizeRule targetSize(int targetSize, int totalWidth, int minSize)
-    pub fn target_size(mut target_size: i32, mut total_width: i32, mut min_size: i32) -> SizeRule {
+    /// (named `target_size_3`: the record accessor `targetSize()` is `target_size`)
+    pub fn target_size_3(mut target_size: i32, mut total_width: i32, mut min_size: i32) -> SizeRule {
         return SizeRule::new(true, target_size, total_width, -1, min_size, target_size);
     }
 
@@ -407,15 +422,16 @@ impl BarLocation {
 
     /// java: public boolean equals(BarAnchor barAnchor, int x, int y)
     pub fn equals(&self, mut bar_anchor: BarAnchor, mut x: i32, mut y: i32) -> bool {
-        return (x == self.x && y == self.y && bar_anchor == self.bar_anchor.clone().unwrap());
+        // java: barAnchor == this.barAnchor (a null anchor is unequal, not a NullPointerException)
+        return x == self.x && y == self.y && Some(bar_anchor) == self.bar_anchor;
     }
 
 }
 
 /// java: @FunctionalInterface interface AnchorPositionProvider
 /// a functional interface: `getPosition(int scaledWidth, int scaledHeight)` - a lambda / method reference is this closure type
-pub type AnchorPositionProvider = Arc<dyn Fn(i32, i32) -> ScreenPosition>;
+pub type AnchorPositionProvider = Arc<dyn Fn(i32, i32) -> ScreenPosition + Send + Sync>;
 
 /// java: @FunctionalInterface interface AnchorHitboxProvider
 /// a functional interface: `getHitbox(ScreenPosition anchorPosition)` - a lambda / method reference is this closure type
-pub type AnchorHitboxProvider = Arc<dyn Fn(ScreenPosition) -> ScreenRectangle>;
+pub type AnchorHitboxProvider = Arc<dyn Fn(ScreenPosition) -> ScreenRectangle + Send + Sync>;

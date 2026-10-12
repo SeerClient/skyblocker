@@ -47,7 +47,7 @@ impl MuteSpiderSounds {
 
     /// java: private static boolean onSound(SoundEvent sound)
     pub fn on_sound(sound: &SoundEvent) -> bool {
-        if SkyblockerConfigManager::get().slayers.spider_slayer.mute_spider_sounds && Utils::is_in_spiders_den() || Utils::is_in_crimson() {
+        if SkyblockerConfigManager::get().slayers.spider_slayer.mute_spider_sounds && (Utils::is_in_spiders_den() || Utils::is_in_crimson()) {
             if !(SlayerManager::is_fighting_slayer_type(SlayerType::Demonlord)) {
                 return !(MUTED_SOUNDS.get_mut().contains(sound.location()));
             }

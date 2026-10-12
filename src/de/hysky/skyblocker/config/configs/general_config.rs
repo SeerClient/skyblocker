@@ -293,16 +293,14 @@ impl Average {
 
     /// java: @Override public String toString()
     pub fn to_string(&self) -> String {
-        // TODO(fabric2seer): call to `name(..)` (not a method of this class)
-        //   java: return I18n.get("skyblocker.config.general.itemTooltip.avg." + name());
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        return mcrust::net::minecraft::client::resources::language::i18n::get(&format!("skyblocker.config.general.itemTooltip.avg.{}", self.name()), &[]);
     }
 
 }
 
 impl std::fmt::Display for Average {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", Average::to_string(*self))
+        write!(f, "{}", Average::to_string(self))
     }
 }
 
@@ -348,16 +346,14 @@ impl Craft {
 
     /// java: @Override public String toString()
     pub fn to_string(&self) -> String {
-        // TODO(fabric2seer): call to `name(..)` (not a method of this class)
-        //   java: return I18n.get("skyblocker.config.general.itemTooltip.craft." + name());
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        return mcrust::net::minecraft::client::resources::language::i18n::get(&format!("skyblocker.config.general.itemTooltip.craft.{}", self.name()), &[]);
     }
 
 }
 
 impl std::fmt::Display for Craft {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", Craft::to_string(*self))
+        write!(f, "{}", Craft::to_string(self))
     }
 }
 
@@ -454,16 +450,14 @@ impl ItemBackgroundStyle {
 
     /// java: @Override public String toString()
     pub fn to_string(&self) -> String {
-        // TODO(fabric2seer): call to `name(..)` (not a method of this class)
-        //   java: return I18n.get("skyblocker.config.general.itemInfoDisplay.itemBackgroundStyle.style." + name());
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        return mcrust::net::minecraft::client::resources::language::i18n::get(&format!("skyblocker.config.general.itemInfoDisplay.itemBackgroundStyle.style.{}", self.name()), &[]);
     }
 
 }
 
 impl std::fmt::Display for ItemBackgroundStyle {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", ItemBackgroundStyle::to_string(*self))
+        write!(f, "{}", ItemBackgroundStyle::to_string(self))
     }
 }
 
@@ -474,11 +468,7 @@ pub struct ItemBackgroundStyleFields {
 
 impl ItemBackgroundStyleFields {
     fn new(mut tex: Identifier) -> Self {
-        let mut this = Self {
-            tex: Default::default(),
-        };
-        this.tex = tex.clone();
-        this
+        Self { tex }
     }
 
 }
@@ -555,16 +545,14 @@ impl SlotLockStyle {
 
     /// java: @Override public String toString()
     pub fn to_string(&self) -> String {
-        // TODO(fabric2seer): call to `name(..)` (not a method of this class)
-        //   java: return I18n.get("skyblocker.config.general.itemProtection.slotLockStyle.style." + name());
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        return mcrust::net::minecraft::client::resources::language::i18n::get(&format!("skyblocker.config.general.itemProtection.slotLockStyle.style.{}", self.name()), &[]);
     }
 
 }
 
 impl std::fmt::Display for SlotLockStyle {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", SlotLockStyle::to_string(*self))
+        write!(f, "{}", SlotLockStyle::to_string(self))
     }
 }
 
@@ -575,11 +563,7 @@ pub struct SlotLockStyleFields {
 
 impl SlotLockStyleFields {
     fn new(mut tex: Identifier) -> Self {
-        let mut this = Self {
-            tex: Default::default(),
-        };
-        this.tex = tex.clone();
-        this
+        Self { tex }
     }
 
 }

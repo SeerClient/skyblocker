@@ -146,9 +146,9 @@ impl TheEnd {
 
     /// java: private static boolean isProtectorHere(ClientLevel world, ProtectorLocation protectorLocation)
     pub fn is_protector_here(world: &ClientLevel, mut protector_location: ProtectorLocation) -> bool {
-        for i in 0..5 {
+        for i in 0i32..5 {
             let mut state: Arc<BlockState> = world.get_block_state_typed(&BlockPos::new(protector_location.x, i.wrapping_add(5), protector_location.z));
-            if state.is_block(&blocks::blocks().get("player_wall_head")) || state.is_block(&blocks::blocks().get("player_head")) {
+            if state.is_block(&blocks::blocks().get("PLAYER_WALL_HEAD")) || state.is_block(&blocks::blocks().get("PLAYER_HEAD")) {
                 compat::set_state(&STAGE, i.wrapping_add(1));
                 *CURRENT_PROTECTOR_LOCATION.get_mut() = Some(protector_location.clone());
                 ({ let __r = &EndHudWidget::get_instance(); let __f = compat::dispatch(__r, |__t| __t.update()); __f(&compat::view(__r, |a| a as compat::Shared<dyn ElementBasedWidget>)) });
@@ -203,7 +203,7 @@ impl TheEnd {
     /// java: public static boolean isSpecialZealot(EnderMan enderman)
     pub fn is_special_zealot(enderman: &EnderMan) -> bool {
         let mut carried_block: Option<Arc<BlockState>> = enderman.get_carried_block();
-        return (carried_block.is_some() && carried_block.as_ref().unwrap().is_block(&blocks::blocks().get("end_portal_frame")) && TheEnd::is_zealot(enderman));
+        return (carried_block.is_some() && carried_block.as_ref().unwrap().is_block(&blocks::blocks().get("END_PORTAL_FRAME")) && TheEnd::is_zealot(enderman));
     }
 
     /// java: private static void extractRendering(PrimitiveCollector collector)
@@ -254,7 +254,7 @@ impl EndStats {
 }
 
 /// java: public record ProtectorLocation(int x, int z, Component name, Waypoint waypoint)
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct ProtectorLocation {
     /// java: int x
     pub x: i32,
@@ -269,12 +269,12 @@ pub struct ProtectorLocation {
 impl ProtectorLocation {
     /// java: public ProtectorLocation(int x, int z, Component name)
     pub fn new(mut x: i32, mut z: i32, mut name: MutableComponent) -> Self {
-        let mut this = Self::new(x, z, name.clone(), (WaypointBase::new(BlockPos::new(x, 0, z), Type::Waypoint, ColorUtils::get_float_components_dye_color(&DyeColor::Magenta)) as compat::Shared<dyn Waypoint>));
+        let mut this = Self::new_canonical(x, z, name.clone(), (WaypointBase::new(BlockPos::new(x, 0, z), Type::Waypoint, ColorUtils::get_float_components_dye_color(&DyeColor::Magenta)) as compat::Shared<dyn Waypoint>));
         this
     }
 
     /// java: the canonical record constructor
-    pub fn new(mut x: i32, mut z: i32, mut name: MutableComponent, mut waypoint: compat::Shared<dyn Waypoint>) -> Self {
+    pub fn new_canonical(mut x: i32, mut z: i32, mut name: MutableComponent, mut waypoint: compat::Shared<dyn Waypoint>) -> Self {
         Self { x, z, name, waypoint }
     }
 

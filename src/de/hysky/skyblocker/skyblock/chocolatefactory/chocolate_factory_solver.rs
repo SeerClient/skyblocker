@@ -54,31 +54,31 @@ pub static ROMAN_LEVEL_PATTERN: LazyLock<compat::regex::Pattern> = LazyLock::new
 /// java: private static final Pattern PURCHASED_SLOTS_PATTERN = Pattern.compile("Purchased slots: (\\d+)/(\\d+)");
 pub static PURCHASED_SLOTS_PATTERN: LazyLock<compat::regex::Pattern> = LazyLock::new(|| compat::regex::Pattern::compile("Purchased slots: (\\d+)/(\\d+)"));
 /// java: private static final byte STRAY_RABBIT_START = 0;
-pub const STRAY_RABBIT_START: i8 = (0) as i8;
+pub const STRAY_RABBIT_START: i32 = 0; // java: byte (widened to int at every use)
 /// java: private static final byte STRAY_RABBIT_END = 26;
-pub const STRAY_RABBIT_END: i8 = (26) as i8;
+pub const STRAY_RABBIT_END: i32 = 26; // java: byte (widened to int at every use)
 /// java: private static final byte CHOCOLATE_SLOT = 13;
-pub const CHOCOLATE_SLOT: i8 = (13) as i8;
+pub const CHOCOLATE_SLOT: i32 = 13; // java: byte (widened to int at every use)
 /// java: private static final byte PRESTIGE_SLOT = 27;
-pub const PRESTIGE_SLOT: i8 = (27) as i8;
+pub const PRESTIGE_SLOT: i32 = 27; // java: byte (widened to int at every use)
 /// java: private static final byte RABBITS_START = 28;
-pub const RABBITS_START: i8 = (28) as i8;
+pub const RABBITS_START: i32 = 28; // java: byte (widened to int at every use)
 /// java: private static final byte RABBITS_END = 34;
-pub const RABBITS_END: i8 = (34) as i8;
+pub const RABBITS_END: i32 = 34; // java: byte (widened to int at every use)
 /// java: private static final byte RABBIT_BARN_SLOT = 35;
-pub const RABBIT_BARN_SLOT: i8 = (35) as i8;
+pub const RABBIT_BARN_SLOT: i32 = 35; // java: byte (widened to int at every use)
 /// java: private static final byte HAND_BAKED_CHOCOLATE_SLOT = 37;
-pub const HAND_BAKED_CHOCOLATE_SLOT: i8 = (37) as i8;
+pub const HAND_BAKED_CHOCOLATE_SLOT: i32 = 37; // java: byte (widened to int at every use)
 /// java: private static final byte TIME_TOWER_SLOT = 38;
-pub const TIME_TOWER_SLOT: i8 = (38) as i8;
+pub const TIME_TOWER_SLOT: i32 = 38; // java: byte (widened to int at every use)
 /// java: private static final byte RABBIT_SHRINE_SLOT = 39;
-pub const RABBIT_SHRINE_SLOT: i8 = (39) as i8;
+pub const RABBIT_SHRINE_SLOT: i32 = 39; // java: byte (widened to int at every use)
 /// java: private static final byte COACH_SLOT = 41;
-pub const COACH_SLOT: i8 = (41) as i8;
+pub const COACH_SLOT: i32 = 41; // java: byte (widened to int at every use)
 /// java: private static final byte CPS_SLOT = 45;
-pub const CPS_SLOT: i8 = (45) as i8;
+pub const CPS_SLOT: i32 = 45; // java: byte (widened to int at every use)
 /// java: private static final byte RABBIT_HITMAN_SLOT = 51;
-pub const RABBIT_HITMAN_SLOT: i8 = (51) as i8;
+pub const RABBIT_HITMAN_SLOT: i32 = 51; // java: byte (widened to int at every use)
 /// java: private static StraySound ding = StraySound.NONE;
 pub static DING: LazyLock<Mutex<StraySound>> = LazyLock::new(|| Mutex::new(StraySound::None));
 /// java: private static int dingTick = 0;
@@ -175,68 +175,63 @@ impl ChocolateFactorySolver {
             });
             ((__h.clone() as compat::Shared<dyn SimpleContainerSolver>), __h)
         });
-        client_tick_events::START_CLIENT_TICK.register(Arc::new(|minecraft: &mut Minecraft| {
-            if compat::get_state(&DING) != StraySound::None {
-                // TODO(fabric2seer): ++/-- inside an expression
-                //   java: dingTick = (++dingTick) % (ding == StraySound.NORMAL ? 5 : 3);
-                if compat::get_state(&DING_TICK) == 0 {
-                    // TODO(fabric2seer): `play` takes 4 argument(s) in the port (`_al: &OpenAl, library: &mut Library, options: &OptionsData, instance: Box<dyn SoundInstance>`), Java passes 1
-                    // rust: minecraft.get_sound_manager().play(&SimpleSoundInstance::for_ui_with_volume(&(if compat::get_state(&DING) == StraySound::Normal { mcrust::net::minecraft::sounds::sound_events::note_block_pling().value() } else { mcrust::net::minecraft::sounds::sound_events::note_block_harp().value() }), 1.0f32, 1.0f32));
-                }
-            }
-        }));
+        client_tick_events::START_CLIENT_TICK.register(Arc::new(|minecraft: &mut Minecraft| ChocolateFactorySolver::on_tick(minecraft)));
         __this
     }
 
     /// java: private static void onTick(Minecraft client)
     pub fn on_tick(client: &mut mcrust::net::minecraft::client::minecraft::Minecraft) {
-        if compat::get_state(&DING) != StraySound::None {
-            // TODO(fabric2seer): ++/-- inside an expression
-            //   java: dingTick = (++dingTick) % (ding == StraySound.NORMAL ? 5 : 3);
-            if compat::get_state(&DING_TICK) == 0 {
-                // TODO(fabric2seer): `play` takes 4 argument(s) in the port (`_al: &OpenAl, library: &mut Library, options: &OptionsData, instance: Box<dyn SoundInstance>`), Java passes 1
-                // rust: client.get_sound_manager().play(&SimpleSoundInstance::for_ui_with_volume(&(if compat::get_state(&DING) == StraySound::Normal { mcrust::net::minecraft::sounds::sound_events::note_block_pling().value() } else { mcrust::net::minecraft::sounds::sound_events::note_block_harp().value() }), 1.0f32, 1.0f32));
+        let ding = compat::get_state(&DING);
+        if ding != StraySound::None {
+            // java: dingTick = (++dingTick) % (ding == StraySound.NORMAL ? 5 : 3);
+            let ding_tick = (compat::get_state(&DING_TICK) + 1) % (if ding == StraySound::Normal { 5 } else { 3 });
+            compat::set_state(&DING_TICK, ding_tick);
+            if ding_tick == 0 {
+                // java: client.getSoundManager().play(SimpleSoundInstance.forUI(ding == StraySound.NORMAL ? SoundEvents.NOTE_BLOCK_PLING.value() : SoundEvents.NOTE_BLOCK_HARP.value(), 1.f, 1.f));
+                // rust: port gap - `SoundManager.play(SoundInstance)` needs the audio device and library, which are
+                // locals of the port's frame loop (`sound_engine::play_ui_sound(audio, ..)`); a tick callback holding
+                // only `&mut Minecraft` cannot reach them (GAPS_batchH #1).
+                let _ = client;
             }
         }
     }
 
     /// java: private void updateFactoryInfo(Int2ObjectMap<ItemStack> slots)
     pub fn update_factory_info(__this: &compat::Shared<Self>, slots: &std::collections::HashMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack>) {
-        __this.lock().borrow_mut().cps_increase_factors.clear();
+        compat::write(__this, |__t| __t.cps_increase_factors.clear());
         for i in RABBITS_START..=(RABBITS_END) as i32 {
             let mut item: mcrust::net::minecraft::world::item::item_stack::ItemStack = slots.get(&i).cloned().unwrap();
             if item.is_item(&items::items().get("player_head")) {
                 if let Some(__a0) = ChocolateFactorySolver::get_rabbit(__this, &item, i) {
-                    let __h0 = __a0.clone();
-                    __this.lock().borrow_mut().cps_increase_factors.push(__h0);
+                    compat::write(__this, |__t| __t.cps_increase_factors.push(__a0));
                 }
             }
         }
         if let Some(__a0) = ChocolateFactorySolver::get_coach(__this, &slots.get(&((COACH_SLOT) as i32)).cloned().unwrap()) {
-            let __h0 = __a0.clone();
-            __this.lock().borrow_mut().cps_increase_factors.push(__h0);
+            compat::write(__this, |__t| __t.cps_increase_factors.push(__a0));
         }
-        if let Some(l) = RegexUtils::find_long_from_matcher(&CHOCOLATE_PATTERN.matcher(&(compat::component_of((slots.get(&((CHOCOLATE_SLOT) as i32)).cloned().unwrap()).get_hover_name())).get_string())) {
+        if let Some(l) = RegexUtils::find_long_from_matcher(&mut CHOCOLATE_PATTERN.matcher(&(compat::component_of((slots.get(&((CHOCOLATE_SLOT) as i32)).cloned().unwrap()).get_hover_name())).get_string())) {
             { let __v = l; compat::write(__this, |__t| __t.total_chocolate = __v); }
         }
         let mut cps_item_lore: String = ItemUtils::get_concatenated_lore(&slots.get(&((CPS_SLOT) as i32)).cloned().unwrap());
         let mut cps_matcher: compat::regex::Matcher = CPS_PATTERN.matcher(&cps_item_lore);
-        if let Some(d) = RegexUtils::find_double_from_matcher(&cps_matcher) {
+        if let Some(d) = RegexUtils::find_double_from_matcher(&mut cps_matcher) {
             { let __v = d; compat::write(__this, |__t| __t.total_cps = __v); }
         }
         let mut multiplier_matcher: compat::regex::Matcher = TOTAL_MULTIPLIER_PATTERN.matcher(&cps_item_lore);
-        // TODO(fabric2seer): Matcher.hasMatch
-        //   java: RegexUtils.findDoubleFromMatcher(multiplierMatcher, cpsMatcher.hasMatch() ? cpsMatcher.end() : 0).ifPresent(d -> totalCpsMultiplier = d);
+        // java: RegexUtils.findDoubleFromMatcher(multiplierMatcher, cpsMatcher.hasMatch() ? cpsMatcher.end() : 0).ifPresent(d -> totalCpsMultiplier = d);
+        if let Some(d) = RegexUtils::find_double_from_matcher_2(&mut multiplier_matcher, if cps_matcher.has_match() { cps_matcher.end(0) } else { 0 }) {
+            { let __v = d; compat::write(__this, |__t| __t.total_cps_multiplier = __v); }
+        }
         let mut prestige_lore: String = ItemUtils::get_concatenated_lore(&slots.get(&((PRESTIGE_SLOT) as i32)).cloned().unwrap());
         let mut prestige_matcher: compat::regex::Matcher = PRESTIGE_REQUIREMENT_PATTERN.matcher(&prestige_lore);
-        let mut current_chocolate: Option<i64> = RegexUtils::find_long_from_matcher(&prestige_matcher);
+        let mut current_chocolate: Option<i64> = RegexUtils::find_long_from_matcher(&mut prestige_matcher);
         if current_chocolate.is_some() {
             let mut requirement: String = prestige_matcher.group(2).unwrap();
             let mut amount_string: String = (requirement.replace("M", "000000")).replace("B", "000000000");
-            // TODO(fabric2seer): the condition: static call NumberUtils.isParsable(..)
-            //   java: NumberUtils.isParsable(..)
-            if todo!("fabric2seer: the condition (TODO above)") {
-                { let __v = (amount_string.trim().parse::<i64>().expect("NumberFormatException")).wrapping_sub(current_chocolate.clone().unwrap()); compat::write(__this, |__t| __t.required_until_next_prestige = __v); }
+            // java: NumberUtils.isParsable(amountString) / Long.parseLong(amountString) (no trim: Java throws on whitespace)
+            if is_parsable(&amount_string) {
+                { let __v = (amount_string.parse::<i64>().expect("java.lang.NumberFormatException")).wrapping_sub(current_chocolate.clone().unwrap()); compat::write(__this, |__t| __t.required_until_next_prestige = __v); }
             }
             { let __v = false; compat::write(__this, |__t| __t.can_prestige = __v); }
         } else if prestige_lore.ends_with("Click to prestige!") {
@@ -247,27 +242,26 @@ impl ChocolateFactorySolver {
             { let __v = true; compat::write(__this, |__t| __t.reached_max_prestige = __v); }
         }
         let mut upgrade_matcher: compat::regex::Matcher = ROMAN_LEVEL_PATTERN.matcher(&(compat::component_of((slots.get(&((PRESTIGE_SLOT) as i32)).cloned().unwrap()).get_hover_name())).get_string());
-        { let __v = RegexUtils::find_roman_numeral_from_matcher(&upgrade_matcher).unwrap_or(-1); compat::write(__this, |__t| __t.prestige_level = __v); }
+        { let __v = RegexUtils::find_roman_numeral_from_matcher(&mut upgrade_matcher).unwrap_or(-1); compat::write(__this, |__t| __t.prestige_level = __v); }
         upgrade_matcher = ROMAN_LEVEL_PATTERN.matcher(&(compat::component_of((slots.get(&((HAND_BAKED_CHOCOLATE_SLOT) as i32)).cloned().unwrap()).get_hover_name())).get_string());
-        { let __v = RegexUtils::find_roman_numeral_from_matcher(&upgrade_matcher).unwrap_or(-1); compat::write(__this, |__t| __t.hand_baked_chocolate_level = __v); }
+        { let __v = RegexUtils::find_roman_numeral_from_matcher(&mut upgrade_matcher).unwrap_or(-1); compat::write(__this, |__t| __t.hand_baked_chocolate_level = __v); }
         upgrade_matcher.reset_with(&(compat::component_of((slots.get(&((TIME_TOWER_SLOT) as i32)).cloned().unwrap()).get_hover_name())).get_string());
-        { let __v = RegexUtils::find_roman_numeral_from_matcher(&upgrade_matcher).unwrap_or(-1); compat::write(__this, |__t| __t.time_tower_level = __v); }
+        { let __v = RegexUtils::find_roman_numeral_from_matcher(&mut upgrade_matcher).unwrap_or(-1); compat::write(__this, |__t| __t.time_tower_level = __v); }
         { let __v = (compat::read(__this, |__t| __t.time_tower_level) >= 15); compat::write(__this, |__t| __t.is_time_tower_maxed = __v); }
         let mut time_tower_lore: String = ItemUtils::get_concatenated_lore(&slots.get(&((TIME_TOWER_SLOT) as i32)).cloned().unwrap());
         let mut time_tower_multiplier_matcher: compat::regex::Matcher = TIME_TOWER_MULTIPLIER_PATTERN.matcher(&time_tower_lore);
-        if let Some(d) = RegexUtils::find_double_from_matcher(&time_tower_multiplier_matcher) {
+        if let Some(d) = RegexUtils::find_double_from_matcher(&mut time_tower_multiplier_matcher) {
             { let __v = d; compat::write(__this, |__t| __t.time_tower_multiplier = __v); }
         }
         let mut time_tower_status_matcher: compat::regex::Matcher = TIME_TOWER_STATUS_PATTERN.matcher(&time_tower_lore);
-        // TODO(fabric2seer): the condition: Matcher.hasMatch
-        //   java: timeTowerStatusMatcher.find(..)
-        if todo!("fabric2seer: the condition (TODO above)") {
+        // java: if (timeTowerStatusMatcher.find(timeTowerMultiplierMatcher.hasMatch() ? timeTowerMultiplierMatcher.end() : 0))
+        if time_tower_status_matcher.find_from(if time_tower_multiplier_matcher.has_match() { time_tower_multiplier_matcher.end(0) } else { 0 }) {
             { let __v = (time_tower_status_matcher.group(1).as_deref() == Some(&*("ACTIVE"))); compat::write(__this, |__t| __t.is_time_tower_active = __v); }
         }
         upgrade_matcher.reset_with(&(compat::component_of((slots.get(&((RABBIT_SHRINE_SLOT) as i32)).cloned().unwrap()).get_hover_name())).get_string());
-        { let __v = RegexUtils::find_roman_numeral_from_matcher(&upgrade_matcher).unwrap_or(-1); compat::write(__this, |__t| __t.rabbit_shrine_level = __v); }
+        { let __v = RegexUtils::find_roman_numeral_from_matcher(&mut upgrade_matcher).unwrap_or(-1); compat::write(__this, |__t| __t.rabbit_shrine_level = __v); }
         upgrade_matcher.reset_with(&(compat::component_of((slots.get(&((RABBIT_BARN_SLOT) as i32)).cloned().unwrap()).get_hover_name())).get_string());
-        { let __v = RegexUtils::find_roman_numeral_from_matcher(&upgrade_matcher).unwrap_or(-1); compat::write(__this, |__t| __t.rabbit_barn_level = __v); }
+        { let __v = RegexUtils::find_roman_numeral_from_matcher(&mut upgrade_matcher).unwrap_or(-1); compat::write(__this, |__t| __t.rabbit_barn_level = __v); }
         let mut hitman_matcher: Option<compat::regex::Matcher> = ItemUtils::get_lore_line_if_match(&slots.get(&((RABBIT_HITMAN_SLOT) as i32)).cloned().unwrap(), &AVAILABLE_EGGS_PATTERN);
         if let Some(hitman_matcher) = &hitman_matcher {
             { let __v = RegexUtils::parse_int_from_matcher(hitman_matcher, 1); compat::write(__this, |__t| __t.hitman_available_eggs = __v); }
@@ -277,8 +271,9 @@ impl ChocolateFactorySolver {
             { let __v = RegexUtils::parse_int_from_matcher(purchased_slots_matcher, 1); compat::write(__this, |__t| __t.purchased_hitman_slots = __v); }
             { let __v = RegexUtils::parse_int_from_matcher(purchased_slots_matcher, 2); compat::write(__this, |__t| __t.max_hitman_slots = __v); }
         }
-        let __h0 = |a, b| { let key = |rabbit| ((rabbit.cost() as f64) / rabbit.cps_increase()); key(a).total_cmp(&key(b)) };
-        __this.lock().borrow_mut().cps_increase_factors.sort_by(__h0);
+        // java: Comparator.comparingDouble(rabbit -> rabbit.cost() / rabbit.cpsIncrease()) - Double.compare order
+        let key = |rabbit: &Rabbit| (rabbit.cost() as f64) / rabbit.cps_increase();
+        compat::write(__this, |__t| __t.cps_increase_factors.sort_by(|a: &Rabbit, b: &Rabbit| key(a).total_cmp(&key(b))));
     }
 
     /// java: private Optional<Rabbit> getCoach(ItemStack coachItem)
@@ -291,21 +286,20 @@ impl ChocolateFactorySolver {
             return None;
         }
         let mut multiplier_increase_matcher: compat::regex::Matcher = MULTIPLIER_INCREASE_PATTERN.matcher(&coach_lore);
-        let mut current_cps_multiplier: Option<f64> = RegexUtils::find_double_from_matcher(&multiplier_increase_matcher);
+        let mut current_cps_multiplier: Option<f64> = RegexUtils::find_double_from_matcher(&mut multiplier_increase_matcher);
         if current_cps_multiplier.is_none() {
             return None;
         }
-        let mut next_cps_multiplier: Option<f64> = RegexUtils::find_double_from_matcher(&multiplier_increase_matcher);
+        let mut next_cps_multiplier: Option<f64> = RegexUtils::find_double_from_matcher(&mut multiplier_increase_matcher);
         if next_cps_multiplier.is_none() {
             next_cps_multiplier = current_cps_multiplier.clone();
             current_cps_multiplier = Some(0.0);
         }
         let mut level_matcher: compat::regex::Matcher = ROMAN_LEVEL_PATTERN.matcher(&compat::component_of(coach_item.get_hover_name()).get_string());
-        let mut level: i32 = RegexUtils::find_roman_numeral_from_matcher(&level_matcher).unwrap_or(-1);
+        let mut level: i32 = RegexUtils::find_roman_numeral_from_matcher(&mut level_matcher).unwrap_or(-1);
         let mut cost_matcher: compat::regex::Matcher = COST_PATTERN.matcher(&coach_lore);
-        // TODO(fabric2seer): Matcher.hasMatch
-        //   java: OptionalLong cost = RegexUtils.findLongFromMatcher(costMatcher, multiplierIncreaseMatcher.hasMatch() ? multiplierIncreaseMatcher.end() : 0);
-        let mut cost: Option<i64> = todo!("fabric2seer: the initialiser of `cost` (TODO above)");
+        //Cost comes after the multiplier line
+        let mut cost: Option<i64> = RegexUtils::find_long_from_matcher_2(&mut cost_matcher, if multiplier_increase_matcher.has_match() { multiplier_increase_matcher.end(0) } else { 0 });
         if cost.is_none() {
             return None;
         }
@@ -316,21 +310,20 @@ impl ChocolateFactorySolver {
     pub fn get_rabbit(__this: &compat::Shared<Self>, item: &mcrust::net::minecraft::world::item::item_stack::ItemStack, mut slot: i32) -> Option<Rabbit> {
         let mut lore: String = ItemUtils::get_concatenated_lore(item);
         let mut cps_matcher: compat::regex::Matcher = CPS_INCREASE_PATTERN.matcher(&lore);
-        let mut current_cps: Option<i32> = RegexUtils::find_int_from_matcher(&cps_matcher);
+        let mut current_cps: Option<i32> = RegexUtils::find_int_from_matcher(&mut cps_matcher);
         if current_cps.is_none() {
             return None;
         }
-        let mut next_cps: Option<i32> = RegexUtils::find_int_from_matcher(&cps_matcher);
+        let mut next_cps: Option<i32> = RegexUtils::find_int_from_matcher(&mut cps_matcher);
         if next_cps.is_none() {
             next_cps = current_cps.clone();
             current_cps = Some(0);
         }
         let mut cost_matcher: compat::regex::Matcher = COST_PATTERN.matcher(&lore);
-        // TODO(fabric2seer): Matcher.hasMatch
-        //   java: OptionalLong cost = RegexUtils.findLongFromMatcher(costMatcher, cpsMatcher.hasMatch() ? cpsMatcher.end() : 0);
-        let mut cost: Option<i64> = todo!("fabric2seer: the initialiser of `cost` (TODO above)");
+        //Cost comes after the cps line
+        let mut cost: Option<i64> = RegexUtils::find_long_from_matcher_2(&mut cost_matcher, if cps_matcher.has_match() { cps_matcher.end(0) } else { 0 });
         let mut level_matcher: compat::regex::Matcher = LEVEL_PATTERN.matcher(&lore);
-        let mut level: i32 = (RegexUtils::find_int_from_matcher(&level_matcher).unwrap_or(0)).wrapping_sub(1);
+        let mut level: i32 = (RegexUtils::find_int_from_matcher(&mut level_matcher).unwrap_or(0)).wrapping_sub(1);
         if cost.is_none() {
             return None;
         }
@@ -353,7 +346,7 @@ impl ChocolateFactorySolver {
         compat::set_state(&DING, StraySound::None);
         let mut highlights: Vec<ColorHighlight> = Vec::new();
         {
-            let mut i: i8 = STRAY_RABBIT_START;
+            let mut i: i32 = STRAY_RABBIT_START;
             while i <= STRAY_RABBIT_END {
                 'continue_1: {
                     let mut item: mcrust::net::minecraft::world::item::item_stack::ItemStack = slots.get(&((i) as i32)).cloned().unwrap();
@@ -413,7 +406,7 @@ impl ChocolateFactorySolver {
 
     /// java: private boolean addRabbitStatsToLore(List<Component> lines, int slot)
     pub fn add_rabbit_stats_to_lore(__this: &compat::Shared<Self>, lines: &mut Vec<MutableComponent>, mut slot: i32) -> bool {
-        if __this.lock().borrow().cps_increase_factors.is_empty() {
+        if compat::read(__this, |__t| __t.cps_increase_factors.is_empty()) {
             return false;
         }
         for rabbit in compat::read(__this, |__t| __t.cps_increase_factors.clone()) {
@@ -544,17 +537,17 @@ impl ChocolateFactorySolver {
             highlights.push(__a0.clone());
         }
         highlights.extend(ChocolateFactorySolver::get_stray_rabbit_highlight(__this, slots).into_iter());
-        if compat::read(__this, |__t| __t.total_chocolate) <= (0 as i64) || __this.lock().borrow().cps_increase_factors.is_empty() {
+        if compat::read(__this, |__t| __t.total_chocolate) <= (0 as i64) || compat::read(__this, |__t| __t.cps_increase_factors.is_empty()) {
             return highlights;
         }
-        let best_rabbit = &__this.lock().borrow().cps_increase_factors[0];
+        let best_rabbit: Rabbit = compat::read(__this, |__t| __t.cps_increase_factors[0].clone());
         { let __v = best_rabbit.slot; compat::write(__this, |__t| __t.best_upgrade = __v); }
         if best_rabbit.cost <= compat::read(__this, |__t| __t.total_chocolate) {
             highlights.push(ColorHighlight::green(best_rabbit.slot));
             return highlights;
         }
         highlights.push(ColorHighlight::yellow(best_rabbit.slot));
-        for rabbit in __this.lock().borrow().cps_increase_factors[(1) as usize..((__this.lock().borrow().cps_increase_factors.len() as i32)) as usize].to_vec() {
+        for rabbit in compat::read(__this, |__t| __t.cps_increase_factors[1..].to_vec()) {
             if rabbit.cost <= compat::read(__this, |__t| __t.total_chocolate) {
                 { let __v = rabbit.slot; compat::write(__this, |__t| __t.best_affordable_upgrade = __v); }
                 highlights.push(ColorHighlight::green(rabbit.slot));
@@ -571,7 +564,7 @@ impl ChocolateFactorySolver {
 
     /// java: @Override public void reset()
     pub fn reset_impl(__this: &compat::Shared<Self>) {
-        __this.lock().borrow_mut().cps_increase_factors.clear();
+        compat::write(__this, |__t| __t.cps_increase_factors.clear());
         { let __v = -1; compat::write(__this, |__t| __t.total_chocolate = __v); }
         { let __v = -1.0; compat::write(__this, |__t| __t.total_cps = __v); }
         { let __v = -1.0; compat::write(__this, |__t| __t.total_cps_multiplier = __v); }
@@ -609,7 +602,7 @@ impl ChocolateFactorySolver {
         let mut should_add_line: bool = false;
         let mut lore: String = ItemUtils::concatenate_lore(lines);
         let mut cost_matcher: compat::regex::Matcher = COST_PATTERN.matcher(&lore);
-        let mut cost: Option<i64> = RegexUtils::find_long_from_matcher(&cost_matcher);
+        let mut cost: Option<i64> = RegexUtils::find_long_from_matcher(&mut cost_matcher);
         if cost.is_some() {
             should_add_line = ((should_add_line | ChocolateFactorySolver::add_upgrade_timer_to_lore(__this, lines, cost.clone().unwrap()))) as bool;
         }
@@ -695,7 +688,7 @@ impl ChocolateFactorySolver {
                 }
                 let mut result: MutableComponent = component::empty().append(level_text.clone());
                 if compat::read(__this, |__t| __t.purchased_hitman_slots) < compat::read(__this, |__t| __t.max_hitman_slots) {
-                    (result.append((component::literal("/")).with_style_format(ChatFormatting::Gray))).append((component::literal(&compat::read(__this, |__t| __t.purchased_hitman_slots).to_string())).with_style_format(ChatFormatting::Yellow));
+                    result = (result.append((component::literal("/")).with_style_format(ChatFormatting::Gray))).append((component::literal(&compat::read(__this, |__t| __t.purchased_hitman_slots).to_string())).with_style_format(ChatFormatting::Yellow));
                 }
                 break 'yield_6 SlotText::top_left_list(&result);
             }
@@ -804,4 +797,38 @@ impl Rabbit {
         self.level
     }
 
+}
+
+/// java: org.apache.commons.lang3.math.NumberUtils.isParsable(String) - a private copy (no commons-lang in the port)
+fn is_parsable(str: &str) -> bool {
+    if str.is_empty() {
+        return false;
+    }
+    if str.ends_with('.') {
+        return false;
+    }
+    let chars: Vec<char> = str.chars().collect();
+    let begin_idx = if chars[0] == '-' {
+        if chars.len() == 1 {
+            return false;
+        }
+        1
+    } else {
+        0
+    };
+    // withDecimalsParsing(str, beginIdx)
+    let mut decimal_points = 0;
+    for &c in &chars[begin_idx..] {
+        let is_decimal_point = c == '.';
+        if is_decimal_point {
+            decimal_points += 1;
+        }
+        if decimal_points > 1 {
+            return false;
+        }
+        if !is_decimal_point && !c.is_ascii_digit() {
+            return false;
+        }
+    }
+    true
 }

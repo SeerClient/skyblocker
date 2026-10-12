@@ -68,7 +68,9 @@ impl ColorTerminal {
             *ITEM_COLOR.get_mut() = Vec::new();
             for color in mcrust::net::minecraft::world::item::dye_color::VALUES {
                 for item in vec!["dye".to_string(), "wool".to_string(), "stained_glass".to_string(), "terracotta".to_string()] {
-                    ColorTerminal::put_item_color(mcrust::net::minecraft::core::registries::built_in_registries::item().get_value_by_identifier(&Identifier::with_default_namespace(&format!("{}_{}", color.get_name(), item))).unwrap(), color);
+                    // java: BuiltInRegistries.ITEM.getValue(Identifier.withDefaultNamespace(color.getName() + "_" + item)) - the
+                    // registry's typed table, by the same id
+                    ColorTerminal::put_item_color(items::items().get(&format!("{}_{}", color.get_name(), item)), color);
                 }
             }
             ColorTerminal::put_item_color(items::items().get("bone_meal"), DyeColor::White);

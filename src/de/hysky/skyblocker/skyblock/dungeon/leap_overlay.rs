@@ -129,7 +129,9 @@ impl LeapOverlay {
     /// java: @Override protected void init()
     pub fn init(__this: &compat::Shared<Self>) {
         let mut layout: LinearLayout = LinearLayout::vertical();
-        layout.spacing(32).default_cell_setting().align_horizontally_center();
+        // java: layout.spacing(32).defaultCellSetting().alignHorizontallyCenter(); - `spacing` answers `this`
+        layout = layout.spacing(32);
+        layout.default_cell_setting().align_horizontally_center();
         if LeapOverlay::should_show_map() {
             layout.add_child({ let __w = compat::WidgetAdapter::widget(MapWidget::new(0, 0)); let (__ww, __wh) = (__w.get_width(), __w.get_height()); LayoutElement::widget(compat::write(__this, |__t| __t.add_widget(__w)), __ww, __wh) });
         }

@@ -2,6 +2,7 @@
 
 #[allow(unused_imports)]
 use crate::prelude::*;
+use mcrust::com::mojang::serialization::JavaObject as _;
 use crate::de::hysky::skyblocker::config::skyblocker_config_manager::SkyblockerConfigManager;
 use crate::de::hysky::skyblocker::events::particle_events;
 use crate::de::hysky::skyblocker::utils::area::TheFarmingIslands;
@@ -62,7 +63,8 @@ impl GlowingMushrooms {
         if !(GlowingMushrooms::should_process()) || mcrust::mcrust::modding::game::level().is_none() {
             return;
         }
-        if !(mcrust::net::minecraft::core::particles::particle_types::entity_effect() == packet.get_particle().unwrap().get_type()) {
+        // `ParticleTypes.ENTITY_EFFECT.equals(packet.getParticle().getType())`: identity of the registered type
+        if !(packet.get_particle().unwrap().get_type().java_equals(&**mcrust::net::minecraft::core::particles::particle_types::entity_effect())) {
             return;
         }
         let mut pos: BlockPos = BlockPos::containing(packet.get_x(), packet.get_y(), packet.get_z());
@@ -70,7 +72,7 @@ impl GlowingMushrooms {
         if !std::ptr::addr_eq(std::sync::Arc::as_ptr(&block), std::sync::Arc::as_ptr(&blocks::blocks().get("red_mushroom"))) && !std::ptr::addr_eq(std::sync::Arc::as_ptr(&block), std::sync::Arc::as_ptr(&blocks::blocks().get("brown_mushroom"))) {
             return;
         }
-        let mut mushroom: compat::Shared<GlowingMushroom> = GLOWING_MUSHROOMS.get_mut().entry(pos.clone()).or_insert_with_key(|k| (|__a0| GlowingMushroom::new(__a0.clone()))(k.clone())).clone();
+        let mut mushroom: compat::Shared<GlowingMushroom> = GLOWING_MUSHROOMS.get_mut().entry(pos.clone()).or_insert_with_key(|k: &BlockPos| GlowingMushroom::new(k.clone())).clone();
         GlowingMushroom::add_particle(&mushroom);
     }
 
@@ -141,7 +143,7 @@ impl std::ops::DerefMut for GlowingMushroom {
 impl GlowingMushroom {
     /// java: private GlowingMushroom(BlockPos pos)
     pub fn new(mut pos: BlockPos) -> compat::Shared<Self> {
-        let (_, __this) = SeenWaypointBase::new_in(pos.clone(), Arc::new(move || SkyblockerConfigManager::get().ui_and_visuals.waypoints.waypoint_type), ColorUtils::get_float_components_dye_color(&DyeColor::Cyan), move |__base| {
+        let (_, __this) = SeenWaypointBase::new2_in(pos.clone(), Arc::new(move || SkyblockerConfigManager::get().ui_and_visuals.waypoints.waypoint_type), ColorUtils::get_float_components_dye_color(&DyeColor::Cyan), move |__base| {
             let __h = compat::shared(Self {
                 base: __base,
                 particle_count: 0,

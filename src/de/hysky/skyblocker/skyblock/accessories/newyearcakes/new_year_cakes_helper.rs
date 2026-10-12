@@ -71,13 +71,15 @@ impl NewYearCakesHelper {
         if matcher.matches() {
             // java: try {..} catch (ParseException e) - an exception here is a panic, caught by `catch_unwind`; the body's `return` is the closure's value
             match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                // TODO(fabric2seer): `.intValue(..)` on a value of unknown type
-                //   java: return Formatters.INTEGER_NUMBERS.parse(matcher.group("year")).intValue();
+                // java: return Formatters.INTEGER_NUMBERS.parse(matcher.group("year")).intValue();
+                // rust: port gap - `DecimalFormat.parse` is not ported (GAPS_batchG). `year` is `\d+`, which the
+                // integer instance parses to its decimal value (a Long; `intValue` keeps the low 32 bits)
+                let year: String = matcher.group_named("year").unwrap();
+                return year.parse::<i64>().map(|v| v as i32).unwrap_or_else(|_| year.parse::<f64>().unwrap() as i32);
             })) {
                 Ok(__v) => return __v,
                 Err(e) => {
-                    // TODO(fabric2seer): a log call with a non-literal format
-                    //   java: LOGGER.info("Failed to parse year from New Year Cake: " + name, e);
+                    logger().info(&format!("Failed to parse year from New Year Cake: {} {}", name, compat::panic_message(&e)));
                 }
             }
         }

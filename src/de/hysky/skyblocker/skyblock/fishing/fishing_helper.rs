@@ -2,6 +2,8 @@
 
 #[allow(unused_imports)]
 use crate::prelude::*;
+use mcrust::net::minecraft::world::entity::entity::Entity as _;
+use crate::de::hysky::skyblocker::skyblock::fishing::fishing_hook_display_helper::FishingHookDisplayHelper;
 use crate::de::hysky::skyblocker::config::configs::helper_config::FishingHookDisplay;
 use crate::de::hysky::skyblocker::config::skyblocker_config_manager::SkyblockerConfigManager;
 use crate::de::hysky::skyblocker::utils::render::title::title::Title;
@@ -53,18 +55,14 @@ impl FishingHelper {
         //   java: 		});
         client_tick_events::END_CLIENT_TICK.register(Arc::new(|minecraft: &mut Minecraft| {
             if mcrust::mcrust::modding::game::with_player(|_| ()).is_some() {
-                // TODO(fabric2seer): `LocalPlayer.fishing` has no Rust field in the port (searched net.minecraft.client.player.LocalPlayer and its supertypes)
-                // TODO(fabric2seer): the mod keeps the game's `FishingHook` (Java holds a reference to the live object); the port's `FishingHook` is not a value to copy and the port lends the mod no handle to it
                 if compat::get_state(&WAITING_FOR_BOBBER_TICKS) > 0 {
-                    // TODO(fabric2seer): `LocalPlayer.fishing` has no Rust field in the port (searched net.minecraft.client.player.LocalPlayer and its supertypes)
-                    // TODO(fabric2seer): the mod keeps the game's `FishingHook` (Java holds a reference to the live object); the port's `FishingHook` is not a value to copy and the port lends the mod no handle to it
-                    if mcrust::mcrust::modding::game::with_player(|player| player.fishing.clone()).is_some() {
+                    if FishingHookDisplayHelper::player_fishing().is_some() {
                         compat::set_state(&WAITING_FOR_BOBBER_TICKS, 0);
                         FishingHelper::start();
                     } else {
                         compat::set_state(&WAITING_FOR_BOBBER_TICKS, compat::get_state(&WAITING_FOR_BOBBER_TICKS) - 1);
                     }
-                } else if mcrust::mcrust::modding::game::with_player(|player| player.fishing.clone()).is_none() {
+                } else if FishingHookDisplayHelper::player_fishing().is_none() {
                     FishingHelper::reset();
                 }
             }
@@ -83,16 +81,13 @@ impl FishingHelper {
 
     /// java: public static void checkIfFishWasCaught(ArmorStand armorStand)
     pub fn check_if_fish_was_caught(armor_stand: &ArmorStand) {
-        if Utils::is_on_skyblock() && SkyblockerConfigManager::get().helpers.fishing.enable_fishing_helper || SkyblockerConfigManager::get().helpers.fishing.fishing_hook_display == FishingHookDisplay::Hud {
+        if Utils::is_on_skyblock() && (SkyblockerConfigManager::get().helpers.fishing.enable_fishing_helper || SkyblockerConfigManager::get().helpers.fishing.fishing_hook_display == FishingHookDisplay::Hud) {
             if !armor_stand.is_invisible_field() || !armor_stand.base.base.has_custom_name() || !armor_stand.base.base.is_custom_name_visible() {
                 return;
             }
-            // TODO(fabric2seer): `LocalPlayer.fishing` has no Rust field in the port (searched net.minecraft.client.player.LocalPlayer and its supertypes)
-            // TODO(fabric2seer): the mod keeps the game's `FishingHook` (Java holds a reference to the live object); the port's `FishingHook` is not a value to copy and the port lends the mod no handle to it
-            if mcrust::mcrust::modding::game::with_player(|_| ()).is_some() && mcrust::mcrust::modding::game::with_player(|player| player.fishing.clone()).is_some() {
+            if let Some(fishing) = FishingHookDisplayHelper::player_fishing() {
                 let mut name: String = armor_stand.base.base.get_custom_name().unwrap().get_string();
-                // TODO(fabric2seer): `LocalPlayer.fishing` has no Rust field in the port (searched net.minecraft.client.player.LocalPlayer and its supertypes)
-                if name == "!!!" && mcrust::mcrust::modding::game::with_player(|player| player.fishing.base.base.get_bounding_box().inflate(4.0).contains_vec(&armor_stand.base.base.position())).unwrap_or(false) {
+                if name == "!!!" && mcrust::mcrust::modding::game::with_entity(fishing, |hook| hook.base().get_bounding_box().inflate(4.0).contains_vec(&armor_stand.base.base.position())).unwrap_or(false) {
                     if SkyblockerConfigManager::get().helpers.fishing.enable_fishing_helper {
                         TitleContainer::add_title_and_play_sound_2(TITLE.get_mut(), 10);
                     }

@@ -61,6 +61,8 @@ pub struct TrimElementButtonBase {
     pub stack: Option<mcrust::net::minecraft::world::item::item_stack::ItemStack>,
     /// java: private final Consumer<TrimElementButton> onPress;
     pub on_press: Arc<dyn Fn(compat::Shared<dyn TrimElementButton>)>,
+    /// `AbstractButton.extractDefaultSprite` - the game's button sprite pass (see `compat::ButtonLook`)
+    pub look: compat::ButtonLook,
 }
 
 impl std::ops::Deref for TrimElementButtonBase {
@@ -86,6 +88,7 @@ impl TrimElementButtonBase {
             element: __init_element,
             stack: None,
             on_press: __init_on_press,
+            look: compat::ButtonLook::new(),
         };
         let (__h, __r) = __wrap(this);
         let __this = __h;
@@ -112,7 +115,7 @@ pub trait TrimElementButton: compat::DynAny {
     }
 
     /// java: @Override public void extractContents(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a) (dispatch: the body for this class)
-    fn extract_contents(&self) -> fn(&compat::Shared<dyn TrimElementButton>, &GuiGraphicsExtractor, i32, i32, f32) {
+    fn extract_contents(&self) -> fn(&compat::Shared<dyn TrimElementButton>, &AbstractWidget, &mut WidgetRenderContext<'_>, i32, i32, f32) {
         <dyn TrimElementButton>::extract_contents_body
     }
 
@@ -144,10 +147,12 @@ impl dyn TrimElementButton {
     }
 
     /// java: @Override public void extractContents(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a)
-    pub fn extract_contents_body(__this: &compat::Shared<dyn TrimElementButton>, graphics: &GuiGraphicsExtractor, mut mouse_x: i32, mut mouse_y: i32, mut a: f32) {
-        // TODO(fabric2seer): `AbstractButton.extractDefaultSprite` has no Rust method in the port (looked for `extract_default_sprite` in AbstractButton and its supertypes)
-        // rust: __this.lock().borrow().trim_element_button_base().extract_default_sprite(graphics);
-        ({ let __f = compat::dispatch(__this, |__t| __t.extract()); __f(__this, graphics) });
+    /// (`widget` / `context`: the game's widget and the frame, which the default sprite is drawn through)
+    pub fn extract_contents_body(__this: &compat::Shared<dyn TrimElementButton>, widget: &AbstractWidget, context: &mut WidgetRenderContext<'_>, mouse_x: i32, mouse_y: i32, a: f32) {
+        let _ = a;
+        // java: this.extractDefaultSprite(graphics);
+        compat::write(__this, |__t| __t.trim_element_button_base_mut().look.draw_sprite(widget, context, mouse_x, mouse_y));
+        ({ let __f = compat::dispatch(__this, |__t| __t.extract()); __f(__this, &context.graphics) });
     }
 
     /// java: @Override public void onPress(InputWithModifiers input)
@@ -298,20 +303,25 @@ impl Pattern {
             return;
         }
         if __this.lock().borrow().is_hovered() {
-            // TODO(fabric2seer): `DeltaTracker.getGameTimeDeltaTicks` has no Rust method in the port (looked for `get_game_time_delta_ticks` in DeltaTracker and its supertypes)
-            // rust: { let __v = (compat::read(__this, |__t| __t.rotation) + ((compat::minecraft().get_delta_tracker().get_game_time_delta_ticks() * 0.05f32) * (90 as f32))); compat::write(__this, |__t| __t.rotation = __v); }
+            // java: rotation += Minecraft.getInstance().getDeltaTracker().getGameTimeDeltaTicks() * 0.05f * 90;
+            { let __v = (compat::read(__this, |__t| __t.rotation) + ((compat::minecraft().delta_tracker.get_game_time_delta_ticks() * 0.05f32) * (90 as f32))); compat::write(__this, |__t| __t.rotation = __v); }
             { let __v = (compat::read(__this, |__t| __t.rotation) % (360 as f32)); compat::write(__this, |__t| __t.rotation = __v); }
         } else {
             { let __v = ((PATTERN_DEFAULT_ROTATION) as f32) as f32; compat::write(__this, |__t| __t.rotation = __v); }
         }
         let mut slot: EquipmentSlot = *__this.lock().borrow().equippable_component.as_ref().unwrap().slot();
-        let model = PATTERN_EQUIPMENT_MODEL_DATA.get_mut().as_mut().unwrap().get_mut(slot);
-        // TODO(fabric2seer): `new AvatarRenderState(..)`: the port has no `AvatarRenderState::new`
-        // rust: let mut state: AvatarRenderState = AvatarRenderState::new();
-        let mut state: AvatarRenderState = todo!("fabric2seer: the initialiser of `state` (TODO above)");
-        // TODO(fabric2seer): field `HUMANOID_LEGGINGS` of a value of unknown type
-        //   java: EquipmentClientInfo.LayerType layerType = slot == EquipmentSlot.LEGS ? EquipmentClientInfo.LayerType.HUMANOID_LEGGINGS : EquipmentClientInfo.LayerType.HUMANOID;
-        let mut layer_type: LayerType = todo!("fabric2seer: the initialiser of `layerType` (TODO above)");
+        // java: HumanoidModel<AvatarRenderState> model = (HumanoidModel<AvatarRenderState>) equipmentModelData.get(slot);
+        // rust: port gap - `equipmentModelData` is baked from `Minecraft.getEntityModels()`, which the port does not lend a
+        //   mod (see `Pattern::new`), so it stays null here and the trimmed piece cannot be drawn (GAPS_batchE.md)
+        let mut __model_data = PATTERN_EQUIPMENT_MODEL_DATA.get_mut();
+        let Some(__model_data) = __model_data.as_mut() else {
+            return;
+        };
+        let model = __model_data.get_mut(slot);
+        // java: AvatarRenderState state = new AvatarRenderState(); - the state the model is posed with (held by reference)
+        let state: std::rc::Rc<AvatarRenderState> = std::rc::Rc::new(AvatarRenderState::default());
+        // java: EquipmentClientInfo.LayerType layerType = slot == EquipmentSlot.LEGS ? EquipmentClientInfo.LayerType.HUMANOID_LEGGINGS : EquipmentClientInfo.LayerType.HUMANOID;
+        let layer_type: LayerType = if slot == EquipmentSlot::Legs { LayerType::HumanoidLeggings } else { LayerType::Humanoid };
         let mut offset: f32 = Pattern::set_visible_and_get_offset(model, &slot);
         GuiHelper::equipment(graphics, PATTERN_EQUIPMENT_RENDERER.get_mut().as_ref().unwrap(), &layer_type, &__this.lock().borrow().equippable_component.as_ref().unwrap().asset_id().cloned().unwrap_or_else(mcrust::net::minecraft::world::item::equipment::equipment_assets::iron), &model.base, &state, &compat::read(__this, |__t| __t.stack.clone()).unwrap(), __this.lock().borrow().get_x(), __this.lock().borrow().get_y(), (__this.lock().borrow().get_x()).wrapping_add(__this.lock().borrow().get_width()), (__this.lock().borrow().get_y()).wrapping_add(__this.lock().borrow().get_height()), compat::read(__this, |__t| __t.rotation), ((14) as f32) as f32, offset);
     }
@@ -332,9 +342,23 @@ impl compat::WidgetHalf for Pattern {
 
 /// Pattern as the game's widget: `compat::WidgetAdapter::widget(handle)` where Java hands it on
 impl ModWidget for compat::WidgetAdapter<Pattern> {
-    /// java: extractWidgetRenderState - not overridden here (the base class's body has no entry point in the port)
+    /// java: AbstractButton.extractWidgetRenderState - `extractContents(..)`, then `handleCursor(graphics)`
     fn extract_widget_render_state(&mut self, widget: &AbstractWidget, context: &mut WidgetRenderContext<'_>, mouse_x: i32, mouse_y: i32, a: f32) {
-        let _ = widget;
+        self.lend_ref(widget, |__h| ({ let __f = compat::dispatch(__h, |__t| __t.extract_contents()); __f(&compat::view(__h, |a| a as compat::Shared<dyn TrimElementButton>), widget, context, mouse_x, mouse_y, a) }))
+    }
+
+    /// java: AbstractButton.keyPressed - a selection key presses an active button
+    fn key_pressed(&mut self, widget: &mut AbstractWidget, event: &mcrust::net::minecraft::client::input::key_event::KeyEvent) -> bool {
+        if !widget.is_active() || !event.is_selection() {
+            return false;
+        }
+        self.lend(widget, |__h| ({ let __f = compat::dispatch(__h, |__t| __t.on_press()); __f(&compat::view(__h, |a| a as compat::Shared<dyn TrimElementButton>), event) }));
+        true
+    }
+
+    /// java: AbstractButton.extractWidgetRenderState's `handleCursor(graphics)` - `AbstractWidget.handleCursor:68-72`
+    fn handle_cursor(&self, widget: &AbstractWidget, cursors: &mcrust::com::mojang::blaze3d::platform::cursor::cursor_types::CursorTypes) -> Option<mcrust::com::mojang::blaze3d::platform::cursor::cursor_type::CursorType> {
+        widget.handle_cursor(cursors)
     }
 
     /// java: @Override protected void updateWidgetNarration(NarrationElementOutput builder)
@@ -432,9 +456,23 @@ impl compat::WidgetHalf for Material {
 
 /// Material as the game's widget: `compat::WidgetAdapter::widget(handle)` where Java hands it on
 impl ModWidget for compat::WidgetAdapter<Material> {
-    /// java: extractWidgetRenderState - not overridden here (the base class's body has no entry point in the port)
+    /// java: AbstractButton.extractWidgetRenderState - `extractContents(..)`, then `handleCursor(graphics)`
     fn extract_widget_render_state(&mut self, widget: &AbstractWidget, context: &mut WidgetRenderContext<'_>, mouse_x: i32, mouse_y: i32, a: f32) {
-        let _ = widget;
+        self.lend_ref(widget, |__h| ({ let __f = compat::dispatch(__h, |__t| __t.extract_contents()); __f(&compat::view(__h, |a| a as compat::Shared<dyn TrimElementButton>), widget, context, mouse_x, mouse_y, a) }))
+    }
+
+    /// java: AbstractButton.keyPressed - a selection key presses an active button
+    fn key_pressed(&mut self, widget: &mut AbstractWidget, event: &mcrust::net::minecraft::client::input::key_event::KeyEvent) -> bool {
+        if !widget.is_active() || !event.is_selection() {
+            return false;
+        }
+        self.lend(widget, |__h| ({ let __f = compat::dispatch(__h, |__t| __t.on_press()); __f(&compat::view(__h, |a| a as compat::Shared<dyn TrimElementButton>), event) }));
+        true
+    }
+
+    /// java: AbstractButton.extractWidgetRenderState's `handleCursor(graphics)` - `AbstractWidget.handleCursor:68-72`
+    fn handle_cursor(&self, widget: &AbstractWidget, cursors: &mcrust::com::mojang::blaze3d::platform::cursor::cursor_types::CursorTypes) -> Option<mcrust::com::mojang::blaze3d::platform::cursor::cursor_type::CursorType> {
+        widget.handle_cursor(cursors)
     }
 
     /// java: @Override protected void updateWidgetNarration(NarrationElementOutput builder)

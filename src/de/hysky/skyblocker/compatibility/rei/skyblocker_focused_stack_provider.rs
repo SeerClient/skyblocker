@@ -19,8 +19,10 @@ impl SkyblockerFocusedStackProvider {
     /// java: @Override public CompoundEventResult<EntryStack<?>> provide(Screen screen, Point point)
     pub fn provide(&self, screen: &mcrust::net::minecraft::client::gui::screens::screen::Screen, point: &crate::unresolved::Point) -> crate::unresolved::CompoundEventResult {
         let Some(mut focused_item) = HoveredItemStackUtils::get_hovered_item_stack(screen) else {
-            // TODO(fabric2seer): static call CompoundEventResult.pass(..)
-            //   java: return CompoundEventResult.pass();
+            // java: return CompoundEventResult.pass();
+            // rust: port gap - REI is the `crate::unresolved` placeholders (GAPS_batchG): the placeholder value stands
+            // for `pass()`
+            return crate::unresolved::CompoundEventResult;
         };
         // TODO(fabric2seer): static call CompoundEventResult.interruptTrue(..)
         //   java: return CompoundEventResult.interruptTrue(EntryStacks.of(focusedItem));

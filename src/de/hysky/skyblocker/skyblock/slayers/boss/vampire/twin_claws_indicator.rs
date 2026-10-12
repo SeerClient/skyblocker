@@ -39,11 +39,10 @@ impl TwinClawsIndicator {
             return;
         };
         let mut any_claws: bool = false;
-        for armor_stand_entity in SlayerManager::get_entity_armor_stands(&slayer_entity, 2.5f32) {
-            // TODO(fabric2seer): `Component.toString` has no Rust method in the port (looked for `to_string` in Component and JavaSrc)
-            // TODO(fabric2seer): the condition: `.contains(..)` on a value of unknown type
-            //   java: armorStandEntity.getName(..).toString(..).contains(..)
-            if todo!("fabric2seer: the condition (TODO above)") {
+        // the stands by id; `Component.toString()` is the port's `Display` of the component (Java's `literal{..}[style=..]` form)
+        let armor_stands: Vec<i32> = mcrust::mcrust::modding::game::with_entity(slayer_entity, |e| SlayerManager::get_entity_armor_stands(&*e, 2.5f32)).unwrap_or_default();
+        for armor_stand_entity in armor_stands {
+            if mcrust::mcrust::modding::game::with_entity(armor_stand_entity, |e| compat::component_of(e.get_name()).to_string().contains("TWINCLAWS")).unwrap_or(false) {
                 any_claws = true;
                 if !(TitleContainer::contains_title(TITLE.get_mut())) && !(compat::get_state(&SCHEDULED)) {
                     compat::set_state(&SCHEDULED, true);

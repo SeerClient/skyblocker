@@ -2,127 +2,113 @@
 
 #[allow(unused_imports)]
 use crate::prelude::*;
-use mcrust::mcrust::modding::widgets::ModWidget;
 use mcrust::mcrust::modding::widgets::WidgetRenderContext;
+use mcrust::net::minecraft::client::gui::components::abstract_container_widget::AbstractContainerWidget;
 use mcrust::net::minecraft::client::gui::components::abstract_widget::AbstractWidget;
-use mcrust::net::minecraft::client::gui::components::abstract_widget::OnPress;
-use mcrust::net::minecraft::client::gui::components::abstract_widget::WidgetKind;
 use mcrust::net::minecraft::client::gui::gui_graphics_extractor;
-use mcrust::net::minecraft::client::gui::gui_graphics_extractor::GuiGraphicsExtractor;
-use mcrust::net::minecraft::client::gui::narration::narration_element_output::NarrationElementOutput;
-use mcrust::net::minecraft::client::input::character_event::CharacterEvent;
 use mcrust::net::minecraft::client::input::mouse_button_event::MouseButtonEvent;
-use mcrust::net::minecraft::client::input::mouse_button_info::MouseButtonInfo;
-use mcrust::net::minecraft::client::player::abstract_client_player::AbstractClientPlayer;
-use mcrust::net::minecraft::client::renderer::entity::state::entity_render_state::EntityRenderState;
-use mcrust::net::minecraft::client::sounds::sound_manager::SoundManager;
-use mcrust::net::minecraft::network::chat::component;
+use mcrust::net::minecraft::client::player::remote_player::RemotePlayer;
+use mcrust::net::minecraft::network::chat::formatted_text::FormattedText;
 use mcrust::net::minecraft::resources::identifier::Identifier;
 use mcrust::net::minecraft::util::mth;
 use mcrust::org::joml::quaternionf::Quaternionf;
 use mcrust::org::joml::vector3f::Vector3f;
-use mcrust::net::minecraft::network::chat::component::Component as _;
+use mcrust::net::minecraft::world::entity::entity::Entity as _;
+use mcrust::net::minecraft::world::entity::living_entity::LivingEntity as _;
 
 /// java: private static final Identifier INNER_SPACE_TEXTURE = SkyblockerMod.id("menu_inner_space");
 pub static INNER_SPACE_TEXTURE: compat::MainThread<Identifier> = compat::MainThread::new(|| crate::entry::skyblocker_mod::id("menu_inner_space"));
 /// java: private static final float FLIP_ROTATION = (float) Math.PI;
-pub static FLIP_ROTATION: LazyLock<f32> = LazyLock::new(|| ((std::f64::consts::PI) as f32));
+pub const FLIP_ROTATION: f32 = std::f64::consts::PI as f32;
 
 /// java: public class PlayerWidget extends AbstractWidget
 pub struct PlayerWidget {
     /// java: extends net.minecraft.client.gui.components.AbstractWidget
-    pub base: AbstractWidget,
-    /// java: private final AbstractClientPlayer player;
-    pub player: Box<dyn AbstractClientPlayer>,
+    pub base: AbstractContainerWidget,
+    /// java: private final AbstractClientPlayer player; - the player the armor tab dresses (the same object)
+    pub player: compat::Shared<RemotePlayer>,
     /// java: private float xRotation = -10;
     pub x_rotation: f32,
     /// java: private float yRotation = 225;
     pub y_rotation: f32,
 }
 
-impl std::ops::Deref for PlayerWidget {
-    type Target = AbstractWidget;
-    fn deref(&self) -> &Self::Target {
-        &self.base
-    }
-}
-
-impl std::ops::DerefMut for PlayerWidget {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.base
-    }
-}
-
 impl PlayerWidget {
     /// java: public PlayerWidget(int x, int y, int width, int height, AbstractClientPlayer player)
-    pub fn new(mut x: i32, mut y: i32, mut width: i32, mut height: i32, mut player: Box<dyn AbstractClientPlayer>) -> compat::Shared<Self> {
-        let __init_player = player; // the widget holds the player the caller made (Java keeps the reference)
-        let __this = compat::shared(Self {
-            base: AbstractWidget::new(x, y, width, height, (&component::literal("").get_string()).to_string(), WidgetKind::PlainText, OnPress::Inert),
-            player: __init_player,
-            x_rotation: ((-10) as f32) as f32,
-            y_rotation: ((225) as f32) as f32,
+    pub fn new(x: i32, y: i32, width: i32, height: i32, player: compat::Shared<RemotePlayer>) -> compat::Shared<Self> {
+        // java: super(x, y, width, height, Component.literal(""));
+        // java: this.player.yHeadRot = this.player.yHeadRotO = 0;
+        compat::write(&player, |p| {
+            let living = p.living_mut();
+            living.y_head_rot_o = 0.0;
+            living.y_head_rot = living.y_head_rot_o;
         });
-        // TODO(fabric2seer): an assignment used as a value
-        //   java: this.player.yHeadRot = this.player.yHeadRotO = 0;
-        __this
+        compat::shared(PlayerWidget {
+            base: AbstractContainerWidget::new(x, y, width, height, FormattedText::of("")),
+            player,
+            x_rotation: -10.0,
+            y_rotation: 225.0,
+        })
     }
-
-    /// java: @Override protected void onDrag(MouseButtonEvent click, double offsetX, double offsetY)
-    pub fn on_drag(__this: &compat::Shared<Self>, click: &MouseButtonEvent, mut offset_x: f64, mut offset_y: f64) {
-        // TODO(fabric2seer): `AbstractWidget.onDrag` has no Rust method in the port (looked for `on_drag` in AbstractWidget and its supertypes)
-        // rust: __this.lock().borrow_mut().base.on_drag(click, offset_x, offset_y);
-        { let __v = mth::clamp_f32((compat::read(__this, |__t| __t.x_rotation) - (((offset_y) as f32) * 2.5f32)), -50.0f32, 50.0f32); compat::write(__this, |__t| __t.x_rotation = __v); }
-        { let __v = (compat::read(__this, |__t| __t.y_rotation) + (((offset_x) as f32) * 2.5f32)); compat::write(__this, |__t| __t.y_rotation = __v); }
-    }
-
-    /// java: @Override protected void extractWidgetRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a)
-    pub fn extract_widget_render_state(__this: &compat::Shared<Self>, graphics: &GuiGraphicsExtractor, mut mouse_x: i32, mut mouse_y: i32, mut a: f32) {
-        gui_graphics_extractor::blit_sprite_identifier(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), mcrust::net::minecraft::client::renderer::render_pipelines::gui_textured(), INNER_SPACE_TEXTURE.get_mut(), __this.lock().borrow().get_x(), __this.lock().borrow().get_y(), __this.lock().borrow().get_width(), __this.lock().borrow().get_height());
-        let mut size: f32 = 64.0f32;
-        let mut translation: Vector3f = Vector3f::new((0) as f32, (({ use mcrust::net::minecraft::world::entity::entity::Entity as _; __this.lock().borrow().player.base().get_bb_height() } / 2.0f32) + 0.0625f32), (0) as f32);
-        let rotation = Quaternionf::new().rotation_xyz(((-compat::read(__this, |__t| __t.x_rotation)) * mcrust::net::minecraft::util::mth::DEG_TO_RAD), ((-compat::read(__this, |__t| __t.y_rotation)) * mcrust::net::minecraft::util::mth::DEG_TO_RAD), *FLIP_ROTATION);
-        // TODO(fabric2seer): static call InventoryScreenInvoker.invokeExtractRenderState(..)
-        //   java: EntityRenderState renderState = InventoryScreenInvoker.invokeExtractRenderState(this.player);
-        let mut render_state: EntityRenderState = todo!("fabric2seer: the initialiser of `renderState` (TODO above)");
-        // TODO(fabric2seer): the mod keeps the game's `EntityRenderState` (Java holds a reference to the live object); the port's `EntityRenderState` is not a value to copy and the port lends the mod no handle to it
-        // rust: gui_graphics_extractor::entity(render_state.clone(), size, translation.clone(), rotation.clone(), None, __this.lock().borrow().get_x(), __this.lock().borrow().get_y(), __this.lock().borrow().get_right(), __this.lock().borrow().get_bottom());
-    }
-
-    /// java: @Override protected void updateWidgetNarration(NarrationElementOutput builder)
-    pub fn update_widget_narration(__this: &compat::Shared<Self>, builder: &dyn NarrationElementOutput) {
-    }
-
-    /// java: @Override public void playDownSound(SoundManager soundManager)
-    pub fn play_down_sound(__this: &compat::Shared<Self>, sound_manager: &SoundManager) {
-    }
-
 }
 
-/// PlayerWidget's widget half (`super`'s fields: x, y, size, message, ...), lent by the game for each call
-impl compat::WidgetHalf for PlayerWidget {
-    fn widget_half(&mut self) -> &mut AbstractWidget {
+impl compat::ObjectWidget for PlayerWidget {
+    fn object_box(&mut self) -> &mut AbstractContainerWidget {
         &mut self.base
     }
-}
 
-/// PlayerWidget as the game's widget: `compat::WidgetAdapter::widget(handle)` where Java hands it on
-impl ModWidget for compat::WidgetAdapter<PlayerWidget> {
-    /// java: @Override protected void extractWidgetRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a)
-    fn extract_widget_render_state(&mut self, widget: &AbstractWidget, context: &mut WidgetRenderContext<'_>, mouse_x: i32, mouse_y: i32, a: f32) {
-        self.lend_ref(widget, |__h| PlayerWidget::extract_widget_render_state(__h, &context.graphics, mouse_x, mouse_y, a))
-    }
-
-    /// java: @Override protected void updateWidgetNarration(NarrationElementOutput builder)
-    fn update_widget_narration(&mut self, widget: &AbstractWidget, output: &mut dyn NarrationElementOutput) {
-        self.lend_ref(widget, |__h| PlayerWidget::update_widget_narration(__h, output))
+    fn object_box_ref(&self) -> &AbstractContainerWidget {
+        &self.base
     }
 
     /// java: @Override protected void onDrag(MouseButtonEvent click, double offsetX, double offsetY)
-    fn on_drag(&mut self, widget: &mut AbstractWidget, event: &MouseButtonEvent, dx: f64, dy: f64) {
-        self.lend(widget, |__h| PlayerWidget::on_drag(__h, event, dx, dy))
+    fn on_drag(&mut self, _widget: &mut AbstractWidget, _event: &MouseButtonEvent, offset_x: f64, offset_y: f64) {
+        // java: super.onDrag(click, offsetX, offsetY); - empty
+        self.x_rotation = mth::clamp_f32(self.x_rotation - (offset_y as f32) * 2.5f32, -50.0f32, 50.0f32);
+        self.y_rotation += (offset_x as f32) * 2.5f32;
     }
 
-}
+    /// java: @Override protected void extractWidgetRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a)
+    fn extract_widget_render_state(&mut self, _widget: &AbstractWidget, context: &mut WidgetRenderContext<'_>, _mouse_x: i32, _mouse_y: i32, _a: f32) {
+        let (x, y, w, h) = (self.base.get_x(), self.base.get_y(), self.base.get_width(), self.base.get_height());
+        gui_graphics_extractor::blit_sprite_identifier(context.gl, context.minecraft, mcrust::net::minecraft::client::renderer::render_pipelines::gui_textured(), INNER_SPACE_TEXTURE.get(), x, y, w, h);
 
-// NOTE(fabric2seer): extractWidgetRenderState, onDrag, playDownSound, updateWidgetNarration override(s) of AbstractWidget - the port dispatches its own calls, so these run only where the mod calls them; hook the port's method to make the game call them
+        let size: f32 = 64.0;
+        let bb_height = compat::read(&self.player, |p| p.base().get_bb_height());
+        let translation = Vector3f::new(0.0, bb_height / 2.0 + 0.0625, 0.0);
+        let mut rotation = Quaternionf::new();
+        rotation.rotation_xyz(-self.x_rotation * mth::DEG_TO_RAD, -self.y_rotation * mth::DEG_TO_RAD, FLIP_ROTATION);
+
+        // java: EntityRenderState renderState = InventoryScreenInvoker.invokeExtractRenderState(this.player);
+        let gfx = context.minecraft;
+        let Some(dispatcher) = gfx.game_renderer.get_entity_render_dispatcher() else {
+            return;
+        };
+        use mcrust::net::minecraft::client::renderer::item::item_model_resolver::{ItemModelResolver, ItemModelSource};
+        let resolver = mcrust::net::minecraft::client::renderer::game_renderer::baked().as_ref().map(|models| ItemModelResolver::new(models.item_models.clone() as Arc<dyn ItemModelSource + Send + Sync>));
+        let level = mcrust::mcrust::modding::game::level();
+        let render_state = compat::read(&self.player, |p| {
+            mcrust::net::minecraft::client::gui::screens::inventory::inventory_screen::extract_render_state_of_entity(
+                dispatcher,
+                p,
+                &|layer, pos| match level.as_deref() {
+                    Some(level) => level.get_brightness(layer, pos),
+                    None => 0,
+                },
+                resolver.as_ref(),
+                level.as_deref(),
+                gfx.gui.hud.is_hidden,
+            )
+        });
+        let Some(render_state) = render_state else {
+            return;
+        };
+        // java: graphics.entity(renderState, size, translation, rotation, null, getX(), getY(), this.getRight(), this.getBottom());
+        gui_graphics_extractor::entity(render_state, size, translation, rotation, None, x, y, self.base.get_right(), self.base.get_bottom());
+    }
+
+    /// java: @Override public void playDownSound(SoundManager soundManager) - empty
+    fn play_down_sound(&self) -> Option<&'static mcrust::net::minecraft::sounds::sound_event::SoundEvent> {
+        None
+    }
+}

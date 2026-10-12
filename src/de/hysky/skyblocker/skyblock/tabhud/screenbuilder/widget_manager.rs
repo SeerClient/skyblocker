@@ -442,9 +442,50 @@ impl WidgetManager {
 
     /// java: private static void instantiateWidgets()
     /// "Filled at compile item with ASM" - the `@RegisterWidget` classes' `addWidgetInstance(new X())` calls.
-    /// rust: port gap - the mod's widget registration (`hud/hud_injector.rs`, an ASM class-file pass) has no
-    /// counterpart, so nothing fills this body
-    pub fn instantiate_widgets() {
+    ///
+    /// The body is what Skyblocker's build-time `HudProcessor` (buildSrc `hud/{HudReader,HudProcessor,HudInjector}`)
+    /// writes into it: `new X(); invokestatic addWidgetInstance` per `@RegisterWidget` class, sorted by
+    /// `Comparator.comparingInt(priority)`. Every one of the 37 has the default priority 0, so Java's order is
+    /// the `HashMap` key order (not stable); here they are in fully-qualified class-name order.
+    fn instantiate_widgets() {
+        use crate::de::hysky::skyblocker::skyblock as sk;
+        WidgetManager::add_widget_instance(sk::item_pickup_widget::ItemPickupWidget::new() as compat::Shared<dyn HudWidget>);
+        WidgetManager::add_widget_instance(sk::dungeon::dungeon_splits_widget::DungeonSplitsWidget::new() as compat::Shared<dyn HudWidget>);
+        WidgetManager::add_widget_instance(sk::dungeon::terminal_hud::TerminalHud::new() as compat::Shared<dyn HudWidget>);
+        WidgetManager::add_widget_instance(sk::dwarven::crystals_hud_widget::CrystalsHudWidget::new() as compat::Shared<dyn HudWidget>);
+        WidgetManager::add_widget_instance(sk::dwarven::pickobulus_hud_widget::PickobulusHudWidget::new() as compat::Shared<dyn HudWidget>);
+        WidgetManager::add_widget_instance(sk::dwarven::profittrackers::powder_mining_widget::PowderMiningWidget::new() as compat::Shared<dyn HudWidget>);
+        WidgetManager::add_widget_instance(sk::end::end_hud_widget::EndHudWidget::new() as compat::Shared<dyn HudWidget>);
+        WidgetManager::add_widget_instance(sk::fishing::fishing_hud_widget::FishingHudWidget::new() as compat::Shared<dyn HudWidget>);
+        WidgetManager::add_widget_instance(sk::foraging::galatea::sweep_details_hud_widget::SweepDetailsHudWidget::new() as compat::Shared<dyn HudWidget>);
+        WidgetManager::add_widget_instance(sk::foraging::galatea::tree_break_progress_hud::TreeBreakProgressHud::new() as compat::Shared<dyn HudWidget>);
+        WidgetManager::add_widget_instance(sk::garden::farming_hud_widget::FarmingHudWidget::new() as compat::Shared<dyn HudWidget>);
+        WidgetManager::add_widget_instance(sk::hunting::lasso_hud::LassoHud::new() as compat::Shared<dyn HudWidget>);
+        WidgetManager::add_widget_instance(sk::slayers::slayer_hud_widget::SlayerHudWidget::new() as compat::Shared<dyn HudWidget>);
+        WidgetManager::add_widget_instance(sk::tabhud::widget::comms_widget::CommsWidget::new() as compat::Shared<dyn HudWidget>);
+        WidgetManager::add_widget_instance(sk::tabhud::widget::composter_widget::ComposterWidget::new() as compat::Shared<dyn HudWidget>);
+        WidgetManager::add_widget_instance(sk::tabhud::widget::crop_milestones_widget::CropMilestonesWidget::new() as compat::Shared<dyn HudWidget>);
+        WidgetManager::add_widget_instance(sk::tabhud::widget::dungeon_buff_widget::DungeonBuffWidget::new() as compat::Shared<dyn HudWidget>);
+        WidgetManager::add_widget_instance(sk::tabhud::widget::dungeon_death_widget::DungeonDeathWidget::new() as compat::Shared<dyn HudWidget>);
+        WidgetManager::add_widget_instance(sk::tabhud::widget::dungeon_downed_widget::DungeonDownedWidget::new() as compat::Shared<dyn HudWidget>);
+        WidgetManager::add_widget_instance(sk::tabhud::widget::dungeon_puzzle_widget::DungeonPuzzleWidget::new() as compat::Shared<dyn HudWidget>);
+        WidgetManager::add_widget_instance(sk::tabhud::widget::dungeon_secret_widget::DungeonSecretWidget::new() as compat::Shared<dyn HudWidget>);
+        WidgetManager::add_widget_instance(sk::tabhud::widget::dungeon_server_widget::DungeonServerWidget::new() as compat::Shared<dyn HudWidget>);
+        WidgetManager::add_widget_instance(sk::tabhud::widget::effect_widget::EffectWidget::new() as compat::Shared<dyn HudWidget>);
+        WidgetManager::add_widget_instance(sk::tabhud::widget::election_widget::ElectionWidget::new() as compat::Shared<dyn HudWidget>);
+        WidgetManager::add_widget_instance(sk::tabhud::widget::essence_widget::EssenceWidget::new() as compat::Shared<dyn HudWidget>);
+        WidgetManager::add_widget_instance(sk::tabhud::widget::event_widget::EventWidget::new() as compat::Shared<dyn HudWidget>);
+        WidgetManager::add_widget_instance(sk::tabhud::widget::fire_sale_widget::FireSaleWidget::new() as compat::Shared<dyn HudWidget>);
+        WidgetManager::add_widget_instance(sk::tabhud::widget::forge_widget::ForgeWidget::new() as compat::Shared<dyn HudWidget>);
+        WidgetManager::add_widget_instance(sk::tabhud::widget::jacobs_contest_widget::JacobsContestWidget::new() as compat::Shared<dyn HudWidget>);
+        WidgetManager::add_widget_instance(sk::tabhud::widget::minion_widget::MinionWidget::new() as compat::Shared<dyn HudWidget>);
+        WidgetManager::add_widget_instance(sk::tabhud::widget::pet_widget::PetWidget::new() as compat::Shared<dyn HudWidget>);
+        WidgetManager::add_widget_instance(sk::tabhud::widget::player_list_widget::PlayerListWidget::new() as compat::Shared<dyn HudWidget>);
+        WidgetManager::add_widget_instance(sk::tabhud::widget::powder_widget::PowderWidget::new() as compat::Shared<dyn HudWidget>);
+        WidgetManager::add_widget_instance(sk::tabhud::widget::profile_widget::ProfileWidget::new() as compat::Shared<dyn HudWidget>);
+        WidgetManager::add_widget_instance(sk::tabhud::widget::server_widget::ServerWidget::new() as compat::Shared<dyn HudWidget>);
+        WidgetManager::add_widget_instance(sk::tabhud::widget::skills_widget::SkillsWidget::new() as compat::Shared<dyn HudWidget>);
+        WidgetManager::add_widget_instance(sk::tabhud::widget::visitors_widget::VisitorsWidget::new() as compat::Shared<dyn HudWidget>);
     }
 
     /// java: public static void addWidgetInstance(HudWidget widget)

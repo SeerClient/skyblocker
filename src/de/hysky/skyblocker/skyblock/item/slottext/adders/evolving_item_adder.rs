@@ -70,7 +70,7 @@ impl EvolvingItemAdder {
             if siblings[0].get_string() == equal {
                 let bonus = &siblings[(1) as usize];
                 let mut matcher: compat::regex::Matcher = BONUS_PATTERN.matcher(&bonus.get_string());
-                let mut result: Option<f64> = RegexUtils::find_double_from_matcher(&matcher);
+                let mut result: Option<f64> = RegexUtils::find_double_from_matcher(&mut matcher);
                 if result.is_some() {
                     return SlotText::bottom_left_list(&component::literal(&formatters::DOUBLE_NUMBERS.get_mut().format(result.clone().unwrap())).set_style(bonus.get_style().clone()));
                 }

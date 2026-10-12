@@ -405,17 +405,7 @@ pub struct SeaCreatureFields {
 
 impl SeaCreatureFields {
     fn new(mut name: String, mut chat_message: String, mut rarity: SkyblockItemRarity, mut category: SeaCreatureCategory) -> Self {
-        let mut this = Self {
-            name: Default::default(),
-            chat_message: Default::default(),
-            rarity: Default::default(),
-            category: Default::default(),
-        };
-        this.name = name.clone();
-        this.chat_message = chat_message.clone();
-        this.rarity = rarity;
-        this.category = category;
-        this
+        Self { name, chat_message, rarity, category }
     }
 
 }

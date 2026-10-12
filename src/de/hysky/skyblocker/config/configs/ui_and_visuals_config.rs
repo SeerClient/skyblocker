@@ -350,9 +350,7 @@ impl EnableState {
 
     /// java: @Override public String toString()
     pub fn to_string(&self) -> String {
-        // TODO(fabric2seer): call to `name(..)` (not a method of this class)
-        //   java: return I18n.get("skyblocker.config.uiAndVisuals.inventorySearch.state." + this.name());
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        return mcrust::net::minecraft::client::resources::language::i18n::get(&format!("skyblocker.config.uiAndVisuals.inventorySearch.state.{}", self.name()), &[]);
     }
 
     /// java: public boolean isEnabled()
@@ -369,7 +367,7 @@ impl EnableState {
 
 impl std::fmt::Display for EnableState {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", EnableState::to_string(*self))
+        write!(f, "{}", EnableState::to_string(self))
     }
 }
 
@@ -442,16 +440,14 @@ impl Direction {
 
     /// java: @Override public String toString()
     pub fn to_string(&self) -> String {
-        // TODO(fabric2seer): call to `name(..)` (not a method of this class)
-        //   java: return I18n.get("skyblocker.config.uiAndVisuals.titleContainer.direction." + name());
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        return mcrust::net::minecraft::client::resources::language::i18n::get(&format!("skyblocker.config.uiAndVisuals.titleContainer.direction.{}", self.name()), &[]);
     }
 
 }
 
 impl std::fmt::Display for Direction {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", Direction::to_string(*self))
+        write!(f, "{}", Direction::to_string(self))
     }
 }
 
@@ -497,16 +493,14 @@ impl Alignment {
 
     /// java: @Override public String toString()
     pub fn to_string(&self) -> String {
-        // TODO(fabric2seer): call to `name(..)` (not a method of this class)
-        //   java: return I18n.get("skyblocker.config.uiAndVisuals.titleContainer.alignment." + name());
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        return mcrust::net::minecraft::client::resources::language::i18n::get(&format!("skyblocker.config.uiAndVisuals.titleContainer.alignment.{}", self.name()), &[]);
     }
 
 }
 
 impl std::fmt::Display for Alignment {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", Alignment::to_string(*self))
+        write!(f, "{}", Alignment::to_string(self))
     }
 }
 
@@ -603,21 +597,19 @@ impl TabHudStyle {
 
     /// java: public boolean isMinimal()
     pub fn is_minimal(&self) -> bool {
-        return (*self == MINIMAL);
+        return (*self == TabHudStyle::Minimal);
     }
 
     /// java: @Override public String toString()
     pub fn to_string(&self) -> String {
-        // TODO(fabric2seer): call to `name(..)` (not a method of this class)
-        //   java: return I18n.get("skyblocker.config.uiAndVisuals.tabHud.style." + name());
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        return mcrust::net::minecraft::client::resources::language::i18n::get(&format!("skyblocker.config.uiAndVisuals.tabHud.style.{}", self.name()), &[]);
     }
 
 }
 
 impl std::fmt::Display for TabHudStyle {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", TabHudStyle::to_string(*self))
+        write!(f, "{}", TabHudStyle::to_string(self))
     }
 }
 
@@ -664,11 +656,39 @@ impl NameSorting {
     /// the constant's constructor data (Java keeps it in the constant's fields)
     pub fn fields(self) -> &'static NameSortingFields {
         static FIELDS: LazyLock<Vec<NameSortingFields>> = LazyLock::new(|| vec![
-            NameSortingFields::new(Arc::new(move |_, _| (0).cmp(&0))),
-            NameSortingFields::new(Arc::new(move |a, b| (|a, b| a.to_lowercase().cmp(&b.to_lowercase()))(&(|ple| NameSorting::match_player_name(&ple.get_tab_list_display_name().unwrap().get_string(), "name").unwrap_or("".to_string()))(a), &(|ple| NameSorting::match_player_name(&ple.get_tab_list_display_name().unwrap().get_string(), "name").unwrap_or("".to_string()))(b)))),
-            todo!("SKYBLOCK_LEVEL"),
+            // java: DEFAULT((_, _) -> 0)
+            NameSortingFields::new(Arc::new(move |_: &PlayerInfo, _: &PlayerInfo| std::cmp::Ordering::Equal)),
+            // java: ALPHABETICAL(Comparator.comparing(ple -> matchPlayerName(..., "name").orElse(""), String.CASE_INSENSITIVE_ORDER))
+            NameSortingFields::new(Arc::new(move |a: &PlayerInfo, b: &PlayerInfo| {
+                let key = |ple: &PlayerInfo| NameSorting::match_player_name(&ple.get_tab_list_display_name().unwrap().get_string(), "name").unwrap_or_else(|| "".to_string());
+                NameSorting::case_insensitive_order(&key(a), &key(b))
+            })),
+            // java: SKYBLOCK_LEVEL(Comparator.<PlayerInfo>comparingInt(ple -> matchPlayerName(..., "level").map(Integer::parseInt).orElse(0)).reversed())
+            NameSortingFields::new(Arc::new(move |a: &PlayerInfo, b: &PlayerInfo| {
+                let key = |ple: &PlayerInfo| NameSorting::match_player_name(&ple.get_tab_list_display_name().unwrap().get_string(), "level")
+                    .map(|level| level.parse::<i32>().expect("NumberFormatException"))
+                    .unwrap_or(0);
+                key(b).cmp(&key(a))
+            })),
         ]);
         &FIELDS[self as usize]
+    }
+
+    /// `String.CASE_INSENSITIVE_ORDER`: char by char, each compared upper-cased then lower-cased.
+    fn case_insensitive_order(a: &str, b: &str) -> std::cmp::Ordering {
+        let (a, b): (Vec<char>, Vec<char>) = (a.chars().collect(), b.chars().collect());
+        for (c1, c2) in a.iter().zip(b.iter()) {
+            if c1 != c2 {
+                let (u1, u2) = (compat::char_upper(*c1), compat::char_upper(*c2));
+                if u1 != u2 {
+                    let (l1, l2) = (compat::char_lower(u1), compat::char_lower(u2));
+                    if l1 != l2 {
+                        return l1.cmp(&l2);
+                    }
+                }
+            }
+        }
+        a.len().cmp(&b.len())
     }
 
     /// java: private static Optional<String> matchPlayerName(String name, String group)
@@ -689,31 +709,25 @@ impl NameSorting {
 
     /// java: @Override public String getSerializedName()
     pub fn get_serialized_name(&self) -> String {
-        // TODO(fabric2seer): call to `name(..)` (not a method of this class)
-        //   java: return name().toLowerCase(Locale.ENGLISH);
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        return self.name().to_lowercase();
     }
 
 }
 
 impl std::fmt::Display for NameSorting {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", NameSorting::to_string(*self))
+        write!(f, "{}", NameSorting::to_string(self))
     }
 }
 
 /// the constructor data of each NameSorting constant
 pub struct NameSortingFields {
-    pub comparator: Arc<dyn Fn(&PlayerInfo, &PlayerInfo) -> std::cmp::Ordering>,
+    pub comparator: Arc<dyn Fn(&PlayerInfo, &PlayerInfo) -> std::cmp::Ordering + Send + Sync>,
 }
 
 impl NameSortingFields {
-    fn new(comparator: Arc<dyn Fn(&PlayerInfo, &PlayerInfo) -> std::cmp::Ordering>) -> Self {
-        let mut this = Self {
-            comparator: Default::default(),
-        };
-        this.comparator = comparator.clone();
-        this
+    fn new(comparator: Arc<dyn Fn(&PlayerInfo, &PlayerInfo) -> std::cmp::Ordering + Send + Sync>) -> Self {
+        Self { comparator }
     }
 
 }
@@ -978,12 +992,10 @@ pub struct TeleportOverlay {
 impl TeleportOverlay {
     /// java: the implicit no-argument constructor
     pub fn new() -> Self {
-        // TODO(fabric2seer): the initialiser of `teleportOverlayColor`: `new` takes 3 argument(s) in the port (`r: i32, g: i32, b: i32`), Java passes 2
-        //   java: public Color teleportOverlayColor = new Color(0x7F761594, true);
         let mut this = Self {
             enable_teleport_overlays: true,
             show_when_in_air: false,
-            teleport_overlay_color: Default::default(),
+            teleport_overlay_color: Color::from_rgba(0x7F761594, true),
             highlight_type: HighlightType::Highlight,
             enable_weird_transmission: false,
             enable_instant_transmission: false,
@@ -1038,16 +1050,14 @@ impl HighlightType {
 
     /// java: @Override public String toString()
     pub fn to_string(&self) -> String {
-        // TODO(fabric2seer): call to `name(..)` (not a method of this class)
-        //   java: return I18n.get("skyblocker.config.uiAndVisuals.teleportOverlay.highlightType." + name());
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        return mcrust::net::minecraft::client::resources::language::i18n::get(&format!("skyblocker.config.uiAndVisuals.teleportOverlay.highlightType.{}", self.name()), &[]);
     }
 
 }
 
 impl std::fmt::Display for HighlightType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", HighlightType::to_string(*self))
+        write!(f, "{}", HighlightType::to_string(self))
     }
 }
 
@@ -1236,19 +1246,13 @@ pub struct CompactDamage {
 impl CompactDamage {
     /// java: the implicit no-argument constructor
     pub fn new() -> Self {
-        // TODO(fabric2seer): the initialiser of `normalDamageColor`: `new` takes 3 argument(s) in the port (`r: i32, g: i32, b: i32`), Java passes 1
-        //   java: public Color normalDamageColor = new Color(0xFFFFFF);
-        // TODO(fabric2seer): the initialiser of `critDamageGradientStart`: `new` takes 3 argument(s) in the port (`r: i32, g: i32, b: i32`), Java passes 1
-        //   java: public Color critDamageGradientStart = new Color(0xFFFF55);
-        // TODO(fabric2seer): the initialiser of `critDamageGradientEnd`: `new` takes 3 argument(s) in the port (`r: i32, g: i32, b: i32`), Java passes 1
-        //   java: public Color critDamageGradientEnd = new Color(0xFF5555);
         let mut this = Self {
             enabled: true,
             precision: 1,
             max_precision: 4,
-            normal_damage_color: Default::default(),
-            crit_damage_gradient_start: Default::default(),
-            crit_damage_gradient_end: Default::default(),
+            normal_damage_color: Color::from_rgb(0xFFFFFF),
+            crit_damage_gradient_start: Color::from_rgb(0xFFFF55),
+            crit_damage_gradient_end: Color::from_rgb(0xFF5555),
         };
         this
     }
@@ -1281,12 +1285,6 @@ pub struct HealthBars {
 impl HealthBars {
     /// java: the implicit no-argument constructor
     pub fn new() -> Self {
-        // TODO(fabric2seer): the initialiser of `fullBarColor`: `new` takes 3 argument(s) in the port (`r: i32, g: i32, b: i32`), Java passes 1
-        //   java: public Color fullBarColor = new Color(0x00FF00);
-        // TODO(fabric2seer): the initialiser of `halfBarColor`: `new` takes 3 argument(s) in the port (`r: i32, g: i32, b: i32`), Java passes 1
-        //   java: public Color halfBarColor = new Color(0xFFFF00);
-        // TODO(fabric2seer): the initialiser of `emptyBarColor`: `new` takes 3 argument(s) in the port (`r: i32, g: i32, b: i32`), Java passes 1
-        //   java: public Color emptyBarColor = new Color(0xFF0000);
         let mut this = Self {
             enabled: false,
             scale: 1.5f32,
@@ -1294,9 +1292,9 @@ impl HealthBars {
             remove_max_health_from_name: true,
             apply_to_health_only_mobs: true,
             hide_full_health: false,
-            full_bar_color: Default::default(),
-            half_bar_color: Default::default(),
-            empty_bar_color: Default::default(),
+            full_bar_color: Color::from_rgb(0x00FF00),
+            half_bar_color: Color::from_rgb(0xFFFF00),
+            empty_bar_color: Color::from_rgb(0xFF0000),
         };
         this
     }
@@ -1315,11 +1313,9 @@ pub struct GyrokineticWandOverlay {
 impl GyrokineticWandOverlay {
     /// java: the implicit no-argument constructor
     pub fn new() -> Self {
-        // TODO(fabric2seer): the initialiser of `gyroOverlayColor`: `new` takes 3 argument(s) in the port (`r: i32, g: i32, b: i32`), Java passes 2
-        //   java: public Color gyroOverlayColor = new Color(0x7F761594, true);
         let mut this = Self {
             gyro_overlay_mode: Mode::Off,
-            gyro_overlay_color: Default::default(),
+            gyro_overlay_color: Color::from_rgba(0x7F761594, true),
         };
         this
     }

@@ -95,24 +95,16 @@ pub struct MoongladeMobs {
 impl MoongladeMobs {
     /// java: the implicit no-argument constructor
     pub fn new() -> Self {
-        // TODO(fabric2seer): the initialiser of `hideonleafGlowColor`: `new` takes 3 argument(s) in the port (`r: i32, g: i32, b: i32`), Java passes 2
-        //   java: public Color hideonleafGlowColor = new Color(DyeColor.YELLOW.getTextColor(), false);
-        // TODO(fabric2seer): the initialiser of `shellwiseGlowColor`: `new` takes 3 argument(s) in the port (`r: i32, g: i32, b: i32`), Java passes 2
-        //   java: public Color shellwiseGlowColor = new Color(DyeColor.ORANGE.getTextColor(), false);
-        // TODO(fabric2seer): the initialiser of `coralotGlowColor`: `new` takes 3 argument(s) in the port (`r: i32, g: i32, b: i32`), Java passes 2
-        //   java: public Color coralotGlowColor = new Color(DyeColor.BLUE.getTextColor(), false);
-        // TODO(fabric2seer): the initialiser of `invisibugGlowColor`: `new` takes 3 argument(s) in the port (`r: i32, g: i32, b: i32`), Java passes 2
-        //   java: public Color invisibugGlowColor = new Color(DyeColor.CYAN.getTextColor(), false);
         let mut this = Self {
             silence_phantoms: true,
             highlight_hideonleaf: true,
-            hideonleaf_glow_color: Default::default(),
+            hideonleaf_glow_color: Color::from_rgba(DyeColor::Yellow.get_text_color(), false),
             highlight_shellwise: true,
-            shellwise_glow_color: Default::default(),
+            shellwise_glow_color: Color::from_rgba(DyeColor::Orange.get_text_color(), false),
             highlight_coralot: true,
-            coralot_glow_color: Default::default(),
+            coralot_glow_color: Color::from_rgba(DyeColor::Blue.get_text_color(), false),
             highlight_invisibug: true,
-            invisibug_glow_color: Default::default(),
+            invisibug_glow_color: Color::from_rgba(DyeColor::Cyan.get_text_color(), false),
         };
         this
     }
@@ -135,15 +127,11 @@ pub struct TorrhusMobs {
 impl TorrhusMobs {
     /// java: the implicit no-argument constructor
     pub fn new() -> Self {
-        // TODO(fabric2seer): the initialiser of `hideonsunHighlightColor`: `new` takes 3 argument(s) in the port (`r: i32, g: i32, b: i32`), Java passes 2
-        //   java: public Color hideonsunHighlightColor = new Color(DyeColor.CYAN.getTextColor(), false);
-        // TODO(fabric2seer): the initialiser of `blueJayHighlightColor`: `new` takes 3 argument(s) in the port (`r: i32, g: i32, b: i32`), Java passes 2
-        //   java: public Color blueJayHighlightColor = new Color(DyeColor.GREEN.getTextColor(), false);
         let mut this = Self {
             highlight_hideonsun: true,
-            hideonsun_highlight_color: Default::default(),
+            hideonsun_highlight_color: Color::from_rgba(DyeColor::Cyan.get_text_color(), false),
             highlight_blue_jay: true,
-            blue_jay_highlight_color: Default::default(),
+            blue_jay_highlight_color: Color::from_rgba(DyeColor::Green.get_text_color(), false),
         };
         this
     }
@@ -168,16 +156,12 @@ pub struct Safari {
 impl Safari {
     /// java: the implicit no-argument constructor
     pub fn new() -> Self {
-        // TODO(fabric2seer): the initialiser of `sparklingCritterHighlightColor`: `new` takes 3 argument(s) in the port (`r: i32, g: i32, b: i32`), Java passes 2
-        //   java: public Color sparklingCritterHighlightColor = new Color(SkyBlockColors.GOLD.getValue(), false);
-        // TODO(fabric2seer): the initialiser of `critterCapsuleHelperColor`: `new` takes 3 argument(s) in the port (`r: i32, g: i32, b: i32`), Java passes 2
-        //   java: public Color critterCapsuleHelperColor = new Color(DyeColor.GREEN.getTextColor(), false);
         let mut this = Self {
             silence_phantoms: true,
             highlight_sparkling_critters: false,
-            sparkling_critter_highlight_color: Default::default(),
+            sparkling_critter_highlight_color: Color::from_rgba(sky_block_colors::GOLD.get().get_value(), false),
             critter_capsule_helper: false,
-            critter_capsule_helper_color: Default::default(),
+            critter_capsule_helper_color: Color::from_rgba(DyeColor::Green.get_text_color(), false),
         };
         this
     }
@@ -196,11 +180,9 @@ pub struct CavernBiome {
 impl CavernBiome {
     /// java: the implicit no-argument constructor
     pub fn new() -> Self {
-        // TODO(fabric2seer): the initialiser of `rockmiteMoundHighlightColor`: `new` takes 3 argument(s) in the port (`r: i32, g: i32, b: i32`), Java passes 2
-        //   java: public Color rockmiteMoundHighlightColor = new Color(DyeColor.LIGHT_BLUE.getTextColor(), false);
         let mut this = Self {
             highlight_rockmite_mounds: true,
-            rockmite_mound_highlight_color: Default::default(),
+            rockmite_mound_highlight_color: Color::from_rgba(DyeColor::LightBlue.get_text_color(), false),
         };
         this
     }
@@ -219,11 +201,9 @@ pub struct ForestBiome {
 impl ForestBiome {
     /// java: the implicit no-argument constructor
     pub fn new() -> Self {
-        // TODO(fabric2seer): the initialiser of `hideonfloorHighlightColor`: `new` takes 3 argument(s) in the port (`r: i32, g: i32, b: i32`), Java passes 2
-        //   java: public Color hideonfloorHighlightColor = new Color(DyeColor.MAGENTA.getTextColor(), false);
         let mut this = Self {
             highlight_hideonfloor: true,
-            hideonfloor_highlight_color: Default::default(),
+            hideonfloor_highlight_color: Color::from_rgba(DyeColor::Magenta.get_text_color(), false),
         };
         this
     }
@@ -248,15 +228,11 @@ pub struct HauntedBiome {
 impl HauntedBiome {
     /// java: the implicit no-argument constructor
     pub fn new() -> Self {
-        // TODO(fabric2seer): the initialiser of `duplicoHighlightColor`: `new` takes 3 argument(s) in the port (`r: i32, g: i32, b: i32`), Java passes 2
-        //   java: public Color duplicoHighlightColor = new Color(DyeColor.RED.getTextColor(), false);
-        // TODO(fabric2seer): the initialiser of `bloodbatHighlightColor`: `new` takes 3 argument(s) in the port (`r: i32, g: i32, b: i32`), Java passes 2
-        //   java: public Color bloodbatHighlightColor = new Color(DyeColor.LIME.getTextColor(), false);
         let mut this = Self {
             highlight_duplico: true,
-            duplico_highlight_color: Default::default(),
+            duplico_highlight_color: Color::from_rgba(DyeColor::Red.get_text_color(), false),
             highlight_bloodbat: true,
-            bloodbat_highlight_color: Default::default(),
+            bloodbat_highlight_color: Color::from_rgba(DyeColor::Lime.get_text_color(), false),
             ignore_slot_locking_for_shining_coins: false,
         };
         this
@@ -294,11 +270,9 @@ pub struct FloorDrops {
 impl FloorDrops {
     /// java: the implicit no-argument constructor
     pub fn new() -> Self {
-        // TODO(fabric2seer): the initialiser of `floorDropHighlightColor`: `new` takes 3 argument(s) in the port (`r: i32, g: i32, b: i32`), Java passes 2
-        //   java: public Color floorDropHighlightColor = new Color(DyeColor.ORANGE.getTextureDiffuseColor(), false);
         let mut this = Self {
             highlight_floor_drops: true,
-            floor_drop_highlight_color: Default::default(),
+            floor_drop_highlight_color: Color::from_rgba(DyeColor::Orange.get_texture_diffuse_color(), false),
         };
         this
     }

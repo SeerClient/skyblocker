@@ -6,6 +6,8 @@ use crate::de::hysky::skyblocker::config::skyblocker_config_manager::SkyblockerC
 use crate::de::hysky::skyblocker::skyblock::foraging::abstract_block_highlighter::AbstractBlockHighlighter;
 use crate::de::hysky::skyblocker::skyblock::foraging::abstract_block_highlighter::AbstractBlockHighlighterBase;
 use crate::de::hysky::skyblocker::utils::utils::Utils;
+use crate::de::hysky::skyblocker::utils::color_utils::ColorUtils;
+use mcrust::net::minecraft::world::item::dye_color::DyeColor;
 use mcrust::net::minecraft::client::multiplayer::client_level::ClientLevel;
 use mcrust::net::minecraft::core::block_pos::BlockPos;
 use mcrust::net::minecraft::world::level::block::block::Block;
@@ -38,16 +40,24 @@ impl std::ops::DerefMut for HoneyhiveHighlighter {
 impl HoneyhiveHighlighter {
     /// java: private HoneyhiveHighlighter()
     pub fn new() -> compat::Shared<Self> {
-        let mut pos_predicate: Arc<dyn Fn(ClientLevel, BlockPos) -> bool> = Arc::new(move |level, pos| !(level.get_block_state_typed(&pos.above()).is_block(&blocks::blocks().get("birch_fence"))));
-        // TODO(fabric2seer): static `BeehiveBlock.HONEY_LEVEL` has no Rust counterpart in the port's BeehiveBlock file
-        // TODO(fabric2seer): static `BeehiveBlock.MAX_HONEY_LEVELS` has no Rust counterpart in the port's BeehiveBlock file
-        // rust: let mut state_predicate: Arc<dyn Fn(Arc<BlockState>) -> bool> = Arc::new(move |state| (state.is_block(&blocks::blocks().get("bee_nest")) && state.base.holder.get_nullable_value(&Block::HONEY_LEVEL).clone().unwrap_or(0) == Block::MAX_HONEY_LEVELS));
-        let mut state_predicate: Arc<dyn Fn(Arc<BlockState>) -> bool> = todo!("fabric2seer: the initialiser of `statePredicate` (TODO above)");
-        // TODO(fabric2seer): super(..) with 0 argument(s)
-        //   java:
-        let __this: compat::Shared<Self> = todo!("constructor");
-        // TODO(fabric2seer): super statement
-        //   java: super(posPredicate, statePredicate, ColorUtils.getFloatComponents(DyeColor.BLUE.getTextColor()));
+        // Beehives attached to protected trees aren't Honeyhives and can be identifed since they're attached above via a Birch Fence
+        let mut pos_predicate: Arc<dyn Fn(&ClientLevel, BlockPos) -> bool> = Arc::new(move |level: &ClientLevel, pos: BlockPos| !(level.get_block_state_typed(&pos.above()).is_block(&blocks::blocks().get("birch_fence"))));
+        // java: state -> state.is(Blocks.BEE_NEST) && state.getValueOrElse(BeehiveBlock.HONEY_LEVEL, 0) == BeehiveBlock.MAX_HONEY_LEVELS
+        // (`BeehiveBlock.HONEY_LEVEL` is `BlockStateProperties.LEVEL_HONEY`; `MAX_HONEY_LEVELS` is BeehiveBlock:68's 5,
+        // which the port's beehive_block.rs does not declare - rust: port gap)
+        let mut state_predicate: Arc<dyn Fn(&BlockState) -> bool> = Arc::new(move |state: &BlockState| {
+            use mcrust::net::minecraft::world::level::block::state::properties::property::Comparable;
+            const MAX_HONEY_LEVELS: i32 = 5;
+            state.is_block(&blocks::blocks().get("bee_nest"))
+                && state.get_value_or_else(&mcrust::net::minecraft::world::level::block::state::properties::block_state_properties::level_honey(), Comparable::Integer(0)) == Comparable::Integer(MAX_HONEY_LEVELS)
+        });
+        // java: super(posPredicate, statePredicate, ColorUtils.getFloatComponents(DyeColor.BLUE.getTextColor()));
+        let (_, __this) = AbstractBlockHighlighterBase::new_3_in(pos_predicate, state_predicate, ColorUtils::get_float_components(DyeColor::Blue.get_text_color()), move |__base| {
+            let __h = compat::shared(Self {
+                base: __base,
+            });
+            ((__h.clone() as compat::Shared<dyn AbstractBlockHighlighter>), __h)
+        });
         __this
     }
 

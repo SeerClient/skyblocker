@@ -27,6 +27,7 @@ use mcrust::net::minecraft::util::formatted_char_sequence::Seq;
 use mcrust::net::minecraft::world::item::component::resolvable_profile::ResolvableProfile;
 use mcrust::net::minecraft::network::chat::component::Component as _;
 use mcrust::net::minecraft::server::packs::resources::resource_provider::ResourceProvider as _;
+use mcrust::com::mojang::serialization::decoder::Decoder as _;
 
 /// java: private static final Component TITLE = Component.literal("Skyblocker Credits");
 pub static TITLE: compat::MainThread<MutableComponent> = compat::MainThread::new(|| component::literal("Skyblocker Credits"));
@@ -37,7 +38,7 @@ pub static LOGO: compat::MainThread<Identifier> = compat::MainThread::new(|| cra
 /// java: private static final Identifier VIGNETTE = Identifier.withDefaultNamespace("textures/misc/credits_vignette.png");
 pub static VIGNETTE: compat::MainThread<Identifier> = compat::MainThread::new(|| Identifier::with_default_namespace("textures/misc/credits_vignette.png"));
 /// java: private static final Music SKYBLOCKER_CREDITS_MUSIC = new Music(SoundEvents.MUSIC_DISC_CREATOR, 0, 0, true);
-pub static SKYBLOCKER_CREDITS_MUSIC: compat::MainThread<Music> = compat::MainThread::new(|| Music::new(mcrust::net::minecraft::sounds::sound_events::music_disc_creator(), 0, 0, true));
+pub static SKYBLOCKER_CREDITS_MUSIC: compat::MainThread<Music> = compat::MainThread::new(|| Music::new(&mcrust::net::minecraft::sounds::sound_events::music_disc_creator().location().to_string(), 0, 0, true));
 /// java: private static final Component SECTION_HEADING = Component.literal("================").withStyle(ChatFormatting.WHITE);
 pub static SECTION_HEADING: compat::MainThread<MutableComponent> = compat::MainThread::new(|| (component::literal("================")).with_style_format(ChatFormatting::White));
 /// java: private static final float SPEEDUP_FACTOR = 5f;
@@ -54,7 +55,7 @@ pub const UNMODIFIED_SCROLL_SPEED: f32 = 0.75f32;
 //   java: 				Library.CODEC.listOf().fieldOf("libraries").forGetter(Credits::libraries)
 //   java: 				).apply(instance, Credits::new));
 /// java: private static final Codec<Credits> CODEC = RecordCodecBuilder.create(instance -> instance.group( Author.CODEC.listOf().fieldOf("authors").forGetter(Credits::authors), Codec.STRING.listOf().fieldOf("c
-pub static CREDITS_CODEC: compat::MainThread<CodecRef<Credits>> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `CODEC` - see the TODO above"));
+pub static CREDITS_CODEC: compat::MainThread<CodecRef<Credits>> = compat::MainThread::new(|| record_codec_builder::create(record_codec_builder::apply4(record_codec_builder::of(|o: &Credits| o.authors(), codec::field_of(codec::list(AUTHOR_CODEC.get().clone()), "authors")), record_codec_builder::of(|o: &Credits| o.creative_team(), codec::field_of(codec::list(mcrust::com::mojang::serialization::codec::string_codec()), "creativeTeam")), record_codec_builder::of(|o: &Credits| o.translations(), codec::field_of(codec::list(TRANSLATION_CODEC.get().clone()), "translations")), record_codec_builder::of(|o: &Credits| o.libraries(), codec::field_of(codec::list(LIBRARY_CODEC.get().clone()), "libraries")), move |__a0, __a1, __a2, __a3| Credits::new(__a0.clone(), __a1.clone(), __a2.clone(), __a3.clone()))));
 /// java: private static final Credits EMPTY = new Credits(List.of(new Author("Error", UUID.fromString("647ffd4c-f99c-4b06-a8f8-66cf1a587e57"), CommonColors.RED)), List.of(), List.of(), List.of());
 pub static CREDITS_EMPTY: compat::MainThread<Credits> = compat::MainThread::new(|| Credits::new(vec![Author::new("Error".to_string(), Uuid::from_string("647ffd4c-f99c-4b06-a8f8-66cf1a587e57").unwrap(), mcrust::net::minecraft::util::common_colors::RED)], vec![], vec![], vec![]));
 /// java: private static final Codec<Author> CODEC = RecordCodecBuilder.create(instance -> instance.group( Codec.STRING.fieldOf("name").forGetter(Author::name), UUIDUtil.STRING_CODEC.fieldOf("uuid").forGetter(A
@@ -66,7 +67,34 @@ pub static AUTHOR_CODEC: compat::MainThread<CodecRef<Author>> = compat::MainThre
 //   java: 				CodecUtils.sortedListCodec(Codec.STRING, String::compareToIgnoreCase).fieldOf("translators").forGetter(Translation::translators)
 //   java: 				).apply(instance, Translation::new));
 /// java: private static final Codec<Translation> CODEC = RecordCodecBuilder.create(instance -> instance.group( Codec.STRING.fieldOf("code").forGetter(Translation::code), Codec.STRING.fieldOf("name").forGetter(
-pub static TRANSLATION_CODEC: compat::MainThread<CodecRef<Translation>> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `CODEC` - see the TODO above"));
+pub static TRANSLATION_CODEC: compat::MainThread<CodecRef<Translation>> = compat::MainThread::new(|| record_codec_builder::create(record_codec_builder::apply3(record_codec_builder::of(|o: &Translation| o.code(), codec::field_of(mcrust::com::mojang::serialization::codec::string_codec(), "code")), record_codec_builder::of(|o: &Translation| o.name(), codec::field_of(mcrust::com::mojang::serialization::codec::string_codec(), "name")), record_codec_builder::of(|o: &Translation| o.translators(), codec::field_of(crate::de::hysky::skyblocker::utils::codec_utils::CodecUtils::sorted_list_codec(&mcrust::com::mojang::serialization::codec::string_codec(), Arc::new(|a: &String, b: &String| compare_to_ignore_case(a, b))), "translators")), move |__a0, __a1, __a2| Translation::new(__a0.clone(), __a1.clone(), __a2.clone()))));
+
+/// java: `String.compareToIgnoreCase` - each UTF-16 unit pair compared through `toUpperCase` then `toLowerCase`,
+/// then the lengths.
+fn compare_to_ignore_case(a: &str, b: &str) -> std::cmp::Ordering {
+    let fold = |u: u16| -> u32 {
+        match char::from_u32(u as u32) {
+            Some(c) => {
+                let up = c.to_uppercase().next().unwrap_or(c);
+                let up = if up.len_utf16() == 1 { up } else { c };
+                let low = up.to_lowercase().next().unwrap_or(up);
+                if low.len_utf16() == 1 { low as u32 } else { up as u32 }
+            }
+            None => u as u32,
+        }
+    };
+    let au: Vec<u16> = a.encode_utf16().collect();
+    let bu: Vec<u16> = b.encode_utf16().collect();
+    for (x, y) in au.iter().zip(bu.iter()) {
+        if x != y {
+            let (fx, fy) = (fold(*x), fold(*y));
+            if fx != fy {
+                return fx.cmp(&fy);
+            }
+        }
+    }
+    au.len().cmp(&bu.len())
+}
 /// java: private static final Codec<Library> CODEC = RecordCodecBuilder.create(instance -> instance.group( Codec.STRING.fieldOf("name").forGetter(Library::name), Codec.STRING.fieldOf("credit").forGetter(Librar
 pub static LIBRARY_CODEC: compat::MainThread<CodecRef<Library>> = compat::MainThread::new(|| record_codec_builder::create(record_codec_builder::apply2(record_codec_builder::of(|o: &Library| o.name(), codec::field_of(mcrust::com::mojang::serialization::codec::string_codec(), "name")), record_codec_builder::of(|o: &Library| o.credit(), codec::field_of(mcrust::com::mojang::serialization::codec::string_codec(), "credit")), move |__a0, __a1| Library::new(__a0.clone(), __a1.clone()))));
 
@@ -79,7 +107,7 @@ pub struct SkyblockerCreditsScreen {
     /// java: private final List<FormattedCharSequence> lines = new ArrayList<>();
     pub lines: Vec<Seq>,
     /// java: private final List<Component> narratorComponents = new ArrayList<>();
-    pub narrator_components: Vec<MutableComponent>,
+    pub narrator_components: Vec<mcrust::net::minecraft::network::chat::formatted_text::FormattedText>,
     /// java: private final IntSet centredLines = new IntOpenHashSet();
     pub centred_lines: std::collections::HashSet<i32>,
     /// java: private int totalScrollLength;
@@ -116,7 +144,7 @@ impl SkyblockerCreditsScreen {
     pub fn new(mut parent: Option<mcrust::net::minecraft::client::gui::screens::screen::Screen>) -> compat::Shared<Self> {
         let __init_direction = 1;
         let __init_scroll_speed = UNMODIFIED_SCROLL_SPEED;
-        let __init_parent = parent.clone();
+        let __init_parent = parent;
         let __this = compat::shared(Self {
             base: mcrust::net::minecraft::client::gui::screens::screen::Screen::new(TITLE.get_mut().get_string()),
             __widgets: Default::default(),
@@ -274,11 +302,13 @@ impl SkyblockerCreditsScreen {
     /// java: private Credits readCreditsFile()
     pub fn read_credits_file(__this: &compat::Shared<Self>) -> Credits {
         {
-            let mut reader: crate::unresolved::BufferedReader = compat::minecraft().get_resource_manager().open_as_reader(CREDITS_FILE.get_mut()).unwrap();
-            // java: try {..} catch (Exception e) - an exception here is a panic, caught by `catch_unwind`; the body's `return` is the closure's value
+            // java: try (BufferedReader reader = this.minecraft.getResourceManager().openAsReader(CREDITS_FILE)) {..} catch (Exception e) -
+            // an exception here (the open, the parse, `getOrThrow`) is a panic, caught by `catch_unwind`; the body's `return` is the closure's value
             match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                // TODO(fabric2seer): static call JsonParser.parseReader(..)
-                //   java: return Credits.CODEC.parse(JsonOps.INSTANCE, JsonParser.parseReader(reader)).getOrThrow();
+                let reader: String = compat::minecraft().get_resource_manager().open_as_reader(CREDITS_FILE.get()).unwrap_or_else(|e| panic!("IOException: {e}"));
+                // java: return Credits.CODEC.parse(JsonOps.INSTANCE, JsonParser.parseReader(reader)).getOrThrow();
+                let json: serde_json::Value = serde_json::from_str(&reader).unwrap_or_else(|e| panic!("JsonSyntaxException: {e}"));
+                return CREDITS_CODEC.get().parse(&mcrust::com::mojang::serialization::json_ops::JsonOps::instance(), &compat::json_to_port(&json)).get_or_throw().unwrap_or_else(|e| panic!("IllegalStateException: {e}"));
             })) {
                 Ok(__v) => return __v,
                 Err(e) => {
@@ -286,7 +316,7 @@ impl SkyblockerCreditsScreen {
                 }
             }
         }
-        return CREDITS_EMPTY.get_mut().clone();
+        return CREDITS_EMPTY.get().clone();
     }
 
     /// java: private void addEmptyLine()
@@ -306,7 +336,7 @@ impl SkyblockerCreditsScreen {
         let __h0 = text.get_visual_order_text();
         __this.lock().borrow_mut().lines.push(__h0);
         if narratable {
-            let __h0 = text.clone();
+            let __h0 = mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(text.clone());
             __this.lock().borrow_mut().narrator_components.push(__h0);
         }
     }
@@ -332,12 +362,12 @@ impl SkyblockerCreditsScreen {
                 }
             }
             if ((((y_pos as f32) + y_offs) + 12.0f32) + 8.0f32) > 0.0f32 && ((y_pos as f32) + y_offs) < (compat::read(__this, |__t| __t.height) as f32) {
-                let line = &__this.lock().borrow().lines[(i) as usize];
-                if __this.lock().borrow().centred_lines.contains(&i) {
-                    // TODO(fabric2seer): `GuiGraphicsExtractor.centeredText` has no Rust method in the port (looked for `centered_text` in GuiGraphicsExtractor and its supertypes)
-                    // rust: graphics.centered_text(&compat::font(), line, logo_x.wrapping_add(128), y_pos, mcrust::net::minecraft::util::common_colors::WHITE);
+                let line: Seq = compat::read(__this, |__t| __t.lines[(i) as usize].clone());
+                if compat::read(__this, |__t| __t.centred_lines.contains(&i)) {
+                    // java: graphics.centeredText(this.font, line, logoX + 128, yPos, CommonColors.WHITE);
+                    gui_graphics_extractor::centered_text(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), &sequence_text(&*line), logo_x.wrapping_add(128), y_pos, mcrust::net::minecraft::util::common_colors::WHITE);
                 } else {
-                    gui_graphics_extractor::draw_formatted_char_sequence(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), line, logo_x, y_pos, mcrust::net::minecraft::util::common_colors::WHITE);
+                    gui_graphics_extractor::draw_formatted_char_sequence(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), &sequence_text(&*line), logo_x, y_pos, mcrust::net::minecraft::util::common_colors::WHITE);
                 }
             }
             y_pos = y_pos.wrapping_add(12);
@@ -439,6 +469,25 @@ impl ModScreen for compat::ScreenAdapter<SkyblockerCreditsScreen> {
 
 // NOTE(fabric2seer): extractMenuBackground, extractRenderState, getBackgroundMusic, getNarrationMessage, init, keyPressed, keyReleased, onClose, removed, tick override(s) of Screen - the port dispatches its own calls, so these run only where the mod calls them; hook the port's method to make the game call them
 
+/// The port draws a `FormattedText` where Java draws a `FormattedCharSequence`: the sequence's styled
+/// characters, gathered back into runs of one style each.
+fn sequence_text(seq: &dyn FormattedCharSequence) -> mcrust::net::minecraft::network::chat::formatted_text::FormattedText {
+    use mcrust::net::minecraft::network::chat::formatted_text::FormattedText;
+    use mcrust::net::minecraft::network::chat::style::Style;
+    let mut runs: Vec<(Style, String)> = Vec::new();
+    seq.accept(&mut |_position: i32, style: &Style, codepoint: u32| {
+        if let Some(c) = char::from_u32(codepoint) {
+            match runs.last_mut() {
+                Some((s, text)) if s == style => text.push(c),
+                _ => runs.push((style.clone(), c.to_string())),
+            }
+        }
+        true
+    });
+    FormattedText::composite(runs.into_iter().map(|(style, text)| FormattedText::of_styled(text, style)).collect())
+}
+
+
 /// java: private record Credits(List<Author> authors, List<String> creativeTeam, List<Translation> translations, List<Library> libraries)
 #[derive(Clone, Debug, PartialEq)]
 pub struct Credits {
@@ -517,7 +566,7 @@ impl Author {
         let mut profile: ResolvableProfile = ResolvableProfile::create_unresolved_id(self.uuid.clone()).unwrap();
         // TODO(fabric2seer): `Minecraft.playerSkinRenderCache` has no Rust method in the port (looked for `player_skin_render_cache` in Minecraft and its supertypes)
         // rust: compat::minecraft().player_skin_render_cache().lookup(&profile);
-        return (component::empty().append(component::object(PlayerSprite::new(profile, true)))).append((component::literal(&format!(" {}", self.name))).with_color(self.colour));
+        return (component::empty().append(component::object(Arc::new(PlayerSprite::new(profile, true))))).append((component::literal(&format!(" {}", self.name))).with_color(self.colour));
     }
 
 }

@@ -2,28 +2,35 @@
 
 #[allow(unused_imports)]
 use crate::prelude::*;
+use mcrust::net::minecraft::network::chat::component::Component as _;
 use crate::de::hysky::skyblocker::skyblock::shortcut::shortcut_key_binding::ShortcutKeyBinding;
 use mcrust::com::mojang::blaze3d::platform::input_constants;
+use mcrust::mcrust::modding::widgets::ModWidget;
+use mcrust::mcrust::modding::widgets::WidgetRenderContext;
 use mcrust::net::minecraft::client::gui::components::abstract_widget::AbstractWidget;
 use mcrust::net::minecraft::client::gui::components::abstract_widget::OnPress;
-use mcrust::net::minecraft::client::gui::components::abstract_widget::PressLambda;
+use mcrust::net::minecraft::client::gui::components::abstract_widget::WidgetKind;
 use mcrust::net::minecraft::client::gui::components::button::CreateNarration;
-use mcrust::net::minecraft::client::gui::gui_graphics_extractor::GuiGraphicsExtractor;
-use mcrust::net::minecraft::client::input::input_with_modifiers::InputWithModifiers;
+use mcrust::net::minecraft::client::gui::narration::narration_element_output::NarrationElementOutput;
+use mcrust::net::minecraft::client::input::key_event::KeyEvent;
 use mcrust::net::minecraft::client::input::mouse_button_event::MouseButtonEvent;
 use mcrust::net::minecraft::network::chat::mutable_component::MutableComponent;
-use mcrust::net::minecraft::client::gui::components::events::gui_event_listener::GuiEventListener as _;
 
 /// java: public class KeybindWidget extends Button
 pub struct KeybindWidget {
-    /// java: extends net.minecraft.client.gui.components.Button
+    /// java: extends net.minecraft.client.gui.components.Button - the widget half (x, y, size, message, active,
+    /// tooltip, narration supplier), lent by the game for each call (`compat::WidgetAdapter`)
     pub base: AbstractWidget,
-    /// java: private final ShortcutKeyBinding keyBinding;
-    pub key_binding: Option<compat::Shared<ShortcutKeyBinding>>,
+    /// java: private final ShortcutKeyBinding keyBinding; - the SAME object the list row holds
+    pub key_binding: compat::Shared<ShortcutKeyBinding>,
     /// java: private final Runnable updateListener;
-    pub update_listener: Option<Arc<dyn Fn()>>,
+    pub update_listener: Arc<dyn Fn()>,
     /// java: private boolean editing;
     pub editing: bool,
+    /// `Button.onPress` - the `OnPress` the constructor was given (the no-op `_ -> {}` of the shorter ones)
+    pub on_press: Arc<dyn Fn()>,
+    /// `extractDefaultSprite` + `extractDefaultLabel`, drawn by the game's own button pass
+    pub look: compat::ButtonLook,
 }
 
 impl std::ops::Deref for KeybindWidget {
@@ -41,27 +48,29 @@ impl std::ops::DerefMut for KeybindWidget {
 
 impl KeybindWidget {
     /// java: protected KeybindWidget(ShortcutKeyBinding keyBinding, int x, int y, int width, int height, Component message, Runnable updateListener)
-    pub fn new(mut key_binding: compat::Shared<ShortcutKeyBinding>, mut x: i32, mut y: i32, mut width: i32, mut height: i32, mut message: MutableComponent, update_listener: Arc<dyn Fn()>) -> Self {
-        let mut this = Self::new_8(key_binding.clone(), x, y, width, height, message.clone(), DEFAULT_NARRATION, update_listener.clone());
-        this
+    pub fn new(key_binding: compat::Shared<ShortcutKeyBinding>, x: i32, y: i32, width: i32, height: i32, message: MutableComponent, update_listener: Arc<dyn Fn()>) -> compat::Shared<Self> {
+        // java: this(keyBinding, x, y, width, height, message, DEFAULT_NARRATION, updateListener);
+        Self::new_8(key_binding, x, y, width, height, message, CreateNarration::Default, update_listener)
     }
 
     /// java: protected KeybindWidget(ShortcutKeyBinding keyBinding, int x, int y, int width, int height, Component message, CreateNarration narrationSupplier, Runnable updateListener)
-    pub fn new_8(mut key_binding: compat::Shared<ShortcutKeyBinding>, mut x: i32, mut y: i32, mut width: i32, mut height: i32, mut message: MutableComponent, mut narration_supplier: CreateNarration, update_listener: Arc<dyn Fn()>) -> Self {
-        let mut this = Self::new_9(key_binding.clone(), x, y, width, height, message.clone(), OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| {
-
-        })), narration_supplier, update_listener.clone());
-        this
+    pub fn new_8(key_binding: compat::Shared<ShortcutKeyBinding>, x: i32, y: i32, width: i32, height: i32, message: MutableComponent, narration_supplier: CreateNarration, update_listener: Arc<dyn Fn()>) -> compat::Shared<Self> {
+        // java: this(keyBinding, x, y, width, height, message, _ -> {}, narrationSupplier, updateListener);
+        Self::new_9(key_binding, x, y, width, height, message, Arc::new(|| {}), narration_supplier, update_listener)
     }
 
     /// java: protected KeybindWidget(ShortcutKeyBinding keyBinding, int x, int y, int width, int height, Component message, OnPress onPress, CreateNarration narrationSupplier, Runnable updateListener)
-    pub fn new_9(mut key_binding: compat::Shared<ShortcutKeyBinding>, mut x: i32, mut y: i32, mut width: i32, mut height: i32, mut message: MutableComponent, mut on_press: OnPress, mut narration_supplier: CreateNarration, update_listener: Arc<dyn Fn()>) -> Self {
-        let __init_key_binding = Some(key_binding.clone());
-        let __init_update_listener = Some(update_listener.clone());
-        // TODO(fabric2seer): `new Button(..)`: the port has no `Button::new`
-        //   java: super(x, y, width, height, message, onPress, narrationSupplier);
-        let mut this: Self = todo!("constructor");
-        this
+    pub fn new_9(key_binding: compat::Shared<ShortcutKeyBinding>, x: i32, y: i32, width: i32, height: i32, message: MutableComponent, on_press: Arc<dyn Fn()>, narration_supplier: CreateNarration, update_listener: Arc<dyn Fn()>) -> compat::Shared<Self> {
+        // java: super(x, y, width, height, message, onPress, narrationSupplier);
+        let mut base = AbstractWidget::new(x, y, width, height, message.get_string(), WidgetKind::Button, OnPress::Inert);
+        base.message_text = Some(mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(message));
+        base.create_narration = narration_supplier;
+        compat::shared(Self { base, key_binding, update_listener, editing: false, on_press, look: compat::ButtonLook::new() })
+    }
+
+    /// `new KeybindWidget(..)` handed to the game (`List.of(keybindButton, replacement)` - the row's children)
+    pub fn widget(this: compat::Shared<Self>) -> AbstractWidget {
+        compat::WidgetAdapter::widget(this)
     }
 
     /// java: public boolean isEditing()
@@ -71,60 +80,113 @@ impl KeybindWidget {
 
     /// java: public boolean stopEditing()
     pub fn stop_editing(&mut self) -> bool {
-        let mut was_editing: bool = self.editing;
+        let was_editing: bool = self.editing;
         self.editing = false;
         return was_editing;
     }
 
     /// java: @Override public void onPress(InputWithModifiers input)
-    pub fn on_press(&mut self, input: &dyn InputWithModifiers) {
+    pub fn on_press(&mut self) {
         self.editing = true;
-        ShortcutKeyBinding::clear_bound_keys(self.key_binding.as_ref().unwrap());
-        (self.update_listener.as_ref().unwrap())();
-        // TODO(fabric2seer): `Button.onPress` has no Rust method in the port (looked for `on_press` in Button and its supertypes)
-        // rust: self.base.on_press(input);
+        compat::write(&self.key_binding, |k| k.clear_bound_keys());
+        (self.update_listener)();
+        // java: super.onPress(input);
+        (self.on_press)();
     }
 
     /// java: @Override public boolean mouseClicked(MouseButtonEvent click, boolean doubled)
-    pub fn mouse_clicked(&mut self, click: &MouseButtonEvent, mut doubled: bool) -> bool {
+    pub fn mouse_clicked(&mut self, click: &MouseButtonEvent, doubled: bool) -> Option<bool> {
         if self.editing {
-            // TODO(fabric2seer): field `MOUSE` of a value of unknown type
-            //   java: keyBinding.addBoundKey(InputConstants.Type.MOUSE.getOrCreate(click.button()));
-            (self.update_listener.as_ref().unwrap())();
-            return true;
+            compat::write(&self.key_binding, |k| k.add_bound_key(input_constants::Type::Mouse.get_or_create(click.button())));
+            (self.update_listener)();
+            return Some(true);
         }
-        // TODO(fabric2seer): `mouse_clicked` takes 3 argument(s) in the port (`button: i32, x: f64, y: f64`), Java passes 2
-        // rust: return self.base.mouse_clicked(click.clone(), doubled).is_some();
-        return todo!("fabric2seer: see the TODO above");
+        // java: return super.mouseClicked(click, doubled); - the base body (`None`), which reaches `onClick` -> `onPress`
+        let _ = doubled;
+        return None;
     }
 
     /// java: @Override public boolean keyPressed(KeyEvent input)
-    pub fn key_pressed(&mut self, input: &mcrust::net::minecraft::client::input::key_event::KeyEvent) -> bool {
+    pub fn key_pressed(&mut self, input: &KeyEvent) -> Option<bool> {
         if self.editing {
             if input.is_escape() {
-                ShortcutKeyBinding::add_bound_key(self.key_binding.as_ref().unwrap(), mcrust::com::mojang::blaze3d::platform::input_constants::unknown());
+                // This should never happen because ESC is handled in ShortcutsConfigScreen#keyPressed
+                compat::write(&self.key_binding, |k| k.add_bound_key(input_constants::unknown()));
             } else {
-                // TODO(fabric2seer): the port's `get_key_from_event` ports this Java method with other parameters (key, scancode for Java's event)
-                // TODO(fabric2seer): `get_key_from_event` takes 2 argument(s) in the port (`key: i32, scancode: i32`), Java passes 1
-                // rust: ShortcutKeyBinding::add_bound_key(self.key_binding.as_ref().unwrap(), input_constants::get_key_from_event(input.clone()));
+                // java: InputConstants.getKey(input)
+                compat::write(&self.key_binding, |k| k.add_bound_key(input_constants::get_key_from_event(input.key, input.scancode)));
             }
-            (self.update_listener.as_ref().unwrap())();
-            return true;
+            (self.update_listener)();
+            return Some(true);
         }
-        // TODO(fabric2seer): `key_pressed` takes 3 argument(s) in the port (`_key: i32, _scancode: i32, _modifiers: i32`), Java passes 1
-        // TODO(fabric2seer): `key_pressed` is a method of the port's trait `GuiEventListener`, which the port's `AbstractWidget` does not implement
-        // rust: return self.base.key_pressed(input.clone());
-        return todo!("fabric2seer: see the TODO above");
+        // java: return super.keyPressed(input); - `AbstractButton.keyPressed`, the base body (`None`)
+        return None;
     }
-
-    /// java: @Override protected void extractContents(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a)
-    pub fn extract_contents(&self, graphics: &GuiGraphicsExtractor, mut mouse_x: i32, mut mouse_y: i32, mut a: f32) {
-        // TODO(fabric2seer): `Button.extractDefaultSprite` has no Rust method in the port (looked for `extract_default_sprite` in Button and its supertypes)
-        // rust: self.extract_default_sprite(graphics);
-        // TODO(fabric2seer): field `NONE` of a value of unknown type
-        //   java: this.extractDefaultLabel(graphics.textRenderer(GuiGraphicsExtractor.HoveredTextEffects.NONE));
-    }
-
 }
 
-// NOTE(fabric2seer): extractContents, keyPressed, mouseClicked, onPress override(s) of Button - the port dispatches its own calls, so these run only where the mod calls them; hook the port's method to make the game call them
+/// KeybindWidget's widget half (`super`'s fields: x, y, size, message, ...), lent by the game for each call
+impl compat::WidgetHalf for KeybindWidget {
+    fn widget_half(&mut self) -> &mut AbstractWidget {
+        &mut self.base
+    }
+}
+
+/// KeybindWidget as the game's widget: `KeybindWidget::widget(handle)` where Java hands it on
+impl ModWidget for compat::WidgetAdapter<KeybindWidget> {
+    /// java: @Override protected void extractContents(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a)
+    /// - `extractDefaultSprite(graphics)` + `extractDefaultLabel(..)`
+    fn extract_widget_render_state(&mut self, widget: &AbstractWidget, context: &mut WidgetRenderContext<'_>, mouse_x: i32, mouse_y: i32, _a: f32) {
+        self.lend_ref(widget, |__h| compat::write(__h, |t| t.look.draw(widget, context, mouse_x, mouse_y)))
+    }
+
+    /// `Button.updateWidgetNarration` - `defaultButtonNarrationText`
+    fn update_widget_narration(&mut self, widget: &AbstractWidget, output: &mut dyn NarrationElementOutput) {
+        widget.default_button_narration_text(output);
+    }
+
+    /// `AbstractButton.onClick` -> `onPress(input)`
+    fn on_click(&mut self, widget: &mut AbstractWidget, _event: &MouseButtonEvent, _double_click: bool) {
+        self.lend(widget, |__h| compat::write(__h, |t| t.on_press()))
+    }
+
+    /// java: @Override public boolean mouseClicked(MouseButtonEvent click, boolean doubled)
+    fn mouse_clicked(&mut self, widget: &mut AbstractWidget, event: &MouseButtonEvent, double_click: bool) -> bool {
+        match self.lend(widget, |__h| compat::write(__h, |t| t.mouse_clicked(event, double_click))) {
+            Some(answer) => answer,
+            // super.mouseClicked: `AbstractWidget.mouseClicked`'s base body
+            None => {
+                if !widget.is_active() {
+                    return false;
+                }
+                if self.is_valid_click_button(event.button_info()) && self.is_mouse_over(widget, event.x(), event.y()) {
+                    self.on_click(widget, event, double_click);
+                    true
+                } else {
+                    false
+                }
+            }
+        }
+    }
+
+    /// java: @Override public boolean keyPressed(KeyEvent input)
+    fn key_pressed(&mut self, widget: &mut AbstractWidget, event: &KeyEvent) -> bool {
+        match self.lend(widget, |__h| compat::write(__h, |t| t.key_pressed(event))) {
+            Some(answer) => answer,
+            // super.keyPressed: `AbstractButton.keyPressed:63-72` - an active button presses on Enter / Space / keypad Enter
+            None => {
+                if mcrust::net::minecraft::client::gui::components::abstract_button::key_activates(widget.active, event.is_selection()) {
+                    // `:68`'s `playDownSound` - rust: port gap (a mod widget's key path has no sound manager to play it on)
+                    self.lend(widget, |__h| compat::write(__h, |t| t.on_press()));
+                    true
+                } else {
+                    false
+                }
+            }
+        }
+    }
+
+    /// `AbstractWidget.handleCursor` - a button's pointer
+    fn handle_cursor(&self, widget: &AbstractWidget, cursors: &mcrust::com::mojang::blaze3d::platform::cursor::cursor_types::CursorTypes) -> Option<mcrust::com::mojang::blaze3d::platform::cursor::cursor_type::CursorType> {
+        widget.handle_cursor(cursors)
+    }
+}

@@ -62,23 +62,27 @@ impl SeaLumiesHighlighter {
     /// java: public void configCallback()
     pub fn config_callback(__this: &compat::Shared<Self>) {
         BlockPosSet::clear(&compat::read(__this, |__t| __t.highlighted_blocks.clone()));
-        let mut world: Option<ClientLevel> = mcrust::mcrust::modding::game::level();
+        let mut world: Option<Arc<ClientLevel>> = mcrust::mcrust::modding::game::level();
         if !({ let __f = compat::dispatch(__this, |__t| __t.should_process()); __f(&compat::view(__this, |a| a as compat::Shared<dyn AbstractBlockHighlighter>)) }) || world.is_none() || !(SeaLumiesHighlighter::is_enabled(__this)) {
             return;
         }
-        for pos in compat::read(__this, |__t| __t.all_blocks.clone()) {
+        for pos in BlockPosSet::iterator(&compat::read(__this, |__t| __t.all_blocks.clone())) {
             let mut state: Arc<BlockState> = world.as_ref().unwrap().get_block_state_typed(&pos);
-            if ((compat::read(__this, |__t| __t.state_predicate.clone()).unwrap()))(state.clone()) && SeaLumiesHighlighter::is_enough_pickles(__this, &state) {
+            if ((compat::read(__this, |__t| __t.state_predicate.clone()).unwrap()))(&*state) && SeaLumiesHighlighter::is_enough_pickles(__this, &state) {
                 BlockPosSet::add(&compat::read(__this, |__t| __t.highlighted_blocks.clone()), &pos);
             }
         }
     }
 
     /// java: private boolean isEnoughPickles(BlockState state)
-    pub fn is_enough_pickles(__this: &compat::Shared<Self>, state: &Arc<BlockState>) -> bool {
-        // TODO(fabric2seer): static `SeaPickleBlock.PICKLES` has no Rust counterpart in the port's SeaPickleBlock file
-        // rust: return (state.has_property(&Block::PICKLES) && state.get_value(&Block::PICKLES) >= SkyblockerConfigManager::get().foraging.moonglade_marsh.sea_lumies_minimum_count);
-        return todo!("fabric2seer: see the TODO above");
+    pub fn is_enough_pickles(__this: &compat::Shared<Self>, state: &BlockState) -> bool {
+        // java: state.hasProperty(SeaPickleBlock.PICKLES) && state.getValue(SeaPickleBlock.PICKLES) >= minimumCount
+        // (`SeaPickleBlock.PICKLES` is `BlockStateProperties.PICKLES`)
+        let __pickles = mcrust::net::minecraft::world::level::block::state::properties::block_state_properties::pickles();
+        return state.has_property(&__pickles) && match state.get_value(&__pickles) {
+            mcrust::net::minecraft::world::level::block::state::properties::property::Comparable::Integer(count) => count >= SkyblockerConfigManager::get().foraging.moonglade_marsh.sea_lumies_minimum_count,
+            other => panic!("SeaPickleBlock.PICKLES is not an integer: {other:?}"),
+        };
     }
 
     /// java: private boolean isEnabled()
@@ -133,7 +137,7 @@ impl SeaLumiesHighlighter {
         if !({ let __f = compat::dispatch(__this, |__t| __t.should_process()); __f(&compat::view(__this, |a| a as compat::Shared<dyn AbstractBlockHighlighter>)) }) {
             return;
         }
-        if ((compat::read(__this, |__t| __t.state_predicate.clone()).unwrap()))(new_state.clone()) {
+        if ((compat::read(__this, |__t| __t.state_predicate.clone()).unwrap()))(&**new_state) {
             BlockPosSet::add(&compat::read(__this, |__t| __t.all_blocks.clone()), &pos);
             if SeaLumiesHighlighter::is_enabled(__this) && SeaLumiesHighlighter::is_enough_pickles(__this, new_state) {
                 BlockPosSet::add(&compat::read(__this, |__t| __t.highlighted_blocks.clone()), &pos);
@@ -155,16 +159,12 @@ impl SeaLumiesHighlighter {
             return;
         }
         let mut iterator = BlockPosSet::iterator(&compat::read(__this, |__t| __t.all_blocks.clone()));
-        // TODO(fabric2seer): the condition: Iterator.hasNext - use a `for` loop / `while let Some(x) = it.next()`
-        //   java: iterator.hasNext(..)
-        while todo!("fabric2seer: the condition (TODO above)") {
+        while iterator.has_next() {
             let mut pos: BlockPos = iterator.next().unwrap();
-            // TODO(fabric2seer): `ClientLevel.getChunk` has no Rust method in the port (looked for `get_chunk` in ClientLevel and its supertypes)
-            // rust: let mut holder: ChunkAccess = world.get_chunk(&pos);
-            let mut holder: ChunkAccess = todo!("fabric2seer: the initialiser of `holder` (TODO above)");
-            if std::ptr::eq(&holder, chunk) {
-                // TODO(fabric2seer): Stream.remove
-                //   java: iterator.remove();
+            // java: ChunkAccess holder = world.getChunk(pos); if (holder.equals(chunk)) - the same chunk object
+            let mut holder: Option<Arc<LevelChunk>> = world.get_chunk(pos.get_x() >> 4, pos.get_z() >> 4);
+            if holder.as_ref().is_some_and(|holder| std::ptr::eq(Arc::as_ptr(holder), chunk)) {
+                iterator.remove();
                 BlockPosSet::remove_block_pos(&compat::read(__this, |__t| __t.highlighted_blocks.clone()), &pos);
             }
         }
@@ -180,11 +180,11 @@ impl SeaLumiesHighlighter {
         if !({ let __f = compat::dispatch(__this, |__t| __t.should_process()); __f(&compat::view(__this, |a| a as compat::Shared<dyn AbstractBlockHighlighter>)) }) {
             return;
         }
-        let __this_1 = compat::RenderThread::new(__this.clone());
-        chunk.access.find_blocks(&compat::read(__this, |__t| __t.state_predicate.clone()).unwrap(), &mut |pos, state| {
-            BlockPosSet::add(&compat::read(__this_1.get(), |__t| __t.all_blocks.clone()), &pos);
-            if SeaLumiesHighlighter::is_enabled(__this_1.get()) && SeaLumiesHighlighter::is_enough_pickles(__this_1.get(), &state) {
-                BlockPosSet::add(&compat::read(__this_1.get(), |__t| __t.highlighted_blocks.clone()), &pos);
+        let __state_predicate = compat::read(__this, |__t| __t.state_predicate.clone()).unwrap();
+        chunk.access.find_blocks(&*__state_predicate, &mut |pos, state| {
+            BlockPosSet::add(&compat::read(__this, |__t| __t.all_blocks.clone()), &pos);
+            if SeaLumiesHighlighter::is_enabled(__this) && SeaLumiesHighlighter::is_enough_pickles(__this, state) {
+                BlockPosSet::add(&compat::read(__this, |__t| __t.highlighted_blocks.clone()), &pos);
             }
         });
     }

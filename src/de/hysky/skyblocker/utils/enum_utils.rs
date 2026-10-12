@@ -27,13 +27,12 @@ impl EnumUtils {
     }
 
     /// java: public static <T extends Enum<T>> T cycle(T current)
-    pub fn cycle<T: 'static>(current: &T) -> T {
-        // TODO(fabric2seer): `.getDeclaringClass(..)` on a T
-        //   java: T[] values = current.getDeclaringClass().getEnumConstants();
-        let mut values: Vec<T> = todo!("fabric2seer: the initialiser of `values` (TODO above)");
-        // TODO(fabric2seer): `.ordinal(..)` on a T
-        //   java: return values[(current.ordinal() + 1) % values.length];
-        todo!("fabric2seer: the value of this function is in a TODO above")
+    pub fn cycle<T: JavaEnum>(current: &T) -> T {
+        // java: T[] values = current.getDeclaringClass().getEnumConstants();
+        let mut values: Vec<T> = T::java_values();
+        // java: return values[(current.ordinal() + 1) % values.length];
+        let index = (current.java_ordinal().wrapping_add(1)).wrapping_rem(values.len() as i32);
+        return values.swap_remove(index as usize);
     }
 
     /// java: public static <T> T cycle(List<T> list, int currentIndex)
@@ -42,13 +41,25 @@ impl EnumUtils {
     }
 
     /// java: public static <T extends Enum<T>> T cycleBackwards(T current)
-    pub fn cycle_backwards<T: 'static>(current: &T) -> T {
-        // TODO(fabric2seer): `.getDeclaringClass(..)` on a T
-        //   java: T[] values = current.getDeclaringClass().getEnumConstants();
-        let mut values: Vec<T> = todo!("fabric2seer: the initialiser of `values` (TODO above)");
-        // TODO(fabric2seer): `.ordinal(..)` on a T
-        //   java: return values[(current.ordinal() - 1 + values.length) % values.length];
-        todo!("fabric2seer: the value of this function is in a TODO above")
+    pub fn cycle_backwards<T: JavaEnum>(current: &T) -> T {
+        // java: T[] values = current.getDeclaringClass().getEnumConstants();
+        let mut values: Vec<T> = T::java_values();
+        // java: return values[(current.ordinal() - 1 + values.length) % values.length];
+        let index = ((current.java_ordinal().wrapping_sub(1)).wrapping_add(values.len() as i32)).wrapping_rem(values.len() as i32);
+        return values.swap_remove(index as usize);
     }
 
+}
+
+/// `Enum<SkyblockItemRarity>` for generic code (`SkyblockItemRarity.next()` is `EnumUtils.cycle(this)`).
+impl JavaEnum for crate::de::hysky::skyblocker::skyblock::item::skyblock_item_rarity::SkyblockItemRarity {
+    fn java_name(&self) -> &'static str {
+        self.name()
+    }
+    fn java_ordinal(&self) -> i32 {
+        self.ordinal()
+    }
+    fn java_values() -> Vec<Self> {
+        Self::values()
+    }
 }

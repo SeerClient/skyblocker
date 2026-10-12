@@ -35,7 +35,7 @@ pub static CHAT_RULE_FILE: compat::MainThread<std::path::PathBuf> = compat::Main
 /// java: @VisibleForTesting static final Codec<List<ChatRule>> UNBOXING_CODEC = ConfigDataFixer.createDataFixingCodec(ConfigDataFixer.CHAT_RULES_TYPE, CodecUtils.mutableOptional(ChatRule.LIST_CODEC.fieldOf("ru
 pub static UNBOXING_CODEC: compat::MainThread<CodecRef<Vec<compat::Shared<ChatRule>>>> = compat::MainThread::new(|| ConfigDataFixer::create_data_fixing_codec(config_data_fixer::CHAT_RULES_TYPE.get_mut(), &map_codec::codec(CodecUtils::mutable_optional(&codec::field_of(chat_rule::LIST_CODEC.get_mut().clone(), "rules"), Arc::new(move |__a0| __a0.iter().cloned().collect::<Vec<_>>())))));
 /// java: protected static final JsonData<List<ChatRule>> CHAT_RULE_LIST = new JsonData<>(CHAT_RULE_FILE, UNBOXING_CODEC, getDefaultChatRules());
-pub static CHAT_RULE_LIST: compat::MainThread<compat::Shared<dyn JsonData<Vec<compat::Shared<ChatRule>>>>> = compat::MainThread::new(|| (compat::shared(JsonDataBase::new(CHAT_RULE_FILE.get_mut().clone(), UNBOXING_CODEC.get_mut().clone(), ChatRulesHandler::get_default_chat_rules())) as compat::Shared<dyn JsonData<compat::Object>>));
+pub static CHAT_RULE_LIST: compat::MainThread<compat::Shared<dyn JsonData<Vec<compat::Shared<ChatRule>>>>> = compat::MainThread::new(|| (compat::shared(JsonDataBase::new(CHAT_RULE_FILE.get_mut().clone(), UNBOXING_CODEC.get_mut().clone(), ChatRulesHandler::get_default_chat_rules())) as compat::Shared<dyn JsonData<Vec<compat::Shared<ChatRule>>>>));
 
 /// java: public class ChatRulesHandler
 #[derive(Clone)]
@@ -96,7 +96,7 @@ impl ChatRulesHandler {
             }
             if ChatRule::get_toast_message(rule).is_some() {
                 let mut toast_message: compat::Shared<ToastMessage> = ChatRule::get_toast_message(rule).unwrap();
-                compat::minecraft().gui.toast_manager().borrow_mut().add_toast(BasicToast::new_3(ChatRulesHandler::format_text(&(r#match).insert_capture_groups(&compat::read(&toast_message, |__t| __t.message.clone()))), compat::read(&toast_message, |__t| __t.display_duration), Some(compat::read(&toast_message, |__t| __t.icon.clone()).and_then(|__a0| FlexibleItemStack::get_stack(&__a0)).unwrap_or(mcrust::net::minecraft::world::item::item_stack::empty()))));
+                compat::minecraft().gui.toast_manager().borrow_mut().add_toast(Box::new(BasicToast::new_3(ChatRulesHandler::format_text(&(r#match).insert_capture_groups(&compat::read(&toast_message, |__t| __t.message.clone()))), compat::read(&toast_message, |__t| __t.display_duration), Some(compat::read(&toast_message, |__t| __t.icon.clone()).and_then(|__a0| FlexibleItemStack::get_stack(&__a0)).unwrap_or(mcrust::net::minecraft::world::item::item_stack::empty())))));
             }
             if ChatRule::get_custom_sound(rule).is_some() && mcrust::mcrust::modding::game::with_player(|_| ()).is_some() {
                 mcrust::mcrust::modding::game::with_player(|player| { player.play_sound(ChatRule::get_custom_sound(rule).unwrap(), 100.0f32, 0.1f32); });

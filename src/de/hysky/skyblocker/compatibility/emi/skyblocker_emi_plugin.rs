@@ -20,7 +20,8 @@ pub static SKYBLOCK_CRAFTING: compat::MainThread<crate::unresolved::EmiRecipeCat
 /// java: public static final EmiRecipeCategory SKYBLOCK_FORGE = new EmiRecipeCategory(SkyblockForgeRecipe.ID, EmiStack.of(Items.LAVA_BUCKET), new EmiTexture(SIMPLIFIED_TEXTURES, 16, 0, 16, 16));
 pub static SKYBLOCK_FORGE: compat::MainThread<crate::unresolved::EmiRecipeCategory> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `SKYBLOCK_FORGE` - see the TODO above"));
 /// java: protected static final Map<Identifier, EmiRecipeCategory> IDENTIFIER_CATEGORY_MAP = Map.of( SkyblockCraftingRecipe.ID, SKYBLOCK_CRAFTING, SkyblockForgeRecipe.ID, SKYBLOCK_FORGE );
-pub static IDENTIFIER_CATEGORY_MAP: compat::MainThread<std::collections::HashMap<Identifier, crate::unresolved::EmiRecipeCategory>> = compat::MainThread::new(|| std::collections::HashMap::from([(skyblock_crafting_recipe::ID.get_mut().clone(), SKYBLOCK_CRAFTING.get_mut().clone()), (skyblock_forge_recipe::ID.get_mut().clone(), SKYBLOCK_FORGE.get_mut().clone())]));
+/// (the map holds the two category OBJECTS: references to the statics, as Java's map holds references)
+pub static IDENTIFIER_CATEGORY_MAP: compat::MainThread<std::collections::HashMap<Identifier, &'static crate::unresolved::EmiRecipeCategory>> = compat::MainThread::new(|| std::collections::HashMap::from([(skyblock_crafting_recipe::ID.get_mut().clone(), SKYBLOCK_CRAFTING.get()), (skyblock_forge_recipe::ID.get_mut().clone(), SKYBLOCK_FORGE.get())]));
 
 /// java: public class SkyblockerEMIPlugin implements EmiPlugin
 #[derive(Clone)]

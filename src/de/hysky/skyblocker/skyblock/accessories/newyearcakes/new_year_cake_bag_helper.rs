@@ -125,11 +125,10 @@ impl NewYearCakeBagHelper {
     pub fn get_colors_impl(__this: &compat::Shared<Self>, slots: &mut std::collections::HashMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack>) -> Vec<ColorHighlight> {
         let client = compat::minecraft();
         if mcrust::mcrust::modding::game::with_player(|_| ()).is_some() {
-            // TODO(fabric2seer): `LocalPlayer.containerMenu` has no Rust field in the port (searched net.minecraft.client.player.LocalPlayer and its supertypes)
-            // TODO(fabric2seer): the mod keeps the game's `NonNullList` (Java holds a reference to the live object); the port's `NonNullList` is not a value to copy and the port lends the mod no handle to it
-            for slot in mcrust::mcrust::modding::game::with_player(|player| player.container_menu.slots.clone()) {
-                // TODO(fabric2seer): `get_item` takes 1 argument(s) in the port (`containers: &'a Containers<'_>`), Java passes 0
-                // rust: NewYearCakesHelper::add_cake(new_year_cakes_helper::INSTANCE.get_mut(), NewYearCakesHelper::get_cake_year(slot.get_item()));
+            // `client.player.containerMenu.slots`, each slot's item read with the menu's containers
+            let years: Vec<i32> = compat::with_open_menu(|menu, containers| menu.slots.iter().map(|slot| NewYearCakesHelper::get_cake_year(slot.get_item(containers))).collect()).unwrap_or_default();
+            for year in years {
+                NewYearCakesHelper::add_cake(new_year_cakes_helper::INSTANCE.get_mut(), year);
             }
         }
         return vec![];

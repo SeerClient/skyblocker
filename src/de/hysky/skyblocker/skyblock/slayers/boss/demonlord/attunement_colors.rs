@@ -25,18 +25,21 @@ impl AttunementColors {
 
     /// java: public static int getColor(LivingEntity entity)
     pub fn get_color(entity: &dyn LivingEntity) -> i32 {
+        // the stands by id (`entity` is held by the caller and is the sweep's `except`)
         for armor_stand_entity in SlayerManager::get_entity_armor_stands(entity, 2.5f32) {
-            let mut matcher: compat::regex::Matcher = COLOR_PATTERN.matcher(&compat::component_of(armor_stand_entity.get_name()).get_string());
+            let Some(name) = mcrust::mcrust::modding::game::with_entity(armor_stand_entity, |e| e.get_name().get_string()) else {
+                continue;
+            };
+            let mut matcher: compat::regex::Matcher = COLOR_PATTERN.matcher(&name);
             if matcher.find() {
-                // TODO(fabric2seer): `.getRGB(..)` on a value of unknown type
-                //   java: return switch (matcher.group()) {
-                //   java: 					case "ASHEN" -> Color.DARK_GRAY.getRGB();
-                //   java: 					case "SPIRIT" -> Color.WHITE.getRGB();
-                //   java: 					case "CRYSTAL" -> Color.CYAN.getRGB();
-                //   java: 					case "AURIC" -> Color.YELLOW.getRGB();
-                //   java: 					case "IMMUNE" -> Color.RED.getRGB();
-                //   java: 					default -> MobGlow.NO_GLOW;
-                //   java: 				};
+                return match matcher.group(0).unwrap().as_str() {
+                    "ASHEN" => mcrust::java::awt::color::dark_gray().get_rgb(),
+                    "SPIRIT" => mcrust::java::awt::color::white().get_rgb(),
+                    "CRYSTAL" => mcrust::java::awt::color::cyan().get_rgb(),
+                    "AURIC" => mcrust::java::awt::color::yellow().get_rgb(),
+                    "IMMUNE" => mcrust::java::awt::color::red().get_rgb(),
+                    _ => *mob_glow::NO_GLOW,
+                };
             }
         }
         return *mob_glow::NO_GLOW;

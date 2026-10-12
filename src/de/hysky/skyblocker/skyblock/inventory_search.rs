@@ -75,13 +75,14 @@ impl InventorySearch {
     }
 
     /// java: public static void showSearchBar(AbstractContainerScreen<?> handledScreen)
-    pub fn show_search_bar(mut handled_screen: AbstractContainerScreen) {
-        if std::ptr::eq(&handled_screen, OPENED_HANDLED_SCREEN.get_mut().as_ref().unwrap()) {
+    pub fn show_search_bar(handled_screen: &AbstractContainerScreen) {
+        // `handledScreen == openedHandledScreen`: identity (false while none is open)
+        if OPENED_HANDLED_SCREEN.get().as_ref().is_some_and(|opened| std::ptr::eq(handled_screen, opened)) {
             return;
         }
         // TODO(fabric2seer): the mod keeps the game's `AbstractContainerScreen` (Java holds a reference to the live object); the port's `AbstractContainerScreen` is not a value to copy and the port lends the mod no handle to it
         // rust: *OPENED_HANDLED_SCREEN.get_mut() = Some(handled_screen.clone());
-        let mut text_field_widget: EditBox = InventorySearch::get_text_field_widget(&handled_screen);
+        let mut text_field_widget: EditBox = InventorySearch::get_text_field_widget(handled_screen);
         // TODO(fabric2seer): Fabric API `Screens.getWidgets` has no SeerClient equivalent
         //   java: Screens.getWidgets(handledScreen).addFirst(textFieldWidget);
         // TODO(fabric2seer): Fabric API `Screens.getWidgets` has no SeerClient equivalent
@@ -113,17 +114,15 @@ impl InventorySearch {
 
     /// java: private static boolean computeSlot(Slot slot)
     pub fn compute_slot(slot: &Slot) -> bool {
-        // TODO(fabric2seer): `has_item` takes 1 argument(s) in the port (`containers: &Containers<'_>`), Java passes 0
-        if !slot.has_item() {
+        // `slot.hasItem()` / `slot.getItem()` of the open menu's slot
+        if !compat::slot_has_item(slot) {
             return false;
         }
-        // TODO(fabric2seer): `get_item` takes 1 argument(s) in the port (`containers: &'a Containers<'_>`), Java passes 0
-        if compat::component_of(slot.get_item().get_hover_name()).get_string().to_lowercase().contains(&compat::get_state(&SEARCH)) {
+        let item = compat::slot_item(slot);
+        if compat::component_of(item.get_hover_name()).get_string().to_lowercase().contains(&compat::get_state(&SEARCH)) {
             return true;
         }
-        // TODO(fabric2seer): `get_item` takes 1 argument(s) in the port (`containers: &'a Containers<'_>`), Java passes 0
-        // rust: return ItemUtils::get_lore_line_if(slot.get_item(), Arc::new(move |s| s.to_lowercase().contains(&compat::get_state(&SEARCH)))).is_some();
-        return todo!("fabric2seer: see the TODO above");
+        return ItemUtils::get_lore_line_if(&item, Arc::new(move |s| s.to_lowercase().contains(&compat::get_state(&SEARCH)))).is_some();
     }
 
     /// java: public static boolean slotMatches(Slot slot)
@@ -200,7 +199,7 @@ impl SearchTextWidget {
 
     /// java: @Override public void onClick(MouseButtonEvent click, boolean doubled)
     pub fn on_click(&self, click: &MouseButtonEvent, mut doubled: bool) {
-        InventorySearch::show_search_bar(self.screen.clone().unwrap());
+        InventorySearch::show_search_bar(self.screen.as_ref().unwrap());
     }
 
     /// java: @Override public void extractWidgetRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a)
@@ -226,7 +225,7 @@ pub struct SearchTextFieldWidget {
     /// java: extends net.minecraft.client.gui.components.EditBox
     pub base: EditBox,
     /// java: Font textRenderer;
-    pub text_renderer: Font,
+    pub text_renderer: Font<'static>,
     /// java: Component message;
     pub message: MutableComponent,
 }
@@ -246,7 +245,7 @@ impl std::ops::DerefMut for SearchTextFieldWidget {
 
 impl SearchTextFieldWidget {
     /// java: public SearchTextFieldWidget(Font textRenderer, Component message)
-    pub fn new(mut text_renderer: Font, mut message: MutableComponent) -> Self {
+    pub fn new(mut text_renderer: Font<'static>, mut message: MutableComponent) -> Self {
         let __init_text_renderer = compat::font();
         let __init_message = message.clone();
         // TODO(fabric2seer): the port's `new` ports this Java method with other parameters (splitter, x, y, width, height for Java's width, height, narration)
@@ -274,18 +273,13 @@ impl SearchTextFieldWidget {
     pub fn mouse_clicked(&self, click: &MouseButtonEvent, mut doubled: bool) -> bool {
         // TODO(fabric2seer): `AbstractWidget::is_focused` ports `isFocused`, but the port's `EditBox` holds no `AbstractWidget` (no Deref, no `base` field) to call it on
         // TODO(fabric2seer): `AbstractWidget::is_mouse_over` ports `isMouseOver`, but the port's `EditBox` holds no `AbstractWidget` (no Deref, no `base` field) to call it on
-        if self.is_focused() && !(self.is_mouse_over(click.x(), click.y())) {
-            // TODO(fabric2seer): `set_focused_at` takes 2 argument(s) in the port (`focused: bool, millis: i64`), Java passes 1
-            // rust: self.set_focused_at(false);
-            return false;
-        }
-        // TODO(fabric2seer): `mouse_clicked` takes 3 argument(s) in the port (`button: i32, x: f64, y: f64`), Java passes 2
-        // TODO(fabric2seer): `AbstractWidget::mouse_clicked` ports `mouseClicked`, but the port's `EditBox` holds no `AbstractWidget` (no Deref, no `base` field) to call it on
-        if self.base.mouse_clicked(click.clone(), doubled).is_some() {
-            // TODO(fabric2seer): `set_focused_at` takes 2 argument(s) in the port (`focused: bool, millis: i64`), Java passes 1
-            // rust: self.set_focused_at(true);
-            return true;
-        }
+        //   java: if (isFocused() && !isMouseOver(click.x(), click.y())) { setFocused(false); return false; }
+        //   java: if (super.mouseClicked(click, doubled)) { setFocused(true); return true; }
+        //   java: return false;
+        // rust: port gap - a mod subclass of `EditBox`: the port's `EditBox` is the `WidgetKind::EditBox` of a game
+        // `AbstractWidget`, which holds the focus, the hover and the click pass this body reads; this class holds the
+        // bare `EditBox`, so none of them is reachable (GAPS_batchG). Its constructor is the converter's todo, so no
+        // object of this class exists to reach here.
         return false;
     }
 

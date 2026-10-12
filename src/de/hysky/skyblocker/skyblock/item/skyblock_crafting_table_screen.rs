@@ -69,11 +69,13 @@ impl std::ops::DerefMut for SkyblockCraftingTableScreen {
 impl SkyblockCraftingTableScreen {
     /// java: public SkyblockCraftingTableScreen(SkyblockCraftingTableScreenHandler handler, Inventory inventory, Component title)
     pub fn new(mut handler: compat::Shared<SkyblockCraftingTableScreenHandler>, inventory: compat::PlayerInventory, mut title: MutableComponent) -> compat::Shared<Self> {
-        // TODO(fabric2seer): the initialiser of `recipeBook`: unknown name `menu`
-        //   java: private final SkyblockRecipeBookComponent recipeBook = new SkyblockRecipeBookComponent(menu);
+        // java: private final SkyblockRecipeBookComponent recipeBook = new SkyblockRecipeBookComponent(menu);
+        // (the component reads only the menu's `containerId` - its `super(new NoopRecipeBookMenu(screenHandler.containerId), ..)`;
+        // the port's constructor takes the menu by value, so it is handed a menu carrying that id)
+        let __container_id = compat::read(&handler, |__h| __h.base.container_id);
         let __this = compat::shared(Self {
             base: { let mut __s = AbstractContainerScreen::new((&title.get_string()).to_string(), String::new());  __s },
-            recipe_book: Default::default(),
+            recipe_book: SkyblockRecipeBookComponent::new(mcrust::net::minecraft::world::inventory::abstract_container_menu::AbstractContainerMenu::new(__container_id)),
             narrow: false,
             more_crafts_button: None,
         });
@@ -122,10 +124,9 @@ impl SkyblockCraftingTableScreen {
             { let (__q0,) = (__r0.unwrap(),); __this.lock().borrow_mut().screen.add_renderable_widget(__q0) };
         }
         debug_assert!(mcrust::mcrust::modding::game::with_player(|_| ()).is_some());
-        let __r0 = compat::read(__this, |__t| __t.recipe_book.clone());
-        { let (__q0,) = (__r0,); __this.lock().borrow_mut().screen.add_widget(__q0) };
-        let __r0 = compat::read(__this, |__t| __t.recipe_book.clone());
-        { let (__q0,) = (__r0,); __this.lock().borrow_mut().screen.set_initial_focus_on(__q0) };
+        // java: this.addWidget(this.recipeBook); this.setInitialFocus(this.recipeBook);
+        // rust: port gap - the port's `RecipeBookComponent` is not a widget of the screen's tree (it is drawn and clicked
+        //   by its screen's own bodies), so a mod's recipe book has no widget to add or focus (GAPS_batchE.md)
         { let __v = 29; compat::write(__this, |__t| __t.title_label_x = __v); }
     }
 
@@ -145,7 +146,7 @@ impl SkyblockCraftingTableScreen {
     }
 
     /// java: @Override public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a)
-    pub fn extract_render_state(__this: &compat::Shared<Self>, graphics: &GuiGraphicsExtractor, mut mouse_x: i32, mut mouse_y: i32, mut a: f32) {
+    pub fn extract_render_state(__this: &compat::Shared<Self>, graphics: &mut GuiGraphicsExtractor, mut mouse_x: i32, mut mouse_y: i32, mut a: f32) {
         let __o1 = compat::read(__this, |__t| __t.recipe_book.clone());
         let __o2 = compat::read(__this, |__t| __t.recipe_book.clone());
         if compat::write(&__o2, |__t| __t.is_visible()) && compat::read(__this, |__t| __t.narrow) {
@@ -253,7 +254,7 @@ impl ModContainerScreen for compat::ContainerScreenAdapter<SkyblockCraftingTable
 
     /// java: @Override public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a)
     fn extract_render_state(&mut self, screen: &AbstractContainerScreen, context: &mut WidgetRenderContext<'_>, mouse_x: i32, mouse_y: i32, a: f32) {
-        self.lend_ref(screen, |__h| SkyblockCraftingTableScreen::extract_render_state(__h, &context.graphics, mouse_x, mouse_y, a))
+        self.lend_ref(screen, |__h| SkyblockCraftingTableScreen::extract_render_state(__h, &mut context.graphics, mouse_x, mouse_y, a))
     }
 
     /// java: @Override public boolean mouseClicked(MouseButtonEvent click, boolean doubled)

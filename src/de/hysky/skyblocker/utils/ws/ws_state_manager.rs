@@ -3,6 +3,7 @@
 #[allow(unused_imports)]
 use crate::prelude::*;
 use crate::de::hysky::skyblocker::utils::utils::Utils;
+use crate::de::hysky::skyblocker::utils::ws::message::message::AnyMessage;
 use crate::de::hysky::skyblocker::utils::ws::message::message::Message;
 use crate::de::hysky::skyblocker::utils::ws::r#type::Type;
 use crate::de::hysky::skyblocker::utils::ws::service::Service;
@@ -43,20 +44,20 @@ impl WsStateManager {
     pub fn reset() {
         if !(compat::lock(&LAST_SERVER_ID).is_empty()) {
             for service in compat::get_state(&SUBSCRIBED_SERVER_SERVICES) {
-                WsMessageHandler::send_simple(Type::Unsubscribe, service, &compat::get_state(&LAST_SERVER_ID), &None);
+                WsMessageHandler::send_simple(Type::Unsubscribe, service, &compat::get_state(&LAST_SERVER_ID), None);
             }
             compat::set_state(&LAST_SERVER_ID, "".to_string());
         }
         if !(compat::lock(&LAST_LOCATION).is_empty()) {
             for service in compat::get_state(&SUBSCRIBED_ISLAND_SERVICES) {
-                WsMessageHandler::send_simple(Type::Unsubscribe, service, &compat::get_state(&LAST_LOCATION), &None);
+                WsMessageHandler::send_simple(Type::Unsubscribe, service, &compat::get_state(&LAST_LOCATION), None);
             }
             compat::set_state(&LAST_LOCATION, "".to_string());
         }
     }
 
     /// java: public static void subscribeServer(Service service, Optional<Message<? extends Message<?>>> message)
-    pub fn subscribe_server(mut service: Service, message: &Option<compat::Shared<dyn Message<compat::Shared<dyn Message<compat::Object>>>>>) {
+    pub fn subscribe_server(mut service: Service, message: Option<&dyn AnyMessage>) {
         // TODO(fabric2seer): the condition: static field Environment.PRODUCTION
         //   java: Utils.getEnvironment() != Environment.PRODUCTION
         if todo!("fabric2seer: the condition (TODO above)") {
@@ -68,7 +69,7 @@ impl WsStateManager {
     }
 
     /// java: public static void subscribeIsland(Service service, Optional<Message<? extends Message<?>>> message)
-    pub fn subscribe_island(mut service: Service, message: &Option<compat::Shared<dyn Message<compat::Shared<dyn Message<compat::Object>>>>>) {
+    pub fn subscribe_island(mut service: Service, message: Option<&dyn AnyMessage>) {
         // TODO(fabric2seer): the condition: static field Environment.PRODUCTION
         //   java: Utils.getEnvironment() != Environment.PRODUCTION
         if todo!("fabric2seer: the condition (TODO above)") {

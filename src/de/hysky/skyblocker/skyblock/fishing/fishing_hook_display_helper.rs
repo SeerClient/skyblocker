@@ -16,7 +16,8 @@ use mcrust::net::minecraft::network::chat::component::Component as _;
 use mcrust::net::minecraft::world::entity::entity::Entity as _;
 
 /// java: protected static ArmorStand fishingHookArmorStand;
-pub static FISHING_HOOK_ARMOR_STAND: compat::MainThread<Option<ArmorStand>> = compat::MainThread::new(|| None);
+/// (the armor stand's entity id: the level keeps the entity, `game::with_entity` reaches it)
+pub static FISHING_HOOK_ARMOR_STAND: compat::MainThread<Option<i32>> = compat::MainThread::new(|| None);
 /// java: private static final Identifier FISHING_HOOK_DISPLAY = SkyblockerMod.id("fishing_hook_display");
 pub static FISHING_HOOK_DISPLAY: compat::MainThread<Identifier> = compat::MainThread::new(|| crate::entry::skyblocker_mod::id("fishing_hook_display"));
 /// java: static Pattern pattern = Pattern.compile("\\d.\\d");
@@ -46,25 +47,23 @@ impl FishingHookDisplayHelper {
             if SkyblockerConfigManager::get().helpers.fishing.fishing_hook_display == FishingHookDisplay::Off {
                 return;
             }
-            if FISHING_HOOK_ARMOR_STAND.get_mut().is_none() || !(FISHING_HOOK_ARMOR_STAND.get_mut().as_ref().unwrap().base.is_alive()) || !(FISHING_HOOK_ARMOR_STAND.get_mut().as_ref().unwrap().base.base.has_custom_name()) {
+            if !FishingHookDisplayHelper::armor_stand_valid() {
                 *FISHING_HOOK_ARMOR_STAND.get_mut() = None;
                 return;
             }
             let mut client = (&mut *ctx.minecraft);
-            // TODO(fabric2seer): `LocalPlayer.fishing` has no Rust field in the port (searched net.minecraft.client.player.LocalPlayer and its supertypes)
-            // TODO(fabric2seer): the mod keeps the game's `FishingHook` (Java holds a reference to the live object); the port's `FishingHook` is not a value to copy and the port lends the mod no handle to it
-            if mcrust::mcrust::modding::game::with_player(|_| ()).is_none() || mcrust::mcrust::modding::game::with_player(|player| player.fishing.clone()).is_none() || FISHING_HOOK_ARMOR_STAND.get_mut().is_none() {
+            if mcrust::mcrust::modding::game::with_player(|_| ()).is_none() || FishingHookDisplayHelper::player_fishing().is_none() || FISHING_HOOK_ARMOR_STAND.get_mut().is_none() {
                 return;
             }
             if SkyblockerConfigManager::get().helpers.fishing.fishing_hook_display == FishingHookDisplay::Crosshair {
-                let mut armor_stand_name: MutableComponent = compat::component_of(FISHING_HOOK_ARMOR_STAND.get_mut().as_ref().unwrap().get_name());
+                let mut armor_stand_name: MutableComponent = FishingHookDisplayHelper::armor_stand_name();
                 let mut screen_width: i32 = client.get_window().get_gui_scaled_width();
                 let mut screen_height: i32 = client.get_window().get_gui_scaled_height();
                 let mut x: i32 = screen_width.wrapping_div(2);
                 let mut y: i32 = screen_height.wrapping_div(2);
                 graphics.push_pose();
                 graphics.scale((3.0f32) as f32, (3.0f32) as f32);
-                graphics.centered_text(armor_stand_name.to_string(), ((((x as f32) / 3.0f32)) as i32), ((((y as f32) / 3.0f32)) as i32), 0xFFFFFF00u32 as i32);
+                gui_graphics_extractor::centered_text(ctx.gl, &*ctx.minecraft, &mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(armor_stand_name.clone()), ((((x as f32) / 3.0f32)) as i32), ((((y as f32) / 3.0f32)) as i32), 0xFFFFFF00u32 as i32);
                 let _ = graphics.pop_pose();
             } else {
                 ({ let __r = &FishingHudWidget::get_instance(); let __f = compat::dispatch(__r, |__t| __t.update()); __f(&compat::view(__r, |a| a as compat::Shared<dyn ElementBasedWidget>)) });
@@ -77,18 +76,16 @@ impl FishingHookDisplayHelper {
         if SkyblockerConfigManager::get().helpers.fishing.fishing_hook_display == FishingHookDisplay::Off {
             return;
         }
-        if FISHING_HOOK_ARMOR_STAND.get_mut().is_none() || !(FISHING_HOOK_ARMOR_STAND.get_mut().as_ref().unwrap().base.is_alive()) || !(FISHING_HOOK_ARMOR_STAND.get_mut().as_ref().unwrap().base.base.has_custom_name()) {
+        if !FishingHookDisplayHelper::armor_stand_valid() {
             *FISHING_HOOK_ARMOR_STAND.get_mut() = None;
             return;
         }
         let client = compat::minecraft();
-        // TODO(fabric2seer): `LocalPlayer.fishing` has no Rust field in the port (searched net.minecraft.client.player.LocalPlayer and its supertypes)
-        // TODO(fabric2seer): the mod keeps the game's `FishingHook` (Java holds a reference to the live object); the port's `FishingHook` is not a value to copy and the port lends the mod no handle to it
-        if mcrust::mcrust::modding::game::with_player(|_| ()).is_none() || mcrust::mcrust::modding::game::with_player(|player| player.fishing.clone()).is_none() || FISHING_HOOK_ARMOR_STAND.get_mut().is_none() {
+        if mcrust::mcrust::modding::game::with_player(|_| ()).is_none() || FishingHookDisplayHelper::player_fishing().is_none() || FISHING_HOOK_ARMOR_STAND.get_mut().is_none() {
             return;
         }
         if SkyblockerConfigManager::get().helpers.fishing.fishing_hook_display == FishingHookDisplay::Crosshair {
-            let mut armor_stand_name: MutableComponent = compat::component_of(FISHING_HOOK_ARMOR_STAND.get_mut().as_ref().unwrap().get_name());
+            let mut armor_stand_name: MutableComponent = FishingHookDisplayHelper::armor_stand_name();
             let mut screen_width: i32 = client.get_window().get_gui_scaled_width();
             let mut screen_height: i32 = client.get_window().get_gui_scaled_height();
             let mut x: i32 = screen_width.wrapping_div(2);
@@ -103,32 +100,51 @@ impl FishingHookDisplayHelper {
     }
 
     /// java: public static void onArmorStandSpawn(ArmorStand armorStand)
-    pub fn on_armor_stand_spawn(mut armor_stand: ArmorStand) {
+    pub fn on_armor_stand_spawn(armor_stand: &ArmorStand) {
         if SkyblockerConfigManager::get().helpers.fishing.fishing_hook_display == FishingHookDisplay::Off {
             return;
         }
         if FISHING_HOOK_ARMOR_STAND.get_mut().is_some() {
             return;
         }
-        let client = compat::minecraft();
-        // TODO(fabric2seer): `LocalPlayer.fishing` has no Rust field in the port (searched net.minecraft.client.player.LocalPlayer and its supertypes)
-        // TODO(fabric2seer): the mod keeps the game's `FishingHook` (Java holds a reference to the live object); the port's `FishingHook` is not a value to copy and the port lends the mod no handle to it
-        if mcrust::mcrust::modding::game::with_player(|_| ()).is_none() || mcrust::mcrust::modding::game::with_player(|player| player.fishing.clone()).is_none() {
+        let Some(fishing) = FishingHookDisplayHelper::player_fishing() else {
             return;
-        }
-        // TODO(fabric2seer): `LocalPlayer.fishing` has no Rust field in the port (searched net.minecraft.client.player.LocalPlayer and its supertypes)
-        // rust: let mut distance: f64 = armor_stand.base.base.position().distance_to(&mcrust::mcrust::modding::game::with_player(|player| player.fishing.base.base.position()).unwrap());
-        let mut distance: f64 = todo!("fabric2seer: the initialiser of `distance` (TODO above)");
+        };
+        // java: double distance = armorStand.position().distanceTo(client.player.fishing.position());
+        let Some(fishing_position) = mcrust::mcrust::modding::game::with_entity(fishing, |hook| hook.base().position()) else {
+            return;
+        };
+        let mut distance: f64 = armor_stand.base.base.position().distance_to(&fishing_position);
         if distance > 0.1 {
             return;
         }
         let mut matcher: compat::regex::Matcher = compat::lock(&PATTERN).matcher(&compat::component_of(armor_stand.get_name()).get_string());
         if armor_stand.base.base.has_custom_name() && matcher.matches() {
-            // TODO(fabric2seer): the mod keeps the game's `ArmorStand` (Java holds a reference to the live object); the port's `ArmorStand` is not a value to copy and the port lends the mod no handle to it
-            // rust: *FISHING_HOOK_ARMOR_STAND.get_mut() = Some(armor_stand.clone());
+            *FISHING_HOOK_ARMOR_STAND.get_mut() = Some(armor_stand.base.base.get_id());
         } else {
             *FISHING_HOOK_ARMOR_STAND.get_mut() = None;
         }
+    }
+
+    /// `client.player.fishing`: the id of the player's fishing hook (the port keeps the hook by id).
+    pub fn player_fishing() -> Option<i32> {
+        use mcrust::net::minecraft::world::entity::player::player::Player as _;
+        mcrust::mcrust::modding::game::with_player(|player| player.player().fishing).flatten()
+    }
+
+    /// java: `fishingHookArmorStand != null && fishingHookArmorStand.isAlive() && fishingHookArmorStand.hasCustomName()`
+    /// (an armor stand the level no longer has is removed, so not alive)
+    fn armor_stand_valid() -> bool {
+        let Some(id) = *FISHING_HOOK_ARMOR_STAND.get() else {
+            return false;
+        };
+        mcrust::mcrust::modding::game::with_entity(id, |stand| mcrust::net::minecraft::world::entity::entity_selector::is_alive(stand) && stand.base().has_custom_name()).unwrap_or(false)
+    }
+
+    /// java: `fishingHookArmorStand.getName()`
+    pub fn armor_stand_name() -> MutableComponent {
+        let id = FISHING_HOOK_ARMOR_STAND.get().expect("the fishing hook armor stand");
+        compat::component_of(mcrust::mcrust::modding::game::with_entity(id, |stand| stand.get_name()).unwrap_or(mcrust::net::minecraft::network::chat::formatted_text::FormattedText::Empty))
     }
 
 }

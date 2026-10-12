@@ -16,11 +16,9 @@ pub struct MiscConfig {
 impl MiscConfig {
     /// java: the implicit no-argument constructor
     pub fn new() -> Self {
-        // TODO(fabric2seer): the initialiser of `configBackend`: static field ConfigType.MOUL_CONFIG
-        //   java: public ConfigType configBackend = ConfigType.MOUL_CONFIG;
         let mut this = Self {
             rich_presence: RichPresence::new(),
-            config_backend: Default::default(),
+            config_backend: crate::unresolved::ConfigType::MoulConfig,
             cat: true,
         };
         this
@@ -97,15 +95,13 @@ impl Info {
 
     /// java: @Override public String toString()
     pub fn to_string(&self) -> String {
-        // TODO(fabric2seer): call to `name(..)` (not a method of this class)
-        //   java: return I18n.get("skyblocker.config.misc.richPresence.info." + name());
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        return mcrust::net::minecraft::client::resources::language::i18n::get(&format!("skyblocker.config.misc.richPresence.info.{}", self.name()), &[]);
     }
 
 }
 
 impl std::fmt::Display for Info {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", Info::to_string(*self))
+        write!(f, "{}", Info::to_string(self))
     }
 }

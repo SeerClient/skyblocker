@@ -13,21 +13,21 @@ use mcrust::net::minecraft::world::item::items;
 use mcrust::net::minecraft::network::chat::component::Component as _;
 
 /// java: private static final Consumer<List<Donation>> SORT_BY_LOWESTBIN = donations -> { donations.forEach(donation -> updateDonationData(donation, false)); donations.sort(ItemSorter::compareEffectivePrices);
-pub static SORT_BY_LOWESTBIN: compat::MainThread<Arc<dyn Fn(Vec<compat::Shared<Donation>>)>> = compat::MainThread::new(|| Arc::new(move |donations| {
+pub static SORT_BY_LOWESTBIN: compat::MainThread<Arc<dyn Fn(&mut Vec<compat::Shared<Donation>>)>> = compat::MainThread::new(|| Arc::new(move |donations: &mut Vec<compat::Shared<Donation>>| {
     for donation in donations.iter() {
         ItemSorter::update_donation_data(donation.clone(), false);
     }
     donations.sort_by(|__a0, __a1| (ItemSorter::compare_effective_prices(__a0, __a1)).cmp(&0));
 }));
 /// java: private static final Consumer<List<Donation>> SORT_BY_CRAFTCOST = donations -> { donations.forEach(donation -> updateDonationData(donation, true)); donations.sort(ItemSorter::compareEffectivePrices); 
-pub static SORT_BY_CRAFTCOST: compat::MainThread<Arc<dyn Fn(Vec<compat::Shared<Donation>>)>> = compat::MainThread::new(|| Arc::new(move |donations| {
+pub static SORT_BY_CRAFTCOST: compat::MainThread<Arc<dyn Fn(&mut Vec<compat::Shared<Donation>>)>> = compat::MainThread::new(|| Arc::new(move |donations: &mut Vec<compat::Shared<Donation>>| {
     for donation in donations.iter() {
         ItemSorter::update_donation_data(donation.clone(), true);
     }
     donations.sort_by(|__a0, __a1| (ItemSorter::compare_effective_prices(__a0, __a1)).cmp(&0));
 }));
 /// java: private static final Consumer<List<Donation>> SORT_BY_XP_PER_COIN = donations -> { donations.forEach(donation -> updateDonationData(donation, true)); donations.sort(ItemSorter::compareCoinsPerXP); };
-pub static SORT_BY_XP_PER_COIN: compat::MainThread<Arc<dyn Fn(Vec<compat::Shared<Donation>>)>> = compat::MainThread::new(|| Arc::new(move |donations| {
+pub static SORT_BY_XP_PER_COIN: compat::MainThread<Arc<dyn Fn(&mut Vec<compat::Shared<Donation>>)>> = compat::MainThread::new(|| Arc::new(move |donations: &mut Vec<compat::Shared<Donation>>| {
     for donation in donations.iter() {
         ItemSorter::update_donation_data(donation.clone(), true);
     }
@@ -54,18 +54,21 @@ impl ItemSorter {
     pub fn update_donation_data(mut donation: compat::Shared<Donation>, mut use_craft_cost: bool) {
         let mut downgrades: Vec<String> = Donation::get_downgrades(&donation);
         let mut discount: Option<(String, f64)> = Donation::get_discount(&donation);
-        let mut will_count_for: Vec<compat::Shared<Donation>> = downgrades.iter().cloned().map(|__a0| MuseumManager::get_donation(&__a0)).filter(|__a0| true).collect::<Vec<_>>();
-        // TODO(fabric2seer): List.addFirst(..)
-        //   java: willCountFor.addFirst(donation);
+        // java: downgrades.stream().map(MuseumManager::getDonation).filter(Objects::nonNull).collect(Collectors.toList())
+        let mut will_count_for: Vec<compat::Shared<Donation>> = downgrades.iter().filter_map(|__a0| MuseumManager::get_donation(__a0)).collect::<Vec<_>>();
+        // java: willCountFor.addFirst(donation);
+        will_count_for.insert(0, donation.clone());
         let mut total_xp: i32 = will_count_for.iter().cloned().map(|__a0| Donation::get_xp(&__a0)).sum::<i32>();
         let mut l_bin_price: f64 = PriceData::get_l_bin_price(&Donation::get_price_data(&donation));
         let mut raw_craft_cost: f64 = (if Donation::is_craftable(&donation) { PriceData::get_craft_cost(&Donation::get_price_data(&donation)) } else { ((0) as f64) as f64 });
-        let mut craft_cost: f64 = (if discount.is_some() { (raw_craft_cost - discount.1) } else { raw_craft_cost });
+        let mut craft_cost: f64 = (if let Some(discount) = &discount { (raw_craft_cost - discount.1) } else { raw_craft_cost });
         let mut effective_price: f64 = (if use_craft_cost { (if craft_cost > (0 as f64) { (if l_bin_price == (0 as f64) { craft_cost } else { craft_cost.min(l_bin_price) }) } else { l_bin_price }) } else { (if l_bin_price > (0 as f64) { l_bin_price } else { craft_cost }) });
         let mut ratio: f64 = (if total_xp > 0 && effective_price > (0 as f64) { (effective_price / (total_xp as f64)) } else { ((0) as f64) as f64 });
         if Donation::is_set(&donation) {
             for pair in Donation::get_set(&donation) {
-                PriceData::set_effective_price(&pair.1, (if effective_price == craft_cost { PriceData::get_craft_cost(&pair.1) } else { PriceData::get_l_bin_price(&pair.1) }));
+                // java: pair.right() - set by the PriceData constructor; a NullPointerException when absent
+                let price_data = pair.1.expect("java.lang.NullPointerException: the set piece's PriceData");
+                PriceData::set_effective_price(&price_data, (if effective_price == craft_cost { PriceData::get_craft_cost(&price_data) } else { PriceData::get_l_bin_price(&price_data) }));
             }
         }
         PriceData::set_effective_price(&Donation::get_price_data(&donation), effective_price);
@@ -107,14 +110,14 @@ impl ItemSorter {
     }
 
     /// java: public void cycleSortMode(List<Donation> donations)
-    pub fn cycle_sort_mode(&mut self, donations: &Vec<compat::Shared<Donation>>) {
+    pub fn cycle_sort_mode(&mut self, donations: &mut Vec<compat::Shared<Donation>>) {
         self.current_sort_mode = SortMode::values()[((self.current_sort_mode.ordinal().wrapping_add(1)).wrapping_rem(SortMode::values().len() as i32)) as usize];
         self.apply_sort(donations);
     }
 
     /// java: public void applySort(List<Donation> donations)
-    pub fn apply_sort(&self, donations: &Vec<compat::Shared<Donation>>) {
-        (self.current_sort_mode.get_sort_function())(donations.clone());
+    pub fn apply_sort(&self, donations: &mut Vec<compat::Shared<Donation>>) {
+        (self.current_sort_mode.get_sort_function())(donations);
     }
 
     /// java: public ItemStack getCurrentSortingItem()
@@ -178,12 +181,13 @@ impl SortMode {
 
     /// the constant's constructor data (Java keeps it in the constant's fields)
     pub fn fields(self) -> &'static SortModeFields {
-        static FIELDS: LazyLock<Vec<SortModeFields>> = LazyLock::new(|| vec![
+        // (an ItemStack and the sort lambdas are render-thread values)
+        static FIELDS: compat::MainThread<Vec<SortModeFields>> = compat::MainThread::new(|| vec![
             SortModeFields::new(mcrust::net::minecraft::world::item::item_stack::ItemStack::of_one(items::items().get("gold_ingot")), SORT_BY_LOWESTBIN.get_mut().clone(), component::translatable("skyblocker.museum.hud.sorter.lBin")),
             SortModeFields::new(mcrust::net::minecraft::world::item::item_stack::ItemStack::of_one(items::items().get("crafting_table")), SORT_BY_CRAFTCOST.get_mut().clone(), component::translatable("skyblocker.museum.hud.sorter.craftCost")),
             SortModeFields::new(mcrust::net::minecraft::world::item::item_stack::ItemStack::of_one(items::items().get("experience_bottle")), SORT_BY_XP_PER_COIN.get_mut().clone(), component::translatable("skyblocker.museum.hud.sorter.ratio")),
         ]);
-        &FIELDS[self as usize]
+        &FIELDS.get()[self as usize]
     }
 
     /// java: public ItemStack getAssociatedItem()
@@ -197,7 +201,7 @@ impl SortMode {
     }
 
     /// java: public Consumer<List<Donation>> getSortFunction()
-    pub fn get_sort_function(&self) -> Arc<dyn Fn(Vec<compat::Shared<Donation>>)> {
+    pub fn get_sort_function(&self) -> Arc<dyn Fn(&mut Vec<compat::Shared<Donation>>)> {
         return self.fields().sort_function.clone();
     }
 
@@ -212,21 +216,13 @@ impl std::fmt::Display for SortMode {
 /// the constructor data of each SortMode constant
 pub struct SortModeFields {
     pub associated_item: mcrust::net::minecraft::world::item::item_stack::ItemStack,
-    pub sort_function: Arc<dyn Fn(Vec<compat::Shared<Donation>>)>,
+    pub sort_function: Arc<dyn Fn(&mut Vec<compat::Shared<Donation>>)>,
     pub display_name: MutableComponent,
 }
 
 impl SortModeFields {
-    fn new(mut item: mcrust::net::minecraft::world::item::item_stack::ItemStack, function: Arc<dyn Fn(Vec<compat::Shared<Donation>>)>, mut display_name: MutableComponent) -> Self {
-        let mut this = Self {
-            associated_item: Default::default(),
-            sort_function: Default::default(),
-            display_name: Default::default(),
-        };
-        this.associated_item = item.clone();
-        this.sort_function = function.clone();
-        this.display_name = display_name.clone();
-        this
+    fn new(mut item: mcrust::net::minecraft::world::item::item_stack::ItemStack, function: Arc<dyn Fn(&mut Vec<compat::Shared<Donation>>)>, mut display_name: MutableComponent) -> Self {
+        Self { associated_item: item, sort_function: function, display_name }
     }
 
 }

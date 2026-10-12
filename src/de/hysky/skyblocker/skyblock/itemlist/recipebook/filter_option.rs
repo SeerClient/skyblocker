@@ -53,11 +53,12 @@ impl FilterOption {
     /// the constant's constructor data (Java keeps it in the constant's fields)
     pub fn fields(self) -> &'static FilterOptionFields {
         static FIELDS: LazyLock<Vec<FilterOptionFields>> = LazyLock::new(|| vec![
-            FilterOptionFields::new(Arc::new(move |_| true), crate::entry::skyblocker_mod::id("textures/gui/filter/all.png")),
-            FilterOptionFields::new(Arc::new(move |query| (query.ends_with("(monster)") || query.ends_with("(miniboss)") || query.ends_with("(boss)") || query.ends_with("(animal)") || query.ends_with("(pest)") || query.ends_with("(sea creature)"))), crate::entry::skyblocker_mod::id("textures/gui/filter/entities.png")),
-            FilterOptionFields::new(Arc::new(move |query| (query.ends_with("(npc)") || query.ends_with("(rift npc)"))), crate::entry::skyblocker_mod::id("textures/gui/filter/npcs.png")),
-            FilterOptionFields::new(Arc::new(move |query| (query.ends_with("(mayor)") || query.ends_with("(retired mayor)"))), crate::entry::skyblocker_mod::id("textures/gui/filter/mayors.png")),
-            todo!("ITEMS"),
+            FilterOptionFields::new(Arc::new(move |_: String| true), crate::entry::skyblocker_mod::id("textures/gui/filter/all.png")),
+            FilterOptionFields::new(Arc::new(move |query: String| (query.ends_with("(monster)") || query.ends_with("(miniboss)") || query.ends_with("(boss)") || query.ends_with("(animal)") || query.ends_with("(pest)") || query.ends_with("(sea creature)"))), crate::entry::skyblocker_mod::id("textures/gui/filter/entities.png")),
+            FilterOptionFields::new(Arc::new(move |query: String| (query.ends_with("(npc)") || query.ends_with("(rift npc)"))), crate::entry::skyblocker_mod::id("textures/gui/filter/npcs.png")),
+            FilterOptionFields::new(Arc::new(move |query: String| (query.ends_with("(mayor)") || query.ends_with("(retired mayor)"))), crate::entry::skyblocker_mod::id("textures/gui/filter/mayors.png")),
+            // java: ITEMS(query -> !ENTITIES.test(query) && !NPCS.test(query) && !MAYORS.test(query), ..) - "basically a negation on everything else"
+            FilterOptionFields::new(Arc::new(move |query: String| !FilterOption::Entities.test(&query) && !FilterOption::Npcs.test(&query) && !FilterOption::Mayors.test(&query)), crate::entry::skyblocker_mod::id("textures/gui/filter/items.png")),
         ]);
         &FIELDS[self as usize]
     }
@@ -82,19 +83,13 @@ impl std::fmt::Display for FilterOption {
 
 /// the constructor data of each FilterOption constant
 pub struct FilterOptionFields {
-    pub matching_predicate: Arc<dyn Fn(String) -> bool>,
+    pub matching_predicate: Arc<dyn Fn(String) -> bool + Send + Sync>,
     pub texture: Identifier,
 }
 
 impl FilterOptionFields {
-    fn new(matching_predicate: Arc<dyn Fn(String) -> bool>, mut texture: Identifier) -> Self {
-        let mut this = Self {
-            matching_predicate: Default::default(),
-            texture: Default::default(),
-        };
-        this.matching_predicate = matching_predicate.clone();
-        this.texture = texture.clone();
-        this
+    fn new(matching_predicate: Arc<dyn Fn(String) -> bool + Send + Sync>, mut texture: Identifier) -> Self {
+        Self { matching_predicate, texture }
     }
 
 }

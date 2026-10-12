@@ -107,10 +107,10 @@ impl SkyblockerScreen {
         static ONCE: std::sync::Once = std::sync::Once::new();
         ONCE.call_once(|| {
             if FunUtils::should_enable_fun() {
-                *TITLE.get_mut() = Some(component::literal(&format!("Skibidiblocker {}", skyblocker_mod::VERSION)));
+                *TITLE.get_mut() = Some(component::literal(&format!("Skibidiblocker {}", *skyblocker_mod::VERSION)));
                 *ICON.get_mut() = Some(crate::entry::skyblocker_mod::id("icons.png"));
             } else {
-                *TITLE.get_mut() = Some(component::literal(&format!("Skyblocker {}", skyblocker_mod::VERSION)));
+                *TITLE.get_mut() = Some(component::literal(&format!("Skyblocker {}", *skyblocker_mod::VERSION)));
                 *ICON.get_mut() = Some(crate::entry::skyblocker_mod::id("icon.png"));
             }
         });
@@ -148,7 +148,11 @@ impl SkyblockerScreen {
     /// java: @Override protected void init()
     pub fn init(__this: &compat::Shared<Self>) {
         { let __v = Some(HeaderAndFooterLayout::with_heights(0, 0, (if compat::read(__this, |__t| __t.height) < 320 { 48 } else { 64 }), (if compat::read(__this, |__t| __t.height) < 320 { 64 } else { 100 }))); compat::write(__this, |__t| __t.layout = __v); }
-        { let (__q0,) = (IconTextWidget::new(__this.lock().borrow().get_title().to_string(), compat::font(), ICON.get_mut().clone().unwrap()),); __this.lock().borrow_mut().layout.as_mut().unwrap().add_to_header(__q0) };
+        // java: this.layout.addToHeader(new IconTextWidget(this.getTitle(), this.font, ICON));
+        let __title: MutableComponent = component::literal(&compat::read(__this, |__t| __t.get_title().to_string()));
+        let mut __icon_widget = compat::WidgetRef::value(compat::WidgetAdapter::widget(compat::shared(IconTextWidget::new(__title, compat::font(), ICON.get().clone().unwrap()))));
+        let (__i, __ww, __wh) = compat::write(__this, |__t| { let __s = &mut *__t; __s.__widgets.add_to_layout(&mut __s.base, &mut __icon_widget) });
+        __this.lock().borrow_mut().layout.as_mut().unwrap().add_to_header(LayoutElement::widget(__i, __ww, __wh));
         // TODO(fabric2seer): `.spacing(..)` on a value of unknown type
         //   java: GridLayout gridWidget = this.layout.addToContents(new GridLayout()).spacing(SPACING);
         let mut grid_widget: GridLayout = todo!("fabric2seer: the initialiser of `gridWidget` (TODO above)");
@@ -336,7 +340,7 @@ impl IconTextWidget {
     pub fn new(mut message: MutableComponent, mut text_renderer: Font, mut icon: Identifier) -> Self {
         let __init_icon = icon.clone();
         let mut this = Self {
-            base: compat::string_widget(0, 0, ((text_renderer.width_of_sequence(&message.get_visual_order_text())).wrapping_add(ICON_TEXT_WIDGET_ICON_SIZE)).wrapping_add(ICON_TEXT_WIDGET_SPACING), ICON_TEXT_WIDGET_ICON_SIZE, message.clone()),
+            base: compat::string_widget(0, 0, ((text_renderer.width_of_sequence(&*message.get_visual_order_text())).wrapping_add(ICON_TEXT_WIDGET_ICON_SIZE)).wrapping_add(ICON_TEXT_WIDGET_SPACING), ICON_TEXT_WIDGET_ICON_SIZE, message.clone()),
             icon: __init_icon,
         };
         this
@@ -345,34 +349,65 @@ impl IconTextWidget {
     /// java: @Override public void extractWidgetRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta)
     pub fn extract_widget_render_state(&self, graphics: &GuiGraphicsExtractor, mut mouse_x: i32, mut mouse_y: i32, mut delta: f32) {
         let mut text: MutableComponent = compat::component_of(self.get_message_component());
-        // TODO(fabric2seer): `StringWidget.getFont` has no Rust method in the port (looked for `get_font` in StringWidget and its supertypes)
-        // rust: let mut text_renderer: Font = self.get_font();
-        let mut text_renderer: Font = todo!("fabric2seer: the initialiser of `textRenderer` (TODO above)");
-        // TODO(fabric2seer): `width` takes 2 argument(s) in the port (`max_width: i32, text_width: i32`), Java passes 0
-        // rust: let mut width: i32 = string_widget::width();
-        let mut width: i32 = todo!("fabric2seer: the initialiser of `width` (TODO above)");
-        let mut text_width: i32 = text_renderer.width_of_sequence(&text.get_visual_order_text());
+        // java: Font textRenderer = this.getFont(); - the font the constructor was handed (`this.font`)
+        let mut text_renderer: Font = compat::font();
+        // java: int width = this.getWidth();
+        let mut width: i32 = self.get_width();
+        let mut text_width: i32 = text_renderer.width_of_sequence(&*text.get_visual_order_text());
         let mut horizontal_alignment: f32 = 0.5f32;
         let mut x: i32 = (self.get_x().wrapping_add((ICON_TEXT_WIDGET_ICON_SIZE.wrapping_add(ICON_TEXT_WIDGET_SPACING)).wrapping_div(2))).wrapping_add(compat::java_round_f32((horizontal_alignment * ((width.wrapping_sub(text_width)) as f32))));
         let mut y: i32 = self.get_y().wrapping_add((self.get_height().wrapping_sub(mcrust::net::minecraft::client::gui::font::LINE_HEIGHT)).wrapping_div(2));
         let mut ordered_text: Seq = (if text_width > width { self.trim(&text, width) } else { text.get_visual_order_text() });
         let mut icon_x: i32 = (x.wrapping_sub(ICON_TEXT_WIDGET_ICON_SIZE)).wrapping_sub(ICON_TEXT_WIDGET_SPACING);
         let mut icon_y: i32 = y.wrapping_sub(13);
-        gui_graphics_extractor::draw_formatted_char_sequence(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), &ordered_text, x, y, mcrust::net::minecraft::util::common_colors::WHITE);
+        gui_graphics_extractor::draw_formatted_char_sequence(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), &sequence_text(&*ordered_text), x, y, mcrust::net::minecraft::util::common_colors::WHITE);
         gui_graphics_extractor::blit_identifier(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), mcrust::net::minecraft::client::renderer::render_pipelines::gui_textured(), &self.icon, icon_x, icon_y, ((0) as f32) as f32, ((0) as f32) as f32, ICON_TEXT_WIDGET_ICON_SIZE, ICON_TEXT_WIDGET_ICON_SIZE, ICON_TEXT_WIDGET_ICON_SIZE, ICON_TEXT_WIDGET_ICON_SIZE);
     }
 
     /// java: private FormattedCharSequence trim(Component text, int width)
     pub fn trim(&self, text: &MutableComponent, mut width: i32) -> Seq {
-        // TODO(fabric2seer): `StringWidget.getFont` has no Rust method in the port (looked for `get_font` in StringWidget and its supertypes)
-        // rust: let mut text_renderer: Font = self.get_font();
-        let mut text_renderer: Font = todo!("fabric2seer: the initialiser of `textRenderer` (TODO above)");
-        let mut string_visitable: mcrust::net::minecraft::network::chat::formatted_text::FormattedText = text_renderer.substr_by_width(&mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(text.clone()), width.wrapping_sub(text_renderer.width_of_cached(&mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(mcrust::net::minecraft::network::chat::common_components::ELLIPSIS))));
-        // TODO(fabric2seer): `Language.getVisualOrder` has no Rust method in the port (looked for `get_visual_order` in Language and its supertypes)
-        // rust: return language::get_instance().get_visual_order(mcrust::net::minecraft::network::chat::formatted_text::FormattedText::composite(vec![mcrust::net::minecraft::network::chat::formatted_text::FormattedText::of(compat::jstring(&string_visitable)), mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(mcrust::net::minecraft::network::chat::common_components::ELLIPSIS)]));
-        return todo!("fabric2seer: see the TODO above");
+        // java: Font textRenderer = this.getFont();
+        let mut text_renderer: Font = compat::font();
+        let mut string_visitable: mcrust::net::minecraft::network::chat::formatted_text::FormattedText = text_renderer.substr_by_width(&mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(text.clone()), width.wrapping_sub(text_renderer.width_of_cached(&mcrust::net::minecraft::network::chat::formatted_text::FormattedText::of(mcrust::net::minecraft::network::chat::common_components::ELLIPSIS))));
+        // java: return Language.getInstance().getVisualOrder(FormattedText.composite(stringVisitable, CommonComponents.ELLIPSIS));
+        return language::get_instance().get_visual_order(&mcrust::net::minecraft::network::chat::formatted_text::FormattedText::composite(vec![string_visitable, mcrust::net::minecraft::network::chat::formatted_text::FormattedText::of(mcrust::net::minecraft::network::chat::common_components::ELLIPSIS)]));
     }
 
 }
 
-// NOTE(fabric2seer): extractWidgetRenderState override(s) of StringWidget - the port dispatches its own calls, so these run only where the mod calls them; hook the port's method to make the game call them
+/// IconTextWidget's widget half
+impl compat::WidgetHalf for IconTextWidget {
+    fn widget_half(&mut self) -> &mut AbstractWidget {
+        &mut self.base
+    }
+}
+
+/// IconTextWidget as the game's widget (`this.layout.addToHeader(new IconTextWidget(..))`)
+impl mcrust::mcrust::modding::widgets::ModWidget for compat::WidgetAdapter<IconTextWidget> {
+    /// java: @Override public void extractWidgetRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta)
+    fn extract_widget_render_state(&mut self, widget: &AbstractWidget, context: &mut mcrust::mcrust::modding::widgets::WidgetRenderContext<'_>, mouse_x: i32, mouse_y: i32, a: f32) {
+        self.lend_ref(widget, |__h| compat::read(__h, |__t| __t.extract_widget_render_state(&context.graphics, mouse_x, mouse_y, a)))
+    }
+
+    /// java: StringWidget.updateWidgetNarration (an empty body)
+    fn update_widget_narration(&mut self, _widget: &AbstractWidget, _output: &mut dyn mcrust::net::minecraft::client::gui::narration::narration_element_output::NarrationElementOutput) {}
+}
+
+/// The port draws a `FormattedText` where Java draws a `FormattedCharSequence`: the sequence's styled
+/// characters, gathered back into runs of one style each.
+fn sequence_text(seq: &dyn FormattedCharSequence) -> mcrust::net::minecraft::network::chat::formatted_text::FormattedText {
+    use mcrust::net::minecraft::network::chat::formatted_text::FormattedText;
+    use mcrust::net::minecraft::network::chat::style::Style;
+    let mut runs: Vec<(Style, String)> = Vec::new();
+    seq.accept(&mut |_position: i32, style: &Style, codepoint: u32| {
+        if let Some(c) = char::from_u32(codepoint) {
+            match runs.last_mut() {
+                Some((s, text)) if s == style => text.push(c),
+                _ => runs.push((style.clone(), c.to_string())),
+            }
+        }
+        true
+    });
+    FormattedText::composite(runs.into_iter().map(|(style, text)| FormattedText::of_styled(text, style)).collect())
+}
+

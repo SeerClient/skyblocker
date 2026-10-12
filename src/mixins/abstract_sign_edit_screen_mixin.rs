@@ -49,11 +49,12 @@ fn skyblocker_init(ci: &mut CallbackInfo<'_>) {
             // `Vec<AbstractWidget>` where Java's `@Nullable Button[]` has null elements (the clipboard button). The
             // sign's `[String; 4]` is lent as a vector and written back.
             let mut messages: Vec<String> = this.messages.to_vec();
-            let mut buttons: Vec<mcrust::net::minecraft::client::gui::components::abstract_widget::AbstractWidget> = crate::de::hysky::skyblocker::skyblock::bazaar::bazaar_quick_quantities::BazaarQuickQuantities::get_buttons(this.screen.width, &mut messages).unwrap();
+            let buttons: Vec<Option<mcrust::net::minecraft::client::gui::components::abstract_widget::AbstractWidget>> = crate::de::hysky::skyblocker::skyblock::bazaar::bazaar_quick_quantities::BazaarQuickQuantities::get_buttons(this.screen.width, &mut messages).unwrap();
             for (line, message) in messages.into_iter().enumerate().take(this.messages.len()) {
                 this.messages[line] = message;
             }
-            for button in buttons {
+            // java: for (Button button : buttons) if (button != null) addRenderableWidget(button);
+            for button in buttons.into_iter().flatten() {
                 this.screen.add_renderable_widget(button);
             }
         }
@@ -73,7 +74,7 @@ fn skyblocker_char_typed(ci: &mut CallbackInfo<'_>) {
         && is_input_sign(this) && this.messages[(3) as usize] == "to order" {
         let line = this.line as usize;
         if let Some(sign_field) = this.sign_field.as_mut() {
-            crate::de::hysky::skyblocker::skyblock::bazaar::bazaar_max::INSTANCE.expand_max(sign_field, &this.messages[line]);
+            crate::de::hysky::skyblocker::skyblock::bazaar::bazaar_max::INSTANCE.get().expand_max(sign_field, &this.messages[line]);
         }
     }
 }

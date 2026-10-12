@@ -42,7 +42,10 @@ impl SlayerBossBar {
         if compat::get_state(&BOSS_MAX_HEALTH) == -1 {
             let mut boss_fight: Option<compat::Shared<BossFight>> = SlayerManager::get_boss_fight();
             if let Some(boss_fight) = &boss_fight {
-                let mut boss_name: String = compat::component_of(boss_fight.lock().borrow().armor_stand.get_name()).get_string();
+                // the stand by id; a stand the level dropped has no name to read
+                let Some(mut boss_name) = mcrust::mcrust::modding::game::with_entity(compat::read(boss_fight, |__t| __t.armor_stand), |e| e.get_name().get_string()) else {
+                    return true;
+                };
                 let mut max_health_matcher: compat::regex::Matcher = HEALTH_PATTERN.matcher(&boss_name);
                 if max_health_matcher.find() {
                     let mut current_health: i32 = SlayerBossBar::convert_to_int(max_health_matcher.group(0));
@@ -56,9 +59,10 @@ impl SlayerBossBar {
 
     /// java: public static LerpingBossEvent updateBossBar()
     pub fn update_boss_bar() -> LerpingBossEvent {
-        let mut slayer_armor_stand: Option<ArmorStand> = SlayerManager::get_slayer_armor_stand();
+        // the stand by id (read through `game::with_entity`)
+        let mut slayer_armor_stand: Option<i32> = SlayerManager::get_slayer_armor_stand();
         debug_assert!(slayer_armor_stand.is_some());
-        let mut name: MutableComponent = compat::component_of(slayer_armor_stand.as_ref().unwrap().get_name());
+        let mut name: MutableComponent = mcrust::mcrust::modding::game::with_entity(slayer_armor_stand.unwrap(), |e| compat::component_of(e.get_name())).expect("NullPointerException: the slayer armor stand");
         if BOSS_BAR.get_mut().is_none() {
             // TODO(fabric2seer): field `PURPLE` of a value of unknown type
             //   java: bossBar = new LerpingBossEvent(UUID.randomUUID(), name, 1f, BossEvent.BossBarColor.PURPLE, BossEvent.BossBarOverlay.PROGRESS, false, false, false);

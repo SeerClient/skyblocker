@@ -53,7 +53,7 @@ pub static ITEM_NAME: compat::MainThread<Arc<dyn Fn(String) -> MutableComponent>
     return component::literal(&s);
 }));
 /// java: private static final LayoutAppender EMPTY_APPENDER = (_, _, _) -> {};
-pub static EMPTY_APPENDER: compat::MainThread<compat::Shared<dyn LayoutAppender>> = compat::MainThread::new(|| compat::shared(LayoutAppenderLambda(Arc::new(move |_, _, _| {
+pub static EMPTY_APPENDER: compat::MainThread<compat::Shared<dyn LayoutAppender>> = compat::MainThread::new(|| compat::shared(LayoutAppenderLambda(Arc::new(move |_, _, _, _| {
 
 }))) as compat::Shared<dyn LayoutAppender>);
 // TODO(fabric2seer): static field Calculation.Type
@@ -298,16 +298,26 @@ impl ValueBreakdownPopup {
     }
 
     /// java: private static MultiLineTextWidget createTextWidget(Component text, Font textRenderer)
-    pub fn create_text_widget(text: &MutableComponent, text_renderer: &Font) -> MultiLineTextWidget {
-        // TODO(fabric2seer): the port's `new` ports this Java method with other parameters (x, y, message for Java's message)
-        // TODO(fabric2seer): `new` takes 3 argument(s) in the port (`x: i32, y: i32, message: FormattedText`), Java passes 2
-        // rust: let mut widget: MultiLineTextWidget = MultiLineTextWidget::new(text.clone(), compat::font());
-        let mut widget: MultiLineTextWidget = todo!("fabric2seer: the initialiser of `widget` (TODO above)");
-        // TODO(fabric2seer): `MultiLineTextWidget.setComponentClickHandler` has no Rust method in the port (looked for `set_component_click_handler` in MultiLineTextWidget and its supertypes)
-        // rust: widget.set_component_click_handler(&Arc::new(move |_| {
-        // rust: 
-        // rust: }));
-        return widget;
+    /// (the port's layouts hold a screen's widgets by index: the widget joins `screen`, the popup's own `Screen`
+    /// half, and the layout gets its element - Java's `visitWidgets(this::addRenderableWidget)` marks it drawn)
+    pub fn create_text_widget(screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, text: &MutableComponent, text_renderer: &Font) -> LayoutElement {
+        // java: MultiLineTextWidget widget = new MultiLineTextWidget(text, textRenderer);
+        let mut widget: MultiLineTextWidget = MultiLineTextWidget::new(0, 0, mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(text.clone()));
+        // java: widget.setComponentClickHandler(_ -> {});
+        // rust: port gap - `MultiLineTextWidget.setComponentClickHandler` is not ported (GAPS_batchB.md #12); the no-op
+        //   handler only stops a click on the text from opening its click event
+        let (width, height) = (widget.get_width(&text_renderer.splitter()), widget.get_height(&text_renderer.splitter()));
+        let index = screen.add_widget(mcrust::net::minecraft::client::gui::components::abstract_widget::AbstractWidget::new(
+            0,
+            0,
+            width,
+            height,
+            text.get_string(),
+            mcrust::net::minecraft::client::gui::components::abstract_widget::WidgetKind::PlainMultiLineText(Box::new(widget)),
+            mcrust::net::minecraft::client::gui::components::abstract_widget::OnPress::Inert,
+        ));
+        screen.mark_renderable(index);
+        return LayoutElement::widget(index, width, height);
     }
 
     /// java: @Override public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a)
@@ -353,17 +363,19 @@ impl ValueBreakdownPopup {
         let mut layout: LinearLayout = LinearLayout::vertical();
         // TODO(fabric2seer): `.base(..)` on a NetworthResult
         //   java: layout.addChild(createTextWidget(Component.translatable("skyblocker.valueBreakdownPopup.baseItemPrice", getCoinsText(networthResult.base(), networthResult.price())), font));
-        for entry in __this.lock().borrow().map.iter().map(|(k, v)| (k.clone(), v.clone())) {
+        let __entries: Vec<(crate::unresolved::Type, Vec<crate::unresolved::Calculation>)> = compat::read(__this, |__t| __t.map.iter().map(|(k, v)| (k.clone(), v.clone())).collect());
+        let __networth_result = compat::read(__this, |__t| __t.networth_result.clone());
+        for entry in __entries {
             let mut appender: Option<compat::Shared<dyn LayoutAppender>> = FORMATTERS.get_mut().get(&entry.0).cloned();
             if std::ptr::addr_eq(std::sync::Arc::as_ptr(appender.as_ref().unwrap()), std::sync::Arc::as_ptr(EMPTY_APPENDER.get_mut())) {
                 continue;
             }
             layout.add_child(SpacerElement::height(5).as_layout_element());
             if let Some(appender) = &appender {
-                ({ let __f = compat::dispatch(appender, |__t| __t.append_to()); __f(appender, &compat::read(__this, |__t| __t.networth_result.clone()), &entry.1, &mut layout) });
+                ({ let __f = compat::dispatch(appender, |__t| __t.append_to()); compat::write(__this, |__t| __f(appender, &__networth_result, &entry.1, &mut layout, &mut __t.base.base)) });
                 continue;
             }
-            layout.add_child(ValueBreakdownPopup::create_text_widget(&component::literal(&compat::jstring(&entry.0)), &compat::font()));
+            { let __e = compat::write(__this, |__t| ValueBreakdownPopup::create_text_widget(&mut __t.base.base, &component::literal(&compat::jstring(&entry.0)), &compat::font())); layout.add_child(__e); }
             for calculation in entry.1.iter() {
                 // TODO(fabric2seer): `.id(..)` on a Calculation
                 //   java: layout.addChild(createTextWidget(Component.literal(calculation.id() + ": ").append(getCoinsText(calculation.price())), font), p -> p.paddingLeft(20));
@@ -488,7 +500,7 @@ impl ModScreen for compat::ScreenAdapter<ValueBreakdownPopup> {
 pub trait LayoutAppender: compat::DynAny {
     fn as_any(&self) -> &dyn std::any::Any;
     /// java: void appendTo(NetworthResult networthResult, List<Calculation> calculations, LinearLayout layout); (dispatch: the body for this class)
-    fn append_to(&self) -> fn(&compat::Shared<dyn LayoutAppender>, &crate::unresolved::NetworthResult, &Vec<crate::unresolved::Calculation>, &mut LinearLayout);
+    fn append_to(&self) -> fn(&compat::Shared<dyn LayoutAppender>, &crate::unresolved::NetworthResult, &Vec<crate::unresolved::Calculation>, &mut LinearLayout, &mut mcrust::net::minecraft::client::gui::screens::screen::Screen);
 
     /// java: default void appendCountAndPrice(Calculation calc, double totalPrice, MutableComponent empty) (dispatch: the body for this class)
     fn append_count_and_price(&self) -> fn(&compat::Shared<dyn LayoutAppender>, &crate::unresolved::Calculation, f64, &mut MutableComponent) {
@@ -561,7 +573,7 @@ impl LayoutAppender for BasicSingleAppender {
     }
 
     /// java: @Override public void appendTo(NetworthResult networthResult, List<Calculation> calculations, LinearLayout layout) (dispatch: the body for this class)
-    fn append_to(&self) -> fn(&compat::Shared<dyn LayoutAppender>, &crate::unresolved::NetworthResult, &Vec<crate::unresolved::Calculation>, &mut LinearLayout) {
+    fn append_to(&self) -> fn(&compat::Shared<dyn LayoutAppender>, &crate::unresolved::NetworthResult, &Vec<crate::unresolved::Calculation>, &mut LinearLayout, &mut mcrust::net::minecraft::client::gui::screens::screen::Screen) {
         BasicSingleAppender::append_to_dyn
     }
 
@@ -569,7 +581,7 @@ impl LayoutAppender for BasicSingleAppender {
 
 impl BasicSingleAppender {
     /// java: @Override public void appendTo(NetworthResult networthResult, List<Calculation> calculations, LinearLayout layout)
-    pub fn append_to_impl(&self, networth_result: &crate::unresolved::NetworthResult, calculations: &Vec<crate::unresolved::Calculation>, layout: &mut LinearLayout) {
+    pub fn append_to_impl(&self, networth_result: &crate::unresolved::NetworthResult, calculations: &Vec<crate::unresolved::Calculation>, layout: &mut LinearLayout, screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen) {
         if (calculations.len() as i32) > 1 {
             // TODO(fabric2seer): `.type(..)` on a Calculation
             //   java: LOGGER.warn("More than one calculation was found for type {}", calculations.getFirst().type());
@@ -590,12 +602,12 @@ impl BasicSingleAppender {
         }
         // TODO(fabric2seer): `.price(..)` on a NetworthResult
         //   java: appendCountAndPrice(calc, networthResult.price(), empty);
-        layout.add_child(ValueBreakdownPopup::create_text_widget(&empty, &compat::font()));
+        layout.add_child(ValueBreakdownPopup::create_text_widget(screen, &empty, &compat::font()));
     }
 
     /// BasicSingleAppender.appendTo as the dispatch of LayoutAppender.appendTo
-    pub fn append_to_dyn(__this: &compat::Shared<dyn LayoutAppender>, __p0: &crate::unresolved::NetworthResult, __p1: &Vec<crate::unresolved::Calculation>, __p2: &mut LinearLayout) {
-        compat::read_as::<Self, _, _>(__this, |__s| __s.append_to_impl(__p0, __p1, __p2))
+    pub fn append_to_dyn(__this: &compat::Shared<dyn LayoutAppender>, __p0: &crate::unresolved::NetworthResult, __p1: &Vec<crate::unresolved::Calculation>, __p2: &mut LinearLayout, __p3: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen) {
+        compat::read_as::<Self, _, _>(__this, |__s| __s.append_to_impl(__p0, __p1, __p2, __p3))
     }
 
 }
@@ -633,7 +645,7 @@ impl LayoutAppender for BasicListAppender {
     }
 
     /// java: @Override public void appendTo(NetworthResult networthResult, List<Calculation> calculations, LinearLayout layout) (dispatch: the body for this class)
-    fn append_to(&self) -> fn(&compat::Shared<dyn LayoutAppender>, &crate::unresolved::NetworthResult, &Vec<crate::unresolved::Calculation>, &mut LinearLayout) {
+    fn append_to(&self) -> fn(&compat::Shared<dyn LayoutAppender>, &crate::unresolved::NetworthResult, &Vec<crate::unresolved::Calculation>, &mut LinearLayout, &mut mcrust::net::minecraft::client::gui::screens::screen::Screen) {
         BasicListAppender::append_to_dyn
     }
 
@@ -641,9 +653,9 @@ impl LayoutAppender for BasicListAppender {
 
 impl BasicListAppender {
     /// java: @Override public void appendTo(NetworthResult networthResult, List<Calculation> calculations, LinearLayout layout)
-    pub fn append_to_impl(&self, networth_result: &crate::unresolved::NetworthResult, calculations: &Vec<crate::unresolved::Calculation>, layout: &mut LinearLayout) {
+    pub fn append_to_impl(&self, networth_result: &crate::unresolved::NetworthResult, calculations: &Vec<crate::unresolved::Calculation>, layout: &mut LinearLayout, screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen) {
         let mut text_renderer: Font = compat::font();
-        layout.add_child(ValueBreakdownPopup::create_text_widget(&self.display_name, &text_renderer));
+        layout.add_child(ValueBreakdownPopup::create_text_widget(screen, &self.display_name, &text_renderer));
         let mut total: f64 = ((0) as f64) as f64;
         for calc in calculations.iter() {
             let mut empty: MutableComponent = component::empty();
@@ -655,21 +667,21 @@ impl BasicListAppender {
             //   java: appendCountAndPrice(calc, networthResult.price(), empty);
             // TODO(fabric2seer): `.price(..)` on a Calculation
             //   java: total += calc.price();
-            layout.add_child_adjusted(ValueBreakdownPopup::create_text_widget(&empty, &text_renderer), &mut |p| { p.padding_left(15); });
+            layout.add_child_adjusted(ValueBreakdownPopup::create_text_widget(screen, &empty, &text_renderer), &mut |p| { *p = p.clone().padding_left(15); });
         }
         // TODO(fabric2seer): `.price(..)` on a NetworthResult
         //   java: layout.addChild(createTextWidget(Component.translatable("skyblocker.valueBreakdownPopup.total", getCoinsText(total, networthResult.price())), textRenderer), p -> p.paddingLeft(10));
     }
 
     /// BasicListAppender.appendTo as the dispatch of LayoutAppender.appendTo
-    pub fn append_to_dyn(__this: &compat::Shared<dyn LayoutAppender>, __p0: &crate::unresolved::NetworthResult, __p1: &Vec<crate::unresolved::Calculation>, __p2: &mut LinearLayout) {
-        compat::read_as::<Self, _, _>(__this, |__s| __s.append_to_impl(__p0, __p1, __p2))
+    pub fn append_to_dyn(__this: &compat::Shared<dyn LayoutAppender>, __p0: &crate::unresolved::NetworthResult, __p1: &Vec<crate::unresolved::Calculation>, __p2: &mut LinearLayout, __p3: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen) {
+        compat::read_as::<Self, _, _>(__this, |__s| __s.append_to_impl(__p0, __p1, __p2, __p3))
     }
 
 }
 
 /// A lambda as a `LayoutAppender` (the interface's one abstract method, `appendTo`): `EMPTY_APPENDER`.
-pub struct LayoutAppenderLambda(pub Arc<dyn Fn(&crate::unresolved::NetworthResult, &Vec<crate::unresolved::Calculation>, &mut LinearLayout)>);
+pub struct LayoutAppenderLambda(pub Arc<dyn Fn(&crate::unresolved::NetworthResult, &Vec<crate::unresolved::Calculation>, &mut LinearLayout, &mut mcrust::net::minecraft::client::gui::screens::screen::Screen)>);
 
 impl LayoutAppender for LayoutAppenderLambda {
     fn as_any(&self) -> &dyn std::any::Any {
@@ -677,14 +689,14 @@ impl LayoutAppender for LayoutAppenderLambda {
     }
 
     /// java: void appendTo(NetworthResult networthResult, List<Calculation> calculations, LinearLayout layout); (the lambda's body)
-    fn append_to(&self) -> fn(&compat::Shared<dyn LayoutAppender>, &crate::unresolved::NetworthResult, &Vec<crate::unresolved::Calculation>, &mut LinearLayout) {
+    fn append_to(&self) -> fn(&compat::Shared<dyn LayoutAppender>, &crate::unresolved::NetworthResult, &Vec<crate::unresolved::Calculation>, &mut LinearLayout, &mut mcrust::net::minecraft::client::gui::screens::screen::Screen) {
         LayoutAppenderLambda::append_to_dyn
     }
 }
 
 impl LayoutAppenderLambda {
-    pub fn append_to_dyn(__this: &compat::Shared<dyn LayoutAppender>, __p0: &crate::unresolved::NetworthResult, __p1: &Vec<crate::unresolved::Calculation>, __p2: &mut LinearLayout) {
+    pub fn append_to_dyn(__this: &compat::Shared<dyn LayoutAppender>, __p0: &crate::unresolved::NetworthResult, __p1: &Vec<crate::unresolved::Calculation>, __p2: &mut LinearLayout, __p3: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen) {
         let __f = compat::read_as::<Self, _, _>(__this, |__s| __s.0.clone());
-        (__f)(__p0, __p1, __p2)
+        (__f)(__p0, __p1, __p2, __p3)
     }
 }

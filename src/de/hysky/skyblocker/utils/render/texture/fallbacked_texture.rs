@@ -16,6 +16,8 @@ pub trait FallbackedTexture<T> {
     fn as_any(&self) -> &dyn std::any::Any;
     /// java: boolean isUsingFallback();
     fn is_using_fallback(&self) -> bool;
+    /// java: `Supplier<T>.get()` (the interface extends it)
+    fn get(&self) -> T;
 
 }
 

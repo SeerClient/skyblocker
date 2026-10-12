@@ -133,8 +133,8 @@ impl DonationButton {
                     let mut item_name: MutableComponent = compat::component_of(stack.get_hover_name()).copy();
                     if soulbound {
                         tooltip.push(component::literal("  ").append(item_name.clone()));
-                    } else if PriceData::get_effective_price(&piece.1) > (0 as f64) {
-                        tooltip.push(component::literal("  ").append(item_name.clone()).append(component::literal(" (").with_style_format(ChatFormatting::DarkGray)).append(component::literal(&MuseumUtils::format_price(PriceData::get_effective_price(&piece.1))).with_style_format(ChatFormatting::Gold)).append(component::literal(")").with_style_format(ChatFormatting::DarkGray)));
+                    } else if PriceData::get_effective_price(piece.1.as_ref().expect("java.lang.NullPointerException: the set piece's PriceData")) > (0 as f64) {
+                        tooltip.push(component::literal("  ").append(item_name.clone()).append(component::literal(" (").with_style_format(ChatFormatting::DarkGray)).append(component::literal(&MuseumUtils::format_price(PriceData::get_effective_price(piece.1.as_ref().expect("java.lang.NullPointerException: the set piece's PriceData")))).with_style_format(ChatFormatting::Gold)).append(component::literal(")").with_style_format(ChatFormatting::DarkGray)));
                     } else {
                         tooltip.push(component::literal("  ").append(item_name.clone()).append(component::literal(" (").with_style_format(ChatFormatting::DarkGray)).append(component::translatable("skyblocker.museum.hud.unknownPrice").with_style_format(ChatFormatting::Red)).append(component::literal(")").with_style_format(ChatFormatting::DarkGray)));
                     }

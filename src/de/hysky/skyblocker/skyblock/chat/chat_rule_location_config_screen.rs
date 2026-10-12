@@ -50,9 +50,9 @@ impl std::ops::DerefMut for ChatRuleLocationConfigScreen {
 impl ChatRuleLocationConfigScreen {
     /// java: public ChatRuleLocationConfigScreen(@Nullable Screen parent, ChatRule chatRule)
     pub fn new(mut parent: Option<mcrust::net::minecraft::client::gui::screens::screen::Screen>, mut chat_rule: compat::Shared<ChatRule>) -> compat::Shared<Self> {
-        let __init_parent = parent.clone();
+        let __init_parent = parent;
         let __init_chat_rule = chat_rule.clone();
-        let __init_enabled_locations = ChatRule::get_valid_locations(&chat_rule).iter().cloned().collect::<Vec<_>>();
+        let __init_enabled_locations = ChatRule::get_valid_locations(&chat_rule).iter().cloned().collect::<std::collections::HashSet<_>>();
         let __this = compat::shared(Self {
             base: mcrust::net::minecraft::client::gui::screens::screen::Screen::new(component::translatable("skyblocker.config.chat.chatRules.screen.ruleScreen.locationsConfigScreen").get_string()),
             __widgets: Default::default(),

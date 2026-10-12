@@ -47,7 +47,7 @@ impl SkyblockKatUpgradeRecipeCategory {
     /// java: protected SkyblockKatUpgradeRecipeCategory(IGuiHelper guiHelper)
     pub fn new(mut gui_helper: crate::unresolved::IGuiHelper) -> Self {
         let mut this = Self {
-            base: AbstractSkyblockRecipeCategoryBase::<compat::Shared<SkyblockKatUpgradeRecipe>>::new(gui_helper.clone(), RECIPE_TYPE.get_mut().clone(), TITLE.get_mut().clone(), ico::GOLD_NUGGET.get_mut().clone()),
+            base: AbstractSkyblockRecipeCategoryBase::<compat::Shared<SkyblockKatUpgradeRecipe>>::new(gui_helper, RECIPE_TYPE.get(), TITLE.get_mut().clone(), ico::GOLD_NUGGET.get_mut().clone()),
         };
         this
     }

@@ -6,6 +6,7 @@ use crate::de::hysky::skyblocker::events::skyblock_events;
 use crate::de::hysky::skyblocker::skyblock::garden::garden_plots_widget::GardenPlotsWidget;
 use crate::entry::skyblocker_mod;
 use mcrust::com::mojang::datafixers::util::either::Either;
+use mcrust::com::mojang::serialization::codec;
 use mcrust::com::mojang::serialization::codec::Codec;
 use mcrust::com::mojang::serialization::codec::CodecRef;
 use mcrust::com::mojang::serialization::codecs::record_codec_builder;
@@ -13,25 +14,21 @@ use mcrust::java::util::concurrent::completable_future::CompletableFuture;
 use mcrust::net::minecraft::client::gui::screens::inventory::container_screen::ContainerScreen;
 use mcrust::net::minecraft::world::item::item::Item;
 use mcrust::com::mojang::serialization::encoder::Encoder as _;
+use mcrust::com::mojang::serialization::decoder::Decoder as _;
 
 /// java: private static final Path FOLDER = SkyblockerMod.CONFIG_DIR.resolve("garden_plots");
 pub static FOLDER: compat::MainThread<std::path::PathBuf> = compat::MainThread::new(|| skyblocker_mod::CONFIG_DIR.get_mut().join("garden_plots"));
 /// java: public static final @Nullable GardenPlot[] GARDEN_PLOTS = new GardenPlot[25];
-pub static GARDEN_PLOTS: compat::MainThread<Option<Vec<GardenPlot>>> = compat::MainThread::new(|| Some((0..(25) as usize).map(|_| Default::default()).collect::<Vec<_>>()));
+///
+/// The ELEMENTS are nullable (`new GardenPlot[25]` starts as 25 nulls).
+pub static GARDEN_PLOTS: compat::MainThread<Vec<Option<GardenPlot>>> = compat::MainThread::new(|| vec![None; 25]);
 /// java: public static @Nullable GardenPlotsWidget widget;
 pub static WIDGET: compat::MainThread<Option<GardenPlotsWidget>> = compat::MainThread::new(|| None);
-// TODO(fabric2seer): `.value(..)` on a A
-//   java: @SuppressWarnings("deprecation")
-//   java: 		public static final Codec<GardenPlot> CODEC = RecordCodecBuilder.create(instance -> instance.group(
-//   java: 								Codec.either(Item.CODEC.xmap(Holder::value, Item::builtInRegistryHolder), Codec.STRING)
-//   java: 										.fieldOf("icon").forGetter(GardenPlot::icon),
-//   java: 								Codec.STRING.fieldOf("name").forGetter(GardenPlot::name),
-//   java: 								Codec.STRING.optionalFieldOf("customIcon").forGetter(GardenPlot::customIcon)
-//   java: 						)
-//   java: 						.apply(instance, GardenPlot::new)
-//   java: 		);
 /// java: @SuppressWarnings("deprecation") public static final Codec<GardenPlot> CODEC = RecordCodecBuilder.create(instance -> instance.group( Codec.either(Item.CODEC.xmap(Holder::value, Item::builtInRegistryHo
-pub static GARDEN_PLOT_CODEC: compat::MainThread<CodecRef<GardenPlot>> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `CODEC` - see the TODO above"));
+///
+/// `Item.CODEC.xmap(Holder::value, Item::builtInRegistryHolder)` is the port's `item::codec()` itself (its holder IS the
+/// `Arc<Item>`). A `LazyLock`: the save and the load run on the executor.
+pub static GARDEN_PLOT_CODEC: LazyLock<CodecRef<GardenPlot>> = LazyLock::new(|| record_codec_builder::create(record_codec_builder::apply3(record_codec_builder::of(|o: &GardenPlot| o.icon(), codec::field_of(codec::either(mcrust::net::minecraft::world::item::item::codec(), codec::string_codec()), "icon")), record_codec_builder::of(|o: &GardenPlot| o.name(), codec::field_of(codec::string_codec(), "name")), record_codec_builder::of(|o: &GardenPlot| o.custom_icon(), codec::optional_field_of_opt(codec::string_codec(), "customIcon")), move |__a0, __a1, __a2| GardenPlot::new_3(__a0.clone(), __a1.clone(), __a2.clone()))));
 
 /// java: public final class GardenPlots
 #[derive(Clone)]
@@ -100,9 +97,12 @@ impl GardenPlots {
         }));
         skyblock_events::PROFILE_CHANGE.register(Arc::new(move |prev_profile_id, profile_id| {
             if !prev_profile_id.is_empty() {
+                // `save` reads GARDEN_PLOTS: the snapshot is taken here, on the render thread, and written on the executor
+                let plots: Vec<Option<GardenPlot>> = GARDEN_PLOTS.get().clone();
+                let folder: std::path::PathBuf = FOLDER.get().clone();
                 CompletableFuture::<()>::run_async(move || (|| {
-                    GardenPlots::save(&prev_profile_id);
-                    GardenPlots::load(&profile_id);
+                    GardenPlots::save_plots(&folder, &prev_profile_id, &plots);
+                    GardenPlots::load_in(&folder, &profile_id);
                 })(), compat::executor);
             } else {
                 GardenPlots::load(&profile_id);
@@ -119,62 +119,95 @@ impl GardenPlots {
 
     /// java: private static void save(String profileId)
     pub fn save(profile_id: &str) {
-        // java: try {..} catch (IOException e) - an exception here is a panic, caught by `catch_unwind`
+        let plots: Vec<Option<GardenPlot>> = GARDEN_PLOTS.get().clone();
+        GardenPlots::save_plots(FOLDER.get(), profile_id, &plots);
+    }
+
+    /// `save`'s body over a snapshot of `GARDEN_PLOTS` and `FOLDER` (both render-thread statics), so it can run on
+    /// the executor as Java's does.
+    fn save_plots(folder: &std::path::Path, profile_id: &str, plots: &[Option<GardenPlot>]) {
+        // java: try { Files.createDirectories(FOLDER); } catch (IOException e) {..}
+        if let Err(e) = std::fs::create_dir_all(folder) {
+            logger().error(&format!("[Skyblocker] Failed to create folder for garden plots! {}", e));
+        }
+        let mut resolve: std::path::PathBuf = folder.join(&format!("{}.json", profile_id));
+        // java: try (BufferedWriter writer = Files.newBufferedWriter(resolve)) {..} catch (Exception e) {..}
         let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            std::fs::create_dir_all(FOLDER.get_mut()).expect("IOException");
+            use std::io::Write as _;
+            let mut writer = std::io::BufWriter::new(std::fs::File::create(&resolve).unwrap_or_else(|e| panic!("IOException: {e}")));
+            let mut elements: Vec<serde_json::Value> = Vec::new();
+            for garden_plot in plots {
+                let element: serde_json::Value = match garden_plot {
+                    None => serde_json::Value::Null,
+                    Some(garden_plot) => GARDEN_PLOT_CODEC.encode_start(&mcrust::com::mojang::serialization::json_ops::JsonOps::instance(), garden_plot).result().map(|o| compat::json_from_port(&o)).unwrap_or(serde_json::Value::Null),
+                };
+                elements.push(element);
+            }
+            // SkyblockerMod.GSON.toJson(elements, writer) (GSON is `setPrettyPrinting()`)
+            let text: String = serde_json::to_string_pretty(&serde_json::Value::Array(elements)).unwrap_or_else(|e| panic!("JsonIOException: {e}"));
+            writer.write_all(text.as_bytes()).unwrap_or_else(|e| panic!("IOException: {e}"));
+            writer.flush().unwrap_or_else(|e| panic!("IOException: {e}"));
         }));
         if let Err(e) = __result {
-            logger().error(&format!("[Skyblocker] Failed to create folder for garden plots!"));
-        }
-        let mut resolve: std::path::PathBuf = FOLDER.get_mut().join(&format!("{}.json", profile_id));
-        {
-            // TODO(fabric2seer): Files.newBufferedWriter
-            //   java: BufferedWriter writer = Files.newBufferedWriter(..);
-            let mut writer: crate::unresolved::BufferedWriter = todo!("fabric2seer: the initialiser of `writer` (TODO above)");
-            // java: try {..} catch (Exception e) - an exception here is a panic, caught by `catch_unwind`
-            let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                let mut elements: Vec<serde_json::Value> = Vec::new();
-                for __a0 in GARDEN_PLOTS.get_mut().as_ref().unwrap().iter().cloned().map(|garden_plot| {
-                    if false /* java: garden_plot == null: never null here */ {
-                        return Default::default(); // java: return null
-                    }
-                    return (GARDEN_PLOT_CODEC.get_mut().encode_start(&mcrust::com::mojang::serialization::json_ops::JsonOps::instance(), &garden_plot)).result();
-                }) {
-                    elements.push(compat::json::to_value(__a0.clone()));
-                }
-                // TODO(fabric2seer): `.toJson(..)` on a Gson
-                //   java: SkyblockerMod.GSON.toJson(elements, writer);
-            }));
-            if let Err(e) = __result {
-                logger().error(&format!("[Skyblocker] Failed to save Garden Plots data"));
-            }
+            logger().error(&format!("[Skyblocker] Failed to save Garden Plots data {}", compat::panic_message(&e)));
         }
     }
 
     /// java: private static void load(String profileId)
     pub fn load(profile_id: &str) {
-        let mut resolve: std::path::PathBuf = FOLDER.get_mut().join(&format!("{}.json", profile_id));
-        // TODO(fabric2seer): field `length` of a value of unknown type
-        //   java: CompletableFuture.supplyAsync(() -> {
-        //   java: 			try (BufferedReader reader = Files.newBufferedReader(resolve)) {
-        //   java: 				return SkyblockerMod.GSON.fromJson(reader, JsonArray.class).asList().stream().map(jsonElement -> {
-        //   java: 							if (jsonElement == null || jsonElement.isJsonNull()) return null;
-        //   java: 							return GardenPlot.CODEC.decode(JsonOps.INSTANCE, jsonElement).result().map(Pair::getFirst).orElseThrow();
-        //   java: 						}
-        //   java: 				).toArray(GardenPlot[]::new);
-        //   java: 			} catch (NoSuchFileException _) {
-        //   java: 			} catch (Exception e) {
-        //   java: 				LOGGER.error("[Skyblocker] Failed to load Equipment data", e);
-        //   java: 			}
-        //   java: 			return new GardenPlot[25];
-        //   java: 			// Schedule on main thread to avoid any async weirdness
-        //   java: 		}, SkyblockerMod.VIRTUAL_THREAD_EXECUTOR).thenAcceptAsync(newPlots -> System.arraycopy(newPlots, 0, GARDEN_PLOTS, 0, Math.min(newPlots.length, 25)), Minecraft.getInstance());
+        GardenPlots::load_in(FOLDER.get(), profile_id);
+    }
+
+    /// `load`'s body over `FOLDER` read by the caller (a render-thread static).
+    fn load_in(folder: &std::path::Path, profile_id: &str) {
+        let mut resolve: std::path::PathBuf = folder.join(&format!("{}.json", profile_id));
+        // CompletableFuture.supplyAsync(.., VIRTUAL_THREAD_EXECUTOR).thenAcceptAsync(newPlots -> arraycopy, Minecraft.getInstance())
+        compat::executor(Box::new(move || {
+            let new_plots: Vec<Option<GardenPlot>> = GardenPlots::read_plots(&resolve);
+            mcrust::mcrust::modding::game::execute(move || {
+                let length = new_plots.len().min(25);
+                GARDEN_PLOTS.get_mut()[..length].clone_from_slice(&new_plots[..length]);
+            });
+        }));
+    }
+
+    /// `load`'s `supplyAsync` body.
+    fn read_plots(resolve: &std::path::Path) -> Vec<Option<GardenPlot>> {
+        match std::fs::read_to_string(resolve) {
+            // catch (NoSuchFileException _) {}
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+            Err(e) => {
+                logger().error(&format!("[Skyblocker] Failed to load Equipment data {}", e));
+            }
+            Ok(reader) => {
+                let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                    let json: serde_json::Value = serde_json::from_str(&reader).unwrap_or_else(|e| panic!("JsonSyntaxException: {e}"));
+                    let serde_json::Value::Array(elements) = json else {
+                        panic!("JsonSyntaxException: not a JsonArray");
+                    };
+                    elements
+                        .iter()
+                        .map(|json_element| {
+                            if json_element.is_null() {
+                                return None;
+                            }
+                            Some(GARDEN_PLOT_CODEC.parse(&mcrust::com::mojang::serialization::json_ops::JsonOps::instance(), &compat::json_to_port(json_element)).result().expect("NoSuchElementException"))
+                        })
+                        .collect::<Vec<Option<GardenPlot>>>()
+                }));
+                match __result {
+                    Ok(plots) => return plots,
+                    Err(e) => logger().error(&format!("[Skyblocker] Failed to load Equipment data {}", compat::panic_message(&e))),
+                }
+            }
+        }
+        return vec![None; 25];
     }
 
 }
 
 /// java: public record GardenPlot(Either<Item, String> icon, String name, Optional<String> customIcon)
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 pub struct GardenPlot {
     /// java: Either<Item, String> icon
     pub icon: Either<Arc<Item>, String>,
@@ -187,18 +220,18 @@ pub struct GardenPlot {
 impl GardenPlot {
     /// java: public GardenPlot(Either<Item, String> icon, String name)
     pub fn new(mut icon: Either<Arc<Item>, String>, mut name: String) -> Self {
-        let mut this = Self::new(icon, name.clone(), None);
+        let mut this = Self::new_3(icon, name.clone(), None);
         this
     }
 
     /// java: the canonical record constructor
-    pub fn new(mut icon: Either<Arc<Item>, String>, mut name: String, mut custom_icon: Option<String>) -> Self {
+    pub fn new_3(mut icon: Either<Arc<Item>, String>, mut name: String, mut custom_icon: Option<String>) -> Self {
         Self { icon, name, custom_icon }
     }
 
     /// java: the record accessor `icon()`
     pub fn icon(&self) -> Either<Arc<Item>, String> {
-        self.icon
+        self.icon.clone()
     }
 
     /// java: the record accessor `name()`
@@ -213,12 +246,24 @@ impl GardenPlot {
 
     /// java: public GardenPlot withIconName(Either<Item, String> icon, String name)
     pub fn with_icon_name(&self, icon: &Either<Arc<Item>, String>, name: &str) -> GardenPlot {
-        return GardenPlot::new(*icon, name.to_string(), self.custom_icon.clone());
+        return GardenPlot::new_3(icon.clone(), name.to_string(), self.custom_icon.clone());
     }
 
     /// java: public GardenPlot withCustomIcon(@Nullable String customIcon)
     pub fn with_custom_icon(&self, mut custom_icon: Option<String>) -> GardenPlot {
-        return GardenPlot::new(self.icon, self.name.clone(), custom_icon.clone());
+        return GardenPlot::new_3(self.icon.clone(), self.name.clone(), custom_icon.clone());
     }
 
+}
+
+/// The record's `equals`: component-wise, `Item` by identity (it keeps `Object.equals`).
+impl PartialEq for GardenPlot {
+    fn eq(&self, other: &Self) -> bool {
+        let icon_eq = match (&self.icon, &other.icon) {
+            (Either::Left(a), Either::Left(b)) => Arc::ptr_eq(a, b),
+            (Either::Right(a), Either::Right(b)) => a == b,
+            _ => false,
+        };
+        icon_eq && self.name == other.name && self.custom_icon == other.custom_icon
+    }
 }

@@ -85,25 +85,28 @@ impl Tips {
 
     /// java: private static Supplier<Component> getTipFactory(@Translatable String key)
     pub fn get_tip_factory(key: &str) -> Arc<dyn Fn() -> MutableComponent> {
-        return Arc::new(move || component::translatable(key));
+        let key: String = key.to_string();
+        return Arc::new(move || component::translatable(&key));
     }
 
     /// java: private static Supplier<Component> getTipFactory(@Translatable String key, ClickEvent.Action clickAction, String value)
     pub fn get_tip_factory_3(key: &str, click_action: &Action, value: &str) -> Arc<dyn Fn() -> MutableComponent> {
-        return Tips::get_tip_factory_4(key, click_action, value, &(0..(0) as usize).map(|_| Default::default()).collect::<Vec<_>>());
+        return Tips::get_tip_factory_4(key, click_action, value, &Vec::new());
     }
 
     /// java: private static Supplier<Component> getTipFactory(@Translatable String key, ClickEvent.Action clickAction, String value, Object... args)
-    pub fn get_tip_factory_4(key: &str, click_action: &Action, value: &str, args: &Vec<compat::Object>) -> Arc<dyn Fn() -> MutableComponent> {
-        // TODO(fabric2seer): field `SUGGEST_COMMAND` of a value of unknown type
-        //   java: ClickEvent event = switch (clickAction) {
-        //   java: 			case ClickEvent.Action.SUGGEST_COMMAND -> new ClickEvent.SuggestCommand(value);
-        //   java: 			case ClickEvent.Action.OPEN_URL -> new ClickEvent.OpenUrl(URI.create(value));
-        //   java:
-        //   java: 			default -> throw new IllegalArgumentException("Unexpected value: " + clickAction);
-        //   java: 		};
-        let mut event: ClickEvent = todo!("fabric2seer: the initialiser of `event` (TODO above)");
-        return Arc::new(move || (component::translatable_args(key, args.clone())).with_style_fn(|style| style.with_click_event(Some(event))));
+    ///
+    /// `Object... args` are the translation's arguments (the port's `translatable_args` takes them as text).
+    pub fn get_tip_factory_4(key: &str, click_action: &Action, value: &str, args: &Vec<mcrust::net::minecraft::network::chat::formatted_text::FormattedText>) -> Arc<dyn Fn() -> MutableComponent> {
+        let mut event: ClickEvent = match click_action {
+            Action::SuggestCommand => ClickEvent::SuggestCommand { command: value.to_string() },
+            // URI.create throws IllegalArgumentException on a malformed URI
+            Action::OpenUrl => ClickEvent::OpenUrl { uri: mcrust::java::net::uri::Uri::create(value).unwrap_or_else(|e| panic!("IllegalArgumentException: {e:?}")) },
+            _ => panic!("IllegalArgumentException: Unexpected value: {:?}", click_action),
+        };
+        let key: String = key.to_string();
+        let args: Vec<mcrust::net::minecraft::network::chat::formatted_text::FormattedText> = args.clone();
+        return Arc::new(move || (component::translatable_args(&key, args.clone())).with_style_fn(|style| style.with_click_event(Some(event.clone()))));
     }
 
     /// java: @Init public static void init()
@@ -136,7 +139,7 @@ impl Tips {
 
     /// java: private static int enableTips(CommandContext<FabricClientCommandSource> context)
     pub fn enable_tips(context: &CommandContext<crate::unresolved::FabricClientCommandSource>) -> i32 {
-        SkyblockerConfigManager::update(Arc::new(move |config| { config.general.enable_tips = true; }));
+        SkyblockerConfigManager::update(Arc::new(move |mut config| { config.general.enable_tips = true; }));
         // TODO(fabric2seer): `.sendFeedback(..)` on a FabricClientCommandSource
         //   java: context.getSource().sendFeedback(Constants.PREFIX.get().append(Component.translatable("skyblocker.tips.enabled").withColor(TextColor.GREEN)).append(" ").append(DISABLE_TEXT));
         return 1;
@@ -144,7 +147,7 @@ impl Tips {
 
     /// java: private static int disableTips(CommandContext<FabricClientCommandSource> context)
     pub fn disable_tips(context: &CommandContext<crate::unresolved::FabricClientCommandSource>) -> i32 {
-        SkyblockerConfigManager::update(Arc::new(move |config| { config.general.enable_tips = false; }));
+        SkyblockerConfigManager::update(Arc::new(move |mut config| { config.general.enable_tips = false; }));
         // TODO(fabric2seer): `.sendFeedback(..)` on a FabricClientCommandSource
         //   java: context.getSource().sendFeedback(Constants.PREFIX.get().append(Component.translatable("skyblocker.tips.disabled").withColor(TextColor.RED)).append(" ").append(ENABLE_TEXT));
         return 1;

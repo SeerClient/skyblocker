@@ -117,7 +117,7 @@ impl McGrubberUpdater {
             let mut motes: i32 = RegexUtils::parse_int_from_matcher_matcher_string(&matcher, "motes");
             let mut mc_grubber_stacks: i32 = (motes.wrapping_sub(5)).wrapping_div(60);
             if SkyblockerConfigManager::get().other_locations.rift.mc_grubber_stacks != mc_grubber_stacks {
-                SkyblockerConfigManager::update_only(Arc::new(move |config| { config.other_locations.rift.mc_grubber_stacks = mc_grubber_stacks; }));
+                SkyblockerConfigManager::update_only(Arc::new(move |mut config| { config.other_locations.rift.mc_grubber_stacks = mc_grubber_stacks; }));
             }
         }
         return true;

@@ -34,7 +34,7 @@ impl ConfigCommands {
     pub fn register_config_entries(builder: &LiteralArgumentBuilder<crate::unresolved::FabricClientCommandSource>) -> LiteralArgumentBuilder<crate::unresolved::FabricClientCommandSource> {
         // java: try {..} catch (Exception e) - an exception here is a panic, caught by `catch_unwind`; the body's `return` is the closure's value
         match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            return ConfigCommands::register_config_entries_2(builder, &SkyblockerConfigManager::get_unpatched());
+            return SkyblockerConfigManager::get_unpatched(|config| ConfigCommands::register_config_entries_2(builder, config));
         })) {
             Ok(__v) => return __v,
             Err(e) => {
@@ -47,7 +47,10 @@ impl ConfigCommands {
     }
 
     /// java: private static LiteralArgumentBuilder<FabricClientCommandSource> registerConfigEntries(LiteralArgumentBuilder<FabricClientCommandSource> builder, Object object) throws IllegalAccessException
-    pub fn register_config_entries_2(builder: &LiteralArgumentBuilder<crate::unresolved::FabricClientCommandSource>, object: &compat::Object) -> LiteralArgumentBuilder<crate::unresolved::FabricClientCommandSource> {
+    ///
+    /// `Object object`: the object itself (`&dyn Any`).
+    /// rust: port gap - the body walks `getDeclaredFields()` (Java reflection), which Rust has no counterpart for (GAPS_batchG).
+    pub fn register_config_entries_2(builder: &LiteralArgumentBuilder<crate::unresolved::FabricClientCommandSource>, object: &dyn std::any::Any) -> LiteralArgumentBuilder<crate::unresolved::FabricClientCommandSource> {
         // TODO(fabric2seer): `.getDeclaredFields(..)` on a Class
         //   java: for (Field field : object.getClass().getDeclaredFields()) {
         //   java: 			if (Modifier.isStatic(field.getModifiers())) continue;

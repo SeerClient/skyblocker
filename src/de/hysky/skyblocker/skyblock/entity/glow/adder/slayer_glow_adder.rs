@@ -95,15 +95,17 @@ impl MobGlowAdder for SlayerGlowAdder {
 impl SlayerGlowAdder {
     /// java: @Override public int computeColour(Entity entity)
     pub fn compute_colour_impl(__this: &compat::Shared<Self>, entity: &dyn Entity) -> i32 {
-        if SkyblockerConfigManager::get().slayers.blaze_slayer.attunement_highlights && SlayerManager::is_fighting_slayer_type(SlayerType::Demonlord) && entity.as_any().unwrap_or(&() as &dyn std::any::Any).is::<Blaze>() || entity.as_any().unwrap_or(&() as &dyn std::any::Any).is::<WitherSkeleton>() || entity.as_any().unwrap_or(&() as &dyn std::any::Any).is::<ZombifiedPiglin>() {
-            let mut color: i32 = AttunementColors::get_color(entity);
-            if color != *mob_glow::NO_GLOW {
-                return color;
+        if SkyblockerConfigManager::get().slayers.blaze_slayer.attunement_highlights && SlayerManager::is_fighting_slayer_type(SlayerType::Demonlord) && (entity.as_any().unwrap_or(&() as &dyn std::any::Any).is::<Blaze>() || entity.as_any().unwrap_or(&() as &dyn std::any::Any).is::<WitherSkeleton>() || entity.as_any().unwrap_or(&() as &dyn std::any::Any).is::<ZombifiedPiglin>()) {
+            // `(LivingEntity) entity`: the three classes are living entities
+            if let Some(living) = entity.as_living_entity() {
+                let mut color: i32 = AttunementColors::get_color(living);
+                if color != *mob_glow::NO_GLOW {
+                    return color;
+                }
             }
         }
         if SlayerManager::should_glow(entity, HighlightSlayerEntities::Glow) {
-            // TODO(fabric2seer): `.getRGB(..)` on a Color
-            //   java: return SkyblockerConfigManager.get().slayers.highlightColor.getRGB();
+            return SkyblockerConfigManager::get().slayers.highlight_color.get_rgb();
         }
         if SkyblockerConfigManager::get().slayers.enderman_slayer.highlight_nukekubi_heads && SlayerManager::is_fighting_slayer_type(SlayerType::Voidgloom) && let Some(r#as) = entity.as_any().unwrap_or(&() as &dyn std::any::Any).downcast_ref::<ArmorStand>() && (r#as).is_marker() && SlayerGlowAdder::is_nukekubi_head(r#as) {
             return NUKEKUBI_COLOUR;

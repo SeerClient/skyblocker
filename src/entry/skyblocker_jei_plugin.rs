@@ -104,14 +104,14 @@ impl GenericContainerHandler {
 
     /// java: @Override public List<Rect2i> getGuiExtraAreas(ContainerScreen containerScreen)
     pub fn get_gui_extra_areas(&self, container_screen: &ContainerScreen) -> Vec<Rect2i> {
-        // TODO(fabric2seer): `Screen::get_title` ports `getTitle`, but the port's `ContainerScreen` holds no `Screen` (no Deref, no `base` field) to call it on
-        if !(Utils::is_on_skyblock()) || !(SkyblockerConfigManager::get().ui_and_visuals.museum_overlay) || !(container_screen.get_title().to_string().contains("Museum")) {
+        // java: containerScreen.getTitle().getString().contains("Museum")
+        if !(Utils::is_on_skyblock()) || !(SkyblockerConfigManager::get().ui_and_visuals.museum_overlay) || !(container_screen.container.screen.get_title().to_string().contains("Museum")) {
             return vec![];
         }
-        let mut accessor: crate::unresolved::AbstractContainerScreenAccessor = container_screen;
-        // TODO(fabric2seer): `.getX(..)` on a AbstractContainerScreenAccessor
-        //   java: return List.of(new Rect2i(accessor.getX() + accessor.getImageWidth() + 4, accessor.getY(), MuseumManager.BACKGROUND_WIDTH, MuseumManager.BACKGROUND_HEIGHT));
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        // java: AbstractContainerScreenAccessor accessor = (AbstractContainerScreenAccessor) containerScreen;
+        let accessor = &container_screen.container;
+        // java: return List.of(new Rect2i(accessor.getX() + accessor.getImageWidth() + 4, accessor.getY(), MuseumManager.BACKGROUND_WIDTH, MuseumManager.BACKGROUND_HEIGHT));
+        return vec![Rect2i::new(accessor.left_pos + accessor.image_width + 4, accessor.top_pos, crate::de::hysky::skyblocker::skyblock::museum::museum_manager::BACKGROUND_WIDTH, crate::de::hysky::skyblocker::skyblock::museum::museum_manager::BACKGROUND_HEIGHT)];
     }
 
 }

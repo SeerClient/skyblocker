@@ -116,9 +116,7 @@ impl FarmingHudWidget {
     /// java: private Component getPriceText(String cropItemId, float cropsPerMinute, boolean hasReplenish, double blockBreaks)
     pub fn get_price_text(__this: &compat::Shared<Self>, crop_item_id: &str, mut crops_per_minute: f32, mut has_replenish: bool, mut block_breaks: f64) -> MutableComponent {
         let mut bazaar: Option<f64> = ItemUtils::get_item_price_string(Some(crop_item_id.to_string()));
-        // TODO(fabric2seer): `.getDouble(..)` on a T
-        //   java: OptionalDouble npc = TooltipInfoType.NPC.hasOrNullWarning(cropItemId) ? OptionalDouble.of(TooltipInfoType.NPC.getData().getDouble(cropItemId)) : OptionalDouble.empty();
-        let mut npc: Option<f64> = todo!("fabric2seer: the initialiser of `npc` (TODO above)");
+        let mut npc: Option<f64> = (if tooltip_info_type::NPC.get_mut().lock().borrow().has_or_null_warning(crop_item_id) { Some(npc_get_double(crop_item_id)) } else { None });
         let mut used_by_replenish: f64 = ((60 as f64) * block_breaks);
         if crop_item_id == "WHEAT" {
             let mut seeds_ratio: f64 = (if has_replenish { ((((crops_per_minute as f64) * 0.6) - used_by_replenish).max((0 as f64)) / (crops_per_minute as f64)) } else { 0.6 });
@@ -127,14 +125,11 @@ impl FarmingHudWidget {
             let mut seeds_npc_price: Option<f64>;
             if compat::read(__this, |__t| __t.include_seeds_price) {
                 seeds_bazaar_price = ItemUtils::get_item_price_string(Some("SEEDS".to_string()));
-                // TODO(fabric2seer): `.getDouble(..)` on a T
-                //   java: seedsNpcPrice = TooltipInfoType.NPC.hasOrNullWarning("SEEDS") ?
-                //   java: 						OptionalDouble.of(TooltipInfoType.NPC.getData().getDouble("SEEDS")) :
-                //   java: 						OptionalDouble.empty();
+                seeds_npc_price = (if tooltip_info_type::NPC.get_mut().lock().borrow().has_or_null_warning("SEEDS") { Some(npc_get_double("SEEDS")) } else { None });
             } else {
                 used_by_replenish = ((0) as f64) as f64;
-                seeds_bazaar_price = Some(0);
-                seeds_npc_price = Some(0);
+                seeds_bazaar_price = Some(0.0);
+                seeds_npc_price = Some(0.0);
             }
             let mut wheat_price: Option<f64> = ItemUtils::get_item_price_string(Some("WHEAT".to_string()));
             if seeds_bazaar_price.is_some() && wheat_price.is_some() {
@@ -142,10 +137,7 @@ impl FarmingHudWidget {
             } else {
                 bazaar = None;
             }
-            // TODO(fabric2seer): `.getDouble(..)` on a T
-            //   java: npc = TooltipInfoType.NPC.hasOrNullWarning("WHEAT") && seedsNpcPrice.isPresent() ?
-            //   java: 					OptionalDouble.of(seedsNpcPrice.getAsDouble() * seedsRatio + TooltipInfoType.NPC.getData().getDouble("WHEAT") * wheatRatio) :
-            //   java: 					OptionalDouble.empty();
+            npc = (if tooltip_info_type::NPC.get_mut().lock().borrow().has_or_null_warning("WHEAT") && seeds_npc_price.is_some() { Some((seeds_npc_price.unwrap() * seeds_ratio) + (npc_get_double("WHEAT") * wheat_ratio)) } else { None });
         }
         let mut price_to_use: f64 = ((0) as f64) as f64;
         let mut source_label: Option<MutableComponent> = None;
@@ -257,7 +249,7 @@ impl ElementCollector for FarmingHudWidget {
 
     /// java: public <T extends Element> T addElement(T c)
     fn add_element(&mut self, mut c: compat::Shared<dyn Element>) -> compat::Shared<dyn Element> {
-        ({ let __f = compat::dispatch(&c, |__t| __t.set_parent()); __f(&c, self.clone()) });
+        ({ let __f = compat::dispatch(&c, |__t| __t.set_parent()); __f(&c, self.hud_widget_base().as_parent()) });
         self.elements.push(c.clone());
         return c;
     }
@@ -312,9 +304,10 @@ impl FarmingHudWidget {
             ({ let __f = compat::dispatch(__this, |__t| __t.add_simple_icon_translatable_text()); __f(&compat::view(__this, |a| a as compat::Shared<dyn ElementCollector>), Some(ico::LIME_DYE.get_mut().clone()), "skyblocker.farming.farmingHud.farmingXPPerHour", &ChatFormatting::Yellow, &farming_hud::NUMBER_FORMAT.get_mut().format(FarmingHud::farming_xp_per_hour())) });
         }
         if compat::read(__this, |__t| __t.show_angle) {
-            let mut camera_entity: Option<Box<dyn Entity>> = compat::minecraft().get_camera_entity();
-            let mut yaw: MutableComponent = (if camera_entity.is_none() { component::translatable("skyblocker.farming.farmingHud.noCameraEntity") } else { component::literal(&format!("{:.2}", mth::wrap_degrees_f32(camera_entity.as_ref().unwrap().get_y_rot()))) });
-            let mut pitch: MutableComponent = (if camera_entity.is_none() { component::translatable("skyblocker.farming.farmingHud.noCameraEntity") } else { component::literal(&format!("{:.2}", mth::wrap_degrees_f32(camera_entity.as_ref().unwrap().get_x_rot()))) });
+            // the camera entity by id: (yRot, xRot)
+            let mut camera_entity: Option<(f32, f32)> = compat::minecraft().get_camera_entity().and_then(|id| mcrust::mcrust::modding::game::with_entity(id, |e| (e.base().get_y_rot(), e.base().get_x_rot())));
+            let mut yaw: MutableComponent = (if camera_entity.is_none() { component::translatable("skyblocker.farming.farmingHud.noCameraEntity") } else { component::literal(&compat::string_format("%.2f", &[mth::wrap_degrees_f32(camera_entity.unwrap().0).into()])) });
+            let mut pitch: MutableComponent = (if camera_entity.is_none() { component::translatable("skyblocker.farming.farmingHud.noCameraEntity") } else { component::literal(&compat::string_format("%.2f", &[mth::wrap_degrees_f32(camera_entity.unwrap().1).into()])) });
             { let (__a0,) = ((PlainTextElement::new(Some((component::translatable_args("skyblocker.farming.farmingHud.yaw", vec![mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(yaw.clone())])).with_style_format(ChatFormatting::Gold))) as compat::Shared<dyn Element>),); __this.lock().borrow_mut().add_element(__a0) };
             { let (__a0,) = ((PlainTextElement::new(Some((component::translatable_args("skyblocker.farming.farmingHud.pitch", vec![mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(pitch.clone())])).with_style_format(ChatFormatting::Gold))) as compat::Shared<dyn Element>),); __this.lock().borrow_mut().add_element(__a0) };
         }
@@ -393,4 +386,9 @@ impl FarmingHudWidget {
         Self::save_impl(&compat::view_as::<Self, _, Self>(__this, |a| a), __p0)
     }
 
+}
+
+/// `TooltipInfoType.NPC.getData().getDouble(id)` (`Object2DoubleMap.getDouble`: 0 for an absent key).
+fn npc_get_double(id: &str) -> f64 {
+    tooltip_info_type::NPC.get_mut().lock().borrow().get_data().and_then(|data| data.get(id).copied()).unwrap_or(0.0)
 }

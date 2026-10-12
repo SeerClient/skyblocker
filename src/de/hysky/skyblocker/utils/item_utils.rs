@@ -475,7 +475,7 @@ impl ItemUtils {
     /// java: public static String getHeadTexture(ItemInstance stack)
     pub fn get_head_texture<S: ItemInstance + TypedInstance + ?Sized>(stack: &S) -> String {
         // java: if (!stack.is(Items.PLAYER_HEAD)) return "";
-        if !(stack.is_value(&(items::items().get("player_head") as mcrust::com::mojang::serialization::Obj))) {
+        if !(stack.is_value(&items::items().get("player_head").erased_obj())) {
             return "".to_string();
         }
         let Some(mut profile) = DataComponentGetter::get(stack, mcrust::net::minecraft::core::component::data_components::profile()) else {
@@ -564,12 +564,14 @@ impl ItemUtils {
 
     /// java: public static List<ItemStack> getArmor(LivingEntity entity)
     pub fn get_armor(entity: &dyn LivingEntity) -> Vec<mcrust::net::minecraft::world::item::item_stack::ItemStack> {
-        // TODO(fabric2seer): field `HUMANOID_ARMOR` of a value of unknown type
-        //   java: return EquipmentSlotGroup.ARMOR.slots().stream()
-        //   java: 				.filter(es -> es.getType() == EquipmentSlot.Type.HUMANOID_ARMOR)
-        //   java: 				.map(entity::getItemBySlot)
-        //   java: 				.toList();
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        // java: return EquipmentSlotGroup.ARMOR.slots().stream()
+        //   .filter(es -> es.getType() == EquipmentSlot.Type.HUMANOID_ARMOR).map(entity::getItemBySlot).toList();
+        return mcrust::net::minecraft::world::entity::equipment_slot_group::EquipmentSlotGroup::Armor
+            .slots()
+            .iter()
+            .filter(|es| es.get_type() == mcrust::net::minecraft::world::entity::equipment_slot::Type::HumanoidArmor)
+            .map(|es| entity.living().get_item_by_slot(*es).clone())
+            .collect();
     }
 
     /// java: public static OptionalInt getItemCountInSack(ItemStack itemStack, List<String> lines)
@@ -638,7 +640,7 @@ impl ItemUtils {
     /// java: @Deprecated(since = "5.8.0") public static <T extends ItemInstance & SkyblockerStack> SkyblockItemRarity getItemRarity(T stack)
     pub fn get_item_rarity<T: ItemInstance + TypedInstance + SkyblockerStack + 'static>(stack: &T) -> SkyblockItemRarity {
         // java: if (stack.is(Items.AIR)) return SkyblockItemRarity.UNKNOWN;
-        if stack.is_value(&(items::items().get("air") as mcrust::com::mojang::serialization::Obj)) {
+        if stack.is_value(&items::items().get("air").erased_obj()) {
             return SkyblockItemRarity::Unknown;
         }
         if ItemUtils::get_custom_data(stack).get_string_or(ID, "") == "PET" {

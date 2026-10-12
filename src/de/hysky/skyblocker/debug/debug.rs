@@ -74,8 +74,8 @@ impl Debug {
             if mcrust::mcrust::modding::game::with_player(|_| ()).is_none() || mcrust::mcrust::modding::game::level().is_none() {
                 return;
             }
-            // TODO(fabric2seer): `consume_click` takes 1 argument(s) in the port (`name: &str`), Java passes 0
-            if key_mapping::consume_click() && !(compat::get_state(&KEY_DOWN)) {
+            // java: dumpNearbyEntitiesKey.consumeClick()
+            if key_mapping::consume_click("key.skyblocker.debug.dumpNearbyEntities") && !(compat::get_state(&KEY_DOWN)) {
                 // TODO(fabric2seer): `get_entities` takes 3 argument(s) in the port (`except: Option<i32>, bb: &crate::net::minecraft::world::phys::aabb::AABB, selector: &dyn Fn( &(dyn crate::net::minecraft::world::entity::entity::Entity + Send + Sync), ) -> bool`), Java passes 2
                 // TODO(fabric2seer): the mod keeps the game's `LocalPlayer` (Java holds a reference to the live object); the port's `LocalPlayer` is not a value to copy and the port lends the mod no handle to it
                 // rust: for text in mcrust::mcrust::modding::game::with_player(|player| mcrust::mcrust::modding::game::level().unwrap().get_entities(Some(player.clone()), &player.base.base.base.base.get_bounding_box().inflate((SkyblockerConfigManager::get().debug.dump_range) as f64)).into_iter().map(|entity| {
@@ -89,22 +89,26 @@ impl Debug {
                 // rust: mcrust::mcrust::modding::game::with_player(|player| { script_host::send_feedback(&text.to_string()); });
                 // rust: }
                 compat::set_state(&KEY_DOWN, true);
-            } else if !(key_mapping::consume_click()) && compat::get_state(&KEY_DOWN) {
+            } else if !(key_mapping::consume_click("key.skyblocker.debug.dumpNearbyEntities")) && compat::get_state(&KEY_DOWN) {
                 compat::set_state(&KEY_DOWN, false);
             }
         }));
-        screen_events::BEFORE_INIT.register(Arc::new(|screen: &mut Screen, width: i32, height: i32| {
-            let Some(handled_screen) = screen.as_any().downcast_ref::<AbstractContainerScreen>() else {
+        // java: ScreenEvents.BEFORE_INIT.register((client, screen, w, h) -> { if (screen instanceof AbstractContainerScreen<?> handledScreen)
+        //   ScreenKeyboardEvents.afterKeyPress(screen).register((_, keyInput) -> {..}); });
+        // (the port's afterKeyPress is one global event, not a per-screen one: the listener is registered once and asks
+        // whether a container screen is open - GAPS_batchB #5)
+        screen_keyboard_events::AFTER_KEY_PRESS.register(Arc::new(|action: i32, key_event: &KeyEvent| {
+            if !compat::container_screen_open() {
                 return;
-            };
-            screen_keyboard_events::AFTER_KEY_PRESS.register(Arc::new(|action: i32, key_event: &KeyEvent| {
-                let mut focused_slot: Option<Slot> = Some(handled_screen.hovered_slot);
-                // TODO(fabric2seer): the condition: `client`: Fabric passes the Minecraft here; this SeerClient callback does not (take it from ClientTickEvents or a hook)
-                //   java: dumpHoveredItemKey.matches(keyInput) && client.player != null && focusedSlot != null && focusedSlot.hasItem()
-                if todo!("fabric2seer: the condition (TODO above)") {
-                    // TODO(fabric2seer): the condition: `.hasShiftDown(..)` on a value of unknown type
-                    //   java: !keyInput.hasShiftDown()
-                    if todo!("fabric2seer: the condition (TODO above)") {
+            }
+            {
+                // java: Slot focusedSlot = ((AbstractContainerScreenAccessor) handledScreen).getFocusedSlot();
+                // rust: port gap (GAPS_batchB #2) - the open container screen's hovered slot is not lent to mod callbacks
+                let mut focused_slot: Option<Slot> = None;
+                // java: dumpHoveredItemKey.matches(keyInput) && client.player != null && focusedSlot != null && focusedSlot.hasItem()
+                if key_mapping::matches("key.skyblocker.debug.dumpHoveredItem", key_event) && mcrust::mcrust::modding::game::with_player(|_| ()).is_some() && focused_slot.as_ref().is_some_and(|slot| compat::slot_has_item(slot)) {
+                    // java: !keyInput.hasShiftDown()
+                    if !key_event.has_shift_down() {
                         // TODO(fabric2seer): `client`: Fabric passes the Minecraft here; this SeerClient callback does not (take it from ClientTickEvents or a hook)
                         //   java: client.player.sendSystemMessage(Constants.PREFIX.get().append("Hovered Item: ").append(SkyblockerConfigManager.get().debug.dumpFormat.format(focusedSlot.getItem())));
                     } else {
@@ -112,7 +116,7 @@ impl Debug {
                         //   java: client.player.sendSystemMessage(Constants.PREFIX.get().append("Held Item NW Calcs: ").append(Component.literal(SkyblockerMod.GSON_COMPACT.toJson(Calculation.LIST_CODEC.encodeStart(JsonOps.INSTANCE, NetworthCalculator.getItemNetworth(focusedSlot.getItem()).calculations()).getOrThrow()))));
                     }
                 }
-            }));
+            }
         }));
     }
 
@@ -317,8 +321,10 @@ impl DumpFormat {
     pub fn format(&self, stack: &mcrust::net::minecraft::world::item::item_stack::ItemStack) -> MutableComponent {
         match self {
             DumpFormat::Json => {
-                // TODO(fabric2seer): `.toJson(..)` on a Gson
-                //   java: return Component.literal(SkyblockerMod.GSON_COMPACT.toJson(ItemUtils.EMPTY_ALLOWING_ITEMSTACK_CODEC.encodeStart(RegistryUtils.getRegistryWrapperLookup().createSerializationContext(JsonOps.INSTANCE), stack).getOrThrow()));
+                // java: return Component.literal(SkyblockerMod.GSON_COMPACT.toJson(ItemUtils.EMPTY_ALLOWING_ITEMSTACK_CODEC.encodeStart(RegistryUtils.getRegistryWrapperLookup().createSerializationContext(JsonOps.INSTANCE), stack).getOrThrow()));
+                let ops = holder_lookup::create_serialization_context(crate::de::hysky::skyblocker::utils::registry_utils::RegistryUtils::get_registry_wrapper_lookup(), mcrust::com::mojang::serialization::json_ops::JsonOps::instance());
+                let encoded = item_utils::EMPTY_ALLOWING_ITEMSTACK_CODEC.get().encode_start(&ops, stack).get_or_throw().unwrap_or_else(|e| panic!("java.lang.IllegalStateException: {e}"));
+                return mcrust::net::minecraft::network::chat::component::literal(&compat::json_from_port(&encoded).to_string());
             }
             DumpFormat::Snbt => {
                 // TODO(fabric2seer): `LocalPlayer.registryAccess` has no Rust method in the port (looked for `registry_access` in LocalPlayer and its supertypes)

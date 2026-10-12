@@ -82,7 +82,8 @@ pub struct WaterboardOneFlow {
     /// java: private long currentTimeMillis;
     pub current_time_millis: i64,
     /// java: private @Nullable CompletableFuture<Void> solve;
-    pub solve: Option<mcrust::java::util::concurrent::completable_future::CompletableFuture<()>>,
+    /// (the solve runs over this object, which is not `Send`: a `compat::LocalFuture`, completed on the render thread)
+    pub solve: Option<compat::LocalFuture<()>>,
 }
 
 impl std::ops::Deref for WaterboardOneFlow {
@@ -337,7 +338,7 @@ impl WaterboardOneFlow {
                     text = CLICK_TEXT.get_mut().clone();
                 } else {
                     let mut time_to_show: f64 = (if compat::read(__this, |__t| __t.water_start_millis) == (0 as i64) { next_time } else { ((remaining_time as f64) / 1000.0) });
-                    text = (component::literal(&format!("{:.2}", time_to_show))).with_style_format(ChatFormatting::Yellow);
+                    text = (component::literal(&compat::string_format("%.2f", &[time_to_show.into()]))).with_style_format(ChatFormatting::Yellow);
                 }
                 ({ let __f = compat::dispatch(collector, |__t| __t.submit_text()); __f(collector, &text, &({ let __r = &compat::read(__this, |__t| __t.room.clone()).unwrap(); let __f = compat::dispatch(__r, |__t| __t.relative_to_actual_vec3()); __f(__r, &vec3::at_center_of(&lever.fields().lever_pos)) }).relative(Direction::Up, (0.5 * (i.wrapping_add(1) as f64))), true) });
             }
@@ -452,9 +453,12 @@ impl WaterboardOneFlow {
         // java: player = client.player;
         { let __v = mcrust::mcrust::modding::game::with_player(|player| player.base().get_id()); compat::write(__this, |__t| __t.player = __v); }
         if compat::read(__this, |__t| __t.solution.clone()).is_none() && !(compat::read(__this, |__t| __t.finished)) && compat::read(__this, |__t| __t.solve.clone()).is_none() {
-            let __this_w1 = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
-            let __this_w2 = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
-            { let __v = Some((CompletableFuture::<()>::run_async(move || (|| { let Some(__this_1) = __this_w1.get().upgrade() else { return Default::default(); }; { WaterboardOneFlow::solve_puzzle((&__this_1)); } })(), compat::executor)).exceptionally(|e| { let Some(__this_2) = __this_w2.get().upgrade() else { return Default::default(); }; {
+            let __this_w1 = std::sync::Arc::downgrade(__this);
+            let __this_w2 = std::sync::Arc::downgrade(__this);
+            // java: solve = CompletableFuture.runAsync(() -> solvePuzzle(), Executors.newVirtualThreadPerTaskExecutor()).exceptionally(e -> {..});
+            // rust: the solve reads and writes this object (not `Send`), so it runs deferred on the render thread
+            // (`compat::LocalFuture::supply_local`) rather than on a worker; its exception handler likewise
+            { let __v = Some((compat::LocalFuture::<()>::supply_local(move || { let Some(__this_1) = __this_w1.upgrade() else { return Default::default(); }; { WaterboardOneFlow::solve_puzzle((&__this_1)); } })).exceptionally_async(move |e| { let Some(__this_2) = __this_w2.upgrade() else { return Default::default(); }; {
                 logger().error(&format!("[Skyblocker Waterboard] Encountered an unknown exception while solving waterboard."));
                 { let __v = true; compat::write((&__this_2), |__t| __t.finished = __v); }
                 return Default::default(); // java: return null
@@ -469,9 +473,11 @@ impl WaterboardOneFlow {
             }
         }
         if compat::read(__this, |__t| __t.water_start_millis) > (0 as i64) {
-            for mark in compat::read(__this, |__t| __t.marks.clone()) {
+            // java: for (Mark mark : marks) { .. mark.reached = true; .. } - the list's own objects
+            for __mark_index in 0..compat::read(__this, |__t| __t.marks.len()) {
+                let mark = compat::read(__this, |__t| __t.marks[__mark_index].clone());
                 if !mark.reached && { let (__q0,) = (&blocks::blocks().get("water"),); __this.lock().borrow().world.as_ref().unwrap().get_block_state_typed(&mark.pos).is_block(__q0) } {
-                    mark.reached = true;
+                    compat::write(__this, |__t| __t.marks[__mark_index].reached = true);
                     let mut elapsed: f64 = (((compat::read(__this, |__t| __t.current_time_millis)).wrapping_sub(compat::read(__this, |__t| __t.water_start_millis)) as f64) / 1000.0);
                     // TODO(fabric2seer): `fmt` takes 1 argument(s) in the port (`f: &mut std::fmt::Formatter<'_>`), Java passes 0
                     // rust: script_host::send_feedback(&(constants::PREFIX.get_mut())().append_str(&format!("Mark {} reached in ", mark.index)).append((component::literal(&format!("{:.2}", elapsed))).with_style_format(ChatFormatting::Green)).append_str(&ChatFormatting::Reset.fmt()).append_str(" seconds.").to_string());

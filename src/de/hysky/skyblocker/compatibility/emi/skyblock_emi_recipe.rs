@@ -35,8 +35,8 @@ impl SkyblockEmiRecipe {
     }
 
     /// java: @Override public EmiRecipeCategory getCategory()
-    pub fn get_category(__this: &compat::Shared<Self>) -> crate::unresolved::EmiRecipeCategory {
-        return skyblocker_emi_plugin::IDENTIFIER_CATEGORY_MAP.get_mut().get(&({ let __r = &compat::read(__this, |__t| __t.recipe.clone()); let __f = compat::dispatch(__r, |__t| __t.get_category_identifier()); __f(__r) })).cloned().unwrap();
+    pub fn get_category(__this: &compat::Shared<Self>) -> &'static crate::unresolved::EmiRecipeCategory {
+        return skyblocker_emi_plugin::IDENTIFIER_CATEGORY_MAP.get_mut().get(&({ let __r = &compat::read(__this, |__t| __t.recipe.clone()); let __f = compat::dispatch(__r, |__t| __t.get_category_identifier()); __f(__r) })).copied().unwrap();
     }
 
     /// java: @Override public @Nullable Identifier getId()

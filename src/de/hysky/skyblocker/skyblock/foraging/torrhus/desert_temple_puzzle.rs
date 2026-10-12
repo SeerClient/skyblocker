@@ -80,37 +80,36 @@ impl DesertTemplePuzzle {
         let mut queue: std::collections::VecDeque<BlockPos> = std::collections::VecDeque::new();
         queue.push_back(GLASS_FLOOR_CENTRE.get_mut().clone());
         while !queue.is_empty() {
-            // TODO(fabric2seer): List.remove(..)
-            //   java: BlockPos current = queue.remove();
-            let mut current: BlockPos = todo!("fabric2seer: the initialiser of `current` (TODO above)");
-            if let Some(glass_block) = level.get_block_state_typed(&current).get_block().as_any().downcast_ref::<StainedGlassBlock>() {
-                // TODO(fabric2seer): `get_color` takes 1 argument(s) in the port (`block: &Block`), Java passes 0
-                // rust: colours.push(stained_glass_block::get_color());
+            // java: BlockPos current = queue.remove();
+            let mut current: BlockPos = queue.pop_front().expect("NoSuchElementException");
+            // java: if (level.getBlockState(current).getBlock() instanceof StainedGlassBlock glassBlock) colours.add(glassBlock.getColor());
+            let __block = level.get_block_state_typed(&current).get_block();
+            if stained_glass_block::is_instance(&__block) {
+                colours.push(stained_glass_block::get_color(&__block));
             }
             for offset in NEIGHBOUR_OFFSETS.get_mut().iter() {
-                // TODO(fabric2seer): `Vector3i.x` has no Rust method in the port (looked for `x` in Vector3i and its supertypes)
-                // TODO(fabric2seer): `Vector3i.y` has no Rust method in the port (looked for `y` in Vector3i and its supertypes)
-                // TODO(fabric2seer): `Vector3i.z` has no Rust method in the port (looked for `z` in Vector3i and its supertypes)
-                // rust: let mut neighbour: BlockPos = current.offset(offset.x(), offset.y(), offset.z());
-                let mut neighbour: BlockPos = todo!("fabric2seer: the initialiser of `neighbour` (TODO above)");
+                let mut neighbour: BlockPos = current.offset(offset.x, offset.y, offset.z);
                 if visited.contains(&neighbour) || queue.iter().any(|e| *e == neighbour.clone()) {
                     continue;
-                } else if level.get_block_state_typed(&neighbour).get_block().as_any().is::<StainedGlassBlock>() {
+                } else if stained_glass_block::is_instance(&level.get_block_state_typed(&neighbour).get_block()) {
                     visited.insert(neighbour.clone());
                     queue.push_back(neighbour.clone());
                 }
             }
         }
-        // TODO(fabric2seer): Collectors.groupingBy
-        //   java: Map<DyeColor, Long> frequencyMap = colours.stream()
-        //   java: 				.collect(Collectors.groupingBy(Function.identity(), Collectors.counting()));
-        let mut frequency_map: std::collections::HashMap<DyeColor, i64> = todo!("fabric2seer: the initialiser of `frequencyMap` (TODO above)");
-        // TODO(fabric2seer): static field Map.Entry
-        //   java: List<DyeColor> buttonOrder = frequencyMap.entrySet().stream()
-        //   java: 				.sorted(Map.Entry.<DyeColor, Long>comparingByValue())
-        //   java: 				.map(Map.Entry::getKey)
-        //   java: 				.toList();
-        let mut button_order: Vec<DyeColor> = todo!("fabric2seer: the initialiser of `buttonOrder` (TODO above)");
+        // java: Map<DyeColor, Long> frequencyMap = colours.stream().collect(Collectors.groupingBy(Function.identity(), Collectors.counting()));
+        let mut frequency_map: Vec<(DyeColor, i64)> = Vec::new();
+        for colour in colours.iter() {
+            match frequency_map.iter_mut().find(|(k, _)| k == colour) {
+                Some(entry) => entry.1 += 1,
+                None => frequency_map.push((*colour, 1)),
+            }
+        }
+        // java: frequencyMap.entrySet().stream().sorted(Map.Entry.comparingByValue()).map(Map.Entry::getKey).toList()
+        // (a stable sort; equal counts keep the colour order, where Java keeps the HashMap's)
+        frequency_map.sort_by_key(|(colour, _)| colour.get_id());
+        frequency_map.sort_by_key(|(_, count)| *count);
+        let mut button_order: Vec<DyeColor> = frequency_map.into_iter().map(|(colour, _)| colour).collect();
         return button_order;
     }
 
@@ -130,14 +129,12 @@ impl DesertTemplePuzzle {
                 let mut start: Vec3 = vec3::at_center_of(&entry.0);
                 let mut end: Vec3 = vec3::at_center_of(&entry.1);
                 ({ let __f = compat::dispatch(collector, |__t| __t.submit_lines_from_points()); __f(collector, &vec![start.clone(), end.clone()], &WHITE, 1.0f32, LINE_WIDTH, false) });
-                // TODO(fabric2seer): `rotation_to` takes 6 argument(s) in the port (`from_dir_x: f32, from_dir_y: f32, from_dir_z: f32, to_dir_x: f32, to_dir_y: f32, to_dir_z: f32`), Java passes 2
-                // rust: let rotation = Quaternionf::new().rotation_to(Vector3f::new(1.0f32, 0.0f32, 0.0f32), end.subtract_vec(&start).to_vector3f().normalize());
-                let mut rotation: Quaternionf = todo!("fabric2seer: the initialiser of `rotation` (TODO above)");
+                // java: Quaternionf rotation = new Quaternionf().rotationTo(new Vector3f(1.0f, 0.0f, 0.0f), end.subtract(start).toVector3f().normalize());
+                let __to = end.subtract_vec(&start).to_vector3f().normalize();
+                let mut rotation: Quaternionf = Quaternionf::new();
+                rotation.rotation_to(1.0f32, 0.0f32, 0.0f32, __to.x, __to.y, __to.z);
                 let mut len: f32 = ((mth::clamp_f64((end.distance_to(&start) * (0.1f32 as f64)), (0.1f32) as f64, 1.0)) as f32);
-                // TODO(fabric2seer): `new` takes 3 argument(s) in the port (`x: f32, y: f32, z: f32`), Java passes 0
-                // TODO(fabric2seer): `transform` takes 3 argument(s) in the port (`x: f32, y: f32, z: f32`), Java passes 4
-                // rust: let mut tips: Vec<Vector3f> = vec![rotation.transform((-len), len, 0.0f32, Vector3f::new()), rotation.transform((-len), 0.0f32, len, Vector3f::new()), rotation.transform((-len), (-len), 0.0f32, Vector3f::new()), rotation.transform((-len), 0.0f32, (-len), Vector3f::new())];
-                let mut tips: Vec<Vector3f> = todo!("fabric2seer: the initialiser of `tips` (TODO above)");
+                let mut tips: Vec<Vector3f> = vec![rotation.transform((-len), len, 0.0f32), rotation.transform((-len), 0.0f32, len), rotation.transform((-len), (-len), 0.0f32), rotation.transform((-len), 0.0f32, (-len))];
                 for tip in tips.iter() {
                     ({ let __f = compat::dispatch(collector, |__t| __t.submit_lines_from_points()); __f(collector, &vec![end.add((tip.x()) as f64, (tip.y()) as f64, (tip.z()) as f64), end.clone()], &WHITE, 1.0f32, LINE_WIDTH, false) });
                 }

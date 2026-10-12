@@ -51,9 +51,7 @@ impl SlotTextMode {
 
     /// java: @Override public String toString()
     pub fn to_string(&self) -> String {
-        // TODO(fabric2seer): call to `name(..)` (not a method of this class)
-        //   java: return I18n.get("skyblocker.config.uiAndVisuals.slotText.mode." + name());
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        return mcrust::net::minecraft::client::resources::language::i18n::get(&format!("skyblocker.config.uiAndVisuals.slotText.mode.{}", self.name()), &[]);
     }
 
 }

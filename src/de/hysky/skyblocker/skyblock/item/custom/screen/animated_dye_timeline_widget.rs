@@ -7,22 +7,18 @@ use crate::de::hysky::skyblocker::skyblock::item::custom::custom_armor_animated_
 use crate::de::hysky::skyblocker::skyblock::item::custom::custom_armor_animated_dyes::Keyframe;
 use crate::de::hysky::skyblocker::utils::ok_lab_color::OkLabColor;
 use crate::de::hysky::skyblocker::utils::render::gui_helper::GuiHelper;
-use mcrust::com::mojang::blaze3d::platform::native_image::NativeImage;
-use mcrust::mcrust::modding::widgets::ModWidget;
+use mcrust::com::mojang::blaze3d::platform::input_constants;
 use mcrust::mcrust::modding::widgets::WidgetRenderContext;
 use mcrust::net::minecraft::client::gui::components::abstract_container_widget::AbstractContainerWidget;
+use mcrust::net::minecraft::client::gui::components::abstract_scroll_area::ScrollbarSettings;
 use mcrust::net::minecraft::client::gui::components::abstract_widget::AbstractWidget;
-use mcrust::net::minecraft::client::gui::components::events::gui_event_listener::GuiEventListener;
 use mcrust::net::minecraft::client::gui::gui_graphics_extractor;
-use mcrust::net::minecraft::client::gui::gui_graphics_extractor::GuiGraphicsExtractor;
-use mcrust::net::minecraft::client::gui::narration::narration_element_output::NarrationElementOutput;
-use mcrust::net::minecraft::client::input::character_event::CharacterEvent;
+use mcrust::net::minecraft::client::input::key_event::KeyEvent;
 use mcrust::net::minecraft::client::input::mouse_button_event::MouseButtonEvent;
-use mcrust::net::minecraft::client::input::mouse_button_info::MouseButtonInfo;
 use mcrust::net::minecraft::client::renderer::texture::dynamic_texture::DynamicTexture;
-use mcrust::net::minecraft::network::chat::component;
+use mcrust::net::minecraft::network::chat::formatted_text::FormattedText;
 use mcrust::net::minecraft::resources::identifier::Identifier;
-use mcrust::net::minecraft::client::gui::components::renderable::Renderable as _;
+use mcrust::net::minecraft::util::common_colors;
 
 /// java: private static final Identifier GRADIENT_TEXTURE = SkyblockerMod.id("generated/dye_gradient");
 pub static GRADIENT_TEXTURE: compat::MainThread<Identifier> = compat::MainThread::new(|| crate::entry::skyblocker_mod::id("generated/dye_gradient"));
@@ -31,213 +27,376 @@ pub const HORIZONTAL_MARGIN: i32 = 3;
 /// java: private static final int VERTICAL_MARGIN = 1;
 pub const VERTICAL_MARGIN: i32 = 1;
 
+/// java: public interface FrameCallback { void onFrameSelected(int color, float time); }
+pub type FrameCallback = Arc<dyn Fn(i32, f32)>;
+
 /// java: public class AnimatedDyeTimelineWidget extends AbstractContainerWidget implements Closeable
 pub struct AnimatedDyeTimelineWidget {
     /// java: extends net.minecraft.client.gui.components.AbstractContainerWidget
     pub base: AbstractContainerWidget,
     /// java: private DynamicTexture gradientTexture;
-    pub gradient_texture: Option<DynamicTexture>,
+    pub gradient_texture: DynamicTexture,
     /// java: private int textureWidth;
     pub texture_width: i32,
     /// java: private int textureHeight;
     pub texture_height: i32,
     /// java: private final FrameCallback frameCallback;
-    pub frame_callback: Option<FrameCallback>,
+    pub frame_callback: FrameCallback,
     /// java: private String uuid = "";
     pub uuid: String,
     /// java: private final ArrayList<KeyframeWidget> keyframes = new ArrayList<>();
-    pub keyframes: Vec<compat::Shared<KeyframeWidget>>,
-    /// java: private @Nullable AnimatedDyeTimelineWidget.KeyframeWidget focusedFrame = null;
-    pub focused_frame: Option<compat::Shared<KeyframeWidget>>,
+    pub keyframes: Vec<KeyframeWidget>,
+    /// java: private @Nullable AnimatedDyeTimelineWidget.KeyframeWidget focusedFrame = null; (the keyframe's `id`)
+    pub focused_frame: Option<u64>,
     /// java: private int deletedIndex = -1;
     pub deleted_index: i32,
-}
-
-impl std::ops::Deref for AnimatedDyeTimelineWidget {
-    type Target = AbstractContainerWidget;
-    fn deref(&self) -> &Self::Target {
-        &self.base
-    }
-}
-
-impl std::ops::DerefMut for AnimatedDyeTimelineWidget {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.base
-    }
+    /// `AbstractContainerWidget.getFocused()` - the focused keyframe's `id` (Java holds the object)
+    focused: Option<u64>,
+    /// the next keyframe's `id`: Java tells keyframes apart by identity
+    next_id: u64,
 }
 
 impl AnimatedDyeTimelineWidget {
     /// java: public AnimatedDyeTimelineWidget(int x, int y, int width, int height, FrameCallback frameCallback)
-    pub fn new(mut x: i32, mut y: i32, mut width: i32, mut height: i32, frame_callback: FrameCallback) -> compat::Shared<Self> {
-        // TODO(fabric2seer): static `AbstractScrollArea.defaultSettings` has no Rust counterpart in the port
-        //   java: super(x, y, width, height, Component.literal("Animated Dye Timeline"), AbstractScrollArea.defaultSettings(4));
-        let __this: compat::Shared<Self> = todo!("constructor");
-        AnimatedDyeTimelineWidget::create_image(&__this, width, height);
-        { let __v = Some(frame_callback.clone()); compat::write(&__this, |__t| __t.frame_callback = __v); }
-        __this
+    pub fn new(x: i32, y: i32, width: i32, height: i32, frame_callback: FrameCallback) -> compat::Shared<Self> {
+        // java: super(x, y, width, height, Component.literal("Animated Dye Timeline"), AbstractScrollArea.defaultSettings(4));
+        let base = AbstractContainerWidget::new_with_scrollbar_settings(x, y, width, height, FormattedText::of("Animated Dye Timeline"), ScrollbarSettings::default_settings(4.0));
+        // java: createImage(width, height);
+        let (gradient_texture, texture_width, texture_height) = AnimatedDyeTimelineWidget::create_image(width, height);
+        compat::shared(AnimatedDyeTimelineWidget {
+            base,
+            gradient_texture,
+            texture_width,
+            texture_height,
+            frame_callback,
+            uuid: String::new(),
+            keyframes: Vec::new(),
+            focused_frame: None,
+            deleted_index: -1,
+            focused: None,
+            next_id: 0,
+        })
     }
 
-    /// java: private void createImage(int width, int height)
-    pub fn create_image(__this: &compat::Shared<Self>, mut width: i32, mut height: i32) {
-        { let __v = Some(DynamicTexture::new_blank("TimelineGradient", width.wrapping_sub(HORIZONTAL_MARGIN.wrapping_mul(2)), height.wrapping_sub(VERTICAL_MARGIN.wrapping_mul(2)), true)); compat::write(__this, |__t| __t.gradient_texture = __v); }
-        debug_assert!(true /* java: __this.lock().borrow().gradient_texture.as_ref().unwrap().get_pixels() != null: never null here */);
-        { let __v = __this.lock().borrow().gradient_texture.as_ref().unwrap().get_pixels().get_width(); compat::write(__this, |__t| __t.texture_width = __v); }
-        { let __v = __this.lock().borrow().gradient_texture.as_ref().unwrap().get_pixels().get_height(); compat::write(__this, |__t| __t.texture_height = __v); }
-        compat::minecraft().get_texture_manager().register(GRADIENT_TEXTURE.get_mut().clone(), compat::read(__this, |__t| __t.gradient_texture.clone()).unwrap());
+    /// java: private void createImage(int width, int height) - the texture, its size, registered under `GRADIENT_TEXTURE`
+    fn create_image(width: i32, height: i32) -> (DynamicTexture, i32, i32) {
+        let gradient_texture = DynamicTexture::new_blank("TimelineGradient", width - HORIZONTAL_MARGIN * 2, height - VERTICAL_MARGIN * 2, true);
+        let texture_width = gradient_texture.get_pixels().get_width();
+        let texture_height = gradient_texture.get_pixels().get_height();
+        // java: Minecraft.getInstance().getTextureManager().register(GRADIENT_TEXTURE, gradientTexture);
+        //   (the manager holds the same GPU texture this object writes)
+        compat::minecraft().game_renderer.texture_manager_mut().register(GRADIENT_TEXTURE.get().clone(), gradient_texture.texture.clone());
+        (gradient_texture, texture_width, texture_height)
     }
 
-    /// java: public void recreateImage()
-    pub fn recreate_image(__this: &compat::Shared<Self>) {
-        AnimatedDyeTimelineWidget::create_image(__this, compat::read(__this, |__t| __t.width), compat::read(__this, |__t| __t.height));
-        AnimatedDyeTimelineWidget::create_gradient_texture(__this);
+    /// The `createImage` fields written onto this object.
+    fn create_image_here(&mut self, width: i32, height: i32) {
+        let (gradient_texture, texture_width, texture_height) = AnimatedDyeTimelineWidget::create_image(width, height);
+        self.gradient_texture = gradient_texture;
+        self.texture_width = texture_width;
+        self.texture_height = texture_height;
     }
 
-    /// java: @Override public void setWidth(int width)
-    pub fn set_width(__this: &compat::Shared<Self>, mut width: i32) {
-        __this.lock().borrow_mut().base.set_width(width);
-        AnimatedDyeTimelineWidget::create_image(__this, width, compat::read(__this, |__t| __t.height));
-        AnimatedDyeTimelineWidget::create_gradient_texture(__this);
-    }
-
-    /// java: @Override public List<? extends GuiEventListener> children()
-    pub fn children(__this: &compat::Shared<Self>) -> Vec<Box<dyn GuiEventListener>> {
-        return compat::read(__this, |__t| __t.keyframes.clone());
-    }
-
-    /// java: @Override protected void extractWidgetRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a)
-    pub fn extract_widget_render_state(__this: &compat::Shared<Self>, graphics: &GuiGraphicsExtractor, mut mouse_x: i32, mut mouse_y: i32, mut a: f32) {
-        gui_graphics_extractor::blit_identifier_region(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), mcrust::net::minecraft::client::renderer::render_pipelines::gui_textured(), GRADIENT_TEXTURE.get_mut(), (__this.lock().borrow().get_x()).wrapping_add(HORIZONTAL_MARGIN), (__this.lock().borrow().get_y()).wrapping_add(VERTICAL_MARGIN), ((0) as f32) as f32, ((0) as f32) as f32, (__this.lock().borrow().get_width()).wrapping_sub(HORIZONTAL_MARGIN.wrapping_mul(2)), (__this.lock().borrow().get_height()).wrapping_sub(VERTICAL_MARGIN.wrapping_mul(2)), compat::read(__this, |__t| __t.texture_width), compat::read(__this, |__t| __t.texture_height), compat::read(__this, |__t| __t.texture_width), compat::read(__this, |__t| __t.texture_height));
-        for frame in compat::read(__this, |__t| __t.keyframes.clone()) {
-            // TODO(fabric2seer): `extract_render_state` is a method of the port's trait `Renderable`, which the port's `AbstractWidget` does not implement
-            // rust: let __wa1 = graphics.clone();
-            // rust: let __wa2 = mouse_x;
-            // rust: let __wa3 = mouse_y;
-            // rust: let __wa4 = a;
-            // rust: let __o1 = frame.clone();
-            // rust: compat::write(&__o1, |__t| __t.extract_render_state(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), __wa2, __wa3, __wa4));
-        }
+    /// java: public void recreateImage() - Called when the screen has been displayed again after a popup
+    pub fn recreate_image(&mut self) {
+        let (width, height) = (self.base.width, self.base.height);
+        self.create_image_here(width, height);
+        self.create_gradient_texture();
     }
 
     /// java: @Override public void setFocused(@Nullable GuiEventListener focused)
-    pub fn set_focused(__this: &compat::Shared<Self>, mut focused: Option<Box<dyn GuiEventListener>>) {
-        { let (__q0,) = (focused.clone(),); __this.lock().borrow_mut().base.set_focused(__q0) };
-        if let Some(keyframe) = focused.as_ref().unwrap().as_any().downcast_ref::<compat::Shared<KeyframeWidget>>() {
-            (compat::read(__this, |__t| __t.frame_callback.clone()).unwrap())(compat::read(keyframe, |__t| __t.color), compat::read(keyframe, |__t| __t.time));
-            { let __v = Some(keyframe.clone()); compat::write(__this, |__t| __t.focused_frame = __v); }
+    pub fn set_focused_child(&mut self, focused: Option<u64>) {
+        // java: super.setFocused(focused); - AbstractContainerWidget:43-54 (the keyframes' `isFocused()` reads it)
+        self.focused = focused;
+        if let Some(id) = focused
+            && let Some(keyframe) = self.keyframes.iter().find(|k| k.id == id)
+        {
+            (self.frame_callback)(keyframe.color, keyframe.time);
+            self.focused_frame = Some(id);
         }
     }
 
     /// java: public void setAnimatedDye(String uuid)
-    pub fn set_animated_dye(__this: &compat::Shared<Self>, mut uuid: String) {
-        { let __v = uuid.clone(); compat::write(__this, |__t| __t.uuid = __v); }
-        let mut dye: AnimatedDye = SkyblockerConfigManager::get().general.custom_animated_dyes.get(&uuid).cloned().unwrap();
-        __this.lock().borrow_mut().keyframes.clear();
-        // TODO(fabric2seer): List.ensureCapacity(..)
-        //   java: keyframes.ensureCapacity(dye.keyframes().size());
-        for i in 0..(dye.keyframes().len() as i32) {
-            let keyframe = &dye.keyframes()[(i) as usize];
-            let __h0 = KeyframeWidget::new(keyframe.color(), keyframe.time(), (i != 0 && i != (dye.keyframes().len() as i32).wrapping_sub(1)));
-            __this.lock().borrow_mut().keyframes.push(__h0);
+    pub fn set_animated_dye(&mut self, uuid: &str) {
+        self.uuid = uuid.to_string();
+        let dye: AnimatedDye = SkyblockerConfigManager::get().general.custom_animated_dyes.get(uuid).cloned().expect("NullPointerException: the animated dye");
+        self.keyframes.clear();
+        let keyframes = dye.keyframes();
+        self.keyframes.reserve(keyframes.len());
+        for i in 0..keyframes.len() {
+            let keyframe: &Keyframe = &keyframes[i];
+            let frame = self.new_keyframe(keyframe.color(), keyframe.time(), i != 0 && i != keyframes.len() - 1);
+            self.keyframes.push(frame);
         }
-        AnimatedDyeTimelineWidget::set_focused(__this, Some(__this.lock().borrow().keyframes[0].clone()));
-        AnimatedDyeTimelineWidget::create_gradient_texture(__this);
+        // java: setFocused(keyframes.getFirst());
+        let first = self.keyframes.first().expect("NoSuchElementException: keyframes.getFirst()").id;
+        self.set_focused_child(Some(first));
+        self.create_gradient_texture();
     }
 
     /// java: private void createGradientTexture()
-    pub fn create_gradient_texture(__this: &compat::Shared<Self>) {
-        let mut image: Option<NativeImage> = Some(__this.lock().borrow().gradient_texture.as_ref().unwrap().get_pixels().clone());
-        debug_assert!(image.is_some());
-        let mut l: i64 = compat::millis();
-        for i in 0..(__this.lock().borrow().keyframes.len() as i32).wrapping_sub(1) {
-            let mut frame: compat::Shared<KeyframeWidget> = __this.lock().borrow().keyframes[(i) as usize].clone();
-            let mut next_frame: compat::Shared<KeyframeWidget> = __this.lock().borrow().keyframes[(i.wrapping_add(1)) as usize].clone();
-            let mut start_x: i32 = (((((image.as_ref().unwrap().get_width()).wrapping_sub(1) as f32) * compat::read(&frame, |__t| __t.time))) as i32);
-            let mut end_x: i32 = (((((image.as_ref().unwrap().get_width()).wrapping_sub(1) as f32) * compat::read(&next_frame, |__t| __t.time))) as i32);
-            let mut size: i32 = end_x.wrapping_sub(start_x);
+    fn create_gradient_texture(&mut self) {
+        let l = std::time::Instant::now();
+        let image = self.gradient_texture.get_pixels_mut();
+        let image_width = image.get_width();
+        let image_height = image.get_height();
+        for i in 0..self.keyframes.len().saturating_sub(1) {
+            let frame = &self.keyframes[i];
+            let next_frame = &self.keyframes[i + 1];
+            let start_x: i32 = (((image_width - 1) as f32) * frame.time) as i32;
+            let end_x: i32 = (((image_width - 1) as f32) * next_frame.time) as i32;
+            let size: i32 = end_x - start_x;
             for x in 0..=size {
-                let mut color: i32 = OkLabColor::interpolate(compat::read(&frame, |__t| __t.color), compat::read(&next_frame, |__t| __t.color), (((x) as f32) / (size as f32)));
-                for y in 0..image.as_ref().unwrap().get_height() {
-                    image.as_mut().unwrap().set_pixel(x.wrapping_add(start_x), y, (color | 0xFF000000u32 as i32));
+                let color: i32 = OkLabColor::interpolate(frame.color, next_frame.color, (x as f32) / (size as f32));
+                for y in 0..image_height {
+                    image.set_pixel(x + start_x, y, color | 0xFF_00_00_00_u32 as i32);
                 }
             }
         }
-        let mut v: f64 = (((compat::millis()).wrapping_sub(l) as f64) / 1000.0);
-        logger().debug(&format!("Time taken to generate gradient texture: {}s", compat::fstr(v as f64)));
-        __this.lock().borrow_mut().gradient_texture.as_mut().unwrap().upload();
-    }
-
-    /// java: @Override public boolean mouseClicked(MouseButtonEvent click, boolean doubled)
-    pub fn mouse_clicked(__this: &compat::Shared<Self>, click: &MouseButtonEvent, mut doubled: bool) -> bool {
-        let mut b: bool = { let (__q0, __q1,) = (click.clone(), doubled,); __this.lock().borrow_mut().base.mouse_clicked(__q0, __q1) };
-        if b {
-            if compat::read(__this, |__t| __t.deleted_index) != -1 {
-                AnimatedDyeTimelineWidget::set_focused(__this, Some(__this.lock().borrow().keyframes[(compat::read(__this, |__t| __t.deleted_index)) as usize].clone()));
-                { let __v = -1; compat::write(__this, |__t| __t.deleted_index = __v); }
-            }
-            return true;
-        }
-        if { let (__q0, __q1,) = (click.x(), click.y(),); __this.lock().borrow().is_mouse_over(__q0, __q1) } {
-            let mut mouse_x: f64 = ((click.x() - (__this.lock().borrow().get_x() as f64)) + (HORIZONTAL_MARGIN as f64));
-            let mut e: compat::Shared<KeyframeWidget> = KeyframeWidget::new(0xFFFF0000u32 as i32, (((mouse_x / (((__this.lock().borrow().get_width()).wrapping_sub(HORIZONTAL_MARGIN.wrapping_mul(2))).wrapping_sub(1) as f64))) as f32), true);
-            let __h0 = e.clone();
-            __this.lock().borrow_mut().keyframes.push(__h0);
-            AnimatedDyeTimelineWidget::set_focused(__this, Some(e.clone()));
-            AnimatedDyeTimelineWidget::data_changed(__this);
-            return true;
-        }
-        return false;
+        let v: f64 = l.elapsed().as_millis() as f64 / 1000.0;
+        // java: CustomizeScreen.LOGGER.debug("Time taken to generate gradient texture: {}s", v);
+        logger().debug(&format!("Time taken to generate gradient texture: {}s", v));
+        self.gradient_texture.upload();
     }
 
     /// java: public void setColor(int argb)
-    pub fn set_color(__this: &compat::Shared<Self>, mut argb: i32) {
-        if compat::read(__this, |__t| __t.focused_frame.clone()).is_none() {
+    pub fn set_color(&mut self, argb: i32) {
+        let Some(focused_frame) = self.focused_frame else {
             logger().warn("Tried to set color when no frame was focused");
             return;
+        };
+        if let Some(frame) = self.keyframes.iter_mut().find(|k| k.id == focused_frame) {
+            frame.color = argb;
         }
-        { let __v = argb; compat::write(&compat::read(__this, |__t| __t.focused_frame.clone()).unwrap(), |__t| __t.color = __v); }
-        AnimatedDyeTimelineWidget::data_changed(__this);
+        self.data_changed();
     }
 
     /// java: private void dataChanged()
-    pub fn data_changed(__this: &compat::Shared<Self>) {
-        let __h0 = |a, b| { let key = |f| compat::read(f, |__t| __t.time); key(a).total_cmp(&key(b)) };
-        __this.lock().borrow_mut().keyframes.sort_by(__h0);
-        AnimatedDyeTimelineWidget::create_gradient_texture(__this);
-        let mut config_frames: Vec<Keyframe> = (compat::read(__this, |__t| __t.keyframes.clone()).into_iter().map(|keyframe| Keyframe::new(compat::read(&keyframe, |__t| __t.color), compat::read(&keyframe, |__t| __t.time))).collect::<Vec<_>>()).iter().cloned().collect::<Vec<_>>();
-        let mut dye: AnimatedDye = SkyblockerConfigManager::get().general.custom_animated_dyes.get(&compat::read(__this, |__t| __t.uuid.clone())).cloned().unwrap();
-        let mut new_dye: AnimatedDye = AnimatedDye::new(config_frames.clone(), dye.cycle_back(), dye.delay(), dye.duration());
-        let __this_1 = compat::RenderThread::new(__this.clone());
-        SkyblockerConfigManager::update_only(Arc::new(move |mut config| { config.general.custom_animated_dyes.insert(compat::read(__this_1.get(), |__t| __t.uuid.clone()), new_dye.clone()); }));
+    fn data_changed(&mut self) {
+        // java: keyframes.sort(Comparator.comparingDouble(f -> f.time)); - stable, as `List.sort`
+        self.keyframes.sort_by(|a, b| (a.time as f64).total_cmp(&(b.time as f64)));
+        self.create_gradient_texture();
+        let config_frames: Vec<Keyframe> = self.keyframes.iter().map(|keyframe| Keyframe::new(keyframe.color, keyframe.time)).collect();
+        let dye: AnimatedDye = SkyblockerConfigManager::get().general.custom_animated_dyes.get(&self.uuid).cloned().expect("NullPointerException: the animated dye");
+        let new_dye = AnimatedDye::new(config_frames, dye.cycle_back(), dye.delay(), dye.duration());
+        let uuid = self.uuid.clone();
+        SkyblockerConfigManager::update_only(Arc::new(move |config: &mut crate::de::hysky::skyblocker::config::skyblocker_config::SkyblockerConfig| {
+            config.general.custom_animated_dyes.insert(uuid.clone(), new_dye.clone());
+        }));
     }
 
-    /// java: @Override protected void updateWidgetNarration(NarrationElementOutput builder)
-    pub fn update_widget_narration(__this: &compat::Shared<Self>, builder: &dyn NarrationElementOutput) {
+    /// java: new KeyframeWidget(color, time, draggable)
+    fn new_keyframe(&mut self, color: i32, time: f32, draggable: bool) -> KeyframeWidget {
+        let id = self.next_id;
+        self.next_id += 1;
+        KeyframeWidget::new(id, color, time, draggable, self.base.height)
     }
 
-    /// java: @Override protected int contentHeight()
-    pub fn content_height(__this: &compat::Shared<Self>) -> i32 {
-        return __this.lock().borrow().get_height();
+    /// `keyframes.indexOf(..)` by identity.
+    fn index_of(&self, id: u64) -> Option<usize> {
+        self.keyframes.iter().position(|k| k.id == id)
     }
 
-    /// java: @Override protected double scrollRate()
-    pub fn scroll_rate(__this: &compat::Shared<Self>) -> f64 {
-        return ((0) as f64) as f64;
+    /// java: KeyframeWidget.deleteThis(boolean mouse)
+    fn delete_keyframe(&mut self, id: u64, mouse: bool) {
+        let Some(i) = self.index_of(id) else {
+            return;
+        };
+        if !self.keyframes[i].draggable {
+            return;
+        }
+        // java: AnimatedDyeTimelineWidget.this.setFocused(keyframes.get(i + 1));
+        let next = self.keyframes.get(i + 1).expect("IndexOutOfBoundsException: keyframes.get(i + 1)").id;
+        self.set_focused_child(Some(next));
+        if mouse {
+            self.deleted_index = i as i32;
+        }
+        self.keyframes.remove(i);
+        self.data_changed();
+    }
+
+    /// `KeyframeWidget.getX()` - from this widget's box
+    fn keyframe_x(&self, keyframe: &KeyframeWidget) -> i32 {
+        ((self.base.get_x() + HORIZONTAL_MARGIN) as f32 + keyframe.time * ((self.base.get_width() - HORIZONTAL_MARGIN * 2 - 1) as f32)) as i32 - 3
+    }
+
+    /// `KeyframeWidget.isMouseOver` - `isActive() && areCoordinatesInRectangle(..)` over its own box
+    fn keyframe_is_mouse_over(&self, keyframe: &KeyframeWidget, mouse_x: f64, mouse_y: f64) -> bool {
+        let (x, y) = (self.keyframe_x(keyframe), self.base.get_y());
+        keyframe.active && mouse_x >= x as f64 && mouse_y >= y as f64 && mouse_x < (x + keyframe.width) as f64 && mouse_y < (y + keyframe.height) as f64
+    }
+
+    /// java: KeyframeWidget.mouseClicked(MouseButtonEvent click, boolean doubled)
+    fn keyframe_mouse_clicked(&mut self, id: u64, event: &MouseButtonEvent) -> bool {
+        let Some(i) = self.index_of(id) else {
+            return false;
+        };
+        let over = self.keyframe_is_mouse_over(&self.keyframes[i], event.x(), event.y());
+        if event.button() == input_constants::MOUSE_BUTTON_RIGHT && over {
+            self.delete_keyframe(id, true);
+            return true;
+        }
+        // java: super.mouseClicked(click, doubled) - AbstractWidget:109-125 (`onClick` is empty)
+        self.keyframes[i].active && event.button() == 0 && over
+    }
+
+    /// java: KeyframeWidget.onDrag(MouseButtonEvent click, double offsetX, double offsetY)
+    fn keyframe_on_drag(&mut self, id: u64, event: &MouseButtonEvent) {
+        let Some(i) = self.index_of(id) else {
+            return;
+        };
+        if !self.keyframes[i].draggable {
+            return;
+        }
+        let mouse_x: f64 = event.x() - self.base.get_x() as f64 + HORIZONTAL_MARGIN as f64;
+        let v: f32 = (mouse_x / (self.base.get_width() - HORIZONTAL_MARGIN * 2 - 1) as f64) as f32;
+        self.keyframes[i].time = v.clamp(0.0, 1.0);
+        self.keyframes[i].dragging = true;
+    }
+
+    /// java: KeyframeWidget.onRelease(MouseButtonEvent click)
+    fn keyframe_on_release(&mut self, id: u64) {
+        if self.index_of(id).is_some_and(|i| self.keyframes[i].dragging) {
+            self.data_changed();
+        }
     }
 
     /// java: @Override public void close()
-    pub fn close(__this: &compat::Shared<Self>) {
-        compat::minecraft().get_texture_manager().release(GRADIENT_TEXTURE.get_mut());
+    pub fn close(&mut self) {
+        compat::minecraft().game_renderer.texture_manager_mut().release(GRADIENT_TEXTURE.get());
     }
-
 }
 
-// NOTE(fabric2seer): children, close, contentHeight, extractWidgetRenderState, mouseClicked, scrollRate, setFocused, setWidth, updateWidgetNarration override(s) of AbstractContainerWidget - the port dispatches its own calls, so these run only where the mod calls them; hook the port's method to make the game call them
+impl compat::ObjectWidget for AnimatedDyeTimelineWidget {
+    fn object_box(&mut self) -> &mut AbstractContainerWidget {
+        &mut self.base
+    }
+
+    fn object_box_ref(&self) -> &AbstractContainerWidget {
+        &self.base
+    }
+
+    /// java: @Override public void setWidth(int width)
+    fn set_width(&mut self, width: i32) {
+        self.base.set_width(width);
+        let (width, height) = (self.base.width, self.base.height);
+        self.create_image_here(width, height);
+        self.create_gradient_texture();
+    }
+
+    /// java: @Override protected void extractWidgetRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a)
+    fn extract_widget_render_state(&mut self, _widget: &AbstractWidget, context: &mut WidgetRenderContext<'_>, _mouse_x: i32, _mouse_y: i32, _a: f32) {
+        gui_graphics_extractor::blit_identifier_region(
+            context.gl,
+            context.minecraft,
+            mcrust::net::minecraft::client::renderer::render_pipelines::gui_textured(),
+            GRADIENT_TEXTURE.get(),
+            self.base.get_x() + HORIZONTAL_MARGIN,
+            self.base.get_y() + VERTICAL_MARGIN,
+            0.0,
+            0.0,
+            self.base.get_width() - HORIZONTAL_MARGIN * 2,
+            self.base.get_height() - VERTICAL_MARGIN * 2,
+            self.texture_width,
+            self.texture_height,
+            self.texture_width,
+            self.texture_height,
+        );
+        // java: for (KeyframeWidget frame : keyframes) frame.extractRenderState(graphics, mouseX, mouseY, a);
+        for keyframe in self.keyframes.iter() {
+            if !keyframe.visible {
+                continue;
+            }
+            let (x, y, w, h) = (self.keyframe_x(keyframe), self.base.get_y(), keyframe.width, keyframe.height);
+            // java: KeyframeWidget.extractWidgetRenderState
+            context.graphics.fill(context.gl, x, y, x + w, y + h, keyframe.color);
+            let focused = self.focused == Some(keyframe.id);
+            GuiHelper::border(&mut context.graphics, x, y, w, h, if focused { -1 } else { common_colors::GRAY });
+        }
+    }
+
+    /// java: @Override public boolean mouseClicked(MouseButtonEvent click, boolean doubled)
+    fn mouse_clicked(&mut self, _widget: &mut AbstractWidget, event: &MouseButtonEvent, _double_click: bool) -> bool {
+        // java: boolean b = super.mouseClicked(click, doubled); - ContainerEventHandler.mouseClicked:39-55 over the keyframes
+        let mut b = false;
+        let ids: Vec<u64> = self.keyframes.iter().map(|k| k.id).collect();
+        for id in ids {
+            if self.keyframe_mouse_clicked(id, event) {
+                self.set_focused_child(Some(id));
+                if event.button() == 0 {
+                    self.base.set_dragging(true);
+                }
+                b = true;
+                break;
+            }
+        }
+        if b {
+            if self.deleted_index != -1 {
+                let id = self.keyframes.get(self.deleted_index as usize).expect("IndexOutOfBoundsException: keyframes.get(deletedIndex)").id;
+                self.set_focused_child(Some(id));
+                self.deleted_index = -1;
+            }
+            return true;
+        }
+        if self.base.is_mouse_over(event.x(), event.y()) {
+            let mouse_x: f64 = event.x() - self.base.get_x() as f64 + HORIZONTAL_MARGIN as f64;
+            let time = (mouse_x / (self.base.get_width() - HORIZONTAL_MARGIN * 2 - 1) as f64) as f32;
+            let e = self.new_keyframe(0xFFFF0000_u32 as i32, time, true);
+            let id = e.id;
+            self.keyframes.push(e);
+            self.set_focused_child(Some(id));
+            self.data_changed();
+            return true;
+        }
+        false
+    }
+
+    /// ContainerEventHandler.mouseReleased:57-66 - the focused keyframe's `mouseReleased` (`onRelease`)
+    fn mouse_released(&mut self, _widget: &mut AbstractWidget, event: &MouseButtonEvent) -> bool {
+        if event.button() == 0 && self.base.is_dragging() {
+            self.base.set_dragging(false);
+            if let Some(id) = self.focused {
+                // AbstractWidget.mouseReleased:127-135
+                self.keyframe_on_release(id);
+                return true;
+            }
+        }
+        false
+    }
+
+    /// ContainerEventHandler.mouseDragged:68-71 - the focused keyframe's `mouseDragged` (`onDrag`)
+    fn mouse_dragged(&mut self, _widget: &mut AbstractWidget, event: &MouseButtonEvent, _dx: f64, _dy: f64) -> bool {
+        if let Some(id) = self.focused
+            && self.base.is_dragging()
+            && event.button() == 0
+        {
+            self.keyframe_on_drag(id, event);
+            return true;
+        }
+        false
+    }
+
+    /// ContainerEventHandler.keyPressed:83-85 - the focused keyframe's `keyPressed`
+    fn key_pressed(&mut self, _widget: &mut AbstractWidget, event: &KeyEvent) -> bool {
+        let Some(id) = self.focused else {
+            return false;
+        };
+        // java: KeyframeWidget.keyPressed - `if (input.key() == KEY_DELETE) deleteThis(false); return super.keyPressed(input);`
+        if event.key() == input_constants::KEY_DELETE {
+            self.delete_keyframe(id, false);
+        }
+        false
+    }
+}
 
 /// java: private class KeyframeWidget extends AbstractWidget
-#[derive(Clone)]
+///
+/// A child of the timeline that only the timeline draws and hands input to (`children()` is `keyframes`); its `getX()`
+/// / `getY()` are the timeline's (`keyframe_x`).
+#[derive(Clone, Debug)]
 pub struct KeyframeWidget {
-    /// java: extends net.minecraft.client.gui.components.AbstractWidget
-    pub base: AbstractWidget,
+    /// the object's identity (Java compares keyframes by reference)
+    pub id: u64,
     /// java: int color;
     pub color: i32,
     /// java: float time;
@@ -246,180 +405,19 @@ pub struct KeyframeWidget {
     pub draggable: bool,
     /// java: private boolean dragging = false;
     pub dragging: bool,
-    /// the object's own shared handle: Java's `this` handed to other objects
-    pub self_ref: compat::WeakShared<Self>,
-}
-
-impl std::ops::Deref for KeyframeWidget {
-    type Target = AbstractWidget;
-    fn deref(&self) -> &Self::Target {
-        &self.base
-    }
-}
-
-impl std::ops::DerefMut for KeyframeWidget {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.base
-    }
+    /// AbstractWidget's `width` - 7
+    pub width: i32,
+    /// AbstractWidget's `height` - the timeline's height when the keyframe was made
+    pub height: i32,
+    /// AbstractWidget's `active`
+    pub active: bool,
+    /// AbstractWidget's `visible`
+    pub visible: bool,
 }
 
 impl KeyframeWidget {
-    /// java: private KeyframeWidget(int color, float time, boolean draggable)
-    pub fn new(mut color: i32, mut time: f32, mut draggable: bool) -> compat::Shared<Self> {
-        let __init_draggable = draggable;
-        let __init_color = color;
-        let __init_time = time;
-        // TODO(fabric2seer): `AnimatedDyeTimelineWidget.this` (the enclosing instance of an inner class)
-        //   java: super(0, 0, 7, AnimatedDyeTimelineWidget.this.getHeight(), Component.literal("Keyframe"));
-        let __this: compat::Shared<Self> = todo!("constructor");
-        __this
-    }
-
-    /// java: @Override protected void extractWidgetRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a)
-    pub fn extract_widget_render_state(__this: &compat::Shared<Self>, graphics: &mut GuiGraphicsExtractor, mut mouse_x: i32, mut mouse_y: i32, mut a: f32) {
-        graphics.fill(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), KeyframeWidget::get_x(__this), KeyframeWidget::get_y(__this), (KeyframeWidget::get_x(__this)).wrapping_add(__this.lock().borrow().get_width()), (KeyframeWidget::get_y(__this)).wrapping_add(__this.lock().borrow().get_height()), compat::read(__this, |__t| __t.color));
-        GuiHelper::border(graphics, KeyframeWidget::get_x(__this), KeyframeWidget::get_y(__this), __this.lock().borrow().get_width(), __this.lock().borrow().get_height(), (if __this.lock().borrow().is_focused() { -1 } else { mcrust::net::minecraft::util::common_colors::GRAY }));
-    }
-
-    /// java: @Override public int getX()
-    pub fn get_x(__this: &compat::Shared<Self>) -> i32 {
-        // TODO(fabric2seer): `AnimatedDyeTimelineWidget.this` (the enclosing instance of an inner class)
-        //   java: AnimatedDyeTimelineWidget parent = AnimatedDyeTimelineWidget.this;
-        let mut parent: compat::Shared<AnimatedDyeTimelineWidget> = todo!("fabric2seer: the initialiser of `parent` (TODO above)");
-        let __o1 = parent.clone();
-        let __o2 = parent.clone();
-        let __o3 = parent.clone();
-        let __o4 = parent.clone();
-        return (((((compat::write(&__o3, |__t| __t.get_x())).wrapping_add(HORIZONTAL_MARGIN) as f32) + (compat::read(__this, |__t| __t.time) * (((compat::write(&__o4, |__t| __t.get_width())).wrapping_sub(HORIZONTAL_MARGIN.wrapping_mul(2))).wrapping_sub(1) as f32)))) as i32).wrapping_sub(3);
-    }
-
-    /// java: @Override public int getY()
-    pub fn get_y(__this: &compat::Shared<Self>) -> i32 {
-        // TODO(fabric2seer): `AnimatedDyeTimelineWidget.this` (the enclosing instance of an inner class)
-        //   java: return AnimatedDyeTimelineWidget.this.getY();
-        todo!("fabric2seer: the value of this function is in a TODO above")
-    }
-
-    /// java: @Override protected void onDrag(MouseButtonEvent click, double offsetX, double offsetY)
-    pub fn on_drag(__this: &compat::Shared<Self>, click: &MouseButtonEvent, mut offset_x: f64, mut offset_y: f64) {
-        // TODO(fabric2seer): `AbstractWidget.onDrag` has no Rust method in the port (looked for `on_drag` in AbstractWidget and its supertypes)
-        // rust: __this.lock().borrow_mut().base.on_drag(click, offset_x, offset_y);
-        if !(compat::read(__this, |__t| __t.draggable)) {
-            return;
-        }
-        // TODO(fabric2seer): `AnimatedDyeTimelineWidget.this` (the enclosing instance of an inner class)
-        //   java: AnimatedDyeTimelineWidget parent = AnimatedDyeTimelineWidget.this;
-        let mut parent: compat::Shared<AnimatedDyeTimelineWidget> = todo!("fabric2seer: the initialiser of `parent` (TODO above)");
-        let __o1 = parent.clone();
-        let __o2 = parent.clone();
-        let mut mouse_x: f64 = ((click.x() - (compat::write(&__o2, |__t| __t.get_x()) as f64)) + (HORIZONTAL_MARGIN as f64));
-        let __o3 = parent.clone();
-        let mut v: f32 = (((mouse_x / (((compat::write(&__o3, |__t| __t.get_width())).wrapping_sub(HORIZONTAL_MARGIN.wrapping_mul(2))).wrapping_sub(1) as f64))) as f32);
-        { let __v = v.clamp((0 as f32), (1 as f32)); compat::write(__this, |__t| __t.time = __v); }
-        { let __v = true; compat::write(__this, |__t| __t.dragging = __v); }
-    }
-
-    /// java: @Override public void onRelease(MouseButtonEvent click)
-    pub fn on_release(__this: &compat::Shared<Self>, click: &MouseButtonEvent) {
-        // TODO(fabric2seer): `AbstractWidget.onRelease` has no Rust method in the port (looked for `on_release` in AbstractWidget and its supertypes)
-        // rust: __this.lock().borrow_mut().base.on_release(click);
-        if compat::read(__this, |__t| __t.dragging) {
-            // TODO(fabric2seer): `dataChanged(..)` is a method of the enclosing instance (AnimatedDyeTimelineWidget.this) - an inner class has no outer reference in Rust
-            //   java: dataChanged();
-        }
-    }
-
-    /// java: @Override public boolean keyPressed(KeyEvent input)
-    pub fn key_pressed(__this: &compat::Shared<Self>, input: &mcrust::net::minecraft::client::input::key_event::KeyEvent) -> bool {
-        if input.key() == 261 {
-            KeyframeWidget::delete_this(__this, false);
-        }
-        // TODO(fabric2seer): `key_pressed` takes 3 argument(s) in the port (`_key: i32, _scancode: i32, _modifiers: i32`), Java passes 1
-        // TODO(fabric2seer): `key_pressed` is a method of the port's trait `GuiEventListener`, which the port's `AbstractWidget` does not implement
-        // rust: return { let (__q0,) = (input.clone(),); __this.lock().borrow_mut().base.key_pressed(__q0) };
-        return todo!("fabric2seer: see the TODO above");
-    }
-
-    /// java: @Override public boolean mouseClicked(MouseButtonEvent click, boolean doubled)
-    pub fn mouse_clicked(__this: &compat::Shared<Self>, click: &MouseButtonEvent, mut doubled: bool) -> bool {
-        if click.button() == 1 && { let (__q0, __q1,) = (click.x(), click.y(),); __this.lock().borrow().is_mouse_over(__q0, __q1) } {
-            KeyframeWidget::delete_this(__this, true);
-            return true;
-        }
-        // TODO(fabric2seer): `mouse_clicked` takes 3 argument(s) in the port (`button: i32, x: f64, y: f64`), Java passes 2
-        // rust: return { let (__q0, __q1,) = (click.clone(), doubled,); __this.lock().borrow_mut().base.mouse_clicked(__q0, __q1) }.is_some();
-        return todo!("fabric2seer: see the TODO above");
-    }
-
-    /// java: private void deleteThis(boolean mouse)
-    pub fn delete_this(__this: &compat::Shared<Self>, mut mouse: bool) {
-        if !(compat::read(__this, |__t| __t.draggable)) {
-            return;
-        }
-        // TODO(fabric2seer): `keyframes` is a field of the enclosing instance (AnimatedDyeTimelineWidget.this) - an inner class has no outer reference in Rust
-        //   java: int i = keyframes.indexOf(this);
-        let mut i: i32 = todo!("fabric2seer: the initialiser of `i` (TODO above)");
-        // TODO(fabric2seer): `AnimatedDyeTimelineWidget.this` (the enclosing instance of an inner class)
-        //   java: AnimatedDyeTimelineWidget.this.setFocused(keyframes.get(i + 1));
-        if mouse {
-            // TODO(fabric2seer): `deletedIndex` is a field of the enclosing instance (AnimatedDyeTimelineWidget.this) - an inner class has no outer reference in Rust
-            //   java: deletedIndex = i;
-        }
-        // TODO(fabric2seer): `keyframes` is a field of the enclosing instance (AnimatedDyeTimelineWidget.this) - an inner class has no outer reference in Rust
-        //   java: keyframes.remove(this);
-        // TODO(fabric2seer): `dataChanged(..)` is a method of the enclosing instance (AnimatedDyeTimelineWidget.this) - an inner class has no outer reference in Rust
-        //   java: dataChanged();
-    }
-
-    /// java: @Override protected void updateWidgetNarration(NarrationElementOutput builder)
-    pub fn update_widget_narration(__this: &compat::Shared<Self>, builder: &dyn NarrationElementOutput) {
-    }
-
-}
-
-/// KeyframeWidget's widget half (`super`'s fields: x, y, size, message, ...), lent by the game for each call
-impl compat::WidgetHalf for KeyframeWidget {
-    fn widget_half(&mut self) -> &mut AbstractWidget {
-        &mut self.base
+    /// java: private KeyframeWidget(int color, float time, boolean draggable) - `super(0, 0, 7, AnimatedDyeTimelineWidget.this.getHeight(), Component.literal("Keyframe"))`
+    fn new(id: u64, color: i32, time: f32, draggable: bool, height: i32) -> KeyframeWidget {
+        KeyframeWidget { id, color, time, draggable, dragging: false, width: 7, height, active: true, visible: true }
     }
 }
-
-/// KeyframeWidget as the game's widget: `compat::WidgetAdapter::widget(handle)` where Java hands it on
-impl ModWidget for compat::WidgetAdapter<KeyframeWidget> {
-    /// java: @Override protected void extractWidgetRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a)
-    fn extract_widget_render_state(&mut self, widget: &AbstractWidget, context: &mut WidgetRenderContext<'_>, mouse_x: i32, mouse_y: i32, a: f32) {
-        self.lend_ref(widget, |__h| KeyframeWidget::extract_widget_render_state(__h, &mut context.graphics, mouse_x, mouse_y, a))
-    }
-
-    /// java: @Override protected void updateWidgetNarration(NarrationElementOutput builder)
-    fn update_widget_narration(&mut self, widget: &AbstractWidget, output: &mut dyn NarrationElementOutput) {
-        self.lend_ref(widget, |__h| KeyframeWidget::update_widget_narration(__h, output))
-    }
-
-    /// java: @Override public void onRelease(MouseButtonEvent click)
-    fn on_release(&mut self, widget: &mut AbstractWidget, event: &MouseButtonEvent) {
-        self.lend(widget, |__h| KeyframeWidget::on_release(__h, event))
-    }
-
-    /// java: @Override protected void onDrag(MouseButtonEvent click, double offsetX, double offsetY)
-    fn on_drag(&mut self, widget: &mut AbstractWidget, event: &MouseButtonEvent, dx: f64, dy: f64) {
-        self.lend(widget, |__h| KeyframeWidget::on_drag(__h, event, dx, dy))
-    }
-
-    /// java: @Override public boolean mouseClicked(MouseButtonEvent click, boolean doubled)
-    fn mouse_clicked(&mut self, widget: &mut AbstractWidget, event: &MouseButtonEvent, double_click: bool) -> bool {
-        self.lend(widget, |__h| KeyframeWidget::mouse_clicked(__h, event, double_click))
-    }
-
-    /// java: @Override public boolean keyPressed(KeyEvent input)
-    fn key_pressed(&mut self, widget: &mut AbstractWidget, event: &mcrust::net::minecraft::client::input::key_event::KeyEvent) -> bool {
-        self.lend(widget, |__h| KeyframeWidget::key_pressed(__h, event))
-    }
-
-}
-
-// NOTE(fabric2seer): extractWidgetRenderState, getX, getY, keyPressed, mouseClicked, onDrag, onRelease, updateWidgetNarration override(s) of AbstractWidget - the port dispatches its own calls, so these run only where the mod calls them; hook the port's method to make the game call them
-
-/// java: public interface FrameCallback
-/// a functional interface: `onFrameSelected(int color, float time)` - a lambda / method reference is this closure type
-pub type FrameCallback = Arc<dyn Fn(i32, f32)>;

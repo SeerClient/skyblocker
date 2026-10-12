@@ -90,7 +90,7 @@ impl AutopetFilter {
         if SkyblockerConfigManager::get().chat.hide_autopet == ChatFilterResult::ActionBar {
             mcrust::mcrust::modding::game::with_player(|player| { script_host::send_feedback(&message.get_string().replace("VIEW RULE", "")); });
         } else if SkyblockerConfigManager::get().chat.hide_autopet == ChatFilterResult::Toast {
-            compat::minecraft().gui.toast_manager().borrow_mut().add_toast(BasicToast::new_3(component::literal(&message.get_string().replace("VIEW RULE", "")), (((SkyblockerConfigManager::get().chat.toast_display_duration * (1000 as f32))) as i64), FlexibleItemStack::get_stack(ICON.get_mut())));
+            compat::minecraft().gui.toast_manager().borrow_mut().add_toast(Box::new(BasicToast::new_3(component::literal(&message.get_string().replace("VIEW RULE", "")), (((SkyblockerConfigManager::get().chat.toast_display_duration * (1000 as f32))) as i64), FlexibleItemStack::get_stack(ICON.get_mut()))));
         }
         return true;
     }

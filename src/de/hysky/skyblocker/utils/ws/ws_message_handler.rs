@@ -6,7 +6,9 @@ use crate::de::hysky::skyblocker::skyblock::dungeon::secrets::dungeon_web_socket
 use crate::de::hysky::skyblocker::utils::utils::Utils;
 use crate::de::hysky::skyblocker::utils::ws::message::crystals_waypoint_message::CrystalsWaypointMessage;
 use crate::de::hysky::skyblocker::utils::ws::message::egg_waypoint_message::EggWaypointMessage;
+use crate::de::hysky::skyblocker::utils::ws::message::message::AnyMessage;
 use crate::de::hysky::skyblocker::utils::ws::message::message::Message;
+use crate::de::hysky::skyblocker::utils::ws::skyblocker_web_socket::SkyblockerWebSocket;
 use crate::de::hysky::skyblocker::utils::ws::payload;
 use crate::de::hysky::skyblocker::utils::ws::payload::Payload;
 use crate::de::hysky::skyblocker::utils::ws::r#type::Type;
@@ -31,18 +33,21 @@ impl WsMessageHandler {
     }
 
     /// java: public static void sendLocationMessage(Service service, Message<? extends Message<?>> message)
-    pub fn send_location_message(mut service: Service, message: &compat::Shared<dyn Message<compat::Shared<dyn Message<compat::Object>>>>) {
+    /// Used for sending messages for the current location
+    pub fn send_location_message(mut service: Service, message: &dyn AnyMessage) {
         WsMessageHandler::send(Type::Publish, service, &Utils::get_location().to_string(), &Some(WsMessageHandler::encode_message(message)));
     }
 
     /// java: public static void sendServerMessage(Service service, Message<? extends Message<?>> message)
-    pub fn send_server_message(mut service: Service, message: &compat::Shared<dyn Message<compat::Shared<dyn Message<compat::Object>>>>) {
+    /// Used for sending messages for the current server
+    pub fn send_server_message(mut service: Service, message: &dyn AnyMessage) {
         WsMessageHandler::send(Type::Publish, service, &Utils::get_server(), &Some(WsMessageHandler::encode_message(message)));
     }
 
     /// java: static void sendSimple(Type type, Service service, String serverId, Optional<Message<? extends Message<?>>> message)
-    pub fn send_simple(mut r#type: Type, mut service: Service, server_id: &str, message: &Option<compat::Shared<dyn Message<compat::Shared<dyn Message<compat::Object>>>>>) {
-        WsMessageHandler::send(r#type, service, server_id, &message.clone().map(|__a0| WsMessageHandler::encode_message(&__a0)));
+    /// Useful for sending simple state updates with an optional message
+    pub fn send_simple(mut r#type: Type, mut service: Service, server_id: &str, message: Option<&dyn AnyMessage>) {
+        WsMessageHandler::send(r#type, service, server_id, &message.map(|__a0| WsMessageHandler::encode_message(__a0)));
     }
 
     /// java: private static void send(Type type, Service service, String serverId, Optional<Dynamic<?>> message)
@@ -50,30 +55,33 @@ impl WsMessageHandler {
         // java: try {..} catch (Exception e) - an exception here is a panic, caught by `catch_unwind`
         let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             let mut payload: Payload = Payload::new(r#type, service, server_id.to_string(), message.clone());
-            // TODO(fabric2seer): `.getAsJsonObject(..)` on a T
-            //   java: JsonObject encoded = Payload.CODEC.encodeStart(JsonOps.INSTANCE, payload).getOrThrow().getAsJsonObject();
-            let mut encoded: serde_json::Map<String, serde_json::Value> = todo!("fabric2seer: the initialiser of `encoded` (TODO above)");
-            // TODO(fabric2seer): `.toJson(..)` on a Gson
-            //   java: SkyblockerWebSocket.send(SkyblockerMod.GSON_COMPACT.toJson(encoded));
+            // java: JsonObject encoded = Payload.CODEC.encodeStart(JsonOps.INSTANCE, payload).getOrThrow().getAsJsonObject();
+            let encoded: serde_json::Map<String, serde_json::Value> = compat::json::get_as_json_object(&compat::json_from_port(&payload::CODEC.get().encode_start(&mcrust::com::mojang::serialization::json_ops::JsonOps::instance(), &payload).get_or_throw().unwrap_or_else(|e| panic!("IllegalStateException: {e}"))));
+            // java: SkyblockerWebSocket.send(SkyblockerMod.GSON_COMPACT.toJson(encoded));
+            // (`GSON_COMPACT` is a default `Gson`: no pretty printing; serde_json writes the same document - Gson's
+            // HTML-safe `<`-style escapes are the only spelling difference, and they decode identically)
+            SkyblockerWebSocket::send(&serde_json::to_string(&serde_json::Value::Object(encoded)).unwrap_or_else(|e| panic!("JsonIOException: {e}")));
         }));
         if let Err(e) = __result {
-            logger().info(&format!("[Skyblocker WebSocket Message Handler] Failed to send message! Type: {}, Service: {}, Message: {}", compat::jstring(&r#type), compat::jstring(&service), match &message { Some(dynamic) => format!("Optional[{:?}]", dynamic), None => "Optional.empty".to_string() }));
+            logger().info(&format!("[Skyblocker WebSocket Message Handler] Failed to send message! Type: {}, Service: {}, Message: {} {}", compat::jstring(&r#type), compat::jstring(&service), match &message { Some(dynamic) => format!("Optional[{:?}]", dynamic), None => "Optional.empty".to_string() }, compat::panic_message(&e)));
         }
     }
 
     /// java: private static Dynamic<?> encodeMessage(Message<? extends Message<?>> message)
-    pub fn encode_message(message: &compat::Shared<dyn Message<compat::Shared<dyn Message<compat::Object>>>>) -> Dynamic {
+    pub fn encode_message(message: &dyn AnyMessage) -> Dynamic {
         // java: try {..} catch (Exception e) - an exception here is a panic, caught by `catch_unwind`; the body's `return` is the closure's value
         match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            let mut codec: CodecRef<compat::Shared<dyn Message<compat::Object>>> = message.lock().borrow().get_codec();
-            // TODO(fabric2seer): `new` takes 1 argument(s) in the port (`ops: Ops`), Java passes 2
-            // rust: let mut dynamic: Dynamic = Dynamic::new(mcrust::com::mojang::serialization::json_ops::JsonOps::instance(), (codec.encode_start(&mcrust::com::mojang::serialization::json_ops::JsonOps::instance(), message)).get_or_throw().unwrap());
-            let mut dynamic: Dynamic = todo!("fabric2seer: the initialiser of `dynamic` (TODO above)");
+            // java: Codec<Message<?>> codec = (Codec<Message<?>>) message.getCodec();
+            //   Dynamic<JsonElement> dynamic = new Dynamic<>(JsonOps.INSTANCE, codec.encodeStart(JsonOps.INSTANCE, message).getOrThrow());
+            // (`AnyMessage::encode_start` is that unchecked cast: the message's own codec over the message)
+            let ops = mcrust::com::mojang::serialization::json_ops::JsonOps::instance();
+            let encoded = message.encode_start(&ops).get_or_throw().unwrap_or_else(|e| panic!("IllegalStateException: {e}"));
+            let mut dynamic: Dynamic = Dynamic::new_with(ops, Some(encoded));
             return dynamic;
         })) {
             Ok(__v) => return __v,
             Err(e) => {
-                logger().info(&format!("[Skyblocker WebSocket Message Handler] Failed to encode message! Message: {:p}", std::sync::Arc::as_ptr(message)));
+                logger().info(&format!("[Skyblocker WebSocket Message Handler] Failed to encode message! Message: {} {}", message.message_to_string(), compat::panic_message(&e)));
             }
         }
         return Dynamic::new(mcrust::com::mojang::serialization::json_ops::JsonOps::instance());

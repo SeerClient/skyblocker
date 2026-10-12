@@ -125,7 +125,7 @@ impl ColorPickerWidget {
     pub fn on_release(__this: &compat::Shared<Self>, click: &MouseButtonEvent) {
         // TODO(fabric2seer): `AbstractWidget.onRelease` has no Rust method in the port (looked for `on_release` in AbstractWidget and its supertypes)
         // rust: __this.lock().borrow_mut().base.on_release(click);
-        if compat::read(__this, |__t| __t.dragging_h) || compat::read(__this, |__t| __t.dragging_sv) || compat::read(__this, |__t| __t.dragging_a) && compat::read(__this, |__t| __t.on_color_change.clone()).is_some() {
+        if (compat::read(__this, |__t| __t.dragging_h) || compat::read(__this, |__t| __t.dragging_sv) || compat::read(__this, |__t| __t.dragging_a)) && compat::read(__this, |__t| __t.on_color_change.clone()).is_some() {
             (compat::read(__this, |__t| __t.on_color_change.clone()).unwrap())((compat::read(__this, |__t| __t.argb_color) | compat::read(__this, |__t| __t.alpha_mask)), true);
         }
         { let __v = false; compat::write(__this, |__t| __t.dragging_h = __v); }

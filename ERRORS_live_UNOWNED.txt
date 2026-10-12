@@ -1,7 +1,1 @@
-src/entry/mod_menu_entry.rs:10:27: error[E0282]: type annotations needed
-src/entry/skyblocker_jei_plugin.rs:108:128: error[E0599]: no method named `get_title` found for reference `&ContainerScreen` in the current scope: method not found in `&ContainerScreen`
-src/entry/skyblocker_jei_plugin.rs:111:80: error[E0308]: mismatched types: expected `AbstractContainerScreenAccessor`, found `&ContainerScreen`
-src/de/hysky/skyblocker/skyblock/profileviewer2/utils/lenient_uuid_type_adapter.rs:30:16: error[E0308]: mismatched types: expected `Value`, found `Arc<dyn JavaObject>`
-src/de/hysky/skyblocker/skyblock/tabhud/config/copy_to_popup.rs:159:340: error[E0282]: type annotations needed
-src/de/hysky/skyblocker/skyblock/tabhud/config/custom_dropdown_widget.rs:237:53: error[E0599]: no method named `clone` found for type parameter `T` in the current scope: method not found in `T`
-src/de/hysky/skyblocker/skyblock/tabhud/config/list/widgets_list_screen.rs:312:103: error[E0515]: cannot return value referencing function parameter `__a0`: returns a value referencing data owned by the current function
+src/compat.rs:3557:71: error[E0599]: no method named `get_string` found for struct `MutableComponent` in the current scope

@@ -2,6 +2,7 @@
 
 #[allow(unused_imports)]
 use crate::prelude::*;
+use crate::de::hysky::skyblocker::config::skyblocker_config_manager::SkyblockerConfigManager;
 use crate::de::hysky::skyblocker::skyblock::entity::mob_glow::MobGlow;
 use crate::de::hysky::skyblocker::utils::color_utils::ColorUtils;
 use crate::de::hysky::skyblocker::utils::render::level_render_extraction_callback;
@@ -13,7 +14,10 @@ use mcrust::net::minecraft::world::phys::aabb::AABB;
 use mcrust::net::minecraft::network::chat::component::Component as _;
 
 /// java: private static final ObjectOpenHashSet<RenderableBox> BOXES_2_RENDER = new ObjectOpenHashSet<>();
-pub static BOXES_2_RENDER: compat::MainThread<std::collections::HashSet<RenderableBox>> = compat::MainThread::new(|| std::collections::HashSet::new());
+///
+/// A list: a `RenderableBox`'s record equality reaches its `float[]`, which compares by identity, and every box is
+/// submitted with its own array - so the set never holds two equal boxes.
+pub static BOXES_2_RENDER: compat::MainThread<Vec<RenderableBox>> = compat::MainThread::new(|| Vec::new());
 
 /// java: public class MobBoundingBoxes
 #[derive(Clone)]
@@ -34,17 +38,22 @@ impl MobBoundingBoxes {
 
     /// java: public static boolean shouldDrawMobBoundingBox(Entity entity)
     pub fn should_draw_mob_bounding_box(entity: &dyn Entity) -> bool {
-        if Utils::is_in_dungeons() && !entity.is_invisible() {
-            let mut name: String = compat::component_of(entity.get_name()).get_string();
-            // TODO(fabric2seer): a pattern switch expression
-            //   java: return switch (entity) {
-            //   java: 				case Player _ when name.equals("Lost Adventurer") || name.equals("Shadow Assassin") || name.equals("Diamond Guy") -> SkyblockerConfigManager.get().dungeons.starredMobBoundingBoxes;
-            //   java: 				case Player _ when entity.getId() == LividColor.getCorrectLividId() -> LividColor.shouldDrawBoundingBox(name);
-            //   java: 				case ArmorStand _ -> false;
-            //   java:
-            //   java: 				// Regular Mobs
-            //   java: 				default -> SkyblockerConfigManager.get().dungeons.starredMobBoundingBoxes && DungeonGlowAdder.isStarred(entity);
-            //   java: 			};
+        if Utils::is_in_dungeons() && !entity.base().is_invisible() {
+            let mut name: String = entity.get_name().get_string();
+            let is_player = entity.as_living_entity().is_some_and(|living| living.as_player().is_some());
+            let is_armor_stand = entity.as_any().is_some_and(|a| a.is::<mcrust::net::minecraft::world::entity::decoration::armor_stand::ArmorStand>());
+            // java: return switch (entity) { case Player _ when .. -> ..; case Player _ when .. -> ..; case ArmorStand _ -> false; default -> .. };
+            if is_player && (name == "Lost Adventurer" || name == "Shadow Assassin" || name == "Diamond Guy") {
+                return SkyblockerConfigManager::get().dungeons.starred_mob_bounding_boxes;
+            }
+            if is_player && entity.base().get_id() == crate::de::hysky::skyblocker::skyblock::dungeon::livid_color::LividColor::get_correct_livid_id() {
+                return crate::de::hysky::skyblocker::skyblock::dungeon::livid_color::LividColor::should_draw_bounding_box(&name);
+            }
+            if is_armor_stand {
+                return false;
+            }
+            // Regular Mobs
+            return SkyblockerConfigManager::get().dungeons.starred_mob_bounding_boxes && crate::de::hysky::skyblocker::skyblock::entity::glow::adder::dungeon_glow_adder::DungeonGlowAdder::is_starred(entity);
         }
         return false;
     }
@@ -57,13 +66,14 @@ impl MobBoundingBoxes {
 
     /// java: public static void submitBox2BeRendered(AABB box, float[] colorComponents)
     pub fn submit_box2_be_rendered(r#box: &AABB, color_components: &Vec<f32>) {
-        BOXES_2_RENDER.get_mut().insert(RenderableBox::new(r#box.clone(), color_components.clone()));
+        BOXES_2_RENDER.get_mut().push(RenderableBox::new(r#box.clone(), color_components.clone()));
     }
 
     /// java: private static void extractRendering(PrimitiveCollector collector)
     pub fn extract_rendering(collector: &compat::Shared<dyn PrimitiveCollector>) {
-        for r#box in BOXES_2_RENDER.get_mut().iter() {
-            ({ let __r = r#box; let __f = compat::dispatch(__r, |__t| __t.extract_rendering()); __f(&compat::view(__r, |a| a as compat::Shared<dyn Renderable>), collector) });
+        for r#box in BOXES_2_RENDER.get_mut().iter_mut() {
+            // `box.extractRendering(collector)`: the record is final, so its own body
+            r#box.extract_rendering_impl(collector);
         }
         BOXES_2_RENDER.get_mut().clear();
     }

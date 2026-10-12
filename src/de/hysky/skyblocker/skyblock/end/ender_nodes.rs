@@ -60,8 +60,11 @@ impl EnderNodes {
         if !(EnderNodes::should_process()) {
             return;
         }
-        let mut particle_type: ParticleType = packet.get_particle().unwrap().get_type();
-        if !(mcrust::net::minecraft::core::particles::particle_types::portal().get_type() == particle_type) && !(mcrust::net::minecraft::core::particles::particle_types::witch().get_type() == particle_type) {
+        // java: ParticleType<?> particleType = packet.getParticle().getType(); (the port erases getType(): compared through Object.equals)
+        let Some(particle) = packet.get_particle() else { return; };
+        let is_portal: bool = compat::particle_type_is(particle, mcrust::net::minecraft::core::particles::particle_types::portal());
+        let is_witch: bool = compat::particle_type_is(particle, mcrust::net::minecraft::core::particles::particle_types::witch());
+        if !is_portal && !is_witch {
             return;
         }
         let mut x: f64 = packet.get_x();
@@ -93,12 +96,12 @@ impl EnderNodes {
         } else {
             return;
         }
-        let mut ender_node: compat::Shared<EnderNode> = ENDER_NODES.get_mut().entry(pos.clone()).or_insert_with_key(|k| (|__a0| EnderNode::new(__a0.clone()))(k.clone())).clone();
-        let mut particles: (i32, i32) = ender_node.lock().borrow().particles.get(&direction).cloned().unwrap();
-        if mcrust::net::minecraft::core::particles::particle_types::portal().get_type() == particle_type {
-            particles.0;
-        } else if mcrust::net::minecraft::core::particles::particle_types::witch().get_type() == particle_type {
-            particles.1;
+        let mut ender_node: compat::Shared<EnderNode> = ENDER_NODES.get_mut().entry(pos.clone()).or_insert_with_key(|k: &BlockPos| EnderNode::new(k.clone())).clone();
+        // java: IntIntPair particles = enderNode.particles.get(direction); particles.left(particles.leftInt() + 1) / right(..)
+        if is_portal {
+            compat::write(&ender_node, |__t| __t.particles.get_mut(&direction).unwrap().0 += 1);
+        } else if is_witch {
+            compat::write(&ender_node, |__t| __t.particles.get_mut(&direction).unwrap().1 += 1);
         }
     }
 
@@ -161,7 +164,7 @@ impl std::ops::DerefMut for EnderNode {
 impl EnderNode {
     /// java: private EnderNode(BlockPos pos)
     pub fn new(mut pos: BlockPos) -> compat::Shared<Self> {
-        let (_, __this) = SeenWaypointBase::new_in(pos.clone(), Arc::new(move || SkyblockerConfigManager::get().other_locations.end.ender_node_waypoint_type), ColorUtils::get_float_components_dye_color(&DyeColor::Cyan), move |__base| {
+        let (_, __this) = SeenWaypointBase::new2_in(pos.clone(), Arc::new(move || SkyblockerConfigManager::get().other_locations.end.ender_node_waypoint_type), ColorUtils::get_float_components_dye_color(&DyeColor::Cyan), move |__base| {
             let __h = compat::shared(Self {
                 base: __base,
                 particles: std::collections::HashMap::from([(Direction::Up, (0, 0)), (Direction::Down, (0, 0)), (Direction::East, (0, 0)), (Direction::West, (0, 0)), (Direction::South, (0, 0)), (Direction::North, (0, 0))]),
@@ -181,10 +184,13 @@ impl EnderNode {
             return;
         }
         { let __v = current_time_millis; compat::write(__this, |__t| __t.last_confirmed = __v); }
-        for entry in __this.lock().borrow().particles.iter().map(|(k, v)| (k.clone(), v.clone())) {
-            entry.1.0;
-            entry.1.1;
-        }
+        // java: entry.getValue().left(0); entry.getValue().right(0);
+        compat::write(__this, |__t| {
+            for value in __t.particles.values_mut() {
+                value.0 = 0;
+                value.1 = 0;
+            }
+        });
     }
 
 }

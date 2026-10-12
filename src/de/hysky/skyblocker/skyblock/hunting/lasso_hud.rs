@@ -2,6 +2,7 @@
 
 #[allow(unused_imports)]
 use crate::prelude::*;
+use mcrust::net::minecraft::world::entity::living_entity::LivingEntity as _;
 use crate::de::hysky::skyblocker::skyblock::tabhud::config::option_widget_collector::OptionWidgetCollector;
 use crate::de::hysky::skyblocker::skyblock::tabhud::screenbuilder::widget_manager::WidgetManager;
 use crate::de::hysky::skyblocker::skyblock::tabhud::util::ico;
@@ -35,7 +36,8 @@ pub static PERCENTAGE: LazyLock<Mutex<i32>> = LazyLock::new(|| Mutex::new(0));
 /// java: private static int reelValue = 0;
 pub static REEL_VALUE: LazyLock<Mutex<i32>> = LazyLock::new(|| Mutex::new(0));
 /// java: private static @Nullable Entity lassoEntity = null;
-pub static LASSO_ENTITY: compat::MainThread<Option<Box<dyn Entity>>> = compat::MainThread::new(|| None);
+/// (the entity's id: the level keeps the entity, `game::with_entity` reaches it)
+pub static LASSO_ENTITY: compat::MainThread<Option<i32>> = compat::MainThread::new(|| None);
 
 /// java: @RegisterWidget public class LassoHud extends ElementBasedWidget
 #[derive(Clone)]
@@ -81,10 +83,22 @@ impl LassoHud {
 
     /// java: public static void onEntityUpdate(ArmorStand entity)
     pub fn on_entity_update(entity: &ArmorStand) {
-        if !(WidgetManager::is_widget_in_current_screen(&(LassoHud::get_instance() as compat::Shared<dyn HudWidget>))) || LASSO_ENTITY.get_mut().is_none() || entity.base.base.distance_to_sqr_entity(LASSO_ENTITY.get_mut().as_ref().unwrap()) > (16 as f64) {
+        if !(WidgetManager::is_widget_in_current_screen(&(LassoHud::get_instance() as compat::Shared<dyn HudWidget>))) {
             return;
         }
-        let mut name: Option<MutableComponent> = entity.base.base.get_custom_name();
+        let Some(lasso_entity) = *LASSO_ENTITY.get() else {
+            return;
+        };
+        // java: entity.distanceToSqr(lassoEntity) (the lasso end may be this very armor stand, which the caller holds)
+        let distance: Option<f64> = if lasso_entity == entity.base.base.get_id() {
+            Some(0.0)
+        } else {
+            mcrust::mcrust::modding::game::with_entity(lasso_entity, |lasso| entity.base.base.distance_to_sqr_entity(lasso.base()))
+        };
+        if distance.map_or(true, |distance| distance > (16 as f64)) {
+            return;
+        }
+        let mut name: Option<MutableComponent> = entity.base.base.get_custom_name().map(compat::component_of);
         if let Some(name) = &name {
             if name.get_string() == LASSO_COUNT_DOWN_NAME && (name.get_siblings().len() as i32) == 2 {
                 let mut new_percentage: i32 = ((((((compat::str_len(&name.get_siblings()[0].get_string())).wrapping_sub(compat::get_state(&REEL_VALUE)) as f32) / (20.0f32 - (compat::get_state(&REEL_VALUE) as f32))) * (100 as f32))) as i32);
@@ -98,27 +112,25 @@ impl LassoHud {
         if !(WidgetManager::is_widget_in_current_screen(&(LassoHud::get_instance() as compat::Shared<dyn HudWidget>))) || mcrust::mcrust::modding::game::level().is_none() {
             return;
         }
-        // TODO(fabric2seer): instanceof an interface (`Player`): Rust cannot test for a trait at run time
-        //   java: if (CLIENT.level.getEntity(packet.getDestId()) instanceof Player player) {
-        //   java: 			if (player.equals(CLIENT.player)) {
-        //   java: 				//save lasso end entity
-        //   java: 				lassoEntity = CLIENT.level.getEntity(packet.getSourceId());
-        //   java:
-        //   java: 				//get rarity of lasso used
-        //   java: 				String usedItemId = player.getMainHandItem().getSkyblockId();
-        //   java:
-        //   java: 				reelValue = switch (usedItemId) {
-        //   java: 					case "ABYSMAL_LASSO" -> 2;
-        //   java: 					case "VINERIP_LASSO", "ENTANGLER_LASSO" -> 3;
-        //   java: 					case "EVERSTRETCH_LASSO" -> 4;
-        //   java: 					//Moody Grappleshot is a thing and we don't want to throw (crash) when it is used.
-        //   java: 					default -> 0;
-        //   java: 				};
-        //   java:
-        //   java: 				//reset percentage
-        //   java: 				percentage = -1;
-        //   java: 			}
-        //   java: 		}
+        // java: if (CLIENT.level.getEntity(packet.getDestId()) instanceof Player player && player.equals(CLIENT.player))
+        // - the only Player equal to CLIENT.player is CLIENT.player itself, so the test is "the destination is the local player"
+        let used_item_id: Option<String> = mcrust::mcrust::modding::game::with_player(|player| {
+            (player.base().get_id() == packet.get_dest_id()).then(|| player.get_main_hand_item().get_skyblock_id())
+        }).flatten();
+        if let Some(used_item_id) = used_item_id {
+            //save lasso end entity
+            *LASSO_ENTITY.get_mut() = mcrust::mcrust::modding::game::level().and_then(|level| level.get_entity(packet.get_source_id())).map(|_| packet.get_source_id());
+            //get rarity of lasso used
+            compat::set_state(&REEL_VALUE, match used_item_id.as_str() {
+                "ABYSMAL_LASSO" => 2,
+                "VINERIP_LASSO" | "ENTANGLER_LASSO" => 3,
+                "EVERSTRETCH_LASSO" => 4,
+                //Moody Grappleshot is a thing and we don't want to throw (crash) when it is used.
+                _ => 0,
+            });
+            //reset percentage
+            compat::set_state(&PERCENTAGE, -1);
+        }
     }
 
 }
@@ -199,7 +211,7 @@ impl ElementCollector for LassoHud {
 
     /// java: public <T extends Element> T addElement(T c)
     fn add_element(&mut self, mut c: compat::Shared<dyn Element>) -> compat::Shared<dyn Element> {
-        ({ let __f = compat::dispatch(&c, |__t| __t.set_parent()); __f(&c, self.clone()) });
+        ({ let __f = compat::dispatch(&c, |__t| __t.set_parent()); __f(&c, self.hud_widget_base().as_parent()) });
         self.elements.push(c.clone());
         return c;
     }
@@ -220,10 +232,10 @@ impl LassoHud {
     /// java: public void updateContent()
     pub fn update_content_impl(__this: &compat::Shared<Self>) {
         if compat::get_state(&PERCENTAGE) == 0 {
-            { let (__a0,) = (Elements::progress_component_flexible_item_stack_component_float_int(Some(ico::LEAD.get_mut().clone()), &component::translatable("skyblocker.config.hunting.lassoHud.reel"), component::translatable("skyblocker.config.hunting.lassoHud.now").with_style_format(ChatFormatting::Green), compat::get_state(&PERCENTAGE)),); __this.lock().borrow_mut().add_element(__a0) };
+            { let (__a0,) = (Elements::progress_component_flexible_item_stack_component_component_float(Some(ico::LEAD.get_mut().clone()), &component::translatable("skyblocker.config.hunting.lassoHud.reel"), &component::translatable("skyblocker.config.hunting.lassoHud.now").with_style_format(ChatFormatting::Green), compat::get_state(&PERCENTAGE) as f32),); __this.lock().borrow_mut().add_element(__a0) };
             return;
         }
-        { let (__a0,) = (Elements::progress_component_flexible_item_stack_component_float_int(Some(ico::LEAD.get_mut().clone()), &component::translatable("skyblocker.config.hunting.lassoHud.reel"), component::translatable("skyblocker.config.hunting.lassoHud.wait"), compat::get_state(&PERCENTAGE)),); __this.lock().borrow_mut().add_element(__a0) };
+        { let (__a0,) = (Elements::progress_component_flexible_item_stack_component_component_float(Some(ico::LEAD.get_mut().clone()), &component::translatable("skyblocker.config.hunting.lassoHud.reel"), &component::translatable("skyblocker.config.hunting.lassoHud.wait"), compat::get_state(&PERCENTAGE) as f32),); __this.lock().borrow_mut().add_element(__a0) };
     }
 
     /// LassoHud.updateContent as the dispatch of ElementBasedWidget.updateContent
@@ -233,8 +245,11 @@ impl LassoHud {
 
     /// java: @Override public boolean shouldRender()
     pub fn should_render_impl(__this: &compat::Shared<Self>) -> bool {
-        if LASSO_ENTITY.get_mut().is_some() && !(LASSO_ENTITY.get_mut().as_ref().unwrap().is_alive()) {
-            *LASSO_ENTITY.get_mut() = None;
+        if let Some(lasso_entity) = *LASSO_ENTITY.get() {
+            // java: !lassoEntity.isAlive() - an entity the level no longer has is removed, so not alive
+            if !mcrust::mcrust::modding::game::with_entity(lasso_entity, |e| mcrust::net::minecraft::world::entity::entity_selector::is_alive(e)).unwrap_or(false) {
+                *LASSO_ENTITY.get_mut() = None;
+            }
         }
         return (compat::get_state(&PERCENTAGE) != -1 && LASSO_ENTITY.get_mut().is_some());
     }

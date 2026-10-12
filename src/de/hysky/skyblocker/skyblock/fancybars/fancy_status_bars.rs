@@ -28,7 +28,13 @@ use mcrust::net::minecraft::world::entity::entity::Entity as _;
 /// java: private static final Identifier HUD_LAYER = SkyblockerMod.id("fancy_status_bars");
 pub static HUD_LAYER: compat::MainThread<Identifier> = compat::MainThread::new(|| crate::entry::skyblocker_mod::id("fancy_status_bars"));
 /// java: private static final Path FILE = SkyblockerMod.CONFIG_DIR.resolve("status_bars.json");
-pub static FILE: compat::MainThread<std::path::PathBuf> = compat::MainThread::new(|| skyblocker_mod::CONFIG_DIR.get_mut().join("status_bars.json"));
+/// (read by `loadBarConfig` on the worker: a `LazyLock`, first touched in `init` on the render thread, where
+/// `CONFIG_DIR` lives)
+pub static FILE: LazyLock<std::path::PathBuf> = LazyLock::new(|| skyblocker_mod::CONFIG_DIR.get_mut().join("status_bars.json"));
+
+/// Fabric's `HudElement` - `extractRenderState(GuiGraphicsExtractor context, DeltaTracker tickCounter)`; the port's HUD
+/// callbacks hand the tick counter's partial tick.
+pub type HudElement = Arc<dyn Fn(&GuiGraphicsExtractor, f32)>;
 /// java: public static final FancyStatusBars INSTANCE = new FancyStatusBars();
 pub static INSTANCE: compat::MainThread<compat::Shared<FancyStatusBars>> = compat::MainThread::new(|| FancyStatusBars::new());
 
@@ -38,7 +44,8 @@ pub struct FancyStatusBars {
     /// java: public BarPositioner barPositioner = new BarPositioner();
     pub bar_positioner: BarPositioner,
     /// java: public Map<StatusBarType, StatusBar> statusBars = new EnumMap<>(StatusBarType.class);
-    pub status_bars: std::collections::HashMap<StatusBarType, compat::Shared<dyn StatusBar>>,
+    /// (an EnumMap iterates in ordinal order: `StatusBarType`'s `Ord` is its declaration order)
+    pub status_bars: std::collections::BTreeMap<StatusBarType, compat::Shared<dyn StatusBar>>,
     /// java: private boolean updatePositionsNextFrame;
     pub update_positions_next_frame: bool,
     /// java: private boolean configLoaded = false;
@@ -53,7 +60,7 @@ impl FancyStatusBars {
         let __this = compat::shared(Self {
             self_ref: std::sync::Weak::new(),
             bar_positioner: BarPositioner::new(),
-            status_bars: std::any::TypeId::of::<StatusBarType>(),
+            status_bars: std::collections::BTreeMap::new(),
             update_positions_next_frame: false,
             config_loaded: false,
         });
@@ -67,7 +74,7 @@ impl FancyStatusBars {
     }
 
     /// java: @SuppressWarnings("incomplete-switch") private static void updateLegacyPosition(StatusBar bar, int[] counts, UIAndVisualsConfig.LegacyBarPosition position)
-    pub fn update_legacy_position(bar: &compat::Shared<dyn StatusBar>, counts: &Vec<i32>, mut position: LegacyBarPosition) {
+    pub fn update_legacy_position(bar: &compat::Shared<dyn StatusBar>, counts: &mut Vec<i32>, mut position: LegacyBarPosition) {
         match position {
             LegacyBarPosition::Right => {
                 { let __v = Some(BarAnchor::HotbarRight); compat::write(bar, |__t| __t.status_bar_base_mut().anchor = __v); }
@@ -90,23 +97,32 @@ impl FancyStatusBars {
 
     /// java: public static @Nullable JsonObject loadBarConfig()
     pub fn load_bar_config() -> Option<serde_json::Map<String, serde_json::Value>> {
-        {
-            // TODO(fabric2seer): Files.newBufferedReader
-            //   java: BufferedReader reader = Files.newBufferedReader(..);
-            let mut reader: crate::unresolved::BufferedReader = todo!("fabric2seer: the initialiser of `reader` (TODO above)");
-            // java: try {..} catch (NoSuchFileException _) catch (Exception e) - the body runs inline: a Rust body does not throw checked exceptions (a panic in it propagates)
-            {
-                // TODO(fabric2seer): `.fromJson(..)` on a Gson
-                //   java: return SkyblockerMod.GSON.fromJson(reader, JsonObject.class);
+        // java: try (BufferedReader reader = Files.newBufferedReader(FILE)) { return SkyblockerMod.GSON.fromJson(reader, JsonObject.class); }
+        match std::fs::read_to_string(&*FILE) {
+            Ok(content) => {
+                // GSON.fromJson answers null for an empty document, and throws for one that is not an object
+                if content.trim().is_empty() {
+                    return None;
+                }
+                match serde_json::from_str::<serde_json::Value>(&content) {
+                    Ok(serde_json::Value::Object(object)) => return Some(object),
+                    Ok(serde_json::Value::Null) => return None,
+                    Ok(other) => {
+                        logger().error(&format!("[Skyblocker] Failed to load status bars config {}", format!("Expected a com.google.gson.JsonObject but was {}", other)));
+                    }
+                    Err(e) => {
+                        logger().error(&format!("[Skyblocker] Failed to load status bars config {e}"));
+                    }
+                }
             }
-            // TODO(fabric2seer): the `catch (NoSuchFileException _)` block is not reached in Rust - the try body returns, breaks or continues, so it cannot run inside `catch_unwind`
-            //   java: {
-            //   java: 			LOGGER.warn("[Skyblocker] No status bar config file found, using defaults");
-            //   java: 		}
-            // TODO(fabric2seer): the `catch (Exception e)` block is not reached in Rust - the try body returns, breaks or continues, so it cannot run inside `catch_unwind`
-            //   java: {
-            //   java: 			LOGGER.error("[Skyblocker] Failed to load status bars config", e);
-            //   java: 		}
+            // java: catch (NoSuchFileException _)
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                logger().warn("[Skyblocker] No status bar config file found, using defaults");
+            }
+            // java: catch (Exception e)
+            Err(e) => {
+                logger().error(&format!("[Skyblocker] Failed to load status bars config {e}"));
+            }
         }
         return None;
     }
@@ -135,12 +151,13 @@ impl FancyStatusBars {
 
     /// java: @SuppressWarnings("deprecation") public void init()
     pub fn init(__this: &compat::Shared<Self>) {
-        let __this_1 = compat::RenderThread::new(__this.clone());
-        let mut hide_if_fancy_status_bars_enabled: Arc<dyn Fn(crate::unresolved::HudElement) -> crate::unresolved::HudElement> = Arc::new(move |hud_element| {
-            if FancyStatusBars::should_process(__this_1.get()) {
-                return Arc::new(move |_, _| {
-
-                });
+        let __this_1 = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
+        // (consumed only by the HudElementRegistry.replaceElement calls below, which have no SeerClient equivalent:
+        // GAPS_batchC "Fabric HudElementRegistry")
+        let mut hide_if_fancy_status_bars_enabled: Arc<dyn Fn(HudElement) -> HudElement> = Arc::new(move |hud_element: HudElement| -> HudElement {
+            let Some(this) = __this_1.get().upgrade() else { return hud_element; };
+            if FancyStatusBars::should_process(&this) {
+                return Arc::new(move |_: &GuiGraphicsExtractor, _: f32| {});
             }
             return hud_element;
         });
@@ -178,12 +195,15 @@ impl FancyStatusBars {
         //   java: HudElementRegistry.replaceElement(VanillaHudElements.FOOD_BAR, hideIfFancyStatusBarsEnabled);
         // TODO(fabric2seer): HudElementRegistry.replaceElement: no SeerClient equivalent yet
         //   java: HudElementRegistry.replaceElement(VanillaHudElements.AIR_BAR, hideIfFancyStatusBarsEnabled);
-        hud_render_callback::EVENT.register(Arc::new(|ctx: &mut hud_render_callback::HudRenderContext<'_>| {
+        let __this_hud = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
+        hud_render_callback::EVENT.register(Arc::new(move |ctx: &mut hud_render_callback::HudRenderContext<'_>| {
             // SAFETY: `ctx` outlives every call made through `graphics` (this callback).
             let graphics = unsafe { ScriptGraphics::new(ctx.gl, &*ctx.minecraft, ctx.gui_width, ctx.gui_height) };
             let _session = graphics.session();
-            if FancyStatusBars::should_process(__this) {
-                FancyStatusBars::extract_render_state(__this, &graphics, &mut (&mut *ctx.minecraft));
+            let Some(this) = __this_hud.get().upgrade() else { return; };
+            // java: (context, _) -> { if (shouldProcess()) extractRenderState(context, client); }
+            if FancyStatusBars::should_process(&this) {
+                FancyStatusBars::extract_render_state(&this, &ctx.graphics, &mut *ctx.minecraft);
             }
         }));
         for r#type in StatusBarType::values() {
@@ -193,30 +213,40 @@ impl FancyStatusBars {
         { let __v = SkyblockerConfigManager::get().ui_and_visuals.bars.has_seen_vitality_at_least_once; compat::write(&__this.lock().borrow().status_bars.get(&StatusBarType::Vitality).cloned().unwrap(), |__t| __t.status_bar_base_mut().visible = __v); }
         FancyStatusBars::reset_bar_positions(__this);
         let mut counts: Vec<i32> = vec![0; (3) as usize];
+        let _ = &*FILE; // (FILE is first resolved here, on the render thread - see its declaration)
         let bar_positions = &SkyblockerConfigManager::get().ui_and_visuals.bars.bar_positions;
-        FancyStatusBars::update_legacy_position(&__this.lock().borrow().status_bars.get(&StatusBarType::Health).cloned().unwrap(), &counts, bar_positions.health_bar_position);
-        FancyStatusBars::update_legacy_position(&__this.lock().borrow().status_bars.get(&StatusBarType::Intelligence).cloned().unwrap(), &counts, bar_positions.mana_bar_position);
-        FancyStatusBars::update_legacy_position(&__this.lock().borrow().status_bars.get(&StatusBarType::Defense).cloned().unwrap(), &counts, bar_positions.defence_bar_position);
-        FancyStatusBars::update_legacy_position(&__this.lock().borrow().status_bars.get(&StatusBarType::Experience).cloned().unwrap(), &counts, bar_positions.experience_bar_position);
+        FancyStatusBars::update_legacy_position(&compat::read(__this, |__t| __t.status_bars.get(&StatusBarType::Health).cloned().unwrap()), &mut counts, bar_positions.health_bar_position);
+        FancyStatusBars::update_legacy_position(&compat::read(__this, |__t| __t.status_bars.get(&StatusBarType::Intelligence).cloned().unwrap()), &mut counts, bar_positions.mana_bar_position);
+        FancyStatusBars::update_legacy_position(&compat::read(__this, |__t| __t.status_bars.get(&StatusBarType::Defense).cloned().unwrap()), &mut counts, bar_positions.defence_bar_position);
+        FancyStatusBars::update_legacy_position(&compat::read(__this, |__t| __t.status_bars.get(&StatusBarType::Experience).cloned().unwrap()), &mut counts, bar_positions.experience_bar_position);
         let __this_2 = compat::RenderThread::new(__this.clone());
-        (CompletableFuture::supply_async(move || Ok((|| FancyStatusBars::load_bar_config())()), compat::executor)).then_accept_async(|object| {
-            if true /* java: object != null: never null here */ {
-                // TODO(fabric2seer): `.keySet(..)` on a value of unknown type
-                //   java: for (String s : object.keySet()) {
-                //   java: 					StatusBarType type = StatusBarType.from(s);
-                //   java: 					if (statusBars.containsKey(type)) {
-                //   java: 						try {
-                //   java: 							statusBars.get(type).loadFromJson(object.get(s).getAsJsonObject());
-                //   java: 						} catch (Exception e) {
-                //   java: 							LOGGER.error("[Skyblocker] Failed to load {} status bar", s, e);
-                //   java: 						}
-                //   java: 					} else {
-                //   java: 						LOGGER.warn("[Skyblocker] Unknown status bar: {}", s);
-                //   java: 					}
-                //   java: 				}
+        (CompletableFuture::supply_async(move || Ok((|| FancyStatusBars::load_bar_config())()), compat::executor)).then_accept_async(move |object: &Option<serde_json::Map<String, serde_json::Value>>| {
+            // java: an exception in this stage completes it exceptionally, which `.exceptionally(..)` below logs
+            let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                if let Some(object) = object {
+                    for (s, value) in object.iter() {
+                        let r#type: StatusBarType = StatusBarType::from(s);
+                        let status_bar = compat::read(__this_2.get(), |__t| __t.status_bars.get(&r#type).cloned());
+                        if let Some(status_bar) = status_bar {
+                            // java: try { statusBars.get(type).loadFromJson(object.get(s).getAsJsonObject()); } catch (Exception e) {..}
+                            let __load = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                                let __f = compat::dispatch(&status_bar, |__t| __t.load_from_json());
+                                __f(&status_bar, &compat::json::get_as_json_object(value));
+                            }));
+                            if let Err(e) = __load {
+                                logger().error(&format!("[Skyblocker] Failed to load {} status bar {}", s, compat::panic_message(&e)));
+                            }
+                        } else {
+                            logger().warn(&format!("[Skyblocker] Unknown status bar: {}", s));
+                        }
+                    }
+                }
+                FancyStatusBars::place_bars_in_positioner(__this_2.get());
+                { let __v = true; compat::write(__this_2.get(), |__t| __t.config_loaded = __v); }
+            }));
+            if __result.is_err() {
+                logger().error("[Skyblocker] Failed reading status bars config");
             }
-            FancyStatusBars::place_bars_in_positioner(__this_2.get());
-            { let __v = true; compat::write(__this_2.get(), |__t| __t.config_loaded = __v); }
         }, std::sync::Arc::new(|__t: Box<dyn FnOnce() + Send>| mcrust::mcrust::modding::game::execute(__t))).exceptionally(|throwable| {
             logger().error(&format!("[Skyblocker] Failed reading status bars config"));
             return Default::default(); // java: return null
@@ -235,9 +265,13 @@ impl FancyStatusBars {
 
     /// java: @VisibleForTesting public void placeBarsInPositioner()
     pub fn place_bars_in_positioner(__this: &compat::Shared<Self>) {
-        __this.lock().borrow_mut().bar_positioner.clear();
+        compat::write(__this, |__t| __t.bar_positioner.clear());
         for bar_anchor in BarAnchor::all_anchors() {
-            let mut bar_list: Vec<compat::Shared<dyn StatusBar>> = compat::sorted_by(__this.lock().borrow().status_bars.values().cloned().filter(|bar| (compat::read(bar, |__t| __t.status_bar_base().anchor.clone()).unwrap() == bar_anchor)), |a, b| (|a, b| { let key = |bar| compat::read(bar, |__t| __t.status_bar_base().grid_y); key(a).cmp(&key(b)) })(a, b).then_with(|| (|a, b| { let key = |bar| compat::read(bar, |__t| __t.status_bar_base().grid_x); key(a).cmp(&key(b)) })(a, b))).collect::<Vec<_>>();
+            // java: statusBars.values().stream().filter(bar -> bar.anchor == barAnchor)
+            //   .sorted(Comparator.<StatusBar>comparingInt(bar -> bar.gridY).thenComparingInt(bar -> bar.gridX)).toList()
+            let all_bars: Vec<compat::Shared<dyn StatusBar>> = compat::read(__this, |__t| __t.status_bars.values().cloned().collect());
+            let mut bar_list: Vec<compat::Shared<dyn StatusBar>> = all_bars.into_iter().filter(|bar| compat::read(bar, |__t| __t.status_bar_base().anchor) == Some(bar_anchor)).collect();
+            bar_list.sort_by_key(|bar| compat::read(bar, |__t| (__t.status_bar_base().grid_y, __t.status_bar_base().grid_x)));
             if bar_list.is_empty() {
                 continue;
             }
@@ -245,19 +279,19 @@ impl FancyStatusBars {
             let mut row_num: i32 = -1;
             for status_bar in bar_list.iter() {
                 if compat::read(status_bar, |__t| __t.status_bar_base().grid_y) > y {
-                    __this.lock().borrow().bar_positioner.add_row(bar_anchor);
+                    compat::write(__this, |__t| __t.bar_positioner.add_row(bar_anchor));
                     row_num += 1;
                     y = compat::read(status_bar, |__t| __t.status_bar_base().grid_y);
                 }
                 let __h0 = status_bar.clone();
-                __this.lock().borrow().bar_positioner.add_bar(bar_anchor, row_num, __h0);
+                compat::write(__this, |__t| __t.bar_positioner.add_bar(bar_anchor, row_num, __h0));
             }
         }
     }
 
     /// java: public void resetBarPositions()
     pub fn reset_bar_positions(__this: &compat::Shared<Self>) {
-        for (r#type, bar) in __this.lock().borrow().status_bars.iter() {
+        for (r#type, bar) in compat::read(__this, |__t| __t.status_bars.clone()).iter() {
             { let __v = Some((r#type).get_default_anchor()); compat::write(bar, |__t| __t.status_bar_base_mut().anchor = __v); }
             { let __v = (r#type).get_default_grid_y(); compat::write(bar, |__t| __t.status_bar_base_mut().grid_y = __v); }
             { let __v = (r#type).get_default_anchor().get_size_rule().min_size(); compat::write(bar, |__t| __t.status_bar_base_mut().size = __v); }
@@ -268,22 +302,15 @@ impl FancyStatusBars {
     /// java: public void saveBarConfig()
     pub fn save_bar_config(__this: &compat::Shared<Self>) {
         let mut output: serde_json::Map<String, serde_json::Value> = serde_json::Map::new();
-        for (s, status_bar) in __this.lock().borrow().status_bars.iter() {
+        for (s, status_bar) in compat::read(__this, |__t| __t.status_bars.clone()).iter() {
             output.insert(s.get_serialized_name(), compat::json::to_value(({ let __f = compat::dispatch(status_bar, |__t| __t.to_json()); __f(status_bar) })));
         }
-        {
-            // TODO(fabric2seer): Files.newBufferedWriter
-            //   java: BufferedWriter writer = Files.newBufferedWriter(..);
-            let mut writer: crate::unresolved::BufferedWriter = todo!("fabric2seer: the initialiser of `writer` (TODO above)");
-            // java: try {..} catch (IOException e) - an exception here is a panic, caught by `catch_unwind`
-            let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                // TODO(fabric2seer): `.toJson(..)` on a Gson
-                //   java: SkyblockerMod.GSON.toJson(output, writer);
-                logger().info("[Skyblocker] Saved status bars config");
-            }));
-            if let Err(e) = __result {
-                logger().error(&format!("[Skyblocker] Failed to save status bars config"));
-            }
+        // java: try (BufferedWriter writer = Files.newBufferedWriter(FILE)) { SkyblockerMod.GSON.toJson(output, writer); LOGGER.info(..); } catch (IOException e) {..}
+        // (SkyblockerMod.GSON is pretty-printing)
+        let __json = serde_json::to_string_pretty(&serde_json::Value::Object(output)).expect("a JSON tree serialises");
+        match std::fs::write(&*FILE, __json) {
+            Ok(()) => logger().info("[Skyblocker] Saved status bars config"),
+            Err(e) => logger().error(&format!("[Skyblocker] Failed to save status bars config {e}")),
         }
     }
 
@@ -295,7 +322,7 @@ impl FancyStatusBars {
         let mut width: i32 = compat::minecraft().get_window().get_gui_scaled_width();
         let mut height: i32 = compat::minecraft().get_window().get_gui_scaled_height();
         let mut offset: i32 = 0;
-        for status_bar in __this.lock().borrow().status_bars.values().cloned() {
+        for status_bar in compat::read(__this, |__t| __t.status_bars.values().cloned().collect::<Vec<_>>()) {
             if !(compat::read(&status_bar, |__t| __t.status_bar_base().enabled)) {
                 ({ let __f = compat::dispatch(&status_bar, |__t| __t.set_x()); __f(&status_bar, 5) });
                 ({ let __f = compat::dispatch(&status_bar, |__t| __t.set_y()); __f(&status_bar, 50i32.wrapping_add(offset)) });
@@ -319,15 +346,17 @@ impl FancyStatusBars {
                 target_size = target_size.wrapping_div(2);
             }
             if size_rule.is_target_size() {
-                for row in 0..__this.lock().borrow().bar_positioner.get_row_count(bar_anchor) {
-                    let mut bar_row: Vec<compat::Shared<dyn StatusBar>> = __this.lock().borrow().bar_positioner.get_row(bar_anchor, row);
+                for row in 0..compat::read(__this, |__t| __t.bar_positioner.get_row_count(bar_anchor)) {
+                    let mut bar_row: Vec<compat::Shared<dyn StatusBar>> = compat::read(__this, |__t| __t.bar_positioner.get_row(bar_anchor, row));
                     if bar_row.is_empty() {
                         continue;
                     }
                     let mut total_size: i32 = 0;
-                    for status_bar in bar_row.iter_mut() {
-                        // TODO(fabric2seer): an assignment used as a value
-                        //   java: totalSize += (statusBar.size = Math.clamp(statusBar.size, sizeRule.minSize(), sizeRule.maxSize()));
+                    for status_bar in bar_row.iter() {
+                        // java: totalSize += (statusBar.size = Math.clamp(statusBar.size, sizeRule.minSize(), sizeRule.maxSize()));
+                        let size: i32 = compat::read(status_bar, |__t| __t.status_bar_base().size).clamp(size_rule.min_size(), size_rule.max_size());
+                        compat::write(status_bar, |__t| __t.status_bar_base_mut().size = size);
+                        total_size += size;
                     }
                     'while_loop: while total_size != target_size {
                         if total_size > target_size {
@@ -355,8 +384,8 @@ impl FancyStatusBars {
                 }
             }
             let mut row: i32 = 0;
-            for i in 0..__this.lock().borrow().bar_positioner.get_row_count(bar_anchor) {
-                let mut bar_row: Vec<compat::Shared<dyn StatusBar>> = __this.lock().borrow().bar_positioner.get_row(bar_anchor, i).into_iter().collect::<Vec<_>>();
+            for i in 0..compat::read(__this, |__t| __t.bar_positioner.get_row_count(bar_anchor)) {
+                let mut bar_row: Vec<compat::Shared<dyn StatusBar>> = compat::read(__this, |__t| __t.bar_positioner.get_row(bar_anchor, i)).into_iter().collect::<Vec<_>>();
                 bar_row.retain(|status_bar| !((!(compat::read(status_bar, |__t| __t.status_bar_base().visible)) && !ignore_visibility)));
                 if bar_row.is_empty() {
                     continue;
@@ -416,7 +445,7 @@ impl FancyStatusBars {
 
     /// java: public boolean isEnabled()
     pub fn is_enabled(__this: &compat::Shared<Self>) -> bool {
-        return (SkyblockerConfigManager::get().ui_and_visuals.bars.enable_bars && !(Utils::is_in_the_rift()) || SkyblockerConfigManager::get().ui_and_visuals.bars.enable_bars_rift);
+        return (SkyblockerConfigManager::get().ui_and_visuals.bars.enable_bars && !(Utils::is_in_the_rift())) || SkyblockerConfigManager::get().ui_and_visuals.bars.enable_bars_rift;
     }
 
     /// java: public boolean extractRenderState(GuiGraphicsExtractor graphics, Minecraft client)
@@ -424,7 +453,7 @@ impl FancyStatusBars {
         if mcrust::mcrust::modding::game::with_player(|_| ()).is_none() {
             return false;
         }
-        let mut bar_collection: Vec<compat::Shared<dyn StatusBar>> = __this.lock().borrow().status_bars.values().cloned().collect::<Vec<_>>();
+        let mut bar_collection: Vec<compat::Shared<dyn StatusBar>> = compat::read(__this, |__t| __t.status_bars.values().cloned().collect::<Vec<_>>());
         for status_bar in bar_collection.iter() {
             if !(compat::read(status_bar, |__t| __t.status_bar_base().enabled)) || !(compat::read(status_bar, |__t| __t.status_bar_base().visible)) {
                 continue;
@@ -441,7 +470,7 @@ impl FancyStatusBars {
         let mut vitality_bar: compat::Shared<dyn StatusBar> = __this.lock().borrow().status_bars.get(&StatusBarType::Vitality).cloned().unwrap();
         if Utils::is_in_the_rift() {
             let mut div: i32 = (if SkyblockerConfigManager::get().ui_and_visuals.bars.rift_health_hp { 1 } else { 2 });
-            ({ let __r = &__this.lock().borrow().status_bars.get(&StatusBarType::Health).cloned().unwrap(); let __f = compat::dispatch(__r, |__t| __t.update_values()); __f(__r, ((compat::java_round_f32(mcrust::mcrust::modding::game::with_player(|player| player.base.base.base.get_health()).unwrap()) as f32) / mcrust::mcrust::modding::game::with_player(|player| player.base.base.base.get_max_health()).unwrap()), ((0) as f32) as f32, (compat::java_round_f32(mcrust::mcrust::modding::game::with_player(|player| player.base.base.base.get_health()).unwrap())).wrapping_div(div), (compat::java_round_f32(mcrust::mcrust::modding::game::with_player(|player| player.base.base.base.get_max_health()).unwrap())).wrapping_div(div), None) });
+            ({ let __r = &__this.lock().borrow().status_bars.get(&StatusBarType::Health).cloned().unwrap(); let __f = compat::dispatch(__r, |__t| __t.update_values()); __f(__r, ((compat::java_round_f32(mcrust::mcrust::modding::game::with_player(|player| player.base.base.base.get_health()).unwrap()) as f32) / mcrust::mcrust::modding::game::with_player(|player| player.base.base.base.get_max_health()).unwrap()), ((0) as f32) as f32, (compat::java_round_f32(mcrust::mcrust::modding::game::with_player(|player| player.base.base.base.get_health()).unwrap())).wrapping_div(div), Some((compat::java_round_f32(mcrust::mcrust::modding::game::with_player(|player| player.base.base.base.get_max_health()).unwrap())).wrapping_div(div)), None) });
             { let __v = false; compat::write(&defense_bar, |__t| __t.status_bar_base_mut().visible = __v); }
             { let __v = false; compat::write(&vitality_bar, |__t| __t.status_bar_base_mut().visible = __v); }
         } else {
@@ -457,15 +486,16 @@ impl FancyStatusBars {
         let mut intelligence: compat::Shared<EstimatedResource> = StatusBarTracker::get_mana();
         if SkyblockerConfigManager::get().ui_and_visuals.bars.intelligence_display == IntelligenceDisplay::Accurate {
             let mut total_intelligence: f32 = (((EstimatedResource::max(&intelligence)) as f32) + (EstimatedResource::overflow(&intelligence) as f32));
-            ({ let __r = &__this.lock().borrow().status_bars.get(&StatusBarType::Intelligence).cloned().unwrap(); let __f = compat::dispatch(__r, |__t| __t.update_values()); __f(__r, (((EstimatedResource::value(&intelligence) as f32) / total_intelligence) + ((EstimatedResource::overflow(&intelligence) as f32) / total_intelligence)), ((EstimatedResource::overflow(&intelligence) as f32) / total_intelligence), EstimatedResource::value(&intelligence), EstimatedResource::max(&intelligence), EstimatedResource::overflow(&intelligence)) });
+            ({ let __r = &__this.lock().borrow().status_bars.get(&StatusBarType::Intelligence).cloned().unwrap(); let __f = compat::dispatch(__r, |__t| __t.update_values()); __f(__r, (((EstimatedResource::value(&intelligence) as f32) / total_intelligence) + ((EstimatedResource::overflow(&intelligence) as f32) / total_intelligence)), ((EstimatedResource::overflow(&intelligence) as f32) / total_intelligence), EstimatedResource::value(&intelligence), Some(EstimatedResource::max(&intelligence)), Some(EstimatedResource::overflow(&intelligence))) });
         } else {
             ({ let __r = &__this.lock().borrow().status_bars.get(&StatusBarType::Intelligence).cloned().unwrap(); let __f = compat::dispatch(__r, |__t| __t.update_with_resource()); __f(__r, &EstimatedResource::resource(&intelligence)) });
         }
         let mut speed: Resource = StatusBarTracker::get_speed();
         ({ let __r = &__this.lock().borrow().status_bars.get(&StatusBarType::Speed).cloned().unwrap(); let __f = compat::dispatch(__r, |__t| __t.update_with_resource()); __f(__r, &speed) });
-        // TODO(fabric2seer): `LocalPlayer.experienceProgress` has no Rust field in the port (searched net.minecraft.client.player.LocalPlayer and its supertypes)
-        // TODO(fabric2seer): `LocalPlayer.experienceLevel` has no Rust field in the port (searched net.minecraft.client.player.LocalPlayer and its supertypes)
-        // rust: ({ let __r = &__this.lock().borrow().status_bars.get(&StatusBarType::Experience).cloned().unwrap(); let __f = compat::dispatch(__r, |__t| __t.update_values()); __f(__r, mcrust::mcrust::modding::game::with_player(|player| player.experience_progress).unwrap(), ((0) as f32) as f32, mcrust::mcrust::modding::game::with_player(|player| player.experience_level).unwrap(), None, None) });
+        // java: statusBars.get(StatusBarType.EXPERIENCE).updateValues(player.experienceProgress, 0, player.experienceLevel, null, null);
+        // (Player.experienceProgress / experienceLevel are PlayerBase fields: LocalPlayer -> AbstractClientPlayer -> Player)
+        let (experience_progress, experience_level) = mcrust::mcrust::modding::game::with_player(|player| (player.base.base.experience_progress, player.base.base.experience_level)).unwrap();
+        ({ let __r = &compat::read(__this, |__t| __t.status_bars.get(&StatusBarType::Experience).cloned().unwrap()); let __f = compat::dispatch(__r, |__t| __t.update_values()); __f(__r, experience_progress, ((0) as f32) as f32, experience_level, None, None) });
         let mut air: Resource = StatusBarTracker::get_air();
         let mut air_bar: compat::Shared<dyn StatusBar> = __this.lock().borrow().status_bars.get(&StatusBarType::Air).cloned().unwrap();
         ({ let __f = compat::dispatch(&air_bar, |__t| __t.update_with_resource()); __f(&air_bar, &air) });

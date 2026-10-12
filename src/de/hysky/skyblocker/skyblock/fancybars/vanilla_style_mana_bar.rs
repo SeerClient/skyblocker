@@ -70,11 +70,11 @@ impl VanillaStyleManaBar {
 
     /// java: @Init public static void init()
     pub fn init() {
-        let mut hide_if_vanilla_style_mana_bar_enabled: Arc<dyn Fn(crate::unresolved::HudElement) -> crate::unresolved::HudElement> = Arc::new(move |hud_element| {
+        // (consumed only by the HudElementRegistry.replaceElement calls below, which have no SeerClient equivalent:
+        // GAPS_batchC "Fabric HudElementRegistry")
+        let mut hide_if_vanilla_style_mana_bar_enabled: Arc<dyn Fn(fancy_status_bars::HudElement) -> fancy_status_bars::HudElement> = Arc::new(move |hud_element: fancy_status_bars::HudElement| -> fancy_status_bars::HudElement {
             if VanillaStyleManaBar::is_enabled() {
-                return Arc::new(move |_, _| {
-
-                });
+                return Arc::new(move |_: &GuiGraphicsExtractor, _: f32| {});
             }
             return hud_element;
         });
@@ -87,7 +87,7 @@ impl VanillaStyleManaBar {
             let graphics = unsafe { ScriptGraphics::new(ctx.gl, &*ctx.minecraft, ctx.gui_width, ctx.gui_height) };
             let _session = graphics.session();
             if VanillaStyleManaBar::is_enabled() {
-                VanillaStyleManaBar::extract_render_state(&graphics);
+                VanillaStyleManaBar::extract_render_state(&ctx.graphics);
             }
         }));
         hud_render_callback::EVENT.register(Arc::new(|ctx: &mut hud_render_callback::HudRenderContext<'_>| {
@@ -95,7 +95,7 @@ impl VanillaStyleManaBar {
             let graphics = unsafe { ScriptGraphics::new(ctx.gl, &*ctx.minecraft, ctx.gui_width, ctx.gui_height) };
             let _session = graphics.session();
             if VanillaStyleManaBar::is_enabled() {
-                VanillaStyleManaBar::extract_render_state(&graphics);
+                VanillaStyleManaBar::extract_render_state(&ctx.graphics);
             }
         }));
     }
@@ -109,8 +109,7 @@ impl VanillaStyleManaBar {
     pub fn extract_notch(graphics: &GuiGraphicsExtractor, mut column: i32, mut row: i32, mut notchtype: NotchType, mut is_half: bool, mut is_blinking: bool) {
         let mut top: i32 = (gui_graphics_extractor::gui_height(&*compat::minecraft())).wrapping_sub(39);
         let mut right: i32 = ((gui_graphics_extractor::gui_width(&*compat::minecraft())).wrapping_div(2)).wrapping_add(91);
-        // TODO(fabric2seer): static call HudAccessor.getFOOD_EMPTY_SPRITE(..)
-        //   java: Identifier texture = SkyblockerConfigManager.get().uiAndVisuals.bars.useHungerBarSprites ? switch (notchtype) {
+        // java: Identifier texture = SkyblockerConfigManager.get().uiAndVisuals.bars.useHungerBarSprites ? switch (notchtype) {
         //   java: 			case CONTAINER -> HudAccessor.getFOOD_EMPTY_SPRITE();
         //   java: 			case MANA -> !isHalf ? HudAccessor.getFOOD_FULL_SPRITE() : HudAccessor.getFOOD_HALF_SPRITE();
         //   java: 			case OVERFLOW -> !isHalf ? HudAccessor.getFOOD_FULL_HUNGER_SPRITE() : HudAccessor.getFOOD_HALF_HUNGER_SPRITE();
@@ -121,7 +120,23 @@ impl VanillaStyleManaBar {
         //   java: 			case OVERFLOW -> !isHalf ? (isBlinking ? OVERFLOW_FULL_BLINK_TEXTURE : OVERFLOW_FULL_TEXTURE) : (isBlinking ? OVERFLOW_HALF_BLINK_TEXTURE : OVERFLOW_HALF_TEXTURE);
         //   java: 			case OVERFLOW_DARK -> !isHalf ? (isBlinking ? OVERFLOW_DARK_FULL_BLINK_TEXTURE : OVERFLOW_DARK_FULL_TEXTURE) : (isBlinking ? OVERFLOW_DARK_HALF_BLINK_TEXTURE : OVERFLOW_DARK_HALF_TEXTURE);
         //   java: 		};
-        let mut texture: Identifier = todo!("fabric2seer: the initialiser of `texture` (TODO above)");
+        // (HudAccessor.getFOOD_*_SPRITE() answer Hud's private `Identifier.withDefaultNamespace("hud/food_..")` constants;
+        // the port's Hud inlines those names, so they are built here from the same strings - Hud.java:104-109)
+        let mut texture: Identifier = if SkyblockerConfigManager::get().ui_and_visuals.bars.use_hunger_bar_sprites {
+            match notchtype {
+                NotchType::Container => Identifier::with_default_namespace("hud/food_empty"),
+                NotchType::Mana => if !is_half { Identifier::with_default_namespace("hud/food_full") } else { Identifier::with_default_namespace("hud/food_half") },
+                NotchType::Overflow => if !is_half { Identifier::with_default_namespace("hud/food_full_hunger") } else { Identifier::with_default_namespace("hud/food_half_hunger") },
+                NotchType::OverflowDark => Identifier::with_default_namespace("hud/food_empty_hunger"),
+            }
+        } else {
+            match notchtype {
+                NotchType::Container => if is_blinking { CONTAINER_BLINK_TEXTURE.get().clone() } else { CONTAINER_TEXTURE.get().clone() },
+                NotchType::Mana => if !is_half { if is_blinking { MANA_FULL_BLINK_TEXTURE.get().clone() } else { MANA_FULL_TEXTURE.get().clone() } } else { if is_blinking { MANA_HALF_BLINK_TEXTURE.get().clone() } else { MANA_HALF_TEXTURE.get().clone() } },
+                NotchType::Overflow => if !is_half { if is_blinking { OVERFLOW_FULL_BLINK_TEXTURE.get().clone() } else { OVERFLOW_FULL_TEXTURE.get().clone() } } else { if is_blinking { OVERFLOW_HALF_BLINK_TEXTURE.get().clone() } else { OVERFLOW_HALF_TEXTURE.get().clone() } },
+                NotchType::OverflowDark => if !is_half { if is_blinking { OVERFLOW_DARK_FULL_BLINK_TEXTURE.get().clone() } else { OVERFLOW_DARK_FULL_TEXTURE.get().clone() } } else { if is_blinking { OVERFLOW_DARK_HALF_BLINK_TEXTURE.get().clone() } else { OVERFLOW_DARK_HALF_TEXTURE.get().clone() } },
+            }
+        };
         gui_graphics_extractor::blit_sprite_identifier(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), mcrust::net::minecraft::client::renderer::render_pipelines::gui_textured(), &texture, (right.wrapping_sub(column.wrapping_mul(8))).wrapping_sub(9), top.wrapping_sub(row.wrapping_mul(10)), 9, 9);
     }
 

@@ -77,8 +77,9 @@ impl SafariGlowAdder {
                 return false;
             }
         }
-        let mut armor_stands: Vec<ArmorStand> = MobGlow::get_armor_stands(entity);
-        let mut custom_name: Option<MutableComponent> = (if !armor_stands.is_empty() { armor_stands[0].base.base.get_custom_name() } else { None });
+        // the stands by id
+        let mut armor_stands: Vec<i32> = MobGlow::get_armor_stands(entity);
+        let mut custom_name: Option<MutableComponent> = (if !armor_stands.is_empty() { mcrust::mcrust::modding::game::with_entity(armor_stands[0], |e| e.base().get_custom_name().map(compat::component_of)).flatten() } else { None });
         return (custom_name.is_some() && custom_name.as_ref().unwrap().get_string().contains("SPARKLING"));
     }
 

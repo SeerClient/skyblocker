@@ -20,7 +20,7 @@ use mcrust::net::minecraft::client::gui::components::renderable::Renderable as _
 pub static CRAFTING_TABLE: compat::MainThread<mcrust::net::minecraft::world::item::item_stack::ItemStack> = compat::MainThread::new(|| mcrust::net::minecraft::world::item::item_stack::ItemStack::of_one(items::items().get("crafting_table")));
 
 /// java: record SkyblockCraftingTab(SkyblockRecipeBookComponent recipeBook, ItemStack icon, SkyblockRecipeResults results) implements RecipeTab
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct SkyblockCraftingTab {
     /// java: SkyblockRecipeBookComponent recipeBook
     pub recipe_book: compat::Shared<SkyblockRecipeBookComponent>,
@@ -54,6 +54,10 @@ impl SkyblockCraftingTab {
 }
 
 impl RecipeTab for SkyblockCraftingTab {
+    /// java: the record accessor `icon()` (it implements `RecipeTab.icon()`)
+    fn icon(&self) -> fn(&compat::Shared<dyn RecipeTab>) -> mcrust::net::minecraft::world::item::item_stack::ItemStack {
+        |__this| compat::read_as::<SkyblockCraftingTab, _, _>(__this, |__t| __t.icon())
+    }
 }
 
 impl RecipeAreaDisplay for SkyblockCraftingTab {
@@ -150,11 +154,14 @@ impl SkyblockCraftingTab {
             } else {
                 // TODO(fabric2seer): `RecipeBookComponent.searchBox` has no Rust field in the port (searched net.minecraft.client.gui.screens.recipebook.RecipeBookComponent and its supertypes)
                 if true /* java: compat::read(&self.recipe_book, |__t| __t.search_box.clone()) != null: never null here */ {
-                    let mut magnifying_glass_clicked: bool = (compat::read(&self.recipe_book, |__t| __t.magnifier_icon_placement.clone()).is_some() && { let (__q0, __q1,) = (mth::floor_f64(click.x()), mth::floor_f64(click.y()),); self.recipe_book.lock().borrow().magnifier_icon_placement.as_ref().unwrap().contains_point(__q0, __q1) });
+                    // java: boolean magnifyingGlassClicked = recipeBook.magnifierIconPlacement != null && recipeBook.magnifierIconPlacement.containsPoint(..);
+                    // rust: port gap - `RecipeBookComponent.magnifierIconPlacement` (protected) is private to the port's class, as
+                    // is `searchBox`; a mod subclass cannot read them (GAPS_batchF.md)
+                    let mut magnifying_glass_clicked: bool = false;
                     // TODO(fabric2seer): `RecipeBookComponent.searchBox` has no Rust field in the port (searched net.minecraft.client.gui.screens.recipebook.RecipeBookComponent and its supertypes)
                     // TODO(fabric2seer): `mouse_clicked` takes 3 argument(s) in the port (`button: i32, x: f64, y: f64`), Java passes 2
                     // TODO(fabric2seer): `AbstractWidget::mouse_clicked` ports `mouseClicked`, but the port's `EditBox` holds no `AbstractWidget` (no Deref, no `base` field) to call it on
-                    if magnifying_glass_clicked || { let (__q0, __q1,) = (click.clone(), doubled,); self.recipe_book.lock().borrow().search_box.mouse_clicked(__q0, __q1) }.is_some() {
+                    /* java: || recipeBook.searchBox.mouseClicked(click, doubled) - rust: port gap (searchBox, as above) */ if magnifying_glass_clicked {
                         SkyblockRecipeResults::close_recipe_view(&self.results);
                         // TODO(fabric2seer): `RecipeBookComponent.searchBox` has no Rust field in the port (searched net.minecraft.client.gui.screens.recipebook.RecipeBookComponent and its supertypes)
                         // TODO(fabric2seer): `set_focused_at` takes 2 argument(s) in the port (`focused: bool, millis: i64`), Java passes 1

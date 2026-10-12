@@ -48,27 +48,17 @@ impl TimeTowerReminder {
         compat::set_state(&SCHEDULED, true);
         let mut temp_file: std::path::PathBuf = skyblocker_mod::CONFIG_DIR.get_mut().join(TIME_TOWER_FILE).clone();
         if !temp_file.exists() {
-            // java: try {..} catch (IOException e) - an exception here is a panic, caught by `catch_unwind`
-            let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                // TODO(fabric2seer): Path.createNewFile
-                //   java: tempFile.createNewFile();
-            }));
-            if let Err(e) = __result {
+            // java: try { tempFile.createNewFile(); } catch (IOException e) {..} (createNewFile answers false, not an exception, for an existing file)
+            let __result = std::fs::OpenOptions::new().write(true).create_new(true).open(&temp_file);
+            if let Err(e) = __result.map(|_| ()).or_else(|e| if e.kind() == std::io::ErrorKind::AlreadyExists { Ok(()) } else { Err(e) }) {
                 logger().error(&format!("[Skyblocker Time Tower Reminder] Failed to create temp file for Time Tower Reminder!"));
                 return true;
             }
         }
         {
-            // TODO(fabric2seer): `new FileWriter(..)`
-            //   java: FileWriter writer = new FileWriter(tempFile);
-            let mut writer: crate::unresolved::FileWriter = todo!("fabric2seer: the initialiser of `writer` (TODO above)");
-            // java: try {..} catch (IOException e) - an exception here is a panic, caught by `catch_unwind`
-            let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                // TODO(fabric2seer): `.write(..)` on a FileWriter
-                //   java: writer.write(String.valueOf(System.currentTimeMillis()));
-            }));
-            if let Err(e) = __result {
-                logger().error(&format!("[Skyblocker Time Tower Reminder] Failed to write to temp file for Time Tower Reminder!"));
+            // java: try (FileWriter writer = new FileWriter(tempFile)) { writer.write(String.valueOf(System.currentTimeMillis())); } catch (IOException e) {..}
+            if let Err(e) = std::fs::write(&temp_file, compat::millis().to_string()) {
+                logger().error(&format!("[Skyblocker Time Tower Reminder] Failed to write to temp file for Time Tower Reminder! {e}"));
             }
         }
         return true;
@@ -101,17 +91,17 @@ impl TimeTowerReminder {
         if !temp_file.exists() || compat::get_state(&SCHEDULED) {
             return;
         }
-        let mut time: i64;
-        {
-            // TODO(fabric2seer): Files.lines
-            //   java: Stream<String> file = Files.lines(..);
-            let mut file: Box<dyn Iterator<Item = String>> = todo!("fabric2seer: the initialiser of `file` (TODO above)");
-            // java: try {..} catch (Exception e) - an exception here is a panic, caught by `catch_unwind`
-            let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                time = file.clone().next().unwrap().trim().parse::<i64>().expect("NumberFormatException");
-            }));
-            if let Err(e) = __result {
-                logger().error(&format!("[Skyblocker Time Tower Reminder] Failed to read temp file for Time Tower Reminder!"));
+        let time: i64;
+        // java: try (Stream<String> file = Files.lines(tempFile.toPath())) { time = Long.parseLong(file.findFirst().orElseThrow()); } catch (Exception e) {..}
+        // (an IOException, NoSuchElementException or NumberFormatException is the `Err` arm; Long.parseLong does not trim)
+        let __result: Result<i64, String> = std::fs::read_to_string(&temp_file)
+            .map_err(|e| e.to_string())
+            .and_then(|content| content.split(['\n', '\r']).next().filter(|_| !content.is_empty()).map(str::to_string).ok_or_else(|| "java.util.NoSuchElementException: No value present".to_string()))
+            .and_then(|line| line.parse::<i64>().map_err(|e| format!("java.lang.NumberFormatException: {e}")));
+        match __result {
+            Ok(value) => time = value,
+            Err(e) => {
+                logger().error(&format!("[Skyblocker Time Tower Reminder] Failed to read temp file for Time Tower Reminder! {e}"));
                 return;
             }
         }

@@ -33,7 +33,7 @@ use mcrust::net::minecraft::client::renderer::ordered_submit_node_collector::Ord
 /// java: private static @Nullable Vec3 renderPosition = new Vec3(-3, 79, 3);
 pub static RENDER_POSITION: compat::MainThread<Option<Vec3>> = compat::MainThread::new(|| Some(Vec3::new((-3) as f64, (79) as f64, (3) as f64)));
 /// java: private static final Random RANDOM = new Random();
-pub static RANDOM: compat::MainThread<crate::unresolved::Random> = compat::MainThread::new(|| compat::Random::new());
+pub static RANDOM: compat::MainThread<compat::Random> = compat::MainThread::new(|| compat::Random::new());
 /// java: private static final Identifier TEXTURE = SkyblockerMod.id("textures/cat.png");
 pub static TEXTURE: compat::MainThread<Identifier> = compat::MainThread::new(|| crate::entry::skyblocker_mod::id("textures/cat.png"));
 /// java: private static float rotation = 180;
@@ -98,7 +98,7 @@ impl CatPicture {
         if !(compat::get_state(&MOVE_AROUND)) {
             return;
         }
-        let mut level: Option<ClientLevel> = mcrust::mcrust::modding::game::level();
+        let mut level: Option<Arc<ClientLevel>> = mcrust::mcrust::modding::game::level();
         if level.is_none() || mcrust::mcrust::modding::game::with_player(|_| ()).is_none() {
             return;
         }

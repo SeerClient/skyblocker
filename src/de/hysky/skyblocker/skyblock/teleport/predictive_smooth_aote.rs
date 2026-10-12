@@ -124,7 +124,7 @@ impl PredictiveSmoothAOTE {
     /// java: private static InteractionResult onBlockInteract(Player playerEntity, Level world, InteractionHand hand, BlockHitResult blockHitResult)
     pub fn on_block_interact(player_entity: &dyn Player, world: &Level, hand: &InteractionHand, block_hit_result: &BlockHitResult) -> InteractionResult {
         let item_stack = player_entity.get_item_in_hand(*hand);
-        if PredictiveSmoothAOTE::is_shovel(item_stack) && PredictiveSmoothAOTE::can_shovel_act_on_block(&world.get_block_state(&block_hit_result.get_block_pos()).get_block()) {
+        if PredictiveSmoothAOTE::is_shovel(item_stack) && PredictiveSmoothAOTE::can_shovel_act_on_block(&world.get_block_state_typed(&block_hit_result.get_block_pos()).get_block()) {
             PredictiveSmoothAOTE::calculate_teleport_use(hand);
         }
         return InteractionResult::Pass;
@@ -137,7 +137,7 @@ impl PredictiveSmoothAOTE {
 
     /// java: private static boolean canShovelActOnBlock(Block block)
     pub fn can_shovel_act_on_block(block: &Arc<Block>) -> bool {
-        return (std::ptr::addr_eq(std::sync::Arc::as_ptr(block), std::sync::Arc::as_ptr(&blocks::blocks().get("grass_block"))) || std::ptr::addr_eq(std::sync::Arc::as_ptr(block), std::sync::Arc::as_ptr(&blocks::blocks().get("dirt"))) || std::ptr::addr_eq(std::sync::Arc::as_ptr(block), std::sync::Arc::as_ptr(&blocks::blocks().get("coarse_dirt"))) || std::ptr::addr_eq(std::sync::Arc::as_ptr(block), std::sync::Arc::as_ptr(&blocks::blocks().get("podzol"))));
+        return (std::ptr::addr_eq(std::sync::Arc::as_ptr(block), std::sync::Arc::as_ptr(&blocks::blocks().get("GRASS_BLOCK"))) || std::ptr::addr_eq(std::sync::Arc::as_ptr(block), std::sync::Arc::as_ptr(&blocks::blocks().get("DIRT"))) || std::ptr::addr_eq(std::sync::Arc::as_ptr(block), std::sync::Arc::as_ptr(&blocks::blocks().get("COARSE_DIRT"))) || std::ptr::addr_eq(std::sync::Arc::as_ptr(block), std::sync::Arc::as_ptr(&blocks::blocks().get("PODZOL"))));
     }
 
     /// java: private static void calculateTeleportUse(InteractionHand hand)
@@ -189,12 +189,13 @@ impl PredictiveSmoothAOTE {
         if START_POS.get_mut().is_none() {
             return;
         }
-        if mcrust::mcrust::modding::game::with_player(|player| PredictiveSmoothAOTE::is_targeting_npc(player, ((4) as f64) as f64, START_POS.get_mut(), &look)).unwrap_or(false) {
+        if PredictiveSmoothAOTE::is_targeting_npc(((4) as f64) as f64, START_POS.get_mut().as_ref(), &look) {
             *START_POS.get_mut() = None;
             *TELEPORT_VECTOR.get_mut() = None;
             return;
         }
-        *TELEPORT_VECTOR.get_mut() = PredictiveSmoothAOTE::raycast(distance, look.clone(), START_POS.get_mut(), false);
+        let start_pos: Option<Vec3> = START_POS.get_mut().clone();
+        *TELEPORT_VECTOR.get_mut() = PredictiveSmoothAOTE::raycast(distance, look.clone(), start_pos.as_ref().unwrap(), false);
         if TELEPORT_VECTOR.get_mut().is_none() {
             *START_POS.get_mut() = None;
             return;
@@ -209,7 +210,7 @@ impl PredictiveSmoothAOTE {
     pub fn get_item_distance(item_id: &str, custom_data: &Tag) -> i32 {
         let mut distance: i32;
         'switch_1: {
-            match item_id.as_str() {
+            match item_id {
                 "ASPECT_OF_THE_LEECH_1" => {
                     if SkyblockerConfigManager::get().ui_and_visuals.smooth_aote.enable_weird_transmission {
                         distance = 3;
@@ -225,9 +226,8 @@ impl PredictiveSmoothAOTE {
                     return -1;
                 }
                 "ASPECT_OF_THE_END" | "ASPECT_OF_THE_VOID" => {
-                    // TODO(fabric2seer): `Options.keyShift` has no Rust field in the port (searched net.minecraft.client.Options and its supertypes)
-                    // TODO(fabric2seer): `is_down` takes 1 argument(s) in the port (`name: &str`), Java passes 0
-                    if key_mapping::is_down() && custom_data.get_int_or("ethermerge", 0) == 1 {
+                    // java: CLIENT.options.keyShift.isDown()
+                    if key_mapping::is_down("key.sneak") && custom_data.get_int_or("ethermerge", 0) == 1 {
                         if SkyblockerConfigManager::get().ui_and_visuals.smooth_aote.enable_ether_transmission {
                             distance = PredictiveSmoothAOTE::extract_tuned_custom_data(custom_data, 57);
                             break 'switch_1;
@@ -268,30 +268,54 @@ impl PredictiveSmoothAOTE {
     }
 
     /// java: private static Boolean isTargetingNPC(Player player, double maxDistance, Vec3 startPos, Vec3 look)
-    pub fn is_targeting_npc(player: &dyn Player, mut max_distance: f64, start_pos: &mut Vec3, look: &Vec3) -> bool {
-        if false /* java: start_pos == null: never null here */ {
+    /// (`player` is always the local player: it is reached through `game::with_player` for the parts that read it, so its
+    /// lock is not held while the entity pick locks the candidates)
+    pub fn is_targeting_npc(mut max_distance: f64, start_pos: Option<&Vec3>, look: &Vec3) -> bool {
+        let Some(start_pos) = start_pos else {
             return false;
-        }
+        };
+        let Some(level) = mcrust::mcrust::modding::game::level() else {
+            return false;
+        };
         let mut end_pos: Vec3 = start_pos.add_vec(&look.scale(max_distance));
-        // TODO(fabric2seer): `Player.level` has no Rust method in the port (looked for `level` in Player and its supertypes)
-        // rust: let mut world: Level = player.level();
-        let mut world: Level = todo!("fabric2seer: the initialiser of `world` (TODO above)");
-        // TODO(fabric2seer): field `COLLIDER` of a value of unknown type
-        //   java: ClipContext context = new ClipContext(startPos, endPos, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, player);
-        let mut context: ClipContext = todo!("fabric2seer: the initialiser of `context` (TODO above)");
-        let mut block_hit_distance: f64 = world.clip(&context).get_location().distance_to(start_pos);
-        let mut search_box: AABB = player.get_bounding_box().expand_towards_vec(&look.scale(max_distance)).inflate((1) as f64);
-        // TODO(fabric2seer): the port's `get_entity_hit_result` ports this Java method with other parameters (level, except, vehicle_of, from, to, bb, matching, max_value for Java's except, from, to, box, matching, max_value)
-        // TODO(fabric2seer): `get_entity_hit_result` takes 8 argument(s) in the port (`level: &dyn EntityGetter, except: i32, vehicle_of: &dyn Fn(i32) -> Option<i32>, from: &Vec3, to: &Vec3, bb: &AABB, matching: &dyn Fn(&(dyn Entity + Send + Sync)) -> bool, max_value: f64`), Java passes 6
-        // TODO(fabric2seer): a lambda for a parameter the port does not type as a closure (`Predicate<net.minecraft.world.entity.Entity>`)
-        // rust: let mut entity_hit: Option<EntityHitResult> = projectile_util::get_entity_hit_result(player, start_pos.clone(), &end_pos, &search_box, |entity| (!entity.is_spectator() && !std::ptr::eq(&entity, player)), &mth::square_f64(block_hit_distance));
-        let mut entity_hit: EntityHitResult = todo!("fabric2seer: the initialiser of `entityHit` (TODO above)");
-        if false /* java: entity_hit == null: never null here */ {
+        // java: ClipContext context = new ClipContext(startPos, endPos, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, player);
+        //       double blockHitDistance = world.clip(context).getLocation().distanceTo(startPos);
+        let Some((block_hit_distance, player_id, search_box)) = mcrust::mcrust::modding::game::with_player(|player| {
+            let collision_context = mcrust::net::minecraft::world::phys::shapes::collision_context::of(&*player, level.as_block_getter());
+            let context = ClipContext::new(start_pos.clone(), end_pos.clone(), mcrust::net::minecraft::world::level::clip_context::Block::Collider, mcrust::net::minecraft::world::level::clip_context::Fluid::None, &*collision_context);
+            let block_hit_distance: f64 = level.clip(&context).get_location().distance_to(start_pos);
+            // java: AABB searchBox = player.getBoundingBox().expandTowards(look.scale(maxDistance)).inflate(1);
+            let search_box: AABB = player.base.base.base.base.get_bounding_box().expand_towards_vec(&look.scale(max_distance)).inflate((1) as f64);
+            (block_hit_distance, player.base.base.base.base.get_id(), search_box)
+        }) else {
             return false;
-        }
-        let mut entity: Box<dyn Entity> = entity_hit.get_entity();
-        let mut armor_stands: Vec<ArmorStand> = MobGlow::get_armor_stands(&entity);
-        return armor_stands.iter().cloned().any(|armor_stand| (compat::component_of(armor_stand.get_name()).get_string() == "CLICK"));
+        };
+        // java: EntityHitResult entityHit = ProjectileUtil.getEntityHitResult(player, startPos, endPos, searchBox,
+        //       entity -> !entity.isSpectator() && entity != player, Mth.square(blockHitDistance));
+        // (the root-vehicle walk of `getEntityHitResult` locks one entity per hop, as LocalPlayer.pick does)
+        let vehicle_of = |id: i32| -> Option<i32> {
+            level.get_entity(id).and_then(|shared| mcrust::mcrust::modding::game::lock_entity(&*shared, "skyblocker PredictiveSmoothAOTE.isTargetingNPC").base().get_vehicle())
+        };
+        let entity_hit: Option<EntityHitResult> = projectile_util::get_entity_hit_result(
+            &*level,
+            player_id,
+            &vehicle_of,
+            start_pos,
+            &end_pos,
+            &search_box,
+            &|entity| !entity.is_spectator() && entity.base().get_id() != player_id,
+            mth::square_f64(block_hit_distance),
+        );
+        let Some(entity_hit) = entity_hit else {
+            return false;
+        };
+        // java: List<ArmorStand> armorStands = MobGlow.getArmorStands(entityHit.getEntity());
+        let Some(armor_stands) = mcrust::mcrust::modding::game::with_entity(entity_hit.get_entity(), |entity| MobGlow::get_armor_stands(&*entity)) else {
+            return false;
+        };
+        // java: return armorStands.stream().anyMatch(armorStand -> armorStand.getName().getString().equals("CLICK"));
+        // (the stands by entity id: each read through the level)
+        return armor_stands.iter().any(|armor_stand| mcrust::mcrust::modding::game::with_entity(*armor_stand, |e| e.get_name().get_string() == "CLICK").unwrap_or(false));
     }
 
     /// java: private static double roundToCenter(double input)
@@ -330,7 +354,7 @@ impl PredictiveSmoothAOTE {
     }
 
     /// java: protected static Vec3 raycast(int distance, Vec3 direction, Vec3 startPos, boolean isEtherwarp)
-    pub fn raycast(mut distance: i32, mut direction: Vec3, start_pos: &mut Vec3, mut is_etherwarp: bool) -> Option<Vec3> {
+    pub fn raycast(mut distance: i32, mut direction: Vec3, start_pos: &Vec3, mut is_etherwarp: bool) -> Option<Vec3> {
         if mcrust::mcrust::modding::game::level().is_none() || false /* java: direction == null: never null here */ || false /* java: start_pos == null: never null here */ {
             return None;
         }
@@ -368,14 +392,14 @@ impl PredictiveSmoothAOTE {
                     if offset != (0 as f64) && direction.z() < (0 as f64) && direction.x() < (0 as f64) && PredictiveSmoothAOTE::is_block_floor(&check_pos.south()) && PredictiveSmoothAOTE::is_block_floor(&BlockPos::containing_position(&pos.subtract_vec(&direction)).offset_vec(x_diagonal_offset.as_vec3i())) {
                         return Some(direction.scale((offset - (1 as f64))));
                     }
-                    if PredictiveSmoothAOTE::is_block_floor(&check_pos.below()) || PredictiveSmoothAOTE::is_block_floor(&check_pos.below().offset_vec(x_diagonal_offset.as_vec3i())) && PredictiveSmoothAOTE::is_block_floor(&check_pos.below().offset_vec(z_diagonal_offset.as_vec3i())) && (pos.y() - pos.y().floor()) < 0.31 {
+                    if (PredictiveSmoothAOTE::is_block_floor(&check_pos.below()) || (PredictiveSmoothAOTE::is_block_floor(&check_pos.below().offset_vec(x_diagonal_offset.as_vec3i())) && PredictiveSmoothAOTE::is_block_floor(&check_pos.below().offset_vec(z_diagonal_offset.as_vec3i())))) && (pos.y() - pos.y().floor()) < 0.31 {
                         close_floor_y = check_pos.get_y().wrapping_sub(1);
                     }
                     if close_floor_y == check_pos.get_y() {
                         return Some(direction.scale((offset - (1 as f64))));
                     }
                 }
-                offset += 1;
+                offset += 1.0;
             }
         }
         if !(PredictiveSmoothAOTE::is_block_floor(&BlockPos::containing_position(&(start_pos.add_vec(&direction.scale((distance) as f64))).subtract((0) as f64, (1) as f64, (0) as f64)))) {
@@ -394,8 +418,14 @@ impl PredictiveSmoothAOTE {
             return true;
         }
         let mut block: Arc<Block> = block_state.get_block();
-        let mut shape: VoxelShape = block_state.get_collision_shape(mcrust::mcrust::modding::game::level().unwrap().as_block_getter(), block_pos);
-        return (shape.is_empty() || block.as_any().is::<Block>() || block.as_any().is::<Block>() || block.as_any().is::<Block>() || std::ptr::addr_eq(std::sync::Arc::as_ptr(&block), std::sync::Arc::as_ptr(&blocks::blocks().get("snow"))) && block_state.get_value(&mcrust::net::minecraft::world::level::block::state::properties::block_state_properties::layers()) <= 3);
+        let mut shape: Arc<VoxelShape> = block_state.get_collision_shape(mcrust::mcrust::modding::game::level().unwrap().as_block_getter(), block_pos);
+        // java: block instanceof CarpetBlock || block instanceof FlowerPotBlock || block instanceof WebBlock - the port's blocks
+        // carry no class: CarpetBlock's instances are Blocks.CARPET's sixteen (WoolCarpetBlock) and MOSS_CARPET; a FlowerPotBlock
+        // is FLOWER_POT or a pot with a plant; WebBlock's one instance is COBWEB
+        let is_carpet: bool = blocks::blocks().carpet().iter().any(|carpet| Arc::ptr_eq(carpet, &block)) || Arc::ptr_eq(&block, &blocks::blocks().get("MOSS_CARPET"));
+        let is_flower_pot: bool = Arc::ptr_eq(&block, &blocks::blocks().get("FLOWER_POT")) || !Arc::ptr_eq(&mcrust::net::minecraft::world::level::block::flower_pot_block::get_potted(&block), &blocks::blocks().get("AIR"));
+        let is_web: bool = Arc::ptr_eq(&block, &blocks::blocks().get("COBWEB"));
+        return (shape.is_empty() || is_carpet || is_flower_pot || is_web || std::ptr::addr_eq(std::sync::Arc::as_ptr(&block), std::sync::Arc::as_ptr(&blocks::blocks().get("SNOW"))) && matches!(block_state.get_value(&mcrust::net::minecraft::world::level::block::state::properties::block_state_properties::layers()), mcrust::net::minecraft::world::level::block::state::properties::property::Comparable::Integer(layers) if layers <= 3));
     }
 
     /// java: private static Boolean isBlockFloor(BlockPos blockPos)
@@ -404,11 +434,11 @@ impl PredictiveSmoothAOTE {
             return false;
         }
         let mut block_state: Arc<BlockState> = mcrust::mcrust::modding::game::level().unwrap().get_block_state_typed(block_pos);
-        let mut shape: VoxelShape = block_state.get_collision_shape(mcrust::mcrust::modding::game::level().unwrap().as_block_getter(), block_pos);
+        let mut shape: Arc<VoxelShape> = block_state.get_collision_shape(mcrust::mcrust::modding::game::level().unwrap().as_block_getter(), block_pos);
         if shape.is_empty() {
             return false;
         }
-        return (shape.bounds().unwrap().max_y >= (1 as f64) || std::ptr::addr_eq(std::sync::Arc::as_ptr(&block_state.get_block()), std::sync::Arc::as_ptr(&blocks::blocks().get("mud"))));
+        return (shape.bounds().unwrap().max_y >= (1 as f64) || std::ptr::addr_eq(std::sync::Arc::as_ptr(&block_state.get_block()), std::sync::Arc::as_ptr(&blocks::blocks().get("MUD"))));
     }
 
     /// java: @Nullable public static Vec3 getInterpolatedPos()

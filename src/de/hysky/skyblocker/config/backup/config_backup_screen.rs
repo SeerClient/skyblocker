@@ -63,7 +63,7 @@ impl std::ops::DerefMut for ConfigBackupScreen {
 impl ConfigBackupScreen {
     /// java: public ConfigBackupScreen(@Nullable Screen parent)
     pub fn new(mut parent: Option<mcrust::net::minecraft::client::gui::screens::screen::Screen>) -> compat::Shared<Self> {
-        let __init_parent = parent.clone();
+        let __init_parent = parent;
         let __this = compat::shared(Self {
             base: mcrust::net::minecraft::client::gui::screens::screen::Screen::new(component::translatable("skyblocker.config.general.backup.title").get_string()),
             self_ref: std::sync::Weak::new(),
@@ -146,7 +146,7 @@ impl ConfigBackupScreen {
         let mut done: AbstractWidget = (button::builder(mcrust::net::minecraft::network::chat::common_components::gui_done().get_string(), OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| { let Some(__this_3) = __this_w3.get().upgrade() else { return Default::default(); }; compat::lend_screen(&__this_3, __screen, || { let mut __pidx = compat::WidgetRef::Screen(__index); { ConfigBackupScreen::on_close((&__this_3)); } }) })))).size(90, 20).pos(((compat::read(__this, |__t| __t.width)).wrapping_div(2)).wrapping_add(5), (compat::read(__this, |__t| __t.height)).wrapping_sub(28)).build();
         { let (__q0,) = (done.clone(),); __this.lock().borrow_mut().add_renderable_widget(__q0) };
         let mut title_widget: AbstractWidget = compat::string_widget(0, 0, -1, 9, compat::read(__this, |__t| __t.title.clone()));
-        title_widget.set_position(((compat::read(__this, |__t| __t.width)).wrapping_sub(compat::font().width_of_cached(&mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(compat::read(__this, |__t| __t.title.clone()))))).wrapping_div(2), 12);
+        title_widget.set_position(((compat::read(__this, |__t| __t.width)).wrapping_sub(compat::font().width_of_cached(&mcrust::net::minecraft::network::chat::formatted_text::FormattedText::of(compat::read(__this, |__t| __t.title.clone()))))).wrapping_div(2), 12);
         { let (__q0,) = (title_widget.clone(),); __this.lock().borrow_mut().add_renderable_widget(__q0) };
     }
 
@@ -424,7 +424,7 @@ impl SettingsListWidget {
             // TODO(fabric2seer): `changedPaths` is a field of the enclosing instance (ConfigBackupScreen.this) - an inner class has no outer reference in Rust
             //   java: changedPaths = diffs;
             let mut lines: Vec<JsonLine> = Vec::new();
-            SettingsListWidget::format_json(__this, &compat::jstring(&None), &backup_json, "", 0, true, &mut lines);
+            SettingsListWidget::format_json(__this, None, &backup_json, "", 0, true, &mut lines);
             for l in lines.iter() {
                 let __entry = StringEntry::new(l.text.clone(), l.path.clone());
                 compat::write(__this, |__t| { let __l = &mut __t.base; (__l.add_entry(Box::new(compat::EntryAdapter::new(__entry))) as i32) });
@@ -466,32 +466,30 @@ impl SettingsListWidget {
     }
 
     /// java: private void formatJson(String key, JsonElement element, String path, int indent, boolean last, List<JsonLine> out)
-    pub fn format_json(__this: &compat::Shared<Self>, key: &str, element: &serde_json::Value, path: &str, mut indent: i32, mut last: bool, out: &mut Vec<JsonLine>) {
+    pub fn format_json(__this: &compat::Shared<Self>, key: Option<&str>, element: &serde_json::Value, path: &str, mut indent: i32, mut last: bool, out: &mut Vec<JsonLine>) {
         let mut ind: String = "  ".repeat((indent) as usize);
-        let mut new_path: String = (if false /* java: key == null: never null here */ { path.to_string() } else { (if path.is_empty() { key.to_string() } else { format!("{}.{}", path, key) }) });
+        let mut new_path: String = match key { None => path.to_string(), Some(key) => (if path.is_empty() { key.to_string() } else { format!("{}.{}", path, key) }) };
         if compat::json::is_object(&element) {
-            let mut line: String = (if false /* java: key == null: never null here */ { format!("{}{{", ind) } else { format!("{}\"{}\": {{", ind, key) });
+            let mut line: String = match key { None => format!("{}{{", ind), Some(key) => format!("{}\"{}\": {{", ind, key) };
             out.push(JsonLine::new(line.clone(), None));
-            let mut it = compat::json::get_as_json_object(&element).iter().map(|(k, v)| (k.clone(), v.clone()));
-            // TODO(fabric2seer): the condition: Iterator.hasNext - use a `for` loop / `while let Some(x) = it.next()`
-            //   java: it.hasNext(..)
-            while todo!("fabric2seer: the condition (TODO above)") {
-                let mut e = it.next().unwrap();
-                // TODO(fabric2seer): Iterator.hasNext - use a `for` loop / `while let Some(x) = it.next()`
-                //   java: formatJson(e.getKey(), e.getValue(), newPath, indent + 1, !it.hasNext(), out);
+            let object = compat::json::get_as_json_object(&element);
+            let mut it = object.iter().peekable();
+            while let Some((e_key, e_value)) = it.next() {
+                let has_next = it.peek().is_some();
+                SettingsListWidget::format_json(__this, Some(e_key.as_str()), e_value, &new_path, indent.wrapping_add(1), !has_next, out);
             }
             out.push(JsonLine::new(format!("{}}}{}", ind, (if last { "" } else { "," })), (if path.is_empty() { None } else { Some(path.to_string()) })));
         } else if compat::json::is_array(&element) {
-            let mut line: String = (if false /* java: key == null: never null here */ { format!("{}[", ind) } else { format!("{}\"{}\": [", ind, key) });
+            let mut line: String = match key { None => format!("{}[", ind), Some(key) => format!("{}\"{}\": [", ind, key) };
             out.push(JsonLine::new(line.clone(), None));
             let mut arr = compat::json::get_as_json_array(&element);
             for i in 0..(arr.len() as i32) {
-                SettingsListWidget::format_json(__this, &compat::jstring(&None), &arr[(i) as usize], &format!("{}[{}]", new_path, i), indent.wrapping_add(1), (i == (arr.len() as i32).wrapping_sub(1)), out);
+                SettingsListWidget::format_json(__this, None, &arr[(i) as usize], &format!("{}[{}]", new_path, i), indent.wrapping_add(1), (i == (arr.len() as i32).wrapping_sub(1)), out);
             }
             out.push(JsonLine::new(format!("{}]{}", ind, (if last { "" } else { "," })), Some(path.to_string())));
         } else {
             let mut value: String = compat::json::to_string(&element);
-            let mut line: String = (if false /* java: key == null: never null here */ { format!("{}{}", ind, value) } else { format!("{}\"{}\": {}", ind, key, value) });
+            let mut line: String = match key { None => format!("{}{}", ind, value), Some(key) => format!("{}\"{}\": {}", ind, key, value) };
             out.push(JsonLine::new(format!("{}{}", line, (if last { "" } else { "," })), Some(new_path.clone())));
         }
     }

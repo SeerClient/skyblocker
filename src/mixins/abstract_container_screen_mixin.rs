@@ -79,7 +79,7 @@ fn skyblocker_key_pressed(ci: &mut CallbackInfo<'_>) {
     });
     // `this.minecraft.options.keyInventory.matches(input)` - the binding by name (`key_mapping::matches`).
     if mcrust::mcrust::modding::game::with_player(|_| ()).is_some() && let Some(hovered_slot) = hovered_slot && !input.is_escape() && !(mcrust::net::minecraft::client::key_mapping::matches("key.inventory", &input)) && crate::de::hysky::skyblocker::utils::utils::Utils::is_on_skyblock() {
-        let mut config: crate::de::hysky::skyblocker::config::skyblocker_config::SkyblockerConfig = crate::de::hysky::skyblocker::config::skyblocker_config_manager::SkyblockerConfigManager::get();
+        let config: &crate::de::hysky::skyblocker::config::skyblocker_config::SkyblockerConfig = crate::de::hysky::skyblocker::config::skyblocker_config_manager::SkyblockerConfigManager::get();
         let title: String = this.screen.get_title().to_string();
         // Wiki lookup
         mcrust::mcrust::modding::game::with_player(|player| { crate::de::hysky::skyblocker::skyblock::item::wikilookup::wiki_lookup_manager::WikiLookupManager::handle_wiki_lookup_4(Some(title.clone()), &mcrust::com::mojang::datafixers::util::either::Either::left(hovered_slot.clone()), player, &input); });
@@ -352,9 +352,8 @@ fn skyblocker_on_slot_click(ci: &mut CallbackInfo<'_>) {
         }
         Some(_) if title == crate::de::hysky::skyblocker::skyblock::museum::museum_item_cache::DONATION_CONFIRMATION_SCREEN_TITLE => {
             //Museum Item Cache donation tracking
-            // TODO(batchD): cross-package - `MuseumItemCache::handle_click` takes `&NonNullList<Slot>` while the menu's
-            // `slots` (Java's `NonNullList<Slot>`) is the port's `Vec<Slot>`; its owner should take `&[Slot]`.
-            //   java: MuseumItemCache.handleClick(slot, slotId, genericContainerScreenHandler.slots);
+            // java: MuseumItemCache.handleClick(slot, slotId, genericContainerScreenHandler.slots);
+            crate::de::hysky::skyblocker::skyblock::museum::museum_item_cache::MuseumItemCache::handle_click(slot, slot_id, &this_menu.slots);
         }
         _ => {}
     }
@@ -369,9 +368,8 @@ fn skyblocker_on_slot_click(ci: &mut CallbackInfo<'_>) {
         }
     }
     // Bazaar Max Tracking
-    // TODO(batchD): cross-package - `bazaar_max::INSTANCE` is a `LazyLock<BazaarMax>` while `check_max_value` takes
-    // `&mut self` (Java's mutable singleton); its owner should hold it behind a lock.
-    //   java: BazaarMax.INSTANCE.checkMaxValue(slot);
+    // java: BazaarMax.INSTANCE.checkMaxValue(slot);
+    crate::de::hysky::skyblocker::skyblock::bazaar::bazaar_max::INSTANCE.get_mut().check_max_value(Some(slot.clone()));
 }
 
 /// @Inject skyblocker$drawOnItem

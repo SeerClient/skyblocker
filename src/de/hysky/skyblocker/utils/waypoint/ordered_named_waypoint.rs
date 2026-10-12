@@ -24,7 +24,8 @@ pub static WHITE_COLOR_COMPONENTS: LazyLock<Vec<f32>> = LazyLock::new(|| vec![1.
 /// java: private static final float[] GREEN_COLOR_COMPONENTS = {0f, 1f, 0f};
 pub static GREEN_COLOR_COMPONENTS: LazyLock<Vec<f32>> = LazyLock::new(|| vec![0.0f32, 1.0f32, 0.0f32]);
 /// java: private static final float[] FLOAT_ARRAY = new float[4];
-pub static FLOAT_ARRAY: LazyLock<Vec<f32>> = LazyLock::new(|| vec![0.0; (4) as usize]);
+/// (a scratch array `extractRendering` writes into: a render-thread static)
+pub static FLOAT_ARRAY: compat::MainThread<Vec<f32>> = compat::MainThread::new(|| vec![0.0; (4) as usize]);
 
 /// java: public class OrderedNamedWaypoint extends NamedWaypoint
 #[derive(Clone)]
@@ -162,8 +163,13 @@ impl Waypoint for OrderedNamedWaypoint {
     }
 
     /// java: @Override public boolean equals(Object obj) (dispatch: the body for this class)
-    fn equals(&self) -> fn(&compat::Shared<dyn Waypoint>, &compat::Object) -> bool {
+    fn equals(&self) -> fn(&compat::Shared<dyn Waypoint>, &compat::Shared<dyn Waypoint>) -> bool {
         <dyn NamedWaypoint>::equals_from::<Self>
+    }
+
+    /// java: `instanceof NamedWaypoint` - this class is one
+    fn as_named_waypoint(&self) -> Option<&crate::de::hysky::skyblocker::utils::waypoint::named_waypoint::NamedWaypointBase> {
+        Some(self.named_waypoint_base())
     }
 
 }
@@ -292,9 +298,9 @@ impl OrderedNamedWaypoint {
         <dyn NamedWaypoint>::extract_rendering_body(&compat::view(__this, |a| a as compat::Shared<dyn NamedWaypoint>), collector);
         let waypoints = &SkyblockerConfigManager::get().ui_and_visuals.waypoints;
         if waypoints.render_line && compat::read(__this, |__t| __t.relative_index) == RelativeIndex::Next && { let __f = compat::dispatch(__this, |__t| __t.should_render()); __f(&compat::view(__this, |a| a as compat::Shared<dyn Waypoint>)) } {
-            // TODO(fabric2seer): `.getComponents(..)` on a Color
-            //   java: float[] components = waypoints.lineColor.getComponents(FLOAT_ARRAY);
-            let mut components: Vec<f32> = todo!("fabric2seer: the initialiser of `components` (TODO above)");
+            // java: float[] components = waypoints.lineColor.getComponents(FLOAT_ARRAY); - the components written into the
+            // scratch array, which is what Java's `components` is
+            let mut components: Vec<f32> = waypoints.line_color.get_components(Some(&mut FLOAT_ARRAY.get_mut()[..])).to_vec();
             ({ let __f = compat::dispatch(collector, |__t| __t.submit_line_from_cursor()); __f(collector, &compat::read(__this, |__t| __t.center_pos.clone()).unwrap(), &components, components[(3) as usize], waypoints.line_width) });
         }
         if { let __f = compat::dispatch(__this, |__t| __t.should_render_name()); __f(&compat::view(__this, |a| a as compat::Shared<dyn NamedWaypoint>)) } {

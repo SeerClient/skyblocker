@@ -40,7 +40,10 @@ use crate::de::hysky::skyblocker::injected::skyblocker_stack::SkyblockerStack as
 use mcrust::net::minecraft::network::chat::component::Component as _;
 
 /// java: private static final Set<Visitor> activeVisitors = new HashSet<>();
-pub static ACTIVE_VISITORS: compat::MainThread<std::collections::HashSet<Visitor>> = compat::MainThread::new(|| std::collections::HashSet::new());
+///
+/// A list: a `Visitor`'s record equality reaches `ItemStack.equals`, which is identity, and every visitor added holds
+/// its own `visitorHead.copy()` - so the set never holds two equal visitors and `add` never finds one.
+pub static ACTIVE_VISITORS: compat::MainThread<Vec<Visitor>> = compat::MainThread::new(|| Vec::new());
 /// java: private static final Map<String, FlexibleItemStack> cachedItems = new HashMap<>();
 pub static CACHED_ITEMS: compat::MainThread<std::collections::HashMap<String, compat::Shared<FlexibleItemStack>>> = compat::MainThread::new(|| std::collections::HashMap::new());
 /// java: private static final Object2IntMap<Component> groupedItems = new Object2IntOpenHashMap<>();
@@ -107,10 +110,12 @@ impl VisitorHelper {
             if !(VisitorHelper::should_render()) {
                 return;
             }
-            if !(screen.as_any().is::<AbstractContainerScreen>() || screen.as_any().is::<AbstractSignEditScreen>() || mcrust::mcrust::modding::game::current_screen_is::<compat::ScreenAdapter<OverlayScreen>>()) {
+            // `screen instanceof AbstractContainerScreen` / `AbstractSignEditScreen` (both sign screens are `ScreenKind::SignEdit`)
+            let is_sign_edit_screen = matches!(compat::minecraft().gui.screen_kind, mcrust::net::minecraft::client::gui::gui::ScreenKind::SignEdit);
+            if !(compat::container_screen_open() || is_sign_edit_screen || mcrust::mcrust::modding::game::current_screen_is::<compat::ScreenAdapter<OverlayScreen>>()) {
                 return;
             }
-            if let Some(handled_screen) = screen.as_any().downcast_ref::<AbstractContainerScreen>() {
+            if compat::container_screen_open() {
                 compat::set_state(&PROCESS_VISITOR, true);
                 // TODO(fabric2seer): ScreenEvents.afterTick(..).register: no SeerClient equivalent yet
                 //   java: ScreenEvents.afterTick(screen).register(_ -> updateVisitors(handledScreen.getMenu()));
@@ -130,7 +135,7 @@ impl VisitorHelper {
     pub fn should_render() -> bool {
         let mut is_helper_enabled: bool = SkyblockerConfigManager::get().farming.visitor_helper.enabled;
         let mut is_garden_mode: bool = SkyblockerConfigManager::get().farming.visitor_helper.show_in_garden_only;
-        return (is_helper_enabled && !is_garden_mode || Utils::is_in_garden() || compat::read(&Utils::get_area(), |__t| compat::DynAny::dyn_any(__t).downcast_ref::<Hub>().is_some_and(|__e| *__e == Hub::Bazaar)) && !(crate::entry::catharsis_compatibility::is_gui_element_hidden("skyblocker:visitorHelper")));
+        return (is_helper_enabled && (!is_garden_mode || Utils::is_in_garden() || compat::read(&Utils::get_area(), |__t| compat::DynAny::dyn_any(__t).downcast_ref::<Hub>().is_some_and(|__e| *__e == Hub::Bazaar))) && !(crate::entry::catharsis_compatibility::is_gui_element_hidden("skyblocker:visitorHelper")));
     }
 
     /// java: public static List<Rect2i> getExclusionZones()
@@ -153,13 +158,13 @@ impl VisitorHelper {
             return;
         }
         let mut visitor_name: MutableComponent = compat::component_of(visitor_head.get_hover_name());
-        if ACTIVE_VISITORS.get_mut().iter().cloned().map(|__a0| __a0.name()).any(|__a0| (visitor_name == __a0)) {
+        if ACTIVE_VISITORS.get_mut().iter().map(|__a0| __a0.name()).any(|__a0| (visitor_name == __a0)) {
             return;
         }
         let mut new_visitor: Visitor = Visitor::new(visitor_name.clone(), visitor_head.copy());
         VisitorHelper::extract_required_items(handler, &mut new_visitor);
         if !(new_visitor.required_items().is_empty()) {
-            ACTIVE_VISITORS.get_mut().insert(new_visitor.clone());
+            ACTIVE_VISITORS.get_mut().push(new_visitor);
         }
         VisitorHelper::update_items();
     }
@@ -178,8 +183,7 @@ impl VisitorHelper {
             if (split.len() as i32) == 1 {
                 visitor.add_required_item(item.clone(), 1);
             } else {
-                // TODO(fabric2seer): `.intValue(..)` on a Number
-                //   java: visitor.addRequiredItem(item, Formatters.parseNumber(split[1].trim()).intValue());
+                visitor.add_required_item(item.clone(), Formatters::parse_number(&compat::trim(&(split[(1) as usize]))).int_value());
             }
         }
     }
@@ -205,6 +209,10 @@ impl VisitorHelper {
             if NEURepoManager::is_loading() || !(ItemRepository::files_imported()) {
                 return ItemUtils::get_named_placeholder(item_name);
             }
+            // rust: port gap - `NEUItem.getSkyblockItemId` (the NEU repo parser is a `crate::unresolved` placeholder,
+            // GAPS_batchB L1): the item found by name cannot be resolved to its id, so the placeholder is answered
+            let _item = NEURepoManager::get_item_by_name(item_name).into_iter().flatten().next();
+            return ItemUtils::get_named_placeholder(item_name);
             // TODO(fabric2seer): `.getSkyblockItemId(..)` on a NEUItem
             //   java: return NEURepoManager.getItemByName(itemName)
             //   java: 					.stream()
@@ -218,12 +226,10 @@ impl VisitorHelper {
 
     /// java: public static void onSlotClick(Slot slot, int slotId, String title, Slot visitorHeadSlot)
     pub fn on_slot_click(slot: &Slot, mut slot_id: i32, title: &str, visitor_head_slot: &Slot) {
-        // TODO(fabric2seer): `has_item` takes 1 argument(s) in the port (`containers: &Containers<'_>`), Java passes 0
-        // TODO(fabric2seer): `get_item` takes 1 argument(s) in the port (`containers: &'a Containers<'_>`), Java passes 0
-        if slot_id == 29 || slot_id == 13 || slot_id == 33 && slot.has_item() && ItemUtils::get_lore_line_if(slot.get_item(), Arc::new(move |s| (s == "Click to give!" || s == "Click to refuse!"))).is_some() {
-            // TODO(fabric2seer): `has_item` takes 1 argument(s) in the port (`containers: &Containers<'_>`), Java passes 0
-            // TODO(fabric2seer): `get_item` takes 1 argument(s) in the port (`containers: &'a Containers<'_>`), Java passes 0
-            // rust: ACTIVE_VISITORS.get_mut().retain(|entry| !((entry.name().get_string() == title && visitor_head_slot.has_item() && ItemUtils::get_head_texture(visitor_head_slot.get_item()) == ItemUtils::get_head_texture(&entry.head()))));
+        if (slot_id == 29 || slot_id == 13 || slot_id == 33) && compat::slot_has_item(slot) && ItemUtils::get_lore_line_if(&compat::slot_item(slot), Arc::new(move |s| (s == "Click to give!" || s == "Click to refuse!"))).is_some() {
+            let visitor_head_has_item = compat::slot_has_item(visitor_head_slot);
+            let visitor_head_item = compat::slot_item(visitor_head_slot);
+            ACTIVE_VISITORS.get_mut().retain(|entry| !((entry.name().get_string() == title && visitor_head_has_item && ItemUtils::get_head_texture(&visitor_head_item) == ItemUtils::get_head_texture(&entry.head()))));
             compat::set_state(&PROCESS_VISITOR, false);
         }
         VisitorHelper::update_items();
@@ -284,10 +290,9 @@ impl VisitorHelper {
             if COPIED_TIMESTAMPS.get_mut().contains_key(item_name) {
                 let mut time_since_copy: i64 = (compat::millis()).wrapping_sub(COPIED_TIMESTAMPS.get_mut().get(item_name).copied().unwrap_or_default());
                 if time_since_copy < (1000 as i64) {
-                    item_text.append((component::literal(" ✔ ")).with_style_format(ChatFormatting::Green));
+                    item_text = item_text.append((component::literal(" ✔ ")).with_style_format(ChatFormatting::Green));
                 } else {
-                    // TODO(fabric2seer): Map.removeLong(..)
-                    //   java: copiedTimestamps.removeLong(itemName);
+                    COPIED_TIMESTAMPS.get_mut().remove(item_name);
                 }
             }
             new_width = new_width.max((text_x.wrapping_add(text_renderer.width_of_cached(&mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(item_text.clone())))).wrapping_sub(x));

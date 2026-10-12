@@ -126,7 +126,9 @@ impl AccessoriesHelperWidget {
         //   java: super(0, 0, 147, 182, CommonComponents.EMPTY, AbstractScrollArea.defaultSettings(4));
         let __this: compat::Shared<Self> = todo!("constructor");
         { let __v = Some(FrameLayout::of((__this.lock().borrow().get_width()).wrapping_sub(BORDER_SIZE.wrapping_mul(2)), (__this.lock().borrow().get_height()).wrapping_sub(BORDER_SIZE.wrapping_mul(2)))); compat::write(&__this, |__t| __t.layout = __v); }
-        let mut main_layout: LinearLayout = { let (__q0,) = (LayoutElement::Grid(LinearLayout::vertical().wrapped),); __this.lock().borrow_mut().layout.as_mut().unwrap().add_child(__q0) };
+        // `layout.addChild(LinearLayout.vertical())` answers the child itself; the port's layouts hold children by value,
+        // so the child is built here and added once it is finished (below, before it is arranged)
+        let mut main_layout: LinearLayout = LinearLayout::vertical();
         main_layout.default_cell_setting().align_horizontally_center();
         // TODO(fabric2seer): `.createRowHelper(..)` on a value of unknown type
         //   java: GridLayout.RowHelper adder = mainLayout.addChild(new GridLayout()).createRowHelper(5);
@@ -142,7 +144,10 @@ impl AccessoriesHelperWidget {
         // TODO(fabric2seer): static call ImmutableList.builder(..)
         //   java: ImmutableList.Builder<AbstractWidget> builder = ImmutableList.builder();
         let mut builder: crate::unresolved::Builder = todo!("fabric2seer: the initialiser of `builder` (TODO above)");
-        let mut page_switcher: LinearLayout = main_layout.add_child_adjusted(LayoutElement::Grid(LinearLayout::horizontal().spacing(2).wrapped), &mut |p| { p.padding_vertical(4); });
+        // java: LinearLayout pageSwitcher = mainLayout.addChild(LinearLayout.horizontal().spacing(2), LayoutSettings::paddingVertical(4)) -
+        // the port's layouts hold a child by value (see `main_layout` above), so the switcher is built here and added
+        // to `main_layout` once its children are in (below), in the same place among `main_layout`'s children
+        let mut page_switcher: LinearLayout = LinearLayout::horizontal().spacing(2);
         page_switcher.default_cell_setting().align_vertically_middle();
         // TODO(fabric2seer): a widget put in a layout outside a mod screen's own methods: the port's layouts hold a widget by its index in the screen's widget list
         // rust: page_switcher.add_child(compat::read(&__this, |__t| __t.prev_page_button.clone()));
@@ -150,6 +155,7 @@ impl AccessoriesHelperWidget {
         //   java: pageSwitcher.addChild(new FrameLayout(30, 0)).addChild(pageText);
         // TODO(fabric2seer): a widget put in a layout outside a mod screen's own methods: the port's layouts hold a widget by its index in the screen's widget list
         // rust: page_switcher.add_child(compat::read(&__this, |__t| __t.next_page_button.clone()));
+        main_layout.add_child_adjusted(LayoutElement::Grid(page_switcher.wrapped.clone()), &mut |p| { p.padding_vertical(4); });
         let mut filter_width: i32 = (__this.lock().borrow().layout.as_ref().unwrap().get_width()).wrapping_sub(2);
         // TODO(fabric2seer): the port's `builder` ports this Java method with other parameters (default_value for Java's value_stringifier, default_value)
         // TODO(fabric2seer): `builder` takes 1 argument(s) in the port (`default_value: String`), Java passes 2
@@ -177,11 +183,16 @@ impl AccessoriesHelperWidget {
         // TODO(fabric2seer): `.build(..)` on a Builder
         //   java: widgets = builder.build();
         main_layout.arrange_elements();
+        { let (__q0,) = (LayoutElement::Grid(main_layout.wrapped.clone()),); __this.lock().borrow_mut().layout.as_mut().unwrap().add_child(__q0) };
         AccessoriesHelperWidget::update_page_switcher(&__this);
         __this
     }
 
     /// java: static void attachToScreen(ContainerScreen screen)
+    ///
+    /// rust: port gap - the vanilla `ContainerScreen` object (its `leftPos` / `topPos` through
+    /// `AbstractContainerScreenAccessor`, its widget list through `Screens.getWidgets`) is not lent to a mod's
+    /// `ScreenEvents.AFTER_INIT` listener, so nothing can call this (GAPS_batchG).
     pub fn attach_to_screen(screen: &ContainerScreen) {
         if !(compat::read(&SkyblockerConfigManager::get().general.item_tooltip, |__t| __t.enable_accessories_helper)) || !(SkyblockerConfigManager::get().helpers.enable_accessories_helper_widget) {
             return;
@@ -192,14 +203,18 @@ impl AccessoriesHelperWidget {
         // rust: AccessoriesHelperWidget::set_y(&widget, (screen.height.wrapping_sub(compat::write(&__o1, |__t| __t.get_height()))).wrapping_div(2));
         // TODO(fabric2seer): Fabric API `Screens.getWidgets` has no SeerClient equivalent
         //   java: Screens.getWidgets(screen).add(widget);
-        let mut previous_x: i32 = screen.left_pos;
+        let mut previous_x: i32 = screen.container.left_pos;
         let mut offset: i32 = (180i32.wrapping_sub(previous_x)).max(0);
+        // `screen.topPos` is read when the button is pressed; this code never writes it
+        let top_pos: i32 = screen.container.top_pos;
         let mut tab_button: compat::Shared<TabButton> = TabButton::new(Arc::new(move |button| {
             let mut toggled: bool = compat::read(&button, |__t| __t.toggled);
-            // TODO(fabric2seer): an assignment used as a value
-            //   java: widget.visible = open = toggled;
+            // java: widget.visible = open = toggled;
+            compat::set_state(&OPEN, toggled);
+            compat::write(&widget, |__t| __t.visible = toggled);
             let mut x: i32 = (if toggled { previous_x.wrapping_add(offset) } else { previous_x });
-            screen.left_pos = x;
+            // rust: port gap - `((AbstractContainerScreenAccessor) screen).setX(x)` (`screen.leftPos = x`): the live
+            // screen is not reachable from the button's press (GAPS_batchG)
             let __o2 = widget.clone();
             AccessoriesHelperWidget::set_x(&widget, (x.wrapping_sub(compat::write(&__o2, |__t| __t.get_width()))).wrapping_sub(2));
             let __o3 = widget.clone();
@@ -211,7 +226,7 @@ impl AccessoriesHelperWidget {
             compat::write(&__o7, |__t| __t.set_x(__wa1));
             let __o8 = widget.clone();
             let __o9 = widget.clone();
-            let __wa2 = (if toggled { compat::write(&__o9, |__t| __t.get_y()) } else { screen.top_pos }).wrapping_add(8);
+            let __wa2 = (if toggled { compat::write(&__o9, |__t| __t.get_y()) } else { top_pos }).wrapping_add(8);
             let __o10 = button.clone();
             compat::write(&__o10, |__t| __t.set_y(__wa2));
             if toggled {
@@ -230,7 +245,7 @@ impl AccessoriesHelperWidget {
         let Some(mut stack) = ItemRepository::get_item_stack(&acc.id()) else {
             return None;
         };
-        let mut optional_price: Option<f64> = ItemUtils::get_item_price(&stack);
+        let mut optional_price: Option<f64> = compat::read(&stack, |stack| ItemUtils::get_item_price(stack));
         let mut price: f64;
         if optional_price.is_some() {
             price = optional_price.clone().unwrap();
@@ -246,7 +261,7 @@ impl AccessoriesHelperWidget {
     /// java: private void refreshData()
     pub fn refresh_data(__this: &compat::Shared<Self>) {
         let mut collected_accessories: std::collections::HashSet<Accessory> = AccessoriesHelper::get_collected_accessories();
-        { let __v = compat::distinct(collected_accessories.iter().cloned().filter(|__a0| __a0.recombobulatable()).map(|__a0| __a0.id()).filter(|id| !(AccessoriesHelper::is_recombobulated(id))).map(|__a0| ItemRepository::get_item_stack(&__a0)).filter(|__a0| true).map(|__a0| __a0.lock().borrow().get_skyblock_rarity())).map(|__a0| RecombobulateSource::new(__a0)).collect::<Vec<_>>(); compat::write(__this, |__t| __t.recomb_displays = __v); }
+        { let __v = compat::distinct(collected_accessories.iter().cloned().filter(|__a0| __a0.recombobulatable()).map(|__a0| __a0.id()).filter(|id| !(AccessoriesHelper::is_recombobulated(id))).filter_map(|__a0| ItemRepository::get_item_stack(&__a0)).map(|__a0| compat::read(&__a0, |__t| __t.get_skyblock_rarity()))).map(|__a0| RecombobulateSource::new(__a0)).collect::<Vec<_>>(); compat::write(__this, |__t| __t.recomb_displays = __v); }
         // TODO(fabric2seer): `.getMisc(..)` on a NEUConstants
         //   java: this.accessories = AccessoriesHelper.ACCESSORY_DATA.values().stream()
         //   java: 				.filter(accessory -> NEURepoManager.isLoading() || !NEURepoManager.getConstants().getMisc().getIgnoredTalismans().contains(accessory.id())) // Removes admin and rift items
@@ -271,13 +286,15 @@ impl AccessoriesHelperWidget {
             Filter::Upgrades => Arc::new(move |info| (info.highest_owned().is_some() && info.accessory().tier() > info.highest_owned().unwrap().tier())),
             _ => unreachable!("switch expression: no case matched"),
         };
-        // TODO(fabric2seer): not a lambda
-        //   java: Stream<AccessoryInfo.Source> stream = accessories.stream()
-        //   java: 				.filter(predicate)
-        //   java: 				.filter(info -> !showHighestTierOnly || info.accessory().tier() >= info.highestInFamily().tier())
-        //   java: 				.map(AccessoryInfo.Source::new);
-        let mut stream: Box<dyn Iterator<Item = compat::Shared<Source>>> = todo!("fabric2seer: the initialiser of `stream` (TODO above)");
-        { let __v = compat::sorted_by(stream.chain(compat::read(__this, |__t| __t.recomb_displays.clone()).into_iter()), |a, b| { let key = |__a0| ({ let __f = compat::dispatch(__a0, |__t| __t.price_per_mp()); __f(&compat::view(__a0, |a| a as compat::Shared<dyn MagicPowerSource>)) }); key(a).total_cmp(&key(b)) }).collect::<Vec<_>>(); compat::write(__this, |__t| __t.displays = __v); }
+        let show_highest_tier_only: bool = compat::get_state(&SHOW_HIGHEST_TIER_ONLY);
+        let mut stream: Box<dyn Iterator<Item = compat::Shared<dyn MagicPowerSource>>> = Box::new(
+            compat::read(__this, |__t| __t.accessories.clone())
+                .into_iter()
+                .filter(move |info| predicate(info.clone()))
+                .filter(move |info| !show_highest_tier_only || info.accessory().tier() >= info.highest_in_family().tier())
+                .map(|info| Source::new(info) as compat::Shared<dyn MagicPowerSource>),
+        );
+        { let __v = compat::sorted_by(stream.chain(compat::read(__this, |__t| __t.recomb_displays.clone()).into_iter().map(|r| r as compat::Shared<dyn MagicPowerSource>)), |a, b| { let key = |__a0: &compat::Shared<dyn MagicPowerSource>| ({ let __f = compat::dispatch(__a0, |__t| __t.price_per_mp()); __f(__a0) }); key(a).total_cmp(&key(b)) }).collect::<Vec<_>>(); compat::write(__this, |__t| __t.displays = __v); }
     }
 
     /// java: private void changePage(int offset)
@@ -289,16 +306,15 @@ impl AccessoriesHelperWidget {
             if j < (__this.lock().borrow().displays.len() as i32) {
                 ResultButton::set_source(&__this.lock().borrow().buttons[(i) as usize], __this.lock().borrow().displays[(j) as usize].clone());
             } else {
-                ({ let __r = &__this.lock().borrow().buttons[(i) as usize]; let __f = compat::dispatch(__r, |__t| __t.clear_display_stack()); __f(&compat::view(__r, |a| a as compat::Shared<dyn SkyblockRecipeResultButton>)) });
+                ({ let __r = &compat::read(__this, |__t| __t.buttons[(i) as usize].clone()); let __f = compat::dispatch(__r, |__t| __t.clear_display_stack()); __f(&compat::view(__r, |a| a as compat::Shared<dyn SkyblockRecipeResultButton>)) });
             }
         }
     }
 
     /// java: private int getPageCount()
     pub fn get_page_count(__this: &compat::Shared<Self>) -> i32 {
-        // TODO(fabric2seer): Math.ceilDiv
-        //   java: return Math.max(1, Math.ceilDiv(displays.size(), BUTTON_COUNT));
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        // Math.ceilDiv(x, y) = -Math.floorDiv(-x, y)
+        return 1.max(compat::floor_div_i32(-(__this.lock().borrow().displays.len() as i32), BUTTON_COUNT).wrapping_neg());
     }
 
     /// java: private void updatePageSwitcher()
@@ -310,8 +326,10 @@ impl AccessoriesHelperWidget {
     }
 
     /// java: @Override public List<? extends GuiEventListener> children()
-    pub fn children(__this: &compat::Shared<Self>) -> Vec<Box<dyn GuiEventListener>> {
-        return compat::read(__this, |__t| __t.widgets.clone());
+    ///
+    /// The widgets themselves, lent to `f` (Java's list holds the same objects).
+    pub fn children<R>(__this: &compat::Shared<Self>, f: impl FnOnce(&Vec<AbstractWidget>) -> R) -> R {
+        return compat::read(__this, |__t| f(&__t.widgets));
     }
 
     /// java: @Override public void setX(int x)
@@ -381,7 +399,7 @@ impl HoveredItemStackProvider for AccessoriesHelperWidget {
 impl AccessoriesHelperWidget {
     /// java: @Override public @Nullable ItemStack getFocusedItem()
     pub fn get_focused_item_impl(__this: &compat::Shared<Self>) -> Option<mcrust::net::minecraft::world::item::item_stack::ItemStack> {
-        return compat::read(__this, |__t| __t.buttons.clone()).into_iter().map(|__a0| ({ let __f = compat::dispatch(&__a0, |__t| __t.get_focused_item()); __f(&compat::view(&__a0, |a| a as compat::Shared<dyn HoveredItemStackProvider>)) })).filter(|__a0| true).next();
+        return compat::read(__this, |__t| __t.buttons.clone()).into_iter().filter_map(|__a0| ({ let __f = compat::dispatch(&__a0, |__t| __t.get_focused_item()); __f(&compat::view(&__a0, |a| a as compat::Shared<dyn HoveredItemStackProvider>)) })).next();
     }
 
     /// AccessoriesHelperWidget.getFocusedItem as the dispatch of HoveredItemStackProvider.getFocusedItem
@@ -439,7 +457,8 @@ impl ArrowButton {
 
     /// java: @Override protected void extractWidgetRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a)
     pub fn extract_widget_render_state(__this: &compat::Shared<Self>, graphics: &GuiGraphicsExtractor, mut mouse_x: i32, mut mouse_y: i32, mut a: f32) {
-        gui_graphics_extractor::blit_sprite_identifier(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), mcrust::net::minecraft::client::renderer::render_pipelines::gui_textured(), { let (__q0, __q1,) = (true, __this.lock().borrow().is_hovered(),); __this.lock().borrow().textures.get(__q0, __q1) }, __this.lock().borrow().get_x(), __this.lock().borrow().get_y(), __this.lock().borrow().get_width(), __this.lock().borrow().get_height());
+        let __sprite = compat::read(__this, |__t| __t.textures.get(true, __t.is_hovered()).clone());
+        gui_graphics_extractor::blit_sprite_identifier(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), mcrust::net::minecraft::client::renderer::render_pipelines::gui_textured(), &__sprite, __this.lock().borrow().get_x(), __this.lock().borrow().get_y(), __this.lock().borrow().get_width(), __this.lock().borrow().get_height());
         if __this.lock().borrow().is_hovered() {
             // TODO(fabric2seer): static `CursorTypes.POINTING_HAND` has no Rust counterpart in the port's CursorTypes file
             // TODO(fabric2seer): `GuiGraphicsExtractor.requestCursor` has no Rust method in the port (looked for `request_cursor` in GuiGraphicsExtractor and its supertypes)
@@ -644,7 +663,7 @@ impl ResultButton {
         <dyn SkyblockRecipeResultButton>::extract_widget_render_state_body(&compat::view(__this, |a| a as compat::Shared<dyn SkyblockRecipeResultButton>), graphics, mouse_x, mouse_y, a);
         let mut stack: Option<mcrust::net::minecraft::world::item::item_stack::ItemStack> = ({ let __f = compat::dispatch(__this, |__t| __t.get_display_stack()); __f(&compat::view(__this, |a| a as compat::Shared<dyn SkyblockRecipeResultButton>)) });
         if __this.lock().borrow().is_hovered() && stack.is_some() && compat::read(__this, |__t| __t.source.clone()).is_some() {
-            ({ let __r = &compat::read(__this, |__t| __t.source.clone()).unwrap(); let __f = compat::dispatch(__r, |__t| __t.extract_tooltip()); __f(__r, &mut graphics, mouse_x, mouse_y) });
+            ({ let __r = &compat::read(__this, |__t| __t.source.clone()).unwrap(); let __f = compat::dispatch(__r, |__t| __t.extract_tooltip()); __f(__r, graphics, mouse_x, mouse_y) });
             // TODO(fabric2seer): static `CursorTypes.POINTING_HAND` has no Rust counterpart in the port's CursorTypes file
             // TODO(fabric2seer): `GuiGraphicsExtractor.requestCursor` has no Rust method in the port (looked for `request_cursor` in GuiGraphicsExtractor and its supertypes)
             // rust: graphics.request_cursor(&CursorTypes::POINTING_HAND);
@@ -762,12 +781,13 @@ impl Source {
             if price_opt.is_none() {
                 return None;
             }
-            let mut price: Option<f64> = ItemUtils::get_item_price(&acc_stack);
+            let mut price: Option<f64> = compat::read(&acc_stack, |acc_stack| ItemUtils::get_item_price(acc_stack));
             if price.is_none() {
                 return None;
             }
             let mut translatable: MutableComponent = component::translatable_args("skyblocker.accessoryHelper.afterSelling", vec![mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(ItemTooltip::get_coins_message((price_opt.clone().unwrap() - price.clone().unwrap()), 1)), mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(compat::component_of(FlexibleItemStack::get_stack_or_throw(&acc_stack).get_hover_name()))]);
-            return Some(compat::font().split(&mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(translatable.clone()), 170));
+            // Font.split = Language.getInstance().getVisualOrder(splitter.splitLines(text, width, Style.EMPTY))
+            return Some(mcrust::net::minecraft::locale::language::get_instance().get_visual_order_list(&compat::font().split(&mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(translatable.clone()), 170)));
         }); compat::write(&__this, |__t| __t.after_selling = __v); }
         __this
     }
@@ -785,7 +805,7 @@ impl MagicPowerSource for Source {
     }
 
     /// java: @Override public void extractTooltip(GuiGraphicsExtractor graphics, int mouseX, int mouseY) (dispatch: the body for this class)
-    fn extract_tooltip(&self) -> fn(&compat::Shared<dyn MagicPowerSource>, &mut GuiGraphicsExtractor, i32, i32) {
+    fn extract_tooltip(&self) -> fn(&compat::Shared<dyn MagicPowerSource>, &GuiGraphicsExtractor, i32, i32) {
         Source::extract_tooltip_dyn
     }
 
@@ -804,9 +824,14 @@ impl MagicPowerSource for Source {
 impl Source {
     /// java: @Override public FlexibleItemStack icon()
     pub fn icon_impl(__this: &compat::Shared<Self>) -> compat::Shared<FlexibleItemStack> {
-        // TODO(fabric2seer): an assignment used as a value
-        //   java: return icon != null ? icon : (icon = Optional.ofNullable(ItemRepository.getItemStack(info.accessory().id())).orElse(ItemUtils.getItemIdPlaceholder(info.accessory().id())));
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        // java: return icon != null ? icon : (icon = Optional.ofNullable(ItemRepository.getItemStack(info.accessory().id())).orElse(ItemUtils.getItemIdPlaceholder(info.accessory().id())));
+        if let Some(icon) = compat::read(__this, |__t| __t.icon.clone()) {
+            return icon;
+        }
+        let id = compat::read(__this, |__t| __t.info.accessory().id());
+        let icon = ItemRepository::get_item_stack(&id).unwrap_or_else(|| ItemUtils::get_item_id_placeholder(&id));
+        { let __v = Some(icon.clone()); compat::write(__this, |__t| __t.icon = __v); }
+        return icon;
     }
 
     /// Source.icon as the dispatch of MagicPowerSource.icon
@@ -815,7 +840,7 @@ impl Source {
     }
 
     /// java: @Override public void extractTooltip(GuiGraphicsExtractor graphics, int mouseX, int mouseY)
-    pub fn extract_tooltip_impl(__this: &compat::Shared<Self>, graphics: &mut GuiGraphicsExtractor, mut mouse_x: i32, mut mouse_y: i32) {
+    pub fn extract_tooltip_impl(__this: &compat::Shared<Self>, graphics: &GuiGraphicsExtractor, mut mouse_x: i32, mut mouse_y: i32) {
         if compat::read(__this, |__t| __t.icon.clone()).is_none() {
             return;
         }
@@ -838,7 +863,7 @@ impl Source {
     }
 
     /// Source.extractTooltip as the dispatch of MagicPowerSource.extractTooltip
-    pub fn extract_tooltip_dyn(__this: &compat::Shared<dyn MagicPowerSource>, __p0: &mut GuiGraphicsExtractor, __p1: i32, __p2: i32) {
+    pub fn extract_tooltip_dyn(__this: &compat::Shared<dyn MagicPowerSource>, __p0: &GuiGraphicsExtractor, __p1: i32, __p2: i32) {
         Self::extract_tooltip_impl(&compat::view_as::<Self, _, Self>(__this, |a| a), __p0, __p1, __p2)
     }
 
@@ -927,7 +952,7 @@ impl MagicPowerSource for RecombobulateSource {
     }
 
     /// java: @Override public void extractTooltip(GuiGraphicsExtractor graphics, int mouseX, int mouseY) (dispatch: the body for this class)
-    fn extract_tooltip(&self) -> fn(&compat::Shared<dyn MagicPowerSource>, &mut GuiGraphicsExtractor, i32, i32) {
+    fn extract_tooltip(&self) -> fn(&compat::Shared<dyn MagicPowerSource>, &GuiGraphicsExtractor, i32, i32) {
         RecombobulateSource::extract_tooltip_dyn
     }
 
@@ -955,7 +980,7 @@ impl RecombobulateSource {
     }
 
     /// java: @Override public void extractTooltip(GuiGraphicsExtractor graphics, int mouseX, int mouseY)
-    pub fn extract_tooltip_impl(__this: &compat::Shared<Self>, graphics: &mut GuiGraphicsExtractor, mut mouse_x: i32, mut mouse_y: i32) {
+    pub fn extract_tooltip_impl(__this: &compat::Shared<Self>, graphics: &GuiGraphicsExtractor, mut mouse_x: i32, mut mouse_y: i32) {
         let mut text_renderer: Font = compat::font();
         // TODO(fabric2seer): the port's `set_component_tooltip_for_next_frame` ports this Java method with other parameters (tooltip_for_next_frame, lines for Java's lines, xo, yo)
         // TODO(fabric2seer): `set_component_tooltip_for_next_frame` takes 2 argument(s) in the port (`tooltip_for_next_frame: &mut Option<DeferredTooltip>, lines: Vec<crate::net::minecraft::network::chat::formatted_text::FormattedText>`), Java passes 4
@@ -963,7 +988,7 @@ impl RecombobulateSource {
     }
 
     /// RecombobulateSource.extractTooltip as the dispatch of MagicPowerSource.extractTooltip
-    pub fn extract_tooltip_dyn(__this: &compat::Shared<dyn MagicPowerSource>, __p0: &mut GuiGraphicsExtractor, __p1: i32, __p2: i32) {
+    pub fn extract_tooltip_dyn(__this: &compat::Shared<dyn MagicPowerSource>, __p0: &GuiGraphicsExtractor, __p1: i32, __p2: i32) {
         Self::extract_tooltip_impl(&compat::view_as::<Self, _, Self>(__this, |a| a), __p0, __p1, __p2)
     }
 
@@ -999,7 +1024,7 @@ pub trait MagicPowerSource: compat::DynAny {
     fn icon(&self) -> fn(&compat::Shared<dyn MagicPowerSource>) -> compat::Shared<FlexibleItemStack>;
 
     /// java: void extractTooltip(GuiGraphicsExtractor graphics, int mouseX, int mouseY); (dispatch: the body for this class)
-    fn extract_tooltip(&self) -> fn(&compat::Shared<dyn MagicPowerSource>, &mut GuiGraphicsExtractor, i32, i32);
+    fn extract_tooltip(&self) -> fn(&compat::Shared<dyn MagicPowerSource>, &GuiGraphicsExtractor, i32, i32);
 
     /// java: double pricePerMp(); (dispatch: the body for this class)
     fn price_per_mp(&self) -> fn(&compat::Shared<dyn MagicPowerSource>) -> f64;
@@ -1051,15 +1076,13 @@ impl Filter {
 
     /// java: @Override public String toString()
     pub fn to_string(&self) -> String {
-        // TODO(fabric2seer): call to `name(..)` (not a method of this class)
-        //   java: return "skyblocker.accessoryHelper.filter." + name();
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        return format!("skyblocker.accessoryHelper.filter.{}", self.name());
     }
 
 }
 
 impl std::fmt::Display for Filter {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", Filter::to_string(*self))
+        write!(f, "{}", Filter::to_string(self))
     }
 }

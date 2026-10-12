@@ -156,7 +156,7 @@ impl CopyToPopup {
         //   java: 				.selected(selectedLocations.isEmpty()) // automatically select if it's empty
         //   java: 				.onValueChange((_, value) -> copyPosition = value).build()
         //   java: 		).setTooltip(Tooltip.create(Component.translatable("skyblocker.config.hud.copy.copyPosition.@Tooltip")));
-        { let (__q0, __q1,) = ({ let __w = compat::string_widget(0, 0, -1, 9, component::translatable("skyblocker.config.hud.copy.targetLocations").with_style_format(ChatFormatting::Bold)); let (__ww, __wh) = (__w.get_width(), __w.get_height()); LayoutElement::widget(compat::write(__this, |__t| __t.add_widget(__w)), __ww, __wh) }, &mut |settings| { settings.padding_vertical(4); },); __this.lock().borrow_mut().layout.add_child_adjusted(__q0, __q1) };
+        { let (__q0, __q1,) = ({ let __w = compat::string_widget(0, 0, -1, 9, component::translatable("skyblocker.config.hud.copy.targetLocations").with_style_format(ChatFormatting::Bold)); let (__ww, __wh) = (__w.get_width(), __w.get_height()); LayoutElement::widget(compat::write(__this, |__t| __t.add_widget(__w)), __ww, __wh) }, &mut |settings: &mut mcrust::net::minecraft::client::gui::layouts::layout_settings::LayoutSettings| { *settings = settings.clone().padding_vertical(4); },); __this.lock().borrow_mut().layout.add_child_adjusted(__q0, __q1) };
         let mut content: LinearLayout = LinearLayout::vertical().spacing(2);
         let mut checkboxes: Vec<Checkbox> = Vec::new();
         // TODO(fabric2seer): static `Checkbox.builder` has no Rust counterpart in the port

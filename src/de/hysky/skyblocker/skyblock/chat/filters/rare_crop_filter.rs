@@ -60,7 +60,7 @@ impl RareCropFilter {
         if NEURepoManager::is_loading() || !(ItemRepository::files_imported()) {
             return FlexibleItemStack::get_stack(&ItemUtils::get_item_id_placeholder(&skyblock_id));
         }
-        return FlexibleItemStack::get_stack(ICONS.get_mut().entry(skyblock_id.clone()).or_insert_with_key(|k| (|id| ItemRepository::get_item_stack_2(&id, &ItemUtils::get_item_id_placeholder(&id)))(k.clone())));
+        return FlexibleItemStack::get_stack(ICONS.get_mut().entry(skyblock_id.clone()).or_insert_with_key(|id: &String| ItemRepository::get_item_stack_2(id, &ItemUtils::get_item_id_placeholder(id))));
     }
 
 }
@@ -101,7 +101,7 @@ impl RareCropFilter {
     /// java: @Override public boolean onMatch(Component message, Matcher matcher)
     pub fn on_match_impl(__this: &compat::Shared<Self>, message: &MutableComponent, matcher: &compat::regex::Matcher) -> bool {
         if SkyblockerConfigManager::get().chat.hide_rare_crops == ChatFilterResult::Toast {
-            compat::minecraft().gui.toast_manager().borrow_mut().add_toast(BasicToast::new_3(message.clone(), (((SkyblockerConfigManager::get().chat.toast_display_duration * (1000 as f32))) as i64), RareCropFilter::get_crop_icon(__this, matcher)));
+            compat::minecraft().gui.toast_manager().borrow_mut().add_toast(Box::new(BasicToast::new_3(message.clone(), (((SkyblockerConfigManager::get().chat.toast_display_duration * (1000 as f32))) as i64), RareCropFilter::get_crop_icon(__this, matcher))));
         }
         return true;
     }

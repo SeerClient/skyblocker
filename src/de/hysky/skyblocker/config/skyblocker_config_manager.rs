@@ -22,7 +22,16 @@ pub static CONFIG_FILE: compat::MainThread<std::path::PathBuf> = compat::MainThr
 // TODO(fabric2seer): static call ConfigManager.create(..)
 //   java: private static final ConfigManager<SkyblockerConfig> CONFIG_MANAGER = ConfigManager.create(SkyblockerConfig.class, CONFIG_FILE, UnaryOperator.identity());
 /// java: private static final ConfigManager<SkyblockerConfig> CONFIG_MANAGER = ConfigManager.create(SkyblockerConfig.class, CONFIG_FILE, UnaryOperator.identity());
+///
+/// rust: YACL port pending - the handler (its construction, its serializer, the load and save of
+/// `config/skyblocker.json`, the patched and unpatched instances) is YACL's `ConfigManager`, which a separate YACL port
+/// will supply. Until it lands, `INSTANCE` is the one live config it hands out.
 pub static CONFIG_MANAGER: compat::MainThread<crate::unresolved::ConfigManager> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `CONFIG_MANAGER` - see the TODO above"));
+
+/// `CONFIG_MANAGER.instance()`: the ONE live `SkyblockerConfig` (Java's handler holds it; `get()` lends it, `update`
+/// mutates it in place). rust: YACL port pending - YACL's handler loads it from `config/skyblocker.json`; until then it
+/// is the defaults (`new SkyblockerConfig()`, which is what YACL's handler starts from).
+pub static INSTANCE: compat::MainThread<SkyblockerConfig> = compat::MainThread::new(|| SkyblockerConfig::new());
 
 /// java: public class SkyblockerConfigManager
 #[derive(Clone)]
@@ -37,17 +46,24 @@ impl SkyblockerConfigManager {
     }
 
     /// java: public static SkyblockerConfig get()
-    pub fn get() -> SkyblockerConfig {
-        // TODO(fabric2seer): `.instance(..)` on a ConfigManager
-        //   java: return CONFIG_MANAGER.instance();
-        todo!("fabric2seer: the value of this function is in a TODO above")
+    ///
+    /// The live instance itself (not a copy).
+    pub fn get() -> &'static SkyblockerConfig {
+        // java: return CONFIG_MANAGER.instance();
+        return INSTANCE.get();
     }
 
     /// java: protected static SkyblockerConfig getUnpatched()
-    pub fn get_unpatched() -> SkyblockerConfig {
-        // TODO(fabric2seer): `.unpatchedInstance(..)` on a ConfigManager
-        //   java: return CONFIG_MANAGER.unpatchedInstance();
-        todo!("fabric2seer: the value of this function is in a TODO above")
+    ///
+    /// The live instance itself, to be mutated in place - LENT to `f` for one call rather than returned: a
+    /// `&'static mut` handed out next to `get()`'s `&'static` is two live references to one value, one of them
+    /// unique (undefined behaviour the moment both exist). Every Java caller uses the object at once (`update`'s
+    /// `action.accept(getUnpatched())`, `ConfigCommands.registerConfigEntries`), so the lend covers each use.
+    /// rust: YACL port pending - YACL keeps the unpatched instance apart from the patched one `get()` answers
+    /// (`setPatches`); until it lands they are the one instance.
+    pub fn get_unpatched<R>(f: impl FnOnce(&mut SkyblockerConfig) -> R) -> R {
+        // java: return CONFIG_MANAGER.unpatchedInstance();
+        f(INSTANCE.get_mut())
     }
 
     /// java: public static void init()
@@ -58,8 +74,7 @@ impl SkyblockerConfigManager {
             panic!("RuntimeException: {}", "Skyblocker: Called config init from an illegal place!");
         }
         SkyblockerConfigManager::data_fix(CONFIG_FILE.get_mut(), &CONFIG_DIR.get_mut().join("skyblocker.json.old"));
-        // TODO(fabric2seer): `.load(..)` on a ConfigManager
-        //   java: CONFIG_MANAGER.load();
+        // rust: YACL port pending - CONFIG_MANAGER.load();
         client_command_registration_callback::EVENT.register(Arc::new(
             |dispatcher: &mut client_command_registration_callback::ClientCommandDispatcher| {
                 // TODO(fabric2seer): a command tree this tool cannot read (arguments, redirects, requires) - SeerClient commands receive the words after the name in `ctx.args`
@@ -85,23 +100,27 @@ impl SkyblockerConfigManager {
     }
 
     /// java: public static void update(Consumer<SkyblockerConfig> action)
-    pub fn update(action: Arc<dyn Fn(SkyblockerConfig)>) {
-        (action)(SkyblockerConfigManager::get_unpatched());
+    ///
+    /// `Consumer<SkyblockerConfig>`: the action mutates the live instance (`&mut`), as Java's does.
+    pub fn update(action: Arc<dyn Fn(&mut SkyblockerConfig)>) {
+        // java: action.accept(getUnpatched());
+        SkyblockerConfigManager::get_unpatched(|config| (action)(config));
         ConfigBackupManager::backup_config();
-        // TODO(fabric2seer): `.save(..)` on a ConfigManager
-        //   java: CONFIG_MANAGER.save();
+        // rust: YACL port pending - CONFIG_MANAGER.save();
     }
 
     /// java: public static void updateOnly(Consumer<SkyblockerConfig> action)
-    pub fn update_only(action: Arc<dyn Fn(SkyblockerConfig)>) {
-        (action)(SkyblockerConfigManager::get_unpatched());
-        // TODO(fabric2seer): `.updatePatchedInstance(..)` on a ConfigManager
-        //   java: CONFIG_MANAGER.updatePatchedInstance();
+    ///
+    /// `Consumer<SkyblockerConfig>`: the action mutates the live instance (`&mut`), as Java's does.
+    pub fn update_only(action: Arc<dyn Fn(&mut SkyblockerConfig)>) {
+        // java: action.accept(getUnpatched());
+        SkyblockerConfigManager::get_unpatched(|config| (action)(config));
+        // rust: YACL port pending - CONFIG_MANAGER.updatePatchedInstance();
     }
 
     /// java: public static Screen createGUI(@Nullable Screen parent)
     pub fn create_gui(mut parent: Option<mcrust::net::minecraft::client::gui::screens::screen::Screen>) -> mcrust::net::minecraft::client::gui::screens::screen::Screen {
-        return SkyblockerConfigManager::create_gui_2(parent.clone(), "");
+        return SkyblockerConfigManager::create_gui_2(parent, "");
     }
 
     /// java: public static Screen createGUI(@Nullable Screen parent, String search)
@@ -141,8 +160,7 @@ impl SkyblockerConfigManager {
 
     /// java: public static void reload()
     pub fn reload() {
-        // TODO(fabric2seer): `.load(..)` on a ConfigManager
-        //   java: CONFIG_MANAGER.load();
+        // rust: YACL port pending - CONFIG_MANAGER.load();
     }
 
     /// java: private static LiteralArgumentBuilder<FabricClientCommandSource> configLiteral(String name)
@@ -186,19 +204,20 @@ impl SkyblockerConfigManager {
 
     /// java: private static @Nullable JsonObject loadConfig(Path path)
     pub fn load_config(path: &std::path::PathBuf) -> Option<serde_json::Map<String, serde_json::Value>> {
-        {
-            // TODO(fabric2seer): Files.newBufferedReader
-            //   java: BufferedReader reader = Files.newBufferedReader(..);
-            let mut reader: crate::unresolved::BufferedReader = todo!("fabric2seer: the initialiser of `reader` (TODO above)");
-            // java: try {..} catch (Throwable t) - an exception here is a panic, caught by `catch_unwind`; the body's `return` is the closure's value
-            match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                // TODO(fabric2seer): static call JsonParser.parseReader(..)
-                //   java: return JsonParser.parseReader(reader).getAsJsonObject();
-            })) {
-                Ok(__v) => return __v,
-                Err(t) => {
-                    logger().error(&format!("[Skyblocker Config Data Fixer] Failed to load config file!"));
-                }
+        // java: try (BufferedReader reader = Files.newBufferedReader(path)) { return JsonParser.parseReader(reader).getAsJsonObject(); }
+        // catch (Throwable t) {..}
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let reader: String = std::fs::read_to_string(path).unwrap_or_else(|e| panic!("IOException: {e}"));
+            let json: serde_json::Value = serde_json::from_str(&reader).unwrap_or_else(|e| panic!("JsonSyntaxException: {e}"));
+            match json {
+                serde_json::Value::Object(object) => object,
+                other => panic!("IllegalStateException: Not a JSON Object: {other}"),
+            }
+        }));
+        match result {
+            Ok(object) => return Some(object),
+            Err(t) => {
+                logger().error(&format!("[Skyblocker Config Data Fixer] Failed to load config file! {}", compat::panic_message(&t)));
             }
         }
         return None;
@@ -206,20 +225,17 @@ impl SkyblockerConfigManager {
 
     /// java: private static boolean writeConfig(Path path, JsonObject config)
     pub fn write_config(path: &std::path::PathBuf, config: &serde_json::Map<String, serde_json::Value>) -> bool {
-        {
-            // TODO(fabric2seer): Files.newBufferedWriter
-            //   java: BufferedWriter writer = Files.newBufferedWriter(..);
-            let mut writer: crate::unresolved::BufferedWriter = todo!("fabric2seer: the initialiser of `writer` (TODO above)");
-            // java: try {..} catch (Throwable t) - an exception here is a panic, caught by `catch_unwind`; the body's `return` is the closure's value
-            match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                // TODO(fabric2seer): `.toJson(..)` on a Gson
-                //   java: SkyblockerMod.GSON.toJson(config, writer);
-                return true;
-            })) {
-                Ok(__v) => return __v,
-                Err(t) => {
-                    logger().error(&format!("[Skyblocker Config Data Fixer] Failed to save config file at {}!", path.display()));
-                }
+        // java: try (BufferedWriter writer = Files.newBufferedWriter(path)) { SkyblockerMod.GSON.toJson(config, writer); return true; }
+        // catch (Throwable t) {..} (GSON is `setPrettyPrinting()`)
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let text: String = serde_json::to_string_pretty(&serde_json::Value::Object(config.clone())).unwrap_or_else(|e| panic!("JsonIOException: {e}"));
+            std::fs::write(path, text).unwrap_or_else(|e| panic!("IOException: {e}"));
+            return true;
+        }));
+        match result {
+            Ok(__v) => return __v,
+            Err(t) => {
+                logger().error(&format!("[Skyblocker Config Data Fixer] Failed to save config file at {}! {}", path.display(), compat::panic_message(&t)));
             }
         }
         return false;

@@ -37,7 +37,7 @@ impl ConfirmationPromptHelper {
         // TODO(fabric2seer): ClientReceiveMessageEvents.ALLOW_GAME.register: no SeerClient equivalent yet
         //   java: ClientReceiveMessageEvents.ALLOW_GAME.register(ConfirmationPromptHelper::onMessage);
         screen_events::AFTER_INIT.register(Arc::new(|screen: &mut Screen, width: i32, height: i32| {
-            if Utils::is_on_skyblock() && screen.as_any().is::<ChatScreen>() && SkyblockerConfigManager::get().chat.confirmation_prompt_helper {
+            if Utils::is_on_skyblock() && matches!(compat::minecraft().gui.screen_kind, mcrust::net::minecraft::client::gui::gui::ScreenKind::Chat) && SkyblockerConfigManager::get().chat.confirmation_prompt_helper {
                 // TODO(fabric2seer): ScreenMouseEvents.beforeMouseClick(..).register: no SeerClient equivalent yet
                 //   java: ScreenMouseEvents.beforeMouseClick(screen).register((_, click) -> {
                 //   java: 					if (hasCommand()) {

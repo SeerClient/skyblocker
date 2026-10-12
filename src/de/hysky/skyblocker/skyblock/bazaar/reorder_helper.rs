@@ -152,7 +152,7 @@ impl ReorderHelper {
 
     /// java: @Override public boolean onClickSlot(int slot, ItemStack stack, int screenId, int button)
     pub fn on_click_slot_impl(__this: &compat::Shared<Self>, mut slot: i32, stack: &mcrust::net::minecraft::world::item::item_stack::ItemStack, mut screen_id: i32, mut button: i32) -> bool {
-        if slot == 11 || slot == 13 && stack.is_item(mcrust::net::minecraft::world::item::items::dyed_terracotta().green()) && input_constants::is_key_down(compat::minecraft().get_window().clone(), mcrust::com::mojang::blaze3d::platform::input_constants::KEY_LCONTROL) {
+        if (slot == 11 || slot == 13) && stack.is_item(mcrust::net::minecraft::world::item::items::dyed_terracotta().green()) && input_constants::is_key_down(compat::minecraft().get_window().handle(), mcrust::com::mojang::blaze3d::platform::input_constants::KEY_LCONTROL) {
             let mut matcher: Option<compat::regex::Matcher> = None;
             if slot == 13 {
                 matcher = ItemUtils::get_lore_line_if_contains_match(stack, &SELL_PATTERN);

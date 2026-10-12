@@ -195,41 +195,42 @@ impl UltrasequencerSolver {
 
     /// java: @SuppressWarnings(
     pub fn tick_impl(__this: &compat::Shared<Self>, screen: &AbstractContainerScreen) {
+        // java: screen.getMenu() - the screen's menu is the player's open one; `slot.getItem()` reads it through the
+        // menu's containers
+        let __item_at = |index: i32| -> mcrust::net::minecraft::world::item::item_stack::ItemStack {
+            compat::with_open_menu(|menu, containers| menu.slots.get(index as usize).map(|slot| slot.get_item(containers).duplicate())).flatten().unwrap_or_else(mcrust::net::minecraft::world::item::item_stack::empty)
+        };
         match ({ let __f = compat::dispatch(__this, |__t| __t.get_state()); __f(&compat::view(__this, |a| a as compat::Shared<dyn ExperimentSolver>)) }) {
             State::Remember => {
-                let mut inventory: AbstractContainerMenu = screen.menu();
-                // TODO(fabric2seer): `get_item` takes 1 argument(s) in the port (`containers: &'a Containers<'_>`), Java passes 0
-                if compat::component_of(inventory.get_slot(49).get_item().get_hover_name()).get_string() == "Remember the pattern!" {
+                if compat::component_of(__item_at(49).get_hover_name()).get_string() == "Remember the pattern!" {
                     for index in 9..45 {
-                        // TODO(fabric2seer): `get_item` takes 1 argument(s) in the port (`containers: &'a Containers<'_>`), Java passes 0
-                        // rust: let item_stack = inventory.get_slot(index).get_item();
-                        let mut item_stack: mcrust::net::minecraft::world::item::item_stack::ItemStack = todo!("fabric2seer: the initialiser of `itemStack` (TODO above)");
+                        let mut item_stack: mcrust::net::minecraft::world::item::item_stack::ItemStack = __item_at(index);
                         let mut name: String = compat::component_of(item_stack.get_hover_name()).get_string();
                         if compat::regex::Pattern::matches("\\d+", &name) {
                             if name == "1" {
                                 { let __v = index; compat::write(__this, |__t| __t.ultrasequencer_next_slot = __v); }
                             }
-                            (({ let __f = compat::dispatch(__this, |__t| __t.get_slots()); __f(&compat::view(__this, |a| a as compat::Shared<dyn ExperimentSolver>)) })).insert(index, item_stack.clone());
+                            // java: getSlots().put(index, itemStack); - the solver's own map (`getSlots()` answers the field)
+                            compat::write(__this, |__t| { __t.experiment_solver_base_mut().slots.insert(index, item_stack.clone()); });
                         }
                     }
                     ({ let __f = compat::dispatch(__this, |__t| __t.set_state()); __f(&compat::view(__this, |a| a as compat::Shared<dyn ExperimentSolver>), State::Wait) });
                 }
             }
             State::Wait => {
-                // TODO(fabric2seer): the condition: `getSlot` on a Object
-                //   java: screen.getMenu(..).getSlot(..).getItem(..).getHoverName(..).getString(..).startsWith(..)
-                if todo!("fabric2seer: the condition (TODO above)") {
+                // java: if (screen.getMenu().getSlot(49).getItem().getHoverName().getString().startsWith("Timer: "))
+                if compat::component_of(__item_at(49).get_hover_name()).get_string().starts_with("Timer: ") {
                     ({ let __f = compat::dispatch(__this, |__t| __t.set_state()); __f(&compat::view(__this, |a| a as compat::Shared<dyn ExperimentSolver>), State::Show) });
                     ContainerSolverManager::mark_highlights_dirty();
                 }
             }
             State::End => {
-                // TODO(fabric2seer): `getSlot` on a Object
-                //   java: String name = screen.getMenu().getSlot(49).getItem().getHoverName().getString();
-                let mut name: String = todo!("fabric2seer: the initialiser of `name` (TODO above)");
+                // java: String name = screen.getMenu().getSlot(49).getItem().getHoverName().getString();
+                let mut name: String = compat::component_of(__item_at(49).get_hover_name()).get_string();
                 if !(name.starts_with("Timer: ")) {
                     if name == "Remember the pattern!" {
-                        (({ let __f = compat::dispatch(__this, |__t| __t.get_slots()); __f(&compat::view(__this, |a| a as compat::Shared<dyn ExperimentSolver>)) })).clear();
+                        // java: getSlots().clear();
+                        compat::write(__this, |__t| __t.experiment_solver_base_mut().slots.clear());
                         ({ let __f = compat::dispatch(__this, |__t| __t.set_state()); __f(&compat::view(__this, |a| a as compat::Shared<dyn ExperimentSolver>), State::Remember) });
                     } else {
                         ({ let __f = compat::dispatch(__this, |__t| __t.reset()); __f(&compat::view(__this, |a| a as compat::Shared<dyn Resettable>)) });
@@ -264,12 +265,12 @@ impl UltrasequencerSolver {
             return ({ let __f = compat::dispatch(__this, |__t| __t.should_block_incorrect_clicks()); __f(&compat::view(__this, |a| a as compat::Shared<dyn ExperimentSolver>)) });
         }
         let mut count: i32 = (((({ let __f = compat::dispatch(__this, |__t| __t.get_slots()); __f(&compat::view(__this, |a| a as compat::Shared<dyn ExperimentSolver>)) })).get(&compat::read(__this, |__t| __t.ultrasequencer_next_slot)).cloned().unwrap()).get_count()).wrapping_add(1);
-        // TODO(fabric2seer): static field Int2ObjectMap.Entry
-        //   java: getSlots().int2ObjectEntrySet().stream()
-        //   java: 			.filter(entry -> entry.getValue().getCount() == count)
-        //   java: 			.findAny()
-        //   java: 			.map(Int2ObjectMap.Entry::getIntKey)
-        //   java: 			.ifPresent(nextSlot -> this.ultrasequencerNextSlot = nextSlot);
+        // java: getSlots().int2ObjectEntrySet().stream().filter(entry -> entry.getValue().getCount() == count).findAny()
+        //   .map(Int2ObjectMap.Entry::getIntKey).ifPresent(nextSlot -> this.ultrasequencerNextSlot = nextSlot);
+        let __next: Option<i32> = compat::read(__this, |__t| __t.experiment_solver_base().slots.iter().find(|(_, v)| v.get_count() == count).map(|(k, _)| *k));
+        if let Some(next_slot) = __next {
+            compat::write(__this, |__t| __t.ultrasequencer_next_slot = next_slot);
+        }
         return <dyn ContainerSolver>::on_click_slot_body(&compat::view(__this, |a| a as compat::Shared<dyn ContainerSolver>), slot, stack, screen_id, button);
     }
 
@@ -280,22 +281,23 @@ impl UltrasequencerSolver {
 
     /// java: @Override public void markDirty()
     pub fn mark_dirty_impl(__this: &compat::Shared<Self>) {
-        if let Some(generic_container_screen) = compat::minecraft().gui.screen().unwrap().as_any().downcast_ref::<ContainerScreen>() {
-            // TODO(fabric2seer): field `slots` of a value of unknown type
-            //   java: List<Slot> slots = genericContainerScreen.getMenu().slots.subList(0, genericContainerScreen.getMenu().getRowCount() * 9);
-            let mut slots: Vec<Slot> = todo!("fabric2seer: the initialiser of `slots` (TODO above)");
-            let mut slot_map: std::collections::HashMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack> = ContainerSolverManager::slot_map(&slots);
+        // java: if (Minecraft.getInstance().gui.screen() instanceof ContainerScreen genericContainerScreen)
+        if matches!(compat::minecraft().gui.screen_kind, mcrust::net::minecraft::client::gui::gui::ScreenKind::Container) {
+            // java: List<Slot> slots = genericContainerScreen.getMenu().slots.subList(0, genericContainerScreen.getMenu().getRowCount() * 9);
+            //   Int2ObjectMap<ItemStack> slotMap = ContainerSolverManager.slotMap(slots); - the items by position
+            let __row_count: i32 = mcrust::mcrust::modding::game::with_chest_menu(|__chest| __chest.get_row_count()).unwrap_or(0);
+            let mut slot_map: std::collections::HashMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack> = compat::with_open_menu(|menu, containers| menu.slots.iter().take((__row_count.wrapping_mul(9)).max(0) as usize).enumerate().map(|(i, slot)| (i as i32, slot.get_item(containers).duplicate())).collect()).unwrap_or_default();
             for pane_slot in PANE_SLOTS.iter().copied() {
                 let mut slot_item: Option<mcrust::net::minecraft::world::item::item_stack::ItemStack> = slot_map.get(&pane_slot).cloned();
-                // TODO(fabric2seer): `get_block` takes 1 argument(s) in the port (`item: &Arc<Item>`), Java passes 0
-                if slot_item.is_some() && !(slot_item.as_ref().unwrap().is_empty()) && let Some(block_item) = slot_item.as_ref().unwrap().get_item().as_any().downcast_ref::<Item>() && let Some(stained_glass_pane_block) = block_item::get_block().unwrap().as_any().downcast_ref::<StainedGlassPaneBlock>() {
-                    // TODO(fabric2seer): `get_color` takes 1 argument(s) in the port (`block: &Block`), Java passes 0
-                    // rust: let mut pane_color: DyeColor = stained_glass_pane_block::get_color();
-                    let mut pane_color: DyeColor = todo!("fabric2seer: the initialiser of `paneColor` (TODO above)");
+                // java: slotItem.getItem() instanceof BlockItem blockItem && blockItem.getBlock() instanceof StainedGlassPaneBlock stainedGlassPaneBlock
+                let __pane_block = slot_item.as_ref().filter(|__s| !__s.is_empty()).and_then(|__s| mcrust::net::minecraft::world::item::block_item::get_block(&__s.get_item())).filter(|__b| __b.class_fields::<mcrust::net::minecraft::world::level::block::stained_glass_pane_block::StainedGlassPaneBlock>().is_some());
+                if let Some(stained_glass_pane_block) = __pane_block {
+                    let mut pane_color: DyeColor = mcrust::net::minecraft::world::level::block::stained_glass_pane_block::get_color(&stained_glass_pane_block);
                     if pane_color == DyeColor::Black {
                         continue;
                     }
-                    if compat::read(__this, |__t| __t.last_color.clone()).unwrap() != pane_color {
+                    // java: if (lastColor != paneColor) - `lastColor` is null before the first round
+                    if compat::read(__this, |__t| __t.last_color.clone()) != Some(pane_color) {
                         if compat::read(__this, |__t| __t.last_color.clone()).is_some() {
                             ({ let __f = compat::dispatch(__this, |__t| __t.set_state()); __f(&compat::view(__this, |a| a as compat::Shared<dyn ExperimentSolver>), State::End) });
                         }

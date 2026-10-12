@@ -54,9 +54,9 @@ impl QuiverWarning {
     /// java: private static void onChatMessage(Type warning)
     pub fn on_chat_message_1(mut warning: Type) {
         if !(Utils::is_in_dungeons()) {
-            hud::set_title_time(component::translatable(&warning.fields().key).with_style_format(ChatFormatting::Red));
+            hud_set_title(&mut compat::minecraft().gui.hud, component::translatable(&warning.fields().key).with_style_format(ChatFormatting::Red));
         } else if SkyblockerConfigManager::get().general.quiver_warning.enable_quiver_warning_in_dungeons {
-            hud::set_title_time(component::translatable(&warning.fields().key).with_style_format(ChatFormatting::Red));
+            hud_set_title(&mut compat::minecraft().gui.hud, component::translatable(&warning.fields().key).with_style_format(ChatFormatting::Red));
             compat::set_state(&WARNING, Some(warning));
         }
     }
@@ -66,7 +66,7 @@ impl QuiverWarning {
         if compat::get_state(&WARNING).is_some() && SkyblockerConfigManager::get().general.quiver_warning.enable_quiver_warning && SkyblockerConfigManager::get().general.quiver_warning.enable_quiver_warning_after_dungeon && !(Utils::is_in_dungeons()) {
             let hud = &mut compat::minecraft().gui.hud;
             hud.reset_title_times();
-            hud::set_title_time(component::translatable(&compat::lock(&WARNING).unwrap().fields().key).with_style_format(ChatFormatting::Red));
+            hud_set_title(hud, component::translatable(&compat::lock(&WARNING).unwrap().fields().key).with_style_format(ChatFormatting::Red));
             compat::set_state(&WARNING, None);
         }
     }
@@ -149,4 +149,11 @@ impl TypeFields {
         this
     }
 
+}
+
+/// `Hud.setTitle(title)` (Hud:1253-1256): `this.title = title` and the clock restart, which the port's `set_title_time`
+/// computes (`ClientPacketListener::apply_set_title_text` writes the two the same way).
+fn hud_set_title(hud: &mut Hud, title: mcrust::net::minecraft::network::chat::mutable_component::MutableComponent) {
+    hud.title = Some(mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(title));
+    hud.title_time = hud::set_title_time(hud.title_times);
 }

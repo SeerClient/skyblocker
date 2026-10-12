@@ -36,9 +36,17 @@ impl SideTabButtonWidgetBase {
     /// java: public SideTabButtonWidget(int x, int y, boolean toggled, WidgetSprites sprites, ItemStack icon) (built by the most-derived class's `wrap`, then run on its handle)
     pub fn new_in<__R>(mut x: i32, mut y: i32, mut toggled: bool, mut sprites: WidgetSprites, mut icon: mcrust::net::minecraft::world::item::item_stack::ItemStack, __wrap: impl FnOnce(Self) -> (compat::Shared<dyn SideTabButtonWidget>, __R)) -> (compat::Shared<dyn SideTabButtonWidget>, __R) {
         let __init_icon = Some(icon.copy());
-        // TODO(fabric2seer): `new ImageButton(..)`: the port has no `ImageButton::new`
-        //   java: super(x, y, 35, 27, sprites, _ -> {});
-        let (__this, __r): (compat::Shared<dyn SideTabButtonWidget>, __R) = todo!("constructor");
+        // java: super(x, y, 35, 27, sprites, _ -> {}); - `ImageButton(x, y, width, height, sprites, onPress)`, whose message
+        // is `CommonComponents.EMPTY`: the port's ImageButton is an `AbstractWidget` of kind `ImageButton(sprites)`,
+        // and the press `_ -> {}` does nothing
+        let base = AbstractWidget::new(x, y, 35, 27, String::new(), mcrust::net::minecraft::client::gui::components::abstract_widget::WidgetKind::ImageButton(sprites), mcrust::net::minecraft::client::gui::components::abstract_widget::OnPress::Lambda(mcrust::net::minecraft::client::gui::components::abstract_widget::PressLambda::new(|_, _| {})));
+        let this = Self {
+            base,
+            icon: __init_icon,
+            // java: protected boolean selected = false;
+            selected: false,
+        };
+        let (__this, __r): (compat::Shared<dyn SideTabButtonWidget>, __R) = __wrap(this);
         (__this, __r)
     }
 
@@ -52,9 +60,12 @@ impl SideTabButtonWidgetBase {
 
     /// java: public SideTabButtonWidget(int x, int y, boolean toggled, ItemStack icon) (built by the most-derived class's `wrap`, then run on its handle)
     pub fn new_4_in<__R>(mut x: i32, mut y: i32, mut toggled: bool, mut icon: mcrust::net::minecraft::world::item::item_stack::ItemStack, __wrap: impl FnOnce(Self) -> (compat::Shared<dyn SideTabButtonWidget>, __R)) -> (compat::Shared<dyn SideTabButtonWidget>, __R) {
-        // TODO(fabric2seer): static `RecipeBookTabButton.SPRITES` has no Rust counterpart in the port's RecipeBookTabButton file
-        //   java: this(x, y, toggled, RecipeBookTabButton.SPRITES, icon);
-        let (__this, __r): (compat::Shared<dyn SideTabButtonWidget>, __R) = todo!("constructor");
+        // java: this(x, y, toggled, RecipeBookTabButton.SPRITES, icon);
+        // (`RecipeBookTabButton.SPRITES` = `new WidgetSprites(recipe_book/tab, recipe_book/tab_selected)`: the port keeps
+        // its two names as functions)
+        use mcrust::net::minecraft::client::gui::screens::recipebook::recipe_book_tab_button;
+        let sprites = WidgetSprites::with_focused(recipe_book_tab_button::tab_sprite(), recipe_book_tab_button::tab_selected_sprite());
+        let (__this, __r) = Self::new_in(x, y, toggled, sprites, icon, __wrap);
         (__this, __r)
     }
 
@@ -109,9 +120,18 @@ impl dyn SideTabButtonWidget {
 
     /// java: @Override public void extractContents(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta)
     pub fn extract_contents_body(__this: &compat::Shared<dyn SideTabButtonWidget>, graphics: &mut GuiGraphicsExtractor, mut mouse_x: i32, mut mouse_y: i32, mut delta: f32) {
-        // TODO(fabric2seer): `ImageButton.sprites` has no Rust field in the port (searched net.minecraft.client.gui.components.ImageButton and its supertypes)
-        // rust: let identifier = { let (__q0, __q1,) = (true, compat::read(__this, |__t| __t.side_tab_button_widget_base().selected),); __this.lock().borrow().side_tab_button_widget_base().sprites.get(__q0, __q1) };
-        let mut identifier: Identifier = todo!("fabric2seer: the initialiser of `identifier` (TODO above)");
+        // java: Identifier identifier = sprites.get(true, this.selected);
+        // (`ImageButton.sprites` is the port's `WidgetKind::ImageButton(sprites)` of the widget half)
+        // (the constructor builds the half as an ImageButton, so the kind is always that)
+        let Some(mut identifier): Option<Identifier> = compat::read(__this, |__t| {
+            let selected = __t.side_tab_button_widget_base().selected;
+            match &__t.side_tab_button_widget_base().base.kind {
+                mcrust::net::minecraft::client::gui::components::abstract_widget::WidgetKind::ImageButton(sprites) => Some(sprites.get(true, selected).clone()),
+                _ => None,
+            }
+        }) else {
+            return;
+        };
         let mut x: i32 = __this.lock().borrow().side_tab_button_widget_base().get_x();
         if compat::read(__this, |__t| __t.side_tab_button_widget_base().selected) {
             x = x.wrapping_sub(2);
@@ -122,8 +142,8 @@ impl dyn SideTabButtonWidget {
 
     /// java: @Override public void onClick(MouseButtonEvent click, boolean doubled)
     pub fn on_click_body(__this: &compat::Shared<dyn SideTabButtonWidget>, click: &MouseButtonEvent, mut doubled: bool) {
-        // TODO(fabric2seer): `ImageButton.onClick` has no Rust method in the port (looked for `on_click` in ImageButton and its supertypes)
-        // rust: __this.lock().borrow_mut().side_tab_button_widget_base_mut().base.on_click(click, doubled);
+        // java: super.onClick(click, doubled); - `AbstractButton.onClick` is `onPress(event)`, and this widget's press is
+        // `_ -> {}` (the constructor's): nothing to run
         if !(compat::read(__this, |__t| __t.side_tab_button_widget_base().selected)) {
             { let __v = true; compat::write(__this, |__t| __t.side_tab_button_widget_base_mut().selected = __v); }
         }

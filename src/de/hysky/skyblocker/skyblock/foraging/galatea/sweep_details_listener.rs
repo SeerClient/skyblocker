@@ -114,7 +114,7 @@ impl SweepDetailsListener {
         if !(sweep_details_hud_widget::LOCATIONS.contains(&Utils::get_location())) {
             return ChatFilterResult::Pass;
         }
-        if !(WidgetManager::is_widget_in_current_screen(&(sweep_details_hud_widget::INSTANCE.get_mut().clone() as compat::Shared<dyn HudWidget>))) {
+        if !(sweep_details_hud_widget::INSTANCE.get().clone().map_or(false, |__w| WidgetManager::is_widget_in_current_screen(&(__w as compat::Shared<dyn HudWidget>)))) {
             return ChatFilterResult::Pass;
         }
         let mut msg: String = message.get_string();

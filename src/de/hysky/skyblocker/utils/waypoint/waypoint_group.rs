@@ -23,7 +23,6 @@ use mcrust::net::minecraft::world::entity::item_owner::ItemOwner as _;
 
 /// java: public static final Waypoint.Type DEFAULT_TYPE = Waypoint.Type.WAYPOINT;
 pub static DEFAULT_TYPE: LazyLock<Type> = LazyLock::new(|| Type::Waypoint);
-// TODO(fabric2seer): `.id(..)` on a S
 //   java: public static final Codec<WaypointGroup> CODEC = RecordCodecBuilder.create(instance -> instance.group(
 //   java: 			Codec.STRING.fieldOf("name").forGetter(WaypointGroup::name),
 //   java: 			Codec.STRING.fieldOf("island").xmap(Location::from, Location::id).forGetter(WaypointGroup::island),
@@ -33,20 +32,64 @@ pub static DEFAULT_TYPE: LazyLock<Type> = LazyLock::new(|| Type::Waypoint);
 //   java: 			Waypoint.Type.CODEC.lenientOptionalFieldOf("waypointType", DEFAULT_TYPE).forGetter(WaypointGroup::waypointType)
 //   java: 	).apply(instance, WaypointGroup::new));
 /// java: public static final Codec<WaypointGroup> CODEC = RecordCodecBuilder.create(instance -> instance.group( Codec.STRING.fieldOf("name").forGetter(WaypointGroup::name), Codec.STRING.fieldOf("island").xmap(
-pub static CODEC: compat::MainThread<CodecRef<compat::Shared<WaypointGroup>>> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `CODEC` - see the TODO above"));
-// TODO(fabric2seer): `.id(..)` on a S
+pub static CODEC: compat::MainThread<CodecRef<compat::Shared<WaypointGroup>>> = compat::MainThread::new(|| {
+    // rust: `RecordCodecBuilder` builds a record of `Send + Sync` values; a waypoint handle is not one, so the record is
+    // over the getters' values (the waypoint list carried in a render-thread cell, where Java reads and writes it) and
+    // `xmap`ped to the group - `apply(instance, WaypointGroup::new)` on decode, the `forGetter`s on encode
+    type Fields = (String, Location, compat::RenderThread<Vec<compat::Shared<dyn NamedWaypoint>>>, bool, bool, Type);
+    let record: CodecRef<Fields> = record_codec_builder::create(record_codec_builder::apply6(
+        // Codec.STRING.fieldOf("name").forGetter(WaypointGroup::name)
+        record_codec_builder::of(|o: &Fields| o.0.clone(), codec::field_of(codec::string_codec(), "name")),
+        // Codec.STRING.fieldOf("island").xmap(Location::from, Location::id).forGetter(WaypointGroup::island)
+        record_codec_builder::of(|o: &Fields| o.1, codec::field_of(codec::xmap(codec::string_codec(), |id: String| Location::from(&id), |island: &Location| island.id()), "island")),
+        // NamedWaypoint.CODEC.listOf().fieldOf("waypoints").forGetter(WaypointGroup::waypoints)
+        record_codec_builder::of(|o: &Fields| o.2.clone(), codec::field_of(waypoints_codec(named_waypoint::CODEC.get().clone()), "waypoints")),
+        // Codec.BOOL.lenientOptionalFieldOf("ordered", false).forGetter(WaypointGroup::ordered)
+        record_codec_builder::of(|o: &Fields| o.3, codec::lenient_optional_field_of(codec::bool_codec(), "ordered", false)),
+        // Codec.BOOL.lenientOptionalFieldOf("renderThroughWalls", true).forGetter(WaypointGroup::renderThroughWalls)
+        record_codec_builder::of(|o: &Fields| o.4, codec::lenient_optional_field_of(codec::bool_codec(), "renderThroughWalls", true)),
+        // Waypoint.Type.CODEC.lenientOptionalFieldOf("waypointType", DEFAULT_TYPE).forGetter(WaypointGroup::waypointType)
+        record_codec_builder::of(|o: &Fields| o.5, codec::lenient_optional_field_of(crate::de::hysky::skyblocker::utils::waypoint::waypoint::TYPE_CODEC.get().clone(), "waypointType", *DEFAULT_TYPE)),
+        |name, island, waypoints, ordered, render_through_walls, waypoint_type| (name, island, waypoints, ordered, render_through_walls, waypoint_type),
+    ));
+    codec::xmap(
+        record,
+        |(name, island, waypoints, ordered, render_through_walls, waypoint_type): Fields| WaypointGroup::new_6(name, island, waypoints.get().clone(), ordered, render_through_walls, waypoint_type),
+        |group: &compat::Shared<WaypointGroup>| (WaypointGroup::name(group), WaypointGroup::island(group), compat::RenderThread::new(WaypointGroup::waypoints(group)), WaypointGroup::ordered(group), WaypointGroup::render_through_walls(group), WaypointGroup::waypoint_type(group)),
+    )
+});
 //   java: public static final Codec<WaypointGroup> SKYTILS_CODEC = RecordCodecBuilder.create(instance -> instance.group(
 //   java: 			Codec.STRING.fieldOf("name").forGetter(WaypointGroup::name),
 //   java: 			Codec.STRING.fieldOf("island").xmap(Location::from, Location::id).forGetter(WaypointGroup::island),
 //   java: 			NamedWaypoint.SKYTILS_CODEC.listOf().fieldOf("waypoints").forGetter(WaypointGroup::waypoints)
 //   java: 	).apply(instance, WaypointGroup::new));
 /// java: public static final Codec<WaypointGroup> SKYTILS_CODEC = RecordCodecBuilder.create(instance -> instance.group( Codec.STRING.fieldOf("name").forGetter(WaypointGroup::name), Codec.STRING.fieldOf("island
-pub static SKYTILS_CODEC: compat::MainThread<CodecRef<compat::Shared<WaypointGroup>>> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `SKYTILS_CODEC` - see the TODO above"));
-// TODO(fabric2seer): `.waypoints(..)` on a S
+pub static SKYTILS_CODEC: compat::MainThread<CodecRef<compat::Shared<WaypointGroup>>> = compat::MainThread::new(|| {
+    // rust: the record is over the getters' values, `xmap`ped to the group (see `CODEC`)
+    type Fields = (String, Location, compat::RenderThread<Vec<compat::Shared<dyn NamedWaypoint>>>);
+    let record: CodecRef<Fields> = record_codec_builder::create(record_codec_builder::apply3(
+        record_codec_builder::of(|o: &Fields| o.0.clone(), codec::field_of(codec::string_codec(), "name")),
+        // Codec.STRING.fieldOf("island").xmap(Location::from, Location::id).forGetter(WaypointGroup::island)
+        record_codec_builder::of(|o: &Fields| o.1, codec::field_of(codec::xmap(codec::string_codec(), |id: String| Location::from(&id), |island: &Location| island.id()), "island")),
+        // NamedWaypoint.SKYTILS_CODEC.listOf().fieldOf("waypoints").forGetter(WaypointGroup::waypoints)
+        record_codec_builder::of(|o: &Fields| o.2.clone(), codec::field_of(waypoints_codec(named_waypoint::SKYTILS_CODEC.get().clone()), "waypoints")),
+        |name, island, waypoints| (name, island, waypoints),
+    ));
+    codec::xmap(
+        record,
+        // WaypointGroup::new - (String name, Location island, List<NamedWaypoint> waypoints)
+        |(name, island, waypoints): Fields| WaypointGroup::new_3(name, island, waypoints.get().clone()),
+        |group: &compat::Shared<WaypointGroup>| (WaypointGroup::name(group), WaypointGroup::island(group), compat::RenderThread::new(WaypointGroup::waypoints(group))),
+    )
+});
 //   java: public static final Codec<WaypointGroup> COLEWEIGHT_CODEC = NamedWaypoint.COLEWEIGHT_CODEC.listOf().xmap(coleWeightWaypoints -> new WaypointGroup("Coleweight", Location.UNKNOWN, coleWeightWaypoints, true, true, DEFAULT_TYPE), WaypointGroup::waypoints);
 /// java: public static final Codec<WaypointGroup> COLEWEIGHT_CODEC = NamedWaypoint.COLEWEIGHT_CODEC.listOf().xmap(coleWeightWaypoints -> new WaypointGroup("Coleweight", Location.UNKNOWN, coleWeightWaypoints, t
-pub static COLEWEIGHT_CODEC: compat::MainThread<CodecRef<compat::Shared<WaypointGroup>>> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `COLEWEIGHT_CODEC` - see the TODO above"));
-// TODO(fabric2seer): `.waypoints(..)` on a value of unknown type
+pub static COLEWEIGHT_CODEC: compat::MainThread<CodecRef<compat::Shared<WaypointGroup>>> = compat::MainThread::new(|| codec::xmap(
+    // NamedWaypoint.COLEWEIGHT_CODEC.listOf().xmap(coleWeightWaypoints -> new WaypointGroup("Coleweight", Location.UNKNOWN, coleWeightWaypoints, true, true, DEFAULT_TYPE), WaypointGroup::waypoints)
+    codec::list(named_waypoint::COLEWEIGHT_CODEC.get().clone()),
+    |cole_weight_waypoints: Vec<compat::Shared<dyn NamedWaypoint>>| WaypointGroup::new_6("Coleweight".to_string(), Location::Unknown, cole_weight_waypoints, true, true, *DEFAULT_TYPE),
+    |group: &compat::Shared<WaypointGroup>| WaypointGroup::waypoints(group),
+));
 //   java: public static final Codec<WaypointGroup> SKYBLOCKER_LEGACY_ORDERED_CODEC = RecordCodecBuilder.create(instance -> instance.group(
 //   java: 			Codec.STRING.fieldOf("name").forGetter(WaypointGroup::name),
 //   java: 			Codec.BOOL.fieldOf("enabled").forGetter(group -> !group.waypoints().isEmpty() && group.waypoints().stream().allMatch(Waypoint::isEnabled)),
@@ -56,7 +99,54 @@ pub static COLEWEIGHT_CODEC: compat::MainThread<CodecRef<compat::Shared<Waypoint
 //   java: 		return new WaypointGroup(name, Location.UNKNOWN, waypoints, true, true, DEFAULT_TYPE);
 //   java: 	}));
 /// java: public static final Codec<WaypointGroup> SKYBLOCKER_LEGACY_ORDERED_CODEC = RecordCodecBuilder.create(instance -> instance.group( Codec.STRING.fieldOf("name").forGetter(WaypointGroup::name), Codec.BOOL
-pub static SKYBLOCKER_LEGACY_ORDERED_CODEC: compat::MainThread<CodecRef<compat::Shared<WaypointGroup>>> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `SKYBLOCKER_LEGACY_ORDERED_CODEC` - see the TODO above"));
+pub static SKYBLOCKER_LEGACY_ORDERED_CODEC: compat::MainThread<CodecRef<compat::Shared<WaypointGroup>>> = compat::MainThread::new(|| {
+    // rust: the record is over the getters' values, `xmap`ped to the group (see `CODEC`)
+    type Fields = (String, bool, compat::RenderThread<Vec<compat::Shared<dyn NamedWaypoint>>>);
+    let record: CodecRef<Fields> = record_codec_builder::create(record_codec_builder::apply3(
+        // Codec.STRING.fieldOf("name").forGetter(WaypointGroup::name)
+        record_codec_builder::of(|o: &Fields| o.0.clone(), codec::field_of(codec::string_codec(), "name")),
+        // Codec.BOOL.fieldOf("enabled").forGetter(group -> !group.waypoints().isEmpty() && group.waypoints().stream().allMatch(Waypoint::isEnabled))
+        record_codec_builder::of(|o: &Fields| o.1, codec::field_of(codec::bool_codec(), "enabled")),
+        // NamedWaypoint.SKYBLOCKER_LEGACY_ORDERED_CODEC.listOf().fieldOf("waypoints").forGetter(WaypointGroup::waypoints)
+        record_codec_builder::of(|o: &Fields| o.2.clone(), codec::field_of(waypoints_codec(named_waypoint::SKYBLOCKER_LEGACY_ORDERED_CODEC.get().clone()), "waypoints")),
+        |name, enabled, waypoints| (name, enabled, waypoints),
+    ));
+    codec::xmap(
+        record,
+        // (name, enabled, waypoints) -> { waypoints.forEach(enabled ? Waypoint::setMissing : Waypoint::setFound);
+        //   return new WaypointGroup(name, Location.UNKNOWN, waypoints, true, true, DEFAULT_TYPE); }
+        |(name, enabled, waypoints): Fields| {
+            let waypoints: Vec<compat::Shared<dyn NamedWaypoint>> = waypoints.get().clone();
+            for waypoint in waypoints.iter() {
+                let waypoint = compat::view(waypoint, |a| a as compat::Shared<dyn Waypoint>);
+                if enabled {
+                    let __f = compat::dispatch(&*waypoint, |__t| __t.set_missing());
+                    __f(&waypoint);
+                } else {
+                    let __f = compat::dispatch(&*waypoint, |__t| __t.set_found());
+                    __f(&waypoint);
+                }
+            }
+            WaypointGroup::new_6(name, Location::Unknown, waypoints, true, true, *DEFAULT_TYPE)
+        },
+        |group: &compat::Shared<WaypointGroup>| {
+            let waypoints: Vec<compat::Shared<dyn NamedWaypoint>> = WaypointGroup::waypoints(group);
+            let enabled: bool = !waypoints.is_empty() && waypoints.iter().all(|w| compat::read(w, |t| t.waypoint_base().enabled));
+            (WaypointGroup::name(group), enabled, compat::RenderThread::new(waypoints))
+        },
+    )
+});
+
+/// `elementCodec.listOf()` for the waypoint list of a group record: the list in a render-thread cell, which is the
+/// `Send + Sync` value a record field must be (the waypoints themselves are not `Send`; Java reads and writes them on
+/// the render thread, where every waypoint file is loaded and saved).
+fn waypoints_codec(element_codec: CodecRef<compat::Shared<dyn NamedWaypoint>>) -> CodecRef<compat::RenderThread<Vec<compat::Shared<dyn NamedWaypoint>>>> {
+    codec::xmap(
+        codec::list(element_codec),
+        |waypoints: Vec<compat::Shared<dyn NamedWaypoint>>| compat::RenderThread::new(waypoints),
+        |waypoints: &compat::RenderThread<Vec<compat::Shared<dyn NamedWaypoint>>>| waypoints.get().clone(),
+    )
+}
 
 /// java: public class WaypointGroup
 #[derive(Clone)]
@@ -183,9 +273,9 @@ impl WaypointGroup {
 
     /// java: public WaypointGroup filterWaypoints(Predicate<NamedWaypoint> predicate)
     pub fn filter_waypoints(__this: &compat::Shared<Self>, predicate: Arc<dyn Fn(compat::Shared<dyn NamedWaypoint>) -> bool>) -> compat::Shared<WaypointGroup> {
-        // TODO(fabric2seer): not a lambda
-        //   java: return new WaypointGroup(name, island, waypoints.stream().filter(predicate).toList(), ordered, renderThroughWalls, waypointType);
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        // java: return new WaypointGroup(name, island, waypoints.stream().filter(predicate).toList(), ordered, renderThroughWalls, waypointType);
+        let waypoints: Vec<compat::Shared<dyn NamedWaypoint>> = compat::read(__this, |__t| __t.waypoints.clone()).into_iter().filter(|w| (predicate)(w.clone())).collect();
+        return WaypointGroup::new_6(compat::read(__this, |__t| __t.name.clone()), compat::read(__this, |__t| __t.island.clone()).unwrap(), waypoints, compat::read(__this, |__t| __t.ordered), compat::read(__this, |__t| __t.render_through_walls), compat::read(__this, |__t| __t.waypoint_type.clone()).unwrap());
     }
 
     /// java: public WaypointGroup sortWaypoints(Comparator<NamedWaypoint> comparator)
@@ -256,7 +346,10 @@ impl WaypointGroup {
         let mut next_index: i32 = ((compat::read(__this, |__t| __t.current_index)).wrapping_add(1)).wrapping_rem(__this.lock().borrow().waypoints.len() as i32);
         for i in 0..(__this.lock().borrow().waypoints.len() as i32) {
             let mut waypoint: compat::Shared<dyn NamedWaypoint> = __this.lock().borrow().waypoints[(i) as usize].clone();
-            if let Some(ordered_named_waypoint) = waypoint.lock().borrow().as_any().downcast_ref::<compat::Shared<OrderedNamedWaypoint>>() {
+            // java: if (waypoint instanceof OrderedNamedWaypoint orderedNamedWaypoint)
+            if compat::read(&waypoint, |__t| __t.dyn_any().is::<OrderedNamedWaypoint>()) {
+                let ordered_named_waypoint: compat::Shared<OrderedNamedWaypoint> = compat::handle_as::<OrderedNamedWaypoint, _>(&waypoint);
+                let ordered_named_waypoint = &ordered_named_waypoint;
                 { let __v = i; compat::write(ordered_named_waypoint, |__t| __t.index = __v); }
                 if i == previous_index {
                     { let __v = RelativeIndex::Previous; compat::write(ordered_named_waypoint, |__t| __t.relative_index = __v); }
@@ -281,18 +374,83 @@ impl WaypointGroup {
     }
 
     /// java: @Override @GenEquals public native boolean equals(Object o);
-    pub fn equals(&self, o: &compat::Object) -> bool {
-        todo!("native method: its body is generated at build time by an annotation processor (@GenEquals)")
+    /// The body the build's `ObjectProcessor` generates (`java.lang.runtime.ObjectMethods`' equals, as a record's):
+    /// the same object, or a `WaypointGroup` whose every non-static, non-transient field is equal - `name`, `island`,
+    /// `waypoints` (`List.equals`: the same size, each pair `NamedWaypoint.equals`), `ordered`, `renderThroughWalls`,
+    /// `waypointType`; `currentIndex` is `transient`.
+    pub fn equals(&self, o: &WaypointGroup) -> bool {
+        if std::ptr::eq(self, o) {
+            return true;
+        }
+        self.name == o.name
+            && self.island == o.island
+            && self.waypoints.len() == o.waypoints.len()
+            && self.waypoints.iter().zip(o.waypoints.iter()).all(|(a, b)| <dyn NamedWaypoint>::equals_shared(a, b))
+            && self.ordered == o.ordered
+            && self.render_through_walls == o.render_through_walls
+            && self.waypoint_type == o.waypoint_type
+    }
+
+    /// java: `a.equals(b)` on two group references (`List.indexOf`, `Multimap.remove(key, value)`, `List.equals`)
+    pub fn equals_shared(a: &compat::Shared<WaypointGroup>, b: &compat::Shared<WaypointGroup>) -> bool {
+        // read borrows only: a converted waypoint's type supplier reads its group (`this::waypointType`)
+        compat::read(a, |a| compat::read(b, |b| a.equals(b)))
     }
 
     /// java: @Override @GenHashCode public native int hashCode();
+    /// The body the build's `ObjectProcessor` generates (`ObjectMethods`' hashCode): `31 * h + hash(field)` from 0
+    /// over the same fields. `Location` and `Waypoint.Type` are enums, whose `hashCode` is the JVM's identity hash -
+    /// the port's own value stands in for it.
     pub fn hash_code(&self) -> i32 {
-        todo!("native method: its body is generated at build time by an annotation processor (@GenHashCode)")
+        // `List.hashCode()`: `31 * h + e.hashCode()` from 1, each element's own `hashCode()`
+        let waypoints: i32 = self.waypoints.iter().fold(1i32, |h, w| {
+            let w = compat::view(w, |a| a as compat::Shared<dyn Waypoint>);
+            let __f = compat::dispatch(&*w, |__t| __t.hash_code());
+            h.wrapping_mul(31).wrapping_add(__f(&w))
+        });
+        let boolean_hash_code = |b: bool| if b { 1231 } else { 1237 };
+        [
+            compat::string_hash_code(&self.name),
+            self.island.as_ref().map_or(0, |island| compat::hash_code(island)),
+            waypoints,
+            boolean_hash_code(self.ordered),
+            boolean_hash_code(self.render_through_walls),
+            self.waypoint_type.as_ref().map_or(0, |waypoint_type| compat::hash_code(waypoint_type)),
+        ]
+        .iter()
+        .fold(0i32, |h, e| h.wrapping_mul(31).wrapping_add(*e))
     }
 
     /// java: @Override @GenToString public native String toString();
+    /// The body the build's `ObjectProcessor` generates (`ObjectMethods`' toString):
+    /// `WaypointGroup[name=.., island=.., waypoints=[..], ordered=.., renderThroughWalls=.., waypointType=..]`.
+    /// `island` prints as `Location.toString()` (its friendly name), `waypointType` as `Type.toString()` (translated),
+    /// and each waypoint as `Object.toString()` (`NamedWaypoint` overrides none: the class name, `@`, and its
+    /// `hashCode()` in hex).
     pub fn to_string(&self) -> String {
-        todo!("native method: its body is generated at build time by an annotation processor (@GenToString)")
+        let waypoints: Vec<String> = self.waypoints.iter().map(|w| {
+            let class_name = compat::read(w, |t| {
+                if t.dyn_any().is::<OrderedNamedWaypoint>() {
+                    "de.hysky.skyblocker.utils.waypoint.OrderedNamedWaypoint"
+                } else if t.dyn_any().is::<crate::de::hysky::skyblocker::utils::waypoint::distanced_named_waypoint::DistancedNamedWaypointBase>() {
+                    "de.hysky.skyblocker.utils.waypoint.DistancedNamedWaypoint"
+                } else {
+                    "de.hysky.skyblocker.utils.waypoint.NamedWaypoint"
+                }
+            });
+            let w = compat::view(w, |a| a as compat::Shared<dyn Waypoint>);
+            let __f = compat::dispatch(&*w, |__t| __t.hash_code());
+            format!("{}@{:x}", class_name, __f(&w) as u32)
+        }).collect();
+        format!(
+            "WaypointGroup[name={}, island={}, waypoints=[{}], ordered={}, renderThroughWalls={}, waypointType={}]",
+            self.name,
+            compat::opt_str(&self.island),
+            waypoints.join(", "),
+            self.ordered,
+            self.render_through_walls,
+            compat::opt_str(&self.waypoint_type),
+        )
     }
 
 }

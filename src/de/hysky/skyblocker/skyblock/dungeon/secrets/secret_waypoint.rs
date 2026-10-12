@@ -197,8 +197,13 @@ impl Waypoint for SecretWaypoint {
     }
 
     /// java: @Override public boolean equals(Object obj) (dispatch: the body for this class)
-    fn equals(&self) -> fn(&compat::Shared<dyn Waypoint>, &compat::Object) -> bool {
+    fn equals(&self) -> fn(&compat::Shared<dyn Waypoint>, &compat::Shared<dyn Waypoint>) -> bool {
         SecretWaypoint::equals_dyn
+    }
+
+    /// java: `instanceof NamedWaypoint` - this class is one
+    fn as_named_waypoint(&self) -> Option<&crate::de::hysky::skyblocker::utils::waypoint::named_waypoint::NamedWaypointBase> {
+        Some(self.named_waypoint_base())
     }
 
     /// java: @Override public int hashCode() (dispatch: the body for this class)
@@ -280,20 +285,36 @@ impl SecretWaypoint {
     }
 
     /// java: @Override public boolean equals(Object obj)
-    pub fn equals_impl(__this: &compat::Shared<Self>, obj: &compat::Object) -> bool {
-        // TODO(fabric2seer): instanceof with a pattern binding outside an `if` condition
-        //   java: return this == obj || super.equals(obj) && obj instanceof SecretWaypoint other && secretIndex == other.secretIndex && category == other.category;
-        todo!("fabric2seer: the value of this function is in a TODO above")
+    pub fn equals_impl(__this: &compat::Shared<Self>, obj: &compat::Shared<dyn Waypoint>) -> bool {
+        // java: return this == obj || super.equals(obj) && obj instanceof SecretWaypoint other && secretIndex == other.secretIndex && category == other.category;
+        // (`super` is `DistancedNamedWaypoint`, which inherits `NamedWaypoint.equals`)
+        if std::ptr::addr_eq(std::sync::Arc::as_ptr(__this), std::sync::Arc::as_ptr(obj)) {
+            return true;
+        }
+        if !<dyn NamedWaypoint>::equals_body(&compat::view(__this, |a| a as compat::Shared<dyn NamedWaypoint>), obj) {
+            return false;
+        }
+        let Some((other_secret_index, other_category)) = compat::read(obj, |o| o.as_any().downcast_ref::<SecretWaypoint>().map(|other| (other.secret_index, other.category))) else {
+            return false;
+        };
+        return compat::read(__this, |t| t.secret_index == other_secret_index && t.category == other_category);
     }
 
     /// SecretWaypoint.equals as the dispatch of Waypoint.equals
-    pub fn equals_dyn(__this: &compat::Shared<dyn Waypoint>, __p0: &compat::Object) -> bool {
+    pub fn equals_dyn(__this: &compat::Shared<dyn Waypoint>, __p0: &compat::Shared<dyn Waypoint>) -> bool {
         Self::equals_impl(&compat::view_as::<Self, _, Self>(__this, |a| a), __p0)
     }
 
     /// java: @Override public int hashCode()
+    /// `Objects.hash(secretIndex, category.getSerializedName(), name, pos)` as Java's own `int`: the value is sent to
+    /// the other players' clients (`DungeonRoomHideWaypointMessage.waypointHash`, `SecretSync.syncSecretFound`) and
+    /// matched against THEIR `hashCode()` (`Room.getIndexByWaypointHash`), so it must be the JVM's number.
     pub fn hash_code_impl(__this: &compat::Shared<Self>) -> i32 {
-        return compat::hash_code(&(&compat::read(__this, |__t| __t.secret_index), &__this.lock().borrow().category.as_ref().unwrap().get_serialized_name(), &compat::read(__this, |__t| __t.name.clone()).unwrap(), &compat::read(__this, |__t| __t.pos.clone()).unwrap(),));
+        let (secret_index, serialized_name, name, pos) = compat::read(__this, |t| (t.secret_index, t.category.as_ref().unwrap().get_serialized_name(), t.name.clone().unwrap(), t.pos.clone().unwrap()));
+        // `Arrays.hashCode(Object[])`: `31 * h + hashCode(e)` from 1
+        return [secret_index, compat::string_hash_code(&serialized_name), component_java_hash_code(&name), pos.as_vec3i().java_hash_code()]
+            .iter()
+            .fold(1i32, |h, e| h.wrapping_mul(31).wrapping_add(*e));
     }
 
     /// SecretWaypoint.hashCode as the dispatch of Waypoint.hashCode
@@ -531,4 +552,23 @@ impl CategoryArgumentType {
         return context.get_argument::<Category>(name).cloned().unwrap();
     }
 
+}
+
+/// java: `Component.hashCode()` (`MutableComponent.hashCode:112-117`: `31 * (31 * (31 * 1 + contents.hashCode()) +
+/// style.hashCode()) + siblings.hashCode()`) for the component a secret waypoint is named with,
+/// `Component.nullToEmpty(name)`: `LiteralContents(text)` (a record of one field: `text.hashCode()`), `Style.EMPTY`
+/// (`Objects.hash` of ten nulls: `31^10`) and no siblings (`List.hashCode()` of an empty list: `1`).
+/// rust: port gap - any other component (a style, siblings, other contents) has no Java `int` in the port; such a
+/// name hashes by the port's own value (consistent with `equals`, not the JVM's number)
+fn component_java_hash_code(name: &mcrust::net::minecraft::network::chat::mutable_component::MutableComponent) -> i32 {
+    use mcrust::net::minecraft::network::chat::component::Component as _;
+    use mcrust::net::minecraft::network::chat::component_contents::ComponentContents;
+    use mcrust::net::minecraft::network::chat::contents::plain_text_contents::PlainTextContents;
+    if let ComponentContents::Text(PlainTextContents::Literal(text)) = &**name.get_contents() && name.get_style().is_empty() && name.get_siblings().is_empty() {
+        let style_empty: i32 = (0..10).fold(1i32, |h, _| h.wrapping_mul(31));
+        let siblings_empty: i32 = 1;
+        let contents: i32 = compat::string_hash_code(text);
+        return 1i32.wrapping_mul(31).wrapping_add(contents).wrapping_mul(31).wrapping_add(style_empty).wrapping_mul(31).wrapping_add(siblings_empty);
+    }
+    compat::hash_code(name)
 }

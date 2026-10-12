@@ -322,16 +322,14 @@ impl CommissionWaypointMode {
 
     /// java: @Override public String toString()
     pub fn to_string(&self) -> String {
-        // TODO(fabric2seer): call to `name(..)` (not a method of this class)
-        //   java: return I18n.get("skyblocker.config.mining.commissionWaypoints.mode." + name());
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        return mcrust::net::minecraft::client::resources::language::i18n::get(&format!("skyblocker.config.mining.commissionWaypoints.mode.{}", self.name()), &[]);
     }
 
 }
 
 impl std::fmt::Display for CommissionWaypointMode {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", CommissionWaypointMode::to_string(*self))
+        write!(f, "{}", CommissionWaypointMode::to_string(self))
     }
 }
 
@@ -449,6 +447,6 @@ impl DwarvenHudStyle {
 
 impl std::fmt::Display for DwarvenHudStyle {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", DwarvenHudStyle::to_string(*self))
+        write!(f, "{}", DwarvenHudStyle::to_string(self))
     }
 }

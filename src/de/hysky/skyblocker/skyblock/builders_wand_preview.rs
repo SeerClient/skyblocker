@@ -83,7 +83,7 @@ impl BuildersWandPreview {
         }
         let mut state: Arc<BlockState> = mcrust::mcrust::modding::game::level().unwrap().get_block_state_typed(&hit_pos);
         for pos in BlockPosSet::destroy_and_iterate_mut(&BuildersWandPreview::find_connected_faces(&mcrust::mcrust::modding::game::level().unwrap(), hit_pos.clone(), &side, &state)) {
-            BuildersWandPreview::extract_block_preview(collector, &pos.relative(side), &state);
+            BuildersWandPreview::extract_block_preview(collector, &pos.immutable().relative(side), &state);
         }
     }
 
@@ -96,14 +96,13 @@ impl BuildersWandPreview {
         while !q.is_empty() {
             let mut current: BlockPos = q.pop_front().unwrap();
             let mut mutable: MutableBlockPos = current.mutable();
-            // TODO(fabric2seer): static `Direction.values` has no Rust counterpart in the port
-            for dir in Direction::values() {
+            for dir in mcrust::net::minecraft::core::direction::VALUES {
                 if dir == *side || dir == side.get_opposite() {
                     continue;
                 }
                 mutable.move_direction(dir);
-                if !(BlockPosSet::contains(&visited, &mutable)) && std::ptr::addr_eq(std::sync::Arc::as_ptr(&world.get_block_state(&mutable.immutable())), std::sync::Arc::as_ptr(state)) {
-                    if world.get_block_state(&mutable.move_direction(*side).immutable()).is_air() {
+                if !(BlockPosSet::contains_block_pos(&visited, &mutable.immutable())) && std::ptr::addr_eq(std::sync::Arc::as_ptr(&world.get_block_state_typed(&mutable.immutable())), std::sync::Arc::as_ptr(state)) {
+                    if world.get_block_state_typed(&mutable.move_direction(*side).immutable()).is_air() {
                         let mut neighbor: BlockPos = mutable.move_direction(side.get_opposite()).immutable();
                         q.push_back(neighbor.clone());
                         BlockPosSet::add(&visited, &neighbor);

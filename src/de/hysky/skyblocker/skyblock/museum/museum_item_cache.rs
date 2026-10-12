@@ -177,39 +177,33 @@ impl MuseumItemCache {
                     // TODO(fabric2seer): static call JsonParser.parseReader(..)
                     //   java: JsonObject json = JsonParser.parseReader(reader).getAsJsonObject();
                     let mut json: serde_json::Map<String, serde_json::Value> = todo!("fabric2seer: the initialiser of `json` (TODO above)");
-                    // TODO(fabric2seer): JsonObject.asMap
-                    //   java: Map<String, JsonElement> setExceptions = json.get("set_exceptions").getAsJsonObject().asMap();
-                    let mut set_exceptions: std::collections::HashMap<String, serde_json::Value> = todo!("fabric2seer: the initialiser of `setExceptions` (TODO above)");
-                    // TODO(fabric2seer): JsonObject.asMap
-                    //   java: Map<String, JsonElement> mappedIds = json.get("mapped_ids").getAsJsonObject().asMap();
-                    let mut mapped_ids: std::collections::HashMap<String, serde_json::Value> = todo!("fabric2seer: the initialiser of `mappedIds` (TODO above)");
-                    // TODO(fabric2seer): JsonObject.asMap
-                    //   java: Map<String, JsonElement> itemToXp = json.get("itemToXp").getAsJsonObject().asMap();
-                    let mut item_to_xp: std::collections::HashMap<String, serde_json::Value> = todo!("fabric2seer: the initialiser of `itemToXp` (TODO above)");
-                    // TODO(fabric2seer): JsonObject.asMap
-                    //   java: Map<String, JsonElement> setsToItems = json.get("sets_to_items").getAsJsonObject().asMap();
-                    let mut sets_to_items: std::collections::HashMap<String, serde_json::Value> = todo!("fabric2seer: the initialiser of `setsToItems` (TODO above)");
-                    // TODO(fabric2seer): JsonObject.asMap
-                    //   java: Map<String, JsonElement> children = json.get("children").getAsJsonObject().asMap();
-                    let mut children: std::collections::HashMap<String, serde_json::Value> = todo!("fabric2seer: the initialiser of `children` (TODO above)");
-                    // TODO(fabric2seer): JsonObject.asMap
-                    //   java: Map<String, JsonElement> armorToId = json.get("armor_to_id").getAsJsonObject().asMap();
-                    let mut armor_to_id: std::collections::HashMap<String, serde_json::Value> = todo!("fabric2seer: the initialiser of `armorToId` (TODO above)");
+                    // java: Map<String, JsonElement> setExceptions = json.get("set_exceptions").getAsJsonObject().asMap();
+                    let mut set_exceptions: std::collections::HashMap<String, serde_json::Value> = compat::json::get_as_json_object(&json.get("set_exceptions").cloned().expect("java.lang.NullPointerException")).into_iter().collect();
+                    // java: Map<String, JsonElement> mappedIds = json.get("mapped_ids").getAsJsonObject().asMap();
+                    let mut mapped_ids: std::collections::HashMap<String, serde_json::Value> = compat::json::get_as_json_object(&json.get("mapped_ids").cloned().expect("java.lang.NullPointerException")).into_iter().collect();
+                    // java: Map<String, JsonElement> itemToXp = json.get("itemToXp").getAsJsonObject().asMap();
+                    let mut item_to_xp: std::collections::HashMap<String, serde_json::Value> = compat::json::get_as_json_object(&json.get("itemToXp").cloned().expect("java.lang.NullPointerException")).into_iter().collect();
+                    // java: Map<String, JsonElement> setsToItems = json.get("sets_to_items").getAsJsonObject().asMap();
+                    let mut sets_to_items: std::collections::HashMap<String, serde_json::Value> = compat::json::get_as_json_object(&json.get("sets_to_items").cloned().expect("java.lang.NullPointerException")).into_iter().collect();
+                    // java: Map<String, JsonElement> children = json.get("children").getAsJsonObject().asMap();
+                    let mut children: std::collections::HashMap<String, serde_json::Value> = compat::json::get_as_json_object(&json.get("children").cloned().expect("java.lang.NullPointerException")).into_iter().collect();
+                    // java: Map<String, JsonElement> armorToId = json.get("armor_to_id").getAsJsonObject().asMap();
+                    let mut armor_to_id: std::collections::HashMap<String, serde_json::Value> = compat::json::get_as_json_object(&json.get("armor_to_id").cloned().expect("java.lang.NullPointerException")).into_iter().collect();
                     for (s, json_element) in mapped_ids.iter() {
                         compat::lock(&MAPPED_IDS).insert(s.to_string(), compat::json::get_as_string(&json_element));
                     }
-                    // TODO(fabric2seer): JsonObject.asMap
-                    //   java: Map<String, JsonElement> itemCategories = json.get("items").getAsJsonObject().asMap();
-                    let mut item_categories: std::collections::HashMap<String, serde_json::Value> = todo!("fabric2seer: the initialiser of `itemCategories` (TODO above)");
+                    // java: Map<String, JsonElement> itemCategories = json.get("items").getAsJsonObject().asMap();
+                    let mut item_categories: std::collections::HashMap<String, serde_json::Value> = compat::json::get_as_json_object(&json.get("items").cloned().expect("java.lang.NullPointerException")).into_iter().collect();
                     compat::set_state(&MUSEUM_CATEGORIES, item_categories.keys().cloned().collect::<std::collections::HashSet<_>>());
                     for (category, elem) in item_categories.iter() {
                         let mut array: Vec<serde_json::Value> = compat::json::get_as_json_array(&elem);
+                        // java: `return` inside itemCategories.forEach((category, elem) -> {..}) - the next entry
                         if category == "special" {
-                            return;
+                            continue;
                         }
                         for element in array.iter() {
                             let mut item_id: String = compat::json::get_as_string(&element);
-                            let mut set: Vec<(String, compat::Shared<PriceData>)> = Vec::new();
+                            let mut set: Vec<(String, Option<compat::Shared<PriceData>>)> = Vec::new();
                             if armor_to_id.contains_key(&item_id) {
                                 let mut is_equipment: bool = true;
                                 for json_element in compat::json::get_as_json_array(&sets_to_items.get(&item_id).cloned().unwrap()).iter() {
@@ -292,16 +286,12 @@ impl MuseumItemCache {
         let mut current_item: String = item.to_string();
         loop {
             let mut final_current_item: String = current_item.clone();
-            // TODO(fabric2seer): static field Map.Entry
-            //   java: String parentItem = children.entrySet().stream()
-            //   java: 					.filter(e -> e.getValue().getAsString().equals(finalCurrentItem))
-            //   java: 					.map(Map.Entry::getKey)
-            //   java: 					.findFirst()
-            //   java: 					.orElse(null);
-            let mut parent_item: String = todo!("fabric2seer: the initialiser of `parentItem` (TODO above)");
-            if false /* java: parent_item == null: never null here */ {
+            // java: String parentItem = children.entrySet().stream().filter(e -> e.getValue().getAsString().equals(finalCurrentItem))
+            //   .map(Map.Entry::getKey).findFirst().orElse(null);
+            let parent_item: Option<String> = children.iter().filter(|(_, value)| compat::json::get_as_string(*value) == final_current_item).map(|(key, _)| key.clone()).next();
+            let Some(parent_item) = parent_item else {
                 break;
-            }
+            };
             upgrades.push(parent_item.clone());
             current_item = parent_item.clone();
         }
@@ -325,7 +315,7 @@ impl MuseumItemCache {
                 }
             }
             for donation in uncontributed_items.iter() {
-                Donation::set_discount(donation, Donation::get_downgrades(donation).into_iter().filter(|_| Donation::is_craftable(donation)).filter(|downgrade| !uncontributed_items.iter().cloned().any(|item| (Donation::get_id(&item) == downgrade))).map(|downgrade| (downgrade.clone(), MuseumUtils::get_set_craft_cost(&downgrade))).next());
+                Donation::set_discount(donation, Donation::get_downgrades(donation).into_iter().filter(|_| Donation::is_craftable(donation)).filter(|downgrade| !uncontributed_items.iter().cloned().any(|item| (Donation::get_id(&item) == *downgrade))).map(|downgrade| (downgrade.clone(), MuseumUtils::get_set_craft_cost(&downgrade))).next());
             }
             uncontributed_items.sort_by(|a, b| { let key = |__a0| Donation::get_id(__a0); key(a).cmp(&key(b)) });
         }
@@ -333,14 +323,15 @@ impl MuseumItemCache {
     }
 
     /// java: public static void handleClick(Slot ignoredSlot, int slotId, NonNullList<Slot> slots)
-    pub fn handle_click(ignored_slot: &Slot, mut slot_id: i32, slots: &NonNullList<Slot>) {
+    /// (`NonNullList<Slot> slots` is the menu's slot list, the port's `Vec<Slot>`: lent as a slice)
+    pub fn handle_click(ignored_slot: &Slot, mut slot_id: i32, slots: &[Slot]) {
         if slot_id == CONFIRM_DONATION_BUTTON_SLOT {
             let mut profile_id: String = Utils::get_profile_id();
             if !profile_id.is_empty() {
                 for i in 0..17 {
-                    // TODO(fabric2seer): `get_item` takes 1 argument(s) in the port (`containers: &'a Containers<'_>`), Java passes 0
-                    // rust: let stack = (slots[(i) as usize]).get_item();
-                    let mut stack: mcrust::net::minecraft::world::item::item_stack::ItemStack = todo!("fabric2seer: the initialiser of `stack` (TODO above)");
+                    // java: ItemStack stack = slots.get(i).getItem(); - the port's slot reads its item through the open
+                    // menu's containers (`compat::slot_item`)
+                    let mut stack: mcrust::net::minecraft::world::item::item_stack::ItemStack = compat::slot_item(&slots[(i) as usize]);
                     if !stack.is_empty() {
                         let mut item_id: String = stack.get_skyblock_id();
                         if !item_id.is_empty() {
@@ -398,7 +389,7 @@ impl MuseumItemCache {
                             let mut donated_sets: std::collections::HashMap<String, serde_json::Value> = todo!("fabric2seer: the initialiser of `donatedSets` (TODO above)");
                             let mut item_ids: std::collections::HashSet<String> = std::collections::HashSet::new();
                             for (s, _) in donated_sets.iter() {
-                                let mut donation: Option<compat::Shared<Donation>> = MUSEUM_DONATIONS.get_mut().iter().cloned().filter(|d| (Donation::get_id(d) == s)).next();
+                                let mut donation: Option<compat::Shared<Donation>> = MUSEUM_DONATIONS.get_mut().iter().cloned().filter(|d| (Donation::get_id(d) == *s)).next();
                                 if let Some(value) = donation.clone() {
                                     item_ids.extend(Donation::get_downgrades(&value).into_iter());
                                 }
@@ -473,7 +464,10 @@ impl MuseumItemCache {
         if todo!("fabric2seer: the condition (TODO above)") {
             return component::translatable("skyblocker.museum.cannotResync");
         }
-        MuseumItemCache::update_data4_profile_member(Utils::get_uuid(), profile_id.clone(), Some(source.clone()));
+        // (the command source is a stateless `crate::unresolved` placeholder with no `Clone`: a fresh one stands for it;
+        // its sendFeedback calls are converter TODOs - SeerClient commands answer through `script_host::send_feedback`)
+        let _ = source;
+        MuseumItemCache::update_data4_profile_member(Utils::get_uuid(), profile_id.clone(), Some(crate::unresolved::FabricClientCommandSource));
         return component::translatable("skyblocker.museum.attemptingResync");
     }
 

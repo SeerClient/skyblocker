@@ -79,7 +79,7 @@ impl TreasureHunter {
     /// java: private static void requestWaypoint(String location)
     pub fn request_waypoint(location: &str) {
         let mut command: String = format!("/skyblocker waypoints individual {} Treasure", location);
-        let mut request_message: MutableComponent = (constants::PREFIX.get_mut())().append((component::translatable_args("skyblocker.waypoints.chat.display", (compat::regex::split(&location, " ")).iter().cloned().map(|__a0| __a0.trim().parse::<i32>().expect("NumberFormatException")).collect::<Vec<_>>())).with_style_format(ChatFormatting::Aqua).with_style_fn(|style| style.with_click_event(Some(ClickEvent::new_run_command(compat::trim(&command))))));
+        let mut request_message: MutableComponent = (constants::PREFIX.get_mut())().append((component::translatable_args("skyblocker.waypoints.chat.display", (compat::regex::split(&location, " ")).iter().map(|__a0| mcrust::net::minecraft::network::chat::formatted_text::FormattedText::of(__a0.parse::<i32>().expect("NumberFormatException").to_string())).collect::<Vec<_>>())).with_style_format(ChatFormatting::Aqua).with_style_fn(|style| style.with_click_event(Some(ClickEvent::new_run_command(compat::trim(&command))))));
         mcrust::mcrust::modding::game::with_player(|player| { script_host::send_feedback(&request_message.to_string()); });
     }
 

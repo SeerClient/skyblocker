@@ -113,9 +113,7 @@ impl DojoManager {
         let mut next_challenge: compat::regex::Matcher = TEST_OF_PATTERN.matcher(&text.get_string());
         if next_challenge.matches() {
             compat::set_state(&CURRENT_CHALLENGE, DojoChallenges::from(next_challenge.group(1).as_deref().unwrap()));
-            // TODO(fabric2seer): the condition: `.test(..)` on a BooleanPredicate
-            //   java: !currentChallenge.enabled.test(true)
-            if todo!("fabric2seer: the condition (TODO above)") {
+            if !(compat::get_state(&CURRENT_CHALLENGE).fields().enabled)(true) {
                 compat::set_state(&CURRENT_CHALLENGE, DojoChallenges::None);
             }
         }
@@ -124,10 +122,14 @@ impl DojoManager {
 
     /// java: private static void getPing()
     pub fn get_ping() {
-        let mut network_handler: Option<mcrust::net::minecraft::client::multiplayer::client_packet_listener::ClientPacketListener> = minecraft::get_connection(compat::minecraft());
+        let mut network_handler: Option<mcrust::net::minecraft::client::multiplayer::client_packet_listener::PlayListenerSinks> = minecraft::get_connection(compat::minecraft());
         if let Some(network_handler) = &network_handler {
-            // TODO(fabric2seer): `ClientPacketListener.send` has no Rust method in the port (looked for `send` in ClientPacketListener and its supertypes)
-            // rust: network_handler.send(&ServerboundPingRequestPacket::new(util::get_millis()));
+            // networkHandler.send(packet) = `this.connection.send(packet)`, on the connection's event loop (as
+            // `PingDebugMonitor.tick` sends the same packet)
+            let packet = ServerboundPingRequestPacket::new(util::get_millis());
+            network_handler.connection.execute(Box::new(move |connection| {
+                connection.send(Box::new(packet));
+            }));
         }
     }
 
@@ -197,7 +199,7 @@ impl DojoManager {
         if !(Utils::is_in_crimson()) || !(compat::get_state(&IN_ARENA)) || false /* java: compat::minecraft() == null: never null here */ || mcrust::mcrust::modding::game::with_player(|_| ()).is_none() {
             return;
         }
-        if !(mcrust::mcrust::modding::game::with_player(|player| entity.closer_than_xz_y(player, (50) as f64, (5) as f64)).unwrap_or(false)) {
+        if !(mcrust::mcrust::modding::game::with_player(|player| entity.base().closer_than_xz_y(player.base(), (50) as f64, (5) as f64)).unwrap_or(false)) {
             return;
         }
         match compat::get_state(&CURRENT_CHALLENGE) {
@@ -353,7 +355,7 @@ impl DojoChallenges {
 
     /// java: public static DojoChallenges from(String name)
     pub fn from(name: &str) -> DojoChallenges {
-        return DojoChallenges::values().iter().copied().filter(|n| (name == n.fields().name)).next().unwrap_or(NONE);
+        return DojoChallenges::values().iter().copied().filter(|n| (name == n.fields().name)).next().unwrap_or(DojoChallenges::None);
     }
 
 }
@@ -367,18 +369,13 @@ impl std::fmt::Display for DojoChallenges {
 /// the constructor data of each DojoChallenges constant
 pub struct DojoChallengesFields {
     pub name: String,
-    pub enabled: crate::unresolved::BooleanPredicate,
+    /// fastutil `BooleanPredicate`
+    pub enabled: Arc<dyn Fn(bool) -> bool + Send + Sync>,
 }
 
 impl DojoChallengesFields {
-    fn new(mut name: String, mut enabled: crate::unresolved::BooleanPredicate) -> Self {
-        let mut this = Self {
-            name: Default::default(),
-            enabled: Default::default(),
-        };
-        this.name = name.clone();
-        this.enabled = enabled.clone();
-        this
+    fn new(name: String, enabled: Arc<dyn Fn(bool) -> bool + Send + Sync>) -> Self {
+        Self { name, enabled }
     }
 
 }

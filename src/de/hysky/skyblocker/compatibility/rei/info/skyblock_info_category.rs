@@ -60,13 +60,17 @@ impl SkyblockInfoCategory {
     }
 
     /// java: @Override public Renderer getIcon()
-    pub fn get_icon(&self) -> crate::unresolved::Renderer {
-        return ICON.get_mut().clone();
+    ///
+    /// `ICON` itself (an `EntryStack` is a `Renderer` in REI).
+    pub fn get_icon(&self) -> &'static crate::unresolved::EntryStack {
+        return ICON.get();
     }
 
     /// java: private Button getWikiLookupButton(Component text, ItemStack itemStack, LocalPlayer player)
     pub fn get_wiki_lookup_button(&self, text: &MutableComponent, item_stack: &mcrust::net::minecraft::world::item::item_stack::ItemStack, player: &LocalPlayer) -> AbstractWidget {
-        let mut btn: AbstractWidget = (button::builder(text.get_string(), OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| { WikiLookupManager::open_wiki(item_stack, player); })))).build();
+        // the lambda captures the stack (the same object: `duplicate`) and `player` - `CLIENT.player`, reached when pressed
+        let item_stack_ref = item_stack.duplicate();
+        let mut btn: AbstractWidget = (button::builder(text.get_string(), OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| { mcrust::mcrust::modding::game::with_player(|player| { WikiLookupManager::open_wiki(&item_stack_ref, player); }); })))).build();
         if ItemRepository::get_wiki_link(&item_stack.get_neu_name()).is_none() {
             btn.set_message_text(mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(compat::component_of(btn.get_message_component()).copy().with_color(RED_ERROR_COLOR)));
             btn.active = false;
@@ -76,8 +80,9 @@ impl SkyblockInfoCategory {
 
     /// java: private boolean checkScreen()
     pub fn check_screen(&self) -> bool {
-        let mut current_screen: mcrust::net::minecraft::client::gui::screens::screen::Screen = compat::minecraft().gui.screen().unwrap();
-        return (current_screen.as_any().is::<ContainerScreen>() || current_screen.as_any().is::<compat::Shared<dyn AbstractCustomHypixelGUI<compat::Object>>>());
+        // `currentScreen instanceof ContainerScreen || instanceof AbstractCustomHypixelGUI`: the screen's kind - a mod's
+        // container screen rides on the vanilla `ContainerScreen` it replaced
+        return matches!(compat::minecraft().gui.screen_kind, mcrust::net::minecraft::client::gui::gui::ScreenKind::Container);
     }
 
     /// java: @Override public List<Widget> setupDisplay(SkyblockInfoDisplay display, Rectangle bounds)
@@ -93,7 +98,9 @@ impl SkyblockInfoCategory {
         // TODO(fabric2seer): static call Widgets.createSlot(..)
         //   java: Slot slot = Widgets.createSlot(new Point(bounds.getCenterX() - 9 + 1, bounds.y + 1 + OFFSET / 2)).entry(entryStack);
         let mut slot: crate::unresolved::Slot = todo!("fabric2seer: the initialiser of `slot` (TODO above)");
-        widgets.push(slot.clone());
+        // rust: port gap - `widgets.add(slot)`: REI's `Slot extends Widget`, and the REI library is the `crate::unresolved`
+        // placeholders here, where `Slot` is no `Widget` (GAPS_batchG)
+        let _ = &slot;
         let mut layout_widget: LinearLayout = LinearLayout::vertical();
         // TODO(fabric2seer): field `x` of a Rectangle
         //   java: layoutWidget.setPosition(bounds.x + OFFSET, bounds.y + OFFSET + REI_SLOT_HEIGHT);

@@ -12,13 +12,25 @@ use mcrust::com::mojang::serialization::map_codec::MapCodecRef;
 use mcrust::java::awt::color::Color;
 use mcrust::org::joml::vector2i::Vector2i;
 
-// TODO(fabric2seer): Integer.parseUnsignedInt
-//   java: public static final Codec<Color> COLOR_CODEC = Codec.withAlternative(
-//   java: 			Codec.STRING.xmap(s -> Integer.parseUnsignedInt(s, 16), i -> Integer.toHexString(i).toUpperCase(Locale.ENGLISH)),
-//   java: 			Codec.INT
-//   java: 	).xmap(argb -> new Color(argb, true), Color::getRGB);
 /// java: public static final Codec<Color> COLOR_CODEC = Codec.withAlternative( Codec.STRING.xmap(s -> Integer.parseUnsignedInt(s, 16), i -> Integer.toHexString(i).toUpperCase(Locale.ENGLISH)), Codec.INT ).xmap
-pub static COLOR_CODEC: compat::MainThread<CodecRef<Color>> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `COLOR_CODEC` - see the TODO above"));
+/// (`LazyLock`: config codecs are read off the render thread)
+pub static COLOR_CODEC: LazyLock<CodecRef<Color>> = LazyLock::new(|| {
+    let hex: CodecRef<i32> = codec::flat_xmap(
+        codec::string_codec(),
+        // java: Integer.parseUnsignedInt(s, 16) (throws on a bad string: the decode fails)
+        |s: String| match u32::from_str_radix(&s, 16) {
+            Ok(v) if !s.is_empty() && !s.starts_with('+') && !s.starts_with('-') => mcrust::com::mojang::serialization::data_result::DataResult::success(v as i32),
+            _ => { let __m = format!("NumberFormatException: For input string: \"{s}\" under radix 16"); mcrust::com::mojang::serialization::data_result::DataResult::error(std::sync::Arc::new(move || __m.clone())) }
+        },
+        // java: Integer.toHexString(i).toUpperCase(Locale.ENGLISH)
+        |i: &i32| mcrust::com::mojang::serialization::data_result::DataResult::success(format!("{:X}", *i as u32)),
+    );
+    codec::xmap(
+        codec::with_alternative(hex, codec::int_codec()),
+        |argb: i32| Color::from_rgba(argb, true),
+        |color: &Color| color.get_rgb(),
+    )
+});
 // TODO(fabric2seer): static `ExtraCodecs.JSON` has no Rust counterpart in the port's ExtraCodecs file
 //   java: public static final Codec<JsonObject> JSON_OBJECT_CODEC = ExtraCodecs.JSON.flatXmap(
 //   java: 			element -> element.isJsonObject() ? DataResult.success(element.getAsJsonObject()) : DataResult.error(() -> "Not a json object."),
@@ -48,51 +60,51 @@ impl CodecUtils {
 
     /// java: public static MapCodec<OptionalInt> optionalInt(MapCodec<Optional<Integer>> codec)
     pub fn optional_int(codec: &MapCodecRef<Option<i32>>) -> MapCodecRef<Option<i32>> {
-        // TODO(fabric2seer): `.map(..)` on a A
-        //   java: return codec.xmap(opt -> opt.map(OptionalInt::of).orElseGet(OptionalInt::empty), optInt -> optInt.isPresent() ? Optional.of(optInt.getAsInt()) : Optional.empty());
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        // java: return codec.xmap(opt -> opt.map(OptionalInt::of).orElseGet(OptionalInt::empty), optInt -> ..);
+        // (`OptionalInt` and `Optional<Integer>` are both `Option<i32>` here: the xmap is the identity)
+        return mcrust::com::mojang::serialization::map_codec::xmap(codec.clone(), |opt: Option<i32>| opt, |opt_int: &Option<i32>| *opt_int);
     }
 
     /// java: public static MapCodec<OptionalDouble> optionalDouble(MapCodec<Optional<Double>> codec)
     pub fn optional_double(codec: &MapCodecRef<Option<f64>>) -> MapCodecRef<Option<f64>> {
-        // TODO(fabric2seer): `.map(..)` on a A
-        //   java: return codec.xmap(opt -> opt.map(OptionalDouble::of).orElseGet(OptionalDouble::empty), optDouble -> optDouble.isPresent() ? Optional.of(optDouble.getAsDouble()) : Optional.empty());
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        // java: return codec.xmap(opt -> opt.map(OptionalDouble::of).orElseGet(OptionalDouble::empty), optDouble -> ..);
+        // (`OptionalDouble` and `Optional<Double>` are both `Option<f64>` here: the xmap is the identity)
+        return mcrust::com::mojang::serialization::map_codec::xmap(codec.clone(), |opt: Option<f64>| opt, |opt_double: &Option<f64>| *opt_double);
     }
 
     /// java: public static <K> Codec<Object2BooleanMap<K>> object2BooleanMapCodec(Codec<K> keyCodec)
-    pub fn object2_boolean_map_codec<K: 'static>(key_codec: &CodecRef<K>) -> CodecRef<std::collections::HashMap<K, bool>> {
-        // TODO(fabric2seer): static call Function.identity(..)
-        //   java: return Codec.unboundedMap(keyCodec, Codec.BOOL).xmap(Object2BooleanOpenHashMap::new, Function.identity());
-        todo!("fabric2seer: the value of this function is in a TODO above")
+    pub fn object2_boolean_map_codec<K: Clone + Eq + std::hash::Hash + std::fmt::Debug + 'static>(key_codec: &CodecRef<K>) -> CodecRef<std::collections::HashMap<K, bool>> {
+        // java: return Codec.unboundedMap(keyCodec, Codec.BOOL).xmap(Object2BooleanOpenHashMap::new, Function.identity());
+        return CodecUtils::object2_object_map_codec(key_codec, &codec::bool_codec());
     }
 
     /// java: public static <K> Codec<Object2IntMap<K>> object2IntMapCodec(Codec<K> keyCodec)
-    pub fn object2_int_map_codec<K: 'static>(key_codec: &CodecRef<K>) -> CodecRef<std::collections::HashMap<K, i32>> {
-        // TODO(fabric2seer): static call Function.identity(..)
-        //   java: return Codec.unboundedMap(keyCodec, Codec.INT).xmap(Object2IntOpenHashMap::new, Function.identity());
-        todo!("fabric2seer: the value of this function is in a TODO above")
+    pub fn object2_int_map_codec<K: Clone + Eq + std::hash::Hash + std::fmt::Debug + 'static>(key_codec: &CodecRef<K>) -> CodecRef<std::collections::HashMap<K, i32>> {
+        // java: return Codec.unboundedMap(keyCodec, Codec.INT).xmap(Object2IntOpenHashMap::new, Function.identity());
+        return CodecUtils::object2_object_map_codec(key_codec, &codec::int_codec());
     }
 
     /// java: public static <K> Codec<Object2LongMap<K>> object2LongMapCodec(Codec<K> keyCodec)
-    pub fn object2_long_map_codec<K: 'static>(key_codec: &CodecRef<K>) -> CodecRef<std::collections::HashMap<K, i64>> {
-        // TODO(fabric2seer): static call Function.identity(..)
-        //   java: return Codec.unboundedMap(keyCodec, Codec.LONG).xmap(Object2LongOpenHashMap::new, Function.identity());
-        todo!("fabric2seer: the value of this function is in a TODO above")
+    pub fn object2_long_map_codec<K: Clone + Eq + std::hash::Hash + std::fmt::Debug + 'static>(key_codec: &CodecRef<K>) -> CodecRef<std::collections::HashMap<K, i64>> {
+        // java: return Codec.unboundedMap(keyCodec, Codec.LONG).xmap(Object2LongOpenHashMap::new, Function.identity());
+        return CodecUtils::object2_object_map_codec(key_codec, &codec::long_codec());
     }
 
     /// java: public static <K> Codec<Object2DoubleMap<K>> object2DoubleMapCodec(Codec<K> keyCodec)
-    pub fn object2_double_map_codec<K: 'static>(key_codec: &CodecRef<K>) -> CodecRef<std::collections::HashMap<K, f64>> {
-        // TODO(fabric2seer): static call Function.identity(..)
-        //   java: return Codec.unboundedMap(keyCodec, Codec.DOUBLE).xmap(Object2DoubleOpenHashMap::new, Function.identity());
-        todo!("fabric2seer: the value of this function is in a TODO above")
+    pub fn object2_double_map_codec<K: Clone + Eq + std::hash::Hash + std::fmt::Debug + 'static>(key_codec: &CodecRef<K>) -> CodecRef<std::collections::HashMap<K, f64>> {
+        // java: return Codec.unboundedMap(keyCodec, Codec.DOUBLE).xmap(Object2DoubleOpenHashMap::new, Function.identity());
+        return CodecUtils::object2_object_map_codec(key_codec, &codec::double_codec());
     }
 
     /// java: public static <K, V> Codec<Object2ObjectMap<K, V>> object2ObjectMapCodec(Codec<K> keyCodec, Codec<V> valueCodec)
-    pub fn object2_object_map_codec<K: 'static, V: 'static>(key_codec: &CodecRef<K>, value_codec: &CodecRef<V>) -> CodecRef<std::collections::HashMap<K, V>> {
-        // TODO(fabric2seer): static call Function.identity(..)
-        //   java: return Codec.unboundedMap(keyCodec, valueCodec).xmap(Object2ObjectOpenHashMap::new, Function.identity());
-        todo!("fabric2seer: the value of this function is in a TODO above")
+    pub fn object2_object_map_codec<K: Clone + Eq + std::hash::Hash + std::fmt::Debug + 'static, V: Clone + 'static>(key_codec: &CodecRef<K>, value_codec: &CodecRef<V>) -> CodecRef<std::collections::HashMap<K, V>> {
+        // java: return Codec.unboundedMap(keyCodec, valueCodec).xmap(Object2ObjectOpenHashMap::new, Function.identity());
+        // (the port's `unboundedMap` answers the entries as pairs)
+        return codec::xmap(
+            codec::unbounded_map(key_codec.clone(), value_codec.clone()),
+            |entries: Vec<(K, V)>| entries.into_iter().collect::<std::collections::HashMap<K, V>>(),
+            |map: &std::collections::HashMap<K, V>| map.iter().map(|(k, v)| (k.clone(), v.clone())).collect::<Vec<(K, V)>>(),
+        );
     }
 
     /// java: public static <E extends Enum<E>> Codec<EnumSet<E>> enumSetCodec(Codec<E> enumCodec, Class<E> enumClass)
@@ -112,22 +124,23 @@ impl CodecUtils {
     }
 
     /// java: public static <T> MapCodec<T> mutableOptional(MapCodec<T> codec, Function<? super T, ? extends T> mutableFactory)
-    pub fn mutable_optional<T: 'static>(codec: &MapCodecRef<T>, mutable_factory: Arc<dyn Fn(T) -> T>) -> MapCodecRef<T> {
-        // TODO(fabric2seer): static call Function.identity(..)
-        //   java: return codec.xmap(mutableFactory, Function.identity());
-        todo!("fabric2seer: the value of this function is in a TODO above")
+    pub fn mutable_optional<T: Clone + 'static>(codec: &MapCodecRef<T>, mutable_factory: Arc<dyn Fn(T) -> T + Send + Sync>) -> MapCodecRef<T> {
+        // java: return codec.xmap(mutableFactory, Function.identity());
+        return mcrust::com::mojang::serialization::map_codec::xmap(codec.clone(), move |t: T| (mutable_factory)(t), |t: &T| t.clone());
     }
 
     /// java: public static <E> Codec<List<E>> sortedListCodec(Codec<E> elementCodec, Comparator<E> comparator)
-    pub fn sorted_list_codec<E: 'static>(element_codec: &CodecRef<E>, comparator: Arc<dyn Fn(&E, &E) -> std::cmp::Ordering>) -> CodecRef<Vec<E>> {
-        // TODO(fabric2seer): static call Function.identity(..)
-        //   java: return elementCodec.listOf().xmap(list -> {
-        //   java: 			List<E> sortedList = new ArrayList<>(list);
-        //   java: 			sortedList.sort(comparator);
-        //   java:
-        //   java: 			return List.copyOf(sortedList);
-        //   java: 		}, Function.identity());
-        todo!("fabric2seer: the value of this function is in a TODO above")
+    pub fn sorted_list_codec<E: Clone + 'static>(element_codec: &CodecRef<E>, comparator: Arc<dyn Fn(&E, &E) -> std::cmp::Ordering + Send + Sync>) -> CodecRef<Vec<E>> {
+        // java: return elementCodec.listOf().xmap(list -> { List<E> sortedList = new ArrayList<>(list); sortedList.sort(comparator); return List.copyOf(sortedList); }, Function.identity());
+        return codec::xmap(
+            codec::list(element_codec.clone()),
+            move |list: Vec<E>| {
+                let mut sorted_list: Vec<E> = list;
+                sorted_list.sort_by(|a, b| (comparator)(a, b));
+                sorted_list
+            },
+            |list: &Vec<E>| list.clone(),
+        );
     }
 
 }

@@ -8,6 +8,7 @@ use crate::de::hysky::skyblocker::config::skyblocker_config_manager::SkyblockerC
 use crate::de::hysky::skyblocker::events::skyblock_events;
 use crate::de::hysky::skyblocker::skyblock::events::event_toast::EventToast;
 use crate::de::hysky::skyblocker::skyblock::events::event_toast::EventToastBase;
+use crate::de::hysky::skyblocker::skyblock::events::event_toast::EventToastAdapter;
 use crate::de::hysky::skyblocker::skyblock::events::jacob_event_toast::JacobEventToast;
 use crate::de::hysky::skyblocker::skyblock::tabhud::util::ico;
 use crate::de::hysky::skyblocker::utils::flexible_item_stack::FlexibleItemStack;
@@ -124,40 +125,50 @@ impl EventNotifications {
 
     /// java: public static void refreshEvents()
     pub fn refresh_events() {
-        ((CompletableFuture::supply_async(move || Ok((|| {
-            // java: try {..} catch (Exception e) - an exception here is a panic, caught by `catch_unwind`; the body's `return` is the closure's value
-            match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                // TODO(fabric2seer): `Http.sendGetRequest` is not a static method of Http
-                //   java: return Http.sendGetRequest("https://hysky.de/api/calendar");
-            })) {
-                Ok(__v) => return __v,
+        // CompletableFuture.supplyAsync(.., VIRTUAL_THREAD_EXECUTOR): the download, on the executor
+        compat::executor(Box::new(move || {
+            let response: Option<String> = match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| crate::de::hysky::skyblocker::utils::http::Http::send_get_request("https://hysky.de/api/calendar"))) {
+                Ok(response) => Some(response),
                 Err(e) => {
-                    logger().error(&format!("[Skyblocker] Failed to download events list"));
+                    logger().error(&format!("[Skyblocker] Failed to download events list {}", compat::panic_message(&e)));
+                    None // java: return null
                 }
-            }
-            return Default::default(); // java: return null
-        })()), compat::executor)).then_accept_async(|response| {
-            EVENTS.get_mut().clear();
-            if false /* java: response == null: never null here */ {
-                logger().error("[Skyblocker] Failed to get events list");
-                return;
-            }
-            let mut parsed_events: Vec<SkyblockEvent> = (SKYBLOCK_EVENT_LIST_CODEC.get_mut().parse(&mcrust::com::mojang::serialization::json_ops::JsonOps::instance(), &compat::json_to_port(&serde_json::from_str::<serde_json::Value>(&compat::jstring(&response)).expect("JsonSyntaxException")))).get_partial_or_throw().unwrap();
-            for event in parsed_events.iter() {
-                if event.start().wrapping_add(event.duration() as i64) < compat::get_state(&CURRENT_TIME) {
-                    continue;
+            };
+            // .thenAcceptAsync(response -> {..}, Minecraft.getInstance()).exceptionally(EventNotifications::itBorked)
+            mcrust::mcrust::modding::game::execute(move || {
+                let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| EventNotifications::accept_events(response)));
+                if let Err(e) = result {
+                    EventNotifications::it_borked(&Throwable::new(Some(compat::panic_message(&e))));
                 }
-                (EVENTS.get_mut().entry(event.event()).or_insert_with_key(|k| (|_| Vec::new())(k.clone()))).push(event.clone());
+            });
+        }));
+    }
+
+    /// `refreshEvents`' `thenAcceptAsync` body, on the render thread.
+    fn accept_events(response: Option<String>) {
+        EVENTS.get_mut().clear();
+        let Some(response) = response else {
+            logger().error("[Skyblocker] Failed to get events list");
+            return;
+        };
+        let mut parsed_events: Vec<SkyblockEvent> = (SKYBLOCK_EVENT_LIST_CODEC.get_mut().parse(&mcrust::com::mojang::serialization::json_ops::JsonOps::instance(), &compat::json_to_port(&serde_json::from_str::<serde_json::Value>(&response).expect("JsonSyntaxException")))).get_partial_or_throw().unwrap();
+        for event in parsed_events.iter() {
+            if event.start().wrapping_add(event.duration() as i64) < compat::get_state(&CURRENT_TIME) {
+                continue;
             }
-            for entry in EVENTS.get_mut().iter().map(|(k, v)| (k.clone(), v.clone())) {
-                entry.1.sort_by(|a, b| { let key = |__a0| __a0.start(); key(a).cmp(&key(b)) });
+            (EVENTS.get_mut().entry(event.event()).or_insert_with(Vec::new)).push(event.clone());
+        }
+        for entry in EVENTS.get_mut().values_mut() {
+            // Comparator.comparingLong(SkyblockEvent::start) (List.sort is stable, as `sort_by_key` is)
+            entry.sort_by_key(|event| event.start());
+        }
+        // the lambda runs before `update` returns: the keys it reads are taken first
+        let keys: Vec<String> = EVENTS.get().keys().cloned().collect();
+        SkyblockerConfigManager::update(Arc::new(move |mut config| {
+            for s in keys.iter() {
+                config.event_notifications.events.entry(s.clone()).or_insert_with(|| DEFAULT_REMINDERS.clone());
             }
-            SkyblockerConfigManager::update(Arc::new(move |config| {
-                for s in EVENTS.get_mut().keys().cloned() {
-                    config.event_notifications.events.entry(s.clone()).or_insert_with_key(|k| (|_| DEFAULT_REMINDERS.clone())(k.clone()));
-                }
-            }));
-        }, std::sync::Arc::new(|__t: Box<dyn FnOnce() + Send>| mcrust::mcrust::modding::game::execute(__t)))).exceptionally(|__a0| EventNotifications::it_borked(&__a0));
+        }));
     }
 
     /// java: private static Void itBorked(Throwable throwable)
@@ -169,27 +180,33 @@ impl EventNotifications {
     /// java: private static void timeUpdate()
     pub fn time_update() {
         let mut new_time: i64 = (compat::millis()).wrapping_div(1000 as i64);
-        for entry in EVENTS.get_mut().iter().map(|(k, v)| (k.clone(), v.clone())) {
-            let next_events = &mut entry.1;
-            // TODO(fabric2seer): List.peekFirst(..)
-            //   java: SkyblockEvent skyblockEvent = nextEvents.peekFirst();
-            let mut skyblock_event: SkyblockEvent = todo!("fabric2seer: the initialiser of `skyblockEvent` (TODO above)");
-            if false /* java: skyblock_event == null: never null here */ {
-                continue;
-            }
-            if new_time > skyblock_event.start().wrapping_add(skyblock_event.duration() as i64) {
-                // TODO(fabric2seer): List.pollFirst(..)
-                //   java: nextEvents.pollFirst();
-                // TODO(fabric2seer): List.peekFirst(..)
-                //   java: skyblockEvent = nextEvents.peekFirst();
-                if false /* java: skyblock_event == null: never null here */ {
-                    continue;
+        // java: for (Map.Entry<String, LinkedList<SkyblockEvent>> entry : events.entrySet())
+        // (the map's keys first: the body polls the entry's OWN list, and a toast / sound below may run code that
+        // reads the map)
+        let event_keys: Vec<String> = EVENTS.get().keys().cloned().collect();
+        for event_key in event_keys {
+            // java: LinkedList<SkyblockEvent> nextEvents = entry.getValue(); SkyblockEvent skyblockEvent = nextEvents.peekFirst();
+            //   if (skyblockEvent == null) continue;
+            //   // Remove finished event
+            //   if (newTime > skyblockEvent.start() + skyblockEvent.duration()) { nextEvents.pollFirst(); skyblockEvent = nextEvents.peekFirst(); if (skyblockEvent == null) continue; }
+            let skyblock_event: SkyblockEvent = {
+                let events = EVENTS.get_mut();
+                let Some(next_events) = events.get_mut(&event_key) else { continue };
+                let Some(first) = next_events.first().cloned() else { continue };
+                if new_time > first.start().wrapping_add(first.duration() as i64) {
+                    next_events.remove(0);
+                    match next_events.first().cloned() {
+                        Some(next) => next,
+                        None => continue,
+                    }
+                } else {
+                    first
                 }
-            }
+            };
             if !(EventNotifications::criterion_met()) {
                 continue;
             }
-            let mut event_name: String = entry.0.clone();
+            let mut event_name: String = event_key.clone();
             let mut config: compat::Shared<EventConfig> = SkyblockerConfigManager::get().event_notifications.events.get(&event_name).cloned().unwrap_or_else(|| DEFAULT_REMINDERS.clone());
             if !(compat::read(&config, |__t| __t.enabled)) {
                 continue;
@@ -200,9 +217,9 @@ impl EventNotifications {
                 }
                 let instance = compat::minecraft();
                 if event_name == JACOBS && skyblock_event.extras().left_value().is_some() {
-                    instance.gui.toast_manager().borrow_mut().add_toast(JacobEventToast::new(skyblock_event.start(), skyblock_event.start().wrapping_add(skyblock_event.duration() as i64), event_name.clone(), skyblock_event.extras().left_value().unwrap()));
+                    instance.gui.toast_manager().borrow_mut().add_toast(Box::new(EventToastAdapter(JacobEventToast::new(skyblock_event.start(), skyblock_event.start().wrapping_add(skyblock_event.duration() as i64), event_name.clone(), skyblock_event.extras().left_value().unwrap()) as compat::Shared<dyn EventToast>)));
                 } else {
-                    instance.gui.toast_manager().borrow_mut().add_toast((EventToastBase::new(skyblock_event.start(), skyblock_event.start().wrapping_add(skyblock_event.duration() as i64), event_name.clone(), EVENT_ICONS.get_mut().get(&event_name).cloned().unwrap_or_else(|| FALLBACK_ICON.get_mut().clone())) as compat::Shared<dyn EventToast>));
+                    instance.gui.toast_manager().borrow_mut().add_toast(Box::new(EventToastAdapter(EventToastBase::new(skyblock_event.start(), skyblock_event.start().wrapping_add(skyblock_event.duration() as i64), event_name.clone(), EVENT_ICONS.get_mut().get(&event_name).cloned().unwrap_or_else(|| FALLBACK_ICON.get_mut().clone())) as compat::Shared<dyn EventToast>)));
                 }
                 let mut sound_event: Option<SoundEvent> = SkyblockerConfigManager::get().event_notifications.reminder_sound.get_sound_event();
                 if let Some(sound_event) = &sound_event {
@@ -266,7 +283,7 @@ impl SkyblockEvent {
 
     /// java: the record accessor `extras()`
     pub fn extras(&self) -> Either<Vec<String>, JerryPerks> {
-        self.extras
+        self.extras.clone()
     }
 
     /// java: the record accessor `warpCommand()`

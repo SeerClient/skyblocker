@@ -21,6 +21,7 @@ use mcrust::net::minecraft::client::gui::narration::narration_element_output::Na
 use mcrust::net::minecraft::client::gui::navigation::screen_rectangle::ScreenRectangle;
 use mcrust::net::minecraft::client::input::mouse_button_event::MouseButtonEvent;
 use mcrust::net::minecraft::network::chat::component;
+use mcrust::net::minecraft::network::chat::component::Component as _;
 use mcrust::net::minecraft::network::chat::mutable_component::MutableComponent;
 use mcrust::net::minecraft::resources::identifier::Identifier;
 
@@ -174,7 +175,8 @@ impl StatusBarBase {
 
 impl std::fmt::Display for StatusBarBase {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.to_string())
+        // java: toString() - ToStringBuilder(this) over the object's own fields
+        f.write_str(&status_bar_to_string(self))
     }
 }
 
@@ -245,7 +247,7 @@ pub trait StatusBar: compat::DynAny {
     }
 
     /// java: public void updateValues(float fill, float overflowFill, int value, @Nullable Integer max, @Nullable Integer overflow) (dispatch: the body for this class)
-    fn update_values(&self) -> fn(&compat::Shared<dyn StatusBar>, f32, f32, i32, i32, i32) {
+    fn update_values(&self) -> fn(&compat::Shared<dyn StatusBar>, f32, f32, i32, Option<i32>, Option<i32>) {
         <dyn StatusBar>::update_values_body
     }
 
@@ -325,7 +327,7 @@ pub trait StatusBar: compat::DynAny {
     }
 
     /// java: @Override public NarrationPriority narrationPriority() (dispatch: the body for this class)
-    fn narration_priority(&self) -> fn(&compat::Shared<dyn StatusBar>) -> crate::unresolved::NarrationPriority {
+    fn narration_priority(&self) -> fn(&compat::Shared<dyn StatusBar>) -> mcrust::net::minecraft::client::gui::narration::narratable_entry::NarrationPriority {
         <dyn StatusBar>::narration_priority_body
     }
 
@@ -335,7 +337,7 @@ pub trait StatusBar: compat::DynAny {
     }
 
     /// java: public void setOnClick(@Nullable OnClick onClick) (dispatch: the body for this class)
-    fn set_on_click(&self) -> fn(&compat::Shared<dyn StatusBar>, OnClick) {
+    fn set_on_click(&self) -> fn(&compat::Shared<dyn StatusBar>, Option<OnClick>) {
         <dyn StatusBar>::set_on_click_body
     }
 
@@ -456,26 +458,26 @@ impl dyn StatusBar {
         let mut transparency: i32 = ({ let __f = compat::dispatch(__this, |__t| __t.transparency()); __f(__this, -1) });
         match compat::read(__this, |__t| __t.status_bar_base().icon_position) {
             IconPosition::Left => {
-                gui_graphics_extractor::blit_sprite_identifier_with_color(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), mcrust::net::minecraft::client::renderer::render_pipelines::gui_textured(), &({ let __f = compat::dispatch(__this, |__t| __t.get_icon()); __f(__this) }), compat::read(__this, |__t| __t.status_bar_base().render_x), compat::read(__this, |__t| __t.status_bar_base().render_y), ICON_SIZE, ICON_SIZE, (transparency) as f32);
+                gui_graphics_extractor::blit_sprite_identifier_with_color(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), mcrust::net::minecraft::client::renderer::render_pipelines::gui_textured(), &({ let __f = compat::dispatch(__this, |__t| __t.get_icon()); __f(__this) }), compat::read(__this, |__t| __t.status_bar_base().render_x), compat::read(__this, |__t| __t.status_bar_base().render_y), ICON_SIZE, ICON_SIZE, transparency);
             }
             IconPosition::Right => {
-                gui_graphics_extractor::blit_sprite_identifier_with_color(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), mcrust::net::minecraft::client::renderer::render_pipelines::gui_textured(), &({ let __f = compat::dispatch(__this, |__t| __t.get_icon()); __f(__this) }), ((compat::read(__this, |__t| __t.status_bar_base().render_x)).wrapping_add(compat::read(__this, |__t| __t.status_bar_base().render_width))).wrapping_sub(ICON_SIZE), compat::read(__this, |__t| __t.status_bar_base().render_y), ICON_SIZE, ICON_SIZE, (transparency) as f32);
+                gui_graphics_extractor::blit_sprite_identifier_with_color(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), mcrust::net::minecraft::client::renderer::render_pipelines::gui_textured(), &({ let __f = compat::dispatch(__this, |__t| __t.get_icon()); __f(__this) }), ((compat::read(__this, |__t| __t.status_bar_base().render_x)).wrapping_add(compat::read(__this, |__t| __t.status_bar_base().render_width))).wrapping_sub(ICON_SIZE), compat::read(__this, |__t| __t.status_bar_base().render_y), ICON_SIZE, ICON_SIZE, transparency);
             }
             _ => {}
         }
         let mut bar_width: i32 = (if compat::read(__this, |__t| __t.status_bar_base().icon_position) == IconPosition::Off { compat::read(__this, |__t| __t.status_bar_base().render_width) } else { ((compat::read(__this, |__t| __t.status_bar_base().render_width)).wrapping_sub(ICON_SIZE)).wrapping_sub(1) });
         let mut bar_x: i32 = (if compat::read(__this, |__t| __t.status_bar_base().icon_position) == IconPosition::Left { ((compat::read(__this, |__t| __t.status_bar_base().render_x)).wrapping_add(ICON_SIZE)).wrapping_add(1) } else { compat::read(__this, |__t| __t.status_bar_base().render_x) });
-        gui_graphics_extractor::blit_sprite_identifier_with_color(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), mcrust::net::minecraft::client::renderer::render_pipelines::gui_textured(), BAR_BACK.get_mut(), bar_x, (compat::read(__this, |__t| __t.status_bar_base().render_y)).wrapping_add(1), bar_width, 7, (transparency) as f32);
+        gui_graphics_extractor::blit_sprite_identifier_with_color(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), mcrust::net::minecraft::client::renderer::render_pipelines::gui_textured(), BAR_BACK.get_mut(), bar_x, (compat::read(__this, |__t| __t.status_bar_base().render_y)).wrapping_add(1), bar_width, 7, transparency);
         ({ let __f = compat::dispatch(__this, |__t| __t.extract_bar_fill()); __f(__this, graphics, bar_x, bar_width) });
     }
 
     /// java: protected void extractBarFill(GuiGraphicsExtractor graphics, int barX, int barWidth)
     pub fn extract_bar_fill_body(__this: &compat::Shared<dyn StatusBar>, graphics: &GuiGraphicsExtractor, mut bar_x: i32, mut bar_width: i32) {
-        // TODO(fabric2seer): `.getRGB(..)` on a Color
-        //   java: renderBarFill(graphics, barX, barWidth, fill, transparency(colors[0].getRGB()));
+        // java: renderBarFill(graphics, barX, barWidth, fill, transparency(colors[0].getRGB()));
+        render_bar_fill_transparent(__this, graphics, bar_x, bar_width, compat::read(__this, |__t| __t.status_bar_base().fill), compat::read(__this, |__t| __t.status_bar_base().colors[0].get_rgb()));
         if { let __f = compat::dispatch(__this, |__t| __t.has_overflow()); __f(__this) } && compat::read(__this, |__t| __t.status_bar_base().overflow_fill) > (0 as f32) {
-            // TODO(fabric2seer): `.getRGB(..)` on a Color
-            //   java: renderBarFill(graphics, barX, barWidth, Math.min(overflowFill, 1), transparency(colors[1].getRGB()));
+            // java: renderBarFill(graphics, barX, barWidth, Math.min(overflowFill, 1), transparency(colors[1].getRGB()));
+            render_bar_fill_transparent(__this, graphics, bar_x, bar_width, compat::read(__this, |__t| __t.status_bar_base().overflow_fill).min(1.0), compat::read(__this, |__t| __t.status_bar_base().colors[1].get_rgb()));
         }
     }
 
@@ -492,17 +494,17 @@ impl dyn StatusBar {
     }
 
     /// java: public void updateValues(float fill, float overflowFill, int value, @Nullable Integer max, @Nullable Integer overflow)
-    pub fn update_values_body(__this: &compat::Shared<dyn StatusBar>, mut fill: f32, mut overflow_fill: f32, mut value: i32, mut max: i32, mut overflow: i32) {
+    pub fn update_values_body(__this: &compat::Shared<dyn StatusBar>, mut fill: f32, mut overflow_fill: f32, mut value: i32, mut max: Option<i32>, mut overflow: Option<i32>) {
         { let __v = Some(value); compat::write(__this, |__t| __t.status_bar_base_mut().value = __v); }
         { let __v = fill.clamp((0 as f32), (1 as f32)); compat::write(__this, |__t| __t.status_bar_base_mut().fill = __v); }
         { let __v = overflow_fill.clamp((0 as f32), (1 as f32)); compat::write(__this, |__t| __t.status_bar_base_mut().overflow_fill = __v); }
-        { let __v = Some(max); compat::write(__this, |__t| __t.status_bar_base_mut().max = __v); }
-        { let __v = Some(overflow); compat::write(__this, |__t| __t.status_bar_base_mut().overflow = __v); }
+        { let __v = max; compat::write(__this, |__t| __t.status_bar_base_mut().max = __v); }
+        { let __v = overflow; compat::write(__this, |__t| __t.status_bar_base_mut().overflow = __v); }
     }
 
     /// java: public void updateWithResource(StatusBarTracker.Resource resource)
     pub fn update_with_resource_body(__this: &compat::Shared<dyn StatusBar>, resource: &Resource) {
-        ({ let __f = compat::dispatch(__this, |__t| __t.update_values()); __f(__this, ((resource.value() as f32) / ((resource.max()) as f32)), ((resource.overflow() as f32) / ((resource.max()) as f32)), resource.value(), resource.max(), (if resource.overflow() > 0 { Some(resource.overflow()) } else { None }).unwrap()) });
+        ({ let __f = compat::dispatch(__this, |__t| __t.update_values()); __f(__this, ((resource.value() as f32) / ((resource.max()) as f32)), ((resource.overflow() as f32) / ((resource.max()) as f32)), resource.value(), Some(resource.max()), (if resource.overflow() > 0 { Some(resource.overflow()) } else { None })) });
     }
 
     /// java: public void extractText(GuiGraphicsExtractor graphics)
@@ -513,20 +515,21 @@ impl dyn StatusBar {
         let mut text_renderer: Font = compat::font();
         let mut bar_width: i32 = (if compat::read(__this, |__t| __t.status_bar_base().icon_position) == IconPosition::Off { compat::read(__this, |__t| __t.status_bar_base().render_width) } else { ((compat::read(__this, |__t| __t.status_bar_base().render_width)).wrapping_sub(ICON_SIZE)).wrapping_sub(1) });
         let mut bar_x: i32 = (if compat::read(__this, |__t| __t.status_bar_base().icon_position) == IconPosition::Left { ((compat::read(__this, |__t| __t.status_bar_base().render_x)).wrapping_add(ICON_SIZE)).wrapping_add(2) } else { compat::read(__this, |__t| __t.status_bar_base().render_x) });
-        let mut string_value: String = (if compat::read(__this, |__t| __t.status_bar_base().value.clone()).is_none() { "???".to_string() } else { ((compat::read(__this, |__t| __t.status_bar_base().to_display.clone()).unwrap()))((if compat::read(__this, |__t| __t.status_bar_base().overflow.clone()).is_none() || compat::read(__this, |__t| __t.status_bar_base().show_overflow) { compat::read(__this, |__t| __t.status_bar_base().value.clone()) } else { Some((compat::read(__this, |__t| __t.status_bar_base().value.clone()).unwrap()).wrapping_add(compat::read(__this, |__t| __t.status_bar_base().overflow.clone()).unwrap())) })) });
-        let mut display_color: Color = (if compat::read(__this, |__t| __t.status_bar_base().text_color.clone()).is_none() { Some(__this.lock().borrow().status_bar_base().colors[(0) as usize].clone()) } else { compat::read(__this, |__t| __t.status_bar_base().text_color.clone()) }).unwrap();
-        // TODO(fabric2seer): `.getRGB(..)` on a Color
-        //   java: MutableComponent text = Component.literal(stringValue).withStyle(style -> style.withColor(displayColor.getRGB()));
-        let mut text: MutableComponent = todo!("fabric2seer: the initialiser of `text` (TODO above)");
+        let mut string_value: String = (if compat::read(__this, |__t| __t.status_bar_base().value.clone()).is_none() { "???".to_string() } else { ((compat::read(__this, |__t| __t.status_bar_base().to_display.clone()).unwrap()))((if compat::read(__this, |__t| __t.status_bar_base().overflow.clone()).is_none() || compat::read(__this, |__t| __t.status_bar_base().show_overflow) { compat::read(__this, |__t| __t.status_bar_base().value.clone()).unwrap() } else { (compat::read(__this, |__t| __t.status_bar_base().value.clone()).unwrap()).wrapping_add(compat::read(__this, |__t| __t.status_bar_base().overflow.clone()).unwrap()) })) });
+        let mut display_color: Color = (if compat::read(__this, |__t| __t.status_bar_base().text_color.clone()).is_none() { Some(compat::read(__this, |__t| __t.status_bar_base().colors[(0) as usize].clone())) } else { compat::read(__this, |__t| __t.status_bar_base().text_color.clone()) }).unwrap();
+        // java: MutableComponent text = Component.literal(stringValue).withStyle(style -> style.withColor(displayColor.getRGB()));
+        let mut text: MutableComponent = component::literal(&string_value).with_style_fn(|style| style.with_color(display_color.get_rgb()));
         if { let __f = compat::dispatch(__this, |__t| __t.has_max()); __f(__this) } && compat::read(__this, |__t| __t.status_bar_base().show_max) && compat::read(__this, |__t| __t.status_bar_base().max.clone()).is_some() {
-            (text.append_str("/")).append_str(&compat::opt_str(&compat::read(__this, |__t| __t.status_bar_base().max.clone())));
+            // java: text.append("/").append(max.toString()) - appends in place
+            text = (text.append_str("/")).append_str(&compat::read(__this, |__t| __t.status_bar_base().max.clone()).unwrap().to_string());
         }
         if { let __f = compat::dispatch(__this, |__t| __t.has_overflow()); __f(__this) } && compat::read(__this, |__t| __t.status_bar_base().show_overflow) && compat::read(__this, |__t| __t.status_bar_base().overflow.clone()).is_some() {
-            // TODO(fabric2seer): `.getRGB(..)` on a Color
-            //   java: MutableComponent literal = Component.literal(" + ").withStyle(style -> style.withColor(colors[1].getRGB()));
-            let mut literal: MutableComponent = todo!("fabric2seer: the initialiser of `literal` (TODO above)");
-            literal.append_str(&((compat::read(__this, |__t| __t.status_bar_base().to_display.clone()).unwrap()))(compat::read(__this, |__t| __t.status_bar_base().overflow.clone())));
-            text.append(literal.clone());
+            // java: MutableComponent literal = Component.literal(" + ").withStyle(style -> style.withColor(colors[1].getRGB()));
+            let overflow_color: i32 = compat::read(__this, |__t| __t.status_bar_base().colors[1].get_rgb());
+            let mut literal: MutableComponent = component::literal(" + ").with_style_fn(|style| style.with_color(overflow_color));
+            // java: literal.append(toDisplay.apply(overflow)); text.append(literal); - both append in place
+            literal = literal.append_str(&((compat::read(__this, |__t| __t.status_bar_base().to_display.clone()).unwrap()))(compat::read(__this, |__t| __t.status_bar_base().overflow.clone()).unwrap()));
+            text = text.append(literal.clone());
         }
         let mut text_width: i32 = text_renderer.width_of_cached(&mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(text.clone()));
         let mut x: i32;
@@ -545,9 +548,8 @@ impl dyn StatusBar {
             }
         }
         let mut y: i32 = (compat::read(__this, |__t| __t.status_bar_base().render_y)).wrapping_sub(3);
-        // TODO(fabric2seer): `.getRGB(..)` on a Color
-        //   java: int color = transparency(displayColor.getRGB());
-        let mut color: i32 = todo!("fabric2seer: the initialiser of `color` (TODO above)");
+        // java: int color = transparency(displayColor.getRGB());
+        let mut color: i32 = ({ let __f = compat::dispatch(__this, |__t| __t.transparency()); __f(__this, display_color.get_rgb()) });
         let mut outline_color: i32 = ({ let __f = compat::dispatch(__this, |__t| __t.transparency()); __f(__this, mcrust::net::minecraft::util::common_colors::BLACK) });
         GuiHelper::outlined_text(graphics, &component::translation_arg_message(&text), x, y, color, outline_color);
     }
@@ -603,9 +605,13 @@ impl dyn StatusBar {
 
     /// java: @Override public ScreenRectangle getRectangle()
     pub fn get_rectangle_body(__this: &compat::Shared<dyn StatusBar>) -> ScreenRectangle {
-        // TODO(fabric2seer): `.getRectangle(..)` on a value of unknown type
-        //   java: return LayoutElement.super.getRectangle();
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        // java: return LayoutElement.super.getRectangle(); - new ScreenRectangle(getX(), getY(), getWidth(), getHeight())
+        return ScreenRectangle::new_at(
+            { let __f = compat::dispatch(__this, |__t| __t.get_x()); __f(__this) },
+            { let __f = compat::dispatch(__this, |__t| __t.get_y()); __f(__this) },
+            { let __f = compat::dispatch(__this, |__t| __t.get_width()); __f(__this) },
+            { let __f = compat::dispatch(__this, |__t| __t.get_height()); __f(__this) },
+        );
     }
 
     /// java: @Override public boolean isMouseOver(double mouseX, double mouseY)
@@ -627,10 +633,8 @@ impl dyn StatusBar {
     }
 
     /// java: @Override public NarrationPriority narrationPriority()
-    pub fn narration_priority_body(__this: &compat::Shared<dyn StatusBar>) -> crate::unresolved::NarrationPriority {
-        // TODO(fabric2seer): static field NarrationPriority.NONE
-        //   java: return NarrationPriority.NONE;
-        todo!("fabric2seer: the value of this function is in a TODO above")
+    pub fn narration_priority_body(__this: &compat::Shared<dyn StatusBar>) -> mcrust::net::minecraft::client::gui::narration::narratable_entry::NarrationPriority {
+        return mcrust::net::minecraft::client::gui::narration::narratable_entry::NarrationPriority::None;
     }
 
     /// java: @Override public boolean mouseClicked(MouseButtonEvent click, boolean doubled)
@@ -645,8 +649,8 @@ impl dyn StatusBar {
     }
 
     /// java: public void setOnClick(@Nullable OnClick onClick)
-    pub fn set_on_click_body(__this: &compat::Shared<dyn StatusBar>, on_click: OnClick) {
-        { let __v = Some(on_click.clone()); compat::write(__this, |__t| __t.status_bar_base_mut().on_click = __v); }
+    pub fn set_on_click_body(__this: &compat::Shared<dyn StatusBar>, on_click: Option<OnClick>) {
+        { let __v = on_click.clone(); compat::write(__this, |__t| __t.status_bar_base_mut().on_click = __v); }
     }
 
     /// java: @Override public void updateNarration(NarrationElementOutput builder)
@@ -655,18 +659,9 @@ impl dyn StatusBar {
 
     /// java: @Override public String toString()
     pub fn to_string_body(__this: &compat::Shared<dyn StatusBar>) -> String {
-        // TODO(fabric2seer): `new ToStringBuilder(..)`
-        //   java: return new ToStringBuilder(this)
-        //   java: 				.append("name", getName())
-        //   java: 				.append("gridX", gridX)
-        //   java: 				.append("gridY", gridY)
-        //   java: 				.append("size", size)
-        //   java: 				.append("x", renderX)
-        //   java: 				.append("y", renderY)
-        //   java: 				.append("width", renderWidth)
-        //   java: 				.append("anchor", anchor)
-        //   java: 				.toString();
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        // java: return new ToStringBuilder(this).append("name", getName()).append("gridX", gridX).append("gridY", gridY)
+        //   .append("size", size).append("x", renderX).append("y", renderY).append("width", renderWidth).append("anchor", anchor).toString();
+        return compat::read(__this, |__t| status_bar_to_string(__t.status_bar_base()));
     }
 
     /// java: public IconPosition getIconPosition()
@@ -711,17 +706,17 @@ impl dyn StatusBar {
             if (colors1.len() as i32) < 2 && { let __f = compat::dispatch(__this, |__t| __t.has_overflow()); __f(__this) } {
                 panic!("IllegalStateException: {}", "Missing second color of bar that has overflow");
             }
-            let mut new_colors: Vec<Color> = (0..((colors1.len() as i32)) as usize).map(|_| Default::default()).collect::<Vec<_>>();
+            // java: Color[] newColors = new Color[colors1.size()]; newColors[i] = new Color(Integer.parseInt(jsonElement.getAsString(), 16));
+            let mut new_colors: Vec<Color> = Vec::with_capacity(colors1.len());
             for i in 0..(colors1.len() as i32) {
                 let json_element = &colors1[(i) as usize];
-                // TODO(fabric2seer): `new` takes 3 argument(s) in the port (`r: i32, g: i32, b: i32`), Java passes 1
-                // rust: new_colors[(i) as usize] = Color::new(i32::from_str_radix(&compat::json::get_as_string(&json_element), (16) as u32).expect("NumberFormatException"));
+                new_colors.push(Color::from_rgb(i32::from_str_radix(&compat::json::get_as_string(&json_element), 16).expect("java.lang.NumberFormatException")));
             }
             { let __v = new_colors.clone(); compat::write(__this, |__t| __t.status_bar_base_mut().colors = __v); }
         }
         if compat::json::has(&object, "text_color") {
-            // TODO(fabric2seer): `new` takes 3 argument(s) in the port (`r: i32, g: i32, b: i32`), Java passes 1
-            // rust: { let __v = Some(Color::new(i32::from_str_radix(&compat::json::get_as_string(&object.get("text_color").cloned().unwrap()), (16) as u32).expect("NumberFormatException"))); compat::write(__this, |__t| __t.status_bar_base_mut().text_color = __v); }
+            // java: textColor = new Color(Integer.parseInt(object.get("text_color").getAsString(), 16));
+            { let __v = Some(Color::from_rgb(i32::from_str_radix(&compat::json::get_as_string(&object.get("text_color").cloned().unwrap()), 16).expect("java.lang.NumberFormatException"))); compat::write(__this, |__t| __t.status_bar_base_mut().text_color = __v); }
         }
         let mut maybe_anchor: String = compat::trim(&compat::json::get_as_string(&object.get("anchor").cloned().unwrap()));
         { let __v = (if maybe_anchor == "null" { None } else { Some(BarAnchor::value_of(&maybe_anchor)) }); compat::write(__this, |__t| __t.status_bar_base_mut().anchor = __v); }
@@ -764,13 +759,13 @@ impl dyn StatusBar {
         let mut object: serde_json::Map<String, serde_json::Value> = serde_json::Map::new();
         let mut colors1: Vec<serde_json::Value> = Vec::new();
         for color in compat::read(__this, |__t| __t.status_bar_base().colors.clone()) {
-            // TODO(fabric2seer): `.getRGB(..)` on a Color
-            //   java: colors1.add(Integer.toHexString(color.getRGB()).substring(2));
+            // java: colors1.add(Integer.toHexString(color.getRGB()).substring(2));
+            colors1.push(serde_json::Value::String(compat::substring(&format!("{:x}", color.get_rgb() as u32), 2)));
         }
         object.insert("colors".to_string(), compat::json::to_value(colors1.clone()));
         if compat::read(__this, |__t| __t.status_bar_base().text_color.clone()).is_some() {
-            // TODO(fabric2seer): `.getRGB(..)` on a Color
-            //   java: object.addProperty("text_color", Integer.toHexString(textColor.getRGB()).substring(2));
+            // java: object.addProperty("text_color", Integer.toHexString(textColor.getRGB()).substring(2));
+            object.insert("text_color".to_string(), serde_json::Value::String(compat::substring(&format!("{:x}", compat::read(__this, |__t| __t.status_bar_base().text_color.unwrap()).get_rgb() as u32), 2)));
         }
         if compat::read(__this, |__t| __t.status_bar_base().anchor.clone()).is_some() {
             object.insert("anchor".to_string(), serde_json::json!(compat::opt_str(&compat::read(__this, |__t| __t.status_bar_base().anchor.clone()))));
@@ -799,10 +794,10 @@ impl dyn StatusBar {
 
 impl StatusBar for StatusBarBase {
     fn status_bar_base(&self) -> &StatusBarBase {
-        &self
+        self
     }
     fn status_bar_base_mut(&mut self) -> &mut StatusBarBase {
-        &mut self
+        self
     }
 
     fn as_any(&self) -> &dyn std::any::Any {
@@ -853,23 +848,19 @@ impl IconPosition {
 
     /// java: @Override public String getSerializedName()
     pub fn get_serialized_name(&self) -> String {
-        // TODO(fabric2seer): call to `name(..)` (not a method of this class)
-        //   java: return name();
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        return self.name().to_string();
     }
 
     /// java: @Override public String toString()
     pub fn to_string(&self) -> String {
-        // TODO(fabric2seer): call to `name(..)` (not a method of this class)
-        //   java: return I18n.get("skyblocker.bars.config.commonPosition." + name());
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        return mcrust::net::minecraft::client::resources::language::i18n::get(&format!("skyblocker.bars.config.commonPosition.{}", self.name()), &[]);
     }
 
 }
 
 impl std::fmt::Display for IconPosition {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", IconPosition::to_string(*self))
+        write!(f, "{}", IconPosition::to_string(self))
     }
 }
 
@@ -921,27 +912,22 @@ impl TextPosition {
 
     /// java: @Override public String getSerializedName()
     pub fn get_serialized_name(&self) -> String {
-        // TODO(fabric2seer): call to `name(..)` (not a method of this class)
-        //   java: return name();
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        return self.name().to_string();
     }
 
     /// java: @Override public String toString()
     pub fn to_string(&self) -> String {
-        if *self == CENTER || *self == BAR_CENTER {
-            // TODO(fabric2seer): call to `name(..)` (not a method of this class)
-            //   java: return I18n.get("skyblocker.bars.config.textPosition." + name());
+        if *self == TextPosition::Center || *self == TextPosition::BarCenter {
+            return mcrust::net::minecraft::client::resources::language::i18n::get(&format!("skyblocker.bars.config.textPosition.{}", self.name()), &[]);
         }
-        // TODO(fabric2seer): call to `name(..)` (not a method of this class)
-        //   java: return I18n.get("skyblocker.bars.config.commonPosition." + name());
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        return mcrust::net::minecraft::client::resources::language::i18n::get(&format!("skyblocker.bars.config.commonPosition.{}", self.name()), &[]);
     }
 
 }
 
 impl std::fmt::Display for TextPosition {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", TextPosition::to_string(*self))
+        write!(f, "{}", TextPosition::to_string(self))
     }
 }
 
@@ -987,23 +973,19 @@ impl Direction {
 
     /// java: @Override public String getSerializedName()
     pub fn get_serialized_name(&self) -> String {
-        // TODO(fabric2seer): call to `name(..)` (not a method of this class)
-        //   java: return name();
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        return self.name().to_string();
     }
 
     /// java: @Override public String toString()
     pub fn to_string(&self) -> String {
-        // TODO(fabric2seer): call to `name(..)` (not a method of this class)
-        //   java: return I18n.get("skyblocker.bars.config.direction." + name());
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        return mcrust::net::minecraft::client::resources::language::i18n::get(&format!("skyblocker.bars.config.direction.{}", self.name()), &[]);
     }
 
 }
 
 impl std::fmt::Display for Direction {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", Direction::to_string(*self))
+        write!(f, "{}", Direction::to_string(self))
     }
 }
 
@@ -1068,20 +1050,22 @@ impl ManaStatusBar {
     /// java: @Override protected void extractBarFill(GuiGraphicsExtractor graphics, int barX, int barWidth)
     pub fn extract_bar_fill_impl(__this: &compat::Shared<Self>, graphics: &GuiGraphicsExtractor, mut bar_x: i32, mut bar_width: i32) {
         if { let __f = compat::dispatch(__this, |__t| __t.has_overflow()); __f(&compat::view(__this, |a| a as compat::Shared<dyn StatusBar>)) } && compat::read(__this, |__t| __t.overflow_fill) > (0 as f32) {
+            let __dyn = compat::view(__this, |a| a as compat::Shared<dyn StatusBar>);
             if compat::read(__this, |__t| __t.overflow_fill) > compat::read(__this, |__t| __t.fill) && SkyblockerConfigManager::get().ui_and_visuals.bars.intelligence_display == IntelligenceDisplay::InFront {
-                // TODO(fabric2seer): `.getRGB(..)` on a Color
-                //   java: renderBarFill(graphics, barX, barWidth, Math.min(overflowFill, 1), transparency(getColors()[1].getRGB()));
-                // TODO(fabric2seer): `.getRGB(..)` on a Color
-                //   java: renderBarFill(graphics, barX, barWidth, fill, transparency(getColors()[0].getRGB()));
+                // java: renderBarFill(graphics, barX, barWidth, Math.min(overflowFill, 1), transparency(getColors()[1].getRGB()));
+                render_bar_fill_transparent(&__dyn, graphics, bar_x, bar_width, compat::read(__this, |__t| __t.overflow_fill).min(1.0), colors_rgb(&__dyn, 1));
+                // java: renderBarFill(graphics, barX, barWidth, fill, transparency(getColors()[0].getRGB()));
+                render_bar_fill_transparent(&__dyn, graphics, bar_x, bar_width, compat::read(__this, |__t| __t.fill), colors_rgb(&__dyn, 0));
             } else {
-                // TODO(fabric2seer): `.getRGB(..)` on a Color
-                //   java: renderBarFill(graphics, barX, barWidth, fill, transparency(getColors()[0].getRGB()));
-                // TODO(fabric2seer): `.getRGB(..)` on a Color
-                //   java: renderBarFill(graphics, barX, barWidth, Math.min(overflowFill, 1), transparency(getColors()[1].getRGB()));
+                // java: renderBarFill(graphics, barX, barWidth, fill, transparency(getColors()[0].getRGB()));
+                render_bar_fill_transparent(&__dyn, graphics, bar_x, bar_width, compat::read(__this, |__t| __t.fill), colors_rgb(&__dyn, 0));
+                // java: renderBarFill(graphics, barX, barWidth, Math.min(overflowFill, 1), transparency(getColors()[1].getRGB()));
+                render_bar_fill_transparent(&__dyn, graphics, bar_x, bar_width, compat::read(__this, |__t| __t.overflow_fill).min(1.0), colors_rgb(&__dyn, 1));
             }
         } else {
-            // TODO(fabric2seer): `.getRGB(..)` on a Color
-            //   java: renderBarFill(graphics, barX, barWidth, fill, transparency(getColors()[0].getRGB()));
+            // java: renderBarFill(graphics, barX, barWidth, fill, transparency(getColors()[0].getRGB()));
+            let __dyn = compat::view(__this, |a| a as compat::Shared<dyn StatusBar>);
+            render_bar_fill_transparent(&__dyn, graphics, bar_x, bar_width, compat::read(__this, |__t| __t.fill), colors_rgb(&__dyn, 0));
         }
     }
 
@@ -1229,19 +1213,17 @@ impl HealthStatusBar {
         let mut poisoned: bool = (mcrust::mcrust::modding::game::with_player(|_| ()).is_some() && mcrust::mcrust::modding::game::with_player(|player| player.base.base.base.has_effect(mcrust::net::minecraft::world::effect::mob_effects::poison())).unwrap_or(false));
         let mut fill_color: i32;
         if withering {
-            // TODO(fabric2seer): `.getRGB(..)` on a Color
-            //   java: fillColor = WITHER_COLOR.getRGB();
+            fill_color = HEALTH_STATUS_BAR_WITHER_COLOR.get().get_rgb();
         } else if poisoned {
-            // TODO(fabric2seer): `.getRGB(..)` on a Color
-            //   java: fillColor = POISON_COLOR.getRGB();
+            fill_color = HEALTH_STATUS_BAR_POISON_COLOR.get().get_rgb();
         } else {
-            // TODO(fabric2seer): `.getRGB(..)` on a Color
-            //   java: fillColor = getColors()[0].getRGB();
+            fill_color = colors_rgb(&compat::view(__this, |a| a as compat::Shared<dyn StatusBar>), 0);
         }
         ({ let __f = compat::dispatch(__this, |__t| __t.render_bar_fill()); __f(&compat::view(__this, |a| a as compat::Shared<dyn StatusBar>), graphics, bar_x, bar_width, compat::read(__this, |__t| __t.fill), ({ let __f = compat::dispatch(__this, |__t| __t.transparency()); __f(&compat::view(__this, |a| a as compat::Shared<dyn StatusBar>), fill_color) })) });
         if { let __f = compat::dispatch(__this, |__t| __t.has_overflow()); __f(&compat::view(__this, |a| a as compat::Shared<dyn StatusBar>)) } && compat::read(__this, |__t| __t.overflow_fill) > (0 as f32) {
-            // TODO(fabric2seer): `.getRGB(..)` on a Color
-            //   java: renderBarFill(graphics, barX, barWidth, Math.min(overflowFill, 1), transparency(getColors()[1].getRGB()));
+            // java: renderBarFill(graphics, barX, barWidth, Math.min(overflowFill, 1), transparency(getColors()[1].getRGB()));
+            let __dyn = compat::view(__this, |a| a as compat::Shared<dyn StatusBar>);
+            render_bar_fill_transparent(&__dyn, graphics, bar_x, bar_width, compat::read(__this, |__t| __t.overflow_fill).min(1.0), colors_rgb(&__dyn, 1));
         }
     }
 
@@ -1316,4 +1298,74 @@ impl StatusBar for VitalityStatusBar {
         self
     }
 
+}
+
+/// java: `renderBarFill(graphics, barX, barWidth, fill, transparency(argb))` - both virtual calls dispatched on the object.
+fn render_bar_fill_transparent(this: &compat::Shared<dyn StatusBar>, graphics: &GuiGraphicsExtractor, bar_x: i32, bar_width: i32, fill: f32, argb: i32) {
+    let transparent = { let __f = compat::dispatch(this, |__t| __t.transparency()); __f(this, argb) };
+    let __f = compat::dispatch(this, |__t| __t.render_bar_fill());
+    __f(this, graphics, bar_x, bar_width, fill, transparent);
+}
+
+/// java: `getColors()[index].getRGB()` (the virtual `getColors`).
+fn colors_rgb(this: &compat::Shared<dyn StatusBar>, index: usize) -> i32 {
+    let colors = { let __f = compat::dispatch(this, |__t| __t.get_colors()); __f(this) };
+    colors[index].get_rgb()
+}
+
+/// java: `new ToStringBuilder(this).append("name", getName()).append("gridX", gridX).append("gridY", gridY).append("size", size)
+/// .append("x", renderX).append("y", renderY).append("width", renderWidth).append("anchor", anchor).toString()` - commons-lang's
+/// default style `ClassName@identityHash[field=value,...]`, `<null>` for a null value.
+fn status_bar_to_string(base: &StatusBarBase) -> String {
+    format!(
+        "de.hysky.skyblocker.skyblock.fancybars.StatusBar@{:x}[name={},gridX={},gridY={},size={},x={},y={},width={},anchor={}]",
+        (base as *const StatusBarBase as usize) as u32,
+        base.r#type.as_ref().map(|t| t.get_name().get_string()).unwrap_or_else(|| "<null>".to_string()),
+        base.grid_x,
+        base.grid_y,
+        base.size,
+        base.render_x,
+        base.render_y,
+        base.render_width,
+        base.anchor.map(|a| a.to_string()).unwrap_or_else(|| "<null>".to_string()),
+    )
+}
+
+/// `Enum<IconPosition>` for generic code (`EditBarWidget.EnumCyclingOption`, `EnumUtils.cycle`).
+impl crate::de::hysky::skyblocker::utils::enum_utils::JavaEnum for IconPosition {
+    fn java_name(&self) -> &'static str {
+        self.name()
+    }
+    fn java_ordinal(&self) -> i32 {
+        self.ordinal()
+    }
+    fn java_values() -> Vec<Self> {
+        Self::values()
+    }
+}
+
+/// `Enum<TextPosition>` for generic code (`EditBarWidget.EnumCyclingOption`, `EnumUtils.cycle`).
+impl crate::de::hysky::skyblocker::utils::enum_utils::JavaEnum for TextPosition {
+    fn java_name(&self) -> &'static str {
+        self.name()
+    }
+    fn java_ordinal(&self) -> i32 {
+        self.ordinal()
+    }
+    fn java_values() -> Vec<Self> {
+        Self::values()
+    }
+}
+
+/// `Enum<Direction>` for generic code (`EditBarWidget.EnumCyclingOption`, `EnumUtils.cycle`).
+impl crate::de::hysky::skyblocker::utils::enum_utils::JavaEnum for Direction {
+    fn java_name(&self) -> &'static str {
+        self.name()
+    }
+    fn java_ordinal(&self) -> i32 {
+        self.ordinal()
+    }
+    fn java_values() -> Vec<Self> {
+        Self::values()
+    }
 }

@@ -47,7 +47,7 @@ impl NightVisionCommand {
 
     /// java: private static int writeStrength(CommandContext<FabricClientCommandSource> context, int strength)
     pub fn write_strength(context: &CommandContext<crate::unresolved::FabricClientCommandSource>, mut strength: i32) -> i32 {
-        SkyblockerConfigManager::update(Arc::new(move |config| { config.ui_and_visuals.night_vision_strength = strength; }));
+        SkyblockerConfigManager::update(Arc::new(move |mut config| { config.ui_and_visuals.night_vision_strength = strength; }));
         // TODO(fabric2seer): `.sendFeedback(..)` on a FabricClientCommandSource
         //   java: context.getSource().sendFeedback(Component.translatable("skyblocker.nightVision.success", strength));
         return 1;

@@ -156,7 +156,7 @@ impl ElementCollector for EndHudWidget {
 
     /// java: public <T extends Element> T addElement(T c)
     fn add_element(&mut self, mut c: compat::Shared<dyn Element>) -> compat::Shared<dyn Element> {
-        ({ let __f = compat::dispatch(&c, |__t| __t.set_parent()); __f(&c, self.clone()) });
+        ({ let __f = compat::dispatch(&c, |__t| __t.set_parent()); __f(&c, self.hud_widget_base().as_parent()) });
         self.elements.push(c.clone());
         return c;
     }
@@ -171,7 +171,7 @@ impl EndHudWidget {
             { let (__a0,) = (Elements::icon_text_component_2(Some(ENDERMAN_HEAD.get_mut().clone()), Some(component::literal("Zealots").with_style_format(ChatFormatting::Bold))),); __this.lock().borrow_mut().add_element(__a0) };
             { let (__a0,) = ((PlainTextElement::new(Some(component::translatable_args("skyblocker.end.hud.zealotsSinceLastEye", vec![mcrust::net::minecraft::network::chat::formatted_text::FormattedText::of(end_stats.zealots_since_last_eye().to_string())]))) as compat::Shared<dyn Element>),); __this.lock().borrow_mut().add_element(__a0) };
             { let (__a0,) = ((PlainTextElement::new(Some(component::translatable_args("skyblocker.end.hud.zealotsTotalKills", vec![mcrust::net::minecraft::network::chat::formatted_text::FormattedText::of(formatters::INTEGER_NUMBERS.get_mut().format((end_stats.total_zealot_kills()) as f64))]))) as compat::Shared<dyn Element>),); __this.lock().borrow_mut().add_element(__a0) };
-            let mut avg: String = (if end_stats.eyes() == 0 { "???".to_string() } else { formatters::DOUBLE_NUMBERS.get_mut().format((((end_stats.total_zealot_kills()) as f32) / (end_stats.eyes() as f32))) });
+            let mut avg: String = (if end_stats.eyes() == 0 { "???".to_string() } else { formatters::DOUBLE_NUMBERS.get_mut().format(((((end_stats.total_zealot_kills()) as f32) / (end_stats.eyes() as f32))) as f64) });
             { let (__a0,) = ((PlainTextElement::new(Some(component::translatable_args("skyblocker.end.hud.avgKillsPerEye", vec![mcrust::net::minecraft::network::chat::formatted_text::FormattedText::of(avg.clone())]))) as compat::Shared<dyn Element>),); __this.lock().borrow_mut().add_element(__a0) };
         }
         if compat::read(__this, |__t| __t.show_protector_location) {

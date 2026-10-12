@@ -142,7 +142,7 @@ impl RadialMenuScreen {
             let mut new_button: RadialButton = RadialButton::new(angle, compat::read(__this, |__t| __t.button_arc_size), ((INTERNAL_RADIUS) as f32) as f32, ((EXTERNAL_RADIUS) as f32) as f32, stack.1.clone(), RadialMenuScreen::get_button_hovered(__this, index), stack.0);
             let __h0 = new_button.clone();
             __this.lock().borrow_mut().buttons.push(__h0);
-            { let (__q0,) = (new_button.clone(),); __this.lock().borrow_mut().add_renderable_widget(__q0) };
+            { let (__q0,) = (RadialButton::widget(new_button.clone()),); __this.lock().borrow_mut().add_renderable_widget(__q0) };
             angle = (angle + compat::read(__this, |__t| __t.button_arc_size));
             index += 1;
         }
@@ -204,13 +204,13 @@ impl RadialMenuScreen {
                 // TODO(fabric2seer): `Options.keyDown` has no Rust field in the port (searched net.minecraft.client.Options and its supertypes)
                 // TODO(fabric2seer): `Options.keyLeft` has no Rust field in the port (searched net.minecraft.client.Options and its supertypes)
                 // TODO(fabric2seer): `Options.keyRight` has no Rust field in the port (searched net.minecraft.client.Options and its supertypes)
-                if compat::minecraft().options.borrow().key_up.matches(key_event) {
+                if mcrust::net::minecraft::client::key_mapping::matches("key.forward", key_event) {
                     RadialMenuScreen::navigate_direction(__this, ScreenDirection::Up);
-                } else if compat::minecraft().options.borrow().key_down.matches(key_event) {
+                } else if mcrust::net::minecraft::client::key_mapping::matches("key.back", key_event) {
                     RadialMenuScreen::navigate_direction(__this, ScreenDirection::Down);
-                } else if compat::minecraft().options.borrow().key_left.matches(key_event) {
+                } else if mcrust::net::minecraft::client::key_mapping::matches("key.left", key_event) {
                     RadialMenuScreen::navigate_direction(__this, ScreenDirection::Left);
-                } else if compat::minecraft().options.borrow().key_right.matches(key_event) {
+                } else if mcrust::net::minecraft::client::key_mapping::matches("key.right", key_event) {
                     RadialMenuScreen::navigate_direction(__this, ScreenDirection::Right);
                 } else {
                     return (if key_event.is_escape() && true { RadialMenuScreen::on_close(__this); true } else { false });

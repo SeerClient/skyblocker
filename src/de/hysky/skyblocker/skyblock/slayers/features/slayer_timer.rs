@@ -161,7 +161,7 @@ impl SlayerTimer {
 
     /// java: private static String formatTime(long millis)
     pub fn format_time(mut millis: i64) -> String {
-        return format!("{:.2}s", ((millis as f64) / 1000.0));
+        return compat::string_format("%.2fs", &[((millis as f64) / 1000.0).into()]);
     }
 
 }

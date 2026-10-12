@@ -55,10 +55,13 @@ impl SkyblockRecipeTabButton {
     }
 
     /// java: @Override protected void handleCursor(GuiGraphicsExtractor context)
-    pub fn handle_cursor(__this: &compat::Shared<Self>, context: &GuiGraphicsExtractor) {
+    /// (the port's `handleCursor` answers the cursor the widget asks for, from the screen's cursor set)
+    pub fn handle_cursor(__this: &compat::Shared<Self>, cursors: &mcrust::com::mojang::blaze3d::platform::cursor::cursor_types::CursorTypes) -> Option<mcrust::com::mojang::blaze3d::platform::cursor::cursor_type::CursorType> {
+        // java: if (!selected) super.handleCursor(context);
         if !(compat::read(__this, |__t| __t.selected)) {
-            __this.lock().borrow_mut().base.handle_cursor(context);
+            return __this.lock().borrow().base.handle_cursor(cursors);
         }
+        None
     }
 
     /// java: public void select()

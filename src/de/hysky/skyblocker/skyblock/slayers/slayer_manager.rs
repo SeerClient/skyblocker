@@ -11,6 +11,8 @@ use crate::de::hysky::skyblocker::skyblock::slayers::boss::vampire::twin_claws_i
 use crate::de::hysky::skyblocker::skyblock::slayers::slayer_tier::SlayerTier;
 use crate::de::hysky::skyblocker::skyblock::slayers::slayer_type;
 use crate::de::hysky::skyblocker::skyblock::slayers::slayer_type::SlayerType;
+use crate::de::hysky::skyblocker::skyblock::slayers::features::call_maddox::CallMaddox;
+use crate::de::hysky::skyblocker::skyblock::slayers::features::slayer_timer::SlayerTimer;
 use crate::de::hysky::skyblocker::utils::data::profiled_data::ProfiledData;
 use crate::de::hysky::skyblocker::utils::mayor::mayor_utils::MayorUtils;
 use crate::de::hysky::skyblocker::utils::render::title::title::Title;
@@ -53,10 +55,12 @@ pub static MINIBOSS_SPAWN: compat::MainThread<compat::Shared<Title>> = compat::M
 pub static FILE: compat::MainThread<std::path::PathBuf> = compat::MainThread::new(|| skyblocker_mod::CONFIG_DIR.get_mut().join("slayers_data.json"));
 /// java: private static final ProfiledData<Object2ObjectOpenHashMap<SlayerType, SlayerInfo>> SLAYERS_DATA = new ProfiledData<>(FILE, SlayerInfo.CODEC);
 pub static SLAYERS_DATA: compat::MainThread<compat::Shared<ProfiledData<std::collections::HashMap<SlayerType, SlayerInfo>>>> = compat::MainThread::new(|| ProfiledData::new(FILE.get_mut().clone(), SLAYER_INFO_CODEC.get_mut().clone()));
-// TODO(fabric2seer): Collections.newSetFromMap
-//   java: private static final Set<Entity> ENTITIES_CACHE = Collections.newSetFromMap(new WeakHashMap<>());
 /// java: private static final Set<Entity> ENTITIES_CACHE = Collections.newSetFromMap(new WeakHashMap<>());
-pub static ENTITIES_CACHE: compat::MainThread<std::collections::HashSet<Box<dyn Entity>>> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `ENTITIES_CACHE` - see the TODO above"));
+///
+/// The entities by id (Java's reference to the live object; read through `game::with_entity`). A weak set lets
+/// go of an entity the level dropped; an id of a removed entity is never handed out again by the server, so it
+/// only waits here for the next `clear()`.
+pub static ENTITIES_CACHE: compat::MainThread<std::collections::HashSet<i32>> = compat::MainThread::new(|| std::collections::HashSet::new());
 /// java: private static @Nullable SlayerQuest slayerQuest;
 pub static SLAYER_QUEST: compat::MainThread<Option<compat::Shared<SlayerQuest>>> = compat::MainThread::new(|| None);
 /// java: private static @Nullable BossFight bossFight;
@@ -65,11 +69,43 @@ pub static BOSS_FIGHT: compat::MainThread<Option<compat::Shared<BossFight>>> = c
 pub static SLAYER_EXP_BUFF: LazyLock<Mutex<f32>> = LazyLock::new(|| Mutex::new(1.0f32));
 /// java: private static final Codec<SlayerInfo> SLAYER_CODEC = RecordCodecBuilder.create(instance -> instance.group( Codec.INT.fieldOf("level").forGetter(SlayerInfo::level), Codec.INT.fieldOf("xpRemaining").fo
 pub static SLAYER_INFO_SLAYER_CODEC: compat::MainThread<CodecRef<SlayerInfo>> = compat::MainThread::new(|| record_codec_builder::create(record_codec_builder::apply2(record_codec_builder::of(|o: &SlayerInfo| o.level(), codec::field_of(mcrust::com::mojang::serialization::codec::int_codec(), "level")), record_codec_builder::of(|o: &SlayerInfo| o.xp_remaining(), codec::field_of(mcrust::com::mojang::serialization::codec::int_codec(), "xpRemaining")), move |__a0, __a1| SlayerInfo::new(__a0.clone(), __a1.clone()))));
-// TODO(fabric2seer): static call Function.identity(..)
-//   java: private static final Codec<Object2ObjectOpenHashMap<SlayerType, SlayerInfo>> CODEC = Codec.unboundedMap(SlayerType.CODEC, SLAYER_CODEC)
-//   java: 				.xmap(Object2ObjectOpenHashMap::new, Function.identity());
 /// java: private static final Codec<Object2ObjectOpenHashMap<SlayerType, SlayerInfo>> CODEC = Codec.unboundedMap(SlayerType.CODEC, SLAYER_CODEC) .xmap(Object2ObjectOpenHashMap::new, Function.identity());
-pub static SLAYER_INFO_CODEC: compat::MainThread<CodecRef<std::collections::HashMap<SlayerType, SlayerInfo>>> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `CODEC` - see the TODO above"));
+pub static SLAYER_INFO_CODEC: compat::MainThread<CodecRef<std::collections::HashMap<SlayerType, SlayerInfo>>> = compat::MainThread::new(|| {
+    codec::xmap(
+        codec::unbounded_map(slayer_type::CODEC.get_mut().clone(), SLAYER_INFO_SLAYER_CODEC.get_mut().clone()),
+        |entries: Vec<(SlayerType, SlayerInfo)>| entries.into_iter().collect::<std::collections::HashMap<_, _>>(),
+        |map: &std::collections::HashMap<SlayerType, SlayerInfo>| map.iter().map(|(k, v)| (*k, v.clone())).collect::<Vec<_>>(),
+    )
+});
+
+/// Java's `Character.isWhitespace` (what `String.stripLeading` strips): not the no-break spaces.
+fn is_java_whitespace(c: char) -> bool {
+    match c {
+        '\u{00A0}' | '\u{2007}' | '\u{202F}' => false,
+        '\t' | '\n' | '\u{000B}' | '\u{000C}' | '\r' | '\u{001C}'..='\u{001F}' => true,
+        _ => c.is_whitespace() && !matches!(c, '\u{0085}'),
+    }
+}
+
+/// `entity.isAlive()` through the entity's class (`LivingEntity` overrides it).
+fn is_alive(entity: &dyn Entity) -> bool {
+    match entity.as_living_entity() {
+        Some(living) => living.living().is_alive(),
+        None => entity.base().is_alive(),
+    }
+}
+
+/// `game::with_entity(id, f)`, or `f(held)` when `held` IS that entity: a caller that already holds an entity's
+/// lock (the packet handler that lent us the armor stand) reaches it through its own reference, as Java's single
+/// object would be reached; `with_entity` would answer `None` for it.
+fn with_entity_or_held<R>(held: Option<&dyn Entity>, id: i32, f: impl FnOnce(&dyn Entity) -> R) -> Option<R> {
+    if let Some(held) = held {
+        if held.base().get_id() == id {
+            return Some(f(held));
+        }
+    }
+    mcrust::mcrust::modding::game::with_entity(id, |e| f(&*e))
+}
 
 /// java: public class SlayerManager
 #[derive(Clone)]
@@ -117,34 +153,35 @@ impl SlayerManager {
             return true;
         }
         let mut message: String = text.get_string();
-        // TODO(fabric2seer): a constant `case` among pattern cases
-        //   java: switch (message.stripLeading()) {
-        //   java: 			case "Your Slayer Quest has been cancelled!", "SLAYER QUEST FAILED!" -> {
-        //   java: 				slayerQuest = null;
-        //   java: 				CallMaddox.onSlayerFailed();
-        //   java: 				return true;
-        //   java: 			}
-        //   java: 			case "SLAYER QUEST STARTED!" -> {
-        //   java: 				return true;
-        //   java: 			}
-        //   java: 			case "NICE! SLAYER BOSS SLAIN!", "SLAYER QUEST COMPLETE!" -> {
-        //   java: 				if (slayerQuest != null) {
-        //   java: 					SlayerTimer.sendMessage();
-        //   java: 					CallMaddox.onBossKilled();
-        //   java: 				}
-        //   java: 				return true;
-        //   java: 			}
-        //   java: 			case "YOU COCOONED YOUR SLAYER BOSS" -> {
-        //   java: 				if (slayerQuest != null) SlayerTimer.sendMessage();
-        //   java: 				return true;
-        //   java: 			}
-        //   java: 			case String s when s.startsWith("SLAYER MINI-BOSS") -> {
-        //   java: 				if (SkyblockerConfigManager.get().slayers.miniBossSpawnAlert && !SkyblockerConfigManager.get().slayers.alertOtherMinibosses) {
-        //   java: 					TitleContainer.addTitleAndPlaySound(MINIBOSS_SPAWN, 20);
-        //   java: 				}
-        //   java: 			}
-        //   java: 			default -> {}
-        //   java: 		}
+        match message.trim_start_matches(is_java_whitespace) {
+            "Your Slayer Quest has been cancelled!" | "SLAYER QUEST FAILED!" => {
+                *SLAYER_QUEST.get_mut() = None;
+                CallMaddox::on_slayer_failed();
+                return true;
+            }
+            "SLAYER QUEST STARTED!" => {
+                return true;
+            }
+            "NICE! SLAYER BOSS SLAIN!" | "SLAYER QUEST COMPLETE!" => {
+                if SLAYER_QUEST.get_mut().is_some() {
+                    SlayerTimer::send_message();
+                    CallMaddox::on_boss_killed();
+                }
+                return true;
+            }
+            "YOU COCOONED YOUR SLAYER BOSS" => {
+                if SLAYER_QUEST.get_mut().is_some() {
+                    SlayerTimer::send_message();
+                }
+                return true;
+            }
+            s if s.starts_with("SLAYER MINI-BOSS") => {
+                if SkyblockerConfigManager::get().slayers.mini_boss_spawn_alert && !SkyblockerConfigManager::get().slayers.alert_other_minibosses {
+                    TitleContainer::add_title_and_play_sound_2(MINIBOSS_SPAWN.get_mut(), 20);
+                }
+            }
+            _ => {}
+        }
         if SLAYER_QUEST.get_mut().is_some() {
             let mut matcher_next_lvl: compat::regex::Matcher = XP_NEEDED_PATTERN.matcher(&message);
             if matcher_next_lvl.matches() {
@@ -154,34 +191,36 @@ impl SlayerManager {
                 } else {
                     let mut xp_remaining_str: Option<String> = matcher_next_lvl.group(3);
                     if let Some(xp_remaining_str) = &xp_remaining_str {
-                        let mut level: i32 = matcher_next_lvl.group(2).unwrap().trim().parse::<i32>().expect("NumberFormatException");
-                        let mut xp_remaining: i32 = (compat::trim(&(xp_remaining_str.replace(",", "")))).trim().parse::<i32>().expect("NumberFormatException");
+                        let mut level: i32 = matcher_next_lvl.group(2).unwrap().parse::<i32>().expect("NumberFormatException");
+                        let mut xp_remaining: i32 = compat::trim(&(xp_remaining_str.replace(",", ""))).parse::<i32>().expect("NumberFormatException");
                         SlayerQuest::update(SLAYER_QUEST.get_mut().as_ref().unwrap(), level, xp_remaining, true);
                     }
                 }
             } else if LVL_UP_PATTERN.matcher(&message).matches() {
-                let mut level: i32 = (compat::regex::replace_all(&message, "(\\d+).+", "$1")).trim().parse::<i32>().expect("NumberFormatException");
+                let mut level: i32 = compat::regex::replace_all(&message, "(\\d+).+", "$1").parse::<i32>().expect("NumberFormatException");
                 SlayerQuest::update(SLAYER_QUEST.get_mut().as_ref().unwrap(), level, -1, true);
             }
         }
         return true;
     }
 
-    /// java: @SuppressWarnings("SameReturnValue") private static InteractionResult onEntityAttack(Player player, Level level, InteractionHand interactionHand, Entity entity, @Nullable EntityHitResult entityHitResu
-    pub fn on_entity_attack(player: &dyn Player, level: &Level, interaction_hand: &InteractionHand, mut entity: Box<dyn Entity>, mut entity_hit_result: Option<EntityHitResult>) -> InteractionResult {
-        if ENTITIES_CACHE.get_mut().contains(&entity) {
+    /// java: @SuppressWarnings("SameReturnValue") private static InteractionResult onEntityAttack(Player player, Level level, InteractionHand interactionHand, Entity entity, @Nullable EntityHitResult entityHitResult)
+    pub fn on_entity_attack(player: &dyn Player, level: &Level, interaction_hand: &InteractionHand, entity: &dyn Entity, entity_hit_result: Option<&EntityHitResult>) -> InteractionResult {
+        let entity_id = entity.base().get_id();
+        if ENTITIES_CACHE.get_mut().contains(&entity_id) {
             return InteractionResult::Pass;
         }
-        ENTITIES_CACHE.get_mut().insert(entity.clone());
-        if !SlayerType::values().iter().copied().any(|slayer| std::ptr::addr_eq(std::sync::Arc::as_ptr(&slayer.fields().mob_type), std::sync::Arc::as_ptr(&entity.get_type().unwrap()))) {
+        ENTITIES_CACHE.get_mut().insert(entity_id);
+        let entity_type = entity.base().get_type().cloned();
+        if !SlayerType::values().iter().copied().any(|slayer| entity_type.as_ref().is_some_and(|t| Arc::ptr_eq(&slayer.fields().mob_type, t))) {
             return InteractionResult::Pass;
         }
-        let mut boss: Option<compat::Shared<BossFight>> = SlayerManager::find_boss(entity.clone());
+        let mut boss: Option<compat::Shared<BossFight>> = SlayerManager::find_boss(entity);
         if let Some(boss) = &boss {
-            if !(SlayerManager::is_slayer_armor_stand_alive()) || compat::read(boss, |__t| __t.player_boss) && BOSS_FIGHT.get_mut().is_some() && !std::ptr::eq(&compat::read(BOSS_FIGHT.get_mut().as_ref().unwrap(), |__t| __t.armor_stand.clone()), &compat::read(boss, |__t| __t.armor_stand.clone())) {
+            if !(SlayerManager::is_slayer_armor_stand_alive_held(Some(entity))) || (compat::read(boss, |__t| __t.player_boss) && BOSS_FIGHT.get_mut().is_some() && compat::read(BOSS_FIGHT.get_mut().as_ref().unwrap(), |__t| __t.armor_stand) != compat::read(boss, |__t| __t.armor_stand)) {
                 *BOSS_FIGHT.get_mut() = Some(boss.clone());
                 ENTITIES_CACHE.get_mut().clear();
-                ENTITIES_CACHE.get_mut().insert(entity.clone());
+                ENTITIES_CACHE.get_mut().insert(entity_id);
             }
         }
         return InteractionResult::Pass;
@@ -200,8 +239,7 @@ impl SlayerManager {
                     let Some(mut slayer_type) = SlayerType::from_boss_name(&boss_name) else {
                         return;
                     };
-                    // TODO(fabric2seer): no overload of `valueOf` takes 1 argument(s)
-                    //   java: slayerQuest = new SlayerQuest(slayerType, SlayerTier.valueOf(bossTier));
+                    *SLAYER_QUEST.get_mut() = Some(SlayerQuest::new(slayer_type, SlayerTier::value_of(&boss_tier)));
                 }
                 active = true;
             } else if line == "Slay the boss!" {
@@ -219,14 +257,13 @@ impl SlayerManager {
 
     /// java: public static void checkSlayerBoss(ArmorStand armorStand)
     pub fn check_slayer_boss(armor_stand: &ArmorStand) {
-        if !armor_stand.base.base.has_custom_name() || !(SlayerManager::is_in_slayer_quest()) || SlayerManager::is_slayer_armor_stand_alive() {
+        let armor_stand_entity: &dyn Entity = armor_stand;
+        if !armor_stand.base.base.has_custom_name() || !(SlayerManager::is_in_slayer_quest()) || SlayerManager::is_slayer_armor_stand_alive_held(Some(armor_stand_entity)) {
             return;
         }
-        let mut entity_name: String = compat::component_of(armor_stand.get_name()).get_string();
-        // TODO(fabric2seer): the mod keeps the game's `ArmorStand` (Java holds a reference to the live object); the port's `ArmorStand` is not a value to copy and the port lends the mod no handle to it
-        // rust: let mut boss: Option<compat::Shared<BossFight>> = SlayerManager::find_boss(armor_stand.clone());
-        let mut boss: compat::Shared<BossFight> = todo!("fabric2seer: the initialiser of `boss` (TODO above)");
-        if true /* java: boss != null: never null here */ {
+        let mut entity_name: String = armor_stand_entity.get_name().get_string();
+        let mut boss: Option<compat::Shared<BossFight>> = SlayerManager::find_boss(armor_stand_entity);
+        if let Some(boss) = &boss {
             *BOSS_FIGHT.get_mut() = Some(boss.clone());
             SlayerQuest::on_boss_spawn(SLAYER_QUEST.get_mut().as_ref().unwrap());
             if !(compat::read(SLAYER_QUEST.get_mut().as_ref().unwrap(), |__t| __t.sent_boss_alert)) {
@@ -236,104 +273,128 @@ impl SlayerManager {
             return;
         }
         debug_assert!(mcrust::mcrust::modding::game::with_player(|_| ()).is_some());
-        if mcrust::mcrust::modding::game::with_player(|player| armor_stand.base.base.closer_than(player, (15) as f64)).unwrap_or(false) && SLAYER_QUEST.get_mut().as_ref().unwrap().lock().borrow().slayer_type.is_miniboss(&entity_name, compat::read(SLAYER_QUEST.get_mut().as_ref().unwrap(), |__t| __t.slayer_tier)) {
-            // TODO(fabric2seer): the mod keeps the game's `ArmorStand` (Java holds a reference to the live object); the port's `ArmorStand` is not a value to copy and the port lends the mod no handle to it
-            // rust: SlayerQuest::on_miniboss_spawn(SLAYER_QUEST.get_mut().as_ref().unwrap(), armor_stand.clone());
+        let slayer_type = compat::read(SLAYER_QUEST.get_mut().as_ref().unwrap(), |__t| __t.slayer_type);
+        if mcrust::mcrust::modding::game::with_player(|player| armor_stand.base.base.closer_than(player.base(), (15) as f64)).unwrap_or(false) && slayer_type.is_miniboss(&entity_name, compat::read(SLAYER_QUEST.get_mut().as_ref().unwrap(), |__t| __t.slayer_tier)) {
+            SlayerQuest::on_miniboss_spawn(SLAYER_QUEST.get_mut().as_ref().unwrap(), armor_stand_entity);
         }
     }
 
     /// java: private static @Nullable BossFight findBoss(Entity entity)
-    pub fn find_boss(mut entity: Box<dyn Entity>) -> Option<compat::Shared<BossFight>> {
+    ///
+    /// `entity` is lent by a caller that holds it; the stands near it are read through `game::with_entity`.
+    pub fn find_boss(entity: &dyn Entity) -> Option<compat::Shared<BossFight>> {
         let mut username: String = compat::minecraft().get_user().get_name().to_string();
-        let mut boss_stand: Option<ArmorStand> = None;
-        let mut boss: Option<Box<dyn Entity>> = None;
+        let mut boss_stand: Option<i32> = None;
+        let mut boss: Option<i32> = None;
         let mut slayer_type: Option<SlayerType> = None;
         let mut slayer_tier: Option<SlayerTier> = None;
         let mut player_boss: bool = false;
-        if let Some(armor_stand) = entity.as_any().unwrap_or(&() as &dyn std::any::Any).downcast_ref::<ArmorStand>() {
-            let mut entity_name: String = compat::component_of(armor_stand.get_name()).get_string();
+        if entity.as_any().is_some_and(|a| a.is::<ArmorStand>()) {
+            let armor_stand: &dyn Entity = entity;
+            let mut entity_name: String = armor_stand.get_name().get_string();
             let mut entity_matcher: compat::regex::Matcher = SLAYER_PATTERN.matcher(&entity_name);
             let mut is_player_stand: bool = entity_name.contains(&username);
             let mut is_boss_stand: bool = (entity_matcher.find() && SlayerManager::is_valid_boss_armor_stand(armor_stand));
             if !is_boss_stand && !is_player_stand {
                 return None;
             }
-            for stand in SlayerManager::get_entity_armor_stands(&entity, 1.5f32) {
-                let mut stand_name: String = compat::component_of(stand.get_name()).get_string();
+            for stand in SlayerManager::get_entity_armor_stands(entity, 1.5f32) {
+                let Some((stand_name, stand_valid)) = mcrust::mcrust::modding::game::with_entity(stand, |s| (s.get_name().get_string(), SlayerManager::is_valid_boss_armor_stand(&*s))) else {
+                    continue;
+                };
                 if is_boss_stand && stand_name.contains(&username) {
                     let mut boss_name: String = entity_matcher.group(1).unwrap();
                     slayer_type = SlayerType::from_boss_name(&boss_name);
-                    slayer_tier = Some(SlayerTier::value_of(entity_matcher.group(2), &boss_name));
-                    // TODO(fabric2seer): the mod keeps the game's `ArmorStand` (Java holds a reference to the live object); the port's `ArmorStand` is not a value to copy and the port lends the mod no handle to it
-                    // rust: boss_stand = Some(armor_stand.clone());
+                    slayer_tier = Some(SlayerTier::value_of_2(entity_matcher.group(2), &boss_name));
+                    boss_stand = Some(armor_stand.base().get_id());
                     player_boss = true;
                     break;
                 }
                 if is_player_stand {
                     let mut matcher: compat::regex::Matcher = SLAYER_PATTERN.matcher(&stand_name);
-                    if matcher.find() && SlayerManager::is_valid_boss_armor_stand(&stand) {
+                    if matcher.find() && stand_valid {
                         let mut boss_name: String = matcher.group(1).unwrap();
                         slayer_type = SlayerType::from_boss_name(&boss_name);
-                        slayer_tier = Some(SlayerTier::value_of(matcher.group(2), &boss_name));
-                        // TODO(fabric2seer): the mod keeps the game's `ArmorStand` (Java holds a reference to the live object); the port's `ArmorStand` is not a value to copy and the port lends the mod no handle to it
-                        // rust: boss_stand = Some(stand.clone());
+                        slayer_tier = Some(SlayerTier::value_of_2(matcher.group(2), &boss_name));
+                        boss_stand = Some(stand);
                         player_boss = true;
                         break;
                     }
                 }
             }
-            boss = (if slayer_type.is_some() { SlayerManager::find_closest_mob_entity(&slayer_type.as_ref().unwrap().fields().mob_type, armor_stand) } else { None });
+            boss = (if let Some(slayer_type) = &slayer_type { SlayerManager::find_closest_mob_entity(&slayer_type.fields().mob_type, armor_stand) } else { None });
         } else {
-            boss = Some(entity.clone());
-            for stand in SlayerManager::get_entity_armor_stands(&entity, 1.5f32) {
-                let mut stand_name: String = compat::component_of(stand.get_name()).get_string();
+            boss = Some(entity.base().get_id());
+            for stand in SlayerManager::get_entity_armor_stands(entity, 1.5f32) {
+                let Some((stand_name, stand_valid)) = mcrust::mcrust::modding::game::with_entity(stand, |s| (s.get_name().get_string(), SlayerManager::is_valid_boss_armor_stand(&*s))) else {
+                    continue;
+                };
                 let mut matcher: compat::regex::Matcher = SLAYER_PATTERN.matcher(&stand_name);
-                if matcher.find() && SlayerManager::is_valid_boss_armor_stand(&stand) {
-                    // TODO(fabric2seer): the mod keeps the game's `ArmorStand` (Java holds a reference to the live object); the port's `ArmorStand` is not a value to copy and the port lends the mod no handle to it
-                    // rust: boss_stand = Some(stand.clone());
+                if matcher.find() && stand_valid {
+                    boss_stand = Some(stand);
                     let mut boss_name: String = matcher.group(1).unwrap();
                     slayer_type = SlayerType::from_boss_name(&boss_name);
-                    slayer_tier = Some(SlayerTier::value_of(matcher.group(2), &boss_name));
+                    slayer_tier = Some(SlayerTier::value_of_2(matcher.group(2), &boss_name));
                 } else if stand_name.contains(&username) {
                     player_boss = true;
                 }
             }
         }
-        return (if boss_stand.is_some() && boss.is_some() && slayer_type.is_some() { Some(BossFight::new(boss_stand.clone().unwrap(), boss.clone().unwrap(), player_boss, slayer_type.clone().unwrap(), slayer_tier.clone().unwrap())) } else { None });
+        let (Some(boss_stand), Some(boss), Some(slayer_type)) = (boss_stand, boss, slayer_type) else {
+            return None;
+        };
+        // `boss.getUUID()` is read once here: an entity's UUID never changes, and `isSelectedBoss` is asked from
+        // inside the boss's own render/tick (where `with_entity` cannot reach it).
+        let boss_uuid = with_entity_or_held(Some(entity), boss, |e| e.base().get_uuid())?;
+        return Some(BossFight::new(boss_stand, boss, boss_uuid, player_boss, slayer_type, slayer_tier.unwrap()));
     }
 
     /// java: public static List<ArmorStand> getEntityArmorStands(Entity entity, float expandY)
-    pub fn get_entity_armor_stands(entity: &dyn Entity, mut expand_y: f32) -> Vec<ArmorStand> {
-        // TODO(fabric2seer): `Entity.level` has no Rust method in the port (looked for `level` in Entity and its supertypes)
-        // TODO(fabric2seer): `Level.getEntities` has no Rust method in the port (looked for `get_entities` in Level and its supertypes)
-        // TODO(fabric2seer): the mod keeps the game's `ArmorStand` (Java holds a reference to the live object); the port's `ArmorStand` is not a value to copy and the port lends the mod no handle to it
-        // rust: return entity.level().get_entities(entity, &entity.get_bounding_box().inflate3((0.1f32) as f64, (expand_y) as f64, (0.1f32) as f64), &Arc::new(move |x| (x.as_any().unwrap_or(&() as &dyn std::any::Any).is::<ArmorStand>() && x.has_custom_name()))).into_iter().map(|e| e.as_any().downcast_ref::<ArmorStand>().unwrap().clone()).collect::<Vec<_>>();
-        return todo!("fabric2seer: see the TODO above");
+    ///
+    /// The stands by entity id (read them through `game::with_entity`). `entity` is the `except` of the sweep,
+    /// so a caller holding it is never locked against.
+    pub fn get_entity_armor_stands(entity: &dyn Entity, mut expand_y: f32) -> Vec<i32> {
+        use mcrust::net::minecraft::world::level::entity_getter::EntityGetter as _;
+        let Some(level) = mcrust::mcrust::modding::game::level() else {
+            return Vec::new();
+        };
+        let bounds = entity.base().get_bounding_box().inflate3((0.1f32) as f64, (expand_y) as f64, (0.1f32) as f64);
+        let stands = level.get_entities(Some(entity.base().get_id()), &bounds, &|x| x.as_any().is_some_and(|a| a.is::<ArmorStand>()) && x.base().has_custom_name());
+        return stands.iter().map(|stand| mcrust::mcrust::modding::game::lock_entity(&**stand, "slayer_manager.rs:getEntityArmorStands").base().get_id()).collect::<Vec<_>>();
     }
 
     /// java: private static @Nullable <T extends Entity> T findClosestMobEntity(EntityType<T> entityType, ArmorStand armorStand)
-    pub fn find_closest_mob_entity<T: 'static>(entity_type: &Arc<EntityType>, armor_stand: &ArmorStand) -> Option<T> {
-        // TODO(fabric2seer): `.isAlive(..)` on a T
-        //   java: List<T> mobEntities = armorStand.level().getEntities(entityType, armorStand.getBoundingBox().inflate(0, 1.5f, 0), Entity::isAlive);
-        let mut mob_entities: Vec<T> = todo!("fabric2seer: the initialiser of `mobEntities` (TODO above)");
-        mob_entities.sort_by(|a, b| { let key = |__a0| armor_stand.base.base.distance_to_sqr_entity(__a0); key(a).total_cmp(&key(b)) });
-        // TODO(fabric2seer): field `tickCount` of a T
-        //   java: return switch (mobEntities.size()) {
-        //   java: 			case 0 -> null;
-        //   java: 			case 1 -> mobEntities.getFirst();
-        //   java: 			default -> mobEntities.stream()
-        //   java: 					.min(Comparator.comparingInt(entity -> Math.abs(entity.tickCount - armorStand.tickCount)))
-        //   java: 					.get();
-        //   java: 		};
-        todo!("fabric2seer: the value of this function is in a TODO above")
+    ///
+    /// The mob by entity id. `armorStand` is lent by a caller that holds it (it is the sweep's `except`; an armor
+    /// stand is never of a mob's type, so the answer is Java's).
+    pub fn find_closest_mob_entity(entity_type: &Arc<EntityType>, armor_stand: &dyn Entity) -> Option<i32> {
+        use mcrust::net::minecraft::world::level::entity_getter::EntityGetter as _;
+        let level = mcrust::mcrust::modding::game::level()?;
+        let bounds = armor_stand.base().get_bounding_box().inflate3((0) as f64, (1.5f32) as f64, (0) as f64);
+        let found = level.get_entities(Some(armor_stand.base().get_id()), &bounds, &|e| e.base().get_type().is_some_and(|t| Arc::ptr_eq(t, entity_type)) && mcrust::net::minecraft::world::entity::entity_selector::is_alive(e));
+        // (id, distanceToSqr from the stand, tickCount)
+        let mut mob_entities: Vec<(i32, f64, i32)> = found
+            .iter()
+            .map(|mob| {
+                let guard = mcrust::mcrust::modding::game::lock_entity(&**mob, "slayer_manager.rs:findClosestMobEntity");
+                (guard.base().get_id(), armor_stand.base().distance_to_sqr_entity(guard.base()), guard.base().tick_count)
+            })
+            .collect();
+        mob_entities.sort_by(|a, b| a.1.total_cmp(&b.1));
+        let stand_tick_count = armor_stand.base().tick_count;
+        return match mob_entities.len() {
+            0 => None,
+            1 => Some(mob_entities[0].0),
+            _ => mob_entities.iter().min_by_key(|mob| (mob.2.wrapping_sub(stand_tick_count)).wrapping_abs()).map(|mob| mob.0),
+        };
     }
 
     /// java: public static boolean shouldGlow(Entity entity, SlayersConfig.HighlightSlayerEntities highlightType)
     pub fn should_glow(entity: &dyn Entity, mut highlight_type: HighlightSlayerEntities) -> bool {
-        if SkyblockerConfigManager::get().slayers.highlight_minis == highlight_type && SlayerManager::is_in_slayer_quest() && SLAYER_QUEST.get_mut().as_ref().unwrap().lock().borrow().minibosses.iter().any(|e| *e == entity.clone()) {
+        if SkyblockerConfigManager::get().slayers.highlight_minis == highlight_type && SlayerManager::is_in_slayer_quest() && SLAYER_QUEST.get_mut().as_ref().unwrap().lock().borrow().minibosses.contains(&entity.base().get_id()) {
             return true;
         }
-        return (SkyblockerConfigManager::get().slayers.highlight_bosses == highlight_type && SlayerManager::is_selected_boss(&compat::uuid_of(entity.get_uuid())));
+        return (SkyblockerConfigManager::get().slayers.highlight_bosses == highlight_type && SlayerManager::is_selected_boss(&compat::uuid_of(entity.base().get_uuid())));
     }
 
     /// java: public static @Nullable SlayerQuest getSlayerQuest()
@@ -353,12 +414,25 @@ impl SlayerManager {
 
     /// java: public static boolean isFightingSlayer()
     pub fn is_fighting_slayer() -> bool {
-        return (BOSS_FIGHT.get_mut().is_some() && BOSS_FIGHT.get_mut().as_ref().unwrap().lock().borrow().boss.is_alive());
+        SlayerManager::is_fighting_slayer_held(None)
+    }
+
+    /// `isFightingSlayer()` for a caller that holds `held` (it may be the boss).
+    fn is_fighting_slayer_held(held: Option<&dyn Entity>) -> bool {
+        let Some(boss) = BOSS_FIGHT.get_mut().as_ref().map(|b| compat::read(b, |__t| __t.boss)) else {
+            return false;
+        };
+        // a boss no longer in the level was removed, so it is not alive
+        return with_entity_or_held(held, boss, |e| is_alive(e)).unwrap_or(false);
     }
 
     /// java: public static boolean isFightingOwnedSlayer()
     pub fn is_fighting_owned_slayer() -> bool {
-        return (SlayerManager::is_fighting_slayer() && compat::read(BOSS_FIGHT.get_mut().as_ref().unwrap(), |__t| __t.player_boss));
+        SlayerManager::is_fighting_owned_slayer_held(None)
+    }
+
+    fn is_fighting_owned_slayer_held(held: Option<&dyn Entity>) -> bool {
+        return (SlayerManager::is_fighting_slayer_held(held) && compat::read(BOSS_FIGHT.get_mut().as_ref().unwrap(), |__t| __t.player_boss));
     }
 
     /// java: public static boolean isFightingSlayerType(SlayerType slayerType)
@@ -368,22 +442,35 @@ impl SlayerManager {
 
     /// java: public static boolean isSelectedBoss(UUID uuid)
     pub fn is_selected_boss(uuid: &Uuid) -> bool {
-        return (BOSS_FIGHT.get_mut().is_some() && compat::uuid_of(BOSS_FIGHT.get_mut().as_ref().unwrap().lock().borrow().boss.get_uuid()) == uuid);
+        return (BOSS_FIGHT.get_mut().is_some() && compat::uuid_of(compat::read(BOSS_FIGHT.get_mut().as_ref().unwrap(), |__t| __t.boss_uuid)) == *uuid);
     }
 
     /// java: public static @Nullable ArmorStand getSlayerArmorStand()
-    pub fn get_slayer_armor_stand() -> Option<ArmorStand> {
-        return (if SlayerManager::is_fighting_slayer() { Some(compat::read(BOSS_FIGHT.get_mut().as_ref().unwrap(), |__t| __t.armor_stand.clone())) } else { None });
+    ///
+    /// The armor stand's entity id (read it through `game::with_entity`).
+    pub fn get_slayer_armor_stand() -> Option<i32> {
+        return (if SlayerManager::is_fighting_slayer() { Some(compat::read(BOSS_FIGHT.get_mut().as_ref().unwrap(), |__t| __t.armor_stand)) } else { None });
     }
 
     /// java: public static boolean isSlayerArmorStandAlive()
     pub fn is_slayer_armor_stand_alive() -> bool {
-        return (SlayerManager::is_fighting_owned_slayer() && SlayerManager::is_valid_boss_armor_stand(&compat::read(BOSS_FIGHT.get_mut().as_ref().unwrap(), |__t| __t.armor_stand.clone())));
+        SlayerManager::is_slayer_armor_stand_alive_held(None)
+    }
+
+    /// `isSlayerArmorStandAlive()` for a caller that holds `held` (the armor stand a packet just updated may be the
+    /// boss's own).
+    fn is_slayer_armor_stand_alive_held(held: Option<&dyn Entity>) -> bool {
+        if !SlayerManager::is_fighting_owned_slayer_held(held) {
+            return false;
+        }
+        let stand = compat::read(BOSS_FIGHT.get_mut().as_ref().unwrap(), |__t| __t.armor_stand);
+        // a stand no longer in the level was removed, so it is not alive
+        return with_entity_or_held(held, stand, |e| SlayerManager::is_valid_boss_armor_stand(e)).unwrap_or(false);
     }
 
     /// java: public static boolean isValidBossArmorStand(ArmorStand armorStandEntity)
-    pub fn is_valid_boss_armor_stand(armor_stand_entity: &ArmorStand) -> bool {
-        return (armor_stand_entity.base.is_alive() && !(compat::component_of(armor_stand_entity.get_name()).get_string().ends_with(" 0❤")));
+    pub fn is_valid_boss_armor_stand(armor_stand_entity: &dyn Entity) -> bool {
+        return (is_alive(armor_stand_entity) && !(armor_stand_entity.get_name().get_string().ends_with(" 0❤")));
     }
 
 }
@@ -391,9 +478,15 @@ impl SlayerManager {
 /// java: public static class BossFight
 pub struct BossFight {
     /// java: public final ArmorStand armorStand;
-    pub armor_stand: ArmorStand,
+    ///
+    /// The armor stand's entity id (Java's reference to the live object; read through `game::with_entity`).
+    pub armor_stand: i32,
     /// java: public final Entity boss;
-    pub boss: Box<dyn Entity>,
+    ///
+    /// The boss's entity id (Java's reference to the live object; read through `game::with_entity`).
+    pub boss: i32,
+    /// `boss.getUUID()`, which never changes (read where the boss itself is held: its render and tick).
+    pub boss_uuid: u128,
     /// java: public final boolean playerBoss;
     pub player_boss: bool,
     /// java: public final SlayerType slayerType;
@@ -404,21 +497,15 @@ pub struct BossFight {
 
 impl BossFight {
     /// java: private BossFight(ArmorStand armorStand, Entity boss, boolean playerBoss, SlayerType slayerType, SlayerTier slayerTier)
-    pub fn new(mut armor_stand: ArmorStand, mut boss: Box<dyn Entity>, mut player_boss: bool, mut slayer_type: SlayerType, mut slayer_tier: SlayerTier) -> compat::Shared<Self> {
-        // TODO(fabric2seer): the mod keeps the game's `ArmorStand` (Java holds a reference to the live object); the port's `ArmorStand` is not a value to copy and the port lends the mod no handle to it
-        //   java: this.armorStand = armorStand;
-        let __init_boss = boss.clone();
-        let __init_player_boss = player_boss;
-        let __init_slayer_type = slayer_type;
-        let __init_slayer_tier = slayer_tier;
-        let __this = compat::shared(Self {
-            armor_stand: todo!("fabric2seer: the field value (TODO above)"),
-            boss: __init_boss,
-            player_boss: __init_player_boss,
-            slayer_type: __init_slayer_type,
-            slayer_tier: __init_slayer_tier,
-        });
-        __this
+    pub fn new(armor_stand: i32, boss: i32, boss_uuid: u128, player_boss: bool, slayer_type: SlayerType, slayer_tier: SlayerTier) -> compat::Shared<Self> {
+        compat::shared(Self {
+            armor_stand,
+            boss,
+            boss_uuid,
+            player_boss,
+            slayer_type,
+            slayer_tier,
+        })
     }
 
     /// java: private static void alert()
@@ -443,9 +530,13 @@ pub struct SlayerQuest {
     /// java: public final SlayerTier slayerTier;
     pub slayer_tier: SlayerTier,
     /// java: public final List<ArmorStand> minibossesArmorStand = new ArrayList<>();
-    pub minibosses_armor_stand: Vec<ArmorStand>,
+    ///
+    /// The stands by entity id.
+    pub minibosses_armor_stand: Vec<i32>,
     /// java: public final List<Entity> minibosses = new ArrayList<>();
-    pub minibosses: Vec<Box<dyn Entity>>,
+    ///
+    /// The minibosses by entity id.
+    pub minibosses: Vec<i32>,
     /// java: public boolean active = true;
     pub active: bool,
     /// java: public int level;
@@ -484,12 +575,7 @@ impl SlayerQuest {
             boss_spawned: false,
             sent_boss_alert: false,
         });
-        // TODO(fabric2seer): the condition: `.containsKey(..)` on a T
-        //   java: slayersData != null && slayersData.containsKey(slayerType)
-        if todo!("fabric2seer: the condition (TODO above)") {
-            // TODO(fabric2seer): `.get(..)` on a T
-            //   java: SlayerInfo slayerInfo = slayersData.get(slayerType);
-            let mut slayer_info: SlayerInfo = todo!("fabric2seer: the initialiser of `slayerInfo` (TODO above)");
+        if let Some(slayer_info) = slayers_data.as_ref().and_then(|data| data.get(&slayer_type)).cloned() {
             SlayerQuest::update(&__this, slayer_info.level, slayer_info.xp_remaining, false);
         } else {
             SlayerQuest::update(&__this, -1, -1, false);
@@ -500,8 +586,10 @@ impl SlayerQuest {
     /// java: private void save()
     pub fn save(__this: &compat::Shared<Self>) {
         let mut slayers = ProfiledData::compute_if_absent(SLAYERS_DATA.get_mut(), Arc::new(move || std::collections::HashMap::new()));
-        // TODO(fabric2seer): `.put(..)` on a T
-        //   java: slayers.put(slayerType, new SlayerInfo(level, xpRemaining));
+        let (slayer_type, level, xp_remaining) = compat::read(__this, |__t| (__t.slayer_type, __t.level, __t.xp_remaining));
+        slayers.insert(slayer_type, SlayerInfo::new(level, xp_remaining));
+        // `computeIfAbsent` answers the stored map itself in Java; the port's answers a copy, so it is put back.
+        ProfiledData::put(SLAYERS_DATA.get_mut(), slayers);
         SLAYERS_DATA.get_mut().lock().borrow().save();
     }
 
@@ -531,29 +619,31 @@ impl SlayerQuest {
     }
 
     /// java: private void onMinibossSpawn(ArmorStand armorStand)
-    pub fn on_miniboss_spawn(__this: &compat::Shared<Self>, mut armor_stand: ArmorStand) {
-        // TODO(fabric2seer): the mod keeps the game's `ArmorStand` (Java holds a reference to the live object); the port's `ArmorStand` is not a value to copy and the port lends the mod no handle to it
-        if __this.lock().borrow().minibosses_armor_stand.iter().any(|e| *e == armor_stand.clone()) {
+    ///
+    /// `armor_stand` is lent by the packet handler that holds it.
+    pub fn on_miniboss_spawn(__this: &compat::Shared<Self>, armor_stand: &dyn Entity) {
+        let armor_stand_id = armor_stand.base().get_id();
+        if __this.lock().borrow().minibosses_armor_stand.contains(&armor_stand_id) {
             return;
         }
-        // TODO(fabric2seer): the mod keeps the game's `ArmorStand` (Java holds a reference to the live object); the port's `ArmorStand` is not a value to copy and the port lends the mod no handle to it
-        // rust: let __h0 = armor_stand.clone();
-        // rust: __this.lock().borrow_mut().minibosses_armor_stand.push(__h0);
-        let mut miniboss_type: Arc<EntityType> = __this.lock().borrow().slayer_type.get_miniboss_type(&compat::component_of(armor_stand.get_name()).get_string());
-        let Some(mut miniboss) = SlayerManager::find_closest_mob_entity(&miniboss_type, &armor_stand) else {
+        __this.lock().borrow_mut().minibosses_armor_stand.push(armor_stand_id);
+        let slayer_type = compat::read(__this, |__t| __t.slayer_type);
+        let mut miniboss_type: Arc<EntityType> = slayer_type.get_miniboss_type(&armor_stand.get_name().get_string());
+        let Some(mut miniboss) = SlayerManager::find_closest_mob_entity(&miniboss_type, armor_stand) else {
             return;
         };
-        let __h0 = miniboss.clone();
-        __this.lock().borrow_mut().minibosses.push(__h0);
+        __this.lock().borrow_mut().minibosses.push(miniboss);
         let slayers_config = &SkyblockerConfigManager::get().slayers;
         if slayers_config.mini_boss_spawn_alert && slayers_config.alert_other_minibosses {
-            let mut armor_stand_name: Option<MutableComponent> = Some(armor_stand.base.base.get_custom_name().unwrap().as_any().downcast_ref::<MutableComponent>().unwrap().clone());
+            // `(MutableComponent) armorStand.getCustomName()`
+            let mut armor_stand_name: Option<MutableComponent> = armor_stand.base().get_custom_name().map(compat::component_of);
             let mut title: compat::Shared<Title> = (if slayers_config.show_mini_boss_name_in_alert && armor_stand_name.is_some() { Title::new_1(armor_stand_name.clone().unwrap()) } else { MINIBOSS_SPAWN.get_mut().clone() });
             TitleContainer::add_title_and_play_sound_2(&title, 20);
         }
     }
 
 }
+
 
 /// java: public record SlayerInfo(int level, int xpRemaining)
 #[derive(Clone, Debug, PartialEq)]

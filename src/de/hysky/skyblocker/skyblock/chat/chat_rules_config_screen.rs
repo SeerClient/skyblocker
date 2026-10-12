@@ -52,7 +52,7 @@ impl std::ops::DerefMut for ChatRulesConfigScreen {
 impl ChatRulesConfigScreen {
     /// java: public ChatRulesConfigScreen(Screen parent)
     pub fn new(mut parent: Option<mcrust::net::minecraft::client::gui::screens::screen::Screen>) -> compat::Shared<Self> {
-        let __init_parent = parent.clone();
+        let __init_parent = parent;
         let __this = compat::shared(Self {
             base: mcrust::net::minecraft::client::gui::screens::screen::Screen::new(component::translatable("skyblocker.config.chat.chatRules.screen.ruleScreen").get_string()),
             self_ref: std::sync::Weak::new(),
