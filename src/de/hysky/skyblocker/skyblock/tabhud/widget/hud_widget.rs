@@ -28,6 +28,8 @@ pub struct HudWidgetBase {
     pub scale: f32,
     /// java: private final Information information;
     pub information: Information,
+    /// the object's own shared handle: Java's `this` handed to other objects (`element.setParent(this)`)
+    pub self_ref: Option<compat::WeakShared<dyn HudWidget>>,
 }
 
 impl HudWidgetBase {
@@ -41,10 +43,19 @@ impl HudWidgetBase {
             y: 0,
             scale: ((1) as f32) as f32,
             information: __init_information,
+            self_ref: None,
         };
         let (__h, __r) = __wrap(this);
         let __this = __h;
+        { let __w = std::sync::Arc::downgrade(&__this); compat::write(&__this, |__t| __t.hud_widget_base_mut().self_ref = Some(__w)); }
         (__this, __r)
+    }
+
+    /// `this` as the `LayoutElement` an element's `setParent(this)` is handed
+    pub fn as_parent(&self) -> crate::de::hysky::skyblocker::skyblock::tabhud::widget::element::element::ElementParent {
+        crate::de::hysky::skyblocker::skyblock::tabhud::widget::element::element::ElementParent::Widget(
+            self.self_ref.clone().expect("a HudWidget's handle is recorded by its constructor"),
+        )
     }
 
     /// java: public static String nameToId(String name)
@@ -102,7 +113,7 @@ pub trait HudWidget: compat::DynAny {
     }
 
     /// java: @Override public final boolean equals(Object object) (dispatch: the body for this class)
-    fn equals(&self) -> fn(&compat::Shared<dyn HudWidget>, &compat::Object) -> bool {
+    fn equals(&self) -> fn(&compat::Shared<dyn HudWidget>, &compat::Shared<dyn HudWidget>) -> bool {
         <dyn HudWidget>::equals_body
     }
 
@@ -167,8 +178,8 @@ impl dyn HudWidget {
     /// java: public final void extractRenderState(GuiGraphicsExtractor graphics, float delta)
     pub fn extract_render_state_body(__this: &compat::Shared<dyn HudWidget>, graphics: &mut GuiGraphicsExtractor, mut delta: f32) {
         let __pose_1 = gui_graphics_extractor::push_pose();
-        // TODO(fabric2seer): Matrix3x2fStack.scale
-        //   java: graphics.pose().scale(scale);
+        // java: graphics.pose().scale(scale);
+        { let __s = compat::read(__this, |__t| __t.hud_widget_base().scale); gui_graphics_extractor::pose_scale(__s, __s); }
         ({ let __f = compat::dispatch(__this, |__t| __t.extract_widget_render_state()); __f(__this, graphics, delta) });
         gui_graphics_extractor::pop_pose(__pose_1);
     }
@@ -176,8 +187,8 @@ impl dyn HudWidget {
     /// java: public final void extractRenderStateForConfig(GuiGraphicsExtractor graphics, float delta)
     pub fn extract_render_state_for_config_body(__this: &compat::Shared<dyn HudWidget>, graphics: &mut GuiGraphicsExtractor, mut delta: f32) {
         let __pose_1 = gui_graphics_extractor::push_pose();
-        // TODO(fabric2seer): Matrix3x2fStack.scale
-        //   java: graphics.pose().scale(scale);
+        // java: graphics.pose().scale(scale);
+        { let __s = compat::read(__this, |__t| __t.hud_widget_base().scale); gui_graphics_extractor::pose_scale(__s, __s); }
         ({ let __f = compat::dispatch(__this, |__t| __t.extract_widget_render_state_for_config()); __f(__this, graphics, delta) });
         gui_graphics_extractor::pop_pose(__pose_1);
     }
@@ -194,13 +205,14 @@ impl dyn HudWidget {
 
     /// java: public void save(JsonValueOutput output)
     pub fn save_body(__this: &compat::Shared<dyn HudWidget>, output: &mut JsonValueOutput) {
-        output.write_number("scale", &compat::read(__this, |__t| __t.hud_widget_base().scale));
+        output.write_number("scale", &mcrust::java::lang::number::Number::Float(compat::read(__this, |__t| __t.hud_widget_base().scale)));
     }
 
     /// java: public void getOptionWidgets(OptionWidgetCollector collector)
     pub fn get_option_widgets_body(__this: &compat::Shared<dyn HudWidget>, collector: &mut OptionWidgetCollector) {
-        // TODO(fabric2seer): an assignment used as a value
-        //   java: collector.slider(Component.translatable("skyblocker.config.hud.widget.base.scale"), d -> scale = (float) d, scale, 0.1, 5);
+        // java: collector.slider(Component.translatable("skyblocker.config.hud.widget.base.scale"), d -> scale = (float) d, scale, 0.1, 5);
+        let __this_w = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
+        collector.slider(&component::translatable("skyblocker.config.hud.widget.base.scale"), Arc::new(move |d: f64| { if let Some(__this) = __this_w.get().upgrade() { compat::write(&__this, |__t| __t.hud_widget_base_mut().scale = d as f32); } }), compat::read(__this, |__t| __t.hud_widget_base().scale) as f64, 0.1, 5.0);
     }
 
     /// java: public void updateConfigPreview()
@@ -208,17 +220,22 @@ impl dyn HudWidget {
     }
 
     /// java: @Override public final boolean equals(Object object)
-    pub fn equals_body(__this: &compat::Shared<dyn HudWidget>, object: &compat::Object) -> bool {
+    /// (`object` is a HudWidget at every caller: `PositionedWidget.equals`, `LayerBuilderEditor`)
+    pub fn equals_body(__this: &compat::Shared<dyn HudWidget>, object: &compat::Shared<dyn HudWidget>) -> bool {
         if std::ptr::addr_eq(std::sync::Arc::as_ptr(__this), std::sync::Arc::as_ptr(object)) {
             return true;
         }
-        // TODO(fabric2seer): the condition: call to `getClass(..)` (not a method of this class)
-        //   java: object == null || getClass() != object.getClass()
-        if todo!("fabric2seer: the condition (TODO above)") {
+        // java: object == null || getClass() != object.getClass()
+        if compat::read(__this, |__t| __t.dyn_any().type_id()) != compat::read(object, |__t| __t.dyn_any().type_id()) {
             return false;
         }
-        let mut widget: compat::Shared<dyn HudWidget> = object.clone();
-        return (({ let __f = compat::dispatch(__this, |__t| __t.get_internal_id()); __f(__this) }) == ({ let __f = compat::dispatch(&widget, |__t| __t.get_internal_id()); __f(&widget) }));
+        let widget: &compat::Shared<dyn HudWidget> = object;
+        return (({ let __f = compat::dispatch(__this, |__t| __t.get_internal_id()); __f(__this) }) == ({ let __f = compat::dispatch(widget, |__t| __t.get_internal_id()); __f(widget) }));
+    }
+
+    /// java: a `Set<HudWidget>` / `List.contains` membership test, which reads `equals` (the internal id, the same class)
+    pub fn contains_equal(set: &[compat::Shared<dyn HudWidget>], widget: &compat::Shared<dyn HudWidget>) -> bool {
+        set.iter().any(|w| <dyn HudWidget>::equals_body(w, widget))
     }
 
     /// java: @Override public final int hashCode()
@@ -278,7 +295,7 @@ impl dyn HudWidget {
 }
 
 /// java: public record Information(String id, Component displayName, Predicate<Location> available)
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct Information {
     /// java: String id
     pub id: Option<String>,
@@ -288,17 +305,27 @@ pub struct Information {
     pub available: Arc<dyn Fn(Location) -> bool>,
 }
 
+/// java: the record's `toString()`
+impl std::fmt::Debug for Information {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Information").field("id", &self.id).field("display_name", &self.display_name).finish_non_exhaustive()
+    }
+}
+
 impl Information {
+    /// java: the canonical record constructor `Information(String id, Component displayName, Predicate<Location> available)`
+    pub fn new_canonical(id: Option<String>, display_name: Option<MutableComponent>, available: Arc<dyn Fn(Location) -> bool>) -> Self {
+        Self { id, display_name, available }
+    }
+
     /// java: public Information(String id, Component displayName)
-    pub fn new(mut id: Option<String>, mut display_name: Option<MutableComponent>) -> Self {
-        let mut this = Self::new2(id.clone().unwrap(), display_name.clone().unwrap(), Arc::new(move |_| true));
-        this
+    pub fn new(id: Option<String>, display_name: Option<MutableComponent>) -> Self {
+        Self::new_canonical(id, display_name, Arc::new(move |_| true))
     }
 
     /// java: public Information(String id, Component displayName, Set<Location> allowedLocations)
-    pub fn new2(mut id: String, mut display_name: MutableComponent, mut allowed_locations: std::collections::HashSet<Location>) -> Self {
-        let mut this = Self::new3(id.clone(), display_name.clone(), Arc::new(move |__a0| allowed_locations.contains(&__a0)));
-        this
+    pub fn new2(id: String, display_name: MutableComponent, allowed_locations: std::collections::HashSet<Location>) -> Self {
+        Self::new_canonical(Some(id), Some(display_name), Arc::new(move |__a0| allowed_locations.contains(&__a0)))
     }
 
     /// java: public Information(String id, Component displayName, Location allowedLocation)
@@ -309,7 +336,7 @@ impl Information {
 
     /// java: public Information(String id, Component displayName, Location allowedLocation, Location... allowedLocations)
     pub fn new_4(mut id: String, mut display_name: MutableComponent, mut allowed_location: Location, mut allowed_locations: Vec<Location>) -> Self {
-        let mut this = Self::new2(id.clone(), display_name.clone(), std::collections::HashSet::from([allowed_location, allowed_locations.clone()]));
+        let mut this = Self::new2(id.clone(), display_name.clone(), std::iter::once(allowed_location).chain(allowed_locations.iter().copied()).collect());
         this
     }
 

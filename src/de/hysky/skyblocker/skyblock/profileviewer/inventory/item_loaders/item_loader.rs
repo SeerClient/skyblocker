@@ -37,11 +37,15 @@ impl ItemLoaderBase {
     }
 
     /// java: private static ListTag decompress(JsonObject data)
-    pub fn decompress(data: &serde_json::Map<String, serde_json::Value>) -> Option<Tag> {
+    /// (the `ListTag`: its elements)
+    pub fn decompress(data: &serde_json::Map<String, serde_json::Value>) -> Option<Vec<Tag>> {
         // java: try {..} catch (Exception e) - an exception here is a panic, caught by `catch_unwind`; the body's `return` is the closure's value
         match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            // TODO(fabric2seer): `new ByteArrayInputStream(..)`
-            //   java: return NbtIo.readCompressed(new ByteArrayInputStream(Base64.getDecoder().decode(data.get("data").getAsString())), NbtAccounter.unlimitedHeap()).getListOrEmpty("i");
+            // java: return NbtIo.readCompressed(new ByteArrayInputStream(Base64.getDecoder().decode(data.get("data").getAsString())), NbtAccounter.unlimitedHeap()).getListOrEmpty("i");
+            let bytes: Vec<u8> = mcrust::java::util::base64::get_decoder().decode(&compat::json::get_as_string(&data.get("data").cloned().expect("NullPointerException"))).unwrap_or_else(|e| panic!("IllegalArgumentException: {e}"));
+            let compound: Tag = mcrust::net::minecraft::nbt::nbt_io::read_compressed(&bytes, mcrust::net::minecraft::nbt::nbt_accounter::NbtAccounter::unlimited_heap()).unwrap_or_else(|e| panic!("IOException: {e}"));
+            // (a ListTag: its elements)
+            return Some(compound.get_list_or_empty("i"));
         })) {
             Ok(__v) => return __v,
             Err(e) => {
@@ -69,13 +73,11 @@ pub trait ItemLoader: compat::DynAny {
 impl dyn ItemLoader {
     /// java: public List<ItemStack> loadItems(JsonObject data)
     pub fn load_items_body(__this: &compat::Shared<dyn ItemLoader>, data: &serde_json::Map<String, serde_json::Value>) -> Vec<mcrust::net::minecraft::world::item::item_stack::ItemStack> {
-        let mut container_content: Tag = ItemLoaderBase::decompress(data).unwrap();
+        // java: ListTag containerContent = decompress(data); (null when the data could not be read: `size()` throws)
+        let mut container_content: Vec<Tag> = ItemLoaderBase::decompress(data).expect("NullPointerException");
         let mut item_list: Vec<mcrust::net::minecraft::world::item::item_stack::ItemStack> = Vec::new();
-        // TODO(fabric2seer): `size` takes 1 argument(s) in the port (`elements: &[Tag]`), Java passes 0
-        for i in 0..list_tag::size() {
-            // TODO(fabric2seer): `get_compound_or_empty` takes 2 argument(s) in the port (`elements: &[Tag], index: i32`), Java passes 1
-            // rust: let mut nbt: Tag = list_tag::get_compound_or_empty(&i);
-            let mut nbt: Tag = todo!("fabric2seer: the initialiser of `nbt` (TODO above)");
+        for i in 0..(container_content.len() as i32) {
+            let mut nbt: Tag = list_tag::get_compound_or_empty(&container_content, i);
             if nbt.get_int_or("id", 0) == 0 {
                 item_list.push(mcrust::net::minecraft::world::item::item_stack::empty());
                 continue;
@@ -85,7 +87,7 @@ impl dyn ItemLoader {
             let mut stack: mcrust::net::minecraft::world::item::item_stack::ItemStack = todo!("fabric2seer: the initialiser of `stack` (TODO above)");
             if stack.is_empty() {
                 let mut fallback: mcrust::net::minecraft::world::item::item_stack::ItemStack = FlexibleItemStack::get_stack_or_throw(ico::BARRIER.get_mut()).copy();
-                fallback.set(mcrust::net::minecraft::core::component::data_components::custom_name().clone(), Some(component::literal(&format!("Error: {}", nbt.get_compound_or_empty("tag").get_compound_or_empty("ExtraAttributes").get_string("id")))));
+                fallback.set(mcrust::net::minecraft::core::component::data_components::custom_name().clone(), Some(mcrust::com::mojang::serialization::obj(mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::literal(&format!("Error: {}", compat::optional_string(&nbt.get_compound_or_empty("tag").get_compound_or_empty("ExtraAttributes").get_string_opt("id"))))))));
                 item_list.push(fallback.clone());
                 continue;
             }
@@ -110,10 +112,10 @@ impl dyn ItemLoader {
 
 impl ItemLoader for ItemLoaderBase {
     fn item_loader_base(&self) -> &ItemLoaderBase {
-        &self
+        self
     }
     fn item_loader_base_mut(&mut self) -> &mut ItemLoaderBase {
-        &mut self
+        self
     }
 
     fn as_any(&self) -> &dyn std::any::Any {

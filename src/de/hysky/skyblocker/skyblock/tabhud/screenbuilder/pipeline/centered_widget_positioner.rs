@@ -94,14 +94,18 @@ impl CenteredWidgetPositioner {
             { let __v = (compat::read(__this, |__t| __t.total_height)).max(compat::read(__this, |__t| __t.current_y)); compat::write(__this, |__t| __t.total_height = __v); }
             { let __v = 0; compat::write(__this, |__t| __t.current_y = __v); }
             { let __v = 0; compat::write(__this, |__t| __t.current_width = __v); }
-            let __h0 = (Vec::new(), 0);
-            __this.lock().borrow_mut().columns.push(__h0);
+            compat::write(__this, |__t| __t.columns.push((Vec::new(), 0)));
         }
         ({ let __f = compat::dispatch(hud_widget, |__t| __t.set_y()); __f(hud_widget, compat::read(__this, |__t| __t.current_y)) });
         { let __v = (compat::read(__this, |__t| __t.current_y)).wrapping_add(({ let __f = compat::dispatch(hud_widget, |__t| __t.get_height()); __f(hud_widget) }).wrapping_add(screen_const::WIDGET_PAD)); compat::write(__this, |__t| __t.current_y = __v); }
         { let __v = (compat::read(__this, |__t| __t.current_width)).max(({ let __f = compat::dispatch(hud_widget, |__t| __t.get_width()); __f(hud_widget) })); compat::write(__this, |__t| __t.current_width = __v); }
-        __this.lock().borrow().columns[__this.lock().borrow().columns.len() - 1].1;
-        (__this.lock().borrow().columns[__this.lock().borrow().columns.len() - 1].0).push(hud_widget.clone());
+        // java: columns.getLast().right(currentWidth); columns.getLast().left().add(hudWidget);
+        compat::write(__this, |__t| {
+            let current_width = __t.current_width;
+            let last = __t.columns.last_mut().expect("NoSuchElementException");
+            last.1 = current_width;
+            last.0.push(hud_widget.clone());
+        });
     }
 
     /// CenteredWidgetPositioner.positionWidget as the dispatch of WidgetPositioner.positionWidget
@@ -111,8 +115,8 @@ impl CenteredWidgetPositioner {
 
     /// java: @Override public Vector2i finalizePositioning()
     pub fn finalize_positioning_impl(__this: &compat::Shared<Self>) -> Vector2i {
-        for i in 0..(__this.lock().borrow().columns.len() as i32) {
-            let list_object_int_pair = &__this.lock().borrow().columns[(i) as usize];
+        for i in 0..compat::read(__this, |__t| __t.columns.len() as i32) {
+            let list_object_int_pair = compat::read(__this, |__t| __t.columns[(i) as usize].clone());
             let mut column_width: i32 = list_object_int_pair.1;
             let column = &list_object_int_pair.0;
             let mut height: i32 = ((column.len() as i32).wrapping_sub(1)).wrapping_mul(screen_const::WIDGET_PAD);
@@ -120,9 +124,9 @@ impl CenteredWidgetPositioner {
                 height = height.wrapping_add({ let __f = compat::dispatch(tab_hud_widget, |__t| __t.get_height()); __f(tab_hud_widget) });
             }
             let mut offset: i32 = ((compat::read(__this, |__t| __t.total_height)).wrapping_sub(height)).wrapping_div(2);
-            for tab_hud_widget in column.iter_mut() {
+            for tab_hud_widget in column.iter() {
                 ({ let __f = compat::dispatch(tab_hud_widget, |__t| __t.set_y()); __f(tab_hud_widget, ({ let __f = compat::dispatch(tab_hud_widget, |__t| __t.get_y()); __f(tab_hud_widget) }).wrapping_add(offset)) });
-                if i < (__this.lock().borrow().columns.len() as i32).wrapping_div(2) {
+                if i < compat::read(__this, |__t| __t.columns.len() as i32).wrapping_div(2) {
                     ({ let __f = compat::dispatch(tab_hud_widget, |__t| __t.set_x()); __f(tab_hud_widget, ((compat::read(__this, |__t| __t.total_width)).wrapping_add(column_width)).wrapping_sub({ let __f = compat::dispatch(tab_hud_widget, |__t| __t.get_width()); __f(tab_hud_widget) })) });
                 } else {
                     ({ let __f = compat::dispatch(tab_hud_widget, |__t| __t.set_x()); __f(tab_hud_widget, compat::read(__this, |__t| __t.total_width)) });

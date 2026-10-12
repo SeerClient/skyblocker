@@ -80,7 +80,8 @@ impl PetsInventoryItemLoader {
         if let Err(e) = __result {
             logger().error(&format!("[Skyblocker Profile Viewer] Failed to load pets"));
         }
-        pet_list.sort_by(|a, b| (|a, b| (|a, b| { let key = |__a0| __a0.get_tier(); key(a).cmp(&key(b)) })(a, b).then_with(|| (|a, b| { let key = |__a0| __a0.get_level(); key(a).cmp(&key(b)) })(a, b)))(b, a));
+        // java: petList.sort(Comparator.comparingInt(Pet::getTier).thenComparingInt(Pet::getLevel).reversed());
+        pet_list.sort_by(|a: &Pet, b: &Pet| b.get_tier().cmp(&a.get_tier()).then_with(|| b.get_level().cmp(&a.get_level())));
         let mut item_list: Vec<mcrust::net::minecraft::world::item::item_stack::ItemStack> = Vec::new();
         for pet in pet_list.iter() {
             item_list.push(FlexibleItemStack::get_stack_or_throw(&pet.get_icon()));

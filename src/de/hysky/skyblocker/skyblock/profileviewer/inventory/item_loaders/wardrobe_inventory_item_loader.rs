@@ -75,7 +75,7 @@ impl WardrobeInventoryItemLoader {
             item_list.extend(<dyn ItemLoader>::load_items_body(&compat::view(__this, |a| a as compat::Shared<dyn ItemLoader>), data).into_iter());
             if compat::read(__this, |__t| __t.active_slot) != -1 {
                 let mut active_armour: Vec<mcrust::net::minecraft::world::item::item_stack::ItemStack> = (<dyn ItemLoader>::load_items_body(&compat::view(__this, |a| a as compat::Shared<dyn ItemLoader>), &compat::read(__this, |__t| __t.active_armor_set.clone()))).iter().rev().cloned().collect::<Vec<_>>();
-                for i in 0..4 {
+                for i in 0i32..4 {
                     let mut base_index: i32 = ((compat::read(__this, |__t| __t.active_slot)).wrapping_sub(1)).wrapping_rem(9);
                     let mut page: i32 = ((compat::read(__this, |__t| __t.active_slot)).wrapping_sub(1)).wrapping_div(9);
                     let mut slot_index: i32 = ((page.wrapping_mul(36)).wrapping_add(i.wrapping_mul(9))).wrapping_add(base_index);

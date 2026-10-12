@@ -85,11 +85,11 @@ impl Tuning {
     /// java: public List<TuningSlot> unlockedSlots()
     pub fn unlocked_slots(&self) -> Vec<compat::Shared<dyn TuningSlot>> {
         let mut all_slots: Vec<compat::Shared<dyn TuningSlot>> = vec![self.active_slot.clone(), (self.slot1.clone() as compat::Shared<dyn TuningSlot>), (self.slot2.clone() as compat::Shared<dyn TuningSlot>), (self.slot3.clone() as compat::Shared<dyn TuningSlot>), (self.slot4.clone() as compat::Shared<dyn TuningSlot>), (self.slot5.clone() as compat::Shared<dyn TuningSlot>), (self.slot6.clone() as compat::Shared<dyn TuningSlot>), (self.slot7.clone() as compat::Shared<dyn TuningSlot>), (self.slot8.clone() as compat::Shared<dyn TuningSlot>)];
-        // TODO(fabric2seer): instanceof with a pattern binding outside an `if` condition
-        //   java: return allSlots.stream()
-        //   java: 					.filter(slot -> slot instanceof TuningTemplate template ? template.purchased() : true)
-        //   java: 					.toList();
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        // java: return allSlots.stream().filter(slot -> slot instanceof TuningTemplate template ? template.purchased() : true).toList();
+        return all_slots.into_iter().filter(|slot| match compat::try_view::<TuningTemplate, _>(slot) {
+            Some(template) => TuningTemplate::purchased(&template),
+            None => true,
+        }).collect::<Vec<_>>();
     }
 
 }
@@ -150,19 +150,45 @@ pub trait TuningSlot: compat::DynAny {
     fn as_any(&self) -> &dyn std::any::Any;
 
     /// java: @Override @GenEquals public native boolean equals(Object o); (dispatch: the body for this class)
-    fn equals(&self) -> fn(&compat::Shared<dyn TuningSlot>, &compat::Object) -> bool;
+    fn equals(&self) -> fn(&compat::Shared<dyn TuningSlot>, &compat::Shared<dyn TuningSlot>) -> bool {
+        <dyn TuningSlot>::equals_body
+    }
 
     /// java: @Override @GenHashCode public native int hashCode(); (dispatch: the body for this class)
-    fn hash_code(&self) -> fn(&compat::Shared<dyn TuningSlot>) -> i32;
+    fn hash_code(&self) -> fn(&compat::Shared<dyn TuningSlot>) -> i32 {
+        <dyn TuningSlot>::hash_code_body
+    }
 
+}
+
+impl dyn TuningSlot {
+    /// The fields `@GenEquals` / `@GenHashCode` read: the eight `TuningSlot` declares, in declaration order.
+    fn gen_fields(&self) -> [i32; 8] {
+        let b = self.tuning_slot_base();
+        [b.health, b.defence, b.walk_speed, b.strength, b.critical_damage, b.critical_chance, b.attack_speed, b.intelligence]
+    }
+
+    /// java: @GenEquals - the build's `ObjectMethods.bootstrap("equals", ..)` over TuningSlot's fields: the same object, or
+    /// another `TuningSlot` (`isInstance`, so a `TuningTemplate` too) whose fields are all equal
+    pub fn equals_body(__this: &compat::Shared<dyn TuningSlot>, o: &compat::Shared<dyn TuningSlot>) -> bool {
+        if std::ptr::addr_eq(std::sync::Arc::as_ptr(__this), std::sync::Arc::as_ptr(o)) {
+            return true;
+        }
+        compat::read(__this, |a| a.gen_fields()) == compat::read(o, |b| b.gen_fields())
+    }
+
+    /// java: @GenHashCode - `ObjectMethods.bootstrap("hashCode", ..)`: `31 * result + Integer.hashCode(field)` over the fields
+    pub fn hash_code_body(__this: &compat::Shared<dyn TuningSlot>) -> i32 {
+        compat::read(__this, |t| t.gen_fields()).iter().fold(0i32, |acc, v| acc.wrapping_mul(31).wrapping_add(*v))
+    }
 }
 
 impl TuningSlot for TuningSlotBase {
     fn tuning_slot_base(&self) -> &TuningSlotBase {
-        &self
+        self
     }
     fn tuning_slot_base_mut(&mut self) -> &mut TuningSlotBase {
-        &mut self
+        self
     }
 
     fn as_any(&self) -> &dyn std::any::Any {

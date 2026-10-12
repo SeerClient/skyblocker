@@ -5,6 +5,7 @@ use crate::prelude::*;
 use crate::de::hysky::skyblocker::skyblock::profileviewer2::loading_information::LoadingInformation;
 use crate::de::hysky::skyblocker::skyblock::profileviewer2::model::profile_member::ProfileMember;
 use crate::de::hysky::skyblocker::skyblock::profileviewer2::pages::profile_viewer_page::ProfileViewerPage;
+use crate::de::hysky::skyblocker::skyblock::profileviewer2::pages::profile_viewer_page::ProfileViewerPageAny;
 use crate::de::hysky::skyblocker::skyblock::profileviewer2::utils::tree::hotm_tree_builder;
 use crate::de::hysky::skyblocker::skyblock::profileviewer2::utils::tree::skill_tree_builder::SkillTreeBuilder;
 use crate::de::hysky::skyblocker::skyblock::tabhud::util::ico;
@@ -35,7 +36,7 @@ impl MiningPage {
 
 }
 
-impl ProfileViewerPage<crate::de::hysky::skyblocker::skyblock::profileviewer2::loading_information::LoadingInformation> for MiningPage {
+impl ProfileViewerPageAny for MiningPage {
     fn as_any(&self) -> &dyn std::any::Any {
         self
     }
@@ -50,11 +51,19 @@ impl ProfileViewerPage<crate::de::hysky::skyblocker::skyblock::profileviewer2::l
         return component::literal("Mining");
     }
 
-    /// java: @Override public CompletableFuture<LayoutElement> load(LoadingInformation info)
-    fn load(&self, info: &LoadingInformation) -> mcrust::java::util::concurrent::completable_future::CompletableFuture<LayoutElement> {
-        return CompletableFuture::completed_future(info.clone()).then_apply_async(|__a0| self.build_widgets(&__a0), std::sync::Arc::new(|__t: Box<dyn FnOnce() + Send>| mcrust::mcrust::modding::game::execute(__t)));
+    /// java: @Override public CompletableFuture<LayoutElement> load(LoadingInformation info) (dispatch: the body for this class)
+    fn load(&self) -> fn(&compat::Shared<dyn ProfileViewerPageAny>, &LoadingInformation) -> compat::LocalFuture<LayoutElement> {
+        MiningPage::load_dyn
     }
 
+    /// java: @Override public List<AbstractWidget> getWidgets()
+    fn get_widgets(&self) -> Vec<AbstractWidget> {
+        return self.widgets.clone();
+    }
+
+}
+
+impl ProfileViewerPage<crate::de::hysky::skyblocker::skyblock::profileviewer2::loading_information::LoadingInformation> for MiningPage {
     /// java: @Override public LayoutElement buildWidgets(LoadingInformation info)
     fn build_widgets(&self, info: &LoadingInformation) -> LayoutElement {
         let mut member: compat::Shared<ProfileMember> = info.member();
@@ -66,9 +75,13 @@ impl ProfileViewerPage<crate::de::hysky::skyblocker::skyblock::profileviewer2::l
         return LayoutElement::Grid(page_layout.wrapped);
     }
 
-    /// java: @Override public List<AbstractWidget> getWidgets()
-    fn get_widgets(&self) -> Vec<AbstractWidget> {
-        return self.widgets.clone();
-    }
+}
 
+impl MiningPage {
+    /// MiningPage.load as the dispatch of ProfileViewerPage.load
+    pub fn load_dyn(__this: &compat::Shared<dyn ProfileViewerPageAny>, info: &LoadingInformation) -> compat::LocalFuture<LayoutElement> {
+        // java: return CompletableFuture.completedFuture(info).thenApplyAsync(this::buildWidgets, Minecraft.getInstance());
+        let __h: compat::Shared<MiningPage> = compat::handle_as::<MiningPage, _>(__this);
+        return compat::LocalFuture::completed_future(info.clone()).then_apply_async(move |__a0| compat::read(&__h, |__t| __t.build_widgets(&__a0)));
+    }
 }

@@ -58,8 +58,11 @@ impl PlayerInventory {
 
     /// java: private void extractContainerItems(GuiGraphicsExtractor graphics, int rootX, int rootY, IntIntPair dimensions, int startIndex, int endIndex, int mouseX, int mouseY)
     pub fn extract_container_items(__this: &compat::Shared<Self>, graphics: &GuiGraphicsExtractor, mut root_x: i32, mut root_y: i32, dimensions: &(i32, i32), mut start_index: i32, mut end_index: i32, mut mouse_x: i32, mut mouse_y: i32) {
+        // (the page's own list, read in place: nothing in the loop reaches this page)
+        let __this_guard = __this.lock();
+        let __this_ref = __this_guard.borrow();
         for i in 0..end_index.wrapping_sub(start_index) {
-            let stack = &__this.lock().borrow().container_list[(start_index.wrapping_add(i)) as usize];
+            let stack = &__this_ref.container_list[(start_index.wrapping_add(i)) as usize];
             if stack.is_empty() {
                 continue;
             }

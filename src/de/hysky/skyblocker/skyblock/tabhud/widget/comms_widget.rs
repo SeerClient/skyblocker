@@ -161,7 +161,7 @@ impl ElementCollector for CommsWidget {
 
     /// java: public <T extends Element> T addElement(T c)
     fn add_element(&mut self, mut c: compat::Shared<dyn Element>) -> compat::Shared<dyn Element> {
-        ({ let __f = compat::dispatch(&c, |__t| __t.set_parent()); __f(&c, self.clone()) });
+        ({ let __f = compat::dispatch(&c, |__t| __t.set_parent()); __f(&c, self.hud_widget_base().as_parent()) });
         self.elements.push(c.clone());
         return c;
     }
@@ -184,15 +184,15 @@ impl CommsWidget {
                 if progress == "DONE" {
                     element = Elements::progress_component_flexible_item_stack_component_component_float(Some(ico::BOOK.get_mut().clone()), &component::null_to_empty(Some(&name)), &component::null_to_empty(Some(&progress)), 100.0f32);
                 } else {
-                    let mut percent: f32;
-                    // java: try {..} catch (NumberFormatException e) - an exception here is a panic, caught by `catch_unwind`
-                    let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                        percent = (compat::substring2(&progress, 0, (compat::str_len(&progress)).wrapping_sub(1))).trim().parse::<f32>().expect("NumberFormatException");
-                    }));
-                    if let Err(e) = __result {
-                        logger().error(&format!("[Skyblocker Comms Widget] Failed to parse number."));
-                        percent = ((0) as f32) as f32;
-                    }
+                    // java: try { percent = Float.parseFloat(..); } catch (NumberFormatException e) { ..; percent = 0; }
+                    // (Float.parseFloat ignores surrounding whitespace)
+                    let percent: f32 = match (compat::substring2(&progress, 0, (compat::str_len(&progress)).wrapping_sub(1))).trim().parse::<f32>() {
+                        Ok(v) => v,
+                        Err(_) => {
+                            logger().error(&format!("[Skyblocker Comms Widget] Failed to parse number."));
+                            0.0f32
+                        }
+                    };
                     element = Elements::progress_component_3(Some(ico::BOOK.get_mut().clone()), &component::null_to_empty(Some(&name)), percent);
                 }
                 { let (__a0,) = (element.clone(),); __this.lock().borrow_mut().add_element(__a0) };
@@ -207,10 +207,10 @@ impl CommsWidget {
 
     /// java: @Override protected void updateConfigContentTab(ElementCollector collector)
     pub fn update_config_content_tab_impl(__this: &compat::Shared<Self>, collector: &compat::Shared<dyn ElementCollector>) {
-        for i in 0..2 {
+        for i in 0i32..2 {
             { let (__a0,) = (Elements::progress_component_3(Some(ico::BOOK.get_mut().clone()), &component::literal(&format!("Commission {}", i.wrapping_add(1))), ((i.wrapping_mul(50)) as f32) as f32),); collector.lock().borrow_mut().add_element(__a0) };
         }
-        { let (__a0,) = (Elements::progress_component_flexible_item_stack_component_float_int(Some(ico::BOOK.get_mut().clone()), &component::literal("Commission 3"), component::literal("DONE"), 100),); collector.lock().borrow_mut().add_element(__a0) };
+        { let (__a0,) = (Elements::progress_component_flexible_item_stack_component_component_float(Some(ico::BOOK.get_mut().clone()), &component::literal("Commission 3"), &component::literal("DONE"), 100.0f32),); collector.lock().borrow_mut().add_element(__a0) };
     }
 
     /// CommsWidget.updateConfigContentTab as the dispatch of TabHudWidget.updateConfigContentTab

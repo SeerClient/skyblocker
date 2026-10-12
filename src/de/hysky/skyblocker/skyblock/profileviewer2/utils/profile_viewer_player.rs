@@ -33,16 +33,18 @@ impl ProfileViewerPlayer {
     /// java: public ProfileViewerPlayer(GameProfile gameProfile)
     pub fn new(mut game_profile: GameProfile) -> Self {
         let mut this = Self {
-            base: RemotePlayer::new(mcrust::mcrust::modding::game::level().unwrap(), &game_profile),
+            // java: super(Minecraft.getInstance().level, gameProfile); - the port's constructor takes the player's
+            // standing dimensions (`Player.STANDING_DIMENSIONS`) where Java reads them through the level
+            base: RemotePlayer::new(mcrust::net::minecraft::world::entity::entity_dimensions::scalable(0.6, 1.8), &game_profile),
         };
-        this.base.base.base.base.set_custom_name_visible(false);
-        this.base.base.base.base.set_id(entity_utils::PLACEHOLDER_ID);
+        this.base.base.base.base.base.set_custom_name_visible(false);
+        this.base.base.base.base.base.set_id(entity_utils::PLACEHOLDER_ID);
         this
     }
 
     /// java: @Override public PlayerSkin getSkin()
     pub fn get_skin(&self) -> PlayerSkin {
-        let mut player_info: PlayerInfo = PlayerInfo::new(self.base.base.get_game_profile().clone(), false);
+        let mut player_info: PlayerInfo = PlayerInfo::new(self.base.base.base.get_game_profile().clone(), false);
         return player_info.get_skin();
     }
 

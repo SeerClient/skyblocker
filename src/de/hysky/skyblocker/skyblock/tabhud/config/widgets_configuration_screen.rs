@@ -25,6 +25,8 @@ use crate::de::hysky::skyblocker::skyblock::tabhud::screenbuilder::widget_manage
 use crate::de::hysky::skyblocker::skyblock::tabhud::screenbuilder::widget_positioner::WidgetPositionerBase;
 use crate::de::hysky::skyblocker::skyblock::tabhud::tab_hud::TabHud;
 use crate::de::hysky::skyblocker::skyblock::tabhud::widget::hud_widget::HudWidget;
+use crate::de::hysky::skyblocker::skyblock::tabhud::widget::hud_widget::HudWidgetBase;
+use crate::de::hysky::skyblocker::skyblock::tabhud::widget::hud_widget::Information;
 use crate::de::hysky::skyblocker::skyblock::tabhud::widget::placeholder_widget::PlaceholderWidget;
 use crate::de::hysky::skyblocker::utils::exclusive_grouping_set::ExclusiveGroupingSet;
 use crate::de::hysky::skyblocker::utils::location::Location;
@@ -119,24 +121,13 @@ impl WidgetsConfigurationScreen {
 
     /// java: public WidgetsConfigurationScreen(Location location, @Nullable Screen previousScreen)
     pub fn new_2(mut location: Location, mut previous_screen: Option<mcrust::net::minecraft::client::gui::screens::screen::Screen>) -> compat::Shared<Self> {
-        let __init_previous_screen = previous_screen.clone();
+        let __init_previous_screen = previous_screen;
         let __init_current_location = Some(location);
         let __init_current_screen_layer = Some(ScreenLayer::Hud);
-        // TODO(fabric2seer): the initialiser of `screenWidget`: `new HudWidget(..) {..}` (an anonymous class with state or several methods)
-        //   java: @SuppressWarnings("DataFlowIssue")
-        //   java: 	private final PositionedWidget screenWidget = new PositionedWidget(new HudWidget(new HudWidget.Information(null, null)) {
-        //   java: 		@Override
-        //   java: 		protected void extractWidgetRenderState(GuiGraphicsExtractor graphics, float delta) {
-        //   java: 			w = getScreenWidth();
-        //   java: 			h = getScreenHeight();
-        //   java: 		}
-        //   java:
-        //   java: 		@Override
-        //   java: 		protected void extractWidgetRenderStateForConfig(GuiGraphicsExtractor graphics, float delta) {
-        //   java: 			w = getScreenWidth();
-        //   java: 			h = getScreenHeight();
-        //   java: 		}
-        //   java: 	}, PositionRule.DEFAULT);
+        // java: private final PositionedWidget screenWidget = new PositionedWidget(new HudWidget(new HudWidget.Information(null, null)) {..}, PositionRule.DEFAULT);
+        // (the anonymous class is `ScreenHudWidget` below; its handle to the enclosing screen is set once the screen exists)
+        let __screen_hud_widget: compat::Shared<ScreenHudWidget> = ScreenHudWidget::new();
+        let __init_screen_widget = PositionedWidget::new(__screen_hud_widget.clone() as compat::Shared<dyn HudWidget>, position_rule::DEFAULT.get_mut().clone());
         let __this = compat::shared(Self {
             base: mcrust::net::minecraft::client::gui::screens::screen::Screen::new(component::literal("Widgets Config Screen").get_string()),
             self_ref: std::sync::Weak::new(),
@@ -150,7 +141,7 @@ impl WidgetsConfigurationScreen {
             side_panel_widget: None,
             add_widget_widget: None,
             top_bar_widget: None,
-            screen_widget: Default::default(),
+            screen_widget: __init_screen_widget,
             hovered_widget: None,
             selected_widget: None,
             drag_relative: None,
@@ -159,6 +150,7 @@ impl WidgetsConfigurationScreen {
             select_widget_prompt: None,
         });
         compat::write(&__this, |__t| __t.self_ref = std::sync::Arc::downgrade(&__this));
+        { let __v = std::sync::Arc::downgrade(&__this); compat::write(&__screen_hud_widget, |__t| __t.outer = __v); }
         { let __v = Some(WidgetManager::get_screen_config(compat::read(&__this, |__t| __t.current_location.clone()).unwrap())); compat::write(&__this, |__t| __t.screen_config = __v); }
         ({ let __r = &compat::read(&__this, |__t| __t.screen_builder.clone()); let __f = compat::dispatch(__r, |__t| __t.set_config()); __f(&compat::view(__r, |a| a as compat::Shared<dyn ScreenBuilder>), compat::read(&__this, |__t| __t.screen_config.clone()).unwrap()) });
         { let __v = Some(EditableScreenBuilder::get_layer(&compat::read(&__this, |__t| __t.screen_builder.clone()), compat::read(&__this, |__t| __t.current_screen_layer.clone()).unwrap())); compat::write(&__this, |__t| __t.layer = __v); }
@@ -222,9 +214,11 @@ impl WidgetsConfigurationScreen {
         let __this_w1 = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
         { let __v = Some(AddWidgetWidget::new(compat::minecraft(), Arc::new(move |__a0| { let Some(__this_1) = __this_w1.get().upgrade() else { return Default::default(); }; { WidgetsConfigurationScreen::add_widget((&__this_1), __a0.clone()); } }))); compat::write(__this, |__t| __t.add_widget_widget = __v); }
         { let __v = Some(TopBarWidget::new(compat::read(__this, |__t| __t.width), __this.clone())); compat::write(__this, |__t| __t.top_bar_widget = __v); }
-        WidgetsConfigurationScreen::add_widget(__this, Box::new(compat::read(__this, |__t| __t.add_widget_widget.clone())));
-        WidgetsConfigurationScreen::add_widget(__this, Box::new(compat::read(__this, |__t| __t.top_bar_widget.clone())));
-        WidgetsConfigurationScreen::add_widget(__this, Box::new(compat::read(__this, |__t| __t.side_panel_widget.clone())));
+        // java: addWidget(addWidgetWidget); addWidget(topBarWidget); addWidget(sidePanelWidget); - `Screen.addWidget`, the
+        // event listener (this class's private `addWidget(HudWidget)` is another overload)
+        // rust: port gap (GAPS_batchC #L3) - the three are mod composite widgets (`AbstractContainerWidget` /
+        // `ContainerObjectSelectionList` subclasses holding child widgets): the port has no adapter that makes one the
+        // screen's listener, so they stay this object's fields (drawn and asked by this class's own methods)
         WidgetsConfigurationScreen::reposition_elements(__this);
     }
 
@@ -239,13 +233,13 @@ impl WidgetsConfigurationScreen {
         let __h0 = (compat::read(__this, |__t| __t.width)).wrapping_div(4);
         __this.lock().borrow_mut().side_panel_widget.as_mut().unwrap().set_width(__h0);
         let __h0 = compat::read(__this, |__t| __t.height);
-        __this.lock().borrow().side_panel_widget.as_ref().unwrap().set_height(__h0);
+        __this.lock().borrow_mut().side_panel_widget.as_mut().unwrap().set_height(__h0);
         if __this.lock().borrow().side_panel_widget.as_ref().unwrap().is_open() {
             let __h0 = (if __this.lock().borrow().side_panel_widget.as_ref().unwrap().right_side { (compat::read(__this, |__t| __t.width)).wrapping_sub(__this.lock().borrow().side_panel_widget.as_ref().unwrap().get_width()) } else { 0 });
             __this.lock().borrow_mut().side_panel_widget.as_mut().unwrap().set_x(__h0);
         }
         let __h0 = compat::read(__this, |__t| __t.width);
-        __this.lock().borrow().top_bar_widget.as_ref().unwrap().set_width(__h0);
+        __this.lock().borrow_mut().top_bar_widget.as_mut().unwrap().set_width(__h0);
     }
 
     /// java: @Override public void extractBackground(GuiGraphicsExtractor context, int mouseX, int mouseY, float deltaTicks)
@@ -278,8 +272,8 @@ impl WidgetsConfigurationScreen {
         ();
         let mut scale: f32 = TabHud::get_scale_factor();
         let __pose_1 = gui_graphics_extractor::push_pose();
-        // TODO(fabric2seer): Matrix3x2fStack.scale
-        //   java: matrices.scale(scale);
+        // java: matrices.scale(scale);
+        gui_graphics_extractor::pose_scale(scale, scale);
         ({ let __r = &__this.lock().borrow().layer.as_ref().unwrap().builder(); let __f = compat::dispatch(__r, |__t| __t.extract_render_states()); __f(__r, context, WidgetsConfigurationScreen::get_screen_width(__this), WidgetsConfigurationScreen::get_screen_height(__this), true) });
         gui_graphics_extractor::pop_pose(__pose_1);
         { let __v = None; compat::write(__this, |__t| __t.hovered_widget = __v); }
@@ -291,24 +285,24 @@ impl WidgetsConfigurationScreen {
                 break;
             }
         }
-        // TODO(fabric2seer): `new Matrix3x2f(..)`: the port has no `Matrix3x2f::new`
-        // rust: let mut scale_matrix: Matrix3x2f = Matrix3x2f::new().scale_xy(scale);
-        let mut scale_matrix: Matrix3x2f = todo!("fabric2seer: the initialiser of `scaleMatrix` (TODO above)");
+        // java: Matrix3x2f scaleMatrix = new Matrix3x2f().scale(scale); - `new Matrix3x2f()` is the identity
+        let mut scale_matrix: Matrix3x2f = mcrust::org::joml::matrix3x2f::IDENTITY.scale_xy(scale);
         if compat::read(__this, |__t| __t.hovered_widget.clone()).is_some() && { let (__q0, __q1,) = ((mouse_x) as f64, (mouse_y) as f64,); __this.lock().borrow().get_child_at(__q0, __q1) }.is_none() {
-            // TODO(fabric2seer): `getRectangle` is not a method of HudWidget
-            //   java: ScreenRectangle rect = hoveredWidget.widget.getRectangle().transformAxisAligned(scaleMatrix);
-            let mut rect: ScreenRectangle = todo!("fabric2seer: the initialiser of `rect` (TODO above)");
+            // java: ScreenRectangle rect = hoveredWidget.widget.getRectangle().transformAxisAligned(scaleMatrix);
+            let mut rect: ScreenRectangle = hud_widget_rectangle(&compat::read(&compat::read(__this, |__t| __t.hovered_widget.clone()).unwrap(), |__t| __t.widget.clone())).transform_axis_aligned(&scale_matrix);
             GuiHelper::border(context, rect.left().wrapping_sub(1), rect.top().wrapping_sub(1), rect.width().wrapping_add(2), rect.height().wrapping_add(2), mcrust::net::minecraft::util::common_colors::YELLOW);
         }
         if compat::read(__this, |__t| __t.selected_widget.clone()).is_some() {
-            // TODO(fabric2seer): `getRectangle` is not a method of HudWidget
-            //   java: ScreenRectangle rect = selectedWidget.widget.getRectangle().transformAxisAligned(scaleMatrix);
-            let mut rect: ScreenRectangle = todo!("fabric2seer: the initialiser of `rect` (TODO above)");
+            // java: ScreenRectangle rect = selectedWidget.widget.getRectangle().transformAxisAligned(scaleMatrix);
+            let mut rect: ScreenRectangle = hud_widget_rectangle(&compat::read(&compat::read(__this, |__t| __t.selected_widget.clone()).unwrap(), |__t| __t.widget.clone())).transform_axis_aligned(&scale_matrix);
             GuiHelper::border(context, rect.left().wrapping_sub(1), rect.top().wrapping_sub(1), rect.width().wrapping_add(2), rect.height().wrapping_add(2), mcrust::net::minecraft::util::common_colors::GREEN);
         }
-        let __r0 = compat::read(__this, |__t| __t.selected_widget.clone());
-        let __r1 = compat::read(&compat::read(__this, |__t| __t.selected_widget.clone()).unwrap(), |__t| __t.widget.clone());
-        __this.lock().borrow_mut().top_bar_widget.as_mut().unwrap().visible = (__r0.is_none() || ({ let __r = &__r1; let __f = compat::dispatch(__r, |__t| __t.get_y()); __f(__r) }) >= 16);
+        // java: topBarWidget.visible = selectedWidget == null || selectedWidget.widget.getY() >= 16; - the widget is read only when selected
+        let __visible: bool = match compat::read(__this, |__t| __t.selected_widget.clone()) {
+            None => true,
+            Some(__selected) => { let __r = compat::read(&__selected, |__t| __t.widget.clone()); let __f = compat::dispatch(&__r, |__t| __t.get_y()); __f(&__r) >= 16 }
+        };
+        __this.lock().borrow_mut().top_bar_widget.as_mut().unwrap().visible = __visible;
         // TODO(fabric2seer): `extract_render_state` is a method of the port's trait `Renderable`, which the port's `AbstractContainerWidget` does not implement
         // rust: { let (__q0, __q1, __q2, __q3, __q4,) = (mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), mouse_x, mouse_y, delta_ticks,); __this.lock().borrow_mut().side_panel_widget.as_mut().unwrap().extract_render_state(__q0, __q1, __q2, __q3, __q4) };
         // TODO(fabric2seer): `extract_render_state` is a method of the port's trait `Renderable`, which the port's `AbstractContainerWidget` does not implement
@@ -324,8 +318,8 @@ impl WidgetsConfigurationScreen {
             // TODO(fabric2seer): `set_tooltip_for_next_frame` takes 2 argument(s) in the port (`tooltip_for_next_frame: &mut Option<DeferredTooltip>, component: crate::net::minecraft::network::chat::formatted_text::FormattedText`), Java passes 3
             // rust: gui_graphics_extractor::set_tooltip_for_next_frame(&mut __this.lock().borrow().select_widget_prompt.as_ref().unwrap().tooltip(), mouse_x, mouse_y);
         }
-        // TODO(fabric2seer): `setPosition` is not a method of HudWidget
-        //   java: screenWidget.widget.setPosition(0, 0);
+        // java: screenWidget.widget.setPosition(0, 0); - `LayoutElement.setPosition`: setX then setY
+        { let __r = compat::read(&compat::read(__this, |__t| __t.screen_widget.clone()), |__t| __t.widget.clone()); let __f = compat::dispatch(&__r, |__t| __t.set_x()); __f(&__r, 0); let __f = compat::dispatch(&__r, |__t| __t.set_y()); __f(&__r, 0); }
         ({ let __r = &compat::read(&compat::read(__this, |__t| __t.screen_widget.clone()), |__t| __t.widget.clone()); let __f = compat::dispatch(__r, |__t| __t.extract_render_state()); __f(__r, context, delta_ticks) });
     }
 
@@ -351,7 +345,8 @@ impl WidgetsConfigurationScreen {
                 pos = WidgetsConfigurationScreen::snap_selected_widget(__this, ((mouse_x) as i32), ((mouse_y) as i32)).unwrap_or(pos.clone());
             }
             let mut start_position: ScreenPosition = WidgetPositionerBase::get_start_position(pos.parent.clone(), WidgetsConfigurationScreen::get_screen_width(__this), WidgetsConfigurationScreen::get_screen_height(__this), &pos.parent_point);
-            { let __v = PositionRule::new(pos.parent.clone(), pos.parent_point.clone(), pos.this_point.clone(), pos.relative_x.clone().unwrap_or(((((mouse_x) as i32).wrapping_sub(__this.lock().borrow().drag_relative.as_ref().unwrap().x())).wrapping_sub(start_position.x())).wrapping_add((((({ let __r = &compat::read(&compat::read(__this, |__t| __t.selected_widget.clone()).unwrap(), |__t| __t.widget.clone()); let __f = compat::dispatch(__r, |__t| __t.get_width()); __f(__r) }) as f32) * pos.this_point.horizontal_point().get_percentage())) as i32)), pos.relative_y.clone().unwrap_or(((((mouse_y) as i32).wrapping_sub(__this.lock().borrow().drag_relative.as_ref().unwrap().y())).wrapping_sub(start_position.y())).wrapping_add((((({ let __r = &compat::read(&compat::read(__this, |__t| __t.selected_widget.clone()).unwrap(), |__t| __t.widget.clone()); let __f = compat::dispatch(__r, |__t| __t.get_height()); __f(__r) }) as f32) * pos.this_point.vertical_point().get_percentage())) as i32))); compat::write(&compat::read(__this, |__t| __t.selected_widget.clone()).unwrap(), |__t| __t.rule = __v); }
+            // java: new PositionRule(Optional.ofNullable(pos.parent), ..) - the canonical constructor
+            { let __v = PositionRule::new_canonical(pos.parent.clone(), pos.parent_point.clone(), pos.this_point.clone(), pos.relative_x.clone().unwrap_or(((((mouse_x) as i32).wrapping_sub(__this.lock().borrow().drag_relative.as_ref().unwrap().x())).wrapping_sub(start_position.x())).wrapping_add((((({ let __r = &compat::read(&compat::read(__this, |__t| __t.selected_widget.clone()).unwrap(), |__t| __t.widget.clone()); let __f = compat::dispatch(__r, |__t| __t.get_width()); __f(__r) }) as f32) * pos.this_point.horizontal_point().get_percentage())) as i32)), pos.relative_y.clone().unwrap_or(((((mouse_y) as i32).wrapping_sub(__this.lock().borrow().drag_relative.as_ref().unwrap().y())).wrapping_sub(start_position.y())).wrapping_add((((({ let __r = &compat::read(&compat::read(__this, |__t| __t.selected_widget.clone()).unwrap(), |__t| __t.widget.clone()); let __f = compat::dispatch(__r, |__t| __t.get_height()); __f(__r) }) as f32) * pos.this_point.vertical_point().get_percentage())) as i32))); compat::write(&compat::read(__this, |__t| __t.selected_widget.clone()).unwrap(), |__t| __t.rule = __v); }
             WidgetsConfigurationScreen::update_builder_positions(__this);
             let mut side_panel: ScreenRectangle = ScreenRectangle::new_at(__this.lock().borrow().side_panel_widget.as_ref().unwrap().get_x(), __this.lock().borrow().side_panel_widget.as_ref().unwrap().get_y(), __this.lock().borrow().side_panel_widget.as_ref().unwrap().get_width(), __this.lock().borrow().side_panel_widget.as_ref().unwrap().get_height());
             let mut selected: ScreenRectangle = ScreenRectangle::new_at(({ let __r = &compat::read(&compat::read(__this, |__t| __t.selected_widget.clone()).unwrap(), |__t| __t.widget.clone()); let __f = compat::dispatch(__r, |__t| __t.get_x()); __f(__r) }), ({ let __r = &compat::read(&compat::read(__this, |__t| __t.selected_widget.clone()).unwrap(), |__t| __t.widget.clone()); let __f = compat::dispatch(__r, |__t| __t.get_y()); __f(__r) }), ({ let __r = &compat::read(&compat::read(__this, |__t| __t.selected_widget.clone()).unwrap(), |__t| __t.widget.clone()); let __f = compat::dispatch(__r, |__t| __t.get_width()); __f(__r) }), ({ let __r = &compat::read(&compat::read(__this, |__t| __t.selected_widget.clone()).unwrap(), |__t| __t.widget.clone()); let __f = compat::dispatch(__r, |__t| __t.get_height()); __f(__r) }));
@@ -372,9 +367,8 @@ impl WidgetsConfigurationScreen {
         }
         let mut result: (Option<SnapResult>, i32) = (None, i32::MAX);
         let mut selected_rect: ScreenRectangle = ScreenRectangle::new_at(mouse_x.wrapping_sub(__this.lock().borrow().drag_relative.as_ref().unwrap().x()), mouse_y.wrapping_sub(__this.lock().borrow().drag_relative.as_ref().unwrap().y()), ({ let __r = &compat::read(&compat::read(__this, |__t| __t.selected_widget.clone()).unwrap(), |__t| __t.widget.clone()); let __f = compat::dispatch(__r, |__t| __t.get_width()); __f(__r) }), ({ let __r = &compat::read(&compat::read(__this, |__t| __t.selected_widget.clone()).unwrap(), |__t| __t.widget.clone()); let __f = compat::dispatch(__r, |__t| __t.get_height()); __f(__r) }));
-        // TODO(fabric2seer): static `ScreenDirection.values` has no Rust counterpart in the port
-        // rust: let mut selected_snap_boxes: Vec<ScreenRectangle> = ScreenDirection::values().iter().cloned().map(|dir| ScreenUtils::get_snap_box(&selected_rect, &dir)).collect::<Vec<_>>();
-        let mut selected_snap_boxes: Vec<ScreenRectangle> = todo!("fabric2seer: the initialiser of `selectedSnapBoxes` (TODO above)");
+        // java: ScreenRectangle[] selectedSnapBoxes = Arrays.stream(ScreenDirection.values()).map(dir -> ScreenUtils.getSnapBox(selectedRect, dir)).toArray(ScreenRectangle[]::new);
+        let mut selected_snap_boxes: Vec<ScreenRectangle> = screen_direction_values().iter().cloned().map(|dir| ScreenUtils::get_snap_box(&selected_rect, &dir)).collect::<Vec<_>>();
         result = WidgetsConfigurationScreen::snap_selected_to_widget(__this, &compat::read(__this, |__t| __t.selected_widget.clone()).unwrap(), &compat::read(__this, |__t| __t.screen_widget.clone()), &selected_snap_boxes, &selected_rect, result.1).unwrap_or(result.clone());
         for other_widget in ({ let __r = &__this.lock().borrow().layer.as_ref().unwrap().builder(); let __f = compat::dispatch(__r, |__t| __t.get_rendered()); __f(__r) }) {
             result = WidgetsConfigurationScreen::snap_selected_to_widget(__this, &compat::read(__this, |__t| __t.selected_widget.clone()).unwrap(), &other_widget, &selected_snap_boxes, &selected_rect, result.1).unwrap_or(result.clone());
@@ -390,9 +384,8 @@ impl WidgetsConfigurationScreen {
         if Some(&*(({ let __r = &compat::read(selected_widget, |__t| __t.widget.clone()); let __f = compat::dispatch(__r, |__t| __t.get_internal_id()); __f(__r) }))) == other_widget.lock().borrow().rule.parent().as_deref() {
             return None;
         }
-        // TODO(fabric2seer): `getRectangle` is not a method of HudWidget
-        //   java: ScreenRectangle otherRect = otherWidget.widget.getRectangle();
-        let mut other_rect: ScreenRectangle = todo!("fabric2seer: the initialiser of `otherRect` (TODO above)");
+        // java: ScreenRectangle otherRect = otherWidget.widget.getRectangle();
+        let mut other_rect: ScreenRectangle = hud_widget_rectangle(&compat::read(other_widget, |__t| __t.widget.clone()));
         let mut point: Point = WidgetsConfigurationScreen::get_point(__this, &compat::read(other_widget, |__t| __t.widget.clone()));
         let mut dist_x: i32 = 10;
         let mut dist_y: i32 = 10;
@@ -402,13 +395,11 @@ impl WidgetsConfigurationScreen {
         let mut this_point_v: Option<VerticalPoint> = None;
         let mut relative_x: Option<i32> = None;
         let mut relative_y: Option<i32> = None;
-        // TODO(fabric2seer): static `ScreenDirection.values` has no Rust counterpart in the port
-        for other_edge in ScreenDirection::values() {
+        for other_edge in screen_direction_values() {
             let mut select_edge: ScreenDirection = other_edge.get_opposite();
             let mut other_snap_box: ScreenRectangle = ScreenUtils::get_snap_box(&other_rect, &other_edge);
-            // TODO(fabric2seer): `ScreenDirection.ordinal` has no Rust method in the port (looked for `ordinal` in ScreenDirection and JavaSrc)
-            // rust: let selected_snap_box = &selected_snap_boxes[(select_edge.ordinal()) as usize];
-            let mut selected_snap_box: ScreenRectangle = todo!("fabric2seer: the initialiser of `selectedSnapBox` (TODO above)");
+            // java: ScreenRectangle selectedSnapBox = selectedSnapBoxes[selectEdge.ordinal()];
+            let mut selected_snap_box: ScreenRectangle = selected_snap_boxes[screen_direction_ordinal(select_edge)];
             if !(selected_snap_box.overlaps(other_snap_box.clone())) {
                 continue;
             }
@@ -425,12 +416,10 @@ impl WidgetsConfigurationScreen {
                 this_point_v = Some((if other_edge.is_positive() { VerticalPoint::Top } else { VerticalPoint::Bottom }));
             }
         }
-        // TODO(fabric2seer): static `ScreenDirection.values` has no Rust counterpart in the port
-        for edge in ScreenDirection::values() {
+        for edge in screen_direction_values() {
             let mut other_snap_box: ScreenRectangle = ScreenUtils::get_snap_box(&other_rect, &edge);
-            // TODO(fabric2seer): `ScreenDirection.ordinal` has no Rust method in the port (looked for `ordinal` in ScreenDirection and JavaSrc)
-            // rust: let selected_snap_box = &selected_snap_boxes[(edge.ordinal()) as usize];
-            let mut selected_snap_box: ScreenRectangle = todo!("fabric2seer: the initialiser of `selectedSnapBox` (TODO above)");
+            // java: ScreenRectangle selectedSnapBox = selectedSnapBoxes[edge.ordinal()];
+            let mut selected_snap_box: ScreenRectangle = selected_snap_boxes[screen_direction_ordinal(edge)];
             if !(selected_snap_box.overlaps(other_snap_box.clone())) {
                 continue;
             }
@@ -454,7 +443,7 @@ impl WidgetsConfigurationScreen {
         }
         let mut parent_point: Point = Point::new((if parent_point_v.is_some() { parent_point_v.clone() } else { Some(point.vertical_point()) }).unwrap(), (if parent_point_h.is_some() { parent_point_h.clone() } else { Some(point.horizontal_point()) }).unwrap());
         let mut this_point: Point = Point::new((if this_point_v.is_some() { this_point_v.clone() } else { Some(point.vertical_point()) }).unwrap(), (if this_point_h.is_some() { this_point_h.clone() } else { Some(point.horizontal_point()) }).unwrap());
-        return Some((SnapResult::new(Some(({ let __r = &compat::read(other_widget, |__t| __t.widget.clone()); let __f = compat::dispatch(__r, |__t| __t.get_internal_id()); __f(__r) })), parent_point.clone(), this_point.clone(), relative_x.clone(), relative_y.clone()), dist));
+        return Some((Some(SnapResult::new(Some(({ let __r = &compat::read(other_widget, |__t| __t.widget.clone()); let __f = compat::dispatch(__r, |__t| __t.get_internal_id()); __f(__r) })), parent_point.clone(), this_point.clone(), relative_x.clone(), relative_y.clone())), dist));
     }
 
     /// java: private PositionRule.Point getPoint(HudWidget widget)
@@ -479,7 +468,7 @@ impl WidgetsConfigurationScreen {
         let mut mouse_x: f64 = click.x();
         let mut mouse_y: f64 = click.y();
         if compat::read(__this, |__t| __t.select_widget_prompt.clone()).is_some() {
-            if compat::read(__this, |__t| __t.hovered_widget.clone()).is_some() && !(__this.lock().borrow().select_widget_prompt.as_ref().unwrap().allow_itself()) && { let (__a0,) = (compat::read(__this, |__t| __t.selected_widget.clone()),); __this.lock().borrow().hovered_widget.as_ref().unwrap().equals(__a0) } {
+            if compat::read(__this, |__t| __t.hovered_widget.clone()).is_some() && !(__this.lock().borrow().select_widget_prompt.as_ref().unwrap().allow_itself()) && positioned_equals(&compat::read(__this, |__t| __t.hovered_widget.clone()).unwrap(), &compat::read(__this, |__t| __t.selected_widget.clone())) {
                 return true;
             }
             (__this.lock().borrow().select_widget_prompt.as_ref().unwrap().callback())((if compat::read(__this, |__t| __t.hovered_widget.clone()).is_none() { None } else { Some(compat::read(&compat::read(__this, |__t| __t.hovered_widget.clone()).unwrap(), |__t| __t.widget.clone())) }));
@@ -494,8 +483,9 @@ impl WidgetsConfigurationScreen {
             { let __v = None; compat::write(__this, |__t| __t.selected_widget = __v); }
             if click.button() == 1 {
                 let mut available_widgets: Vec<compat::Shared<dyn HudWidget>> = WidgetManager::get_widgets_available_in(compat::read(__this, |__t| __t.current_location.clone()).unwrap()).into_iter().collect::<Vec<_>>();
-                { let __o = ({ let __r = &__this.lock().borrow().layer.as_ref().unwrap().builder(); let __f = compat::dispatch(__r, |__t| __t.get_rendered()); __f(__r) }).into_iter().filter(|w| !(compat::read(w, |__t| __t.from_tab))).map(|w| compat::read(&w, |__t| __t.widget.clone())).collect::<Vec<_>>(); available_widgets.retain(|e| !__o.contains(e)); };
-                __this.lock().borrow().add_widget_widget.as_ref().unwrap().open_with(&available_widgets);
+                // java: availableWidgets.removeAll(..) - `HudWidget.equals` (the same class and internal id)
+                { let __o = ({ let __r = &__this.lock().borrow().layer.as_ref().unwrap().builder(); let __f = compat::dispatch(__r, |__t| __t.get_rendered()); __f(__r) }).into_iter().filter(|w| !(compat::read(w, |__t| __t.from_tab))).map(|w| compat::read(&w, |__t| __t.widget.clone())).collect::<Vec<_>>(); available_widgets.retain(|e| !<dyn HudWidget>::contains_equal(&__o, e)); };
+                __this.lock().borrow_mut().add_widget_widget.as_mut().unwrap().open_with(&available_widgets);
                 let __r0 = compat::read(__this, |__t| __t.width);
                 { let (__q0,) = (((mouse_x) as i32).clamp(5, ((__r0).wrapping_sub(__this.lock().borrow().add_widget_widget.as_ref().unwrap().get_width())).wrapping_sub(5)),); __this.lock().borrow_mut().add_widget_widget.as_mut().unwrap().set_x(__q0) };
                 let __r0 = compat::read(__this, |__t| __t.height);
@@ -504,7 +494,7 @@ impl WidgetsConfigurationScreen {
             }
             return true;
         }
-        if !({ let (__a0,) = (compat::read(__this, |__t| __t.selected_widget.clone()),); __this.lock().borrow().hovered_widget.as_ref().unwrap().equals(__a0) }) {
+        if !(positioned_equals(&compat::read(__this, |__t| __t.hovered_widget.clone()).unwrap(), &compat::read(__this, |__t| __t.selected_widget.clone()))) {
             { let __v = compat::read(__this, |__t| __t.hovered_widget.clone()); compat::write(__this, |__t| __t.selected_widget = __v); }
         }
         mouse_x = (mouse_x / (TabHud::get_scale_factor() as f64));
@@ -512,9 +502,12 @@ impl WidgetsConfigurationScreen {
         if !(compat::read(&compat::read(__this, |__t| __t.selected_widget.clone()).unwrap(), |__t| __t.from_tab)) {
             { let __v = Some(ScreenPosition::new((((mouse_x - (({ let __r = &compat::read(&compat::read(__this, |__t| __t.selected_widget.clone()).unwrap(), |__t| __t.widget.clone()); let __f = compat::dispatch(__r, |__t| __t.get_x()); __f(__r) }) as f64))) as i32), (((mouse_y - (({ let __r = &compat::read(&compat::read(__this, |__t| __t.selected_widget.clone()).unwrap(), |__t| __t.widget.clone()); let __f = compat::dispatch(__r, |__t| __t.get_y()); __f(__r) }) as f64))) as i32))); compat::write(__this, |__t| __t.drag_relative = __v); }
         }
-        if click.button() == 1 && !(__this.lock().borrow().side_panel_widget.as_ref().unwrap().is_open()) || !({ let (__a0,) = (__this.lock().borrow().side_panel_widget.as_ref().unwrap().get_positioned_widget(),); __this.lock().borrow().selected_widget.as_ref().unwrap().equals(__a0) }) {
+        // java: if (click.button() == MOUSE_BUTTON_RIGHT && (!sidePanelWidget.isOpen() || !selectedWidget.equals(sidePanelWidget.getPositionedWidget())))
+        let __panel_widget: Option<compat::Shared<PositionedWidget>> = __this.lock().borrow().side_panel_widget.as_ref().unwrap().get_positioned_widget();
+        let __selected: compat::Shared<PositionedWidget> = compat::read(__this, |__t| __t.selected_widget.clone()).unwrap();
+        if click.button() == 1 && (!(__this.lock().borrow().side_panel_widget.as_ref().unwrap().is_open()) || !(positioned_equals(&__selected, &__panel_widget))) {
             WidgetsConfigurationScreen::open_side_panel(__this);
-        } else if click.button() == 0 && __this.lock().borrow().side_panel_widget.as_ref().unwrap().is_open() && !({ let (__a0,) = (__this.lock().borrow().side_panel_widget.as_ref().unwrap().get_positioned_widget(),); __this.lock().borrow().selected_widget.as_ref().unwrap().equals(__a0) }) {
+        } else if click.button() == 0 && __this.lock().borrow().side_panel_widget.as_ref().unwrap().is_open() && !(positioned_equals(&__selected, &__panel_widget)) {
             WidgetsConfigurationScreen::open_side_panel(__this);
         }
         return true;
@@ -550,7 +543,7 @@ impl WidgetsConfigurationScreen {
                 }
                 if r#move {
                     let mut old_rule: PositionRule = compat::read(&compat::read(__this, |__t| __t.selected_widget.clone()).unwrap(), |__t| __t.rule.clone());
-                    { let __v = PositionRule::new(old_rule.parent(), old_rule.parent_point(), old_rule.this_point(), old_rule.relative_x().wrapping_add(x), old_rule.relative_y().wrapping_add(y)); compat::write(&compat::read(__this, |__t| __t.selected_widget.clone()).unwrap(), |__t| __t.rule = __v); }
+                    { let __v = PositionRule::new_canonical(old_rule.parent(), old_rule.parent_point(), old_rule.this_point(), old_rule.relative_x().wrapping_add(x), old_rule.relative_y().wrapping_add(y)); compat::write(&compat::read(__this, |__t| __t.selected_widget.clone()).unwrap(), |__t| __t.rule = __v); }
                     WidgetsConfigurationScreen::update_builder_positions(__this);
                     return true;
                 }
@@ -579,9 +572,8 @@ impl WidgetsConfigurationScreen {
             __this.lock().borrow_mut().side_panel_widget.as_mut().unwrap().close();
         }
         for widget in ({ let __r = &__this.lock().borrow().layer.as_ref().unwrap().builder(); let __f = compat::dispatch(__r, |__t| __t.get_rendered()); __f(__r) }) {
-            // TODO(fabric2seer): the condition: `getRectangle` is not a method of HudWidget
-            //   java: widget.widget.getRectangle().intersects(new ScreenRectangle(0, 0, getScreenWidth(), getScreenHeight())) || widget.rule.parent().isPresent()
-            if todo!("fabric2seer: the condition (TODO above)") {
+            // java: widget.widget.getRectangle().intersects(new ScreenRectangle(0, 0, getScreenWidth(), getScreenHeight())) || widget.rule.parent().isPresent()
+            if hud_widget_rectangle(&compat::read(&widget, |__t| __t.widget.clone())).intersects(ScreenRectangle::new_at(0, 0, WidgetsConfigurationScreen::get_screen_width(__this), WidgetsConfigurationScreen::get_screen_height(__this))) || compat::read(&widget, |__t| __t.rule.parent().is_some()) {
                 continue;
             }
             { let __v = position_rule::DEFAULT.get_mut().clone(); compat::write(&widget, |__t| __t.rule = __v); }
@@ -613,7 +605,7 @@ impl WidgetsConfigurationScreen {
                 continue;
             }
             if rule.parent().unwrap() == ({ let __r = &compat::read(widget, |__t| __t.widget.clone()); let __f = compat::dispatch(__r, |__t| __t.get_internal_id()); __f(__r) }) {
-                { let __v = PositionRule::new(deleted.parent(), deleted.parent_point(), rule.this_point(), deleted.relative_x().wrapping_add(rule.relative_x()), deleted.relative_y().wrapping_add(rule.relative_y())); compat::write(&positioned_widget, |__t| __t.rule = __v); }
+                { let __v = PositionRule::new_canonical(deleted.parent(), deleted.parent_point(), rule.this_point(), deleted.relative_x().wrapping_add(rule.relative_x()), deleted.relative_y().wrapping_add(rule.relative_y())); compat::write(&positioned_widget, |__t| __t.rule = __v); }
             }
         }
         WidgetsConfigurationScreen::update_builder_positions(__this);
@@ -637,7 +629,8 @@ impl WidgetsConfigurationScreen {
                 //   java: 				);
             }
         }
-        if std::ptr::addr_eq(std::sync::Arc::as_ptr(&compat::read(__this, |__t| __t.selected_widget.clone()).unwrap()), std::sync::Arc::as_ptr(widget)) {
+        // java: if (selectedWidget == widget) - a null selection is not the widget
+        if compat::read(__this, |__t| __t.selected_widget.as_ref().is_some_and(|__s| std::sync::Arc::ptr_eq(__s, widget))) {
             __this.lock().borrow_mut().side_panel_widget.as_mut().unwrap().close();
             { let __v = None; compat::write(__this, |__t| __t.selected_widget = __v); }
         }
@@ -647,11 +640,14 @@ impl WidgetsConfigurationScreen {
     pub fn remove_copies(__this: &compat::Shared<Self>, locations: &std::collections::HashSet<Location>, widget_id: &str) {
         for location in locations.iter().copied() {
             let mut config: LayerConfig = WidgetManager::get_screen_config(location).get(compat::read(__this, |__t| __t.current_screen_layer.clone()).unwrap());
-            let Some(mut deleted_config) = config.widgets().remove(widget_id) else {
+            // java: WidgetConfig deletedConfig = config.widgets().remove(widgetId); if (deletedConfig == null) continue;
+            let Some(mut deleted_config) = compat::write(&config.widgets(), |__m| __m.remove(widget_id)) else {
                 continue;
             };
-            for entry in config.widgets().iter().map(|(k, v)| (k.clone(), v.clone())) {
-                let widget_config = &entry.1;
+            // java: for (Map.Entry<String, WidgetConfig> entry : config.widgets().entrySet()) { .. entry.setValue(..) }
+            let __keys: Vec<String> = compat::read(&config.widgets(), |__m| __m.keys().cloned().collect());
+            for __key in __keys.iter() {
+                let widget_config: WidgetConfig = compat::read(&config.widgets(), |__m| __m.get(__key).cloned()).unwrap();
                 let mut pos_opt: Option<PositionRule> = widget_config.position();
                 if pos_opt.is_none() {
                     continue;
@@ -663,11 +659,12 @@ impl WidgetsConfigurationScreen {
                 let mut new_rule: PositionRule;
                 if deleted_config.position().is_some() {
                     let mut old_position: PositionRule = deleted_config.position().unwrap();
-                    new_rule = PositionRule::new(old_position.parent(), old_position.parent_point(), old_position.this_point(), old_position.relative_x().wrapping_add(rule.relative_x()), old_position.relative_y().wrapping_add(rule.relative_y()));
+                    new_rule = PositionRule::new_canonical(old_position.parent(), old_position.parent_point(), old_position.this_point(), old_position.relative_x().wrapping_add(rule.relative_x()), old_position.relative_y().wrapping_add(rule.relative_y()));
                 } else {
                     new_rule = position_rule::DEFAULT.get_mut().clone();
                 }
-                entry.1 = WidgetConfig::new(widget_config.config(), Some(new_rule.clone()));
+                let __v = WidgetConfig::new_canonical(widget_config.config(), Some(new_rule.clone()));
+                compat::write(&config.widgets(), |__m| { __m.insert(__key.clone(), __v); });
             }
         }
     }
@@ -713,9 +710,11 @@ impl WidgetsConfigurationScreen {
     }
 
     /// java: public void openPopup(Function<WidgetsConfigurationScreen, Screen> popupCreator)
-    pub fn open_popup(__this: &compat::Shared<Self>, popup_creator: Arc<dyn Fn(compat::Shared<WidgetsConfigurationScreen>) -> mcrust::net::minecraft::client::gui::screens::screen::Screen>) {
-        // TODO(fabric2seer): `set_screen` takes 14 argument(s) in the port (`gfx: &mut Minecraft, screen: &mut GuiScreen, screen_extra: &mut ScreenExtra, screen_stack: &mut Vec<HeldScreen>, screen_kind_before_pause: &mut Option<ScreenKind>, screen_is_open: &mut bool, level_screen_closed: &mut bool, frames_on_this_sc ..`), Java passes 1
-        // rust: gui::set_screen(&mut (popup_creator)(__this.clone()));
+    /// (a popup is the mod's screen object; it is opened over this one, which it returns to - Java's popups hold this
+    /// screen as their background and `setScreen` it back on close)
+    pub fn open_popup(__this: &compat::Shared<Self>, popup_creator: Arc<dyn Fn(compat::Shared<WidgetsConfigurationScreen>) -> Box<dyn ModScreen>>) {
+        // java: minecraft.setScreen(popupCreator.apply(this));
+        mcrust::mcrust::modding::game::set_screen_keeping_parent((popup_creator)(__this.clone()));
     }
 
 }
@@ -787,7 +786,7 @@ impl ModScreen for compat::ScreenAdapter<WidgetsConfigurationScreen> {
 // NOTE(fabric2seer): extractBackground, extractBlurredBackground, extractMenuBackground, extractRenderState, init, keyPressed, mouseClicked, mouseDragged, mouseReleased, onClose, repositionElements, tick override(s) of Screen - the port dispatches its own calls, so these run only where the mod calls them; hook the port's method to make the game call them
 
 /// java: private record SelectWidgetPrompt(Consumer<@Nullable HudWidget> callback, boolean allowItself, Component tooltip)
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct SelectWidgetPrompt {
     /// java: Consumer<@Nullable HudWidget> callback
     pub callback: Arc<dyn Fn(Option<compat::Shared<dyn HudWidget>>)>,
@@ -866,4 +865,101 @@ impl SnapResult {
         self.relative_y.clone()
     }
 
+}
+
+/// `ScreenDirection.values()` - the enum's declaration order (`UP, DOWN, LEFT, RIGHT`)
+fn screen_direction_values() -> [ScreenDirection; 4] {
+    [ScreenDirection::Up, ScreenDirection::Down, ScreenDirection::Left, ScreenDirection::Right]
+}
+
+/// `ScreenDirection.ordinal()`
+fn screen_direction_ordinal(direction: ScreenDirection) -> usize {
+    screen_direction_values().iter().position(|d| *d == direction).unwrap()
+}
+
+/// `LayoutElement.getRectangle()` (HudWidget implements LayoutElement): `new ScreenRectangle(getX(), getY(), getWidth(), getHeight())`
+fn hud_widget_rectangle(widget: &compat::Shared<dyn HudWidget>) -> ScreenRectangle {
+    let x = { let __f = compat::dispatch(widget, |__t| __t.get_x()); __f(widget) };
+    let y = { let __f = compat::dispatch(widget, |__t| __t.get_y()); __f(widget) };
+    let w = { let __f = compat::dispatch(widget, |__t| __t.get_width()); __f(widget) };
+    let h = { let __f = compat::dispatch(widget, |__t| __t.get_height()); __f(widget) };
+    ScreenRectangle::new_at(x, y, w, h)
+}
+
+/// `positionedWidget.equals(other)` with a nullable `other` (`PositionedWidget.equals(null)` is false)
+fn positioned_equals(widget: &compat::Shared<PositionedWidget>, other: &Option<compat::Shared<PositionedWidget>>) -> bool {
+    other.as_ref().is_some_and(|other| PositionedWidget::equals_shared(widget, other))
+}
+
+/// java: the anonymous `new HudWidget(new HudWidget.Information(null, null)) {..}` of `screenWidget`: a widget that
+/// covers the entire screen, used for snapping
+pub struct ScreenHudWidget {
+    /// java: extends HudWidget
+    pub base: HudWidgetBase,
+    /// the enclosing `WidgetsConfigurationScreen.this` (an anonymous class's outer instance)
+    pub outer: compat::WeakShared<WidgetsConfigurationScreen>,
+}
+
+impl std::ops::Deref for ScreenHudWidget {
+    type Target = HudWidgetBase;
+    fn deref(&self) -> &Self::Target {
+        &self.base
+    }
+}
+
+impl std::ops::DerefMut for ScreenHudWidget {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.base
+    }
+}
+
+impl ScreenHudWidget {
+    fn new() -> compat::Shared<Self> {
+        let (_, __this) = HudWidgetBase::new_in(Information::new(None, None), move |__base| {
+            let __h = compat::shared(Self { base: __base, outer: std::sync::Weak::new() });
+            ((__h.clone() as compat::Shared<dyn HudWidget>), __h)
+        });
+        __this
+    }
+
+    /// java: { w = getScreenWidth(); h = getScreenHeight(); } - the body of both overrides
+    fn cover_screen(__this: &compat::Shared<Self>) {
+        let Some(outer) = compat::read(__this, |__t| __t.outer.upgrade()) else {
+            return;
+        };
+        let w = WidgetsConfigurationScreen::get_screen_width(&outer);
+        let h = WidgetsConfigurationScreen::get_screen_height(&outer);
+        compat::write(__this, |__t| { __t.base.w = w; __t.base.h = h; });
+    }
+
+    /// java: @Override protected void extractWidgetRenderState(GuiGraphicsExtractor graphics, float delta)
+    pub fn extract_widget_render_state_dyn(__this: &compat::Shared<dyn HudWidget>, _graphics: &mut GuiGraphicsExtractor, _delta: f32) {
+        ScreenHudWidget::cover_screen(&compat::view_as::<Self, _, Self>(__this, |a| a));
+    }
+
+    /// java: @Override protected void extractWidgetRenderStateForConfig(GuiGraphicsExtractor graphics, float delta)
+    pub fn extract_widget_render_state_for_config_dyn(__this: &compat::Shared<dyn HudWidget>, _graphics: &mut GuiGraphicsExtractor, _delta: f32) {
+        ScreenHudWidget::cover_screen(&compat::view_as::<Self, _, Self>(__this, |a| a));
+    }
+}
+
+impl HudWidget for ScreenHudWidget {
+    fn hud_widget_base(&self) -> &HudWidgetBase {
+        &self.base
+    }
+    fn hud_widget_base_mut(&mut self) -> &mut HudWidgetBase {
+        &mut self.base
+    }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+
+    fn extract_widget_render_state(&self) -> fn(&compat::Shared<dyn HudWidget>, &mut GuiGraphicsExtractor, f32) {
+        ScreenHudWidget::extract_widget_render_state_dyn
+    }
+
+    fn extract_widget_render_state_for_config(&self) -> fn(&compat::Shared<dyn HudWidget>, &mut GuiGraphicsExtractor, f32) {
+        ScreenHudWidget::extract_widget_render_state_for_config_dyn
+    }
 }

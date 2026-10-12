@@ -5,6 +5,7 @@ use crate::prelude::*;
 use crate::de::hysky::skyblocker::skyblock::dungeon::dungeon_class::DungeonClass;
 use crate::de::hysky::skyblocker::skyblock::profileviewer2::loading_information::LoadingInformation;
 use crate::de::hysky::skyblocker::skyblock::profileviewer2::pages::profile_viewer_page::ProfileViewerPage;
+use crate::de::hysky::skyblocker::skyblock::profileviewer2::pages::profile_viewer_page::ProfileViewerPageAny;
 use crate::de::hysky::skyblocker::skyblock::profileviewer2::pages::skills_page;
 use crate::de::hysky::skyblocker::skyblock::profileviewer2::widgets::croesus_widget::CroesusWidget;
 use crate::de::hysky::skyblocker::skyblock::profileviewer2::widgets::daily_runs_widget::DailyRunsWidget;
@@ -45,7 +46,7 @@ impl CatacombsPage {
 
 }
 
-impl ProfileViewerPage<crate::de::hysky::skyblocker::skyblock::profileviewer2::loading_information::LoadingInformation> for CatacombsPage {
+impl ProfileViewerPageAny for CatacombsPage {
     fn as_any(&self) -> &dyn std::any::Any {
         self
     }
@@ -60,11 +61,24 @@ impl ProfileViewerPage<crate::de::hysky::skyblocker::skyblock::profileviewer2::l
         return component::literal("Catacombs");
     }
 
-    /// java: @Override public CompletableFuture<LayoutElement> load(LoadingInformation info)
-    fn load(&self, info: &LoadingInformation) -> mcrust::java::util::concurrent::completable_future::CompletableFuture<LayoutElement> {
-        return CompletableFuture::completed_future(info.clone()).then_apply_async(|__a0| self.build_widgets(&__a0), std::sync::Arc::new(|__t: Box<dyn FnOnce() + Send>| mcrust::mcrust::modding::game::execute(__t)));
+    /// java: @Override public CompletableFuture<LayoutElement> load(LoadingInformation info) (dispatch: the body for this class)
+    fn load(&self) -> fn(&compat::Shared<dyn ProfileViewerPageAny>, &LoadingInformation) -> compat::LocalFuture<LayoutElement> {
+        CatacombsPage::load_dyn
     }
 
+    /// java: @Override public List<AbstractWidget> getWidgets()
+    fn get_widgets(&self) -> Vec<AbstractWidget> {
+        return self.widgets.clone();
+    }
+
+    /// java: @Override public boolean centred()
+    fn centred(&self) -> bool {
+        return true;
+    }
+
+}
+
+impl ProfileViewerPage<crate::de::hysky::skyblocker::skyblock::profileviewer2::loading_information::LoadingInformation> for CatacombsPage {
     /// java: @Override public LayoutElement buildWidgets(LoadingInformation info)
     fn build_widgets(&self, info: &LoadingInformation) -> LayoutElement {
         let mut page_layout: LinearLayout = LinearLayout::horizontal().spacing(*HORIZONTAL_SPACING);
@@ -105,14 +119,13 @@ impl ProfileViewerPage<crate::de::hysky::skyblocker::skyblock::profileviewer2::l
         return LayoutElement::Grid(page_layout.wrapped);
     }
 
-    /// java: @Override public List<AbstractWidget> getWidgets()
-    fn get_widgets(&self) -> Vec<AbstractWidget> {
-        return self.widgets.clone();
-    }
+}
 
-    /// java: @Override public boolean centred()
-    fn centred(&self) -> bool {
-        return true;
+impl CatacombsPage {
+    /// CatacombsPage.load as the dispatch of ProfileViewerPage.load
+    pub fn load_dyn(__this: &compat::Shared<dyn ProfileViewerPageAny>, info: &LoadingInformation) -> compat::LocalFuture<LayoutElement> {
+        // java: return CompletableFuture.completedFuture(info).thenApplyAsync(this::buildWidgets, Minecraft.getInstance());
+        let __h: compat::Shared<CatacombsPage> = compat::handle_as::<CatacombsPage, _>(__this);
+        return compat::LocalFuture::completed_future(info.clone()).then_apply_async(move |__a0| compat::read(&__h, |__t| __t.build_widgets(&__a0)));
     }
-
 }

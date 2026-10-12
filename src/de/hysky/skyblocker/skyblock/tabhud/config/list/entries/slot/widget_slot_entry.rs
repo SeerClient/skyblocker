@@ -97,7 +97,8 @@ impl WidgetSlotEntry {
     }
 
     /// java: @Override public List<? extends GuiEventListener> children()
-    pub fn children(__this: &compat::Shared<Self>) -> Vec<Box<dyn GuiEventListener>> {
+    /// (the game asks the row for its widgets, `ModListEntry::children`; this answers them as values)
+    pub fn children(__this: &compat::Shared<Self>) -> Vec<mcrust::net::minecraft::client::gui::components::abstract_widget::AbstractWidget> {
         return (if compat::read(__this, |__t| __t.always_enabled) { vec![compat::write(__this, |__t| { let __s = &mut *__t; match __s.edit_button.as_mut() { Some(__r) => Some(__s.base.base.__widgets.with(&mut __s.base.base.__row, __r, |__w| __w.clone())), None => None } }).unwrap()] } else { vec![compat::write(__this, |__t| { let __s = &mut *__t; match __s.edit_button.as_mut() { Some(__r) => Some(__s.base.base.__widgets.with(&mut __s.base.base.__row, __r, |__w| __w.clone())), None => None } }).unwrap(), compat::write(__this, |__t| { let __s = &mut *__t; match __s.enable_button.as_mut() { Some(__r) => Some(__s.base.base.__widgets.with(&mut __s.base.base.__row, __r, |__w| __w.clone())), None => None } }).unwrap()] });
     }
 
@@ -105,7 +106,7 @@ impl WidgetSlotEntry {
     pub fn extract_content(__this: &compat::Shared<Self>, graphics: &GuiGraphicsExtractor, mut mouse_x: i32, mut mouse_y: i32, mut hovered: bool, mut delta_ticks: f32) {
         let mut text_y: i32 = (__this.lock().borrow().get_y()).wrapping_add(((__this.lock().borrow().get_height()).wrapping_sub(9)).wrapping_div(2));
         let mut text_renderer: Font = compat::font();
-        ({ let __f = compat::dispatch(__this, |__t| __t.extract_icon_and_text()); __f(&compat::view(__this, |a| a as compat::Shared<dyn WidgetsListSlotEntry>), graphics, __this.lock().borrow().get_y(), __this.lock().borrow().get_x(), __this.lock().borrow().get_height()) });
+        ({ let __f = compat::dispatch(__this, |__t| WidgetsListSlotEntry::extract_icon_and_text(__t)); __f(&compat::view(__this, |a| a as compat::Shared<dyn WidgetsListSlotEntry>), graphics, __this.lock().borrow().get_y(), __this.lock().borrow().get_x(), __this.lock().borrow().get_height()) });
         if compat::read(__this, |__t| __t.state.clone()).unwrap() != State::Locked {
             let __wa1 = ((__this.lock().borrow().get_x()).wrapping_add(__this.lock().borrow().get_width())).wrapping_sub(40);
             let __wa2 = (__this.lock().borrow().get_y()).wrapping_add(((__this.lock().borrow().get_height()).wrapping_sub(12)).wrapping_div(2));
@@ -134,9 +135,16 @@ impl WidgetSlotEntry {
 
     /// java: @Override public boolean mouseClicked(MouseButtonEvent event, boolean doubled)
     pub fn mouse_clicked(__this: &compat::Shared<Self>, event: &MouseButtonEvent, mut doubled: bool) -> bool {
-        // TODO(fabric2seer): `mouse_clicked` takes 4 argument(s) in the port (`_button: i32, _x: f64, _y: f64, _double_click: bool`), Java passes 2
-        // TODO(fabric2seer): `mouse_clicked` is a method of the port's trait `GuiEventListener`, which the port's `Entry` does not implement
-        if { let (__q0, __q1,) = (event.clone(), doubled,); __this.lock().borrow_mut().base.mouse_clicked(__q0, __q1) } || WidgetsListScreen::is_waiting_for_server(&compat::read(__this, |__t| __t.parent.clone())) {
+        // java: super.mouseClicked(event, doubled) - `ContainerObjectSelectionList.Entry.mouseClicked`: `ContainerEventHandler
+        // .mouseClicked` over the children, the row's widgets (lent to this object for the call, `__row`); true when a
+        // child is under the cursor (the body `ModListEntry::mouse_clicked` runs for a row with children)
+        let __super_clicked: bool = compat::write(__this, |__t| {
+            let __row = &mut __t.base.base.__row;
+            let __hit = __row.get_child_at(event.x(), event.y()).is_some();
+            __row.mouse_clicked(event.button(), event.x(), event.y());
+            __hit
+        });
+        if __super_clicked || WidgetsListScreen::is_waiting_for_server(&compat::read(__this, |__t| __t.parent.clone())) {
             return true;
         }
         let mut is_select: bool = (event.button() == 0);

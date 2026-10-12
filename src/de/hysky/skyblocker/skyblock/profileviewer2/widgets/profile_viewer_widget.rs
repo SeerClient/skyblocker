@@ -67,7 +67,7 @@ impl ProfileViewerWidgetBase {
     }
 
     /// java: protected static Font getFont()
-    pub fn get_font() -> Font {
+    pub fn get_font() -> Font<'static> {
         return compat::font();
     }
 

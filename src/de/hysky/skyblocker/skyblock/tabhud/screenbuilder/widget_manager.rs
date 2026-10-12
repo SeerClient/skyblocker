@@ -23,11 +23,13 @@ use crate::de::hysky::skyblocker::skyblock::tabhud::screenbuilder::screen_builde
 use crate::de::hysky::skyblocker::skyblock::tabhud::screenbuilder::screen_builder::ScreenBuilderBase;
 use crate::de::hysky::skyblocker::skyblock::tabhud::screenbuilder::screen_config;
 use crate::de::hysky::skyblocker::skyblock::tabhud::screenbuilder::screen_config::ScreenConfig;
+use crate::de::hysky::skyblocker::skyblock::tabhud::screenbuilder::widget_config::WidgetConfig;
 use crate::de::hysky::skyblocker::skyblock::tabhud::tab_hud;
 use crate::de::hysky::skyblocker::skyblock::tabhud::tab_hud::TabHud;
+use crate::de::hysky::skyblocker::skyblock::tabhud::util::player_list_manager::PlayerListManager;
+use crate::de::hysky::skyblocker::skyblock::tabhud::widget::dungeon_player_widget::DungeonPlayerWidget;
 use crate::de::hysky::skyblocker::skyblock::tabhud::widget::hud_widget::HudWidget;
 use crate::de::hysky::skyblocker::skyblock::tabhud::widget::placeholder_widget::PlaceholderWidget;
-use crate::de::hysky::skyblocker::utils::codec_utils::CodecUtils;
 use crate::de::hysky::skyblocker::utils::exclusive_grouping_set::ExclusiveGroupingSet;
 use crate::de::hysky::skyblocker::utils::location;
 use crate::de::hysky::skyblocker::utils::location::Location;
@@ -38,21 +40,22 @@ use mcrust::com::mojang::serialization::codec;
 use mcrust::com::mojang::serialization::codec::Codec;
 use mcrust::com::mojang::serialization::codec::CodecRef;
 use mcrust::com::mojang::serialization::codecs::record_codec_builder;
+use mcrust::com::mojang::serialization::json_ops::JsonOps;
+use mcrust::com::mojang::serialization::map_codec;
 use mcrust::net::minecraft::client::gui::components::toasts::system_toast;
 use mcrust::net::minecraft::client::gui::components::toasts::system_toast::SystemToastId;
 use mcrust::net::minecraft::client::gui::gui_graphics_extractor;
 use mcrust::net::minecraft::client::gui::gui_graphics_extractor::GuiGraphicsExtractor;
 use mcrust::net::minecraft::client::key_mapping;
 use mcrust::net::minecraft::network::chat::component;
+use mcrust::net::minecraft::network::chat::formatted_text::FormattedText;
 use mcrust::net::minecraft::resources::identifier::Identifier;
-use mcrust::org::joml::matrix3x2f_stack::Matrix3x2fStack;
 use mcrust::com::mojang::serialization::decoder::Decoder as _;
+use mcrust::com::mojang::serialization::encoder::Encoder as _;
 
-// TODO(fabric2seer): static call EnumSet.complementOf(..)
-//   java: @SuppressWarnings("deprecation")
-//   java: 	public static final Set<Location> ALLOWED_LOCATIONS = Collections.unmodifiableSet(EnumSet.complementOf(EnumSet.of(Location.UNKNOWN, Location.BLAZING_FORTRESS)));
 /// java: @SuppressWarnings("deprecation") public static final Set<Location> ALLOWED_LOCATIONS = Collections.unmodifiableSet(EnumSet.complementOf(EnumSet.of(Location.UNKNOWN, Location.BLAZING_FORTRESS)));
-pub static ALLOWED_LOCATIONS: LazyLock<std::collections::HashSet<Location>> = LazyLock::new(|| todo!("fabric2seer: the initialiser of `ALLOWED_LOCATIONS` - see the TODO above"));
+/// (an `EnumSet`: every other location, in ordinal order)
+pub static ALLOWED_LOCATIONS: LazyLock<indexmap::IndexSet<Location>> = LazyLock::new(|| Location::values().into_iter().filter(|l| *l != Location::Unknown && *l != Location::BlazingFortress).collect());
 /// java: private static final Identifier FANCY_TAB_HUD = SkyblockerMod.id("fancy_tab_hud");
 pub static FANCY_TAB_HUD: compat::MainThread<Identifier> = compat::MainThread::new(|| crate::entry::skyblocker_mod::id("fancy_tab_hud"));
 /// java: private static final Identifier FANCY_TAB = SkyblockerMod.id("fancy_tab");
@@ -62,7 +65,7 @@ pub const DEFAULTS_VERSION: i32 = 1;
 /// java: private static final String DEFAULTS_VERSION_KEY = "_defaults_version";
 pub const DEFAULTS_VERSION_KEY: &str = "_defaults_version";
 /// java: public static final Path FILE = SkyblockerMod.CONFIG_DIR.resolve("hud_widgets.json");
-pub static FILE: compat::MainThread<std::path::PathBuf> = compat::MainThread::new(|| skyblocker_mod::CONFIG_DIR.get_mut().join("hud_widgets.json"));
+pub static FILE: compat::MainThread<std::path::PathBuf> = compat::MainThread::new(|| skyblocker_mod::CONFIG_DIR.get().join("hud_widgets.json"));
 /// java: public static final ScreenBuilder SCREEN_BUILDER = new ScreenBuilder();
 pub static SCREEN_BUILDER: compat::MainThread<compat::Shared<dyn ScreenBuilder>> = compat::MainThread::new(|| (ScreenBuilderBase::new_0() as compat::Shared<dyn ScreenBuilder>));
 /// java: private static Config CONFIG = new Config();
@@ -75,14 +78,32 @@ pub static HAS_FANCY_TAB: LazyLock<Mutex<bool>> = LazyLock::new(|| Mutex::new(fa
 pub static CURRENT_LOCATION: LazyLock<Mutex<Option<Location>>> = LazyLock::new(|| Mutex::new(None));
 /// java: private static @Nullable ScreenLayer currentLayer;
 pub static CURRENT_LAYER: LazyLock<Mutex<Option<ScreenLayer>>> = LazyLock::new(|| Mutex::new(None));
-// TODO(fabric2seer): `from_enum` takes 2 argument(s) in the port (`values: Vec<E>, serialized_name: impl Fn(&E) -> String + Send + Sync + Copy + 'static`), Java passes 1
-//   java: public static final Codec<ScreenLayer> CODEC = StringRepresentable.fromEnum(ScreenLayer::values);
 /// java: public static final Codec<ScreenLayer> CODEC = StringRepresentable.fromEnum(ScreenLayer::values);
-pub static SCREEN_LAYER_CODEC: compat::MainThread<CodecRef<ScreenLayer>> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `CODEC` - see the TODO above"));
-/// java: public static final Codec<Config> CODEC = RecordCodecBuilder.create(instance -> instance.group( CodecUtils.mutableOptional(Codec.unboundedMap(Location.CODEC, ScreenConfig.CODEC).fieldOf("configs"), Ob
-pub static CONFIG_CODEC: compat::MainThread<CodecRef<Config>> = compat::MainThread::new(|| record_codec_builder::create(record_codec_builder::apply4(record_codec_builder::of(|o: &Config| o.screen_configs(), CodecUtils::mutable_optional(&codec::field_of(codec::unbounded_map(location::CODEC.get_mut().clone(), screen_config::CODEC.get_mut().clone()), "configs"), Arc::new(move |__a0| __a0.clone()))), record_codec_builder::of(|o: &Config| o.copy_tracker(), codec::field_of(copy_tracker::CODEC.get_mut().clone(), "copies")), record_codec_builder::of(|o: &Config| o.version(), codec::field_of(mcrust::com::mojang::serialization::codec::int_codec(), "version")), record_codec_builder::of(|_: &Config| DEFAULTS_VERSION, codec::optional_field_of(mcrust::com::mojang::serialization::codec::int_codec(), DEFAULTS_VERSION_KEY, 0)), move |__a0, __a1, __a2, __a3| Config::new(__a0.clone(), __a1.clone(), __a2.clone(), __a3.clone()))));
+pub static SCREEN_LAYER_CODEC: compat::MainThread<CodecRef<ScreenLayer>> = compat::MainThread::new(|| mcrust::net::minecraft::util::string_representable::from_enum(ScreenLayer::values(), |l: &ScreenLayer| l.get_serialized_name()));
+/// java: public static final Codec<Config> CODEC = RecordCodecBuilder.create(instance -> instance.group(
+///   CodecUtils.mutableOptional(Codec.unboundedMap(Location.CODEC, ScreenConfig.CODEC).fieldOf("configs"), Object2ObjectOpenHashMap::new).forGetter(Config::screenConfigs),
+///   CopyTracker.CODEC.fieldOf("copies").forGetter(Config::copyTracker),
+///   Codec.INT.fieldOf("version").forGetter(Config::version),
+///   Codec.INT.optionalFieldOf(DEFAULTS_VERSION_KEY, 0).forGetter(_ -> DEFAULTS_VERSION)
+/// ).apply(instance, Config::new));
+/// (`mutableOptional(.., Object2ObjectOpenHashMap::new)` is `xmap(mutableFactory, identity)`: the decoded map becomes a
+/// new mutable map object - the record's reference to it)
+pub static CONFIG_CODEC: compat::MainThread<CodecRef<Config>> = compat::MainThread::new(|| {
+    let configs = map_codec::xmap(
+        codec::field_of(codec::unbounded_map(location::CODEC.get().clone(), screen_config::CODEC.get().clone()), "configs"),
+        |entries: Vec<(Location, ScreenConfig)>| compat::shared(entries.into_iter().collect::<std::collections::HashMap<Location, ScreenConfig>>()),
+        |map: &compat::Shared<std::collections::HashMap<Location, ScreenConfig>>| compat::read(map, |m| m.iter().map(|(k, v)| (*k, v.clone())).collect::<Vec<_>>()),
+    );
+    record_codec_builder::create(record_codec_builder::apply4(
+        record_codec_builder::of(|o: &Config| o.screen_configs(), configs),
+        record_codec_builder::of(|o: &Config| o.copy_tracker(), codec::field_of(copy_tracker::CODEC.get().clone(), "copies")),
+        record_codec_builder::of(|o: &Config| o.version(), codec::field_of(codec::int_codec(), "version")),
+        record_codec_builder::of(|_: &Config| DEFAULTS_VERSION, codec::optional_field_of(codec::int_codec(), DEFAULTS_VERSION_KEY, 0)),
+        move |__a0, __a1, __a2, __a3| Config::new_shared(__a0, __a1, __a2, __a3),
+    ))
+});
 /// java: public static final Codec<Config> DATA_FIXING_CODEC = ConfigDataFixer.createDataFixingCodec(ConfigDataFixer.HUD_WIDGETS_TYPE, CODEC);
-pub static CONFIG_DATA_FIXING_CODEC: compat::MainThread<CodecRef<Config>> = compat::MainThread::new(|| ConfigDataFixer::create_data_fixing_codec(config_data_fixer::HUD_WIDGETS_TYPE.get_mut(), CONFIG_CODEC.get_mut()));
+pub static CONFIG_DATA_FIXING_CODEC: compat::MainThread<CodecRef<Config>> = compat::MainThread::new(|| ConfigDataFixer::create_data_fixing_codec(config_data_fixer::HUD_WIDGETS_TYPE.get(), CONFIG_CODEC.get()));
 
 /// java: public class WidgetManager
 #[derive(Clone)]
@@ -97,13 +118,15 @@ impl WidgetManager {
     }
 
     /// java: public static ScreenConfig getScreenConfig(Location screenId)
-    pub fn get_screen_config(mut screen_id: Location) -> ScreenConfig {
-        return CONFIG.get_mut().screen_configs().entry(screen_id).or_insert_with_key(|k| (|_| ScreenConfig::new())(k.clone())).clone();
+    pub fn get_screen_config(screen_id: Location) -> ScreenConfig {
+        // java: return CONFIG.screenConfigs().computeIfAbsent(screenId, _ -> new ScreenConfig());
+        let configs = CONFIG.get().screen_configs();
+        return compat::write(&configs, |m| m.entry(screen_id).or_insert_with(ScreenConfig::new).clone());
     }
 
     /// java: public static CopyTracker getCopyTracker()
     pub fn get_copy_tracker() -> CopyTracker {
-        return CONFIG.get_mut().copy_tracker();
+        return CONFIG.get().copy_tracker();
     }
 
     /// java: public static boolean hasFancyTab()
@@ -112,85 +135,107 @@ impl WidgetManager {
     }
 
     /// java: public static HudWidget getWidgetOrPlaceholder(String id)
-    pub fn get_widget_or_placeholder(mut id: String) -> compat::Shared<dyn HudWidget> {
-        return WIDGET_INSTANCES.get_mut().entry(id.clone()).or_insert_with_key(|k| (|__a0| PlaceholderWidget::new(__a0.clone()))(k.clone())).clone();
+    pub fn get_widget_or_placeholder(id: String) -> compat::Shared<dyn HudWidget> {
+        // java: return WIDGET_INSTANCES.computeIfAbsent(id, PlaceholderWidget::new);
+        if let Some(widget) = WIDGET_INSTANCES.get().get(&id) {
+            return widget.clone();
+        }
+        let widget: compat::Shared<dyn HudWidget> = PlaceholderWidget::new(id.clone());
+        WIDGET_INSTANCES.get_mut().insert(id, widget.clone());
+        return widget;
     }
 
     /// java: public static boolean isWidgetInCurrentScreen(HudWidget widget)
     pub fn is_widget_in_current_screen(widget: &compat::Shared<dyn HudWidget>) -> bool {
-        return ({ let __r = SCREEN_BUILDER.get_mut(); let __f = compat::dispatch(__r, |__t| __t.contains()); __f(__r, widget) });
+        return ({ let __r = SCREEN_BUILDER.get(); let __f = compat::dispatch(__r, |__t| __t.contains()); __f(__r, widget) });
     }
 
     /// java: public static boolean isWidgetInCurrentLayer(HudWidget widget)
     pub fn is_widget_in_current_layer(widget: &compat::Shared<dyn HudWidget>) -> bool {
-        return (compat::get_state(&CURRENT_LAYER).is_some() && { let __r = &({ let __r = SCREEN_BUILDER.get_mut(); let __f = compat::dispatch(__r, |__t| __t.get()); __f(__r, compat::get_state(&CURRENT_LAYER)) }); let __f = compat::dispatch(__r, |__t| __t.contains()); __f(__r, widget) });
+        let Some(current_layer) = compat::get_state(&CURRENT_LAYER) else {
+            return false;
+        };
+        return { let __r = &({ let __r = SCREEN_BUILDER.get(); let __f = compat::dispatch(__r, |__t| __t.get()); __f(__r, current_layer) }); let __f = compat::dispatch(__r, |__t| __t.contains()); __f(__r, widget) };
     }
 
     /// java: public static List<HudWidget> getWidgetsAvailableIn(Location location)
-    pub fn get_widgets_available_in(mut location: Location) -> Vec<compat::Shared<dyn HudWidget>> {
-        return WIDGET_INSTANCES.get_mut().values().cloned().filter(|w| (({ let __f = compat::dispatch(w, |__t| __t.get_information()); __f(w) }).available())(location)).collect::<Vec<_>>();
+    pub fn get_widgets_available_in(location: Location) -> Vec<compat::Shared<dyn HudWidget>> {
+        let widgets: Vec<compat::Shared<dyn HudWidget>> = WIDGET_INSTANCES.get().values().cloned().collect();
+        return widgets.into_iter().filter(|w| (({ let __f = compat::dispatch(w, |__t| __t.get_information()); __f(w) }).available())(location)).collect::<Vec<_>>();
     }
 
     /// java: @Init(priority = -1) public static void init()
     pub fn init() {
-        // TODO(fabric2seer): no SeerClient event yet: hook RETURN of Minecraft's constructor (`net.minecraft.client.Minecraft#<init>`: exists)
-        //   java: ClientLifecycleEvents.CLIENT_STARTED.register(_ -> {
-        //   java:
-        //   java: 			instantiateWidgets();
-        //   java: 			for (int i = 1; i < 6; i++) {
-        //   java: 				DungeonPlayerWidget widget = new DungeonPlayerWidget(i);
-        //   java: 				addWidgetInstance(widget);
-        //   java: 			}
-        //   java: 			loadConfig();
-        //   java:
-        //   java: 			PlayerListManager.registerTabListener(WidgetManager::onPlayerListUpdate);
-        //   java: 		});
-        // TODO(fabric2seer): no SeerClient event yet: hook HEAD of Minecraft#stop (`net.minecraft.client.Minecraft#stop`: exists)
-        //   java: ClientLifecycleEvents.CLIENT_STOPPING.register(_ -> saveConfig());
+        // java: ClientLifecycleEvents.CLIENT_STARTED.register(_ -> {..}); - RETURN of `Minecraft`'s constructor (the client
+        // entrypoints run inside it, so this registers before it returns)
+        let _ = hook::inject("net.minecraft.client.Minecraft#<init>", At::Return, |_: &mut CallbackInfo<'_>| {
+            WidgetManager::instantiate_widgets();
+            for i in 1..6 {
+                let widget = DungeonPlayerWidget::new(i);
+                WidgetManager::add_widget_instance(widget as compat::Shared<dyn HudWidget>);
+            }
+            WidgetManager::load_config();
+            PlayerListManager::register_tab_listener(Arc::new(|| WidgetManager::on_player_list_update()));
+        })
+        .map_err(|e| logger().error(&format!("[Skyblocker] Failed to hook the client start: {:?}", e)));
+        // java: ClientLifecycleEvents.CLIENT_STOPPING.register(_ -> saveConfig()); - HEAD of `Minecraft#stop`
+        let _ = hook::inject("net.minecraft.client.Minecraft#stop", At::Head, |_: &mut CallbackInfo<'_>| {
+            WidgetManager::save_config();
+        })
+        .map_err(|e| logger().error(&format!("[Skyblocker] Failed to hook the client stop: {:?}", e)));
+        // java: HudElementRegistry.attachElementBefore(VanillaHudElements.DEMO_TIMER, FANCY_TAB_HUD, (context, _) -> extractRenderState(context, true));
+        // java: HudElementRegistry.attachElementBefore(VanillaHudElements.PLAYER_LIST, FANCY_TAB, (context, _) -> extractRenderState(context, false));
+        // rust: port gap - no HUD element registry: both draw at RETURN of `Hud#extractRenderState`, after the vanilla HUD
         hud_render_callback::EVENT.register(Arc::new(|ctx: &mut hud_render_callback::HudRenderContext<'_>| {
-            // SAFETY: `ctx` outlives every call made through `graphics` (this callback).
-            let graphics = unsafe { ScriptGraphics::new(ctx.gl, &*ctx.minecraft, ctx.gui_width, ctx.gui_height) };
-            let _session = graphics.session();
-            WidgetManager::extract_render_state(&graphics, true);
+            WidgetManager::extract_render_state(&mut ctx.graphics, true);
         }));
         hud_render_callback::EVENT.register(Arc::new(|ctx: &mut hud_render_callback::HudRenderContext<'_>| {
-            // SAFETY: `ctx` outlives every call made through `graphics` (this callback).
-            let graphics = unsafe { ScriptGraphics::new(ctx.gl, &*ctx.minecraft, ctx.gui_width, ctx.gui_height) };
-            let _session = graphics.session();
-            WidgetManager::extract_render_state(&graphics, false);
+            WidgetManager::extract_render_state(&mut ctx.graphics, false);
         }));
     }
 
     /// java: private static void extractRenderState(GuiGraphicsExtractor context, boolean hud)
-    pub fn extract_render_state(context: &GuiGraphicsExtractor, mut hud: bool) {
+    pub fn extract_render_state(context: &mut GuiGraphicsExtractor, hud: bool) {
         if !(Utils::is_on_skyblock()) {
             return;
         }
         let client = compat::minecraft();
-        let mut screen: mcrust::net::minecraft::client::gui::screens::screen::Screen = ScreenUtils::get_underlying_screen_1(client.gui.screen()).unwrap();
+        // java: Screen screen = ScreenUtils.getUnderlyingScreen(client.gui.screen());
+        //       if (screen instanceof WidgetsConfigurationScreen || screen instanceof OtherOptionsScreen) return;
+        // rust: port gap - the open screen object is reached by its class only on top of the stack
+        // (`game::current_screen_is`); a popup over one of these two screens is not seen through (GAPS_batchA #19)
         if mcrust::mcrust::modding::game::current_screen_is::<compat::ScreenAdapter<WidgetsConfigurationScreen>>() || mcrust::mcrust::modding::game::current_screen_is::<compat::ScreenAdapter<OtherOptionsScreen>>() {
             return;
         }
         let window = client.get_window();
-        let mut scale: f32 = ((SkyblockerConfigManager::get().ui_and_visuals.tab_hud.tab_hud_scale as f32) / 100.0f32);
+        let scale: f32 = ((SkyblockerConfigManager::get().ui_and_visuals.tab_hud.tab_hud_scale as f32) / 100.0f32);
         let __pose_1 = gui_graphics_extractor::push_pose();
-        gui_graphics_extractor::pose_scale((scale) as f32, (scale) as f32);
-        WidgetManager::extract_render_state_4(context, ((((window.get_gui_scaled_width() as f32) / scale)) as i32), ((((window.get_gui_scaled_height() as f32) / scale)) as i32), hud);
+        gui_graphics_extractor::pose_scale(scale, scale);
+        WidgetManager::extract_render_state_4(context, (((window.get_gui_scaled_width() as f32) / scale) as i32), (((window.get_gui_scaled_height() as f32) / scale) as i32), hud);
         gui_graphics_extractor::pop_pose(__pose_1);
     }
 
+    /// java: public static void onPlayerListUpdate()
+    pub fn on_player_list_update() {
+        let fancy_tab: bool = SkyblockerConfigManager::get().ui_and_visuals.tab_hud.tab_hud_enabled;
+        if !fancy_tab && compat::get_state(&HAS_FANCY_TAB) {
+            ({ let __r = SCREEN_BUILDER.get(); let __f = compat::dispatch(__r, |__t| __t.clear_fancy_tab()); __f(__r) });
+        } else if fancy_tab {
+            ({ let __r = SCREEN_BUILDER.get(); let __f = compat::dispatch(__r, |__t| __t.update_fancy_tab()); __f(__r) });
+            compat::set_state(&HAS_FANCY_TAB, true);
+        }
+    }
+
     /// java: private static void extractRenderState(GuiGraphicsExtractor context, int w, int h, boolean hud)
-    pub fn extract_render_state_4(context: &GuiGraphicsExtractor, mut w: i32, mut h: i32, mut hud: bool) {
-        let client = compat::minecraft();
-        let mut layer: ScreenLayer;
-        // TODO(fabric2seer): `Options.keyPlayerList` has no Rust field in the port (searched net.minecraft.client.Options and its supertypes)
-        // TODO(fabric2seer): `is_down` takes 1 argument(s) in the port (`name: &str`), Java passes 0
-        if key_mapping::is_down() {
+    pub fn extract_render_state_4(context: &mut GuiGraphicsExtractor, w: i32, h: i32, hud: bool) {
+        let layer: ScreenLayer;
+        // java: if (client.options.keyPlayerList.isDown()) {
+        if key_mapping::is_down("key.playerlist") {
             if hud || TabHud::should_render_vanilla() {
                 return;
             }
-            // TODO(fabric2seer): `is_down` takes 1 argument(s) in the port (`name: &str`), Java passes 0
-            if key_mapping::is_down() {
+            // java: if (TabHud.toggleSecondary.isDown())
+            if key_mapping::is_down("key.skyblocker.toggleA") {
                 layer = ScreenLayer::SecondaryTab;
             } else {
                 layer = ScreenLayer::MainTab;
@@ -200,185 +245,218 @@ impl WidgetManager {
         } else {
             return;
         }
-        let mut location: Location = Utils::get_location();
-        if compat::get_state(&CURRENT_LOCATION).unwrap() != location {
+        let location: Location = Utils::get_location();
+        if compat::get_state(&CURRENT_LOCATION) != Some(location) {
             compat::set_state(&CURRENT_LOCATION, Some(location));
-            ({ let __r = SCREEN_BUILDER.get_mut(); let __f = compat::dispatch(__r, |__t| __t.set_config()); __f(__r, WidgetManager::get_screen_config(compat::get_state(&CURRENT_LOCATION))) });
+            ({ let __r = SCREEN_BUILDER.get(); let __f = compat::dispatch(__r, |__t| __t.set_config()); __f(__r, WidgetManager::get_screen_config(location)) });
             compat::set_state(&CURRENT_LAYER, None);
         }
-        if compat::get_state(&CURRENT_LAYER).unwrap() != layer {
+        if compat::get_state(&CURRENT_LAYER) != Some(layer) {
             compat::set_state(&CURRENT_LAYER, Some(layer));
-            ({ let __r = &({ let __r = SCREEN_BUILDER.get_mut(); let __f = compat::dispatch(__r, |__t| __t.get()); __f(__r, layer) }); let __f = compat::dispatch(__r, |__t| __t.update()); __f(__r) });
+            ({ let __r = &({ let __r = SCREEN_BUILDER.get(); let __f = compat::dispatch(__r, |__t| __t.get()); __f(__r, layer) }); let __f = compat::dispatch(__r, |__t| __t.update()); __f(__r) });
         }
-        ({ let __r = &({ let __r = SCREEN_BUILDER.get_mut(); let __f = compat::dispatch(__r, |__t| __t.get()); __f(__r, compat::get_state(&CURRENT_LAYER)) }); let __f = compat::dispatch(__r, |__t| __t.extract_render_states()); __f(__r, context, w, h, false) });
-    }
-
-    /// java: public static void onPlayerListUpdate()
-    pub fn on_player_list_update() {
-        let mut fancy_tab: bool = SkyblockerConfigManager::get().ui_and_visuals.tab_hud.tab_hud_enabled;
-        if !fancy_tab && compat::get_state(&HAS_FANCY_TAB) {
-            ({ let __r = SCREEN_BUILDER.get_mut(); let __f = compat::dispatch(__r, |__t| __t.clear_fancy_tab()); __f(__r) });
-        } else if fancy_tab {
-            ({ let __r = SCREEN_BUILDER.get_mut(); let __f = compat::dispatch(__r, |__t| __t.update_fancy_tab()); __f(__r) });
-            compat::set_state(&HAS_FANCY_TAB, true);
-        }
+        ({ let __r = &({ let __r = SCREEN_BUILDER.get(); let __f = compat::dispatch(__r, |__t| __t.get()); __f(__r, layer) }); let __f = compat::dispatch(__r, |__t| __t.extract_render_states()); __f(__r, context, w, h, false) });
     }
 
     /// java: public static void loadConfig()
     pub fn load_config() {
-        // TODO(fabric2seer): `new AtomicReference(..)`
-        //   java: AtomicReference<@Nullable String> error = new AtomicReference<>();
-        let mut error: crate::unresolved::AtomicReference = todo!("fabric2seer: the initialiser of `error` (TODO above)");
-        {
-            // TODO(fabric2seer): Files.newBufferedReader
-            //   java: BufferedReader reader = Files.newBufferedReader(..);
-            let mut reader: crate::unresolved::BufferedReader = todo!("fabric2seer: the initialiser of `reader` (TODO above)");
-            // java: try {..} catch (NoSuchFileException _) catch (Exception e) - an exception here is a panic, caught by `catch_unwind`
-            let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                // TODO(fabric2seer): static call JsonParser.parseReader(..)
-                //   java: JsonElement input = JsonParser.parseReader(reader);
-                let mut input: serde_json::Value = todo!("fabric2seer: the initialiser of `input` (TODO above)");
-                let mut prev_version: i32 = (if compat::json::has(&compat::json::get_as_json_object(&input), "version") { compat::json::get_as_int(&compat::json::get_as_json_object(&input).get("version").cloned().unwrap()) } else { 1 });
-                // TODO(fabric2seer): `.set(..)` on a AtomicReference
-                //   java: CONFIG = Config.DATA_FIXING_CODEC.decode(JsonOps.INSTANCE, input).resultOrPartial(error::set).orElseThrow().getFirst();
-                // TODO(fabric2seer): the condition: `.get(..)` on a AtomicReference
-                //   java: error.get() != null
-                if todo!("fabric2seer: the condition (TODO above)") {
-                    // TODO(fabric2seer): `new RuntimeException(..)` outside `throw`
-                    //   java: LOGGER.error("[Skyblocker] Failed to load part of the HUD config", new RuntimeException(error.get()));
+        // java: AtomicReference<@Nullable String> error = new AtomicReference<>();
+        let mut error: Option<String> = None;
+        // java: try (BufferedReader reader = Files.newBufferedReader(FILE)) {..} catch (NoSuchFileException _) {..} catch (Exception e) {..}
+        let reader = match std::fs::read_to_string(FILE.get()) {
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                // Fill default config
+                WidgetManager::fill_default_config(0);
+                return;
+            }
+            Err(e) => Err(format!("IOException: {e}")),
+            Ok(reader) => Ok(reader),
+        };
+        let __result = reader.and_then(|reader| {
+            std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                // java: JsonElement input = JsonParser.parseReader(reader);
+                let input: serde_json::Value = serde_json::from_str(&reader).unwrap_or_else(|e| panic!("JsonSyntaxException: {e}"));
+                let prev_version: i32 = (if compat::json::has(&compat::json::get_as_json_object(&input), "version") { compat::json::get_as_int(&compat::json::get_as_json_object(&input).get("version").cloned().unwrap()) } else { 1 });
+                // java: CONFIG = Config.DATA_FIXING_CODEC.decode(JsonOps.INSTANCE, input).resultOrPartial(error::set).orElseThrow().getFirst();
+                let decoded = CONFIG_DATA_FIXING_CODEC.get().decode(&JsonOps::instance(), &compat::json_to_port(&input));
+                let config = decoded.result_or_partial_with(|e| error = Some(e)).expect("NoSuchElementException: No value present").0;
+                *CONFIG.get_mut() = config;
+                if let Some(error) = &error {
+                    // separate it to not run when the config fully cannot load
+                    logger().error(&format!("[Skyblocker] Failed to load part of the HUD config {}", error));
                     WidgetManager::show_error_toast();
                     ConfigBackupManager::backup_config_1(ConfigType::HudWidgets);
                 }
-                if CONFIG.get_mut().version != prev_version {
+                // Backup if version is different
+                if CONFIG.get().version != prev_version {
                     ConfigBackupManager::backup_config_1(ConfigType::HudWidgets);
                 }
-                if CONFIG.get_mut().defaults_version > 0 {
-                    WidgetManager::fill_default_config(CONFIG.get_mut().defaults_version);
+                // Do not fill defaults if migrating from old config
+                if CONFIG.get().defaults_version > 0 {
+                    WidgetManager::fill_default_config(CONFIG.get().defaults_version);
                 }
-                for entry in CONFIG.get_mut().screen_configs.iter().map(|(k, v)| (k.clone(), v.clone())) {
+                // clean up widgets that are in islands they shouldn't be in
+                let entries: Vec<(Location, ScreenConfig)> = compat::read(&CONFIG.get().screen_configs(), |m| m.iter().map(|(k, v)| (*k, v.clone())).collect());
+                for entry in entries {
                     for layer in entry.1.all_layers() {
-                        layer.widgets().retain(|__k, _| !(|id| (WIDGET_INSTANCES.get_mut().contains_key(id) && !((({ let __r = &WIDGET_INSTANCES.get_mut().get(id).cloned().unwrap(); let __f = compat::dispatch(__r, |__t| __t.get_information()); __f(__r) }).available())(entry.0))))(__k));
+                        // java: layer.widgets().keySet().removeIf(id -> WIDGET_INSTANCES.containsKey(id) && !WIDGET_INSTANCES.get(id).getInformation().available().test(entry.getKey()));
+                        let ids: Vec<String> = compat::read(&layer.widgets(), |m| m.keys().cloned().collect());
+                        for id in ids {
+                            let remove = match WIDGET_INSTANCES.get().get(&id).cloned() {
+                                Some(widget) => !(({ let __f = compat::dispatch(&widget, |__t| __t.get_information()); __f(&widget) }).available())(entry.0),
+                                None => false,
+                            };
+                            if remove {
+                                compat::write(&layer.widgets(), |m| m.remove(&id));
+                            }
+                        }
                     }
                 }
-                for map in CONFIG.get_mut().screen_configs.values().cloned().flat_map(|__a0| __a0.all_layers()).map(|__a0| __a0.widgets()) {
-                    for entry in map.iter().map(|(k, v)| (k.clone(), v.clone())) {
-                        let mut position: Option<PositionRule> = entry.1.position();
-                        if position.is_none() {
+                // clean up widgets that are parented to a widget that isn't the layer
+                let screen_configs: Vec<ScreenConfig> = compat::read(&CONFIG.get().screen_configs(), |m| m.values().cloned().collect());
+                for map in screen_configs.iter().flat_map(|c| c.all_layers()).map(|l| l.widgets()) {
+                    let entries: Vec<(String, WidgetConfig)> = compat::read(&map, |m| m.iter().map(|(k, v)| (k.clone(), v.clone())).collect());
+                    for entry in entries {
+                        let Some(position) = entry.1.position() else {
                             continue;
-                        }
-                        if position.clone().unwrap().parent().is_some() && !(map.contains_key(&position.clone().unwrap().parent().unwrap())) {
-                            // TODO(fabric2seer): `.withParent(..)` on a value of unknown type
-                            //   java: entry.setValue(entry.getValue().withPosition(rule -> rule.withParent(null)));
+                        };
+                        if let Some(parent) = position.parent() && !compat::read(&map, |m| m.contains_key(&parent)) {
+                            // java: entry.setValue(entry.getValue().withPosition(rule -> rule.withParent(null)));
+                            let value = entry.1.with_position_function(Arc::new(|rule: PositionRule| Some(rule.with_parent(None))));
+                            compat::write(&map, |m| m.insert(entry.0.clone(), value));
                         }
                     }
                 }
-            }));
-            if let Err(_) = __result {
-                WidgetManager::fill_default_config(0);
-            }
-            // TODO(fabric2seer): the second `catch (Exception e)` clause (merged into the first)
-            //   java: {
-            //   java: 			LOGGER.error("[Skyblocker] Failed to HUD load config: {}", error.get(), e);
-            //   java: 			showErrorToast();
-            //   java: 			ConfigBackupManager.backupConfig(ConfigBackupManager.ConfigType.HUD_WIDGETS);
-            //   java: 		}
+            }))
+            .map_err(|e| compat::panic_message(&e))
+        });
+        if let Err(e) = __result {
+            logger().error(&format!("[Skyblocker] Failed to HUD load config: {} {}", compat::opt_str(&error), e));
+            WidgetManager::show_error_toast();
+            ConfigBackupManager::backup_config_1(ConfigType::HudWidgets);
         }
     }
 
     /// java: private static void showErrorToast()
     pub fn show_error_toast() {
-        // TODO(fabric2seer): `add` takes 5 argument(s) in the port (`toast_manager: &mut ToastManager, font: &FontSet, id: SystemToastId, title: &FormattedText, message: Option<&FormattedText>`), Java passes 4
-        // rust: system_toast::add(&mut compat::minecraft().gui.toast_manager(), &SystemToastId::new(), component::literal("Error reading Skyblocker HUD Config"), &mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::literal("Check your logs!")));
+        // java: SystemToast.add(Minecraft.getInstance().gui.toastManager(), new SystemToast.SystemToastId(), Component.literal("Error reading Skyblocker HUD Config"), Component.literal("Check your logs!"));
+        let client = compat::minecraft();
+        let title = FormattedText::from(component::literal("Error reading Skyblocker HUD Config"));
+        let message = FormattedText::from(component::literal("Check your logs!"));
+        system_toast::add(&mut client.gui.toast_manager().borrow_mut(), &client.font, SystemToastId::new(), &title, Some(&message));
     }
 
     /// java: private static void fillDefaultConfig(int comingFromVersion)
-    pub fn fill_default_config(mut coming_from_version: i32) {
+    pub fn fill_default_config(coming_from_version: i32) {
         if coming_from_version < 1 {
-            let mut editable_screen_builder: compat::Shared<EditableScreenBuilder> = EditableScreenBuilder::new();
-            let mut hud: LayerBuilderEditor = EditableScreenBuilder::get_editor(&editable_screen_builder, ScreenLayer::Hud);
-            let mut commissions: compat::Shared<dyn HudWidget> = WidgetManager::get_widget_or_placeholder("commissions".to_string());
-            let mut powders: compat::Shared<dyn HudWidget> = WidgetManager::get_widget_or_placeholder("powders".to_string());
-            let mut mining_locations: std::collections::HashSet<Location> = std::collections::HashSet::from([Location::CrystalHollows, Location::DwarvenMines, Location::GlaciteMineshafts]);
+            let editable_screen_builder: compat::Shared<EditableScreenBuilder> = EditableScreenBuilder::new();
+            let hud: LayerBuilderEditor = EditableScreenBuilder::get_editor(&editable_screen_builder, ScreenLayer::Hud);
+            let set_config = |config: ScreenConfig| {
+                let __f = compat::dispatch(&editable_screen_builder, |__t| __t.set_config());
+                __f(&compat::view(&editable_screen_builder, |a| a as compat::Shared<dyn ScreenBuilder>), config)
+            };
+            // Mining related stuff
+            let commissions: compat::Shared<dyn HudWidget> = WidgetManager::get_widget_or_placeholder("commissions".to_string());
+            let powders: compat::Shared<dyn HudWidget> = WidgetManager::get_widget_or_placeholder("powders".to_string());
+            let mining_locations: std::collections::HashSet<Location> = std::collections::HashSet::from([Location::CrystalHollows, Location::DwarvenMines, Location::GlaciteMineshafts]);
             ExclusiveGroupingSet::group(&WidgetManager::get_copy_tracker().hud().get_or_create(({ let __f = compat::dispatch(&commissions, |__t| __t.get_internal_id()); __f(&commissions) })), &mining_locations);
             ExclusiveGroupingSet::group(&WidgetManager::get_copy_tracker().hud().get_or_create(({ let __f = compat::dispatch(&powders, |__t| __t.get_internal_id()); __f(&powders) })), &mining_locations);
-            let mut comms_rule: PositionRule = PositionRule::new(Some(None), Point::new(VerticalPoint::Bottom, HorizontalPoint::Left), Point::new(VerticalPoint::Top, HorizontalPoint::Left), 5, 5);
-            let mut powder_rule: PositionRule = PositionRule::new(Some("commissions".to_string()), Point::new(VerticalPoint::Bottom, HorizontalPoint::Left), Point::new(VerticalPoint::Top, HorizontalPoint::Left), 0, 2);
-            ({ let __f = compat::dispatch(&editable_screen_builder, |__t| __t.set_config()); __f(&compat::view(&editable_screen_builder, |a| a as compat::Shared<dyn ScreenBuilder>), WidgetManager::get_screen_config(Location::DwarvenMines)) });
+            let comms_rule: PositionRule = PositionRule::new_canonical(None, Point::new(VerticalPoint::Bottom, HorizontalPoint::Left), Point::new(VerticalPoint::Top, HorizontalPoint::Left), 5, 5);
+            let powder_rule: PositionRule = PositionRule::new(Some("commissions".to_string()), Point::new(VerticalPoint::Bottom, HorizontalPoint::Left), Point::new(VerticalPoint::Top, HorizontalPoint::Left), 0, 2);
+            set_config(WidgetManager::get_screen_config(Location::DwarvenMines));
             hud.add(&commissions, &comms_rule);
             hud.add(&powders, &powder_rule);
             hud.serialize_config();
-            ({ let __f = compat::dispatch(&editable_screen_builder, |__t| __t.set_config()); __f(&compat::view(&editable_screen_builder, |a| a as compat::Shared<dyn ScreenBuilder>), WidgetManager::get_screen_config(Location::CrystalHollows)) });
+
+            set_config(WidgetManager::get_screen_config(Location::CrystalHollows));
             hud.add(&commissions, &comms_rule);
             hud.add(&powders, &powder_rule);
-            hud.add(&WidgetManager::get_widget_or_placeholder("hud_crystals".to_string()), &PositionRule::new(Some(None), Point::new(VerticalPoint::Top, HorizontalPoint::Right), Point::new(VerticalPoint::Top, HorizontalPoint::Right), -5, -5));
+            hud.add(&WidgetManager::get_widget_or_placeholder("hud_crystals".to_string()), &PositionRule::new_canonical(None, Point::new(VerticalPoint::Top, HorizontalPoint::Right), Point::new(VerticalPoint::Top, HorizontalPoint::Right), -5, -5));
             hud.serialize_config();
-            ({ let __f = compat::dispatch(&editable_screen_builder, |__t| __t.set_config()); __f(&compat::view(&editable_screen_builder, |a| a as compat::Shared<dyn ScreenBuilder>), WidgetManager::get_screen_config(Location::GlaciteMineshafts)) });
+
+            set_config(WidgetManager::get_screen_config(Location::GlaciteMineshafts));
             hud.add(&commissions, &comms_rule);
             hud.add(&powders, &powder_rule);
             hud.serialize_config();
-            let mut sweep_details: compat::Shared<dyn HudWidget> = WidgetManager::get_widget_or_placeholder("sweep_details".to_string());
+
+            // Sweep details
+            let sweep_details: compat::Shared<dyn HudWidget> = WidgetManager::get_widget_or_placeholder("sweep_details".to_string());
             for location in sweep_details_hud_widget::LOCATIONS.iter().copied() {
-                ({ let __f = compat::dispatch(&editable_screen_builder, |__t| __t.set_config()); __f(&compat::view(&editable_screen_builder, |a| a as compat::Shared<dyn ScreenBuilder>), WidgetManager::get_screen_config(location)) });
+                set_config(WidgetManager::get_screen_config(location));
                 hud.add_1(sweep_details.clone());
                 hud.serialize_config();
             }
             ExclusiveGroupingSet::group(&WidgetManager::get_copy_tracker().hud().get_or_create(({ let __f = compat::dispatch(&sweep_details, |__t| __t.get_internal_id()); __f(&sweep_details) })), &sweep_details_hud_widget::LOCATIONS);
-            ({ let __f = compat::dispatch(&editable_screen_builder, |__t| __t.set_config()); __f(&compat::view(&editable_screen_builder, |a| a as compat::Shared<dyn ScreenBuilder>), WidgetManager::get_screen_config(Location::Galatea)) });
+
+            // Galatea
+            set_config(WidgetManager::get_screen_config(Location::Galatea));
             hud.add(&WidgetManager::get_widget_or_placeholder("hud_treeprogress".to_string()), &PositionRule::new(Some("sweep_details".to_string()), Point::new(VerticalPoint::Bottom, HorizontalPoint::Left), Point::new(VerticalPoint::Top, HorizontalPoint::Left), 0, 2));
             hud.serialize_config();
-            ({ let __f = compat::dispatch(&editable_screen_builder, |__t| __t.set_config()); __f(&compat::view(&editable_screen_builder, |a| a as compat::Shared<dyn ScreenBuilder>), WidgetManager::get_screen_config(Location::Garden)) });
+
+            // Garden
+            set_config(WidgetManager::get_screen_config(Location::Garden));
             hud.add_1(WidgetManager::get_widget_or_placeholder("hud_farming".to_string()));
             hud.serialize_config();
-            ({ let __f = compat::dispatch(&editable_screen_builder, |__t| __t.set_config()); __f(&compat::view(&editable_screen_builder, |a| a as compat::Shared<dyn ScreenBuilder>), WidgetManager::get_screen_config(Location::TheEnd)) });
+
+            // The end
+            set_config(WidgetManager::get_screen_config(Location::TheEnd));
             hud.add_1(WidgetManager::get_widget_or_placeholder("hud_end".to_string()));
             hud.serialize_config();
-            ({ let __f = compat::dispatch(&editable_screen_builder, |__t| __t.set_config()); __f(&compat::view(&editable_screen_builder, |a| a as compat::Shared<dyn ScreenBuilder>), WidgetManager::get_screen_config(Location::Dungeon)) });
-            hud.add(&WidgetManager::get_widget_or_placeholder("dungeon_splits".to_string()), &PositionRule::new(Some(None), Point::new(VerticalPoint::Center, HorizontalPoint::Left), Point::new(VerticalPoint::Center, HorizontalPoint::Left), 5, 0));
+
+            set_config(WidgetManager::get_screen_config(Location::Dungeon));
+            hud.add(&WidgetManager::get_widget_or_placeholder("dungeon_splits".to_string()), &PositionRule::new_canonical(None, Point::new(VerticalPoint::Center, HorizontalPoint::Left), Point::new(VerticalPoint::Center, HorizontalPoint::Left), 5, 0));
             hud.serialize_config();
         }
     }
 
     /// java: public static void removeAll()
     pub fn remove_all() {
-        for __a0 in CONFIG.get_mut().screen_configs().values().cloned().flat_map(|__a0| __a0.all_layers()).map(|__a0| __a0.widgets()) {
-            // TODO(fabric2seer): static call Map.clear(..)
-            //   java: Map::clear;
+        // java: CONFIG.screenConfigs().values().stream().flatMap(ScreenConfig::allLayers).map(LayerConfig::widgets).forEach(Map::clear);
+        let screen_configs: Vec<ScreenConfig> = compat::read(&CONFIG.get().screen_configs(), |m| m.values().cloned().collect());
+        for map in screen_configs.iter().flat_map(|c| c.all_layers()).map(|l| l.widgets()) {
+            compat::write(&map, |m| m.clear());
         }
-        CONFIG.get_mut().copy_tracker().hud().map().clear();
-        CONFIG.get_mut().copy_tracker().tab().map().clear();
-        CONFIG.get_mut().copy_tracker().secondary_tab().map().clear();
+        compat::write(&CONFIG.get().copy_tracker().hud().map(), |m| m.clear());
+        compat::write(&CONFIG.get().copy_tracker().tab().map(), |m| m.clear());
+        compat::write(&CONFIG.get().copy_tracker().secondary_tab().map(), |m| m.clear());
     }
 
     /// java: public static void saveConfig()
     pub fn save_config() {
-        {
-            // TODO(fabric2seer): Files.newBufferedWriter
-            //   java: BufferedWriter writer = Files.newBufferedWriter(..);
-            let mut writer: crate::unresolved::BufferedWriter = todo!("fabric2seer: the initialiser of `writer` (TODO above)");
-            // java: try {..} catch (IOException e) - an exception here is a panic, caught by `catch_unwind`
-            let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                // TODO(fabric2seer): `.toJson(..)` on a Gson
-                //   java: SkyblockerMod.GSON.toJson(Config.DATA_FIXING_CODEC.encodeStart(JsonOps.INSTANCE, CONFIG).getOrThrow(), writer);
-                logger().info("[Skyblocker] Saved hud widget config");
-            }));
-            if let Err(e) = __result {
-                logger().error(&format!("[Skyblocker] Failed to save hud widget config"));
-            }
+        // java: try (BufferedWriter writer = Files.newBufferedWriter(FILE)) {
+        //           SkyblockerMod.GSON.toJson(Config.DATA_FIXING_CODEC.encodeStart(JsonOps.INSTANCE, CONFIG).getOrThrow(), writer); ..
+        // (`newBufferedWriter` truncates the file before the config is encoded; GSON is `setPrettyPrinting()`)
+        let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            use std::io::Write as _;
+            let mut writer = std::io::BufWriter::new(std::fs::File::create(FILE.get()).unwrap_or_else(|e| panic!("IOException: {e}")));
+            let encoded = CONFIG_DATA_FIXING_CODEC.get().encode_start(&JsonOps::instance(), CONFIG.get()).get_or_throw().unwrap_or_else(|e| panic!("IllegalStateException: {e}"));
+            let text: String = serde_json::to_string_pretty(&compat::json_from_port(&encoded)).unwrap_or_else(|e| panic!("JsonIOException: {e}"));
+            writer.write_all(text.as_bytes()).unwrap_or_else(|e| panic!("IOException: {e}"));
+            writer.flush().unwrap_or_else(|e| panic!("IOException: {e}"));
+            logger().info("[Skyblocker] Saved hud widget config");
+        }));
+        if let Err(e) = __result {
+            logger().error(&format!("[Skyblocker] Failed to save hud widget config {}", compat::panic_message(&e)));
         }
     }
 
     /// java: private static void instantiateWidgets()
+    /// "Filled at compile item with ASM" - the `@RegisterWidget` classes' `addWidgetInstance(new X())` calls.
+    /// rust: port gap - the mod's widget registration (`hud/hud_injector.rs`, an ASM class-file pass) has no
+    /// counterpart, so nothing fills this body
     pub fn instantiate_widgets() {
     }
 
     /// java: public static void addWidgetInstance(HudWidget widget)
-    pub fn add_widget_instance(mut widget: compat::Shared<dyn HudWidget>) {
-        let mut put: Option<compat::Shared<dyn HudWidget>> = WIDGET_INSTANCES.get_mut().insert(({ let __f = compat::dispatch(&widget, |__t| __t.get_internal_id()); __f(&widget) }), widget.clone());
-        if put.is_some() && !(put.as_ref().unwrap().lock().borrow().as_any().is::<compat::Shared<PlaceholderWidget>>()) {
-            logger().warn(&format!("[Skyblocker] Duplicate hud widget found: {}", compat::jstring(&widget)));
+    pub fn add_widget_instance(widget: compat::Shared<dyn HudWidget>) {
+        let id = ({ let __f = compat::dispatch(&widget, |__t| __t.get_internal_id()); __f(&widget) });
+        let put: Option<compat::Shared<dyn HudWidget>> = WIDGET_INSTANCES.get_mut().insert(id.clone(), widget.clone());
+        // java: if (put != null && !(put instanceof PlaceholderWidget)) LOGGER.warn("[Skyblocker] Duplicate hud widget found: {}", widget);
+        if let Some(put) = &put && !compat::read(put, |__t| __t.as_any().is::<PlaceholderWidget>()) {
+            logger().warn(&format!("[Skyblocker] Duplicate hud widget found: {}@{:x}", id, compat::string_hash_code(&id)));
         }
-        if compat::get_state(&CURRENT_LAYER).is_some() && mcrust::mcrust::modding::game::level().is_some() {
-            ({ let __r = &({ let __r = SCREEN_BUILDER.get_mut(); let __f = compat::dispatch(__r, |__t| __t.get()); __f(__r, compat::get_state(&CURRENT_LAYER)) }); let __f = compat::dispatch(__r, |__t| __t.update()); __f(__r) });
+        if let Some(current_layer) = compat::get_state(&CURRENT_LAYER) && mcrust::mcrust::modding::game::level().is_some() {
+            ({ let __r = &({ let __r = SCREEN_BUILDER.get(); let __f = compat::dispatch(__r, |__t| __t.get()); __f(__r, current_layer) }); let __f = compat::dispatch(__r, |__t| __t.update()); __f(__r) });
         }
     }
 
@@ -430,30 +508,31 @@ impl ScreenLayer {
             ScreenLayer::MainTab => "Main Tab".to_string(),
             ScreenLayer::SecondaryTab => "Secondary Tab".to_string(),
             ScreenLayer::Hud => "HUD".to_string(),
-            _ => unreachable!("switch expression: no case matched"),
         };
     }
 
     /// java: @Override public String getSerializedName()
     pub fn get_serialized_name(&self) -> String {
-        // TODO(fabric2seer): call to `name(..)` (not a method of this class)
-        //   java: return name().toLowerCase(Locale.ENGLISH);
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        // java: return name().toLowerCase(Locale.ENGLISH);
+        return self.name().to_lowercase();
     }
 
 }
 
 impl std::fmt::Display for ScreenLayer {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", ScreenLayer::to_string(*self))
+        write!(f, "{}", ScreenLayer::to_string(self))
     }
 }
 
+
 /// java: public record Config(Map<Location, ScreenConfig> screenConfigs, CopyTracker copyTracker, int version, int defaultsVersion)
-#[derive(Clone, Debug)]
+/// (`screenConfigs` is a mutable map the record holds - `getScreenConfig` adds to it - so the record holds a reference
+/// to it)
+#[derive(Clone)]
 pub struct Config {
     /// java: Map<Location, ScreenConfig> screenConfigs
-    pub screen_configs: std::collections::HashMap<Location, ScreenConfig>,
+    pub screen_configs: compat::Shared<std::collections::HashMap<Location, ScreenConfig>>,
     /// java: CopyTracker copyTracker
     pub copy_tracker: CopyTracker,
     /// java: int version
@@ -465,17 +544,21 @@ pub struct Config {
 impl Config {
     /// java: public Config()
     pub fn new() -> Self {
-        let mut this = Self::new(std::collections::HashMap::new(), CopyTracker::new(), 0, 0);
-        this
+        Self::new_canonical(std::collections::HashMap::new(), CopyTracker::new(), 0, 0)
     }
 
     /// java: the canonical record constructor
-    pub fn new(mut screen_configs: std::collections::HashMap<Location, ScreenConfig>, mut copy_tracker: CopyTracker, mut version: i32, mut defaults_version: i32) -> Self {
+    pub fn new_canonical(screen_configs: std::collections::HashMap<Location, ScreenConfig>, copy_tracker: CopyTracker, version: i32, defaults_version: i32) -> Self {
+        Self::new_shared(compat::shared(screen_configs), copy_tracker, version, defaults_version)
+    }
+
+    /// the canonical constructor over a map object the caller already holds (the codec's mutable copy)
+    pub fn new_shared(screen_configs: compat::Shared<std::collections::HashMap<Location, ScreenConfig>>, copy_tracker: CopyTracker, version: i32, defaults_version: i32) -> Self {
         Self { screen_configs, copy_tracker, version, defaults_version }
     }
 
-    /// java: the record accessor `screenConfigs()`
-    pub fn screen_configs(&self) -> std::collections::HashMap<Location, ScreenConfig> {
+    /// java: the record accessor `screenConfigs()` (the map object itself)
+    pub fn screen_configs(&self) -> compat::Shared<std::collections::HashMap<Location, ScreenConfig>> {
         self.screen_configs.clone()
     }
 

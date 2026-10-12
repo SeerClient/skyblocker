@@ -69,26 +69,53 @@ impl std::ops::DerefMut for PositionRuleWidget {
 
 impl PositionRuleWidget {
     /// java: PositionRuleWidget(WidgetsConfigurationScreen config, PositionedWidget modifiedWidget)
-    pub fn new(mut config: compat::Shared<WidgetsConfigurationScreen>, mut modified_widget: compat::Shared<PositionedWidget>) -> Self {
-        let __init_widget_config = config.clone();
-        let __init_modified_widget = modified_widget.clone();
-        // TODO(fabric2seer): call to `defaultSettings(..)` (not a method of this class)
-        //   java: super(0, 0, 0, 0, Component.literal("hi"), defaultSettings(0));
-        let mut this: Self = todo!("constructor");
-        this.layout.default_cell_setting().align_horizontally_center();
-        this.parent_button = Some((button::builder((component::translatable_args("skyblocker.config.hud.position.parent", vec![mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(this.get_parent_name())])).get_string(), OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| { WidgetsConfigurationScreen::prompt_select_widget(&config, Arc::new(move |__a0| { this.on_widget_selected(__a0.clone()); }), false, &component::translatable("skyblocker.config.hud.position.parent.@Tooltip")); })))).tooltip_text(Some((Tooltip::create((component::translatable("skyblocker.config.hud.position.parent.@Tooltip")).get_string())).message.clone())).build());
-        this.coords_display = Some(compat::string_widget(0, 0, -1, 9, component::literal("hi")));
-        this.coords_display.as_mut().unwrap().set_height((this.coords_display.as_ref().unwrap().get_height()).wrapping_add(6));
+    /// (a shared handle: the parent button's action calls back into this object, `this::onWidgetSelected`)
+    pub fn new(mut config: compat::Shared<WidgetsConfigurationScreen>, mut modified_widget: compat::Shared<PositionedWidget>) -> compat::Shared<Self> {
+        // java: super(0, 0, 0, 0, Component.literal("hi"), defaultSettings(0));
+        let __this: compat::Shared<Self> = compat::shared(Self {
+            base: AbstractContainerWidget::new_with_scrollbar_settings(0, 0, 0, 0, mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::literal("hi")), mcrust::net::minecraft::client::gui::components::abstract_scroll_area::ScrollbarSettings::default_settings(0.0)),
+            layout: LinearLayout::vertical(),
+            widgets: Vec::new(),
+            coords_display: None,
+            parent_button: None,
+            modified_widget: modified_widget.clone(),
+            widget_config: config.clone(),
+        });
+        compat::write(&__this, |__t| { __t.layout.default_cell_setting().align_horizontally_center(); });
+        // java: parentButton = Button.builder(Component.translatable(.., getParentName()), _ -> config.promptSelectWidget(this::onWidgetSelected, false, ..)).tooltip(..).build();
+        // (this widget belongs to the screen: the action holds the screen and this object weakly)
+        let __parent_name = compat::read(&__this, |__t| __t.get_parent_name());
+        let __config_w = compat::RenderThread::new(std::sync::Arc::downgrade(&config));
+        let __this_w = compat::RenderThread::new(std::sync::Arc::downgrade(&__this));
+        let __parent_button = (button::builder((component::translatable_args("skyblocker.config.hud.position.parent", vec![mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(__parent_name)])).get_string(), OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| {
+            let Some(__config) = __config_w.get().upgrade() else { return; };
+            let __self_w = __this_w.get().clone();
+            WidgetsConfigurationScreen::prompt_select_widget(&__config, Arc::new(move |__a0| { if let Some(__self) = __self_w.upgrade() { compat::write(&__self, |__t| __t.on_widget_selected(__a0)); } }), false, &component::translatable("skyblocker.config.hud.position.parent.@Tooltip"));
+        })))).tooltip_text(Some((Tooltip::create((component::translatable("skyblocker.config.hud.position.parent.@Tooltip")).get_string())).message.clone())).build();
+        compat::write(&__this, |__t| __t.parent_button = Some(__parent_button));
+        // java: coordsDisplay = new StringWidget(Component.literal("hi"), client.font); coordsDisplay.setHeight(coordsDisplay.getHeight() + 6);
+        let mut __coords_display = compat::string_widget(0, 0, -1, 9, component::literal("hi"));
+        let __coords_height = __coords_display.get_height().wrapping_add(6);
+        __coords_display.set_height(__coords_height);
+        compat::write(&__this, |__t| __t.coords_display = Some(__coords_display));
         let mut parent_point: compat::Shared<AnchorSelectionWidget> = AnchorSelectionWidget::new(component::translatable("skyblocker.config.hud.position.pointParent"), true);
         let mut this_point: compat::Shared<AnchorSelectionWidget> = AnchorSelectionWidget::new(component::translatable("skyblocker.config.hud.position.pointThis"), false);
-        this.add(compat::string_widget(0, 0, -1, 9, component::literal("Positioning")));
-        this.add(this.parent_button.clone().unwrap());
-        this.add(this.coords_display.clone().unwrap());
-        this.add(parent_point.clone());
-        this.add(this_point.clone());
-        this.layout.arrange_elements();
-        this.set_height(this.layout.get_height());
-        this
+        compat::write(&__this, |__t| __t.add(compat::string_widget(0, 0, -1, 9, component::literal("Positioning"))));
+        // rust: port gap (GAPS_batchC #L3) - `parentButton` / `coordsDisplay` are this object's fields AND members of
+        // its widget list in Java (one object): the port's widgets are values, so the list holds copies
+        let __parent_button = compat::read(&__this, |__t| __t.parent_button.clone().unwrap());
+        compat::write(&__this, |__t| __t.add(__parent_button));
+        let __coords = compat::read(&__this, |__t| __t.coords_display.clone().unwrap());
+        compat::write(&__this, |__t| __t.add(__coords));
+        // (the anchor widgets as the game's widgets, attached to their objects)
+        compat::write(&__this, |__t| __t.add(compat::WidgetAdapter::widget(parent_point.clone())));
+        compat::write(&__this, |__t| __t.add(compat::WidgetAdapter::widget(this_point.clone())));
+        compat::write(&__this, |__t| {
+            __t.layout.arrange_elements();
+            let __h = __t.layout.get_height();
+            __t.set_height(__h);
+        });
+        __this
     }
 
     /// java: private void add(AbstractWidget widget)
@@ -152,7 +179,10 @@ impl PositionRuleWidget {
 
     /// java: @Override public List<? extends GuiEventListener> children()
     pub fn children(&self) -> Vec<Box<dyn GuiEventListener>> {
-        return self.widgets.clone();
+        // rust: port gap (GAPS_batchA #9) - `children()` lending the live child widgets: the port answers owned
+        // listeners, and these children are this object's own values
+        // rust: return self.widgets.clone();
+        return Vec::new();
     }
 
     /// java: @Override protected int contentHeight()
@@ -238,8 +268,8 @@ impl AnchorSelectionWidget {
         // TODO(fabric2seer): `modifiedWidget` is a field of the enclosing instance (PositionRuleWidget.this) - an inner class has no outer reference in Rust
         //   java: PositionRule rule = modifiedWidget.rule;
         let mut rule: PositionRule = todo!("fabric2seer: the initialiser of `rule` (TODO above)");
-        for i in 0..3 {
-            for j in 0..3 {
+        for i in 0..3i32 {
+            for j in 0..3i32 {
                 let mut square_x: i32 = x.wrapping_add((i.wrapping_mul(__this.lock().borrow().get_width())).wrapping_div(3));
                 let mut square_y: i32 = y.wrapping_add((j.wrapping_mul(30)).wrapping_div(3));
                 let mut point: Point = (if compat::read(__this, |__t| __t.parent) { rule.parent_point() } else { rule.this_point() });

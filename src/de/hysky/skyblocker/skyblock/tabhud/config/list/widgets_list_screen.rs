@@ -175,7 +175,8 @@ impl WidgetsListScreen {
     }
 
     /// java: public ObjectSet<Int2ObjectMap.Entry<WidgetsListSlotEntry>> getEntries()
-    pub fn get_entries(__this: &compat::Shared<Self>) -> std::collections::HashSet<(i32, compat::Shared<dyn WidgetsListSlotEntry>)> {
+    /// (the map's entry set, in its iteration order: a row object has no hash of its own)
+    pub fn get_entries(__this: &compat::Shared<Self>) -> Vec<(i32, compat::Shared<dyn WidgetsListSlotEntry>)> {
         return __this.lock().borrow().entries.iter().map(|(k, v)| (k.clone(), v.clone())).collect::<Vec<_>>();
     }
 
@@ -191,10 +192,10 @@ impl WidgetsListScreen {
             WidgetsListScreen::click_and_wait_for_server((&__this_1), 48, 0);
             WidgetsListScreen::reset_scroll_on_load((&__this_1));
         } }) })))).size(60, 15).build())).map(compat::WidgetRef::value); compat::write(__this, |__t| { let __s = &mut *__t; __s.back = __v; }); }
-        { let (__q0, __q1,) = ({ let (__i, __ww, __wh) = compat::write(__this, |__t| { let __s = &mut *__t; let __r = __s.back.as_mut().unwrap(); __s.__widgets.add_to_layout(&mut __s.base, __r) }); LayoutElement::widget(__i, __ww, __wh) }, &mut |l| { l.align_horizontally_left().padding_left(PADDING); },); __this.lock().borrow_mut().header_layout.add_child_adjusted(__q0, __q1) };
+        { let (__q0, __q1,) = ({ let (__i, __ww, __wh) = compat::write(__this, |__t| { let __s = &mut *__t; let __r = __s.back.as_mut().unwrap(); __s.__widgets.add_to_layout(&mut __s.base, __r) }); LayoutElement::widget(__i, __ww, __wh) }, &mut |l: &mut mcrust::net::minecraft::client::gui::layouts::layout_settings::LayoutSettings| { l.align_horizontally_left().padding_left(PADDING); },); __this.lock().borrow_mut().header_layout.add_child_adjusted(__q0, __q1) };
         let __this_w2 = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
         { let __v = (Some((button::builder((component::literal("if you are seeing this for more than a second, something went very wrong! (no i will not translate this aaron)")).get_string(), OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| { let Some(__this_2) = __this_w2.get().upgrade() else { return Default::default(); }; compat::lend_screen(&__this_2, __screen, || { let mut __pidx = compat::WidgetRef::Screen(__index); { WidgetsListScreen::click_and_wait_for_server((&__this_2), 50, 0); } }) })))).size(120, 15).build())).map(compat::WidgetRef::value); compat::write(__this, |__t| { let __s = &mut *__t; __s.third_column_button = __v; }); }
-        { let (__q0, __q1,) = ({ let (__i, __ww, __wh) = compat::write(__this, |__t| { let __s = &mut *__t; let __r = __s.third_column_button.as_mut().unwrap(); __s.__widgets.add_to_layout(&mut __s.base, __r) }); LayoutElement::widget(__i, __ww, __wh) }, &mut |l| { l.align_horizontally_right().padding_right(PADDING); },); __this.lock().borrow_mut().header_layout.add_child_adjusted(__q0, __q1) };
+        { let (__q0, __q1,) = ({ let (__i, __ww, __wh) = compat::write(__this, |__t| { let __s = &mut *__t; let __r = __s.third_column_button.as_mut().unwrap(); __s.__widgets.add_to_layout(&mut __s.base, __r) }); LayoutElement::widget(__i, __ww, __wh) }, &mut |l: &mut mcrust::net::minecraft::client::gui::layouts::layout_settings::LayoutSettings| { l.align_horizontally_right().padding_right(PADDING); },); __this.lock().borrow_mut().header_layout.add_child_adjusted(__q0, __q1) };
         // TODO(fabric2seer): the port's `new` ports this Java method with other parameters (x, y, message for Java's message)
         // TODO(fabric2seer): `new` takes 3 argument(s) in the port (`x: i32, y: i32, message: FormattedText`), Java passes 2
         // rust: { let __v = Some({ let (__q0, __q1,) = ((MultiLineTextWidget::new(component::empty(), compat::font())).set_centered(true), &mut |l| { l.padding_vertical(4); },); __this.lock().borrow_mut().header_layout.add_child_adjusted(__q0, __q1) }); compat::write(__this, |__t| __t.info_text = __v); }
@@ -227,7 +228,7 @@ impl WidgetsListScreen {
 
     /// java: @Override protected void repositionElements()
     pub fn reposition_elements(__this: &compat::Shared<Self>) {
-        { let (__q0,) = (((compat::read(__this, |__t| __t.width)).wrapping_sub((compat::write(__this, |__t| { let __s = &mut *__t; let __r = __s.third_column_button.as_mut().unwrap(); __s.__widgets.with(&mut __s.base, __r, |__w| __w.get_width()) })).wrapping_mul(2))).wrapping_sub(PADDING.wrapping_mul(3)),); __this.lock().borrow_mut().info_text.as_mut().unwrap().set_max_width(__q0) };
+        { let (__q0,) = (((compat::read(__this, |__t| __t.width)).wrapping_sub((compat::write(__this, |__t| { let __s = &mut *__t; let __r = __s.third_column_button.as_mut().unwrap(); __s.__widgets.with(&mut __s.base, __r, |__w| __w.get_width()) })).wrapping_mul(2))).wrapping_sub(PADDING.wrapping_mul(3)),); compat::write(__this, |__t| { let __w = __t.info_text.take().expect("NullPointerException"); __t.info_text = Some(__w.set_max_width(__q0)); }) }; // (java: infoText.setMaxWidth(..) - the port's setter is a by-value builder: the field takes back its answer)
         let __r0 = compat::read(__this, |__t| __t.width);
         { let (__q0,) = (__r0,); __this.lock().borrow_mut().header_layout.set_min_width(__q0) };
         { __this.lock().borrow_mut().header_layout.arrange_elements(); let mut __vw = Vec::new(); __this.lock().borrow().header_layout.visit_widgets(&mut __vw); for (__i, __x, __y) in __vw { compat::write(__this, |__t| __t.widget_mut(__i).set_position(__x, __y)); } };
@@ -326,16 +327,21 @@ impl WidgetsListScreen {
             for i in 0..(__this.lock().borrow().preview_columns.len() as i32) {
                 let mut col_x: i32 = start_x.wrapping_add(i.wrapping_mul(col_width.wrapping_add(column_spacing)));
                 graphics.fill(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), col_x, start_y, col_x.wrapping_add(col_width), start_y.wrapping_add(total_height), 0x20FFFFFF);
-                let column = &__this.lock().borrow().preview_columns[(i) as usize];
+                // (the screen's own list, read in place: nothing below reaches this screen)
+                let __this_guard = __this.lock();
+                let __this_ref = __this_guard.borrow();
+                let column = &__this_ref.preview_columns[(i) as usize];
                 if column.is_empty() {
-                    let mut split: Vec<Seq> = compat::font().split(&mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::translatable("skyblocker.config.hud.widgetsList.playerColumn")), col_width);
+                    // java: List<FormattedCharSequence> split = font.split(..) - the port's lines are FormattedText
+                    let mut split: Vec<mcrust::net::minecraft::network::chat::formatted_text::FormattedText> = compat::font().split(&mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::translatable("skyblocker.config.hud.widgetsList.playerColumn")), col_width);
                     for j in 0..(split.len() as i32) {
                         gui_graphics_extractor::draw_formatted_char_sequence(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), &split[(j) as usize], col_x, start_y.wrapping_add(j.wrapping_mul(mcrust::net::minecraft::client::gui::font::LINE_HEIGHT)), -1);
                     }
                 } else {
                     for j in 0..(column.len() as i32) {
                         let component = &column[(j) as usize];
-                        let mut trimmed: Seq = (if compat::font().width_of_cached(&mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component.clone())) >= col_width { component_render_utils::clip_text_formatted(&mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component.clone()), &compat::font(), col_width) } else { component.get_visual_order_text() });
+                        // java: FormattedCharSequence trimmed = .. ? ComponentRenderUtils.clipText(component, font, colWidth) : component.getVisualOrderText();
+                        let mut trimmed: mcrust::net::minecraft::network::chat::formatted_text::FormattedText = (if compat::font().width_of_cached(&mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component.clone())) >= col_width { component_render_utils::clip_text_formatted(&mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component.clone()), &compat::font(), col_width) } else { mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component.clone()) });
                         gui_graphics_extractor::draw_formatted_char_sequence(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), &trimmed, col_x, start_y.wrapping_add(j.wrapping_mul(mcrust::net::minecraft::client::gui::font::LINE_HEIGHT)), -1);
                     }
                 }
@@ -486,11 +492,12 @@ impl WidgetsListScreen {
         if compat::read(__this, |__t| __t.overflowing) {
             let mut overflow_warning: MutableComponent = component::translatable("skyblocker.config.hud.widgetsList.info.overflowWarning").with_style_format(ChatFormatting::Red).append_str("\n");
             if !(compat::read(__this, |__t| __t.third_column_enabled)) {
-                overflow_warning.append(component::translatable("skyblocker.config.hud.widgetsList.info.overflowWarning.columnTip")).append_str("\n");
+                overflow_warning = overflow_warning.append(component::translatable("skyblocker.config.hud.widgetsList.info.overflowWarning.columnTip")).append_str("\n");
             }
-            overflow_warning.append(component::translatable("skyblocker.config.hud.widgetsList.info.overflowWarning.wrappingSpacingTip"));
-            text.append_str("\n");
-            text.append(overflow_warning.clone());
+            // (Java's `append` mutates the component; the port's answers the appended one)
+            overflow_warning = overflow_warning.append(component::translatable("skyblocker.config.hud.widgetsList.info.overflowWarning.wrappingSpacingTip"));
+            text = text.append_str("\n");
+            text = text.append(overflow_warning.clone());
         }
         // TODO(fabric2seer): `AbstractWidget::set_message_text` ports `setMessage`, but the port's `MultiLineTextWidget` holds no `AbstractWidget` (no Deref, no `base` field) to call it on
         // rust: { let (__q0,) = (mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(text.clone()),); __this.lock().borrow_mut().info_text.as_mut().unwrap().set_message_text(__q0) };

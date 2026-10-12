@@ -81,7 +81,8 @@ impl ProfileViewerNavButton {
     pub fn extract_widget_render_state(__this: &compat::Shared<Self>, graphics: &GuiGraphicsExtractor, mut mouse_x: i32, mut mouse_y: i32, mut delta: f32) {
         gui_graphics_extractor::blit_sprite_identifier(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), mcrust::net::minecraft::client::renderer::render_pipelines::gui_textured(), &(if compat::read(__this, |__t| __t.toggled) { BUTTON_TEXTURES_TOGGLED.get_mut().clone() } else { BUTTON_TEXTURES.get_mut().clone() }), __this.lock().borrow().get_x(), __this.lock().borrow().get_y(), compat::read(__this, |__t| __t.width), (compat::read(__this, |__t| __t.height)).wrapping_sub(if compat::read(__this, |__t| __t.toggled) { 0 } else { 4 }));
         graphics.item(&FlexibleItemStack::get_stack_or_throw(&compat::read(__this, |__t| __t.icon.clone())), (__this.lock().borrow().get_x()).wrapping_add(6), (__this.lock().borrow().get_y()).wrapping_add(if compat::read(__this, |__t| __t.toggled) { 7 } else { 9 }));
-        __this.lock().borrow().handle_cursor(graphics);
+        // java: this.handleCursor(graphics); - the game asks every widget for its cursor after the frame: this class
+        // requests one through `ModWidget::handle_cursor` below
     }
 
     /// java: @Override public void onClick(MouseButtonEvent click, boolean doubled)
@@ -114,6 +115,11 @@ impl compat::WidgetHalf for ProfileViewerNavButton {
 
 /// ProfileViewerNavButton as the game's widget: `compat::WidgetAdapter::widget(handle)` where Java hands it on
 impl ModWidget for compat::WidgetAdapter<ProfileViewerNavButton> {
+    /// java: `this.handleCursor(graphics)` at the end of extractWidgetRenderState - AbstractWidget's body
+    fn handle_cursor(&self, widget: &AbstractWidget, cursors: &mcrust::com::mojang::blaze3d::platform::cursor::cursor_types::CursorTypes) -> Option<mcrust::com::mojang::blaze3d::platform::cursor::cursor_type::CursorType> {
+        widget.handle_cursor(cursors)
+    }
+
     /// java: @Override protected void extractWidgetRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta)
     fn extract_widget_render_state(&mut self, widget: &AbstractWidget, context: &mut WidgetRenderContext<'_>, mouse_x: i32, mouse_y: i32, a: f32) {
         self.lend_ref(widget, |__h| ProfileViewerNavButton::extract_widget_render_state(__h, &context.graphics, mouse_x, mouse_y, a))

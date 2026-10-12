@@ -18,6 +18,7 @@ use crate::de::hysky::skyblocker::utils::json_value_input::JsonValueInput;
 use crate::de::hysky::skyblocker::utils::json_value_output::JsonValueOutput;
 use crate::de::hysky::skyblocker::utils::utils::Utils;
 use mcrust::com::mojang::authlib::game_profile::GameProfile;
+use mcrust::com::mojang::authlib::properties::property_map::PropertyMap;
 use mcrust::java::text::decimal_format_symbols::Locale;
 use mcrust::java::util::uuid::Uuid;
 use mcrust::net::minecraft::chat_formatting::ChatFormatting;
@@ -25,7 +26,9 @@ use mcrust::net::minecraft::client::gui::gui_graphics_extractor::GuiGraphicsExtr
 use mcrust::net::minecraft::client::minecraft;
 use mcrust::net::minecraft::client::multiplayer::player_info::PlayerInfo;
 use mcrust::net::minecraft::network::chat::component;
+use mcrust::net::minecraft::network::chat::formatted_text::FormattedText;
 use mcrust::net::minecraft::network::chat::mutable_component::MutableComponent;
+use mcrust::net::minecraft::network::chat::style::Style;
 use mcrust::net::minecraft::network::chat::component::Component as _;
 
 /// java: public static boolean shouldUpdateNextTick = false;
@@ -41,25 +44,25 @@ pub static INFO_COLUMN_PATTERN: LazyLock<compat::regex::Pattern> = LazyLock::new
 /// java: public static final Pattern PLAYER_NAME_PATTERN = Pattern.compile("\\[(?<level>\\d+)] (?:\\[[A-Za-z]+] )?(?<name>[A-Za-z0-9_]+)(?: .+)?");
 pub static PLAYER_NAME_PATTERN: LazyLock<compat::regex::Pattern> = LazyLock::new(|| compat::regex::Pattern::compile("\\[(?<level>\\d+)] (?:\\[[A-Za-z]+] )?(?<name>[A-Za-z0-9_]+)(?: .+)?"));
 /// java: private static List<PlayerInfo> playerList = new ArrayList<>();
-pub static PLAYER_LIST: compat::MainThread<Vec<PlayerInfo>> = compat::MainThread::new(|| Vec::new());
+/// (references to `PlayerInfo` objects, as Java's list holds them - see `compat::online_player_infos`)
+pub static PLAYER_LIST: compat::MainThread<Vec<compat::Shared<PlayerInfo>>> = compat::MainThread::new(|| Vec::new());
 /// java: private static List<String> playerStringList = new ArrayList<>();
 pub static PLAYER_STRING_LIST: LazyLock<Mutex<Vec<String>>> = LazyLock::new(|| Mutex::new(Vec::new()));
 /// java: private static @Nullable String footer;
 pub static FOOTER: LazyLock<Mutex<Option<String>>> = LazyLock::new(|| Mutex::new(None));
-/// java: static final Map<String, Widget> WIDGET_MAP = new Object2ObjectLinkedOpenHashMap<>();
-pub static WIDGET_MAP: compat::MainThread<std::collections::HashMap<String, Widget>> = compat::MainThread::new(|| std::collections::HashMap::new());
-/// java: private static final Set<Runnable> TAB_LISTENERS = new ObjectOpenHashSet<>();
-pub static TAB_LISTENERS: compat::MainThread<std::collections::HashSet<Arc<dyn Fn()>>> = compat::MainThread::new(|| std::collections::HashSet::new());
-// TODO(fabric2seer): static call MultimapBuilder.hashKeys(..)
-//   java: private static final Multimap<String, Consumer<Widget>> TAB_WIDGET_LISTENERS = MultimapBuilder.hashKeys().arrayListValues().build();
+/// java: static final Map<String, Widget> WIDGET_MAP = new Object2ObjectLinkedOpenHashMap<>(); (linked: iteration keeps the
+/// tab's order)
+pub static WIDGET_MAP: compat::MainThread<indexmap::IndexMap<String, Arc<Widget>>> = compat::MainThread::new(|| indexmap::IndexMap::new());
+/// java: private static final Set<Runnable> TAB_LISTENERS = new ObjectOpenHashSet<>(); (lambdas compare by identity)
+pub static TAB_LISTENERS: compat::MainThread<Vec<Arc<dyn Fn()>>> = compat::MainThread::new(|| Vec::new());
 /// java: private static final Multimap<String, Consumer<Widget>> TAB_WIDGET_LISTENERS = MultimapBuilder.hashKeys().arrayListValues().build();
-pub static TAB_WIDGET_LISTENERS: compat::MainThread<crate::unresolved::Multimap> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `TAB_WIDGET_LISTENERS` - see the TODO above"));
+pub static TAB_WIDGET_LISTENERS: compat::MainThread<std::collections::HashMap<String, Vec<Arc<dyn Fn(Arc<Widget>)>>>> = compat::MainThread::new(|| std::collections::HashMap::new());
 /// java: private static final Set<Runnable> FOOTER_LISTENERS = new ObjectOpenHashSet<>();
-pub static FOOTER_LISTENERS: compat::MainThread<std::collections::HashSet<Arc<dyn Fn()>>> = compat::MainThread::new(|| std::collections::HashSet::new());
+pub static FOOTER_LISTENERS: compat::MainThread<Vec<Arc<dyn Fn()>>> = compat::MainThread::new(|| Vec::new());
 /// java: static final Map<String, HudWidget> HANDLED_TAB_WIDGETS = new Object2ObjectOpenHashMap<>();
 pub static HANDLED_TAB_WIDGETS: compat::MainThread<std::collections::HashMap<String, compat::Shared<dyn HudWidget>>> = compat::MainThread::new(|| std::collections::HashMap::new());
 /// java: public static final Widget EMPTY = new Widget(Component.empty(), List.of(), List.of());
-pub static WIDGET_EMPTY: compat::MainThread<Widget> = compat::MainThread::new(|| Widget::new(component::empty(), vec![], vec![]));
+pub static WIDGET_EMPTY: compat::MainThread<Arc<Widget>> = compat::MainThread::new(|| Arc::new(Widget::new(component::empty(), vec![], vec![])));
 
 /// java: public class PlayerListManager
 #[derive(Clone)]
@@ -74,8 +77,8 @@ impl PlayerListManager {
     }
 
     /// java: public static PlayerListManager.@Nullable Widget getListWidget(String name)
-    pub fn get_list_widget(name: &str) -> Option<Widget> {
-        return WIDGET_MAP.get_mut().get(name).cloned();
+    pub fn get_list_widget(name: &str) -> Option<Arc<Widget>> {
+        return WIDGET_MAP.get().get(name).cloned();
     }
 
     /// java: public static @Nullable HudWidget getTabWidget(String name)
@@ -83,9 +86,9 @@ impl PlayerListManager {
         return HANDLED_TAB_WIDGETS.get_mut().get(name).cloned();
     }
 
-    /// java: public static Set<String> getCurrentWidgets()
-    pub fn get_current_widgets() -> std::collections::HashSet<String> {
-        return WIDGET_MAP.get_mut().keys().cloned().collect::<std::collections::HashSet<_>>();
+    /// java: public static Set<String> getCurrentWidgets() (the map's key set, in the map's order)
+    pub fn get_current_widgets() -> indexmap::IndexSet<String> {
+        return WIDGET_MAP.get().keys().cloned().collect::<indexmap::IndexSet<_>>();
     }
 
     /// java: public static void addHandledTabWidget(String name, HudWidget widget)
@@ -95,18 +98,24 @@ impl PlayerListManager {
 
     /// java: public static void registerTabListener(Runnable listener)
     pub fn register_tab_listener(listener: Arc<dyn Fn()>) {
-        TAB_LISTENERS.get_mut().insert(listener.clone());
+        let listeners = TAB_LISTENERS.get_mut();
+        if !listeners.iter().any(|l| Arc::ptr_eq(l, &listener)) {
+            listeners.push(listener);
+        }
     }
 
     /// java: public static void registerFooterListener(Runnable listener)
     pub fn register_footer_listener(listener: Arc<dyn Fn()>) {
-        FOOTER_LISTENERS.get_mut().insert(listener.clone());
+        let listeners = FOOTER_LISTENERS.get_mut();
+        if !listeners.iter().any(|l| Arc::ptr_eq(l, &listener)) {
+            listeners.push(listener);
+        }
     }
 
     /// java: public static void registerTabWidgetListener(String widgetName, Consumer<Widget> listener)
-    pub fn register_tab_widget_listener(mut widget_name: String, listener: Arc<dyn Fn(Widget)>) {
-        // TODO(fabric2seer): `.put(..)` on a Multimap
-        //   java: TAB_WIDGET_LISTENERS.put(widgetName, listener);
+    pub fn register_tab_widget_listener(widget_name: String, listener: Arc<dyn Fn(Arc<Widget>)>) {
+        // java: TAB_WIDGET_LISTENERS.put(widgetName, listener);
+        TAB_WIDGET_LISTENERS.get_mut().entry(widget_name).or_default().push(listener);
     }
 
     /// java: public static boolean isPlayerListLoaded()
@@ -147,95 +156,109 @@ impl PlayerListManager {
         if !(Utils::is_on_skyblock()) {
             return;
         }
-        let mut network_handler: Option<mcrust::net::minecraft::client::multiplayer::client_packet_listener::ClientPacketListener> = minecraft::get_connection(compat::minecraft());
+        let network_handler = minecraft::get_connection(compat::minecraft());
         if let Some(network_handler) = &network_handler {
-            // TODO(fabric2seer): static call PlayerTabOverlayAccessor.getOrdering(..)
-            //   java: playerList = networkHandler.getOnlinePlayers()
-            //   java: 					.stream()
-            //   java: 					.sorted(PlayerTabOverlayAccessor.getOrdering())
-            //   java: 					.toList();
-            compat::set_state(&PLAYER_STRING_LIST, PLAYER_LIST.get_mut().iter().cloned().map(|__a0| __a0.get_tab_list_display_name()).filter(|__a0| true).map(|__a0| __a0.get_string()).map(|__a0| __a0.trim().to_string()).collect::<Vec<_>>());
+            // java: playerList = networkHandler.getOnlinePlayers().stream().sorted(PlayerTabOverlayAccessor.getOrdering()).toList();
+            *PLAYER_LIST.get_mut() = compat::online_player_infos(network_handler);
+            // java: playerStringList = playerList.stream().map(PlayerInfo::getTabListDisplayName).filter(Objects::nonNull)
+            //   .map(Component::getString).map(String::strip).toList();
+            let __strings = PLAYER_LIST.get().iter().filter_map(|__a0| compat::read(__a0, |__i| __i.get_tab_list_display_name().map(|__t| __t.get_string()))).map(|__a0| __a0.trim().to_string()).collect::<Vec<_>>();
+            compat::set_state(&PLAYER_STRING_LIST, __strings);
         }
-        if (PLAYER_LIST.get_mut().len() as i32) >= 80 {
+        if (PLAYER_LIST.get().len() as i32) >= 80 {
             compat::set_state(&PLAYER_LIST_LOADED, true);
         }
         if Utils::is_in_dungeons() {
             PlayerListManager::update_dungeons(None);
         } else {
-            PlayerListManager::update_widgets_from(PLAYER_LIST.get_mut());
+            let __list = PLAYER_LIST.get().clone();
+            PlayerListManager::update_widgets_from(&__list);
         }
     }
 
     /// java: public static void updateDungeons(@Nullable List<Component> lines)
     pub fn update_dungeons(mut lines: Option<Vec<MutableComponent>>) {
         if let Some(lines) = &lines {
-            *PLAYER_LIST.get_mut() = Vec::new();
+            let mut list: Vec<compat::Shared<PlayerInfo>> = Vec::new();
             for i in 0..(lines.len() as i32) {
-                // TODO(fabric2seer): `new` takes 3 argument(s) in the port (`id: Uuid, name: &str, properties: PropertyMap`), Java passes 2
-                // rust: PLAYER_LIST.get_mut().push(PlayerInfo::new(GameProfile::new(Uuid::random_uuid(), &i.to_string()), false));
-                (PLAYER_LIST.get_mut()[PLAYER_LIST.get_mut().len() - 1]).set_tab_list_display_name(Some(lines[(i) as usize].clone()));
+                // java: playerList.add(new PlayerInfo(new GameProfile(UUID.randomUUID(), String.valueOf(i)), false));
+                list.push(compat::shared(PlayerInfo::new(GameProfile::new(Uuid::random_uuid(), &i.to_string(), PropertyMap::empty()), false)));
+                // java: playerList.getLast().setTabListDisplayName(lines.get(i));
+                compat::write(list.last().unwrap(), |__i| __i.set_tab_list_display_name(Some(FormattedText::from(lines[(i) as usize].clone()))));
             }
+            *PLAYER_LIST.get_mut() = list;
         }
         WIDGET_MAP.get_mut().clear();
-        WIDGET_MAP.get_mut().insert("Dungeon Buffs".to_string(), WIDGET_EMPTY.get_mut().clone());
-        WIDGET_MAP.get_mut().insert("Dungeon Deaths".to_string(), WIDGET_EMPTY.get_mut().clone());
-        WIDGET_MAP.get_mut().insert("Dungeon Downed".to_string(), WIDGET_EMPTY.get_mut().clone());
-        WIDGET_MAP.get_mut().insert("Dungeon Puzzles".to_string(), WIDGET_EMPTY.get_mut().clone());
-        WIDGET_MAP.get_mut().insert("Dungeon Discoveries".to_string(), WIDGET_EMPTY.get_mut().clone());
-        WIDGET_MAP.get_mut().insert("Dungeon Info".to_string(), WIDGET_EMPTY.get_mut().clone());
+        WIDGET_MAP.get_mut().insert("Dungeon Buffs".to_string(), WIDGET_EMPTY.get().clone());
+        WIDGET_MAP.get_mut().insert("Dungeon Deaths".to_string(), WIDGET_EMPTY.get().clone());
+        WIDGET_MAP.get_mut().insert("Dungeon Downed".to_string(), WIDGET_EMPTY.get().clone());
+        WIDGET_MAP.get_mut().insert("Dungeon Puzzles".to_string(), WIDGET_EMPTY.get().clone());
+        WIDGET_MAP.get_mut().insert("Dungeon Discoveries".to_string(), WIDGET_EMPTY.get().clone());
+        WIDGET_MAP.get_mut().insert("Dungeon Info".to_string(), WIDGET_EMPTY.get().clone());
         for i in 1..6 {
-            WIDGET_MAP.get_mut().insert(format!("Dungeon Player {}", i), WIDGET_EMPTY.get_mut().clone());
+            WIDGET_MAP.get_mut().insert(format!("Dungeon Player {}", i), WIDGET_EMPTY.get().clone());
         }
-        for __a0 in TAB_LISTENERS.get_mut().iter() {
+        PlayerListManager::run_listeners();
+    }
+
+    /// java: TAB_LISTENERS.forEach(Runnable::run); WIDGET_MAP.forEach((key, value) -> TAB_WIDGET_LISTENERS.get(key).forEach(c -> c.accept(value)));
+    /// (the listeners are taken out of the statics before they run, as a listener may reach them again)
+    fn run_listeners() {
+        let tab_listeners: Vec<Arc<dyn Fn()>> = TAB_LISTENERS.get().clone();
+        for __a0 in tab_listeners.iter() {
             (__a0)();
         }
-        for (key, value) in WIDGET_MAP.get_mut().iter() {
-            // TODO(fabric2seer): `.get(..)` on a Multimap
-            //   java: TAB_WIDGET_LISTENERS.get(..).forEach(..);
+        let widgets: Vec<(String, Arc<Widget>)> = WIDGET_MAP.get().iter().map(|(k, v)| (k.clone(), v.clone())).collect();
+        for (key, value) in widgets {
+            let listeners: Vec<Arc<dyn Fn(Arc<Widget>)>> = TAB_WIDGET_LISTENERS.get().get(&key).cloned().unwrap_or_default();
+            for c in listeners.iter() {
+                c(value.clone());
+            }
         }
     }
 
     /// java: public static void updateWidgetsFrom(List<PlayerInfo> lines)
-    pub fn update_widgets_from(lines: &Vec<PlayerInfo>) {
-        let mut players_column_predicate: Arc<dyn Fn(String) -> bool> = Arc::new(move |s: &String| PLAYERS_COLUMN_PATTERN.matches_all(s));
-        let mut info_column_predicate: Arc<dyn Fn(String) -> bool> = Arc::new(move |s: &String| INFO_COLUMN_PATTERN.matches_all(s));
+    pub fn update_widgets_from(lines: &Vec<compat::Shared<PlayerInfo>>) {
+        let mut players_column_predicate: Arc<dyn Fn(&str) -> bool> = Arc::new(move |s: &str| PLAYERS_COLUMN_PATTERN.matches_all(s));
+        let mut info_column_predicate: Arc<dyn Fn(&str) -> bool> = Arc::new(move |s: &str| INFO_COLUMN_PATTERN.matches_all(s));
         let mut side_thing: MutableComponent = component::empty();
         let mut contents: Vec<MutableComponent> = Vec::new();
-        let mut player_list_entries: Vec<PlayerInfo> = Vec::new();
+        let mut player_list_entries: Vec<compat::Shared<PlayerInfo>> = Vec::new();
         let mut doing_players: bool = false;
         let mut players_done: bool = false;
         let mut hypixel_widget_name: (i32, String) = (0xFFFF00, "".to_string());
         WIDGET_MAP.get_mut().clear();
         for player_list_entry in lines.iter() {
-            let Some(mut display_name) = player_list_entry.get_tab_list_display_name() else {
+            let Some(display_name) = compat::read(player_list_entry, |__i| __i.get_tab_list_display_name().cloned()) else {
                 continue;
             };
+            let display_name: MutableComponent = compat::component_of(display_name);
             let mut string: String = display_name.get_string();
             if compat::is_blank(&string) {
                 continue;
             }
             if !players_done {
-                if (players_column_predicate)(string.clone()) {
+                if (players_column_predicate)(&string) {
                     if !doing_players {
                         doing_players = true;
                         hypixel_widget_name = (mcrust::net::minecraft::network::chat::text_color::TextColor::AQUA.get_value(), "Players".to_string());
                     }
                     continue;
                 }
-                if (info_column_predicate)(string.clone()) {
+                if (info_column_predicate)(&string) {
                     players_done = true;
-                    WIDGET_MAP.get_mut().insert(hypixel_widget_name.1.clone(), Widget::new(component::empty(), contents.clone(), player_list_entries.clone()));
+                    WIDGET_MAP.get_mut().insert(hypixel_widget_name.1.clone(), Arc::new(Widget::new(component::empty(), contents.clone(), player_list_entries.clone())));
                     contents.clear();
                     player_list_entries.clear();
                     continue;
                 }
             } else {
-                if (info_column_predicate)(string.clone()) {
+                if (info_column_predicate)(&string) {
                     continue;
                 }
-                if !(string.starts_with(" ")) && string.contains(":") && !(hypixel_widget_name.1.starts_with("Mining Event")) || !(string.to_lowercase().starts_with("ends in")) {
+                if !(string.starts_with(" ")) && string.contains(":") && (!(hypixel_widget_name.1.starts_with("Mining Event")) || !(string.to_lowercase().starts_with("ends in"))) {
                     if !contents.is_empty() || !(side_thing.get_string().is_empty()) {
-                        WIDGET_MAP.get_mut().insert(hypixel_widget_name.1.clone(), Widget::new(side_thing.clone(), contents.clone(), player_list_entries.clone()));
+                        WIDGET_MAP.get_mut().insert(hypixel_widget_name.1.clone(), Arc::new(Widget::new(side_thing.clone(), contents.clone(), player_list_entries.clone())));
                     }
                     side_thing = component::empty();
                     contents.clear();
@@ -247,57 +270,52 @@ impl PlayerListManager {
                     }
                     if !(compat::is_blank(&name_and_info.1.get_string())) {
                         side_thing = PlayerListManager::trim(&name_and_info.1);
-                        // TODO(fabric2seer): the mod keeps the game's `PlayerInfo` (Java holds a reference to the live object); the port's `PlayerInfo` is not a value to copy and the port lends the mod no handle to it
-                        // rust: player_list_entries.push(player_list_entry.clone());
+                        player_list_entries.push(player_list_entry.clone());
                     }
                     continue;
                 }
             }
             contents.push(PlayerListManager::trim(&display_name));
-            // TODO(fabric2seer): the mod keeps the game's `PlayerInfo` (Java holds a reference to the live object); the port's `PlayerInfo` is not a value to copy and the port lends the mod no handle to it
-            // rust: player_list_entries.push(player_list_entry.clone());
+            player_list_entries.push(player_list_entry.clone());
         }
         if !contents.is_empty() || !(side_thing.get_string().is_empty()) {
-            WIDGET_MAP.get_mut().insert(hypixel_widget_name.1.clone(), Widget::new(side_thing.clone(), contents.clone(), player_list_entries.clone()));
+            WIDGET_MAP.get_mut().insert(hypixel_widget_name.1.clone(), Arc::new(Widget::new(side_thing.clone(), contents.clone(), player_list_entries.clone())));
         }
-        for __a0 in TAB_LISTENERS.get_mut().iter() {
-            (__a0)();
-        }
-        for (key, value) in WIDGET_MAP.get_mut().iter() {
-            // TODO(fabric2seer): `.get(..)` on a Multimap
-            //   java: TAB_WIDGET_LISTENERS.get(..).forEach(..);
-        }
+        PlayerListManager::run_listeners();
     }
 
     /// java: private static Component trim(Component text)
     pub fn trim(text: &MutableComponent) -> MutableComponent {
         let mut trimmed_parts: Vec<MutableComponent> = Vec::new();
-        let mut leading_space_found: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
-        // TODO(fabric2seer): a lambda for a parameter the port does not type as a closure (`net.minecraft.network.chat.FormattedText.StyledContentConsumer<T>`)
-        // rust: text.visit_styled(|style, as_string| {
-        // rust: let mut trimmed: String = as_string.clone();
-        // rust: if !(leading_space_found.load(std::sync::atomic::Ordering::SeqCst)) {
-        // rust: trimmed = trimmed.trim_start().to_string();
-        // rust: if !(compat::is_blank(&trimmed)) {
-        // rust: leading_space_found.store(true, std::sync::atomic::Ordering::SeqCst);
-        // rust: } else {
-        // rust: return None;
-        // rust: }
-        // rust: }
-        // rust: trimmed_parts.push(component::literal(&trimmed).set_style(style.clone()));
-        // rust: return None;
-        // rust: }, &mcrust::net::minecraft::network::chat::style::Style::EMPTY);
-        for i in 0..(trimmed_parts.len() as i32) {
+        let mut leading_space_found: bool = false;
+        // java: text.visit((style, asString) -> {..; return Optional.empty(); }, Style.EMPTY);
+        text.visit_styled(&mut |style: &Style, as_string: &str| {
+            let mut trimmed: String = as_string.to_string();
+            if !leading_space_found {
+                trimmed = trimmed.trim_start().to_string();
+                if !(compat::is_blank(&trimmed)) {
+                    leading_space_found = true;
+                } else {
+                    return true;
+                }
+            }
+            trimmed_parts.push(component::literal(&trimmed).set_style(style.clone()));
+            true
+        }, &Style::EMPTY);
+        // java: for (int i = 0; i < trimmedParts.size(); i++) - the size is read again on every pass
+        let mut i: i32 = 0;
+        while i < (trimmed_parts.len() as i32) {
             let mut last: MutableComponent = trimmed_parts.pop().unwrap();
             let mut trimmed: String = last.get_string().trim_end().to_string();
             if !(compat::is_blank(&trimmed)) {
                 trimmed_parts.push(component::literal(&trimmed).set_style(last.get_style().clone()));
                 break;
             }
+            i += 1;
         }
         let mut out: MutableComponent = component::empty();
         for __a0 in trimmed_parts.iter() {
-            out.append(__a0.clone());
+            out = out.append(__a0.clone());
         }
         return out;
     }
@@ -305,33 +323,37 @@ impl PlayerListManager {
     /// java: private static Pair<IntObjectPair<String>, ? extends Component> getNameAndInfo(Component text)
     pub fn get_name_and_info(text: &MutableComponent) -> ((i32, String), MutableComponent) {
         let mut to_return: (String, MutableComponent) = ("".to_string(), component::empty());
-        let mut in_info: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
-        let mut color_output: std::sync::atomic::AtomicI32 = std::sync::atomic::AtomicI32::new(0xFFFF00);
-        // TODO(fabric2seer): a lambda for a parameter the port does not type as a closure (`net.minecraft.network.chat.FormattedText.StyledContentConsumer<T>`)
-        // rust: text.visit_styled(|style, as_string| {
-        // rust: if in_info.load(std::sync::atomic::Ordering::SeqCst) {
-        // rust: to_return.1.append(component::literal(&as_string).with_style(&style));
-        // rust: } else {
-        // rust: if as_string.contains(":") {
-        // rust: in_info.store(true, std::sync::atomic::Ordering::SeqCst);
-        // rust: let mut split: Vec<String> = compat::regex::split_limit(&as_string, ":", 2);
-        // rust: to_return.0;
-        // rust: to_return.1.append((component::literal(&split[(1) as usize])).with_style(&style));
-        // rust: if style.get_color().is_some() {
-        // rust: color_output.store(style.get_color().unwrap().get_value(), std::sync::atomic::Ordering::SeqCst);
-        // rust: }
-        // rust: } else {
-        // rust: to_return.0;
-        // rust: }
-        // rust: }
-        // rust: return None;
-        // rust: }, &mcrust::net::minecraft::network::chat::style::Style::EMPTY);
-        return ((color_output.load(std::sync::atomic::Ordering::SeqCst), to_return.0.clone()), to_return.1.clone());
+        let mut in_info: bool = false;
+        let mut color_output: i32 = 0xFFFF00;
+        text.visit_styled(&mut |style: &Style, as_string: &str| {
+            if in_info {
+                // java: toReturn.right().append(Component.literal(asString).withStyle(style));
+                let right = std::mem::replace(&mut to_return.1, component::empty());
+                to_return.1 = right.append(component::literal(as_string).with_style(style));
+            } else {
+                if as_string.contains(":") {
+                    in_info = true;
+                    let mut split: Vec<String> = compat::regex::split_limit(as_string, ":", 2);
+                    // java: toReturn.left(toReturn.left() + split[0]);
+                    to_return.0 = format!("{}{}", to_return.0, split[0]);
+                    let right = std::mem::replace(&mut to_return.1, component::empty());
+                    to_return.1 = right.append((component::literal(&split[(1) as usize])).with_style(style));
+                    if let Some(color) = style.get_color() {
+                        color_output = color.get_value();
+                    }
+                } else {
+                    // java: toReturn.left(toReturn.left() + asString);
+                    to_return.0 = format!("{}{}", to_return.0, as_string);
+                }
+            }
+            true
+        }, &Style::EMPTY);
+        return ((color_output, to_return.0), to_return.1);
     }
 
     /// java: public static List<PlayerInfo> getPlayerList()
-    pub fn get_player_list() -> Vec<PlayerInfo> {
-        return PLAYER_LIST.get_mut().clone();
+    pub fn get_player_list() -> Vec<compat::Shared<PlayerInfo>> {
+        return PLAYER_LIST.get().clone();
     }
 
     /// java: public static List<String> getPlayerStringList()
@@ -343,10 +365,11 @@ impl PlayerListManager {
     pub fn update_footer(mut f: Option<MutableComponent>) {
         if let Some(f) = &f {
             compat::set_state(&FOOTER, Some(f.get_string()));
-            if compat::lock(&FOOTER).unwrap().is_empty() {
+            if compat::lock(&FOOTER).as_deref().unwrap().is_empty() {
                 compat::set_state(&FOOTER, None);
             }
-            for __a0 in FOOTER_LISTENERS.get_mut().iter() {
+            let listeners: Vec<Arc<dyn Fn()>> = FOOTER_LISTENERS.get().clone();
+            for __a0 in listeners.iter() {
                 (__a0)();
             }
         } else {
@@ -366,7 +389,7 @@ impl PlayerListManager {
         };
         let mut m: compat::regex::Matcher = p.matcher(&str);
         if !m.matches() {
-            logger().error(&format!("no match: \"{}\" against \"{}\"", str, compat::jstring(&p)));
+            logger().error(&format!("no match: \"{}\" against \"{}\"", str, p.pattern()));
             return None;
         } else {
             return Some(m);
@@ -375,10 +398,10 @@ impl PlayerListManager {
 
     /// java: public static @Nullable String strAt(int idx)
     pub fn str_at(mut idx: i32) -> Option<String> {
-        if (PLAYER_LIST.get_mut().len() as i32) <= idx {
+        if (PLAYER_LIST.get().len() as i32) <= idx {
             return None;
         }
-        let Some(mut txt) = (PLAYER_LIST.get_mut()[(idx) as usize]).get_tab_list_display_name() else {
+        let Some(mut txt) = compat::read(&PLAYER_LIST.get()[(idx) as usize], |__i| __i.get_tab_list_display_name().cloned()) else {
             return None;
         };
         let mut str: String = compat::trim(&txt.get_string());
@@ -390,12 +413,13 @@ impl PlayerListManager {
 
     /// java: public static @Nullable Component textAt(int idx)
     pub fn text_at(mut idx: i32) -> Option<MutableComponent> {
-        if (PLAYER_LIST.get_mut().len() as i32) <= idx {
+        if (PLAYER_LIST.get().len() as i32) <= idx {
             return None;
         }
-        let Some(mut txt) = (PLAYER_LIST.get_mut()[(idx) as usize]).get_tab_list_display_name() else {
+        let Some(txt) = compat::read(&PLAYER_LIST.get()[(idx) as usize], |__i| __i.get_tab_list_display_name().cloned()) else {
             return None;
         };
+        let txt: MutableComponent = compat::component_of(txt);
         let mut new_text: MutableComponent = component::empty();
         let mut size: i32 = (txt.get_siblings().len() as i32);
         for i in 0..size {
@@ -407,7 +431,7 @@ impl PlayerListManager {
             if i == size.wrapping_sub(1) {
                 text_to_append = text_to_append.trim_end().to_string();
             }
-            new_text.append(component::literal(&text_to_append).set_style(current.get_style().clone()));
+            new_text = new_text.append(component::literal(&text_to_append).set_style(current.get_style().clone()));
         }
         if new_text.get_string().is_empty() {
             return None;
@@ -416,18 +440,17 @@ impl PlayerListManager {
     }
 
     /// java: public static PlayerInfo getRaw(int idx)
-    pub fn get_raw(mut idx: i32) -> PlayerInfo {
-        // TODO(fabric2seer): the mod keeps the game's `PlayerInfo` (Java holds a reference to the live object); the port's `PlayerInfo` is not a value to copy and the port lends the mod no handle to it
-        // rust: return PLAYER_LIST.get_mut()[(idx) as usize].clone();
-        return todo!("fabric2seer: see the TODO above");
+    pub fn get_raw(mut idx: i32) -> compat::Shared<PlayerInfo> {
+        return PLAYER_LIST.get()[(idx) as usize].clone();
     }
 
     /// java: public static int getSize()
     pub fn get_size() -> i32 {
-        return (PLAYER_LIST.get_mut().len() as i32);
+        return (PLAYER_LIST.get().len() as i32);
     }
 
 }
+
 
 /// java: private static final class DefaultTabHudWidget extends TabHudWidget
 #[derive(Clone)]
@@ -554,7 +577,7 @@ impl ElementCollector for DefaultTabHudWidget {
 
     /// java: public <T extends Element> T addElement(T c)
     fn add_element(&mut self, mut c: compat::Shared<dyn Element>) -> compat::Shared<dyn Element> {
-        ({ let __f = compat::dispatch(&c, |__t| __t.set_parent()); __f(&c, self.clone()) });
+        ({ let __f = compat::dispatch(&c, |__t| __t.set_parent()); __f(&c, self.hud_widget_base().as_parent()) });
         self.elements.push(c.clone());
         return c;
     }
@@ -586,21 +609,21 @@ pub struct Widget {
     /// java: List<Component> lines
     pub lines: Vec<MutableComponent>,
     /// java: List<PlayerInfo> playerListEntries
-    pub player_list_entries: Vec<PlayerInfo>,
+    pub player_list_entries: Vec<compat::Shared<PlayerInfo>>,
 }
 
 impl Widget {
     /// java: public Widget(Component detail, List<Component> lines, List<PlayerInfo> playerListEntries)
-    pub fn new(mut detail: MutableComponent, mut lines: Vec<MutableComponent>, mut player_list_entries: Vec<PlayerInfo>) -> Self {
+    pub fn new(detail: MutableComponent, lines: Vec<MutableComponent>, player_list_entries: Vec<compat::Shared<PlayerInfo>>) -> Self {
         let __init_detail = detail.copy();
-        let __init_lines = lines.iter().cloned().map(|__a0| __a0.copy()).collect::<Vec<_>>();
+        let __init_lines = lines.iter().map(|__a0| __a0.copy()).collect::<Vec<_>>();
+        // java: List.copyOf(playerListEntries) - a new list of the same objects
         let __init_player_list_entries = player_list_entries.iter().cloned().collect::<Vec<_>>();
-        let mut this = Self {
+        Self {
             detail: __init_detail,
             lines: __init_lines,
             player_list_entries: __init_player_list_entries,
-        };
-        this
+        }
     }
 
     /// java: the record accessor `detail()`
@@ -614,7 +637,7 @@ impl Widget {
     }
 
     /// java: the record accessor `playerListEntries()`
-    pub fn player_list_entries(&self) -> Vec<PlayerInfo> {
+    pub fn player_list_entries(&self) -> Vec<compat::Shared<PlayerInfo>> {
         self.player_list_entries.clone()
     }
 

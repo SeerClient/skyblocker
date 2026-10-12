@@ -166,7 +166,7 @@ impl ElementCollector for ElectionWidget {
 
     /// java: public <T extends Element> T addElement(T c)
     fn add_element(&mut self, mut c: compat::Shared<dyn Element>) -> compat::Shared<dyn Element> {
-        ({ let __f = compat::dispatch(&c, |__t| __t.set_parent()); __f(&c, self.clone()) });
+        ({ let __f = compat::dispatch(&c, |__t| __t.set_parent()); __f(&c, self.hud_widget_base().as_parent()) });
         self.elements.push(c.clone());
         return c;
     }
@@ -210,7 +210,7 @@ impl ElectionWidget {
     pub fn update_config_content_tab_impl(__this: &compat::Shared<Self>, collector: &compat::Shared<dyn ElementCollector>) {
         ({ let __f = compat::dispatch(collector, |__t| __t.add_simple_ico_text_flexible_item_stack_string_chat_formatting_string()); __f(collector, Some(ico::CLOCK.get_mut().clone()), "Ends in: ", &ChatFormatting::Gold, "???") });
         let mut progresses: Vec<f32> = vec![((60) as f32) as f32, ((30) as f32) as f32, ((1) as f32) as f32];
-        for i in 0..3 {
+        for i in 0i32..3 {
             { let (__a0,) = (Elements::progress_component_3(Some(ico::VILLAGER.get_mut().clone()), &component::literal(&format!("Mayor {}", i.wrapping_add(1))), progresses[(i) as usize]),); collector.lock().borrow_mut().add_element(__a0) };
         }
     }

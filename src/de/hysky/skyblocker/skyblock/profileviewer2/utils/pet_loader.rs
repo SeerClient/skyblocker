@@ -57,7 +57,7 @@ impl PetLoader {
                 pet_items.push(PetLoader::parse_pet(pet));
             }));
             if let Err(e) = __result {
-                logger().error(&format!("[Skyblocker Profile Viewer Pet Loader] Failed to load pet: {}.", compat::jstring(&pet)));
+                logger().error(&format!("[Skyblocker Profile Viewer Pet Loader] Failed to load pet: {}.", compat::read(pet, |__p| __p.to_string())));
             }
         }
         return pet_items.iter().cloned().collect::<Vec<_>>();
@@ -83,19 +83,28 @@ impl PetLoader {
         // TODO(fabric2seer): `.getPetNumbers(..)` on a NEUConstants
         //   java: Map<@PetId String, Map<Rarity, PetNumbers>> petNumbersData = NEURepoManager.getConstants().getPetNumbers();
         let mut pet_numbers_data: std::collections::HashMap<String, std::collections::HashMap<crate::unresolved::Rarity, crate::unresolved::PetNumbers>> = todo!("fabric2seer: the initialiser of `petNumbersData` (TODO above)");
-        if !(pet_numbers_data.contains_key(&compat::read(pet, |__t| __t.r#type.clone()))) || !((pet_numbers_data.get(&compat::read(pet, |__t| __t.r#type.clone())).cloned().unwrap()).contains_key(&neu_pet_rarity)) {
-            logger().warn(&format!("[Skyblocker Profile Viewer Pet Loader] Mising pet numbers for {}.", compat::read(pet, |__t| __t.r#type.clone())));
-            return FlexibleItemStack::get_stack_or_throw(&ItemUtils::get_item_id_placeholder(&compat::read(pet, |__t| __t.r#type.clone())));
-        }
+        // rust: port gap (GAPS_batchB L1, the NEU repo library) - `Rarity` / `PetNumbers` are the library's types, of which
+        // the port has placeholders with no equality or hash: the map cannot be looked up by them
+        // rust: if !(pet_numbers_data.contains_key(&compat::read(pet, |__t| __t.r#type.clone()))) || !((pet_numbers_data.get(&compat::read(pet, |__t| __t.r#type.clone())).cloned().unwrap()).contains_key(&neu_pet_rarity)) {
+        // rust:     logger().warn(&format!("[Skyblocker Profile Viewer Pet Loader] Mising pet numbers for {}.", compat::read(pet, |__t| __t.r#type.clone())));
+        // rust:     return FlexibleItemStack::get_stack_or_throw(&ItemUtils::get_item_id_placeholder(&compat::read(pet, |__t| __t.r#type.clone())));
+        // rust: }
         let mut level_info: LevelInfo = PetLoader::calculate_pet_level(pet, &neu_pet_rarity, &pet_levelling_data);
-        let mut pet_numbers: crate::unresolved::PetNumbers = (pet_numbers_data.get(&compat::read(pet, |__t| __t.r#type.clone())).cloned().unwrap()).get(&neu_pet_rarity).cloned().unwrap();
+        // rust: let mut pet_numbers: crate::unresolved::PetNumbers = (pet_numbers_data.get(&compat::read(pet, |__t| __t.r#type.clone())).cloned().unwrap()).get(&neu_pet_rarity).cloned().unwrap();
+        let _ = &pet_numbers_data;
+        // (unreached: `petNumbersData` above is still the converter's todo; the placeholder type has no data to look up)
+        let mut pet_numbers: crate::unresolved::PetNumbers = crate::unresolved::PetNumbers;
         let mut name: MutableComponent = PetLoader::format_name(pet_item.as_ref().unwrap(), level_info.level());
         let mut lore: Vec<MutableComponent> = PetLoader::append_lore_extras(pet, &level_info, &mut PetLoader::format_lore(pet_item.as_ref().unwrap(), &pet_numbers, level_info.level()));
-        let mut head: ResolvableProfile = PetLoader::get_head_icon(pet, &FlexibleItemStack::get(base_stack.as_ref().unwrap(), mcrust::net::minecraft::core::component::data_components::profile()));
+        let mut head: Option<ResolvableProfile> = PetLoader::get_head_icon(pet, FlexibleItemStack::get::<ResolvableProfile>(base_stack.as_ref().unwrap(), mcrust::net::minecraft::core::component::data_components::profile()));
         let mut pet_stack: compat::Shared<FlexibleItemStack> = FlexibleItemStack::copy(base_stack.as_ref().unwrap());
-        FlexibleItemStack::set(&pet_stack, mcrust::net::minecraft::core::component::data_components::custom_name().clone(), name.clone());
-        FlexibleItemStack::set(&pet_stack, mcrust::net::minecraft::core::component::data_components::lore().clone(), ItemLore::new(lore.clone()).unwrap());
-        FlexibleItemStack::set(&pet_stack, mcrust::net::minecraft::core::component::data_components::profile().clone(), head);
+        // (CUSTOM_NAME's value is a Component: the port's is a `FormattedText`)
+        FlexibleItemStack::set(&pet_stack, mcrust::net::minecraft::core::component::data_components::custom_name().clone(), mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(name.clone()));
+        FlexibleItemStack::set(&pet_stack, mcrust::net::minecraft::core::component::data_components::lore().clone(), ItemLore::new(lore.iter().cloned().map(mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from).collect()).unwrap());
+        // java: petStack.set(DataComponents.PROFILE, head); - a null head is the absent component it already is
+        if let Some(head) = head {
+            FlexibleItemStack::set(&pet_stack, mcrust::net::minecraft::core::component::data_components::profile().clone(), head);
+        }
         return FlexibleItemStack::get_stack_or_throw(&pet_stack);
     }
 
@@ -191,7 +200,7 @@ impl PetLoader {
             let mut other_number_matcher: compat::regex::Matcher = OTHER_NUMBER_PATTERN.matcher(line);
             let mut other_number_replacements: std::collections::HashSet<i32> = std::collections::HashSet::new();
             while other_number_matcher.find() {
-                let mut index: i32 = other_number_matcher.group_named("index").unwrap().trim().parse::<i32>().expect("NumberFormatException");
+                let mut index: i32 = other_number_matcher.group_named("index").unwrap().parse::<i32>().expect("NumberFormatException");
                 other_number_replacements.insert(index);
             }
             let mut formatted_line: String = line.to_string();
@@ -229,8 +238,9 @@ impl PetLoader {
         }
         if compat::read(pet, |__t| __t.held_item.clone()).is_some() {
             let mut held_item: Option<compat::Shared<FlexibleItemStack>> = ItemRepository::get_item_stack(compat::read(pet, |__t| __t.held_item.clone()).as_deref().unwrap());
-            if held_item.is_some() && true /* java: FlexibleItemStack::get(held_item.as_ref().unwrap(), mcrust::net::minecraft::core::component::data_components::custom_name()) != null: never null here */ {
-                let mut text: MutableComponent = component::empty().with_style(NO_ITALIC.get_mut()).append(component::literal("Held Item: ").with_style_format(ChatFormatting::Gold)).append(FlexibleItemStack::get(held_item.as_ref().unwrap(), mcrust::net::minecraft::core::component::data_components::custom_name()));
+            // java: heldItem != null && heldItem.get(DataComponents.CUSTOM_NAME) != null
+            if let Some(held_item) = &held_item && let Some(held_name) = FlexibleItemStack::get::<mcrust::net::minecraft::network::chat::formatted_text::FormattedText>(held_item, mcrust::net::minecraft::core::component::data_components::custom_name()) {
+                let mut text: MutableComponent = component::empty().with_style(NO_ITALIC.get_mut()).append(component::literal("Held Item: ").with_style_format(ChatFormatting::Gold)).append(compat::component_of(held_name));
                 lore.insert(((lore.len() as i32).wrapping_sub(1)) as usize, text.clone());
                 lore.insert(((lore.len() as i32).wrapping_sub(1)) as usize, component::empty());
             }
@@ -252,14 +262,16 @@ impl PetLoader {
     }
 
     /// java: private static ResolvableProfile getHeadIcon(PetsData.Pet pet, ResolvableProfile original)
-    pub fn get_head_icon(pet: &compat::Shared<Pet>, original: &ResolvableProfile) -> ResolvableProfile {
+    /// (`original` is the base stack's PROFILE component: `@Nullable`)
+    pub fn get_head_icon(pet: &compat::Shared<Pet>, original: Option<ResolvableProfile>) -> Option<ResolvableProfile> {
         if compat::read(pet, |__t| __t.skin.clone()).is_some() {
             let mut pet_skin: Option<compat::Shared<FlexibleItemStack>> = ItemRepository::get_item_stack(&format!("PET_SKIN_{}", compat::opt_str(&compat::read(pet, |__t| __t.skin.clone()))));
-            if pet_skin.is_some() && true /* java: FlexibleItemStack::get(pet_skin.as_ref().unwrap(), mcrust::net::minecraft::core::component::data_components::profile()) != null: never null here */ {
-                return FlexibleItemStack::get(pet_skin.as_ref().unwrap(), mcrust::net::minecraft::core::component::data_components::profile());
+            // java: petSkin != null && petSkin.get(DataComponents.PROFILE) != null
+            if let Some(pet_skin) = &pet_skin && let Some(profile) = FlexibleItemStack::get::<ResolvableProfile>(pet_skin, mcrust::net::minecraft::core::component::data_components::profile()) {
+                return Some(profile);
             }
         }
-        return *original;
+        return original;
     }
 
     /// java: private static SkyblockItemRarity getPetRarity(PetsData.Pet pet)

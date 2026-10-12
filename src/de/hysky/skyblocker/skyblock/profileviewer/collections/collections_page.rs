@@ -9,7 +9,9 @@ use crate::de::hysky::skyblocker::skyblock::tabhud::util::ico;
 use crate::de::hysky::skyblocker::utils::flexible_item_stack::FlexibleItemStack;
 use mcrust::net::minecraft::client::gui::components::abstract_widget::AbstractWidget;
 use mcrust::net::minecraft::client::gui::font::Font;
+use mcrust::net::minecraft::client::gui::gui_graphics_extractor;
 use mcrust::net::minecraft::client::gui::gui_graphics_extractor::GuiGraphicsExtractor;
+use mcrust::net::minecraft::network::chat::component;
 use mcrust::net::minecraft::client::gui::components::renderable::Renderable as _;
 
 /// java: private static final String[] COLLECTION_CATEGORIES = {"MINING", "FARMING", "COMBAT", "FISHING", "FORAGING", "RIFT"};
@@ -25,7 +27,8 @@ pub static TEXT_RENDERER: compat::MainThread<Font> = compat::MainThread::new(|| 
 #[derive(Clone)]
 pub struct CollectionsPage {
     /// java: private final @Nullable GenericCategory[] collections = new GenericCategory[COLLECTION_CATEGORIES.length];
-    pub collections: Option<Vec<compat::Shared<GenericCategory>>>,
+    /// (the array is never null: its ELEMENTS are, until a category is built - or when building it failed)
+    pub collections: Vec<Option<compat::Shared<GenericCategory>>>,
     /// java: private final List<SubPageSelectButton> collectionSelectButtons = new ArrayList<>();
     pub collection_select_buttons: Vec<compat::Shared<SubPageSelectButton>>,
     /// java: private int activePage = 0;
@@ -39,7 +42,7 @@ impl CollectionsPage {
     pub fn new(mut h_profile: serde_json::Map<String, serde_json::Value>, mut p_profile: serde_json::Map<String, serde_json::Value>) -> compat::Shared<Self> {
         let __this = compat::shared(Self {
             self_ref: std::sync::Weak::new(),
-            collections: Some((0..((COLLECTION_CATEGORIES.len() as i32)) as usize).map(|_| Default::default()).collect::<Vec<_>>()),
+            collections: (0..((COLLECTION_CATEGORIES.len() as i32)) as usize).map(|_| None).collect::<Vec<_>>(),
             collection_select_buttons: Vec::new(),
             active_page: 0,
         });
@@ -49,7 +52,8 @@ impl CollectionsPage {
             let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                 let __h0 = SubPageSelectButton::new((__this.clone() as compat::Shared<dyn ProfileViewerPage>), -100, 0, i, ICON_MAP.get_mut().get(&COLLECTION_CATEGORIES[(i) as usize]).cloned().unwrap_or_else(|| ico::BARRIER.get_mut().clone()));
                 __this.lock().borrow_mut().collection_select_buttons.push(__h0);
-                __this.lock().borrow_mut().collections.as_mut().unwrap()[(i) as usize] = GenericCategory::new(h_profile.clone(), p_profile.clone(), COLLECTION_CATEGORIES[(i) as usize].clone());
+                let __category = GenericCategory::new(h_profile.clone(), p_profile.clone(), COLLECTION_CATEGORIES[(i) as usize].clone());
+                __this.lock().borrow_mut().collections[(i) as usize] = Some(__category);
             }));
             if let Err(e) = __result {
                 logger().error(&format!("[Skyblocker Profile Viewer] Error creating Collections Page"));
@@ -103,7 +107,8 @@ impl CollectionsPage {
             let __wa2 = starting_y.wrapping_add(i.wrapping_mul(21));
             let __o2 = __this.lock().borrow().collection_select_buttons[(i) as usize].clone();
             compat::write(&__o2, |__t| __t.set_y(__wa2));
-            // TODO(fabric2seer): `extract_render_state` is a method of the port's trait `Renderable`, which the port's `AbstractWidget` does not implement
+            // rust: port gap (GAPS_batchC #C2) - `button.extractRenderState(graphics, ..)` on a widget OBJECT: the port's
+            // widget is drawn by the screen it was added to (`ProfileViewerScreen.init` adds `getButtons()`, which the game draws)
             // rust: let __wa3 = graphics.clone();
             // rust: let __wa4 = mouse_x;
             // rust: let __wa5 = mouse_y;
@@ -111,13 +116,15 @@ impl CollectionsPage {
             // rust: let __o3 = __this.lock().borrow().collection_select_buttons[(i) as usize].clone();
             // rust: compat::write(&__o3, |__t| __t.extract_render_state(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), __wa4, __wa5, __wa6));
         }
-        if false /* java: __this.lock().borrow().collections.as_ref().unwrap()[(compat::read(__this, |__t| __t.active_page)) as usize] == null: never null here */ {
-            // TODO(fabric2seer): `.getRGB(..)` on a value of unknown type
-            //   java: graphics.text(textRenderer, "No data...", rootX + 92, rootY + 72, Color.DARK_GRAY.getRGB(), false);
+        // java: if (collections[activePage] == null) { .. return; }
+        let __active = compat::read(__this, |__t| __t.active_page) as usize;
+        let Some(__r) = compat::read(__this, |__t| __t.collections[__active].clone()) else {
+            // java: graphics.text(textRenderer, "No data...", rootX + 92, rootY + 72, Color.DARK_GRAY.getRGB(), false);
+            gui_graphics_extractor::draw_formatted_text_with_drop_shadow(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), &mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::literal("No data...")), root_x.wrapping_add(92), root_y.wrapping_add(72), mcrust::java::awt::color::dark_gray().get_rgb(), false);
             return;
-        }
-        ({ let __r = &__this.lock().borrow().collections.as_ref().unwrap()[(compat::read(__this, |__t| __t.active_page)) as usize]; let __f = compat::dispatch(__r, |__t| __t.mark_widgets_as_visible()); __f(&compat::view(__r, |a| a as compat::Shared<dyn ProfileViewerPage>)) });
-        ({ let __r = &__this.lock().borrow().collections.as_ref().unwrap()[(compat::read(__this, |__t| __t.active_page)) as usize]; let __f = compat::dispatch(__r, |__t| __t.extract_render_state()); __f(&compat::view(__r, |a| a as compat::Shared<dyn ProfileViewerPage>), graphics, mouse_x, mouse_y, a, root_x.wrapping_add(35), root_y.wrapping_add(6)) });
+        };
+        ({ let __f = compat::dispatch(&__r, |__t| __t.mark_widgets_as_visible()); __f(&compat::view(&__r, |a| a as compat::Shared<dyn ProfileViewerPage>)) });
+        ({ let __f = compat::dispatch(&__r, |__t| __t.extract_render_state()); __f(&compat::view(&__r, |a| a as compat::Shared<dyn ProfileViewerPage>), graphics, mouse_x, mouse_y, a, root_x.wrapping_add(35), root_y.wrapping_add(6)) });
     }
 
     /// CollectionsPage.extractRenderState as the dispatch of ProfileViewerPage.extractRenderState
@@ -127,8 +134,10 @@ impl CollectionsPage {
 
     /// java: public void onNavButtonClick(SubPageSelectButton selectButton)
     pub fn on_nav_button_click_impl(__this: &compat::Shared<Self>, select_button: &compat::Shared<SubPageSelectButton>) {
-        if true /* java: __this.lock().borrow().collections.as_ref().unwrap()[(compat::read(__this, |__t| __t.active_page)) as usize] != null: never null here */ {
-            ({ let __r = &__this.lock().borrow().collections.as_ref().unwrap()[(compat::read(__this, |__t| __t.active_page)) as usize]; let __f = compat::dispatch(__r, |__t| __t.mark_widgets_as_invisible()); __f(&compat::view(__r, |a| a as compat::Shared<dyn ProfileViewerPage>)) });
+        // java: if (collections[activePage] != null) collections[activePage].markWidgetsAsInvisible();
+        let __active = compat::read(__this, |__t| __t.active_page) as usize;
+        if let Some(__r) = compat::read(__this, |__t| __t.collections[__active].clone()) {
+            ({ let __f = compat::dispatch(&__r, |__t| __t.mark_widgets_as_invisible()); __f(&compat::view(&__r, |a| a as compat::Shared<dyn ProfileViewerPage>)) });
         }
         for button in compat::read(__this, |__t| __t.collection_select_buttons.clone()) {
             SubPageSelectButton::set_toggled(&button, false);
@@ -144,10 +153,14 @@ impl CollectionsPage {
 
     /// java: @Override public List<AbstractWidget> getButtons()
     pub fn get_buttons_impl(__this: &compat::Shared<Self>) -> Option<Vec<AbstractWidget>> {
-        let mut clickable_widgets: Vec<AbstractWidget> = compat::read(__this, |__t| __t.collection_select_buttons.clone()).into_iter().collect::<Vec<_>>();
-        for page in __this.lock().borrow().collections.as_ref().unwrap().iter() {
-            if true /* java: page != null: never null here */ && ({ let __f = compat::dispatch(page, |__t| __t.get_buttons()); __f(page) }).is_some() {
-                clickable_widgets.extend(({ let __f = compat::dispatch(page, |__t| __t.get_buttons()); __f(page) }).unwrap().iter().cloned());
+        // java: new ArrayList<>(collectionSelectButtons) - the widget objects, as the game's widgets (each attached to its object)
+        let mut clickable_widgets: Vec<AbstractWidget> = compat::read(__this, |__t| __t.collection_select_buttons.clone()).into_iter().map(compat::WidgetAdapter::widget).collect::<Vec<_>>();
+        for page in compat::read(__this, |__t| __t.collections.clone()) {
+            // java: if (page != null && page.getButtons() != null) clickableWidgets.addAll(page.getButtons()); - asked once (a fresh list each call)
+            let Some(page) = page else { continue; };
+            let __buttons: Option<Vec<AbstractWidget>> = ({ let __f = compat::dispatch(&page, |__t| __t.get_buttons()); __f(&compat::view(&page, |a| a as compat::Shared<dyn ProfileViewerPage>)) });
+            if let Some(__buttons) = __buttons {
+                clickable_widgets.extend(__buttons);
             }
         }
         return Some(clickable_widgets);

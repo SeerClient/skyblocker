@@ -53,8 +53,8 @@ impl Positioner {
     /// the constant's constructor data (Java keeps it in the constant's fields)
     pub fn fields(self) -> &'static PositionerFields {
         static FIELDS: LazyLock<Vec<PositionerFields>> = LazyLock::new(|| vec![
-            PositionerFields::new(Arc::new(move |__a0, __a1| TopAlignedWidgetPositioner::new(__a0, __a1))),
-            PositionerFields::new(Arc::new(move |__a0, __a1| CenteredWidgetPositioner::new(__a0, __a1))),
+            PositionerFields::new(|__a0, __a1| TopAlignedWidgetPositioner::new(__a0, __a1) as compat::Shared<dyn WidgetPositioner>),
+            PositionerFields::new(|__a0, __a1| CenteredWidgetPositioner::new(__a0, __a1) as compat::Shared<dyn WidgetPositioner>),
         ]);
         &FIELDS[self as usize]
     }
@@ -66,38 +66,35 @@ impl Positioner {
 
     /// java: @Override public String getSerializedName()
     pub fn get_serialized_name(&self) -> String {
-        // TODO(fabric2seer): call to `name(..)` (not a method of this class)
-        //   java: return name().toLowerCase(Locale.ENGLISH);
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        // java: return name().toLowerCase(Locale.ENGLISH);
+        return self.name().to_lowercase();
     }
 
     /// java: @Override public String toString()
     pub fn to_string(&self) -> String {
-        // TODO(fabric2seer): call to `name(..)` (not a method of this class)
-        //   java: return I18n.get("skyblocker.config.uiAndVisuals.tabHud.defaultPosition." + name());
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        // java: return I18n.get("skyblocker.config.uiAndVisuals.tabHud.defaultPosition." + name());
+        return mcrust::net::minecraft::locale::language::get_or_default(&format!("skyblocker.config.uiAndVisuals.tabHud.defaultPosition.{}", self.name()));
     }
 
 }
 
 impl std::fmt::Display for Positioner {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", Positioner::to_string(*self))
+        write!(f, "{}", Positioner::to_string(self))
     }
 }
 
-/// the constructor data of each Positioner constant
+/// the constructor data of each Positioner constant (`TopAlignedWidgetPositioner::new` / `CenteredWidgetPositioner::new`,
+/// constructor references with no captured state: function pointers, which the static table may hold)
 pub struct PositionerFields {
-    pub function: Arc<dyn Fn(f32, i32) -> compat::Shared<dyn WidgetPositioner>>,
+    /// java: private final BiFunction<Float, Integer, WidgetPositioner> function;
+    pub function: fn(f32, i32) -> compat::Shared<dyn WidgetPositioner>,
 }
 
 impl PositionerFields {
-    fn new(widget_positioner_supplier: Arc<dyn Fn(f32, i32) -> compat::Shared<dyn WidgetPositioner>>) -> Self {
-        let mut this = Self {
-            function: Default::default(),
-        };
-        this.function = widget_positioner_supplier.clone();
-        this
+    /// java: Positioner(BiFunction<Float, Integer, WidgetPositioner> widgetPositionerSupplier)
+    fn new(widget_positioner_supplier: fn(f32, i32) -> compat::Shared<dyn WidgetPositioner>) -> Self {
+        Self { function: widget_positioner_supplier }
     }
 
 }

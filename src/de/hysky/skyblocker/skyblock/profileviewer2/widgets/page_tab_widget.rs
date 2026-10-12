@@ -99,7 +99,8 @@ impl PageTabWidget {
         let mut icon_y_offset: i32 = (if compat::read(__this, |__t| __t.selected) { -2 } else { 0 });
         gui_graphics_extractor::blit_sprite_identifier(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), mcrust::net::minecraft::client::renderer::render_pipelines::gui_textured(), &texture, __this.lock().borrow().get_x(), __this.lock().borrow().get_y(), __this.lock().borrow().get_width(), __this.lock().borrow().get_height());
         graphics.fake_item(&FlexibleItemStack::get_stack_or_throw(&compat::read(__this, |__t| __t.icon.clone())), (__this.lock().borrow().get_x()).wrapping_add(((__this.lock().borrow().get_width()).wrapping_sub(*profile_viewer_widget::ITEM_SIZE)).wrapping_div(2)), ((__this.lock().borrow().get_y()).wrapping_add(icon_y_offset)).wrapping_add(((__this.lock().borrow().get_height()).wrapping_sub(*profile_viewer_widget::ITEM_SIZE)).wrapping_div(2)));
-        __this.lock().borrow_mut().base.handle_cursor(graphics);
+        // java: this.handleCursor(graphics); - the game asks every widget for its cursor after the frame: this class
+        // requests one through `ModWidget::handle_cursor` below
     }
 
 }
@@ -140,6 +141,11 @@ impl ModWidget for compat::WidgetAdapter<PageTabWidget> {
     /// java: @Override public void onClick(MouseButtonEvent event, boolean doubleClick)
     fn on_click(&mut self, widget: &mut AbstractWidget, event: &MouseButtonEvent, double_click: bool) {
         self.lend(widget, |__h| PageTabWidget::on_click(__h, event, double_click))
+    }
+
+    /// java: `this.handleCursor(graphics)` at the end of extractWidgetRenderState - AbstractWidget's body
+    fn handle_cursor(&self, widget: &AbstractWidget, cursors: &mcrust::com::mojang::blaze3d::platform::cursor::cursor_types::CursorTypes) -> Option<mcrust::com::mojang::blaze3d::platform::cursor::cursor_type::CursorType> {
+        widget.handle_cursor(cursors)
     }
 
 }

@@ -134,16 +134,16 @@ impl TuningSlotWidget {
         let mut y: i32 = (__this.lock().borrow().get_y()).wrapping_add(OFFSET);
         let mut text_y_step: i32 = (mcrust::net::minecraft::client::gui::font::LINE_HEIGHT).wrapping_add(TEXT_EXTRA_SPACING);
         gui_graphics_extractor::draw_formatted_text(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), x, y, &mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(compat::read(__this, |__t| __t.title.clone()).unwrap()), mcrust::net::minecraft::util::common_colors::WHITE);
-        // TODO(fabric2seer): an assignment used as a value
-        //   java: final int titleY = y += textYStep + TITLE_BOTTOM_PADDING;
-        let mut title_y: i32 = todo!("fabric2seer: the initialiser of `titleY` (TODO above)");
-        for line in (compat::read(__this, |__t| __t.halves.clone()).0).iter() {
+        // java: final int titleY = y += textYStep + TITLE_BOTTOM_PADDING;
+        y = y.wrapping_add(text_y_step.wrapping_add(TITLE_BOTTOM_PADDING));
+        let mut title_y: i32 = y;
+        for line in compat::read(__this, |__t| __t.halves.as_ref().expect("NullPointerException").0.clone()).iter() {
             gui_graphics_extractor::draw_formatted_text(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), x, y, &mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(line.clone()), mcrust::net::minecraft::util::common_colors::WHITE);
             y = y.wrapping_add(text_y_step);
         }
         x = (__this.lock().borrow().get_x()).wrapping_add((__this.lock().borrow().get_width()).wrapping_div(2));
         y = title_y;
-        for line in (compat::read(__this, |__t| __t.halves.clone()).1).iter() {
+        for line in compat::read(__this, |__t| __t.halves.as_ref().expect("NullPointerException").1.clone()).iter() {
             gui_graphics_extractor::draw_formatted_text(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), x, y, &mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(line.clone()), mcrust::net::minecraft::util::common_colors::WHITE);
             y = y.wrapping_add(text_y_step);
         }

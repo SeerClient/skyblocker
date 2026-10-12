@@ -11,38 +11,31 @@ use mcrust::com::mojang::serialization::codecs::record_codec_builder;
 
 /// java: public static final LayerConfig DUMMY = new LayerConfig();
 pub static DUMMY: compat::MainThread<LayerConfig> = compat::MainThread::new(|| LayerConfig::new_0());
-// TODO(fabric2seer): field `widgets` of a value of unknown type
-//   java: public static final Codec<LayerConfig> CODEC = RecordCodecBuilder.create(instance -> instance.group(
-//   java: 			Codec.unboundedMap(Codec.STRING, WidgetConfig.CODEC).fieldOf("widgets").forGetter(c -> c.widgets)
-//   java: 	).apply(instance, LayerConfig::new));
-/// java: public static final Codec<LayerConfig> CODEC = RecordCodecBuilder.create(instance -> instance.group( Codec.unboundedMap(Codec.STRING, WidgetConfig.CODEC).fieldOf("widgets").forGetter(c -> c.widgets) )
-pub static CODEC: compat::MainThread<CodecRef<LayerConfig>> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `CODEC` - see the TODO above"));
+/// java: public static final Codec<LayerConfig> CODEC = RecordCodecBuilder.create(instance -> instance.group( Codec.unboundedMap(Codec.STRING, WidgetConfig.CODEC).fieldOf("widgets").forGetter(c -> c.widgets) ).apply(instance, LayerConfig::new));
+pub static CODEC: compat::MainThread<CodecRef<LayerConfig>> = compat::MainThread::new(|| record_codec_builder::create(record_codec_builder::apply1(record_codec_builder::of(|c: &LayerConfig| compat::read(&c.widgets, |m| m.iter().map(|(k, v)| (k.clone(), v.clone())).collect::<Vec<_>>()), codec::field_of(codec::unbounded_map(codec::string_codec(), widget_config::CODEC.get().clone()), "widgets")), move |__a0: Vec<(String, WidgetConfig)>| LayerConfig::new(__a0.into_iter().collect()))));
 
 /// java: public record LayerConfig(Map<String, WidgetConfig> widgets)
-#[derive(Clone, Debug)]
+/// The map is a mutable object the record holds (`config.widgets().put(..)`, `removeIf`, `clear`): a `LayerConfig`
+/// holds a reference to it, so every copy of the record reaches the same map, as every holder of the Java record does.
+#[derive(Clone)]
 pub struct LayerConfig {
     /// java: Map<String, WidgetConfig> widgets
-    pub widgets: std::collections::HashMap<String, WidgetConfig>,
+    pub widgets: compat::Shared<std::collections::HashMap<String, WidgetConfig>>,
 }
 
 impl LayerConfig {
-    /// java: public LayerConfig(Map<String, WidgetConfig> widgets)
-    pub fn new(mut widgets: std::collections::HashMap<String, WidgetConfig>) -> Self {
-        let __init_widgets = widgets.clone();
-        let mut this = Self {
-            widgets: __init_widgets,
-        };
-        this
+    /// java: public LayerConfig(Map<String, WidgetConfig> widgets) - `this.widgets = new Object2ObjectOpenHashMap<>(widgets)`
+    pub fn new(widgets: std::collections::HashMap<String, WidgetConfig>) -> Self {
+        Self { widgets: compat::shared(widgets) }
     }
 
     /// java: public LayerConfig()
     pub fn new_0() -> Self {
-        let mut this = Self::new(std::collections::HashMap::new());
-        this
+        Self::new(std::collections::HashMap::new())
     }
 
-    /// java: the record accessor `widgets()`
-    pub fn widgets(&self) -> std::collections::HashMap<String, WidgetConfig> {
+    /// java: the record accessor `widgets()` (the map object itself)
+    pub fn widgets(&self) -> compat::Shared<std::collections::HashMap<String, WidgetConfig>> {
         self.widgets.clone()
     }
 

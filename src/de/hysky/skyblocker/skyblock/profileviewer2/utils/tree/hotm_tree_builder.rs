@@ -44,7 +44,7 @@ pub struct HotmTreeBuilder {
     /// java: private @Nullable Layout layout;
     pub layout: Option<Layout>,
     /// java: private @Nullable LispExecutionContext lispContext;
-    pub lisp_context: Option<crate::unresolved::LispExecutionContext>,
+    pub lisp_context: Option<Arc<crate::unresolved::LispExecutionContext>>,
 }
 
 impl std::ops::Deref for HotmTreeBuilder {
@@ -94,7 +94,7 @@ impl HotmTreeBuilder {
     pub fn update_lisp_context(__this: &compat::Shared<Self>, layout: &Layout) {
         // TODO(fabric2seer): `new LispExecutionContext(..)`
         //   java: LispExecutionContext lec = new LispExecutionContext();
-        let mut lec: crate::unresolved::LispExecutionContext = todo!("fabric2seer: the initialiser of `lec` (TODO above)");
+        let mut lec: Arc<crate::unresolved::LispExecutionContext> = todo!("fabric2seer: the initialiser of `lec` (TODO above)");
         // TODO(fabric2seer): `.setupStandardBindings(..)` on a LispExecutionContext
         //   java: lec.setupStandardBindings();
         // TODO(fabric2seer): `new AutoBinder(..)`
@@ -115,20 +115,21 @@ impl HotmTreeBuilder {
         let mut is_max_level: bool = (level == perk.max_level());
         let mut hotm: i32 = ({ let __f = compat::dispatch(__this, |__t| __t.get_heart_of_the_x_level()); __f(&compat::view(__this, |a| a as compat::Shared<dyn SkillTreeBuilder>), member) });
         let mut cotm: i32 = PrimitiveTypeUtils::coerce_int(Some(tree.get(&({ let __f = compat::dispatch(__this, |__t| __t.get_core_of_the_x_id()); __f(&compat::view(__this, |a| a as compat::Shared<dyn SkillTreeBuilder>)) })).cloned().unwrap_or_else(|| (std::sync::Arc::new(0) as compat::Object))));
-        let mut values_and_bindings: (std::collections::HashMap<String, crate::unresolved::LispData>, crate::unresolved::StackFrame) = HotmTreeBuilder::calculate_perk_values(__this, perk, level, hotm, cotm);
+        let mut values_and_bindings: (std::collections::HashMap<String, Arc<crate::unresolved::LispData>>, Arc<crate::unresolved::StackFrame>) = HotmTreeBuilder::calculate_perk_values(__this, perk, level, hotm, cotm);
         let mut icon: mcrust::net::minecraft::world::item::item_stack::ItemStack = ({ let __f = compat::dispatch(__this, |__t| __t.get_icon()); __f(&compat::view(__this, |a| a as compat::Shared<dyn SkillTreeBuilder>), enabled, &values_and_bindings.0) });
         let mut tooltip: Vec<MutableComponent> = HotmTreeBuilder::get_tooltip(__this, perk, id, level, enabled, &values_and_bindings.0, &values_and_bindings.1, &__this.lock().borrow().layout.as_ref().unwrap().hotm().powders());
-        let mut tooltip_style: Identifier = (if is_max_level { Some(sky_block_tooltip_styles::LEGENDARY.get_mut().clone()) } else { None }).unwrap();
+        // java: @Nullable Identifier tooltipStyle = isMaxLevel ? SkyBlockTooltipStyles.LEGENDARY : null;
+        let mut tooltip_style: Option<Identifier> = (if is_max_level { Some(sky_block_tooltip_styles::LEGENDARY.get_mut().clone()) } else { None });
         let mut row: i32 = perk.y();
         let mut column: i32 = perk.x();
-        return Node::new(icon.clone(), tooltip.clone(), Some(tooltip_style.clone()), row, column);
+        return Node::new(icon.clone(), tooltip.clone(), tooltip_style, row, column);
     }
 
     /// java: private Pair<Map<String, LispData>, StackFrame> calculatePerkValues(Perk perk, int level, int hotm, int cotm)
-    pub fn calculate_perk_values(__this: &compat::Shared<Self>, perk: &Perk, mut level: i32, mut hotm: i32, mut cotm: i32) -> (std::collections::HashMap<String, crate::unresolved::LispData>, crate::unresolved::StackFrame) {
+    pub fn calculate_perk_values(__this: &compat::Shared<Self>, perk: &Perk, mut level: i32, mut hotm: i32, mut cotm: i32) -> (std::collections::HashMap<String, Arc<crate::unresolved::LispData>>, Arc<crate::unresolved::StackFrame>) {
         // TODO(fabric2seer): `.genBindings(..)` on a LispExecutionContext
         //   java: StackFrame bindings = this.lispContext.genBindings();
-        let mut bindings: crate::unresolved::StackFrame = todo!("fabric2seer: the initialiser of `bindings` (TODO above)");
+        let mut bindings: Arc<crate::unresolved::StackFrame> = todo!("fabric2seer: the initialiser of `bindings` (TODO above)");
         // TODO(fabric2seer): `.setValueLocal(..)` on a StackFrame
         //   java: bindings.setValueLocal("hotm", new LispData.LispNumber(hotm));
         // TODO(fabric2seer): `.setValueLocal(..)` on a StackFrame
@@ -142,12 +143,12 @@ impl HotmTreeBuilder {
         // TODO(fabric2seer): static field Map.Entry
         //   java: Map<String, LispData> values = perk.programCache().entrySet().stream()
         //   java: 				.collect(Collectors.toMap(Map.Entry::getKey, entry -> this.lispContext.executeProgram(bindings.fork(), entry.getValue())));
-        let mut values: std::collections::HashMap<String, crate::unresolved::LispData> = todo!("fabric2seer: the initialiser of `values` (TODO above)");
+        let mut values: std::collections::HashMap<String, Arc<crate::unresolved::LispData>> = todo!("fabric2seer: the initialiser of `values` (TODO above)");
         return (values.clone(), bindings.clone());
     }
 
     /// java: private List<Component> getTooltip(Perk perk, String id, int level, boolean enabled, Map<String, LispData> values, StackFrame bindings, Map<String, PowderInfo> powders)
-    pub fn get_tooltip(__this: &compat::Shared<Self>, perk: &Perk, id: &str, mut level: i32, mut enabled: bool, values: &std::collections::HashMap<String, crate::unresolved::LispData>, bindings: &crate::unresolved::StackFrame, powders: &std::collections::HashMap<String, PowderInfo>) -> Vec<MutableComponent> {
+    pub fn get_tooltip(__this: &compat::Shared<Self>, perk: &Perk, id: &str, mut level: i32, mut enabled: bool, values: &std::collections::HashMap<String, Arc<crate::unresolved::LispData>>, bindings: &Arc<crate::unresolved::StackFrame>, powders: &std::collections::HashMap<String, PowderInfo>) -> Vec<MutableComponent> {
         let mut max_level: bool = (perk.max_level() == level);
         let mut tooltip: Vec<MutableComponent> = Vec::new();
         let mut name_formatting: ChatFormatting = (if enabled && level != 0 { (if max_level { ChatFormatting::Green } else { ChatFormatting::Yellow }) } else { ChatFormatting::Red });
@@ -178,7 +179,7 @@ impl HotmTreeBuilder {
             dynamic_tooltip.push("".to_string());
             // TODO(fabric2seer): `.fork(..)` on a StackFrame
             //   java: StackFrame powderBindings = bindings.fork();
-            let mut powder_bindings: crate::unresolved::StackFrame = todo!("fabric2seer: the initialiser of `powderBindings` (TODO above)");
+            let mut powder_bindings: Arc<crate::unresolved::StackFrame> = todo!("fabric2seer: the initialiser of `powderBindings` (TODO above)");
             'powder: for powder in powders.keys().cloned() {
                 // TODO(fabric2seer): `.setValueLocal(..)` on a StackFrame
                 //   java: powderBindings.setValueLocal(powder, new LispData.LispString(powder));
@@ -296,11 +297,15 @@ impl HotmTreeBuilder {
 
     /// java: @Override public LayoutElement buildLayout(ProfileMember member, int slot)
     pub fn build_layout_impl(__this: &compat::Shared<Self>, member: &compat::Shared<ProfileMember>, mut slot: i32) -> LayoutElement {
-        if compat::read(__this, |__t| __t.layout.clone()).is_none() || compat::read(__this, |__t| __t.lisp_context.clone()).is_none() {
-            return compat::string_widget(0, 0, -1, 9, component::literal("Error loading HOTM layout :("));
+        if compat::read(__this, |__t| __t.layout.is_none()) || compat::read(__this, |__t| __t.lisp_context.is_none()) {
+            // java: return new StringWidget(Component.literal("Error loading HOTM layout :("), Minecraft.getInstance().font);
+            // rust: port gap (GAPS_batchC #L3) - a widget object is not a layout element outside a screen: an empty layout
+            // stands where the error text would be
+            let _ = compat::string_widget(0, 0, -1, 9, component::literal("Error loading HOTM layout :("));
+            return LayoutElement::Grid(mcrust::net::minecraft::client::gui::layouts::grid_layout::GridLayout::new_default());
         }
-        let __this_w1 = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
-        let mut nodes: Vec<Node> = __this.lock().borrow().layout.as_ref().unwrap().hotm().perks().iter().map(|(k, v)| (k.clone(), v.clone())).map(|entry| { let Some(__this_1) = __this_w1.get().upgrade() else { return Default::default(); }; HotmTreeBuilder::build_node((&__this_1), &entry.0, &entry.1, member, slot) }).collect::<Vec<_>>();
+        let __perks: Vec<(String, Perk)> = compat::read(__this, |__t| __t.layout.as_ref().unwrap().hotm().perks().iter().map(|(k, v)| (k.clone(), v.clone())).collect());
+        let mut nodes: Vec<Node> = __perks.iter().map(|entry| HotmTreeBuilder::build_node(__this, &entry.0, &entry.1, member, slot)).collect::<Vec<_>>();
         return ({ let __f = compat::dispatch(__this, |__t| __t.build_grid()); __f(&compat::view(__this, |a| a as compat::Shared<dyn SkillTreeBuilder>), &nodes) });
     }
 
@@ -352,6 +357,7 @@ impl HotmTreeBuilder {
 }
 
 /// java: private record Layout(List<String> prelude, Hotx hotm) implements AbstractLayout
+#[derive(Clone)]
 pub struct Layout {
     /// java: List<String> prelude
     pub prelude: Vec<String>,
@@ -382,6 +388,11 @@ impl AbstractLayout for Layout {
         self
     }
 
+    /// java: the record accessor `prelude()`, which implements AbstractLayout.prelude() (dispatch: the body for this class)
+    fn prelude(&self) -> fn(&compat::Shared<dyn AbstractLayout>) -> Vec<String> {
+        Layout::prelude_dyn
+    }
+
     /// java: @Override public Hotx hotx() (dispatch: the body for this class)
     fn hotx(&self) -> fn(&compat::Shared<dyn AbstractLayout>) -> Hotx {
         Layout::hotx_dyn
@@ -393,6 +404,11 @@ impl Layout {
     /// java: @Override public Hotx hotx()
     pub fn hotx_impl(&self) -> Hotx {
         return self.hotm();
+    }
+
+    /// Layout.prelude as the dispatch of AbstractLayout.prelude
+    pub fn prelude_dyn(__this: &compat::Shared<dyn AbstractLayout>) -> Vec<String> {
+        compat::read_as::<Self, _, _>(__this, |__s| __s.prelude())
     }
 
     /// Layout.hotx as the dispatch of AbstractLayout.hotx

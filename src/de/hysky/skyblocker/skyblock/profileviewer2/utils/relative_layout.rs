@@ -27,24 +27,27 @@ impl RelativeLayout {
     }
 
     /// java: public <T extends LayoutElement> T addChild(T element, int relativeX, int relativeY)
-    pub fn add_child<T: Clone + 'static>(&mut self, element: &T, mut relative_x: i32, mut relative_y: i32) -> T {
+    /// (the port's layout elements are values the layout holds, as its own layouts hold their children)
+    pub fn add_child(&mut self, element: LayoutElement, relative_x: i32, relative_y: i32) -> LayoutElement {
         self.children.push(Child::new(element.clone(), relative_x, relative_y));
-        return element.clone();
+        return element;
     }
 
     /// java: @Override public void setX(int i)
     pub fn set_x(&mut self, mut i: i32) {
         self.x = i;
-        for child in self.children.iter() {
-            child.layout_element.set_x(self.x.wrapping_add(child.relative_x));
+        let x = self.x;
+        for child in self.children.iter_mut() {
+            child.layout_element.set_x(x.wrapping_add(child.relative_x));
         }
     }
 
     /// java: @Override public void setY(int i)
     pub fn set_y(&mut self, mut i: i32) {
         self.y = i;
-        for child in self.children.iter() {
-            child.layout_element.set_y(self.y.wrapping_add(child.relative_y));
+        let y = self.y;
+        for child in self.children.iter_mut() {
+            child.layout_element.set_y(y.wrapping_add(child.relative_y));
         }
     }
 
@@ -69,16 +72,17 @@ impl RelativeLayout {
     }
 
     /// java: @Override public void arrangeElements()
-    pub fn arrange_elements(&self) {
-        for element in self.children.iter() {
-            element.layout_element.set_position(self.x.wrapping_add(element.relative_x), self.y.wrapping_add(element.relative_y));
+    pub fn arrange_elements(&mut self) {
+        let (x, y) = (self.x, self.y);
+        for element in self.children.iter_mut() {
+            element.layout_element.set_position(x.wrapping_add(element.relative_x), y.wrapping_add(element.relative_y));
         }
     }
 
     /// java: @Override public void visitChildren(Consumer<LayoutElement> consumer)
-    pub fn visit_children(&self, consumer: Arc<dyn Fn(LayoutElement)>) {
+    pub fn visit_children(&self, consumer: Arc<dyn Fn(&LayoutElement)>) {
         for e in self.children.iter() {
-            (consumer)(e.layout_element);
+            (consumer)(&e.layout_element);
         }
     }
 
@@ -108,7 +112,7 @@ impl Child {
 
     /// java: the record accessor `layoutElement()`
     pub fn layout_element(&self) -> LayoutElement {
-        self.layout_element
+        self.layout_element.clone()
     }
 
     /// java: the record accessor `relativeX()`

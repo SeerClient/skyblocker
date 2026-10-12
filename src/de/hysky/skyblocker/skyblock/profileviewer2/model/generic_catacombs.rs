@@ -87,10 +87,10 @@ pub trait GenericCatacombs: compat::DynAny {
 
 impl GenericCatacombs for GenericCatacombsBase {
     fn generic_catacombs_base(&self) -> &GenericCatacombsBase {
-        &self
+        self
     }
     fn generic_catacombs_base_mut(&mut self) -> &mut GenericCatacombsBase {
-        &mut self
+        self
     }
 
     fn as_any(&self) -> &dyn std::any::Any {
@@ -253,10 +253,10 @@ impl dyn PerFloorDisambiguation {
 
 impl PerFloorDisambiguation for PerFloorDisambiguationBase {
     fn per_floor_disambiguation_base(&self) -> &PerFloorDisambiguationBase {
-        &self
+        self
     }
     fn per_floor_disambiguation_base_mut(&mut self) -> &mut PerFloorDisambiguationBase {
-        &mut self
+        self
     }
 
     fn as_any(&self) -> &dyn std::any::Any {
@@ -352,21 +352,21 @@ impl AggregateStat {
     }
 
     /// java: private static double coerce0(@Nullable Double d)
-    pub fn coerce0(mut d: f64) -> f64 {
-        return (if true /* java: d != null: never null here */ { d } else { ((0) as f64) as f64 });
+    pub fn coerce0(d: Option<f64>) -> f64 {
+        return (if let Some(d) = d { d } else { ((0) as f64) as f64 });
     }
 
     /// java: public double getManuallyCalculatedTotal()
     pub fn get_manually_calculated_total(__this: &compat::Shared<Self>) -> f64 {
         let mut result: f64 = ((0) as f64) as f64;
-        result = (result + AggregateStat::coerce0(compat::read(__this, |__t| __t.entrance.clone()).unwrap()));
-        result = (result + AggregateStat::coerce0(compat::read(__this, |__t| __t.one.clone()).unwrap()));
-        result = (result + AggregateStat::coerce0(compat::read(__this, |__t| __t.two.clone()).unwrap()));
-        result = (result + AggregateStat::coerce0(compat::read(__this, |__t| __t.three.clone()).unwrap()));
-        result = (result + AggregateStat::coerce0(compat::read(__this, |__t| __t.four.clone()).unwrap()));
-        result = (result + AggregateStat::coerce0(compat::read(__this, |__t| __t.five.clone()).unwrap()));
-        result = (result + AggregateStat::coerce0(compat::read(__this, |__t| __t.six.clone()).unwrap()));
-        result = (result + AggregateStat::coerce0(compat::read(__this, |__t| __t.seven.clone()).unwrap()));
+        result = (result + AggregateStat::coerce0(compat::read(__this, |__t| __t.entrance)));
+        result = (result + AggregateStat::coerce0(compat::read(__this, |__t| __t.one)));
+        result = (result + AggregateStat::coerce0(compat::read(__this, |__t| __t.two)));
+        result = (result + AggregateStat::coerce0(compat::read(__this, |__t| __t.three)));
+        result = (result + AggregateStat::coerce0(compat::read(__this, |__t| __t.four)));
+        result = (result + AggregateStat::coerce0(compat::read(__this, |__t| __t.five)));
+        result = (result + AggregateStat::coerce0(compat::read(__this, |__t| __t.six)));
+        result = (result + AggregateStat::coerce0(compat::read(__this, |__t| __t.seven)));
         return result;
     }
 

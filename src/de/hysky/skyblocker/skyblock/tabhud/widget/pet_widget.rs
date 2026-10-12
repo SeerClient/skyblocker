@@ -38,7 +38,20 @@ pub static TITLE: compat::MainThread<MutableComponent> = compat::MainThread::new
 //   java: 				}
 //   java: 			});
 /// java: private static final LoadingCache<String, FlexibleItemStack> PET_ICON_CACHE = CacheBuilder.newBuilder() .expireAfterWrite(Duration.ofMinutes(5L)) .build(new CacheLoader<>() { @Override public Flexible
-pub static PET_ICON_CACHE: compat::MainThread<LoadingCache<String, compat::Shared<FlexibleItemStack>, compat::Object>> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `PET_ICON_CACHE` - see the TODO above"));
+pub static PET_ICON_CACHE: compat::MainThread<LoadingCache<String, compat::Shared<FlexibleItemStack>, PetIconLoader>> = compat::MainThread::new(|| {
+    mcrust::com::google::common::cache::loading_cache::CacheBuilder::new_builder()
+        .expire_after_write(std::time::Duration::from_secs(5 * 60))
+        .build(PetIconLoader)
+});
+
+/// java: the anonymous `new CacheLoader<>() { load(key) -> getIcon(key) }` of `PET_ICON_CACHE`
+pub struct PetIconLoader;
+
+impl mcrust::com::google::common::cache::cache_loader::CacheLoader<String, compat::Shared<FlexibleItemStack>> for PetIconLoader {
+    fn load(&self, key: &String) -> compat::Shared<FlexibleItemStack> {
+        PetWidget::get_icon(key)
+    }
+}
 
 /// java: @RegisterWidget public class PetWidget extends TabHudWidget
 #[derive(Clone)]
@@ -192,7 +205,7 @@ impl ElementCollector for PetWidget {
 
     /// java: public <T extends Element> T addElement(T c)
     fn add_element(&mut self, mut c: compat::Shared<dyn Element>) -> compat::Shared<dyn Element> {
-        ({ let __f = compat::dispatch(&c, |__t| __t.set_parent()); __f(&c, self.clone()) });
+        ({ let __f = compat::dispatch(&c, |__t| __t.set_parent()); __f(&c, self.hud_widget_base().as_parent()) });
         self.elements.push(c.clone());
         return c;
     }
@@ -212,8 +225,7 @@ impl PetWidget {
                 }
                 let mut pet_name: String = compat::trim(&((split[(1) as usize]).replace("✦", "")));
                 if !(pet_name == compat::read(__this, |__t| __t.prev_string.clone())) {
-                    // TODO(fabric2seer): `LoadingCache.getUnchecked` has no Rust method in the port (looked for `get_unchecked` in LoadingCache and its supertypes)
-                    // rust: { let __v = PET_ICON_CACHE.get_mut().get_unchecked(&pet_name); compat::write(__this, |__t| __t.icon = __v); }
+                    { let __v = PET_ICON_CACHE.get().get_unchecked(&pet_name); compat::write(__this, |__t| __t.icon = __v); }
                     { let __v = pet_name.clone(); compat::write(__this, |__t| __t.prev_string = __v); }
                 }
                 let __r0 = compat::read(__this, |__t| __t.icon.clone());

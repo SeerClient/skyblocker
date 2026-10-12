@@ -154,7 +154,7 @@ impl ElementCollector for FireSaleWidget {
 
     /// java: public <T extends Element> T addElement(T c)
     fn add_element(&mut self, mut c: compat::Shared<dyn Element>) -> compat::Shared<dyn Element> {
-        ({ let __f = compat::dispatch(&c, |__t| __t.set_parent()); __f(&c, self.clone()) });
+        ({ let __f = compat::dispatch(&c, |__t| __t.set_parent()); __f(&c, self.hud_widget_base().as_parent()) });
         self.elements.push(c.clone());
         return c;
     }
@@ -170,11 +170,12 @@ impl FireSaleWidget {
                 let mut avail: String = m.group_named("avail").unwrap();
                 let mut item_txt: MutableComponent = component::literal(m.group_named("item").as_deref().unwrap());
                 let mut total: f32 = (m.group_named("total").unwrap().trim().parse::<f32>().expect("NumberFormatException") * (1000 as f32));
-                let mut prgress_txt: MutableComponent = component::literal(&format!("{}/{:.0}", avail, total));
+                let mut prgress_txt: MutableComponent = component::literal(&compat::string_format("%s/%.0f", &[avail.clone().into(), total.into()]));
                 let mut pcnt: f32 = ((avail.trim().parse::<f32>().expect("NumberFormatException") / total) * 100.0f32);
                 { let (__a0,) = (Elements::progress_component_flexible_item_stack_component_component_float(Some(ico::GOLD.get_mut().clone()), &item_txt, &prgress_txt, pcnt),); __this.lock().borrow_mut().add_element(__a0) };
             } else {
-                if let Some(s) = text.get_string().to_lowercase().as_any().downcast_ref::<String>() && (s.contains("starts") || s.contains("starting")) {
+                // java: text.getString().toLowerCase(Locale.ENGLISH) instanceof String s && (..) - always a String
+                if { let s = text.get_string().to_lowercase(); s.contains("starts") || s.contains("starting") } {
                     { let (__a0,) = (Elements::icon_text_component_2(Some(ico::CLOCK.get_mut().clone()), Some(text.clone())),); __this.lock().borrow_mut().add_element(__a0) };
                 } else {
                     { let (__a0,) = ((PlainTextElement::new(Some(text.clone())) as compat::Shared<dyn Element>),); __this.lock().borrow_mut().add_element(__a0) };

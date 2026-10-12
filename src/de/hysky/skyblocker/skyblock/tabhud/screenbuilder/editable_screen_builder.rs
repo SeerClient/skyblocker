@@ -68,7 +68,7 @@ impl ScreenBuilder for EditableScreenBuilder {
 }
 
 /// java: public record EditableLayer(LayerBuilder builder, LayerBuilderEditor editor)
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct EditableLayer {
     /// java: LayerBuilder builder
     pub builder: compat::Shared<dyn LayerBuilder>,

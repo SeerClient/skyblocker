@@ -58,7 +58,7 @@ impl SkillsPage {
     pub fn get_skill_cap(__this: &compat::Shared<Self>, skill: &str) -> i32 {
         // java: try {..} catch (Exception _) - an exception here is a panic, caught by `catch_unwind`; the body's `return` is the closure's value
         match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            return match skill.as_str() {
+            return match skill {
                 "Farming" => compat::json::get_as_int(&(compat::json::get_as_json_object_of(&(compat::json::get_as_json_object_of(&__this.lock().borrow().player_profile, "jacobs_contest")), "perks")).get("farming_level_cap").cloned().unwrap()),
                 "Taming" => ((compat::json::get_as_json_array_of(&(compat::json::get_as_json_object_of(&(compat::json::get_as_json_object_of(&__this.lock().borrow().player_profile, "pets_data")), "pet_care")), "pet_types_sacrificed")).len() as i32),
                 _ => -1,
@@ -75,7 +75,7 @@ impl SkillsPage {
     pub fn get_skill_xp(__this: &compat::Shared<Self>, skill: &str) -> i64 {
         // java: try {..} catch (Exception _) - an exception here is a panic, caught by `catch_unwind`; the body's `return` is the closure's value
         match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            return match skill.as_str() {
+            return match skill {
                 "SKILL_CATACOMBS" => SkillsPage::get_catacombs_xp(__this),
                 "SKILL_SOCIAL" => SkillsPage::get_coop_social_xp(__this),
                 "SKILL_RUNECRAFT" => compat::json::get_as_long(&__this.lock().borrow().skills.as_ref().unwrap().get("SKILL_RUNECRAFTING").cloned().unwrap()),
@@ -141,7 +141,7 @@ impl SkillsPage {
             let mut x: i32 = (if i < 6 { root_x } else { column2 });
             let mut y: i32 = root_y.wrapping_add((i.wrapping_rem(6)).wrapping_mul(ROW_GAP));
             gui_graphics_extractor::blit_identifier(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), mcrust::net::minecraft::client::renderer::render_pipelines::gui_textured(), TEXTURE.get_mut(), x, y, ((0) as f32) as f32, ((0) as f32) as f32, 109, 26, 109, 26);
-            (__this.lock().borrow().skill_widgets[(i) as usize]).extract_render_state(graphics, mouse_x, mouse_y, x, y.wrapping_add(3));
+            (__this.lock().borrow_mut().skill_widgets[(i) as usize]).extract_render_state(graphics, mouse_x, mouse_y, x, y.wrapping_add(3));
         }
     }
 

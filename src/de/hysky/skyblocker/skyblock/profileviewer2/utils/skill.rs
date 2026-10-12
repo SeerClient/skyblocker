@@ -133,34 +133,19 @@ pub struct SkillFields {
     pub name: String,
     pub base_cap: i32,
     pub absolute_cap: i32,
-    pub icon: Option<compat::Shared<FlexibleItemStack>>,
+    pub icon: compat::Shared<FlexibleItemStack>,
 }
 
 impl SkillFields {
-    fn new(mut name: String, mut base_cap: i32, mut icon: compat::Shared<FlexibleItemStack>) -> Self {
-        let mut this = Self {
-            name: Default::default(),
-            base_cap: 0,
-            absolute_cap: 0,
-            icon: None,
-        };
-        // TODO(fabric2seer): this statement
-        //   java: this(name, baseCap, baseCap, icon);
-        this
+    /// java: Skill(String name, int baseCap, FlexibleItemStack icon)
+    fn new(name: String, base_cap: i32, icon: compat::Shared<FlexibleItemStack>) -> Self {
+        // java: this(name, baseCap, baseCap, icon);
+        Self::new_4(name, base_cap, base_cap, icon)
     }
 
-    fn new_4(mut name: String, mut base_cap: i32, mut absolute_cap: i32, mut icon: compat::Shared<FlexibleItemStack>) -> Self {
-        let mut this = Self {
-            name: Default::default(),
-            base_cap: 0,
-            absolute_cap: 0,
-            icon: None,
-        };
-        this.name = name.clone();
-        this.base_cap = base_cap;
-        this.absolute_cap = absolute_cap;
-        this.icon = icon.clone();
-        this
+    /// java: Skill(String name, int baseCap, int absoluteCap, FlexibleItemStack icon)
+    fn new_4(name: String, base_cap: i32, absolute_cap: i32, icon: compat::Shared<FlexibleItemStack>) -> Self {
+        Self { name, base_cap, absolute_cap, icon }
     }
 
 }

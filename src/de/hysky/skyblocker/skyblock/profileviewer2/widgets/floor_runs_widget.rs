@@ -113,9 +113,9 @@ impl FloorRunsWidget {
         let mut text_y_step: i32 = (mcrust::net::minecraft::client::gui::font::LINE_HEIGHT).wrapping_add(1);
         let mut title: MutableComponent = component::literal("Floor Runs").with_style_format(ChatFormatting::Bold);
         gui_graphics_extractor::centered_text(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), &mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(title.clone()), x.wrapping_add(((__this.lock().borrow().get_width()).wrapping_sub(INFO_OFFSET.wrapping_mul(2))).wrapping_div(2)), y, mcrust::net::minecraft::util::common_colors::WHITE);
-        // TODO(fabric2seer): an assignment used as a value
-        //   java: final int afterTitleY = (y += textYStep + 2);
-        let mut after_title_y: i32 = todo!("fabric2seer: the initialiser of `afterTitleY` (TODO above)");
+        // java: final int afterTitleY = (y += textYStep + 2);
+        y = y.wrapping_add(text_y_step.wrapping_add(2));
+        let mut after_title_y: i32 = y;
         let mut normal_stats: Vec<MutableComponent> = vec![FloorRunsWidget::compile_stats_line("E ", 0, false, &normal), FloorRunsWidget::compile_stats_line("F1", 1, false, &normal), FloorRunsWidget::compile_stats_line("F2", 2, false, &normal), FloorRunsWidget::compile_stats_line("F3", 3, false, &normal), FloorRunsWidget::compile_stats_line("F4", 4, false, &normal), FloorRunsWidget::compile_stats_line("F5", 5, false, &normal), FloorRunsWidget::compile_stats_line("F6", 6, false, &normal), FloorRunsWidget::compile_stats_line("F7", 7, false, &normal)];
         let mut master_mode_stats: Vec<MutableComponent> = vec![component::empty(), FloorRunsWidget::compile_stats_line("M1", 1, true, &master_mode), FloorRunsWidget::compile_stats_line("M2", 2, true, &master_mode), FloorRunsWidget::compile_stats_line("M3", 3, true, &master_mode), FloorRunsWidget::compile_stats_line("M4", 4, true, &master_mode), FloorRunsWidget::compile_stats_line("M5", 5, true, &master_mode), FloorRunsWidget::compile_stats_line("M6", 6, true, &master_mode), FloorRunsWidget::compile_stats_line("M7", 7, true, &master_mode)];
         for line in normal_stats.iter() {

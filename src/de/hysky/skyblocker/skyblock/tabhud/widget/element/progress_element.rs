@@ -104,7 +104,7 @@ impl ProgressElement {
 
     /// java: ProgressElement(@Nullable FlexibleItemStack ico, @Nullable Component description, float percent, int color)
     pub fn new3(mut ico: Option<compat::Shared<FlexibleItemStack>>, mut description: Option<MutableComponent>, mut percent: f32, mut color: i32) -> compat::Shared<Self> {
-        let __this = Self::new(ico.clone(), description.clone(), Some(component::null_to_empty(Some(&format!("{:.2}%", percent)))), percent, color);
+        let __this = Self::new(ico.clone(), description.clone(), Some(component::null_to_empty(Some(&compat::string_format("%.2f%%", &[percent.into()])))), percent, color);
         __this
     }
 

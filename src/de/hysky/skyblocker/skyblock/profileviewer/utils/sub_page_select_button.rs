@@ -78,14 +78,15 @@ impl SubPageSelectButton {
         gui_graphics_extractor::blit_identifier(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), mcrust::net::minecraft::client::renderer::render_pipelines::gui_textured(), TEXTURES.get_mut().get(compat::read(__this, |__t| __t.toggled), (mouse_x > __this.lock().borrow().get_x() && mouse_x < (__this.lock().borrow().get_x()).wrapping_add(20) && mouse_y > __this.lock().borrow().get_y() && mouse_y < (__this.lock().borrow().get_y()).wrapping_add(20))), __this.lock().borrow().get_x(), __this.lock().borrow().get_y(), ((0) as f32) as f32, ((0) as f32) as f32, 20, 20, 20, 20);
         graphics.item(&FlexibleItemStack::get_stack_or_throw(&compat::read(__this, |__t| __t.icon.clone())), (__this.lock().borrow().get_x()).wrapping_add(2), (__this.lock().borrow().get_y()).wrapping_add(2));
         if mouse_x > __this.lock().borrow().get_x() && mouse_x < (__this.lock().borrow().get_x()).wrapping_add(20) && mouse_y > __this.lock().borrow().get_y() && mouse_y < (__this.lock().borrow().get_y()).wrapping_add(20) {
-            let mut lore: Option<ItemLore> = Some(FlexibleItemStack::get(&compat::read(__this, |__t| __t.icon.clone()), mcrust::net::minecraft::core::component::data_components::lore()));
+            let mut lore: Option<ItemLore> = FlexibleItemStack::get::<ItemLore>(&compat::read(__this, |__t| __t.icon.clone()), mcrust::net::minecraft::core::component::data_components::lore());
             if let Some(lore) = &lore {
                 // TODO(fabric2seer): the port's `set_component_tooltip_for_next_frame` ports this Java method with other parameters (tooltip_for_next_frame, lines for Java's lines, xo, yo)
                 // TODO(fabric2seer): `set_component_tooltip_for_next_frame` takes 2 argument(s) in the port (`tooltip_for_next_frame: &mut Option<DeferredTooltip>, lines: Vec<crate::net::minecraft::network::chat::formatted_text::FormattedText>`), Java passes 4
                 // rust: gui_graphics_extractor::set_component_tooltip_for_next_frame(&mut compat::font(), lore.lines().clone(), mouse_x, mouse_y.wrapping_add(10));
             }
         }
-        __this.lock().borrow().handle_cursor(graphics);
+        // java: this.handleCursor(graphics); - the game asks every widget for its cursor after the frame: this class
+        // requests one through `ModWidget::handle_cursor` below
     }
 
     /// java: @Override public boolean isMouseOver(double mouseX, double mouseY)
@@ -123,6 +124,11 @@ impl compat::WidgetHalf for SubPageSelectButton {
 
 /// SubPageSelectButton as the game's widget: `compat::WidgetAdapter::widget(handle)` where Java hands it on
 impl ModWidget for compat::WidgetAdapter<SubPageSelectButton> {
+    /// java: `this.handleCursor(graphics)` at the end of extractWidgetRenderState - AbstractWidget's body
+    fn handle_cursor(&self, widget: &AbstractWidget, cursors: &mcrust::com::mojang::blaze3d::platform::cursor::cursor_types::CursorTypes) -> Option<mcrust::com::mojang::blaze3d::platform::cursor::cursor_type::CursorType> {
+        widget.handle_cursor(cursors)
+    }
+
     /// java: @Override protected void extractWidgetRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta)
     fn extract_widget_render_state(&mut self, widget: &AbstractWidget, context: &mut WidgetRenderContext<'_>, mouse_x: i32, mouse_y: i32, a: f32) {
         self.lend_ref(widget, |__h| SubPageSelectButton::extract_widget_render_state(__h, &mut context.graphics, mouse_x, mouse_y, a))

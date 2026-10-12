@@ -163,7 +163,7 @@ impl ElementCollector for PlayerListWidget {
 
     /// java: public <T extends Element> T addElement(T c)
     fn add_element(&mut self, mut c: compat::Shared<dyn Element>) -> compat::Shared<dyn Element> {
-        ({ let __f = compat::dispatch(&c, |__t| __t.set_parent()); __f(&c, self.clone()) });
+        ({ let __f = compat::dispatch(&c, |__t| __t.set_parent()); __f(&c, self.hud_widget_base().as_parent()) });
         self.elements.push(c.clone());
         return c;
     }
@@ -173,9 +173,9 @@ impl ElementCollector for PlayerListWidget {
 impl PlayerListWidget {
     /// java: @Override protected void updateContent(PlayerListManager.Widget widget)
     pub fn update_content_1_impl(__this: &compat::Shared<Self>, widget: &Widget) {
-        for player_list_entry in compat::sorted_by(widget.player_list_entries().into_iter(), |a, b| (__this.lock().borrow().name_sorting.fields().comparator)(a, b)) {
-            // TODO(fabric2seer): the mod keeps the game's `PlayerInfo` (Java holds a reference to the live object); the port's `PlayerInfo` is not a value to copy and the port lends the mod no handle to it
-            // rust: { let (__a0,) = ((PlayerElement::new(player_list_entry.clone()) as compat::Shared<dyn Element>),); __this.lock().borrow_mut().add_element(__a0) };
+        let __comparator = compat::read(__this, |__t| __t.name_sorting.fields().comparator.clone());
+        for player_list_entry in compat::sorted_by(widget.player_list_entries().into_iter(), |a, b| compat::read(a, |a| compat::read(b, |b| (__comparator)(a, b)))) {
+            { let (__a0,) = ((PlayerElement::new(&player_list_entry) as compat::Shared<dyn Element>),); __this.lock().borrow_mut().add_element(__a0) };
         }
     }
 
@@ -186,32 +186,32 @@ impl PlayerListWidget {
 
     /// java: @Override protected void updateConfigContentTab(ElementCollector collector)
     pub fn update_config_content_tab_impl(__this: &compat::Shared<Self>, collector: &compat::Shared<dyn ElementCollector>) {
-        let mut random: crate::unresolved::Random = compat::Random::new();
-        let mut infos: Vec<PlayerInfo> = Vec::with_capacity((15) as usize);
+        let mut random: compat::JavaRandom = compat::JavaRandom::new_seeded(1234);
+        let mut infos: Vec<compat::Shared<PlayerInfo>> = Vec::with_capacity((15) as usize);
         let mut colors: Vec<TextColor> = vec![mcrust::net::minecraft::network::chat::text_color::TextColor::AQUA, mcrust::net::minecraft::network::chat::text_color::TextColor::GREEN, mcrust::net::minecraft::network::chat::text_color::TextColor::GRAY];
-        for i in 0..3 {
+        for i in 0i32..3 {
             let color = &colors[(i) as usize];
-            // TODO(fabric2seer): `.ints(..)` on a Random
-            //   java: int[] array = random.ints(5, 0, 500).sorted().toArray();
-            let mut array: Vec<i32> = todo!("fabric2seer: the initialiser of `array` (TODO above)");
-            // TODO(fabric2seer): static call ArrayUtils.reverse(..)
-            //   java: ArrayUtils.reverse(array);
-            for j in 0..5 {
-                // TODO(fabric2seer): `new` takes 3 argument(s) in the port (`id: Uuid, name: &str, properties: PropertyMap`), Java passes 2
-                // rust: let mut profile: GameProfile = GameProfile::new(Uuid::random_uuid(), &char::from_u32(((('a' as u32 as i32).wrapping_add(i.wrapping_mul(5))).wrapping_add(j)) as u32).unwrap_or('\0').to_string());
-                let mut profile: GameProfile = todo!("fabric2seer: the initialiser of `profile` (TODO above)");
-                let mut info: PlayerInfo = PlayerInfo::new(profile.clone(), false);
+            // java: int[] array = random.ints(5, 0, 500).sorted().toArray();
+            let mut array: Vec<i32> = random.ints(5, 0, 500);
+            array.sort();
+            // java: ArrayUtils.reverse(array);
+            array.reverse();
+            for j in 0i32..5 {
+                // java: new GameProfile(UUID.randomUUID(), String.valueOf((char) ('a' + i * 5 + j)))
+                let mut profile: GameProfile = GameProfile::new(Uuid::random_uuid(), &char::from_u32(((('a' as u32 as i32).wrapping_add(i.wrapping_mul(5))).wrapping_add(j)) as u32).unwrap_or('\0').to_string(), mcrust::com::mojang::authlib::properties::property_map::PropertyMap::empty());
+                let mut info: PlayerInfo = PlayerInfo::new(profile, false);
                 let mut builder: String = "Player ".to_string();
-                // TODO(fabric2seer): `.ints(..)` on a Random
-                //   java: random.ints(3, 'A', 'D').forEach(builder::appendCodePoint);
-                info.set_tab_list_display_name(Some((component::literal(&format!("[{}] ", array[(j) as usize]))).append(component::literal(&builder.clone()).with_color_text(color.clone()))));
-                // TODO(fabric2seer): the mod keeps the game's `PlayerInfo` (Java holds a reference to the live object); the port's `PlayerInfo` is not a value to copy and the port lends the mod no handle to it
-                // rust: infos.push(info.clone());
+                // java: random.ints(3, 'A', 'D').forEach(builder::appendCodePoint);
+                for __c in random.ints(3, 'A' as i32, 'D' as i32) {
+                    builder.push(char::from_u32(__c as u32).unwrap_or('\u{FFFD}'));
+                }
+                info.set_tab_list_display_name(Some(mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from((component::literal(&format!("[{}] ", array[(j) as usize]))).append(component::literal(&builder).with_color_text(color.clone())))));
+                infos.push(compat::shared(info));
             }
         }
-        for player_list_entry in compat::sorted_by(infos.iter().cloned(), |a, b| (__this.lock().borrow().name_sorting.fields().comparator)(a, b)) {
-            // TODO(fabric2seer): the mod keeps the game's `PlayerInfo` (Java holds a reference to the live object); the port's `PlayerInfo` is not a value to copy and the port lends the mod no handle to it
-            // rust: { let (__a0,) = ((PlayerElement::new(player_list_entry.clone()) as compat::Shared<dyn Element>),); collector.lock().borrow_mut().add_element(__a0) };
+        let __comparator = compat::read(__this, |__t| __t.name_sorting.fields().comparator.clone());
+        for player_list_entry in compat::sorted_by(infos.into_iter(), |a, b| compat::read(a, |a| compat::read(b, |b| (__comparator)(a, b)))) {
+            { let (__a0,) = ((PlayerElement::new(&player_list_entry) as compat::Shared<dyn Element>),); collector.lock().borrow_mut().add_element(__a0) };
         }
     }
 
@@ -224,7 +224,7 @@ impl PlayerListWidget {
     pub fn get_option_widgets_impl(__this: &compat::Shared<Self>, collector: &mut OptionWidgetCollector) {
         <dyn TabHudWidget>::get_option_widgets_body(&compat::view(__this, |a| a as compat::Shared<dyn TabHudWidget>), collector);
         let __this_w1 = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
-        (collector.enum_button(&std::any::TypeId::of::<NameSorting>(), &component::translatable("skyblocker.config.uiAndVisuals.tabHud.nameSorting"), Arc::new(move |v| { let Some(__this_1) = __this_w1.get().upgrade() else { return Default::default(); }; { { let __v = v.clone(); compat::write((&__this_1), |__t| __t.name_sorting = __v); } } }), &compat::read(__this, |__t| __t.name_sorting))).tooltip(component::translatable("skyblocker.config.uiAndVisuals.tabHud.nameSorting.@Tooltip"));
+        (collector.enum_button(NameSorting::values(), &component::translatable("skyblocker.config.uiAndVisuals.tabHud.nameSorting"), Arc::new(move |v| { let Some(__this_1) = __this_w1.get().upgrade() else { return Default::default(); }; { { let __v = v.clone(); compat::write((&__this_1), |__t| __t.name_sorting = __v); } } }), &compat::read(__this, |__t| __t.name_sorting))).tooltip(component::translatable("skyblocker.config.uiAndVisuals.tabHud.nameSorting.@Tooltip"));
     }
 
     /// PlayerListWidget.getOptionWidgets as the dispatch of HudWidget.getOptionWidgets

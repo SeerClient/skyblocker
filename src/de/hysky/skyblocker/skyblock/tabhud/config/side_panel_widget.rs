@@ -34,10 +34,9 @@ pub static TEXTURE: compat::MainThread<Identifier> = compat::MainThread::new(|| 
 /// java: private static final int TOP_MARGIN = 16;
 pub const TOP_MARGIN: i32 = 16;
 /// java: private static final int SCROLLBAR_AREA = SCROLLBAR_WIDTH + 1;
-pub static SCROLLBAR_AREA: LazyLock<i32> = LazyLock::new(|| SCROLLBAR_WIDTH.wrapping_add(1));
+pub static SCROLLBAR_AREA: LazyLock<i32> = LazyLock::new(|| mcrust::net::minecraft::client::gui::components::abstract_scroll_area::SCROLLBAR_WIDTH.wrapping_add(1));
 
 /// java: class SidePanelWidget extends AbstractContainerWidget
-#[derive(Clone)]
 pub struct SidePanelWidget {
     /// java: extends net.minecraft.client.gui.components.AbstractContainerWidget
     pub base: AbstractContainerWidget,
@@ -79,9 +78,20 @@ impl std::ops::DerefMut for SidePanelWidget {
 impl SidePanelWidget {
     /// java: SidePanelWidget(int width, int height, WidgetsConfigurationScreen configScreen)
     pub fn new(mut width: i32, mut height: i32, mut config_screen: compat::Shared<WidgetsConfigurationScreen>) -> Self {
-        // TODO(fabric2seer): call to `defaultSettings(..)` (not a method of this class)
-        //   java: super(0, TOP_MARGIN, width, height - TOP_MARGIN, Component.literal("Side Panel"), defaultSettings(5));
-        let mut this: Self = todo!("constructor");
+        // java: super(0, TOP_MARGIN, width, height - TOP_MARGIN, Component.literal("Side Panel"), defaultSettings(5));
+        let mut this: Self = Self {
+            base: AbstractContainerWidget::new_with_scrollbar_settings(0, TOP_MARGIN, width, height.wrapping_sub(TOP_MARGIN), mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::literal("Side Panel")), mcrust::net::minecraft::client::gui::components::abstract_scroll_area::ScrollbarSettings::default_settings(5.0)),
+            option_widgets: Vec::new(),
+            layout: LinearLayout::vertical(),
+            right_side: false,
+            target_x: 0,
+            animation: 0.0f32,
+            animation_start: 0,
+            animation_end: 0,
+            is_open: false,
+            config_screen: None,
+            positioned_widget: None,
+        };
         this.visible = false;
         this.config_screen = Some(config_screen.clone());
         this
@@ -89,7 +99,10 @@ impl SidePanelWidget {
 
     /// java: @Override public List<? extends GuiEventListener> children()
     pub fn children(&self) -> Vec<Box<dyn GuiEventListener>> {
-        return self.option_widgets.clone();
+        // rust: port gap (GAPS_batchA #9) - `children()` lending the live child widgets: the port answers owned
+        // listeners, and these children are this object's own values
+        // rust: return self.option_widgets.clone();
+        return Vec::new();
     }
 
     /// java: @Override protected int contentHeight()
@@ -155,25 +168,50 @@ impl SidePanelWidget {
         //   java: 			}
         //   java: 		});
         if !(compat::read(&positioned_widget, |__t| __t.from_tab)) {
-            { let __s0 = (button::builder(component::translatable("skyblocker.config.hud.widget.remove").get_string(), OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| { WidgetsConfigurationScreen::remove_widget(self.config_screen.as_ref().unwrap(), &positioned_widget); })))).build(); self.add(__s0) };
+            // java: add(Button.builder(.., _ -> configScreen.removeWidget(positionedWidget)).build());
+            // (the screen holds this panel: the action holds the screen weakly)
+            let __cs = compat::RenderThread::new(std::sync::Arc::downgrade(self.config_screen.as_ref().unwrap()));
+            let __pw = compat::RenderThread::new(positioned_widget.clone());
+            let __s0 = (button::builder(component::translatable("skyblocker.config.hud.widget.remove").get_string(), OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| {
+                let Some(__config_screen) = __cs.get().upgrade() else { return; };
+                WidgetsConfigurationScreen::remove_widget(&__config_screen, __pw.get());
+            })))).build();
+            self.add(__s0);
         }
-        let mut copy_button: AbstractWidget = { let __s0 = (button::builder(component::translatable("skyblocker.config.hud.copy.copyTo").get_string(), OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| { WidgetsConfigurationScreen::open_popup(self.config_screen.as_ref().unwrap(), Arc::new(move |screen| CopyToPopup::new(screen.clone(), positioned_widget.clone(), WidgetsConfigurationScreen::get_current_location(&screen), WidgetsConfigurationScreen::get_current_screen_layer(&screen)))); })))).tooltip_text(Some((Tooltip::create((component::translatable("skyblocker.config.hud.copy.copyTo.@Tooltip")).get_string())).message.clone())).build(); self.add(__s0) };
-        if !widget_manager::ALLOWED_LOCATIONS.iter().copied().any(|l| ((({ let __f = compat::dispatch(&hud_widget, |__t| __t.get_information()); __f(&hud_widget) }).available())(l) && l != WidgetsConfigurationScreen::get_current_location(self.config_screen.as_ref().unwrap()))) {
+        // java: if (WidgetManager.ALLOWED_LOCATIONS.stream().noneMatch(l -> hudWidget.getInformation().available().test(l) && l != configScreen.getCurrentLocation()))
+        // (read before the button is added: it reads neither the button nor the list)
+        let __available = ({ let __f = compat::dispatch(&hud_widget, |__t| __t.get_information()); __f(&hud_widget) }).available();
+        let __current_location = WidgetsConfigurationScreen::get_current_location(self.config_screen.as_ref().unwrap());
+        let __none_match: bool = !widget_manager::ALLOWED_LOCATIONS.iter().copied().any(|l| (__available)(l) && l != __current_location);
+        // java: Button copyButton = add(Button.builder(.., _ -> configScreen.openPopup(screen -> new CopyToPopup(screen, positionedWidget, ..))).tooltip(..).build());
+        let __s0 = (button::builder(component::translatable("skyblocker.config.hud.copy.copyTo").get_string(), OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| {
+            // rust: port gap (GAPS_batchC #C4) - `new CopyToPopup(screen, ..)`: the popup's `AbstractPopupScreen` takes its
+            // background as a game `Screen` value (GAPS_batchA #19), which a mod screen object is not
+            // rust: WidgetsConfigurationScreen::open_popup(self.config_screen.as_ref().unwrap(), Arc::new(move |screen| CopyToPopup::new(screen.clone(), positioned_widget.clone(), WidgetsConfigurationScreen::get_current_location(&screen), WidgetsConfigurationScreen::get_current_screen_layer(&screen))));
+        })))).tooltip_text(Some((Tooltip::create((component::translatable("skyblocker.config.hud.copy.copyTo.@Tooltip")).get_string())).message.clone())).build();
+        let copy_button: &mut AbstractWidget = self.add(__s0);
+        if __none_match {
             copy_button.active = false;
             copy_button.set_tooltip(Tooltip::create((component::translatable("skyblocker.config.hud.copy.copyTo.disabled.@Tooltip")).get_string()));
         }
         self.layout.add_child(SpacerElement::height(10).as_layout_element());
         let mut available_width: i32 = self.get_width().wrapping_sub(*SCROLLBAR_AREA);
         if !(compat::read(&positioned_widget, |__t| __t.from_tab)) {
-            { let __s0 = PositionRuleWidget::new(self.config_screen.clone().unwrap(), positioned_widget.clone()); self.add(__s0) };
+            // rust: port gap (GAPS_batchC #L3) - `PositionRuleWidget` is a mod composite widget (`AbstractContainerWidget`):
+            // it is not a game widget, so it cannot join this panel's widget list or its layout
+            // rust: { let __s0 = PositionRuleWidget::new(self.config_screen.clone().unwrap(), positioned_widget.clone()); self.add(__s0) };
             self.layout.add_child(SpacerElement::height(10).as_layout_element());
         }
+        // java: List<AbstractWidget> collector = new ArrayList<>(); new OptionWidgetCollector(collector, ..) - the collector
+        // fills Java's list object: the port's collector owns it (`collector_list`), read back below
         let mut collector: Vec<AbstractWidget> = Vec::new();
-        let mut widget_collector: OptionWidgetCollector = OptionWidgetCollector::new(collector.clone(), Arc::new(move || { ({ let __f = compat::dispatch(&hud_widget, |__t| __t.update_config_preview()); __f(&hud_widget) }); }), self.config_screen.clone().unwrap(), WidgetsConfigurationScreen::get_current_location(self.config_screen.as_ref().unwrap()));
+        let __preview_widget = hud_widget.clone();
+        let mut widget_collector: OptionWidgetCollector = OptionWidgetCollector::new(collector, Arc::new(move || { ({ let __f = compat::dispatch(&__preview_widget, |__t| __t.update_config_preview()); __f(&__preview_widget) }); }), self.config_screen.clone().unwrap(), WidgetsConfigurationScreen::get_current_location(self.config_screen.as_ref().unwrap()));
         ({ let __f = compat::dispatch(&hud_widget, |__t| __t.get_option_widgets()); __f(&hud_widget, &mut widget_collector) });
         widget_collector.build_deferred();
-        for __a0 in collector.iter() {
-            self.add(__a0.clone());
+        // java: collector.forEach(this::add);
+        for __a0 in std::mem::take(&mut widget_collector.collector_list) {
+            self.add(__a0);
         }
         self.layout.add_child(SpacerElement::height(10).as_layout_element());
         for widget in self.option_widgets.iter_mut() {
@@ -184,7 +222,8 @@ impl SidePanelWidget {
         // rust: { let __s0 = (if right_side { self.get_x() } else { self.get_x().wrapping_add(*SCROLLBAR_AREA) }); let __s1 = self.get_y().wrapping_sub((self.scroll_amount()) as i32); self.layout.set_position(__s0, __s1) };
         self.layout.arrange_elements();
         let mut open_x: i32 = (if right_side { (compat::read(self.config_screen.as_ref().unwrap(), |__t| __t.width)).wrapping_sub(self.get_width()) } else { 0 });
-        if self.is_open() && open_x != self.target_x || right_side != self.right_side {
+        // java: if (isOpen() && (openX != targetX || rightSide != this.rightSide))
+        if self.is_open() && (open_x != self.target_x || right_side != self.right_side) {
             self.is_open = false;
         }
         self.right_side = right_side;
@@ -229,10 +268,10 @@ impl SidePanelWidget {
 
     /// java: @Override public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount)
     pub fn mouse_scrolled(&self, mut mouse_x: f64, mut mouse_y: f64, mut horizontal_amount: f64, mut vertical_amount: f64) -> bool {
-        // TODO(fabric2seer): `get_child_at` takes 3 argument(s) in the port (`children: &[(usize, ScreenRectangle)], x: f64, y: f64`), Java passes 2
-        if container_event_handler::get_child_at(&mouse_x, mouse_y).filter(|child| !(child.as_any().is::<CycleButton>())).filter(|element| element.mouse_scrolled(mouse_x, mouse_y, horizontal_amount, vertical_amount)).is_some() {
-            return true;
-        }
+        // rust: port gap (GAPS_batchA #9) - `getChildAt` over `children()`, which cannot lend this panel's live widgets
+        // rust: if container_event_handler::get_child_at(&mouse_x, mouse_y).filter(|child| !(child.as_any().is::<CycleButton>())).filter(|element| element.mouse_scrolled(mouse_x, mouse_y, horizontal_amount, vertical_amount)).is_some() {
+        // rust:     return true;
+        // rust: }
         // TODO(fabric2seer): `mouse_scrolled` takes 2 argument(s) in the port (`content_height: i32, scroll_y: f64`), Java passes 4
         // TODO(fabric2seer): `ScrollArea::mouse_scrolled` ports `mouseScrolled`, but the port's `AbstractContainerWidget` holds no `ScrollArea` (no Deref, no `base` field) to call it on
         // rust: return self.base.mouse_scrolled(mouse_x, mouse_y, horizontal_amount, vertical_amount);
@@ -242,14 +281,15 @@ impl SidePanelWidget {
     /// java: @Override public void setWidth(int width)
     pub fn set_width(&mut self, mut width: i32) {
         self.base.set_width(width);
+        let __width = self.get_width().wrapping_sub(*SCROLLBAR_AREA);
         for widget in self.option_widgets.iter_mut() {
-            widget.set_width(self.get_width().wrapping_sub(*SCROLLBAR_AREA));
+            widget.set_width(__width);
         }
         self.layout.arrange_elements();
     }
 
     /// java: @Override public void setHeight(int height)
-    pub fn set_height(&self, mut height: i32) {
+    pub fn set_height(&mut self, mut height: i32) {
         self.base.set_height(height.wrapping_sub(TOP_MARGIN));
     }
 
@@ -263,9 +303,13 @@ impl SidePanelWidget {
     }
 
     /// java: private <T extends AbstractWidget> T add(T widget)
-    pub fn add<T: Clone + 'static>(&mut self, mut widget: T) -> T {
-        self.option_widgets.push(widget.clone());
-        return self.layout.add_child(widget.clone());
+    /// (the list holds the widget itself: the answer is the held one, as Java's `add` returns its argument)
+    pub fn add(&mut self, widget: AbstractWidget) -> &mut AbstractWidget {
+        self.option_widgets.push(widget);
+        // rust: port gap (GAPS_batchC #L3) - `layout.addChild(widget)`: the port's layouts hold a widget by its index in
+        // a screen's widget list, and this panel's widgets are its own values
+        // rust: return self.layout.add_child(widget.clone());
+        return self.option_widgets.last_mut().unwrap();
     }
 
     /// java: @Override protected int scrollBarX()

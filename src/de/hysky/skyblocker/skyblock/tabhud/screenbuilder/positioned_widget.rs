@@ -36,14 +36,23 @@ impl PositionedWidget {
     }
 
     /// java: @Override public boolean equals(@Nullable Object o)
-    pub fn equals(&self, mut o: Option<compat::Object>) -> bool {
-        // TODO(fabric2seer): the condition: call to `getClass(..)` (not a method of this class)
-        //   java: o == null || getClass() != o.getClass()
-        if todo!("fabric2seer: the condition (TODO above)") {
-            return false;
-        }
-        let mut that: compat::Shared<PositionedWidget> = o.clone().unwrap();
-        return ({ let __f = compat::dispatch(&self.widget, |__t| __t.equals()); __f(&self.widget, &compat::read(&that, |__t| __t.widget.clone())) });
+    /// (the class is final, so `getClass() != o.getClass()` is "not a PositionedWidget": every caller hands one)
+    pub fn equals(&self, o: &compat::Shared<PositionedWidget>) -> bool {
+        let mut that_widget: compat::Shared<dyn HudWidget> = compat::read(o, |__t| __t.widget.clone());
+        return ({ let __f = compat::dispatch(&self.widget, |__t| __t.equals()); __f(&self.widget, &that_widget) });
+    }
+
+    /// java: `a.equals(b)` on two references (`List.equals`, a set's membership test)
+    pub fn equals_shared(a: &compat::Shared<PositionedWidget>, b: &compat::Shared<PositionedWidget>) -> bool {
+        let widget = compat::read(a, |__t| __t.widget.clone());
+        let that_widget = compat::read(b, |__t| __t.widget.clone());
+        let __f = compat::dispatch(&widget, |__t| __t.equals());
+        __f(&widget, &that_widget)
+    }
+
+    /// java: `List<PositionedWidget>.equals(List)` - the same size and each pair `equals`
+    pub fn list_equals(a: &[compat::Shared<PositionedWidget>], b: &[compat::Shared<PositionedWidget>]) -> bool {
+        a.len() == b.len() && a.iter().zip(b.iter()).all(|(x, y)| PositionedWidget::equals_shared(x, y))
     }
 
     /// java: @Override public int hashCode()

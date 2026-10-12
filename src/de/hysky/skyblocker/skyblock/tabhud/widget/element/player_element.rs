@@ -49,17 +49,21 @@ impl std::ops::DerefMut for PlayerElement {
 
 impl PlayerElement {
     /// java: public PlayerElement(PlayerInfo ple)
-    pub fn new(mut ple: PlayerInfo) -> compat::Shared<Self> {
-        // TODO(fabric2seer): the mod keeps the game's `PlayerInfo` (Java holds a reference to the live object); the port's `PlayerInfo` is not a value to copy and the port lends the mod no handle to it
-        //   java: this(ple, null, false);
-        let __this: compat::Shared<Self> = todo!("constructor");
-        __this
+    pub fn new(ple: &compat::Shared<PlayerInfo>) -> compat::Shared<Self> {
+        // java: this(ple, null, false);
+        Self::new_3(ple, None, false)
     }
 
     /// java: public PlayerElement(PlayerInfo ple, @Nullable Component name, boolean large)
-    pub fn new_3(mut ple: PlayerInfo, mut name: Option<MutableComponent>, mut large: bool) -> compat::Shared<Self> {
-        let __init_name = Some((if name.is_some() { name.clone().unwrap() } else { (if ple.get_tab_list_display_name().is_some() { ple.get_tab_list_display_name() } else { Some(component::literal("No data").with_style_format(ChatFormatting::Gray)) }).unwrap() }));
-        let __init_tex = Some(ple.get_skin().body().texture_path().clone());
+    pub fn new_3(ple: &compat::Shared<PlayerInfo>, name: Option<MutableComponent>, large: bool) -> compat::Shared<Self> {
+        // java: this.name = name != null ? name : ple.getTabListDisplayName() != null ? ple.getTabListDisplayName() : Component.literal("No data").withStyle(ChatFormatting.GRAY);
+        let __display_name: Option<MutableComponent> = compat::read(ple, |__p| __p.get_tab_list_display_name().cloned()).map(compat::component_of);
+        let __init_name = Some(match (name, __display_name) {
+            (Some(name), _) => name,
+            (None, Some(display_name)) => display_name,
+            (None, None) => component::literal("No data").with_style_format(ChatFormatting::Gray),
+        });
+        let __init_tex = Some(compat::read(ple, |__p| __p.get_skin().body().texture_path().clone()));
         let (_, __this) = ElementBase::new_in(move |__base| {
             let __h = compat::shared(Self {
                 base: __base,
@@ -101,7 +105,9 @@ impl Element for PlayerElement {
 impl PlayerElement {
     /// java: @Override public void extractRenderState(GuiGraphicsExtractor graphics, int x, int y)
     pub fn extract_render_state_impl(__this: &compat::Shared<Self>, graphics: &mut GuiGraphicsExtractor, mut x: i32, mut y: i32) {
-        player_face_extractor::extract_render_state(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), &compat::read(__this, |__t| __t.tex.clone()).unwrap(), x, y, compat::read(__this, |__t| __t.icon_dim), true, false, -1);
+        // java: PlayerFaceExtractor.extractRenderState(graphics, tex, x, y, iconDim, true, false, -1);
+        // (the port's extractor takes the texture the identifier names, as the texture manager answers it)
+        { let __client = compat::minecraft(); let __tex = compat::read(__this, |__t| __t.tex.clone()).unwrap(); if let Some(__texture) = __client.game_renderer.texture_manager().get_texture_or_request(&__tex) { player_face_extractor::extract_render_state(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*__client, __texture, x, y, compat::read(__this, |__t| __t.icon_dim), true, false, -1); } }
         gui_graphics_extractor::draw_formatted_text_with_drop_shadow(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), &mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(compat::read(__this, |__t| __t.name.clone()).unwrap()), (x.wrapping_add(compat::read(__this, |__t| __t.icon_dim))).wrapping_add(element::PAD_S), y.wrapping_add(compat::read(__this, |__t| __t.text_y_offset)), mcrust::net::minecraft::util::common_colors::WHITE, false);
     }
 

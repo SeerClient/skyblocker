@@ -33,7 +33,7 @@ impl std::ops::DerefMut for PlaceholderWidget {
 impl PlaceholderWidget {
     /// java: public PlaceholderWidget(String id)
     pub fn new(mut id: String) -> compat::Shared<Self> {
-        let (_, __this) = HudWidgetBase::new_in(Information::new2(id.clone(), component::literal(&id), Arc::new(move |_| false)), move |__base| {
+        let (_, __this) = HudWidgetBase::new_in(Information::new_canonical(Some(id.clone()), Some(component::literal(&id)), Arc::new(move |_| false)), move |__base| {
             let __h = compat::shared(Self {
                 base: __base,
             });
@@ -71,8 +71,8 @@ impl HudWidget for PlaceholderWidget {
 impl PlaceholderWidget {
     /// java: @Override protected void extractWidgetRenderState(GuiGraphicsExtractor context, float delta)
     pub fn extract_widget_render_state_impl(__this: &compat::Shared<Self>, context: &mut GuiGraphicsExtractor, mut delta: f32) {
-        // TODO(fabric2seer): an assignment used as a value
-        //   java: w = h = 0;
+        // java: w = h = 0;
+        compat::write(__this, |__t| { __t.h = 0; __t.w = __t.h; });
     }
 
     /// PlaceholderWidget.extractWidgetRenderState as the dispatch of HudWidget.extractWidgetRenderState

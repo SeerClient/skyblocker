@@ -1,0 +1,13 @@
+src/de/hysky/skyblocker/skyblock/garden/
+src/de/hysky/skyblocker/skyblock/
+src/de/hysky/skyblocker/skyblock/slayers/
+src/de/hysky/skyblocker/skyblock/crimson/
+src/de/hysky/skyblocker/skyblock/accessories/
+src/de/hysky/skyblocker/compatibility/rei/
+src/de/hysky/skyblocker/skyblock/events/
+src/de/hysky/skyblocker/skyblock/entity/
+src/de/hysky/skyblocker/config/
+src/de/hysky/skyblocker/skyblock/rift/
+src/de/hysky/skyblocker/skyblock/barn/
+src/de/hysky/skyblocker/src/entry/
+src/de/hysky/skyblocker/skyblock/special/

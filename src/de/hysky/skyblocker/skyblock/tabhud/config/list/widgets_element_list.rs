@@ -111,7 +111,9 @@ impl WidgetsElementList {
     pub fn extract_widget_render_state(__this: &compat::Shared<Self>, graphics: &mut GuiGraphicsExtractor, mut mouse_x: i32, mut mouse_y: i32, mut delta: f32) {
         // TODO(fabric2seer): `ContainerObjectSelectionList.extractWidgetRenderState` has no Rust method in the port (looked for `extract_widget_render_state` in ContainerObjectSelectionList and its supertypes)
         // rust: __this.lock().borrow_mut().base.list.extract_widget_render_state(graphics, mouse_x, mouse_y, delta);
-        let mut hovered_entry: Option<compat::Shared<dyn WidgetsListEntry>> = __this.lock().borrow().get_hovered();
+        // java: WidgetsListEntry hoveredEntry = getHovered(); - the list answers the row's index: its object is the entry
+        let __hovered_index: Option<usize> = __this.lock().borrow().base.list.get_hovered();
+        let mut hovered_entry: Option<compat::Shared<dyn WidgetsListEntry>> = __hovered_index.and_then(|__i| compat::read(__this, |__t| compat::entry_at::<dyn WidgetsListEntry>(&__t.base, __i)));
         if let Some(hovered_entry) = &hovered_entry {
             let __o1 = hovered_entry.clone();
             let __o2 = hovered_entry.clone();
@@ -211,8 +213,10 @@ impl WidgetsElementList {
 
     /// java: @Override public boolean mouseClicked(MouseButtonEvent click, boolean doubled)
     pub fn mouse_clicked(__this: &compat::Shared<Self>, click: &MouseButtonEvent, mut doubled: bool) -> bool {
-        // TODO(fabric2seer): `mouse_clicked` takes 3 argument(s) in the port (`button: i32, x: f64, y: f64`), Java passes 2
-        if compat::read(__this, |__t| __t.back_button.clone()).is_some() && { let (__q0, __q1,) = (click.clone(), doubled,); __this.lock().borrow().back_button.as_ref().unwrap().mouse_clicked(__q0, __q1) }.is_some() {
+        // java: if (backButton != null && backButton.mouseClicked(click, doubled)) return true;
+        // rust: port gap (GAPS_batchC #L3) - the back button is this list's own widget value, not a screen's: the port's
+        // `mouse_clicked` answers the press it would run (its `OnPress`), which only a screen can run
+        if compat::read(__this, |__t| __t.back_button.is_some()) && __this.lock().borrow().back_button.as_ref().unwrap().mouse_clicked(click.button(), click.x(), click.y()).is_some() {
             return true;
         }
         if !(compat::read(__this, |__t| __t.enable_editing)) || WidgetsElementList::get_selected(__this).is_none() {

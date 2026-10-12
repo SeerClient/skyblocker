@@ -69,7 +69,7 @@ impl SlayersPage {
     /// java: public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta, int rootX, int rootY)
     pub fn extract_render_state_impl(__this: &compat::Shared<Self>, graphics: &mut GuiGraphicsExtractor, mut mouse_x: i32, mut mouse_y: i32, mut delta: f32, mut root_x: i32, mut root_y: i32) {
         for i in 0..(__this.lock().borrow().slayer_widgets.len() as i32) {
-            (__this.lock().borrow().slayer_widgets[(i) as usize]).extract_render_state(graphics, mouse_x, mouse_y, root_x, root_y.wrapping_add(i.wrapping_mul(ROW_GAP)));
+            (__this.lock().borrow_mut().slayer_widgets[(i) as usize]).extract_render_state(graphics, mouse_x, mouse_y, root_x, root_y.wrapping_add(i.wrapping_mul(ROW_GAP)));
         }
     }
 

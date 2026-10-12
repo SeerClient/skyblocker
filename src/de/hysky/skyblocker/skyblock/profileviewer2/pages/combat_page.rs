@@ -4,6 +4,7 @@
 use crate::prelude::*;
 use crate::de::hysky::skyblocker::skyblock::profileviewer2::loading_information::LoadingInformation;
 use crate::de::hysky::skyblocker::skyblock::profileviewer2::pages::profile_viewer_page::ProfileViewerPage;
+use crate::de::hysky::skyblocker::skyblock::profileviewer2::pages::profile_viewer_page::ProfileViewerPageAny;
 use crate::de::hysky::skyblocker::skyblock::profileviewer2::widgets::ruler_widget::RulerWidget;
 use crate::de::hysky::skyblocker::skyblock::tabhud::util::ico;
 use crate::de::hysky::skyblocker::utils::flexible_item_stack::FlexibleItemStack;
@@ -33,7 +34,7 @@ impl CombatPage {
 
 }
 
-impl ProfileViewerPage<crate::de::hysky::skyblocker::skyblock::profileviewer2::loading_information::LoadingInformation> for CombatPage {
+impl ProfileViewerPageAny for CombatPage {
     fn as_any(&self) -> &dyn std::any::Any {
         self
     }
@@ -48,11 +49,19 @@ impl ProfileViewerPage<crate::de::hysky::skyblocker::skyblock::profileviewer2::l
         return component::literal("Combat");
     }
 
-    /// java: @Override public CompletableFuture<LayoutElement> load(LoadingInformation info)
-    fn load(&self, info: &LoadingInformation) -> mcrust::java::util::concurrent::completable_future::CompletableFuture<LayoutElement> {
-        return CompletableFuture::completed_future(info.clone()).then_apply_async(|__a0| self.build_widgets(&__a0), std::sync::Arc::new(|__t: Box<dyn FnOnce() + Send>| mcrust::mcrust::modding::game::execute(__t)));
+    /// java: @Override public CompletableFuture<LayoutElement> load(LoadingInformation info) (dispatch: the body for this class)
+    fn load(&self) -> fn(&compat::Shared<dyn ProfileViewerPageAny>, &LoadingInformation) -> compat::LocalFuture<LayoutElement> {
+        CombatPage::load_dyn
     }
 
+    /// java: @Override public List<AbstractWidget> getWidgets()
+    fn get_widgets(&self) -> Vec<AbstractWidget> {
+        return self.widgets.clone();
+    }
+
+}
+
+impl ProfileViewerPage<crate::de::hysky::skyblocker::skyblock::profileviewer2::loading_information::LoadingInformation> for CombatPage {
     /// java: @Override public LayoutElement buildWidgets(LoadingInformation data)
     fn build_widgets(&self, data: &LoadingInformation) -> LayoutElement {
         let mut vertical: LinearLayout = LinearLayout::vertical();
@@ -65,9 +74,13 @@ impl ProfileViewerPage<crate::de::hysky::skyblocker::skyblock::profileviewer2::l
         return LayoutElement::Grid(vertical.wrapped);
     }
 
-    /// java: @Override public List<AbstractWidget> getWidgets()
-    fn get_widgets(&self) -> Vec<AbstractWidget> {
-        return self.widgets.clone();
-    }
+}
 
+impl CombatPage {
+    /// CombatPage.load as the dispatch of ProfileViewerPage.load
+    pub fn load_dyn(__this: &compat::Shared<dyn ProfileViewerPageAny>, info: &LoadingInformation) -> compat::LocalFuture<LayoutElement> {
+        // java: return CompletableFuture.completedFuture(info).thenApplyAsync(this::buildWidgets, Minecraft.getInstance());
+        let __h: compat::Shared<CombatPage> = compat::handle_as::<CombatPage, _>(__this);
+        return compat::LocalFuture::completed_future(info.clone()).then_apply_async(move |__a0| compat::read(&__h, |__t| __t.build_widgets(&__a0)));
+    }
 }

@@ -99,10 +99,10 @@ impl dyn BasicInfoBoxWidget {
 
 impl BasicInfoBoxWidget for BasicInfoBoxWidgetBase {
     fn basic_info_box_widget_base(&self) -> &BasicInfoBoxWidgetBase {
-        &self
+        self
     }
     fn basic_info_box_widget_base_mut(&mut self) -> &mut BasicInfoBoxWidgetBase {
-        &mut self
+        self
     }
 
     fn as_any(&self) -> &dyn std::any::Any {

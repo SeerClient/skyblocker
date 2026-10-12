@@ -67,17 +67,17 @@ impl BackpackItemLoader {
     pub fn load_items_impl(__this: &compat::Shared<Self>, data: &serde_json::Map<String, serde_json::Value>) -> Vec<mcrust::net::minecraft::world::item::item_stack::ItemStack> {
         let mut backpack_items: Vec<mcrust::net::minecraft::world::item::item_stack::ItemStack> = Vec::new();
         let mut sorted_entries: Vec<(String, serde_json::Value)> = compat::sorted_by(data.iter().map(|(k, v)| (k.clone(), v.clone())), |e1, e2| {
-            let mut key1: i32 = e1.0.trim().parse::<i32>().expect("NumberFormatException");
-            let mut key2: i32 = e2.0.trim().parse::<i32>().expect("NumberFormatException");
-            return compat::ord_int(key1.cmp(&key2));
+            let mut key1: i32 = e1.0.parse::<i32>().expect("NumberFormatException");
+            let mut key2: i32 = e2.0.parse::<i32>().expect("NumberFormatException");
+            return key1.cmp(&key2);
         }).collect::<Vec<_>>();
         for i in 0..(sorted_entries.len() as i32) {
             backpack_items.extend(<dyn ItemLoader>::load_items_body(&compat::view(__this, |a| a as compat::Shared<dyn ItemLoader>), &compat::json::get_as_json_object(&(sorted_entries[(i) as usize].1))).into_iter());
             let mut padding_needed: i32 = (45i32.wrapping_sub((backpack_items.len() as i32).wrapping_rem(45))).wrapping_rem(45);
             for j in 0..padding_needed {
                 let mut padding_item: mcrust::net::minecraft::world::item::item_stack::ItemStack = FlexibleItemStack::get_stack_or_throw(&FlexibleItemStack::copy(ico::GRAY_DYE.get_mut()));
-                padding_item.set(mcrust::net::minecraft::core::component::data_components::custom_name().clone(), Some(component::translatable("skyblocker.profileviewer.inventory.inactive")));
-                padding_item.set(mcrust::net::minecraft::core::component::data_components::lore().clone(), Some(ItemLore::new(vec![component::translatable("skyblocker.profileviewer.inventory.inactive.description.backpack"), component::translatable("skyblocker.profileviewer.inventory.inactive.description.general")]).unwrap()));
+                padding_item.set(mcrust::net::minecraft::core::component::data_components::custom_name().clone(), Some(mcrust::com::mojang::serialization::obj(mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::translatable("skyblocker.profileviewer.inventory.inactive")))));
+                padding_item.set(mcrust::net::minecraft::core::component::data_components::lore().clone(), Some(mcrust::com::mojang::serialization::obj(ItemLore::new(vec![mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::translatable("skyblocker.profileviewer.inventory.inactive.description.backpack")), mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::translatable("skyblocker.profileviewer.inventory.inactive.description.general"))]).unwrap())));
                 backpack_items.push(padding_item.clone());
             }
         }

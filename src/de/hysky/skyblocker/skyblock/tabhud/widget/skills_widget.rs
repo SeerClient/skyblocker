@@ -158,7 +158,7 @@ impl ElementCollector for SkillsWidget {
 
     /// java: public <T extends Element> T addElement(T c)
     fn add_element(&mut self, mut c: compat::Shared<dyn Element>) -> compat::Shared<dyn Element> {
-        ({ let __f = compat::dispatch(&c, |__t| __t.set_parent()); __f(&c, self.clone()) });
+        ({ let __f = compat::dispatch(&c, |__t| __t.set_parent()); __f(&c, self.hud_widget_base().as_parent()) });
         self.elements.push(c.clone());
         return c;
     }
@@ -195,7 +195,7 @@ impl SkillsWidget {
 
     /// java: @Override protected void updateConfigContentTab(ElementCollector collector)
     pub fn update_config_content_tab_impl(__this: &compat::Shared<Self>, collector: &compat::Shared<dyn ElementCollector>) {
-        for i in 0..3 {
+        for i in 0i32..3 {
             { let (__a0,) = (Elements::progress_component_flexible_item_stack_component_float_int(Some(ico::LANTERN.get_mut().clone()), &component::literal(&format!("Skill {}", i.wrapping_add(1))), ((i.wrapping_mul(30)) as f32) as f32, mcrust::net::minecraft::network::chat::text_color::TextColor::GOLD.get_value()),); collector.lock().borrow_mut().add_element(__a0) };
         }
     }

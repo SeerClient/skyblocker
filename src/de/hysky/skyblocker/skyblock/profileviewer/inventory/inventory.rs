@@ -26,7 +26,7 @@ pub static TEXT_RENDERER: compat::MainThread<Font> = compat::MainThread::new(|| 
 #[derive(Clone)]
 pub struct Inventory {
     /// java: private final IntIntPair dimensions;
-    pub dimensions: Option<(i32, i32)>,
+    pub dimensions: (i32, i32),
     /// java: private final int itemsPerPage;
     pub items_per_page: i32,
     /// java: private final List<ItemStack> containerList;
@@ -55,7 +55,7 @@ impl Inventory {
     /// java: public Inventory(String name, IntIntPair dimensions, JsonObject inventory, ItemLoader itemLoader)
     pub fn new_4(mut name: String, mut dimensions: (i32, i32), mut inventory: serde_json::Map<String, serde_json::Value>, mut item_loader: compat::Shared<dyn ItemLoader>) -> compat::Shared<Self> {
         let __init_container_name = name.clone();
-        let __init_dimensions = Some(dimensions.clone());
+        let __init_dimensions = dimensions;
         let __init_items_per_page = dimensions.1.wrapping_mul(dimensions.0);
         let __init_container_list = ({ let __f = compat::dispatch(&item_loader, |__t| __t.load_items()); __f(&item_loader, &inventory) });
         let __this = compat::shared(Self {
@@ -123,8 +123,9 @@ impl Inventory {
         gui_graphics_extractor::blit_identifier(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), mcrust::net::minecraft::client::renderer::render_pipelines::gui_textured(), TEXTURE.get_mut(), (root_x.wrapping_add((compat::read(__this, |__t| __t.dimensions.clone()).1).wrapping_mul(18))).wrapping_add(7), root_y_adjusted, ((169) as f32) as f32, ((0) as f32) as f32, 7, ((compat::read(__this, |__t| __t.dimensions.clone()).0).wrapping_mul(18)).wrapping_add(17), 256, 256);
         gui_graphics_extractor::blit_identifier(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), mcrust::net::minecraft::client::renderer::render_pipelines::gui_textured(), TEXTURE.get_mut(), root_x, (root_y_adjusted.wrapping_add((compat::read(__this, |__t| __t.dimensions.clone()).0).wrapping_mul(18))).wrapping_add(17), ((0) as f32) as f32, ((215) as f32) as f32, ((compat::read(__this, |__t| __t.dimensions.clone()).1).wrapping_mul(18)).wrapping_add(7), 7, 256, 256);
         gui_graphics_extractor::blit_identifier(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), mcrust::net::minecraft::client::renderer::render_pipelines::gui_textured(), TEXTURE.get_mut(), (root_x.wrapping_add((compat::read(__this, |__t| __t.dimensions.clone()).1).wrapping_mul(18))).wrapping_add(7), (root_y_adjusted.wrapping_add((compat::read(__this, |__t| __t.dimensions.clone()).0).wrapping_mul(18))).wrapping_add(17), ((169) as f32) as f32, ((215) as f32) as f32, 7, 7, 256, 256);
-        // TODO(fabric2seer): `.getRGB(..)` on a value of unknown type
-        //   java: graphics.text(textRenderer,  I18n.get("skyblocker.profileviewer.inventory." + containerName), rootX + 7, rootYAdjusted + 7, Color.DARK_GRAY.getRGB(), false);
+        // java: graphics.text(textRenderer,  I18n.get("skyblocker.profileviewer.inventory." + containerName), rootX + 7, rootYAdjusted + 7, Color.DARK_GRAY.getRGB(), false);
+        let __name = mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(mcrust::net::minecraft::network::chat::component::literal(&i18n::get(&format!("skyblocker.profileviewer.inventory.{}", compat::read(__this, |__t| __t.container_name.clone())), &[])));
+        gui_graphics_extractor::draw_formatted_text_with_drop_shadow(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), &__name, root_x.wrapping_add(7), root_y_adjusted.wrapping_add(7), mcrust::java::awt::color::dark_gray().get_rgb(), false);
         if (__this.lock().borrow().container_list.len() as i32) > compat::read(__this, |__t| __t.items_per_page) {
             let __wa1 = root_x.wrapping_add(44);
             let __o1 = compat::read(__this, |__t| __t.previous_page.clone()).unwrap();
@@ -132,22 +133,25 @@ impl Inventory {
             let __wa2 = root_y.wrapping_add(136);
             let __o2 = compat::read(__this, |__t| __t.previous_page.clone()).unwrap();
             compat::write(&__o2, |__t| __t.set_y(__wa2));
-            // TODO(fabric2seer): `extract_render_state` is a method of the port's trait `Renderable`, which the port's `AbstractWidget` does not implement
+            // rust: port gap (GAPS_batchC #C2) - `button.extractRenderState(graphics, ..)` on a widget OBJECT: the port's
+            // widget is drawn by the screen it was added to (`ProfileViewerScreen.init` adds `getButtons()`, which the game draws)
             // rust: let __wa3 = graphics.clone();
             // rust: let __wa4 = mouse_x;
             // rust: let __wa5 = mouse_y;
             // rust: let __wa6 = delta;
             // rust: let __o3 = compat::read(__this, |__t| __t.previous_page.clone()).unwrap();
             // rust: compat::write(&__o3, |__t| __t.extract_render_state(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), __wa4, __wa5, __wa6));
-            // TODO(fabric2seer): `.getRGB(..)` on a value of unknown type
-            //   java: graphics.centeredText(textRenderer, "Page: " + (activePage + 1) + "/" + totalPages, rootX + 88, rootY + 140, Color.WHITE.getRGB());
+            // java: graphics.centeredText(textRenderer, "Page: " + (activePage + 1) + "/" + totalPages, rootX + 88, rootY + 140, Color.WHITE.getRGB());
+            let __page_text = format!("Page: {}/{}", (compat::read(__this, |__t| __t.active_page)).wrapping_add(1), compat::read(__this, |__t| __t.total_pages));
+            gui_graphics_extractor::centered_text_string(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), &__page_text, root_x.wrapping_add(88), root_y.wrapping_add(140), mcrust::java::awt::color::white().get_rgb());
             let __wa7 = root_x.wrapping_add(121);
             let __o4 = compat::read(__this, |__t| __t.next_page.clone()).unwrap();
             compat::write(&__o4, |__t| __t.set_x(__wa7));
             let __wa8 = root_y.wrapping_add(136);
             let __o5 = compat::read(__this, |__t| __t.next_page.clone()).unwrap();
             compat::write(&__o5, |__t| __t.set_y(__wa8));
-            // TODO(fabric2seer): `extract_render_state` is a method of the port's trait `Renderable`, which the port's `AbstractWidget` does not implement
+            // rust: port gap (GAPS_batchC #C2) - `button.extractRenderState(graphics, ..)` on a widget OBJECT: the port's
+            // widget is drawn by the screen it was added to (`ProfileViewerScreen.init` adds `getButtons()`, which the game draws)
             // rust: let __wa9 = graphics.clone();
             // rust: let __wa10 = mouse_x;
             // rust: let __wa11 = mouse_y;
@@ -158,8 +162,11 @@ impl Inventory {
         let mut start_index: i32 = (compat::read(__this, |__t| __t.active_page)).wrapping_mul(compat::read(__this, |__t| __t.items_per_page));
         let mut end_index: i32 = (start_index.wrapping_add(compat::read(__this, |__t| __t.items_per_page))).min((__this.lock().borrow().container_list.len() as i32));
         let mut hovered_stack: Option<mcrust::net::minecraft::world::item::item_stack::ItemStack> = None;
+        // (the page's own list, read in place: nothing in the loop reaches this page)
+        let __this_guard = __this.lock();
+        let __this_ref = __this_guard.borrow();
         for i in 0..end_index.wrapping_sub(start_index) {
-            let stack = &__this.lock().borrow().container_list[(start_index.wrapping_add(i)) as usize];
+            let stack = &__this_ref.container_list[(start_index.wrapping_add(i)) as usize];
             if stack.is_empty() {
                 continue;
             }
@@ -242,8 +249,9 @@ impl Inventory {
     /// java: @Override public List<AbstractWidget> getButtons()
     pub fn get_buttons_impl(__this: &compat::Shared<Self>) -> Option<Vec<AbstractWidget>> {
         let mut buttons: Vec<AbstractWidget> = Vec::new();
-        buttons.push(compat::read(__this, |__t| __t.next_page.clone()).unwrap());
-        buttons.push(compat::read(__this, |__t| __t.previous_page.clone()).unwrap());
+        // (the widget objects, as the game's widgets - each attached to its object)
+        buttons.push(compat::WidgetAdapter::widget(compat::read(__this, |__t| __t.next_page.clone()).expect("NullPointerException")));
+        buttons.push(compat::WidgetAdapter::widget(compat::read(__this, |__t| __t.previous_page.clone()).expect("NullPointerException")));
         return Some(buttons);
     }
 

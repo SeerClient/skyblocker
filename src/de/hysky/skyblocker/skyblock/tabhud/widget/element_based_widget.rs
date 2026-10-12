@@ -183,7 +183,10 @@ impl dyn ElementBasedWidget {
         if let Err(e) = __result {
             if false /* java: compat::panic_message(&e) == null: never null here */ || !(Some(&*(compat::panic_message(&e))) == compat::read(__this, |__t| __t.element_based_widget_base().last_error.clone()).as_deref()) {
                 { let __v = Some(compat::panic_message(&e)); compat::write(__this, |__t| __t.element_based_widget_base_mut().last_error = __v); }
-                logger().error(&format!("Failed to update contents of {}", compat::jstring(&__this)));
+                // java: LOGGER.error("Failed to update contents of {}", this, e); - `this` prints as Object.toString,
+                // the class and `hashCode()` (`getInternalID().hashCode()`)
+                let __id = { let __f = compat::dispatch(__this, |__t| __t.get_internal_id()); __f(&compat::view(__this, |a| a as compat::Shared<dyn HudWidget>)) };
+                logger().error(&format!("Failed to update contents of {}@{:x} {}", __id, compat::string_hash_code(&__id), compat::panic_message(&e)));
             }
             __this.lock().borrow_mut().element_based_widget_base_mut().elements.clear();
             let __h0 = ERROR_ELEMENTS.get_mut().iter().cloned();
@@ -197,12 +200,12 @@ impl dyn ElementBasedWidget {
     /// java: protected final void updateConfig()
     pub fn update_config_body(__this: &compat::Shared<dyn ElementBasedWidget>) {
         let mut collector: compat::Shared<ElementCollection> = ElementCollection::new();
-        ({ let __f = compat::dispatch(__this, |__t| __t.update_config_content()); __f(__this, &collector) });
+        ({ let __f = compat::dispatch(__this, |__t| __t.update_config_content()); __f(__this, &compat::view(&collector, |a| a as compat::Shared<dyn ElementCollector>)) });
         if !(ElementCollection::get_elements(&collector).is_empty()) {
             { let __v = ElementCollection::get_elements(&collector); compat::write(__this, |__t| __t.element_based_widget_base_mut().config_elements = __v); }
         }
         for element in compat::read(__this, |__t| __t.element_based_widget_base().config_elements.clone()) {
-            ({ let __f = compat::dispatch(&element, |__t| __t.set_parent()); __f(&element, __this.clone()) });
+            ({ let __p = compat::read(__this, |__t| __t.hud_widget_base().as_parent()); let __f = compat::dispatch(&element, |__t| __t.set_parent()); __f(&element, __p) });
         }
         ({ let __f = compat::dispatch(__this, |__t| __t.pack()); __f(__this, &compat::read(__this, |__t| __t.element_based_widget_base().config_elements.clone())) });
     }
@@ -265,12 +268,11 @@ impl dyn ElementBasedWidget {
     /// java: private void extractInternal(GuiGraphicsExtractor context, Collection<Element> elements, boolean config)
     pub fn extract_internal_body(__this: &compat::Shared<dyn ElementBasedWidget>, context: &mut GuiGraphicsExtractor, elements: &Vec<compat::Shared<dyn Element>>, mut config: bool) {
         if SkyblockerConfigManager::get().ui_and_visuals.tab_hud.enable_hud_background && compat::read(__this, |__t| __t.element_based_widget_base().background_opacity) > (0 as f32) {
-            let mut options: Options = compat::minecraft().options.clone();
+            // java: Options options = Minecraft.getInstance().options;
+            let options = &compat::minecraft().options;
             let mut opacity: f32 = (if SkyblockerConfigManager::get().ui_and_visuals.tab_hud.style.is_minimal() { (compat::read(__this, |__t| __t.element_based_widget_base().background_opacity) / (2 as f32)) } else { compat::read(__this, |__t| __t.element_based_widget_base().background_opacity) });
-            // TODO(fabric2seer): the port's `background_color_from_int` ports this Java method with other parameters (data, default_color for Java's default_color)
-            // TODO(fabric2seer): `background_color_from_int` takes 2 argument(s) in the port (`data: &OptionsData, default_color: i32`), Java passes 1
-            // rust: let mut text_background_color: i32 = options::background_color_from_int(&argb::black_f32(opacity));
-            let mut text_background_color: i32 = todo!("fabric2seer: the initialiser of `textBackgroundColor` (TODO above)");
+            // java: int textBackgroundColor = options.getBackgroundColor(ARGB.black(opacity));
+            let mut text_background_color: i32 = options::background_color_from_int(&options.borrow(), argb::black_f32(opacity));
             if compat::read(__this, |__t| __t.element_based_widget_base().rounded_corners) {
                 context.fill(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), 1, 0, (compat::read(__this, |__t| __t.element_based_widget_base().w)).wrapping_sub(1), compat::read(__this, |__t| __t.element_based_widget_base().h), text_background_color);
                 context.fill(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), 0, 1, 1, (compat::read(__this, |__t| __t.element_based_widget_base().h)).wrapping_sub(1), text_background_color);
@@ -324,8 +326,9 @@ impl dyn ElementBasedWidget {
         collector.yes_no_button_3(&component::translatable("skyblocker.config.hud.widget.element.showTitle"), Arc::new(move |b| { let Some(__this_2) = __this_w2.get().upgrade() else { return Default::default(); }; { { let __v = b; compat::write((&__this_2), |__t| __t.element_based_widget_base_mut().draw_title = __v); } } }), compat::read(__this, |__t| __t.element_based_widget_base().draw_title));
         let __this_w3 = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
         collector.yes_no_button_3(&component::translatable("skyblocker.config.hud.widget.element.roundedCorners"), Arc::new(move |b| { let Some(__this_3) = __this_w3.get().upgrade() else { return Default::default(); }; { { let __v = b; compat::write((&__this_3), |__t| __t.element_based_widget_base_mut().rounded_corners = __v); } } }), compat::read(__this, |__t| __t.element_based_widget_base().rounded_corners));
-        // TODO(fabric2seer): an assignment used as a value
-        //   java: collector.slider(Component.translatable("skyblocker.config.hud.widget.element.backgroundOpacity"), d -> backgroundOpacity = (float) d, backgroundOpacity, 0, 1);
+        // java: collector.slider(Component.translatable("skyblocker.config.hud.widget.element.backgroundOpacity"), d -> backgroundOpacity = (float) d, backgroundOpacity, 0, 1);
+        let __this_w4 = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
+        collector.slider(&component::translatable("skyblocker.config.hud.widget.element.backgroundOpacity"), Arc::new(move |d: f64| { if let Some(__this_4) = __this_w4.get().upgrade() { compat::write(&__this_4, |__t| __t.element_based_widget_base_mut().background_opacity = d as f32); } }), compat::read(__this, |__t| __t.element_based_widget_base().background_opacity) as f64, 0.0, 1.0);
     }
 
     /// ElementBasedWidget.getOptionWidgets as the dispatch of HudWidget.getOptionWidgets for the concrete class `__C`
@@ -353,7 +356,7 @@ impl dyn ElementBasedWidget {
         output.write_bool("draw_border", compat::read(__this, |__t| __t.element_based_widget_base().draw_border));
         output.write_bool("draw_title", compat::read(__this, |__t| __t.element_based_widget_base().draw_title));
         output.write_bool("rounded_corners", compat::read(__this, |__t| __t.element_based_widget_base().rounded_corners));
-        output.write_number("background_opacity", &compat::read(__this, |__t| __t.element_based_widget_base().background_opacity));
+        output.write_number("background_opacity", &mcrust::java::lang::number::Number::Float(compat::read(__this, |__t| __t.element_based_widget_base().background_opacity)));
     }
 
     /// ElementBasedWidget.save as the dispatch of HudWidget.save for the concrete class `__C`

@@ -9,7 +9,7 @@ use crate::de::hysky::skyblocker::skyblock::profileviewer2::utils::profile_item_
 use mcrust::com::mojang::authlib::game_profile::GameProfile;
 
 /// java: public record LoadingInformation(ApiProfile profile, GameProfile mainMember, ProfileMember member, Map<String, Integer> leaderboards, CompletableFuture<ProfileItemStorage> itemStorage)
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct LoadingInformation {
     /// java: ApiProfile profile
     pub profile: compat::Shared<ApiProfile>,
@@ -20,12 +20,12 @@ pub struct LoadingInformation {
     /// java: Map<String, Integer> leaderboards
     pub leaderboards: std::collections::HashMap<String, i32>,
     /// java: CompletableFuture<ProfileItemStorage> itemStorage
-    pub item_storage: mcrust::java::util::concurrent::completable_future::CompletableFuture<ProfileItemStorage>,
+    pub item_storage: compat::LocalFuture<ProfileItemStorage>,
 }
 
 impl LoadingInformation {
     /// java: the canonical record constructor
-    pub fn new(mut profile: compat::Shared<ApiProfile>, mut main_member: GameProfile, mut member: compat::Shared<ProfileMember>, mut leaderboards: std::collections::HashMap<String, i32>, mut item_storage: mcrust::java::util::concurrent::completable_future::CompletableFuture<ProfileItemStorage>) -> Self {
+    pub fn new(mut profile: compat::Shared<ApiProfile>, mut main_member: GameProfile, mut member: compat::Shared<ProfileMember>, mut leaderboards: std::collections::HashMap<String, i32>, item_storage: compat::LocalFuture<ProfileItemStorage>) -> Self {
         Self { profile, main_member, member, leaderboards, item_storage }
     }
 
@@ -50,7 +50,7 @@ impl LoadingInformation {
     }
 
     /// java: the record accessor `itemStorage()`
-    pub fn item_storage(&self) -> mcrust::java::util::concurrent::completable_future::CompletableFuture<ProfileItemStorage> {
+    pub fn item_storage(&self) -> compat::LocalFuture<ProfileItemStorage> {
         self.item_storage.clone()
     }
 

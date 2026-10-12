@@ -171,7 +171,7 @@ impl ElementCollector for DungeonBuffWidget {
 
     /// java: public <T extends Element> T addElement(T c)
     fn add_element(&mut self, mut c: compat::Shared<dyn Element>) -> compat::Shared<dyn Element> {
-        ({ let __f = compat::dispatch(&c, |__t| __t.set_parent()); __f(&c, self.clone()) });
+        ({ let __f = compat::dispatch(&c, |__t| __t.set_parent()); __f(&c, self.hud_widget_base().as_parent()) });
         self.elements.push(c.clone());
         return c;
     }
@@ -192,7 +192,7 @@ impl DungeonBuffWidget {
             return;
         }
         lines = lines.iter().cloned().filter(|s| s.contains("Blessing")).collect::<Vec<_>>();
-        lines.sort_by(|a, b| { let key = |__a0| __a0.to_lowercase(); key(a).cmp(&key(b)) });
+        lines.sort_by(|a, b| { let key = |__a0: &String| __a0.to_lowercase(); key(a).cmp(&key(b)) });
         for line in lines.iter() {
             if compat::str_len(&line) < 3 {
                 break;

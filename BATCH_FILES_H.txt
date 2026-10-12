@@ -1,0 +1,13 @@
+src/de/hysky/skyblocker/skyblock/fancybars/
+src/de/hysky/skyblocker/config/datafixer/
+src/de/hysky/skyblocker/skyblock/chocolatefactory/
+src/de/hysky/skyblocker/skyblock/museum/
+src/de/hysky/skyblocker/skyblock/auction/
+src/de/hysky/skyblocker/skyblock/teleport/
+src/de/hysky/skyblocker/skyblock/end/
+src/de/hysky/skyblocker/skyblock/speedpreset/
+src/de/hysky/skyblocker/compatibility/jei/
+src/de/hysky/skyblocker/debug/
+src/de/hysky/skyblocker/utils/render/
+src/de/hysky/skyblocker/compatibility/emi/
+src/de/hysky/skyblocker/utils/time/

@@ -47,22 +47,21 @@ impl DungeonFloorRunsWidget {
         let mut column_x: i32 = x.wrapping_add(4);
         let mut element_y: i32 = y.wrapping_add(15);
         for dungeon in DUNGEONS.iter() {
-            let mut dungeon_data: serde_json::Map<String, serde_json::Value>;
-            // java: try {..} catch (Exception _) - an exception here is a panic, caught by `catch_unwind`
+            // java: JsonObject dungeonData; try {..} catch (Exception _) - an exception here is a panic, caught by
+            // `catch_unwind` (the variable is only read inside the try)
             let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                dungeon_data = compat::json::get_as_json_object_of(&(compat::json::get_as_json_object_of(&self.dungeons_stats.as_ref().unwrap(), dungeon)), "tier_completions");
+                let dungeon_data: serde_json::Map<String, serde_json::Value> = compat::json::get_as_json_object_of(&(compat::json::get_as_json_object_of(&self.dungeons_stats.as_ref().unwrap(), dungeon)), "tier_completions");
                 let mut entries: Vec<(String, serde_json::Value)> = dungeon_data.iter().map(|(k, v)| (k.clone(), v.clone())).collect::<Vec<_>>();
-                // TODO(fabric2seer): static field Map.Entry
-                //   java: entries.sort(Comparator.comparing(Map.Entry::getKey));
+                // java: entries.sort(Comparator.comparing(Map.Entry::getKey)); - String.compareTo
+                entries.sort_by(|a, b| compat::compare_to(&a.0, &b.0).cmp(&0));
                 for entry in entries.iter() {
                     if entry.0 == "total" {
                         continue;
                     }
-                    // TODO(fabric2seer): String.format with a non-literal format
-                    //   java: String textToRender = String.format((dungeon.equals("catacombs") ? "§aF" : "§cM") + "%s§r %s", entry.getKey(), entry.getValue().getAsInt());
-                    let mut text_to_render: String = todo!("fabric2seer: the initialiser of `textToRender` (TODO above)");
-                    // TODO(fabric2seer): `.getRGB(..)` on a value of unknown type
-                    //   java: graphics.text(textRenderer, textToRender, columnX + 2, elementY + 2, Color.WHITE.getRGB(), true);
+                    // java: String textToRender = String.format((dungeon.equals("catacombs") ? "§aF" : "§cM") + "%s§r %s", entry.getKey(), entry.getValue().getAsInt());
+                    let mut text_to_render: String = compat::string_format(&format!("{}%s§r %s", if dungeon == "catacombs" { "§aF" } else { "§cM" }), &[compat::FormatArg::from(entry.0.clone()), compat::FormatArg::from(compat::json::get_as_int(&entry.1))]);
+                    // java: graphics.text(textRenderer, textToRender, columnX + 2, elementY + 2, Color.WHITE.getRGB(), true);
+                    gui_graphics_extractor::draw_formatted_text_with_drop_shadow(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), &mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::literal(&text_to_render)), column_x.wrapping_add(2), element_y.wrapping_add(2), mcrust::java::awt::color::white().get_rgb(), true);
                     if !(entry.0 == "0") && mouse_x >= column_x && mouse_x <= column_x.wrapping_add(40) && mouse_y >= element_y && mouse_y <= element_y.wrapping_add(9) {
                         let mut tooltip_text: Vec<MutableComponent> = Vec::new();
                         tooltip_text.push(component::literal("Personal Bests").with_style_formats(&[ChatFormatting::Bold, ChatFormatting::LightPurple]));

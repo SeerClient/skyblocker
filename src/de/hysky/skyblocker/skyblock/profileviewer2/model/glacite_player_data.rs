@@ -134,7 +134,7 @@ impl Fossil {
 
     /// java: public static List<Fossil> fromDonated(List<String> donated)
     pub fn from_donated(donated: &Vec<String>) -> Vec<Fossil> {
-        return compat::sorted_by(Fossil::values().iter().copied().filter(|fossil| donated.iter().any(|e| *e == fossil.name())), |a, b| { let key = |__a0| __a0.ordinal(); key(a).cmp(&key(b)) }).collect::<Vec<_>>();
+        return compat::sorted_by(Fossil::values().iter().copied().filter(|fossil| donated.iter().any(|e| *e == fossil.name())), |a: &Fossil, b: &Fossil| { let key = |__a0: &Fossil| __a0.ordinal(); key(a).cmp(&key(b)) }).collect::<Vec<_>>();
     }
 
 }

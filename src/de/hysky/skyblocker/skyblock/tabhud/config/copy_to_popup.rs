@@ -75,7 +75,7 @@ impl CopyToPopup {
     pub fn new(mut background_screen: mcrust::net::minecraft::client::gui::screens::screen::Screen, mut copied_widget: compat::Shared<PositionedWidget>, mut location: Location, mut layer: ScreenLayer) -> compat::Shared<Self> {
         let __init_copied_widget = copied_widget.clone();
         let __init_selected_locations = WidgetManager::get_copy_tracker().get(layer).get(&({ let __r = &compat::read(&copied_widget, |__t| __t.widget.clone()); let __f = compat::dispatch(__r, |__t| __t.get_internal_id()); __f(__r) })).and_then(|s| ExclusiveGroupingSet::get_group(&s, &location)).unwrap_or_else(|| std::collections::HashSet::<_>::new());
-        let __init_available_locations = widget_manager::ALLOWED_LOCATIONS.iter().copied().filter(|l| (({ let __r = &compat::read(&copied_widget, |__t| __t.widget.clone()); let __f = compat::dispatch(__r, |__t| __t.get_information()); __f(__r) }).available())(*l)).collect();
+        let __init_available_locations = widget_manager::ALLOWED_LOCATIONS.iter().copied().filter(|l| (({ let __r = &compat::read(&copied_widget, |__t| __t.widget.clone()); let __f = compat::dispatch(__r, |__t| __t.get_information()); __f(__r) }).available())(*l)).collect::<std::collections::HashSet<Location>>();
         let __init_location = location;
         let __init_layer = layer;
         // TODO(fabric2seer): the mod keeps the game's `Screen` (Java holds a reference to the live object); the port's `Screen` is not a value to copy and the port lends the mod no handle to it
@@ -98,11 +98,18 @@ impl CopyToPopup {
         { let __o = compat::read(__this, |__t| __t.available_locations.clone()); __this.lock().borrow_mut().selected_locations.retain(|e| __o.contains(e)); };
         for loc in compat::read(__this, |__t| __t.selected_locations.clone()) {
             let mut config: LayerConfig = WidgetManager::get_screen_config(loc).get(compat::read(__this, |__t| __t.layer));
+            let __id: String = ({ let __r = &compat::read(&compat::read(__this, |__t| __t.copied_widget.clone()), |__t| __t.widget.clone()); let __f = compat::dispatch(__r, |__t| __t.get_internal_id()); __f(__r) });
             if compat::read(__this, |__t| __t.copy_position) {
-                config.widgets().insert(({ let __r = &compat::read(&compat::read(__this, |__t| __t.copied_widget.clone()), |__t| __t.widget.clone()); let __f = compat::dispatch(__r, |__t| __t.get_internal_id()); __f(__r) }), WidgetConfig::new(widget_config.clone(), compat::read(&compat::read(__this, |__t| __t.copied_widget.clone()), |__t| __t.rule.clone())));
+                // java: config.widgets().put(copiedWidget.widget.getInternalID(), new WidgetConfig(widgetConfig, copiedWidget.rule)); - the config's own map
+                let __v = WidgetConfig::new(widget_config.clone(), compat::read(&compat::read(__this, |__t| __t.copied_widget.clone()), |__t| __t.rule.clone()));
+                compat::write(&config.widgets(), |__m| { __m.insert(__id, __v); });
             } else {
-                // TODO(fabric2seer): Map.computeIfPresent(..)
-                //   java: config.widgets().computeIfPresent(copiedWidget.widget.getInternalID(), (_, oldConfig) -> new WidgetConfig(Optional.of(widgetConfig), oldConfig.position()));
+                // java: config.widgets().computeIfPresent(copiedWidget.widget.getInternalID(), (_, oldConfig) -> new WidgetConfig(Optional.of(widgetConfig), oldConfig.position()));
+                compat::write(&config.widgets(), |__m| {
+                    if let Some(old_config) = __m.get(&__id).cloned() {
+                        __m.insert(__id, WidgetConfig::new_canonical(Some(widget_config.clone()), old_config.position()));
+                    }
+                });
             }
         }
         let __h0 = compat::read(__this, |__t| __t.location);
@@ -198,8 +205,11 @@ impl CopyToPopup {
         // rust: __this.lock().borrow_mut().scrollable.as_mut().unwrap().set_max_height(max_height);
         // TODO(fabric2seer): `ScrollableLayoutElement::set_min_width` ports `setMinWidth`, but the port's `ScrollableLayout` holds no `ScrollableLayoutElement` (no Deref, no `base` field) to call it on
         // rust: __this.lock().borrow_mut().scrollable.as_mut().unwrap().set_min_width(150);
-        let __r0 = compat::read(__this, |__t| __t.scrollable.clone());
-        { let (__q0,) = (__r0.unwrap(),); __this.lock().borrow_mut().layout.add_child(__q0) };
+        // rust: port gap (GAPS_batchC #C6) - Java's `ScrollableLayout` is a layout element holding the content; the port's
+        // `ScrollableLayout` is its scroll helper and the element is `ScrollableLayoutElement`, built by the screens
+        // that own it (the construction above is the converter's TODO)
+        // rust: let __r0 = compat::read(__this, |__t| __t.scrollable.clone());
+        // rust: { let (__q0,) = (__r0.unwrap(),); __this.lock().borrow_mut().layout.add_child(__q0) };
         { let (__q0,) = (SpacerElement::height(10).as_layout_element(),); __this.lock().borrow_mut().layout.add_child(__q0) };
         let __this_w3 = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
         { let (__q0,) = ({ let __w = (button::builder(mcrust::net::minecraft::network::chat::common_components::gui_done().get_string(), OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| { let Some(__this_3) = __this_w3.get().upgrade() else { return Default::default(); }; compat::lend_screen(&__this_3, __screen, || { let mut __pidx = compat::WidgetRef::Screen(__index); {

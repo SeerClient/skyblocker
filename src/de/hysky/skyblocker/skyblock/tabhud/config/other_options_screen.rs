@@ -80,8 +80,9 @@ impl OtherOptionsScreen {
             self_ref: std::sync::Weak::new(),
             __widgets: Default::default(),
             style_tooltip: Tooltip::create((component::translatable("skyblocker.config.uiAndVisuals.tabHud.style.@Tooltip[0]")).append_str("\n").append(component::translatable("skyblocker.config.uiAndVisuals.tabHud.style.@Tooltip[1]")).append_str("\n").append(component::translatable("skyblocker.config.uiAndVisuals.tabHud.style.@Tooltip[2]")).append_str("\n").append(component::translatable("skyblocker.config.uiAndVisuals.tabHud.style.@Tooltip[3]")).get_string()),
-            yes: mcrust::net::minecraft::network::chat::common_components::gui_yes().copy().with_style_format(ChatFormatting::Green),
-            no: mcrust::net::minecraft::network::chat::common_components::gui_no().copy().with_style_format(ChatFormatting::Red),
+            // java: CommonComponents.GUI_YES.copy().withStyle(ChatFormatting.GREEN)
+            yes: compat::component_of(mcrust::net::minecraft::network::chat::common_components::gui_yes()).with_style_format(ChatFormatting::Green),
+            no: compat::component_of(mcrust::net::minecraft::network::chat::common_components::gui_no()).with_style_format(ChatFormatting::Red),
             layout: None,
             parent: __init_parent,
         });
@@ -94,7 +95,9 @@ impl OtherOptionsScreen {
     pub fn init(__this: &compat::Shared<Self>) {
         let __r0 = compat::read(__this, |__t| __t.title.clone());
         { let (__q0,) = ({ let __w = compat::string_widget(0, 0, -1, 9, __r0); let (__ww, __wh) = (__w.get_width(), __w.get_height()); LayoutElement::widget(compat::write(__this, |__t| __t.add_widget(__w)), __ww, __wh) },); __this.lock().borrow_mut().layout.as_mut().unwrap().add_to_header(__q0) };
-        let mut body: LinearLayout = { let (__q0,) = (LayoutElement::Grid(LinearLayout::vertical().spacing(5).wrapped),); __this.lock().borrow_mut().layout.as_mut().unwrap().add_to_contents(__q0) };
+        // java: LinearLayout body = layout.addToContents(LinearLayout.vertical().spacing(5)); - the port's layouts own their
+        // children, so the body is filled first and joins the contents once complete (the same tree)
+        let mut body: LinearLayout = LinearLayout::vertical().spacing(5);
         body.default_cell_setting().align_horizontally_center();
         body.add_child({ let __w = compat::string_widget(0, 0, -1, 9, component::translatable("skyblocker.config.hud.otherOptions.globalOptions")); let (__ww, __wh) = (__w.get_width(), __w.get_height()); LayoutElement::widget(compat::write(__this, |__t| __t.add_widget(__w)), __ww, __wh) });
         // TODO(fabric2seer): `.createRowHelper(..)` on a value of unknown type
@@ -141,6 +144,7 @@ impl OtherOptionsScreen {
         let mut screen_options: RowHelper = todo!("fabric2seer: the initialiser of `screenOptions` (TODO above)");
         // TODO(fabric2seer): field `active` of a value of unknown type
         //   java: screenOptions.addChild(Button.builder(Component.translatable("skyblocker.config.hud.otherOptions.hiddenTabWidgets"), _ -> minecraft.gui.setScreen(new HiddenWidgetsPopup(this, parent.getScreenConfig()))).width(largeWidth).build(), 2).active = SkyblockerConfigManager.get().uiAndVisuals.tabHud.tabHudEnabled;
+        { let (__q0,) = (LayoutElement::Grid(body.wrapped),); __this.lock().borrow_mut().layout.as_mut().unwrap().add_to_contents(__q0) };
         { let __vw = __this.lock().borrow().layout.as_ref().unwrap().visit_widgets(); for (__i, _, _) in __vw { compat::write(__this, |__t| __t.mark_renderable(__i)); } };
         OtherOptionsScreen::reposition_elements(__this);
     }
@@ -161,7 +165,10 @@ impl OtherOptionsScreen {
         SkyblockerConfigManager::update(Arc::new(move |_| {
 
         }));
-        mcrust::mcrust::modding::game::set_screen(Box::new(compat::ScreenAdapter::new(compat::read(__this, |__t| __t.parent.clone()))));
+        // java: minecraft.setScreen(parent); - this screen was opened over its parent (`openPopup`), which comes back as
+        // the object it was
+        let _ = compat::read(__this, |__t| __t.parent.clone());
+        mcrust::mcrust::modding::game::set_screen_to_parent();
     }
 
 }
@@ -322,7 +329,9 @@ impl HiddenWidgetsPopup {
         // rust: scrollable.set_max_height(max_height);
         // TODO(fabric2seer): `ScrollableLayoutElement::set_min_width` ports `setMinWidth`, but the port's `ScrollableLayout` holds no `ScrollableLayoutElement` (no Deref, no `base` field) to call it on
         // rust: scrollable.set_min_width(150);
-        { let (__q0,) = (scrollable.clone(),); __this.lock().borrow_mut().layout.add_child(__q0) };
+        // rust: port gap (GAPS_batchC #C6) - Java's `ScrollableLayout` is a layout element holding the content; the port's
+        // `ScrollableLayout` is its scroll helper and the element is `ScrollableLayoutElement`
+        // rust: { let (__q0,) = (scrollable.clone(),); __this.lock().borrow_mut().layout.add_child(__q0) };
         let __this_w2 = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
         { let (__q0,) = ({ let __w = (button::builder(mcrust::net::minecraft::network::chat::common_components::gui_done().get_string(), OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| { let Some(__this_2) = __this_w2.get().upgrade() else { return Default::default(); }; compat::lend_screen(&__this_2, __screen, || { let mut __pidx = compat::WidgetRef::Screen(__index); { ({ let __f = compat::dispatch((&__this_2), |__t| __t.on_close()); __f(&compat::view((&__this_2), |a| a as compat::Shared<dyn AbstractPopupScreen>)) }); } }) })))).build(); let (__ww, __wh) = (__w.get_width(), __w.get_height()); LayoutElement::widget(compat::write(__this, |__t| __t.add_widget(__w)), __ww, __wh) },); __this.lock().borrow_mut().layout.add_child(__q0) };
         { let mut __vw = Vec::new(); LayoutElement::Grid(__this.lock().borrow().layout.wrapped.clone()).visit_widgets(&mut __vw); for (__i, _, _) in __vw { compat::write(__this, |__t| __t.mark_renderable(__i)); } };

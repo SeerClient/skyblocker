@@ -45,11 +45,11 @@ impl Collection {
     }
 
     /// java: public static Map<String, List<Collection>> parse(JsonObject object)
-    pub fn parse(object: &serde_json::Map<String, serde_json::Value>) -> std::collections::HashMap<String, Vec<Vec<_>>> {
+    pub fn parse(object: &serde_json::Map<String, serde_json::Value>) -> std::collections::HashMap<String, Vec<Collection>> {
         if !(compat::json::get_as_boolean(&object.get("success").cloned().unwrap())) {
             return std::collections::HashMap::from([]);
         }
-        let mut skill_collections: std::collections::HashMap<String, Vec<Vec<_>>> = std::collections::HashMap::new();
+        let mut skill_collections: std::collections::HashMap<String, Vec<Collection>> = std::collections::HashMap::new();
         // TODO(fabric2seer): JsonObject.asMap
         //   java: for (Map.Entry<String, JsonElement> skillEntry : object.getAsJsonObject("collections").asMap().entrySet()) {
         //   java: 			List<Collection> collections = new ArrayList<>();

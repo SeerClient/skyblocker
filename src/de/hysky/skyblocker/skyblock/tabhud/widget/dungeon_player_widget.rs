@@ -84,9 +84,8 @@ impl DungeonPlayerWidget {
         if RomanNumerals::is_valid_roman_numeral(level.clone()) {
             level = Some(RomanNumerals::roman_to_decimal(level.clone()).to_string());
         }
-        let mut player_info: PlayerInfo = PlayerListManager::get_raw(index);
-        // TODO(fabric2seer): the mod keeps the game's `PlayerInfo` (Java holds a reference to the live object); the port's `PlayerInfo` is not a value to copy and the port lends the mod no handle to it
-        // rust: { let (__a0,) = ((PlayerElement::new_3(player_info.clone(), DungeonPlayerWidget::remove_dungeon_class(__this, player_info.get_tab_list_display_name()), true) as compat::Shared<dyn Element>),); __this.lock().borrow_mut().add_element(__a0) };
+        let mut player_info: compat::Shared<PlayerInfo> = PlayerListManager::get_raw(index);
+        { let __name = compat::read(&player_info, |__p| __p.get_tab_list_display_name().cloned()).map(compat::component_of); let (__a0,) = ((PlayerElement::new_3(&player_info, DungeonPlayerWidget::remove_dungeon_class(__this, __name), true) as compat::Shared<dyn Element>),); __this.lock().borrow_mut().add_element(__a0) };
         if let Some(level) = &level {
         } else {
             { let (__a0,) = (Elements::icon_text_component_2(Some(ico::SKULL.get_mut().clone()), Some(component::literal("Player is dead").with_style_format(ChatFormatting::Red))),); __this.lock().borrow_mut().add_element(__a0) };
@@ -100,16 +99,20 @@ impl DungeonPlayerWidget {
         if (name.is_none() || !(((name.as_ref().unwrap().get_siblings()[name.as_ref().unwrap().get_siblings().len() - 1]).get_string() == ")"))) {
             return name;
         }
-        let mut player_name: MutableComponent = name.as_ref().unwrap().copy();
+        let copy: MutableComponent = name.as_ref().unwrap().copy();
+        // java: playerName.getSiblings().remove(i) - the copy's sibling list, edited in place; the port's component
+        // lends its siblings as a slice, so the copy is rebuilt over the edited list
+        let mut siblings: Vec<MutableComponent> = copy.get_siblings().to_vec();
         {
-            let mut i: i32 = (player_name.get_siblings().len() as i32).wrapping_sub(1);
+            let mut i: i32 = (siblings.len() as i32).wrapping_sub(1);
             while i >= 0 {
-                if compat::trim(&((player_name.get_siblings().remove((i) as usize)).get_string())) == "(" {
+                if compat::trim(&((siblings.remove((i) as usize)).get_string())) == "(" {
                     break;
                 }
                 i -= 1;
             }
         }
+        let player_name: MutableComponent = MutableComponent::new(copy.get_contents().clone(), siblings, copy.get_style().clone());
         return Some(player_name);
     }
 
@@ -206,7 +209,7 @@ impl ElementCollector for DungeonPlayerWidget {
 
     /// java: public <T extends Element> T addElement(T c)
     fn add_element(&mut self, mut c: compat::Shared<dyn Element>) -> compat::Shared<dyn Element> {
-        ({ let __f = compat::dispatch(&c, |__t| __t.set_parent()); __f(&c, self.clone()) });
+        ({ let __f = compat::dispatch(&c, |__t| __t.set_parent()); __f(&c, self.hud_widget_base().as_parent()) });
         self.elements.push(c.clone());
         return c;
     }

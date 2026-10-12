@@ -92,7 +92,9 @@ impl DailyRunsWidget {
         <dyn BasicInfoBoxWidget>::extract_widget_render_state_body(&compat::view(__this, |a| a as compat::Shared<dyn BasicInfoBoxWidget>), graphics, mouse_x, mouse_y, a);
         let mut font: Font = compat::font();
         let mut member: compat::Shared<ProfileMember> = __this.lock().borrow().info.member();
-        let daily_runs = &member.lock().borrow().dungeons.daily_runs;
+        let __member_guard = member.lock();
+        let __member_ref = __member_guard.borrow();
+        let daily_runs = &__member_ref.dungeons.daily_runs;
         let mut x: i32 = (__this.lock().borrow().get_x()).wrapping_add(INFO_OFFSET);
         let mut y: i32 = (__this.lock().borrow().get_y()).wrapping_add(INFO_OFFSET);
         let mut text_y_step: i32 = (mcrust::net::minecraft::client::gui::font::LINE_HEIGHT).wrapping_add(1);

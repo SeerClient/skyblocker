@@ -23,7 +23,21 @@ use mcrust::com::mojang::serialization::decoder::Decoder as _;
 //   java: 				}
 //   java: 			});
 /// java: private static final LoadingCache<CacheKey, Map<String, Integer>> LEADERBOARDS_CACHE = CacheBuilder.newBuilder() .expireAfterWrite(Duration.ofMinutes(5L)) .build(new CacheLoader<>() { @Override public
-pub static LEADERBOARDS_CACHE: compat::MainThread<LoadingCache<CacheKey, std::collections::HashMap<String, i32>, compat::Object>> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `LEADERBOARDS_CACHE` - see the TODO above"));
+/// (read from `fetchPlayerLeaderboards`' worker: a `LazyLock`, the cache being thread-safe as Guava's is)
+pub static LEADERBOARDS_CACHE: LazyLock<LoadingCache<CacheKey, std::collections::HashMap<String, i32>, LeaderboardsLoader>> = LazyLock::new(|| {
+    mcrust::com::google::common::cache::loading_cache::CacheBuilder::new_builder()
+        .expire_after_write(std::time::Duration::from_secs(5 * 60))
+        .build(LeaderboardsLoader)
+});
+
+/// java: the anonymous `new CacheLoader<>() { load(key) -> fetchPlayerLeaderboardsInternal(key) }` of `LEADERBOARDS_CACHE`
+pub struct LeaderboardsLoader;
+
+impl mcrust::com::google::common::cache::cache_loader::CacheLoader<CacheKey, std::collections::HashMap<String, i32>> for LeaderboardsLoader {
+    fn load(&self, key: &CacheKey) -> std::collections::HashMap<String, i32> {
+        EliteLeaderboards::fetch_player_leaderboards_internal(key)
+    }
+}
 /// java: public static final int NO_POSITION = -1;
 pub const NO_POSITION: i32 = -1;
 /// java: private static Map<String, String> collectionLeaderboards = Map.of();
@@ -31,7 +45,7 @@ pub static COLLECTION_LEADERBOARDS: LazyLock<Mutex<std::collections::HashMap<Str
 /// java: private static final Codec<LeaderboardInfo> CODEC = RecordCodecBuilder.create(instance -> instance.group( Codec.STRING.optionalFieldOf("collection").forGetter(LeaderboardInfo::collection), Codec.STRIN
 pub static LEADERBOARD_INFO_CODEC: compat::MainThread<CodecRef<LeaderboardInfo>> = compat::MainThread::new(|| record_codec_builder::create(record_codec_builder::apply2(record_codec_builder::of(|o: &LeaderboardInfo| o.collection(), codec::optional_field_of_opt(mcrust::com::mojang::serialization::codec::string_codec(), "collection")), record_codec_builder::of(|o: &LeaderboardInfo| o.interval_type(), codec::field_of(mcrust::com::mojang::serialization::codec::string_codec(), "intervalType")), move |__a0, __a1| LeaderboardInfo::new(__a0.clone(), __a1.clone()))));
 /// java: private static final Codec<Map<String, LeaderboardInfo>> MAP_CODEC = Codec.unboundedMap(Codec.STRING, CODEC);
-pub static LEADERBOARD_INFO_MAP_CODEC: compat::MainThread<CodecRef<std::collections::HashMap<String, LeaderboardInfo>>> = compat::MainThread::new(|| codec::unbounded_map(mcrust::com::mojang::serialization::codec::string_codec(), LEADERBOARD_INFO_CODEC.get_mut().clone()));
+pub static LEADERBOARD_INFO_MAP_CODEC: compat::MainThread<CodecRef<std::collections::HashMap<String, LeaderboardInfo>>> = compat::MainThread::new(|| codec::xmap(codec::unbounded_map(mcrust::com::mojang::serialization::codec::string_codec(), LEADERBOARD_INFO_CODEC.get().clone()), |v: Vec<(String, LeaderboardInfo)>| v.into_iter().collect::<std::collections::HashMap<_, _>>(), |m: &std::collections::HashMap<String, LeaderboardInfo>| m.iter().map(|(k, v)| (k.clone(), v.clone())).collect::<Vec<_>>()));
 
 /// java: public class EliteLeaderboards
 #[derive(Clone)]
@@ -50,8 +64,9 @@ impl EliteLeaderboards {
         if !(*profile_viewer::ENABLED) {
             return;
         }
-        // TODO(fabric2seer): `CompletableFuture.thenAccept` has no Rust method in the port (looked for `then_accept` in CompletableFuture and JavaSrc)
-        // rust: (CompletableFuture::supply_async(move || Ok((|| EliteLeaderboards::fetch_leaderboards_list())()), compat::executor)).then_accept(&Arc::new(move |__a0| EliteLeaderboards::collect_collections_leaderboards(Some(__a0.clone()))));
+        // java: CompletableFuture.supplyAsync(EliteLeaderboards::fetchLeaderboardsList).thenAccept(EliteLeaderboards::collectCollectionsLeaderboards);
+        // (`thenAccept`: on the thread that completes the future - an executor that runs the stage where it is handed)
+        (CompletableFuture::supply_async(move || Ok(EliteLeaderboards::fetch_leaderboards_list()), compat::executor)).then_accept_async(|__a0: &Option<std::collections::HashMap<String, LeaderboardInfo>>| EliteLeaderboards::collect_collections_leaderboards(__a0.clone()), std::sync::Arc::new(|__t: Box<dyn FnOnce() + Send>| __t()));
     }
 
     /// java: public static Map<String, String> getCollectionLeaderboardMappings()
@@ -67,7 +82,7 @@ impl EliteLeaderboards {
             //   java: String response = Http.sendGetRequest("https://api.eliteskyblock.com/leaderboards");
             let mut response: String = todo!("fabric2seer: the initialiser of `response` (TODO above)");
             let mut leaderboards_object: serde_json::Map<String, serde_json::Value> = compat::json::get_as_json_object_of(&(compat::json::get_as_json_object(&(serde_json::from_str::<serde_json::Value>(&response).expect("JsonSyntaxException")))), "leaderboards");
-            let mut leaderboards: std::collections::HashMap<String, LeaderboardInfo> = (LEADERBOARD_INFO_MAP_CODEC.get_mut().parse(&mcrust::com::mojang::serialization::json_ops::JsonOps::instance(), &compat::json_to_port(&leaderboards_object))).get_or_throw().unwrap();
+            let mut leaderboards: std::collections::HashMap<String, LeaderboardInfo> = (LEADERBOARD_INFO_MAP_CODEC.get().parse(&mcrust::com::mojang::serialization::json_ops::JsonOps::instance(), &compat::json_to_port(&serde_json::Value::Object(leaderboards_object)))).get_or_throw().unwrap_or_else(|e| panic!("IllegalStateException: {e}"));
             return Some(leaderboards);
         })) {
             Ok(__v) => return __v,
@@ -97,7 +112,9 @@ impl EliteLeaderboards {
 
     /// java: public static CompletableFuture<Map<String, Integer>> fetchPlayerLeaderboards(String uuid, UUID profileId)
     pub fn fetch_player_leaderboards(uuid: &str, profile_id: &Uuid) -> mcrust::java::util::concurrent::completable_future::CompletableFuture<std::collections::HashMap<String, i32>> {
-        return CompletableFuture::supply_async(move || Ok((|| LEADERBOARDS_CACHE.get_mut().get_unchecked(&CacheKey::new(uuid.to_string(), profile_id.clone())))()), compat::executor);
+        let uuid: String = uuid.to_string();
+        let profile_id: Uuid = profile_id.clone();
+        return CompletableFuture::supply_async(move || Ok(LEADERBOARDS_CACHE.get_unchecked(&CacheKey::new(uuid, profile_id))), compat::executor);
     }
 
     /// java: private static Map<String, Integer> fetchPlayerLeaderboardsInternal(CacheKey key)
@@ -158,7 +175,7 @@ impl LeaderboardInfo {
 }
 
 /// java: private record CacheKey(String uuid, UUID profileId)
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct CacheKey {
     /// java: String uuid
     pub uuid: String,

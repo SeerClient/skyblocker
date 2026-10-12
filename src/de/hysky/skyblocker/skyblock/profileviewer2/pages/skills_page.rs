@@ -4,6 +4,7 @@
 use crate::prelude::*;
 use crate::de::hysky::skyblocker::skyblock::profileviewer2::loading_information::LoadingInformation;
 use crate::de::hysky::skyblocker::skyblock::profileviewer2::pages::profile_viewer_page::ProfileViewerPage;
+use crate::de::hysky::skyblocker::skyblock::profileviewer2::pages::profile_viewer_page::ProfileViewerPageAny;
 use crate::de::hysky::skyblocker::skyblock::profileviewer2::utils::skill::Skill;
 use crate::de::hysky::skyblocker::skyblock::profileviewer2::widgets::dungeon_level_bar_widget::DungeonLevelBarWidget;
 use crate::de::hysky::skyblocker::skyblock::profileviewer2::widgets::player_widget;
@@ -48,7 +49,7 @@ impl SkillsPage {
 
 }
 
-impl ProfileViewerPage<crate::de::hysky::skyblocker::skyblock::profileviewer2::loading_information::LoadingInformation> for SkillsPage {
+impl ProfileViewerPageAny for SkillsPage {
     fn as_any(&self) -> &dyn std::any::Any {
         self
     }
@@ -63,11 +64,19 @@ impl ProfileViewerPage<crate::de::hysky::skyblocker::skyblock::profileviewer2::l
         return component::literal("Skills");
     }
 
-    /// java: @Override public CompletableFuture<LayoutElement> load(LoadingInformation info)
-    fn load(&self, info: &LoadingInformation) -> mcrust::java::util::concurrent::completable_future::CompletableFuture<LayoutElement> {
-        return CompletableFuture::completed_future(info.clone()).then_apply_async(|__a0| self.build_widgets(&__a0), std::sync::Arc::new(|__t: Box<dyn FnOnce() + Send>| mcrust::mcrust::modding::game::execute(__t)));
+    /// java: @Override public CompletableFuture<LayoutElement> load(LoadingInformation info) (dispatch: the body for this class)
+    fn load(&self) -> fn(&compat::Shared<dyn ProfileViewerPageAny>, &LoadingInformation) -> compat::LocalFuture<LayoutElement> {
+        SkillsPage::load_dyn
     }
 
+    /// java: @Override public List<AbstractWidget> getWidgets()
+    fn get_widgets(&self) -> Vec<AbstractWidget> {
+        return self.widgets.clone();
+    }
+
+}
+
+impl ProfileViewerPage<crate::de::hysky::skyblocker::skyblock::profileviewer2::loading_information::LoadingInformation> for SkillsPage {
     /// java: @Override public LayoutElement buildWidgets(LoadingInformation info)
     fn build_widgets(&self, info: &LoadingInformation) -> LayoutElement {
         let mut page_layout: LinearLayout = LinearLayout::horizontal();
@@ -80,7 +89,7 @@ impl ProfileViewerPage<crate::de::hysky::skyblocker::skyblock::profileviewer2::l
         // rust: left_section_layout.add_child(SkillsInfoBoxWidget::new(player_widget::WIDTH, 71, info.clone()));
         page_layout.add_child(LayoutElement::Grid(left_section_layout.clone().wrapped));
         page_layout.add_child(SpacerElement::width(3).as_layout_element());
-        let mut skills_area_layout: GridLayout = GridLayout::new_default().row_spacing(SPACING.wrapping_mul(2)).column_spacing(SPACING.wrapping_mul(4));
+        let mut skills_area_layout: GridLayout = GridLayout::new_default(); skills_area_layout.row_spacing(SPACING.wrapping_mul(2)); skills_area_layout.column_spacing(SPACING.wrapping_mul(4));
         let mut skills_area_row_helper: RowHelper = skills_area_layout.create_row_helper(2);
         // TODO(fabric2seer): the port's `add_child` ports this Java method with other parameters (grid, child for Java's widget)
         // TODO(fabric2seer): `add_child` takes 2 argument(s) in the port (`grid: &mut GridLayout, child: LayoutElement`), Java passes 1
@@ -130,9 +139,13 @@ impl ProfileViewerPage<crate::de::hysky::skyblocker::skyblock::profileviewer2::l
         return LayoutElement::Grid(page_layout.wrapped);
     }
 
-    /// java: @Override public List<AbstractWidget> getWidgets()
-    fn get_widgets(&self) -> Vec<AbstractWidget> {
-        return self.widgets.clone();
-    }
+}
 
+impl SkillsPage {
+    /// SkillsPage.load as the dispatch of ProfileViewerPage.load
+    pub fn load_dyn(__this: &compat::Shared<dyn ProfileViewerPageAny>, info: &LoadingInformation) -> compat::LocalFuture<LayoutElement> {
+        // java: return CompletableFuture.completedFuture(info).thenApplyAsync(this::buildWidgets, Minecraft.getInstance());
+        let __h: compat::Shared<SkillsPage> = compat::handle_as::<SkillsPage, _>(__this);
+        return compat::LocalFuture::completed_future(info.clone()).then_apply_async(move |__a0| compat::read(&__h, |__t| __t.build_widgets(&__a0)));
+    }
 }

@@ -99,12 +99,13 @@ impl CollectionItemWidgetBase {
         let mut neu_id: String = id.replace(':', &'-'.to_string());
         let mut stack: mcrust::net::minecraft::world::item::item_stack::ItemStack = (FlexibleItemStack::get_stack_or_throw(&ItemRepository::get_item_stack_2(&neu_id, ico::BARRIER.get_mut()))).copy();
         if is_max_tier {
-            stack.set(mcrust::net::minecraft::core::component::data_components::enchantment_glint_override().clone(), Some(true));
+            stack.set(mcrust::net::minecraft::core::component::data_components::enchantment_glint_override().clone(), Some(mcrust::com::mojang::serialization::obj(true)));
         }
         let mut tier_text: MutableComponent = CollectionItemWidgetBase::build_tier_text(tier, is_max_tier);
         let mut tooltip: Vec<MutableComponent> = CollectionItemWidgetBase::build_tooltip(id, &compat::component_of(stack.get_hover_name()).get_string(), info, report);
-        let mut tooltip_style: Identifier = CollectionItemWidgetBase::get_tooltip_type(is_max_tier).unwrap();
-        return (CollectionItemWidgetBase::new(stack.clone(), tier_text.clone(), tooltip.clone(), Some(tooltip_style.clone())) as compat::Shared<dyn CollectionItemWidget>);
+        // java: @Nullable Identifier tooltipStyle = getTooltipType(isMaxTier); - null below the max tier
+        let tooltip_style: Option<Identifier> = CollectionItemWidgetBase::get_tooltip_type(is_max_tier);
+        return (CollectionItemWidgetBase::new(stack, tier_text, tooltip, tooltip_style) as compat::Shared<dyn CollectionItemWidget>);
     }
 
     /// java: protected static Component buildTierText(int tier, boolean isMaxTier)
@@ -192,10 +193,10 @@ impl dyn CollectionItemWidget {
 
 impl CollectionItemWidget for CollectionItemWidgetBase {
     fn collection_item_widget_base(&self) -> &CollectionItemWidgetBase {
-        &self
+        self
     }
     fn collection_item_widget_base_mut(&mut self) -> &mut CollectionItemWidgetBase {
-        &mut self
+        self
     }
 
     fn as_any(&self) -> &dyn std::any::Any {

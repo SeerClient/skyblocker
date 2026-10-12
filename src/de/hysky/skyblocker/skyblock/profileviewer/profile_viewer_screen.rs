@@ -22,6 +22,7 @@ use mcrust::java::util::concurrent::completable_future::CompletableFuture;
 use mcrust::java::util::uuid::Uuid;
 use mcrust::mcrust::modding::screens::ModScreen;
 use mcrust::mcrust::modding::screens::ScreenRenderContext;
+use mcrust::net::minecraft::client::gui::components::abstract_widget::AbstractWidget;
 use mcrust::net::minecraft::client::gui::gui_graphics_extractor;
 use mcrust::net::minecraft::client::gui::gui_graphics_extractor::GuiGraphicsExtractor;
 use mcrust::net::minecraft::client::input::character_event::CharacterEvent;
@@ -46,7 +47,7 @@ pub const GUI_WIDTH: i32 = 322;
 /// java: private static final int GUI_HEIGHT = 189;
 pub const GUI_HEIGHT: i32 = 189;
 /// java: private static Map<String, List<Collection>> collections = Map.of();
-pub static COLLECTIONS: LazyLock<Mutex<std::collections::HashMap<String, Vec<Vec<_>>>>> = LazyLock::new(|| Mutex::new(std::collections::HashMap::from([])));
+pub static COLLECTIONS: LazyLock<Mutex<std::collections::HashMap<String, Vec<Collection>>>> = LazyLock::new(|| Mutex::new(std::collections::HashMap::from([])));
 /// java: private static final String[] PAGE_NAMES = {"Skills", "Slayers", "Dungeons", "Inventories", "Collections"};
 pub static PAGE_NAMES: LazyLock<Vec<String>> = LazyLock::new(|| vec!["Skills".to_string(), "Slayers".to_string(), "Dungeons".to_string(), "Inventories".to_string(), "Collections".to_string()]);
 
@@ -67,7 +68,8 @@ pub struct ProfileViewerScreen {
     /// java: private int activePage = 0;
     pub active_page: i32,
     /// java: private final ProfileViewerPage[] profileViewerPages = new ProfileViewerPage[PAGE_NAMES.length];
-    pub profile_viewer_pages: Vec<compat::Shared<dyn ProfileViewerPage>>,
+    /// (an array: an element is null until its page is built)
+    pub profile_viewer_pages: Vec<Option<compat::Shared<dyn ProfileViewerPage>>>,
     /// java: private final List<ProfileViewerNavButton> profileViewerNavButtons = new ArrayList<>();
     pub profile_viewer_nav_buttons: Vec<compat::Shared<ProfileViewerNavButton>>,
     /// java: private @Nullable RemotePlayer entity;
@@ -106,7 +108,7 @@ impl ProfileViewerScreen {
             profile_not_found: false,
             error_message: "No Profile".to_string(),
             active_page: 0,
-            profile_viewer_pages: (0..((PAGE_NAMES.len() as i32)) as usize).map(|_| Default::default()).collect::<Vec<_>>(),
+            profile_viewer_pages: (0..((PAGE_NAMES.len() as i32)) as usize).map(|_| None).collect::<Vec<_>>(),
             profile_viewer_nav_buttons: Vec::new(),
             entity: None,
             text_widget: None,
@@ -164,7 +166,7 @@ impl ProfileViewerScreen {
     }
 
     /// java: public static Map<String, List<Collection>> getCollections()
-    pub fn get_collections() -> std::collections::HashMap<String, Vec<Vec<_>>> {
+    pub fn get_collections() -> std::collections::HashMap<String, Vec<Collection>> {
         return compat::get_state(&COLLECTIONS);
     }
 
@@ -181,28 +183,61 @@ impl ProfileViewerScreen {
             return;
         }
         { let __v = Some(ProfileViewerTextWidget::new(compat::read(__this, |__t| __t.hypixel_profile.clone()).unwrap(), compat::read(__this, |__t| __t.player_profile.clone()).unwrap())); compat::write(__this, |__t| __t.text_widget = __v); }
-        let __this_1 = compat::RenderThread::new(__this.clone());
-        let mut skills_future: mcrust::java::util::concurrent::completable_future::CompletableFuture<()> = CompletableFuture::<()>::run_async(move || (|| { __this_1.get().lock().borrow_mut().profile_viewer_pages[(0) as usize] = (SkillsPage::new(compat::read(__this_1.get(), |__t| __t.hypixel_profile.clone()).unwrap(), compat::read(__this_1.get(), |__t| __t.player_profile.clone()).unwrap()) as compat::Shared<dyn ProfileViewerPage>); })(), compat::executor);
-        let __this_2 = compat::RenderThread::new(__this.clone());
-        let mut slayers_future: mcrust::java::util::concurrent::completable_future::CompletableFuture<()> = CompletableFuture::<()>::run_async(move || (|| { __this_2.get().lock().borrow_mut().profile_viewer_pages[(1) as usize] = (SlayersPage::new(compat::read(__this_2.get(), |__t| __t.player_profile.clone()).unwrap()) as compat::Shared<dyn ProfileViewerPage>); })(), compat::executor);
-        let __this_3 = compat::RenderThread::new(__this.clone());
-        let mut dungeons_future: mcrust::java::util::concurrent::completable_future::CompletableFuture<()> = CompletableFuture::<()>::run_async(move || (|| { __this_3.get().lock().borrow_mut().profile_viewer_pages[(2) as usize] = (DungeonsPage::new(compat::read(__this_3.get(), |__t| __t.player_profile.clone()).unwrap()) as compat::Shared<dyn ProfileViewerPage>); })(), compat::executor);
-        let __this_4 = compat::RenderThread::new(__this.clone());
-        let mut inventories_future: mcrust::java::util::concurrent::completable_future::CompletableFuture<()> = CompletableFuture::<()>::run_async(move || (|| { __this_4.get().lock().borrow_mut().profile_viewer_pages[(3) as usize] = (InventoryPage::new(compat::read(__this_4.get(), |__t| __t.player_profile.clone()).unwrap()) as compat::Shared<dyn ProfileViewerPage>); })(), compat::executor);
-        let __this_5 = compat::RenderThread::new(__this.clone());
-        let mut collections_future: mcrust::java::util::concurrent::completable_future::CompletableFuture<()> = CompletableFuture::<()>::run_async(move || (|| { __this_5.get().lock().borrow_mut().profile_viewer_pages[(4) as usize] = (CollectionsPage::new(compat::read(__this_5.get(), |__t| __t.hypixel_profile.clone()).unwrap(), compat::read(__this_5.get(), |__t| __t.player_profile.clone()).unwrap()) as compat::Shared<dyn ProfileViewerPage>); })(), compat::executor);
-        let __this_6 = compat::RenderThread::new(__this.clone());
-        let __this_7 = compat::RenderThread::new(__this.clone());
-        { let (__q0,) = (|err| {
-            logger().error(&format!("[Skyblocker Profile Viewer] An error occurred while initializing widgets!"));
-            { let __v = "Unable to process player data!".to_string(); compat::write(__this_7.get(), |__t| __t.error_message = __v); }
-            { let __v = true; compat::write(__this_7.get(), |__t| __t.profile_not_found = __v); }
-            return Default::default(); // java: return null
-        },); (CompletableFuture::all_of(&[skills_future.clone(), slayers_future.clone(), dungeons_future.clone(), inventories_future.clone(), collections_future.clone()])).then_run_async(|__a0| __this_6.get().lock().borrow_mut().rebuild_widgets(&mut __a0), std::sync::Arc::new(|__t: Box<dyn FnOnce() + Send>| mcrust::mcrust::modding::game::execute(__t))).exceptionally(__q0) };
+        // java: CompletableFuture.runAsync(() -> profileViewerPages[i] = new XPage(..)) - the pages are the mod's objects
+        // (not `Send`): each is built by a task on the render thread (`LocalFuture::supply_local`), as in profileviewer2
+        let hypixel_profile: serde_json::Map<String, serde_json::Value> = compat::read(__this, |__t| __t.hypixel_profile.clone()).expect("NullPointerException");
+        let player_profile: serde_json::Map<String, serde_json::Value> = compat::read(__this, |__t| __t.player_profile.clone()).expect("NullPointerException");
+        let (__this_1, __h1, __p1) = (__this.clone(), hypixel_profile.clone(), player_profile.clone());
+        let skills_future: compat::LocalFuture<()> = compat::LocalFuture::supply_local(move || {
+            let __page = SkillsPage::new(__h1, __p1) as compat::Shared<dyn ProfileViewerPage>;
+            compat::write(&__this_1, |__t| __t.profile_viewer_pages[0] = Some(__page));
+        });
+        let (__this_2, __p2) = (__this.clone(), player_profile.clone());
+        let slayers_future: compat::LocalFuture<()> = compat::LocalFuture::supply_local(move || {
+            let __page = SlayersPage::new(__p2) as compat::Shared<dyn ProfileViewerPage>;
+            compat::write(&__this_2, |__t| __t.profile_viewer_pages[1] = Some(__page));
+        });
+        let (__this_3, __p3) = (__this.clone(), player_profile.clone());
+        let dungeons_future: compat::LocalFuture<()> = compat::LocalFuture::supply_local(move || {
+            let __page = DungeonsPage::new(__p3) as compat::Shared<dyn ProfileViewerPage>;
+            compat::write(&__this_3, |__t| __t.profile_viewer_pages[2] = Some(__page));
+        });
+        let (__this_4, __p4) = (__this.clone(), player_profile.clone());
+        let inventories_future: compat::LocalFuture<()> = compat::LocalFuture::supply_local(move || {
+            let __page = InventoryPage::new(__p4) as compat::Shared<dyn ProfileViewerPage>;
+            compat::write(&__this_4, |__t| __t.profile_viewer_pages[3] = Some(__page));
+        });
+        let (__this_5, __h5, __p5) = (__this.clone(), hypixel_profile, player_profile);
+        let collections_future: compat::LocalFuture<()> = compat::LocalFuture::supply_local(move || {
+            let __page = CollectionsPage::new(__h5, __p5) as compat::Shared<dyn ProfileViewerPage>;
+            compat::write(&__this_5, |__t| __t.profile_viewer_pages[4] = Some(__page));
+        });
+        // java: CompletableFuture.allOf(skillsFuture, slayersFuture, dungeonsFuture, inventoriesFuture, collectionsFuture)
+        let all_of: compat::LocalFuture<()> = skills_future
+            .then_combine_async(&slayers_future, |_, _| ())
+            .then_combine_async(&dungeons_future, |_, _| ())
+            .then_combine_async(&inventories_future, |_, _| ())
+            .then_combine_async(&collections_future, |_, _| ());
+        let __this_7 = __this.clone();
+        // java: .thenRunAsync(this::rebuildWidgets, Minecraft.getInstance())
+        let _ = all_of
+            .then_accept_async(move |()| {
+                // rust: port gap (GAPS_batchC #C1) - `Screen.rebuildWidgets()` from a task: the port's `rebuild_widgets`
+                // needs the game's `Screen` half, which is lent to the object only inside the screen's own methods
+                // (the page buttons join the screen at its next `init`, a resize)
+                // rust: __this_6.get().lock().borrow_mut().rebuild_widgets();
+            })
+            // java: .exceptionally(err -> {..})
+            .exceptionally_async(move |err| {
+                logger().error(&format!("[Skyblocker Profile Viewer] An error occurred while initializing widgets! {}", err));
+                { let __v = "Unable to process player data!".to_string(); compat::write(&__this_7, |__t| __t.error_message = __v); }
+                { let __v = true; compat::write(&__this_7, |__t| __t.profile_not_found = __v); }
+                // java: return null
+            });
     }
 
     /// java: @Override public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta)
-    pub fn extract_render_state(__this: &compat::Shared<Self>, graphics: &GuiGraphicsExtractor, mut mouse_x: i32, mut mouse_y: i32, mut delta: f32) {
+    pub fn extract_render_state(__this: &compat::Shared<Self>, graphics: &mut GuiGraphicsExtractor, mut mouse_x: i32, mut mouse_y: i32, mut delta: f32) {
         ();
         let mut root_x: i32 = ((compat::read(__this, |__t| __t.width)).wrapping_div(2)).wrapping_sub(GUI_WIDTH.wrapping_div(2));
         let mut root_y: i32 = (((compat::read(__this, |__t| __t.height)).wrapping_div(2)).wrapping_sub(GUI_HEIGHT.wrapping_div(2))).wrapping_add(5);
@@ -214,7 +249,8 @@ impl ProfileViewerScreen {
             let __wa2 = root_y.wrapping_sub(28);
             let __o2 = button.clone();
             compat::write(&__o2, |__t| __t.set_y(__wa2));
-            // TODO(fabric2seer): `extract_render_state` is a method of the port's trait `Renderable`, which the port's `AbstractWidget` does not implement
+            // rust: port gap (GAPS_batchC #C2) - `button.extractRenderState(graphics, ..)` on a widget OBJECT: the port's
+            // widget is drawn by the screen it was added to (`addRenderableWidget` in `init`, which the game draws)
             // rust: let __wa3 = graphics.clone();
             // rust: let __wa4 = mouse_x;
             // rust: let __wa5 = mouse_y;
@@ -226,21 +262,24 @@ impl ProfileViewerScreen {
             let __h0 = &compat::font();
             let __h1 = root_x.wrapping_add(8);
             let __h2 = root_y.wrapping_add(120);
-            __this.lock().borrow().text_widget.as_ref().unwrap().extract_render_state(&mut graphics, __h0, __h1, __h2, mouse_x, mouse_y);
+            __this.lock().borrow().text_widget.as_ref().unwrap().extract_render_state(graphics, __h0, __h1, __h2, mouse_x, mouse_y);
         }
         ProfileViewerScreen::extract_player_entity(__this, graphics, (if compat::read(__this, |__t| __t.player_name.clone()).is_some() { compat::read(__this, |__t| __t.player_name.clone()) } else { Some("Loading...".to_string()) }).as_deref().unwrap(), root_x, root_y, mouse_x, mouse_y);
-        if true /* java: __this.lock().borrow().profile_viewer_pages[(compat::read(__this, |__t| __t.active_page)) as usize] != null: never null here */ {
-            ({ let __r = &__this.lock().borrow().profile_viewer_pages[(compat::read(__this, |__t| __t.active_page)) as usize]; let __f = compat::dispatch(__r, |__t| __t.mark_widgets_as_visible()); __f(__r) });
-            ({ let __r = &__this.lock().borrow().profile_viewer_pages[(compat::read(__this, |__t| __t.active_page)) as usize]; let __f = compat::dispatch(__r, |__t| __t.extract_render_state()); __f(__r, &mut graphics, mouse_x, mouse_y, delta, root_x.wrapping_add(93), root_y.wrapping_add(7)) });
+        // java: if (profileViewerPages[activePage] != null)
+        let __active = compat::read(__this, |__t| __t.active_page) as usize;
+        if let Some(__page) = compat::read(__this, |__t| __t.profile_viewer_pages[__active].clone()) {
+            ({ let __f = compat::dispatch(&__page, |__t| __t.mark_widgets_as_visible()); __f(&__page) });
+            ({ let __f = compat::dispatch(&__page, |__t| __t.extract_render_state()); __f(&__page, graphics, mouse_x, mouse_y, delta, root_x.wrapping_add(93), root_y.wrapping_add(7)) });
         } else {
-            // TODO(fabric2seer): `.getRGB(..)` on a value of unknown type
-            //   java: graphics.centeredText(font, profileNotFound ? errorMessage : "Loading...", rootX + 200, rootY + 80, Color.WHITE.getRGB());
+            // java: graphics.centeredText(font, profileNotFound ? errorMessage : "Loading...", rootX + 200, rootY + 80, Color.WHITE.getRGB());
+            let __text: String = if compat::read(__this, |__t| __t.profile_not_found) { compat::read(__this, |__t| __t.error_message.clone()) } else { "Loading...".to_string() };
+            gui_graphics_extractor::centered_text_string(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), &__text, root_x.wrapping_add(200), root_y.wrapping_add(80), mcrust::java::awt::color::white().get_rgb());
         }
     }
 
     /// java: private void extractPlayerEntity(GuiGraphicsExtractor graphics, String username, int rootX, int rootY, int mouseX, int mouseY)
     pub fn extract_player_entity(__this: &compat::Shared<Self>, graphics: &GuiGraphicsExtractor, username: &str, mut root_x: i32, mut root_y: i32, mut mouse_x: i32, mut mouse_y: i32) {
-        if compat::read(__this, |__t| __t.entity.clone()).is_some() {
+        if compat::read(__this, |__t| __t.entity.is_some()) {
             // TODO(fabric2seer): `Screen.extractEntityInInventoryFollowsMouse` has no Rust method in the port (looked for `extract_entity_in_inventory_follows_mouse` in Screen and JavaSrc)
             // rust: let __h0 = root_x.wrapping_add(9);
             // rust: let __h1 = root_y.wrapping_add(16);
@@ -249,8 +288,9 @@ impl ProfileViewerScreen {
             // rust: let __h4 = &compat::read(__this, |__t| __t.entity.clone()).unwrap();
             // rust: __this.lock().borrow().extract_entity_in_inventory_follows_mouse(graphics, __h0, __h1, __h2, __h3, 42, 0.0625f32, mouse_x, mouse_y, __h4);
         }
-        // TODO(fabric2seer): `.getRGB(..)` on a value of unknown type
-        //   java: graphics.centeredText(font, username.length() > 15 ? username.substring(0, 15) : username, rootX + 47, rootY + 14, Color.WHITE.getRGB());
+        // java: graphics.centeredText(font, username.length() > 15 ? username.substring(0, 15) : username, rootX + 47, rootY + 14, Color.WHITE.getRGB());
+        let __name: String = if compat::str_len(username) > 15 { compat::substring2(username, 0, 15) } else { username.to_string() };
+        gui_graphics_extractor::centered_text_string(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), &__name, root_x.wrapping_add(47), root_y.wrapping_add(14), mcrust::java::awt::color::white().get_rgb());
     }
 
     /// java: private CompletableFuture<Void> fetchPlayerData(String username)
@@ -322,8 +362,10 @@ impl ProfileViewerScreen {
 
     /// java: public void onNavButtonClick(ProfileViewerNavButton clickedButton)
     pub fn on_nav_button_click(__this: &compat::Shared<Self>, clicked_button: &compat::Shared<ProfileViewerNavButton>) {
-        if true /* java: __this.lock().borrow().profile_viewer_pages[(compat::read(__this, |__t| __t.active_page)) as usize] != null: never null here */ {
-            ({ let __r = &__this.lock().borrow().profile_viewer_pages[(compat::read(__this, |__t| __t.active_page)) as usize]; let __f = compat::dispatch(__r, |__t| __t.mark_widgets_as_invisible()); __f(__r) });
+        // java: if (profileViewerPages[activePage] != null) profileViewerPages[activePage].markWidgetsAsInvisible();
+        let __active = compat::read(__this, |__t| __t.active_page) as usize;
+        if let Some(__page) = compat::read(__this, |__t| __t.profile_viewer_pages[__active].clone()) {
+            ({ let __f = compat::dispatch(&__page, |__t| __t.mark_widgets_as_invisible()); __f(&__page) });
         }
         for button in compat::read(__this, |__t| __t.profile_viewer_nav_buttons.clone()) {
             ProfileViewerNavButton::set_toggled(&button, false);
@@ -338,11 +380,14 @@ impl ProfileViewerScreen {
             { let (__q0,) = (compat::WidgetAdapter::widget(__a0.clone()),); __this.lock().borrow_mut().add_renderable_widget(__q0) };
         }
         for profile_viewer_page in compat::read(__this, |__t| __t.profile_viewer_pages.clone()) {
-            if true /* java: profile_viewer_page != null: never null here */ && ({ let __f = compat::dispatch(&profile_viewer_page, |__t| __t.get_buttons()); __f(&profile_viewer_page) }).is_some() {
-                for button in ({ let __f = compat::dispatch(&profile_viewer_page, |__t| __t.get_buttons()); __f(&profile_viewer_page) }).unwrap().iter() {
-                    if true /* java: button != null: never null here */ {
-                        { let (__q0,) = (button.clone(),); __this.lock().borrow_mut().add_renderable_widget(__q0) };
-                    }
+            // java: if (profileViewerPage != null && profileViewerPage.getButtons() != null) - a page not built yet is null
+            let Some(profile_viewer_page) = profile_viewer_page else { continue; };
+            // (`getButtons()` builds a fresh list of the same widget objects each call: asked once)
+            let __buttons: Option<Vec<AbstractWidget>> = ({ let __f = compat::dispatch(&profile_viewer_page, |__t| __t.get_buttons()); __f(&profile_viewer_page) });
+            if let Some(__buttons) = __buttons {
+                for button in __buttons {
+                    // java: if (button != null) addRenderableWidget(button); - the list holds the widgets themselves
+                    __this.lock().borrow_mut().add_renderable_widget(button);
                 }
             }
         }
@@ -379,7 +424,7 @@ impl ModScreen for compat::ScreenAdapter<ProfileViewerScreen> {
 
     /// java: @Override public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta)
     fn extract_render_state(&mut self, screen: &mcrust::net::minecraft::client::gui::screens::screen::Screen, context: &mut ScreenRenderContext<'_>, mouse_x: i32, mouse_y: i32, a: f32) {
-        self.lend_ref(screen, |__h| ProfileViewerScreen::extract_render_state(__h, &context.graphics, mouse_x, mouse_y, a))
+        self.lend_ref(screen, |__h| ProfileViewerScreen::extract_render_state(__h, &mut context.graphics, mouse_x, mouse_y, a))
     }
 
     /// java: Screen.keyPressed (the base body)

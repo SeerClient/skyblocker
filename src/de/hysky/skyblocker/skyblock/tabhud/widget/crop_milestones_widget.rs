@@ -167,7 +167,7 @@ impl ElementCollector for CropMilestonesWidget {
 
     /// java: public <T extends Element> T addElement(T c)
     fn add_element(&mut self, mut c: compat::Shared<dyn Element>) -> compat::Shared<dyn Element> {
-        ({ let __f = compat::dispatch(&c, |__t| __t.set_parent()); __f(&c, self.clone()) });
+        ({ let __f = compat::dispatch(&c, |__t| __t.set_parent()); __f(&c, self.hud_widget_base().as_parent()) });
         self.elements.push(c.clone());
         return c;
     }
@@ -184,7 +184,7 @@ impl CropMilestonesWidget {
             return;
         }
         let mut item_name: String = compat::trim(&matcher.group_named("crop").unwrap());
-        let mut level: i32 = matcher.group_named("level").unwrap().trim().parse::<i32>().expect("NumberFormatException");
+        let mut level: i32 = matcher.group_named("level").unwrap().parse::<i32>().expect("NumberFormatException");
         let mut progress: String = compat::trim(&matcher.group_named("percentage").unwrap());
         let mut icon: Option<compat::Shared<FlexibleItemStack>> = (if compat::read(__this, |__t| __t.show_icon) { jacobs_contest_widget::FARM_DATA.get_mut().get(&item_name).cloned() } else { None });
         if progress == "MAX" || !(compat::read(__this, |__t| __t.show_progress_bar)) {

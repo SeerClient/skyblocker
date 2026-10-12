@@ -29,9 +29,14 @@ pub static STAT_ORDER: LazyLock<Vec<String>> = LazyLock::new(|| vec!["health".to
 /// java: private static Map<String, Power> powers = Map.of();
 pub static POWERS: LazyLock<Mutex<std::collections::HashMap<String, Power>>> = LazyLock::new(|| Mutex::new(std::collections::HashMap::from([])));
 /// java: private static final Codec<Power> CODEC = RecordCodecBuilder.create(instance -> instance.group( Codec.unboundedMap(Codec.STRING, Codec.DOUBLE).fieldOf("stats").forGetter(Power::stats), Codec.unbounded
-pub static POWER_CODEC: compat::MainThread<CodecRef<Power>> = compat::MainThread::new(|| record_codec_builder::create(record_codec_builder::apply2(record_codec_builder::of(|o: &Power| o.stats(), codec::field_of(codec::unbounded_map(mcrust::com::mojang::serialization::codec::string_codec(), mcrust::com::mojang::serialization::codec::double_codec()), "stats")), record_codec_builder::of(|o: &Power| o.bonus(), codec::optional_field_of(codec::unbounded_map(mcrust::com::mojang::serialization::codec::string_codec(), mcrust::com::mojang::serialization::codec::double_codec()), "bonus", std::collections::HashMap::from([]))), move |__a0, __a1| Power::new(__a0.clone(), __a1.clone()))));
+pub static POWER_CODEC: compat::MainThread<CodecRef<Power>> = compat::MainThread::new(|| record_codec_builder::create(record_codec_builder::apply2(record_codec_builder::of(|o: &Power| o.stats(), codec::field_of(string_double_map_codec(), "stats")), record_codec_builder::of(|o: &Power| o.bonus(), codec::optional_field_of(string_double_map_codec(), "bonus", std::collections::HashMap::from([]))), move |__a0, __a1| Power::new(__a0.clone(), __a1.clone()))));
 /// java: private static final Codec<Map<String, Power>> MAP_CODEC = Codec.unboundedMap(Codec.STRING, CODEC);
-pub static POWER_MAP_CODEC: compat::MainThread<CodecRef<std::collections::HashMap<String, Power>>> = compat::MainThread::new(|| codec::unbounded_map(mcrust::com::mojang::serialization::codec::string_codec(), POWER_CODEC.get_mut().clone()));
+pub static POWER_MAP_CODEC: compat::MainThread<CodecRef<std::collections::HashMap<String, Power>>> = compat::MainThread::new(|| codec::xmap(codec::unbounded_map(mcrust::com::mojang::serialization::codec::string_codec(), POWER_CODEC.get().clone()), |v: Vec<(String, Power)>| v.into_iter().collect::<std::collections::HashMap<_, _>>(), |m: &std::collections::HashMap<String, Power>| m.iter().map(|(k, v)| (k.clone(), v.clone())).collect::<Vec<_>>()));
+
+/// `Codec.unboundedMap(Codec.STRING, Codec.DOUBLE)` as the map Java decodes it to (the port's codec answers its entries)
+fn string_double_map_codec() -> CodecRef<std::collections::HashMap<String, f64>> {
+    codec::xmap(codec::unbounded_map(mcrust::com::mojang::serialization::codec::string_codec(), mcrust::com::mojang::serialization::codec::double_codec()), |v: Vec<(String, f64)>| v.into_iter().collect::<std::collections::HashMap<_, _>>(), |m: &std::collections::HashMap<String, f64>| m.iter().map(|(k, v)| (k.clone(), *v)).collect::<Vec<_>>())
+}
 /// java: private static final Power EMPTY = new Power(Map.of(), Map.of());
 pub static POWER_EMPTY: LazyLock<Power> = LazyLock::new(|| Power::new(std::collections::HashMap::from([]), std::collections::HashMap::from([])));
 
@@ -50,9 +55,9 @@ impl AccessoryPowerCalculator {
     /// java: @Init public static void init()
     pub fn init() {
         if *profile_viewer::ENABLED {
-            // TODO(fabric2seer): an assignment used as a value
-            //   java: CompletableFuture.supplyAsync(AccessoryPowerCalculator::loadPowers, SkyblockerMod.VIRTUAL_THREAD_EXECUTOR)
-            //   java: 			.thenAcceptAsync(data -> powers = data, Minecraft.getInstance());
+            // java: CompletableFuture.supplyAsync(AccessoryPowerCalculator::loadPowers, SkyblockerMod.VIRTUAL_THREAD_EXECUTOR)
+            //           .thenAcceptAsync(data -> powers = data, Minecraft.getInstance());
+            (CompletableFuture::supply_async(move || Ok(AccessoryPowerCalculator::load_powers()), compat::executor)).then_accept_async(|data: &std::collections::HashMap<String, Power>| compat::set_state(&POWERS, data.clone()), std::sync::Arc::new(|__t: Box<dyn FnOnce() + Send>| mcrust::mcrust::modding::game::execute(__t)));
         }
     }
 
@@ -96,7 +101,7 @@ impl AccessoryPowerCalculator {
             let mut data: Option<Accessory> = accessory_data.get(&id).cloned();
             if data.is_some() && data.as_ref().unwrap().family().is_some() && !(accessories_to_drop.iter().any(|e| *e == id.clone())) {
                 let mut family_members: Vec<Accessory> = accessory_data.values().cloned().filter(|__a0| __a0.has_family()).filter(|__a0| data.as_ref().unwrap().has_same_family(__a0)).collect::<Vec<_>>();
-                let mut highest_tier: i32 = (family_members.iter().cloned().max_by(|a, b| { let key = |__a0| __a0.tier(); key(a).cmp(&key(b)) }).unwrap()).tier();
+                let mut highest_tier: i32 = (family_members.iter().cloned().max_by(|a: &Accessory, b: &Accessory| { let key = |__a0: &Accessory| __a0.tier(); key(a).cmp(&key(b)) }).unwrap()).tier();
                 if data.as_ref().unwrap().tier() == highest_tier {
                     // TODO(fabric2seer): not a lambda
                     //   java: List<String> siblings = familyMembers.stream()
@@ -138,8 +143,8 @@ impl AccessoryPowerCalculator {
     }
 
     /// java: private static double coerce0(@Nullable Double number)
-    pub fn coerce0(mut number: f64) -> f64 {
-        return (if true /* java: number != null: never null here */ { number } else { ((0) as f64) as f64 });
+    pub fn coerce0(number: Option<f64>) -> f64 {
+        return (if let Some(number) = number { number } else { ((0) as f64) as f64 });
     }
 
     /// java: public static List<Component> getPowerStats(int accessoryPower, String selectedPower)
@@ -150,10 +155,10 @@ impl AccessoryPowerCalculator {
         for stat_id in STAT_ORDER.iter() {
             let mut amount: Option<f64> = None;
             if power.stats().contains_key(stat_id) {
-                amount = Some((AccessoryPowerCalculator::coerce0(amount.clone().unwrap()) + (power.stats().get(stat_id).cloned().unwrap() * stat_multiplier)));
+                amount = Some((AccessoryPowerCalculator::coerce0(amount) + (power.stats().get(stat_id).cloned().unwrap() * stat_multiplier)));
             }
             if power.bonus().contains_key(stat_id) {
-                amount = Some((AccessoryPowerCalculator::coerce0(amount.clone().unwrap()) + power.bonus().get(stat_id).cloned().unwrap()));
+                amount = Some((AccessoryPowerCalculator::coerce0(amount) + power.bonus().get(stat_id).cloned().unwrap()));
             }
             if let Some(amount) = &amount {
                 lines.push(AccessoryPowerCalculator::format_stat_by_id(stat_id, *amount));
@@ -167,7 +172,7 @@ impl AccessoryPowerCalculator {
 
     /// java: private static Component formatStatById(String id, double amount)
     pub fn format_stat_by_id(id: &str, mut amount: f64) -> MutableComponent {
-        return match id.as_str() {
+        return match id {
             "health" => AccessoryPowerCalculator::format_health(amount),
             "defence" => AccessoryPowerCalculator::format_defence(amount),
             "true_defence" => AccessoryPowerCalculator::format_true_defence(amount),

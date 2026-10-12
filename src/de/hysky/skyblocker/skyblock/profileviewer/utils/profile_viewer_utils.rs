@@ -25,11 +25,11 @@ impl ProfileViewerUtils {
     /// java: public static String numLetterFormat(double amount)
     pub fn num_letter_format(mut amount: f64) -> String {
         if amount >= (1000000000 as f64) {
-            return format!("%.4gB");
+            return compat::string_format("%.4gB", &[compat::FormatArg::from(amount / (1000000000 as f64))]);
         } else if amount >= (1000000 as f64) {
-            return format!("%.4gM");
+            return compat::string_format("%.4gM", &[compat::FormatArg::from(amount / (1000000 as f64))]);
         } else if amount >= (1000 as f64) {
-            return format!("%.4gK");
+            return compat::string_format("%.4gK", &[compat::FormatArg::from(amount / (1000 as f64))]);
         } else {
             return ((amount) as i32).to_string();
         }

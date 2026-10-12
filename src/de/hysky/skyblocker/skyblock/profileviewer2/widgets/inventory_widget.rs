@@ -93,7 +93,10 @@ impl InventoryWidget {
         if __this.lock().borrow().pages.is_empty() {
             return;
         }
-        let stacks = &__this.lock().borrow().pages[(compat::read(__this, |__t| __t.index)) as usize];
+        let __page_index = compat::read(__this, |__t| __t.index) as usize;
+        let __this_guard = __this.lock();
+        let __this_ref = __this_guard.borrow();
+        let stacks = &__this_ref.pages[__page_index];
         let mut hovered_stack: Option<mcrust::net::minecraft::world::item::item_stack::ItemStack> = None;
         for i in 0..(stacks.len() as i32) {
             let mut column: i32 = i.wrapping_rem(compat::read(__this, |__t| __t.columns));

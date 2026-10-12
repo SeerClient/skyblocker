@@ -1,0 +1,13 @@
+src/de/hysky/skyblocker/skyblock/itemlist/
+src/de/hysky/skyblocker/skyblock/dungeon/
+src/de/hysky/skyblocker/
+src/de/hysky/skyblocker/skyblock/chat/
+src/de/hysky/skyblocker/object/
+src/de/hysky/skyblocker/skyblock/searchoverlay/
+src/de/hysky/skyblocker/skyblock/storageoverlay/
+src/de/hysky/skyblocker/skyblock/experiment/
+src/de/hysky/skyblocker/compatibility/
+src/de/hysky/skyblocker/skyblock/bazaar/
+src/de/hysky/skyblocker/hud/
+src/de/hysky/skyblocker/skyblock/calculators/
+src/de/hysky/skyblocker/skyblock/carnival/

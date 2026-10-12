@@ -30,9 +30,17 @@ pub const MAX_SLOTS: i32 = 5;
 /// java: public static final int FREE_SLOTS = 2;
 pub const FREE_SLOTS: i32 = 2;
 /// java: protected static final Codec<Hotx> CODEC = RecordCodecBuilder.create(instance -> instance.group( Codec.unboundedMap(Codec.STRING, Perk.CODEC).fieldOf("perks").forGetter(Hotx::perks), Codec.unboundedMa
-pub static HOTX_CODEC: compat::MainThread<CodecRef<Hotx>> = compat::MainThread::new(|| record_codec_builder::create(record_codec_builder::apply2(record_codec_builder::of(|o: &Hotx| o.perks(), codec::field_of(codec::unbounded_map(mcrust::com::mojang::serialization::codec::string_codec(), PERK_CODEC.get_mut().clone()), "perks")), record_codec_builder::of(|o: &Hotx| o.powders(), codec::field_of(codec::unbounded_map(mcrust::com::mojang::serialization::codec::string_codec(), POWDER_INFO_CODEC.get_mut().clone()), "powders")), move |__a0, __a1| Hotx::new(__a0.clone(), __a1.clone()))));
+pub static HOTX_CODEC: compat::MainThread<CodecRef<Hotx>> = compat::MainThread::new(|| record_codec_builder::create(record_codec_builder::apply2(record_codec_builder::of(|o: &Hotx| o.perks(), codec::field_of(string_map_codec(PERK_CODEC.get().clone()), "perks")), record_codec_builder::of(|o: &Hotx| o.powders(), codec::field_of(string_map_codec(POWDER_INFO_CODEC.get().clone()), "powders")), move |__a0, __a1| Hotx::new(__a0, __a1))));
+/// `Codec.unboundedMap(Codec.STRING, valueCodec)` as the map Java decodes it to (the port's codec answers its entries)
+fn string_map_codec<V: Clone + 'static>(value_codec: CodecRef<V>) -> CodecRef<std::collections::HashMap<String, V>> {
+    codec::xmap(
+        codec::unbounded_map(mcrust::com::mojang::serialization::codec::string_codec(), value_codec),
+        |v: Vec<(String, V)>| v.into_iter().collect::<std::collections::HashMap<_, _>>(),
+        |m: &std::collections::HashMap<String, V>| m.iter().map(|(k, v)| (k.clone(), v.clone())).collect::<Vec<_>>(),
+    )
+}
 /// java: protected static final Codec<Perk> CODEC = RecordCodecBuilder.create(instance -> instance.group( Codec.STRING.fieldOf("name").forGetter(Perk::name), Codec.INT.fieldOf("x").forGetter(Perk::x), Codec.IN
-pub static PERK_CODEC: compat::MainThread<CodecRef<Perk>> = compat::MainThread::new(|| record_codec_builder::create(record_codec_builder::apply7(record_codec_builder::of(|o: &Perk| o.name(), codec::field_of(mcrust::com::mojang::serialization::codec::string_codec(), "name")), record_codec_builder::of(|o: &Perk| o.x(), codec::field_of(mcrust::com::mojang::serialization::codec::int_codec(), "x")), record_codec_builder::of(|o: &Perk| o.y(), codec::field_of(mcrust::com::mojang::serialization::codec::int_codec(), "y")), record_codec_builder::of(|o: &Perk| o.max_level(), codec::field_of(mcrust::com::mojang::serialization::codec::int_codec(), "maxLevel")), record_codec_builder::of(|o: &Perk| o.powder(), codec::field_of(lisp_extensions::PROGRAM_CODEC.get_mut().clone(), "powder")), record_codec_builder::of(|o: &Perk| o.lore(), codec::field_of(LORE_LINE_LIST_CODEC.get_mut().clone(), "lore")), record_codec_builder::of(|o: &Perk| o.extra_data(), codec_utils::MAP_PASSTHROUGH.get_mut().clone()), move |__a0, __a1, __a2, __a3, __a4, __a5, __a6| Perk::new(__a0.clone(), __a1.clone(), __a2.clone(), __a3.clone(), __a4.clone(), __a5.clone(), __a6.clone()))));
+pub static PERK_CODEC: compat::MainThread<CodecRef<Perk>> = compat::MainThread::new(|| record_codec_builder::create(record_codec_builder::apply7(record_codec_builder::of(|o: &Perk| o.name(), codec::field_of(mcrust::com::mojang::serialization::codec::string_codec(), "name")), record_codec_builder::of(|o: &Perk| o.x(), codec::field_of(mcrust::com::mojang::serialization::codec::int_codec(), "x")), record_codec_builder::of(|o: &Perk| o.y(), codec::field_of(mcrust::com::mojang::serialization::codec::int_codec(), "y")), record_codec_builder::of(|o: &Perk| o.max_level(), codec::field_of(mcrust::com::mojang::serialization::codec::int_codec(), "maxLevel")), record_codec_builder::of(|o: &Perk| o.powder(), codec::field_of(lisp_extensions::PROGRAM_CODEC.get_mut().clone(), "powder")), record_codec_builder::of(|o: &Perk| o.lore(), codec::field_of(LORE_LINE_LIST_CODEC.get_mut().clone(), "lore")), record_codec_builder::of(|o: &Perk| o.extra_data(), codec_utils::MAP_PASSTHROUGH.get_mut().clone()), move |__a0, __a1, __a2, __a3, __a4, __a5, __a6| Perk::new(__a0, __a1, __a2, __a3, __a4, __a5, __a6))));
 /// java: private static final Codec<LoreLine> OBJECT_CODEC = RecordCodecBuilder.create(instance -> instance.group( Codec.STRING.fieldOf("text").forGetter(LoreLine::template), LispExtensions.PROGRAM_CODEC.optio
 pub static LORE_LINE_OBJECT_CODEC: compat::MainThread<CodecRef<LoreLine>> = compat::MainThread::new(|| record_codec_builder::create(record_codec_builder::apply2(record_codec_builder::of(|o: &LoreLine| o.template(), codec::field_of(mcrust::com::mojang::serialization::codec::string_codec(), "text")), record_codec_builder::of(|o: &LoreLine| o.condition(), codec::optional_field_of_opt(lisp_extensions::PROGRAM_CODEC.get_mut().clone(), "onlyIf")), move |__a0, __a1| LoreLine::new(__a0.clone(), __a1.clone()))));
 /// java: private static final Codec<LoreLine> CODEC = Codec.withAlternative(OBJECT_CODEC, Codec.STRING, template -> new LoreLine(template, Optional.empty()));
@@ -60,8 +68,8 @@ impl SkillTreeBuilderBase {
     }
 
     /// java: protected static Map<String, LispAst.Program> precompilePrograms(Dynamic<?> extraData)
-    pub fn precompile_programs(extra_data: &Dynamic) -> std::collections::HashMap<String, crate::unresolved::Program> {
-        let mut cache: std::collections::HashMap<String, crate::unresolved::Program> = std::collections::HashMap::new();
+    pub fn precompile_programs(extra_data: &Dynamic) -> std::collections::HashMap<String, Arc<crate::unresolved::Program>> {
+        let mut cache: std::collections::HashMap<String, Arc<crate::unresolved::Program>> = std::collections::HashMap::new();
         // TODO(fabric2seer): static call Function.identity(..)
         //   java: @SuppressWarnings({ "unchecked", "rawtypes" })
         //   java: 		Map<Dynamic<?>, Dynamic<?>> allFields = (Map) extraData.asMap(Function.identity(), Function.identity());
@@ -120,7 +128,7 @@ pub trait SkillTreeBuilder: compat::DynAny {
     fn get_disabled_perk_icon(&self) -> fn(&compat::Shared<dyn SkillTreeBuilder>) -> mcrust::net::minecraft::world::item::item_stack::ItemStack;
 
     /// java: protected final ItemStack getIcon(boolean enabled, Map<String, LispData> values) (dispatch: the body for this class)
-    fn get_icon(&self) -> fn(&compat::Shared<dyn SkillTreeBuilder>, bool, &std::collections::HashMap<String, crate::unresolved::LispData>) -> mcrust::net::minecraft::world::item::item_stack::ItemStack {
+    fn get_icon(&self) -> fn(&compat::Shared<dyn SkillTreeBuilder>, bool, &std::collections::HashMap<String, Arc<crate::unresolved::LispData>>) -> mcrust::net::minecraft::world::item::item_stack::ItemStack {
         <dyn SkillTreeBuilder>::get_icon_body
     }
 
@@ -145,13 +153,13 @@ impl dyn SkillTreeBuilder {
     }
 
     /// java: protected final ItemStack getIcon(boolean enabled, Map<String, LispData> values)
-    pub fn get_icon_body(__this: &compat::Shared<dyn SkillTreeBuilder>, mut enabled: bool, values: &std::collections::HashMap<String, crate::unresolved::LispData>) -> mcrust::net::minecraft::world::item::item_stack::ItemStack {
+    pub fn get_icon_body(__this: &compat::Shared<dyn SkillTreeBuilder>, mut enabled: bool, values: &std::collections::HashMap<String, Arc<crate::unresolved::LispData>>) -> mcrust::net::minecraft::world::item::item_stack::ItemStack {
         if !enabled {
             return ({ let __f = compat::dispatch(__this, |__t| __t.get_disabled_perk_icon()); __f(__this) });
         }
         // TODO(fabric2seer): static field LispData.LispNil
         //   java: LispData itemId = values.getOrDefault("item", LispData.LispNil.INSTANCE);
-        let mut item_id: crate::unresolved::LispData = todo!("fabric2seer: the initialiser of `itemId` (TODO above)");
+        let mut item_id: Arc<crate::unresolved::LispData> = todo!("fabric2seer: the initialiser of `itemId` (TODO above)");
         // TODO(fabric2seer): a pattern switch expression
         //   java: String idPath = switch (itemId) {
         //   java: 			case LispData.Atom atom -> atom.getLabel();
@@ -229,6 +237,7 @@ pub trait AbstractLayout: compat::DynAny {
 }
 
 /// java: protected record Hotx(Map<String, Perk> perks, Map<String, PowderInfo> powders)
+#[derive(Clone)]
 pub struct Hotx {
     /// java: Map<String, Perk> perks
     pub perks: std::collections::HashMap<String, Perk>,
@@ -255,6 +264,7 @@ impl Hotx {
 }
 
 /// java: protected record Perk(String name, int x, int y, int maxLevel, LispAst.Program powder, List<LoreLine> lore, Dynamic<?> extraData, Map<String, LispAst.Program> programCache)
+#[derive(Clone)]
 pub struct Perk {
     /// java: String name
     pub name: String,
@@ -265,24 +275,25 @@ pub struct Perk {
     /// java: int maxLevel
     pub max_level: i32,
     /// java: LispAst.Program powder
-    pub powder: crate::unresolved::Program,
+    pub powder: Arc<crate::unresolved::Program>,
     /// java: List<LoreLine> lore
     pub lore: Vec<LoreLine>,
     /// java: Dynamic<?> extraData
     pub extra_data: Dynamic,
     /// java: Map<String, LispAst.Program> programCache
-    pub program_cache: std::collections::HashMap<String, crate::unresolved::Program>,
+    pub program_cache: std::collections::HashMap<String, Arc<crate::unresolved::Program>>,
 }
 
 impl Perk {
     /// java: private Perk(String name, int x, int y, int maxLevel, LispAst.Program powder, List<LoreLine> lore, Dynamic<?> extraData)
-    pub fn new(mut name: String, mut x: i32, mut y: i32, mut max_level: i32, mut powder: crate::unresolved::Program, mut lore: Vec<LoreLine>, mut extra_data: Dynamic) -> Self {
-        let mut this = Self::new(name.clone(), x, y, max_level, powder.clone(), lore.clone(), extra_data.clone(), SkillTreeBuilderBase::precompile_programs(&extra_data));
-        this
+    pub fn new(mut name: String, mut x: i32, mut y: i32, mut max_level: i32, mut powder: Arc<crate::unresolved::Program>, mut lore: Vec<LoreLine>, mut extra_data: Dynamic) -> Self {
+        // java: this(name, x, y, maxLevel, powder, lore, extraData, precompilePrograms(extraData));
+        let program_cache = SkillTreeBuilderBase::precompile_programs(&extra_data);
+        Self::new_canonical(name, x, y, max_level, powder, lore, extra_data, program_cache)
     }
 
     /// java: the canonical record constructor
-    pub fn new(mut name: String, mut x: i32, mut y: i32, mut max_level: i32, mut powder: crate::unresolved::Program, mut lore: Vec<LoreLine>, mut extra_data: Dynamic, mut program_cache: std::collections::HashMap<String, crate::unresolved::Program>) -> Self {
+    pub fn new_canonical(mut name: String, mut x: i32, mut y: i32, mut max_level: i32, mut powder: Arc<crate::unresolved::Program>, mut lore: Vec<LoreLine>, mut extra_data: Dynamic, mut program_cache: std::collections::HashMap<String, Arc<crate::unresolved::Program>>) -> Self {
         Self { name, x, y, max_level, powder, lore, extra_data, program_cache }
     }
 
@@ -307,7 +318,7 @@ impl Perk {
     }
 
     /// java: the record accessor `powder()`
-    pub fn powder(&self) -> crate::unresolved::Program {
+    pub fn powder(&self) -> Arc<crate::unresolved::Program> {
         self.powder.clone()
     }
 
@@ -322,23 +333,24 @@ impl Perk {
     }
 
     /// java: the record accessor `programCache()`
-    pub fn program_cache(&self) -> std::collections::HashMap<String, crate::unresolved::Program> {
+    pub fn program_cache(&self) -> std::collections::HashMap<String, Arc<crate::unresolved::Program>> {
         self.program_cache.clone()
     }
 
 }
 
 /// java: protected record LoreLine(String template, Optional<LispAst.Program> condition)
+#[derive(Clone)]
 pub struct LoreLine {
     /// java: String template
     pub template: String,
     /// java: Optional<LispAst.Program> condition
-    pub condition: Option<crate::unresolved::Program>,
+    pub condition: Option<Arc<crate::unresolved::Program>>,
 }
 
 impl LoreLine {
     /// java: the canonical record constructor
-    pub fn new(mut template: String, mut condition: Option<crate::unresolved::Program>) -> Self {
+    pub fn new(mut template: String, mut condition: Option<Arc<crate::unresolved::Program>>) -> Self {
         Self { template, condition }
     }
 
@@ -348,7 +360,7 @@ impl LoreLine {
     }
 
     /// java: the record accessor `condition()`
-    pub fn condition(&self) -> Option<crate::unresolved::Program> {
+    pub fn condition(&self) -> Option<Arc<crate::unresolved::Program>> {
         self.condition.clone()
     }
 

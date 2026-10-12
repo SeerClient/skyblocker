@@ -15,7 +15,9 @@ use crate::de::hysky::skyblocker::skyblock::tabhud::util::ico;
 use crate::de::hysky::skyblocker::utils::flexible_item_stack::FlexibleItemStack;
 use mcrust::net::minecraft::client::gui::components::abstract_widget::AbstractWidget;
 use mcrust::net::minecraft::client::gui::font::Font;
+use mcrust::net::minecraft::client::gui::gui_graphics_extractor;
 use mcrust::net::minecraft::client::gui::gui_graphics_extractor::GuiGraphicsExtractor;
+use mcrust::net::minecraft::network::chat::component;
 use mcrust::net::minecraft::client::gui::components::renderable::Renderable as _;
 
 /// java: private static final String[] INVENTORY_PAGES = {"inventory", "enderchest", "backpack", "wardrobe", "pets", "accessoryBag"};
@@ -31,7 +33,8 @@ pub static TEXT_RENDERER: compat::MainThread<Font> = compat::MainThread::new(|| 
 #[derive(Clone)]
 pub struct InventoryPage {
     /// java: private final @Nullable ProfileViewerPage[] inventorySubPages = new ProfileViewerPage[6];
-    pub inventory_sub_pages: Option<Vec<compat::Shared<dyn ProfileViewerPage>>>,
+    /// (the array is never null: its ELEMENTS are, for a sub page the profile has no data for)
+    pub inventory_sub_pages: Vec<Option<compat::Shared<dyn ProfileViewerPage>>>,
     /// java: private final List<SubPageSelectButton> inventorySelectButtons = new ArrayList<>();
     pub inventory_select_buttons: Vec<compat::Shared<SubPageSelectButton>>,
     /// java: private int activePage = 0;
@@ -45,7 +48,7 @@ impl InventoryPage {
     pub fn new(mut p_profile: serde_json::Map<String, serde_json::Value>) -> compat::Shared<Self> {
         let __this = compat::shared(Self {
             self_ref: std::sync::Weak::new(),
-            inventory_sub_pages: Some((0..(6) as usize).map(|_| Default::default()).collect::<Vec<_>>()),
+            inventory_sub_pages: (0..(6) as usize).map(|_| None).collect::<Vec<_>>(),
             inventory_select_buttons: Vec::new(),
             active_page: 0,
         });
@@ -54,31 +57,37 @@ impl InventoryPage {
             let __h0 = SubPageSelectButton::new((__this.clone() as compat::Shared<dyn ProfileViewerPage>), -100, 0, i, ICON_MAP.get_mut().get(&INVENTORY_PAGES[(i) as usize]).cloned().unwrap_or_else(|| ico::BARRIER.get_mut().clone()));
             __this.lock().borrow_mut().inventory_select_buttons.push(__h0);
         }
-        // java: try {..} catch (Exception e) - the body runs inline: a Rust body does not throw checked exceptions (a panic in it propagates)
-        {
-            let mut inventory_data: Option<serde_json::Map<String, serde_json::Value>> = Some(compat::json::get_as_json_object_of(&p_profile, "inventory"));
-            let Some(mut inventory_data) = inventory_data.clone() else {
-                return __this.clone();
+        // java: try {..} catch (Exception e) - an exception here is a panic, caught by `catch_unwind`; the try body's
+        // `return` ends the closure (the constructor's remaining statements are the try's)
+        let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            // java: JsonObject inventoryData = pProfile.getAsJsonObject("inventory"); if (inventoryData == null) return;
+            let Some(inventory_data) = p_profile.get("inventory").map(|v| compat::json::get_as_json_object(v)) else {
+                return;
             };
-            __this.lock().borrow_mut().inventory_sub_pages.as_mut().unwrap()[(0) as usize] = (PlayerInventory::new(inventory_data.clone()) as compat::Shared<dyn ProfileViewerPage>);
+            let __page = PlayerInventory::new(inventory_data.clone()) as compat::Shared<dyn ProfileViewerPage>;
+            compat::write(&__this, |__t| __t.inventory_sub_pages[0] = Some(__page));
             if compat::json::has(&inventory_data, "ender_chest_contents") {
-                __this.lock().borrow_mut().inventory_sub_pages.as_mut().unwrap()[(1) as usize] = (Inventory::new(INVENTORY_PAGES[(1) as usize].clone(), (5, 9), compat::json::get_as_json_object_of(&inventory_data, "ender_chest_contents")) as compat::Shared<dyn ProfileViewerPage>);
+                let __page = Inventory::new(INVENTORY_PAGES[(1) as usize].clone(), (5, 9), compat::json::get_as_json_object_of(&inventory_data, "ender_chest_contents")) as compat::Shared<dyn ProfileViewerPage>;
+                compat::write(&__this, |__t| __t.inventory_sub_pages[1] = Some(__page));
             }
             if compat::json::has(&inventory_data, "backpack_contents") {
-                __this.lock().borrow_mut().inventory_sub_pages.as_mut().unwrap()[(2) as usize] = (Inventory::new_4(INVENTORY_PAGES[(2) as usize].clone(), (5, 9), compat::json::get_as_json_object_of(&inventory_data, "backpack_contents"), (BackpackItemLoader::new() as compat::Shared<dyn ItemLoader>)) as compat::Shared<dyn ProfileViewerPage>);
+                let __page = Inventory::new_4(INVENTORY_PAGES[(2) as usize].clone(), (5, 9), compat::json::get_as_json_object_of(&inventory_data, "backpack_contents"), (BackpackItemLoader::new() as compat::Shared<dyn ItemLoader>)) as compat::Shared<dyn ProfileViewerPage>;
+                compat::write(&__this, |__t| __t.inventory_sub_pages[2] = Some(__page));
             }
             if compat::json::has(&inventory_data, "wardrobe_contents") {
-                __this.lock().borrow_mut().inventory_sub_pages.as_mut().unwrap()[(3) as usize] = (Inventory::new_4(INVENTORY_PAGES[(3) as usize].clone(), (4, 9), compat::json::get_as_json_object_of(&inventory_data, "wardrobe_contents"), (WardrobeInventoryItemLoader::new(inventory_data.clone()) as compat::Shared<dyn ItemLoader>)) as compat::Shared<dyn ProfileViewerPage>);
+                let __page = Inventory::new_4(INVENTORY_PAGES[(3) as usize].clone(), (4, 9), compat::json::get_as_json_object_of(&inventory_data, "wardrobe_contents"), (WardrobeInventoryItemLoader::new(inventory_data.clone()) as compat::Shared<dyn ItemLoader>)) as compat::Shared<dyn ProfileViewerPage>;
+                compat::write(&__this, |__t| __t.inventory_sub_pages[3] = Some(__page));
             }
-            __this.lock().borrow_mut().inventory_sub_pages.as_mut().unwrap()[(4) as usize] = (Inventory::new_4(INVENTORY_PAGES[(4) as usize].clone(), (4, 9), p_profile.clone(), (PetsInventoryItemLoader::new() as compat::Shared<dyn ItemLoader>)) as compat::Shared<dyn ProfileViewerPage>);
+            let __page = Inventory::new_4(INVENTORY_PAGES[(4) as usize].clone(), (4, 9), p_profile.clone(), (PetsInventoryItemLoader::new() as compat::Shared<dyn ItemLoader>)) as compat::Shared<dyn ProfileViewerPage>;
+            compat::write(&__this, |__t| __t.inventory_sub_pages[4] = Some(__page));
             if compat::json::has(&inventory_data, "bag_contents") && compat::json::has(&(compat::json::get_as_json_object_of(&inventory_data, "bag_contents")), "talisman_bag") {
-                __this.lock().borrow_mut().inventory_sub_pages.as_mut().unwrap()[(5) as usize] = (Inventory::new(INVENTORY_PAGES[(5) as usize].clone(), (5, 9), compat::json::get_as_json_object_of(&(compat::json::get_as_json_object_of(&inventory_data, "bag_contents")), "talisman_bag")) as compat::Shared<dyn ProfileViewerPage>);
+                let __page = Inventory::new(INVENTORY_PAGES[(5) as usize].clone(), (5, 9), compat::json::get_as_json_object_of(&(compat::json::get_as_json_object_of(&inventory_data, "bag_contents")), "talisman_bag")) as compat::Shared<dyn ProfileViewerPage>;
+                compat::write(&__this, |__t| __t.inventory_sub_pages[5] = Some(__page));
             }
+        }));
+        if let Err(e) = __result {
+            logger().error(&format!("[Skyblocker Profile Viewer] Error while loading inventory data: {}", compat::panic_message(&e)));
         }
-        // TODO(fabric2seer): the `catch (Exception e)` block is not reached in Rust - the try body returns, breaks or continues, so it cannot run inside `catch_unwind`
-        //   java: {
-        //   java: 			ProfileViewerScreen.LOGGER.error("[Skyblocker Profile Viewer] Error while loading inventory data: ", e);
-        //   java: 		}
         __this
     }
 
@@ -117,6 +126,12 @@ impl ProfileViewerPage for InventoryPage {
 }
 
 impl InventoryPage {
+    /// `inventorySubPages[activePage]` (null for a sub page the profile has no data for)
+    fn active_sub_page(__this: &compat::Shared<Self>) -> Option<compat::Shared<dyn ProfileViewerPage>> {
+        let __active = compat::read(__this, |__t| __t.active_page) as usize;
+        compat::read(__this, |__t| __t.inventory_sub_pages[__active].clone())
+    }
+
     /// java: @Override public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta, int rootX, int rootY)
     pub fn extract_render_state_impl(__this: &compat::Shared<Self>, graphics: &mut GuiGraphicsExtractor, mut mouse_x: i32, mut mouse_y: i32, mut delta: f32, mut root_x: i32, mut root_y: i32) {
         let mut starting_y: i32 = root_y.wrapping_add((TOTAL_HEIGHT.wrapping_sub((__this.lock().borrow().inventory_select_buttons.len() as i32).wrapping_mul(21))).wrapping_div(2));
@@ -127,7 +142,8 @@ impl InventoryPage {
             let __wa2 = starting_y.wrapping_add(i.wrapping_mul(21));
             let __o2 = __this.lock().borrow().inventory_select_buttons[(i) as usize].clone();
             compat::write(&__o2, |__t| __t.set_y(__wa2));
-            // TODO(fabric2seer): `extract_render_state` is a method of the port's trait `Renderable`, which the port's `AbstractWidget` does not implement
+            // rust: port gap (GAPS_batchC #C2) - `button.extractRenderState(graphics, ..)` on a widget OBJECT: the port's
+            // widget is drawn by the screen it was added to (`ProfileViewerScreen.init` adds `getButtons()`, which the game draws)
             // rust: let __wa3 = graphics.clone();
             // rust: let __wa4 = mouse_x;
             // rust: let __wa5 = mouse_y;
@@ -135,13 +151,14 @@ impl InventoryPage {
             // rust: let __o3 = __this.lock().borrow().inventory_select_buttons[(i) as usize].clone();
             // rust: compat::write(&__o3, |__t| __t.extract_render_state(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), __wa4, __wa5, __wa6));
         }
-        if false /* java: __this.lock().borrow().inventory_sub_pages.as_ref().unwrap()[(compat::read(__this, |__t| __t.active_page)) as usize] == null: never null here */ {
-            // TODO(fabric2seer): `.getRGB(..)` on a value of unknown type
-            //   java: graphics.text(textRenderer, "No data...", rootX + 92, rootY + 72, Color.DARK_GRAY.getRGB(), false);
+        // java: if (inventorySubPages[activePage] == null) { .. return; }
+        let Some(__r) = InventoryPage::active_sub_page(__this) else {
+            // java: graphics.text(textRenderer, "No data...", rootX + 92, rootY + 72, Color.DARK_GRAY.getRGB(), false);
+            gui_graphics_extractor::draw_formatted_text_with_drop_shadow(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), &mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::literal("No data...")), root_x.wrapping_add(92), root_y.wrapping_add(72), mcrust::java::awt::color::dark_gray().get_rgb(), false);
             return;
-        }
-        ({ let __r = &__this.lock().borrow().inventory_sub_pages.as_ref().unwrap()[(compat::read(__this, |__t| __t.active_page)) as usize]; let __f = compat::dispatch(__r, |__t| __t.mark_widgets_as_visible()); __f(__r) });
-        ({ let __r = &__this.lock().borrow().inventory_sub_pages.as_ref().unwrap()[(compat::read(__this, |__t| __t.active_page)) as usize]; let __f = compat::dispatch(__r, |__t| __t.extract_render_state()); __f(__r, graphics, mouse_x, mouse_y, delta, root_x.wrapping_add(35), root_y.wrapping_add(6)) });
+        };
+        ({ let __f = compat::dispatch(&__r, |__t| __t.mark_widgets_as_visible()); __f(&__r) });
+        ({ let __f = compat::dispatch(&__r, |__t| __t.extract_render_state()); __f(&__r, graphics, mouse_x, mouse_y, delta, root_x.wrapping_add(35), root_y.wrapping_add(6)) });
     }
 
     /// InventoryPage.extractRenderState as the dispatch of ProfileViewerPage.extractRenderState
@@ -151,8 +168,9 @@ impl InventoryPage {
 
     /// java: public void onNavButtonClick(SubPageSelectButton clickedButton)
     pub fn on_nav_button_click_impl(__this: &compat::Shared<Self>, clicked_button: &compat::Shared<SubPageSelectButton>) {
-        if true /* java: __this.lock().borrow().inventory_sub_pages.as_ref().unwrap()[(compat::read(__this, |__t| __t.active_page)) as usize] != null: never null here */ {
-            ({ let __r = &__this.lock().borrow().inventory_sub_pages.as_ref().unwrap()[(compat::read(__this, |__t| __t.active_page)) as usize]; let __f = compat::dispatch(__r, |__t| __t.mark_widgets_as_invisible()); __f(__r) });
+        // java: if (inventorySubPages[activePage] != null) inventorySubPages[activePage].markWidgetsAsInvisible();
+        if let Some(__r) = InventoryPage::active_sub_page(__this) {
+            ({ let __f = compat::dispatch(&__r, |__t| __t.mark_widgets_as_invisible()); __f(&__r) });
         }
         for button in compat::read(__this, |__t| __t.inventory_select_buttons.clone()) {
             SubPageSelectButton::set_toggled(&button, false);
@@ -168,10 +186,14 @@ impl InventoryPage {
 
     /// java: @Override public List<AbstractWidget> getButtons()
     pub fn get_buttons_impl(__this: &compat::Shared<Self>) -> Option<Vec<AbstractWidget>> {
-        let mut clickable_widgets: Vec<AbstractWidget> = compat::read(__this, |__t| __t.inventory_select_buttons.clone()).into_iter().collect::<Vec<_>>();
-        for page in __this.lock().borrow().inventory_sub_pages.as_ref().unwrap().iter() {
-            if true /* java: page != null: never null here */ && ({ let __f = compat::dispatch(page, |__t| __t.get_buttons()); __f(page) }).is_some() {
-                clickable_widgets.extend(({ let __f = compat::dispatch(page, |__t| __t.get_buttons()); __f(page) }).unwrap().iter().cloned());
+        // java: new ArrayList<>(inventorySelectButtons) - the widget objects, as the game's widgets (each attached to its object)
+        let mut clickable_widgets: Vec<AbstractWidget> = compat::read(__this, |__t| __t.inventory_select_buttons.clone()).into_iter().map(compat::WidgetAdapter::widget).collect::<Vec<_>>();
+        for page in compat::read(__this, |__t| __t.inventory_sub_pages.clone()) {
+            // java: if (page != null && page.getButtons() != null) clickableWidgets.addAll(page.getButtons()); - asked once (a fresh list each call)
+            let Some(page) = page else { continue; };
+            let __buttons: Option<Vec<AbstractWidget>> = ({ let __f = compat::dispatch(&page, |__t| __t.get_buttons()); __f(&page) });
+            if let Some(__buttons) = __buttons {
+                clickable_widgets.extend(__buttons);
             }
         }
         return Some(clickable_widgets);
@@ -184,8 +206,9 @@ impl InventoryPage {
 
     /// java: @Override public void markWidgetsAsVisible()
     pub fn mark_widgets_as_visible_impl(__this: &compat::Shared<Self>) {
-        if true /* java: __this.lock().borrow().inventory_sub_pages.as_ref().unwrap()[(compat::read(__this, |__t| __t.active_page)) as usize] != null: never null here */ {
-            ({ let __r = &__this.lock().borrow().inventory_sub_pages.as_ref().unwrap()[(compat::read(__this, |__t| __t.active_page)) as usize]; let __f = compat::dispatch(__r, |__t| __t.mark_widgets_as_visible()); __f(__r) });
+        // java: if (inventorySubPages[activePage] != null) inventorySubPages[activePage].markWidgetsAsVisible();
+        if let Some(__r) = InventoryPage::active_sub_page(__this) {
+            ({ let __f = compat::dispatch(&__r, |__t| __t.mark_widgets_as_visible()); __f(&__r) });
         }
         for button in compat::read(__this, |__t| __t.inventory_select_buttons.clone()) {
             { let __v = true; compat::write(&button, |__t| __t.visible = __v); }
@@ -200,8 +223,9 @@ impl InventoryPage {
 
     /// java: @Override public void markWidgetsAsInvisible()
     pub fn mark_widgets_as_invisible_impl(__this: &compat::Shared<Self>) {
-        if true /* java: __this.lock().borrow().inventory_sub_pages.as_ref().unwrap()[(compat::read(__this, |__t| __t.active_page)) as usize] != null: never null here */ {
-            ({ let __r = &__this.lock().borrow().inventory_sub_pages.as_ref().unwrap()[(compat::read(__this, |__t| __t.active_page)) as usize]; let __f = compat::dispatch(__r, |__t| __t.mark_widgets_as_invisible()); __f(__r) });
+        // java: if (inventorySubPages[activePage] != null) inventorySubPages[activePage].markWidgetsAsInvisible();
+        if let Some(__r) = InventoryPage::active_sub_page(__this) {
+            ({ let __f = compat::dispatch(&__r, |__t| __t.mark_widgets_as_invisible()); __f(&__r) });
         }
         for button in compat::read(__this, |__t| __t.inventory_select_buttons.clone()) {
             { let __v = false; compat::write(&button, |__t| __t.visible = __v); }

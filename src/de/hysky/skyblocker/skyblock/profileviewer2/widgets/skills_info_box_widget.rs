@@ -109,17 +109,18 @@ impl SkillsInfoBoxWidget {
         let mut profile_text: MutableComponent = (component::literal(&compat::read(&profile, |__t| __t.cute_name.clone()))).with_style_format(ChatFormatting::Underline);
         gui_graphics_extractor::draw_formatted_text(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), (x.wrapping_add(12)).wrapping_add(2), y, &mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(profile_text.clone()), mcrust::net::minecraft::util::common_colors::WHITE);
         y = y.wrapping_add(1);
-        let mut first_join: std::time::SystemTime = mcrust::java::time::instant::Instant::of_epoch_milli(member.lock().borrow().profile.first_join);
+        let mut first_join: mcrust::java::time::instant::Instant = mcrust::java::time::instant::Instant::of_epoch_milli(member.lock().borrow().profile.first_join);
         // TODO(fabric2seer): `.atZone(..)` on a value of unknown type
         //   java: int firstJoinYear = Instant.ofEpochMilli(member.profile.firstJoin)
         //   java: 				.atZone(ZoneId.systemDefault())
         //   java: 				.getYear();
-        let mut first_join_year: i32 = todo!("fabric2seer: the initialiser of `firstJoinYear` (TODO above)");
+        let mut first_join_year: i32 = mcrust::java::time::zoned_date_time::ZonedDateTime::of_instant(mcrust::java::time::instant::Instant::of_epoch_milli(member.lock().borrow().profile.first_join), mcrust::java::time::zone_id::ZoneId::system_default()).get_year();
         let mut joined_text: MutableComponent = component::empty().append(component::literal("Joined: ").with_style_format(ChatFormatting::Green)).append_str(&first_join_year.to_string());
         y = y.wrapping_add(text_y_step);
         gui_graphics_extractor::draw_formatted_text(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), x, y, &mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(joined_text.clone()), mcrust::net::minecraft::util::common_colors::WHITE);
         if GuiHelper::point_is_in_area((mouse_x) as f64, (mouse_y) as f64, (x) as f64, (y) as f64, ((x.wrapping_add(font.width_of_cached(&mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(joined_text.clone())))) as f64) as f64, ((y.wrapping_add(mcrust::net::minecraft::client::gui::font::LINE_HEIGHT)) as f64) as f64) {
-            tooltip = Some(vec![component::literal(&date_time_formatter::format_iso_instant(first_join.clone()))]);
+            // java: Formatters.DATE_FORMATTER.format(firstJoin) - the formatter carries its zone (`withZone(getTimeZone())`)
+            tooltip = Some(vec![component::literal(&formatters::DATE_FORMATTER.get_mut().format(mcrust::java::time::zoned_date_time::ZonedDateTime::of_instant(first_join, formatters::Formatters::get_time_zone())))]);
         }
         y = y.wrapping_add(text_y_step);
         let mut emblem: Option<Emblem> = ConstantData::get_emblem_constants().from_id(&member.lock().borrow().levelling.selected_emblem);
@@ -128,24 +129,28 @@ impl SkillsInfoBoxWidget {
         //   java: 				.append(Component.literal("Emblem: ").withStyle(ChatFormatting.GREEN))
         //   java: 				.append(emblem.map(EmblemConstants.Emblem::display)
         //   java: 						.orElseGet(() -> Component.literal("None")));
-        let mut emblem_text: MutableComponent = todo!("fabric2seer: the initialiser of `emblemText` (TODO above)");
+        let mut emblem_text: MutableComponent = component::empty()
+            .append(component::literal("Emblem: ").with_style_format(ChatFormatting::Green))
+            .append(emblem.as_ref().map(|e| e.display()).unwrap_or_else(|| component::literal("None")));
         gui_graphics_extractor::draw_formatted_text(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), x, y, &mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(emblem_text.clone()), mcrust::net::minecraft::util::common_colors::WHITE);
         if emblem.is_some() && GuiHelper::point_is_in_area((mouse_x) as f64, (mouse_y) as f64, (x) as f64, (y) as f64, ((x.wrapping_add(font.width_of_cached(&mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(emblem_text.clone())))) as f64) as f64, ((y.wrapping_add(mcrust::net::minecraft::client::gui::font::LINE_HEIGHT)) as f64) as f64) {
             tooltip = Some(vec![component::literal(&emblem.clone().unwrap().name())]);
         }
         y = y.wrapping_add(text_y_step);
-        let mut skill_average_text: MutableComponent = component::empty().append(component::literal("Skill Avg: ").with_style_format(ChatFormatting::Green)).append_str(&formatters::FLOAT_NUMBERS.get_mut().format(member.lock().borrow().player_data.get_skill_average(&compat::read(__this, |__t| __t.info.clone()))));
+        let mut skill_average_text: MutableComponent = component::empty().append(component::literal("Skill Avg: ").with_style_format(ChatFormatting::Green)).append_str(&formatters::FLOAT_NUMBERS.get_mut().format(member.lock().borrow().player_data.get_skill_average(&compat::read(__this, |__t| __t.info.clone())) as f64));
         gui_graphics_extractor::draw_formatted_text(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), x, y, &mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(skill_average_text.clone()), mcrust::net::minecraft::util::common_colors::WHITE);
         y = y.wrapping_add(text_y_step);
         let mut purse_text: MutableComponent = component::empty().append(component::literal("Purse: ").with_style_format(ChatFormatting::Gold)).append_str(&formatters::SHORT_DOUBLE_NUMBERS.get_mut().format(member.lock().borrow().currencies.coins_in_purse));
         gui_graphics_extractor::draw_formatted_text(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), x, y, &mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(purse_text.clone()), mcrust::net::minecraft::util::common_colors::WHITE);
         y = y.wrapping_add(text_y_step);
-        let mut bank: f64 = (profile.lock().borrow().banking.balance + PrimitiveTypeUtils::coerce_double(member.lock().borrow().profile.personal_bank_account.clone()));
+        // (the `@Nullable Double` field, boxed as Java hands it to `Object`)
+        let personal_bank_account: Option<compat::Object> = compat::read(&member, |__t| __t.profile.personal_bank_account).map(|d| std::sync::Arc::new(d) as compat::Object);
+        let mut bank: f64 = (profile.lock().borrow().banking.balance + PrimitiveTypeUtils::coerce_double(personal_bank_account.clone()));
         let mut bank_text: MutableComponent = component::empty().append(component::literal("Bank: ").with_style_format(ChatFormatting::Gold)).append_str(&formatters::SHORT_DOUBLE_NUMBERS.get_mut().format(bank));
         gui_graphics_extractor::draw_formatted_text(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), x, y, &mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(bank_text.clone()), mcrust::net::minecraft::util::common_colors::WHITE);
         if GuiHelper::point_is_in_area((mouse_x) as f64, (mouse_y) as f64, (x) as f64, (y) as f64, ((x.wrapping_add(font.width_of_cached(&mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(bank_text.clone())))) as f64) as f64, ((y.wrapping_add(mcrust::net::minecraft::client::gui::font::LINE_HEIGHT)) as f64) as f64) && member.lock().borrow().profile.personal_bank_account.is_some() {
             let mut bank_tooltip: Vec<MutableComponent> = Vec::new();
-            bank_tooltip.push((component::literal(&format!("Personal: {}", formatters::INTEGER_NUMBERS.get_mut().format(PrimitiveTypeUtils::coerce_double(member.lock().borrow().profile.personal_bank_account.clone()))))).with_style_format(ChatFormatting::Red));
+            bank_tooltip.push((component::literal(&format!("Personal: {}", formatters::INTEGER_NUMBERS.get_mut().format(PrimitiveTypeUtils::coerce_double(personal_bank_account.clone()))))).with_style_format(ChatFormatting::Red));
             bank_tooltip.push((component::literal(&format!("Co-op: {}", formatters::INTEGER_NUMBERS.get_mut().format(profile.lock().borrow().banking.balance)))).with_style_format(ChatFormatting::Gold));
             bank_tooltip.push((component::literal(&format!("Total: {}", formatters::INTEGER_NUMBERS.get_mut().format(bank)))).with_style_format(ChatFormatting::Yellow));
             tooltip = Some(bank_tooltip.clone());

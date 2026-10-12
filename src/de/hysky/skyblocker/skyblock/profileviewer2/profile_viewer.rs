@@ -69,7 +69,8 @@ impl ProfileViewer {
     }
 
     /// java: private static Screen openProfileViewer(FabricClientCommandSource source, String name)
-    pub fn open_profile_viewer(source: &crate::unresolved::FabricClientCommandSource, name: &str) -> Option<mcrust::net::minecraft::client::gui::screens::screen::Screen> {
+    /// (the screen the command opens: a mod screen object, as `game::set_screen` takes it)
+    pub fn open_profile_viewer(source: &crate::unresolved::FabricClientCommandSource, name: &str) -> Option<Box<dyn mcrust::mcrust::modding::screens::ModScreen>> {
         // TODO(fabric2seer): `.getClient(..)` on a FabricClientCommandSource
         //   java: Minecraft minecraft = source.getClient();
         let mut minecraft: mcrust::net::minecraft::client::minecraft::Minecraft = todo!("fabric2seer: the initialiser of `minecraft` (TODO above)");
@@ -103,14 +104,19 @@ impl ProfileViewer {
         // rust: }
         // rust: }, std::sync::Arc::new(|__t: Box<dyn FnOnce() + Send>| mcrust::mcrust::modding::game::execute(__t)))).then_accept_async(__q0, __q1) }).exceptionally_async(__q0, __q1) };
         let mut data_future: mcrust::java::util::concurrent::completable_future::CompletableFuture<()> = todo!("fabric2seer: the initialiser of `dataFuture` (TODO above)");
-        return Some(LoadingProfileViewerScreen::new(name.to_string()));
+        return Some(Box::new(compat::ScreenAdapter::new(LoadingProfileViewerScreen::new(name.to_string()))));
     }
 
     /// java: private static CompletableFuture<LoadedData> loadData(String name)
-    pub fn load_data(name: &str) -> mcrust::java::util::concurrent::completable_future::CompletableFuture<LoadedData> {
+    /// rust: port gap - `LoadedData` holds the GSON object graph of the profile response (the mod's objects, not `Send`),
+    /// which the port's `CompletableFuture` cannot carry and which no JSON-to-object binder of the port can build
+    /// (GAPS_batchC): the supplier runs deferred on the render thread (`compat::LocalFuture::supply_local`) instead of
+    /// on SkyblockerMod's executor
+    pub fn load_data(name: &str) -> compat::LocalFuture<LoadedData> {
         let minecraft = compat::minecraft();
-        return CompletableFuture::supply_async(move || Ok((|| {
-            let mut uuid: String = ApiUtils::name2_uuid(name);
+        let name = name.to_string();
+        return compat::LocalFuture::supply_local(move || (|| {
+            let mut uuid: String = ApiUtils::name2_uuid(&name);
             if uuid.is_empty() {
                 panic!("IllegalStateException: {}", "Invalid username");
             }
@@ -132,13 +138,13 @@ impl ProfileViewer {
             //   java: 							);
             let mut leaderboards: mcrust::java::util::concurrent::completable_future::CompletableFuture<std::collections::HashMap<String, i32>> = todo!("fabric2seer: the initialiser of `leaderboards` (TODO above)");
             return LoadedData::new(skyblock_profile_future.join().unwrap(), leaderboards.join().unwrap(), game_profile_future.join().unwrap());
-        })()), compat::executor);
+        })());
     }
 
 }
 
 /// java: private record LoadedData(Optional<ApiProfileResponse> apiProfileResponse, Map<String, Integer> leaderboards, Optional<GameProfile> gameProfile)
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct LoadedData {
     /// java: Optional<ApiProfileResponse> apiProfileResponse
     pub api_profile_response: Option<compat::Shared<ApiProfileResponse>>,

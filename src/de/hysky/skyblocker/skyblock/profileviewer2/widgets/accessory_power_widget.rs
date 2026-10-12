@@ -123,13 +123,13 @@ impl AccessoryPowerWidget {
             y = y.wrapping_add(text_y_step);
         }
         let mut stats_y: i32 = y;
-        for line in (compat::read(__this, |__t| __t.stats_halves.clone()).0).iter() {
+        for line in compat::read(__this, |__t| __t.stats_halves.as_ref().expect("NullPointerException").0.clone()).iter() {
             gui_graphics_extractor::draw_formatted_text(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), x, y, &mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(line.clone()), mcrust::net::minecraft::util::common_colors::WHITE);
             y = y.wrapping_add(text_y_step);
         }
         x = (__this.lock().borrow().get_x()).wrapping_add((__this.lock().borrow().get_width()).wrapping_div(2));
         y = stats_y;
-        for line in (compat::read(__this, |__t| __t.stats_halves.clone()).1).iter() {
+        for line in compat::read(__this, |__t| __t.stats_halves.as_ref().expect("NullPointerException").1.clone()).iter() {
             gui_graphics_extractor::draw_formatted_text(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), x, y, &mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(line.clone()), mcrust::net::minecraft::util::common_colors::WHITE);
             y = y.wrapping_add(text_y_step);
         }

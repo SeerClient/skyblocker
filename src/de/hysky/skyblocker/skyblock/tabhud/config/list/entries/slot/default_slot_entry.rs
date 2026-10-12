@@ -67,13 +67,14 @@ impl DefaultSlotEntry {
     }
 
     /// java: @Override public List<? extends GuiEventListener> children()
-    pub fn children(__this: &compat::Shared<Self>) -> Vec<Box<dyn GuiEventListener>> {
+    /// (the game asks the row for its widgets, `ModListEntry::children`; this answers them as values)
+    pub fn children(__this: &compat::Shared<Self>) -> Vec<mcrust::net::minecraft::client::gui::components::abstract_widget::AbstractWidget> {
         return vec![compat::write(__this, |__t| { let __s = &mut *__t; match __s.left_click.as_mut() { Some(__r) => Some(__s.base.base.__widgets.with(&mut __s.base.base.__row, __r, |__w| __w.clone())), None => None } }).unwrap(), compat::write(__this, |__t| { let __s = &mut *__t; match __s.right_click.as_mut() { Some(__r) => Some(__s.base.base.__widgets.with(&mut __s.base.base.__row, __r, |__w| __w.clone())), None => None } }).unwrap()];
     }
 
     /// java: @Override public void extractContent(GuiGraphicsExtractor graphics, int mouseX, int mouseY, boolean hovered, float deltaTicks)
     pub fn extract_content(__this: &compat::Shared<Self>, graphics: &GuiGraphicsExtractor, mut mouse_x: i32, mut mouse_y: i32, mut hovered: bool, mut delta_ticks: f32) {
-        ({ let __f = compat::dispatch(__this, |__t| __t.extract_icon_and_text()); __f(&compat::view(__this, |a| a as compat::Shared<dyn WidgetsListSlotEntry>), graphics, __this.lock().borrow().get_y(), __this.lock().borrow().get_x(), __this.lock().borrow().get_height()) });
+        ({ let __f = compat::dispatch(__this, |__t| WidgetsListSlotEntry::extract_icon_and_text(__t)); __f(&compat::view(__this, |a| a as compat::Shared<dyn WidgetsListSlotEntry>), graphics, __this.lock().borrow().get_y(), __this.lock().borrow().get_x(), __this.lock().borrow().get_height()) });
         let __wa1 = ((__this.lock().borrow().get_x()).wrapping_add(__this.lock().borrow().get_width())).wrapping_sub(40);
         let __wa2 = (__this.lock().borrow().get_y()).wrapping_add(((__this.lock().borrow().get_height()).wrapping_sub(12)).wrapping_div(2));
         compat::write(__this, |__t| { let __s = &mut *__t; let __r = __s.right_click.as_mut().unwrap(); __s.base.base.__widgets.with(&mut __s.base.base.__row, __r, |__w| __w.set_position(__wa1, __wa2)) });

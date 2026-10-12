@@ -91,20 +91,24 @@ impl AddWidgetWidget {
 
     /// java: @Override public boolean mouseClicked(MouseButtonEvent click, boolean doubled)
     pub fn mouse_clicked(&self, click: &MouseButtonEvent, mut doubled: bool) -> bool {
-        // TODO(fabric2seer): `AbstractContainerWidget.visible` is a field of the port's `AbstractContainerWidget`, which the port's `AbstractSelectionList` does not hold (no Deref, no `base` field)
-        if !self.visible {
-            return false;
-        }
+        // rust: port gap (GAPS_batchA #8) - `AbstractWidget.visible` on a selection list: the port's
+        // `AbstractSelectionList` holds no `visible`
+        // rust: if !self.visible {
+        // rust:     return false;
+        // rust: }
         // TODO(fabric2seer): `AbstractContainerWidget::mouse_clicked` ports `mouseClicked`, but the port's `AbstractSelectionList` holds no `AbstractContainerWidget` (no Deref, no `base` field) to call it on
         // rust: return self.base.mouse_clicked(click.clone(), doubled);
         return todo!("fabric2seer: see the TODO above");
     }
 
     /// java: public void openWith(List<HudWidget> widgets)
-    pub fn open_with(&self, widgets: &Vec<compat::Shared<dyn HudWidget>>) {
+    pub fn open_with(&mut self, widgets: &Vec<compat::Shared<dyn HudWidget>>) {
         // TODO(fabric2seer): `AbstractContainerWidget.visible` is a field of the port's `AbstractContainerWidget`, which the port's `AbstractSelectionList` does not hold (no Deref, no `base` field)
         // rust: self.visible = true;
-        self.replace_entries(compat::sorted_by(widgets.iter().cloned(), |a, b| { let key = |w| ({ let __f = compat::dispatch(w, |__t| __t.get_information()); __f(w) }).display_name().unwrap().get_string(); key(a).cmp(&key(b)) }).map(|__a0| Entry::new(__a0.clone())).collect::<Vec<_>>());
+        // rust: port gap (GAPS_batchC #C5) - this list subclass sits on the port's plain `AbstractSelectionList`, whose
+        // rows are the game's own `Entry` values: the mod's row objects (`Entry::new`) join a list only through the
+        // `ModSelectionList` / `compat::EntryAdapter` path, which this class is not built on
+        // rust: self.replace_entries(compat::sorted_by(widgets.iter().cloned(), |a, b| { let key = |w| ({ let __f = compat::dispatch(w, |__t| __t.get_information()); __f(w) }).display_name().unwrap().get_string(); key(a).cmp(&key(b)) }).map(|__a0| Entry::new(__a0.clone())).collect::<Vec<_>>());
         { let __s0 = (((widgets.len() as i32).min(MAX_ENTRIES)).wrapping_mul(self.default_entry_height)).wrapping_add(4); self.set_height(__s0) };
         { let __s0 = (widgets.iter().cloned().map(|entry| compat::font().width_of_cached(&mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(({ let __f = compat::dispatch(&entry, |__t| __t.get_information()); __f(&entry) }).display_name().unwrap()))).max().unwrap_or(100)).wrapping_add(if self.scrollable() { 6 } else { 4 }); self.set_width(__s0) };
     }
@@ -139,7 +143,6 @@ impl AddWidgetWidget {
 // NOTE(fabric2seer): extractListBackground, extractListSeparators, extractScrollbar, extractWidgetRenderState, getRowLeft, getRowWidth, mouseClicked, scrollBarX, updateWidgetNarration override(s) of AbstractSelectionList - the port dispatches its own calls, so these run only where the mod calls them; hook the port's method to make the game call them
 
 /// java: protected class Entry extends AbstractSelectionList.Entry<de.hysky.skyblocker.skyblock.tabhud.config.AddWidgetWidget.Entry>
-#[derive(Clone)]
 pub struct Entry {
     /// java: extends net.minecraft.client.gui.components.AbstractSelectionList$Entry
     pub base: mcrust::net::minecraft::client::gui::components::abstract_selection_list::Entry,

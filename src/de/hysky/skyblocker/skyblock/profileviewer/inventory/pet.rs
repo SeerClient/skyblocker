@@ -111,7 +111,7 @@ impl Pet {
             if item.is_none() || FlexibleItemStack::is_empty(item.as_ref().unwrap()) {
                 return None;
             }
-            let mut profile: Option<ResolvableProfile> = Some(FlexibleItemStack::get(item.as_ref().unwrap(), mcrust::net::minecraft::core::component::data_components::profile()));
+            let mut profile: Option<ResolvableProfile> = FlexibleItemStack::get::<ResolvableProfile>(item.as_ref().unwrap(), mcrust::net::minecraft::core::component::data_components::profile());
             return (if profile.is_some() { profile.clone() } else { None });
         }
         return None;
@@ -137,11 +137,12 @@ impl Pet {
         if item.is_none() && self.held_item.is_some() && self.held_item.clone().unwrap() == "PET_ITEM_TIER_BOOST" {
             item = NEURepoManager::get_item_by_neu_id(&format!("{};{}", self.get_name(), self.get_tier()));
         }
-        return (if item.is_none() { ico::BARRIER.get_mut().clone() } else { self.from_neu_item(item.as_ref().unwrap(), &self.held_item.clone().and_then(|__a0| ItemRepository::get_item_stack(&__a0)).unwrap()) });
+        // java: fromNEUItem(item, this.heldItem.map(ItemRepository::getItemStack).orElse(null)) - null without a held item
+        return (if item.is_none() { ico::BARRIER.get_mut().clone() } else { self.from_neu_item(item.as_ref().unwrap(), self.held_item.clone().and_then(|__a0| ItemRepository::get_item_stack(&__a0)).as_ref()) });
     }
 
     /// java: private FlexibleItemStack fromNEUItem(NEUItem item, FlexibleItemStack heldItem)
-    pub fn from_neu_item(&self, item: &crate::unresolved::NEUItem, held_item: &compat::Shared<FlexibleItemStack>) -> compat::Shared<FlexibleItemStack> {
+    pub fn from_neu_item(&self, item: &crate::unresolved::NEUItem, held_item: Option<&compat::Shared<FlexibleItemStack>>) -> compat::Shared<FlexibleItemStack> {
         if false /* java: item == null: never null here */ {
             return self.get_error_stack();
         }
@@ -178,23 +179,28 @@ impl Pet {
         if self.boosted() {
             formatted_lore[((formatted_lore.len() as i32).wrapping_sub(1)) as usize] = component::literal(&self.get_rarity().next().to_string()).set_style(style.clone()).with_style_format(ChatFormatting::Bold).with_color(self.get_rarity().next().fields().color);
         }
-        FlexibleItemStack::set(&pet_stack, mcrust::net::minecraft::core::component::data_components::lore().clone(), ItemLore::new(formatted_lore.clone()).unwrap());
+        FlexibleItemStack::set(&pet_stack, mcrust::net::minecraft::core::component::data_components::lore().clone(), ItemLore::new(formatted_lore.iter().cloned().map(mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from).collect()).unwrap());
         // TODO(fabric2seer): `.getDisplayName(..)` on a NEUItem
         //   java: String displayName = ChatFormatting.stripFormatting(item.getDisplayName()).replace("[Lvl {LVL}]", "§7[Lvl " + this.level + "]§r");
         let mut display_name: String = todo!("fabric2seer: the initialiser of `displayName` (TODO above)");
-        FlexibleItemStack::set(&pet_stack, mcrust::net::minecraft::core::component::data_components::custom_name().clone(), component::literal(&display_name).set_style(style.clone()).with_color((if self.boosted() { self.get_rarity().next() } else { self.get_rarity() }).fields().color));
+        // (CUSTOM_NAME's value is a Component: the port's is a `FormattedText`)
+        FlexibleItemStack::set(&pet_stack, mcrust::net::minecraft::core::component::data_components::custom_name().clone(), mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::literal(&display_name).set_style(style.clone()).with_color((if self.boosted() { self.get_rarity().next() } else { self.get_rarity() }).fields().color)));
         return pet_stack;
     }
 
     /// java: private List<Component> processLore(List<String> lore, FlexibleItemStack heldItem)
-    pub fn process_lore(&self, lore: &Vec<String>, held_item: &compat::Shared<FlexibleItemStack>) -> Vec<MutableComponent> {
+    pub fn process_lore(&self, lore: &Vec<String>, held_item: Option<&compat::Shared<FlexibleItemStack>>) -> Vec<MutableComponent> {
         // TODO(fabric2seer): `.getPetNumbers(..)` on a NEUConstants
         //   java: Map<String, Map<Rarity, PetNumbers>> petNums = NEURepoManager.getConstants().getPetNumbers();
         let mut pet_nums: std::collections::HashMap<String, std::collections::HashMap<crate::unresolved::Rarity, crate::unresolved::PetNumbers>> = todo!("fabric2seer: the initialiser of `petNums` (TODO above)");
         // TODO(fabric2seer): static call Rarity.values(..)
         //   java: Rarity rarity = Rarity.values()[getTier()];
         let mut rarity: crate::unresolved::Rarity = todo!("fabric2seer: the initialiser of `rarity` (TODO above)");
-        let mut data: crate::unresolved::PetNumbers = pet_nums.get(&self.get_name()).cloned().unwrap().get(&rarity).cloned().unwrap();
+        // rust: port gap (GAPS_batchB L1, the NEU repo library) - `Rarity` / `PetNumbers` are the library's types, of which
+        // the port has placeholders with no equality or hash: the map cannot be looked up by them
+        // rust: let mut data: crate::unresolved::PetNumbers = pet_nums.get(&self.get_name()).cloned().unwrap().get(&rarity).cloned().unwrap();
+        let _ = (&pet_nums, &rarity);
+        let mut data: crate::unresolved::PetNumbers = crate::unresolved::PetNumbers;
         let mut formatted_lore: Vec<MutableComponent> = Vec::new();
         for line in lore.iter() {
             if line.contains("Right-click to add this") || line.contains("pet menu!") {
@@ -213,7 +219,7 @@ impl Pet {
             }
             while other.find() {
                 let mut placeholder: String = other.group(0).unwrap();
-                let mut number_key: i32 = (compat::substring2(&placeholder, 1, (compat::str_len(&placeholder)).wrapping_sub(1))).trim().parse::<i32>().expect("NumberFormatException");
+                let mut number_key: i32 = (compat::substring2(&placeholder, 1, (compat::str_len(&placeholder)).wrapping_sub(1))).parse::<i32>().expect("NumberFormatException");
                 // TODO(fabric2seer): `.interpolatedStatsAtLevel(..)` on a PetNumbers
                 //   java: String statValue = String.valueOf(fixDecimals(data.interpolatedStatsAtLevel(this.level).getOtherNumbers().get(numberKey), false));
                 let mut stat_value: String = todo!("fabric2seer: the initialiser of `statValue` (TODO above)");
@@ -221,9 +227,11 @@ impl Pet {
             }
             formatted_lore.push(component::null_to_empty(Some(&formatted_line)));
         }
-        if true /* java: held_item != null: never null here */ {
-            // TODO(fabric2seer): `.getString(..)` on a T
-            //   java: formattedLore.set(formattedLore.size() - 2, Component.nullToEmpty("§r§6Held Item: " + heldItem.get(DataComponents.CUSTOM_NAME).getString()));
+        if let Some(held_item) = held_item {
+            // java: formattedLore.set(formattedLore.size() - 2, Component.nullToEmpty("§r§6Held Item: " + heldItem.get(DataComponents.CUSTOM_NAME).getString()));
+            let held_name: mcrust::net::minecraft::network::chat::formatted_text::FormattedText = FlexibleItemStack::get(held_item, mcrust::net::minecraft::core::component::data_components::custom_name()).expect("NullPointerException");
+            let __index = ((formatted_lore.len() as i32).wrapping_sub(2)) as usize;
+            formatted_lore[__index] = component::null_to_empty(Some(&format!("§r§6Held Item: {}", compat::component_of(held_name).get_string())));
             formatted_lore.insert(((formatted_lore.len() as i32).wrapping_sub(1)) as usize, component::empty());
         }
         return formatted_lore;

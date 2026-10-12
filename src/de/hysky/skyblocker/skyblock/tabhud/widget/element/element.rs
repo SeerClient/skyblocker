@@ -10,6 +10,7 @@ use mcrust::net::minecraft::client::gui::gui_graphics_extractor;
 use mcrust::net::minecraft::client::gui::gui_graphics_extractor::GuiGraphicsExtractor;
 use mcrust::net::minecraft::client::gui::layouts::layout_element::LayoutElement;
 use mcrust::net::minecraft::client::gui::layouts::spacer_element::SpacerElement;
+use crate::de::hysky::skyblocker::skyblock::tabhud::widget::hud_widget::HudWidget;
 
 /// java: public static final int PAD_S = 2;
 pub const PAD_S: i32 = 2;
@@ -28,7 +29,32 @@ pub struct ElementBase {
     /// java: int width, height;
     pub height: i32,
     /// java: private LayoutElement parent = SpacerElement.width(0);
-    pub parent: LayoutElement,
+    pub parent: ElementParent,
+}
+
+/// java: the `LayoutElement` an element's `parent` holds: `SpacerElement.width(0)` until a widget adopts it
+/// (`ElementBasedWidget.addElement` / `updateConfig`: `c.setParent(this)`, a `HudWidget implements LayoutElement`).
+/// The widget is held by a weak reference: the widget holds its elements.
+#[derive(Clone)]
+pub enum ElementParent {
+    Layout(LayoutElement),
+    Widget(compat::WeakShared<dyn HudWidget>),
+}
+
+impl ElementParent {
+    /// java: `parent.getWidth()` (`HudWidget.getWidth()` for a widget)
+    pub fn get_width(&self) -> i32 {
+        match self {
+            ElementParent::Layout(l) => l.get_width(),
+            ElementParent::Widget(w) => match w.upgrade() {
+                Some(w) => {
+                    let __f = compat::dispatch(&w, |__t| __t.get_width());
+                    __f(&w)
+                }
+                None => 0,
+            },
+        }
+    }
 }
 
 impl ElementBase {
@@ -38,7 +64,7 @@ impl ElementBase {
             ico_dim: Arc::new(move || (if SkyblockerConfigManager::get().ui_and_visuals.tab_hud.compact_widgets { 12 } else { 16 })),
             width: 0,
             height: 0,
-            parent: SpacerElement::width(0).as_layout_element(),
+            parent: ElementParent::Layout(SpacerElement::width(0).as_layout_element()),
         };
         let (__h, __r) = __wrap(this);
         let __this = __h;
@@ -57,12 +83,12 @@ pub trait Element: compat::DynAny {
     fn extract_render_state(&self) -> fn(&compat::Shared<dyn Element>, &mut GuiGraphicsExtractor, i32, i32);
 
     /// java: public void setParent(LayoutElement parent) (dispatch: the body for this class)
-    fn set_parent(&self) -> fn(&compat::Shared<dyn Element>, LayoutElement) {
+    fn set_parent(&self) -> fn(&compat::Shared<dyn Element>, ElementParent) {
         <dyn Element>::set_parent_body
     }
 
     /// java: public LayoutElement getParent() (dispatch: the body for this class)
-    fn get_parent(&self) -> fn(&compat::Shared<dyn Element>) -> LayoutElement {
+    fn get_parent(&self) -> fn(&compat::Shared<dyn Element>) -> ElementParent {
         <dyn Element>::get_parent_body
     }
 
@@ -85,13 +111,13 @@ pub trait Element: compat::DynAny {
 
 impl dyn Element {
     /// java: public void setParent(LayoutElement parent)
-    pub fn set_parent_body(__this: &compat::Shared<dyn Element>, mut parent: LayoutElement) {
+    pub fn set_parent_body(__this: &compat::Shared<dyn Element>, mut parent: ElementParent) {
         { let __v = parent; compat::write(__this, |__t| __t.element_base_mut().parent = __v); }
     }
 
     /// java: public LayoutElement getParent()
-    pub fn get_parent_body(__this: &compat::Shared<dyn Element>) -> LayoutElement {
-        return compat::read(__this, |__t| __t.element_base().parent);
+    pub fn get_parent_body(__this: &compat::Shared<dyn Element>) -> ElementParent {
+        return compat::read(__this, |__t| __t.element_base().parent.clone());
     }
 
     /// java: public int getWidth()
@@ -109,16 +135,18 @@ impl dyn Element {
         let mut stack: Option<mcrust::net::minecraft::world::item::item_stack::ItemStack> = FlexibleItemStack::get_stack(icon);
         let __pose_1 = gui_graphics_extractor::push_pose();
         gui_graphics_extractor::pose_translate((x) as f32, (y) as f32);
+        let ico_dim = compat::read(__this, |__t| __t.element_base().ico_dim.clone());
         if let Some(stack) = &stack {
-            // TODO(fabric2seer): Matrix3x2fStack.scale
-            //   java: graphics.pose().scale((float) ICO_DIM.get() / 16);
+            // java: graphics.pose().scale((float) ICO_DIM.get() / 16);
+            { let __s = (ico_dim() as f32) / 16.0; gui_graphics_extractor::pose_scale(__s, __s); }
             graphics.item(stack, 0, 0);
         } else {
-            // TODO(fabric2seer): Matrix3x2fStack.scale
-            //   java: graphics.pose().scale(2f);
-            // TODO(fabric2seer): Matrix3x2fStack.scale
-            //   java: graphics.pose().scale((float) ICO_DIM.get() / 16);
-            gui_graphics_extractor::draw_formatted_char_sequence_with_drop_shadow(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), &mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(ItemUtils::get_icon(icon)), 0, 0, mcrust::net::minecraft::util::common_colors::WHITE, false);
+            // java: graphics.pose().scale(2f);
+            gui_graphics_extractor::pose_scale(2.0, 2.0);
+            // java: graphics.pose().scale((float) ICO_DIM.get() / 16);
+            { let __s = (ico_dim() as f32) / 16.0; gui_graphics_extractor::pose_scale(__s, __s); }
+            let __icon = compat::read(icon, |__i| ItemUtils::get_icon(__i));
+            gui_graphics_extractor::draw_formatted_char_sequence_with_drop_shadow(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), &mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(__icon), 0, 0, mcrust::net::minecraft::util::common_colors::WHITE, false);
         }
         gui_graphics_extractor::pop_pose(__pose_1);
     }

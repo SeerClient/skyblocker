@@ -144,7 +144,7 @@ impl MinionWidget {
             } else if stat == "SLOW" {
                 format = ChatFormatting::Yellow;
             }
-            mt.append(component::literal(&stat).with_style_format(format));
+            mt = mt.append(component::literal(&stat).with_style_format(format));
             { let (__a0,) = (Elements::icon_text_component_2(MIN_ICOS.get_mut().get(&min).cloned(), Some(mt.clone())),); __this.lock().borrow_mut().add_element(__a0) };
         }
     }
@@ -242,7 +242,7 @@ impl ElementCollector for MinionWidget {
 
     /// java: public <T extends Element> T addElement(T c)
     fn add_element(&mut self, mut c: compat::Shared<dyn Element>) -> compat::Shared<dyn Element> {
-        ({ let __f = compat::dispatch(&c, |__t| __t.set_parent()); __f(&c, self.clone()) });
+        ({ let __f = compat::dispatch(&c, |__t| __t.set_parent()); __f(&c, self.hud_widget_base().as_parent()) });
         self.elements.push(c.clone());
         return c;
     }

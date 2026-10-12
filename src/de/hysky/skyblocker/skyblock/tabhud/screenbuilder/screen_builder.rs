@@ -117,9 +117,8 @@ impl dyn ScreenBuilder {
     pub fn get_body(__this: &compat::Shared<dyn ScreenBuilder>, mut layer: ScreenLayer) -> compat::Shared<dyn LayerBuilder> {
         return match layer {
             ScreenLayer::Hud => compat::read(__this, |__t| __t.screen_builder_base().hud.clone()).unwrap(),
-            ScreenLayer::MainTab => (compat::read(__this, |__t| __t.screen_builder_base().tab.clone()) as compat::Shared<dyn LayerBuilder>),
+            ScreenLayer::MainTab => (compat::read(__this, |__t| __t.screen_builder_base().tab.clone()).unwrap() as compat::Shared<dyn LayerBuilder>),
             ScreenLayer::SecondaryTab => compat::read(__this, |__t| __t.screen_builder_base().secondary_tab.clone()).unwrap(),
-            _ => unreachable!("switch expression: no case matched"),
         };
     }
 
@@ -130,7 +129,7 @@ impl dyn ScreenBuilder {
 
     /// java: public LayerBuilder tab()
     pub fn tab_body(__this: &compat::Shared<dyn ScreenBuilder>) -> compat::Shared<dyn LayerBuilder> {
-        return (compat::read(__this, |__t| __t.screen_builder_base().tab.clone()) as compat::Shared<dyn LayerBuilder>);
+        return (compat::read(__this, |__t| __t.screen_builder_base().tab.clone()).unwrap() as compat::Shared<dyn LayerBuilder>);
     }
 
     /// java: public LayerBuilder secondaryTab()
@@ -140,7 +139,10 @@ impl dyn ScreenBuilder {
 
     /// java: public void updateFancyTab()
     pub fn update_fancy_tab_body(__this: &compat::Shared<dyn ScreenBuilder>) {
-        TabLayerBuilder::update_tab(&compat::read(__this, |__t| __t.screen_builder_base().tab.clone()).unwrap(), &__this.lock().borrow().screen_builder_base().config.hidden_tab_widgets());
+        // java: tab.updateTab(config.hiddenTabWidgets());
+        let __hidden = compat::read(__this, |__t| __t.screen_builder_base().config.hidden_tab_widgets());
+        let __hidden = compat::read(&__hidden, |__s| __s.clone());
+        TabLayerBuilder::update_tab(&compat::read(__this, |__t| __t.screen_builder_base().tab.clone()).unwrap(), &__hidden);
     }
 
     /// java: public void clearFancyTab()
@@ -165,10 +167,10 @@ impl dyn ScreenBuilder {
 
 impl ScreenBuilder for ScreenBuilderBase {
     fn screen_builder_base(&self) -> &ScreenBuilderBase {
-        &self
+        self
     }
     fn screen_builder_base_mut(&mut self) -> &mut ScreenBuilderBase {
-        &mut self
+        self
     }
 
     fn as_any(&self) -> &dyn std::any::Any {

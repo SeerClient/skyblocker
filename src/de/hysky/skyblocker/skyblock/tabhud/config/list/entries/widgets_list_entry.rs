@@ -123,7 +123,7 @@ impl compat::RowHalf for dyn WidgetsListEntry {
         &mut self.widgets_list_entry_base_mut().base
     }
     fn row_parts(&mut self) -> (&mut mcrust::net::minecraft::client::gui::screens::screen::Screen, &mut compat::WidgetCache) {
-        let __s = &mut self.widgets_list_entry_base_mut();
+        let __s = self.widgets_list_entry_base_mut();
         (&mut __s.__row, &mut __s.__widgets)
     }
 }

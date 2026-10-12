@@ -1,0 +1,14 @@
+src/de/hysky/skyblocker/skyblock/item/
+src/de/hysky/skyblocker/config/configs/
+src/de/hysky/skyblocker/skyblock/foraging/
+src/de/hysky/skyblocker/skyblock/shortcut/
+src/de/hysky/skyblocker/config/screens/
+src/de/hysky/skyblocker/skyblock/fishing/
+src/de/hysky/skyblocker/skyblock/hunting/
+src/de/hysky/skyblocker/src/
+src/de/hysky/skyblocker/skyblock/quicknav/
+src/de/hysky/skyblocker/config/backup/
+src/de/hysky/skyblocker/skyblock/radial_menu/
+src/de/hysky/skyblocker/utils/
+src/de/hysky/skyblocker/config/categories/
+src/de/hysky/skyblocker/utils/scheduler/

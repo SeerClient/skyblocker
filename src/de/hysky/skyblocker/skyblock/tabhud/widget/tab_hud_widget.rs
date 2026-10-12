@@ -155,7 +155,7 @@ impl dyn TabHudWidget {
 
     /// java: @Override public void updateContent()
     pub fn update_content_body(__this: &compat::Shared<dyn TabHudWidget>) {
-        let mut widget: Option<Widget> = PlayerListManager::get_list_widget(&compat::read(__this, |__t| __t.tab_hud_widget_base().hypixel_widget_name.clone()));
+        let mut widget: Option<Arc<Widget>> = PlayerListManager::get_list_widget(&compat::read(__this, |__t| __t.tab_hud_widget_base().hypixel_widget_name.clone()));
         if let Some(widget) = &widget {
             { let __v = false; compat::write(__this, |__t| __t.tab_hud_widget_base_mut().hide = __v); }
             ({ let __f = compat::dispatch(__this, |__t| __t.update_content_1()); __f(__this, widget) });
@@ -181,7 +181,7 @@ impl dyn TabHudWidget {
 
     /// java: @Override protected final void updateConfigContent(ElementCollector collector)
     pub fn update_config_content_body(__this: &compat::Shared<dyn TabHudWidget>, collector: &compat::Shared<dyn ElementCollector>) {
-        let mut widget: Option<Widget> = PlayerListManager::get_list_widget(&compat::read(__this, |__t| __t.tab_hud_widget_base().hypixel_widget_name.clone()));
+        let mut widget: Option<Arc<Widget>> = PlayerListManager::get_list_widget(&compat::read(__this, |__t| __t.tab_hud_widget_base().hypixel_widget_name.clone()));
         if let Some(widget) = &widget {
             <dyn ElementBasedWidget>::update_config_content_body(&compat::view(__this, |a| a as compat::Shared<dyn ElementBasedWidget>), collector);
         } else {

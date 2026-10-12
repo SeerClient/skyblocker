@@ -95,13 +95,13 @@ impl<T: Clone + 'static> DropdownWidget<T> for CustomDropdownWidget<T> {
     }
 
     /// java: @Override protected DropdownWidget<T>.DropdownList createDropdown()
-    fn create_dropdown(&self) -> compat::Shared<dyn DropdownWidget<compat::Object>> {
-        return Box::new(CustomDropdownList::new(compat::minecraft()));
+    fn create_dropdown(&self) -> compat::Shared<dyn DropdownList> {
+        return (CustomDropdownList::new(compat::minecraft()) as compat::Shared<dyn DropdownList>);
     }
 
     /// java: @Override protected DropdownWidget<T>.Entry createEntry(T element)
-    fn create_entry(&self, element: &T) -> (_, _) {
-        return Box::new(CustomEntry::new(element.clone()));
+    fn create_entry(&self, element: &T) -> compat::Shared<dyn crate::de::hysky::skyblocker::utils::render::gui::dropdown_widget::Entry> {
+        return (CustomEntry::new(element.clone()) as compat::Shared<dyn crate::de::hysky::skyblocker::utils::render::gui::dropdown_widget::Entry>);
     }
 
 }
@@ -232,8 +232,8 @@ impl std::ops::DerefMut for CustomEntry {
 }
 
 impl CustomEntry {
-    /// java: protected CustomEntry(T element)
-    pub fn new(mut element: T) -> compat::Shared<Self> {
+    /// java: protected CustomEntry(T element) (`T` is the enclosing CustomDropdownWidget's)
+    pub fn new<T: 'static>(element: T) -> compat::Shared<Self> {
         let (_, __this) = EntryBase::new_in(element.clone(), move |__base| {
             let __h = compat::shared(Self {
                 base: __base,

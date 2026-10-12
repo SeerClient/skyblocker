@@ -19,8 +19,9 @@ use mcrust::net::minecraft::util::profiling::profiler_filler::ProfilerFiller as 
 pub struct TabLayerBuilder {
     /// java: extends LayerBuilder
     pub base: LayerBuilderBase,
-    /// java: private final Set<PositionedWidget> merged = new ObjectLinkedOpenHashSet<>();
-    pub merged: std::collections::HashSet<compat::Shared<PositionedWidget>>,
+    /// java: private final Set<PositionedWidget> merged = new ObjectLinkedOpenHashSet<>(); (insertion order; a set by
+    /// `PositionedWidget.equals`)
+    pub merged: Vec<compat::Shared<PositionedWidget>>,
     /// java: private final List<PositionedWidget> tabWidgets = new LinkedList<>();
     pub tab_widgets: Vec<compat::Shared<PositionedWidget>>,
 }
@@ -44,7 +45,7 @@ impl TabLayerBuilder {
         let (_, __this) = LayerBuilderBase::new_in(move |__base| {
             let __h = compat::shared(Self {
                 base: __base,
-                merged: std::collections::HashSet::new(),
+                merged: Vec::new(),
                 tab_widgets: Vec::new(),
             });
             ((__h.clone() as compat::Shared<dyn LayerBuilder>), __h)
@@ -60,22 +61,33 @@ impl TabLayerBuilder {
 
     /// java: protected void merge()
     pub fn merge(__this: &compat::Shared<Self>) {
-        __this.lock().borrow_mut().merged.clear();
-        let __h0 = compat::read(__this, |__t| __t.widgets.clone()).into_iter();
-        __this.lock().borrow_mut().merged.extend(__h0);
-        let __h0 = compat::read(__this, |__t| __t.tab_widgets.clone()).into_iter();
-        __this.lock().borrow_mut().merged.extend(__h0);
-        __this.lock().borrow_mut().rendered_widgets.clear();
-        for __a0 in compat::read(__this, |__t| __t.merged.clone()).into_iter().map(|w| compat::read(&w, |__t| __t.widget.clone())) {
-            let __h0 = __a0.clone();
-            __this.lock().borrow_mut().rendered_widgets.insert(__h0);
+        let __widgets = compat::read(__this, |__t| __t.widgets.clone());
+        let __tab_widgets = compat::read(__this, |__t| __t.tab_widgets.clone());
+        // java: merged.clear(); merged.addAll(widgets); merged.addAll(tabWidgets); - a linked set: an equal element is
+        // not added twice and the first one keeps its place
+        let mut __merged: Vec<compat::Shared<PositionedWidget>> = Vec::new();
+        for __w in __widgets.into_iter().chain(__tab_widgets.into_iter()) {
+            if !__merged.iter().any(|m| PositionedWidget::equals_shared(m, &__w)) {
+                __merged.push(__w);
+            }
         }
+        // java: renderedWidgets.clear(); merged.stream().map(w -> w.widget).forEach(renderedWidgets::add);
+        let mut __rendered: Vec<compat::Shared<dyn HudWidget>> = Vec::new();
+        for __a0 in __merged.iter().map(|w| compat::read(w, |__t| __t.widget.clone())) {
+            if !<dyn HudWidget>::contains_equal(&__rendered, &__a0) {
+                __rendered.push(__a0);
+            }
+        }
+        compat::write(__this, |__t| {
+            __t.merged = __merged;
+            __t.rendered_widgets = __rendered;
+        });
     }
 
     /// java: public void updateTab(Collection<String> ignoredWidgets)
-    pub fn update_tab(__this: &compat::Shared<Self>, ignored_widgets: &Vec<String>) {
+    pub fn update_tab(__this: &compat::Shared<Self>, ignored_widgets: &std::collections::HashSet<String>) {
         profiler::get().push("skyblocker:updateTabWidgetsList");
-        let mut current_widgets: std::collections::HashSet<String> = PlayerListManager::get_current_widgets();
+        let mut current_widgets: indexmap::IndexSet<String> = PlayerListManager::get_current_widgets();
         let mut new_tab_widgets: Vec<compat::Shared<PositionedWidget>> = Vec::new();
         for s in current_widgets.iter() {
             let Some(mut widget) = PlayerListManager::get_tab_widget(s) else {
@@ -88,12 +100,13 @@ impl TabLayerBuilder {
             { let __v = true; compat::write(&e, |__t| __t.from_tab = __v); }
             new_tab_widgets.push(e.clone());
         }
-        if new_tab_widgets == &compat::read(__this, |__t| __t.tab_widgets.clone()) {
+        if PositionedWidget::list_equals(&new_tab_widgets, &compat::read(__this, |__t| __t.tab_widgets.clone())) {
             return;
         }
-        __this.lock().borrow_mut().tab_widgets.clear();
-        let __h0 = new_tab_widgets.iter().cloned();
-        __this.lock().borrow_mut().tab_widgets.extend(__h0);
+        compat::write(__this, |__t| {
+            __t.tab_widgets.clear();
+            __t.tab_widgets.extend(new_tab_widgets.iter().cloned());
+        });
         TabLayerBuilder::merge(__this);
         profiler::get().pop();
     }
@@ -142,7 +155,7 @@ impl TabLayerBuilder {
     }
 
     /// java: @Override public Set<PositionedWidget> getRendered()
-    pub fn get_rendered_impl(__this: &compat::Shared<Self>) -> std::collections::HashSet<compat::Shared<PositionedWidget>> {
+    pub fn get_rendered_impl(__this: &compat::Shared<Self>) -> Vec<compat::Shared<PositionedWidget>> {
         return compat::read(__this, |__t| __t.merged.clone());
     }
 
@@ -154,7 +167,7 @@ impl TabLayerBuilder {
     /// java: @Override public void updatePositions(int screenWidth, int screenHeight)
     pub fn update_positions_impl(__this: &compat::Shared<Self>, mut screen_width: i32, mut screen_height: i32) {
         <dyn LayerBuilder>::update_positions_body(&compat::view(__this, |a| a as compat::Shared<dyn LayerBuilder>), screen_width, screen_height);
-        if !(__this.lock().borrow().tab_widgets.is_empty()) {
+        if !(compat::read(__this, |__t| __t.tab_widgets.is_empty())) {
             let mut positioner: compat::Shared<dyn WidgetPositioner> = SkyblockerConfigManager::get().ui_and_visuals.tab_hud.default_positioning.get_new_positioner(0.9f32, screen_height);
             let mut tab_widgets: Vec<compat::Shared<dyn HudWidget>> = ({ let __f = compat::dispatch(__this, |__t| __t.get_rendered()); __f(&compat::view(__this, |a| a as compat::Shared<dyn LayerBuilder>)) }).into_iter().filter(|p| compat::read(p, |__t| __t.from_tab)).map(|p| compat::read(&p, |__t| __t.widget.clone())).collect::<Vec<_>>();
             for __a0 in tab_widgets.iter() {
@@ -164,8 +177,11 @@ impl TabLayerBuilder {
             let mut x: i32 = (screen_width.wrapping_sub(dimensions.x)).wrapping_div(2);
             let mut y: i32 = (screen_height.wrapping_sub(dimensions.y)).wrapping_div(2);
             for widget in tab_widgets.iter() {
-                // TODO(fabric2seer): `setPosition` is not a method of HudWidget
-                //   java: widget.setPosition(..);
+                // java: widget.setPosition(widget.getX() + x, widget.getY() + y) - `LayoutElement.setPosition` is setX then setY
+                let __x = { let __f = compat::dispatch(widget, |__t| __t.get_x()); __f(widget) }.wrapping_add(x);
+                let __y = { let __f = compat::dispatch(widget, |__t| __t.get_y()); __f(widget) }.wrapping_add(y);
+                ({ let __f = compat::dispatch(widget, |__t| __t.set_x()); __f(widget, __x) });
+                ({ let __f = compat::dispatch(widget, |__t| __t.set_y()); __f(widget, __y) });
             }
         }
     }

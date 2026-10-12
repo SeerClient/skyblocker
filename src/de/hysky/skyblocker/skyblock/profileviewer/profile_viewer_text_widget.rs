@@ -2,6 +2,7 @@
 
 #[allow(unused_imports)]
 use crate::prelude::*;
+use mcrust::net::minecraft::network::chat::component::Component as _;
 use crate::de::hysky::skyblocker::skyblock::accessories::accessories_helper::Accessory;
 use crate::de::hysky::skyblocker::skyblock::item::tooltip::info::tooltip_info_type;
 use crate::de::hysky::skyblocker::skyblock::profileviewer::inventory::item_loaders::backpack_item_loader::BackpackItemLoader;
@@ -132,9 +133,8 @@ impl ProfileViewerTextWidget {
     /// java: private double getItemsNetworth(JsonObject playerProfile)
     pub fn get_items_networth(&mut self, player_profile: &serde_json::Map<String, serde_json::Value>) -> f64 {
         let mut value: f64 = ((0) as f64) as f64;
-        // TODO(fabric2seer): `new PriorityQueue(..)`
-        //   java: PriorityQueue<ItemValue> top = new PriorityQueue<>(Comparator.comparingDouble(ItemValue::price));
-        let mut top: crate::unresolved::PriorityQueue = todo!("fabric2seer: the initialiser of `top` (TODO above)");
+        // java: PriorityQueue<ItemValue> top = new PriorityQueue<>(Comparator.comparingDouble(ItemValue::price));
+        let mut top: compat::JavaPriorityQueue<ItemValue> = compat::JavaPriorityQueue::new(|a: &ItemValue, b: &ItemValue| mcrust::javacompat::java_double_compare(a.price, b.price));
         // java: try {..} catch (Exception _) - an exception here is a panic, caught by `catch_unwind`
         let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             let mut inventory_data: Option<serde_json::Map<String, serde_json::Value>> = Some(compat::json::get_as_json_object_of(&player_profile, "inventory"));
@@ -156,7 +156,7 @@ impl ProfileViewerTextWidget {
                     let mut active_slot: i32 = compat::json::get_as_int(&inventory_data.get("wardrobe_equipped_slot").cloned().unwrap());
                     let mut skip: std::collections::HashSet<i32> = std::collections::HashSet::new();
                     if active_slot != -1 {
-                        for i in 0..4 {
+                        for i in 0..4i32 {
                             let mut base_index: i32 = (active_slot.wrapping_sub(1)).wrapping_rem(9);
                             let mut page: i32 = (active_slot.wrapping_sub(1)).wrapping_div(9);
                             let mut slot_index: i32 = ((page.wrapping_mul(36)).wrapping_add(i.wrapping_mul(9))).wrapping_add(base_index);
@@ -185,8 +185,9 @@ impl ProfileViewerTextWidget {
         }));
         if let Err(_) = __result {
         }
+        // java: List<ItemValue> list = new ArrayList<>(top); list.sort(Comparator.comparingDouble(ItemValue::price).reversed());
         let mut list: Vec<ItemValue> = top.iter().cloned().collect::<Vec<_>>();
-        list.sort_by(|a, b| (|a, b| { let key = |__a0| __a0.price(); key(a).total_cmp(&key(b)) })(b, a));
+        list.sort_by(|a, b| mcrust::javacompat::java_double_compare(b.price, a.price).cmp(&0));
         self.networth_tooltip.push(component::literal("Top Items:").with_style_format(ChatFormatting::Gold));
         for iv in list.iter() {
             self.networth_tooltip.push((component::literal(&format!("{}: ", iv.name))).append(component::literal(&ProfileViewerUtils::num_letter_format(iv.price)).with_style_format(ChatFormatting::Yellow)));
@@ -195,18 +196,16 @@ impl ProfileViewerTextWidget {
     }
 
     /// java: private double addItemNetworth(PriorityQueue<ItemValue> top, ItemStack stack)
-    pub fn add_item_networth(&self, top: &mut crate::unresolved::PriorityQueue, stack: &mcrust::net::minecraft::world::item::item_stack::ItemStack) -> f64 {
+    pub fn add_item_networth(&self, top: &mut compat::JavaPriorityQueue<ItemValue>, stack: &mcrust::net::minecraft::world::item::item_stack::ItemStack) -> f64 {
         // TODO(fabric2seer): `.price(..)` on a NetworthResult
         //   java: double p = NetworthCalculator.getItemNetworth(stack).price();
         let mut p: f64 = todo!("fabric2seer: the initialiser of `p` (TODO above)");
         if p > (0 as f64) {
-            // TODO(fabric2seer): `.offer(..)` on a PriorityQueue
-            //   java: top.offer(new ItemValue(stack.getHoverName().getString(), p));
-            // TODO(fabric2seer): the condition: `.size(..)` on a PriorityQueue
-            //   java: top.size() > 10
-            if todo!("fabric2seer: the condition (TODO above)") {
-                // TODO(fabric2seer): `.poll(..)` on a PriorityQueue
-                //   java: top.poll();
+            // java: top.offer(new ItemValue(stack.getHoverName().getString(), p));
+            top.offer(ItemValue::new(compat::component_of(stack.get_hover_name()).get_string(), p));
+            // java: if (top.size() > 10) top.poll();
+            if top.size() > 10 {
+                top.poll();
             }
         }
         return p;

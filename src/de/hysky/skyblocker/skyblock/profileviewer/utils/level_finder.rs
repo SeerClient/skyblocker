@@ -181,7 +181,7 @@ impl LevelFinder {
 
     /// java: private static List<LevelInfo> getLevelBoundaries(String levelName, long xp)
     pub fn get_level_boundaries(level_name: &str, mut xp: i64) -> Vec<compat::Shared<LevelInfo>> {
-        return match level_name.as_str() {
+        return match level_name {
             "Vampire" => VAMPIRE_SLAYER_BOUNDARIES.clone(),
             "Zombie" | "Spider" | "Wolf" | "Enderman" | "Blaze" => GENERIC_SLAYER_BOUNDARIES.clone(),
             "PET_COMMON" => COMMON_PET_BOUNDARIES.clone(),

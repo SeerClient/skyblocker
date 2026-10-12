@@ -184,7 +184,7 @@ impl dyn LevelBarWidget {
         let mut bar_y: i32 = (__this.lock().borrow().level_bar_widget_base().get_y()).wrapping_add(*BAR_OFFSET);
         let mut bar_fill_width: i32 = (((compat::read(__this, |__t| __t.level_bar_widget_base().bar_fill_percentage) * (BAR_WIDTH as f64))) as i32);
         gui_graphics_extractor::blit_sprite_identifier(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), mcrust::net::minecraft::client::renderer::render_pipelines::gui_textured(), BAR_BACKGROUND.get_mut(), bar_x, bar_y, BAR_WIDTH, BAR_HEIGHT);
-        gui_graphics_extractor::blit_sprite_identifier_with_color(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), mcrust::net::minecraft::client::renderer::render_pipelines::gui_textured(), BAR_FILL.get_mut(), bar_x, bar_y, bar_fill_width, BAR_HEIGHT, ((compat::read(__this, |__t| __t.level_bar_widget_base().bar_fill_colour)) as f32) as f32);
+        gui_graphics_extractor::blit_sprite_identifier_with_color(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), mcrust::net::minecraft::client::renderer::render_pipelines::gui_textured(), BAR_FILL.get_mut(), bar_x, bar_y, bar_fill_width, BAR_HEIGHT, compat::read(__this, |__t| __t.level_bar_widget_base().bar_fill_colour));
         if GuiHelper::point_is_in_area((mouse_x) as f64, (mouse_y) as f64, (bar_x) as f64, (bar_y) as f64, ((bar_x.wrapping_add(BAR_WIDTH)) as f64) as f64, ((bar_y.wrapping_add(BAR_HEIGHT)) as f64) as f64) {
             // TODO(fabric2seer): the port's `set_component_tooltip_for_next_frame_styled` ports this Java method with other parameters (tooltip_for_next_frame, lines for Java's lines, xo, yo, style)
             // TODO(fabric2seer): `set_component_tooltip_for_next_frame_styled` takes 2 argument(s) in the port (`tooltip_for_next_frame: &mut Option<DeferredTooltip>, lines: Vec<crate::net::minecraft::network::chat::formatted_text::FormattedText>`), Java passes 5
@@ -205,10 +205,10 @@ impl dyn LevelBarWidget {
 
 impl LevelBarWidget for LevelBarWidgetBase {
     fn level_bar_widget_base(&self) -> &LevelBarWidgetBase {
-        &self
+        self
     }
     fn level_bar_widget_base_mut(&mut self) -> &mut LevelBarWidgetBase {
-        &mut self
+        self
     }
 
     fn as_any(&self) -> &dyn std::any::Any {

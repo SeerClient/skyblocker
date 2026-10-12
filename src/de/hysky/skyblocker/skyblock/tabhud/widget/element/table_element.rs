@@ -16,8 +16,8 @@ pub static EXTRA_PAD: LazyLock<i32> = LazyLock::new(|| ((element::PAD_L).wrappin
 pub struct TableElement {
     /// java: extends Element
     pub base: ElementBase,
-    /// java: private final Element[][] comps;
-    pub comps: Vec<Vec<compat::Shared<dyn Element>>>,
+    /// java: private final Element[][] comps; (a cell is null until `addToCell` fills it)
+    pub comps: Vec<Vec<Option<compat::Shared<dyn Element>>>>,
     /// java: private final int color;
     pub color: i32,
     /// java: private final int cols, rows;
@@ -52,7 +52,7 @@ impl std::ops::DerefMut for TableElement {
 impl TableElement {
     /// java: public TableElement(int w, int h, int col, boolean drawLines)
     pub fn new(mut w: i32, mut h: i32, mut col: i32, mut draw_lines: bool) -> compat::Shared<Self> {
-        let __init_comps = vec![(0..(h) as usize).map(|_| Default::default()).collect::<Vec<_>>(); (w) as usize];
+        let __init_comps: Vec<Vec<Option<compat::Shared<dyn Element>>>> = (0..(w) as usize).map(|_| vec![None; (h) as usize]).collect();
         let __init_color = (if draw_lines && col != 0 { (0xFF000000u32 as i32 | col) } else { 0 });
         let __init_draw_lines = (draw_lines && col != 0);
         let __init_cols = w;
@@ -81,33 +81,39 @@ impl TableElement {
 
     /// java: public void addToCell(int x, int y, Element c)
     pub fn add_to_cell(__this: &compat::Shared<Self>, mut x: i32, mut y: i32, mut c: compat::Shared<dyn Element>) {
-        (__this.lock().borrow().comps[(x) as usize])[(y) as usize] = c.clone();
+        let (x, y) = (x as usize, y as usize);
+        compat::write(__this, |__t| __t.comps[x][y] = Some(c.clone()));
         let mut pad: i32 = (if x == 0 { (element::PAD_L).wrapping_mul(2) } else { element::PAD_L });
         let __r0 = compat::read(&c, |__t| __t.element_base().width);
-        __this.lock().borrow_mut().col_widths[(x) as usize] = (__this.lock().borrow().col_widths[(x) as usize]).max((__r0).wrapping_add(pad));
+        compat::write(__this, |__t| __t.col_widths[x] = __t.col_widths[x].max((__r0).wrapping_add(pad)));
         let mut base_h: i32 = (compat::read(&c, |__t| __t.element_base().height)).wrapping_add(element::PAD_S);
-        if base_h > __this.lock().borrow().row_base_heights[(y) as usize] {
-            __this.lock().borrow_mut().row_base_heights[(y) as usize] = base_h;
-            __this.lock().borrow_mut().row_heights[(y) as usize] = base_h.wrapping_add(if __this.lock().borrow().row_borders[(y) as usize] != 0 { *EXTRA_PAD } else { 0 });
-        } else if __this.lock().borrow().row_borders[(y) as usize] != 0 {
-            __this.lock().borrow_mut().row_heights[(y) as usize] = (__this.lock().borrow().row_heights[(y) as usize]).max((__this.lock().borrow().row_base_heights[(y) as usize]).wrapping_add(*EXTRA_PAD));
-        } else {
-            __this.lock().borrow_mut().row_heights[(y) as usize] = (__this.lock().borrow().row_heights[(y) as usize]).max(__this.lock().borrow().row_base_heights[(y) as usize]);
-        }
+        compat::write(__this, |__t| {
+            if base_h > __t.row_base_heights[y] {
+                __t.row_base_heights[y] = base_h;
+                __t.row_heights[y] = base_h.wrapping_add(if __t.row_borders[y] != 0 { *EXTRA_PAD } else { 0 });
+            } else if __t.row_borders[y] != 0 {
+                __t.row_heights[y] = __t.row_heights[y].max(__t.row_base_heights[y].wrapping_add(*EXTRA_PAD));
+            } else {
+                __t.row_heights[y] = __t.row_heights[y].max(__t.row_base_heights[y]);
+            }
+        });
         TableElement::recalc_dimensions(__this);
     }
 
     /// java: public void setRowBorder(int row, int borderColor)
     pub fn set_row_border(__this: &compat::Shared<Self>, mut row: i32, mut border_color: i32) {
-        if row >= 0 && row < (__this.lock().borrow().row_borders.len() as i32) {
-            let mut had_border: bool = (__this.lock().borrow().row_borders[(row) as usize] != 0);
-            __this.lock().borrow_mut().row_borders[(row) as usize] = (if border_color == 0 { 0 } else { (0xFF000000u32 as i32 | border_color) });
-            let mut has_border: bool = (__this.lock().borrow().row_borders[(row) as usize] != 0);
-            if has_border && !had_border {
-                __this.lock().borrow_mut().row_heights[(row) as usize] = (__this.lock().borrow().row_heights[(row) as usize]).max((__this.lock().borrow().row_base_heights[(row) as usize]).wrapping_add(*EXTRA_PAD));
-            } else if !has_border && had_border {
-                __this.lock().borrow_mut().row_heights[(row) as usize] = __this.lock().borrow().row_base_heights[(row) as usize];
-            }
+        if row >= 0 && row < compat::read(__this, |__t| __t.row_borders.len() as i32) {
+            let row = row as usize;
+            compat::write(__this, |__t| {
+                let mut had_border: bool = __t.row_borders[row] != 0;
+                __t.row_borders[row] = (if border_color == 0 { 0 } else { (0xFF000000u32 as i32 | border_color) });
+                let mut has_border: bool = __t.row_borders[row] != 0;
+                if has_border && !had_border {
+                    __t.row_heights[row] = __t.row_heights[row].max(__t.row_base_heights[row].wrapping_add(*EXTRA_PAD));
+                } else if !has_border && had_border {
+                    __t.row_heights[row] = __t.row_base_heights[row];
+                }
+            });
             TableElement::recalc_dimensions(__this);
         }
     }
@@ -152,11 +158,12 @@ impl TableElement {
     pub fn extract_render_state_impl(__this: &compat::Shared<Self>, graphics: &mut GuiGraphicsExtractor, mut xpos: i32, mut ypos: i32) {
         let mut y_off: i32 = 0;
         for y in 0..compat::read(__this, |__t| __t.rows) {
-            let mut col: i32 = __this.lock().borrow().row_borders[(y) as usize];
+            let mut col: i32 = compat::read(__this, |__t| __t.row_borders[(y) as usize]);
+            let row_height: i32 = compat::read(__this, |__t| __t.row_heights[(y) as usize]);
             if col != 0 {
-                GuiHelper::border(graphics, xpos, ypos.wrapping_add(y_off), (compat::read(__this, |__t| __t.width)).wrapping_add(element::PAD_S), __this.lock().borrow().row_heights[(y) as usize], col);
+                GuiHelper::border(graphics, xpos, ypos.wrapping_add(y_off), (compat::read(__this, |__t| __t.width)).wrapping_add(element::PAD_S), row_height, col);
             }
-            y_off = y_off.wrapping_add(__this.lock().borrow().row_heights[(y) as usize]);
+            y_off = y_off.wrapping_add(row_height);
         }
         let mut x_off: i32 = 0;
         for x in 0..compat::read(__this, |__t| __t.cols) {
@@ -169,14 +176,15 @@ impl TableElement {
             }
             y_off = 0;
             for y in 0..compat::read(__this, |__t| __t.rows) {
-                let mut comp: Option<compat::Shared<dyn Element>> = Some((__this.lock().borrow().comps[(x) as usize])[(y) as usize].clone());
+                let mut comp: Option<compat::Shared<dyn Element>> = compat::read(__this, |__t| __t.comps[(x) as usize][(y) as usize].clone());
+                let row_height: i32 = compat::read(__this, |__t| __t.row_heights[(y) as usize]);
                 if let Some(comp) = &comp {
-                    let mut pad: i32 = (if x == 0 && __this.lock().borrow().row_borders[(y) as usize] != 0 { (element::PAD_L).wrapping_div(2) } else { 0 });
-                    ({ let __f = compat::dispatch(comp, |__t| __t.extract_render_state()); __f(comp, graphics, (xpos.wrapping_add(x_off)).wrapping_add(pad), (ypos.wrapping_add(y_off)).wrapping_add((((__this.lock().borrow().row_heights[(y) as usize]).wrapping_div(2)).wrapping_sub((compat::read(comp, |__t| __t.element_base().height)).wrapping_div(2))).wrapping_add(1))) });
+                    let mut pad: i32 = (if x == 0 && compat::read(__this, |__t| __t.row_borders[(y) as usize]) != 0 { (element::PAD_L).wrapping_div(2) } else { 0 });
+                    ({ let __f = compat::dispatch(comp, |__t| __t.extract_render_state()); __f(comp, graphics, (xpos.wrapping_add(x_off)).wrapping_add(pad), (ypos.wrapping_add(y_off)).wrapping_add(((row_height.wrapping_div(2)).wrapping_sub((compat::read(comp, |__t| __t.element_base().height)).wrapping_div(2))).wrapping_add(1))) });
                 }
-                y_off = y_off.wrapping_add(__this.lock().borrow().row_heights[(y) as usize]);
+                y_off = y_off.wrapping_add(row_height);
             }
-            x_off = x_off.wrapping_add(__this.lock().borrow().col_widths[(x) as usize]);
+            x_off = x_off.wrapping_add(compat::read(__this, |__t| __t.col_widths[(x) as usize]));
         }
     }
 

@@ -164,7 +164,7 @@ impl ElementCollector for JacobsContestWidget {
 
     /// java: public <T extends Element> T addElement(T c)
     fn add_element(&mut self, mut c: compat::Shared<dyn Element>) -> compat::Shared<dyn Element> {
-        ({ let __f = compat::dispatch(&c, |__t| __t.set_parent()); __f(&c, self.clone()) });
+        ({ let __f = compat::dispatch(&c, |__t| __t.set_parent()); __f(&c, self.hud_widget_base().as_parent()) });
         self.elements.push(c.clone());
         return c;
     }
@@ -191,7 +191,7 @@ impl JacobsContestWidget {
                     let mut percentage: Option<String> = matcher.group_named("percentage");
                     let mut crop_text: MutableComponent = component::empty().append_str(&crop);
                     if matcher.group_named("fortune").as_deref() == Some(&*(sky_block_icons::FARMING_FORTUNE.to_string())) {
-                        crop_text.append((component::literal(&format!(" {}", sky_block_icons::FARMING_FORTUNE))).with_style_format(ChatFormatting::Gold));
+                        crop_text = crop_text.append((component::literal(&format!(" {}", sky_block_icons::FARMING_FORTUNE))).with_style_format(ChatFormatting::Gold));
                     }
                     { let (__a0,) = (Elements::icon_text_component_2(FARM_DATA.get_mut().get(&crop).cloned(), Some(crop_text.clone())),); __this.lock().borrow_mut().add_element(__a0) };
                     if let Some(percentage) = &percentage {
@@ -213,7 +213,7 @@ impl JacobsContestWidget {
     pub fn update_config_content_tab_impl(__this: &compat::Shared<Self>, collector: &compat::Shared<dyn ElementCollector>) {
         { let (__a0,) = (Elements::icon_text_component_2(Some(ico::CLOCK.get_mut().clone()), Some(component::literal("Starts in: ").append((component::literal("???")).with_style_format(ChatFormatting::Yellow)))),); collector.lock().borrow_mut().add_element(__a0) };
         let mut strings: Vec<compat::Shared<FlexibleItemStack>> = FARM_DATA.get_mut().values().cloned().collect::<Vec<_>>();
-        for i in 0..3 {
+        for i in 0i32..3 {
             { let (__a0,) = (Elements::icon_text_component_2(Some(strings[(i) as usize].clone()), Some(component::literal(&format!("Crop {}", i.wrapping_add(1))))),); __this.lock().borrow_mut().add_element(__a0) };
         }
     }

@@ -30,8 +30,11 @@ impl ItemLoader {
     }
 
     /// java: public static CompletableFuture<ProfileItemStorage> decodeItems(ProfileMember member)
-    pub fn decode_items(member: &compat::Shared<ProfileMember>) -> mcrust::java::util::concurrent::completable_future::CompletableFuture<ProfileItemStorage> {
-        return CompletableFuture::supply_async(move || Ok((|| ItemLoader::decode_items_internal(member))()), compat::executor);
+    /// (`Executors.newVirtualThreadPerTaskExecutor()`: the member is one of the mod's objects, which a worker cannot
+    /// reach - the decode runs deferred on the render thread: `compat::LocalFuture::supply_local`)
+    pub fn decode_items(member: &compat::Shared<ProfileMember>) -> compat::LocalFuture<ProfileItemStorage> {
+        let member = member.clone();
+        return compat::LocalFuture::supply_local(move || ItemLoader::decode_items_internal(&member));
     }
 
     /// java: private static ProfileItemStorage decodeItemsInternal(ProfileMember member)
@@ -51,7 +54,7 @@ impl ItemLoader {
                     icon = icon_contents[0].clone();
                 }
             }
-            backpacks.insert(entry.0.trim().parse::<i32>().expect("NumberFormatException"), Backpack::new(icon.clone(), contents.clone()));
+            backpacks.insert(entry.0.parse::<i32>().expect("NumberFormatException"), Backpack::new(icon.clone(), contents.clone()));
         }
         let mut armour_sets: Vec<mcrust::net::minecraft::world::item::item_stack::ItemStack> = Vec::new();
         for loadout in member.lock().borrow().loadouts.armour.get_loadouts() {
@@ -96,19 +99,15 @@ impl ItemLoader {
     pub fn decode(item_data: &str) -> Vec<mcrust::net::minecraft::world::item::item_stack::ItemStack> {
         // java: try {..} catch (Exception e) - an exception here is a panic, caught by `catch_unwind`; the body's `return` is the closure's value
         match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            // TODO(fabric2seer): `.decode(..)` on a Decoder
-            //   java: byte[] gzippedData = Base64.getDecoder().decode(itemData);
-            let mut gzipped_data: Vec<i8> = todo!("fabric2seer: the initialiser of `gzippedData` (TODO above)");
-            // TODO(fabric2seer): `new ByteArrayInputStream(..)`
-            //   java: CompoundTag decoded = NbtIo.readCompressed(new ByteArrayInputStream(gzippedData), NbtAccounter.unlimitedHeap());
-            let mut decoded: Tag = todo!("fabric2seer: the initialiser of `decoded` (TODO above)");
-            let mut items: Tag = decoded.get_list_or_empty("i");
+            // java: byte[] gzippedData = Base64.getDecoder().decode(itemData);
+            let mut gzipped_data: Vec<u8> = base64::get_decoder().decode(item_data).unwrap_or_else(|e| panic!("IllegalArgumentException: {e}"));
+            // java: CompoundTag decoded = NbtIo.readCompressed(new ByteArrayInputStream(gzippedData), NbtAccounter.unlimitedHeap());
+            let mut decoded: Tag = mcrust::net::minecraft::nbt::nbt_io::read_compressed(&gzipped_data, mcrust::net::minecraft::nbt::nbt_accounter::NbtAccounter::unlimited_heap()).unwrap_or_else(|e| panic!("IOException: {e}"));
+            // java: ListTag items = decoded.getListOrEmpty("i"); (its elements)
+            let mut items: Vec<Tag> = decoded.get_list_or_empty("i");
             let mut stacks: Vec<mcrust::net::minecraft::world::item::item_stack::ItemStack> = Vec::new();
-            // TODO(fabric2seer): `size` takes 1 argument(s) in the port (`elements: &[Tag]`), Java passes 0
-            for i in 0..list_tag::size() {
-                // TODO(fabric2seer): `get_compound_or_empty` takes 2 argument(s) in the port (`elements: &[Tag], index: i32`), Java passes 1
-                // rust: let mut tag: Tag = list_tag::get_compound_or_empty(&i);
-                let mut tag: Tag = todo!("fabric2seer: the initialiser of `tag` (TODO above)");
+            for i in 0..(items.len() as i32) {
+                let mut tag: Tag = list_tag::get_compound_or_empty(&items, i);
                 if tag.get_int_or("id", 0) == 0 {
                     stacks.push(mcrust::net::minecraft::world::item::item_stack::empty());
                     continue;
