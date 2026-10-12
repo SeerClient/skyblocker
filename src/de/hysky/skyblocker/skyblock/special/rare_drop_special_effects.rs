@@ -68,7 +68,7 @@ impl RareDropSpecialEffects {
 
     /// java: private static @Nullable FlexibleItemStack getStackFromName(String itemName)
     pub fn get_stack_from_name(item_name: &str) -> Option<compat::Shared<FlexibleItemStack>> {
-        let mut item_id: String = match item_name.as_str() {
+        let mut item_id: String = match item_name {
             "Enchanted Book (Chimera I)" => "ULTIMATE_CHIMERA;1".to_string(),
             "Fateful Stinger" => "FATEFUL_STINGER".to_string(),
             "Manti-core" => "MANTI_CORE".to_string(),

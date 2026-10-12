@@ -55,7 +55,7 @@ impl DungeonsSpecialEffects {
 
     /// java: private static @Nullable FlexibleItemStack getStackFromName(String itemName)
     pub fn get_stack_from_name(item_name: &str) -> Option<compat::Shared<FlexibleItemStack>> {
-        let mut item_id: String = match item_name.as_str() {
+        let mut item_id: String = match item_name {
             "Recombobulator 3000" => "RECOMBOBULATOR_3000".to_string(),
             "First Master Star" => "FIRST_MASTER_STAR".to_string(),
             "Second Master Star" => "SECOND_MASTER_STAR".to_string(),

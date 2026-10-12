@@ -55,7 +55,7 @@ impl TrophySpecialEffects {
 
     /// java: private static @Nullable FlexibleItemStack getStackFromName(String itemName)
     pub fn get_stack_from_name(item_name: &str) -> Option<compat::Shared<FlexibleItemStack>> {
-        let mut item_id: String = match item_name.as_str() {
+        let mut item_id: String = match item_name {
             "Blobfish" => "BLOBFISH_DIAMOND".to_string(),
             "Flyfish" => "FLYFISH_DIAMOND".to_string(),
             "Golden Fish" => "GOLDEN_FISH_DIAMOND".to_string(),
