@@ -1,0 +1,369 @@
+src/mixins/client_level_mixin.rs:36:58: error[E0433]: cannot find `net` in `crate`: unresolved import
+src/mixins/abstract_container_screen_mixin.rs:98:82: error[E0425]: cannot find value `text` in this scope: not found in this scope
+src/mixins/abstract_container_screen_mixin.rs:208:65: error[E0425]: cannot find value `FILLER_ITEMS` in this scope: not found in this scope
+src/mixins/abstract_container_screen_mixin.rs:212:50: error[E0425]: cannot find value `tooltip` in this scope: not found in this scope
+src/mixins/camera_mixin.rs:21:189: error[E0425]: cannot find value `original` in this scope: not found in this scope
+src/mixins/camera_mixin.rs:27:25: error[E0425]: cannot find value `original` in this scope: not found in this scope
+src/mixins/client_level_mixin.rs:61:106: error[E0425]: cannot find value `entity` in this scope: not found in this scope
+src/mixins/client_packet_listener_mixin.rs:14:36: error[E0425]: cannot find value `nil` in this scope: not found in this scope
+src/mixins/client_packet_listener_mixin.rs:19:134: error[E0425]: cannot find value `nil` in this scope: not found in this scope
+src/mixins/client_packet_listener_mixin.rs:119:100: error[E0425]: cannot find value `nil` in this scope: not found in this scope
+src/mixins/client_packet_listener_mixin.rs:139:31: error[E0433]: cannot find `classes` in `crate`: could not find `classes` in the crate root
+src/mixins/connection_mixin.rs:14:51: error[E0425]: cannot find type `IOException` in this scope: not found in this scope
+src/mixins/data_component_holder_mixin.rs:54:25: error[E0425]: cannot find value `original` in this scope: not found in this scope
+src/mixins/entity_mixin.rs:75:52: error[E0425]: cannot find type `RemovalReason` in this scope: not found in this scope
+src/mixins/entity_renderer_mixin.rs:14:124: error[E0425]: cannot find value `entity` in this scope: not found in this scope
+src/mixins/entity_renderer_mixin.rs:15:197: error[E0425]: cannot find value `entity` in this scope: not found in this scope
+src/mixins/entity_renderer_mixin.rs:15:323: error[E0425]: cannot find value `entity` in this scope: not found in this scope
+src/mixins/entity_renderer_mixin.rs:18:101: error[E0425]: cannot find value `entity` in this scope: not found in this scope
+src/mixins/entity_renderer_mixin.rs:22:197: error[E0425]: cannot find value `entity` in this scope: not found in this scope
+src/mixins/entity_renderer_mixin.rs:41:143: error[E0425]: cannot find value `nil` in this scope: not found in this scope
+src/mixins/entity_renderer_mixin.rs:60:114: error[E0425]: cannot find value `original` in this scope: not found in this scope
+src/mixins/gui_graphics_extractor_mixin.rs:31:17: error[E0425]: cannot find value `lines` in this scope: not found in this scope
+src/mixins/inventory_screen_mixin.rs:23:39: error[E0425]: cannot find type `RecipeBookComponent` in this scope: not found in this scope
+src/mixins/inventory_screen_mixin.rs:23:63: error[E0425]: cannot find type `RecipeBookComponent` in this scope: not found in this scope
+src/mixins/inventory_screen_mixin.rs:113:203: error[E0425]: cannot find type `RecipeBookComponent` in this scope: not found in this scope
+src/mixins/item_stack_mixin.rs:138:200: error[E0425]: cannot find value `original` in this scope: not found in this scope
+src/mixins/item_stack_mixin.rs:141:25: error[E0425]: cannot find value `original` in this scope: not found in this scope
+src/mixins/key_mapping_mixin.rs:12:49: error[E0425]: cannot find type `Key` in this scope: not found in this scope
+src/mixins/key_mapping_mixin.rs:21:49: error[E0425]: cannot find type `Key` in this scope: not found in this scope
+src/mixins/menu_screens_constructor_mixin.rs:19:35: error[E0433]: cannot find `classes` in `crate`: could not find `classes` in the crate root
+src/mixins/menu_screens_constructor_mixin.rs:21:35: error[E0433]: cannot find `classes` in `crate`: could not find `classes` in the crate root
+src/mixins/mouse_handler_mixin.rs:27:98: error[E0425]: cannot find type `MouseHandler` in module `mcrust::net::minecraft::client::mouse_handler`: not found in `mcrust::net::minecraft::client::mouse_handler`
+src/mixins/mouse_handler_mixin.rs:60:98: error[E0425]: cannot find type `MouseHandler` in module `mcrust::net::minecraft::client::mouse_handler`: not found in `mcrust::net::minecraft::client::mouse_handler`
+src/mixins/options_mixin.rs:8:147: error[E0425]: cannot find type `CompoundTag` in module `mcrust::net::minecraft::nbt::compound_tag`: not found in `mcrust::net::minecraft::nbt::compound_tag`
+src/mixins/options_mixin.rs:21:167: error[E0425]: cannot find type `CompoundTag` in module `mcrust::net::minecraft::nbt::compound_tag`: not found in `mcrust::net::minecraft::nbt::compound_tag`
+src/mixins/options_mixin.rs:38:146: error[E0425]: cannot find type `CompoundTag` in module `mcrust::net::minecraft::nbt::compound_tag`: not found in `mcrust::net::minecraft::nbt::compound_tag`
+src/mixins/options_mixin.rs:70:44: error[E0425]: cannot find value `nbt` in this scope: not found in this scope
+src/mixins/options_mixin.rs:71:71: error[E0425]: cannot find value `nbt` in this scope: not found in this scope
+src/mixins/options_mixin.rs:72:41: error[E0425]: cannot find value `nbt` in this scope: not found in this scope
+src/mixins/options_mixin.rs:73:42: error[E0425]: cannot find value `nbt` in this scope: not found in this scope
+src/mixins/options_mixin.rs:74:41: error[E0425]: cannot find value `nbt` in this scope: not found in this scope
+src/mixins/options_mixin.rs:75:33: error[E0425]: cannot find value `nbt` in this scope: not found in this scope
+src/mixins/options_mixin.rs:76:25: error[E0425]: cannot find value `nbt` in this scope: not found in this scope
+src/mixins/skin_texture_downloader_mixin.rs:46:31: error[E0425]: cannot find value `STRIP_DE_FACTO_TRANSPARENT_PIXELS` in this scope
+src/mixins/social_interactions_player_list_mixin.rs:13:51: error[E0425]: cannot find type `Map` in this scope: not found in this scope
+src/mixins/url_config_mixin.rs:14:51: error[E0425]: cannot find type `Map` in this scope: not found in this scope
+src/mixins/window_mixin.rs:12:99: error[E0425]: cannot find type `Window` in module `mcrust::com::mojang::blaze3d::platform::window`: not found in `mcrust::com::mojang::blaze3d::platform::window`
+src/de/hysky/skyblocker/skyblock/dwarven/corpse_type.rs:83:16: error[E0425]: cannot find value `UNKNOWN` in this scope: not found in this scope
+src/de/hysky/skyblocker/skyblock/dwarven/carpet_highlighter.rs:26:169: error[E0603]: function `shape` is private: private function
+src/mixins/entity_mixin.rs:15:42: error[E0782]: expected a type, found a trait
+src/mixins/entity_mixin.rs:20:42: error[E0782]: expected a type, found a trait
+src/mixins/entity_mixin.rs:20:115: error[E0782]: expected a type, found a trait
+src/mixins/entity_mixin.rs:91:27: error[E0782]: expected a type, found a trait
+src/mixins/multi_player_game_mode_mixin.rs:8:152: error[E0782]: expected a type, found a trait
+src/mixins/abstract_container_menu_mixin.rs:32:13: error[E0599]: no method named `is` found for mutable reference `&mut AbstractContainerMenu` in the current scope: method not found in `&mut AbstractContainerMenu`
+src/mixins/abstract_container_menu_mixin.rs:54:13: error[E0599]: no method named `is` found for mutable reference `&mut AbstractContainerMenu` in the current scope: method not found in `&mut AbstractContainerMenu`
+src/mixins/abstract_container_screen_mixin.rs:17:12: error[E0308]: mismatched types: expected `()`, found `&mut ItemStack`
+src/mixins/abstract_container_screen_mixin.rs:27:82: error[E0308]: mismatched types: expected `Slot`, found `Option<i32>`
+src/mixins/abstract_container_screen_mixin.rs:29:191: error[E0609]: no field `key_inventory` on type `std::cell::Ref<'_, OptionsData>`: unknown field
+src/mixins/abstract_sign_edit_screen_mixin.rs:47:245: error[E0308]: mismatched types: expected `&mut Vec<String>`, found `&mut [String; 4]`
+src/mixins/abstract_sign_edit_screen_mixin.rs:69:89: error[E0308]: mismatched types: expected `&mut TextFieldHelper`, found `&mut Option<TextFieldHelper>`
+src/mixins/abstract_sign_edit_screen_mixin.rs:82:32: error[E0308]: mismatched types: types differ in mutability
+src/mixins/abstract_sign_edit_screen_mixin.rs:89:33: error[E0308]: mismatched types: types differ in mutability
+src/mixins/abstract_sign_edit_screen_mixin.rs:119:32: error[E0308]: mismatched types: types differ in mutability
+src/mixins/abstract_sign_edit_screen_mixin.rs:124:33: error[E0308]: mismatched types: types differ in mutability
+src/mixins/bat_mixin.rs:12:115: error[E0277]: the trait bound `&mut Bat: AmbientCreature` is not satisfied: the trait `AmbientCreature` is not implemented for `&mut Bat`
+src/mixins/client_packet_listener_mixin.rs:106:107: error[E0277]: the trait bound `Box<dyn Entity>: Entity` is not satisfied: unsatisfied trait bound
+src/mixins/client_packet_listener_mixin.rs:107:87: error[E0277]: the trait bound `Box<dyn Entity>: Entity` is not satisfied: unsatisfied trait bound
+src/mixins/clientbound_commands_packet_mixin.rs:15:120: error[E0599]: no method named `as_any` found for struct `CommandNode<S>` in the current scope
+src/mixins/container_screen_mixin.rs:12:277: error[E0599]: no method named `get_title` found for mutable reference `&mut ContainerScreen` in the current scope: method not found in `&mut ContainerScreen`
+src/mixins/container_screen_mixin.rs:19:126: error[E0609]: no field `width` on type `&mut ContainerScreen`: unknown field
+src/mixins/container_screen_mixin.rs:26:14: error[E0609]: no field `left_pos` on type `&mut ContainerScreen`: unknown field
+src/mixins/container_screen_mixin.rs:27:92: error[E0308]: mismatched types: expected `Screen`, found `&mut ContainerScreen`
+src/mixins/data_component_holder_mixin.rs:13:51: error[E0782]: expected a type, found a trait
+src/mixins/edit_box_accessor.rs:9:9: error[E0616]: field `highlight_pos` of struct `mcrust::net::minecraft::client::gui::components::edit_box::EditBox` is private: private field
+src/mixins/entity_mixin.rs:41:51: error[E0782]: expected a type, found a trait
+src/mixins/entity_mixin.rs:62:51: error[E0782]: expected a type, found a trait
+src/mixins/entity_mixin.rs:64:55: error[E0599]: no associated item named `ENDERMAN` found for struct `EntityTypes` in the current scope: associated item not found in `EntityTypes`
+src/mixins/entity_mixin.rs:74:51: error[E0782]: expected a type, found a trait
+src/mixins/entity_mixin.rs:80:30: error[E0609]: no field `boss_death_time` on type `std::sync::Arc<ReentrantMutex<parking_lot::RawMutex, RawThreadId, RefCell<SlayerQuest>>>`: unknown field
+src/mixins/entity_mixin.rs:86:105: error[E0277]: the trait bound `Box<dyn Entity>: Entity` is not satisfied: unsatisfied trait bound
+src/mixins/hud_mixin.rs:30:62: error[E0308]: mismatched types: expected `Tag`, found `&Tag`
+src/mixins/inventory_mixin.rs:13:118: error[E0616]: field `selected` of struct `mcrust::net::minecraft::world::entity::player::inventory::Inventory` is private: private field
+src/mixins/inventory_screen_mixin.rs:15:10: error[E0599]: the method `get_attached` exists for mutable reference `&mut InventoryScreen`, but its trait bounds were not satisfied: method cannot be called on `&mut InventoryScreen` due to unsatisfied trait bounds
+src/mixins/inventory_screen_mixin.rs:95:10: error[E0599]: the method `get_attached` exists for mutable reference `&mut InventoryScreen`, but its trait bounds were not satisfied: method cannot be called on `&mut InventoryScreen` due to unsatisfied trait bounds
+src/mixins/inventory_screen_mixin.rs:106:14: error[E0599]: the method `get_attached` exists for reference `&InventoryScreen`, but its trait bounds were not satisfied: method cannot be called on `&InventoryScreen` due to unsatisfied trait bounds
+src/mixins/item_stack_mixin.rs:60:5: error[E0317]: `if` may be missing an `else` clause: expected `String`, found `()`
+src/mixins/item_stack_mixin.rs:69:5: error[E0317]: `if` may be missing an `else` clause: expected `String`, found `()`
+src/mixins/item_stack_mixin.rs:78:5: error[E0317]: `if` may be missing an `else` clause: expected `String`, found `()`
+src/mixins/item_stack_mixin.rs:87:5: error[E0317]: `if` may be missing an `else` clause: expected `String`, found `()`
+src/mixins/item_stack_mixin.rs:97:16: error[E0308]: mismatched types: expected `()`, found `Vec<String>`
+src/mixins/item_stack_mixin.rs:106:16: error[E0308]: mismatched types: expected `()`, found `Vec<ItemAbility>`
+src/mixins/item_stack_mixin.rs:115:16: error[E0308]: mismatched types: expected `()`, found `PetInfo`
+src/mixins/item_stack_mixin.rs:124:16: error[E0308]: mismatched types: expected `()`, found `SkyblockItemRarity`
+src/mixins/item_stack_mixin.rs:167:39: error[E0061]: this function takes 1 argument but 0 arguments were supplied
+src/mixins/item_stack_mixin.rs:191:95: error[E0308]: mismatched types: expected `f32`, found integer
+src/mixins/item_stack_mixin.rs:202:86: error[E0308]: mismatched types: expected `f32`, found integer
+src/mixins/item_stack_mixin.rs:202:166: error[E0308]: mismatched types: expected `f32`, found integer
+src/mixins/item_stack_mixin.rs:213:86: error[E0308]: mismatched types: expected `f32`, found integer
+src/mixins/item_stack_mixin.rs:213:340: error[E0308]: mismatched types: expected `f32`, found integer
+src/mixins/item_stack_mixin.rs:222:5: error[E0061]: this function takes 1 argument but 0 arguments were supplied
+src/mixins/item_stack_mixin.rs:259:9: error[E0317]: `if` may be missing an `else` clause: expected `String`, found `()`
+src/mixins/item_stack_mixin.rs:267:9: error[E0317]: `if` may be missing an `else` clause: expected `String`, found `()`
+src/mixins/item_stack_mixin.rs:275:9: error[E0317]: `if` may be missing an `else` clause: expected `String`, found `()`
+src/mixins/item_stack_mixin.rs:283:9: error[E0317]: `if` may be missing an `else` clause: expected `String`, found `()`
+src/mixins/item_stack_mixin.rs:291:9: error[E0317]: `if` may be missing an `else` clause: expected `Vec<String>`, found `()`
+src/mixins/item_stack_mixin.rs:299:9: error[E0317]: `if` may be missing an `else` clause: expected `Vec<ItemAbility>`, found `()`
+src/mixins/item_stack_mixin.rs:307:9: error[E0317]: `if` may be missing an `else` clause: expected `PetInfo`, found `()`
+src/mixins/item_stack_mixin.rs:315:9: error[E0317]: `if` may be missing an `else` clause: expected `SkyblockItemRarity`, found `()`
+src/mixins/local_player_mixin.rs:13:182: error[E0277]: the trait bound `&mut LocalPlayer: mcrust::net::minecraft::world::entity::living_entity::LivingEntity` is not satisfied: the trait `mcrust::net::minecraft::world::entity::living_entity::LivingEntity` is not implemented for `&mut LocalPlayer`
+src/mixins/local_player_mixin.rs:15:322: error[E0277]: the trait bound `&mut LocalPlayer: mcrust::net::minecraft::world::entity::living_entity::LivingEntity` is not satisfied: the trait `mcrust::net::minecraft::world::entity::living_entity::LivingEntity` is not implemented for `&mut LocalPlayer`
+src/mixins/menu_screens_constructor_mixin.rs:66:264: error[E0308]: mismatched types: expected `MutableComponent`, found `String`
+src/mixins/minecraft_mixin.rs:17:109: error[E0308]: mismatched types: expected `&LocalPlayer`, found `&Option<Arc<Mutex<LocalPlayer>>>`
+src/mixins/minecraft_mixin.rs:18:114: error[E0308]: mismatched types: expected `&LocalPlayer`, found `&Option<Arc<Mutex<LocalPlayer>>>`
+src/mixins/mutable_component_mixin.rs:16:39: error[E0599]: no method named `get_contents` found for reference `&mcrust::net::minecraft::locale::language::Language` in the current scope: method not found in `&mcrust::net::minecraft::locale::language::Language`
+src/mixins/options_mixin.rs:70:5: error[E0061]: this function takes 3 arguments but 2 arguments were supplied
+src/mixins/options_mixin.rs:71:5: error[E0061]: this function takes 4 arguments but 3 arguments were supplied
+src/mixins/options_mixin.rs:72:5: error[E0061]: this function takes 3 arguments but 2 arguments were supplied
+src/mixins/options_mixin.rs:73:5: error[E0061]: this function takes 3 arguments but 2 arguments were supplied
+src/mixins/options_mixin.rs:74:5: error[E0061]: this function takes 3 arguments but 2 arguments were supplied
+src/mixins/options_mixin.rs:75:5: error[E0061]: this function takes 2 arguments but 1 argument was supplied
+src/mixins/quick_nav_mixin.rs:13:13: error[E0599]: the method `get_attached` exists for mutable reference `&mut AbstractContainerScreen`, but its trait bounds were not satisfied: method cannot be called on `&mut AbstractContainerScreen` due to unsatisfied trait bounds
+src/mixins/quick_nav_mixin.rs:14:38: error[E0599]: the method `get_attached` exists for mutable reference `&mut AbstractContainerScreen`, but its trait bounds were not satisfied: method cannot be called on `&mut AbstractContainerScreen` due to unsatisfied trait bounds
+src/mixins/quick_nav_mixin.rs:32:13: error[E0599]: the method `get_attached` exists for mutable reference `&mut AbstractContainerScreen`, but its trait bounds were not satisfied: method cannot be called on `&mut AbstractContainerScreen` due to unsatisfied trait bounds
+src/mixins/quick_nav_mixin.rs:33:38: error[E0599]: the method `get_attached` exists for mutable reference `&mut AbstractContainerScreen`, but its trait bounds were not satisfied: method cannot be called on `&mut AbstractContainerScreen` due to unsatisfied trait bounds
+src/mixins/quick_nav_mixin.rs:55:86: error[E0308]: mismatched types: expected `Screen`, found `&mut AbstractContainerScreen`
+src/mixins/screen_effect_renderer_mixin.rs:19:12: error[E0061]: this function takes 2 arguments but 1 argument was supplied
+src/mixins/screen_effect_renderer_mixin.rs:29:12: error[E0061]: this function takes 2 arguments but 1 argument was supplied
+src/de/hysky/skyblocker/skyblock/dwarven/block_break_prediction.rs:33:165: error[E0308]: mismatched types: expected `HashMap<Location, HashMap<..., ...>>`, found `TypeId`
+src/de/hysky/skyblocker/skyblock/dwarven/block_break_prediction.rs:87:84: error[E0599]: no method named `as_any` found for reference `&AnyHitResult` in the current scope
+src/de/hysky/skyblocker/skyblock/dwarven/block_break_prediction.rs:144:155: error[E0599]: the method `contains_key` exists for struct `HashMap<Arc<Block>, (i32, i32)>`, but its trait bounds were not satisfied: method cannot be called on `HashMap<Arc<Block>, (i32, i32)>` due to unsatisfied trait bounds
+src/de/hysky/skyblocker/skyblock/dwarven/block_break_prediction.rs:147:137: error[E0599]: the method `get` exists for struct `HashMap<Arc<Block>, (i32, i32)>`, but its trait bounds were not satisfied: method cannot be called on `HashMap<Arc<Block>, (i32, i32)>` due to unsatisfied trait bounds
+src/de/hysky/skyblocker/skyblock/dwarven/block_break_prediction.rs:158:127: error[E0599]: the method `insert` exists for mutable reference `&mut HashMap<Arc<Block>, (i32, i32)>`, but its trait bounds were not satisfied
+src/de/hysky/skyblocker/skyblock/dwarven/block_break_prediction.rs:211:16: error[E0308]: mismatched types: expected `Arc<Block>`, found `Arc<dyn JavaObject>`
+src/de/hysky/skyblocker/skyblock/dwarven/carpet_highlighter.rs:70:43: error[E0308]: mismatched types: expected `Vec<BlockPos>`, found `WithinManhattan`
+src/de/hysky/skyblocker/skyblock/dwarven/carpet_highlighter.rs:127:129: error[E0308]: mismatched types: expected `&BlockPos`, found `&MutableBlockPos`
+src/de/hysky/skyblocker/skyblock/dwarven/commission_labels.rs:97:30: error[E0277]: can't compare `Vec<std::string::String>` with `&Vec<std::string::String>`: no implementation for `Vec<std::string::String> == &Vec<std::string::String>`
+src/de/hysky/skyblocker/skyblock/dwarven/commission_labels.rs:112:17: error[E0369]: binary operation `==` cannot be applied to type `Arc<ReentrantMutex<RawMutex, RawThreadId, RefCell<dyn Area>>>`
+src/de/hysky/skyblocker/skyblock/dwarven/commission_labels.rs:112:58: error[E0369]: binary operation `==` cannot be applied to type `Arc<ReentrantMutex<RawMutex, RawThreadId, RefCell<dyn Area>>>`
+src/de/hysky/skyblocker/skyblock/dwarven/commission_labels.rs:112:98: error[E0369]: binary operation `==` cannot be applied to type `Arc<ReentrantMutex<RawMutex, RawThreadId, RefCell<dyn Area>>>`
+src/de/hysky/skyblocker/skyblock/dwarven/commission_labels.rs:112:141: error[E0369]: binary operation `==` cannot be applied to type `Arc<ReentrantMutex<RawMutex, RawThreadId, RefCell<dyn Area>>>`
+src/de/hysky/skyblocker/skyblock/dwarven/commission_labels.rs:147:30: error[E0599]: no method named `get_skyblock_id` found for reference `&[mcrust::net::minecraft::world::item::item_stack::ItemStack]` in the current scope: method not found in `&[mcrust::net::minecraft::world::item::item_stack::ItemStack]`
+src/de/hysky/skyblocker/skyblock/dwarven/corpse_finder.rs:41:129: error[E0308]: mismatched types: expected `HashMap<CorpseType, Vec<Corpse>>`, found `TypeId`
+src/de/hysky/skyblocker/skyblock/dwarven/corpse_finder.rs:74:63: error[E0277]: the trait bound `Corpse: std::clone::Clone` is not satisfied: unsatisfied trait bound
+src/de/hysky/skyblocker/skyblock/dwarven/corpse_finder.rs:74:28: error[E0277]: the trait bound `Vec<Corpse>: std::clone::Clone` is not satisfied: the trait `std::clone::Clone` is not implemented for `Vec<Corpse>`
+src/de/hysky/skyblocker/skyblock/dwarven/corpse_finder.rs:77:99: error[E0599]: no method named `has_line_of_sight` found for mutable reference `&mut LocalPlayer` in the current scope: method not found in `&mut LocalPlayer`
+src/de/hysky/skyblocker/skyblock/dwarven/corpse_finder.rs:123:28: error[E0277]: the trait bound `Corpse: std::clone::Clone` is not satisfied: unsatisfied trait bound
+src/de/hysky/skyblocker/skyblock/dwarven/corpse_finder.rs:123:37: error[E0599]: no method named `any` found for struct `Cloned<I>` in the current scope
+src/de/hysky/skyblocker/skyblock/dwarven/corpse_finder.rs:135:37: error[E0599]: no method named `clone` found for struct `Corpse` in the current scope: method not found in `Corpse`
+src/de/hysky/skyblocker/skyblock/dwarven/corpse_finder.rs:144:59: error[E0277]: the trait bound `Corpse: std::clone::Clone` is not satisfied: unsatisfied trait bound
+src/de/hysky/skyblocker/skyblock/dwarven/corpse_finder.rs:144:24: error[E0277]: the trait bound `Vec<Corpse>: std::clone::Clone` is not satisfied: the trait `std::clone::Clone` is not implemented for `Vec<Corpse>`
+src/de/hysky/skyblocker/skyblock/dwarven/corpse_finder.rs:176:77: error[E0277]: the trait bound `Vec<Corpse>: std::clone::Clone` is not satisfied: the trait `std::clone::Clone` is not implemented for `Vec<Corpse>`
+src/de/hysky/skyblocker/skyblock/dwarven/corpse_finder.rs:181:46: error[E0277]: the trait bound `Corpse: std::clone::Clone` is not satisfied: unsatisfied trait bound
+src/de/hysky/skyblocker/skyblock/dwarven/corpse_finder.rs:181:55: error[E0599]: `Cloned<std::slice::Iter<'_, Corpse>>` is not an iterator: `Cloned<std::slice::Iter<'_, Corpse>>` is not an iterator
+src/de/hysky/skyblocker/skyblock/dwarven/corpse_finder.rs:254:59: error[E0277]: the trait bound `Corpse: std::clone::Clone` is not satisfied: unsatisfied trait bound
+src/de/hysky/skyblocker/skyblock/dwarven/corpse_finder.rs:254:24: error[E0277]: the trait bound `Vec<Corpse>: std::clone::Clone` is not satisfied: the trait `std::clone::Clone` is not implemented for `Vec<Corpse>`
+src/de/hysky/skyblocker/skyblock/dwarven/corpse_finder.rs:270:63: error[E0277]: the trait bound `Corpse: std::clone::Clone` is not satisfied: unsatisfied trait bound
+src/de/hysky/skyblocker/skyblock/dwarven/corpse_finder.rs:270:28: error[E0277]: the trait bound `Vec<Corpse>: std::clone::Clone` is not satisfied: the trait `std::clone::Clone` is not implemented for `Vec<Corpse>`
+src/de/hysky/skyblocker/skyblock/dwarven/corpse_type.rs:100:56: error[E0308]: mismatched types: expected `String`, found `Option<String>`
+src/de/hysky/skyblocker/skyblock/dwarven/corpse_type.rs:124:20: error[E0277]: the trait bound `ChatFormatting: std::default::Default` is not satisfied: the trait `std::default::Default` is not implemented for `ChatFormatting`
+src/de/hysky/skyblocker/skyblock/dwarven/corpse_type.rs:127:28: error[E0308]: mismatched types: expected `Option<String>`, found `String`
+src/de/hysky/skyblocker/skyblock/dwarven/corpse_type.rs:169:16: error[E0308]: mismatched types: expected `CorpseType`, found `&CorpseType`
+src/de/hysky/skyblocker/skyblock/dwarven/crystals_chest_highlighter.rs:101:20: error[E0061]: this method takes 3 arguments but 1 argument was supplied
+src/de/hysky/skyblocker/skyblock/dwarven/crystals_chest_highlighter.rs:118:76: error[E0277]: can't compare `&std::sync::Arc<SimpleParticleType>` with `std::sync::Arc<dyn JavaObject>`: no implementation for `&std::sync::Arc<SimpleParticleType> == std::sync::Arc<dyn JavaObject>`
+src/de/hysky/skyblocker/skyblock/dwarven/crystals_chest_highlighter.rs:119:40: error[E0599]: the method `insert` exists for mutable reference `&mut std::collections::HashMap<mcrust::net::minecraft::world::phys::vec3::Vec3, i64>`, but its trait bounds were not satisfied
+src/de/hysky/skyblocker/skyblock/dwarven/crystals_chest_highlighter.rs:128:37: error[E0308]: mismatched types: expected `SoundEvent`, found `Arc<dyn JavaObject>`
+src/de/hysky/skyblocker/skyblock/dwarven/crystals_chest_highlighter.rs:164:140: error[E0308]: mismatched types: expected `&BlockPos`, found `&MutableBlockPos`
+src/de/hysky/skyblocker/skyblock/dwarven/crystals_chest_highlighter.rs:169:37: error[E0308]: mismatched types: expected `HitResult`, found `AnyHitResult`
+src/de/hysky/skyblocker/skyblock/dwarven/crystals_chest_highlighter.rs:170:48: error[E0599]: no method named `as_any` found for struct `HitResult` in the current scope
+src/de/hysky/skyblocker/skyblock/dwarven/crystals_locations_manager.rs:365:151: error[E0308]: mismatched types: expected `Arc<ReentrantMutex<RawMutex, ..., ...>>`, found `Option<_>`
+src/de/hysky/skyblocker/skyblock/dwarven/crystals_locations_manager.rs:410:79: error[E0308]: mismatched types: expected `Arc<ReentrantMutex<RawMutex, ..., ...>>`, found `CrystalsWaypointSubscribeMessage`
+src/de/hysky/skyblocker/skyblock/dwarven/crystals_locations_manager.rs:432:74: error[E0308]: mismatched types: expected `ReentrantMutex<RawMutex, ..., ...>`, found `dyn std::any::Any`
+src/de/hysky/skyblocker/skyblock/dwarven/crystals_locations_manager.rs:432:76: error[E0277]: the trait bound `CrystalsWaypointMessage: Message<Arc<dyn Any + Send + Sync>>` is not satisfied: unsatisfied trait bound
+src/de/hysky/skyblocker/skyblock/dwarven/fossil/fossil_calculations.rs:89:95: error[E0277]: the trait bound `TileState: std::default::Default` is not satisfied: unsatisfied trait bound
+src/de/hysky/skyblocker/skyblock/dwarven/fossil/fossil_calculations.rs:157:92: error[E0277]: the trait bound `TileState: std::default::Default` is not satisfied: unsatisfied trait bound
+src/de/hysky/skyblocker/skyblock/dwarven/fossil/fossil_calculations.rs:172:101: error[E0277]: the trait bound `TileState: std::default::Default` is not satisfied: unsatisfied trait bound
+src/de/hysky/skyblocker/skyblock/dwarven/fossil/fossil_calculations.rs:181:100: error[E0277]: the trait bound `TileState: std::default::Default` is not satisfied: unsatisfied trait bound
+src/de/hysky/skyblocker/skyblock/dwarven/fossil/fossil_calculations.rs:190:101: error[E0277]: the trait bound `TileState: std::default::Default` is not satisfied: unsatisfied trait bound
+src/de/hysky/skyblocker/skyblock/dwarven/fossil/structures.rs:172:17: error[E0277]: can't compare `TileGrid` with `std::sync::Arc<dyn std::any::Any + std::marker::Send + Sync>`: no implementation for `TileGrid == std::sync::Arc<dyn std::any::Any + std::marker::Send + Sync>`
+src/de/hysky/skyblocker/skyblock/dwarven/glacite_cold_overlay.rs:47:41: error[E0308]: mismatched types: expected `&GuiGraphicsExtractor`, found `&ScriptGraphics`
+src/de/hysky/skyblocker/skyblock/dwarven/metal_detector.rs:126:74: error[E0308]: mismatched types: expected `&BlockPos`, found `&Vec3i`
+src/de/hysky/skyblocker/skyblock/dwarven/metal_detector.rs:134:78: error[E0308]: mismatched types: expected `&BlockPos`, found `&Vec3i`
+src/de/hysky/skyblocker/skyblock/dwarven/metal_detector.rs:141:110: error[E0308]: mismatched types: expected `&BlockPos`, found `&Vec3i`
+src/de/hysky/skyblocker/skyblock/dwarven/metal_detector.rs:165:48: error[E0308]: mismatched types: expected `Vec3i`, found `BlockPos`
+src/de/hysky/skyblocker/skyblock/dwarven/metal_detector.rs:189:127: error[E0308]: mismatched types: expected `&BlockPos`, found `&Vec3i`
+src/de/hysky/skyblocker/skyblock/dwarven/mining_location_label.rs:281:52: error[E0308]: mismatched types: expected `&DwarvenCategory`, found `DwarvenCategory`
+src/de/hysky/skyblocker/skyblock/dwarven/mining_location_label.rs:297:23: error[E0277]: the trait bound `BlockPos: std::default::Default` is not satisfied: the trait `std::default::Default` is not implemented for `BlockPos`
+src/de/hysky/skyblocker/skyblock/dwarven/mining_location_label.rs:424:54: error[E0308]: mismatched types: expected `&DwarvenEmissaries`, found `DwarvenEmissaries`
+src/de/hysky/skyblocker/skyblock/dwarven/mining_location_label.rs:436:23: error[E0277]: the trait bound `BlockPos: std::default::Default` is not satisfied: the trait `std::default::Default` is not implemented for `BlockPos`
+src/de/hysky/skyblocker/skyblock/dwarven/mining_location_label.rs:554:52: error[E0308]: mismatched types: expected `&GlaciteCategory`, found `GlaciteCategory`
+src/de/hysky/skyblocker/skyblock/dwarven/mining_location_label.rs:712:21: error[E0308]: mismatched types: expected `String`, found `Option<String>`
+src/de/hysky/skyblocker/skyblock/dwarven/mining_location_label.rs:740:20: error[E0277]: the trait bound `mcrust::java::awt::color::Color: std::default::Default` is not satisfied: the trait `std::default::Default` is not implemented for `mcrust::java::awt::color::Color`
+src/de/hysky/skyblocker/skyblock/dwarven/mining_location_label.rs:746:31: error[E0308]: mismatched types: expected `Option<String>`, found `String`
+src/de/hysky/skyblocker/skyblock/dwarven/pickobulus_helper.rs:36:128: error[E0277]: the trait bound `mcrust::net::minecraft::world::level::block::block::Block: Eq` is not satisfied: the trait `Eq` is not implemented for `mcrust::net::minecraft::world::level::block::block::Block`
+src/de/hysky/skyblocker/skyblock/dwarven/pickobulus_helper.rs:36:128: error[E0277]: the trait bound `mcrust::net::minecraft::world::level::block::block::Block: Hash` is not satisfied: the trait `Hash` is not implemented for `mcrust::net::minecraft::world::level::block::block::Block`
+src/de/hysky/skyblocker/skyblock/dwarven/pickobulus_helper.rs:38:121: error[E0308]: mismatched types: expected `HashSet<Arc<Block>>`, found `Vec<Arc<Block>>`
+src/de/hysky/skyblocker/skyblock/dwarven/pickobulus_helper.rs:46:136: error[E0277]: the trait bound `BlockState: Default` is not satisfied: the trait `std::default::Default` is not implemented for `mcrust::net::minecraft::world::level::block::state::block_state::BlockState`
+src/de/hysky/skyblocker/skyblock/dwarven/pickobulus_helper.rs:151:69: error[E0689]: can't call method `wrapping_sub` on ambiguous numeric type `{integer}`
+src/de/hysky/skyblocker/skyblock/dwarven/pickobulus_helper.rs:151:162: error[E0689]: can't call method `wrapping_add` on ambiguous numeric type `{integer}`
+src/de/hysky/skyblocker/skyblock/dwarven/pickobulus_helper.rs:151:270: error[E0689]: can't call method `wrapping_sub` on ambiguous numeric type `{integer}`
+src/de/hysky/skyblocker/skyblock/dwarven/pickobulus_helper.rs:151:363: error[E0689]: can't call method `wrapping_add` on ambiguous numeric type `{integer}`
+src/de/hysky/skyblocker/skyblock/dwarven/pickobulus_helper.rs:151:471: error[E0689]: can't call method `wrapping_sub` on ambiguous numeric type `{integer}`
+src/de/hysky/skyblocker/skyblock/dwarven/pickobulus_helper.rs:151:564: error[E0689]: can't call method `wrapping_add` on ambiguous numeric type `{integer}`
+src/de/hysky/skyblocker/skyblock/dwarven/pickobulus_helper.rs:186:50: error[E0599]: the method `contains` exists for mutable reference `&mut HashSet<std::sync::Arc<mcrust::net::minecraft::world::level::block::block::Block>>`, but its trait bounds were not satisfied: method cannot be called due to unsatisfied trait bounds
+src/de/hysky/skyblocker/skyblock/dwarven/pickobulus_helper.rs:186:113: error[E0599]: the method `contains` exists for mutable reference `&mut HashSet<std::sync::Arc<mcrust::net::minecraft::world::level::block::block::Block>>`, but its trait bounds were not satisfied: method cannot be called due to unsatisfied trait bounds
+src/de/hysky/skyblocker/skyblock/dwarven/pickobulus_helper.rs:193:43: error[E0599]: the method `contains` exists for mutable reference `&mut HashSet<std::sync::Arc<mcrust::net::minecraft::world::level::block::block::Block>>`, but its trait bounds were not satisfied: method cannot be called due to unsatisfied trait bounds
+src/de/hysky/skyblocker/skyblock/dwarven/pickobulus_helper.rs:217:50: error[E0599]: the method `contains` exists for mutable reference `&mut HashSet<std::sync::Arc<mcrust::net::minecraft::world::level::block::block::Block>>`, but its trait bounds were not satisfied: method cannot be called due to unsatisfied trait bounds
+src/de/hysky/skyblocker/skyblock/dwarven/pickobulus_helper.rs:286:65: error[E0599]: no method named `iter` found for struct `std::cell::Ref<'_, BlockPosSet>` in the current scope: method not found in `std::cell::Ref<'_, BlockPosSet>`
+src/de/hysky/skyblocker/skyblock/dwarven/pickobulus_hud_widget.rs:160:76: error[E0308]: mismatched types: expected `LayoutElement`, found `PickobulusHudWidget`
+src/de/hysky/skyblocker/skyblock/dwarven/profittrackers/corpse/corpse_list.rs:109:30: error[E0658]: use of unstable library feature `str_as_str`
+src/de/hysky/skyblocker/skyblock/dwarven/profittrackers/corpse/corpse_profit_screen.rs:134:130: error[E0308]: `if` and `else` have incompatible types: expected `RewardList`, found `CorpseList`
+src/de/hysky/skyblocker/skyblock/dwarven/profittrackers/corpse/corpse_profit_screen.rs:136:111: error[E0308]: mismatched types: expected `LayoutElement`, found `AbstractSelectionList`
+src/de/hysky/skyblocker/skyblock/dwarven/profittrackers/corpse/corpse_profit_tracker.rs:162:78: error[E0599]: no method named `init` found for mutable reference `&mut Arc<ReentrantMutex<RawMutex, RawThreadId, RefCell<...>>>` in the current scope: method not found in `&mut Arc<ReentrantMutex<RawMutex, RawThreadId, RefCell<...>>>`
+src/de/hysky/skyblocker/skyblock/dwarven/profittrackers/corpse/reward_list.rs:113:58: error[E0308]: mismatched types: expected `ObjectIterator`, found `Cloned<Values<'_, String, String>>`
+src/de/hysky/skyblocker/skyblock/dwarven/profittrackers/corpse/reward_list.rs:250:16: error[E0308]: mismatched types: expected `Vec<Box<dyn NarratableEntry>>`, found `Vec<AbstractWidget>`
+src/de/hysky/skyblocker/skyblock/dwarven/profittrackers/corpse/reward_list.rs:255:16: error[E0308]: mismatched types: expected `Vec<Box<dyn GuiEventListener>>`, found `Vec<AbstractWidget>`
+src/de/hysky/skyblocker/skyblock/dwarven/profittrackers/powder_mining_tracker.rs:142:78: error[E0599]: no method named `init` found for mutable reference `&mut Arc<ReentrantMutex<RawMutex, RawThreadId, RefCell<...>>>` in the current scope: method not found in `&mut Arc<ReentrantMutex<RawMutex, RawThreadId, RefCell<...>>>`
+src/de/hysky/skyblocker/skyblock/dwarven/profittrackers/powder_mining_tracker.rs:182:16: error[E0308]: mismatched types: expected `HashMap<MutableComponent, i32>`, found `BTreeMap<MutableComponent, i32>`
+src/de/hysky/skyblocker/skyblock/dwarven/profittrackers/powder_mining_tracker.rs:187:60: error[E0605]: non-primitive cast: `std::option::Option<std::sync::Arc<ReentrantMutex<parking_lot::RawMutex, RawThreadId, RefCell<PowderMiningWidget>>>>` as `std::sync::Arc<ReentrantMutex<parking_lot::RawMutex, RawThreadId, RefCell<(dyn HudWidget + 'static)>>>`: an `as` expression can only be used to convert between primitive types or to coerce to a specific trait object
+src/de/hysky/skyblocker/skyblock/dwarven/profittrackers/powder_mining_tracker.rs:240:61: error[E0277]: the trait bound `MutableComponent: Ord` is not satisfied: the trait `Ord` is not implemented for `MutableComponent`
+src/de/hysky/skyblocker/skyblock/dwarven/profittrackers/powder_mining_tracker.rs:240:153: error[E0599]: the method `or_insert` exists for enum `std::collections::btree_map::Entry<'_, MutableComponent, i32>`, but its trait bounds were not satisfied: method cannot be called due to unsatisfied trait bounds
+src/de/hysky/skyblocker/skyblock/dwarven/profittrackers/powder_mining_tracker.rs:246:61: error[E0277]: the trait bound `MutableComponent: Ord` is not satisfied: the trait `Ord` is not implemented for `MutableComponent`
+src/de/hysky/skyblocker/skyblock/dwarven/profittrackers/powder_mining_tracker.rs:246:67: error[E0308]: mismatched types: expected `MutableComponent`, found `Option<_>`
+src/de/hysky/skyblocker/skyblock/dwarven/profittrackers/powder_mining_tracker.rs:246:172: error[E0599]: the method `or_insert` exists for enum `std::collections::btree_map::Entry<'_, MutableComponent, i32>`, but its trait bounds were not satisfied: method cannot be called due to unsatisfied trait bounds
+src/de/hysky/skyblocker/skyblock/dwarven/profittrackers/powder_mining_tracker.rs:269:59: error[E0308]: mismatched types: expected `ObjectSortedSet`, found `Vec<(MutableComponent, i32)>`
+src/de/hysky/skyblocker/skyblock/dwarven/profittrackers/powder_mining_tracker.rs:270:26: error[E0599]: no method named `iter` found for struct `ObjectSortedSet` in the current scope: method not found in `ObjectSortedSet`
+src/de/hysky/skyblocker/skyblock/dwarven/profittrackers/powder_mining_tracker.rs:279:58: error[E0308]: mismatched types: expected `HashSet<(_, _)>`, found `Vec<(String, i32)>`
+src/de/hysky/skyblocker/skyblock/dwarven/profittrackers/powder_mining_tracker.rs:288:58: error[E0277]: the trait bound `MutableComponent: Ord` is not satisfied: the trait `Ord` is not implemented for `MutableComponent`
+src/de/hysky/skyblocker/skyblock/dwarven/profittrackers/powder_mining_tracker.rs:296:58: error[E0277]: the trait bound `MutableComponent: Ord` is not satisfied: the trait `Ord` is not implemented for `MutableComponent`
+src/de/hysky/skyblocker/skyblock/dwarven/profittrackers/powder_mining_tracker.rs:296:65: error[E0308]: mismatched types: expected `MutableComponent`, found `Option<_>`
+src/de/hysky/skyblocker/skyblock/dwarven/profittrackers/powder_mining_widget.rs:140:181: error[E0277]: `(dyn Fn() + 'static)` cannot be shared between threads safely: `(dyn Fn() + 'static)` cannot be shared between threads safely
+src/de/hysky/skyblocker/skyblock/dwarven/profittrackers/powder_mining_widget.rs:140:181: error[E0277]: `(dyn Fn() + 'static)` cannot be sent between threads safely: `(dyn Fn() + 'static)` cannot be sent between threads safely
+src/de/hysky/skyblocker/skyblock/dwarven/puzzler.rs:107:46: error[E0308]: mismatched types: expected `Option<ClientLevel>`, found `Option<Arc<ClientLevel>>`
+src/de/hysky/skyblocker/skyblock/dwarven/puzzler.rs:109:67: error[E0308]: mismatched types: expected `&Arc<dyn JavaObject>`, found `&Arc<BlockState>`
+src/de/hysky/skyblocker/skyblock/dwarven/wishing_compass_solver.rs:181:125: error[E0277]: can't compare `&std::sync::Arc<SimpleParticleType>` with `std::sync::Arc<dyn JavaObject>`: no implementation for `&std::sync::Arc<SimpleParticleType> == std::sync::Arc<dyn JavaObject>`
+src/de/hysky/skyblocker/skyblock/waypoint/abstract_waypoints_screen.rs:79:77: error[E0599]: no method named `clone` found for struct `Multimap` in the current scope: method not found in `Multimap`
+src/de/hysky/skyblocker/skyblock/waypoint/abstract_waypoints_screen.rs:86:47: error[E0599]: no method named `clone` found for struct `Multimap` in the current scope: method not found in `Multimap`
+src/de/hysky/skyblocker/skyblock/waypoint/abstract_waypoints_screen.rs:117:134: error[E0308]: mismatched types: expected `AbstractWidget`, found `AbstractContainerWidget`
+src/de/hysky/skyblocker/skyblock/waypoint/abstract_waypoints_screen.rs:129:130: error[E0308]: mismatched types: expected `AbstractWidget`, found `Arc<ReentrantMutex<RawMutex, ..., ...>>`
+src/de/hysky/skyblocker/skyblock/waypoint/abstract_waypoints_screen.rs:129:70: error[E0308]: mismatched types: expected `Arc<ReentrantMutex<RawMutex, ..., ...>>`, found `usize`
+src/de/hysky/skyblocker/skyblock/waypoint/abstract_waypoints_screen.rs:127:86: error[E0277]: the trait bound `DropdownWidgetBase<Location>: DropdownWidget<Arc<...>>` is not satisfied: unsatisfied trait bound
+src/de/hysky/skyblocker/skyblock/waypoint/abstract_waypoints_screen.rs:152:31: error[E0282]: type annotations needed for `&mut _`
+src/de/hysky/skyblocker/skyblock/waypoint/abstract_waypoints_screen.rs:153:45: error[E0308]: mismatched types: expected `&Arc<ReentrantMutex<RawMutex, ..., ...>>`, found `&WidgetRef`
+src/de/hysky/skyblocker/skyblock/waypoint/abstract_waypoints_screen.rs:190:41: error[E0308]: mismatched types: expected `&Arc<ReentrantMutex<RawMutex, ..., ...>>`, found `&WidgetRef`
+src/de/hysky/skyblocker/skyblock/waypoint/abstract_waypoints_screen.rs:205:45: error[E0308]: mismatched types: expected `&Arc<ReentrantMutex<RawMutex, ..., ...>>`, found `&WidgetRef`
+src/de/hysky/skyblocker/skyblock/waypoint/abstract_waypoints_screen.rs:276:35: error[E0308]: mismatched types: expected `Vec<Box<dyn GuiEventListener>>`, found `Vec<AbstractWidget>`
+src/de/hysky/skyblocker/skyblock/waypoint/fairy_souls.rs:55:56: error[E0308]: mismatched types: expected `()`, found `Option<_>`
+src/de/hysky/skyblocker/skyblock/waypoint/fairy_souls.rs:161:114: error[E0308]: mismatched types: expected `&BlockPos`, found `&MutableBlockPos`
+src/de/hysky/skyblocker/skyblock/waypoint/fairy_souls.rs:161:89: error[E0277]: the trait bound `std::string::String: JsonRef` is not satisfied: the trait `JsonRef` is not implemented for `std::string::String`
+src/de/hysky/skyblocker/skyblock/waypoint/fairy_souls.rs:199:129: error[E0308]: mismatched types: expected trait `Waypoint`, found trait `ProfileAwareWaypoint`
+src/de/hysky/skyblocker/skyblock/waypoint/fairy_souls.rs:201:263: error[E0061]: this method takes 3 arguments but 1 argument was supplied
+src/de/hysky/skyblocker/skyblock/waypoint/mythological_ritual.rs:92:89: error[E0277]: can't compare `&std::sync::Arc<SimpleParticleType>` with `std::sync::Arc<dyn JavaObject>`: no implementation for `&std::sync::Arc<SimpleParticleType> == std::sync::Arc<dyn JavaObject>`
+src/de/hysky/skyblocker/skyblock/waypoint/mythological_ritual.rs:92:204: error[E0277]: can't compare `&std::sync::Arc<SimpleParticleType>` with `std::sync::Arc<dyn JavaObject>`: no implementation for `&std::sync::Arc<SimpleParticleType> == std::sync::Arc<dyn JavaObject>`
+src/de/hysky/skyblocker/skyblock/waypoint/mythological_ritual.rs:94:95: error[E0277]: can't compare `&std::sync::Arc<ParticleType>` with `std::sync::Arc<dyn JavaObject>`: no implementation for `&std::sync::Arc<ParticleType> == std::sync::Arc<dyn JavaObject>`
+src/de/hysky/skyblocker/skyblock/waypoint/mythological_ritual.rs:96:104: error[E0277]: can't compare `&std::sync::Arc<SimpleParticleType>` with `std::sync::Arc<dyn JavaObject>`: no implementation for `&std::sync::Arc<SimpleParticleType> == std::sync::Arc<dyn JavaObject>`
+src/de/hysky/skyblocker/skyblock/waypoint/mythological_ritual.rs:109:127: error[E0282]: type annotations needed
+src/de/hysky/skyblocker/skyblock/waypoint/mythological_ritual.rs:110:76: error[E0277]: can't compare `&std::sync::Arc<SimpleParticleType>` with `std::sync::Arc<dyn JavaObject>`: no implementation for `&std::sync::Arc<SimpleParticleType> == std::sync::Arc<dyn JavaObject>`
+src/de/hysky/skyblocker/skyblock/waypoint/mythological_ritual.rs:113:79: error[E0277]: can't compare `&std::sync::Arc<SimpleParticleType>` with `std::sync::Arc<dyn JavaObject>`: no implementation for `&std::sync::Arc<SimpleParticleType> == std::sync::Arc<dyn JavaObject>`
+src/de/hysky/skyblocker/skyblock/waypoint/mythological_ritual.rs:208:71: error[E0599]: the method `clone` exists for enum `std::option::Option<unresolved::Line>`, but its trait bounds were not satisfied: method cannot be called on `std::option::Option<unresolved::Line>` due to unsatisfied trait bounds
+src/de/hysky/skyblocker/skyblock/waypoint/mythological_ritual.rs:208:152: error[E0599]: the method `clone` exists for enum `std::option::Option<unresolved::Line>`, but its trait bounds were not satisfied: method cannot be called on `std::option::Option<unresolved::Line>` due to unsatisfied trait bounds
+src/de/hysky/skyblocker/skyblock/waypoint/mythological_ritual.rs:299:72: error[E0308]: mismatched types: expected `&BlockPos`, found `&mut Option<BlockPos>`
+src/de/hysky/skyblocker/skyblock/waypoint/mythological_ritual.rs:368:28: error[E0277]: the trait bound `unresolved::TriState: std::default::Default` is not satisfied: the trait `std::default::Default` is not implemented for `unresolved::TriState`
+src/de/hysky/skyblocker/skyblock/waypoint/mythological_ritual.rs:369:29: error[E0277]: the trait bound `SimpleRegression: std::default::Default` is not satisfied: the trait `std::default::Default` is not implemented for `SimpleRegression`
+src/de/hysky/skyblocker/skyblock/waypoint/relics.rs:81:69: error[E0308]: mismatched types: expected `BufferedReader`, found `String`
+src/de/hysky/skyblocker/skyblock/waypoint/relics.rs:145:96: error[E0308]: mismatched types: expected `&BlockPos`, found `&MutableBlockPos`
+src/de/hysky/skyblocker/skyblock/waypoint/relics.rs:145:71: error[E0277]: the trait bound `std::string::String: JsonRef` is not satisfied: the trait `JsonRef` is not implemented for `std::string::String`
+src/de/hysky/skyblocker/skyblock/waypoint/waypoints.rs:211:39: error[E0308]: mismatched types: expected `Option<Vec<Arc<...>>>`, found `()`
+src/de/hysky/skyblocker/skyblock/waypoint/waypoints.rs:320:192: error[E0308]: mismatched types: expected `&Value`, found `&Vec<Value>`
+src/de/hysky/skyblocker/skyblock/waypoint/waypoints.rs:334:86: error[E0277]: the trait bound `std::sync::Arc<dyn JavaObject>: JsonRef` is not satisfied: the trait `JsonRef` is not implemented for `std::sync::Arc<dyn JavaObject>`
+src/de/hysky/skyblocker/skyblock/waypoint/waypoints.rs:377:37: error[E0369]: binary operation `==` cannot be applied to type `&mut Multimap`
+src/de/hysky/skyblocker/skyblock/waypoint/waypoints.rs:520:16: error[E0308]: mismatched types: expected `OrderedAction`, found `&OrderedAction`
+src/de/hysky/skyblocker/skyblock/waypoint/waypoints_list_widget.rs:146:53: error[E0599]: no method named `extend` found for struct `HashSet<T, S, A>` in the current scope: method not found in `HashSet<Arc<ReentrantMutex<RawMutex, RawThreadId, RefCell<...>>>>`
+src/de/hysky/skyblocker/skyblock/waypoint/waypoints_list_widget.rs:157:78: error[E0369]: binary operation `==` cannot be applied to type `std::sync::Arc<ReentrantMutex<parking_lot::RawMutex, RawThreadId, RefCell<WaypointGroup>>>`
+src/de/hysky/skyblocker/skyblock/waypoint/waypoints_list_widget.rs:172:239: error[E0308]: mismatched types: expected `Option<Arc<...>>`, found `Option<usize>`
+src/de/hysky/skyblocker/skyblock/waypoint/waypoints_list_widget.rs:184:310: error[E0369]: binary operation `==` cannot be applied to type `Arc<ReentrantMutex<RawMutex, RawThreadId, RefCell<...>>>`
+src/de/hysky/skyblocker/skyblock/waypoint/waypoints_list_widget.rs:185:373: error[E0599]: the method `contains` exists for struct `HashSet<Arc<ReentrantMutex<RawMutex, RawThreadId, RefCell<...>>>>`, but its trait bounds were not satisfied: method cannot be called due to unsatisfied trait bounds
+src/de/hysky/skyblocker/skyblock/waypoint/waypoints_list_widget.rs:192:168: error[E0369]: binary operation `==` cannot be applied to type `Arc<ReentrantMutex<RawMutex, RawThreadId, RefCell<...>>>`
+src/de/hysky/skyblocker/skyblock/waypoint/waypoints_list_widget.rs:198:182: error[E0369]: binary operation `==` cannot be applied to type `Arc<ReentrantMutex<RawMutex, RawThreadId, RefCell<...>>>`
+src/de/hysky/skyblocker/skyblock/waypoint/waypoints_list_widget.rs:201:181: error[E0369]: binary operation `==` cannot be applied to type `Arc<ReentrantMutex<RawMutex, RawThreadId, RefCell<...>>>`
+src/de/hysky/skyblocker/skyblock/waypoint/waypoints_list_widget.rs:205:168: error[E0369]: binary operation `==` cannot be applied to type `Arc<ReentrantMutex<RawMutex, RawThreadId, RefCell<...>>>`
+src/de/hysky/skyblocker/skyblock/waypoint/waypoints_list_widget.rs:216:171: error[E0369]: binary operation `==` cannot be applied to type `Arc<ReentrantMutex<RawMutex, RawThreadId, RefCell<...>>>`
+src/de/hysky/skyblocker/skyblock/waypoint/waypoints_list_widget.rs:216:366: error[E0369]: binary operation `==` cannot be applied to type `Arc<ReentrantMutex<RawMutex, RawThreadId, RefCell<...>>>`
+src/de/hysky/skyblocker/skyblock/waypoint/waypoints_list_widget.rs:217:142: error[E0599]: the method `contains` exists for struct `HashSet<Arc<ReentrantMutex<RawMutex, RawThreadId, RefCell<...>>>>`, but its trait bounds were not satisfied: method cannot be called due to unsatisfied trait bounds
+src/de/hysky/skyblocker/skyblock/waypoint/waypoints_list_widget.rs:223:65: error[E0599]: the method `contains` exists for struct `HashSet<Arc<ReentrantMutex<RawMutex, RawThreadId, RefCell<...>>>>`, but its trait bounds were not satisfied: method cannot be called due to unsatisfied trait bounds
+src/de/hysky/skyblocker/skyblock/waypoint/waypoints_list_widget.rs:267:79: error[E0599]: the method `contains` exists for struct `HashSet<Arc<ReentrantMutex<RawMutex, RawThreadId, RefCell<...>>>>`, but its trait bounds were not satisfied: method cannot be called due to unsatisfied trait bounds
+src/de/hysky/skyblocker/skyblock/waypoint/waypoints_list_widget.rs:284:46: error[E0599]: no method named `as_any` found for struct `Arc<ReentrantMutex<RawMutex, RawThreadId, RefCell<...>>>` in the current scope
+src/de/hysky/skyblocker/skyblock/waypoint/waypoints_list_widget.rs:287:53: error[E0599]: no method named `as_any` found for struct `Arc<ReentrantMutex<RawMutex, RawThreadId, RefCell<...>>>` in the current scope
+src/de/hysky/skyblocker/skyblock/waypoint/waypoints_list_widget.rs:287:301: error[E0599]: no method named `is_enabled` found for struct `Arc<ReentrantMutex<RawMutex, RawThreadId, RefCell<...>>>` in the current scope: method not found in `Arc<ReentrantMutex<RawMutex, RawThreadId, RefCell<...>>>`
+src/de/hysky/skyblocker/skyblock/waypoint/waypoints_list_widget.rs:298:122: error[E0308]: mismatched types: expected `Entry`, found `Arc<ReentrantMutex<RawMutex, ..., ...>>`
+src/de/hysky/skyblocker/skyblock/waypoint/waypoints_list_widget.rs:482:16: error[E0308]: mismatched types: expected `Vec<Box<dyn GuiEventListener>>`, found `Vec<AbstractWidget>`
+src/de/hysky/skyblocker/skyblock/waypoint/waypoints_list_widget.rs:487:16: error[E0308]: mismatched types: expected `Vec<Box<dyn NarratableEntry>>`, found `Vec<AbstractWidget>`
+src/de/hysky/skyblocker/skyblock/waypoint/waypoints_list_widget.rs:589:88: error[E0282]: type annotations needed
+src/de/hysky/skyblocker/skyblock/waypoint/waypoints_list_widget.rs:608:31: error[E0308]: mismatched types: expected `LayoutElement`, found `Checkbox`
+src/de/hysky/skyblocker/skyblock/waypoint/waypoints_list_widget.rs:616:31: error[E0308]: mismatched types: expected `LayoutElement`, found `EditBox`
+src/de/hysky/skyblocker/skyblock/waypoint/waypoints_list_widget.rs:660:85: error[E0308]: mismatched types: expected `Checkbox`, found `EditBox`
+src/de/hysky/skyblocker/skyblock/waypoint/waypoints_list_widget.rs:666:16: error[E0308]: mismatched types: expected `Vec<Box<dyn NarratableEntry>>`, found `Vec<AbstractWidget>`
+src/de/hysky/skyblocker/skyblock/waypoint/waypoints_list_widget.rs:671:16: error[E0308]: mismatched types: expected `Vec<Box<dyn GuiEventListener>>`, found `Vec<AbstractWidget>`
+src/de/hysky/skyblocker/skyblock/waypoint/waypoints_list_widget.rs:846:88: error[E0282]: type annotations needed
+src/de/hysky/skyblocker/skyblock/waypoint/waypoints_list_widget.rs:856:40: error[E0308]: mismatched types: expected `LayoutElement`, found `Checkbox`
+src/de/hysky/skyblocker/skyblock/waypoint/waypoints_list_widget.rs:864:40: error[E0308]: mismatched types: expected `LayoutElement`, found `EditBox`
+src/de/hysky/skyblocker/skyblock/waypoint/waypoints_list_widget.rs:876:31: error[E0308]: mismatched types: expected `LayoutElement`, found `Arc<ReentrantMutex<RawMutex, ..., ...>>`
+src/de/hysky/skyblocker/skyblock/waypoint/waypoints_list_widget.rs:888:31: error[E0308]: mismatched types: expected `LayoutElement`, found `Arc<ReentrantMutex<RawMutex, ..., ...>>`
+src/de/hysky/skyblocker/skyblock/waypoint/waypoints_list_widget.rs:900:31: error[E0308]: mismatched types: expected `LayoutElement`, found `Arc<ReentrantMutex<RawMutex, ..., ...>>`
+src/de/hysky/skyblocker/skyblock/waypoint/waypoints_list_widget.rs:918:13: error[E0277]: can't compare `ReentrantMutex<parking_lot::RawMutex, RawThreadId, RefCell<(dyn NamedWaypoint + 'static)>>` with `ReentrantMutex<parking_lot::RawMutex, RawThreadId, RefCell<(dyn NamedWaypoint + 'static)>>`: no implementation for `ReentrantMutex<parking_lot::RawMutex, RawThreadId, RefCell<(dyn NamedWaypoint + 'static)>> == ReentrantMutex<parking_lot::RawMutex, RawThreadId, RefCell<(dyn NamedWaypoint + 'static)>>`
+src/de/hysky/skyblocker/skyblock/waypoint/waypoints_list_widget.rs:936:16: error[E0308]: mismatched types: expected `Vec<Box<dyn NarratableEntry>>`, found `Vec<AbstractWidget>`
+src/de/hysky/skyblocker/skyblock/waypoint/waypoints_list_widget.rs:941:16: error[E0308]: mismatched types: expected `Vec<Box<dyn GuiEventListener>>`, found `Vec<AbstractWidget>`
+src/de/hysky/skyblocker/skyblock/waypoint/waypoints_list_widget.rs:946:200: error[E0369]: binary operation `==` cannot be applied to type `Arc<ReentrantMutex<RawMutex, RawThreadId, RefCell<dyn NamedWaypoint>>>`
+src/de/hysky/skyblocker/skyblock/waypoint/waypoints_list_widget.rs:959:192: error[E0369]: binary operation `==` cannot be applied to type `Arc<ReentrantMutex<RawMutex, RawThreadId, RefCell<dyn NamedWaypoint>>>`
+src/de/hysky/skyblocker/skyblock/waypoint/waypoints_list_widget.rs:983:264: error[E0277]: the trait bound `(dyn NamedWaypoint + 'static): std::default::Default` is not satisfied: the trait `std::default::Default` is not implemented for `(dyn NamedWaypoint + 'static)`
+src/de/hysky/skyblocker/skyblock/waypoint/waypoints_list_widget.rs:983:418: error[E0308]: mismatched types: expected trait `NamedWaypoint`, found trait `Waypoint`
+src/de/hysky/skyblocker/skyblock/waypoint/waypoints_list_widget.rs:989:264: error[E0277]: the trait bound `(dyn NamedWaypoint + 'static): std::default::Default` is not satisfied: the trait `std::default::Default` is not implemented for `(dyn NamedWaypoint + 'static)`
+src/de/hysky/skyblocker/skyblock/waypoint/waypoints_list_widget.rs:989:418: error[E0308]: mismatched types: expected trait `NamedWaypoint`, found trait `Waypoint`
+src/de/hysky/skyblocker/skyblock/waypoint/waypoints_list_widget.rs:995:264: error[E0277]: the trait bound `(dyn NamedWaypoint + 'static): std::default::Default` is not satisfied: the trait `std::default::Default` is not implemented for `(dyn NamedWaypoint + 'static)`
+src/de/hysky/skyblocker/skyblock/waypoint/waypoints_list_widget.rs:995:418: error[E0308]: mismatched types: expected trait `NamedWaypoint`, found trait `Waypoint`
+src/de/hysky/skyblocker/skyblock/waypoint/waypoints_list_widget.rs:1002:196: error[E0369]: binary operation `==` cannot be applied to type `Arc<ReentrantMutex<RawMutex, RawThreadId, RefCell<dyn NamedWaypoint>>>`
+src/de/hysky/skyblocker/skyblock/waypoint/waypoints_list_widget.rs:1020:192: error[E0369]: binary operation `==` cannot be applied to type `Arc<ReentrantMutex<RawMutex, RawThreadId, RefCell<dyn NamedWaypoint>>>`
+src/de/hysky/skyblocker/skyblock/waypoint/waypoints_list_widget.rs:1026:293: error[E0308]: mismatched types: expected trait `NamedWaypoint`, found trait `Waypoint`
+src/de/hysky/skyblocker/skyblock/waypoint/waypoints_list_widget.rs:1197:5: error[E0277]: `WaypointGroupEntry` doesn't implement `std::fmt::Debug`: unsatisfied trait bound
+src/de/hysky/skyblocker/skyblock/waypoint/waypoints_option_screen.rs:80:36: error[E0308]: mismatched types: expected `GridLayout`, found `()`
+src/de/hysky/skyblocker/skyblock/waypoint/waypoints_option_screen.rs:129:74: error[E0308]: mismatched types: expected `Arc<ReentrantMutex<RawMutex, ..., ...>>`, found `()`
+src/de/hysky/skyblocker/skyblock/waypoint/waypoints_option_screen.rs:130:66: error[E0308]: mismatched types: expected `Arc<ReentrantMutex<RawMutex, ..., ...>>`, found `()`
+src/de/hysky/skyblocker/skyblock/waypoint/waypoints_screen.rs:60:90: error[E0599]: the method `clone` exists for enum `std::option::Option<Multimap>`, but its trait bounds were not satisfied: method cannot be called on `std::option::Option<Multimap>` due to unsatisfied trait bounds
+src/de/hysky/skyblocker/skyblock/waypoint/waypoints_screen.rs:66:87: error[E0599]: the method `clone` exists for enum `std::option::Option<Multimap>`, but its trait bounds were not satisfied: method cannot be called on `std::option::Option<Multimap>` due to unsatisfied trait bounds
+src/de/hysky/skyblocker/skyblock/waypoint/waypoints_screen.rs:93:19: error[E0061]: this method takes 3 arguments but 0 arguments were supplied
+src/de/hysky/skyblocker/skyblock/waypoint/waypoints_screen.rs:94:87: error[E0599]: no method named `row_spacing` found for unit type `()` in the current scope: method not found in `()`
+src/de/hysky/skyblocker/skyblock/waypoint/waypoints_screen.rs:117:19: error[E0599]: no method named `late_init` found for struct `AbstractWaypointsScreenBase<mcrust::net::minecraft::client::gui::screens::screen::Screen>` in the current scope: method not found in `AbstractWaypointsScreenBase<mcrust::net::minecraft::client::gui::screens::screen::Screen>`
+src/de/hysky/skyblocker/skyblock/waypoint/waypoints_share_screen.rs:63:179: error[E0599]: no method named `clone` found for struct `Multimap` in the current scope: method not found in `Multimap`
+src/de/hysky/skyblocker/skyblock/waypoint/waypoints_share_screen.rs:101:19: error[E0061]: this method takes 3 arguments but 0 arguments were supplied
+src/de/hysky/skyblocker/skyblock/waypoint/waypoints_share_screen.rs:104:100: error[E0599]: no method named `row_spacing` found for unit type `()` in the current scope: method not found in `()`
+src/de/hysky/skyblocker/skyblock/waypoint/waypoints_share_screen.rs:238:19: error[E0599]: no method named `late_init` found for struct `AbstractWaypointsScreenBase<Arc<ReentrantMutex<RawMutex, ..., ...>>>` in the current scope: method not found in `AbstractWaypointsScreenBase<Arc<ReentrantMutex<RawMutex, ..., ...>>>`
+src/de/hysky/skyblocker/skyblock/waypoint/waypoints_share_screen.rs:243:40: error[E0599]: the method `contains` exists for struct `HashSet<Arc<ReentrantMutex<RawMutex, RawThreadId, RefCell<...>>>>`, but its trait bounds were not satisfied: method cannot be called due to unsatisfied trait bounds
+src/de/hysky/skyblocker/skyblock/waypoint/waypoints_share_screen.rs:249:37: error[E0599]: the method `insert` exists for struct `HashSet<Arc<ReentrantMutex<RawMutex, RawThreadId, RefCell<...>>>>`, but its trait bounds were not satisfied
+src/de/hysky/skyblocker/skyblock/waypoint/waypoints_share_screen.rs:251:37: error[E0599]: the method `remove` exists for struct `HashSet<Arc<ReentrantMutex<RawMutex, RawThreadId, RefCell<...>>>>`, but its trait bounds were not satisfied: method cannot be called due to unsatisfied trait bounds
+src/mixins/client_packet_listener_mixin.rs:92:37: error[E0596]: cannot borrow `*ci` as mutable, as it is behind a `&` reference: `ci` is a `&` reference, so it cannot be borrowed as mutable
+src/mixins/client_packet_listener_mixin.rs:148:37: error[E0596]: cannot borrow `*ci` as mutable, as it is behind a `&` reference: `ci` is a `&` reference, so it cannot be borrowed as mutable
+src/mixins/client_packet_listener_mixin.rs:169:37: error[E0596]: cannot borrow `*ci` as mutable, as it is behind a `&` reference: `ci` is a `&` reference, so it cannot be borrowed as mutable
+src/mixins/client_packet_listener_mixin.rs:181:37: error[E0596]: cannot borrow `*ci` as mutable, as it is behind a `&` reference: `ci` is a `&` reference, so it cannot be borrowed as mutable
+src/mixins/client_packet_listener_mixin.rs:191:37: error[E0596]: cannot borrow `*ci` as mutable, as it is behind a `&` reference: `ci` is a `&` reference, so it cannot be borrowed as mutable
+src/mixins/client_packet_listener_mixin.rs:201:37: error[E0596]: cannot borrow `*ci` as mutable, as it is behind a `&` reference: `ci` is a `&` reference, so it cannot be borrowed as mutable
+src/mixins/fishing_hook_mixin.rs:13:37: error[E0596]: cannot borrow `*ci` as mutable, as it is behind a `&` reference: `ci` is a `&` reference, so it cannot be borrowed as mutable
+src/mixins/scoreboard_mixin.rs:13:37: error[E0596]: cannot borrow `*ci` as mutable, as it is behind a `&` reference: `ci` is a `&` reference, so it cannot be borrowed as mutable
+src/mixins/skin_manager_mixin.rs:14:37: error[E0596]: cannot borrow `*ci` as mutable, as it is behind a `&` reference: `ci` is a `&` reference, so it cannot be borrowed as mutable
+src/mixins/yggdrasil_minecraft_session_service_mixin.rs:15:37: error[E0596]: cannot borrow `*ci` as mutable, as it is behind a `&` reference: `ci` is a `&` reference, so it cannot be borrowed as mutable
+src/mixins/yggdrasil_services_key_info_mixin.rs:51:37: error[E0596]: cannot borrow `*ci` as mutable, as it is behind a `&` reference: `ci` is a `&` reference, so it cannot be borrowed as mutable
+src/de/hysky/skyblocker/skyblock/dwarven/block_break_prediction.rs:125:175: error[E0596]: cannot borrow `*__a0` as mutable, as it is behind a `&` reference: `__a0` is a `&` reference, so it cannot be borrowed as mutable
+src/de/hysky/skyblocker/skyblock/dwarven/call_mismyla.rs:106:52: error[E0382]: borrow of moved value: `call_message`: value borrowed here after move
+src/de/hysky/skyblocker/skyblock/dwarven/crystals_locations_manager.rs:258:319: error[E0382]: borrow of moved value: `text`: value borrowed here after move
+src/de/hysky/skyblocker/skyblock/dwarven/crystals_locations_manager.rs:277:124: error[E0382]: use of moved value: `hover_message`: value moved into closure here, in previous iteration of loop
+src/de/hysky/skyblocker/skyblock/dwarven/crystals_locations_manager.rs:279:16: error[E0382]: use of moved value: `text`: value used here after move
+src/de/hysky/skyblocker/skyblock/dwarven/crystals_locations_manager.rs:344:17: error[E0382]: use of moved value: `received_waypoint_names`: value used here after move
+src/de/hysky/skyblocker/skyblock/dwarven/crystals_locations_manager.rs:351:52: error[E0382]: borrow of moved value: `received_waypoint_names`: value borrowed here after move
+src/de/hysky/skyblocker/skyblock/dwarven/fossil/fossil_solver.rs:246:84: error[E0507]: cannot move out of dereference of `std::sync::MutexGuard<'_, std::option::Option<Vec<f64>>>`: help: consider calling `.as_ref()` or `.as_mut()` to borrow the type's contents, move occurs because value has type `std::option::Option<Vec<f64>>`, which does not implement the `Copy` trait
+src/de/hysky/skyblocker/skyblock/dwarven/fossil/fossil_solver.rs:247:184: error[E0507]: cannot move out of dereference of `std::sync::MutexGuard<'_, std::option::Option<Vec<f64>>>`: help: consider calling `.as_ref()` or `.as_mut()` to borrow the type's contents, move occurs because value has type `std::option::Option<Vec<f64>>`, which does not implement the `Copy` trait
+src/de/hysky/skyblocker/skyblock/dwarven/fossil/structures.rs:152:10: error[E0596]: cannot borrow `self.state` as mutable, as it is behind a `&` reference: `self` is a `&` reference, so it cannot be borrowed as mutable
+src/de/hysky/skyblocker/skyblock/dwarven/pickobulus_helper.rs:98:9: error[E0596]: cannot borrow immutable static item `DROPS` as mutable: cannot borrow as mutable
+src/de/hysky/skyblocker/skyblock/dwarven/pickobulus_helper.rs:276:13: error[E0596]: cannot borrow immutable static item `DROPS` as mutable: cannot borrow as mutable
+src/de/hysky/skyblocker/skyblock/dwarven/profittrackers/corpse/corpse_profit_tracker.rs:243:82: error[E0381]: used binding `type` isn't initialized: `type` used here but it isn't initialized
+src/de/hysky/skyblocker/skyblock/dwarven/profittrackers/corpse/reward_list.rs:267:9: error[E0515]: cannot return value referencing temporary value: returns a value referencing data owned by the current function
+src/de/hysky/skyblocker/skyblock/dwarven/profittrackers/corpse/reward_list.rs:435:13: error[E0596]: cannot borrow `child` as mutable, as it is not declared as mutable: cannot borrow as mutable
+src/de/hysky/skyblocker/skyblock/dwarven/profittrackers/corpse/reward_list.rs:448:26: error[E0716]: temporary value dropped while borrowed: creates a temporary value which is freed while still in use
+src/de/hysky/skyblocker/skyblock/dwarven/profittrackers/corpse/reward_list.rs:448:26: error[E0596]: cannot borrow data in dereference of `std::cell::Ref<'_, SingleEntry>` as mutable: cannot borrow as mutable
+src/de/hysky/skyblocker/skyblock/dwarven/redial_on_bad_signal.rs:106:52: error[E0382]: borrow of moved value: `call_message`: value borrowed here after move
+src/de/hysky/skyblocker/skyblock/waypoint/abstract_waypoints_screen.rs:141:82: error[E0507]: cannot move out of `*w` which is behind a shared reference: move occurs because `*w` has type `LayoutElement`, which does not implement the `Copy` trait
+src/de/hysky/skyblocker/skyblock/waypoint/abstract_waypoints_screen.rs:142:37: error[E0310]: the parameter type `T` may not live long enough: the parameter type `T` must be valid for the static lifetime..., ...so that the type `T` will meet its required lifetime bounds
+src/de/hysky/skyblocker/skyblock/waypoint/abstract_waypoints_screen.rs:142:187: error[E0310]: the parameter type `T` may not live long enough: the parameter type `T` must be valid for the static lifetime..., ...so that the type `T` will meet its required lifetime bounds
+src/de/hysky/skyblocker/skyblock/waypoint/abstract_waypoints_screen.rs:312:13: error[E0596]: cannot borrow `*self` as mutable, as it is behind a `&` reference: `self` is a `&` reference, so it cannot be borrowed as mutable
+src/de/hysky/skyblocker/skyblock/waypoint/mythological_ritual.rs:133:62: error[E0381]: used binding `burrow_pos` is possibly-uninitialized: `burrow_pos` used here but it is possibly-uninitialized
+src/de/hysky/skyblocker/skyblock/waypoint/waypoints.rs:407:39: error: lifetime may not live long enough: coercion requires that `'1` must outlive `'static`
+src/de/hysky/skyblocker/skyblock/waypoint/waypoints_list_widget.rs:400:9: error[E0515]: cannot return value referencing temporary value: returns a value referencing data owned by the current function
