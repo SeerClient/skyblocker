@@ -47,7 +47,7 @@ impl ZombieShootout {
             for pos in LAMPS.get_mut().iter() {
                 let mut state: Arc<BlockState> = mcrust::mcrust::modding::game::level().unwrap().get_block_state_typed(pos);
                 let mut block: Arc<Block> = state.get_block();
-                if std::ptr::addr_eq(std::sync::Arc::as_ptr(&block), std::sync::Arc::as_ptr(&blocks::blocks().get("redstone_lamp"))) && state.has_property(&mcrust::net::minecraft::world::level::block::state::properties::block_state_properties::lit()) && state.get_value(&mcrust::net::minecraft::world::level::block::state::properties::block_state_properties::lit()) {
+                if std::ptr::addr_eq(std::sync::Arc::as_ptr(&block), std::sync::Arc::as_ptr(&blocks::blocks().get("redstone_lamp"))) && state.has_property(&mcrust::net::minecraft::world::level::block::state::properties::block_state_properties::lit()) && state.get_value(&mcrust::net::minecraft::world::level::block::state::properties::block_state_properties::lit()) == mcrust::net::minecraft::world::level::block::state::properties::property::Comparable::Boolean(true) {
                     ({ let __f = compat::dispatch(collector, |__t| __t.submit_outlined_box()); __f(collector, pos, &RED, 5.0f32, false) });
                 }
             }
