@@ -1,0 +1,60 @@
+//! Ported from de.hysky.skyblocker.utils.ws.message.DungeonBatKilledMessage by fabric2seer.
+
+#[allow(unused_imports)]
+use crate::prelude::*;
+use crate::de::hysky::skyblocker::utils::ws::message::message::Message;
+use mcrust::com::mojang::serialization::codec;
+use mcrust::com::mojang::serialization::codec::Codec;
+use mcrust::com::mojang::serialization::codec::CodecRef;
+use mcrust::com::mojang::serialization::codecs::record_codec_builder;
+use mcrust::java::util::uuid::Uuid;
+
+/// java: public static final String TYPE = "bat_killed";
+pub const TYPE: &str = "bat_killed";
+/// java: public static final Codec<DungeonBatKilledMessage> CODEC = RecordCodecBuilder.create(instance -> instance.group( Codec.STRING.fieldOf("type").forGetter(DungeonBatKilledMessage::type), UUIDUtil.STRING_
+pub static CODEC: compat::MainThread<CodecRef<DungeonBatKilledMessage>> = compat::MainThread::new(|| record_codec_builder::create(record_codec_builder::apply2(record_codec_builder::of(|o: &DungeonBatKilledMessage| o.r#type(), codec::field_of(mcrust::com::mojang::serialization::codec::string_codec(), "type")), record_codec_builder::of(|o: &DungeonBatKilledMessage| o.sender(), codec::field_of(mcrust::net::minecraft::core::uuid_util::string_codec(), "uuid")), move |__a0, __a1| DungeonBatKilledMessage::new(__a0.clone(), __a1.clone()))));
+
+/// java: public record DungeonBatKilledMessage(String type, UUID sender) implements Message<DungeonBatKilledMessage>
+#[derive(Clone, Debug, PartialEq)]
+pub struct DungeonBatKilledMessage {
+    /// java: String type
+    pub r#type: String,
+    /// java: UUID sender
+    pub sender: Uuid,
+}
+
+impl DungeonBatKilledMessage {
+    /// java: public DungeonBatKilledMessage(UUID uuid)
+    pub fn new(mut uuid: Uuid) -> Self {
+        let mut this = Self::new(TYPE.to_string(), uuid.clone());
+        this
+    }
+
+    /// java: the canonical record constructor
+    pub fn new(mut r#type: String, mut sender: Uuid) -> Self {
+        Self { r#type, sender }
+    }
+
+    /// java: the record accessor `type()`
+    pub fn r#type(&self) -> String {
+        self.r#type.clone()
+    }
+
+    /// java: the record accessor `sender()`
+    pub fn sender(&self) -> Uuid {
+        self.sender.clone()
+    }
+
+}
+
+impl Message<crate::de::hysky::skyblocker::utils::ws::message::dungeon_bat_killed_message::DungeonBatKilledMessage> for DungeonBatKilledMessage {
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+
+    /// java: @Override public Codec<DungeonBatKilledMessage> getCodec()
+    fn get_codec(&self) -> CodecRef<DungeonBatKilledMessage> {
+        return CODEC.get_mut().clone();
+    }
+
+}

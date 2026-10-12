@@ -1,0 +1,14 @@
+//! package de.hysky.skyblocker.skyblock.tabhud.config
+pub mod add_widget_widget;
+pub mod copy_to_popup;
+pub mod custom_dropdown_widget;
+pub mod dungeons_tab_placeholder;
+pub mod list;
+pub mod option_widget_collector;
+pub mod other_options_screen;
+pub mod position_rule_widget;
+pub mod side_panel_widget;
+pub mod styled_button_widget;
+pub mod toggle_button_widget;
+pub mod top_bar_widget;
+pub mod widgets_configuration_screen;

@@ -1,0 +1,10 @@
+//! package de.hysky.skyblocker.skyblock.item.custom
+pub mod custom_animated_helmet_textures;
+pub mod custom_armor_animated_dyes;
+pub mod custom_armor_dye_colors;
+pub mod custom_armor_trims;
+pub mod custom_helmet_textures;
+pub mod custom_item_names;
+pub mod repo_dye_colors;
+pub mod screen;
+pub mod skyblock_item_models;

@@ -1,0 +1,17 @@
+//! package de.hysky.skyblocker.config.categories
+pub mod chat_category;
+pub mod crimson_isle_category;
+pub mod debug_category;
+pub mod dungeons_category;
+pub mod event_notifications_category;
+pub mod farming_category;
+pub mod foraging_category;
+pub mod general_category;
+pub mod helper_category;
+pub mod hunting_category;
+pub mod mining_category;
+pub mod misc_category;
+pub mod other_locations_category;
+pub mod quick_navigation_category;
+pub mod slayers_category;
+pub mod ui_and_visuals_category;

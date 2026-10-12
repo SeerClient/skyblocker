@@ -1,0 +1,11 @@
+//! package de.hysky.skyblocker.skyblock.waypoint
+pub mod abstract_waypoints_screen;
+pub mod fairy_souls;
+pub mod individual_waypoint;
+pub mod mythological_ritual;
+pub mod relics;
+pub mod waypoints;
+pub mod waypoints_list_widget;
+pub mod waypoints_option_screen;
+pub mod waypoints_screen;
+pub mod waypoints_share_screen;

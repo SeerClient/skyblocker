@@ -1,0 +1,11 @@
+//! package de.hysky.skyblocker.utils.ws.message
+pub mod crystals_waypoint_message;
+pub mod crystals_waypoint_subscribe_message;
+pub mod dungeon_bat_killed_message;
+pub mod dungeon_mimic_killed_message;
+pub mod dungeon_prince_killed_message;
+pub mod dungeon_room_hide_waypoint_message;
+pub mod dungeon_room_match_message;
+pub mod dungeon_room_secret_count_message;
+pub mod egg_waypoint_message;
+pub mod message;

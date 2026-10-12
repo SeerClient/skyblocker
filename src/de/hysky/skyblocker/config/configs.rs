@@ -1,0 +1,17 @@
+//! package de.hysky.skyblocker.config.configs
+pub mod chat_config;
+pub mod crimson_isle_config;
+pub mod debug_config;
+pub mod dungeons_config;
+pub mod event_notifications_config;
+pub mod farming_config;
+pub mod foraging_config;
+pub mod general_config;
+pub mod helper_config;
+pub mod hunting_config;
+pub mod mining_config;
+pub mod misc_config;
+pub mod other_locations_config;
+pub mod quick_navigation_config;
+pub mod slayers_config;
+pub mod ui_and_visuals_config;

@@ -1,0 +1,11 @@
+//! package de.hysky.skyblocker.skyblock.profileviewer
+pub mod collections;
+pub mod dungeons;
+pub mod inventory;
+pub mod profile_viewer_nav_button;
+pub mod profile_viewer_page;
+pub mod profile_viewer_screen;
+pub mod profile_viewer_text_widget;
+pub mod skills;
+pub mod slayers;
+pub mod utils;

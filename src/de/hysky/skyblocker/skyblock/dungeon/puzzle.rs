@@ -1,0 +1,12 @@
+//! package de.hysky.skyblocker.skyblock.dungeon.puzzle
+pub mod boulder;
+pub mod creeper_beams;
+pub mod dungeon_blaze;
+pub mod dungeon_puzzle;
+pub mod ice_fill;
+pub mod ice_path;
+pub mod teleport_maze;
+pub mod three_weirdos;
+pub mod tic_tac_toe;
+pub mod trivia;
+pub mod waterboard;

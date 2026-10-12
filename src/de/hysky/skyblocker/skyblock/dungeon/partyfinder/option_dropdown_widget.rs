@@ -1,0 +1,558 @@
+//! Ported from de.hysky.skyblocker.skyblock.dungeon.partyfinder.OptionDropdownWidget by fabric2seer.
+
+#[allow(unused_imports)]
+use crate::prelude::*;
+use crate::de::hysky::skyblocker::skyblock::dungeon::partyfinder::finder_settings_container::FinderSettingsContainer;
+use crate::de::hysky::skyblocker::skyblock::dungeon::partyfinder::party_finder_screen;
+use crate::de::hysky::skyblocker::skyblock::dungeon::partyfinder::party_finder_screen::PartyFinderScreen;
+use mcrust::mcrust::modding::widgets::ModListEntry;
+use mcrust::mcrust::modding::widgets::ModSelectionList;
+use mcrust::mcrust::modding::widgets::WidgetRenderContext;
+use mcrust::net::minecraft::client::gui::components::abstract_selection_list::AbstractSelectionList;
+use mcrust::net::minecraft::client::gui::gui_graphics_extractor;
+use mcrust::net::minecraft::client::gui::gui_graphics_extractor::GuiGraphicsExtractor;
+use mcrust::net::minecraft::client::gui::narration::narration_element_output::NarrationElementOutput;
+use mcrust::net::minecraft::client::input::character_event::CharacterEvent;
+use mcrust::net::minecraft::client::input::mouse_button_event::MouseButtonEvent;
+use mcrust::net::minecraft::network::chat::component;
+use mcrust::net::minecraft::network::chat::mutable_component::MutableComponent;
+use mcrust::org::joml::matrix3x2f_stack::Matrix3x2fStack;
+
+/// java: private static final int CLOSED_HEIGHT = 35;
+pub const CLOSED_HEIGHT: i32 = 35;
+
+/// java: public class OptionDropdownWidget extends AbstractSelectionList<OptionDropdownWidget.AbstractEntry>
+#[derive(Clone)]
+pub struct OptionDropdownWidget {
+    /// java: extends net.minecraft.client.gui.components.AbstractSelectionList
+    pub base: AbstractSelectionList,
+    /// java: private final int slotId;
+    pub slot_id: i32,
+    /// java: private final Component name;
+    pub name: Option<MutableComponent>,
+    /// java: private final int maxHeight;
+    pub max_height: i32,
+    /// java: private final PartyFinderScreen screen;
+    pub screen: compat::Shared<PartyFinderScreen>,
+    /// java: private final Header header = new Header();
+    pub header: compat::Shared<Header>,
+    /// java: private int backButtonId = -1;
+    pub back_button_id: i32,
+    /// java: private @Nullable Option selectedOption;
+    pub selected_option: Option<compat::Shared<Option>>,
+    /// java: private boolean isOpen = false;
+    pub is_open: bool,
+    /// java: private float animationProgress = 0f;
+    pub animation_progress: f32,
+    /// the object's own shared handle: Java's `this` handed to other objects
+    pub self_ref: compat::WeakShared<Self>,
+}
+
+impl std::ops::Deref for OptionDropdownWidget {
+    type Target = AbstractSelectionList;
+    fn deref(&self) -> &Self::Target {
+        &self.base
+    }
+}
+
+impl std::ops::DerefMut for OptionDropdownWidget {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.base
+    }
+}
+
+impl OptionDropdownWidget {
+    /// java: public OptionDropdownWidget(PartyFinderScreen screen, Component name, int x, int y, int width, int maxHeight, int slotId)
+    pub fn new(mut screen: compat::Shared<PartyFinderScreen>, mut name: MutableComponent, mut x: i32, mut y: i32, mut width: i32, mut max_height: i32, mut slot_id: i32) -> compat::Shared<Self> {
+        let __init_max_height = max_height;
+        let __init_screen = screen.clone();
+        let __init_slot_id = slot_id;
+        // TODO(fabric2seer): `new` takes 4 argument(s) in the port (`width: i32, height: i32, y: i32, default_entry_height: i32`), Java passes 5
+        //   java: super(screen.getClient(), width, CLOSED_HEIGHT, y, 15);
+        let __this: compat::Shared<Self> = todo!("constructor");
+        __this.lock().borrow_mut().set_x(x);
+        { let __v = Some(name.clone()); compat::write(&__this, |__t| __t.name = __v); }
+        let __r0 = compat::read(&__this, |__t| __t.header.clone());
+        { let (__q0,) = (__r0,); __this.lock().borrow_mut().add_entry(__q0) };
+        __this
+    }
+
+    /// java: @Override public int getRowLeft()
+    pub fn get_row_left(__this: &compat::Shared<Self>) -> i32 {
+        return (__this.lock().borrow().get_x()).wrapping_add(2);
+    }
+
+    /// java: @Override protected int scrollBarX()
+    pub fn scroll_bar_x(__this: &compat::Shared<Self>) -> i32 {
+        return (OptionDropdownWidget::get_row_left(__this)).wrapping_add(OptionDropdownWidget::get_row_width(__this));
+    }
+
+    /// java: @Override public int getRowWidth()
+    pub fn get_row_width(__this: &compat::Shared<Self>) -> i32 {
+        return (__this.lock().borrow().get_width()).wrapping_sub(6);
+    }
+
+    /// java: public void setSelectedOption(OptionDropdownWidget.Option entry)
+    pub fn set_selected_option(__this: &compat::Shared<Self>, mut entry: compat::Shared<Option>) {
+        { let __v = Some(entry.clone()); compat::write(__this, |__t| __t.selected_option = __v); }
+    }
+
+    /// java: @Override public boolean mouseClicked(MouseButtonEvent click, boolean doubled)
+    pub fn mouse_clicked(__this: &compat::Shared<Self>, click: &MouseButtonEvent, mut doubled: bool) -> bool {
+        if !(FinderSettingsContainer::can_interact(&PartyFinderScreen::get_settings_container(&compat::read(__this, |__t| __t.screen.clone())), __this)) {
+            return false;
+        }
+        if compat::read(__this, |__t| __t.is_open) {
+            if !({ let (__q0, __q1,) = (click.x(), click.y(),); __this.lock().borrow().is_mouse_over(__q0, __q1) }) && compat::read(__this, |__t| __t.back_button_id) != -1 {
+                PartyFinderScreen::click_and_wait_for_server(&compat::read(__this, |__t| __t.screen.clone()), compat::read(__this, |__t| __t.back_button_id));
+                return true;
+            }
+        }
+        // TODO(fabric2seer): `AbstractContainerWidget::mouse_clicked` ports `mouseClicked`, but the port's `AbstractSelectionList` holds no `AbstractContainerWidget` (no Deref, no `base` field) to call it on
+        // rust: return { let (__q0, __q1,) = (click.clone(), doubled,); __this.lock().borrow_mut().base.mouse_clicked(__q0, __q1) };
+        return todo!("fabric2seer: see the TODO above");
+    }
+
+    /// java: @Override protected void updateWidgetNarration(NarrationElementOutput builder)
+    pub fn update_widget_narration(__this: &compat::Shared<Self>, builder: &dyn NarrationElementOutput) {
+    }
+
+    /// java: @Override public void extractWidgetRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a)
+    pub fn extract_widget_render_state(__this: &compat::Shared<Self>, graphics: &mut GuiGraphicsExtractor, mut mouse_x: i32, mut mouse_y: i32, mut a: f32) {
+        if compat::read(__this, |__t| __t.is_open) {
+            if compat::read(__this, |__t| __t.animation_progress) < (1 as f32) {
+                { let __v = (compat::read(__this, |__t| __t.animation_progress) + (a * 0.5f32)); compat::write(__this, |__t| __t.animation_progress = __v); }
+            } else if compat::read(__this, |__t| __t.animation_progress) != (1 as f32) {
+                { let __v = ((1) as f32) as f32; compat::write(__this, |__t| __t.animation_progress = __v); }
+            }
+        } else {
+            { let __v = ((0) as f32) as f32; compat::write(__this, |__t| __t.animation_progress = __v); }
+        }
+        if compat::get_state(&party_finder_screen::DEBUG) {
+            gui_graphics_extractor::text_string_with_drop_shadow(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), Some(&compat::read(__this, |__t| __t.slot_id).to_string()), __this.lock().borrow().get_x(), (__this.lock().borrow().get_y()).wrapping_sub(10), mcrust::net::minecraft::util::common_colors::RED, true);
+            gui_graphics_extractor::text_string_with_drop_shadow(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), Some(&compat::read(__this, |__t| __t.back_button_id).to_string()), (__this.lock().borrow().get_x()).wrapping_add(50), (__this.lock().borrow().get_y()).wrapping_sub(10), mcrust::net::minecraft::util::common_colors::RED, true);
+            gui_graphics_extractor::text_string_with_drop_shadow(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), Some(&compat::fstr(compat::read(__this, |__t| __t.animation_progress) as f64)), (__this.lock().borrow().get_x()).wrapping_sub(10), __this.lock().borrow().get_y(), mcrust::net::minecraft::util::common_colors::GREEN, true);
+        }
+        if compat::read(__this, |__t| __t.is_open) {
+            let mut list_height: i32 = (__this.lock().borrow().get_height()).min(((__this.lock().borrow().content_height()).wrapping_sub(Header::get_height(&compat::read(__this, |__t| __t.header.clone())))).wrapping_sub(4));
+            let mut opened_list_height: i32 = (if compat::read(__this, |__t| __t.is_open) { ((((list_height as f32) * compat::read(__this, |__t| __t.animation_progress))) as i32) } else { ((((list_height as f32) * ((1 as f32) - compat::read(__this, |__t| __t.animation_progress)))) as i32) });
+            let __o1 = compat::read(__this, |__t| __t.header.clone());
+            let __o2 = compat::read(__this, |__t| __t.header.clone());
+            let __o3 = compat::read(__this, |__t| __t.header.clone());
+            let __o4 = compat::read(__this, |__t| __t.header.clone());
+            let __o5 = compat::read(__this, |__t| __t.header.clone());
+            let __o6 = compat::read(__this, |__t| __t.header.clone());
+            let __o7 = compat::read(__this, |__t| __t.header.clone());
+            let __o8 = compat::read(__this, |__t| __t.header.clone());
+            let __o9 = compat::read(__this, |__t| __t.header.clone());
+            let __o10 = compat::read(__this, |__t| __t.header.clone());
+            graphics.fill(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), __this.lock().borrow().get_x(), (compat::write(&__o7, |__t| __t.get_y())).wrapping_add(Header::get_height(&compat::read(__this, |__t| __t.header.clone()))), ((__this.lock().borrow().get_x()).wrapping_add(__this.lock().borrow().get_width())).wrapping_sub(1), ((compat::write(&__o10, |__t| __t.get_y())).wrapping_add(opened_list_height)).wrapping_add(Header::get_height(&compat::read(__this, |__t| __t.header.clone()))), 0xFFF0F0F0u32 as i32);
+            let __o11 = compat::read(__this, |__t| __t.header.clone());
+            let __o12 = compat::read(__this, |__t| __t.header.clone());
+            let __o13 = compat::read(__this, |__t| __t.header.clone());
+            let __o14 = compat::read(__this, |__t| __t.header.clone());
+            let __o15 = compat::read(__this, |__t| __t.header.clone());
+            let __o16 = compat::read(__this, |__t| __t.header.clone());
+            let __o17 = compat::read(__this, |__t| __t.header.clone());
+            let __o18 = compat::read(__this, |__t| __t.header.clone());
+            let __o19 = compat::read(__this, |__t| __t.header.clone());
+            let __o20 = compat::read(__this, |__t| __t.header.clone());
+            let __o21 = compat::read(__this, |__t| __t.header.clone());
+            let __o22 = compat::read(__this, |__t| __t.header.clone());
+            graphics.fill(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), (__this.lock().borrow().get_x()).wrapping_add(1), ((compat::write(&__o19, |__t| __t.get_y())).wrapping_add(Header::get_height(&compat::read(__this, |__t| __t.header.clone())))).wrapping_add(1), ((__this.lock().borrow().get_x()).wrapping_add(__this.lock().borrow().get_width())).wrapping_sub(2), (((compat::write(&__o22, |__t| __t.get_y())).wrapping_add(opened_list_height)).wrapping_add(Header::get_height(&compat::read(__this, |__t| __t.header.clone())))).wrapping_sub(1), mcrust::net::minecraft::util::common_colors::BLACK);
+        }
+        // TODO(fabric2seer): `AbstractSelectionList.extractWidgetRenderState` has no Rust method in the port (looked for `extract_widget_render_state` in AbstractSelectionList and its supertypes)
+        // rust: __this.lock().borrow_mut().base.extract_widget_render_state(graphics, mouse_x, mouse_y, a);
+    }
+
+    /// java: @Override protected void extractListSeparators(GuiGraphicsExtractor graphics)
+    pub fn extract_list_separators(__this: &compat::Shared<Self>, graphics: &GuiGraphicsExtractor) {
+    }
+
+    /// java: @Override protected void extractListBackground(GuiGraphicsExtractor graphics)
+    pub fn extract_list_background(__this: &compat::Shared<Self>, graphics: &GuiGraphicsExtractor) {
+    }
+
+    /// java: public void open(List<Option> entries, int backButtonId)
+    pub fn open(__this: &compat::Shared<Self>, entries: &Vec<compat::Shared<Option>>, mut back_button_id: i32) {
+        if compat::read(__this, |__t| __t.is_open) {
+            return;
+        }
+        { let __v = true; compat::write(__this, |__t| __t.is_open = __v); }
+        { let __v = compat::read(__this, |__t| __t.max_height); compat::write(__this, |__t| __t.height = __v); }
+        { let __v = 0.0f32; compat::write(__this, |__t| __t.animation_progress = __v); }
+        // TODO(fabric2seer): `AbstractSelectionList.clearEntriesExcept` has no Rust method in the port (looked for `clear_entries_except` in AbstractSelectionList and its supertypes)
+        // rust: let __h0 = &compat::read(__this, |__t| __t.header.clone());
+        // rust: __this.lock().borrow().clear_entries_except(__h0);
+        for __a0 in entries.iter() {
+            { let (__q0,) = (__a0.clone(),); __this.lock().borrow_mut().add_entry(__q0) };
+        }
+        { let __v = back_button_id; compat::write(__this, |__t| __t.back_button_id = __v); }
+    }
+
+    /// java: public void close()
+    pub fn close(__this: &compat::Shared<Self>) {
+        if !(compat::read(__this, |__t| __t.is_open)) {
+            return;
+        }
+        { let __v = false; compat::write(__this, |__t| __t.is_open = __v); }
+        { let __v = CLOSED_HEIGHT; compat::write(__this, |__t| __t.height = __v); }
+        // TODO(fabric2seer): `AbstractSelectionList.clearEntriesExcept` has no Rust method in the port (looked for `clear_entries_except` in AbstractSelectionList and its supertypes)
+        // rust: let __h0 = &compat::read(__this, |__t| __t.header.clone());
+        // rust: __this.lock().borrow().clear_entries_except(__h0);
+    }
+
+    /// java: @Override protected boolean entriesCanBeSelected()
+    pub fn entries_can_be_selected(__this: &compat::Shared<Self>) -> bool {
+        return false;
+    }
+
+}
+
+// NOTE(fabric2seer): entriesCanBeSelected, extractListBackground, extractListSeparators, extractWidgetRenderState, getRowLeft, getRowWidth, mouseClicked, scrollBarX, updateWidgetNarration override(s) of AbstractSelectionList - the port dispatches its own calls, so these run only where the mod calls them; hook the port's method to make the game call them
+
+/// java: private class Header extends AbstractEntry
+#[derive(Clone)]
+pub struct Header {
+    /// java: extends AbstractEntry
+    pub base: AbstractEntryBase,
+}
+
+impl std::ops::Deref for Header {
+    type Target = AbstractEntryBase;
+    fn deref(&self) -> &Self::Target {
+        &self.base
+    }
+}
+
+impl std::ops::DerefMut for Header {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.base
+    }
+}
+
+impl Header {
+    /// java: the implicit no-argument constructor
+    pub fn new() -> compat::Shared<Self> {
+        let (_, __this) = AbstractEntryBase::new_in(move |__base| {
+            let __h = compat::shared(Self {
+                base: __base,
+            });
+            ((__h.clone() as compat::Shared<dyn AbstractEntry>), __h)
+        });
+        __this
+    }
+
+    /// java: @Override public boolean mouseClicked(MouseButtonEvent click, boolean doubled)
+    pub fn mouse_clicked(__this: &compat::Shared<Self>, click: &MouseButtonEvent, mut doubled: bool) -> bool {
+        // TODO(fabric2seer): the condition: `screen` is a field of the enclosing instance (OptionDropdownWidget.this) - an inner class has no outer reference in Rust
+        //   java: screen.isWaitingForServer(..)
+        if todo!("fabric2seer: the condition (TODO above)") {
+            return false;
+        }
+        // TODO(fabric2seer): the condition: `isOpen` is a field of the enclosing instance (OptionDropdownWidget.this) - an inner class has no outer reference in Rust
+        //   java: isOpen
+        if todo!("fabric2seer: the condition (TODO above)") {
+            // TODO(fabric2seer): the condition: `backButtonId` is a field of the enclosing instance (OptionDropdownWidget.this) - an inner class has no outer reference in Rust
+            //   java: backButtonId != -1
+            if todo!("fabric2seer: the condition (TODO above)") {
+                // TODO(fabric2seer): `screen` is a field of the enclosing instance (OptionDropdownWidget.this) - an inner class has no outer reference in Rust
+                //   java: screen.clickAndWaitForServer(backButtonId);
+            }
+        } else {
+            // TODO(fabric2seer): `animationProgress` is a field of the enclosing instance (OptionDropdownWidget.this) - an inner class has no outer reference in Rust
+            //   java: animationProgress = 0f;
+            // TODO(fabric2seer): `screen` is a field of the enclosing instance (OptionDropdownWidget.this) - an inner class has no outer reference in Rust
+            //   java: screen.clickAndWaitForServer(slotId);
+            // TODO(fabric2seer): `screen` is a field of the enclosing instance (OptionDropdownWidget.this) - an inner class has no outer reference in Rust
+            //   java: screen.partyFinderButton.active = false;
+        }
+        return true;
+    }
+
+    /// java: @Override public int getHeight()
+    pub fn get_height(__this: &compat::Shared<Self>) -> i32 {
+        return 25;
+    }
+
+    /// java: @Override public void extractContent(GuiGraphicsExtractor graphics, int mouseX, int mouseY, boolean hovered, float a)
+    pub fn extract_content(__this: &compat::Shared<Self>, graphics: &mut GuiGraphicsExtractor, mut mouse_x: i32, mut mouse_y: i32, mut hovered: bool, mut a: f32) {
+        let mut x: i32 = __this.lock().borrow().get_x();
+        let mut y: i32 = __this.lock().borrow().get_y();
+        // TODO(fabric2seer): `name` is a field of the enclosing instance (OptionDropdownWidget.this) - an inner class has no outer reference in Rust
+        //   java: graphics.text(Minecraft.getInstance().font, name, x, y + 1, 0xFFD0D0D0, false);
+        let mut offset: i32 = 10;
+        // TODO(fabric2seer): `OptionDropdownWidget.this` (the enclosing instance of an inner class)
+        //   java: graphics.fill(x - 2, y + offset, x - 3 + OptionDropdownWidget.this.getWidth(), y + 15 + offset, 0xFFF0F0F0);
+        // TODO(fabric2seer): `OptionDropdownWidget.this` (the enclosing instance of an inner class)
+        //   java: graphics.fill(x - 1, y + 1 + offset, x - 3 + OptionDropdownWidget.this.getWidth() - 1, y + 14 + offset, CommonColors.BLACK);
+        // TODO(fabric2seer): the condition: `selectedOption` is a field of the enclosing instance (OptionDropdownWidget.this) - an inner class has no outer reference in Rust
+        //   java: selectedOption != null
+        if todo!("fabric2seer: the condition (TODO above)") {
+            // TODO(fabric2seer): `selectedOption` is a field of the enclosing instance (OptionDropdownWidget.this) - an inner class has no outer reference in Rust
+            //   java: graphics.text(Minecraft.getInstance().font, selectedOption.message, x + 2, y + 3 + offset, CommonColors.WHITE, true);
+        } else {
+            gui_graphics_extractor::text_string_with_drop_shadow(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), Some("???"), x.wrapping_add(2), (y.wrapping_add(3)).wrapping_add(offset), mcrust::net::minecraft::util::common_colors::WHITE, true);
+        }
+    }
+
+}
+
+impl AbstractEntry for Header {
+    fn abstract_entry_base(&self) -> &AbstractEntryBase {
+        &self.base
+    }
+    fn abstract_entry_base_mut(&mut self) -> &mut AbstractEntryBase {
+        &mut self.base
+    }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+
+}
+
+/// Header's row box and its widgets, lent by its `compat::EntryAdapter` for each call
+impl compat::RowHalf for Header {
+    fn entry_half(&mut self) -> &mut mcrust::net::minecraft::client::gui::components::abstract_selection_list::Entry {
+        &mut self.base.base
+    }
+    fn row_parts(&mut self) -> (&mut mcrust::net::minecraft::client::gui::screens::screen::Screen, &mut compat::WidgetCache) {
+        let __s = &mut self.base;
+        (&mut __s.__row, &mut __s.__widgets)
+    }
+}
+
+/// Header as a row of the game's list (`addEntry` attaches it)
+impl ModListEntry for compat::EntryAdapter<Header> {
+    /// java: @Override public void extractContent(GuiGraphicsExtractor graphics, int mouseX, int mouseY, boolean hovered, float a)
+    fn extract_content(&mut self, list: &mut ModSelectionList, index: usize, context: &mut WidgetRenderContext<'_>, mouse_x: i32, mouse_y: i32, hovered: bool, a: f32) {
+        self.lend(Some(list.list.entry(index)), |__h| Header::extract_content(__h, &mut context.graphics, mouse_x, mouse_y, hovered, a));
+    }
+
+    /// java: @Override public boolean mouseClicked(MouseButtonEvent click, boolean doubled)
+    fn mouse_clicked(&mut self, list: &mut ModSelectionList, index: usize, event: &MouseButtonEvent, double_click: bool) -> bool {
+        self.lend(Some(list.list.entry(index)), |__h| Header::mouse_clicked(__h, event, double_click))
+    }
+
+}
+
+/// java: public class Option extends AbstractEntry
+#[derive(Clone)]
+pub struct Option {
+    /// java: extends AbstractEntry
+    pub base: AbstractEntryBase,
+    /// java: private final String message;
+    pub message: String,
+    /// java: private final ItemStack icon;
+    pub icon: mcrust::net::minecraft::world::item::item_stack::ItemStack,
+    /// java: private final int optionSlotId;
+    pub option_slot_id: i32,
+    /// the object's own shared handle: Java's `this` handed to other objects
+    pub self_ref: compat::WeakShared<Self>,
+}
+
+impl std::ops::Deref for Option {
+    type Target = AbstractEntryBase;
+    fn deref(&self) -> &Self::Target {
+        &self.base
+    }
+}
+
+impl std::ops::DerefMut for Option {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.base
+    }
+}
+
+impl Option {
+    /// java: public Option(String message, @Nullable ItemStack icon, int slotId)
+    pub fn new(mut message: String, mut icon: Option<mcrust::net::minecraft::world::item::item_stack::ItemStack>, mut slot_id: i32) -> compat::Shared<Self> {
+        let __init_message = message.clone();
+        let __init_icon = icon.clone().unwrap();
+        let __init_option_slot_id = slot_id;
+        let (_, __this) = AbstractEntryBase::new_in(move |__base| {
+            let __h = compat::shared(Self {
+                base: __base,
+                self_ref: std::sync::Weak::new(),
+                message: __init_message,
+                icon: __init_icon,
+                option_slot_id: __init_option_slot_id,
+            });
+            compat::write(&__h, |__t| __t.self_ref = std::sync::Arc::downgrade(&__h));
+            ((__h.clone() as compat::Shared<dyn AbstractEntry>), __h)
+        });
+        __this
+    }
+
+    /// java: @Override public void extractContent(GuiGraphicsExtractor graphics, int mouseX, int mouseY, boolean hovered, float a)
+    pub fn extract_content(__this: &compat::Shared<Self>, graphics: &GuiGraphicsExtractor, mut mouse_x: i32, mut mouse_y: i32, mut hovered: bool, mut a: f32) {
+        let __pose_1 = gui_graphics_extractor::push_pose();
+        let mut icon_y: i32 = (__this.lock().borrow().get_y()).wrapping_add(1);
+        gui_graphics_extractor::pose_translate((__this.lock().borrow().get_x()) as f32, (icon_y) as f32);
+        gui_graphics_extractor::pose_scale((0.8f32) as f32, (0.8f32) as f32);
+        gui_graphics_extractor::pose_translate(((-__this.lock().borrow().get_x())) as f32, ((-icon_y)) as f32);
+        graphics.item(&compat::read(__this, |__t| __t.icon.clone()), __this.lock().borrow().get_x(), icon_y);
+        gui_graphics_extractor::pop_pose(__pose_1);
+        if compat::get_state(&party_finder_screen::DEBUG) {
+            // TODO(fabric2seer): unknown name `minecraft`
+            //   java: graphics.text(minecraft.font, String.valueOf(optionSlotId), this.getX() + 8, this.getY(), CommonColors.RED, true);
+        }
+        let mut text: MutableComponent = (component::literal(&compat::read(__this, |__t| __t.message.clone()))).with_style(&mcrust::net::minecraft::network::chat::style::Style::EMPTY.with_underlined(Some(hovered)));
+        // TODO(fabric2seer): the condition: unknown name `minecraft`
+        //   java: minecraft.font.width(text) >= this.getWidth() - 14
+        if todo!("fabric2seer: the condition (TODO above)") {
+            // TODO(fabric2seer): field `NONE` of a value of unknown type
+            //   java: graphics.textRenderer(GuiGraphicsExtractor.HoveredTextEffects.NONE).acceptScrollingWithDefaultCenter(text, this.getX() + 14, this.getX() + this.getWidth(), getY() + 3, this.getY() + 3 + minecraft.font.lineHeight);
+        } else {
+            // TODO(fabric2seer): unknown name `minecraft`
+            //   java: graphics.text(minecraft.font, text, this.getX() + 14, this.getY() + 3, CommonColors.WHITE, false);
+        }
+    }
+
+    /// java: @Override public boolean equals(Object o)
+    pub fn equals(&self, o: &compat::Object) -> bool {
+        if std::ptr::addr_eq(std::sync::Arc::as_ptr(self), std::sync::Arc::as_ptr(o)) {
+            return true;
+        }
+        // TODO(fabric2seer): `Entry.getClass` has no Rust method in the port (looked for `get_class` in AbstractSelectionList and JavaSrc)
+        if false /* java: o == null: never null here */ || self.get_class() != compat::type_name_of(&o) {
+            return false;
+        }
+        let mut that: compat::Shared<Option> = o.clone();
+        return (self.message == compat::read(&that, |__t| __t.message.clone()));
+    }
+
+    /// java: @Override public boolean mouseClicked(MouseButtonEvent click, boolean doubled)
+    pub fn mouse_clicked(__this: &compat::Shared<Self>, click: &MouseButtonEvent, mut doubled: bool) -> bool {
+        // TODO(fabric2seer): the condition: `screen` is a field of the enclosing instance (OptionDropdownWidget.this) - an inner class has no outer reference in Rust
+        //   java: screen.isWaitingForServer(..)
+        if todo!("fabric2seer: the condition (TODO above)") {
+            return false;
+        }
+        if click.button() == 0 {
+            // TODO(fabric2seer): `screen` is a field of the enclosing instance (OptionDropdownWidget.this) - an inner class has no outer reference in Rust
+            //   java: screen.clickAndWaitForServer(this.optionSlotId);
+            // TODO(fabric2seer): `setSelectedOption(..)` is a method of the enclosing instance (OptionDropdownWidget.this) - an inner class has no outer reference in Rust
+            //   java: setSelectedOption(this);
+        }
+        return true;
+    }
+
+    /// java: @Override public int hashCode()
+    pub fn hash_code(&self) -> i32 {
+        return compat::string_hash_code(&self.message);
+    }
+
+}
+
+impl AbstractEntry for Option {
+    fn abstract_entry_base(&self) -> &AbstractEntryBase {
+        &self.base
+    }
+    fn abstract_entry_base_mut(&mut self) -> &mut AbstractEntryBase {
+        &mut self.base
+    }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+
+}
+
+/// Option's row box and its widgets, lent by its `compat::EntryAdapter` for each call
+impl compat::RowHalf for Option {
+    fn entry_half(&mut self) -> &mut mcrust::net::minecraft::client::gui::components::abstract_selection_list::Entry {
+        &mut self.base.base
+    }
+    fn row_parts(&mut self) -> (&mut mcrust::net::minecraft::client::gui::screens::screen::Screen, &mut compat::WidgetCache) {
+        let __s = &mut self.base;
+        (&mut __s.__row, &mut __s.__widgets)
+    }
+}
+
+/// Option as a row of the game's list (`addEntry` attaches it)
+impl ModListEntry for compat::EntryAdapter<Option> {
+    /// java: @Override public void extractContent(GuiGraphicsExtractor graphics, int mouseX, int mouseY, boolean hovered, float a)
+    fn extract_content(&mut self, list: &mut ModSelectionList, index: usize, context: &mut WidgetRenderContext<'_>, mouse_x: i32, mouse_y: i32, hovered: bool, a: f32) {
+        self.lend(Some(list.list.entry(index)), |__h| Option::extract_content(__h, &context.graphics, mouse_x, mouse_y, hovered, a));
+    }
+
+    /// java: @Override public boolean mouseClicked(MouseButtonEvent click, boolean doubled)
+    fn mouse_clicked(&mut self, list: &mut ModSelectionList, index: usize, event: &MouseButtonEvent, double_click: bool) -> bool {
+        self.lend(Some(list.list.entry(index)), |__h| Option::mouse_clicked(__h, event, double_click))
+    }
+
+}
+
+/// java: abstract static class AbstractEntry extends AbstractSelectionList.Entry<AbstractEntry>
+#[derive(Clone)]
+pub struct AbstractEntryBase {
+    /// java: extends net.minecraft.client.gui.components.AbstractSelectionList$Entry
+    pub base: mcrust::net::minecraft::client::gui::components::abstract_selection_list::Entry,
+    /// the row's widgets (`children()`): lent to the object by its `compat::EntryAdapter`
+    pub __row: mcrust::net::minecraft::client::gui::screens::screen::Screen,
+    /// the screen's widgets as this object last saw them (see `compat::WidgetCache`)
+    pub __widgets: compat::WidgetCache,
+}
+
+impl std::ops::Deref for AbstractEntryBase {
+    type Target = mcrust::net::minecraft::client::gui::components::abstract_selection_list::Entry;
+    fn deref(&self) -> &Self::Target {
+        &self.base
+    }
+}
+
+impl std::ops::DerefMut for AbstractEntryBase {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.base
+    }
+}
+
+impl AbstractEntryBase {
+    /// java: the implicit no-argument constructor (built by the most-derived class's `wrap`, then run on its handle)
+    pub fn new_in<__R>(__wrap: impl FnOnce(Self) -> (compat::Shared<dyn AbstractEntry>, __R)) -> (compat::Shared<dyn AbstractEntry>, __R) {
+        let this = Self {
+            base: mcrust::net::minecraft::client::gui::components::abstract_selection_list::Entry::new(0),
+            __widgets: Default::default(),
+            __row: mcrust::net::minecraft::client::gui::screens::screen::Screen::new(String::new()),
+        };
+        let (__h, __r) = __wrap(this);
+        let __this = __h;
+        (__this, __r)
+    }
+
+}
+
+/// java: the virtual methods of AbstractEntry (implemented by AbstractEntryBase and every subclass)
+pub trait AbstractEntry: compat::DynAny {
+    fn abstract_entry_base(&self) -> &AbstractEntryBase;
+    fn abstract_entry_base_mut(&mut self) -> &mut AbstractEntryBase;
+    fn as_any(&self) -> &dyn std::any::Any;
+
+}
+
+/// AbstractEntry's row box and its widgets, lent by its `compat::EntryAdapter` for each call
+impl compat::RowHalf for dyn AbstractEntry {
+    fn entry_half(&mut self) -> &mut mcrust::net::minecraft::client::gui::components::abstract_selection_list::Entry {
+        &mut self.abstract_entry_base_mut().base
+    }
+    fn row_parts(&mut self) -> (&mut mcrust::net::minecraft::client::gui::screens::screen::Screen, &mut compat::WidgetCache) {
+        let __s = &mut self.abstract_entry_base_mut();
+        (&mut __s.__row, &mut __s.__widgets)
+    }
+}
+
+/// AbstractEntry as a row of the game's list (`addEntry` attaches it)
+impl ModListEntry for compat::EntryAdapter<dyn AbstractEntry> {
+    /// java: @Override public void extractContent(GuiGraphicsExtractor graphics, int mouseX, int mouseY, boolean hovered, float a)
+    fn extract_content(&mut self, list: &mut ModSelectionList, index: usize, context: &mut WidgetRenderContext<'_>, mouse_x: i32, mouse_y: i32, hovered: bool, a: f32) {
+        self.lend(Some(list.list.entry(index)), |__h| { if let Some(__c) = compat::try_view::<Header, _>(__h) { return Header::extract_content(&*__c, &mut context.graphics, mouse_x, mouse_y, hovered, a); } if let Some(__c) = compat::try_view::<Option, _>(__h) { return Option::extract_content(&*__c, &context.graphics, mouse_x, mouse_y, hovered, a); }  });
+    }
+
+    /// java: @Override public boolean mouseClicked(MouseButtonEvent click, boolean doubled)
+    fn mouse_clicked(&mut self, list: &mut ModSelectionList, index: usize, event: &MouseButtonEvent, double_click: bool) -> bool {
+        self.lend(Some(list.list.entry(index)), |__h| { if let Some(__c) = compat::try_view::<Header, _>(__h) { return Header::mouse_clicked(&*__c, event, double_click); } if let Some(__c) = compat::try_view::<Option, _>(__h) { return Option::mouse_clicked(&*__c, event, double_click); } false })
+    }
+
+}

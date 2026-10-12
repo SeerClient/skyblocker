@@ -1,0 +1,11 @@
+//! package de.hysky.skyblocker.skyblock.profileviewer2
+pub mod abstract_profile_viewer_screen;
+pub mod error_profile_viewer_screen;
+pub mod loading_information;
+pub mod loading_profile_viewer_screen;
+pub mod model;
+pub mod pages;
+pub mod profile_viewer;
+pub mod profile_viewer_screen;
+pub mod utils;
+pub mod widgets;

@@ -1,0 +1,9 @@
+//! package de.hysky.skyblocker.skyblock.crimson.dojo
+pub mod control_test_helper;
+pub mod discipline_test_helper;
+pub mod dojo_manager;
+pub mod force_test_helper;
+pub mod mastery_test_helper;
+pub mod stamina_test_helper;
+pub mod swiftness_test_helper;
+pub mod tenacity_test_helper;

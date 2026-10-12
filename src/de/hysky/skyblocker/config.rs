@@ -1,0 +1,15 @@
+//! package de.hysky.skyblocker.config
+pub mod backup;
+pub mod categories;
+pub mod common_tags;
+pub mod config_commands;
+pub mod config_null_fields_fix;
+pub mod config_patch_loader;
+pub mod config_utils;
+pub mod configs;
+pub mod datafixer;
+pub mod hud_config_screen;
+pub mod image_repo_loader;
+pub mod screens;
+pub mod skyblocker_config;
+pub mod skyblocker_config_manager;

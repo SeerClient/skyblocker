@@ -1,0 +1,11 @@
+//! package de.hysky.skyblocker.skyblock.hunting
+pub mod attribute;
+pub mod attribute_level_helper;
+pub mod attributes;
+pub mod attributes_debug;
+pub mod attributes_file;
+pub mod floor_drops;
+pub mod hunting_box_helper;
+pub mod lasso_hud;
+pub mod safari;
+pub mod silence_phantoms;

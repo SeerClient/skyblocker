@@ -1,0 +1,10 @@
+//! package de.hysky.skyblocker.compatibility
+pub mod caxton_compatibility;
+pub mod emi;
+pub mod iris_compatibility;
+pub mod jei;
+pub mod mac_compatibility;
+pub mod mixin_plugin;
+pub mod modern_ui_compatibility;
+pub mod rei;
+pub mod windows_compatibility;

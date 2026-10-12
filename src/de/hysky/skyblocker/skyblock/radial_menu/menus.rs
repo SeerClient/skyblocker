@@ -1,0 +1,17 @@
+//! package de.hysky.skyblocker.skyblock.radial_menu.menus
+pub mod bags_menu;
+pub mod bank_menu;
+pub mod basic_menu;
+pub mod booster_cookie_menu;
+pub mod collections_menu;
+pub mod farming_toolkit;
+pub mod fast_travel_menu;
+pub mod hunting_menu;
+pub mod profile_management_menu;
+pub mod regex_menu;
+pub mod sack_of_sacks_menu;
+pub mod sacks_menu;
+pub mod skills_menu;
+pub mod skyblock_menu;
+pub mod storage;
+pub mod wardrobe_menu;

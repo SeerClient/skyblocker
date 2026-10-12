@@ -1,0 +1,1461 @@
+//! Ported from de.hysky.skyblocker.skyblock.dungeon.secrets.Room by fabric2seer.
+
+#[allow(unused_imports)]
+use crate::prelude::*;
+use crate::de::hysky::skyblocker::config::skyblocker_config_manager::SkyblockerConfigManager;
+use crate::de::hysky::skyblocker::events::dungeon_events;
+use crate::de::hysky::skyblocker::skyblock::dungeon::secrets::dungeon_manager;
+use crate::de::hysky::skyblocker::skyblock::dungeon::secrets::dungeon_manager::DungeonManager;
+use crate::de::hysky::skyblocker::skyblock::dungeon::secrets::dungeon_manager::RoomWaypoint;
+use crate::de::hysky::skyblocker::skyblock::dungeon::secrets::dungeon_map_utils::DungeonMapUtils;
+use crate::de::hysky::skyblocker::skyblock::dungeon::secrets::secret_waypoint;
+use crate::de::hysky::skyblocker::skyblock::dungeon::secrets::secret_waypoint::CategoryArgumentType;
+use crate::de::hysky::skyblocker::skyblock::dungeon::secrets::secret_waypoint::SecretWaypoint;
+use crate::de::hysky::skyblocker::utils::block_pos_set::BlockPosSet;
+use crate::de::hysky::skyblocker::utils::render::primitive::primitive_collector::PrimitiveCollector;
+use crate::de::hysky::skyblocker::utils::render::render_helper::RenderHelper;
+use crate::de::hysky::skyblocker::utils::render::renderable::Renderable;
+use crate::de::hysky::skyblocker::utils::scheduler::scheduler;
+use crate::de::hysky::skyblocker::utils::scheduler::scheduler::Scheduler;
+use crate::de::hysky::skyblocker::utils::tickable::Tickable;
+use crate::de::hysky::skyblocker::utils::utils::Utils;
+use mcrust::com::mojang::brigadier::arguments::integer_argument_type::IntegerArgumentType;
+use mcrust::com::mojang::brigadier::context::command_context::CommandContext;
+use mcrust::com::mojang::serialization::codec::Codec;
+use mcrust::com::mojang::serialization::codec::CodecRef;
+use mcrust::java::text::decimal_format_symbols::Locale;
+use mcrust::java::util::concurrent::completable_future::CompletableFuture;
+use mcrust::net::minecraft::client::multiplayer::client_level::ClientLevel;
+use mcrust::net::minecraft::client::player::local_player::LocalPlayer;
+use mcrust::net::minecraft::commands::arguments::string_representable_argument::StringRepresentableArgument;
+use mcrust::net::minecraft::core::block_pos::BlockPos;
+use mcrust::net::minecraft::network::chat::mutable_component::MutableComponent;
+use mcrust::net::minecraft::world::entity::ambient::ambient_creature::AmbientCreature;
+use mcrust::net::minecraft::world::entity::item::item_entity::ItemEntity;
+use mcrust::net::minecraft::world::level::block::blocks;
+use mcrust::net::minecraft::world::level::block::state::block_state::BlockState;
+use mcrust::net::minecraft::world::level::level::Level;
+use mcrust::net::minecraft::world::phys::vec3::Vec3;
+use mcrust::org::joml::vector2i::Vector2i;
+use mcrust::net::minecraft::network::chat::component::Component as _;
+use mcrust::net::minecraft::world::level::block_getter::BlockGetter as _;
+
+/// java: public static final Pattern SECRET_INDEX = Pattern.compile("^(\\d+)");
+pub static SECRET_INDEX: LazyLock<compat::regex::Pattern> = LazyLock::new(|| compat::regex::Pattern::compile("^(\\d+)"));
+/// java: private static final Pattern SECRETS = Pattern.compile("(\\d{1,2})/(\\d{1,2}) Secrets");
+pub static SECRETS: LazyLock<compat::regex::Pattern> = LazyLock::new(|| compat::regex::Pattern::compile("(\\d{1,2})/(\\d{1,2}) Secrets"));
+/// java: private static final String CHEST_ALREADY_OPENED = "This chest has already been searched!";
+pub const CHEST_ALREADY_OPENED: &str = "This chest has already been searched!";
+/// java: protected static final float[] RED_COLOR_COMPONENTS = {1, 0, 0};
+pub static RED_COLOR_COMPONENTS: LazyLock<Vec<f32>> = LazyLock::new(|| vec![((1) as f32) as f32, ((0) as f32) as f32, ((0) as f32) as f32]);
+/// java: protected static final float[] GREEN_COLOR_COMPONENTS = {0, 1, 0};
+pub static GREEN_COLOR_COMPONENTS: LazyLock<Vec<f32>> = LazyLock::new(|| vec![((0) as f32) as f32, ((1) as f32) as f32, ((0) as f32) as f32]);
+// TODO(fabric2seer): `from_enum` takes 2 argument(s) in the port (`values: Vec<E>, serialized_name: impl Fn(&E) -> String + Send + Sync + Copy + 'static`), Java passes 1
+//   java: public static final Codec<Type> CODEC = StringRepresentable.fromEnum(Type::values);
+/// java: public static final Codec<Type> CODEC = StringRepresentable.fromEnum(Type::values);
+pub static TYPE_CODEC: compat::MainThread<CodecRef<Type>> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `CODEC` - see the TODO above"));
+// TODO(fabric2seer): `from_enum` takes 2 argument(s) in the port (`values: Vec<E>, serialized_name: impl Fn(&E) -> String + Send + Sync + Copy + 'static`), Java passes 1
+//   java: public static final Codec<Shape> CODEC = StringRepresentable.fromEnum(Shape::values);
+/// java: public static final Codec<Shape> CODEC = StringRepresentable.fromEnum(Shape::values);
+pub static SHAPE_CODEC: compat::MainThread<CodecRef<Shape>> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `CODEC` - see the TODO above"));
+// TODO(fabric2seer): `from_enum` takes 2 argument(s) in the port (`values: Vec<E>, serialized_name: impl Fn(&E) -> String + Send + Sync + Copy + 'static`), Java passes 1
+//   java: public static final Codec<Direction> CODEC = StringRepresentable.fromEnum(Direction::values);
+/// java: public static final Codec<Direction> CODEC = StringRepresentable.fromEnum(Direction::values);
+pub static DIRECTION_CODEC: compat::MainThread<CodecRef<Direction>> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `CODEC` - see the TODO above"));
+
+/// java: public class Room implements Tickable, Renderable
+pub struct RoomBase {
+    /// java: private final Type type;
+    pub r#type: Type,
+    /// java: final Set<Vector2ic> segments;
+    pub segments: std::collections::HashSet<Vector2i>,
+    /// java: public ClearState clearState = ClearState.UNCLEARED;
+    pub clear_state: ClearState,
+    /// java: private int maxSecrets = -1;
+    pub max_secrets: i32,
+    /// java: protected int secretsFound = 0;
+    pub secrets_found: i32,
+    /// java: public boolean secretCountOutdated = true;
+    pub secret_count_outdated: bool,
+    /// java: private final Shape shape;
+    pub shape: Option<Shape>,
+    /// java: protected @Nullable Map<String, int[]> roomsData;
+    pub rooms_data: Option<std::collections::HashMap<String, Vec<i32>>>,
+    /// java: protected @Nullable List<MutableTriple<Direction, Vector2ic, List<String>>> possibleRooms;
+    pub possible_rooms: Option<Vec<crate::unresolved::MutableTriple>>,
+    /// java: private @Nullable BlockPosSet checkedBlocks = new BlockPosSet();
+    pub checked_blocks: Option<compat::Shared<BlockPosSet>>,
+    /// java: protected @Nullable CompletableFuture<Void> findRoom;
+    pub find_room: Option<mcrust::java::util::concurrent::completable_future::CompletableFuture<()>>,
+    /// java: private int doubleCheckBlocks;
+    pub double_check_blocks: i32,
+    /// java: protected MatchState matchState = MatchState.MATCHING;
+    pub match_state: MatchState,
+    /// java: protected Table<Integer, BlockPos, SecretWaypoint> secretWaypoints = HashBasedTable.create();
+    pub secret_waypoints: crate::unresolved::Table,
+    /// java: protected @Nullable String name;
+    pub name: Option<String>,
+    /// java: protected @Nullable Direction direction;
+    pub direction: Option<Direction>,
+    /// java: protected @Nullable Vector2ic physicalCornerPos;
+    pub physical_corner_pos: Option<Vector2i>,
+    /// java: protected List<Tickable> tickables = new ArrayList<>();
+    pub tickables: Vec<compat::Shared<dyn Tickable>>,
+    /// java: protected List<Renderable> renderables = new ArrayList<>();
+    pub renderables: Vec<compat::Shared<dyn Renderable>>,
+    /// java: private @Nullable BlockPos lastChestSecret;
+    pub last_chest_secret: Option<BlockPos>,
+    /// java: private long lastChestSecretTime;
+    pub last_chest_secret_time: i64,
+    /// java: boolean fromWebsocket = false;
+    pub from_websocket: bool,
+}
+
+impl RoomBase {
+    /// java: public Room(Type type, Vector2ic... physicalPositions) (built by the most-derived class's `wrap`, then run on its handle)
+    pub fn new_in<__R>(mut r#type: Type, mut physical_positions: Vec<Vector2i>, __wrap: impl FnOnce(Self) -> (compat::Shared<dyn Room>, __R)) -> (compat::Shared<dyn Room>, __R) {
+        let __init_type = r#type;
+        let __init_segments = physical_positions.to_vec();
+        // TODO(fabric2seer): the initialiser of `secretWaypoints`: static call HashBasedTable.create(..)
+        //   java: protected Table<Integer, BlockPos, SecretWaypoint> secretWaypoints = HashBasedTable.create();
+        let this = Self {
+            r#type: __init_type,
+            segments: __init_segments,
+            clear_state: ClearState::Uncleared,
+            max_secrets: -1,
+            secrets_found: 0,
+            secret_count_outdated: true,
+            shape: None,
+            rooms_data: None,
+            possible_rooms: None,
+            checked_blocks: Some(BlockPosSet::new()),
+            find_room: None,
+            double_check_blocks: 0,
+            match_state: MatchState::Matching,
+            secret_waypoints: Default::default(),
+            name: None,
+            direction: None,
+            physical_corner_pos: None,
+            tickables: Vec::new(),
+            renderables: Vec::new(),
+            last_chest_secret: None,
+            last_chest_secret_time: 0,
+            from_websocket: false,
+        };
+        let (__h, __r) = __wrap(this);
+        let __this = __h;
+        // TODO(fabric2seer): static call IntSortedSets.unmodifiable(..)
+        //   java: IntSortedSet segmentsX = IntSortedSets.unmodifiable(new IntRBTreeSet(segments.stream().mapToInt(Vector2ic::x).toArray()));
+        let mut segments_x: crate::unresolved::IntSortedSet = todo!("fabric2seer: the initialiser of `segmentsX` (TODO above)");
+        // TODO(fabric2seer): static call IntSortedSets.unmodifiable(..)
+        //   java: IntSortedSet segmentsY = IntSortedSets.unmodifiable(new IntRBTreeSet(segments.stream().mapToInt(Vector2ic::y).toArray()));
+        let mut segments_y: crate::unresolved::IntSortedSet = todo!("fabric2seer: the initialiser of `segmentsY` (TODO above)");
+        { let __v = Some(({ let __f = compat::dispatch(&__this, |__t| __t.determine_shape()); __f(&__this, &segments_x, &segments_y) })); compat::write(&__this, |__t| __t.room_base_mut().shape = __v); }
+        { let __v = Some((compat::lock(&dungeon_manager::ROOMS_DATA).get("catacombs").cloned().unwrap_or_else(|| Default::default())).get(&__this.lock().borrow().room_base().shape.as_ref().unwrap().fields().shape.to_lowercase()).cloned().unwrap_or_else(|| Default::default())); compat::write(&__this, |__t| __t.room_base_mut().rooms_data = __v); }
+        { let __v = Some(({ let __f = compat::dispatch(&__this, |__t| __t.get_possible_rooms()); __f(&__this, &segments_x, &segments_y) })); compat::write(&__this, |__t| __t.room_base_mut().possible_rooms = __v); }
+        (__this, __r)
+    }
+
+    /// java: public Room(Type type, Vector2ic... physicalPositions)
+    pub fn new(mut r#type: Type, mut physical_positions: Vec<Vector2i>) -> compat::Shared<Self> {
+        Self::new_in(r#type, physical_positions, |this| {
+            let __h = compat::shared(this);
+            ((__h.clone() as compat::Shared<dyn Room>), __h)
+        }).1
+    }
+
+    /// java: Room(Type type, Shape shape, Direction direction, String roomName, Set<Vector2ic> segments, IntSortedSet segmentsX, IntSortedSet segmentsY) (built by the most-derived class's `wrap`, then run on its handle)
+    pub fn new_7_in<__R>(mut r#type: Type, mut shape: Shape, mut direction: Direction, mut room_name: String, mut segments: std::collections::HashSet<Vector2i>, mut segments_x: crate::unresolved::IntSortedSet, mut segments_y: crate::unresolved::IntSortedSet, __wrap: impl FnOnce(Self) -> (compat::Shared<dyn Room>, __R)) -> (compat::Shared<dyn Room>, __R) {
+        let __init_from_websocket = true;
+        let __init_type = r#type;
+        let __init_shape = Some(shape);
+        let __init_segments = segments.clone();
+        let __init_name = Some(room_name.clone());
+        let __init_direction = Some(direction);
+        let __init_physical_corner_pos = Some(DungeonMapUtils::get_physical_corner_pos(direction, &segments_x, &segments_y));
+        let __init_rooms_data = Some((compat::lock(&dungeon_manager::ROOMS_DATA).get("catacombs").cloned().unwrap_or_else(|| Default::default())).get(&shape.fields().shape.to_lowercase()).cloned().unwrap_or_else(|| Default::default()));
+        // TODO(fabric2seer): the initialiser of `secretWaypoints`: static call HashBasedTable.create(..)
+        //   java: protected Table<Integer, BlockPos, SecretWaypoint> secretWaypoints = HashBasedTable.create();
+        let this = Self {
+            r#type: __init_type,
+            segments: __init_segments,
+            clear_state: ClearState::Uncleared,
+            max_secrets: -1,
+            secrets_found: 0,
+            secret_count_outdated: true,
+            shape: __init_shape,
+            rooms_data: __init_rooms_data,
+            possible_rooms: None,
+            checked_blocks: Some(BlockPosSet::new()),
+            find_room: None,
+            double_check_blocks: 0,
+            match_state: MatchState::Matching,
+            secret_waypoints: Default::default(),
+            name: __init_name,
+            direction: __init_direction,
+            physical_corner_pos: __init_physical_corner_pos,
+            tickables: Vec::new(),
+            renderables: Vec::new(),
+            last_chest_secret: None,
+            last_chest_secret_time: 0,
+            from_websocket: __init_from_websocket,
+        };
+        let (__h, __r) = __wrap(this);
+        let __this = __h;
+        ({ let __f = compat::dispatch(&__this, |__t| __t.room_matched()); __f(&__this) });
+        { let __v = MatchState::Matched; compat::write(&__this, |__t| __t.room_base_mut().match_state = __v); }
+        (dungeon_events::room_matched_invoker())(__this.clone());
+        ({ let __f = compat::dispatch(&__this, |__t| __t.discard()); __f(&__this) });
+        (__this, __r)
+    }
+
+    /// java: Room(Type type, Shape shape, Direction direction, String roomName, Set<Vector2ic> segments, IntSortedSet segmentsX, IntSortedSet segmentsY)
+    pub fn new_7(mut r#type: Type, mut shape: Shape, mut direction: Direction, mut room_name: String, mut segments: std::collections::HashSet<Vector2i>, mut segments_x: crate::unresolved::IntSortedSet, mut segments_y: crate::unresolved::IntSortedSet) -> compat::Shared<Self> {
+        Self::new_7_in(r#type, shape, direction, room_name, segments, segments_x, segments_y, |this| {
+            let __h = compat::shared(this);
+            ((__h.clone() as compat::Shared<dyn Room>), __h)
+        }).1
+    }
+
+    /// java: protected static Shape determineShape(Type type, Set<Vector2ic> segments, IntSortedSet segmentsX, IntSortedSet segmentsY)
+    pub fn determine_shape_4(mut r#type: Type, segments: &std::collections::HashSet<Vector2i>, segments_x: &crate::unresolved::IntSortedSet, segments_y: &crate::unresolved::IntSortedSet) -> Shape {
+        // TODO(fabric2seer): `.size(..)` on a IntSortedSet
+        //   java: return switch (type) {
+        //   java: 			case PUZZLE -> Shape.PUZZLE;
+        //   java: 			case TRAP -> Shape.TRAP;
+        //   java: 			case MINIBOSS -> Shape.MINIBOSS;
+        //   java: 			default -> switch (segments.size()) {
+        //   java: 				case 1 -> Shape.ONE_BY_ONE;
+        //   java: 				case 2 -> Shape.ONE_BY_TWO;
+        //   java: 				case 3 -> segmentsX.size() == 2 && segmentsY.size() == 2 ? Shape.L_SHAPE : Shape.ONE_BY_THREE;
+        //   java: 				case 4 -> segmentsX.size() == 2 && segmentsY.size() == 2 ? Shape.TWO_BY_TWO : Shape.ONE_BY_FOUR;
+        //   java: 				default -> throw new IllegalArgumentException("There are no matching room shapes with this set of physical positions: " + Arrays.toString(segments.toArray()));
+        //   java: 			};
+        //   java: 		};
+        todo!("fabric2seer: the value of this function is in a TODO above")
+    }
+
+    /// java: private static boolean notInDoorway(BlockPos pos)
+    pub fn not_in_doorway(pos: &BlockPos) -> bool {
+        if pos.get_y() < 66 || pos.get_y() > 73 {
+            return true;
+        }
+        let mut x: i32 = compat::floor_mod_i32(pos.get_x().wrapping_sub(8), 32);
+        let mut z: i32 = compat::floor_mod_i32(pos.get_z().wrapping_sub(8), 32);
+        return (x < 13 || x > 17 || z > 2 && z < 28 && z < 13 || z > 17 || x > 2 && x < 28);
+    }
+
+}
+
+impl std::fmt::Display for RoomBase {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.to_string())
+    }
+}
+
+/// java: the virtual methods of Room (implemented by RoomBase and every subclass)
+pub trait Room: Tickable + Renderable {
+    fn room_base(&self) -> &RoomBase;
+    fn room_base_mut(&mut self) -> &mut RoomBase;
+
+    /// java: public Type getType() (dispatch: the body for this class)
+    fn get_type(&self) -> fn(&compat::Shared<dyn Room>) -> Type {
+        <dyn Room>::get_type_body
+    }
+
+    /// java: public Set<Vector2ic> getSegments() (dispatch: the body for this class)
+    fn get_segments(&self) -> fn(&compat::Shared<dyn Room>) -> std::collections::HashSet<Vector2i> {
+        <dyn Room>::get_segments_body
+    }
+
+    /// java: public Shape getShape() (dispatch: the body for this class)
+    fn get_shape(&self) -> fn(&compat::Shared<dyn Room>) -> Shape {
+        <dyn Room>::get_shape_body
+    }
+
+    /// java: public @Nullable Vector2ic getPhysicalCornerPos() (dispatch: the body for this class)
+    fn get_physical_corner_pos(&self) -> fn(&compat::Shared<dyn Room>) -> Option<Vector2i> {
+        <dyn Room>::get_physical_corner_pos_body
+    }
+
+    /// java: public boolean isMatched() (dispatch: the body for this class)
+    fn is_matched(&self) -> fn(&compat::Shared<dyn Room>) -> bool {
+        <dyn Room>::is_matched_body
+    }
+
+    /// java: public @Nullable String getName() (dispatch: the body for this class)
+    fn get_name(&self) -> fn(&compat::Shared<dyn Room>) -> Option<String> {
+        <dyn Room>::get_name_body
+    }
+
+    /// java: public @Nullable Direction getDirection() (dispatch: the body for this class)
+    fn get_direction(&self) -> fn(&compat::Shared<dyn Room>) -> Option<Direction> {
+        <dyn Room>::get_direction_body
+    }
+
+    /// java: @Override public String toString() (dispatch: the body for this class)
+    fn to_string(&self) -> fn(&compat::Shared<dyn Room>) -> String {
+        <dyn Room>::to_string_body
+    }
+
+    /// java: private Shape determineShape(IntSortedSet segmentsX, IntSortedSet segmentsY) (dispatch: the body for this class)
+    fn determine_shape(&self) -> fn(&compat::Shared<dyn Room>, &crate::unresolved::IntSortedSet, &crate::unresolved::IntSortedSet) -> Shape {
+        <dyn Room>::determine_shape_body
+    }
+
+    /// java: private List<MutableTriple<Direction, Vector2ic, List<String>>> getPossibleRooms(IntSortedSet segmentsX, IntSortedSet segmentsY) (dispatch: the body for this class)
+    fn get_possible_rooms(&self) -> fn(&compat::Shared<dyn Room>, &crate::unresolved::IntSortedSet, &crate::unresolved::IntSortedSet) -> Vec<crate::unresolved::MutableTriple> {
+        <dyn Room>::get_possible_rooms_body
+    }
+
+    /// java: protected Direction[] getPossibleDirections(IntSortedSet segmentsX, IntSortedSet segmentsY) (dispatch: the body for this class)
+    fn get_possible_directions(&self) -> fn(&compat::Shared<dyn Room>, &crate::unresolved::IntSortedSet, &crate::unresolved::IntSortedSet) -> Vec<Direction> {
+        <dyn Room>::get_possible_directions_body
+    }
+
+    /// java: protected void addCustomWaypoint(CommandContext<FabricClientCommandSource> context, BlockPos pos) (dispatch: the body for this class)
+    fn add_custom_waypoint(&self) -> fn(&compat::Shared<dyn Room>, &CommandContext<crate::unresolved::FabricClientCommandSource>, &BlockPos) {
+        <dyn Room>::add_custom_waypoint_body
+    }
+
+    /// java: @SuppressWarnings("JavadocReference") private void addCustomWaypoint(int secretIndex, SecretWaypoint.Category category, Component waypointName, BlockPos pos) (dispatch: the body for this class)
+    fn add_custom_waypoint_4(&self) -> fn(&compat::Shared<dyn Room>, i32, crate::de::hysky::skyblocker::skyblock::dungeon::secrets::secret_waypoint::Category, &MutableComponent, &BlockPos) {
+        <dyn Room>::add_custom_waypoint_4_body
+    }
+
+    /// java: private void addCustomWaypoint(SecretWaypoint relativeWaypoint) (dispatch: the body for this class)
+    fn add_custom_waypoint_1(&self) -> fn(&compat::Shared<dyn Room>, &compat::Shared<SecretWaypoint>) {
+        <dyn Room>::add_custom_waypoint_1_body
+    }
+
+    /// java: protected void removeCustomWaypoint(CommandContext<FabricClientCommandSource> context, BlockPos pos) (dispatch: the body for this class)
+    fn remove_custom_waypoint(&self) -> fn(&compat::Shared<dyn Room>, &CommandContext<crate::unresolved::FabricClientCommandSource>, &BlockPos) {
+        <dyn Room>::remove_custom_waypoint_body
+    }
+
+    /// java: @SuppressWarnings("JavadocReference") private @Nullable SecretWaypoint removeCustomWaypoint(BlockPos pos) (dispatch: the body for this class)
+    fn remove_custom_waypoint_1(&self) -> fn(&compat::Shared<dyn Room>, &BlockPos) -> Option<compat::Shared<SecretWaypoint>> {
+        <dyn Room>::remove_custom_waypoint_1_body
+    }
+
+    /// java: private void removeCustomWaypoint(int secretIndex, BlockPos relativePos) (dispatch: the body for this class)
+    fn remove_custom_waypoint_int_block_pos(&self) -> fn(&compat::Shared<dyn Room>, i32, &BlockPos) {
+        <dyn Room>::remove_custom_waypoint_int_block_pos_body
+    }
+
+    /// java: public <T extends Tickable & Renderable> void addSubProcess(T process)
+    fn add_sub_process(&mut self, mut process: compat::Shared<dyn Tickable>) {
+        self.room_base_mut().tickables.push(process.clone());
+        self.room_base_mut().renderables.push(process.clone());
+    }
+
+    /// java: protected boolean checkBlock(ClientLevel world, BlockPos pos) (dispatch: the body for this class)
+    fn check_block(&self) -> fn(&compat::Shared<dyn Room>, &ClientLevel, &BlockPos) -> bool {
+        <dyn Room>::check_block_body
+    }
+
+    /// java: protected int posIdToInt(BlockPos pos, byte id) (dispatch: the body for this class)
+    fn pos_id_to_int(&self) -> fn(&compat::Shared<dyn Room>, &BlockPos, i8) -> i32 {
+        <dyn Room>::pos_id_to_int_body
+    }
+
+    /// java: @SuppressWarnings("JavadocReference") private void roomMatched() (dispatch: the body for this class)
+    fn room_matched(&self) -> fn(&compat::Shared<dyn Room>) {
+        <dyn Room>::room_matched_body
+    }
+
+    /// java: protected void reset() (dispatch: the body for this class)
+    fn reset(&self) -> fn(&compat::Shared<dyn Room>) {
+        <dyn Room>::reset_body
+    }
+
+    /// java: private void discard() (dispatch: the body for this class)
+    fn discard(&self) -> fn(&compat::Shared<dyn Room>) {
+        <dyn Room>::discard_body
+    }
+
+    /// java: public BlockPos actualToRelative(BlockPos pos) (dispatch: the body for this class)
+    fn actual_to_relative(&self) -> fn(&compat::Shared<dyn Room>, &BlockPos) -> BlockPos {
+        <dyn Room>::actual_to_relative_body
+    }
+
+    /// java: public Vec3 actualToRelative(Vec3 pos) (dispatch: the body for this class)
+    fn actual_to_relative_vec3(&self) -> fn(&compat::Shared<dyn Room>, &Vec3) -> Vec3 {
+        <dyn Room>::actual_to_relative_vec3_body
+    }
+
+    /// java: public BlockPos relativeToActual(BlockPos pos) (dispatch: the body for this class)
+    fn relative_to_actual(&self) -> fn(&compat::Shared<dyn Room>, &BlockPos) -> BlockPos {
+        <dyn Room>::relative_to_actual_body
+    }
+
+    /// java: public Vec3 relativeToActual(Vec3 pos) (dispatch: the body for this class)
+    fn relative_to_actual_vec3(&self) -> fn(&compat::Shared<dyn Room>, &Vec3) -> Vec3 {
+        <dyn Room>::relative_to_actual_vec3_body
+    }
+
+    /// java: protected void onChatMessage(String message, boolean overlay) (dispatch: the body for this class)
+    fn on_chat_message(&self) -> fn(&compat::Shared<dyn Room>, &str, bool) {
+        <dyn Room>::on_chat_message_body
+    }
+
+    /// java: protected void updateSecretCount(String message) (dispatch: the body for this class)
+    fn update_secret_count(&self) -> fn(&compat::Shared<dyn Room>, &str) {
+        <dyn Room>::update_secret_count_body
+    }
+
+    /// java: protected void onUseBlock(Level world, BlockPos pos) (dispatch: the body for this class)
+    fn on_use_block(&self) -> fn(&compat::Shared<dyn Room>, &Level, BlockPos) {
+        <dyn Room>::on_use_block_body
+    }
+
+    /// java: protected void onChestOpened(BlockPos pos) (dispatch: the body for this class)
+    fn on_chest_opened(&self) -> fn(&compat::Shared<dyn Room>, &BlockPos) {
+        <dyn Room>::on_chest_opened_body
+    }
+
+    /// java: protected void onItemPickup(ItemEntity itemEntity) (dispatch: the body for this class)
+    fn on_item_pickup(&self) -> fn(&compat::Shared<dyn Room>, &ItemEntity) {
+        <dyn Room>::on_item_pickup_body
+    }
+
+    /// java: protected void onBatRemoved(AmbientCreature bat) (dispatch: the body for this class)
+    fn on_bat_removed(&self) -> fn(&compat::Shared<dyn Room>, &dyn AmbientCreature) {
+        <dyn Room>::on_bat_removed_body
+    }
+
+    /// java: private void markSecretsFoundAndLogInfo(SecretWaypoint secretWaypoint, String msg, Object... args) (dispatch: the body for this class)
+    fn mark_secrets_found_and_log_info(&self) -> fn(&compat::Shared<dyn Room>, &compat::Shared<SecretWaypoint>, &str, &Vec<compat::Object>) {
+        <dyn Room>::mark_secrets_found_and_log_info_body
+    }
+
+    /// java: private void markSecretsAndLogInfo(SecretWaypoint secretWaypoint, boolean found, String msg, Object... args) (dispatch: the body for this class)
+    fn mark_secrets_and_log_info(&self) -> fn(&compat::Shared<dyn Room>, &compat::Shared<SecretWaypoint>, bool, &str, &Vec<compat::Object>) {
+        <dyn Room>::mark_secrets_and_log_info_body
+    }
+
+    /// java: protected int getIndexByWaypointHash(int waypointHash) (dispatch: the body for this class)
+    fn get_index_by_waypoint_hash(&self) -> fn(&compat::Shared<dyn Room>, i32) -> i32 {
+        <dyn Room>::get_index_by_waypoint_hash_body
+    }
+
+    /// java: protected boolean markSecrets(int secretIndex, boolean found) (dispatch: the body for this class)
+    fn mark_secrets(&self) -> fn(&compat::Shared<dyn Room>, i32, bool) -> bool {
+        <dyn Room>::mark_secrets_body
+    }
+
+    /// java: protected void markAllSecrets(boolean found) (dispatch: the body for this class)
+    fn mark_all_secrets(&self) -> fn(&compat::Shared<dyn Room>, bool) {
+        <dyn Room>::mark_all_secrets_body
+    }
+
+    /// java: public int getMaxSecretCount() (dispatch: the body for this class)
+    fn get_max_secret_count(&self) -> fn(&compat::Shared<dyn Room>) -> i32 {
+        <dyn Room>::get_max_secret_count_body
+    }
+
+    /// java: protected int getSecretCount() (dispatch: the body for this class)
+    fn get_secret_count(&self) -> fn(&compat::Shared<dyn Room>) -> i32 {
+        <dyn Room>::get_secret_count_body
+    }
+
+    /// java: public int getFoundSecretCount() (dispatch: the body for this class)
+    fn get_found_secret_count(&self) -> fn(&compat::Shared<dyn Room>) -> i32 {
+        <dyn Room>::get_found_secret_count_body
+    }
+
+}
+
+impl dyn Room {
+    /// java: public Type getType()
+    pub fn get_type_body(__this: &compat::Shared<dyn Room>) -> Type {
+        return compat::read(__this, |__t| __t.room_base().r#type);
+    }
+
+    /// java: public Set<Vector2ic> getSegments()
+    pub fn get_segments_body(__this: &compat::Shared<dyn Room>) -> std::collections::HashSet<Vector2i> {
+        return compat::read(__this, |__t| __t.room_base().segments.clone());
+    }
+
+    /// java: public Shape getShape()
+    pub fn get_shape_body(__this: &compat::Shared<dyn Room>) -> Shape {
+        return compat::read(__this, |__t| __t.room_base().shape.clone()).unwrap();
+    }
+
+    /// java: public @Nullable Vector2ic getPhysicalCornerPos()
+    pub fn get_physical_corner_pos_body(__this: &compat::Shared<dyn Room>) -> Option<Vector2i> {
+        return compat::read(__this, |__t| __t.room_base().physical_corner_pos.clone());
+    }
+
+    /// java: public boolean isMatched()
+    pub fn is_matched_body(__this: &compat::Shared<dyn Room>) -> bool {
+        return (compat::read(__this, |__t| __t.room_base().match_state) == MatchState::DoubleChecking || compat::read(__this, |__t| __t.room_base().match_state) == MatchState::Matched);
+    }
+
+    /// java: public @Nullable String getName()
+    pub fn get_name_body(__this: &compat::Shared<dyn Room>) -> Option<String> {
+        return compat::read(__this, |__t| __t.room_base().name.clone());
+    }
+
+    /// java: public @Nullable Direction getDirection()
+    pub fn get_direction_body(__this: &compat::Shared<dyn Room>) -> Option<Direction> {
+        return compat::read(__this, |__t| __t.room_base().direction.clone());
+    }
+
+    /// java: @Override public String toString()
+    pub fn to_string_body(__this: &compat::Shared<dyn Room>) -> String {
+        return format!("Room{{type={}, segments={}, shape={}, matchState={}, name={}, direction={}, physicalCornerPos={}}}", compat::read(__this, |__t| __t.room_base().r#type), format!("{:?}", __this.lock().borrow().room_base().segments.iter().cloned().collect::<Vec<_>>()), compat::read(__this, |__t| __t.room_base().shape.clone()), compat::read(__this, |__t| __t.room_base().match_state), compat::read(__this, |__t| __t.room_base().name.clone()), compat::read(__this, |__t| __t.room_base().direction.clone()), compat::read(__this, |__t| __t.room_base().physical_corner_pos.clone()));
+    }
+
+    /// java: private Shape determineShape(IntSortedSet segmentsX, IntSortedSet segmentsY)
+    pub fn determine_shape_body(__this: &compat::Shared<dyn Room>, segments_x: &crate::unresolved::IntSortedSet, segments_y: &crate::unresolved::IntSortedSet) -> Shape {
+        return RoomBase::determine_shape_4(compat::read(__this, |__t| __t.room_base().r#type), &compat::read(__this, |__t| __t.room_base().segments.clone()), segments_x, segments_y);
+    }
+
+    /// java: private List<MutableTriple<Direction, Vector2ic, List<String>>> getPossibleRooms(IntSortedSet segmentsX, IntSortedSet segmentsY)
+    pub fn get_possible_rooms_body(__this: &compat::Shared<dyn Room>, segments_x: &crate::unresolved::IntSortedSet, segments_y: &crate::unresolved::IntSortedSet) -> Vec<crate::unresolved::MutableTriple> {
+        if compat::read(__this, |__t| __t.room_base().rooms_data.clone()).is_none() {
+            return vec![];
+        }
+        let mut possible_direction_rooms: Vec<String> = __this.lock().borrow().room_base().rooms_data.as_ref().unwrap().keys().cloned().collect::<Vec<_>>();
+        let mut possible_rooms: Vec<crate::unresolved::MutableTriple> = Vec::new();
+        for direction in ({ let __f = compat::dispatch(__this, |__t| __t.get_possible_directions()); __f(__this, segments_x, segments_y) }) {
+            // TODO(fabric2seer): static call MutableTriple.of(..)
+            //   java: possibleRooms.add(MutableTriple.of(direction, DungeonMapUtils.getPhysicalCornerPos(direction, segmentsX, segmentsY), possibleDirectionRooms));
+        }
+        return possible_rooms;
+    }
+
+    /// java: protected Direction[] getPossibleDirections(IntSortedSet segmentsX, IntSortedSet segmentsY)
+    pub fn get_possible_directions_body(__this: &compat::Shared<dyn Room>, segments_x: &crate::unresolved::IntSortedSet, segments_y: &crate::unresolved::IntSortedSet) -> Vec<Direction> {
+        return match compat::read(__this, |__t| __t.room_base().shape.clone()) {
+            Some(Shape::OneByOne) | Some(Shape::TwoByTwo) | Some(Shape::Puzzle) | Some(Shape::Trap) | Some(Shape::Miniboss) => Direction::values(),
+            Some(Shape::OneByTwo) | Some(Shape::OneByThree) | Some(Shape::OneByFour) => 'yield_1: {
+                // TODO(fabric2seer): `.size(..)` on a IntSortedSet
+                //   java: if (segmentsX.size() > 1 && segmentsY.size() == 1) {
+                //   java: 					yield new Direction[]{Direction.NW, Direction.SE};
+                //   java: 				} else if (segmentsX.size() == 1 && segmentsY.size() > 1) {
+                //   java: 					yield new Direction[]{Direction.NE, Direction.SW};
+                //   java: 				}
+                panic!("IllegalArgumentException: {}", format!("Shape {} does not match segments: {}", __this.lock().borrow().room_base().shape.as_ref().unwrap().fields().shape, format!("{:?}", __this.lock().borrow().room_base().segments.iter().cloned().collect::<Vec<_>>())).to_string());
+            }
+            Some(Shape::LShape) => 'yield_2: {
+                // TODO(fabric2seer): `.firstInt(..)` on a IntSortedSet
+                //   java: if (!segments.contains(new Vector2i(segmentsX.firstInt(), segmentsY.firstInt()))) {
+                //   java: 					yield new Direction[]{Direction.SW};
+                //   java: 				} else if (!segments.contains(new Vector2i(segmentsX.firstInt(), segmentsY.lastInt()))) {
+                //   java: 					yield new Direction[]{Direction.SE};
+                //   java: 				} else if (!segments.contains(new Vector2i(segmentsX.lastInt(), segmentsY.firstInt()))) {
+                //   java: 					yield new Direction[]{Direction.NW};
+                //   java: 				} else if (!segments.contains(new Vector2i(segmentsX.lastInt(), segmentsY.lastInt()))) {
+                //   java: 					yield new Direction[]{Direction.NE};
+                //   java: 				}
+                panic!("IllegalArgumentException: {}", format!("Shape {} does not match segments: {}", __this.lock().borrow().room_base().shape.as_ref().unwrap().fields().shape, format!("{:?}", __this.lock().borrow().room_base().segments.iter().cloned().collect::<Vec<_>>())).to_string());
+            }
+            _ => unreachable!("switch expression: no case matched"),
+        };
+    }
+
+    /// java: protected void addCustomWaypoint(CommandContext<FabricClientCommandSource> context, BlockPos pos)
+    pub fn add_custom_waypoint_body(__this: &compat::Shared<dyn Room>, context: &CommandContext<crate::unresolved::FabricClientCommandSource>, pos: &BlockPos) {
+        let mut secret_index: i32 = IntegerArgumentType::get_integer(context, "secretIndex");
+        let mut category: crate::de::hysky::skyblocker::skyblock::dungeon::secrets::secret_waypoint::Category = CategoryArgumentType::get_category(context, "category");
+        let mut waypoint_name: MutableComponent = context.get_argument::<MutableComponent>("name").unwrap();
+        ({ let __f = compat::dispatch(__this, |__t| __t.add_custom_waypoint_4()); __f(__this, secret_index, category, &waypoint_name, pos) });
+        // TODO(fabric2seer): `.sendFeedback(..)` on a FabricClientCommandSource
+        //   java: context.getSource().sendFeedback(Constants.PREFIX.get().append(Component.translatableEscape("skyblocker.dungeons.secrets.customWaypointAdded", pos.getX(), pos.getY(), pos.getZ(), name, secretIndex, category, waypointName)));
+    }
+
+    /// java: @SuppressWarnings("JavadocReference") private void addCustomWaypoint(int secretIndex, SecretWaypoint.Category category, Component waypointName, BlockPos pos)
+    pub fn add_custom_waypoint_4_body(__this: &compat::Shared<dyn Room>, mut secret_index: i32, mut category: crate::de::hysky::skyblocker::skyblock::dungeon::secrets::secret_waypoint::Category, waypoint_name: &MutableComponent, pos: &BlockPos) {
+        if !({ let __f = compat::dispatch(__this, |__t| __t.is_matched()); __f(__this) }) {
+            return;
+        }
+        let mut waypoint: compat::Shared<SecretWaypoint> = SecretWaypoint::new2(secret_index, category, waypoint_name.clone(), pos.clone());
+        DungeonManager::add_custom_waypoint(compat::read(__this, |__t| __t.room_base().name.clone()).unwrap(), waypoint.clone());
+        let __this_1 = compat::RenderThread::new(__this.clone());
+        for r in DungeonManager::get_rooms_stream().filter(|r| (compat::read(__this_1.get(), |__t| __t.room_base().name.clone()).as_deref() == ({ let __f = compat::dispatch(r, |__t| __t.get_name()); __f(r) }).as_deref())) {
+            ({ let __f = compat::dispatch(&r, |__t| __t.add_custom_waypoint_1()); __f(&r, &waypoint) });
+        }
+    }
+
+    /// java: private void addCustomWaypoint(SecretWaypoint relativeWaypoint)
+    pub fn add_custom_waypoint_1_body(__this: &compat::Shared<dyn Room>, relative_waypoint: &compat::Shared<SecretWaypoint>) {
+        let mut actual_waypoint: compat::Shared<SecretWaypoint> = SecretWaypoint::relative_to_actual(relative_waypoint, &__this.clone());
+        // TODO(fabric2seer): `.put(..)` on a Table
+        //   java: secretWaypoints.put(actualWaypoint.secretIndex, actualWaypoint.pos, actualWaypoint);
+    }
+
+    /// java: protected void removeCustomWaypoint(CommandContext<FabricClientCommandSource> context, BlockPos pos)
+    pub fn remove_custom_waypoint_body(__this: &compat::Shared<dyn Room>, context: &CommandContext<crate::unresolved::FabricClientCommandSource>, pos: &BlockPos) {
+        let mut waypoint: Option<compat::Shared<SecretWaypoint>> = ({ let __f = compat::dispatch(__this, |__t| __t.remove_custom_waypoint_1()); __f(__this, pos) });
+        if let Some(waypoint) = &waypoint {
+            // TODO(fabric2seer): `.sendFeedback(..)` on a FabricClientCommandSource
+            //   java: context.getSource().sendFeedback(Constants.PREFIX.get().append(Component.translatable("skyblocker.dungeons.secrets.customWaypointRemoved", pos.getX(), pos.getY(), pos.getZ(), name, waypoint.secretIndex, waypoint.category.getSerializedName(), waypoint.getName())));
+        } else {
+            // TODO(fabric2seer): `.sendFeedback(..)` on a FabricClientCommandSource
+            //   java: context.getSource().sendFeedback(Constants.PREFIX.get().append(Component.translatable("skyblocker.dungeons.secrets.customWaypointNotFound", pos.getX(), pos.getY(), pos.getZ(), name).withColor(TextColor.RED)));
+        }
+    }
+
+    /// java: @SuppressWarnings("JavadocReference") private @Nullable SecretWaypoint removeCustomWaypoint(BlockPos pos)
+    pub fn remove_custom_waypoint_1_body(__this: &compat::Shared<dyn Room>, pos: &BlockPos) -> Option<compat::Shared<SecretWaypoint>> {
+        if compat::read(__this, |__t| __t.room_base().name.clone()).is_none() {
+            return None;
+        }
+        let mut waypoint: Option<compat::Shared<SecretWaypoint>> = DungeonManager::remove_custom_waypoint(compat::read(__this, |__t| __t.room_base().name.clone()).as_deref().unwrap(), pos);
+        if let Some(waypoint) = &waypoint {
+            let __this_1 = compat::RenderThread::new(__this.clone());
+            for r in DungeonManager::get_rooms_stream().filter(|r| (compat::read(__this_1.get(), |__t| __t.room_base().name.clone()).as_deref() == ({ let __f = compat::dispatch(r, |__t| __t.get_name()); __f(r) }).as_deref())) {
+                ({ let __f = compat::dispatch(&r, |__t| __t.remove_custom_waypoint_int_block_pos()); __f(&r, compat::read(waypoint, |__t| __t.secret_index), pos) });
+            }
+        }
+        return waypoint;
+    }
+
+    /// java: private void removeCustomWaypoint(int secretIndex, BlockPos relativePos)
+    pub fn remove_custom_waypoint_int_block_pos_body(__this: &compat::Shared<dyn Room>, mut secret_index: i32, relative_pos: &BlockPos) {
+        let mut actual_pos: BlockPos = ({ let __f = compat::dispatch(__this, |__t| __t.relative_to_actual()); __f(__this, relative_pos) });
+        // TODO(fabric2seer): `.remove(..)` on a Table
+        //   java: secretWaypoints.remove(secretIndex, actualPos);
+    }
+
+    /// java: @SuppressWarnings("JavadocReference") @Override public void tick(Minecraft client)
+    pub fn tick_body(__this: &compat::Shared<dyn Room>, client: &mut mcrust::net::minecraft::client::minecraft::Minecraft) {
+        if mcrust::mcrust::modding::game::level().is_none() {
+            return;
+        }
+        for tickable in compat::read(__this, |__t| __t.room_base().tickables.clone()) {
+            ({ let __f = compat::dispatch(&tickable, |__t| __t.tick()); __f(&tickable, client) });
+        }
+        if !(__this.lock().borrow().room_base().r#type.needs_scanning()) || compat::read(__this, |__t| __t.room_base().match_state) != MatchState::Matching && compat::read(__this, |__t| __t.room_base().match_state) != MatchState::DoubleChecking || !(DungeonManager::is_rooms_loaded()) || compat::read(__this, |__t| __t.room_base().find_room.clone()).is_some() && !(__this.lock().borrow().room_base().find_room.as_ref().unwrap().is_done()) {
+            return;
+        }
+        if mcrust::mcrust::modding::game::with_player(|_| ()).is_none() {
+            return;
+        }
+        let __this_w1 = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
+        let __this_w2 = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
+        { let __v = Some({ let (__q0,) = (|e| { let Some(__this_2) = __this_w2.get().upgrade() else { return Default::default(); }; {
+            logger().error(&format!("[Skyblocker Dungeon Secrets] Encountered an unknown exception while matching room {}", compat::jstring(&(&__this_2))));
+            return Default::default(); // java: return null
+        } },); (CompletableFuture::<()>::run_async(move || (|| { let Some(__this_1) = __this_w1.get().upgrade() else { return Default::default(); }; {
+            for pos in BlockPos::between_closed_pos(&mcrust::mcrust::modding::game::with_player(|player| player.base.base.base.base.block_position().offset(-5, -5, -5)).unwrap(), &mcrust::mcrust::modding::game::with_player(|player| player.base.base.base.base.block_position().offset(5, 5, 5)).unwrap()) {
+                debug_assert!(compat::read((&__this_1), |__t| __t.room_base().checked_blocks.clone()).is_some());
+                if (&__this_1).lock().borrow().room_base().segments.contains(&DungeonMapUtils::get_physical_room_pos(&pos)) && RoomBase::not_in_doorway(&pos) && BlockPosSet::add(&compat::read((&__this_1), |__t| __t.room_base().checked_blocks.clone()).unwrap(), &pos) && { let __f = compat::dispatch((&__this_1), |__t| __t.check_block()); __f((&__this_1), &mcrust::mcrust::modding::game::level().unwrap(), &pos) } {
+                    break;
+                }
+            }
+        } })(), compat::executor)).exceptionally(__q0) }); compat::write(__this, |__t| __t.room_base_mut().find_room = __v); }
+    }
+
+    /// Room.tick as the dispatch of Tickable.tick for the concrete class `__C`
+    pub fn tick_from<__C: Room + 'static>(__this: &compat::Shared<dyn Tickable>, __p0: &mut mcrust::net::minecraft::client::minecraft::Minecraft) {
+        <dyn Room>::tick_body(&compat::view_as::<__C, _, _>(__this, |a| a as compat::Shared<dyn Room>), __p0)
+    }
+
+    /// java: protected boolean checkBlock(ClientLevel world, BlockPos pos)
+    pub fn check_block_body(__this: &compat::Shared<dyn Room>, world: &ClientLevel, pos: &BlockPos) -> bool {
+        // TODO(fabric2seer): Map.getByte(..)
+        //   java: byte id = DungeonManager.NUMERIC_ID.getByte(BuiltInRegistries.BLOCK.getKey(world.getBlockState(pos).getBlock()).toString());
+        let mut id: i8 = todo!("fabric2seer: the initialiser of `id` (TODO above)");
+        if (id as i32) == 0 {
+            return false;
+        }
+        debug_assert!(compat::read(__this, |__t| __t.room_base().possible_rooms.clone()).is_some());
+        for direction_rooms in __this.lock().borrow_mut().room_base_mut().possible_rooms.as_mut().unwrap().iter_mut() {
+            // TODO(fabric2seer): `.getLeft(..)` on a MutableTriple
+            //   java: int block = posIdToInt(DungeonMapUtils.actualToRelative(directionRooms.getLeft(), directionRooms.getMiddle(), pos), id);
+            let mut block: i32 = todo!("fabric2seer: the initialiser of `block` (TODO above)");
+            let mut possible_direction_rooms: Vec<String> = Vec::new();
+            // TODO(fabric2seer): `.getRight(..)` on a MutableTriple
+            //   java: for (String room : directionRooms.getRight()) {
+            //   java: 				assert roomsData != null;
+            //   java: 				if (Arrays.binarySearch(roomsData.get(room), block) >= 0) {
+            //   java: 					possibleDirectionRooms.add(room);
+            //   java: 				}
+            //   java: 			}
+            // TODO(fabric2seer): `.setRight(..)` on a MutableTriple
+            //   java: directionRooms.setRight(possibleDirectionRooms);
+        }
+        // TODO(fabric2seer): `.getRight(..)` on a MutableTriple
+        //   java: int matchingRoomsSize = possibleRooms.stream().map(Triple::getRight).mapToInt(Collection::size).sum();
+        let mut matching_rooms_size: i32 = todo!("fabric2seer: the initialiser of `matchingRoomsSize` (TODO above)");
+        if matching_rooms_size == 0 {
+            { let __v = MatchState::Failed; compat::write(__this, |__t| __t.room_base_mut().match_state = __v); }
+            debug_assert!(compat::read(__this, |__t| __t.room_base().checked_blocks.clone()).is_some());
+            logger().warn(&format!("[Skyblocker Dungeon Secrets] No dungeon room matched after checking {} block(s) including double checking {} block(s)", BlockPosSet::size(&compat::read(__this, |__t| __t.room_base().checked_blocks.clone()).unwrap()), compat::read(__this, |__t| __t.room_base().double_check_blocks)));
+            let __this_2 = compat::RenderThread::new(__this.clone());
+            RenderHelper::run_on_render_thread(Arc::new(move || {
+                let __this_1 = compat::RenderThread::new(__this_2.get().clone());
+                ({ let __r = scheduler::INSTANCE.get_mut(); let __f = compat::dispatch(__r, |__t| __t.schedule()); __f(__r, Arc::new(move || { { let __v = MatchState::Matching; compat::write(__this_1.get(), |__t| __t.room_base_mut().match_state = __v); } }), 50) });
+                ({ let __f = compat::dispatch(__this_2.get(), |__t| __t.reset()); __f(__this_2.get()) });
+            }));
+            return true;
+        } else if matching_rooms_size == 1 {
+            // TODO(fabric2seer): ++/-- inside an expression
+            //   java: if (matchState == MatchState.MATCHING) {
+            //   java: 				// If one room matches, load the secrets for that room and set state to double-checking.
+            //   java: 				matchState = MatchState.DOUBLE_CHECKING;
+            //   java: 				Triple<Direction, Vector2ic, List<String>> directionRoom = possibleRooms.stream().filter(directionRooms -> directionRooms.getRight().size() == 1).findAny().orElseThrow();
+            //   java: 				name = directionRoom.getRight().getFirst();
+            //   java: 				direction = directionRoom.getLeft();
+            //   java: 				physicalCornerPos = directionRoom.getMiddle();
+            //   java: 				assert checkedBlocks != null;
+            //   java: 				DungeonManager.LOGGER.info("[Skyblocker Dungeon Secrets] Room {} matched after checking {} block(s), starting double checking", name, checkedBlocks.size());
+            //   java: 				RenderHelper.runOnRenderThread(this::roomMatched);
+            //   java: 				return false;
+            //   java: 			} else if (matchState == MatchState.DOUBLE_CHECKING && ++doubleCheckBlocks >= 10) {
+            //   java: 				// If double-checked, set state to matched and discard the no longer needed fields.
+            //   java: 				matchState = MatchState.MATCHED;
+            //   java: 				assert checkedBlocks != null;
+            //   java: 				DungeonManager.LOGGER.info("[Skyblocker Dungeon Secrets] Room {} confirmed after checking {} block(s) including double checking {} block(s)", name, checkedBlocks.size(), doubleCheckBlocks);
+            //   java: 				RenderHelper.runOnRenderThread(() -> {
+            //   java: 					DungeonEvents.ROOM_MATCHED.invoker().onRoomMatched(this);
+            //   java: 					discard();
+            //   java: 				});
+            //   java: 				return true;
+            //   java: 			}
+            return false;
+        } else {
+            debug_assert!(compat::read(__this, |__t| __t.room_base().checked_blocks.clone()).is_some());
+            logger().debug(&format!("[Skyblocker Dungeon Secrets] {} room(s) remaining after checking {} block(s)", matching_rooms_size, BlockPosSet::size(&compat::read(__this, |__t| __t.room_base().checked_blocks.clone()).unwrap())));
+            return false;
+        }
+        todo!("fabric2seer: the value of this function is in a TODO above")
+    }
+
+    /// java: protected int posIdToInt(BlockPos pos, byte id)
+    pub fn pos_id_to_int_body(__this: &compat::Shared<dyn Room>, pos: &BlockPos, mut id: i8) -> i32 {
+        return (((pos.get_x().wrapping_shl((24) as u32) | pos.get_y().wrapping_shl((16) as u32)) | pos.get_z().wrapping_shl((8) as u32)) | (id as i32));
+    }
+
+    /// java: @SuppressWarnings("JavadocReference") private void roomMatched()
+    pub fn room_matched_body(__this: &compat::Shared<dyn Room>) {
+        let mut name: Option<String> = compat::read(__this, |__t| __t.room_base().name.clone());
+        let mut direction: Option<Direction> = compat::read(__this, |__t| __t.room_base().direction.clone());
+        let mut physical_corner_pos: Option<Vector2i> = compat::read(__this, |__t| __t.room_base().physical_corner_pos.clone());
+        if name.is_none() || direction.is_none() || physical_corner_pos.is_none() {
+            logger().warn(&format!("[Skyblocker Dungeon Secrets] Room matched called with invalid fields: matchState={}, name={}, direction={}, physicalCornerPos={}", compat::jstring(&compat::read(__this, |__t| __t.room_base().match_state)), compat::opt_str(&name), compat::opt_str(&direction), compat::opt_str(&physical_corner_pos)));
+            return;
+        }
+        let mut room_waypoints: Option<Vec<RoomWaypoint>> = DungeonManager::get_room_waypoints(name.as_deref().unwrap());
+        if let Some(room_waypoints) = &room_waypoints {
+            for waypoint in room_waypoints.iter() {
+                let mut secret_name: String = waypoint.secret_name();
+                let mut secret_index_matcher: compat::regex::Matcher = SECRET_INDEX.matcher(&secret_name);
+                let mut secret_index: i32 = (if secret_index_matcher.find() { secret_index_matcher.group(1).unwrap().trim().parse::<i32>().expect("NumberFormatException") } else { 0 });
+                let mut pos: BlockPos = DungeonMapUtils::relative_to_actual(direction.clone().unwrap(), physical_corner_pos.as_ref().unwrap(), waypoint);
+                // TODO(fabric2seer): `.put(..)` on a Table
+                //   java: secretWaypoints.put(secretIndex, pos, new SecretWaypoint(secretIndex, waypoint.category(), secretName, pos));
+            }
+        }
+        for __a0 in DungeonManager::get_custom_waypoints(name.as_deref().unwrap()).values().cloned() {
+            ({ let __f = compat::dispatch(__this, |__t| __t.add_custom_waypoint_1()); __f(__this, &__a0) });
+        }
+        { let __v = Utils::parse_int(&compat::regex::replace_all(&name.as_ref().unwrap(), "\\D", "")).unwrap_or(-1); compat::write(__this, |__t| __t.room_base_mut().max_secrets = __v); }
+    }
+
+    /// java: protected void reset()
+    pub fn reset_body(__this: &compat::Shared<dyn Room>) {
+        // TODO(fabric2seer): static call IntSortedSets.unmodifiable(..)
+        //   java: IntSortedSet segmentsX = IntSortedSets.unmodifiable(new IntRBTreeSet(segments.stream().mapToInt(Vector2ic::x).toArray()));
+        let mut segments_x: crate::unresolved::IntSortedSet = todo!("fabric2seer: the initialiser of `segmentsX` (TODO above)");
+        // TODO(fabric2seer): static call IntSortedSets.unmodifiable(..)
+        //   java: IntSortedSet segmentsY = IntSortedSets.unmodifiable(new IntRBTreeSet(segments.stream().mapToInt(Vector2ic::y).toArray()));
+        let mut segments_y: crate::unresolved::IntSortedSet = todo!("fabric2seer: the initialiser of `segmentsY` (TODO above)");
+        { let __v = Some(({ let __f = compat::dispatch(__this, |__t| __t.get_possible_rooms()); __f(__this, &segments_x, &segments_y) })); compat::write(__this, |__t| __t.room_base_mut().possible_rooms = __v); }
+        { let __v = Some(BlockPosSet::new()); compat::write(__this, |__t| __t.room_base_mut().checked_blocks = __v); }
+        { let __v = 0; compat::write(__this, |__t| __t.room_base_mut().double_check_blocks = __v); }
+        // TODO(fabric2seer): `.clear(..)` on a Table
+        //   java: secretWaypoints.clear();
+        { let __v = None; compat::write(__this, |__t| __t.room_base_mut().name = __v); }
+        { let __v = None; compat::write(__this, |__t| __t.room_base_mut().direction = __v); }
+        { let __v = None; compat::write(__this, |__t| __t.room_base_mut().physical_corner_pos = __v); }
+    }
+
+    /// java: private void discard()
+    pub fn discard_body(__this: &compat::Shared<dyn Room>) {
+        { let __v = None; compat::write(__this, |__t| __t.room_base_mut().rooms_data = __v); }
+        { let __v = None; compat::write(__this, |__t| __t.room_base_mut().possible_rooms = __v); }
+        { let __v = None; compat::write(__this, |__t| __t.room_base_mut().checked_blocks = __v); }
+        { let __v = 0; compat::write(__this, |__t| __t.room_base_mut().double_check_blocks = __v); }
+    }
+
+    /// java: public BlockPos actualToRelative(BlockPos pos)
+    pub fn actual_to_relative_body(__this: &compat::Shared<dyn Room>, pos: &BlockPos) -> BlockPos {
+        debug_assert!(compat::read(__this, |__t| __t.room_base().direction.clone()).is_some() && compat::read(__this, |__t| __t.room_base().physical_corner_pos.clone()).is_some());
+        return DungeonMapUtils::actual_to_relative(compat::read(__this, |__t| __t.room_base().direction.clone()).unwrap(), &compat::read(__this, |__t| __t.room_base().physical_corner_pos.clone()).unwrap(), pos);
+    }
+
+    /// java: public Vec3 actualToRelative(Vec3 pos)
+    pub fn actual_to_relative_vec3_body(__this: &compat::Shared<dyn Room>, pos: &Vec3) -> Vec3 {
+        debug_assert!(compat::read(__this, |__t| __t.room_base().direction.clone()).is_some() && compat::read(__this, |__t| __t.room_base().physical_corner_pos.clone()).is_some());
+        return DungeonMapUtils::actual_to_relative_direction_vector2ic_vec3(compat::read(__this, |__t| __t.room_base().direction.clone()).unwrap(), &compat::read(__this, |__t| __t.room_base().physical_corner_pos.clone()).unwrap(), pos);
+    }
+
+    /// java: public BlockPos relativeToActual(BlockPos pos)
+    pub fn relative_to_actual_body(__this: &compat::Shared<dyn Room>, pos: &BlockPos) -> BlockPos {
+        debug_assert!(compat::read(__this, |__t| __t.room_base().direction.clone()).is_some() && compat::read(__this, |__t| __t.room_base().physical_corner_pos.clone()).is_some());
+        return DungeonMapUtils::relative_to_actual_direction_vector2ic_block_pos(compat::read(__this, |__t| __t.room_base().direction.clone()).unwrap(), &compat::read(__this, |__t| __t.room_base().physical_corner_pos.clone()).unwrap(), pos);
+    }
+
+    /// java: public Vec3 relativeToActual(Vec3 pos)
+    pub fn relative_to_actual_vec3_body(__this: &compat::Shared<dyn Room>, pos: &Vec3) -> Vec3 {
+        debug_assert!(compat::read(__this, |__t| __t.room_base().direction.clone()).is_some() && compat::read(__this, |__t| __t.room_base().physical_corner_pos.clone()).is_some());
+        return DungeonMapUtils::relative_to_actual_direction_vector2ic_vec3(compat::read(__this, |__t| __t.room_base().direction.clone()).unwrap(), &compat::read(__this, |__t| __t.room_base().physical_corner_pos.clone()).unwrap(), pos);
+    }
+
+    /// java: @Override public void extractRendering(PrimitiveCollector collector)
+    pub fn extract_rendering_body(__this: &compat::Shared<dyn Room>, collector: &compat::Shared<dyn PrimitiveCollector>) {
+        for renderable in compat::read(__this, |__t| __t.room_base().renderables.clone()) {
+            ({ let __f = compat::dispatch(&renderable, |__t| __t.extract_rendering()); __f(&renderable, collector) });
+        }
+        if compat::read(&SkyblockerConfigManager::get().dungeons.secret_waypoints, |__t| __t.enable_secret_waypoints) && { let __f = compat::dispatch(__this, |__t| __t.is_matched()); __f(__this) } {
+            // TODO(fabric2seer): `.values(..)` on a Table
+            //   java: for (SecretWaypoint secretWaypoint : secretWaypoints.values()) {
+            //   java: 				if (secretWaypoint.shouldRender()) {
+            //   java: 					secretWaypoint.extractRendering(collector);
+            //   java: 				}
+            //   java: 			}
+        }
+    }
+
+    /// Room.extractRendering as the dispatch of Renderable.extractRendering for the concrete class `__C`
+    pub fn extract_rendering_from<__C: Room + 'static>(__this: &compat::Shared<dyn Renderable>, __p0: &compat::Shared<dyn PrimitiveCollector>) {
+        <dyn Room>::extract_rendering_body(&compat::view_as::<__C, _, _>(__this, |a| a as compat::Shared<dyn Room>), __p0)
+    }
+
+    /// java: protected void onChatMessage(String message, boolean overlay)
+    pub fn on_chat_message_body(__this: &compat::Shared<dyn Room>, message: &str, mut overlay: bool) {
+        if CHEST_ALREADY_OPENED == message && (compat::read(__this, |__t| __t.room_base().last_chest_secret_time)).wrapping_add(1000 as i64) > compat::millis() && compat::read(__this, |__t| __t.room_base().last_chest_secret.clone()).is_some() {
+            // TODO(fabric2seer): `.column(..)` on a Table
+            //   java: secretWaypoints.column(lastChestSecret).values().stream().filter(SecretWaypoint::needsInteraction).findAny()
+            //   java: 					.ifPresent(secretWaypoint -> {
+            //   java: 						markSecretsFoundAndLogInfo(secretWaypoint, "[Skyblocker Dungeon Secrets] Detected already searched chest interaction, setting secret #{} as found", secretWaypoint.secretIndex);
+            //   java: 					});
+        }
+        if compat::read(__this, |__t| __t.room_base().secret_count_outdated) && overlay {
+            ({ let __f = compat::dispatch(__this, |__t| __t.update_secret_count()); __f(__this, message) });
+        }
+    }
+
+    /// java: protected void updateSecretCount(String message)
+    pub fn update_secret_count_body(__this: &compat::Shared<dyn Room>, message: &str) {
+        let mut matcher: compat::regex::Matcher = SECRETS.matcher(message);
+        if !matcher.find() {
+            return;
+        }
+        { let __v = matcher.group(1).unwrap().trim().parse::<i32>().expect("NumberFormatException"); compat::write(__this, |__t| __t.room_base_mut().secrets_found = __v); }
+        { let __v = false; compat::write(__this, |__t| __t.room_base_mut().secret_count_outdated = __v); }
+        (dungeon_events::secret_count_updated_invoker())(__this.clone(), false);
+    }
+
+    /// java: protected void onUseBlock(Level world, BlockPos pos)
+    pub fn on_use_block_body(__this: &compat::Shared<dyn Room>, world: &Level, mut pos: BlockPos) {
+        let mut state: Arc<BlockState> = world.get_block_state(&pos);
+        if state.is_block(&blocks::blocks().get("chest")) || state.is_block(&blocks::blocks().get("trapped_chest")) {
+            { let __v = Some(pos.clone()); compat::write(__this, |__t| __t.room_base_mut().last_chest_secret = __v); }
+            { let __v = compat::millis(); compat::write(__this, |__t| __t.room_base_mut().last_chest_secret_time = __v); }
+            ({ let __r = scheduler::INSTANCE.get_mut(); let __f = compat::dispatch(__r, |__t| __t.schedule()); __f(__r, Arc::new(move || {
+                if !(world.get_block_state(&pos).is_air()) {
+                    return;
+                }
+                // TODO(fabric2seer): `.column(..)` on a Table
+                //   java: secretWaypoints.column(pos).values().stream().filter(SecretWaypoint::needsInteraction).filter(SecretWaypoint::isEnabled).findAny()
+                //   java: 						.ifPresent(secretWaypoint -> markSecretsFoundAndLogInfo(secretWaypoint, "[Skyblocker Dungeon Secrets] Detected chest block removed, setting secret #{} as found", secretWaypoint.secretIndex));
+            }), 5) });
+        } else if state.is_block(&blocks::blocks().get("player_head")) || state.is_block(&blocks::blocks().get("player_wall_head")) {
+            // TODO(fabric2seer): `.column(..)` on a Table
+            //   java: secretWaypoints.column(pos).values().stream().filter(SecretWaypoint::needsInteraction).filter(SecretWaypoint::isEnabled).findAny()
+            //   java: 					.ifPresent(secretWaypoint -> {
+            //   java: 						if (secretWaypoint.category == SecretWaypoint.Category.REDSTONE_KEY) {
+            //   java: 							DungeonManager.LOGGER.info("[Skyblocker Dungeon Secrets] Detected {} interaction, hiding secret #{} waypoint {}", secretWaypoint.category, secretWaypoint.secretIndex, secretWaypoint.name);
+            //   java: 							secretWaypoint.setFound();
+            //   java: 							return;
+            //   java: 						}
+            //   java: 						markSecretsFoundAndLogInfo(secretWaypoint, "[Skyblocker Dungeon Secrets] Detected {} interaction, setting secret #{} as found", secretWaypoint.category, secretWaypoint.secretIndex);
+            //   java: 					});
+        } else if state.is_block(&blocks::blocks().get("redstone_block")) {
+            // TODO(fabric2seer): `.column(..)` on a Table
+            //   java: secretWaypoints.column(pos.above()).values().stream().filter(SecretWaypoint::needsInteraction).filter(SecretWaypoint::isEnabled).findAny()
+            //   java: 					.ifPresent(secretWaypoint -> markSecretsFoundAndLogInfo(secretWaypoint, "[Skyblocker Dungeon Secrets] Detected {} interaction, setting secret #{} as found", secretWaypoint.category, secretWaypoint.secretIndex));
+        } else if state.is_block(&blocks::blocks().get("lever")) {
+            // TODO(fabric2seer): `.column(..)` on a Table
+            //   java: secretWaypoints.column(pos).values().stream().filter(SecretWaypoint::isLever).forEach(SecretWaypoint::setFound);
+        }
+    }
+
+    /// java: protected void onChestOpened(BlockPos pos)
+    pub fn on_chest_opened_body(__this: &compat::Shared<dyn Room>, pos: &BlockPos) {
+        // TODO(fabric2seer): `.column(..)` on a Table
+        //   java: secretWaypoints.column(pos).values().stream().filter(SecretWaypoint::needsInteraction).filter(SecretWaypoint::isEnabled).findAny()
+        //   java: 				.ifPresent(secretWaypoint -> markSecretsFoundAndLogInfo(secretWaypoint, "[Skyblocker Dungeon Secrets] Detected chest opened, setting secret #{} as found", secretWaypoint.secretIndex));
+    }
+
+    /// java: protected void onItemPickup(ItemEntity itemEntity)
+    pub fn on_item_pickup_body(__this: &compat::Shared<dyn Room>, item_entity: &ItemEntity) {
+        if !secret_waypoint::SECRET_ITEMS.iter().cloned().any(|__a0| compat::component_of(item_entity.get_item().get_hover_name()).get_string().contains(&__a0)) {
+            return;
+        }
+        // TODO(fabric2seer): `.values(..)` on a Table
+        //   java: secretWaypoints.values().stream().filter(SecretWaypoint::needsItemPickup).min(Comparator.comparingDouble(SecretWaypoint.getSquaredDistanceToFunction(itemEntity))).filter(SecretWaypoint.getRangePredicate(itemEntity))
+        //   java: 				.ifPresent(secretWaypoint -> markSecretsFoundAndLogInfo(secretWaypoint, "[Skyblocker Dungeon Secrets] Detected item {} removed from a {} secret, setting secret #{} as found", itemEntity.getName().getString(), secretWaypoint.category, secretWaypoint.secretIndex));
+    }
+
+    /// java: protected void onBatRemoved(AmbientCreature bat)
+    pub fn on_bat_removed_body(__this: &compat::Shared<dyn Room>, bat: &dyn AmbientCreature) {
+        // TODO(fabric2seer): `.values(..)` on a Table
+        //   java: secretWaypoints.values().stream().filter(SecretWaypoint::isBat).min(Comparator.comparingDouble(SecretWaypoint.getSquaredDistanceToFunction(bat))).filter(SecretWaypoint.getRangePredicate(bat))
+        //   java: 				.ifPresent(secretWaypoint -> markSecretsFoundAndLogInfo(secretWaypoint, "[Skyblocker Dungeon Secrets] Detected {} killed for a {} secret, setting secret #{} as found", bat.getName().getString(), secretWaypoint.category, secretWaypoint.secretIndex));
+    }
+
+    /// java: private void markSecretsFoundAndLogInfo(SecretWaypoint secretWaypoint, String msg, Object... args)
+    pub fn mark_secrets_found_and_log_info_body(__this: &compat::Shared<dyn Room>, secret_waypoint: &compat::Shared<SecretWaypoint>, msg: &str, args: &Vec<compat::Object>) {
+        ({ let __f = compat::dispatch(__this, |__t| __t.mark_secrets_and_log_info()); __f(__this, secret_waypoint, true, msg, args) });
+    }
+
+    /// java: private void markSecretsAndLogInfo(SecretWaypoint secretWaypoint, boolean found, String msg, Object... args)
+    pub fn mark_secrets_and_log_info_body(__this: &compat::Shared<dyn Room>, secret_waypoint: &compat::Shared<SecretWaypoint>, mut found: bool, msg: &str, args: &Vec<compat::Object>) {
+        if found {
+            (dungeon_events::secret_found_invoker())(__this.clone(), secret_waypoint.clone());
+            { let __v = true; compat::write(__this, |__t| __t.room_base_mut().secret_count_outdated = __v); }
+        }
+        ({ let __f = compat::dispatch(__this, |__t| __t.mark_secrets()); __f(__this, compat::read(secret_waypoint, |__t| __t.secret_index), found) });
+        // TODO(fabric2seer): a log call with a non-literal format
+        //   java: DungeonManager.LOGGER.info(msg, args);
+    }
+
+    /// java: protected int getIndexByWaypointHash(int waypointHash)
+    pub fn get_index_by_waypoint_hash_body(__this: &compat::Shared<dyn Room>, mut waypoint_hash: i32) -> i32 {
+        for i in 0..({ let __f = compat::dispatch(__this, |__t| __t.get_secret_count()); __f(__this) }) {
+            // TODO(fabric2seer): the condition: `.containsRow(..)` on a Table
+            //   java: !secretWaypoints.containsRow(i)
+            if todo!("fabric2seer: the condition (TODO above)") {
+                continue;
+            }
+            // TODO(fabric2seer): `.row(..)` on a Table
+            //   java: for (SecretWaypoint waypoint : secretWaypoints.row(i).values()) {
+            //   java: 				if (!waypoint.isEnabled()) continue;
+            //   java: 				if (waypoint.hashCode() == waypointHash) return i;
+            //   java: 			}
+        }
+        return -1;
+    }
+
+    /// java: protected boolean markSecrets(int secretIndex, boolean found)
+    pub fn mark_secrets_body(__this: &compat::Shared<dyn Room>, mut secret_index: i32, mut found: bool) -> bool {
+        // TODO(fabric2seer): `.row(..)` on a Table
+        //   java: Map<BlockPos, SecretWaypoint> secret = secretWaypoints.row(secretIndex);
+        let mut secret: std::collections::HashMap<BlockPos, compat::Shared<SecretWaypoint>> = todo!("fabric2seer: the initialiser of `secret` (TODO above)");
+        if secret.is_empty() {
+            return false;
+        } else {
+            // TODO(fabric2seer): `.setFound(..)` on a value of unknown type
+            //   java: secret.values().forEach(found ? SecretWaypoint::setFound : SecretWaypoint::setMissing);
+            return true;
+        }
+        todo!("fabric2seer: the value of this function is in a TODO above")
+    }
+
+    /// java: protected void markAllSecrets(boolean found)
+    pub fn mark_all_secrets_body(__this: &compat::Shared<dyn Room>, mut found: bool) {
+        // TODO(fabric2seer): `.values(..)` on a Table
+        //   java: secretWaypoints.values().forEach(found ? SecretWaypoint::setFound : SecretWaypoint::setMissing);
+    }
+
+    /// java: public int getMaxSecretCount()
+    pub fn get_max_secret_count_body(__this: &compat::Shared<dyn Room>) -> i32 {
+        return compat::read(__this, |__t| __t.room_base().max_secrets);
+    }
+
+    /// java: protected int getSecretCount()
+    pub fn get_secret_count_body(__this: &compat::Shared<dyn Room>) -> i32 {
+        // TODO(fabric2seer): `.rowMap(..)` on a Table
+        //   java: return secretWaypoints.rowMap().size();
+        todo!("fabric2seer: the value of this function is in a TODO above")
+    }
+
+    /// java: public int getFoundSecretCount()
+    pub fn get_found_secret_count_body(__this: &compat::Shared<dyn Room>) -> i32 {
+        return compat::read(__this, |__t| __t.room_base().secrets_found);
+    }
+
+}
+
+impl Room for RoomBase {
+    fn room_base(&self) -> &RoomBase {
+        &self
+    }
+    fn room_base_mut(&mut self) -> &mut RoomBase {
+        &mut self
+    }
+
+}
+
+impl Tickable for RoomBase {
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+
+    /// java: @SuppressWarnings("JavadocReference") @Override public void tick(Minecraft client) (dispatch: the body for this class)
+    fn tick(&self) -> fn(&compat::Shared<dyn Tickable>, &mut mcrust::net::minecraft::client::minecraft::Minecraft) {
+        <dyn Room>::tick_from::<Self>
+    }
+
+}
+
+impl Renderable for RoomBase {
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+
+    /// java: @Override public void extractRendering(PrimitiveCollector collector) (dispatch: the body for this class)
+    fn extract_rendering(&self) -> fn(&compat::Shared<dyn Renderable>, &compat::Shared<dyn PrimitiveCollector>) {
+        <dyn Room>::extract_rendering_from::<Self>
+    }
+
+}
+
+/// java: public enum Type implements StringRepresentable
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum Type {
+    Entrance,
+    Room,
+    Puzzle,
+    Trap,
+    Miniboss,
+    Fairy,
+    Blood,
+    Unknown,
+}
+
+impl Type {
+    pub const VALUES: [Type; 8] = [Type::Entrance, Type::Room, Type::Puzzle, Type::Trap, Type::Miniboss, Type::Fairy, Type::Blood, Type::Unknown];
+
+    /// java: values()
+    pub fn values() -> Vec<Type> {
+        Self::VALUES.to_vec()
+    }
+
+    /// java: ordinal()
+    pub fn ordinal(self) -> i32 {
+        self as i32
+    }
+
+    /// java: name()
+    pub fn name(self) -> &'static str {
+        match self {
+            Type::Entrance => "ENTRANCE",
+            Type::Room => "ROOM",
+            Type::Puzzle => "PUZZLE",
+            Type::Trap => "TRAP",
+            Type::Miniboss => "MINIBOSS",
+            Type::Fairy => "FAIRY",
+            Type::Blood => "BLOOD",
+            Type::Unknown => "UNKNOWN",
+        }
+    }
+
+    /// java: valueOf(String)
+    pub fn value_of(name: &str) -> Type {
+        match name {
+            "ENTRANCE" => Type::Entrance,
+            "ROOM" => Type::Room,
+            "PUZZLE" => Type::Puzzle,
+            "TRAP" => Type::Trap,
+            "MINIBOSS" => Type::Miniboss,
+            "FAIRY" => Type::Fairy,
+            "BLOOD" => Type::Blood,
+            "UNKNOWN" => Type::Unknown,
+            _ => panic!("IllegalArgumentException: No enum constant Type.{name}"),
+        }
+    }
+
+    /// the constant's constructor data (Java keeps it in the constant's fields)
+    pub fn fields(self) -> &'static TypeFields {
+        static FIELDS: LazyLock<Vec<TypeFields>> = LazyLock::new(|| vec![
+            todo!("ENTRANCE"),
+            todo!("ROOM"),
+            todo!("PUZZLE"),
+            todo!("TRAP"),
+            todo!("MINIBOSS"),
+            todo!("FAIRY"),
+            todo!("BLOOD"),
+            todo!("UNKNOWN"),
+        ]);
+        &FIELDS[self as usize]
+    }
+
+    /// java: private boolean needsScanning()
+    pub fn needs_scanning(&self) -> bool {
+        return match *self {
+            Type::Room | Type::Puzzle | Type::Trap | Type::Miniboss => true,
+            _ => false,
+        };
+    }
+
+    /// java: @Override public String getSerializedName()
+    pub fn get_serialized_name(&self) -> String {
+        return self.fields().name.clone();
+    }
+
+}
+
+impl std::fmt::Display for Type {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.name())
+    }
+}
+
+/// the constructor data of each Type constant
+pub struct TypeFields {
+    pub color: i8,
+    pub name: String,
+}
+
+impl TypeFields {
+    fn new(mut color: i8, mut name: String) -> Self {
+        let mut this = Self {
+            color: 0,
+            name: Default::default(),
+        };
+        this.color = color;
+        this.name = name.clone();
+        this
+    }
+
+}
+
+/// java: public enum Shape implements StringRepresentable
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum Shape {
+    OneByOne,
+    OneByTwo,
+    OneByThree,
+    OneByFour,
+    LShape,
+    TwoByTwo,
+    Puzzle,
+    Trap,
+    Miniboss,
+}
+
+impl Shape {
+    pub const VALUES: [Shape; 9] = [Shape::OneByOne, Shape::OneByTwo, Shape::OneByThree, Shape::OneByFour, Shape::LShape, Shape::TwoByTwo, Shape::Puzzle, Shape::Trap, Shape::Miniboss];
+
+    /// java: values()
+    pub fn values() -> Vec<Shape> {
+        Self::VALUES.to_vec()
+    }
+
+    /// java: ordinal()
+    pub fn ordinal(self) -> i32 {
+        self as i32
+    }
+
+    /// java: name()
+    pub fn name(self) -> &'static str {
+        match self {
+            Shape::OneByOne => "ONE_BY_ONE",
+            Shape::OneByTwo => "ONE_BY_TWO",
+            Shape::OneByThree => "ONE_BY_THREE",
+            Shape::OneByFour => "ONE_BY_FOUR",
+            Shape::LShape => "L_SHAPE",
+            Shape::TwoByTwo => "TWO_BY_TWO",
+            Shape::Puzzle => "PUZZLE",
+            Shape::Trap => "TRAP",
+            Shape::Miniboss => "MINIBOSS",
+        }
+    }
+
+    /// java: valueOf(String)
+    pub fn value_of(name: &str) -> Shape {
+        match name {
+            "ONE_BY_ONE" => Shape::OneByOne,
+            "ONE_BY_TWO" => Shape::OneByTwo,
+            "ONE_BY_THREE" => Shape::OneByThree,
+            "ONE_BY_FOUR" => Shape::OneByFour,
+            "L_SHAPE" => Shape::LShape,
+            "TWO_BY_TWO" => Shape::TwoByTwo,
+            "PUZZLE" => Shape::Puzzle,
+            "TRAP" => Shape::Trap,
+            "MINIBOSS" => Shape::Miniboss,
+            _ => panic!("IllegalArgumentException: No enum constant Shape.{name}"),
+        }
+    }
+
+    /// the constant's constructor data (Java keeps it in the constant's fields)
+    pub fn fields(self) -> &'static ShapeFields {
+        static FIELDS: LazyLock<Vec<ShapeFields>> = LazyLock::new(|| vec![
+            ShapeFields::new("1x1".to_string()),
+            ShapeFields::new("1x2".to_string()),
+            ShapeFields::new("1x3".to_string()),
+            ShapeFields::new("1x4".to_string()),
+            ShapeFields::new("L-shape".to_string()),
+            ShapeFields::new("2x2".to_string()),
+            ShapeFields::new("puzzle".to_string()),
+            ShapeFields::new("trap".to_string()),
+            ShapeFields::new("miniboss".to_string()),
+        ]);
+        &FIELDS[self as usize]
+    }
+
+    /// java: @Override public String toString()
+    pub fn to_string(&self) -> String {
+        return self.fields().shape.clone();
+    }
+
+    /// java: @Override public String getSerializedName()
+    pub fn get_serialized_name(&self) -> String {
+        return self.fields().shape.clone();
+    }
+
+}
+
+impl std::fmt::Display for Shape {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", Shape::to_string(*self))
+    }
+}
+
+/// the constructor data of each Shape constant
+pub struct ShapeFields {
+    pub shape: String,
+}
+
+impl ShapeFields {
+    fn new(mut shape: String) -> Self {
+        let mut this = Self {
+            shape: Default::default(),
+        };
+        this.shape = shape.clone();
+        this
+    }
+
+}
+
+/// java: public enum Direction implements StringRepresentable
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum Direction {
+    Nw,
+    Ne,
+    Sw,
+    Se,
+}
+
+impl Direction {
+    pub const VALUES: [Direction; 4] = [Direction::Nw, Direction::Ne, Direction::Sw, Direction::Se];
+
+    /// java: values()
+    pub fn values() -> Vec<Direction> {
+        Self::VALUES.to_vec()
+    }
+
+    /// java: ordinal()
+    pub fn ordinal(self) -> i32 {
+        self as i32
+    }
+
+    /// java: name()
+    pub fn name(self) -> &'static str {
+        match self {
+            Direction::Nw => "NW",
+            Direction::Ne => "NE",
+            Direction::Sw => "SW",
+            Direction::Se => "SE",
+        }
+    }
+
+    /// java: valueOf(String)
+    pub fn value_of(name: &str) -> Direction {
+        match name {
+            "NW" => Direction::Nw,
+            "NE" => Direction::Ne,
+            "SW" => Direction::Sw,
+            "SE" => Direction::Se,
+            _ => panic!("IllegalArgumentException: No enum constant Direction.{name}"),
+        }
+    }
+
+    /// the constant's constructor data (Java keeps it in the constant's fields)
+    pub fn fields(self) -> &'static DirectionFields {
+        static FIELDS: LazyLock<Vec<DirectionFields>> = LazyLock::new(|| vec![
+            DirectionFields::new("northwest".to_string()),
+            DirectionFields::new("northeast".to_string()),
+            DirectionFields::new("southwest".to_string()),
+            DirectionFields::new("southeast".to_string()),
+        ]);
+        &FIELDS[self as usize]
+    }
+
+    /// java: @Override public String getSerializedName()
+    pub fn get_serialized_name(&self) -> String {
+        return self.fields().name.clone();
+    }
+
+}
+
+impl std::fmt::Display for Direction {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.name())
+    }
+}
+
+/// the constructor data of each Direction constant
+pub struct DirectionFields {
+    pub name: String,
+}
+
+impl DirectionFields {
+    fn new(mut name: String) -> Self {
+        let mut this = Self {
+            name: Default::default(),
+        };
+        this.name = name.clone();
+        this
+    }
+
+}
+
+/// java: static class DirectionArgumentType extends StringRepresentableArgument<Direction>
+pub struct DirectionArgumentType {
+    /// java: extends net.minecraft.commands.arguments.StringRepresentableArgument
+    pub base: StringRepresentableArgument<compat::Object>,
+}
+
+impl std::ops::Deref for DirectionArgumentType {
+    type Target = StringRepresentableArgument<compat::Object>;
+    fn deref(&self) -> &Self::Target {
+        &self.base
+    }
+}
+
+impl std::ops::DerefMut for DirectionArgumentType {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.base
+    }
+}
+
+impl DirectionArgumentType {
+    /// java: DirectionArgumentType()
+    pub fn new() -> Self {
+        // TODO(fabric2seer): `new` takes 3 argument(s) in the port (`values: Vec<T>, codec_name: fn(&T) -> String, convert_id: fn(&str) -> String`), Java passes 2
+        //   java: super(CODEC, Direction::values);
+        let mut this: Self = todo!("constructor");
+        this
+    }
+
+    /// java: static DirectionArgumentType direction()
+    pub fn direction() -> DirectionArgumentType {
+        return DirectionArgumentType::new();
+    }
+
+    /// java: static <S> Direction getDirection(CommandContext<S> context, String name)
+    pub fn get_direction<S: 'static>(context: &CommandContext<S>, name: &str) -> Direction {
+        return context.get_argument::<Direction>(name).unwrap();
+    }
+
+}
+
+/// java: public enum ClearState
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum ClearState {
+    GreenChecked,
+    WhiteChecked,
+    Failed,
+    Uncleared,
+}
+
+impl ClearState {
+    pub const VALUES: [ClearState; 4] = [ClearState::GreenChecked, ClearState::WhiteChecked, ClearState::Failed, ClearState::Uncleared];
+
+    /// java: values()
+    pub fn values() -> Vec<ClearState> {
+        Self::VALUES.to_vec()
+    }
+
+    /// java: ordinal()
+    pub fn ordinal(self) -> i32 {
+        self as i32
+    }
+
+    /// java: name()
+    pub fn name(self) -> &'static str {
+        match self {
+            ClearState::GreenChecked => "GREEN_CHECKED",
+            ClearState::WhiteChecked => "WHITE_CHECKED",
+            ClearState::Failed => "FAILED",
+            ClearState::Uncleared => "UNCLEARED",
+        }
+    }
+
+    /// java: valueOf(String)
+    pub fn value_of(name: &str) -> ClearState {
+        match name {
+            "GREEN_CHECKED" => ClearState::GreenChecked,
+            "WHITE_CHECKED" => ClearState::WhiteChecked,
+            "FAILED" => ClearState::Failed,
+            "UNCLEARED" => ClearState::Uncleared,
+            _ => panic!("IllegalArgumentException: No enum constant ClearState.{name}"),
+        }
+    }
+
+}
+
+impl std::fmt::Display for ClearState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.name())
+    }
+}
+
+/// java: protected enum MatchState
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum MatchState {
+    Matching,
+    DoubleChecking,
+    Matched,
+    Failed,
+}
+
+impl MatchState {
+    pub const VALUES: [MatchState; 4] = [MatchState::Matching, MatchState::DoubleChecking, MatchState::Matched, MatchState::Failed];
+
+    /// java: values()
+    pub fn values() -> Vec<MatchState> {
+        Self::VALUES.to_vec()
+    }
+
+    /// java: ordinal()
+    pub fn ordinal(self) -> i32 {
+        self as i32
+    }
+
+    /// java: name()
+    pub fn name(self) -> &'static str {
+        match self {
+            MatchState::Matching => "MATCHING",
+            MatchState::DoubleChecking => "DOUBLE_CHECKING",
+            MatchState::Matched => "MATCHED",
+            MatchState::Failed => "FAILED",
+        }
+    }
+
+    /// java: valueOf(String)
+    pub fn value_of(name: &str) -> MatchState {
+        match name {
+            "MATCHING" => MatchState::Matching,
+            "DOUBLE_CHECKING" => MatchState::DoubleChecking,
+            "MATCHED" => MatchState::Matched,
+            "FAILED" => MatchState::Failed,
+            _ => panic!("IllegalArgumentException: No enum constant MatchState.{name}"),
+        }
+    }
+
+}
+
+impl std::fmt::Display for MatchState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.name())
+    }
+}

@@ -1,0 +1,16 @@
+//! package de.hysky.skyblocker.config.datafixer
+pub mod config_data_fix;
+pub mod config_data_fixer;
+pub mod config_fix1;
+pub mod config_fix10_torrhus_canyon_and_safari;
+pub mod config_fix11_new_hud;
+pub mod config_fix12_move_widget_options;
+pub mod config_fix2_quick_nav;
+pub mod config_fix3_animated_dye_and_item_background;
+pub mod config_fix4_chat_rules_object;
+pub mod config_fix5_chat_rules_separate_outputs;
+pub mod config_fix6_builders_wand_config;
+pub mod config_fix7_farming;
+pub mod config_fix8_item_list;
+pub mod config_fix9_event_notifications;
+pub mod config_schema;
