@@ -59,8 +59,8 @@ impl ColorTooltip {
     }
 
     /// java: private static void addExoticTooltip(List<Component> lines, ItemStack stack, String internalID, String colorHex, String expectedHex, String existingTooltip)
-    pub fn add_exotic_tooltip(lines: &mut Vec<MutableComponent>, stack: &mcrust::net::minecraft::world::item::item_stack::ItemStack, internal_id: &str, color_hex: &str, expected_hex: &str, existing_tooltip: &str) {
-        if true /* java: expected_hex != null: never null here */ && !(compat::equals_ignore_case(&color_hex, expected_hex)) && !(ColorTooltip::is_exception(internal_id, color_hex)) && !(ColorTooltip::intended_dyed(&ItemUtils::get_custom_data(stack))) {
+    pub fn add_exotic_tooltip(lines: &mut Vec<MutableComponent>, stack: &mcrust::net::minecraft::world::item::item_stack::ItemStack, internal_id: &str, color_hex: &str, expected_hex: Option<&str>, existing_tooltip: &str) {
+        if let Some(expected_hex) = expected_hex && !(compat::equals_ignore_case(&color_hex, expected_hex)) && !(ColorTooltip::is_exception(internal_id, color_hex)) && !(ColorTooltip::intended_dyed(&ItemUtils::get_custom_data(stack))) {
             let mut r#type: DyeType = ColorTooltip::check_dye_type(stack, color_hex);
             lines.insert((1) as usize, (component::literal(&format!("{}{}(", existing_tooltip, compat::jstring(&ChatFormatting::DarkGray)))).append((r#type).get_translated_text()).append(component::literal(" - ")).append((component::literal(&format!("#{}", color_hex))).with_color(compat::integer_decode(&format!("0x{}", color_hex)))).append(component::literal(")").with_style_format(ChatFormatting::DarkGray)));
         }
@@ -68,12 +68,11 @@ impl ColorTooltip {
 
     /// java: private static String getExpectedHex(String id)
     pub fn get_expected_hex(id: &str) -> Option<String> {
-        // TODO(fabric2seer): `.get(..)` on a T
-        //   java: String color = TooltipInfoType.COLOR.getData().get(id);
-        let mut color: String = todo!("fabric2seer: the initialiser of `color` (TODO above)");
-        if true /* java: color != null: never null here */ {
+        // java: String color = TooltipInfoType.COLOR.getData().get(id);
+        let color: Option<String> = tooltip_info_type::COLOR.get().lock().borrow().get_data().expect("NullPointerException: TooltipInfoType.COLOR.getData()").get(id).cloned();
+        if let Some(color) = color {
             let mut rgbvalues: Vec<String> = compat::regex::split(&color, ",");
-            return Some(format!("{:02X}{:02X}{:02X}", (rgbvalues[(0) as usize]).trim().parse::<i32>().expect("NumberFormatException"), (rgbvalues[(1) as usize]).trim().parse::<i32>().expect("NumberFormatException"), (rgbvalues[(2) as usize]).trim().parse::<i32>().expect("NumberFormatException")));
+            return Some(format!("{:02X}{:02X}{:02X}", (rgbvalues[(0) as usize]).parse::<i32>().expect("NumberFormatException"), (rgbvalues[(1) as usize]).parse::<i32>().expect("NumberFormatException"), (rgbvalues[(2) as usize]).parse::<i32>().expect("NumberFormatException")));
         } else {
             return None;
         }
@@ -213,18 +212,18 @@ impl ColorTooltip {
             //   java: int dyeColor = stack.get(DataComponents.DYED_COLOR).rgb() & 0x00FFFFFF;
             let mut dye_color: i32 = todo!("fabric2seer: the initialiser of `dyeColor` (TODO above)");
             let mut color_hex: String = format!("{:06X}", dye_color);
-            let mut expected_hex: String = ColorTooltip::get_expected_hex(&internal_id).unwrap();
+            let mut expected_hex: Option<String> = ColorTooltip::get_expected_hex(&internal_id);
             let mut correct_line: bool = false;
             for text in lines.iter() {
                 let mut existing_tooltip: String = format!("{} ", text.get_string());
                 if existing_tooltip.starts_with("Color: ") {
                     correct_line = true;
-                    ColorTooltip::add_exotic_tooltip(lines, stack, &internal_id, &color_hex, &expected_hex, &existing_tooltip);
+                    ColorTooltip::add_exotic_tooltip(lines, stack, &internal_id, &color_hex, expected_hex.as_deref(), &existing_tooltip);
                     break;
                 }
             }
             if !correct_line {
-                ColorTooltip::add_exotic_tooltip(lines, stack, &internal_id, &color_hex, &expected_hex, "");
+                ColorTooltip::add_exotic_tooltip(lines, stack, &internal_id, &color_hex, expected_hex.as_deref(), "");
             }
         }
     }

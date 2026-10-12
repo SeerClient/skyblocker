@@ -70,12 +70,27 @@ impl std::ops::DerefMut for DyeSelectPopup {
 impl DyeSelectPopup {
     /// java: protected DyeSelectPopup(Screen backgroundScreen, BiConsumer<Button, Integer> updateStatic, AnimatedDyeConsumer updateAnimated)
     pub fn new(mut background_screen: mcrust::net::minecraft::client::gui::screens::screen::Screen, update_static: Arc<dyn Fn(AbstractWidget, i32)>, update_animated: AnimatedDyeConsumer) -> compat::Shared<Self> {
-        let __init_update_static = update_static.clone();
-        let __init_update_animated = update_animated.clone();
-        // TODO(fabric2seer): the mod keeps the game's `Screen` (Java holds a reference to the live object); the port's `Screen` is not a value to copy and the port lends the mod no handle to it
-        //   java: super(Component.translatable("skyblocker.customization.armor.pickDye"), backgroundScreen);
-        let __this: compat::Shared<Self> = todo!("constructor");
+        // java: super(Component.translatable("skyblocker.customization.armor.pickDye"), backgroundScreen);
+        let (_, __this) = AbstractPopupScreenBase::new_in(component::translatable("skyblocker.customization.armor.pickDye"), background_screen, move |__base| {
+            let __h = compat::shared(Self {
+                base: __base,
+                scrollable_layout: None,
+                title_widget: None,
+                close_button: None,
+                update_static,
+                update_animated,
+            });
+            ((__h.clone() as compat::Shared<dyn AbstractPopupScreen>), __h)
+        });
         __this
+    }
+
+    /// `layout.addChild(button)`: the button joins this screen's widgets (the port's layouts hold a widget by its place
+    /// there) and the layout gets its leaf.
+    fn add_dye_button(__this: &compat::Shared<Self>, button: compat::Shared<dyn StaticDyeButton>) -> LayoutElement {
+        let widget = compat::WidgetAdapter::<dyn StaticDyeButton>::widget(button);
+        let (w, h) = (widget.get_width(), widget.get_height());
+        LayoutElement::widget(compat::write(__this, |__t| __t.add_widget(widget)), w, h)
     }
 
     /// java: private void selectStaticDye(Button button, int dyeColor)
@@ -204,7 +219,7 @@ impl DyeSelectPopup {
         layout.add_child_with({ let __w = compat::string_widget(0, 0, -1, 9, component::translatable_args("skyblocker.customization.armor.pickDye.dyes", vec![mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::translatable("skyblocker.customization.armor.pickDye.dyes.static"))])); let (__ww, __wh) = (__w.get_width(), __w.get_height()); LayoutElement::widget(compat::write(__this, |__t| __t.add_widget(__w)), __ww, __wh) }, header_layout.clone());
         for (name, hex) in compat::lock(&repo_dye_colors::STATIC_DYES).iter() {
             let __this_1 = compat::RenderThread::new(__this.clone());
-            layout.add_child((StaticDyeButtonBase::new(name.to_string(), *hex, OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| { compat::lend_screen(__this_1.get(), __screen, || { let mut __pidx = compat::WidgetRef::Screen(__index); { DyeSelectPopup::select_static_dye(__this_1.get(), &compat::write(__this_1.get(), |__t| { let __s = &mut *__t; let __r = &mut __pidx; __s.base.__widgets.with(&mut __s.base.base, __r, |__w| __w.clone()) }), *hex); } }) }))) as compat::Shared<dyn StaticDyeButton>));
+            layout.add_child(DyeSelectPopup::add_dye_button(__this, StaticDyeButtonBase::new(name.to_string(), *hex, OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| { compat::lend_screen(__this_1.get(), __screen, || { let mut __pidx = compat::WidgetRef::Screen(__index); { DyeSelectPopup::select_static_dye(__this_1.get(), &compat::write(__this_1.get(), |__t| { let __s = &mut *__t; let __r = &mut __pidx; __s.base.__widgets.with(&mut __s.base.base, __r, |__w| __w.clone()) }), *hex); } }) }))) as compat::Shared<dyn StaticDyeButton>));
         }
         layout.add_child(SpacerElement::height(15).as_layout_element());
         layout.add_child_with({ let __w = compat::string_widget(0, 0, -1, 9, component::translatable_args("skyblocker.customization.armor.pickDye.dyes", vec![mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::translatable("skyblocker.customization.armor.pickDye.dyes.animated"))])); let (__ww, __wh) = (__w.get_width(), __w.get_height()); LayoutElement::widget(compat::write(__this, |__t| __t.add_widget(__w)), __ww, __wh) }, header_layout.clone());
@@ -214,7 +229,7 @@ impl DyeSelectPopup {
                 continue;
             }
             let __this_2 = compat::RenderThread::new(__this.clone());
-            layout.add_child(AnimatedDyeColor::new(name.to_string(), colors.clone(), OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| { compat::lend_screen(__this_2.get(), __screen, || { let mut __pidx = compat::WidgetRef::Screen(__index); { DyeSelectPopup::select_animated_dye(__this_2.get(), &compat::write(__this_2.get(), |__t| { let __s = &mut *__t; let __r = &mut __pidx; __s.base.__widgets.with(&mut __s.base.base, __r, |__w| __w.clone()) }), colors); } }) }))));
+            layout.add_child(DyeSelectPopup::add_dye_button(__this, AnimatedDyeColor::new(name.to_string(), colors.clone(), OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| { compat::lend_screen(__this_2.get(), __screen, || { let mut __pidx = compat::WidgetRef::Screen(__index); { DyeSelectPopup::select_animated_dye(__this_2.get(), &compat::write(__this_2.get(), |__t| { let __s = &mut *__t; let __r = &mut __pidx; __s.base.__widgets.with(&mut __s.base.base, __r, |__w| __w.clone()) }), colors); } }) }))) as compat::Shared<dyn StaticDyeButton>));
         }
         // TODO(fabric2seer): `new` takes 2 argument(s) in the port (`height: i32, reserve_strategy: ReserveStrategy`), Java passes 3
         // rust: { let __v = Some(ScrollableLayout::new(compat::minecraft(), LayoutElement::Grid(layout.clone().wrapped), 0)); compat::write(__this, |__t| __t.scrollable_layout = __v); }
@@ -304,6 +319,8 @@ pub struct StaticDyeButtonBase {
     pub name: String,
     /// java: final ItemStack dyeStack;
     pub dye_stack: Option<mcrust::net::minecraft::world::item::item_stack::ItemStack>,
+    /// `AbstractButton.extractDefaultSprite` - the game's button sprite pass (see `compat::ButtonLook`)
+    pub look: compat::ButtonLook,
 }
 
 impl std::ops::Deref for StaticDyeButtonBase {
@@ -324,9 +341,15 @@ impl StaticDyeButtonBase {
     pub fn new_in<__R>(mut dye_id: String, mut color: i32, mut on_press: OnPress, __wrap: impl FnOnce(Self) -> (compat::Shared<dyn StaticDyeButton>, __R)) -> (compat::Shared<dyn StaticDyeButton>, __R) {
         let __init_name = dye_id.clone();
         let mut item: Option<crate::unresolved::NEUItem> = NEURepoManager::get_item_by_neu_id(&dye_id);
-        // TODO(fabric2seer): `new Plain(..)`: the port has no `Plain::new`
-        //   java: super(0, 0, 150, 20, Component.empty(), onPress, _ -> Component.empty());
-        let (__this, __r): (compat::Shared<dyn StaticDyeButton>, __R) = todo!("constructor");
+        // java: super(0, 0, 150, 20, Component.empty(), onPress, _ -> Component.empty()); - a plain button whose press is
+        //   `onPress` (the game runs it on the widget's press) and whose narration is empty
+        let this = Self {
+            base: AbstractWidget::new(0, 0, 150, 20, String::new(), mcrust::net::minecraft::client::gui::components::abstract_widget::WidgetKind::PlainText, on_press),
+            name: __init_name,
+            dye_stack: None,
+            look: compat::ButtonLook::new(),
+        };
+        let (__this, __r) = __wrap(this);
         if let Some(item) = &item {
             // TODO(fabric2seer): `.getDisplayName(..)` on a NEUItem
             //   java: name = ChatFormatting.stripFormatting(item.getDisplayName());
@@ -354,12 +377,12 @@ pub trait StaticDyeButton: compat::DynAny {
     fn as_any(&self) -> &dyn std::any::Any;
 
     /// java: @Override protected void extractContents(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a) (dispatch: the body for this class)
-    fn extract_contents(&self) -> fn(&compat::Shared<dyn StaticDyeButton>, &GuiGraphicsExtractor, i32, i32, f32) {
+    fn extract_contents(&self) -> fn(&compat::Shared<dyn StaticDyeButton>, &AbstractWidget, &mut mcrust::mcrust::modding::widgets::WidgetRenderContext<'_>, i32, i32, f32) {
         <dyn StaticDyeButton>::extract_contents_body
     }
 
     /// java: protected void extractName(GuiGraphicsExtractor graphics, float a) (dispatch: the body for this class)
-    fn extract_name(&self) -> fn(&compat::Shared<dyn StaticDyeButton>, &GuiGraphicsExtractor, f32) {
+    fn extract_name(&self) -> fn(&compat::Shared<dyn StaticDyeButton>, &mcrust::mcrust::modding::widgets::WidgetRenderContext<'_>, f32) {
         <dyn StaticDyeButton>::extract_name_body
     }
 
@@ -367,20 +390,25 @@ pub trait StaticDyeButton: compat::DynAny {
 
 impl dyn StaticDyeButton {
     /// java: @Override protected void extractContents(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a)
-    pub fn extract_contents_body(__this: &compat::Shared<dyn StaticDyeButton>, graphics: &GuiGraphicsExtractor, mut mouse_x: i32, mut mouse_y: i32, mut a: f32) {
-        // TODO(fabric2seer): `Plain.extractDefaultSprite` has no Rust method in the port (looked for `extract_default_sprite` in Button and its supertypes)
-        // rust: __this.lock().borrow().static_dye_button_base().extract_default_sprite(graphics);
+    /// (`widget` / `context`: the game's widget and the frame, which the default sprite is drawn through)
+    pub fn extract_contents_body(__this: &compat::Shared<dyn StaticDyeButton>, widget: &AbstractWidget, context: &mut mcrust::mcrust::modding::widgets::WidgetRenderContext<'_>, mut mouse_x: i32, mut mouse_y: i32, mut a: f32) {
+        // java: this.extractDefaultSprite(graphics);
+        compat::write(__this, |__t| __t.static_dye_button_base_mut().look.draw_sprite(widget, context, mouse_x, mouse_y));
+        let graphics = &context.graphics;
         graphics.item(&compat::read(__this, |__t| __t.static_dye_button_base().dye_stack.clone()).unwrap(), (__this.lock().borrow().static_dye_button_base().get_x()).wrapping_add(STATIC_DYE_BUTTON_TEXT_OFFSET), (__this.lock().borrow().static_dye_button_base().get_y()).wrapping_add(1));
-        ({ let __f = compat::dispatch(__this, |__t| __t.extract_name()); __f(__this, graphics, a) });
+        ({ let __f = compat::dispatch(__this, |__t| __t.extract_name()); __f(__this, context, a) });
     }
 
     /// java: protected void extractName(GuiGraphicsExtractor graphics, float a)
-    pub fn extract_name_body(__this: &compat::Shared<dyn StaticDyeButton>, graphics: &GuiGraphicsExtractor, mut a: f32) {
-        // TODO(fabric2seer): field `NONE` of a value of unknown type
-        //   java: graphics.textRendererForWidget(this, GuiGraphicsExtractor.HoveredTextEffects.NONE).acceptScrollingWithDefaultCenter(
-        //   java: 					getMessage(), getX() + TEXT_MARGIN + TEXT_OFFSET + 16,
-        //   java: 					getRight() - TEXT_MARGIN, getY() + TEXT_MARGIN, getBottom() - TEXT_MARGIN
-        //   java: 			);
+    pub fn extract_name_body(__this: &compat::Shared<dyn StaticDyeButton>, context: &mcrust::mcrust::modding::widgets::WidgetRenderContext<'_>, mut a: f32) {
+        let _ = a;
+        // java: graphics.textRendererForWidget(this, GuiGraphicsExtractor.HoveredTextEffects.NONE).acceptScrollingWithDefaultCenter(getMessage(), getX() + TEXT_MARGIN + TEXT_OFFSET + 16, getRight() - TEXT_MARGIN, getY() + TEXT_MARGIN, getBottom() - TEXT_MARGIN);
+        let text_margin = 2;
+        let (message, x, y, right, bottom) = compat::read(__this, |__t| {
+            let b = __t.static_dye_button_base();
+            (b.message_text.clone().unwrap_or_else(|| mcrust::net::minecraft::network::chat::formatted_text::FormattedText::of(b.message.clone())), b.get_x(), b.get_y(), b.get_right(), b.get_bottom())
+        });
+        compat::accept_scrolling_with_default_center(context, &message, x + text_margin + STATIC_DYE_BUTTON_TEXT_OFFSET + 16, right - text_margin, y + text_margin, bottom - text_margin);
     }
 
 }
@@ -458,7 +486,7 @@ impl StaticDyeButton for AnimatedDyeColor {
     }
 
     /// java: @Override protected void extractName(GuiGraphicsExtractor graphics, float a) (dispatch: the body for this class)
-    fn extract_name(&self) -> fn(&compat::Shared<dyn StaticDyeButton>, &GuiGraphicsExtractor, f32) {
+    fn extract_name(&self) -> fn(&compat::Shared<dyn StaticDyeButton>, &mcrust::mcrust::modding::widgets::WidgetRenderContext<'_>, f32) {
         AnimatedDyeColor::extract_name_dyn
     }
 
@@ -466,7 +494,7 @@ impl StaticDyeButton for AnimatedDyeColor {
 
 impl AnimatedDyeColor {
     /// java: @Override protected void extractName(GuiGraphicsExtractor graphics, float a)
-    pub fn extract_name_impl(__this: &compat::Shared<Self>, graphics: &GuiGraphicsExtractor, mut a: f32) {
+    pub fn extract_name_impl(__this: &compat::Shared<Self>, graphics: &mcrust::mcrust::modding::widgets::WidgetRenderContext<'_>, mut a: f32) {
         { let __v = (compat::read(__this, |__t| __t.last_change) + a); compat::write(__this, |__t| __t.last_change = __v); }
         if compat::read(__this, |__t| __t.last_change) > (2 as f32) {
             { let __v = ((0) as f32) as f32; compat::write(__this, |__t| __t.last_change = __v); }
@@ -481,7 +509,7 @@ impl AnimatedDyeColor {
     }
 
     /// AnimatedDyeColor.extractName as the dispatch of StaticDyeButton.extractName
-    pub fn extract_name_dyn(__this: &compat::Shared<dyn StaticDyeButton>, __p0: &GuiGraphicsExtractor, __p1: f32) {
+    pub fn extract_name_dyn(__this: &compat::Shared<dyn StaticDyeButton>, __p0: &mcrust::mcrust::modding::widgets::WidgetRenderContext<'_>, __p1: f32) {
         Self::extract_name_impl(&compat::view_as::<Self, _, Self>(__this, |a| a), __p0, __p1)
     }
 
@@ -490,3 +518,28 @@ impl AnimatedDyeColor {
 /// java: public interface AnimatedDyeConsumer
 /// a functional interface: `accept(Button button, List<CustomArmorAnimatedDyes.Keyframe> keyframes, boolean cycleBack)` - a lambda / method reference is this closure type
 pub type AnimatedDyeConsumer = Arc<dyn Fn(AbstractWidget, Vec<Keyframe>, bool)>;
+
+/// StaticDyeButton's widget half (`super`'s fields: x, y, size, message, ...), lent by the game for each call - for
+/// both classes (`StaticDyeButton`, `AnimatedDyeColor`)
+impl compat::WidgetHalf for dyn StaticDyeButton {
+    fn widget_half(&mut self) -> &mut AbstractWidget {
+        &mut self.static_dye_button_base_mut().base
+    }
+}
+
+/// A dye button as the game's widget: `compat::WidgetAdapter::widget(handle)` where Java hands it on. Its press is the
+/// widget's `onPress` (`Button.onPress`), which the game runs.
+impl mcrust::mcrust::modding::widgets::ModWidget for compat::WidgetAdapter<dyn StaticDyeButton> {
+    /// java: AbstractButton.extractWidgetRenderState - `extractContents(..)`, then `handleCursor(graphics)`
+    fn extract_widget_render_state(&mut self, widget: &AbstractWidget, context: &mut mcrust::mcrust::modding::widgets::WidgetRenderContext<'_>, mouse_x: i32, mouse_y: i32, a: f32) {
+        self.lend_ref(widget, |__h| ({ let __f = compat::dispatch(__h, |__t| __t.extract_contents()); __f(__h, widget, context, mouse_x, mouse_y, a) }))
+    }
+
+    /// java: Button.Plain's narration - `_ -> Component.empty()`
+    fn update_widget_narration(&mut self, _widget: &AbstractWidget, _output: &mut dyn mcrust::net::minecraft::client::gui::narration::narration_element_output::NarrationElementOutput) {}
+
+    /// java: AbstractButton's `handleCursor(graphics)` - `AbstractWidget.handleCursor:68-72`
+    fn handle_cursor(&self, widget: &AbstractWidget, cursors: &mcrust::com::mojang::blaze3d::platform::cursor::cursor_types::CursorTypes) -> Option<mcrust::com::mojang::blaze3d::platform::cursor::cursor_type::CursorType> {
+        widget.handle_cursor(cursors)
+    }
+}

@@ -197,7 +197,7 @@ impl TunerSolver {
                 {
                     let mut speed_text: String = lore[(3) as usize].clone();
                     let mut parts: Vec<String> = compat::regex::split(&speed_text, ": ");
-                    let mut current_speed: i32 = (compat::trim(&(parts[(1) as usize]))).trim().parse::<i32>().expect("NumberFormatException");
+                    let mut current_speed: i32 = (compat::trim(&(parts[(1) as usize]))).parse::<i32>().expect("NumberFormatException");
                     if current_speed >= 1 && current_speed <= 5 {
                         return current_speed;
                     }

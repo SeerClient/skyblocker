@@ -126,7 +126,7 @@ impl MuseumTooltip {
             } else {
                 let mut is_in_museum: bool = MuseumItemCache::has_item_in_museum(&internal_id);
                 let mut donated_indicator_formatting: ChatFormatting = (if is_in_museum { ChatFormatting::Green } else { ChatFormatting::Red });
-                lines.push(GridComponent::of_2(&compat::jstring(&(component::literal(&format!("Museum ({}):", item_category))).with_style_format(ChatFormatting::LightPurple)), &vec![(component::literal((if is_in_museum { "✔" } else { "✖" }))).with_style_formats(&[donated_indicator_formatting, ChatFormatting::Bold]).append((component::literal((if is_in_museum { " Donated" } else { " Not Donated" }))).with_style_format(donated_indicator_formatting))]));
+                lines.push(GridComponent::of(&vec![(component::literal(&format!("Museum ({}):", item_category))).with_style_format(ChatFormatting::LightPurple), (component::literal((if is_in_museum { "✔" } else { "✖" }))).with_style_formats(&[donated_indicator_formatting, ChatFormatting::Bold]).append((component::literal((if is_in_museum { " Donated" } else { " Not Donated" }))).with_style_format(donated_indicator_formatting))]));
             }
         }
     }

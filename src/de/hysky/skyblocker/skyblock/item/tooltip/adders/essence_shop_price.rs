@@ -148,7 +148,7 @@ impl EssenceShopPrice {
         if price_data == (0 as i64) {
             return;
         }
-        lines.push(GridComponent::of_2(&compat::jstring(&component::literal("Essence Cost:").with_style_format(ChatFormatting::Aqua)), &vec![(((component::empty().append((component::literal(&format!("{} coins", formatters::INTEGER_NUMBERS.get_mut().format((price_data.wrapping_mul(cost.clone().unwrap())) as f64)))).with_style_format(ChatFormatting::DarkAqua))).append(component::literal(" (").with_style_format(ChatFormatting::Gray))).append((component::literal(&format!("{} each", formatters::INTEGER_NUMBERS.get_mut().format((price_data) as f64)))).with_style_format(ChatFormatting::Gray))).append(component::literal(")").with_style_format(ChatFormatting::Gray))]));
+        lines.push(GridComponent::of(&vec![component::literal("Essence Cost:").with_style_format(ChatFormatting::Aqua), (((component::empty().append((component::literal(&format!("{} coins", formatters::INTEGER_NUMBERS.get_mut().format((price_data.wrapping_mul(cost.clone().unwrap())) as f64)))).with_style_format(ChatFormatting::DarkAqua))).append(component::literal(" (").with_style_format(ChatFormatting::Gray))).append((component::literal(&format!("{} each", formatters::INTEGER_NUMBERS.get_mut().format((price_data) as f64)))).with_style_format(ChatFormatting::Gray))).append(component::literal(")").with_style_format(ChatFormatting::Gray))]));
     }
 
     /// EssenceShopPrice.addToTooltip as the dispatch of TooltipAdder.addToTooltip

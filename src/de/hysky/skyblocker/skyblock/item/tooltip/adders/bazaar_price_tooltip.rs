@@ -124,8 +124,8 @@ impl BazaarPriceTooltip {
             // TODO(fabric2seer): `.get(..)` on a T
             //   java: BazaarProduct product = TooltipInfoType.BAZAAR.getData().get(skyblockApiId);
             let mut product: BazaarProduct = todo!("fabric2seer: the initialiser of `product` (TODO above)");
-            lines.push(GridComponent::of_2(&compat::jstring(&component::literal("Bazaar Buy Price:").with_style_format(ChatFormatting::Gold)), &vec![(if product.buy_price().is_none() { component::literal("No data").with_style_format(ChatFormatting::Red) } else { ItemTooltip::get_coins_message(product.buy_price().unwrap(), count) })]));
-            lines.push(GridComponent::of_2(&compat::jstring(&component::literal("Bazaar Sell Price:").with_style_format(ChatFormatting::Gold)), &vec![(if product.sell_price().is_none() { component::literal("No data").with_style_format(ChatFormatting::Red) } else { ItemTooltip::get_coins_message(product.sell_price().unwrap(), count) })]));
+            lines.push(GridComponent::of(&vec![component::literal("Bazaar Buy Price:").with_style_format(ChatFormatting::Gold), (if product.buy_price().is_none() { component::literal("No data").with_style_format(ChatFormatting::Red) } else { ItemTooltip::get_coins_message(product.buy_price().unwrap(), count) })]));
+            lines.push(GridComponent::of(&vec![component::literal("Bazaar Sell Price:").with_style_format(ChatFormatting::Gold), (if product.sell_price().is_none() { component::literal("No data").with_style_format(ChatFormatting::Red) } else { ItemTooltip::get_coins_message(product.sell_price().unwrap(), count) })]));
         }
     }
 

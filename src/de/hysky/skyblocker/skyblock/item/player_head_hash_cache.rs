@@ -47,9 +47,10 @@ impl PlayerHeadHashCache {
     pub fn get_skin_hash_from_base64(base64: &str) -> String {
         // java: try {..} catch (Exception e) - an exception here is a panic, caught by `catch_unwind`; the body's `return` is the closure's value
         match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            // TODO(fabric2seer): `.decode(..)` on a Decoder
-            //   java: String decoded = new String(Base64.getDecoder().decode(base64));
-            let mut decoded: String = todo!("fabric2seer: the initialiser of `decoded` (TODO above)");
+            // java: String decoded = new String(Base64.getDecoder().decode(base64)); - `new String(bytes)` decodes UTF-8,
+            //   a malformed sequence becoming U+FFFD
+            let bytes: Vec<u8> = mcrust::java::util::base64::get_decoder().decode(base64).unwrap_or_else(|e| panic!("IllegalArgumentException: {e}"));
+            let mut decoded: String = String::from_utf8_lossy(&bytes).into_owned();
             let mut profile: serde_json::Map<String, serde_json::Value> = compat::json::get_as_json_object(&(serde_json::from_str::<serde_json::Value>(&decoded).expect("JsonSyntaxException")));
             let mut url: String = compat::json::get_as_string(&(compat::json::get_as_json_object_of(&(compat::json::get_as_json_object_of(&profile, "textures")), "SKIN")).get("url").cloned().unwrap());
             return PlayerHeadHashCache::get_skin_hash_from_url(&url);

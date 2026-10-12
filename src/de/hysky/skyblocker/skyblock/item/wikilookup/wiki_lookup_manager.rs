@@ -47,10 +47,10 @@ impl WikiLookupManager {
     pub fn get_keys_text() -> String {
         // TODO(fabric2seer): `get_translated_key_message` takes 2 argument(s) in the port (`name: &str, key_name: &dyn Fn(i32, i32) -> Option<String>`), Java passes 0
         // rust: let mut independent: Option<String> = (if INDEPENDENT_WIKI_LOOKUP.get_mut().as_ref().unwrap().is_unbound() { None } else { Some(compat::component_of(key_mapping::get_translated_key_message()).get_string()) });
-        let mut independent: String = todo!("fabric2seer: the initialiser of `independent` (TODO above)");
-        if false /* java: independent == null: never null here */ {
+        let mut independent: Option<String> = todo!("fabric2seer: the initialiser of `independent` (TODO above)");
+        let Some(independent) = independent else {
             return "".to_string();
-        }
+        };
         return independent.to_uppercase();
     }
 

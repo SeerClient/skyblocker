@@ -25,8 +25,6 @@ use mcrust::net::minecraft::network::chat::component::Component as _;
 pub struct PowderFilterConfigScreen {
     /// java: extends net.minecraft.client.gui.screens.Screen
     pub base: mcrust::net::minecraft::client::gui::screens::screen::Screen,
-    /// java: private final @Nullable Screen parent;
-    pub parent: Option<mcrust::net::minecraft::client::gui::screens::screen::Screen>,
     /// java: private final List<String> filters; - one list, shared with the `ItemTickList` (its checkboxes write it)
     pub filters: compat::Shared<Vec<String>>,
     /// java: private final List<String> allItems;
@@ -52,15 +50,16 @@ impl std::ops::DerefMut for PowderFilterConfigScreen {
 
 impl PowderFilterConfigScreen {
     /// java: public PowderFilterConfigScreen(@Nullable Screen parent, List<String> allItems)
-    pub fn new(mut parent: Option<mcrust::net::minecraft::client::gui::screens::screen::Screen>, mut all_items: Vec<String>) -> compat::Shared<Self> {
-        let __init_parent = parent;
+    ///
+    /// (`parent` is the screen that is up when this one opens: the game holds it - open this screen with
+    /// `game::set_screen_keeping_parent` - and `onClose`'s `setScreen(parent)` returns to it)
+    pub fn new(mut all_items: Vec<String>) -> compat::Shared<Self> {
         // java: new ArrayList<>(SkyblockerConfigManager.get().mining.crystalHollows.powderTrackerFilter); // Copy the list so we can undo changes when necessary
         let __init_filters = compat::shared(SkyblockerConfigManager::get().mining.crystal_hollows.powder_tracker_filter.iter().cloned().collect::<Vec<_>>());
         let __init_all_items = all_items.clone();
         let __this = compat::shared(Self {
             base: mcrust::net::minecraft::client::gui::screens::screen::Screen::new(component::null_to_empty(Some("Powder Mining Tracker Filter Config")).get_string()),
             __widgets: Default::default(),
-            parent: __init_parent,
             filters: __init_filters,
             all_items: __init_all_items,
             item_tick_list: None,

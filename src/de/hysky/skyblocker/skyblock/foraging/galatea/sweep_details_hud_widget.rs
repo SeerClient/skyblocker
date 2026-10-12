@@ -230,7 +230,9 @@ impl SweepDetailsHudWidget {
 
     /// java: @Override public boolean shouldRender()
     pub fn should_render_impl(__this: &compat::Shared<Self>) -> bool {
-        return (!(Utils::get_location() == Location::Hub) || compat::read(&Utils::get_area(), |__t| compat::DynAny::dyn_any(__t).downcast_ref::<Hub>().is_some_and(|__e| *__e == Hub::Forest)) || compat::read(&Utils::get_area(), |__t| compat::DynAny::dyn_any(__t).downcast_ref::<Hub>().is_some_and(|__e| *__e == Hub::ForagingCamp)) && !(Utils::get_location() == Location::Garden) || compat::lock(&utils::STRING_SCOREBOARD).iter().cloned().any(|s| s.contains("Cleanup")));
+        return (!(Utils::get_location() == Location::Hub) || compat::read(&Utils::get_area(), |__t| compat::DynAny::dyn_any(__t).downcast_ref::<Hub>().is_some_and(|__e| *__e == Hub::Forest)) || compat::read(&Utils::get_area(), |__t| compat::DynAny::dyn_any(__t).downcast_ref::<Hub>().is_some_and(|__e| *__e == Hub::ForagingCamp)))
+            // While in the garden only show in unclean plots
+            && (!(Utils::get_location() == Location::Garden) || compat::lock(&utils::STRING_SCOREBOARD).iter().any(|s| s.contains("Cleanup")));
     }
 
     /// SweepDetailsHudWidget.shouldRender as the dispatch of HudWidget.shouldRender

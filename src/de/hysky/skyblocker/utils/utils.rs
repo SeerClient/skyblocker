@@ -363,7 +363,7 @@ impl Utils {
                 }
             }
             if let Some(bits_string) = &bits_string {
-                bits = (compat::regex::replace_all(&bits_string, "[^0-9.]", "")).trim().to_string().trim().parse::<i32>().expect("NumberFormatException");
+                bits = (compat::regex::replace_all(&bits_string, "[^0-9.]", "")).trim().to_string().parse::<i32>().expect("NumberFormatException");
             }
         }));
         if let Err(e) = __result {
@@ -438,23 +438,26 @@ impl Utils {
 
     /// java: public static void updatePurse()
     pub fn update_purse() {
-        if let Some(purse_string) = compat::lock(&STRING_SCOREBOARD).iter().cloned().filter(|s| (s.contains("Piggy:") || s.contains("Purse:"))).next() {
+        // (the board's line is taken out first: the purse-change listeners may read the board again)
+        let purse_string: Option<String> = compat::lock(&STRING_SCOREBOARD).iter().find(|s| s.contains("Piggy:") || s.contains("Purse:")).cloned();
+        // java: .ifPresent(purseString -> {..}) - the lambda's `return` ends the lambda, which is the method's last statement
+        if let Some(purse_string) = purse_string {
             let mut matcher: compat::regex::Matcher = PURSE.matcher(&purse_string);
             if matcher.find() {
-                // java: try {..} catch (NumberFormatException e) - the body runs inline: a Rust body does not throw checked exceptions (a panic in it propagates)
-                {
-                    let mut new_purse: f64 = (compat::regex::replace_all(&matcher.group_named("purse").unwrap(), ",", "")).trim().parse::<f64>().expect("NumberFormatException");
-                    let mut change_since_last: f64 = (new_purse - compat::get_state(&PURSE_2));
-                    if change_since_last == (0 as f64) {
-                        return;
+                // java: try {..} catch (NumberFormatException e) { LOGGER.error(..); } - `Double.parseDouble` (which trims)
+                match compat::regex::replace_all(&matcher.group_named("purse").unwrap(), ",", "").trim().parse::<f64>() {
+                    Ok(new_purse) => {
+                        let change_since_last: f64 = new_purse - compat::get_state(&PURSE_2);
+                        if change_since_last == 0.0 {
+                            return;
+                        }
+                        (skyblock_events::purse_change_invoker())(change_since_last, PurseChangeCause::get_cause(change_since_last));
+                        compat::set_state(&PURSE_2, new_purse);
                     }
-                    (skyblock_events::purse_change_invoker())(change_since_last, PurseChangeCause::get_cause(change_since_last));
-                    compat::set_state(&PURSE_2, new_purse);
+                    Err(e) => {
+                        logger().error(&format!("[Skyblocker] Failed to parse purse string. Input: '{}' ({})", purse_string, e));
+                    }
                 }
-                // TODO(fabric2seer): the `catch (NumberFormatException e)` block is not reached in Rust - the try body returns, breaks or continues, so it cannot run inside `catch_unwind`
-                //   java: {
-                //   java: 					LOGGER.error("[Skyblocker] Failed to parse purse string. Input: '{}'", purseString, e);
-                //   java: 				}
             }
         }
     }
@@ -665,7 +668,7 @@ impl Utils {
     pub fn parse_int(input: &str) -> Option<i32> {
         // java: try {..} catch (NumberFormatException _) - an exception here is a panic, caught by `catch_unwind`; the body's `return` is the closure's value
         match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            return Some(input.trim().parse::<i32>().expect("NumberFormatException"));
+            return Some(input.parse::<i32>().expect("NumberFormatException"));
         })) {
             Ok(__v) => return __v,
             Err(_) => {

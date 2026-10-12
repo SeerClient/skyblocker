@@ -40,10 +40,12 @@ pub static SHORT_DOUBLE_NUMBERS: compat::MainThread<DecimalFormat> = compat::Mai
 //   java: public static final NumberFormat DIFF_NUMBERS = Util.make((DecimalFormat) NumberFormat.getNumberInstance(Locale.US), nf -> nf.setPositivePrefix("+"));
 /// java: public static final NumberFormat DIFF_NUMBERS = Util.make((DecimalFormat) NumberFormat.getNumberInstance(Locale.US), nf -> nf.setPositivePrefix("+"));
 pub static DIFF_NUMBERS: compat::MainThread<DecimalFormat> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `DIFF_NUMBERS` - see the TODO above"));
-// TODO(fabric2seer): `of_pattern` takes 1 argument(s) in the port (`pattern: &str`), Java passes 2
 //   java: public static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("E MMM d yyyy " + getTimeFormat(), Locale.US).withZone(getTimeZone());
 /// java: public static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("E MMM d yyyy " + getTimeFormat(), Locale.US).withZone(getTimeZone());
-pub static DATE_FORMATTER: compat::MainThread<DateTimeFormatter> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `DATE_FORMATTER` - see the TODO above"));
+/// The port's `DateTimeFormatter` is a pattern only (English names, no zone - `Locale.US`'s): `withZone(getTimeZone())`
+/// is applied where it formats (`ZonedDateTime::of_instant(.., Formatters::get_time_zone())`) - the convention of
+/// `ObtainedDateTooltip.OBTAINED_DATE_FORMATTER` (GAPS_batchB.md).
+pub static DATE_FORMATTER: compat::MainThread<DateTimeFormatter> = compat::MainThread::new(|| DateTimeFormatter::of_pattern(&format!("E MMM d yyyy {}", Formatters::get_time_format())));
 
 /// java: public class Formatters
 #[derive(Clone)]
@@ -80,22 +82,24 @@ impl Formatters {
 
     /// java: private static ZoneId getTimeZone()
     pub fn get_time_zone() -> ZoneId {
-        // TODO(fabric2seer): static `ZoneId.of` has no Rust counterpart in the port
-        // rust: return (if crate::de::hysky::skyblocker::debug::debug::Debug::is_test_environment() { ZoneId::of("UTC".to_string()) } else { ZoneId::system_default() });
-        return todo!("fabric2seer: see the TODO above");
+        // java: return Debug.isTestEnvironment() ? ZoneId.of("UTC") : ZoneId.systemDefault();
+        // rust: port gap - the port's `ZoneId` is the system default only (`ZoneId.of` is not ported), so the test
+        //   environment's UTC zone cannot be named (GAPS_batchE.md)
+        return ZoneId::system_default();
     }
 
     /// java: private static boolean is12HourClock()
     pub fn is12_hour_clock() -> bool {
-        // TODO(fabric2seer): field `OSX` of a value of unknown type
-        //   java: return switch (Util.getPlatform()) {
-        //   java: 			case Util.OS.OSX -> MacCompatibility.is12HourClock();
-        //   java: 			case Util.OS.WINDOWS -> WindowsCompatibility.is12HourClock();
-        //   java: 			// The j formatting template returns the preferred formatting for the time
-        //   java: 			// If the format contains a (am/pm pattern) then the preference is to use the 12 hour clock, otherwise its the 24 hour clock
-        //   java: 			default -> DateTimePatternGenerator.getInstance(Locale.getDefault()).getBestPattern("j").contains("a");
-        //   java: 		};
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        return match mcrust::net::minecraft::util::util::get_platform() {
+            mcrust::net::minecraft::util::util::OS::Osx => crate::de::hysky::skyblocker::compatibility::mac_compatibility::MacCompatibility::is12_hour_clock(),
+            mcrust::net::minecraft::util::util::OS::Windows => crate::de::hysky::skyblocker::compatibility::windows_compatibility::WindowsCompatibility::is12_hour_clock(),
+            // The j formatting template returns the preferred formatting for the time
+            // If the format contains a (am/pm pattern) then the preference is to use the 12 hour clock, otherwise its the 24 hour clock
+            // java: default -> DateTimePatternGenerator.getInstance(Locale.getDefault()).getBestPattern("j").contains("a");
+            // rust: port gap - ICU's `DateTimePatternGenerator` (and a locale database) is not in the port: the default
+            //   locale's pattern cannot be asked, and the 24 hour clock is taken (GAPS_batchE.md)
+            _ => false,
+        };
     }
 
 }

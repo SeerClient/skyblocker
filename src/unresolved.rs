@@ -42,6 +42,7 @@ pub struct ByteArrayOutputStream;
 /// TODO(fabric2seer): java java.nio.ByteBuffer
 pub struct ByteBuffer;
 /// TODO(fabric2seer): java net.azureaaron.networth.Calculation
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub struct Calculation;
 /// TODO(fabric2seer): java net.minecraft.world.entity.animal.feline.CatSoundVariants
 pub struct CatSoundVariants;
@@ -51,20 +52,10 @@ pub struct CategoryIdentifier;
 pub struct CategoryRegistry;
 /// TODO(fabric2seer): java java.lang.Class
 pub struct Class;
-/// TODO(fabric2seer): java java.lang.constant.ClassDesc
-pub struct ClassDesc;
-/// TODO(fabric2seer): java java.lang.classfile.ClassFile
-pub struct ClassFile;
-/// TODO(fabric2seer): java java.lang.classfile.ClassHierarchyResolver
-pub struct ClassHierarchyResolver;
-/// TODO(fabric2seer): java java.lang.classfile.ClassModel
-pub struct ClassModel;
 /// TODO(fabric2seer): java org.objectweb.asm.tree.ClassNode
 pub struct ClassNode;
 /// TODO(fabric2seer): java net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext
 pub struct ClientGameTestContext;
-/// TODO(fabric2seer): java java.lang.classfile.CodeBuilder
-pub struct CodeBuilder;
 /// TODO(fabric2seer): java me.shedaniel.rei.api.client.registry.entry.CollapsibleEntryRegistry
 pub struct CollapsibleEntryRegistry;
 /// TODO(fabric2seer): java java.util.stream.Collector
@@ -83,12 +74,18 @@ pub struct ConfigCategory;
 pub struct ConfigManager;
 /// TODO(fabric2seer): java net.azureaaron.dandelion.api.patching.ConfigPatch
 pub struct ConfigPatch;
-/// TODO(fabric2seer): java com.terraformersmc.modmenu.api.ConfigScreenFactory
-pub struct ConfigScreenFactory;
-/// TODO(fabric2seer): java net.azureaaron.dandelion.api.ConfigType
-pub struct ConfigType;
-/// TODO(fabric2seer): java java.lang.constant.ConstantDesc
-pub struct ConstantDesc;
+/// ModMenu's `com.terraformersmc.modmenu.api.ConfigScreenFactory<S extends Screen>`: `S create(Screen parent)`.
+/// (ModMenu itself is another mod: nothing in the port asks for the factory yet.)
+pub type ConfigScreenFactory = std::sync::Arc<dyn Fn(mcrust::net::minecraft::client::gui::screens::screen::Screen) -> mcrust::net::minecraft::client::gui::screens::screen::Screen>;
+/// Dandelion's `net.azureaaron.dandelion.api.ConfigType`: which config library builds the config screen
+/// (`YACL`, `MOUL_CONFIG`). Only the value is kept here; the libraries themselves are not ported.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum ConfigType {
+    /// java: YACL
+    Yacl,
+    /// java: MOUL_CONFIG
+    MoulConfig,
+}
 /// TODO(fabric2seer): java net.minecraft.client.gui.components.events.ContainerEventHandler
 pub struct ContainerEventHandler;
 /// TODO(fabric2seer): java Context, net.fabricmc.fabric.api.client.rendering.v1.PictureInPictureRendererRegistry.Context
@@ -101,8 +98,6 @@ pub struct DandelionNumberFieldEditor;
 pub struct DeltaTracker;
 /// TODO(fabric2seer): java dev.isxander.yacl3.api.utils.Dimension
 pub struct Dimension;
-/// TODO(fabric2seer): java java.lang.constant.DirectMethodHandleDesc
-pub struct DirectMethodHandleDesc;
 /// TODO(fabric2seer): java me.shedaniel.rei.api.common.display.Display
 pub struct Display;
 /// TODO(fabric2seer): java me.shedaniel.rei.api.client.registry.display.DisplayRegistry
@@ -113,8 +108,6 @@ pub struct DisplaySerializer;
 pub struct Double2ObjectFunction;
 /// TODO(fabric2seer): java java.util.function.DoubleConsumer
 pub struct DoubleConsumer;
-/// TODO(fabric2seer): java java.lang.constant.DynamicCallSiteDesc
-pub struct DynamicCallSiteDesc;
 /// TODO(fabric2seer): java de.hysky.skyblocker.mixins.accessors.EditBoxAccessor
 pub struct EditBoxAccessor;
 /// TODO(fabric2seer): java dev.emi.emi.api.stack.EmiIngredient
@@ -157,8 +150,6 @@ pub struct FabricClientCommandSource;
 pub struct FabricLoader;
 /// TODO(fabric2seer): java java.lang.reflect.Field
 pub struct Field;
-/// TODO(fabric2seer): java java.lang.classfile.FieldModel
-pub struct FieldModel;
 /// TODO(fabric2seer): java java.io.FileWriter
 pub struct FileWriter;
 /// TODO(fabric2seer): java de.hysky.skyblocker.mixins.accessors.FontAccessor
@@ -231,8 +222,6 @@ pub struct ItemModels;
 pub struct ItemOverlayFile;
 /// TODO(fabric2seer): java io.github.moulberry.repo.data.ItemOverlays
 pub struct ItemOverlays;
-/// TODO(fabric2seer): java org.gradle.api.tasks.compile.JavaCompile
-pub struct JavaCompile;
 /// TODO(fabric2seer): java com.google.gson.JsonDeserializationContext
 pub struct JsonDeserializationContext;
 /// TODO(fabric2seer): java com.google.gson.JsonSerializationContext
@@ -271,12 +260,8 @@ pub struct MatchResult;
 pub struct MemorySegment;
 /// TODO(fabric2seer): java java.lang.invoke.MethodHandle
 pub struct MethodHandle;
-/// TODO(fabric2seer): java java.lang.classfile.MethodModel
-pub struct MethodModel;
 /// TODO(fabric2seer): java java.lang.invoke.MethodType
 pub struct MethodType;
-/// TODO(fabric2seer): java java.lang.constant.MethodTypeDesc
-pub struct MethodTypeDesc;
 /// TODO(fabric2seer): java net.minecraft.server.MinecraftServer
 pub struct MinecraftServer;
 /// TODO(fabric2seer): java Month
@@ -318,6 +303,7 @@ pub struct NEUTradeRecipe;
 /// TODO(fabric2seer): java NarrationPriority
 pub struct NarrationPriority;
 /// TODO(fabric2seer): java net.azureaaron.networth.NetworthResult
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub struct NetworthResult;
 /// TODO(fabric2seer): java java.io.ObjectInputStream
 pub struct ObjectInputStream;
@@ -337,8 +323,27 @@ pub struct PacketSender;
 pub struct PetLevelingBehaviourOverride;
 /// TODO(fabric2seer): java io.github.moulberry.repo.constants.PetLevelingData
 pub struct PetLevelingData;
-/// TODO(fabric2seer): java io.github.moulberry.repo.constants.PetNumbers
-pub struct PetNumbers;
+/// TODO(fabric2seer): java io.github.moulberry.repo.constants.PetNumbers - the NEU repo's per-rarity pet numbers (the
+/// repo library is not ported: no instance is made until it is)
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct PetNumbers {
+    /// `int lowLevel`
+    pub low_level: i32,
+    /// `int highLevel`
+    pub high_level: i32,
+}
+
+impl PetNumbers {
+    /// `getLowLevel()`
+    pub fn get_low_level(&self) -> i32 {
+        self.low_level
+    }
+
+    /// `getHighLevel()`
+    pub fn get_high_level(&self) -> i32 {
+        self.high_level
+    }
+}
 /// TODO(fabric2seer): java me.shedaniel.math.Point
 pub struct Point;
 /// TODO(fabric2seer): java net.minecraft.client.gui.components.PopupScreen$Builder
@@ -349,15 +354,14 @@ pub struct PriorityQueue;
 pub struct ProcessedOption;
 /// TODO(fabric2seer): java moe.nea.lisp.LispAst.Program
 pub struct Program;
-/// TODO(fabric2seer): java org.gradle.api.Project
-pub struct Project;
 /// TODO(fabric2seer): java net.fabricmc.fabric.api.client.renderer.v1.mesh.QuadEmitter
 pub struct QuadEmitter;
 /// TODO(fabric2seer): java java.util.Random
 pub struct Random;
 /// TODO(fabric2seer): java net.azureaaron.hmapi.data.rank.RankType
 pub struct RankType;
-/// TODO(fabric2seer): java io.github.moulberry.repo.data.Rarity
+/// TODO(fabric2seer): java io.github.moulberry.repo.data.Rarity (an enum of the NEU repo library, which is not ported)
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct Rarity;
 /// TODO(fabric2seer): java de.hysky.skyblocker.mixins.accessors.RecipeBookComponentAccessor
 pub struct RecipeBookComponentAccessor;
@@ -371,8 +375,6 @@ pub struct Renderer;
 pub struct Result;
 /// TODO(fabric2seer): java meteordevelopment.discordipc.RichPresence
 pub struct RichPresence;
-/// TODO(fabric2seer): java java.lang.classfile.attribute.RuntimeInvisibleAnnotationsAttribute
-pub struct RuntimeInvisibleAnnotationsAttribute;
 /// TODO(fabric2seer): java me.shedaniel.rei.api.client.registry.screen.ScreenRegistry
 pub struct ScreenRegistry;
 /// TODO(fabric2seer): java Season
@@ -458,7 +460,7 @@ impl<R: PartialEq + Clone, C: PartialEq + Clone, V: Clone> HashBasedTable<R, C, 
     }
 
     /// `put(row, column, value)`: the previous value, if any.
-    pub fn put(&mut self, row: R, column: C, value: V) -> Option<V> {
+    pub fn put(&mut self, row: R, column: C, value: V) -> std::option::Option<V> {
         let cells = match self.rows.iter().position(|(r, _)| *r == row) {
             Some(i) => &mut self.rows[i].1,
             None => {
@@ -476,12 +478,12 @@ impl<R: PartialEq + Clone, C: PartialEq + Clone, V: Clone> HashBasedTable<R, C, 
     }
 
     /// `get(row, column)`.
-    pub fn get(&self, row: &R, column: &C) -> Option<&V> {
+    pub fn get(&self, row: &R, column: &C) -> std::option::Option<&V> {
         self.rows.iter().find(|(r, _)| r == row)?.1.iter().find(|(c, _)| c == column).map(|(_, v)| v)
     }
 
     /// `remove(row, column)`: the removed value; a row left empty is dropped, as Guava's is.
-    pub fn remove(&mut self, row: &R, column: &C) -> Option<V> {
+    pub fn remove(&mut self, row: &R, column: &C) -> std::option::Option<V> {
         let ri = self.rows.iter().position(|(r, _)| r == row)?;
         let ci = self.rows[ri].1.iter().position(|(c, _)| c == column)?;
         let (_, v) = self.rows[ri].1.remove(ci);
@@ -560,9 +562,15 @@ pub struct TriState;
 /// TODO(fabric2seer): java org.apache.commons.lang3.tuple.Triple
 pub struct Triple;
 /// TODO(fabric2seer): java java.lang.reflect.Type, net.azureaaron.networth.Calculation.Type
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub struct Type;
-/// TODO(fabric2seer): java java.net.URLClassLoader
-pub struct URLClassLoader;
+
+/// The placeholder's `toString()` (the library's `Calculation.Type` is an enum named by its constant).
+impl std::fmt::Display for Type {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("Type")
+    }
+}
 /// TODO(fabric2seer): java net.minecraft.util.Util
 pub struct Util;
 /// TODO(fabric2seer): java java.time.temporal.ValueRange
@@ -635,8 +643,6 @@ impl Vector2dc {
 }
 /// TODO(fabric2seer): java org.apache.commons.math3.geometry.euclidean.threed.Vector3D
 pub struct Vector3D;
-/// TODO(fabric2seer): java VerifyError
-pub struct VerifyError;
 /// TODO(fabric2seer): java Visibility
 pub struct Visibility;
 /// TODO(fabric2seer): java java.lang.ref.WeakReference

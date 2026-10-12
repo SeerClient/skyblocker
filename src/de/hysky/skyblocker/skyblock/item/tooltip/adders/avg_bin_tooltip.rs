@@ -119,7 +119,7 @@ impl AvgBinTooltip {
     pub fn add_to_tooltip_impl(__this: &compat::Shared<Self>, mut focused_slot: Option<Slot>, stack: &mcrust::net::minecraft::world::item::item_stack::ItemStack, lines: &mut Vec<MutableComponent>) {
         let mut skyblock_api_id: String = stack.get_skyblock_api_id();
         let mut r#type: Average = compat::read(&(item_tooltip::CONFIG.get_mut())(), |__t| __t.avg);
-        if tooltip_info_type::ONE_DAY_AVERAGE.get_mut().lock().borrow().get_data().is_none() && r#type != Average::ThreeDay || tooltip_info_type::THREE_DAY_AVERAGE.get_mut().lock().borrow().get_data().is_none() && r#type != Average::OneDay {
+        if (tooltip_info_type::ONE_DAY_AVERAGE.get_mut().lock().borrow().get_data().is_none() && r#type != Average::ThreeDay) || (tooltip_info_type::THREE_DAY_AVERAGE.get_mut().lock().borrow().get_data().is_none() && r#type != Average::OneDay) {
             ItemTooltip::null_warning();
         } else {
             if (r#type == Average::OneDay || r#type == Average::Both) && tooltip_info_type::ONE_DAY_AVERAGE.get_mut().lock().borrow().has_or_null_warning(&skyblock_api_id) {

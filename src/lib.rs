@@ -18,6 +18,7 @@ pub struct Mixins;
 
 impl PreLaunchEntrypoint for Mixins {
     fn on_pre_launch(&self) {
+        compat::register_hooks(); // the hooks the compat layer reads the game through
         mixins::abstract_container_menu_mixin::register();
         mixins::abstract_container_screen_mixin::register();
         mixins::abstract_sign_edit_screen_mixin::register();

@@ -132,7 +132,7 @@ impl HuntingBoxPriceTooltip {
             let mut product: BazaarProduct = todo!("fabric2seer: the initialiser of `product` (TODO above)");
             let mut holding_shift: bool = GuiHelper::has_shift_down();
             let mut shard_text: String = (if count > 1 { "Shards" } else { "Shard" }).to_string();
-            lines.push(GridComponent::of_2(&compat::jstring(&(component::literal(&format!("{} Sell Price:", shard_text))).with_style_format(ChatFormatting::Gold)), &vec![(if product.sell_price().is_none() { component::literal("No data").with_style_format(ChatFormatting::Red) } else { ItemTooltip::get_coins_message_3((product.sell_price().unwrap() * (count as f64)), (if holding_shift { count } else { 1 }), true) })]));
+            lines.push(GridComponent::of(&vec![(component::literal(&format!("{} Sell Price:", shard_text))).with_style_format(ChatFormatting::Gold), (if product.sell_price().is_none() { component::literal("No data").with_style_format(ChatFormatting::Red) } else { ItemTooltip::get_coins_message_3((product.sell_price().unwrap() * (count as f64)), (if holding_shift { count } else { 1 }), true) })]));
         }
     }
 

@@ -4,6 +4,8 @@
 use crate::prelude::*;
 use crate::de::hysky::skyblocker::config::config_utils;
 use crate::de::hysky::skyblocker::config::skyblocker_config_manager::SkyblockerConfigManager;
+use crate::de::hysky::skyblocker::skyblock::item::custom::screen::name::color_popup::ColorPopup;
+use crate::de::hysky::skyblocker::skyblock::item::custom::screen::name::visitor::base_visitor::BaseVisitor;
 use crate::de::hysky::skyblocker::skyblock::item::custom::screen::name::visitor::get_clicked_position_visitor::GetClickedPositionVisitor;
 use crate::de::hysky::skyblocker::skyblock::item::custom::screen::name::visitor::get_render_width_visitor::GetRenderWidthVisitor;
 use crate::de::hysky::skyblocker::skyblock::item::custom::screen::name::visitor::get_style_visitor::GetStyleVisitor;
@@ -12,41 +14,34 @@ use crate::de::hysky::skyblocker::skyblock::item::custom::screen::name::visitor:
 use crate::de::hysky::skyblocker::utils::ok_lab_color::OkLabColor;
 use crate::de::hysky::skyblocker::utils::render::gui_helper::GuiHelper;
 use crate::de::hysky::skyblocker::utils::sky_block_colors::SkyBlockColors;
+use mcrust::com::mojang::blaze3d::platform::cursor::cursor_type::CursorType;
 use mcrust::com::mojang::blaze3d::platform::cursor::cursor_types::CursorTypes;
-use mcrust::mcrust::modding::widgets::ModWidget;
+use mcrust::com::mojang::blaze3d::platform::input_constants;
 use mcrust::mcrust::modding::widgets::WidgetRenderContext;
 use mcrust::net::minecraft::chat_formatting::ChatFormatting;
 use mcrust::net::minecraft::client::gui::components::abstract_container_widget::AbstractContainerWidget;
+use mcrust::net::minecraft::client::gui::components::abstract_scroll_area::ScrollbarSettings;
 use mcrust::net::minecraft::client::gui::components::abstract_widget::AbstractWidget;
 use mcrust::net::minecraft::client::gui::components::abstract_widget::OnPress;
-use mcrust::net::minecraft::client::gui::components::abstract_widget::WidgetKind;
-use mcrust::net::minecraft::client::gui::components::events::gui_event_listener::GuiEventListener;
-use mcrust::net::minecraft::client::gui::components::ime_preedit_overlay::IMEPreeditOverlay;
-use mcrust::net::minecraft::client::gui::components::tooltip::Tooltip;
-use mcrust::net::minecraft::client::gui::font::Font;
+use mcrust::net::minecraft::client::gui::components::abstract_widget::PressLambda;
+use mcrust::net::minecraft::client::gui::components::button;
+use mcrust::net::minecraft::client::gui::components::edit_box::ClipboardAccess;
 use mcrust::net::minecraft::client::gui::gui_graphics_extractor;
-use mcrust::net::minecraft::client::gui::gui_graphics_extractor::GuiGraphicsExtractor;
 use mcrust::net::minecraft::client::gui::layouts::grid_layout::GridLayout;
 use mcrust::net::minecraft::client::gui::layouts::layout_element::LayoutElement;
-use mcrust::net::minecraft::client::gui::narration::narration_element_output::NarrationElementOutput;
+use mcrust::net::minecraft::client::gui::layouts::layout_settings::LayoutSettings;
 use mcrust::net::minecraft::client::input::character_event::CharacterEvent;
-use mcrust::net::minecraft::client::input::input_with_modifiers::InputWithModifiers;
+use mcrust::net::minecraft::client::input::key_event::KeyEvent;
 use mcrust::net::minecraft::client::input::mouse_button_event::MouseButtonEvent;
-use mcrust::net::minecraft::client::input::mouse_button_info::MouseButtonInfo;
-use mcrust::net::minecraft::client::input::preedit_event::PreeditEvent;
-use mcrust::net::minecraft::client::minecraft;
-use mcrust::net::minecraft::client::sounds::sound_manager::SoundManager;
 use mcrust::net::minecraft::network::chat::component;
+use mcrust::net::minecraft::network::chat::formatted_text::FormattedText;
 use mcrust::net::minecraft::network::chat::mutable_component::MutableComponent;
 use mcrust::net::minecraft::network::chat::style::Style;
 use mcrust::net::minecraft::network::chat::text_color::TextColor;
 use mcrust::net::minecraft::resources::identifier::Identifier;
 use mcrust::net::minecraft::util::argb;
-use mcrust::net::minecraft::util::string_util;
-use mcrust::net::minecraft::util::util;
+use mcrust::net::minecraft::util::common_colors;
 use crate::de::hysky::skyblocker::injected::skyblocker_stack::SkyblockerStack as _;
-use mcrust::net::minecraft::client::gui::components::renderable::Renderable as _;
-use mcrust::net::minecraft::client::gui::layouts::abstract_layout::AbstractLayout as _;
 use mcrust::net::minecraft::network::chat::component::Component as _;
 
 /// java: private static final Identifier INNER_SPACE_TEXTURE = SkyblockerMod.id("menu_inner_space");
@@ -54,152 +49,195 @@ pub static INNER_SPACE_TEXTURE: compat::MainThread<Identifier> = compat::MainThr
 /// java: private static final int PADDING = 3;
 pub const PADDING: i32 = 3;
 
+/// What the children call back with (the buttons' `setStyle(..)`, the colour buttons' popups, the text field's input -
+/// "Most logic is done in the screen itself"). They call back while this widget hands them input, so each call is
+/// recorded and run once that call returns (`run_events`), in order.
+enum NameEvent {
+    SetStyle(Style),
+    CustomColor,
+    GradientColor,
+    MoveCursor(bool, bool, bool),
+    Erase(bool, bool),
+    SelectAll,
+    Copy,
+    Paste,
+    Cut,
+    Insert(String),
+    Click(f64),
+    Drag(f64),
+}
+
+type NameEvents = std::rc::Rc<std::cell::RefCell<Vec<NameEvent>>>;
+
+/// The children's places in `widgets` (Java's `widgets` list, built in this order).
+const TEXT_FIELD: usize = 0;
+
 /// java: public class CustomizeNameWidget extends AbstractContainerWidget
 pub struct CustomizeNameWidget {
     /// java: extends net.minecraft.client.gui.components.AbstractContainerWidget
     pub base: AbstractContainerWidget,
-    /// java: private final Font textRenderer = client.font;
-    pub text_renderer: Option<Font<'static>>,
     /// java: private String uuid = "";
     pub uuid: String,
     /// java: private Component text = Component.empty();
     pub text: MutableComponent,
     /// java: private String textString = "";
     pub text_string: String,
-    /// java: private final TextField textField;
-    pub text_field: Option<compat::Shared<TextField>>,
-    /// java: private final StringWidget previewWidget;
-    pub preview_widget: Option<AbstractWidget>,
+    /// java: private final TextField textField; - its state (the widget is `widgets`' first child)
+    pub text_field: compat::Shared<TextField>,
+    /// java: private final StringWidget previewWidget; (its place in `widgets`)
+    pub preview_widget: usize,
     /// java: private final FormattingButton[] formattingButtons;
     pub formatting_buttons: Vec<compat::Shared<FormattingButton>>,
     /// java: private final List<AbstractWidget> widgets;
-    pub widgets: Vec<AbstractWidget>,
+    pub widgets: mcrust::net::minecraft::client::gui::screens::screen::Screen,
     /// java: private final GridLayout grid = new GridLayout();
-    pub grid: GridLayout,
+    pub grid: LayoutElement,
     /// java: private int selectionStart;
     pub selection_start: i32,
     /// java: private int selectionEnd;
     pub selection_end: i32,
     /// java: private @Nullable Style insertAs;
     pub insert_as: Option<Style>,
-}
-
-impl std::ops::Deref for CustomizeNameWidget {
-    type Target = AbstractContainerWidget;
-    fn deref(&self) -> &Self::Target {
-        &self.base
-    }
-}
-
-impl std::ops::DerefMut for CustomizeNameWidget {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.base
-    }
+    /// the children's call-backs (see `NameEvent`)
+    events: NameEvents,
+    /// Java's `this`, for the colour popups' call-backs
+    self_ref: compat::WeakShared<Self>,
 }
 
 impl CustomizeNameWidget {
     /// java: public CustomizeNameWidget(Screen parent)
-    pub fn new(mut parent: mcrust::net::minecraft::client::gui::screens::screen::Screen) -> Self {
-        // TODO(fabric2seer): static call ImmutableList.builder(..)
-        //   java: ImmutableList.Builder<AbstractWidget> builder = ImmutableList.builder();
-        let mut builder: crate::unresolved::Builder = todo!("fabric2seer: the initialiser of `builder` (TODO above)");
-        // TODO(fabric2seer): static `AbstractScrollArea.defaultSettings` has no Rust counterpart in the port
-        //   java: super(0, 0, 0, 0, Component.literal("Customize Item Name"), AbstractScrollArea.defaultSettings(4));
-        let mut this: Self = todo!("constructor");
-        // TODO(fabric2seer): a widget put in a layout outside a mod screen's own methods: the port's layouts hold a widget by its index in the screen's widget list
-        // rust: this.text_field = Some(TextField::new());
-        // rust: this.grid.add_child_span(this.text_field.clone().unwrap(), 1, 0, 1, 20).unwrap();
-        // TODO(fabric2seer): `.add(..)` on a Builder
-        //   java: builder.add(textField);
-        this.formatting_buttons = vec![FormattingButton::new2("B".to_string(), ChatFormatting::Bold, Arc::new(move |__a0| __a0.is_bold())), FormattingButton::new2("I".to_string(), ChatFormatting::Italic, Arc::new(move |__a0| __a0.is_italic())), FormattingButton::new2("U".to_string(), ChatFormatting::Underline, Arc::new(move |__a0| __a0.is_underlined())), FormattingButton::new2("S".to_string(), ChatFormatting::Strikethrough, Arc::new(move |__a0| __a0.is_strikethrough())), FormattingButton::new2("|||".to_string(), ChatFormatting::Obfuscated, Arc::new(move |__a0| __a0.is_obfuscated()))];
-        this.add_formatting_buttons(&mut builder);
-        // TODO(fabric2seer): `.add(..)` on a Builder
-        //   java: builder.add(grid.addChild(Button.builder(Component.translatable("skyblocker.customItemNames.screen.customColor"), _ ->
-        //   java: 				client.gui.setScreen(ColorPopup.create(parent, color -> setStyle(Style.EMPTY.withColor(color))))
-        //   java: 		).size(48, 16).build(), 2, 17, 1, 3));
-        // TODO(fabric2seer): `.add(..)` on a Builder
-        //   java: builder.add(grid.addChild(Button.builder(Component.translatable("skyblocker.customItemNames.screen.gradientColor"), _ ->
-        //   java: 				client.gui.setScreen(ColorPopup.createGradient(parent, this::createGradient))
-        //   java: 		).size(48, 16).build(), 3, 17, 1, 3));
-        // TODO(fabric2seer): `.add(..)` on a Builder
-        //   java: builder.add(grid.addChild(new StringWidget(20 * 16, textRenderer.lineHeight, Component.translatable("skyblocker.customItemNames.screen.howToRemove").withStyle(ChatFormatting.ITALIC, ChatFormatting.GRAY), textRenderer)/*.alignLeft()*/, 4, 0, 1, 20, LayoutSettings.defaults().paddingTop(2)));
-        // TODO(fabric2seer): `.add(..)` on a Builder
-        //   java: builder.add(previewWidget = grid.addChild(new StringWidget(20 * 16, textRenderer.lineHeight, Component.empty(), textRenderer).setMaxWidth(20 * 16, StringWidget.TextOverflow.SCROLLING), 5, 0, 1, 20, LayoutSettings.defaults().paddingVertical(2).alignHorizontallyCenter()));
-        // TODO(fabric2seer): `.build(..)` on a Builder
-        //   java: widgets = builder.build();
-        this.grid.arrange_elements();
-        // TODO(fabric2seer): `LayoutElement::set_position` ports `setPosition`, but the port's `GridLayout` holds no `LayoutElement` (no Deref, no `base` field) to call it on
-        // rust: this.grid.set_position(this.get_x().wrapping_add(PADDING), this.get_y().wrapping_add(PADDING));
-        this.set_size(this.grid.get_width().wrapping_add(PADDING.wrapping_mul(2)), this.grid.get_height().wrapping_add(PADDING.wrapping_mul(2)));
-        this.selection_start = { this.selection_end = compat::str_len(&this.text_string); this.selection_end };
+    ///
+    /// (`parent` is what the colour popups draw behind; see `open_color_popup`)
+    pub fn new() -> compat::Shared<Self> {
+        // java: super(0, 0, 0, 0, Component.literal("Customize Item Name"), AbstractScrollArea.defaultSettings(4));
+        let base = AbstractContainerWidget::new_with_scrollbar_settings(0, 0, 0, 0, FormattedText::of("Customize Item Name"), ScrollbarSettings::default_settings(4.0));
+        let events: NameEvents = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
+        let mut widgets = mcrust::net::minecraft::client::gui::screens::screen::Screen::new(String::new());
+        // the gui is a grid of 20 columns, should be 16 px each
+        let mut grid = GridLayout::new_default();
+        // java: textField = grid.addChild(new TextField(), 1, 0, 1, 20); builder.add(textField);
+        let text_field = TextField::new(events.clone());
+        let index = widgets.add_renderable_widget(compat::object_widget(text_field.clone(), "TextField"));
+        grid.add_child_span(LayoutElement::widget(index, 320, 20), 1, 0, 1, 20).expect("GridLayout.addChild");
+
+        let formatting_buttons: Vec<compat::Shared<FormattingButton>> = vec![
+            FormattingButton::new_str("B", ChatFormatting::Bold, Style::is_bold, events.clone()),
+            FormattingButton::new_str("I", ChatFormatting::Italic, Style::is_italic, events.clone()),
+            FormattingButton::new_str("U", ChatFormatting::Underline, Style::is_underlined, events.clone()),
+            FormattingButton::new_str("S", ChatFormatting::Strikethrough, Style::is_strikethrough, events.clone()),
+            FormattingButton::new_str("|||", ChatFormatting::Obfuscated, Style::is_obfuscated, events.clone()),
+        ];
+        CustomizeNameWidget::add_formatting_buttons(&formatting_buttons, &mut widgets, &mut grid, &events);
+
+        // java: builder.add(grid.addChild(Button.builder(Component.translatable("skyblocker.customItemNames.screen.customColor"), _ -> client.gui.setScreen(ColorPopup.create(parent, color -> setStyle(Style.EMPTY.withColor(color))))).size(48, 16).build(), 2, 17, 1, 3));
+        let e = compat::RenderThread::new(events.clone());
+        let custom_color = button::builder(component::translatable("skyblocker.customItemNames.screen.customColor").get_string(), OnPress::Lambda(PressLambda::new(move |_screen, _index| e.get().borrow_mut().push(NameEvent::CustomColor)))).size(48, 16).build();
+        let index = widgets.add_renderable_widget(custom_color);
+        grid.add_child_span(LayoutElement::widget(index, 48, 16), 2, 17, 1, 3).expect("GridLayout.addChild");
+        // java: builder.add(grid.addChild(Button.builder(Component.translatable("skyblocker.customItemNames.screen.gradientColor"), _ -> client.gui.setScreen(ColorPopup.createGradient(parent, this::createGradient))).size(48, 16).build(), 3, 17, 1, 3));
+        let e = compat::RenderThread::new(events.clone());
+        let gradient_color = button::builder(component::translatable("skyblocker.customItemNames.screen.gradientColor").get_string(), OnPress::Lambda(PressLambda::new(move |_screen, _index| e.get().borrow_mut().push(NameEvent::GradientColor)))).size(48, 16).build();
+        let index = widgets.add_renderable_widget(gradient_color);
+        grid.add_child_span(LayoutElement::widget(index, 48, 16), 3, 17, 1, 3).expect("GridLayout.addChild");
+        // java: builder.add(grid.addChild(new StringWidget(20 * 16, textRenderer.lineHeight, Component.translatable("skyblocker.customItemNames.screen.howToRemove").withStyle(ChatFormatting.ITALIC, ChatFormatting.GRAY), textRenderer), 4, 0, 1, 20, LayoutSettings.defaults().paddingTop(2)));
+        let how_to_remove = compat::string_widget(0, 0, 20 * 16, mcrust::net::minecraft::client::gui::font::LINE_HEIGHT, component::translatable("skyblocker.customItemNames.screen.howToRemove").with_style_formats(&[ChatFormatting::Italic, ChatFormatting::Gray]));
+        let index = widgets.add_renderable_widget(how_to_remove);
+        grid.add_child(LayoutElement::widget(index, 20 * 16, mcrust::net::minecraft::client::gui::font::LINE_HEIGHT), 4, 0, 1, 20, LayoutSettings::defaults().padding_top(2)).expect("GridLayout.addChild");
+        // java: builder.add(previewWidget = grid.addChild(new StringWidget(20 * 16, textRenderer.lineHeight, Component.empty(), textRenderer).setMaxWidth(20 * 16, StringWidget.TextOverflow.SCROLLING), 5, 0, 1, 20, LayoutSettings.defaults().paddingVertical(2).alignHorizontallyCenter()));
+        let preview = compat::string_widget(0, 0, 20 * 16, mcrust::net::minecraft::client::gui::font::LINE_HEIGHT, component::empty());
+        let preview_widget = widgets.add_renderable_widget(preview);
+        grid.add_child(LayoutElement::widget(preview_widget, 20 * 16, mcrust::net::minecraft::client::gui::font::LINE_HEIGHT), 5, 0, 1, 20, LayoutSettings::defaults().padding_vertical(2).align_horizontally_center()).expect("GridLayout.addChild");
+
+        // java: grid.arrangeElements(); grid.setPosition(getX() + PADDING, getY() + PADDING); setSize(grid.getWidth() + PADDING * 2, grid.getHeight() + PADDING * 2);
+        let mut grid = LayoutElement::Grid(grid);
+        grid.arrange_elements();
+        grid.set_position(base.get_x() + PADDING, base.get_y() + PADDING);
+        let mut this = CustomizeNameWidget {
+            base,
+            uuid: String::new(),
+            text: component::empty(),
+            text_string: String::new(),
+            text_field,
+            preview_widget,
+            formatting_buttons,
+            widgets,
+            grid,
+            selection_start: 0,
+            selection_end: 0,
+            insert_as: None,
+            events,
+            self_ref: std::sync::Weak::new(),
+        };
+        this.place_children();
+        let (w, h) = (this.grid.get_width() + PADDING * 2, this.grid.get_height() + PADDING * 2);
+        this.base.set_size(w, h);
+        // java: selectionStart = selectionEnd = textString.length();
+        this.selection_end = utf16_len(&this.text_string);
+        this.selection_start = this.selection_end;
+        let this = compat::shared(this);
+        compat::write(&this, |__t| __t.self_ref = Arc::downgrade(&this));
         this
     }
 
-    /// java: private void addFormattingButtons(ImmutableList.Builder<AbstractWidget> builder)
-    pub fn add_formatting_buttons(&mut self, builder: &mut crate::unresolved::Builder) {
-        for i in 0..(self.formatting_buttons.len() as i32) {
-            let mut button: compat::Shared<FormattingButton> = self.formatting_buttons[(i) as usize].clone();
-            // TODO(fabric2seer): `.add(..)` on a Builder
-            //   java: builder.add(grid.addChild(button, 0, i));
+    /// java: private void addFormattingButtons(ImmutableList.Builder<AbstractWidget> builder) - "Makes it easier for Aaron Mod to add a chroma colour button"
+    fn add_formatting_buttons(formatting_buttons: &[compat::Shared<FormattingButton>], widgets: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, grid: &mut GridLayout, events: &NameEvents) {
+        for (i, button) in formatting_buttons.iter().enumerate() {
+            let tooltip = compat::read(button, |__t| FormattedText::from((config_utils::FORMATTING_FORMATTER.get())(__t.format)));
+            let mut widget = compat::object_widget(button.clone(), "");
+            // java: setTooltip(Tooltip.create(ConfigUtils.FORMATTING_FORMATTER.apply(format)));
+            widget.set_tooltip_text(tooltip);
+            let index = widgets.add_renderable_widget(widget);
+            grid.add_child_at(LayoutElement::widget(index, 16, 16), 0, i as i32).expect("GridLayout.addChild");
         }
-        let mut color_button_index: i32 = 0;
+
+        let mut color_button_index = 0;
         for formatting in mcrust::net::minecraft::chat_formatting::VALUES {
             if TextColor::from_legacy_format(formatting).is_some() {
-                // TODO(fabric2seer): `.add(..)` on a Builder
-                //   java: builder.add(grid.addChild(new ColorButton(formatting), 2, colorButtonIndex++));
+                let button = ColorButton::new(formatting, events.clone());
+                let tooltip = compat::read(&button, |__t| FormattedText::from(__t.message.clone()));
+                let mut widget = compat::object_widget(button, "");
+                // java: setTooltip(Tooltip.create(getMessage()));
+                widget.set_tooltip_text(tooltip);
+                let index = widgets.add_renderable_widget(widget);
+                grid.add_child_at(LayoutElement::widget(index, 16, 16), 2, color_button_index).expect("GridLayout.addChild");
+                color_button_index += 1;
             }
         }
     }
 
-    /// java: @Override public void setX(int x)
-    pub fn set_x(&mut self, mut x: i32) {
-        self.base.set_x(x);
-        { let __s0 = self.get_x().wrapping_add(PADDING); self.grid.set_x(__s0) };
-    }
-
-    /// java: @Override public void setY(int y)
-    pub fn set_y(&mut self, mut y: i32) {
-        self.base.set_y(y);
-        { let __s0 = self.get_y().wrapping_add(PADDING); self.grid.set_y(__s0) };
+    /// The grid's positions written onto the children.
+    fn place_children(&mut self) {
+        let mut placed = Vec::new();
+        self.grid.visit_widgets(&mut placed);
+        for (index, x, y) in placed {
+            self.widgets.widget_mut(index).set_position(x, y);
+        }
     }
 
     /// java: public void setItem(ItemStack stack)
     pub fn set_item(&mut self, stack: &mcrust::net::minecraft::world::item::item_stack::ItemStack) {
         self.uuid = stack.get_uuid();
-        self.set_text(compat::component_of(stack.get_hover_name()).copy(), false);
-    }
-
-    /// java: @Override protected void extractWidgetRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float deltaTicks)
-    pub fn extract_widget_render_state(&self, graphics: &GuiGraphicsExtractor, mut mouse_x: i32, mut mouse_y: i32, mut delta_ticks: f32) {
-        gui_graphics_extractor::blit_sprite_identifier(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), mcrust::net::minecraft::client::renderer::render_pipelines::gui_textured(), INNER_SPACE_TEXTURE.get_mut(), self.get_x(), self.get_y(), self.get_width(), self.get_height());
-        if crate::de::hysky::skyblocker::debug::debug::Debug::debug_enabled() {
-            gui_graphics_extractor::draw_formatted_char_sequence(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), &mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::literal(&format!("Selection Start: {}, Selection End: {}", self.selection_start, self.selection_end))), self.get_x(), self.get_bottom(), -1);
-            // TODO(fabric2seer): `fmt` takes 1 argument(s) in the port (`f: &mut std::fmt::Formatter<'_>`), Java passes 0
-            // rust: gui_graphics_extractor::draw_formatted_char_sequence(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), &mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::literal(&format!("Insert Style: {}", (if self.insert_as.is_none() { "null".to_string() } else { self.insert_as.as_ref().unwrap().fmt() })))), self.get_x(), self.get_bottom().wrapping_add(10), -1);
-        }
-        for widget in self.widgets.iter() {
-            // TODO(fabric2seer): `extract_render_state` is a method of the port's trait `Renderable`, which the port's `AbstractWidget` does not implement
-            // rust: widget.extract_render_state(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), mouse_x, mouse_y, delta_ticks);
-        }
+        self.set_text(compat::component_of(stack.get_hover_name()), false);
     }
 
     /// java: private void createGradient(int startColor, int endColor)
-    pub fn create_gradient(&mut self, mut start_color: i32, mut end_color: i32) {
-        let mut previous_selection_start: i32 = self.selection_start;
-        let mut previous_selection_end: i32 = self.selection_end;
-        let mut sel_start: i32 = self.selection_start.min(self.selection_end);
-        let mut sel_size: i32 = (self.selection_end.wrapping_sub(self.selection_start)).wrapping_abs();
+    pub fn create_gradient(&mut self, start_color: i32, end_color: i32) {
+        let previous_selection_start = self.selection_start;
+        let previous_selection_end = self.selection_end;
+
+        let sel_start = self.selection_start.min(self.selection_end);
+        let sel_size = (self.selection_end - self.selection_start).abs();
         if sel_size == 0 {
             return;
         }
         if sel_size == 1 {
-            self.set_style(&mcrust::net::minecraft::network::chat::style::Style::EMPTY.with_color(start_color));
+            self.set_style(&Style::EMPTY.with_color(start_color));
         } else {
             for i in 0..sel_size {
-                self.selection_start = sel_start.wrapping_add(i);
-                self.selection_end = (sel_start.wrapping_add(i)).wrapping_add(1);
-                let mut color: i32 = OkLabColor::interpolate(start_color, end_color, (((i) as f32) / (sel_size.wrapping_sub(1) as f32)));
-                self.set_style(&mcrust::net::minecraft::network::chat::style::Style::EMPTY.with_color(color));
+                self.selection_start = sel_start + i;
+                self.selection_end = sel_start + i + 1;
+                let color = OkLabColor::interpolate(start_color, end_color, (i as f32) / ((sel_size - 1) as f32));
+                self.set_style(&Style::EMPTY.with_color(color));
             }
         }
         self.selection_start = previous_selection_start;
@@ -207,100 +245,84 @@ impl CustomizeNameWidget {
     }
 
     /// java: private void setStyle(Style style)
-    pub fn set_style(&mut self, style: &Style) {
+    fn set_style(&mut self, style: &Style) {
         if self.selection_start == self.selection_end {
-            self.insert_as = Some(style.apply_to(&(if self.insert_as.is_none() { Some(mcrust::net::minecraft::network::chat::style::Style::EMPTY) } else { self.insert_as.clone() }).unwrap()));
+            self.insert_as = Some(style.apply_to(self.insert_as.as_ref().unwrap_or(&Style::EMPTY)));
             return;
         }
-        let mut set_style_visitor: compat::Shared<SetStyleVisitor> = SetStyleVisitor::new(style.clone(), self.selection_start, self.selection_end);
-        self.text.visit_styled(&mut set_style_visitor, &mcrust::net::minecraft::network::chat::style::Style::EMPTY);
-        self.set_text_1(&SetStyleVisitor::get_new_text(&set_style_visitor));
+        let set_style_visitor = SetStyleVisitor::new(style.clone(), self.selection_start, self.selection_end);
+        visit(&self.text, &compat::view(&set_style_visitor, |a| a as compat::Shared<dyn BaseVisitor>));
+        let new_text = SetStyleVisitor::get_new_text(&set_style_visitor);
+        self.set_text_1(new_text);
     }
 
     /// java: private void updateStyleButtons()
-    pub fn update_style_buttons(&self) {
-        let mut style_visitor: compat::Shared<GetStyleVisitor> = GetStyleVisitor::new(self.selection_start, self.selection_end);
-        self.text.visit_styled(&mut style_visitor, &mcrust::net::minecraft::network::chat::style::Style::EMPTY);
-        let mut style: Style = GetStyleVisitor::get_style(&style_visitor);
-        for button in self.formatting_buttons.iter_mut() {
-            FormattingButton::update(button, &style);
+    fn update_style_buttons(&mut self) {
+        let style_visitor = GetStyleVisitor::new(self.selection_start, self.selection_end);
+        visit(&self.text, &compat::view(&style_visitor, |a| a as compat::Shared<dyn BaseVisitor>));
+        let style = GetStyleVisitor::get_style(&style_visitor);
+        for button in self.formatting_buttons.iter() {
+            compat::write(button, |__t| __t.update(&style));
         }
     }
 
     /// java: public void setText(Component text, boolean updateConfig)
-    pub fn set_text(&mut self, mut text: MutableComponent, mut update_config: bool) {
-        self.text = text.clone();
-        self.text_string = text.get_string();
+    pub fn set_text(&mut self, text: MutableComponent, update_config: bool) {
+        self.text = text;
+        self.text_string = self.text.get_string();
         if update_config && !self.uuid.is_empty() {
-            // the lambda reads this widget's fields: their values now (it runs before update_only returns)
-            let __text_string = self.text_string.clone();
-            let __uuid = self.uuid.clone();
-            let text = text.clone();
-            SkyblockerConfigManager::update_only(Arc::new(move |mut config| {
-                if compat::is_blank(&__text_string) {
-                    config.general.custom_item_names.remove(&__uuid);
+            let (uuid, text_string, text) = (self.uuid.clone(), self.text_string.clone(), self.text.clone());
+            SkyblockerConfigManager::update_only(Arc::new(move |config: &mut crate::de::hysky::skyblocker::config::skyblocker_config::SkyblockerConfig| {
+                if compat::is_blank(&text_string) {
+                    config.general.custom_item_names.remove(&uuid);
                 } else {
-                    config.general.custom_item_names.insert(__uuid.clone(), text.copy().set_style(mcrust::net::minecraft::network::chat::style::Style::EMPTY.with_italic(Some(false)).with_color_format(Some(ChatFormatting::White))));
+                    config.general.custom_item_names.insert(uuid.clone(), text.clone().set_style(Style::EMPTY.with_italic(Some(false)).with_color_format(Some(ChatFormatting::White))));
                 }
             }));
         }
-        self.preview_widget.as_mut().unwrap().set_message_text(mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(text.clone()));
+        let preview = FormattedText::from(self.text.clone());
+        self.widgets.widget_mut(self.preview_widget).set_message_text(preview);
         self.grid.arrange_elements();
-        if self.text_field.is_some() {
-            { let __v = true; compat::write(self.text_field.as_ref().unwrap(), |__t| __t.update_me_pretty_please = __v); }
-        }
+        self.place_children();
+
+        // called before init
+        compat::write(&self.text_field, |__t| __t.update_me_pretty_please = true);
     }
 
     /// java: public void setText(Component text)
-    pub fn set_text_1(&mut self, text: &MutableComponent) {
-        self.set_text(text.clone(), true);
-    }
-
-    /// java: @Override public List<? extends GuiEventListener> children()
-    pub fn children(&self) -> Vec<Box<dyn GuiEventListener>> {
-        return self.widgets.clone();
-    }
-
-    /// java: @Override public boolean charTyped(CharacterEvent input)
-    pub fn char_typed(&self, input: &CharacterEvent) -> bool {
-        // TODO(fabric2seer): `char_typed` takes 2 argument(s) in the port (`_codepoint: char, _modifiers: i32`), Java passes 1
-        // TODO(fabric2seer): `char_typed` is a method of the port's trait `GuiEventListener`, which the port's `AbstractContainerWidget` does not implement
-        let __o1 = self.text_field.clone().unwrap();
-        let __o2 = self.text_field.clone().unwrap();
-        if self.base.char_typed(input.clone()) || compat::write(&__o2, |__t| __t.is_focused()) {
-            return true;
-        }
-        self.set_focused(self.text_field.clone().unwrap());
-        return TextField::char_typed(self.text_field.as_ref().unwrap(), input);
+    pub fn set_text_1(&mut self, text: MutableComponent) {
+        self.set_text(text, true);
     }
 
     /// java: public void insertText(String str)
-    pub fn insert_text(&mut self, mut str: String) {
-        str = string_util::filter_text(&str);
+    pub fn insert_text(&mut self, str: &str) {
+        let str = mcrust::net::minecraft::util::string_util::filter_text(str);
         if self.text_string.is_empty() {
-            { let __s0 = (component::literal(&str).set_style((if self.insert_as.is_some() { self.insert_as.clone() } else { Some(mcrust::net::minecraft::network::chat::style::Style::EMPTY) }).unwrap())).clone(); self.set_text_1(&__s0) };
+            let style = self.insert_as.clone().unwrap_or(Style::EMPTY);
+            self.set_text_1(component::literal(&str).set_style(style));
         } else {
-            let mut visitor: compat::Shared<InsertTextVisitor> = InsertTextVisitor::new(str.clone(), self.insert_as.clone(), self.selection_start, self.selection_end);
-            self.text.visit_styled(&mut visitor, &mcrust::net::minecraft::network::chat::style::Style::EMPTY);
-            self.set_text_1(&InsertTextVisitor::get_new_text(&visitor));
+            let visitor = InsertTextVisitor::new(str.clone(), self.insert_as.clone(), self.selection_start, self.selection_end);
+            visit(&self.text, &compat::view(&visitor, |a| a as compat::Shared<dyn BaseVisitor>));
+            let new_text = InsertTextVisitor::get_new_text(&visitor);
+            self.set_text_1(new_text);
             self.insert_as = None;
         }
-        self.selection_start = (self.selection_start.min(self.selection_end)).wrapping_add(compat::str_len(&str));
+
+        self.selection_start = self.selection_start.min(self.selection_end) + utf16_len(&str);
         self.selection_end = self.selection_start;
         self.update_style_buttons();
     }
 
     /// java: private void moveCursor(boolean left, boolean shiftHeld, boolean ctrlHeld)
-    pub fn move_cursor(&mut self, mut left: bool, mut shift_held: bool, mut ctrl_held: bool) {
-        if left && self.selection_start == 0 || !left && self.selection_start == compat::str_len(&self.text_string) {
+    fn move_cursor(&mut self, left: bool, shift_held: bool, ctrl_held: bool) {
+        if left && self.selection_start == 0 || (!left && self.selection_start == utf16_len(&self.text_string)) {
             return;
         }
         if ctrl_held {
             self.selection_start = self.get_word_skip_position(left);
         } else {
-            // Util.offsetByCodepoints(textString, selectionStart, left ? -1 : 1) - over the mod's string indices (one per
-            // code point here; the port's `offset_by_codepoints_str` walks UTF-8 byte positions)
-            self.selection_start = { let __pos = self.selection_start; let __len = compat::str_len(&self.text_string); if left { if __pos > 0 { __pos - 1 } else { __pos } } else if __pos < __len { __pos + 1 } else { __pos } };
+            let units: Vec<u16> = self.text_string.encode_utf16().collect();
+            self.selection_start = mcrust::net::minecraft::util::util::offset_by_codepoints(&units, self.selection_start, if left { -1 } else { 1 });
         }
         if !shift_held {
             self.selection_end = self.selection_start;
@@ -310,287 +332,484 @@ impl CustomizeNameWidget {
     }
 
     /// java: private void erase(boolean left, boolean ctrlHeld)
-    pub fn erase(&mut self, mut left: bool, mut ctrl_held: bool) {
+    fn erase(&mut self, left: bool, ctrl_held: bool) {
         if self.selection_start != self.selection_end {
-            self.insert_text("".to_string());
+            self.insert_text("");
             return;
         }
         self.move_cursor(left, true, ctrl_held);
-        self.insert_text("".to_string());
+        self.insert_text("");
     }
 
     /// java: private int getWordSkipPosition(boolean left)
-    pub fn get_word_skip_position(&self, mut left: bool) -> i32 {
+    fn get_word_skip_position(&self, left: bool) -> i32 {
+        let units: Vec<u16> = self.text_string.encode_utf16().collect();
         let mut i: i32 = self.selection_start;
         if !left {
-            let mut l: i32 = compat::str_len(&self.text_string);
-            i = compat::index_of_from(&self.text_string, char::from_u32((32) as u32).unwrap_or('\0'), i);
+            let l: i32 = units.len() as i32;
+            // java: i = this.textString.indexOf(32, i);
+            i = units.iter().skip(i.max(0) as usize).position(|&c| c == 32).map(|p| p as i32 + i.max(0)).unwrap_or(-1);
             if i == -1 {
                 i = l;
             } else {
-                while i < l && compat::char_at(&self.text_string, i) == ' ' {
+                while i < l && units[i as usize] == ' ' as u16 {
                     i += 1;
                 }
             }
         } else {
-            while i > 0 && compat::char_at(&self.text_string, i.wrapping_sub(1)) == ' ' {
+            while i > 0 && units[(i - 1) as usize] == ' ' as u16 {
                 i -= 1;
             }
-            while i > 0 && compat::char_at(&self.text_string, i.wrapping_sub(1)) != ' ' {
+            while i > 0 && units[(i - 1) as usize] != ' ' as u16 {
                 i -= 1;
             }
         }
-        return i;
+        i
+    }
+
+    /// `textString.substring(selectionStart, selectionEnd)` over UTF-16 units, as Java's
+    fn selected_substring(&self) -> String {
+        let units: Vec<u16> = self.text.get_string().encode_utf16().collect();
+        let (start, end) = (self.selection_start.max(0) as usize, self.selection_end.max(0) as usize);
+        if start > end || end > units.len() {
+            panic!("StringIndexOutOfBoundsException: begin {}, end {}, length {}", start, end, units.len());
+        }
+        String::from_utf16_lossy(&units[start..end])
+    }
+
+    /// java: TextField.getTextX()
+    fn text_x(&self) -> i32 {
+        self.widgets.widget(TEXT_FIELD).get_x() + 2
+    }
+
+    /// The children's call-backs recorded during the last call, run in order.
+    fn run_events(&mut self) {
+        loop {
+            let events: Vec<NameEvent> = std::mem::take(&mut *self.events.borrow_mut());
+            if events.is_empty() {
+                return;
+            }
+            for event in events {
+                match event {
+                    NameEvent::SetStyle(style) => self.set_style(&style),
+                    NameEvent::CustomColor => self.open_color_popup(false),
+                    NameEvent::GradientColor => self.open_color_popup(true),
+                    NameEvent::MoveCursor(left, shift, ctrl) => self.move_cursor(left, shift, ctrl),
+                    NameEvent::Erase(left, ctrl) => self.erase(left, ctrl),
+                    NameEvent::SelectAll => {
+                        self.selection_start = 0;
+                        self.selection_end = utf16_len(&self.text_string);
+                        self.update_style_buttons();
+                    }
+                    NameEvent::Copy => {
+                        let selected = self.selected_substring();
+                        set_clipboard(&selected);
+                    }
+                    NameEvent::Paste => {
+                        let clipboard = get_clipboard();
+                        if !clipboard.is_empty() {
+                            self.insert_text(&clipboard);
+                        }
+                    }
+                    NameEvent::Cut => {
+                        let selected = self.selected_substring();
+                        set_clipboard(&selected);
+                        self.insert_text("");
+                    }
+                    NameEvent::Insert(str) => self.insert_text(&str),
+                    NameEvent::Click(x) => {
+                        // java: TextField.onClick
+                        let mut visitor = GetClickedPositionVisitor::new_1((x as i32) - self.text_x());
+                        visit_clicked(&self.text, &mut visitor);
+                        let position = visitor.get_position();
+                        self.selection_end = if position < 0 { utf16_len(&self.text_string) } else { position };
+                        self.selection_start = self.selection_end;
+                        self.update_style_buttons();
+                    }
+                    NameEvent::Drag(x) => {
+                        // java: TextField.onDrag
+                        let mut visitor = GetClickedPositionVisitor::new_1((x as i32) - self.text_x());
+                        visit_clicked(&self.text, &mut visitor);
+                        let position = visitor.get_position();
+                        self.selection_start = if position < 0 { utf16_len(&self.text_string) } else { position };
+                        self.update_style_buttons();
+                    }
+                }
+            }
+        }
+    }
+
+    /// The colour buttons' `client.gui.setScreen(ColorPopup.create(parent, color -> setStyle(..)))` /
+    /// `ColorPopup.createGradient(parent, this::createGradient)`.
+    fn open_color_popup(&mut self, gradient: bool) {
+        // rust: port gap (GAPS_batchA #19) - the popup base keeps its background as the game's `Screen` value and the
+        //   port lends no handle to the live one; the screen that is up is held by the game (`set_screen_keeping_parent`)
+        //   and an empty screen stands in for the base's field
+        let parent = mcrust::net::minecraft::client::gui::screens::screen::Screen::new(String::new());
+        let this = compat::RenderThread::new(self.self_ref.clone());
+        let popup = if gradient {
+            ColorPopup::create_gradient(
+                parent,
+                Arc::new(move |start: i32, end: i32| {
+                    if let Some(this) = this.get().upgrade() {
+                        compat::write(&this, |__t| __t.create_gradient(start, end));
+                    }
+                }),
+            )
+        } else {
+            ColorPopup::create(
+                parent,
+                Arc::new(move |color: i32| {
+                    if let Some(this) = this.get().upgrade() {
+                        compat::write(&this, |__t| __t.set_style(&Style::EMPTY.with_color(color)));
+                    }
+                }),
+            )
+        };
+        mcrust::mcrust::modding::game::set_screen_keeping_parent(Box::new(compat::ScreenAdapter::new(popup)));
+    }
+
+    /// java: TextField.extractWidgetRenderState - the field drawn from this widget's text and selection
+    fn extract_text_field(&mut self, context: &mut WidgetRenderContext<'_>) {
+        let field = self.widgets.widget(TEXT_FIELD);
+        if !field.visible {
+            return;
+        }
+        let (x, y, w, h, focused) = (field.get_x(), field.get_y(), field.get_width(), field.get_height(), field.is_focused());
+        let (selection_start, selection_end) = (self.selection_start, self.selection_end);
+        let text = self.text.clone();
+        compat::write(&self.text_field, |tf| {
+            if tf.rendered_selection_start != selection_start || tf.rendered_selection_end != selection_end || tf.update_me_pretty_please {
+                tf.rendered_selection_start = selection_start;
+                tf.rendered_selection_end = selection_end;
+                tf.update_me_pretty_please = false;
+                let get_render_width_visitor = GetRenderWidthVisitor::new_2(selection_start, selection_end);
+                visit(&text, &compat::view(&get_render_width_visitor, |a| a as compat::Shared<dyn BaseVisitor>));
+                let (render_start, render_end) = GetRenderWidthVisitor::get_widths(&get_render_width_visitor);
+                tf.render_start = render_start;
+                tf.render_end = render_end;
+            }
+        });
+        let (render_start, render_end) = compat::read(&self.text_field, |tf| (tf.render_start, tf.render_end));
+
+        let line_height = mcrust::net::minecraft::client::gui::font::LINE_HEIGHT;
+        context.graphics.fill(context.gl, x, y, x + w, y + h, common_colors::BLACK);
+        GuiHelper::border(&mut context.graphics, x, y, w, h, if focused { common_colors::WHITE } else { common_colors::GRAY });
+        let text_x = x + 2;
+        let text_y = y + (h - line_height) / 2;
+
+        if render_start != render_end {
+            context.graphics.fill(context.gl, text_x + render_start, text_y, text_x + render_end, text_y + line_height, common_colors::BLUE);
+        }
+        if focused {
+            let caret = text_x + (if selection_start < selection_end { render_start } else { render_end }) - 1;
+            gui_graphics_extractor::vertical_line(context.gl, context.minecraft, caret, text_y - 1, text_y + line_height, common_colors::WHITE);
+        }
+
+        // java: graphics.text(textRenderer, text, textX, textY, -1, false);
+        gui_graphics_extractor::draw_formatted_text_no_shadow(context.gl, context.minecraft, text_x, text_y, &FormattedText::from(text), -1);
+
+        // java: if (this.preeditOverlay != null) { .. graphics.setPreeditOverlay(this.preeditOverlay); }
+        // rust: port gap - a mod widget is handed no `preeditUpdated` (IME composition), so `preeditOverlay` stays null
+        //   (GAPS_batchE.md)
+    }
+}
+
+/// `text.visit(visitor, Style.EMPTY)` for a `BaseVisitor` (whose `accept` answers `Optional.empty()`: keep going).
+fn visit(text: &MutableComponent, visitor: &compat::Shared<dyn BaseVisitor>) {
+    text.visit_styled(
+        &mut |style: &Style, as_string: &str| {
+            let accept = compat::dispatch(visitor, |__t| __t.accept());
+            accept(visitor, style, as_string).is_none()
+        },
+        &Style::EMPTY,
+    );
+}
+
+/// `text.visit(getClickedPositionVisitor, Style.EMPTY)`.
+fn visit_clicked(text: &MutableComponent, visitor: &mut GetClickedPositionVisitor) {
+    text.visit_styled(&mut |style: &Style, as_string: &str| visitor.accept(style, as_string).is_none(), &Style::EMPTY);
+}
+
+/// `String.length()` - UTF-16 units, as every index in this class is.
+fn utf16_len(s: &str) -> i32 {
+    s.encode_utf16().count() as i32
+}
+
+/// `client.keyboardHandler.setClipboard(value)`.
+fn set_clipboard(value: &str) {
+    if let Some(mut clipboard) = mcrust::net::minecraft::client::minecraft::GlfwClipboard::published() {
+        clipboard.set_clipboard(value);
+    }
+}
+
+/// `client.keyboardHandler.getClipboard()`.
+fn get_clipboard() -> String {
+    match mcrust::net::minecraft::client::minecraft::GlfwClipboard::published() {
+        Some(mut clipboard) => clipboard.get_clipboard(),
+        None => String::new(),
+    }
+}
+
+impl compat::ObjectWidget for CustomizeNameWidget {
+    fn object_box(&mut self) -> &mut AbstractContainerWidget {
+        &mut self.base
+    }
+
+    fn object_box_ref(&self) -> &AbstractContainerWidget {
+        &self.base
+    }
+
+    /// java: @Override public void setX(int x)
+    fn set_x(&mut self, x: i32) {
+        self.base.set_x(x);
+        self.grid.set_x(self.base.get_x() + PADDING);
+        self.place_children();
+    }
+
+    /// java: @Override public void setY(int y)
+    fn set_y(&mut self, y: i32) {
+        self.base.set_y(y);
+        self.grid.set_y(self.base.get_y() + PADDING);
+        self.place_children();
+    }
+
+    /// java: @Override protected void extractWidgetRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float deltaTicks)
+    fn extract_widget_render_state(&mut self, _widget: &AbstractWidget, context: &mut WidgetRenderContext<'_>, mouse_x: i32, mouse_y: i32, _a: f32) {
+        gui_graphics_extractor::blit_sprite_identifier(context.gl, context.minecraft, mcrust::net::minecraft::client::renderer::render_pipelines::gui_textured(), INNER_SPACE_TEXTURE.get(), self.base.get_x(), self.base.get_y(), self.base.get_width(), self.base.get_height());
+        if crate::de::hysky::skyblocker::debug::debug::Debug::debug_enabled() {
+            let selection = format!("Selection Start: {}, Selection End: {}", self.selection_start, self.selection_end);
+            gui_graphics_extractor::draw_text(context.gl, context.minecraft, self.base.get_x(), self.base.get_bottom(), &selection, -1);
+            let insert = format!("Insert Style: {}", match &self.insert_as {
+                None => "null".to_string(),
+                Some(style) => format!("{style:?}"),
+            });
+            gui_graphics_extractor::draw_text(context.gl, context.minecraft, self.base.get_x(), self.base.get_bottom() + 10, &insert, -1);
+        }
+        // java: for (AbstractWidget widget : widgets) widget.extractRenderState(..); - the text field first
+        self.extract_text_field(context);
+        context.extract_widgets(&mut self.widgets, mouse_x, mouse_y);
+    }
+
+    /// AbstractContainerWidget.mouseClicked:62-66 over `children()`
+    fn mouse_clicked(&mut self, _widget: &mut AbstractWidget, event: &MouseButtonEvent, _double_click: bool) -> bool {
+        let consumed = compat::children_mouse_clicked(&mut self.widgets, event);
+        self.run_events();
+        consumed
+    }
+
+    /// ContainerEventHandler.mouseReleased:57-66
+    fn mouse_released(&mut self, _widget: &mut AbstractWidget, event: &MouseButtonEvent) -> bool {
+        compat::children_mouse_released(&mut self.widgets, event);
+        self.run_events();
+        false
+    }
+
+    /// ContainerEventHandler.mouseDragged:68-71
+    fn mouse_dragged(&mut self, _widget: &mut AbstractWidget, event: &MouseButtonEvent, dx: f64, dy: f64) -> bool {
+        compat::children_mouse_dragged(&mut self.widgets, event, dx, dy);
+        self.run_events();
+        false
+    }
+
+    /// ContainerEventHandler.keyPressed - the focused child
+    fn key_pressed(&mut self, _widget: &mut AbstractWidget, event: &KeyEvent) -> bool {
+        let answer = compat::children_key_pressed(&mut self.widgets, event);
+        self.run_events();
+        answer
+    }
+
+    /// java: @Override public boolean charTyped(CharacterEvent input)
+    fn char_typed(&mut self, _widget: &mut AbstractWidget, event: &CharacterEvent) -> bool {
+        let answer = compat::children_char_typed(&mut self.widgets, event);
+        self.run_events();
+        if answer || self.widgets.widget(TEXT_FIELD).is_focused() {
+            return true;
+        }
+        // java: setFocused(textField); return textField.charTyped(input);
+        self.widgets.set_focused(Some(TEXT_FIELD));
+        let answer = compat::children_char_typed(&mut self.widgets, event);
+        self.run_events();
+        answer
     }
 
     /// java: @Override public void setFocused(boolean focused)
-    pub fn set_focused(&self, mut focused: bool) {
+    fn set_focused(&mut self, widget: &mut AbstractWidget, focused: bool) {
+        widget.set_focused(focused, mcrust::net::minecraft::client::input_type::InputType::None);
         if !focused {
-            self.set_focused(None);
+            self.widgets.set_focused(None);
         }
     }
-
-    /// java: @Override protected void updateWidgetNarration(NarrationElementOutput builder)
-    pub fn update_widget_narration(&self, builder: &dyn NarrationElementOutput) {
-    }
-
-    /// java: @Override protected int contentHeight()
-    pub fn content_height(&self) -> i32 {
-        return 0;
-    }
-
-    /// java: @Override protected double scrollRate()
-    pub fn scroll_rate(&self) -> f64 {
-        return ((0) as f64) as f64;
-    }
-
 }
-
-// NOTE(fabric2seer): charTyped, children, contentHeight, extractWidgetRenderState, scrollRate, setFocused, setX, setY, updateWidgetNarration override(s) of AbstractContainerWidget - the port dispatches its own calls, so these run only where the mod calls them; hook the port's method to make the game call them
 
 /// java: private class FormattingButton extends AbstractButton
 pub struct FormattingButton {
-    /// java: extends net.minecraft.client.gui.components.AbstractButton
-    pub base: AbstractWidget,
+    /// java: extends AbstractButton - AbstractWidget's fields (16 x 16)
+    pub base: AbstractContainerWidget,
+    /// AbstractWidget's `message` (`setMessage` changes its colour)
+    pub message: MutableComponent,
     /// java: private boolean enabled;
     pub enabled: bool,
     /// java: private final ChatFormatting format;
-    pub format: Option<ChatFormatting>,
+    pub format: ChatFormatting,
     /// java: private final Predicate<Style> isEnabled;
-    pub is_enabled: Option<Arc<dyn Fn(Style) -> bool>>,
-}
-
-impl std::ops::Deref for FormattingButton {
-    type Target = AbstractWidget;
-    fn deref(&self) -> &Self::Target {
-        &self.base
-    }
-}
-
-impl std::ops::DerefMut for FormattingButton {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.base
-    }
+    pub is_enabled: fn(&Style) -> bool,
+    /// `CustomizeNameWidget.this` - its `setStyle(..)`, recorded (see `NameEvent`)
+    events: NameEvents,
+    look: compat::ButtonLook,
 }
 
 impl FormattingButton {
     /// java: protected FormattingButton(Component message, ChatFormatting format, Predicate<Style> isEnabled)
-    pub fn new(mut message: MutableComponent, mut format: ChatFormatting, is_enabled: Arc<dyn Fn(Style) -> bool>) -> compat::Shared<Self> {
-        let __init_format = Some(format);
-        let __init_is_enabled = Some(is_enabled.clone());
-        let __this = compat::shared(Self {
-            base: AbstractWidget::new(0, 0, 16, 16, (&message.get_string()).to_string(), WidgetKind::PlainText, OnPress::Inert),
-            enabled: false,
-            format: __init_format,
-            is_enabled: __init_is_enabled,
-        });
-        { let (__q0,) = (Tooltip::create((config_utils::FORMATTING_FORMATTER.get_mut())(format).get_string()),); __this.lock().borrow_mut().set_tooltip(__q0) };
-        __this
+    fn new(message: MutableComponent, format: ChatFormatting, is_enabled: fn(&Style) -> bool, events: NameEvents) -> compat::Shared<Self> {
+        // java: super(0, 0, 16, 16, message);
+        compat::shared(FormattingButton { base: AbstractContainerWidget::new(0, 0, 16, 16, FormattedText::from(message.clone())), message, enabled: false, format, is_enabled, events, look: compat::ButtonLook::new() })
     }
 
     /// java: protected FormattingButton(String str, ChatFormatting format, Predicate<Style> isEnabled)
-    pub fn new2(mut str: String, mut format: ChatFormatting, is_enabled: Arc<dyn Fn(Style) -> bool>) -> compat::Shared<Self> {
-        let __this = Self::new(component::literal(&str).with_style_format(format), format, is_enabled.clone());
-        __this
+    fn new_str(str: &str, format: ChatFormatting, is_enabled: fn(&Style) -> bool, events: NameEvents) -> compat::Shared<Self> {
+        FormattingButton::new(component::literal(str).with_style_format(format), format, is_enabled, events)
     }
 
     /// java: private void update(Style style)
-    pub fn update(__this: &compat::Shared<Self>, style: &Style) {
-        FormattingButton::set_enabled(__this, ((compat::read(__this, |__t| __t.is_enabled.clone()).unwrap()))(style.clone()));
-    }
-
-    /// java: @Override public void onPress(InputWithModifiers input)
-    pub fn on_press(__this: &compat::Shared<Self>, input: &dyn InputWithModifiers) {
-        FormattingButton::set_enabled(__this, !(compat::read(__this, |__t| __t.enabled)));
-        match compat::read(__this, |__t| __t.format.clone()) {
-            Some(ChatFormatting::Bold) => {
-                // TODO(fabric2seer): `setStyle(..)` is a method of the enclosing instance (CustomizeNameWidget.this) - an inner class has no outer reference in Rust
-                //   java: setStyle(Style.EMPTY.withBold(enabled));
-            }
-            Some(ChatFormatting::Italic) => {
-                // TODO(fabric2seer): `setStyle(..)` is a method of the enclosing instance (CustomizeNameWidget.this) - an inner class has no outer reference in Rust
-                //   java: setStyle(Style.EMPTY.withItalic(enabled));
-            }
-            Some(ChatFormatting::Underline) => {
-                // TODO(fabric2seer): `setStyle(..)` is a method of the enclosing instance (CustomizeNameWidget.this) - an inner class has no outer reference in Rust
-                //   java: setStyle(Style.EMPTY.withUnderlined(enabled));
-            }
-            Some(ChatFormatting::Strikethrough) => {
-                // TODO(fabric2seer): `setStyle(..)` is a method of the enclosing instance (CustomizeNameWidget.this) - an inner class has no outer reference in Rust
-                //   java: setStyle(Style.EMPTY.withStrikethrough(enabled));
-            }
-            Some(ChatFormatting::Obfuscated) => {
-                // TODO(fabric2seer): `setStyle(..)` is a method of the enclosing instance (CustomizeNameWidget.this) - an inner class has no outer reference in Rust
-                //   java: setStyle(Style.EMPTY.withObfuscated(enabled));
-            }
-            _ => {
-                panic!("IllegalStateException: {}", format!("Unexpected value: {}", compat::opt_str(&compat::read(__this, |__t| __t.format.clone()))).to_string());
-            }
-        }
+    fn update(&mut self, style: &Style) {
+        let enabled = (self.is_enabled)(style);
+        self.set_enabled(enabled);
     }
 
     /// java: private void setEnabled(boolean enabled)
-    pub fn set_enabled(__this: &compat::Shared<Self>, mut enabled: bool) {
-        { let __v = enabled; compat::write(__this, |__t| __t.enabled = __v); }
-        { let (__q0,) = (mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from({ let (__q0,) = ((if enabled { mcrust::net::minecraft::util::common_colors::YELLOW } else { mcrust::net::minecraft::util::common_colors::WHITE }),); compat::component_of(__this.lock().borrow().get_message_component()).copy().with_color(__q0) }),); __this.lock().borrow_mut().set_message_text(__q0) };
-    }
-
-    /// java: @Override protected void updateWidgetNarration(NarrationElementOutput builder)
-    pub fn update_widget_narration(__this: &compat::Shared<Self>, builder: &dyn NarrationElementOutput) {
-    }
-
-    /// java: @Override protected void extractContents(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a)
-    pub fn extract_contents(__this: &compat::Shared<Self>, graphics: &GuiGraphicsExtractor, mut mouse_x: i32, mut mouse_y: i32, mut a: f32) {
-        // TODO(fabric2seer): `AbstractButton.extractDefaultSprite` has no Rust method in the port (looked for `extract_default_sprite` in AbstractButton and its supertypes)
-        // rust: __this.lock().borrow().extract_default_sprite(graphics);
-        // TODO(fabric2seer): the port's `text_renderer` ports this Java method with other parameters (mouse_x, mouse_y for Java's )
-        // TODO(fabric2seer): `text_renderer` takes 2 argument(s) in the port (`mouse_x: f64, mouse_y: f64`), Java passes 0
-        // TODO(fabric2seer): `AbstractButton.extractDefaultLabel` has no Rust method in the port (looked for `extract_default_label` in AbstractButton and its supertypes)
-        // rust: let __h0 = &gui_graphics_extractor::text_renderer();
-        // rust: __this.lock().borrow().extract_default_label(__h0);
-    }
-
-}
-
-/// FormattingButton's widget half (`super`'s fields: x, y, size, message, ...), lent by the game for each call
-impl compat::WidgetHalf for FormattingButton {
-    fn widget_half(&mut self) -> &mut AbstractWidget {
-        &mut self.base
-    }
-}
-
-/// FormattingButton as the game's widget: `compat::WidgetAdapter::widget(handle)` where Java hands it on
-impl ModWidget for compat::WidgetAdapter<FormattingButton> {
-    /// java: extractWidgetRenderState - not overridden here (the base class's body has no entry point in the port)
-    fn extract_widget_render_state(&mut self, widget: &AbstractWidget, context: &mut WidgetRenderContext<'_>, mouse_x: i32, mouse_y: i32, a: f32) {
-        let _ = widget;
-    }
-
-    /// java: @Override protected void updateWidgetNarration(NarrationElementOutput builder)
-    fn update_widget_narration(&mut self, widget: &AbstractWidget, output: &mut dyn NarrationElementOutput) {
-        self.lend_ref(widget, |__h| FormattingButton::update_widget_narration(__h, output))
+    fn set_enabled(&mut self, enabled: bool) {
+        self.enabled = enabled;
+        // java: setMessage(getMessage().copy().withColor(enabled ? CommonColors.YELLOW : CommonColors.WHITE));
+        self.message = self.message.clone().with_color(if enabled { common_colors::YELLOW } else { common_colors::WHITE });
     }
 
     /// java: @Override public void onPress(InputWithModifiers input)
-    fn on_click(&mut self, widget: &mut AbstractWidget, event: &MouseButtonEvent, double_click: bool) {
-        self.lend(widget, |__h| FormattingButton::on_press(__h, event))
+    fn on_press(&mut self) {
+        self.set_enabled(!self.enabled);
+        let enabled = Some(self.enabled);
+        let style = match self.format {
+            ChatFormatting::Bold => Style::EMPTY.with_bold(enabled),
+            ChatFormatting::Italic => Style::EMPTY.with_italic(enabled),
+            ChatFormatting::Underline => Style::EMPTY.with_underlined(enabled),
+            ChatFormatting::Strikethrough => Style::EMPTY.with_strikethrough(enabled),
+            ChatFormatting::Obfuscated => Style::EMPTY.with_obfuscated(enabled),
+            other => panic!("IllegalStateException: Unexpected value: {other:?}"),
+        };
+        self.events.borrow_mut().push(NameEvent::SetStyle(style));
     }
-
 }
 
-// NOTE(fabric2seer): extractContents, onPress, updateWidgetNarration override(s) of AbstractButton - the port dispatches its own calls, so these run only where the mod calls them; hook the port's method to make the game call them
+impl compat::ObjectWidget for FormattingButton {
+    fn object_box(&mut self) -> &mut AbstractContainerWidget {
+        &mut self.base
+    }
+
+    fn object_box_ref(&self) -> &AbstractContainerWidget {
+        &self.base
+    }
+
+    /// java: @Override protected void extractContents(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a)
+    fn extract_widget_render_state(&mut self, widget: &AbstractWidget, context: &mut WidgetRenderContext<'_>, mouse_x: i32, mouse_y: i32, _a: f32) {
+        // java: this.extractDefaultSprite(graphics); this.extractDefaultLabel(graphics.textRenderer());
+        let message = FormattedText::from(self.message.clone());
+        self.look.draw_with_message(widget, &message, context, mouse_x, mouse_y);
+    }
+
+    /// AbstractButton.onClick - `onPress(event)`
+    fn on_click(&mut self, _widget: &mut AbstractWidget, _event: &MouseButtonEvent, _double_click: bool) {
+        self.on_press();
+    }
+
+    /// AbstractButton.keyPressed - a selection key presses an active button
+    fn key_pressed(&mut self, _widget: &mut AbstractWidget, event: &KeyEvent) -> bool {
+        if !self.base.is_active() || !event.is_selection() {
+            return false;
+        }
+        self.on_press();
+        true
+    }
+
+    /// AbstractButton's `handleCursor(graphics)` - `AbstractWidget.handleCursor:68-72`
+    fn handle_cursor(&self, widget: &AbstractWidget, cursors: &CursorTypes) -> Option<CursorType> {
+        widget.handle_cursor(cursors)
+    }
+}
 
 /// java: private class ColorButton extends AbstractButton
 pub struct ColorButton {
-    /// java: extends net.minecraft.client.gui.components.AbstractButton
-    pub base: AbstractWidget,
+    /// java: extends AbstractButton - AbstractWidget's fields (16 x 16)
+    pub base: AbstractContainerWidget,
+    /// AbstractWidget's `message` - `ConfigUtils.FORMATTING_FORMATTER.apply(format)`
+    pub message: MutableComponent,
     /// java: private final ChatFormatting color;
-    pub color: Option<ChatFormatting>,
+    pub color: ChatFormatting,
     /// java: private final int intColor;
     pub int_color: i32,
-}
-
-impl std::ops::Deref for ColorButton {
-    type Target = AbstractWidget;
-    fn deref(&self) -> &Self::Target {
-        &self.base
-    }
-}
-
-impl std::ops::DerefMut for ColorButton {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.base
-    }
+    /// `CustomizeNameWidget.this` - its `setStyle(..)`, recorded (see `NameEvent`)
+    events: NameEvents,
+    look: compat::ButtonLook,
 }
 
 impl ColorButton {
     /// java: private ColorButton(ChatFormatting format)
-    pub fn new(mut format: ChatFormatting) -> compat::Shared<Self> {
-        let __this = compat::shared(Self {
-            base: AbstractWidget::new(0, 0, 16, 16, (&(config_utils::FORMATTING_FORMATTER.get_mut())(format).get_string()).to_string(), WidgetKind::PlainText, OnPress::Inert),
-            color: None,
-            int_color: 0,
-        });
-        { let (__q0,) = (Tooltip::create(compat::component_of(__this.lock().borrow().get_message_component()).get_string()),); __this.lock().borrow_mut().set_tooltip(__q0) };
-        { let __v = Some(format); compat::write(&__this, |__t| __t.color = __v); }
-        { let __v = argb::opaque(SkyBlockColors::from_vanilla((TextColor::from_legacy_format(compat::read(&__this, |__t| __t.color.clone()).unwrap()).unwrap()).get_value())); compat::write(&__this, |__t| __t.int_color = __v); }
-        __this
+    fn new(format: ChatFormatting, events: NameEvents) -> compat::Shared<Self> {
+        // java: super(0, 0, 16, 16, ConfigUtils.FORMATTING_FORMATTER.apply(format));
+        let message = (config_utils::FORMATTING_FORMATTER.get())(format);
+        // java: this.intColor = ARGB.opaque(SkyBlockColors.fromVanilla(TextColor.fromLegacyFormat(color).getValue()));
+        let value = TextColor::from_legacy_format(format).expect("NullPointerException: TextColor.fromLegacyFormat").get_value();
+        let int_color = argb::opaque(SkyBlockColors::from_vanilla(value));
+        compat::shared(ColorButton { base: AbstractContainerWidget::new(0, 0, 16, 16, FormattedText::from(message.clone())), message, color: format, int_color, events, look: compat::ButtonLook::new() })
     }
 
     /// java: @Override public void onPress(InputWithModifiers input)
-    pub fn on_press(__this: &compat::Shared<Self>, input: &dyn InputWithModifiers) {
-        // TODO(fabric2seer): `setStyle(..)` is a method of the enclosing instance (CustomizeNameWidget.this) - an inner class has no outer reference in Rust
-        //   java: setStyle(Style.EMPTY.withColor(color));
+    fn on_press(&mut self) {
+        self.events.borrow_mut().push(NameEvent::SetStyle(Style::EMPTY.with_color_format(Some(self.color))));
+    }
+}
+
+impl compat::ObjectWidget for ColorButton {
+    fn object_box(&mut self) -> &mut AbstractContainerWidget {
+        &mut self.base
+    }
+
+    fn object_box_ref(&self) -> &AbstractContainerWidget {
+        &self.base
     }
 
     /// java: @Override public void extractContents(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a)
-    pub fn extract_contents(__this: &compat::Shared<Self>, graphics: &mut GuiGraphicsExtractor, mut mouse_x: i32, mut mouse_y: i32, mut a: f32) {
-        // TODO(fabric2seer): `AbstractButton.extractDefaultSprite` has no Rust method in the port (looked for `extract_default_sprite` in AbstractButton and its supertypes)
-        // rust: __this.lock().borrow().extract_default_sprite(graphics);
-        graphics.fill(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), (__this.lock().borrow().get_x()).wrapping_add(2), (__this.lock().borrow().get_y()).wrapping_add(2), (__this.lock().borrow().get_right()).wrapping_sub(2), (__this.lock().borrow().get_bottom()).wrapping_sub(2), compat::read(__this, |__t| __t.int_color));
+    fn extract_widget_render_state(&mut self, widget: &AbstractWidget, context: &mut WidgetRenderContext<'_>, mouse_x: i32, mouse_y: i32, _a: f32) {
+        // java: this.extractDefaultSprite(graphics);
+        self.look.draw_sprite(widget, context, mouse_x, mouse_y);
+        let (x, y) = (self.base.get_x(), self.base.get_y());
+        context.graphics.fill(context.gl, x + 2, y + 2, self.base.get_right() - 2, self.base.get_bottom() - 2, self.int_color);
     }
 
-    /// java: @Override protected void updateWidgetNarration(NarrationElementOutput builder)
-    pub fn update_widget_narration(__this: &compat::Shared<Self>, builder: &dyn NarrationElementOutput) {
+    /// AbstractButton.onClick - `onPress(event)`
+    fn on_click(&mut self, _widget: &mut AbstractWidget, _event: &MouseButtonEvent, _double_click: bool) {
+        self.on_press();
     }
 
+    /// AbstractButton.keyPressed - a selection key presses an active button
+    fn key_pressed(&mut self, _widget: &mut AbstractWidget, event: &KeyEvent) -> bool {
+        if !self.base.is_active() || !event.is_selection() {
+            return false;
+        }
+        self.on_press();
+        true
+    }
+
+    /// AbstractButton's `handleCursor(graphics)` - `AbstractWidget.handleCursor:68-72`
+    fn handle_cursor(&self, widget: &AbstractWidget, cursors: &CursorTypes) -> Option<CursorType> {
+        widget.handle_cursor(cursors)
+    }
 }
 
-/// ColorButton's widget half (`super`'s fields: x, y, size, message, ...), lent by the game for each call
-impl compat::WidgetHalf for ColorButton {
-    fn widget_half(&mut self) -> &mut AbstractWidget {
-        &mut self.base
-    }
-}
-
-/// ColorButton as the game's widget: `compat::WidgetAdapter::widget(handle)` where Java hands it on
-impl ModWidget for compat::WidgetAdapter<ColorButton> {
-    /// java: extractWidgetRenderState - not overridden here (the base class's body has no entry point in the port)
-    fn extract_widget_render_state(&mut self, widget: &AbstractWidget, context: &mut WidgetRenderContext<'_>, mouse_x: i32, mouse_y: i32, a: f32) {
-        let _ = widget;
-    }
-
-    /// java: @Override protected void updateWidgetNarration(NarrationElementOutput builder)
-    fn update_widget_narration(&mut self, widget: &AbstractWidget, output: &mut dyn NarrationElementOutput) {
-        self.lend_ref(widget, |__h| ColorButton::update_widget_narration(__h, output))
-    }
-
-    /// java: @Override public void onPress(InputWithModifiers input)
-    fn on_click(&mut self, widget: &mut AbstractWidget, event: &MouseButtonEvent, double_click: bool) {
-        self.lend(widget, |__h| ColorButton::on_press(__h, event))
-    }
-
-}
-
-// NOTE(fabric2seer): extractContents, onPress, updateWidgetNarration override(s) of AbstractButton - the port dispatches its own calls, so these run only where the mod calls them; hook the port's method to make the game call them
-
-/// java: private class TextField extends AbstractWidget
-#[derive(Clone)]
+/// java: private class TextField extends AbstractWidget - "Used to capture inputs and render the text. Most logic is done
+/// in the screen itself": its input goes to `CustomizeNameWidget` (`NameEvent`) and that widget draws it.
 pub struct TextField {
-    /// java: extends net.minecraft.client.gui.components.AbstractWidget
-    pub base: AbstractWidget,
-    /// java: private @Nullable IMEPreeditOverlay preeditOverlay;
-    pub preedit_overlay: Option<IMEPreeditOverlay>,
+    /// java: extends AbstractWidget - (320 x 20)
+    pub base: AbstractContainerWidget,
     /// java: private int renderedSelectionStart;
     pub rendered_selection_start: i32,
     /// java: private int renderedSelectionEnd;
@@ -601,268 +820,108 @@ pub struct TextField {
     pub render_start: i32,
     /// java: private int renderEnd;
     pub render_end: i32,
-    /// the object's own shared handle: Java's `this` handed to other objects
-    pub self_ref: compat::WeakShared<Self>,
-}
-
-impl std::ops::Deref for TextField {
-    type Target = AbstractWidget;
-    fn deref(&self) -> &Self::Target {
-        &self.base
-    }
-}
-
-impl std::ops::DerefMut for TextField {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.base
-    }
+    events: NameEvents,
 }
 
 impl TextField {
     /// java: private TextField()
-    pub fn new() -> compat::Shared<Self> {
-        let __this = compat::shared(Self {
-            base: AbstractWidget::new(0, 0, 320, 20, (&component::literal("TextField").get_string()).to_string(), WidgetKind::PlainText, OnPress::Inert),
-            self_ref: std::sync::Weak::new(),
-            preedit_overlay: None,
-            rendered_selection_start: 0,
-            rendered_selection_end: 0,
-            update_me_pretty_please: false,
-            render_start: 0,
-            render_end: 0,
-        });
-        compat::write(&__this, |__t| __t.self_ref = std::sync::Arc::downgrade(&__this));
-        __this
+    fn new(events: NameEvents) -> compat::Shared<Self> {
+        // java: super(0, 0, 320, 20, Component.literal("TextField"));
+        compat::shared(TextField { base: AbstractContainerWidget::new(0, 0, 320, 20, FormattedText::of("TextField")), rendered_selection_start: 0, rendered_selection_end: 0, update_me_pretty_please: false, render_start: 0, render_end: 0, events })
+    }
+}
+
+impl compat::ObjectWidget for TextField {
+    fn object_box(&mut self) -> &mut AbstractContainerWidget {
+        &mut self.base
     }
 
-    /// java: @Override protected void extractWidgetRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a)
-    pub fn extract_widget_render_state(__this: &compat::Shared<Self>, graphics: &mut GuiGraphicsExtractor, mut mouse_x: i32, mut mouse_y: i32, mut a: f32) {
-        // TODO(fabric2seer): the condition: `selectionStart` is a field of the enclosing instance (CustomizeNameWidget.this) - an inner class has no outer reference in Rust
-        //   java: renderedSelectionStart != selectionStart || renderedSelectionEnd != selectionEnd || updateMePrettyPlease
-        if todo!("fabric2seer: the condition (TODO above)") {
-            // TODO(fabric2seer): `selectionStart` is a field of the enclosing instance (CustomizeNameWidget.this) - an inner class has no outer reference in Rust
-            //   java: renderedSelectionStart = selectionStart;
-            // TODO(fabric2seer): `selectionEnd` is a field of the enclosing instance (CustomizeNameWidget.this) - an inner class has no outer reference in Rust
-            //   java: renderedSelectionEnd = selectionEnd;
-            { let __v = false; compat::write(__this, |__t| __t.update_me_pretty_please = __v); }
-            // TODO(fabric2seer): `selectionStart` is a field of the enclosing instance (CustomizeNameWidget.this) - an inner class has no outer reference in Rust
-            //   java: GetRenderWidthVisitor getRenderWidthVisitor = new GetRenderWidthVisitor(selectionStart, selectionEnd);
-            let mut get_render_width_visitor: compat::Shared<GetRenderWidthVisitor> = todo!("fabric2seer: the initialiser of `getRenderWidthVisitor` (TODO above)");
-            // TODO(fabric2seer): `text` is a field of the enclosing instance (CustomizeNameWidget.this) - an inner class has no outer reference in Rust
-            //   java: text.visit(getRenderWidthVisitor, Style.EMPTY);
-            { let __v = GetRenderWidthVisitor::get_widths(&get_render_width_visitor).0; compat::write(__this, |__t| __t.render_start = __v); }
-            { let __v = GetRenderWidthVisitor::get_widths(&get_render_width_visitor).1; compat::write(__this, |__t| __t.render_end = __v); }
-        }
-        graphics.fill(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), __this.lock().borrow().get_x(), __this.lock().borrow().get_y(), __this.lock().borrow().get_right(), __this.lock().borrow().get_bottom(), mcrust::net::minecraft::util::common_colors::BLACK);
-        GuiHelper::border(graphics, __this.lock().borrow().get_x(), __this.lock().borrow().get_y(), __this.lock().borrow().get_width(), __this.lock().borrow().get_height(), (if __this.lock().borrow().is_focused() { mcrust::net::minecraft::util::common_colors::WHITE } else { mcrust::net::minecraft::util::common_colors::GRAY }));
-        let mut text_x: i32 = TextField::get_text_x(__this);
-        // TODO(fabric2seer): `textRenderer` is a field of the enclosing instance (CustomizeNameWidget.this) - an inner class has no outer reference in Rust
-        //   java: int textY = getY() + (getHeight() - textRenderer.lineHeight) / 2;
-        let mut text_y: i32 = todo!("fabric2seer: the initialiser of `textY` (TODO above)");
-        if compat::read(__this, |__t| __t.render_start) != compat::read(__this, |__t| __t.render_end) {
-            // TODO(fabric2seer): `textRenderer` is a field of the enclosing instance (CustomizeNameWidget.this) - an inner class has no outer reference in Rust
-            //   java: graphics.fill(textX + renderStart, textY, textX + renderEnd, textY + textRenderer.lineHeight, CommonColors.BLUE);
-        }
-        if __this.lock().borrow().is_focused() {
-            // TODO(fabric2seer): `selectionStart` is a field of the enclosing instance (CustomizeNameWidget.this) - an inner class has no outer reference in Rust
-            //   java: graphics.verticalLine(textX + (selectionStart < selectionEnd ? renderStart : renderEnd) - 1, textY - 1, textY + textRenderer.lineHeight, CommonColors.WHITE);
-        }
-        // TODO(fabric2seer): `textRenderer` is a field of the enclosing instance (CustomizeNameWidget.this) - an inner class has no outer reference in Rust
-        //   java: graphics.text(textRenderer, text, textX, textY, -1, false);
-        if compat::read(__this, |__t| __t.preedit_overlay.clone()).is_some() {
-            __this.lock().borrow_mut().preedit_overlay.as_mut().unwrap().update_input_position(text_x, text_y);
-            gui_graphics_extractor::set_preedit_overlay(compat::read(__this, |__t| __t.preedit_overlay.clone()).unwrap());
-        }
-        TextField::handle_cursor(__this, graphics);
+    fn object_box_ref(&self) -> &AbstractContainerWidget {
+        &self.base
     }
 
-    /// java: @Override protected void handleCursor(GuiGraphicsExtractor graphics)
-    pub fn handle_cursor(__this: &compat::Shared<Self>, graphics: &GuiGraphicsExtractor) {
-        if __this.lock().borrow().is_hovered() {
-            // TODO(fabric2seer): static `CursorTypes.IBEAM` has no Rust counterpart in the port's CursorTypes file
-            // TODO(fabric2seer): `GuiGraphicsExtractor.requestCursor` has no Rust method in the port (looked for `request_cursor` in GuiGraphicsExtractor and its supertypes)
-            // rust: graphics.request_cursor(&CursorTypes::IBEAM);
-        }
+    /// java: @Override protected void extractWidgetRenderState(..) - drawn by `CustomizeNameWidget` (it reads that
+    /// widget's text and selection)
+    fn extract_widget_render_state(&mut self, _widget: &AbstractWidget, _context: &mut WidgetRenderContext<'_>, _mouse_x: i32, _mouse_y: i32, _a: f32) {}
+
+    /// java: @Override protected void handleCursor(GuiGraphicsExtractor graphics) - `IBEAM` while hovered
+    fn handle_cursor(&self, widget: &AbstractWidget, cursors: &CursorTypes) -> Option<CursorType> {
+        if widget.is_hovered() { Some(cursors.ibeam) } else { None }
     }
 
     /// java: @Override public boolean keyPressed(KeyEvent input)
-    pub fn key_pressed(__this: &compat::Shared<Self>, input: &mcrust::net::minecraft::client::input::key_event::KeyEvent) -> bool {
-        let mut captured: bool = true;
-        match input.key() {
-            263 => {
-                // TODO(fabric2seer): `moveCursor(..)` is a method of the enclosing instance (CustomizeNameWidget.this) - an inner class has no outer reference in Rust
-                //   java: moveCursor(true, input.hasShiftDown(), input.hasControlDownWithQuirk());
+    fn key_pressed(&mut self, _widget: &mut AbstractWidget, event: &KeyEvent) -> bool {
+        let mut events = self.events.borrow_mut();
+        let captured = match event.key() {
+            input_constants::KEY_LEFT => {
+                events.push(NameEvent::MoveCursor(true, event.has_shift_down(), event.has_control_down_with_quirk()));
+                true
             }
-            262 => {
-                // TODO(fabric2seer): `moveCursor(..)` is a method of the enclosing instance (CustomizeNameWidget.this) - an inner class has no outer reference in Rust
-                //   java: moveCursor(false, input.hasShiftDown(), input.hasControlDownWithQuirk());
+            input_constants::KEY_RIGHT => {
+                events.push(NameEvent::MoveCursor(false, event.has_shift_down(), event.has_control_down_with_quirk()));
+                true
             }
-            259 => {
-                // TODO(fabric2seer): `erase(..)` is a method of the enclosing instance (CustomizeNameWidget.this) - an inner class has no outer reference in Rust
-                //   java: erase(true, input.hasControlDownWithQuirk());
+            input_constants::KEY_BACKSPACE => {
+                events.push(NameEvent::Erase(true, event.has_control_down_with_quirk()));
+                true
             }
-            261 => {
-                // TODO(fabric2seer): `erase(..)` is a method of the enclosing instance (CustomizeNameWidget.this) - an inner class has no outer reference in Rust
-                //   java: erase(false, input.hasControlDownWithQuirk());
+            input_constants::KEY_DELETE => {
+                events.push(NameEvent::Erase(false, event.has_control_down_with_quirk()));
+                true
             }
-            _ => {
-                captured = false;
-            }
-        }
+            _ => false,
+        };
         if captured {
             return true;
         }
-        // TODO(fabric2seer): `client` is a field of the enclosing instance (CustomizeNameWidget.this) - an inner class has no outer reference in Rust
-        //   java: assert client != null;
-        if input.is_select_all() {
-            // TODO(fabric2seer): `selectionStart` is a field of the enclosing instance (CustomizeNameWidget.this) - an inner class has no outer reference in Rust
-            //   java: selectionStart = 0;
-            // TODO(fabric2seer): `selectionEnd` is a field of the enclosing instance (CustomizeNameWidget.this) - an inner class has no outer reference in Rust
-            //   java: selectionEnd = textString.length();
-            // TODO(fabric2seer): `updateStyleButtons(..)` is a method of the enclosing instance (CustomizeNameWidget.this) - an inner class has no outer reference in Rust
-            //   java: updateStyleButtons();
-            captured = true;
-        } else if input.is_copy() {
-            // TODO(fabric2seer): `client` is a field of the enclosing instance (CustomizeNameWidget.this) - an inner class has no outer reference in Rust
-            //   java: client.keyboardHandler.setClipboard(text.getString().substring(selectionStart, selectionEnd));
-            captured = true;
-        } else if input.is_paste() {
-            // TODO(fabric2seer): `client` is a field of the enclosing instance (CustomizeNameWidget.this) - an inner class has no outer reference in Rust
-            //   java: String clipboard = client.keyboardHandler.getClipboard();
-            let mut clipboard: String = todo!("fabric2seer: the initialiser of `clipboard` (TODO above)");
-            if !clipboard.is_empty() {
-                // TODO(fabric2seer): `insertText(..)` is a method of the enclosing instance (CustomizeNameWidget.this) - an inner class has no outer reference in Rust
-                //   java: insertText(clipboard);
-            }
-            captured = true;
-        } else if input.is_cut() {
-            // TODO(fabric2seer): `client` is a field of the enclosing instance (CustomizeNameWidget.this) - an inner class has no outer reference in Rust
-            //   java: client.keyboardHandler.setClipboard(text.getString().substring(selectionStart, selectionEnd));
-            // TODO(fabric2seer): `insertText(..)` is a method of the enclosing instance (CustomizeNameWidget.this) - an inner class has no outer reference in Rust
-            //   java: insertText("");
-            captured = true;
-        }
-        return captured;
-    }
-
-    /// java: @Override public boolean charTyped(CharacterEvent input)
-    pub fn char_typed(__this: &compat::Shared<Self>, input: &CharacterEvent) -> bool {
-        if !(compat::read(__this, |__t| __t.active)) {
-            return false;
-        } else if input.is_allowed_chat_character() {
-            // TODO(fabric2seer): `insertText(..)` is a method of the enclosing instance (CustomizeNameWidget.this) - an inner class has no outer reference in Rust
-            //   java: insertText(input.codepointAsString());
-            return true;
+        if event.is_select_all() {
+            events.push(NameEvent::SelectAll);
+            true
+        } else if event.is_copy() {
+            events.push(NameEvent::Copy);
+            true
+        } else if event.is_paste() {
+            events.push(NameEvent::Paste);
+            true
+        } else if event.is_cut() {
+            events.push(NameEvent::Cut);
+            true
         } else {
-            return false;
+            false
         }
-        todo!("fabric2seer: the value of this function is in a TODO above")
-    }
-
-    /// java: @Override public boolean preeditUpdated(@Nullable final PreeditEvent event)
-    pub fn preedit_updated(__this: &compat::Shared<Self>, mut event: Option<PreeditEvent>) -> bool {
-        if __this.lock().borrow().is_active() {
-            // TODO(fabric2seer): `CustomizeNameWidget.this` (the enclosing instance of an inner class)
-            //   java: this.preeditOverlay = event != null ? new IMEPreeditOverlay(event, CustomizeNameWidget.this.textRenderer, 9 + 1) : null;
-            return true;
-        }
-        // TODO(fabric2seer): `AbstractWidget.preeditUpdated` has no Rust method in the port (looked for `preedit_updated` in AbstractWidget and its supertypes)
-        // rust: let __h0 = event.as_ref().unwrap();
-        // rust: return __this.lock().borrow_mut().base.preedit_updated(__h0);
-        return todo!("fabric2seer: see the TODO above");
-    }
-
-    /// java: @Override public void onClick(MouseButtonEvent click, boolean doubled)
-    pub fn on_click(__this: &compat::Shared<Self>, click: &MouseButtonEvent, mut doubled: bool) {
-        let mut get_clicked_position_visitor: GetClickedPositionVisitor = GetClickedPositionVisitor::new_1(((click.x()) as i32).wrapping_sub(TextField::get_text_x(__this)));
-        // TODO(fabric2seer): `text` is a field of the enclosing instance (CustomizeNameWidget.this) - an inner class has no outer reference in Rust
-        //   java: text.visit(getClickedPositionVisitor, Style.EMPTY);
-        // TODO(fabric2seer): `selectionStart` is a field of the enclosing instance (CustomizeNameWidget.this) - an inner class has no outer reference in Rust
-        //   java: selectionStart = selectionEnd = getClickedPositionVisitor.getPosition() < 0 ? textString.length() : getClickedPositionVisitor.getPosition();
-        // TODO(fabric2seer): `updateStyleButtons(..)` is a method of the enclosing instance (CustomizeNameWidget.this) - an inner class has no outer reference in Rust
-        //   java: updateStyleButtons();
-    }
-
-    /// java: @Override protected void onDrag(MouseButtonEvent click, double offsetX, double offsetY)
-    pub fn on_drag(__this: &compat::Shared<Self>, click: &MouseButtonEvent, mut offset_x: f64, mut offset_y: f64) {
-        let mut get_clicked_position_visitor: GetClickedPositionVisitor = GetClickedPositionVisitor::new_1(((click.x()) as i32).wrapping_sub(TextField::get_text_x(__this)));
-        // TODO(fabric2seer): `text` is a field of the enclosing instance (CustomizeNameWidget.this) - an inner class has no outer reference in Rust
-        //   java: text.visit(getClickedPositionVisitor, Style.EMPTY);
-        // TODO(fabric2seer): `selectionStart` is a field of the enclosing instance (CustomizeNameWidget.this) - an inner class has no outer reference in Rust
-        //   java: selectionStart = getClickedPositionVisitor.getPosition() < 0 ? textString.length() : getClickedPositionVisitor.getPosition();
-        // TODO(fabric2seer): `updateStyleButtons(..)` is a method of the enclosing instance (CustomizeNameWidget.this) - an inner class has no outer reference in Rust
-        //   java: updateStyleButtons();
-    }
-
-    /// java: private int getTextX()
-    pub fn get_text_x(__this: &compat::Shared<Self>) -> i32 {
-        return (__this.lock().borrow().get_x()).wrapping_add(2);
-    }
-
-    /// java: @Override public void setFocused(final boolean focused)
-    pub fn set_focused(__this: &compat::Shared<Self>, mut focused: bool) {
-        // TODO(fabric2seer): `set_focused` takes 2 argument(s) in the port (`focused: bool, last_input_type: InputType`), Java passes 1
-        // rust: __this.lock().borrow_mut().base.set_focused(focused);
-        if focused {
-            // TODO(fabric2seer): `on_text_input_focus_change` takes 6 argument(s) in the port (`gfx: &mut Minecraft, g: &crate::lwjgl::glfw::Glfw, is_focused: bool, screen_present: bool, screen: &mut crate::net::minecraft::client::gui::screens::screen::Screen, screen_extra: &mut crate::net::minecraft::client::gui::gui::ScreenExtra`), Java passes 2
-            // rust: minecraft::on_text_input_focus_change(&mut __this, &focused);
-        }
-    }
-
-    /// java: @Override public void playDownSound(SoundManager soundManager)
-    pub fn play_down_sound(__this: &compat::Shared<Self>, sound_manager: &SoundManager) {
-    }
-
-    /// java: @Override protected void updateWidgetNarration(NarrationElementOutput builder)
-    pub fn update_widget_narration(__this: &compat::Shared<Self>, builder: &dyn NarrationElementOutput) {
-    }
-
-}
-
-/// TextField's widget half (`super`'s fields: x, y, size, message, ...), lent by the game for each call
-impl compat::WidgetHalf for TextField {
-    fn widget_half(&mut self) -> &mut AbstractWidget {
-        &mut self.base
-    }
-}
-
-/// TextField as the game's widget: `compat::WidgetAdapter::widget(handle)` where Java hands it on
-impl ModWidget for compat::WidgetAdapter<TextField> {
-    /// java: @Override protected void extractWidgetRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a)
-    fn extract_widget_render_state(&mut self, widget: &AbstractWidget, context: &mut WidgetRenderContext<'_>, mouse_x: i32, mouse_y: i32, a: f32) {
-        self.lend_ref(widget, |__h| TextField::extract_widget_render_state(__h, &mut context.graphics, mouse_x, mouse_y, a))
-    }
-
-    /// java: @Override protected void updateWidgetNarration(NarrationElementOutput builder)
-    fn update_widget_narration(&mut self, widget: &AbstractWidget, output: &mut dyn NarrationElementOutput) {
-        self.lend_ref(widget, |__h| TextField::update_widget_narration(__h, output))
-    }
-
-    /// java: @Override public void onClick(MouseButtonEvent click, boolean doubled)
-    fn on_click(&mut self, widget: &mut AbstractWidget, event: &MouseButtonEvent, double_click: bool) {
-        self.lend(widget, |__h| TextField::on_click(__h, event, double_click))
-    }
-
-    /// java: @Override protected void onDrag(MouseButtonEvent click, double offsetX, double offsetY)
-    fn on_drag(&mut self, widget: &mut AbstractWidget, event: &MouseButtonEvent, dx: f64, dy: f64) {
-        self.lend(widget, |__h| TextField::on_drag(__h, event, dx, dy))
-    }
-
-    /// java: @Override public boolean keyPressed(KeyEvent input)
-    fn key_pressed(&mut self, widget: &mut AbstractWidget, event: &mcrust::net::minecraft::client::input::key_event::KeyEvent) -> bool {
-        self.lend(widget, |__h| TextField::key_pressed(__h, event))
     }
 
     /// java: @Override public boolean charTyped(CharacterEvent input)
-    fn char_typed(&mut self, widget: &mut AbstractWidget, event: &CharacterEvent) -> bool {
-        self.lend(widget, |__h| TextField::char_typed(__h, event))
+    fn char_typed(&mut self, _widget: &mut AbstractWidget, event: &CharacterEvent) -> bool {
+        if !self.base.active {
+            false
+        } else if event.is_allowed_chat_character() {
+            self.events.borrow_mut().push(NameEvent::Insert(event.codepoint_as_string()));
+            true
+        } else {
+            false
+        }
+    }
+
+    /// java: @Override public void onClick(MouseButtonEvent click, boolean doubled)
+    fn on_click(&mut self, _widget: &mut AbstractWidget, event: &MouseButtonEvent, _double_click: bool) {
+        self.events.borrow_mut().push(NameEvent::Click(event.x()));
+    }
+
+    /// java: @Override protected void onDrag(MouseButtonEvent click, double offsetX, double offsetY)
+    fn on_drag(&mut self, _widget: &mut AbstractWidget, event: &MouseButtonEvent, _dx: f64, _dy: f64) {
+        self.events.borrow_mut().push(NameEvent::Drag(event.x()));
     }
 
     /// java: @Override public void setFocused(final boolean focused)
     fn set_focused(&mut self, widget: &mut AbstractWidget, focused: bool) {
-        self.lend(widget, |__h| TextField::set_focused(__h, focused))
+        widget.set_focused(focused, mcrust::net::minecraft::client::input_type::InputType::None);
+        // java: if (focused) Minecraft.getInstance().onTextInputFocusChange(this, focused); - "Required for IME support"
+        // rust: port gap - a mod widget has no IME hook in the port (see `extract_text_field`)
     }
 
+    /// java: @Override public void playDownSound(SoundManager soundManager) - empty
+    fn play_down_sound(&self) -> Option<&'static mcrust::net::minecraft::sounds::sound_event::SoundEvent> {
+        None
+    }
 }
-
-// NOTE(fabric2seer): charTyped, extractWidgetRenderState, handleCursor, keyPressed, onClick, onDrag, playDownSound, preeditUpdated, setFocused, updateWidgetNarration override(s) of AbstractWidget - the port dispatches its own calls, so these run only where the mod calls them; hook the port's method to make the game call them

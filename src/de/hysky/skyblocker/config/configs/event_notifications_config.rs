@@ -107,7 +107,10 @@ impl EventConfig {
 
     /// java: @GenToString @Override public native String toString();
     pub fn to_string(&self) -> String {
-        todo!("native method: its body is generated at build time by an annotation processor (@GenToString)")
+        // @GenToString writes the record-style form: the class's simple name and each field, `IntArrayList.toString()`
+        //   being `[a, b, ..]`
+        let times: Vec<String> = self.reminder_times.iter().map(|t| t.to_string()).collect();
+        format!("EventConfig[enabled={}, reminderTimes=[{}]]", self.enabled, times.join(", "))
     }
 
 }

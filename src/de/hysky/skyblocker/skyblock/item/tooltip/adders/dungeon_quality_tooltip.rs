@@ -144,10 +144,10 @@ impl DungeonQualityTooltip {
         let mut base_stat_boost_percentage: i32 = custom_data.as_ref().unwrap().get_int_or("baseStatBoostPercentage", 0);
         let mut max_quality: bool = (base_stat_boost_percentage == 50);
         let mut style: Vec<ChatFormatting> = (if max_quality { MAXED.get_mut().clone() } else { NOT_MAXED.get_mut().clone() });
-        lines.push(GridComponent::of_2(&compat::jstring(&component::literal("Item Quality:").with_style_formats(&style)), &vec![(component::literal(&format!("{}/50", base_stat_boost_percentage))).with_style_formats(&style)]));
+        lines.push(GridComponent::of(&vec![component::literal("Item Quality:").with_style_formats(&style), (component::literal(&format!("{}/50", base_stat_boost_percentage))).with_style_formats(&style)]));
         if custom_data.as_ref().unwrap().contains("item_tier") {
             let mut item_tier: i32 = custom_data.as_ref().unwrap().get_int_or("item_tier", 0);
-            lines.push(GridComponent::of_2(&compat::jstring(&component::literal("Floor Tier:").with_style_formats(&style)), &vec![(component::literal(&format!("{} ({})", item_tier, DungeonQualityTooltip::get_item_tier_floor(__this, item_tier)))).with_style_formats(&style)]));
+            lines.push(GridComponent::of(&vec![component::literal("Floor Tier:").with_style_formats(&style), (component::literal(&format!("{} ({})", item_tier, DungeonQualityTooltip::get_item_tier_floor(__this, item_tier)))).with_style_formats(&style)]));
         }
     }
 

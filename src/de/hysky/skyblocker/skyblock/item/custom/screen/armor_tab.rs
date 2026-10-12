@@ -3,7 +3,6 @@
 #[allow(unused_imports)]
 use crate::prelude::*;
 use crate::de::hysky::skyblocker::config::skyblocker_config_manager::SkyblockerConfigManager;
-use crate::de::hysky::skyblocker::skyblock::item::custom::screen::animated_dye_timeline_widget::AnimatedDyeTimelineWidget;
 use crate::de::hysky::skyblocker::skyblock::item::custom::screen::color_selection_widget::ColorSelectionWidget;
 use crate::de::hysky::skyblocker::skyblock::item::custom::screen::customize_screen::CustomizeScreen;
 use crate::de::hysky::skyblocker::skyblock::item::custom::screen::head_selection_widget::HeadSelectionWidget;
@@ -11,40 +10,33 @@ use crate::de::hysky::skyblocker::skyblock::item::custom::screen::identifier_tex
 use crate::de::hysky::skyblocker::skyblock::item::custom::screen::player_widget::PlayerWidget;
 use crate::de::hysky::skyblocker::skyblock::item::custom::screen::trim_selection_widget::TrimSelectionWidget;
 use crate::de::hysky::skyblocker::utils::item_utils::ItemUtils;
-use crate::de::hysky::skyblocker::utils::render::gui::searchable_grid_widget::SearchableGridWidget;
-use mcrust::mcrust::modding::widgets::ModWidget;
+use mcrust::com::mojang::blaze3d::platform::cursor::cursor_type::CursorType;
+use mcrust::com::mojang::blaze3d::platform::cursor::cursor_types::CursorTypes;
 use mcrust::mcrust::modding::widgets::WidgetRenderContext;
-use mcrust::net::minecraft::client::gui::active_text_collector;
-use mcrust::net::minecraft::client::gui::active_text_collector::ActiveTextCollector;
+use mcrust::net::minecraft::chat_formatting::ChatFormatting;
 use mcrust::net::minecraft::client::gui::components::abstract_container_widget::AbstractContainerWidget;
+use mcrust::net::minecraft::client::gui::components::abstract_scroll_area::ScrollbarSettings;
 use mcrust::net::minecraft::client::gui::components::abstract_widget::AbstractWidget;
-use mcrust::net::minecraft::client::gui::components::abstract_widget::OnPress;
-use mcrust::net::minecraft::client::gui::components::abstract_widget::WidgetKind;
-use mcrust::net::minecraft::client::gui::components::events::gui_event_listener::GuiEventListener;
 use mcrust::net::minecraft::client::gui::components::tabs::grid_layout_tab::GridLayoutTab;
-use mcrust::net::minecraft::client::gui::components::tooltip::Tooltip;
-use mcrust::net::minecraft::client::gui::font::Font;
 use mcrust::net::minecraft::client::gui::gui_graphics_extractor;
-use mcrust::net::minecraft::client::gui::gui_graphics_extractor::GuiGraphicsExtractor;
 use mcrust::net::minecraft::client::gui::layouts::frame_layout;
 use mcrust::net::minecraft::client::gui::layouts::frame_layout::FrameLayout;
+use mcrust::net::minecraft::client::gui::layouts::grid_layout::GridLayout;
 use mcrust::net::minecraft::client::gui::layouts::layout_element::LayoutElement;
 use mcrust::net::minecraft::client::gui::layouts::linear_layout::LinearLayout;
-use mcrust::net::minecraft::client::gui::narration::narration_element_output::NarrationElementOutput;
 use mcrust::net::minecraft::client::gui::navigation::screen_rectangle::ScreenRectangle;
 use mcrust::net::minecraft::client::input::character_event::CharacterEvent;
+use mcrust::net::minecraft::client::input::key_event::KeyEvent;
 use mcrust::net::minecraft::client::input::mouse_button_event::MouseButtonEvent;
-use mcrust::net::minecraft::client::input::mouse_button_info::MouseButtonInfo;
 use mcrust::net::minecraft::client::player::remote_player::RemotePlayer;
 use mcrust::net::minecraft::network::chat::component;
+use mcrust::net::minecraft::network::chat::formatted_text::FormattedText;
 use mcrust::net::minecraft::network::chat::mutable_component::MutableComponent;
 use mcrust::net::minecraft::resources::identifier::Identifier;
 use mcrust::net::minecraft::world::entity::equipment_slot::EquipmentSlot;
 use mcrust::net::minecraft::world::item::items;
 use crate::de::hysky::skyblocker::injected::skyblocker_stack::SkyblockerStack as _;
-use mcrust::net::minecraft::client::gui::components::renderable::Renderable as _;
-use mcrust::net::minecraft::client::gui::layouts::abstract_layout::AbstractLayout as _;
-use mcrust::net::minecraft::network::chat::component::Component as _;
+use mcrust::net::minecraft::world::entity::entity::Entity as _;
 use mcrust::net::minecraft::world::entity::living_entity::LivingEntity as _;
 
 /// java: private static final Identifier INNER_SPACE_TEXTURE = SkyblockerMod.id("menu_inner_space");
@@ -53,10 +45,14 @@ pub static INNER_SPACE_TEXTURE: compat::MainThread<Identifier> = compat::MainThr
 pub const PLAYER_WIDGET_WIDTH: i32 = 84;
 /// java: private static final int PADDING = 10;
 pub const PADDING: i32 = 10;
-// TODO(fabric2seer): static `EquipmentSlot.Type` has no Rust counterpart in the port's EquipmentSlot file
-//   java: private static final EquipmentSlot[] ARMOR_SLOTS = EquipmentSlot.VALUES.stream().filter(slot -> slot.getType() == EquipmentSlot.Type.HUMANOID_ARMOR).toArray(EquipmentSlot[]::new);
 /// java: private static final EquipmentSlot[] ARMOR_SLOTS = EquipmentSlot.VALUES.stream().filter(slot -> slot.getType() == EquipmentSlot.Type.HUMANOID_ARMOR).toArray(EquipmentSlot[]::new);
-pub static ARMOR_SLOTS: compat::MainThread<Vec<EquipmentSlot>> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `ARMOR_SLOTS` - see the TODO above"));
+pub static ARMOR_SLOTS: LazyLock<Vec<EquipmentSlot>> = LazyLock::new(|| {
+    mcrust::net::minecraft::world::entity::equipment_slot::VALUES
+        .iter()
+        .copied()
+        .filter(|slot| slot.get_type() == mcrust::net::minecraft::world::entity::equipment_slot::Type::HumanoidArmor)
+        .collect()
+});
 /// java: private static final ItemStack BARRIER = new ItemStack(Items.BARRIER);
 pub static BARRIER: compat::MainThread<mcrust::net::minecraft::world::item::item_stack::ItemStack> = compat::MainThread::new(|| mcrust::net::minecraft::world::item::item_stack::ItemStack::of_one(items::items().get("barrier")));
 /// java: private static final Identifier HOTBAR_TEXTURE = SkyblockerMod.id("armor_customization_screen/mini_hotbar");
@@ -64,471 +60,564 @@ pub static PIECE_SELECTION_WIDGET_HOTBAR_TEXTURE: compat::MainThread<Identifier>
 /// java: private static final Identifier HOTBAR_SELECTION_TEXTURE = SkyblockerMod.id("hotbar_selection_full");
 pub static PIECE_SELECTION_WIDGET_HOTBAR_SELECTION_TEXTURE: compat::MainThread<Identifier> = compat::MainThread::new(|| crate::entry::skyblocker_mod::id("hotbar_selection_full"));
 
+/// The tab's widgets' places in the screen's widget list (the tab's grid holds them there, and
+/// `CustomizeScreen` adds and removes them as the tab is switched).
+#[derive(Clone, Debug)]
+pub struct ArmorTabWidgets {
+    pub player_widget: usize,
+    pub piece_selection_widget: usize,
+    pub head_selection_widget: usize,
+    pub model_field_container: usize,
+    pub trim_selection_widget: usize,
+    pub color_selection_widget: usize,
+    /// the "nothing customizable" text, only when nothing is
+    pub nothing_customizable: Option<usize>,
+}
+
 /// java: public class ArmorTab extends GridLayoutTab implements Closeable
 pub struct ArmorTab {
     /// java: extends net.minecraft.client.gui.components.tabs.GridLayoutTab
     pub base: GridLayoutTab,
     /// java: private final ItemStack[] armor = new ItemStack[4];
     pub armor: Vec<mcrust::net::minecraft::world::item::item_stack::ItemStack>,
-    /// java: private final CustomizeScreen parent;
-    pub parent: compat::Shared<CustomizeScreen>,
+    /// java: private final CustomizeScreen parent; (the screen holds this tab, so the tab holds the screen weakly)
+    pub parent: compat::WeakShared<CustomizeScreen>,
     /// java: private int selectedSlot = 0;
     pub selected_slot: i32,
     /// java: private final TrimSelectionWidget trimSelectionWidget;
-    pub trim_selection_widget: Option<TrimSelectionWidget>,
+    pub trim_selection_widget: compat::Shared<TrimSelectionWidget>,
     /// java: private final ColorSelectionWidget colorSelectionWidget;
-    pub color_selection_widget: Option<ColorSelectionWidget>,
+    pub color_selection_widget: compat::Shared<ColorSelectionWidget>,
     /// java: private final HeadSelectionWidget headSelectionWidget;
-    pub head_selection_widget: Option<compat::Shared<HeadSelectionWidget>>,
+    pub head_selection_widget: compat::Shared<HeadSelectionWidget>,
     /// java: private final ModelFieldContainer modelFieldContainer;
-    pub model_field_container: Option<ModelFieldContainer>,
+    pub model_field_container: compat::Shared<ModelFieldContainer>,
     /// java: private final boolean nothingCustomizable;
     pub nothing_customizable: bool,
-    /// java: private final RemotePlayer player = new RemotePlayer(CLIENT.level, CLIENT.getGameProfile()) { @Override public boolean isInvisibleTo(Player player) { return tru
-    pub player: RemotePlayer,
-}
-
-impl std::ops::Deref for ArmorTab {
-    type Target = GridLayoutTab;
-    fn deref(&self) -> &Self::Target {
-        &self.base
-    }
-}
-
-impl std::ops::DerefMut for ArmorTab {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.base
-    }
+    /// java: private final RemotePlayer player = new RemotePlayer(CLIENT.level, CLIENT.getGameProfile()) {..};
+    pub player: compat::Shared<RemotePlayer>,
+    /// where the widgets are in the screen
+    pub widgets: ArmorTabWidgets,
 }
 
 impl ArmorTab {
     /// java: public ArmorTab(CustomizeScreen parent)
-    pub fn new(mut parent: compat::Shared<CustomizeScreen>) -> Self {
-        let __init_parent = parent.clone();
-        // TODO(fabric2seer): the initialiser of `player`: `new RemotePlayer(..) {..}` (an anonymous class with state or several methods)
-        //   java: private final RemotePlayer player = new RemotePlayer(CLIENT.level, CLIENT.getGameProfile()) {
-        //   java: 		@Override
-        //   java: 		public boolean isInvisibleTo(Player player) {
-        //   java: 			return true;
-        //   java: 		}
-        //   java:
-        //   java: 		@Override
-        //   java: 		public void onEquipItem(EquipmentSlot slot, ItemStack oldStack, ItemStack newStack) {}
-        //   java:
-        //   java: 		@Override
-        //   java: 		public boolean isModelPartShown(PlayerModelPart modelPart) {
-        //   java: 			return modelPart != PlayerModelPart.CAPE && CLIENT.options.isModelPartEnabled(modelPart);
-        //   java: 		}
-        //   java:
-        //   java: 		@Override
-        //   java: 		public int getId() {
-        //   java: 			return EntityUtils.PLACEHOLDER_ID;
-        //   java: 		}
-        //   java: 	};
-        let mut this = Self {
-            base: GridLayoutTab::new(mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::translatable("skyblocker.customization.armor"))),
-            // new ItemStack[4] - every element is written below, before any read
-            armor: (0..(4) as usize).map(|_| mcrust::net::minecraft::world::item::item_stack::empty()).collect::<Vec<_>>(),
-            parent: __init_parent,
-            selected_slot: 0,
-            trim_selection_widget: None,
-            color_selection_widget: None,
-            head_selection_widget: None,
-            model_field_container: None,
-            nothing_customizable: false,
-            // new RemotePlayer(CLIENT.level, CLIENT.getGameProfile()) {..}
-            // rust: port gap - the anonymous subclass's overrides (isInvisibleTo, onEquipItem, isModelPartShown, getId) have
-            //   no home: the port's entity classes take no mod subclass; and `Minecraft.getGameProfile()` is not ported - its
-            //   `new GameProfile(user.getProfileId(), user.getName())` arm is used (GAPS_batchB.md).
-            player: {
-                let __client = compat::minecraft();
-                let __user = __client.get_user();
-                RemotePlayer::new(mcrust::net::minecraft::world::entity::entity_dimensions::scalable(0.6, 1.8), &mcrust::com::mojang::authlib::game_profile::GameProfile::without_properties(mcrust::java::util::uuid::Uuid::from_string(&mcrust::net::minecraft::client::user::dashed_uuid(&__user.get_profile_id())).expect("User.getProfileId"), __user.get_name()))
-            },
+    ///
+    /// (`screen`: the parent's widget list, where the tab's widgets go - Java's tab hands them to the screen through
+    /// `visitChildren`)
+    // TODO: The layout always calculates sizes based on all widgets in the layout, even if they are not visible.
+    //  For example, in helmet customization, the layout uses the color selection widget's width
+    //  as the head selection widget's width, even though the color selection widget is not visible.
+    //  This results in the head selection widgets not being centered correctly on small screen widths.
+    pub fn new(parent: &compat::Shared<CustomizeScreen>, screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen) -> compat::Shared<Self> {
+        // java: super(Component.translatable("skyblocker.customization.armor"));
+
+        // java: private final RemotePlayer player = new RemotePlayer(CLIENT.level, CLIENT.getGameProfile()) {..}
+        // rust: port gap - the anonymous subclass's overrides (isInvisibleTo, onEquipItem, isModelPartShown, getId) have
+        //   no home: the port's entity classes take no mod subclass; and `Minecraft.getGameProfile()` is not ported - its
+        //   `new GameProfile(user.getProfileId(), user.getName())` arm is used (GAPS_batchE.md)
+        let player = {
+            let client = compat::minecraft();
+            let user = client.get_user();
+            let profile = mcrust::com::mojang::authlib::game_profile::GameProfile::without_properties(
+                mcrust::java::util::uuid::Uuid::from_string(&mcrust::net::minecraft::client::user::dashed_uuid(&user.get_profile_id())).expect("User.getProfileId"),
+                user.get_name(),
+            );
+            compat::shared(RemotePlayer::new(mcrust::net::minecraft::world::entity::entity_dimensions::scalable(0.6, 1.8), &profile))
         };
-        { this.layout.row_spacing(PADDING.wrapping_div(2)); this.layout.column_spacing(PADDING); &mut this.layout };
-        let mut list: Vec<mcrust::net::minecraft::world::item::item_stack::ItemStack> = mcrust::mcrust::modding::game::with_player(|player| ItemUtils::get_armor(player)).unwrap();
-        for i in 0..(list.len() as i32) {
-            let mut copy: mcrust::net::minecraft::world::item::item_stack::ItemStack = (list[(i) as usize]).copy();
-            this.armor[(3i32.wrapping_sub(i)) as usize] = copy.clone();
-            this.player.set_item_slot(ARMOR_SLOTS.get_mut()[(i) as usize], copy.clone());
+
+        // java: List<ItemStack> list = ItemUtils.getArmor(CLIENT.player);
+        let list: Vec<mcrust::net::minecraft::world::item::item_stack::ItemStack> = mcrust::mcrust::modding::game::with_player(|player| ItemUtils::get_armor(player)).expect("CLIENT.player");
+        // new ItemStack[4] - every element is written below, before any read
+        let mut armor: Vec<mcrust::net::minecraft::world::item::item_stack::ItemStack> = (0..4).map(|_| mcrust::net::minecraft::world::item::item_stack::empty()).collect();
+        for i in 0..list.len() {
+            let copy = list[i].copy();
+            armor[3 - i] = copy.clone();
+            compat::write(&player, |p| p.living_mut().set_item_slot(ARMOR_SLOTS[i], copy));
         }
-        while this.selected_slot < (this.armor.len() as i32).wrapping_sub(1) && !(ArmorTab::can_edit(&this.armor[(this.selected_slot) as usize])) {
-            this.selected_slot += 1;
+        let mut selected_slot: i32 = 0;
+        while selected_slot < (armor.len() as i32) - 1 && !ArmorTab::can_edit(&armor[selected_slot as usize]) {
+            selected_slot += 1;
         }
-        this.nothing_customizable = !(ArmorTab::can_edit(&this.armor[(this.selected_slot) as usize]));
-        let mut vertical: LinearLayout = LinearLayout::vertical().spacing(1);
-        // TODO(fabric2seer): the mod keeps the game's `RemotePlayer` (Java holds a reference to the live object); the port's `RemotePlayer` is not a value to copy and the port lends the mod no handle to it
-        // rust: let mut player_widget: compat::Shared<PlayerWidget> = PlayerWidget::new(0, 0, 84, 165, this.player.clone());
-        let mut player_widget: compat::Shared<PlayerWidget> = todo!("fabric2seer: the initialiser of `playerWidget` (TODO above)");
-        // TODO(fabric2seer): a widget put in a layout outside a mod screen's own methods: the port's layouts hold a widget by its index in the screen's widget list
-        // rust: vertical.add_child(player_widget.clone());
-        let mut piece_selection_widget: compat::Shared<PieceSelectionWidget> = PieceSelectionWidget::new(0, 0);
-        // TODO(fabric2seer): a widget put in a layout outside a mod screen's own methods: the port's layouts hold a widget by its index in the screen's widget list
-        // rust: vertical.add_child(piece_selection_widget.clone());
-        this.layout.add_child_span_adjusted(LayoutElement::Grid(vertical.clone().wrapped), 0, 0, 2, 1, &mut |__a0| { __a0.align_vertically_middle(); }).unwrap();
-        let mut width: i32 = ((444i32.min(compat::read(&parent, |__t| __t.width))).wrapping_sub(PLAYER_WIDGET_WIDTH)).wrapping_sub(PADDING.wrapping_mul(3));
-        this.head_selection_widget = Some(HeadSelectionWidget::new(0, 0, width, 165));
-        this.layout.add_child_span_adjusted(this.head_selection_widget.clone().unwrap(), 0, 1, 2, 1, &mut |__a0| { __a0.align_vertically_middle(); }).unwrap();
-        let mut layout_widget: LinearLayout = LinearLayout::horizontal().spacing(PADDING.wrapping_div(2));
-        let mut container_width: i32 = ((((width as f32) * (1.0f32 / 3.0f32))) as i32);
-        this.trim_selection_widget = Some(TrimSelectionWidget::new(0, 0, (width.wrapping_sub(container_width)).wrapping_sub(PADDING.wrapping_div(2)), 80));
-        this.model_field_container = Some(layout_widget.add_child(ModelFieldContainer::new(container_width, 80)));
-        layout_widget.add_child(this.trim_selection_widget.clone().unwrap());
-        layout_widget.arrange_elements();
-        this.layout.add_child_at(LayoutElement::Grid(layout_widget.clone().wrapped), 0, 1).unwrap();
-        let mut text_renderer: Font = compat::font();
-        this.color_selection_widget = Some(ColorSelectionWidget::new(0, 0, width, 100, compat::font()));
-        this.layout.add_child_at(this.color_selection_widget.clone().unwrap(), 1, 1).unwrap();
-        if this.nothing_customizable {
-            // TODO(fabric2seer): a widget put in a layout outside a mod screen's own methods: the port's layouts hold a widget by its index in the screen's widget list
-            // rust: this.layout.add_child_span_adjusted(compat::string_widget(0, 0, -1, 9, component::translatable("skyblocker.customization.nothingCustomizable")), 0, 1, 2, 1, &mut |p| { p.align_vertically_middle().align_horizontally_center(); }).unwrap();
-        }
-        this.update_widgets();
+        let nothing_customizable = !ArmorTab::can_edit(&armor[selected_slot as usize]);
+
+        // java: PlayerWidget playerWidget = new PlayerWidget(0, 0, 84, 165, player);
+        let player_widget = PlayerWidget::new(0, 0, 84, 165, player.clone());
+        let player_widget_index = screen.add_widget(compat::object_widget(player_widget, ""));
+
+        // 444 results in a head selection widget of 330,
+        // for which subtracting 10 pixels of padding and scrollbar,
+        // gives a perfect 16 column head grid
+        let width: i32 = 444.min(screen.width) - PLAYER_WIDGET_WIDTH - PADDING * 3;
+        let head_selection_widget = HeadSelectionWidget::new(0, 0, width, 165);
+        let head_selection_index = screen.add_widget(HeadSelectionWidget::widget(&head_selection_widget));
+
+        let container_width: i32 = ((width as f32) * (1f32 / 3f32)) as i32;
+        let trim_selection_widget = TrimSelectionWidget::new(0, 0, width - container_width - PADDING / 2, 80);
+
+        let font = compat::font();
+        let color_selection_widget = ColorSelectionWidget::new(0, 0, width, 100, &font);
+
+        // the tab as one object (its inner classes hold it)
+        let parent_ref = Arc::downgrade(parent);
+        let this: compat::Shared<ArmorTab> = Arc::new_cyclic(|weak: &compat::WeakShared<ArmorTab>| {
+            // java: PieceSelectionWidget pieceSelectionWidget = new PieceSelectionWidget(0, 0);
+            let piece_selection_widget = PieceSelectionWidget::new(0, 0, weak.clone(), &armor);
+            let piece_selection_index = screen.add_widget(compat::object_widget(piece_selection_widget, ""));
+            // java: modelFieldContainer = layoutWidget.addChild(new ModelFieldContainer(containerWidth, 80));
+            let model_field_container = ModelFieldContainer::new(container_width, 80, weak.clone());
+            let model_field_index = screen.add_widget(compat::object_widget(model_field_container.clone(), ""));
+            let trim_selection_index = screen.add_widget(compat::object_widget(trim_selection_widget.clone(), "Trim Selection"));
+            let color_selection_index = screen.add_widget(compat::object_widget(color_selection_widget.clone(), "ColorSelectionWidget"));
+            let nothing_customizable_index = if nothing_customizable {
+                Some(screen.add_widget(compat::string_widget(0, 0, -1, 9, component::translatable("skyblocker.customization.nothingCustomizable"))))
+            } else {
+                None
+            };
+            parking_lot::ReentrantMutex::new(std::cell::RefCell::new(ArmorTab {
+                base: GridLayoutTab::new(FormattedText::from(component::translatable("skyblocker.customization.armor"))),
+                armor,
+                parent: parent_ref,
+                selected_slot,
+                trim_selection_widget,
+                color_selection_widget,
+                head_selection_widget,
+                model_field_container,
+                nothing_customizable,
+                player,
+                widgets: ArmorTabWidgets {
+                    player_widget: player_widget_index,
+                    piece_selection_widget: piece_selection_index,
+                    head_selection_widget: head_selection_index,
+                    model_field_container: model_field_index,
+                    trim_selection_widget: trim_selection_index,
+                    color_selection_widget: color_selection_index,
+                    nothing_customizable: nothing_customizable_index,
+                },
+            }))
+        });
+        let grid = compat::read(&this, |__t| __t.build_grid(screen));
+        compat::write(&this, |__t| __t.base.layout = grid);
+
+        ArmorTab::update_widgets(&this);
         this
+    }
+
+    /// The tab's grid (`layout.rowSpacing(PADDING / 2).columnSpacing(PADDING)` and the constructor's `addChild`s), over
+    /// the widgets' sizes now (the port's layout leaves keep the size they were given, Java's read the widget's).
+    fn build_grid(&self, screen: &mcrust::net::minecraft::client::gui::screens::screen::Screen) -> GridLayout {
+        let leaf = |index: usize| {
+            let widget = screen.widget(index);
+            LayoutElement::widget(index, widget.get_width(), widget.get_height())
+        };
+        let mut layout = GridLayout::new_default();
+        layout.row_spacing(PADDING / 2);
+        layout.column_spacing(PADDING);
+
+        // java: LinearLayout vertical = LinearLayout.vertical().spacing(1); vertical.addChild(playerWidget); vertical.addChild(pieceSelectionWidget);
+        let mut vertical = LinearLayout::vertical().spacing(1);
+        vertical.add_child(leaf(self.widgets.player_widget));
+        vertical.add_child(leaf(self.widgets.piece_selection_widget));
+        layout.add_child_span_adjusted(LayoutElement::Grid(vertical.wrapped), 0, 0, 2, 1, &mut |s| *s = s.clone().align_vertically_middle()).expect("GridLayout.addChild");
+
+        // java: layout.addChild(headSelectionWidget, 0, 1, 2, 1, LayoutSettings::alignVerticallyMiddle);
+        layout.add_child_span_adjusted(leaf(self.widgets.head_selection_widget), 0, 1, 2, 1, &mut |s| *s = s.clone().align_vertically_middle()).expect("GridLayout.addChild");
+
+        // java: LinearLayout layoutWidget = LinearLayout.horizontal().spacing(PADDING / 2); .. layoutWidget.arrangeElements(); layout.addChild(layoutWidget, 0, 1);
+        let mut layout_widget = LinearLayout::horizontal().spacing(PADDING / 2);
+        layout_widget.add_child(leaf(self.widgets.model_field_container));
+        layout_widget.add_child(leaf(self.widgets.trim_selection_widget));
+        layout_widget.arrange_elements();
+        layout.add_child_at(LayoutElement::Grid(layout_widget.wrapped), 0, 1).expect("GridLayout.addChild");
+
+        // java: layout.addChild(colorSelectionWidget, 1, 1);
+        layout.add_child_at(leaf(self.widgets.color_selection_widget), 1, 1).expect("GridLayout.addChild");
+
+        if let Some(text) = self.widgets.nothing_customizable {
+            layout.add_child_span_adjusted(leaf(text), 0, 1, 2, 1, &mut |p| *p = p.clone().align_vertically_middle().align_horizontally_center()).expect("GridLayout.addChild");
+        }
+        layout
     }
 
     /// java: private static boolean canEdit(ItemStack stack)
     pub fn can_edit(stack: &mcrust::net::minecraft::world::item::item_stack::ItemStack) -> bool {
-        let mut has_uuid: bool = !(stack.get_uuid().is_empty());
+        let has_uuid: bool = !stack.get_uuid().is_empty();
         if stack.is_item(&items::items().get("player_head")) {
             return has_uuid;
         }
-        return (stack.is_in_tag(&mcrust::net::minecraft::tags::item_tags::trimmable_armor()) && has_uuid);
+        return stack.is_in_tag(&mcrust::net::minecraft::tags::item_tags::trimmable_armor()) && has_uuid;
     }
 
     /// java: private void updateWidgets()
-    pub fn update_widgets(&mut self) {
-        if self.nothing_customizable {
-            { let __v = false; compat::write(self.head_selection_widget.as_ref().unwrap(), |__t| __t.visible = __v); }
-            self.trim_selection_widget.as_mut().unwrap().visible = false;
-            self.color_selection_widget.as_mut().unwrap().visible = false;
-            self.model_field_container.as_mut().unwrap().visible = false;
+    ///
+    /// (On the handle: the model field's `setValue` runs its callback, which reads this tab.)
+    pub fn update_widgets(this: &compat::Shared<Self>) {
+        let (nothing_customizable, head, trim, color, model, parent) = compat::read(this, |__t| {
+            (__t.nothing_customizable, __t.head_selection_widget.clone(), __t.trim_selection_widget.clone(), __t.color_selection_widget.clone(), __t.model_field_container.clone(), __t.parent.clone())
+        });
+        if nothing_customizable {
+            compat::write(&head, |__t| __t.base.base.visible = false);
+            compat::write(&trim, |__t| __t.base.visible = false);
+            compat::write(&color, |__t| __t.base.visible = false);
+            compat::write(&model, |__t| __t.base.visible = false);
             return;
         }
-        let item = &self.armor[(self.selected_slot) as usize];
-        CustomizeScreen::backup_configs(&self.parent, item);
-        let mut is_player_head: bool = item.is_item(&items::items().get("player_head"));
-        HeadSelectionWidget::set_current_item(self.head_selection_widget.as_ref().unwrap(), item.clone());
-        self.trim_selection_widget.as_mut().unwrap().set_current_item(item.clone());
-        self.color_selection_widget.as_mut().unwrap().set_current_item(item.clone());
-        { let __v = is_player_head; compat::write(self.head_selection_widget.as_ref().unwrap(), |__t| __t.visible = __v); }
-        self.trim_selection_widget.as_mut().unwrap().visible = !is_player_head;
-        self.color_selection_widget.as_mut().unwrap().visible = !is_player_head;
-        self.model_field_container.as_mut().unwrap().visible = !is_player_head;
-        let mut uuid: String = item.get_uuid();
-        if SkyblockerConfigManager::get().general.custom_armor_model.contains_key(&uuid) {
-            let mut identifier: Identifier = SkyblockerConfigManager::get().general.custom_armor_model.get(&uuid).cloned().unwrap();
-            // TODO(fabric2seer): `fmt` takes 1 argument(s) in the port (`f: &mut fmt::Formatter<'_>`), Java passes 0
-            // rust: let mut string: String = identifier.fmt();
-            let mut string: String = todo!("fabric2seer: the initialiser of `string` (TODO above)");
-            // TODO(fabric2seer): `set_value` takes 2 argument(s) in the port (`splitter: &StringSplitter<W>, value: &str`), Java passes 1
-            // rust: let __wa1 = string.clone();
-            // rust: let __o1 = self.model_field_container.as_ref().unwrap().field.clone().unwrap();
-            // rust: compat::write(&__o1, |__t| __t.set_value(&__wa1));
-        } else {
-            // TODO(fabric2seer): `set_value` takes 2 argument(s) in the port (`splitter: &StringSplitter<W>, value: &str`), Java passes 1
-            // rust: let __o2 = self.model_field_container.as_ref().unwrap().field.clone().unwrap();
-            // rust: compat::write(&__o2, |__t| __t.set_value(""));
+        let item = compat::read(this, |__t| __t.armor[__t.selected_slot as usize].clone());
+        if let Some(parent) = parent.upgrade() {
+            CustomizeScreen::backup_configs(&parent, &item);
         }
+        let is_player_head: bool = item.is_item(&items::items().get("player_head"));
+        HeadSelectionWidget::set_current_item(&head, item.clone());
+        compat::write(&trim, |__t| __t.set_current_item(item.clone()));
+        compat::write(&color, |__t| __t.set_current_item(item.clone()));
+        compat::write(&head, |__t| __t.base.base.visible = is_player_head);
+        compat::write(&trim, |__t| __t.base.visible = !is_player_head);
+        compat::write(&color, |__t| __t.base.visible = !is_player_head);
+        compat::write(&model, |__t| __t.base.visible = !is_player_head);
+        let uuid: String = item.get_uuid();
+        // java: modelFieldContainer.field.setValue(..);
+        let value = match SkyblockerConfigManager::get().general.custom_armor_model.get(&uuid) {
+            Some(identifier) => identifier.to_string(),
+            None => String::new(),
+        };
+        compat::write(&model, |__t| __t.set_field_value(&value));
     }
 
     /// java: void tick()
     pub fn tick(&self) {
-        // TODO(fabric2seer): `RemotePlayer.tickCount` has no Rust field in the port (searched net.minecraft.client.player.RemotePlayer and its supertypes)
-        // rust: self.player.tick_count += 1;
+        // java: player.tickCount++;
+        compat::write(&self.player, |p| p.base_mut().tick_count += 1);
     }
 
     /// java: @Override public void doLayout(ScreenRectangle tabArea)
-    pub fn do_layout(&mut self, tab_area: &ScreenRectangle) {
-        let mut width: i32 = ((444i32.min(tab_area.width())).wrapping_sub(PLAYER_WIDGET_WIDTH)).wrapping_sub(PADDING.wrapping_mul(3));
-        ({ let __r = self.head_selection_widget.as_ref().unwrap(); let __f = compat::dispatch(__r, |__t| __t.set_width()); __f(&compat::view(__r, |a| a as compat::Shared<dyn SearchableGridWidget>), width) });
-        let mut model_field_width: i32 = ((((width as f32) * ((1 as f32) / 3.0f32))) as i32);
-        self.trim_selection_widget.as_mut().unwrap().set_width((width.wrapping_sub(model_field_width)).wrapping_sub(PADDING.wrapping_div(2)));
-        self.model_field_container.as_mut().unwrap().set_width(model_field_width);
-        self.color_selection_widget.as_mut().unwrap().set_width(width);
-        // TODO(fabric2seer): `do_layout` takes 2 argument(s) in the port (`screen: &mut crate::net::minecraft::client::gui::screens::screen::Screen, screen_rectangle: crate::net::minecraft::client::gui::navigation::screen_rectangle::ScreenRectangle`), Java passes 1
-        // rust: self.base.do_layout(&mut tab_area);
+    pub fn do_layout(&mut self, screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, tab_area: ScreenRectangle) {
+        let width: i32 = 444.min(tab_area.width()) - PLAYER_WIDGET_WIDTH - PADDING * 3;
+        // java: headSelectionWidget.setWidth(width);
+        HeadSelectionWidget::set_width_impl(&self.head_selection_widget, width);
+        let head_width = compat::read(&self.head_selection_widget, |__t| __t.get_width());
+        screen.widget_mut(self.widgets.head_selection_widget).width = head_width;
+        let model_field_width: i32 = ((width as f32) * (1f32 / 3f32)) as i32;
+        // java: trimSelectionWidget.setWidth(width - modelFieldWidth - PADDING / 2);
+        compat::write(&self.trim_selection_widget, |__t| compat::ObjectWidget::set_width(__t, width - model_field_width - PADDING / 2));
+        compat::push_object_box(&self.trim_selection_widget, screen.widget_mut(self.widgets.trim_selection_widget));
+        // java: modelFieldContainer.setWidth(modelFieldWidth);
+        compat::write(&self.model_field_container, |__t| compat::ObjectWidget::set_width(__t, model_field_width));
+        compat::push_object_box(&self.model_field_container, screen.widget_mut(self.widgets.model_field_container));
+        // java: colorSelectionWidget.setWidth(width);
+        compat::write(&self.color_selection_widget, |__t| compat::ObjectWidget::set_width(__t, width));
+        compat::push_object_box(&self.color_selection_widget, screen.widget_mut(self.widgets.color_selection_widget));
+        // java: super.doLayout(tabArea); - over the grid as the widgets now are
+        self.base.layout = self.build_grid(screen);
+        self.base.do_layout(screen, tab_area);
+    }
+
+    /// java: Tab.visitChildren - `layout.visitWidgets(..)`
+    pub fn visit_children(&self) -> Vec<usize> {
+        self.base.visit_children()
     }
 
     /// java: public void recreate()
     pub fn recreate(&self) {
-        AnimatedDyeTimelineWidget::recreate_image(&self.color_selection_widget.as_ref().unwrap().get_timeline_widget());
+        let timeline = compat::read(&self.color_selection_widget, |__t| __t.get_timeline_widget());
+        compat::write(&timeline, |__t| __t.recreate_image());
     }
 
     /// java: @Override public void close()
     pub fn close(&mut self) {
-        self.color_selection_widget.as_mut().unwrap().close();
+        compat::write(&self.color_selection_widget, |__t| __t.close());
     }
-
 }
 
-// NOTE(fabric2seer): close, doLayout override(s) of GridLayoutTab - the port dispatches its own calls, so these run only where the mod calls them; hook the port's method to make the game call them
-
 /// java: private class PieceSelectionWidget extends AbstractWidget
-#[derive(Clone)]
 pub struct PieceSelectionWidget {
     /// java: extends net.minecraft.client.gui.components.AbstractWidget
-    pub base: AbstractWidget,
+    pub base: AbstractContainerWidget,
+    /// java: ArmorTab.this
+    pub tab: compat::WeakShared<ArmorTab>,
     /// java: private final boolean[] selectable;
     pub selectable: Vec<bool>,
 }
 
-impl std::ops::Deref for PieceSelectionWidget {
-    type Target = AbstractWidget;
-    fn deref(&self) -> &Self::Target {
-        &self.base
-    }
-}
-
-impl std::ops::DerefMut for PieceSelectionWidget {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.base
-    }
-}
-
 impl PieceSelectionWidget {
     /// java: private PieceSelectionWidget(int x, int y)
-    pub fn new(mut x: i32, mut y: i32) -> compat::Shared<Self> {
-        // TODO(fabric2seer): `armor` is a field of the enclosing instance (ArmorTab.this) - an inner class has no outer reference in Rust
-        //   java: selectable = new boolean[armor.length];
-        let __this = compat::shared(Self {
-            base: AbstractWidget::new(x, y, 84, 24, (&component::null_to_empty(Some("")).get_string()).to_string(), WidgetKind::PlainText, OnPress::Inert),
-            selectable: todo!("fabric2seer: the field value (TODO above)"),
-        });
-        // TODO(fabric2seer): `armor` is a field of the enclosing instance (ArmorTab.this) - an inner class has no outer reference in Rust
-        //   java: for (int i = 0; i < armor.length; i++) {
-        //   java: 				selectable[i] = canEdit(armor[i]);
-        //   java: 			}
-        __this
+    pub fn new(x: i32, y: i32, tab: compat::WeakShared<ArmorTab>, armor: &[mcrust::net::minecraft::world::item::item_stack::ItemStack]) -> compat::Shared<Self> {
+        // java: super(x, y, 84, 24, Component.nullToEmpty(""));
+        // java: selectable = new boolean[armor.length]; for (..) selectable[i] = canEdit(armor[i]);
+        let selectable: Vec<bool> = armor.iter().map(ArmorTab::can_edit).collect();
+        compat::shared(PieceSelectionWidget { base: AbstractContainerWidget::new(x, y, 84, 24, FormattedText::of("")), tab, selectable })
     }
-
-    /// java: @Override protected void extractWidgetRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a)
-    pub fn extract_widget_render_state(__this: &compat::Shared<Self>, graphics: &mut GuiGraphicsExtractor, mut mouse_x: i32, mut mouse_y: i32, mut a: f32) {
-        gui_graphics_extractor::blit_sprite_identifier(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), mcrust::net::minecraft::client::renderer::render_pipelines::gui_textured(), PIECE_SELECTION_WIDGET_HOTBAR_TEXTURE.get_mut(), (__this.lock().borrow().get_x()).wrapping_add(1), (__this.lock().borrow().get_y()).wrapping_add(1), 82, 22);
-        let mut hovered_slot: i32 = -1;
-        let mut local_x: i32 = (mouse_x.wrapping_sub(__this.lock().borrow().get_x())).wrapping_sub(2);
-        let mut local_y: i32 = (mouse_y.wrapping_sub(__this.lock().borrow().get_y())).wrapping_sub(2);
-        if local_y >= 0 && local_y < 20 {
-            // TODO(fabric2seer): `armor` is a field of the enclosing instance (ArmorTab.this) - an inner class has no outer reference in Rust
-            //   java: hoveredSlot = localX / 20 >= armor.length ? -1 : localX / 20;
-        }
-        if hovered_slot >= 0 && __this.lock().borrow().selectable[(hovered_slot) as usize] {
-            let mut i: i32 = ((__this.lock().borrow().get_x()).wrapping_add(2)).wrapping_add(hovered_slot.wrapping_mul(20));
-            graphics.fill(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), i, (__this.lock().borrow().get_y()).wrapping_add(2), i.wrapping_add(20), (__this.lock().borrow().get_y()).wrapping_add(22), 0x20FFFFFF);
-        }
-        // TODO(fabric2seer): `armor` is a field of the enclosing instance (ArmorTab.this) - an inner class has no outer reference in Rust
-        //   java: for (int i = 0; i < armor.length; i++) {
-        //   java: 				graphics.item(armor[i], getX() + 4 + i * 20, getY() + 4);
-        //   java: 				if (!selectable[i] && !armor[i].isEmpty()) {
-        //   java: 					graphics.item(BARRIER, getX() + 4 + i * 20, getY() + 4);
-        //   java: 				}
-        //   java: 			}
-        // TODO(fabric2seer): `selectedSlot` is a field of the enclosing instance (ArmorTab.this) - an inner class has no outer reference in Rust
-        //   java: graphics.blitSprite(RenderPipelines.GUI_TEXTURED, HOTBAR_SELECTION_TEXTURE, getX() + selectedSlot * 20, getY(), 24, 24);
-        __this.lock().borrow().handle_cursor(graphics);
-    }
-
-    /// java: @Override public void onClick(MouseButtonEvent click, boolean doubled)
-    pub fn on_click(__this: &compat::Shared<Self>, click: &MouseButtonEvent, mut doubled: bool) {
-        let mut local_x: f64 = ((click.x() - (__this.lock().borrow().get_x() as f64)) - (2 as f64));
-        let mut local_y: f64 = ((click.y() - (__this.lock().borrow().get_y() as f64)) - (2 as f64));
-        if local_y < (0 as f64) || local_y >= (20 as f64) {
-            return;
-        }
-        let mut i: i32 = (((local_x / (20 as f64))) as i32);
-        // TODO(fabric2seer): the condition: `armor` is a field of the enclosing instance (ArmorTab.this) - an inner class has no outer reference in Rust
-        //   java: i < 0 || i >= armor.length || !selectable[i]
-        if todo!("fabric2seer: the condition (TODO above)") {
-            return;
-        }
-        // TODO(fabric2seer): the condition: `selectedSlot` is a field of the enclosing instance (ArmorTab.this) - an inner class has no outer reference in Rust
-        //   java: i != selectedSlot
-        if todo!("fabric2seer: the condition (TODO above)") {
-            // TODO(fabric2seer): `selectedSlot` is a field of the enclosing instance (ArmorTab.this) - an inner class has no outer reference in Rust
-            //   java: selectedSlot = i;
-            // TODO(fabric2seer): `updateWidgets(..)` is a method of the enclosing instance (ArmorTab.this) - an inner class has no outer reference in Rust
-            //   java: updateWidgets();
-        }
-    }
-
-    /// java: @Override public boolean isMouseOver(double mouseX, double mouseY)
-    pub fn is_mouse_over(__this: &compat::Shared<Self>, mut mouse_x: f64, mut mouse_y: f64) -> bool {
-        return (compat::read(__this, |__t| __t.active) && compat::read(__this, |__t| __t.visible) && mouse_x >= ((__this.lock().borrow().get_x()).wrapping_add(2) as f64) && mouse_y >= ((__this.lock().borrow().get_y()).wrapping_add(2) as f64) && mouse_x < ((__this.lock().borrow().get_right()).wrapping_sub(2) as f64) && mouse_y < ((__this.lock().borrow().get_bottom()).wrapping_sub(2) as f64));
-    }
-
-    /// java: @Override protected void updateWidgetNarration(NarrationElementOutput builder)
-    pub fn update_widget_narration(__this: &compat::Shared<Self>, builder: &dyn NarrationElementOutput) {
-    }
-
 }
 
-/// PieceSelectionWidget's widget half (`super`'s fields: x, y, size, message, ...), lent by the game for each call
-impl compat::WidgetHalf for PieceSelectionWidget {
-    fn widget_half(&mut self) -> &mut AbstractWidget {
+impl compat::ObjectWidget for PieceSelectionWidget {
+    fn object_box(&mut self) -> &mut AbstractContainerWidget {
         &mut self.base
     }
-}
 
-/// PieceSelectionWidget as the game's widget: `compat::WidgetAdapter::widget(handle)` where Java hands it on
-impl ModWidget for compat::WidgetAdapter<PieceSelectionWidget> {
-    /// java: @Override protected void extractWidgetRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a)
-    fn extract_widget_render_state(&mut self, widget: &AbstractWidget, context: &mut WidgetRenderContext<'_>, mouse_x: i32, mouse_y: i32, a: f32) {
-        self.lend_ref(widget, |__h| PieceSelectionWidget::extract_widget_render_state(__h, &mut context.graphics, mouse_x, mouse_y, a))
+    fn object_box_ref(&self) -> &AbstractContainerWidget {
+        &self.base
     }
 
-    /// java: @Override protected void updateWidgetNarration(NarrationElementOutput builder)
-    fn update_widget_narration(&mut self, widget: &AbstractWidget, output: &mut dyn NarrationElementOutput) {
-        self.lend_ref(widget, |__h| PieceSelectionWidget::update_widget_narration(__h, output))
+    /// java: @Override protected void extractWidgetRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a)
+    fn extract_widget_render_state(&mut self, _widget: &AbstractWidget, context: &mut WidgetRenderContext<'_>, mouse_x: i32, mouse_y: i32, _a: f32) {
+        let Some(tab) = self.tab.upgrade() else {
+            return;
+        };
+        let (x, y) = (self.base.get_x(), self.base.get_y());
+        gui_graphics_extractor::blit_sprite_identifier(context.gl, context.minecraft, mcrust::net::minecraft::client::renderer::render_pipelines::gui_textured(), PIECE_SELECTION_WIDGET_HOTBAR_TEXTURE.get(), x + 1, y + 1, 82, 22);
+
+        compat::read(&tab, |tab| {
+            let mut hovered_slot: i32 = -1;
+            let local_x: i32 = mouse_x - x - 2;
+            let local_y: i32 = mouse_y - y - 2;
+            if local_y >= 0 && local_y < 20 {
+                hovered_slot = if local_x / 20 >= tab.armor.len() as i32 { -1 } else { local_x / 20 };
+            }
+
+            if hovered_slot >= 0 && self.selectable[hovered_slot as usize] {
+                let i: i32 = x + 2 + hovered_slot * 20;
+                context.graphics.fill(context.gl, i, y + 2, i + 20, y + 22, 0x20_FF_FF_FF);
+            }
+
+            for i in 0..tab.armor.len() {
+                context.graphics.item(&tab.armor[i], x + 4 + (i as i32) * 20, y + 4);
+                if !self.selectable[i] && !tab.armor[i].is_empty() {
+                    context.graphics.item(BARRIER.get(), x + 4 + (i as i32) * 20, y + 4);
+                }
+            }
+            gui_graphics_extractor::blit_sprite_identifier(context.gl, context.minecraft, mcrust::net::minecraft::client::renderer::render_pipelines::gui_textured(), PIECE_SELECTION_WIDGET_HOTBAR_SELECTION_TEXTURE.get(), x + tab.selected_slot * 20, y, 24, 24);
+        });
+        // java: this.handleCursor(graphics); - asked by the game after the frame (`handle_cursor`)
     }
 
     /// java: @Override public void onClick(MouseButtonEvent click, boolean doubled)
-    fn on_click(&mut self, widget: &mut AbstractWidget, event: &MouseButtonEvent, double_click: bool) {
-        self.lend(widget, |__h| PieceSelectionWidget::on_click(__h, event, double_click))
+    fn on_click(&mut self, _widget: &mut AbstractWidget, event: &MouseButtonEvent, _double_click: bool) {
+        let Some(tab) = self.tab.upgrade() else {
+            return;
+        };
+        let local_x: f64 = event.x() - self.base.get_x() as f64 - 2.0;
+        let local_y: f64 = event.y() - self.base.get_y() as f64 - 2.0;
+        if local_y < 0.0 || local_y >= 20.0 {
+            return;
+        }
+        let i: i32 = (local_x / 20.0) as i32;
+        let armor_length = compat::read(&tab, |__t| __t.armor.len() as i32);
+        if i < 0 || i >= armor_length || !self.selectable[i as usize] {
+            return;
+        }
+        if i != compat::read(&tab, |__t| __t.selected_slot) {
+            compat::write(&tab, |__t| __t.selected_slot = i);
+            ArmorTab::update_widgets(&tab);
+        }
     }
 
     /// java: @Override public boolean isMouseOver(double mouseX, double mouseY)
-    fn is_mouse_over(&self, widget: &AbstractWidget, mouse_x: f64, mouse_y: f64) -> bool {
-        self.lend_ref(widget, |__h| PieceSelectionWidget::is_mouse_over(__h, mouse_x, mouse_y))
+    fn is_mouse_over(&self, mouse_x: f64, mouse_y: f64) -> bool {
+        return self.base.active && self.base.visible && mouse_x >= (self.base.get_x() + 2) as f64 && mouse_y >= (self.base.get_y() + 2) as f64 && mouse_x < (self.base.get_right() - 2) as f64 && mouse_y < (self.base.get_bottom() - 2) as f64;
     }
 
+    /// `this.handleCursor(graphics)` from `extractWidgetRenderState` - `AbstractWidget.handleCursor:68-72`
+    fn handle_cursor(&self, widget: &AbstractWidget, cursors: &CursorTypes) -> Option<CursorType> {
+        widget.handle_cursor(cursors)
+    }
 }
 
-// NOTE(fabric2seer): extractWidgetRenderState, isMouseOver, onClick, updateWidgetNarration override(s) of AbstractWidget - the port dispatches its own calls, so these run only where the mod calls them; hook the port's method to make the game call them
-
 /// java: private class ModelFieldContainer extends AbstractContainerWidget
-#[derive(Clone)]
 pub struct ModelFieldContainer {
     /// java: extends net.minecraft.client.gui.components.AbstractContainerWidget
     pub base: AbstractContainerWidget,
-    /// java: private final Component text = Component.translatable("skyblocker.customization.armor.modelOverride").withStyle(ChatFormatting.ITALIC).withStyle(ChatFormatting.
+    /// java: private final Component text = Component.translatable("skyblocker.customization.armor.modelOverride").withStyle(ChatFormatting.ITALIC).withStyle(ChatFormatting.GRAY);
     pub text: MutableComponent,
-    /// java: private final FrameLayout containerLayout;
-    pub container_layout: FrameLayout,
-    /// java: private final IdentifierTextField field;
-    pub field: Option<compat::Shared<IdentifierTextField>>,
-}
-
-impl std::ops::Deref for ModelFieldContainer {
-    type Target = AbstractContainerWidget;
-    fn deref(&self) -> &Self::Target {
-        &self.base
-    }
-}
-
-impl std::ops::DerefMut for ModelFieldContainer {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.base
-    }
+    /// java: private final FrameLayout containerLayout; (arranged over the field's live size - see `arrange`)
+    pub container_layout: LayoutElement,
+    /// `containerLayout`'s minimum width (`setMinWidth`)
+    pub container_min_width: i32,
+    /// java: private final IdentifierTextField field; - the subclass's state; its `EditBox` is `children`'s widget 0
+    pub field: IdentifierTextField,
+    /// java: children() - `visible ? List.of(field) : List.of()`
+    pub children: mcrust::net::minecraft::client::gui::screens::screen::Screen,
 }
 
 impl ModelFieldContainer {
     /// java: private ModelFieldContainer(int width, int height)
-    pub fn new(mut width: i32, mut height: i32) -> Self {
-        let __init_container_layout = FrameLayout::new();
-        // TODO(fabric2seer): static `AbstractScrollArea.defaultSettings` has no Rust counterpart in the port
-        //   java: super(0, 0, width, height, Component.empty(), AbstractScrollArea.defaultSettings(4));
-        let mut this: Self = todo!("constructor");
-        this.field = Some(this.container_layout.add_child(IdentifierTextField::new(width.wrapping_sub(10), 20, Arc::new(move |identifier| {
-            // TODO(fabric2seer): `armor` is a field of the enclosing instance (ArmorTab.this) - an inner class has no outer reference in Rust
-            //   java: String uuid = armor[selectedSlot].getUuid();
-            let mut uuid: String = todo!("fabric2seer: the initialiser of `uuid` (TODO above)");
-            if uuid.is_empty() {
-                return;
-            }
-            SkyblockerConfigManager::update_only(Arc::new(move |mut config| {
-                if identifier.is_none() {
-                    config.general.custom_armor_model.remove(&uuid);
-                } else {
-                    config.general.custom_armor_model.insert(uuid.clone(), identifier.clone().unwrap());
+    pub fn new(width: i32, height: i32, tab: compat::WeakShared<ArmorTab>) -> compat::Shared<Self> {
+        // java: super(0, 0, width, height, Component.empty(), AbstractScrollArea.defaultSettings(4));
+        let base = AbstractContainerWidget::new_with_scrollbar_settings(0, 0, width, height, FormattedText::Empty, ScrollbarSettings::default_settings(4.0));
+        // java: field = containerLayout.addChild(new IdentifierTextField(width - 10, 20, identifier -> {..}));
+        let (field, mut field_widget) = IdentifierTextField::new(
+            width - 10,
+            20,
+            Arc::new(move |identifier: Option<Identifier>| {
+                let Some(tab) = tab.upgrade() else {
+                    return;
+                };
+                let uuid: String = compat::read(&tab, |__t| __t.armor[__t.selected_slot as usize].get_uuid());
+                if uuid.is_empty() {
+                    return;
                 }
-            }));
-            // TODO(fabric2seer): `colorSelectionWidget` is a field of the enclosing instance (ArmorTab.this) - an inner class has no outer reference in Rust
-            //   java: colorSelectionWidget.refresh();
-        }))));
-        this.container_layout.arrange_elements();
-        // TODO(fabric2seer): `AbstractWidget::set_tooltip` ports `setTooltip`, but the port's `EditBox` holds no `AbstractWidget` (no Deref, no `base` field) to call it on
-        // rust: let __wa1 = Tooltip::create(component::translatable("skyblocker.customization.armor.modelOverride.tooltip").get_string());
-        // rust: let __o1 = this.field.clone().unwrap();
-        // rust: compat::write(&__o1, |__t| __t.set_tooltip(__wa1.clone()));
-        // TODO(fabric2seer): `EditBox.setTooltipDelay` has no Rust method in the port (looked for `set_tooltip_delay` in EditBox and its supertypes)
-        // rust: let __wa2 = std::time::Duration::from_millis((400) as u64);
-        // rust: let __o2 = this.field.clone().unwrap();
-        // rust: compat::write(&__o2, |__t| __t.set_tooltip_delay(&__wa2));
-        this
+                SkyblockerConfigManager::update_only(Arc::new(move |config: &mut crate::de::hysky::skyblocker::config::skyblocker_config::SkyblockerConfig| match &identifier {
+                    None => {
+                        config.general.custom_armor_model.remove(&uuid);
+                    }
+                    Some(identifier) => {
+                        config.general.custom_armor_model.insert(uuid.clone(), identifier.clone());
+                    }
+                }));
+                let color = compat::read(&tab, |__t| __t.color_selection_widget.clone());
+                compat::write(&color, |__t| __t.refresh());
+            }),
+        );
+        // java: field.setTooltip(Tooltip.create(Component.translatable("skyblocker.customization.armor.modelOverride.tooltip")));
+        field_widget.set_tooltip_text(FormattedText::from(component::translatable("skyblocker.customization.armor.modelOverride.tooltip")));
+        // java: field.setTooltipDelay(Duration.ofMillis(400));
+        field_widget.set_tooltip_delay(400);
+        let mut children = mcrust::net::minecraft::client::gui::screens::screen::Screen::new(String::new());
+        children.add_renderable_widget(field_widget);
+        let mut this = ModelFieldContainer {
+            base,
+            text: component::translatable("skyblocker.customization.armor.modelOverride").with_style_format(ChatFormatting::Italic).with_style_format(ChatFormatting::Gray),
+            container_layout: LayoutElement::Frame(FrameLayout::new()),
+            container_min_width: 0,
+            field,
+            children,
+        };
+        // java: containerLayout.arrangeElements();
+        this.arrange();
+        compat::shared(this)
     }
 
-    /// java: @Override public void setX(int x)
-    pub fn set_x(&mut self, mut x: i32) {
-        self.base.set_x(x);
-        // TODO(fabric2seer): `align_in_dimension` takes 4 argument(s) in the port (`pos: i32, length: i32, widget_length: i32, align: f32`), Java passes 5
-        // TODO(fabric2seer): a lambda for a parameter the port does not type as a closure (`Consumer<Integer>`)
-        // rust: frame_layout::align_in_dimension(self.get_x(), self.get_width(), self.container_layout.get_width(), |__a0| { self.container_layout.set_x(__a0); }, 0.5f32);
+    /// `containerLayout` (a `FrameLayout` holding the field) arranged over the field's size now.
+    fn arrange(&mut self) {
+        let field = self.children.widget(0);
+        let mut layout = FrameLayout::new();
+        layout.set_min_width(self.container_min_width);
+        layout.add_child(LayoutElement::widget(0, field.get_width(), field.get_height()));
+        let (x, y) = (self.container_layout.get_x(), self.container_layout.get_y());
+        let mut layout = LayoutElement::Frame(layout);
+        layout.arrange_elements();
+        layout.set_position(x, y);
+        self.container_layout = layout;
+        self.place_field();
     }
 
-    /// java: @Override public void setWidth(int width)
-    pub fn set_width(&mut self, mut width: i32) {
-        self.base.set_width(width);
-        { self.container_layout.set_min_width(width); &mut self.container_layout };
-        self.container_layout.arrange_elements();
-        let __wa1 = width.wrapping_sub(10);
-        let __o1 = self.field.clone().unwrap();
-        compat::write(&__o1, |__t| __t.set_width(__wa1));
-        self.set_x(self.get_x());
-    }
-
-    /// java: @Override public void setY(int y)
-    pub fn set_y(&mut self, mut y: i32) {
-        self.base.set_y(y);
-        // TODO(fabric2seer): `align_in_dimension` takes 4 argument(s) in the port (`pos: i32, length: i32, widget_length: i32, align: f32`), Java passes 5
-        // TODO(fabric2seer): a lambda for a parameter the port does not type as a closure (`Consumer<Integer>`)
-        // rust: frame_layout::align_in_dimension(self.get_y(), self.get_height(), self.container_layout.get_height(), |__a0| { self.container_layout.set_y_translating(__a0); }, 0.5f32);
-    }
-
-    /// java: @Override public List<? extends GuiEventListener> children()
-    pub fn children(&self) -> Vec<Box<dyn GuiEventListener>> {
-        return (if self.visible { vec![self.field.clone().unwrap()] } else { vec![] });
-    }
-
-    /// java: @Override protected int contentHeight()
-    pub fn content_height(&self) -> i32 {
-        return 0;
-    }
-
-    /// java: @Override protected double scrollRate()
-    pub fn scroll_rate(&self) -> f64 {
-        return ((0) as f64) as f64;
-    }
-
-    /// java: @Override protected void extractWidgetRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a)
-    pub fn extract_widget_render_state(&self, graphics: &GuiGraphicsExtractor, mut mouse_x: i32, mut mouse_y: i32, mut a: f32) {
-        if !self.visible {
-            return;
+    /// The layout's position written onto the field.
+    fn place_field(&mut self) {
+        let mut placed = Vec::new();
+        self.container_layout.visit_widgets(&mut placed);
+        for (index, x, y) in placed {
+            self.children.widget_mut(index).set_position(x, y);
         }
-        gui_graphics_extractor::blit_sprite_identifier(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), mcrust::net::minecraft::client::renderer::render_pipelines::gui_textured(), INNER_SPACE_TEXTURE.get_mut(), self.get_x(), self.get_y(), self.get_width(), self.get_height());
-        // TODO(fabric2seer): `extract_render_state` is a method of the port's trait `Renderable`, which the port's `EditBox` does not implement
-        // rust: let __wa1 = graphics.clone();
-        // rust: let __wa2 = mouse_x;
-        // rust: let __wa3 = mouse_y;
-        // rust: let __wa4 = a;
-        // rust: let __o1 = self.field.clone().unwrap();
-        // rust: compat::write(&__o1, |__t| __t.extract_render_state(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), __wa2, __wa3, __wa4));
-        // TODO(fabric2seer): field `NONE` of a value of unknown type
-        //   java: this.extractLabel(graphics.textRenderer(GuiGraphicsExtractor.HoveredTextEffects.NONE));
+    }
+
+    /// `field.setValue(value)`
+    pub fn set_field_value(&mut self, value: &str) {
+        compat::set_edit_box_value(self.children.widget_mut(0), value);
+    }
+
+    /// The field's `setFocused` override, where this container sees its focus go (`children`'s focus moved).
+    fn field_focus_changed(&mut self, was_focused: bool) {
+        let is_focused = self.children.get_focused() == Some(0);
+        if was_focused && !is_focused {
+            let field = &self.field;
+            field.set_focused(self.children.widget_mut(0), false);
+        }
     }
 
     /// java: private void extractLabel(ActiveTextCollector drawer)
-    pub fn extract_label(&self, drawer: &dyn ActiveTextCollector) {
-        let mut padding: i32 = 5;
-        let mut start_y: i32 = self.get_y().wrapping_add(padding);
-        // TODO(fabric2seer): `accept_scrolling_with_default_center` takes 6 argument(s) in the port (`left: i32, right: i32, top: i32, bottom: i32, line_width: i32, time_millis: i64`), Java passes 5
-        // rust: active_text_collector::accept_scrolling_with_default_center(self.text.clone(), self.get_x().wrapping_add(padding), self.get_right().wrapping_sub(padding), start_y, start_y.wrapping_add(9));
+    fn extract_label(&self, context: &WidgetRenderContext<'_>) {
+        let padding = 5;
+        let start_y = self.base.get_y() + padding;
+        compat::accept_scrolling_with_default_center(context, &FormattedText::from(self.text.clone()), self.base.get_x() + padding, self.base.get_right() - padding, start_y, start_y + 9);
     }
-
-    /// java: @Override protected void updateWidgetNarration(NarrationElementOutput builder)
-    pub fn update_widget_narration(&self, builder: &dyn NarrationElementOutput) {
-    }
-
 }
 
-// NOTE(fabric2seer): children, contentHeight, extractWidgetRenderState, scrollRate, setWidth, setX, setY, updateWidgetNarration override(s) of AbstractContainerWidget - the port dispatches its own calls, so these run only where the mod calls them; hook the port's method to make the game call them
+impl compat::ObjectWidget for ModelFieldContainer {
+    fn object_box(&mut self) -> &mut AbstractContainerWidget {
+        &mut self.base
+    }
+
+    fn object_box_ref(&self) -> &AbstractContainerWidget {
+        &self.base
+    }
+
+    /// java: @Override public void setX(int x)
+    fn set_x(&mut self, x: i32) {
+        self.base.set_x(x);
+        // java: FrameLayout.alignInDimension(getX(), getWidth(), containerLayout.getWidth(), containerLayout::setX, 0.5f);
+        let new_x = frame_layout::align_in_dimension(self.base.get_x(), self.base.get_width(), self.container_layout.get_width(), 0.5f32);
+        self.container_layout.set_x(new_x);
+        self.place_field();
+    }
+
+    /// java: @Override public void setWidth(int width)
+    fn set_width(&mut self, width: i32) {
+        self.base.set_width(width);
+        // java: containerLayout.setMinWidth(width); containerLayout.arrangeElements(); field.setWidth(width - 10);
+        self.container_min_width = width;
+        self.arrange();
+        self.children.widget_mut(0).set_width(width - 10);
+        compat::with_edit_box(self.children.widget_mut(0), |e| e.set_width(width - 10));
+        // java: setX(getX());
+        let x = self.base.get_x();
+        compat::ObjectWidget::set_x(self, x);
+    }
+
+    /// java: @Override public void setY(int y)
+    fn set_y(&mut self, y: i32) {
+        self.base.set_y(y);
+        // java: FrameLayout.alignInDimension(getY(), getHeight(), containerLayout.getHeight(), containerLayout::setY, 0.5f);
+        let new_y = frame_layout::align_in_dimension(self.base.get_y(), self.base.get_height(), self.container_layout.get_height(), 0.5f32);
+        self.container_layout.set_y(new_y);
+        self.place_field();
+    }
+
+    /// java: @Override protected void extractWidgetRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a)
+    fn extract_widget_render_state(&mut self, _widget: &AbstractWidget, context: &mut WidgetRenderContext<'_>, mouse_x: i32, mouse_y: i32, _a: f32) {
+        if !self.base.visible {
+            return;
+        }
+        gui_graphics_extractor::blit_sprite_identifier(context.gl, context.minecraft, mcrust::net::minecraft::client::renderer::render_pipelines::gui_textured(), INNER_SPACE_TEXTURE.get(), self.base.get_x(), self.base.get_y(), self.base.get_width(), self.base.get_height());
+        // java: this.field.extractRenderState(graphics, mouseX, mouseY, a);
+        context.extract_widgets(&mut self.children, mouse_x, mouse_y);
+        // java: this.extractLabel(graphics.textRenderer(GuiGraphicsExtractor.HoveredTextEffects.NONE));
+        self.extract_label(context);
+    }
+
+    /// ContainerEventHandler.mouseClicked:39-55 over `children()` (the field while visible)
+    fn mouse_clicked(&mut self, _widget: &mut AbstractWidget, event: &MouseButtonEvent, _double_click: bool) -> bool {
+        if !self.base.visible {
+            return false;
+        }
+        let was_focused = self.children.get_focused() == Some(0);
+        let consumed = compat::children_mouse_clicked(&mut self.children, event);
+        self.field_focus_changed(was_focused);
+        consumed
+    }
+
+    /// ContainerEventHandler.mouseReleased:57-66
+    fn mouse_released(&mut self, _widget: &mut AbstractWidget, event: &MouseButtonEvent) -> bool {
+        compat::children_mouse_released(&mut self.children, event);
+        false
+    }
+
+    /// ContainerEventHandler.mouseDragged:68-71
+    fn mouse_dragged(&mut self, _widget: &mut AbstractWidget, event: &MouseButtonEvent, dx: f64, dy: f64) -> bool {
+        compat::children_mouse_dragged(&mut self.children, event, dx, dy);
+        false
+    }
+
+    /// ContainerEventHandler.keyPressed - the focused child
+    fn key_pressed(&mut self, _widget: &mut AbstractWidget, event: &KeyEvent) -> bool {
+        if !self.base.visible {
+            return false;
+        }
+        compat::children_key_pressed(&mut self.children, event)
+    }
+
+    /// ContainerEventHandler.charTyped - the focused child
+    fn char_typed(&mut self, _widget: &mut AbstractWidget, event: &CharacterEvent) -> bool {
+        if !self.base.visible {
+            return false;
+        }
+        compat::children_char_typed(&mut self.children, event)
+    }
+}

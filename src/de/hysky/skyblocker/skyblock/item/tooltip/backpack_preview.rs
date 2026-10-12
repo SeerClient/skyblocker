@@ -273,11 +273,11 @@ impl BackpackPreview {
     pub fn get_storage_index_from_title(title: &str) -> i32 {
         let mut echest: compat::regex::Matcher = ECHEST_PATTERN.matcher(title);
         if echest.find() {
-            return (echest.group(1).unwrap().trim().parse::<i32>().expect("NumberFormatException")).wrapping_sub(1);
+            return (echest.group(1).unwrap().parse::<i32>().expect("NumberFormatException")).wrapping_sub(1);
         }
         let mut backpack: compat::regex::Matcher = BACKPACK_PATTERN.matcher(title);
         if backpack.find() {
-            return (backpack.group(1).unwrap().trim().parse::<i32>().expect("NumberFormatException")).wrapping_add(8);
+            return (backpack.group(1).unwrap().parse::<i32>().expect("NumberFormatException")).wrapping_add(8);
         }
         return -1;
     }

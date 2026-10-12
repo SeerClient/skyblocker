@@ -162,7 +162,7 @@ impl ObtainedDateTooltip {
     pub fn add_to_tooltip_impl(__this: &compat::Shared<Self>, mut focused_slot: Option<Slot>, stack: &mcrust::net::minecraft::world::item::item_stack::ItemStack, lines: &mut Vec<MutableComponent>) {
         let mut timestamp: String = ObtainedDateTooltip::get_timestamp(stack);
         if !timestamp.is_empty() {
-            lines.push(GridComponent::of_2(&compat::jstring(&component::literal("Obtained:").with_style_format(ChatFormatting::LightPurple)), &vec![component::literal(&timestamp).with_style_format(ChatFormatting::Red)]));
+            lines.push(GridComponent::of(&vec![component::literal("Obtained:").with_style_format(ChatFormatting::LightPurple), component::literal(&timestamp).with_style_format(ChatFormatting::Red)]));
         }
     }
 

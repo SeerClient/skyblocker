@@ -34,7 +34,7 @@ impl SafariUtils {
 
     /// java: public static boolean isInIcyBiome()
     pub fn is_in_icy_biome() -> bool {
-        return (Utils::is_in_safari() && Utils::is_in_biome(sky_block_biomes::ICY.get_mut()) || Utils::is_in_biome(sky_block_biomes::ICY_CAVES.get_mut()));
+        return Utils::is_in_safari() && (Utils::is_in_biome(sky_block_biomes::ICY.get_mut()) || Utils::is_in_biome(sky_block_biomes::ICY_CAVES.get_mut()));
     }
 
 }

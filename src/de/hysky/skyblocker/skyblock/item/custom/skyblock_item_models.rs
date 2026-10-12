@@ -63,14 +63,15 @@ impl SkyblockItemModels {
                         visited.insert(item_model_string.clone());
                         // TODO(fabric2seer): `.getRenamed(..)` on a ItemModels
                         //   java: String nextModel = itemModelsData.getRenamed().get(currentModel);
-                        let mut next_model: String = todo!("fabric2seer: the initialiser of `nextModel` (TODO above)");
-                        while true /* java: next_model != null: never null here */ {
-                            if visited.contains(&next_model) {
+                        let mut next_model: Option<String> = todo!("fabric2seer: the initialiser of `nextModel` (TODO above)");
+                        // java: while (nextModel != null) - `Map.get` answers null for a model that was not renamed
+                        while let Some(next) = next_model.clone() {
+                            if visited.contains(&next) {
                                 break;
                             }
-                            entry.1 = Identifier::parse(&next_model);
-                            visited.insert(next_model.clone());
-                            current_model = next_model.clone();
+                            entry.1 = Identifier::parse(&next);
+                            visited.insert(next.clone());
+                            current_model = next;
                             // TODO(fabric2seer): `.getRenamed(..)` on a ItemModels
                             //   java: nextModel = itemModelsData.getRenamed().get(currentModel);
                         }

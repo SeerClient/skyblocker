@@ -26,7 +26,7 @@ impl PosUtils {
     /// java: public static BlockPos parsePosString(String posData)
     pub fn parse_pos_string(pos_data: &str) -> BlockPos {
         let mut pos_array: Vec<String> = compat::regex::split(&pos_data, ",");
-        return BlockPos::new((pos_array[(0) as usize]).trim().parse::<i32>().expect("NumberFormatException"), (pos_array[(1) as usize]).trim().parse::<i32>().expect("NumberFormatException"), (pos_array[(2) as usize]).trim().parse::<i32>().expect("NumberFormatException"));
+        return BlockPos::new((pos_array[(0) as usize]).parse::<i32>().expect("NumberFormatException"), (pos_array[(1) as usize]).parse::<i32>().expect("NumberFormatException"), (pos_array[(2) as usize]).parse::<i32>().expect("NumberFormatException"));
     }
 
     /// java: public static BlockPos parsePosJson(JsonObject posJson)

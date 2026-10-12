@@ -71,7 +71,7 @@ impl CustomItemNames {
             //   java: source.sendError(Constants.PREFIX.get().append(Component.translatable("skyblocker.customItemNames.noItemUuid")));
             return 0;
         }
-        SchedulerBase::queue_open_screen_screen(Box::new(compat::ScreenAdapter::new(CustomizeScreen::new(None, true))));
+        SchedulerBase::queue_open_screen_screen(Box::new(compat::ScreenAdapter::new(CustomizeScreen::new(true))));
         return 1;
     }
 

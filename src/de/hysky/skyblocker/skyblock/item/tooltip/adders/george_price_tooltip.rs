@@ -132,7 +132,7 @@ impl GeorgePriceTooltip {
         if price < (0 as f64) {
             return;
         }
-        lines.push(GridComponent::of_2(&compat::jstring(&(component::literal(&format!("{:<21}", "Pet Sell Price:"))).with_style_format(ChatFormatting::Yellow)), &vec![ItemTooltip::get_coins_message(price, 1)]));
+        lines.push(GridComponent::of(&vec![(component::literal(&format!("{:<21}", "Pet Sell Price:"))).with_style_format(ChatFormatting::Yellow), ItemTooltip::get_coins_message(price, 1)]));
     }
 
     /// GeorgePriceTooltip.addToTooltip as the dispatch of TooltipAdder.addToTooltip

@@ -51,7 +51,7 @@ impl FunUtils {
             return false;
         }
         let mut date: LocalDate = LocalDate::now();
-        return (date.get_month_value() == 12 && date.get_day_of_month() == 24 || date.get_day_of_month() == 25);
+        return date.get_month_value() == 12 && (date.get_day_of_month() == 24 || date.get_day_of_month() == 25);
     }
 
     /// java: public static boolean shouldEnableSpookyFun()

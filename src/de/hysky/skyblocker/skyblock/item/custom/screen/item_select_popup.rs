@@ -79,10 +79,18 @@ impl std::ops::DerefMut for ItemSelectPopup {
 impl ItemSelectPopup {
     /// java: protected ItemSelectPopup(Screen backgroundScreen, Consumer<ItemStack> callback)
     pub fn new(mut background_screen: mcrust::net::minecraft::client::gui::screens::screen::Screen, callback: Arc<dyn Fn(mcrust::net::minecraft::world::item::item_stack::ItemStack)>) -> compat::Shared<Self> {
-        let __init_callback = callback.clone();
-        // TODO(fabric2seer): the mod keeps the game's `Screen` (Java holds a reference to the live object); the port's `Screen` is not a value to copy and the port lends the mod no handle to it
-        //   java: super(Component.literal("Select Item"), backgroundScreen);
-        let __this: compat::Shared<Self> = todo!("constructor");
+        // java: super(Component.literal("Select Item"), backgroundScreen);
+        let (_, __this) = AbstractPopupScreenBase::new_in(component::literal("Select Item"), background_screen, move |__base| {
+            let __h = compat::shared(Self {
+                base: __base,
+                callback,
+                main_grid: GridLayout::new_default(),
+                equipment_layout: LinearLayout::horizontal(),
+                x: 0,
+                y: 0,
+            });
+            ((__h.clone() as compat::Shared<dyn AbstractPopupScreen>), __h)
+        });
         __this
     }
 

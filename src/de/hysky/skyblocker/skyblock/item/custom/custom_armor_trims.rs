@@ -103,7 +103,7 @@ impl CustomArmorTrims {
     }
 
     /// java: @SuppressWarnings("SameReturnValue") private static int customizeTrim(FabricClientCommandSource source, Identifier material, Identifier pattern)
-    pub fn customize_trim(source: &crate::unresolved::FabricClientCommandSource, material: &Identifier, pattern: &Identifier) -> i32 {
+    pub fn customize_trim(source: &crate::unresolved::FabricClientCommandSource, material: Option<&Identifier>, pattern: Option<&Identifier>) -> i32 {
         // TODO(fabric2seer): `.getPlayer(..)` on a FabricClientCommandSource
         //   java: ItemStack heldItem = source.getPlayer().getMainHandItem();
         let mut held_item: mcrust::net::minecraft::world::item::item_stack::ItemStack = todo!("fabric2seer: the initialiser of `heldItem` (TODO above)");
@@ -112,7 +112,8 @@ impl CustomArmorTrims {
                 let mut item_uuid: String = held_item.get_uuid();
                 if !item_uuid.is_empty() {
                     let custom_armor_trims = &SkyblockerConfigManager::get().general.custom_armor_trims;
-                    if false /* java: material == null: never null here */ && false /* java: pattern == null: never null here */ {
+                    // (the command's bare form passes no material and no pattern)
+                    if material.is_none() && pattern.is_none() {
                         if custom_armor_trims.contains_key(&item_uuid) {
                             SkyblockerConfigManager::update(Arc::new(move |mut config| { config.general.custom_armor_trims.remove(&item_uuid); }));
                             // TODO(fabric2seer): `.sendFeedback(..)` on a FabricClientCommandSource
@@ -122,7 +123,8 @@ impl CustomArmorTrims {
                             //   java: source.sendFeedback(Constants.PREFIX.get().append(Component.translatable("skyblocker.customArmorTrims.neverHad")));
                         }
                     } else {
-                        let mut trim_id: ArmorTrimId = ArmorTrimId::new(material.clone(), pattern.clone());
+                        // (the command's other form passes both)
+                        let mut trim_id: ArmorTrimId = ArmorTrimId::new(material.cloned().expect("NullPointerException: material"), pattern.cloned().expect("NullPointerException: pattern"));
                         if TRIMS_CACHE.get_mut().get(&trim_id).cloned().is_none() {
                             // TODO(fabric2seer): `.sendError(..)` on a FabricClientCommandSource
                             //   java: source.sendError(Constants.PREFIX.get().append(Component.translatable("skyblocker.customArmorTrims.invalidMaterialOrPattern").withColor(TextColor.RED)));

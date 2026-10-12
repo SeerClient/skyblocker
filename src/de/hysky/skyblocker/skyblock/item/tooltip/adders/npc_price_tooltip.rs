@@ -129,7 +129,7 @@ impl NpcPriceTooltip {
             return;
         }
         let mut count: i32 = (ItemUtils::get_item_count_in_sack(stack, &stack.skyblocker_get_lore_strings()).unwrap_or(ItemUtils::get_item_count_in_stash_component(&lines[0]).unwrap_or(ItemUtils::get_compost_count_in_composter(&stack.skyblocker_get_lore_strings()).unwrap_or(stack.get_count())))).max(1);
-        lines.push(GridComponent::of_2(&compat::jstring(&component::literal("NPC Sell Price:").with_style_format(ChatFormatting::Yellow)), &vec![ItemTooltip::get_coins_message(price, count)]));
+        lines.push(GridComponent::of(&vec![component::literal("NPC Sell Price:").with_style_format(ChatFormatting::Yellow), ItemTooltip::get_coins_message(price, count)]));
     }
 
     /// NpcPriceTooltip.addToTooltip as the dispatch of TooltipAdder.addToTooltip

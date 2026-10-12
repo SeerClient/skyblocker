@@ -136,7 +136,7 @@ impl YourEssenceAdder {
                 if !(compat::regex::Pattern::matches("-?\\d+", &essence_amount)) {
                     return vec![];
                 }
-                return SlotText::bottom_right_list(&(component::literal(&formatters::SHORT_FLOAT_NUMBERS.get_mut().format((essence_amount.trim().parse::<i32>().expect("NumberFormatException")) as f64))).with_color(slot_text::CREAM));
+                return SlotText::bottom_right_list(&(component::literal(&formatters::SHORT_FLOAT_NUMBERS.get_mut().format((essence_amount.parse::<i32>().expect("NumberFormatException")) as f64))).with_color(slot_text::CREAM));
             }).unwrap_or(vec![]);
         }
         return vec![];

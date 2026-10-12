@@ -64,7 +64,8 @@ impl MessageScheduler {
         // java: message = StringUtil.trimChatMessage(StringUtils.normalizeSpace(message.trim()));
         message = mcrust::net::minecraft::util::string_util::trim_chat_message(&normalize_space(&compat::trim(&message)));
         if !hide {
-            client.gui.hud.get_chat().add_recent_chat(&message);
+            // java: client.gui.getChat().addRecentChat(message) - `getChat()` answers the field, which the port lends `&mut` as `hud.chat`
+            client.gui.hud.chat.add_recent_chat(&message);
         }
         if message.starts_with("/") {
             // java: client.player.connection.sendCommand(message.substring(1)); - the player's connection is the client's

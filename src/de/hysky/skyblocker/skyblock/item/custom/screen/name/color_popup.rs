@@ -54,35 +54,39 @@ impl std::ops::DerefMut for ColorPopup {
 impl ColorPopup {
     /// java: private ColorPopup(Screen backgroundScreen, GradientConsumer gradientConsumer, boolean gradient)
     pub fn new(mut background_screen: mcrust::net::minecraft::client::gui::screens::screen::Screen, gradient_consumer: GradientConsumer, mut gradient: bool) -> compat::Shared<Self> {
-        let __init_gradient_consumer = Some(gradient_consumer.clone());
-        let __init_gradient = gradient;
-        // TODO(fabric2seer): the mod keeps the game's `Screen` (Java holds a reference to the live object); the port's `Screen` is not a value to copy and the port lends the mod no handle to it
-        //   java: super(Component.literal("Color Popup"), backgroundScreen);
-        let __this: compat::Shared<Self> = todo!("constructor");
-        __this.lock().borrow_mut().layout.default_cell_setting().align_horizontally_center();
+        // java: super(Component.literal("Color Popup"), backgroundScreen);
+        let (_, __this) = AbstractPopupScreenBase::new_in(component::literal("Color Popup"), background_screen, move |__base| {
+            let __h = compat::shared(Self {
+                base: __base,
+                layout: GridLayout::new_default(),
+                gradient,
+                gradient_consumer: Some(gradient_consumer),
+                current_color: (-1, -1),
+            });
+            ((__h.clone() as compat::Shared<dyn AbstractPopupScreen>), __h)
+        });
+        // java: layout.defaultCellSetting().alignHorizontallyCenter(); - on the layout's own settings
+        compat::write(&__this, |__t| {
+            let settings = __t.layout.default_cell_setting();
+            *settings = settings.clone().align_horizontally_center();
+        });
         __this
     }
 
     /// java: private ColorPopup(Screen backgroundScreen, IntConsumer consumer)
     pub fn new_2(mut background_screen: mcrust::net::minecraft::client::gui::screens::screen::Screen, consumer: Arc<dyn Fn(i32)>) -> compat::Shared<Self> {
-        // TODO(fabric2seer): the mod keeps the game's `Screen` (Java holds a reference to the live object); the port's `Screen` is not a value to copy and the port lends the mod no handle to it
-        //   java: this(backgroundScreen, ((start, _) -> consumer.accept(start)), false);
-        let __this: compat::Shared<Self> = todo!("constructor");
-        __this
+        // java: this(backgroundScreen, ((start, _) -> consumer.accept(start)), false);
+        ColorPopup::new(background_screen, Arc::new(move |start: i32, _: i32| consumer(start)), false)
     }
 
     /// java: public static ColorPopup create(Screen backgroundScreen, IntConsumer colorConsumer)
-    pub fn create(background_screen: &mcrust::net::minecraft::client::gui::screens::screen::Screen, color_consumer: Arc<dyn Fn(i32)>) -> compat::Shared<ColorPopup> {
-        // TODO(fabric2seer): the mod keeps the game's `Screen` (Java holds a reference to the live object); the port's `Screen` is not a value to copy and the port lends the mod no handle to it
-        // rust: return ColorPopup::new_2(background_screen.clone(), color_consumer.clone());
-        return todo!("fabric2seer: see the TODO above");
+    pub fn create(background_screen: mcrust::net::minecraft::client::gui::screens::screen::Screen, color_consumer: Arc<dyn Fn(i32)>) -> compat::Shared<ColorPopup> {
+        return ColorPopup::new_2(background_screen, color_consumer);
     }
 
     /// java: public static ColorPopup createGradient(Screen backgroundScreen, GradientConsumer gradientConsumer)
-    pub fn create_gradient(background_screen: &mcrust::net::minecraft::client::gui::screens::screen::Screen, gradient_consumer: GradientConsumer) -> compat::Shared<ColorPopup> {
-        // TODO(fabric2seer): the mod keeps the game's `Screen` (Java holds a reference to the live object); the port's `Screen` is not a value to copy and the port lends the mod no handle to it
-        // rust: return ColorPopup::new(background_screen.clone(), gradient_consumer.clone(), true);
-        return todo!("fabric2seer: see the TODO above");
+    pub fn create_gradient(background_screen: mcrust::net::minecraft::client::gui::screens::screen::Screen, gradient_consumer: GradientConsumer) -> compat::Shared<ColorPopup> {
+        return ColorPopup::new(background_screen, gradient_consumer, true);
     }
 
     /// java: private void createLayout(GridLayout.RowHelper adder)

@@ -119,7 +119,7 @@ impl PrehistoricEggAdder {
         if walked < 1000 {
             walked_str = walked.to_string();
         } else if walked < 10000 {
-            walked_str = format!("{:.1}k", ((walked as f32) / 1000.0f32));
+            walked_str = compat::string_format("%.1fk", &[((walked as f32) / 1000.0f32).into()]);
         } else {
             walked_str = format!("{}k", walked.wrapping_div(1000));
         }

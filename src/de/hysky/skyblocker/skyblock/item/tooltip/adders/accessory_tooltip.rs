@@ -141,7 +141,7 @@ impl AccessoryTooltip {
                     AccessoryReport::Missing => (component::literal("✖ Missing ")).with_color(*MISSING_COLOUR).append(component::literal(&report.1).with_color(0xF8F8FF)),
                     _ => (component::literal("? Unknown")).with_style_format(ChatFormatting::Gray),
                 };
-                lines.push(GridComponent::of_2(&compat::jstring(&title), &vec![state_text.clone()]));
+                lines.push(GridComponent::of(&vec![title, state_text.clone()]));
             }
         }
     }

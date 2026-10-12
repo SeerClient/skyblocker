@@ -227,7 +227,7 @@ impl CraftPriceTooltip {
                 return;
             }
             let mut count: i32 = (ItemUtils::get_item_count_in_sack(stack, &stack.skyblocker_get_lore_strings()).unwrap_or(ItemUtils::get_item_count_in_stash_component(&lines[0]).unwrap_or(stack.get_count()))).max(1);
-            lines.push(GridComponent::of_2(&compat::jstring(&component::literal("Crafting Price:").with_style_format(ChatFormatting::Gold)), &vec![ItemTooltip::get_coins_message(craft_price, count)]));
+            lines.push(GridComponent::of(&vec![component::literal("Crafting Price:").with_style_format(ChatFormatting::Gold), ItemTooltip::get_coins_message(craft_price, count)]));
         }
         // TODO(fabric2seer): the `catch (Exception e)` block is not reached in Rust - the try body returns, breaks or continues, so it cannot run inside `catch_unwind`
         //   java: {

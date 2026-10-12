@@ -419,7 +419,7 @@ impl ItemUtils {
         let mut drill_fuel: Option<String> = Some(chat_formatting::strip_formatting(ItemUtils::get_lore_line_if(stack, FUEL_PREDICATE.get_mut().clone()).as_deref().unwrap()));
         if let Some(drill_fuel) = &drill_fuel {
             let mut drill_fuel_strings: Vec<String> = compat::regex::split(&compat::trim(&NOT_DURABILITY.matcher(drill_fuel).replace_all("")), "/");
-            return Some(((drill_fuel_strings[(0) as usize]).trim().parse::<i32>().expect("NumberFormatException"), ((drill_fuel_strings[(1) as usize]).trim().parse::<i32>().expect("NumberFormatException")).wrapping_mul(1000)));
+            return Some(((drill_fuel_strings[(0) as usize]).parse::<i32>().expect("NumberFormatException"), ((drill_fuel_strings[(1) as usize]).parse::<i32>().expect("NumberFormatException")).wrapping_mul(1000)));
         }
         return None;
     }

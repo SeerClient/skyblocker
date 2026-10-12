@@ -253,7 +253,7 @@ impl BitsHelper {
             if !bits_matcher.find() {
                 continue;
             }
-            let mut bits_cost: i64 = (bits_matcher.group_named("amount").unwrap().replace(",", "")).trim().parse::<i64>().expect("NumberFormatException");
+            let mut bits_cost: i64 = (bits_matcher.group_named("amount").unwrap().replace(",", "")).parse::<i64>().expect("NumberFormatException");
             let mut item_cost: f64 = (ItemUtils::get_item_price(stack.as_ref().unwrap()).unwrap_or(((0) as f64) as f64) * (stack.as_ref().unwrap().get_count() as f64));
             if item_cost == (0 as f64) || bits_cost == (0 as i64) {
                 continue;
@@ -456,7 +456,7 @@ impl BitsHelper {
             if !bits_matcher.find() {
                 return;
             }
-            let mut bits_cost: i64 = (bits_matcher.group_named("amount").unwrap().replace(",", "")).trim().parse::<i64>().expect("NumberFormatException");
+            let mut bits_cost: i64 = (bits_matcher.group_named("amount").unwrap().replace(",", "")).parse::<i64>().expect("NumberFormatException");
             let mut item_cost: f64 = (ItemUtils::get_item_price(stack).unwrap_or(((0) as f64) as f64) * (stack.get_count() as f64));
             if item_cost == (0 as f64) {
                 return;

@@ -2,42 +2,38 @@
 
 #[allow(unused_imports)]
 use crate::prelude::*;
-use crate::de::hysky::skyblocker::config::configs::general_config::GeneralConfig;
 use crate::de::hysky::skyblocker::config::skyblocker_config_manager::SkyblockerConfigManager;
 use crate::de::hysky::skyblocker::skyblock::item::custom::custom_armor_animated_dyes::AnimatedDye;
 use crate::de::hysky::skyblocker::skyblock::item::custom::custom_armor_animated_dyes::CustomArmorAnimatedDyes;
 use crate::de::hysky::skyblocker::skyblock::item::custom::custom_armor_trims::ArmorTrimId;
 use crate::de::hysky::skyblocker::skyblock::item::custom::screen::armor_tab::ArmorTab;
 use crate::de::hysky::skyblocker::skyblock::item::custom::screen::item_tab::ItemTab;
+use crate::de::hysky::skyblocker::utils::scheduler::scheduler::SchedulerBase;
 use crate::de::hysky::skyblocker::utils::utils::Utils;
+use mcrust::com::mojang::blaze3d::platform::cursor::cursor_type::CursorType;
+use mcrust::com::mojang::blaze3d::platform::cursor::cursor_types::CursorTypes;
+use mcrust::com::mojang::brigadier::builder::argument_builder::ArgumentBuilder as _;
+use mcrust::mcrust::modding::events::client_command_registration_callback;
 use mcrust::mcrust::modding::screens::ModScreen;
 use mcrust::mcrust::modding::screens::ScreenRenderContext;
-use mcrust::mcrust::modding::widgets::ModWidget;
 use mcrust::mcrust::modding::widgets::WidgetRenderContext;
 use mcrust::net::minecraft::chat_formatting::ChatFormatting;
 use mcrust::net::minecraft::client::gui::components::abstract_container_widget::AbstractContainerWidget;
 use mcrust::net::minecraft::client::gui::components::abstract_widget::AbstractWidget;
 use mcrust::net::minecraft::client::gui::components::abstract_widget::OnPress;
 use mcrust::net::minecraft::client::gui::components::abstract_widget::PressLambda;
-use mcrust::net::minecraft::client::gui::components::abstract_widget::WidgetKind;
 use mcrust::net::minecraft::client::gui::components::button;
 use mcrust::net::minecraft::client::gui::components::tabs::menu_tab_bar::MenuTabBar;
 use mcrust::net::minecraft::client::gui::components::tabs::tab_manager::TabManager;
-use mcrust::net::minecraft::client::gui::components::tabs::tab_navigation_bar;
 use mcrust::net::minecraft::client::gui::gui_graphics_extractor;
-use mcrust::net::minecraft::client::gui::gui_graphics_extractor::GuiGraphicsExtractor;
 use mcrust::net::minecraft::client::gui::layouts::layout_element::LayoutElement;
 use mcrust::net::minecraft::client::gui::layouts::linear_layout::LinearLayout;
-use mcrust::net::minecraft::client::gui::narration::narration_element_output::NarrationElementOutput;
 use mcrust::net::minecraft::client::gui::navigation::screen_rectangle::ScreenRectangle;
-use mcrust::net::minecraft::client::gui::screens::inventory::inventory_screen::InventoryScreen;
-use mcrust::net::minecraft::client::input::character_event::CharacterEvent;
 use mcrust::net::minecraft::client::input::mouse_button_event::MouseButtonEvent;
-use mcrust::net::minecraft::client::input::mouse_button_info::MouseButtonInfo;
 use mcrust::net::minecraft::network::chat::component;
+use mcrust::net::minecraft::network::chat::formatted_text::FormattedText;
 use mcrust::net::minecraft::network::chat::mutable_component::MutableComponent;
 use mcrust::net::minecraft::resources::identifier::Identifier;
-use crate::de::hysky::skyblocker::injected::recipe_book_holder::RecipeBookHolder as _;
 use crate::de::hysky::skyblocker::injected::skyblocker_stack::SkyblockerStack as _;
 use mcrust::net::minecraft::network::chat::component::Component as _;
 
@@ -48,20 +44,20 @@ pub static CUSTOMIZE_BUTTON_TEXTURE: compat::MainThread<Identifier> = compat::Ma
 pub struct CustomizeScreen {
     /// java: extends net.minecraft.client.gui.screens.Screen
     pub base: mcrust::net::minecraft::client::gui::screens::screen::Screen,
-    /// java: private final @Nullable Screen previousScreen;
-    pub previous_screen: Option<mcrust::net::minecraft::client::gui::screens::screen::Screen>,
     /// java: private final Map<String, PreviousConfig> previousConfigs = new Object2ObjectOpenHashMap<>();
     pub previous_configs: std::collections::HashMap<String, PreviousConfig>,
     /// java: private final TabManager tabManager = new TabManager(this::addRenderableWidget, this::removeWidget);
-    pub tab_manager: Option<TabManager>,
+    pub tab_manager: TabManager,
     /// java: private final boolean item;
     pub item: bool,
     /// java: private TabNavigationBar tabNavigation;
-    pub tab_navigation: Option<AbstractContainerWidget>,
-    /// java: private final LinearLayout footerLayout = LinearLayout.horizontal().spacing(5);
-    pub footer_layout: LinearLayout,
+    pub tab_navigation: Option<MenuTabBar>,
+    /// java: private final LinearLayout footerLayout = LinearLayout.horizontal().spacing(5); (its buttons' places)
+    pub footer_layout: LayoutElement,
     /// java: private ArmorTab armorTab;
-    pub armor_tab: Option<ArmorTab>,
+    pub armor_tab: Option<compat::Shared<ArmorTab>>,
+    /// the item tab (`.addTabs(armorTab, new ItemTab(this))`)
+    pub item_tab: Option<compat::Shared<ItemTab>>,
     /// the object's own shared handle: Java's `this` handed to other objects
     pub self_ref: compat::WeakShared<Self>,
     /// the screen's widgets as this object last saw them (see `compat::WidgetCache`)
@@ -83,204 +79,370 @@ impl std::ops::DerefMut for CustomizeScreen {
 
 impl CustomizeScreen {
     /// java: public CustomizeScreen(@Nullable Screen previousScreen, boolean item)
-    pub fn new(mut previous_screen: Option<mcrust::net::minecraft::client::gui::screens::screen::Screen>, mut item: bool) -> compat::Shared<Self> {
-        let __init_previous_screen = previous_screen;
-        let __init_item = item;
+    ///
+    /// (`previousScreen` is the screen that is up when this one opens - the game holds it,
+    /// `game::set_screen_keeping_parent`, and `onClose` returns to it)
+    pub fn new(item: bool) -> compat::Shared<Self> {
+        // java: super((Math.random() < 0.01 ? Component.translatable("..titleSecret") : Component.translatable("..title")).withStyle(ChatFormatting.GRAY).withStyle(style -> style.withShadowColor(0)));
+        let title = (if compat::random() < 0.01 { component::translatable("skyblocker.customization.titleSecret") } else { component::translatable("skyblocker.customization.title") })
+            .with_style_format(ChatFormatting::Gray)
+            .with_style_fn(|style| style.with_shadow_color(0));
         let __this = compat::shared(Self {
-            base: mcrust::net::minecraft::client::gui::screens::screen::Screen::new((if compat::random() < 0.01 { component::translatable("skyblocker.customization.titleSecret") } else { component::translatable("skyblocker.customization.title") }).with_style_format(ChatFormatting::Gray).with_style_fn(|style| style.with_shadow_color(0)).get_string()),
+            base: mcrust::net::minecraft::client::gui::screens::screen::Screen::new(title.get_string()),
             self_ref: std::sync::Weak::new(),
             __widgets: Default::default(),
-            previous_screen: __init_previous_screen,
             previous_configs: std::collections::HashMap::new(),
-            tab_manager: None,
-            item: __init_item,
+            tab_manager: TabManager::new(),
+            item,
             tab_navigation: None,
-            footer_layout: LinearLayout::horizontal().spacing(5),
+            footer_layout: LayoutElement::Grid(LinearLayout::horizontal().spacing(5).wrapped),
             armor_tab: None,
+            item_tab: None,
         });
         compat::write(&__this, |__t| __t.self_ref = std::sync::Arc::downgrade(&__this));
-        // TODO(fabric2seer): the port's `new` ports this Java method with other parameters ( for Java's add_widget, remove_widget)
-        // TODO(fabric2seer): `new` takes 0 argument(s) in the port (``), Java passes 2
-        // TODO(fabric2seer): a lambda for a parameter the port does not type as a closure (`Consumer<net.minecraft.client.gui.components.AbstractWidget>`)
-        // TODO(fabric2seer): `Screen.removeWidget` has no Rust method in the port (looked for `remove_widget` in Screen and its supertypes)
-        // rust: let __this_w1 = compat::RenderThread::new(std::sync::Arc::downgrade(&__this));
-        // rust: let __this_w2 = compat::RenderThread::new(std::sync::Arc::downgrade(&__this));
-        // rust: { let __v = Some(TabManager::new(|__a0| { let Some(__this_1) = __this_w1.get().upgrade() else { return Default::default(); }; { { let (__q0,) = (__a0.clone(),); __this_1.lock().borrow_mut().add_renderable_widget(__q0) }; } }, |__a0| { let Some(__this_2) = __this_w2.get().upgrade() else { return Default::default(); }; { __this_2.lock().borrow().remove_widget(&__a0); } })); compat::write(&__this, |__t| __t.tab_manager = __v); }
         __this
     }
 
     /// java: @Init public static void initThings()
     pub fn init_things() {
-        client_command_registration_callback::EVENT.register(Arc::new(
-            |dispatcher: &mut client_command_registration_callback::ClientCommandDispatcher| {
-                // TODO(fabric2seer): a command tree this tool cannot read (arguments, redirects, requires) - SeerClient commands receive the words after the name in `ctx.args`
-                //   java: dispatcher.register(..);
-            },
-        ));
+        client_command_registration_callback::EVENT.register(Arc::new(|dispatcher: &mut client_command_registration_callback::ClientCommandDispatcher| {
+            // java: dispatcher.register(ClientCommands.literal(SkyblockerMod.NAMESPACE).then(ClientCommands.literal("custom").executes(Scheduler.queueOpenScreenCommand(() -> new CustomizeScreen(null, false)))));
+            let mut custom = client_command_registration_callback::literal("custom");
+            custom.executes(SchedulerBase::queue_open_screen_command(Arc::new(|| Box::new(compat::ScreenAdapter::new(CustomizeScreen::new(false))) as Box<dyn ModScreen>)));
+            let mut root = client_command_registration_callback::literal(crate::entry::skyblocker_mod::NAMESPACE);
+            root.then(&custom);
+            dispatcher.dispatcher().register(&root);
+        }));
         screen_events::AFTER_INIT.register(Arc::new(|screen: &mut Screen, width: i32, height: i32| {
-            if Utils::is_on_skyblock() && SkyblockerConfigManager::get().ui_and_visuals.show_customize_button && let Some(inventory_screen) = screen.as_any().downcast_ref::<InventoryScreen>() && !(crate::entry::catharsis_compatibility::is_gui_element_hidden("skyblocker:customizeButton")) {
-                let mut button: compat::Shared<CustomizeButton> = CustomizeButton::new(inventory_screen.left_pos.wrapping_add(63), inventory_screen.top_pos.wrapping_add(10));
-                // TODO(fabric2seer): Fabric API `Screens.getWidgets` has no SeerClient equivalent
-                //   java: Screens.getWidgets(inventoryScreen).add(button);
-                inventory_screen.register_recipe_book_toggle_callback(Arc::new(move || { let __wa1 = inventory_screen.left_pos.wrapping_add(63); let __wa2 = inventory_screen.top_pos.wrapping_add(10); let __o1 = button.clone(); compat::write(&__o1, |__t| __t.set_position(__wa1, __wa2)); }));
+            // java: screen instanceof InventoryScreen inventoryScreen
+            let is_inventory_screen = compat::minecraft().gui.screen_kind == mcrust::net::minecraft::client::gui::gui::ScreenKind::Inventory;
+            if Utils::is_on_skyblock() && SkyblockerConfigManager::get().ui_and_visuals.show_customize_button && is_inventory_screen && !crate::entry::catharsis_compatibility::is_gui_element_hidden("skyblocker:customizeButton") {
+                // java: new CustomizeButton(accessor.getX() + 63, accessor.getY() + 10) - the panel as the screen's `init` placed
+                //   it (`(width - imageWidth) / 2`, `(height - imageHeight) / 2`) when it has not been drawn yet
+                let (left, top) = match compat::container_screen_panel() {
+                    Some((left, top, _, _, _)) => (left, top),
+                    None => ((width - 176) / 2, (height - 166) / 2),
+                };
+                let button = CustomizeButton::new(left + 63, top + 10);
+                // java: Screens.getWidgets(inventoryScreen).add(button);
+                screen.add_renderable_widget(compat::object_widget(button, ""));
+                // java: inventoryScreen.registerRecipeBookToggleCallback(() -> button.setPosition(accessor.getX() + 63, accessor.getY() + 10));
+                // rust: the button follows the panel itself each frame (`CustomizeButton::extract_widget_render_state`),
+                //   which is where the toggle callback moves it
             }
         }));
     }
 
     /// java: public void backupConfigs(ItemStack stack)
     pub fn backup_configs(__this: &compat::Shared<Self>, stack: &mcrust::net::minecraft::world::item::item_stack::ItemStack) {
-        let mut uuid: String = stack.get_uuid();
-        if uuid.is_empty() || __this.lock().borrow().previous_configs.contains_key(&uuid) {
+        let uuid: String = stack.get_uuid();
+        if uuid.is_empty() || compat::read(__this, |__t| __t.previous_configs.contains_key(&uuid)) {
             return;
         }
         let general = &SkyblockerConfigManager::get().general;
-        let mut previous_config: PreviousConfig = PreviousConfig::new((if general.custom_armor_trims.contains_key(&uuid) { general.custom_armor_trims.get(&uuid).cloned() } else { None }), (if general.custom_dye_colors.contains_key(&uuid) { Some(general.custom_dye_colors.get(&uuid).copied().unwrap_or_default()) } else { None }), (if general.custom_animated_dyes.contains_key(&uuid) { general.custom_animated_dyes.get(&uuid).cloned() } else { None }), (if general.custom_helmet_textures.contains_key(&uuid) { general.custom_helmet_textures.get(&uuid).cloned() } else { None }), (if general.custom_item_names.contains_key(&uuid) { general.custom_item_names.get(&uuid).cloned() } else { None }), (if general.custom_glint.contains_key(&uuid) { Some(general.custom_glint.get(&uuid).copied().unwrap_or_default()) } else { None }), (if general.custom_item_model.contains_key(&uuid) { general.custom_item_model.get(&uuid).cloned() } else { None }), (if general.custom_armor_model.contains_key(&uuid) { general.custom_armor_model.get(&uuid).cloned() } else { None }));
-        let __h0 = uuid.clone();
-        let __h1 = previous_config.clone();
-        __this.lock().borrow_mut().previous_configs.insert(__h0, __h1);
+        let previous_config = PreviousConfig::new(
+            general.custom_armor_trims.get(&uuid).cloned(),
+            general.custom_dye_colors.get(&uuid).copied(),
+            general.custom_animated_dyes.get(&uuid).cloned(),
+            general.custom_helmet_textures.get(&uuid).cloned(),
+            general.custom_item_names.get(&uuid).cloned(),
+            general.custom_glint.get(&uuid).copied(),
+            general.custom_item_model.get(&uuid).cloned(),
+            general.custom_armor_model.get(&uuid).cloned(),
+        );
+        compat::write(__this, |__t| __t.previous_configs.insert(uuid, previous_config));
+    }
+
+    /// The screen's widget list for `f`, with no borrow of this object held (the tabs' constructors and layouts reach
+    /// back to it through `backupConfigs`).
+    fn with_screen<R>(__this: &compat::Shared<Self>, f: impl FnOnce(&mut mcrust::net::minecraft::client::gui::screens::screen::Screen) -> R) -> R {
+        struct Back<'a>(&'a compat::Shared<CustomizeScreen>, Option<mcrust::net::minecraft::client::gui::screens::screen::Screen>);
+        impl Drop for Back<'_> {
+            fn drop(&mut self) {
+                if let Some(screen) = self.1.take() {
+                    compat::write(self.0, |__t| __t.base = screen);
+                }
+            }
+        }
+        let screen = compat::write(__this, |__t| std::mem::replace(&mut __t.base, mcrust::net::minecraft::client::gui::screens::screen::Screen::new(String::new())));
+        let mut back = Back(__this, Some(screen));
+        f(back.1.as_mut().expect("the screen"))
     }
 
     /// java: @Override public void tick()
     pub fn tick(__this: &compat::Shared<Self>) {
-        __this.lock().borrow().armor_tab.as_ref().unwrap().tick();
+        // java: armorTab.tick();
+        if let Some(armor_tab) = compat::read(__this, |__t| __t.armor_tab.clone()) {
+            compat::read(&armor_tab, |__t| __t.tick());
+        }
+        // (the item tab's writes on the screen's widgets and its model field's focus; see `ItemTab::apply`)
+        if let Some(item_tab) = compat::read(__this, |__t| __t.item_tab.clone()) {
+            CustomizeScreen::with_screen(__this, |screen| {
+                ItemTab::apply(&item_tab, screen);
+                ItemTab::check_model_field_focus(&item_tab, screen);
+            });
+        }
     }
 
     /// java: @Override protected void init()
     pub fn init(__this: &compat::Shared<Self>) {
-        ();
-        { let __v = Some(ArmorTab::new(__this.clone())); compat::write(__this, |__t| __t.armor_tab = __v); }
-        // TODO(fabric2seer): static `MenuTabBar.builder` has no Rust counterpart in the port
-        // TODO(fabric2seer): `Builder.addTabs` has no Rust method in the port (looked for `add_tabs` in MenuTabBar and its supertypes)
-        // TODO(fabric2seer): `build` takes 3 argument(s) in the port (`screen: &mut crate::net::minecraft::client::gui::screens::screen::Screen, width: i32, titles: &[crate::net::minecraft::network::chat::formatted_text::FormattedText]`), Java passes 0
-        // rust: { let __v = Some(MenuTabBar::build()); compat::write(__this, |__t| __t.tab_navigation = __v); }
-        let mut i: i32 = __this.lock().borrow().tab_navigation.as_ref().unwrap().get_rectangle().bottom();
-        // TODO(fabric2seer): `arrange_elements` takes 0 argument(s) in the port (``), Java passes 1
-        // TODO(fabric2seer): `LayoutElement::arrange_elements` ports `arrangeElements`, but the port's `AbstractContainerWidget` holds no `LayoutElement` (no Deref, no `base` field) to call it on
-        // rust: let __r0 = compat::read(__this, |__t| __t.width);
-        // rust: { let (__q0,) = (__r0,); __this.lock().borrow_mut().tab_navigation.as_mut().unwrap().arrange_elements(__q0) };
-        let __r0 = compat::read(__this, |__t| __t.width);
-        let __r1 = compat::read(__this, |__t| __t.height);
-        { let (__q0,) = (ScreenRectangle::new_at(0, i, __r0, ((__r1).wrapping_sub(i)).wrapping_sub(30)),); __this.lock().borrow_mut().tab_manager.as_mut().unwrap().set_tab_area(__q0) };
-        // TODO(fabric2seer): `select_tab` takes 3 argument(s) in the port (`index: usize, is_focused: bool, active: bool`), Java passes 2
-        // rust: tab_navigation_bar::select_tab(((if compat::read(__this, |__t| __t.item) { 1 } else { 0 })) as usize, false);
-        let __r0 = compat::read(__this, |__t| __t.tab_navigation.clone());
-        { let (__q0,) = (__r0.unwrap(),); __this.lock().borrow_mut().add_renderable_widget(__q0) };
-        let __this_w1 = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
-        { let (__q0,) = ({ let (__q0,) = ({ let __w = (button::builder(component::translatable("gui.cancel").get_string(), OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| { let Some(__this_1) = __this_w1.get().upgrade() else { return Default::default(); }; compat::lend_screen(&__this_1, __screen, || { let mut __pidx = compat::WidgetRef::Screen(__index); { CustomizeScreen::cancel((&__this_1)); } }) })))).build(); let (__ww, __wh) = (__w.get_width(), __w.get_height()); LayoutElement::widget(compat::write(__this, |__t| __t.add_widget(__w)), __ww, __wh) },); __this.lock().borrow_mut().footer_layout.add_child(__q0) },); __this.lock().borrow_mut().add_renderable_widget(__q0) };
-        let __this_w2 = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
-        { let (__q0,) = ({ let (__q0,) = ({ let __w = (button::builder(component::translatable("gui.done").get_string(), OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| { let Some(__this_2) = __this_w2.get().upgrade() else { return Default::default(); }; compat::lend_screen(&__this_2, __screen, || { let mut __pidx = compat::WidgetRef::Screen(__index); { CustomizeScreen::on_close((&__this_2)); } }) })))).build(); let (__ww, __wh) = (__w.get_width(), __w.get_height()); LayoutElement::widget(compat::write(__this, |__t| __t.add_widget(__w)), __ww, __wh) },); __this.lock().borrow_mut().footer_layout.add_child(__q0) },); __this.lock().borrow_mut().add_renderable_widget(__q0) };
-        { __this.lock().borrow_mut().footer_layout.arrange_elements(); let mut __vw = Vec::new(); LayoutElement::Grid(__this.lock().borrow().footer_layout.wrapped.clone()).visit_widgets(&mut __vw); for (__i, __x, __y) in __vw { compat::write(__this, |__t| __t.widget_mut(__i).set_position(__x, __y)); } };
+        // java: super.init(); (empty)
+        let (width, height) = compat::read(__this, |__t| (__t.width, __t.height));
+        let (armor_tab, item_tab) = CustomizeScreen::with_screen(__this, |screen| (ArmorTab::new(__this, screen), ItemTab::new(__this, screen)));
+        compat::write(__this, |__t| {
+            __t.armor_tab = Some(armor_tab.clone());
+            __t.item_tab = Some(item_tab.clone());
+            // the tabs' widgets were made for this screen: a new layout of tabs starts with none selected
+            __t.tab_manager = TabManager::new();
+        });
+        // java: tabNavigation = MenuTabBar.builder(tabManager, width).addTabs(armorTab, new ItemTab(this)).build();
+        let titles = [compat::read(&armor_tab, |__t| __t.base.get_tab_title().clone()), compat::read(&item_tab, |__t| __t.base.get_tab_title().clone())];
+        let mut bar = CustomizeScreen::with_screen(__this, |screen| MenuTabBar::build(screen, width, &titles));
+        // a tab button's press is `TabNavigationBar.selectTab(index, true)` on this screen's tabs
+        for (index, &button) in bar.tab_buttons.iter().enumerate() {
+            let this = compat::RenderThread::new(Arc::downgrade(__this));
+            compat::write(__this, |__t| {
+                __t.widget_mut(button).on_press = OnPress::Lambda(PressLambda::new(move |screen, _index| {
+                    if let Some(this) = this.get().upgrade() {
+                        CustomizeScreen::select_tab(&this, screen, index, true);
+                    }
+                }));
+            });
+        }
+        let i: i32 = bar.get_rectangle().bottom();
+        CustomizeScreen::with_screen(__this, |screen| bar.arrange_elements(screen, width));
+        let tab_buttons = bar.tab_buttons.clone();
+        compat::write(__this, |__t| __t.tab_navigation = Some(bar));
+        CustomizeScreen::set_tab_area(__this, ScreenRectangle::new_at(0, i, width, height - i - 30));
+        let item = compat::read(__this, |__t| __t.item);
+        CustomizeScreen::with_screen(__this, |screen| CustomizeScreen::select_tab(__this, screen, if item { 1 } else { 0 }, false));
+        // java: addRenderableWidget(tabNavigation);
+        compat::write(__this, |__t| {
+            for button in tab_buttons {
+                __t.mark_renderable(button);
+            }
+        });
+
+        // java: addRenderableWidget(footerLayout.addChild(Button.builder(Component.translatable("gui.cancel"), _ -> cancel()).build()));
+        let this = compat::RenderThread::new(Arc::downgrade(__this));
+        let cancel = button::builder(component::translatable("gui.cancel").get_string(), OnPress::Lambda(PressLambda::new(move |_screen, _index| {
+            if let Some(this) = this.get().upgrade() {
+                CustomizeScreen::cancel(&this);
+            }
+        })))
+        .build();
+        // java: addRenderableWidget(footerLayout.addChild(Button.builder(Component.translatable("gui.done"), _ -> onClose()).build()));
+        let this = compat::RenderThread::new(Arc::downgrade(__this));
+        let done = button::builder(component::translatable("gui.done").get_string(), OnPress::Lambda(PressLambda::new(move |_screen, _index| {
+            if let Some(this) = this.get().upgrade() {
+                CustomizeScreen::on_close(&this);
+            }
+        })))
+        .build();
+        compat::write(__this, |__t| {
+            let mut footer = LinearLayout::horizontal().spacing(5);
+            for button in [cancel, done] {
+                let (w, h) = (button.get_width(), button.get_height());
+                let index = __t.add_renderable_widget(button);
+                footer.add_child(LayoutElement::widget(index, w, h));
+            }
+            // java: footerLayout.arrangeElements();
+            let mut footer = LayoutElement::Grid(footer.wrapped);
+            footer.arrange_elements();
+            __t.footer_layout = footer;
+        });
         CustomizeScreen::reposition_elements(__this);
+    }
+
+    /// `tabManager.setTabArea(area)` - `TabManager.setTabArea:34-40`: the current tab is laid out in it.
+    fn set_tab_area(__this: &compat::Shared<Self>, area: ScreenRectangle) {
+        let current = compat::write(__this, |__t| __t.tab_manager.set_tab_area(area));
+        if let Some(tab) = current {
+            CustomizeScreen::with_screen(__this, |screen| CustomizeScreen::layout_tab(__this, screen, tab, area));
+        }
+    }
+
+    /// `tab.doLayout(area)` for tab `index`
+    fn layout_tab(__this: &compat::Shared<Self>, screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, index: usize, area: ScreenRectangle) {
+        let (armor_tab, item_tab) = compat::read(__this, |__t| (__t.armor_tab.clone(), __t.item_tab.clone()));
+        match index {
+            0 => {
+                if let Some(tab) = armor_tab {
+                    compat::write(&tab, |__t| __t.do_layout(screen, area));
+                }
+            }
+            _ => {
+                if let Some(tab) = item_tab {
+                    compat::write(&tab, |__t| __t.do_layout(screen, area));
+                }
+            }
+        }
+    }
+
+    /// `tab.visitChildren(..)` for tab `index`, with each child's `visible` as the tab last set it
+    fn tab_children(__this: &compat::Shared<Self>, index: usize) -> Vec<(usize, bool)> {
+        let (armor_tab, item_tab) = compat::read(__this, |__t| (__t.armor_tab.clone(), __t.item_tab.clone()));
+        match index {
+            0 => armor_tab.map(|tab| compat::read(&tab, |__t| __t.visit_children().into_iter().map(|i| (i, true)).collect())).unwrap_or_default(),
+            _ => item_tab.map(|tab| compat::read(&tab, |__t| __t.visit_children().into_iter().map(|i| (i, __t.child_visible(i))).collect())).unwrap_or_default(),
+        }
+    }
+
+    /// `TabNavigationBar.selectTab(index, playSound)` - `TabManager.setCurrentTab:46-68` over this screen's tabs: the
+    /// old tab's widgets leave the screen, the new tab's join it and are laid out.
+    pub fn select_tab(__this: &compat::Shared<Self>, screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, index: usize, play_sound: bool) {
+        let Some(switch) = compat::write(__this, |__t| __t.tab_manager.set_current_tab(index, play_sound)) else {
+            return;
+        };
+        // :48-50 - `removeWidget` for the old tab's children
+        if let Some(old) = switch.remove_children_of {
+            for (child, _) in CustomizeScreen::tab_children(__this, old) {
+                screen.remove_widget(child);
+            }
+        }
+        // :54-56 - `addRenderableWidget` for the new tab's children
+        if let Some(new) = switch.add_children_of {
+            for (child, visible) in CustomizeScreen::tab_children(__this, new) {
+                screen.widget_mut(child).visible = visible;
+                screen.mark_renderable(child);
+            }
+        }
+        if let Some(bar) = compat::read(__this, |__t| __t.tab_navigation.clone()) {
+            bar.update_selected(screen, compat::read(__this, |__t| __t.tab_manager.get_current_tab()));
+        }
+        // :58-60
+        if switch.layout
+            && let Some(area) = compat::read(__this, |__t| __t.tab_manager.tab_area())
+        {
+            CustomizeScreen::layout_tab(__this, screen, index, area);
+        }
+        // :62-64 - `Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F))`
+        // rust: port gap - a mod has no sound manager in the port (GAPS_batchE.md)
     }
 
     /// java: @Override public void added()
     pub fn added(__this: &compat::Shared<Self>) {
-        ();
-        if compat::read(__this, |__t| __t.armor_tab.clone()).is_some() {
-            __this.lock().borrow().armor_tab.as_ref().unwrap().recreate();
+        // java: super.added(); (empty)
+        if let Some(armor_tab) = compat::read(__this, |__t| __t.armor_tab.clone()) {
+            compat::read(&armor_tab, |__t| __t.recreate());
         }
     }
 
     /// java: private void cancel()
     pub fn cancel(__this: &compat::Shared<Self>) {
-        let __this_1 = compat::RenderThread::new(__this.clone());
-        SkyblockerConfigManager::update_only(Arc::new(move |mut config| {
-            for (uuid, previous_config) in __this_1.get().lock().borrow().previous_configs.iter() {
-                if let Some(trim) = previous_config.armor_trim_id() {
-                    config.general.custom_armor_trims.insert(uuid.to_string(), trim.clone());
-                } else {
-                    config.general.custom_armor_trims.remove(uuid);
-                }
-                if let Some(i) = previous_config.color() {
-                    config.general.custom_dye_colors.insert(uuid.to_string(), i);
-                } else {
-                    config.general.custom_dye_colors.remove(uuid);
-                }
-                if let Some(animated_dye) = previous_config.animated_dye() {
-                    config.general.custom_animated_dyes.insert(uuid.to_string(), animated_dye.clone());
-                } else {
-                    config.general.custom_animated_dyes.remove(uuid);
-                }
-                if let Some(tex) = previous_config.helmet_texture() {
-                    config.general.custom_helmet_textures.insert(uuid.to_string(), tex.clone());
-                } else {
-                    config.general.custom_helmet_textures.remove(uuid);
-                }
-                if let Some(text) = previous_config.item_name() {
-                    config.general.custom_item_names.insert(uuid.to_string(), text.clone());
-                } else {
-                    config.general.custom_item_names.remove(uuid);
-                }
-                if let Some(b) = previous_config.glint() {
-                    config.general.custom_glint.insert(uuid.to_string(), b);
-                } else {
-                    // TODO(fabric2seer): Map.removeBoolean(..)
-                    //   java: config.general.customGlint.removeBoolean(..);
-                }
-                if let Some(identifier) = previous_config.item_model() {
-                    config.general.custom_item_model.insert(uuid.to_string(), identifier.clone());
-                } else {
-                    config.general.custom_item_model.remove(uuid);
-                }
-                if let Some(identifier) = previous_config.armor_model() {
-                    config.general.custom_armor_model.insert(uuid.to_string(), identifier.clone());
-                } else {
-                    config.general.custom_armor_model.remove(uuid);
-                }
+        let previous_configs: Vec<(String, PreviousConfig)> = compat::read(__this, |__t| __t.previous_configs.iter().map(|(k, v)| (k.clone(), v.clone())).collect());
+        SkyblockerConfigManager::update_only(Arc::new(move |config: &mut crate::de::hysky::skyblocker::config::skyblocker_config::SkyblockerConfig| {
+            for (uuid, previous_config) in previous_configs.iter() {
+                match previous_config.armor_trim_id() {
+                    Some(trim) => config.general.custom_armor_trims.insert(uuid.clone(), trim),
+                    None => config.general.custom_armor_trims.remove(uuid),
+                };
+                match previous_config.color() {
+                    Some(i) => config.general.custom_dye_colors.insert(uuid.clone(), i),
+                    None => config.general.custom_dye_colors.remove(uuid),
+                };
+                match previous_config.animated_dye() {
+                    Some(animated_dye) => config.general.custom_animated_dyes.insert(uuid.clone(), animated_dye),
+                    None => config.general.custom_animated_dyes.remove(uuid),
+                };
+                match previous_config.helmet_texture() {
+                    Some(tex) => config.general.custom_helmet_textures.insert(uuid.clone(), tex),
+                    None => config.general.custom_helmet_textures.remove(uuid),
+                };
+                match previous_config.item_name() {
+                    Some(text) => config.general.custom_item_names.insert(uuid.clone(), text),
+                    None => config.general.custom_item_names.remove(uuid),
+                };
+                match previous_config.glint() {
+                    Some(b) => config.general.custom_glint.insert(uuid.clone(), b),
+                    None => config.general.custom_glint.remove(uuid),
+                };
+                match previous_config.item_model() {
+                    Some(identifier) => config.general.custom_item_model.insert(uuid.clone(), identifier),
+                    None => config.general.custom_item_model.remove(uuid),
+                };
+                match previous_config.armor_model() {
+                    Some(identifier) => config.general.custom_armor_model.insert(uuid.clone(), identifier),
+                    None => config.general.custom_armor_model.remove(uuid),
+                };
             }
         }));
         CustomizeScreen::on_close(__this);
     }
 
     /// java: @Override public boolean mouseClicked(MouseButtonEvent click, boolean doubled)
-    pub fn mouse_clicked(__this: &compat::Shared<Self>, click: &MouseButtonEvent, mut doubled: bool) -> bool {
-        let mut b: bool = false;
+    ///
+    /// `boolean b = super.mouseClicked(click, doubled); if (!b) setFocused(null); return b;` - the port's generic
+    /// pass is `super`, and runs after this answers `false`: a click no child is under clears the focus first.
+    pub fn mouse_clicked(__this: &compat::Shared<Self>, screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, click: &MouseButtonEvent) -> bool {
+        let b = screen.get_child_at(click.x(), click.y()).is_some();
         if !b {
-            // TODO(fabric2seer): `Screen.setFocused` has no Rust method in the port (looked for `set_focused` in Screen and its supertypes)
-            // rust: __this.lock().borrow().set_focused(None);
+            screen.set_focused(None);
+            if let Some(item_tab) = compat::read(__this, |__t| __t.item_tab.clone()) {
+                ItemTab::check_model_field_focus(&item_tab, screen);
+            }
         }
-        return b;
+        false
     }
 
     /// java: @Override protected void repositionElements()
     pub fn reposition_elements(__this: &compat::Shared<Self>) {
-        let mut i: i32 = __this.lock().borrow().tab_navigation.as_ref().unwrap().get_rectangle().bottom();
-        // TODO(fabric2seer): `arrange_elements` takes 0 argument(s) in the port (``), Java passes 1
-        // TODO(fabric2seer): `LayoutElement::arrange_elements` ports `arrangeElements`, but the port's `AbstractContainerWidget` holds no `LayoutElement` (no Deref, no `base` field) to call it on
-        // rust: let __r0 = compat::read(__this, |__t| __t.width);
-        // rust: { let (__q0,) = (__r0,); __this.lock().borrow_mut().tab_navigation.as_mut().unwrap().arrange_elements(__q0) };
-        // TODO(fabric2seer): `LayoutElement::set_position` ports `setPosition`, but the port's `LinearLayout` holds no `LayoutElement` (no Deref, no `base` field) to call it on
-        // rust: let __r0 = compat::read(__this, |__t| __t.width);
-        // rust: let __r1 = compat::read(__this, |__t| __t.height);
-        // rust: { let (__q0, __q1,) = (((__r0).wrapping_sub(__this.lock().borrow().footer_layout.get_width())).wrapping_div(2), ((__r1).wrapping_sub(__this.lock().borrow().footer_layout.get_height())).wrapping_sub(5),); __this.lock().borrow_mut().footer_layout.set_position(__q0, __q1) };
-        let __r0 = compat::read(__this, |__t| __t.width);
-        { let (__q0,) = (ScreenRectangle::new_at(0, i, __r0, ((__this.lock().borrow().footer_layout.get_y()).wrapping_sub(i)).wrapping_sub(2)),); __this.lock().borrow_mut().tab_manager.as_mut().unwrap().set_tab_area(__q0) };
+        let (width, height) = compat::read(__this, |__t| (__t.width, __t.height));
+        let Some(mut bar) = compat::read(__this, |__t| __t.tab_navigation.clone()) else {
+            return;
+        };
+        let i: i32 = bar.get_rectangle().bottom();
+        CustomizeScreen::with_screen(__this, |screen| bar.arrange_elements(screen, width));
+        let footer_y = compat::write(__this, |__t| {
+            __t.tab_navigation = Some(bar);
+            // java: footerLayout.setPosition((width - footerLayout.getWidth()) / 2, height - footerLayout.getHeight() - 5);
+            let (fw, fh) = (__t.footer_layout.get_width(), __t.footer_layout.get_height());
+            __t.footer_layout.set_position((width - fw) / 2, height - fh - 5);
+            let mut placed = Vec::new();
+            __t.footer_layout.visit_widgets(&mut placed);
+            for (index, x, y) in placed {
+                __t.widget_mut(index).set_position(x, y);
+            }
+            __t.footer_layout.get_y()
+        });
+        // java: tabManager.setTabArea(new ScreenRectangle(0, i, width, footerLayout.getY() - i - 2));
+        CustomizeScreen::set_tab_area(__this, ScreenRectangle::new_at(0, i, width, footer_y - i - 2));
+        // (the item tab's writes made while a popup was up - this runs as the screen comes back)
+        if let Some(item_tab) = compat::read(__this, |__t| __t.item_tab.clone()) {
+            CustomizeScreen::with_screen(__this, |screen| ItemTab::apply(&item_tab, screen));
+        }
     }
 
     /// java: @Override public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a)
-    pub fn extract_render_state(__this: &compat::Shared<Self>, graphics: &GuiGraphicsExtractor, mut mouse_x: i32, mut mouse_y: i32, mut a: f32) {
-        ();
+    pub fn extract_render_state(__this: &compat::Shared<Self>, context: &mut ScreenRenderContext<'_>) {
+        // java: super.extractRenderState(graphics, mouseX, mouseY, a); - the tab bar draws its header separators
+        if let Some(bar) = compat::read(__this, |__t| __t.tab_navigation.clone()) {
+            bar.extract_header_separators(context.gl, context.minecraft);
+        }
+        //context.drawCenteredTextWithShadow(textRenderer, getTitle(), this.width / 2, footerLayout.getY() + footerLayout.getHeight() + 2, Colors.WHITE);
     }
 
     /// java: @Override public boolean isPauseScreen()
-    pub fn is_pause_screen(__this: &compat::Shared<Self>) -> bool {
+    pub fn is_pause_screen(_this: &compat::Shared<Self>) -> bool {
         return false;
     }
 
     /// java: @Override public void removed()
     pub fn removed(__this: &compat::Shared<Self>) {
-        ();
-        __this.lock().borrow_mut().armor_tab.as_mut().unwrap().close();
+        // java: super.removed(); armorTab.close();
+        if let Some(armor_tab) = compat::read(__this, |__t| __t.armor_tab.clone()) {
+            compat::write(&armor_tab, |__t| __t.close());
+        }
         CustomArmorAnimatedDyes::clean_trackers();
     }
 
     /// java: @Override public void onClose()
-    pub fn on_close(__this: &compat::Shared<Self>) {
+    pub fn on_close(_this: &compat::Shared<Self>) {
+        // java: minecraft.gui.setScreen(previousScreen);
         mcrust::mcrust::modding::game::set_screen_to_parent();
-        // TODO(fabric2seer): static call Consumers.nop(..)
-        //   java: SkyblockerConfigManager.update(Consumers.nop());
+        // java: SkyblockerConfigManager.update(Consumers.nop());
+        SkyblockerConfigManager::update(Arc::new(|_: &mut crate::de::hysky::skyblocker::config::skyblocker_config::SkyblockerConfig| {}));
     }
-
 }
 
 /// CustomizeScreen's `Screen` half (`super`'s fields and widget tree), lent by the game for each call
@@ -294,7 +456,7 @@ impl compat::ScreenHalf for CustomizeScreen {
     }
 }
 
-/// CustomizeScreen as the game's screen: `game::set_screen(Box::new(compat::ScreenAdapter::new(..)))`
+/// CustomizeScreen as the game's screen: `game::set_screen_keeping_parent(Box::new(compat::ScreenAdapter::new(..)))`
 impl ModScreen for compat::ScreenAdapter<CustomizeScreen> {
     fn get_title(&self) -> String {
         self.title()
@@ -326,23 +488,14 @@ impl ModScreen for compat::ScreenAdapter<CustomizeScreen> {
     }
 
     /// java: @Override public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a)
-    fn extract_render_state(&mut self, screen: &mcrust::net::minecraft::client::gui::screens::screen::Screen, context: &mut ScreenRenderContext<'_>, mouse_x: i32, mouse_y: i32, a: f32) {
-        self.lend_ref(screen, |__h| CustomizeScreen::extract_render_state(__h, &context.graphics, mouse_x, mouse_y, a))
-    }
-
-    /// java: Screen.keyPressed (the base body)
-    fn key_pressed(&mut self, screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, event: &mcrust::net::minecraft::client::input::key_event::KeyEvent) -> bool {
-        self.lend(screen, |_| ());
-        if event.is_escape() && self.should_close_on_esc() {
-            self.on_close();
-            return true;
-        }
-        false
+    fn extract_render_state(&mut self, screen: &mcrust::net::minecraft::client::gui::screens::screen::Screen, context: &mut ScreenRenderContext<'_>, _mouse_x: i32, _mouse_y: i32, _a: f32) {
+        self.lend_ref(screen, |__h| CustomizeScreen::extract_render_state(__h, context))
     }
 
     /// java: @Override public boolean mouseClicked(MouseButtonEvent click, boolean doubled)
     fn mouse_clicked(&mut self, screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, x: f64, y: f64, button: i32) -> bool {
-        self.lend(screen, |__h| CustomizeScreen::mouse_clicked(__h, &MouseButtonEvent::new(x, y, MouseButtonInfo::new(button, 0)), false))
+        let event = MouseButtonEvent::new(x, y, mcrust::net::minecraft::client::input::mouse_button_info::MouseButtonInfo::new(button, 0));
+        self.call(|__h| CustomizeScreen::mouse_clicked(__h, screen, &event))
     }
 
     /// java: @Override public void onClose()
@@ -354,12 +507,9 @@ impl ModScreen for compat::ScreenAdapter<CustomizeScreen> {
     fn is_pause_screen(&self) -> bool {
         self.call(|__h| CustomizeScreen::is_pause_screen(__h))
     }
-
 }
 
-// NOTE(fabric2seer): added, extractRenderState, init, isPauseScreen, mouseClicked, onClose, removed, repositionElements, tick override(s) of Screen - the port dispatches its own calls, so these run only where the mod calls them; hook the port's method to make the game call them
-
-/// java: private record PreviousConfig(Optional<CustomArmorTrims.ArmorTrimId> armorTrimId, OptionalInt color, Optional<CustomArmorAnimatedDyes.AnimatedDye> animatedDye, Optional<String> helmetTexture, Optional<Component> itemName, Optional<Boolean> 
+/// java: private record PreviousConfig(Optional<CustomArmorTrims.ArmorTrimId> armorTrimId, OptionalInt color, Optional<CustomArmorAnimatedDyes.AnimatedDye> animatedDye, Optional<String> helmetTexture, Optional<Component> itemName, Optional<Boolean> glint, Optional<Identifier> itemModel, Optional<Identifier> armorModel)
 #[derive(Clone, Debug)]
 pub struct PreviousConfig {
     /// java: Optional<CustomArmorTrims.ArmorTrimId> armorTrimId
@@ -382,7 +532,7 @@ pub struct PreviousConfig {
 
 impl PreviousConfig {
     /// java: the canonical record constructor
-    pub fn new(mut armor_trim_id: Option<ArmorTrimId>, mut color: Option<i32>, mut animated_dye: Option<AnimatedDye>, mut helmet_texture: Option<String>, mut item_name: Option<MutableComponent>, mut glint: Option<bool>, mut item_model: Option<Identifier>, mut armor_model: Option<Identifier>) -> Self {
+    pub fn new(armor_trim_id: Option<ArmorTrimId>, color: Option<i32>, animated_dye: Option<AnimatedDye>, helmet_texture: Option<String>, item_name: Option<MutableComponent>, glint: Option<bool>, item_model: Option<Identifier>, armor_model: Option<Identifier>) -> Self {
         Self { armor_trim_id, color, animated_dye, helmet_texture, item_name, glint, item_model, armor_model }
     }
 
@@ -393,7 +543,7 @@ impl PreviousConfig {
 
     /// java: the record accessor `color()`
     pub fn color(&self) -> Option<i32> {
-        self.color.clone()
+        self.color
     }
 
     /// java: the record accessor `animatedDye()`
@@ -413,7 +563,7 @@ impl PreviousConfig {
 
     /// java: the record accessor `glint()`
     pub fn glint(&self) -> Option<bool> {
-        self.glint.clone()
+        self.glint
     }
 
     /// java: the record accessor `itemModel()`
@@ -425,79 +575,51 @@ impl PreviousConfig {
     pub fn armor_model(&self) -> Option<Identifier> {
         self.armor_model.clone()
     }
-
 }
 
 /// java: private static class CustomizeButton extends AbstractWidget
-#[derive(Clone)]
 pub struct CustomizeButton {
     /// java: extends net.minecraft.client.gui.components.AbstractWidget
-    pub base: AbstractWidget,
-}
-
-impl std::ops::Deref for CustomizeButton {
-    type Target = AbstractWidget;
-    fn deref(&self) -> &Self::Target {
-        &self.base
-    }
-}
-
-impl std::ops::DerefMut for CustomizeButton {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.base
-    }
+    pub base: AbstractContainerWidget,
 }
 
 impl CustomizeButton {
     /// java: private CustomizeButton(int x, int y)
-    pub fn new(mut x: i32, mut y: i32) -> compat::Shared<Self> {
-        let __this = compat::shared(Self {
-            base: AbstractWidget::new(x, y, 10, 10, (&component::empty().get_string()).to_string(), WidgetKind::PlainText, OnPress::Inert),
-        });
-        __this
+    pub fn new(x: i32, y: i32) -> compat::Shared<Self> {
+        // java: super(x, y, 10, 10, Component.empty());
+        compat::shared(CustomizeButton { base: AbstractContainerWidget::new(x, y, 10, 10, FormattedText::Empty) })
     }
-
-    /// java: @Override protected void extractWidgetRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a)
-    pub fn extract_widget_render_state(__this: &compat::Shared<Self>, graphics: &GuiGraphicsExtractor, mut mouse_x: i32, mut mouse_y: i32, mut a: f32) {
-        gui_graphics_extractor::blit_sprite_identifier_with_color(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), mcrust::net::minecraft::client::renderer::render_pipelines::gui_textured(), CUSTOMIZE_BUTTON_TEXTURE.get_mut(), __this.lock().borrow().get_x(), __this.lock().borrow().get_y(), __this.lock().borrow().get_width(), __this.lock().borrow().get_height(), (if __this.lock().borrow().is_hovered() { 0xFFFAFA96u32 as i32 } else { 0x80FFFFFFu32 as i32 }));
-        __this.lock().borrow().handle_cursor(graphics);
-    }
-
-    /// java: @Override public void onClick(MouseButtonEvent click, boolean doubled)
-    pub fn on_click(__this: &compat::Shared<Self>, click: &MouseButtonEvent, mut doubled: bool) {
-        mcrust::mcrust::modding::game::set_screen_keeping_parent(Box::new(compat::ScreenAdapter::new(CustomizeScreen::new(None, false))));
-    }
-
-    /// java: @Override protected void updateWidgetNarration(NarrationElementOutput builder)
-    pub fn update_widget_narration(__this: &compat::Shared<Self>, builder: &dyn NarrationElementOutput) {
-    }
-
 }
 
-/// CustomizeButton's widget half (`super`'s fields: x, y, size, message, ...), lent by the game for each call
-impl compat::WidgetHalf for CustomizeButton {
-    fn widget_half(&mut self) -> &mut AbstractWidget {
+impl compat::ObjectWidget for CustomizeButton {
+    fn object_box(&mut self) -> &mut AbstractContainerWidget {
         &mut self.base
     }
-}
 
-/// CustomizeButton as the game's widget: `compat::WidgetAdapter::widget(handle)` where Java hands it on
-impl ModWidget for compat::WidgetAdapter<CustomizeButton> {
-    /// java: @Override protected void extractWidgetRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a)
-    fn extract_widget_render_state(&mut self, widget: &AbstractWidget, context: &mut WidgetRenderContext<'_>, mouse_x: i32, mouse_y: i32, a: f32) {
-        self.lend_ref(widget, |__h| CustomizeButton::extract_widget_render_state(__h, &context.graphics, mouse_x, mouse_y, a))
+    fn object_box_ref(&self) -> &AbstractContainerWidget {
+        &self.base
     }
 
-    /// java: @Override protected void updateWidgetNarration(NarrationElementOutput builder)
-    fn update_widget_narration(&mut self, widget: &AbstractWidget, output: &mut dyn NarrationElementOutput) {
-        self.lend_ref(widget, |__h| CustomizeButton::update_widget_narration(__h, output))
+    /// java: @Override protected void extractWidgetRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a)
+    fn extract_widget_render_state(&mut self, _widget: &AbstractWidget, context: &mut WidgetRenderContext<'_>, _mouse_x: i32, _mouse_y: i32, _a: f32) {
+        // (`registerRecipeBookToggleCallback`'s `button.setPosition(accessor.getX() + 63, accessor.getY() + 10)`: the
+        // panel moves when the recipe book opens or closes, and the button with it)
+        if let Some((left, top, _, _, _)) = compat::container_screen_panel() {
+            self.base.set_position(left + 63, top + 10);
+        }
+        let color = if self.base.is_hovered() { 0xFFFAFA96u32 as i32 } else { 0x80FFFFFFu32 as i32 };
+        gui_graphics_extractor::blit_sprite_identifier_with_color(context.gl, context.minecraft, mcrust::net::minecraft::client::renderer::render_pipelines::gui_textured(), CUSTOMIZE_BUTTON_TEXTURE.get(), self.base.get_x(), self.base.get_y(), self.base.get_width(), self.base.get_height(), color);
+        // java: this.handleCursor(graphics); - asked by the game after the frame (`handle_cursor`)
     }
 
     /// java: @Override public void onClick(MouseButtonEvent click, boolean doubled)
-    fn on_click(&mut self, widget: &mut AbstractWidget, event: &MouseButtonEvent, double_click: bool) {
-        self.lend(widget, |__h| CustomizeButton::on_click(__h, event, double_click))
+    fn on_click(&mut self, _widget: &mut AbstractWidget, _event: &MouseButtonEvent, _double_click: bool) {
+        // java: CLIENT.gui.setScreen(new CustomizeScreen(CLIENT.gui.screen(), false));
+        mcrust::mcrust::modding::game::set_screen_keeping_parent(Box::new(compat::ScreenAdapter::new(CustomizeScreen::new(false))));
     }
 
+    /// `this.handleCursor(graphics)` - `AbstractWidget.handleCursor:68-72`
+    fn handle_cursor(&self, widget: &AbstractWidget, cursors: &CursorTypes) -> Option<CursorType> {
+        widget.handle_cursor(cursors)
+    }
 }
-
-// NOTE(fabric2seer): extractWidgetRenderState, onClick, updateWidgetNarration override(s) of AbstractWidget - the port dispatches its own calls, so these run only where the mod calls them; hook the port's method to make the game call them
