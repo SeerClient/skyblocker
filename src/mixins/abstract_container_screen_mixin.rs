@@ -105,19 +105,17 @@ fn skyblocker_key_pressed(ci: &mut CallbackInfo<'_>) {
 /// within: net.minecraft.client.gui.screens.inventory.AbstractContainerScreen#mouseClicked
 /// note: not a method of that class in JavaSrc: `mouseClicked` is not declared in net.minecraft.client.gui.screens.Screen; it is inherited from net.minecraft.client.gui.components.events.ContainerEventHandler - hook `net.minecraft.client.gui.components.events.ContainerEventHandler#mouseClicked` (it runs for every subclass) and test `ci.getThis()`'s type
 fn skyblocker_pass_through_search_field_unfocused_clicks(v: bool) -> bool {
-    let mut super_clicked = v;
+    let super_clicked = v;
     if !super_clicked {
-        // TODO(fabric2seer): Fabric API `Screens.getWidgets` has no SeerClient equivalent
         //   java: Optional<AbstractWidget> searchField = Screens.getWidgets(this).stream()
         //   java: 					.filter(InventorySearch.SearchTextFieldWidget.class::isInstance)
         //   java: 					.findFirst();
-        let mut search_field: Option<mcrust::net::minecraft::client::gui::components::abstract_widget::AbstractWidget> = todo!("fabric2seer: the initialiser of `searchField` (TODO above)");
-        // TODO(fabric2seer): `mouse_clicked` takes 3 argument(s) in the port (`button: i32, x: f64, y: f64`), Java passes 2
-        // TODO(fabric2seer): the condition: `click`: this argument is not visible to the injector (see the notes above the handler)
-        //   java: searchField.isPresent() && searchField.get().mouseClicked(click, doubled)
-        if todo!("fabric2seer: the condition (TODO above)") {
-            return true;
-        }
+        //   java: if (searchField.isPresent() && searchField.get().mouseClicked(click, doubled)) return true;
+        // rust: port gap - the port's `AbstractContainerScreen.mouseClicked` decides `super.mouseClicked(..)` (the
+        // widget pass) outside the hooked body, so there is no call whose answer this could modify, and the handler
+        // is handed neither `this` nor `click` (GAPS_M #7). InventorySearch's `SearchTextFieldWidget` is not added to
+        // the screen either (inventory_search.rs:99), so there is no search field to pass the click to; not
+        // registered.
     }
     return super_clicked;
 }
@@ -129,8 +127,16 @@ fn skyblocker_pass_through_search_field_unfocused_clicks(v: bool) -> bool {
 fn skyblocker_before_tooltip_extracted(ci: &mut CallbackInfo<'_>) {
     let Some(this) = compat::detach_ref(ci.arg::<mcrust::net::minecraft::client::gui::screens::inventory::abstract_container_screen::AbstractContainerScreen>(0)) else { return; };
     // `this`: this port's extractTooltip is a free function; its `state` argument (index 0) is the AbstractContainerScreen
-    // TODO(fabric2seer): `graphics`: this argument is not visible to the injector (see the notes above the handler)
+    // and `this.menu` its `menu` argument (index 1); `graphics` is the frame's extractor (the port's draws go through
+    // the frame's global state).
+    let Some(menu) = compat::detach_ref(ci.arg::<mcrust::net::minecraft::world::inventory::abstract_container_menu::AbstractContainerMenu>(1)) else { return; };
+    // `onExtract`'s first statement returns with no solver; the port's takes the slot list by value, so it is not
+    // copied for nothing.
+    if crate::de::hysky::skyblocker::utils::container::container_solver_manager::ContainerSolverManager::get_current_solver().is_none() {
+        return;
+    }
     //   java: ContainerSolverManager.onExtract(graphics, (AbstractContainerScreen<?>) (Object) this, this.menu.slots);
+    crate::de::hysky::skyblocker::utils::container::container_solver_manager::ContainerSolverManager::on_extract(&mut mcrust::net::minecraft::client::gui::gui_graphics_extractor::GuiGraphicsExtractor::new(), this, menu.slots.clone());
 }
 
 /// @WrapOperation skyblocker$extractMouseOverTooltip
@@ -379,23 +385,65 @@ fn skyblocker_on_slot_click(ci: &mut CallbackInfo<'_>) {
 /// Rust: net/minecraft/client/gui/gui_graphics_extractor.rs:4323 fn item(graphics: &mut crate::net::minecraft::client::gui::screens::inventory::tooltip::client_tooltip_component::TooltipGraphics<'_>, item_stack: &crate::net::minecraft::world::item::item_stack::ItemStack, x: i32, y: i32)
 /// note: @Inject at INVOKE: a call-site injector (`hook::call_site`) - `ci` is the CALL's (its arguments; cancel() skips that call, not the rest of the method)
 /// note: target hooked only with another descriptor - hooked overloads: (Lnet/minecraft/world/item/ItemStack;II)V; the mod wants (Lnet/minecraft/world/item/ItemStack;III)V; the registration (with the mod's own descriptor) is left commented out until that overload is hooked
+///
+/// The port draws the item through the unhooked `hud::extract_item` (abstract_container_screen.rs:2853), so there is
+/// no `item(..)` call to inject before (GAPS_M #8). The handler runs at `extractSlot`'s HEAD instead - also before the
+/// item, so the backgrounds, the lock icon and the search shade layer under it as in Java - with `:227-245`'s
+/// conditions for reaching the non-fake `item(..)` call (`slot_reaches_item_call`). `@Local(name = "slot")` is
+/// `menu.getSlot(index)` (arguments 3 and 5) and `graphics` is the frame's extractor (the port's draws go through the
+/// frame's global state).
 fn skyblocker_draw_on_item(ci: &mut CallbackInfo<'_>) {
+    let Some(menu) = compat::detach_ref(ci.arg::<mcrust::net::minecraft::world::inventory::abstract_container_menu::AbstractContainerMenu>(3)) else { return; };
+    let Some(containers) = compat::hook_arg::<mcrust::net::minecraft::world::inventory::slot::Containers<'_>>(ci, 4) else { return; };
+    let index: i32 = ci.arg::<i32>(5).copied().unwrap_or(-1);
+    let Some(slot) = (index >= 0).then(|| menu.slots.get(index as usize)).flatten() else { return; };
+    let item = slot.get_item(containers);
+    if !slot_reaches_item_call(slot, item) {
+        return;
+    }
+    let graphics = mcrust::net::minecraft::client::gui::gui_graphics_extractor::GuiGraphicsExtractor::new();
     if crate::de::hysky::skyblocker::utils::utils::Utils::is_on_skyblock() {
-        // TODO(fabric2seer): `slot`: this argument is not visible to the injector (see the notes above the handler)
         //   java: ItemBackgroundManager.drawBackgrounds(slot.getItem(), graphics, slot.x, slot.y);
+        crate::de::hysky::skyblocker::skyblock::item::background::item_background_manager::ItemBackgroundManager::draw_backgrounds(item, &graphics, slot.x, slot.y);
     }
-    // TODO(fabric2seer): the condition: `slot`: this argument is not visible to the injector (see the notes above the handler)
-    //   java: ItemProtection.isItemProtected(..)
-    if todo!("fabric2seer: the condition (TODO above)") {
-        // TODO(fabric2seer): `graphics`: this argument is not visible to the injector (see the notes above the handler)
+    // Item Protection
+    if crate::de::hysky::skyblocker::skyblock::item::item_protection::ItemProtection::is_item_protected(Some(item.duplicate())) {
         //   java: ItemProtection.drawSlotIcon(graphics, slot.x, slot.y);
+        crate::de::hysky::skyblocker::skyblock::item::item_protection::ItemProtection::draw_slot_icon(&graphics, slot.x, slot.y);
     }
-    // TODO(fabric2seer): the condition: `slot`: this argument is not visible to the injector (see the notes above the handler)
-    //   java: InventorySearch.isSearching() && !InventorySearch.slotMatches(slot)
-    if todo!("fabric2seer: the condition (TODO above)") {
-        // TODO(fabric2seer): `graphics`: this argument is not visible to the injector (see the notes above the handler)
+    // Search - darken non-matching slots
+    if crate::de::hysky::skyblocker::skyblock::inventory_search::InventorySearch::is_searching() && !crate::de::hysky::skyblocker::skyblock::inventory_search::InventorySearch::slot_matches(slot) {
         //   java: graphics.fill(slot.x, slot.y, slot.x + 16, slot.y + 16, 0xB0_000000);
+        graphics.fill(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), slot.x, slot.y, slot.x + 16, slot.y + 16, 0xB0_000000u32 as i32);
     }
+}
+
+/// Whether `extractSlot` reaches its non-fake `graphics.item(..)` call (`:227-245`) for this slot: not the empty-slot
+/// icon (`:227-233`) and not a fake slot (`:241-245`'s `fakeItem` arm). (`:206-208`'s "draws nothing" case is an
+/// empty single-slot drag preview, which the slot's own stack does not show.)
+fn slot_reaches_item_call(slot: &mcrust::net::minecraft::world::inventory::slot::Slot, item: &mcrust::net::minecraft::world::item::item_stack::ItemStack) -> bool {
+    if item.is_empty() && slot.is_active() && slot.get_no_item_icon().is_some() {
+        return false;
+    }
+    !slot.is_fake()
+}
+
+thread_local! {
+    /// `@Local(name = "slot") Slot slot` of the `extractSlot` call in flight, for `skyblocker$drawSlotText` (a
+    /// call-site handler sees only the `itemDecorations` call's arguments). Recorded at `extractSlot`'s HEAD.
+    static EXTRACT_SLOT: std::cell::RefCell<Option<mcrust::net::minecraft::world::inventory::slot::Slot>> = const { std::cell::RefCell::new(None) };
+}
+
+/// Not a Java injector: records `extractSlot`'s `slot` local (`menu.getSlot(index)`, arguments 3 and 5) while on
+/// SkyBlock, the only case `skyblocker$drawSlotText` reads it.
+fn skyblocker_record_extract_slot(ci: &mut CallbackInfo<'_>) {
+    let slot = if crate::de::hysky::skyblocker::utils::utils::Utils::is_on_skyblock() {
+        let index: i32 = ci.arg::<i32>(5).copied().unwrap_or(-1);
+        ci.arg::<mcrust::net::minecraft::world::inventory::abstract_container_menu::AbstractContainerMenu>(3).and_then(|menu| (index >= 0).then(|| menu.slots.get(index as usize).cloned()).flatten())
+    } else {
+        None
+    };
+    EXTRACT_SLOT.with(|cell| *cell.borrow_mut() = slot);
 }
 
 /// @Inject skyblocker$drawSlotText
@@ -404,10 +452,18 @@ fn skyblocker_draw_on_item(ci: &mut CallbackInfo<'_>) {
 /// within: net.minecraft.client.gui.screens.inventory.AbstractContainerScreen#extractSlot
 /// Rust: net/minecraft/client/gui/gui_graphics_extractor.rs:178 fn item_decorations_with_count(gl: &Gl, gfx: &Minecraft, item_stack: &crate::net::minecraft::world::item::item_stack::ItemStack, x: i32, y: i32, count_override: Option<&str>, cooldowns: Option<&crate::net::minecraft::world::item::item_cooldowns::ItemCooldowns>, partial_tick: f32)
 /// note: @Inject at INVOKE: a call-site injector (`hook::call_site`) - `ci` is the CALL's (its arguments; cancel() skips that call, not the rest of the method)
+///
+/// `slot` is `extractSlot`'s local, recorded at its HEAD (`skyblocker_record_extract_slot`). Java's three-argument
+/// `extractSlotText(graphics, font, slot)` is `extractSlotText(graphics, font, slot, slot.getItem(), slot.id, slot.x,
+/// slot.y)`; the port's three-argument form cannot read `slot.getItem()` (it needs the menu's `Containers`), so the
+/// seven-argument one is called with the stack this `itemDecorations` call is handed (argument 2) - the slot's item
+/// except while a quick-craft drag previews the carried stack in it.
 fn skyblocker_draw_slot_text(ci: &mut CallbackInfo<'_>) {
     if crate::de::hysky::skyblocker::utils::utils::Utils::is_on_skyblock() {
-        // TODO(fabric2seer): `graphics`: this argument is not visible to the injector (see the notes above the handler)
+        let Some(stack) = compat::hook_arg::<mcrust::net::minecraft::world::item::item_stack::ItemStack>(ci, 2) else { return; };
+        let Some(slot) = EXTRACT_SLOT.with(|cell| cell.borrow().clone()) else { return; };
         //   java: SlotTextManager.extractSlotText(graphics, font, slot);
+        crate::de::hysky::skyblocker::skyblock::item::slottext::slot_text_manager::SlotTextManager::extract_slot_text_7(&mcrust::net::minecraft::client::gui::gui_graphics_extractor::GuiGraphicsExtractor::new(), &compat::font(), Some(slot.clone()), stack, slot.index, slot.x, slot.y);
     }
 }
 
@@ -440,8 +496,10 @@ pub fn register() {
     report(hook::call_site("net.minecraft.client.gui.screens.inventory.AbstractContainerScreen#extractSlot", "net.minecraft.client.gui.GuiGraphicsExtractor#itemDecorations(Lnet/minecraft/client/gui/Font;Lnet/minecraft/world/item/ItemStack;IILjava/lang/String;)V").priority(1000).modify_arg::<mcrust::net::minecraft::world::item::item_stack::ItemStack>(2, skyblocker_modify_display_stack_decorations));
     report(hook::register_injector("net.minecraft.client.gui.screens.inventory.AbstractContainerScreen#slotClicked", InjectOptions::at(At::Head).kind(InjectorKind::Inject).priority(1000), Arc::new(skyblocker_record_slot_clicked_screen)));
     report(hook::call_site("net.minecraft.client.gui.screens.inventory.AbstractContainerScreen#slotClicked", "net.minecraft.client.multiplayer.MultiPlayerGameMode#handleContainerInput").priority(1000).inject(Shift::Before, skyblocker_on_slot_click));
-    // TODO(fabric2seer): not registered - target hooked only with another descriptor - hooked overloads: (Lnet/minecraft/world/item/ItemStack;II)V; the mod wants (Lnet/minecraft/world/item/ItemStack;III)V; the registration (with the mod's own descriptor) is left commented out until that overload is hooked
-    // report(hook::call_site(`net.minecraft.client.gui.screens.inventory.AbstractContainerScreen#extractSlot`, `net.minecraft.client.gui.GuiGraphicsExtractor#item(Lnet/minecraft/world/item/ItemStack;III)V`).priority(1000).inject(Shift::Before, skyblocker_draw_on_item));
+    // java: @At(INVOKE GuiGraphicsExtractor.item(ItemStack;III)V) in extractSlot - the port's item draw is the unhooked
+    // `hud::extract_item`; registered at extractSlot's HEAD with the call's conditions (see the handler).
+    report(hook::register_injector("net.minecraft.client.gui.screens.inventory.AbstractContainerScreen#extractSlot", InjectOptions::at(At::Head).kind(InjectorKind::Inject).priority(1000), Arc::new(skyblocker_draw_on_item)));
+    report(hook::register_injector("net.minecraft.client.gui.screens.inventory.AbstractContainerScreen#extractSlot", InjectOptions::at(At::Head).kind(InjectorKind::Inject).priority(1000), Arc::new(skyblocker_record_extract_slot)));
     report(hook::call_site("net.minecraft.client.gui.screens.inventory.AbstractContainerScreen#extractSlot", "net.minecraft.client.gui.GuiGraphicsExtractor#itemDecorations(Lnet/minecraft/client/gui/Font;Lnet/minecraft/world/item/ItemStack;IILjava/lang/String;)V").priority(1000).inject(Shift::Before, skyblocker_draw_slot_text));
     report(hook::call_site("net.minecraft.client.gui.screens.inventory.AbstractContainerScreen#extractLabels", "net.minecraft.client.gui.GuiGraphicsExtractor#text(Lnet/minecraft/client/gui/Font;Lnet/minecraft/network/chat/Component;IIIZ)V").ordinal(0).priority(1000).wrap_with_condition(skyblocker_hide_chest_name));
 }

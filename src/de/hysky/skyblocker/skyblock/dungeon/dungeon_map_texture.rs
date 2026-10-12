@@ -32,10 +32,13 @@ pub static ID: compat::MainThread<Identifier> = compat::MainThread::new(|| crate
 pub static DUNGEON_MAP_TEXTURE: compat::MainThread<Option<DynamicTexture>> = compat::MainThread::new(|| None);
 /// java: private static boolean requiresUpload = true;
 pub static REQUIRES_UPLOAD: LazyLock<Mutex<bool>> = LazyLock::new(|| Mutex::new(true));
-// TODO(fabric2seer): field `texture` of a T
 //   java: private static final MapRenderState MAP_RENDER_STATE = Util.make(new MapRenderState(), state -> state.texture = ID);
 /// java: private static final MapRenderState MAP_RENDER_STATE = Util.make(new MapRenderState(), state -> state.texture = ID);
-pub static MAP_RENDER_STATE: compat::MainThread<MapRenderState> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `MAP_RENDER_STATE` - see the TODO above"));
+pub static MAP_RENDER_STATE: compat::MainThread<MapRenderState> = compat::MainThread::new(|| {
+    let mut state = MapRenderState::new();
+    state.texture = Some(ID.get().clone());
+    state
+});
 /// java: private static final Set<Room.Type> IGNORED_ROOMS_FOR_CHECKMARK_HIDING = Set.of(Room.Type.ENTRANCE, Room.Type.BLOOD, Room.Type.FAIRY, Room.Type.UNKNOWN);
 pub static IGNORED_ROOMS_FOR_CHECKMARK_HIDING: LazyLock<std::collections::HashSet<Type>> = LazyLock::new(|| std::collections::HashSet::from([Type::Entrance, Type::Blood, Type::Fairy, Type::Unknown]));
 /// java: private static final Vector2ic[] NEIGHBOUR_OFFSETS = new Vector2ic[] { new Vector2i(0, 1), new Vector2i(0, -1), new Vector2i(1, 0), new Vector2i(-1, 0) };
@@ -105,12 +108,11 @@ impl DungeonMapTexture {
 
     /// java: private static void updateMapDecorations(MapItemSavedData mapData)
     pub fn update_map_decorations(map_data: &MapItemSavedData) {
-        // TODO(fabric2seer): `Minecraft.getMapRenderer` has no Rust method in the port (looked for `get_map_renderer` in Minecraft and its supertypes)
-        // rust: let mut map_renderer: MapRenderer = compat::minecraft().get_map_renderer();
-        let mut map_renderer: MapRenderer = todo!("fabric2seer: the initialiser of `mapRenderer` (TODO above)");
+        // java: Minecraft.getMapRenderer() - the port's `GameRenderer::map_renderer` (Minecraft's own getter is not ported)
+        let mut map_renderer: MapRenderer = compat::minecraft().game_renderer.map_renderer();
         MAP_RENDER_STATE.get_mut().decorations.clear();
         for decoration in map_data.get_decorations() {
-            // TODO(fabric2seer): `MapRendererInvoker.extractDecorationRenderState` has no Rust method in the port (looked for `extract_decoration_render_state` in MapRendererInvoker and JavaSrc)
+            // rust: port gap - `MapRenderer::extract_decoration_render_state` is private in the port (the Java accessor is `MapRendererInvoker`); GAPS_K #1
             // rust: MAP_RENDER_STATE.get_mut().decorations.push(map_renderer.extract_decoration_render_state(&decoration));
         }
     }

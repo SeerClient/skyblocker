@@ -84,14 +84,19 @@ impl TerminalHud {
     pub fn get_status_text(__this: &compat::Shared<Self>, waypoint: &compat::Shared<GoldorWaypoint>) -> MutableComponent {
         if { let __f = compat::dispatch(waypoint, |__t| __t.is_enabled()); __f(&compat::view(waypoint, |a| a as compat::Shared<dyn Waypoint>)) } {
             if compat::read(&(CONFIG.get_mut())(), |__t| __t.show_player_at_terminal) && mcrust::mcrust::modding::game::level().is_some() {
-                // TODO(fabric2seer): `with_players` takes 1 argument(s) in the port (`f: impl FnOnce(&[Shared<StoredAvatar>]) -> R`), Java passes 0
-                // rust: let __this_w1 = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
-                // rust: let mut player: Option<Box<dyn AbstractClientPlayer>> = mcrust::mcrust::modding::game::level().unwrap().with_players().into_iter().filter(|pl| { let Some(__this_1) = __this_w1.get().upgrade() else { return Default::default(); }; TerminalHud::player_is_near_terminal((&__this_1), pl, waypoint) }).next();
-                let mut player: Option<Box<dyn AbstractClientPlayer>> = todo!("fabric2seer: the initialiser of `player` (TODO above)");
-                if player.is_some() {
-                    // TODO(fabric2seer): `get_plain_text_name` takes 1 argument(s) in the port (`player: &P`), Java passes 0
-                    // rust: let mut player_name: String = player::get_plain_text_name();
-                    let mut player_name: String = todo!("fabric2seer: the initialiser of `playerName` (TODO above)");
+                //   java: Optional<AbstractClientPlayer> player = CLIENT.level.players().stream().filter(pl -> playerIsNearTerminal(pl, waypoint)).findFirst();
+                //   java: if (player.isPresent()) { String playerName = player.get().getPlainTextName(); ..
+                // (the level's players, each read under its own hold: the first one near the terminal answers its
+                // `getPlainTextName()`)
+                let players = mcrust::mcrust::modding::game::level().unwrap().with_players(|players| players.to_vec());
+                let player: Option<String> = players.iter().find_map(|avatar| {
+                    if mcrust::mcrust::modding::game::is_held_here(&**avatar) {
+                        return None;
+                    }
+                    let pl = mcrust::mcrust::modding::game::lock_entity(&**avatar, "terminal_hud.rs:TerminalHud.getStatusText");
+                    TerminalHud::player_is_near_terminal(__this, &*pl, waypoint).then(|| player::get_plain_text_name(&*pl))
+                });
+                if let Some(player_name) = player {
                     return (component::literal(&compat::substring2(&player_name, 0, 12i32.min(compat::str_len(&player_name))))).with_style_format(ChatFormatting::Yellow);
                 }
             }
@@ -99,7 +104,6 @@ impl TerminalHud {
         } else {
             return component::translatable("skyblocker.dungeons.terminalHud.completeStatus").with_style_format(ChatFormatting::Green);
         }
-        todo!("fabric2seer: the value of this function is in a TODO above")
     }
 
     /// java: public void updateFromScheduler()

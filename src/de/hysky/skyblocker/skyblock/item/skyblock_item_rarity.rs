@@ -11,10 +11,8 @@ use mcrust::net::minecraft::network::chat::text_color::TextColor;
 use mcrust::net::minecraft::resources::identifier::Identifier;
 use mcrust::net::minecraft::util::argb;
 
-// TODO(fabric2seer): `from_enum` takes 2 argument(s) in the port (`values: Vec<E>, serialized_name: impl Fn(&E) -> String + Send + Sync + Copy + 'static`), Java passes 1
-//   java: public static final Codec<SkyblockItemRarity> CODEC = StringRepresentable.fromEnum(SkyblockItemRarity::values);
 /// java: public static final Codec<SkyblockItemRarity> CODEC = StringRepresentable.fromEnum(SkyblockItemRarity::values);
-pub static CODEC: compat::MainThread<CodecRef<SkyblockItemRarity>> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `CODEC` - see the TODO above"));
+pub static CODEC: compat::MainThread<CodecRef<SkyblockItemRarity>> = compat::MainThread::new(|| mcrust::net::minecraft::util::string_representable::from_enum(SkyblockItemRarity::values(), |e: &SkyblockItemRarity| e.get_serialized_name()));
 
 /// java: public enum SkyblockItemRarity implements StringRepresentable
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -139,21 +137,20 @@ impl SkyblockItemRarity {
 
     /// java: public Rarity toNeuRarity()
     pub fn to_neu_rarity(&self) -> crate::unresolved::Rarity {
-        // TODO(fabric2seer): static field Rarity.COMMON
-        //   java: return switch (this) {
-        //   java: 			case SkyblockItemRarity.COMMON -> Rarity.COMMON;
-        //   java: 			case SkyblockItemRarity.UNCOMMON -> Rarity.UNCOMMON;
-        //   java: 			case SkyblockItemRarity.RARE -> Rarity.RARE;
-        //   java: 			case SkyblockItemRarity.EPIC -> Rarity.EPIC;
-        //   java: 			case SkyblockItemRarity.LEGENDARY -> Rarity.LEGENDARY;
-        //   java: 			case SkyblockItemRarity.MYTHIC -> Rarity.MYTHIC;
-        //   java: 			case SkyblockItemRarity.DIVINE -> Rarity.DIVINE;
-        //   java: 			case SkyblockItemRarity.SPECIAL -> Rarity.SPECIAL;
-        //   java: 			case SkyblockItemRarity.VERY_SPECIAL -> Rarity.VERY_SPECIAL;
-        //   java: 			case SkyblockItemRarity.ULTIMATE -> Rarity.SUPREME;
-        //   java: 			case SkyblockItemRarity.ADMIN, SkyblockItemRarity.UNKNOWN -> Rarity.UNKNOWN;
-        //   java: 		};
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        use crate::unresolved::Rarity;
+        return match self {
+            SkyblockItemRarity::Common => Rarity::Common,
+            SkyblockItemRarity::Uncommon => Rarity::Uncommon,
+            SkyblockItemRarity::Rare => Rarity::Rare,
+            SkyblockItemRarity::Epic => Rarity::Epic,
+            SkyblockItemRarity::Legendary => Rarity::Legendary,
+            SkyblockItemRarity::Mythic => Rarity::Mythic,
+            SkyblockItemRarity::Divine => Rarity::Divine,
+            SkyblockItemRarity::Special => Rarity::Special,
+            SkyblockItemRarity::VerySpecial => Rarity::VerySpecial,
+            SkyblockItemRarity::Ultimate => Rarity::Supreme,
+            SkyblockItemRarity::Admin | SkyblockItemRarity::Unknown => Rarity::Unknown,
+        };
     }
 
     /// java: public @Nullable Identifier toTooltipStyle()

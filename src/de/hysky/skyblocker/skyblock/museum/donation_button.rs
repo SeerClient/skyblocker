@@ -167,9 +167,10 @@ impl DonationButton {
             tooltip.push((component::literal(" - ")).with_style_format(ChatFormatting::Gray).append(MuseumUtils::get_display_name(&discount.0, Donation::is_set(&compat::read(__this, |__t| __t.donation.clone()).unwrap()))).append((component::literal(" ✔")).with_style_format(ChatFormatting::Green)).append(component::literal(" (").with_style_format(ChatFormatting::DarkGray).append(component::literal(&MuseumUtils::format_price(discount.1)).with_style_format(ChatFormatting::Gold)).append_str(")").with_style_format(ChatFormatting::DarkGray)));
         }
         let mut wiki_lookup_key_string: String = WikiLookupManager::get_keys_text();
-        // TODO(fabric2seer): `get_translated_key_message` takes 2 argument(s) in the port (`name: &str, key_name: &dyn Fn(i32, i32) -> Option<String>`), Java passes 0
-        // rust: let mut item_price_lookup_key_string: String = compat::component_of(key_mapping::get_translated_key_message()).get_string();
-        let mut item_price_lookup_key_string: String = todo!("fabric2seer: the initialiser of `itemPriceLookupKeyString` (TODO above)");
+        // java: String itemPriceLookupKeyString = ItemPrice.ITEM_PRICE_LOOKUP.getTranslatedKeyMessage().getString();
+        // (the port's key mappings are asked by name; `key_name` is GLFW's key-name table the loop fills,
+        // `Minecraft.key_names`)
+        let mut item_price_lookup_key_string: String = mcrust::net::minecraft::client::key_mapping::get_translated_key_message("key.skyblocker.itemPriceLookup", &|key: i32, _scancode: i32| compat::minecraft().key_names.get(&key).cloned()).get_string();
         if soulbound || !wiki_lookup_key_string.is_empty() || !item_price_lookup_key_string.is_empty() {
             tooltip.push(component::empty());
         }

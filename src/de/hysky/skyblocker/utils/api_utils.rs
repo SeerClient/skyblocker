@@ -54,24 +54,29 @@ impl ApiUtils {
             return session.get_profile_id().replace('-', "");
         }
         {
-            // TODO(fabric2seer): `Http.sendName2UuidRequest` is not a static method of Http
-            //   java: ApiResponse response = Http.sendName2UuidRequest(..);
-            let mut response: crate::unresolved::ApiResponse = todo!("fabric2seer: the initialiser of `response` (TODO above)");
-            // java: try {..} catch (Exception e) - the body runs inline: a Rust body does not throw checked exceptions (a panic in it propagates)
-            {
-                // TODO(fabric2seer): `.ratelimited(..)` on a ApiResponse
-                //   java: if (response.ok()) {
-                //   java: 				return JsonParser.parseString(response.content()).getAsJsonObject().get("id").getAsString();
-                //   java: 			} else if (response.ratelimited() && retries < 3) {
-                //   java: 				Thread.sleep(800);
-                //   java:
-                //   java: 				return name2UuidInternal(name, ++retries);
-                //   java: 			}
+            // java: try (ApiResponse response = Http.sendName2UuidRequest(name)) {..} catch (Exception e) - the request and
+            // the parse both inside the try
+            let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| -> Option<String> {
+                let response: crate::de::hysky::skyblocker::utils::http::ApiResponse = crate::de::hysky::skyblocker::utils::http::Http::send_name2_uuid_request(name);
+                if response.ok() {
+                    // java: JsonParser.parseString(response.content()).getAsJsonObject().get("id").getAsString()
+                    let json: serde_json::Value = serde_json::from_str(&response.content()).unwrap_or_else(|e| panic!("JsonSyntaxException: {e}"));
+                    let object = json.as_object().unwrap_or_else(|| panic!("IllegalStateException: Not a JSON Object: {json}"));
+                    return Some(compat::json::get_as_string(object.get("id").expect("NullPointerException")));
+                } else if response.ratelimited() && retries < 3 {
+                    std::thread::sleep(std::time::Duration::from_millis(800));
+                    retries += 1;
+                    return Some(ApiUtils::name2_uuid_internal(name, retries));
+                }
+                None
+            }));
+            match result {
+                Ok(Some(uuid)) => return uuid,
+                Ok(None) => {}
+                Err(e) => {
+                    logger().error(&format!("[Skyblocker] Name to uuid lookup failed! Name: {} {}", name, compat::panic_message(&e)));
+                }
             }
-            // TODO(fabric2seer): the `catch (Exception e)` block is not reached in Rust - the try body returns, breaks or continues, so it cannot run inside `catch_unwind`
-            //   java: {
-            //   java: 			LOGGER.error("[Skyblocker] Name to uuid lookup failed! Name: {}", name, e);
-            //   java: 		}
         }
         return "".to_string();
     }

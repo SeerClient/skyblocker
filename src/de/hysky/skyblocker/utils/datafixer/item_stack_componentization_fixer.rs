@@ -39,19 +39,19 @@ impl ItemStackComponentizationFixer {
 
     /// java: public static ItemStack fixUpItem(CompoundTag nbt)
     pub fn fix_up_item(nbt: &Tag) -> mcrust::net::minecraft::world::item::item_stack::ItemStack {
-        // TODO(fabric2seer): `create_serialization_context` takes 2 argument(s) in the port (`provider: Arc<dyn Provider>, parent: crate::com::mojang::serialization::dynamic_ops::Ops`), Java passes 1
-        // TODO(fabric2seer): `new` takes 1 argument(s) in the port (`ops: Ops`), Java passes 2
-        // rust: let mut dynamic: Dynamic = data_fixers::get_data_fixer().update(&mcrust::net::minecraft::util::datafix::fixes::references::ITEM_STACK, Dynamic::new(holder_lookup::create_serialization_context(mcrust::net::minecraft::nbt::nbt_ops::NbtOps::instance()), nbt.clone()), ITEM_NBT_DATA_VERSION, ITEM_COMPONENTS_DATA_VERSION).unwrap();
-        let mut dynamic: Dynamic = todo!("fabric2seer: the initialiser of `dynamic` (TODO above)");
+        // java: Dynamic<Tag> dynamic = DataFixers.getDataFixer().update(References.ITEM_STACK, new Dynamic<Tag>(RegistryUtils.getRegistryWrapperLookup().createSerializationContext(NbtOps.INSTANCE), nbt), ITEM_NBT_DATA_VERSION, ITEM_COMPONENTS_DATA_VERSION);
+        // (the port's two-argument `Dynamic` constructor is `new_with(ops, Some(value))`; `update` answers a `Result`
+        // where DFU throws)
+        let mut dynamic: Dynamic = data_fixers::get_data_fixer().update(&mcrust::net::minecraft::util::datafix::fixes::references::ITEM_STACK, Dynamic::new_with(holder_lookup::create_serialization_context(RegistryUtils::get_registry_wrapper_lookup(), mcrust::net::minecraft::nbt::nbt_ops::NbtOps::instance()), Some(mcrust::com::mojang::serialization::obj(nbt.clone()))), ITEM_NBT_DATA_VERSION, ITEM_COMPONENTS_DATA_VERSION).expect("DataFixer.update");
         return mcrust::net::minecraft::world::item::item_stack::codec().parse_dynamic(&dynamic).get_or_throw().unwrap();
     }
 
     /// java: public static FlexibleItemStack fixUpFlexibleItem(CompoundTag nbt)
     pub fn fix_up_flexible_item(nbt: &Tag) -> compat::Shared<FlexibleItemStack> {
-        // TODO(fabric2seer): `create_serialization_context` takes 2 argument(s) in the port (`provider: Arc<dyn Provider>, parent: crate::com::mojang::serialization::dynamic_ops::Ops`), Java passes 1
-        // TODO(fabric2seer): `new` takes 1 argument(s) in the port (`ops: Ops`), Java passes 2
-        // rust: let mut dynamic: Dynamic = data_fixers::get_data_fixer().update(&mcrust::net::minecraft::util::datafix::fixes::references::ITEM_STACK, Dynamic::new(holder_lookup::create_serialization_context(mcrust::net::minecraft::nbt::nbt_ops::NbtOps::instance()), nbt.clone()), ITEM_NBT_DATA_VERSION, ITEM_COMPONENTS_DATA_VERSION).unwrap();
-        let mut dynamic: Dynamic = todo!("fabric2seer: the initialiser of `dynamic` (TODO above)");
+        // java: Dynamic<Tag> dynamic = DataFixers.getDataFixer().update(References.ITEM_STACK, new Dynamic<Tag>(RegistryUtils.getRegistryWrapperLookup().createSerializationContext(NbtOps.INSTANCE), nbt), ITEM_NBT_DATA_VERSION, ITEM_COMPONENTS_DATA_VERSION);
+        // (the port's two-argument `Dynamic` constructor is `new_with(ops, Some(value))`; `update` answers a `Result`
+        // where DFU throws)
+        let mut dynamic: Dynamic = data_fixers::get_data_fixer().update(&mcrust::net::minecraft::util::datafix::fixes::references::ITEM_STACK, Dynamic::new_with(holder_lookup::create_serialization_context(RegistryUtils::get_registry_wrapper_lookup(), mcrust::net::minecraft::nbt::nbt_ops::NbtOps::instance()), Some(mcrust::com::mojang::serialization::obj(nbt.clone()))), ITEM_NBT_DATA_VERSION, ITEM_COMPONENTS_DATA_VERSION).expect("DataFixer.update");
         return flexible_item_stack::CODEC.get_mut().parse_dynamic(&dynamic).get_or_throw().unwrap();
     }
 

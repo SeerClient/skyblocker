@@ -64,14 +64,19 @@ impl GuiHelper {
 
     /// java: public static void nineSliceColored(GuiGraphicsExtractor graphics, Identifier texture, int x, int y, int width, int height, Color color)
     pub fn nine_slice_colored_gui_graphics_extractor_identifier_int_int_int_int_color(graphics: &GuiGraphicsExtractor, texture: &Identifier, mut x: i32, mut y: i32, mut width: i32, mut height: i32, color: &Color) {
-        // TODO(fabric2seer): `.getAlpha(..)` on a Color
-        //   java: nineSliceColored(graphics, texture, x, y, width, height, ARGB.color(color.getAlpha(), color.getRed(), color.getGreen(), color.getBlue()));
+        // java: nineSliceColored(graphics, texture, x, y, width, height, ARGB.color(color.getAlpha(), color.getRed(), color.getGreen(), color.getBlue()));
+        GuiHelper::nine_slice_colored(graphics, texture, x, y, width, height, argb::color_argb(color.get_alpha(), color.get_red(), color.get_green(), color.get_blue()));
     }
 
     /// java: public static void horizontalGradient(GuiGraphicsExtractor graphics, float startX, float startY, float endX, float endY, int colorStart, int colorEnd)
     pub fn horizontal_gradient(graphics: &GuiGraphicsExtractor, mut start_x: f32, mut start_y: f32, mut end_x: f32, mut end_y: f32, mut color_start: i32, mut color_end: i32) {
-        // TODO(fabric2seer): `pose` (a posestack) used as a value
-        //   java: graphics.guiRenderState.addGuiElement(new GuiHorizontalGradientRenderState(RenderPipelines.GUI, TextureSetup.noTexture(), new Matrix3x2f(graphics.pose()), (int) startX, (int) startY, (int) endX, (int) endY, colorStart, colorEnd, graphics.scissorStack.peek()));
+        // java: graphics.guiRenderState.addGuiElement(new GuiHorizontalGradientRenderState(RenderPipelines.GUI, TextureSetup.noTexture(), new Matrix3x2f(graphics.pose()), (int) startX, (int) startY, (int) endX, (int) endY, colorStart, colorEnd, graphics.scissorStack.peek()));
+        // rust: blocked (cross-package, GAPS_J #3) - `graphics.guiRenderState.addGuiElement` is
+        // `gui_graphics_extractor::with_gui_render_state(|s| s.add_gui_element(Box::new(..)))` and
+        // `new Matrix3x2f(graphics.pose())` / `scissorStack.peek()` are `current_pose()` /
+        // `peek_scissor()`, but `utils/render/state/gui/GuiHorizontalGradientRenderState` (no batch
+        // owns it) does not implement the port's `GuiElementRenderState` (+ `ScreenArea`), so it
+        // cannot be boxed as an element.
     }
 
     /// java: public static void border(GuiGraphicsExtractor context, int x, int y, int width, int height, int color)
@@ -84,30 +89,49 @@ impl GuiHelper {
 
     /// java: public static void customShape(GuiGraphicsExtractor graphics, List<Vector2f> vertices, int color)
     pub fn custom_shape(graphics: &GuiGraphicsExtractor, vertices: &Vec<Vector2f>, mut color: i32) {
-        // TODO(fabric2seer): `pose` (a posestack) used as a value
-        //   java: graphics.guiRenderState.addGuiElement(new GuiCustomShapeRenderState(RenderPipelines.GUI, TextureSetup.noTexture(), new Matrix3x2f(graphics.pose()), vertices, color, graphics.scissorStack.peek()));
+        // java: graphics.guiRenderState.addGuiElement(new GuiCustomShapeRenderState(RenderPipelines.GUI, TextureSetup.noTexture(), new Matrix3x2f(graphics.pose()), vertices, color, graphics.scissorStack.peek()));
+        // rust: blocked (cross-package, GAPS_J #3) - `GuiCustomShapeRenderState` (unowned
+        // `utils/render/state/gui/`) does not implement the port's `GuiElementRenderState`.
     }
 
     /// java: public static void playerHead(GuiGraphicsExtractor graphics, int x, int y, int size, UUID uuid)
     pub fn player_head(graphics: &GuiGraphicsExtractor, mut x: i32, mut y: i32, mut size: i32, uuid: &Uuid) {
-        // TODO(fabric2seer): `.map(..)` on a Result
-        //   java: PlayerSkin texture = CLIENT.playerSkinRenderCache().lookup(ResolvableProfile.createUnresolved(uuid))
-        //   java: 				.getNow(Optional.empty())
-        //   java: 				.map(PlayerSkinRenderCache.RenderInfo::playerSkin)
-        //   java: 				.orElseGet(() -> DefaultPlayerSkin.get(uuid));
-        let mut texture: PlayerSkin = todo!("fabric2seer: the initialiser of `texture` (TODO above)");
-        // TODO(fabric2seer): static `PlayerFaceExtractor.extractRenderState` has no Rust counterpart in the port
-        // rust: PlayerFaceExtractor::extract_render_state(graphics.clone(), texture.clone(), x, y, size);
+        // java: PlayerSkin texture = CLIENT.playerSkinRenderCache().lookup(ResolvableProfile.createUnresolved(uuid))
+        // java: 				.getNow(Optional.empty())
+        // java: 				.map(PlayerSkinRenderCache.RenderInfo::playerSkin)
+        // java: 				.orElseGet(() -> DefaultPlayerSkin.get(uuid));
+        // `Minecraft.playerSkinRenderCache()` is `game_renderer.player_skin_render_cache` (set once
+        // the game has loaded). The port's future answers `Option<RenderInfo>`, so `getNow(empty)`
+        // is `get_now(Some(None))`; an exceptionally completed lookup (Java's CompletionException)
+        // reads as absent. `createUnresolved(UUID)` cannot fail in Java.
+        let mut texture: PlayerSkin = compat::minecraft()
+            .game_renderer
+            .player_skin_render_cache
+            .as_ref()
+            .zip(ResolvableProfile::create_unresolved_id(*uuid).ok())
+            .and_then(|(cache, profile)| cache.lookup(&profile).get_now(Some(None)).ok().flatten().flatten())
+            .map(|info| info.player_skin().clone())
+            .unwrap_or_else(|| mcrust::net::minecraft::client::resources::default_player_skin::get_skin(uuid));
+        // java: PlayerFaceExtractor.extractRenderState(graphics, texture, x, y, size);
+        // = extractRenderState(graphics, skin.body().texturePath(), x, y, size, true, false, -1); the
+        // port's takes the texture the id names (batch B pattern 25).
+        {
+            use mcrust::net::minecraft::core::client_asset::Texture as _;
+            let client = compat::minecraft();
+            if let Some(face) = client.game_renderer.texture_manager().get_texture_or_request(texture.body().texture_path()) {
+                mcrust::net::minecraft::client::gui::components::player_face_extractor::extract_render_state(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*client, face, x, y, size, true, false, -1);
+            }
+        }
     }
 
     /// java: public static <S> void equipment(GuiGraphicsExtractor graphics, EquipmentLayerRenderer equipmentRenderer, EquipmentClientInfo.LayerType layerType, ResourceKey<EquipmentAsset> assetKey, Model<S> model,
     pub fn equipment<S: Clone + 'static>(graphics: &GuiGraphicsExtractor, equipment_renderer: &EquipmentLayerRenderer, layer_type: &LayerType, asset_key: &ResourceKey, model: &Model, state: &S, stack: &mcrust::net::minecraft::world::item::item_stack::ItemStack, mut x1: i32, mut y1: i32, mut x2: i32, mut y2: i32, mut rotation: f32, mut scale: f32, mut offset: f32) {
-        // TODO(fabric2seer): the mod keeps the game's `EquipmentLayerRenderer` (Java holds a reference to the live object); the port's `EquipmentLayerRenderer` is not a value to copy and the port lends the mod no handle to it
-        // TODO(fabric2seer): `GuiGraphicsExtractor.scissorStack` has no Rust field in the port (searched net.minecraft.client.gui.GuiGraphicsExtractor and its supertypes)
-        // rust: let mut render_state: GuiEquipmentRenderState<S> = GuiEquipmentRenderState::new(equipment_renderer.clone(), *layer_type, asset_key.clone(), model.clone(), state.clone(), stack.clone(), x1, y1, x2, y2, rotation, scale, offset, graphics.scissor_stack.peek());
-        let mut render_state: GuiEquipmentRenderState<S> = todo!("fabric2seer: the initialiser of `renderState` (TODO above)");
-        // TODO(fabric2seer): `GuiGraphicsExtractor.guiRenderState` has no Rust field in the port (searched net.minecraft.client.gui.GuiGraphicsExtractor and its supertypes)
-        // rust: graphics.gui_render_state.add_pictures_in_picture_state(render_state.clone());
+        // java: GuiEquipmentRenderState<S> renderState = new GuiEquipmentRenderState<>(equipmentRenderer, layerType, assetKey, model, state, stack, x1, y1, x2, y2, rotation, scale, offset, graphics.scissorStack.peek());
+        // java: graphics.guiRenderState.addPicturesInPictureState(renderState);
+        // rust: blocked (cross-package, GAPS_J #3) - `GuiEquipmentRenderState`'s constructor is
+        // still `todo!("constructor")` in the unowned `utils/render/state/gui/`, it takes the
+        // `EquipmentLayerRenderer` BY VALUE (Java shares the live one) and implements no
+        // `PictureInPictureRenderState`, which `GuiRenderState::add_pictures_in_picture_state` takes.
     }
 
     /// java: public static void outlinedText(GuiGraphicsExtractor graphics, Component text, int x, int y, int color, int outlineColor)
@@ -129,11 +153,12 @@ impl GuiHelper {
         if ModernUICompatibility::extract_outlined_text(graphics, text, outline_text, x, y, color, outline_color) {
             return;
         }
-        // TODO(fabric2seer): `pose` (a posestack) used as a value
-        //   java: GuiOutlinedTextRenderState renderState = new GuiOutlinedTextRenderState(CLIENT.font, text, new Matrix3x2f(graphics.pose()), x, y, color, outlineColor, false, false, graphics.scissorStack.peek());
-        let mut render_state: GuiOutlinedTextRenderState = todo!("fabric2seer: the initialiser of `renderState` (TODO above)");
-        // TODO(fabric2seer): `GuiGraphicsExtractor.guiRenderState` has no Rust field in the port (searched net.minecraft.client.gui.GuiGraphicsExtractor and its supertypes)
-        // rust: graphics.gui_render_state.add_text(render_state.clone());
+        // java: GuiOutlinedTextRenderState renderState = new GuiOutlinedTextRenderState(CLIENT.font, text, new Matrix3x2f(graphics.pose()), x, y, color, outlineColor, false, false, graphics.scissorStack.peek());
+        // java: graphics.guiRenderState.addText(renderState);
+        // rust: blocked (cross-package, GAPS_J #3) - `GuiOutlinedTextRenderState::new` is still
+        // `todo!("constructor")` in the unowned `utils/render/state/gui/`, and the port's
+        // `GuiRenderState::add_text` takes the game's `GuiTextRenderState` struct, not a subclass;
+        // calling it here would panic every outlined text, so the statement stays out.
     }
 
     /// java: public static void blurredRectangle(GuiGraphicsExtractor graphics, int x0, int y0, int x1, int y1, int radius)
@@ -145,12 +170,15 @@ impl GuiHelper {
             compat::set_state(&BLIT_INDEX_FOR_FRAME, BLIT_TEXTURE_POOL.get_mut().get_next_available_index(required_width, required_height));
         }
         let mut blit_texture_view: Rc<dyn GpuTextureView> = BLIT_TEXTURE_POOL.get_mut().get_texture_view(compat::get_state(&BLIT_INDEX_FOR_FRAME));
-        // TODO(fabric2seer): `with_sampler_cache` takes 1 argument(s) in the port (`f: impl FnOnce(&SamplerCache) -> R`), Java passes 0
-        // rust: let mut sampler: Box<dyn GpuSampler> = render_system::with_sampler_cache().get_clamp_to_edge(FilterMode::Linear);
-        let mut sampler: Box<dyn GpuSampler> = todo!("fabric2seer: the initialiser of `sampler` (TODO above)");
+        // java: GpuSampler sampler = RenderSystem.getSamplerCache().getClampToEdge(FilterMode.LINEAR);
+        let mut sampler: Rc<dyn GpuSampler> = render_system::with_sampler_cache(|cache| cache.get_clamp_to_edge(FilterMode::Linear));
         let mut vertex_colour: i32 = argb::color_rgb(radius, 255, 255);
-        // TODO(fabric2seer): `GuiGraphicsExtractorInvoker.innerFill` has no Rust method in the port (looked for `inner_fill` in GuiGraphicsExtractorInvoker and JavaSrc)
-        // rust: graphics.inner_fill(skyblocker_render_pipelines::BLURRED_RECTANGLE.get_mut(), &TextureSetup::single_texture(blit_texture_view.clone(), sampler.clone()), x0, y0, x1, y1, vertex_colour, None);
+        // java: ((GuiGraphicsExtractorInvoker) graphics).invokeInnerFill(SkyblockerRenderPipelines.BLURRED_RECTANGLE, TextureSetup.singleTexture(blitTextureView, sampler), x0, y0, x1, y1, vertexColour, null);
+        // rust: port gap (GAPS_J #2) - `GuiGraphicsExtractor.innerFill` is a private free fn
+        // (`gui_graphics_extractor::inner_fill`, no `pub`) and no public overload passes a colour
+        // with a pipeline + texture setup (`fill_with_texture_setup` fixes it at -1, and the
+        // colour here carries the blur radius). Needs `pub fn inner_fill`. Then:
+        // rust: gui_graphics_extractor::inner_fill(skyblocker_render_pipelines::BLURRED_RECTANGLE.get_mut(), &TextureSetup::single_texture(blit_texture_view.clone(), sampler.clone()), x0, y0, x1, y1, vertex_colour, None);
     }
 
     /// java: public static void updateScreenBlitTexture()

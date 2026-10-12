@@ -18,25 +18,29 @@ pub static LOCAL_REPO_DIR: compat::MainThread<std::path::PathBuf> = compat::Main
 // TODO(fabric2seer): static call Consumers.nop(..)
 //   java: private static CompletableFuture<Void> REPO_LOADING = loadRepository().thenAccept(Consumers.nop());
 /// java: private static CompletableFuture<Void> REPO_LOADING = loadRepository().thenAccept(Consumers.nop());
-pub static REPO_LOADING: compat::MainThread<mcrust::java::util::concurrent::completable_future::CompletableFuture<()>> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `REPO_LOADING` - see the TODO above"));
+///
+/// rust: port gap - `loadRepository()` needs JGit (clone / fetch / reset of the NEU repo) and the NEU repo parser
+/// (`NEURepository.reload`), neither of which is in the crate (GAPS_L.md): the load never finishes, so the future
+/// stays pending - `isLoading()` answers true and the after-load tasks wait, as they wait in Java until it completes.
+pub static REPO_LOADING: compat::MainThread<mcrust::java::util::concurrent::completable_future::CompletableFuture<()>> = compat::MainThread::new(|| CompletableFuture::new());
 // TODO(fabric2seer): static call NEURepository.of(..)
 //   java: private static final NEURepository NEU_REPO = NEURepository.of(LOCAL_REPO_DIR);
 /// java: private static final NEURepository NEU_REPO = NEURepository.of(LOCAL_REPO_DIR);
-pub static NEU_REPO: compat::MainThread<crate::unresolved::NEURepository> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `NEU_REPO` - see the TODO above"));
+pub static NEU_REPO: compat::MainThread<crate::unresolved::NEURepository> = compat::MainThread::new(|| crate::unresolved::NEURepository);
 // TODO(fabric2seer): static call NEURecipeCache.forRepo(..)
 //   java: private static final NEURecipeCache RECIPE_CACHE = NEURecipeCache.forRepo(NEU_REPO);
 /// java: private static final NEURecipeCache RECIPE_CACHE = NEURecipeCache.forRepo(NEU_REPO);
-pub static RECIPE_CACHE: compat::MainThread<crate::unresolved::NEURecipeCache> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `RECIPE_CACHE` - see the TODO above"));
+pub static RECIPE_CACHE: compat::MainThread<crate::unresolved::NEURecipeCache> = compat::MainThread::new(|| crate::unresolved::NEURecipeCache);
 // TODO(fabric2seer): static call ItemOverlays.forRepo(..)
 //   java: private static final ItemOverlays STACK_OVERLAYS = ItemOverlays.forRepo(NEU_REPO);
 /// java: private static final ItemOverlays STACK_OVERLAYS = ItemOverlays.forRepo(NEU_REPO);
-pub static STACK_OVERLAYS: compat::MainThread<crate::unresolved::ItemOverlays> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `STACK_OVERLAYS` - see the TODO above"));
+pub static STACK_OVERLAYS: compat::MainThread<crate::unresolved::ItemOverlays> = compat::MainThread::new(|| crate::unresolved::ItemOverlays);
 /// java: private static final List<Runnable> afterLoadTasks = new CopyOnWriteArrayList<>();
 pub static AFTER_LOAD_TASKS: compat::MainThread<Vec<Arc<dyn Fn()>>> = compat::MainThread::new(|| Vec::new());
 // TODO(fabric2seer): static call HashMultimap.create(..)
 //   java: private static Multimap<@Nullable String, @Nullable NEUItem> nameToNEUItem = HashMultimap.create();
 /// java: private static Multimap<@Nullable String, @Nullable NEUItem> nameToNEUItem = HashMultimap.create();
-pub static NAME_TO_NEU_ITEM: compat::MainThread<crate::unresolved::Multimap> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `nameToNEUItem` - see the TODO above"));
+pub static NAME_TO_NEU_ITEM: compat::MainThread<crate::unresolved::Multimap> = compat::MainThread::new(|| crate::unresolved::Multimap);
 
 /// java: public class NEURepoManager
 #[derive(Clone)]
@@ -205,12 +209,13 @@ impl NEURepoManager {
 
     /// java: public static CompletableFuture<Void> runAsyncAfterLoad(Runnable runnable)
     pub fn run_async_after_load(runnable: Arc<dyn Fn()>) -> Option<mcrust::java::util::concurrent::completable_future::CompletableFuture<()>> {
-        // TODO(fabric2seer): `CompletableFuture.thenRun` has no Rust method in the port (looked for `then_run` in CompletableFuture and JavaSrc)
-        // rust: return Some((REPO_LOADING.get_mut().then_run_async(runnable.clone(), skyblocker_mod::VIRTUAL_THREAD_EXECUTOR.get_mut().clone())).exceptionally(|e| {
-        // rust: logger().error(&format!("[Skyblocker NEU Repo] Encountered unknown exception while running after load task"));
-        // rust: return Default::default(); // java: return null
-        // rust: }).then_run(&Arc::new(move || AFTER_LOAD_TASKS.get_mut().push(runnable.clone()))));
-        return todo!("fabric2seer: see the TODO above");
+        // java: return REPO_LOADING.thenRunAsync(runnable, SkyblockerMod.VIRTUAL_THREAD_EXECUTOR)
+        //   .exceptionally(e -> { LOGGER.error(..); return null; }).thenRun(() -> afterLoadTasks.add(runnable));
+        // rust: port gap - every stage hangs off REPO_LOADING, which cannot complete here (the NEU repo load is a port
+        // gap, see `REPO_LOADING`), so the chain Java builds would stay pending: the task neither runs nor joins
+        // `afterLoadTasks`, and the answer is a future that is not done (GAPS_L.md).
+        let _ = runnable;
+        return Some(CompletableFuture::new());
     }
 
     /// java: public static void forEachItem(Consumer<NEUItem> consumer)
@@ -221,58 +226,63 @@ impl NEURepoManager {
 
     /// java: public static @Nullable NEUItem getItemByNeuId(String neuId)
     pub fn get_item_by_neu_id(neu_id: &str) -> Option<crate::unresolved::NEUItem> {
-        // TODO(fabric2seer): `.getItems(..)` on a NEURepository
-        //   java: return NEU_REPO.getItems().getItemBySkyblockId(neuId);
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        // java: return NEU_REPO.getItems().getItemBySkyblockId(neuId);
+        // rust: port gap - the NEU repo is never loaded (see `REPO_LOADING`): no item has the id
+        let _ = neu_id;
+        None
     }
 
     /// java: public static Collection<@Nullable NEUItem> getItemByName(String displayName)
     pub fn get_item_by_name(display_name: &str) -> Vec<Option<crate::unresolved::NEUItem>> {
-        // TODO(fabric2seer): `.get(..)` on a Multimap
-        //   java: return nameToNEUItem.get(displayName);
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        // java: return nameToNEUItem.get(displayName); - a Multimap answers an empty collection for an absent key
+        // rust: port gap - the map is filled by `loadNameToNEUItemMap` after a repo load, which cannot happen here
+        let _ = display_name;
+        Vec::new()
     }
 
     /// java: public static NEUConstants getConstants()
     pub fn get_constants() -> crate::unresolved::NEUConstants {
-        // TODO(fabric2seer): `.getConstants(..)` on a NEURepository
-        //   java: return NEU_REPO.getConstants();
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        // java: return NEU_REPO.getConstants();
+        // rust: port gap - the NEU repo parser is not ported: its `NEUConstants` is the placeholder (GAPS_L.md)
+        crate::unresolved::NEUConstants
     }
 
     /// java: public static @Nullable NEURepoFile file(String path)
     pub fn file(path: &str) -> Option<crate::unresolved::NEURepoFile> {
-        // TODO(fabric2seer): `.file(..)` on a NEURepository
-        //   java: return NEU_REPO.file(path);
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        // java: return NEU_REPO.file(path); - null when the repo has no such file
+        // rust: port gap - the repo is never downloaded here (see `REPO_LOADING`): no file exists
+        let _ = path;
+        None
     }
 
     /// java: public static Stream<NEURepoFile> tree(String path) throws NEURepositoryException
     pub fn tree(path: &str) -> Box<dyn Iterator<Item = crate::unresolved::NEURepoFile> + '_> {
-        // TODO(fabric2seer): `.tree(..)` on a NEURepository
-        //   java: return NEU_REPO.tree(path);
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        // java: return NEU_REPO.tree(path);
+        // rust: port gap - the repo is never downloaded here (see `REPO_LOADING`): the tree is empty
+        let _ = path;
+        Box::new(std::iter::empty())
     }
 
     /// java: public static Map<@NEUId String, Set<NEURecipe>> getRecipes()
     pub fn get_recipes() -> std::collections::HashMap<String, std::collections::HashSet<crate::unresolved::NEURecipe>> {
-        // TODO(fabric2seer): `.getRecipes(..)` on a NEURecipeCache
-        //   java: return RECIPE_CACHE.getRecipes();
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        // java: return RECIPE_CACHE.getRecipes();
+        // rust: port gap - the recipe cache is filled on a repo reload, which cannot happen here: it is empty
+        std::collections::HashMap::new()
     }
 
     /// java: public static Map<@NEUId String, Set<NEURecipe>> getUsages()
     pub fn get_usages() -> std::collections::HashMap<String, std::collections::HashSet<crate::unresolved::NEURecipe>> {
-        // TODO(fabric2seer): `.getUsages(..)` on a NEURecipeCache
-        //   java: return RECIPE_CACHE.getUsages();
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        // java: return RECIPE_CACHE.getUsages();
+        // rust: port gap - the recipe cache is filled on a repo reload, which cannot happen here: it is empty
+        std::collections::HashMap::new()
     }
 
     /// java: public static Map<@NEUId String, ItemOverlayFile> getStackOverlays(int maxSupportedDataVersion)
     pub fn get_stack_overlays(mut max_supported_data_version: i32) -> std::collections::HashMap<String, crate::unresolved::ItemOverlayFile> {
-        // TODO(fabric2seer): `.getMostUpToDateCompatibleWith(..)` on a ItemOverlays
-        //   java: return STACK_OVERLAYS.getMostUpToDateCompatibleWith(maxSupportedDataVersion);
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        // java: return STACK_OVERLAYS.getMostUpToDateCompatibleWith(maxSupportedDataVersion);
+        // rust: port gap - the overlays are read on a repo reload, which cannot happen here: there are none
+        let _ = max_supported_data_version;
+        std::collections::HashMap::new()
     }
 
 }

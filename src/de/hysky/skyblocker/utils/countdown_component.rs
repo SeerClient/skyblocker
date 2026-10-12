@@ -68,9 +68,15 @@ impl CountdownComponent {
 
     /// java: @Override public FormattedCharSequence getVisualOrderText()
     pub fn get_visual_order_text(__this: &compat::Shared<Self>) -> Seq {
-        // TODO(fabric2seer): `Language.getVisualOrder` has no Rust method in the port (looked for `get_visual_order` in Language and its supertypes)
-        // rust: return language::get_instance().get_visual_order(mcrust::net::minecraft::network::chat::formatted_text::FormattedText::composite(vec![mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(compat::read(__this, |__t| __t.prefix.clone())), mcrust::net::minecraft::network::chat::formatted_text::FormattedText::of(compat::jstring(&__this))]));
-        return todo!("fabric2seer: see the TODO above");
+        // java: return Language.getInstance().getVisualOrder(FormattedText.composite(this.prefix, this));
+        // `this` as a FormattedText is the component as it reads now - its contents with its style, no siblings
+        // (the content updates, hence a new instance every call)
+        let (prefix, style) = compat::read(__this, |__t| (__t.prefix.clone(), __t.style.clone()));
+        let this_text: MutableComponent = MutableComponent::create(Arc::new(CountdownComponent::get_contents(__this))).set_style(style);
+        return language::get_instance().get_visual_order(&mcrust::net::minecraft::network::chat::formatted_text::FormattedText::composite(vec![
+            mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(prefix),
+            mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(this_text),
+        ]));
     }
 
 }

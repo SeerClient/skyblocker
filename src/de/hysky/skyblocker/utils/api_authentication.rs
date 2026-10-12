@@ -11,6 +11,8 @@ use mcrust::com::mojang::serialization::codec;
 use mcrust::com::mojang::serialization::codec::Codec;
 use mcrust::com::mojang::serialization::codec::CodecRef;
 use mcrust::com::mojang::serialization::codecs::record_codec_builder;
+use mcrust::com::mojang::serialization::decoder::Decoder as _;
+use mcrust::com::mojang::serialization::encoder::Encoder as _;
 use mcrust::java::security::private_key::PrivateKey;
 use mcrust::java::security::signature::Signature;
 use mcrust::java::util::base64;
@@ -82,6 +84,9 @@ impl ApiAuthentication {
         // SkyblockerMod.SKYBLOCKER_MOD / VERSION are render-thread statics here (compat::MainThread): read them here too
         let mod_id: String = skyblocker_mod::SKYBLOCKER_MOD.get_mut().metadata.id.clone();
         let mod_version: String = skyblocker_mod::VERSION.clone();
+        // the two codecs are render-thread statics too (compat::MainThread): taken here, used on the worker
+        let token_request_codec: CodecRef<TokenRequest> = TOKEN_REQUEST_CODEC.get().clone();
+        let token_info_codec: CodecRef<TokenInfo> = TOKEN_INFO_CODEC.get().clone();
         // java: .thenAcceptAsync(playerKeypairOpt -> {..}, SkyblockerMod.VIRTUAL_THREAD_EXECUTOR).exceptionally(throwable -> {..})
         // rust: port gap - the port's `KeyPairFuture` (CompletableFuture<Optional<ProfileKeyPair>>) has only
         // isDone/join; the action runs on its own thread (the virtual-thread-per-task executor) once the future is
@@ -103,13 +108,17 @@ impl ApiAuthentication {
                     let mut key_pair_info: KeyPairInfo = KeyPairInfo::new(profile_id.clone().expect("Objects.requireNonNull(CLIENT.getUser().getProfileId())"), public_key.clone(), public_key_signature, expires_at);
                     let mut signed_data: SignedData = ApiAuthentication::get_random_signed_data(player_key_pair.private_key()).expect("Objects.requireNonNull(getRandomSignedData(..))");
                     let mut token_request: TokenRequest = TokenRequest::new(key_pair_info.clone(), signed_data.clone(), mod_id.clone(), MINECRAFT_VERSION.clone(), mod_version.clone());
-                    // TODO(fabric2seer): `.toJson(..)` on a Gson
-                    //   java: String request = SkyblockerMod.GSON.toJson(TokenRequest.CODEC.encodeStart(JsonOps.INSTANCE, tokenRequest).getOrThrow());
-                    let mut request: String = todo!("fabric2seer: the initialiser of `request` (TODO above)");
+                    // java: String request = SkyblockerMod.GSON.toJson(TokenRequest.CODEC.encodeStart(JsonOps.INSTANCE, tokenRequest).getOrThrow());
+                    // (`GSON` is the pretty printer: `serde_json::to_string_pretty`, see `SkyblockerMod.GSON`)
+                    let encoded = token_request_codec.encode_start(&mcrust::com::mojang::serialization::json_ops::JsonOps::instance(), &token_request).get_or_throw().unwrap_or_else(|e| panic!("IllegalStateException: {e}"));
+                    let mut request: String = serde_json::to_string_pretty(&compat::json_from_port(&encoded)).expect("Gson.toJson");
                     // java: try {..} catch (Exception e) - an exception here is a panic, caught by `catch_unwind`
                     let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                        // TODO(fabric2seer): `Http.sendPostRequest` is not a static method of Http
-                        //   java: tokenInfo = TokenInfo.CODEC.parse(JsonOps.INSTANCE, JsonParser.parseString(Http.sendPostRequest(AUTH_URL, request, CONTENT_TYPE))).getOrThrow();
+                        // java: tokenInfo = TokenInfo.CODEC.parse(JsonOps.INSTANCE, JsonParser.parseString(Http.sendPostRequest(AUTH_URL, request, CONTENT_TYPE))).getOrThrow();
+                        let response: String = crate::de::hysky::skyblocker::utils::http::Http::send_post_request(AUTH_URL, &request, CONTENT_TYPE);
+                        let json: serde_json::Value = serde_json::from_str(&response).unwrap_or_else(|e| panic!("JsonSyntaxException: {e}"));
+                        let token_info: TokenInfo = token_info_codec.parse(&mcrust::com::mojang::serialization::json_ops::JsonOps::instance(), &compat::json_to_port(&json)).get_or_throw().unwrap_or_else(|e| panic!("IllegalStateException: {e}"));
+                        *compat::lock(&TOKEN_INFO) = Some(token_info);
                         RenderHelper::run_on_render_thread(Arc::new(move || {
                             let (expires_at, issued_at) = {
                                 let token_info = compat::lock(&TOKEN_INFO);

@@ -167,35 +167,45 @@ impl StatusBarTracker {
         *LAST_MESSAGE.get_mut() = text.clone();
         compat::set_state(&LAST_MESSAGE_TIME, now);
         let mut stringified: String = text.get_string();
-        // java: try {..} catch (Exception e) - the body runs inline: a Rust body does not throw checked exceptions (a panic in it propagates)
-        {
+        // java: try {..} catch (Exception e) - an exception here is a panic, caught by `catch_unwind`; the body's
+        // `return lastReturn = Component.literal(returned)` is the closure's `Some`
+        let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| -> Option<MutableComponent> {
             let mut returned: String = StatusBarTracker::update(&stringified, SkyblockerConfigManager::get().chat.hide_mana);
             if FancyStatusBars::is_enabled(fancy_status_bars::INSTANCE.get_mut()) && !(stringified == returned) {
-                // TODO(fabric2seer): an assignment used as a value
+                return Some(component::literal(&returned));
+            }
+            None
+        }));
+        match __result {
+            Ok(Some(returned)) => {
                 //   java: return lastReturn = Component.literal(returned);
+                *LAST_RETURN.get_mut() = returned.clone();
+                return returned;
+            }
+            Ok(None) => {}
+            Err(e) => {
+                let mut stripped: String = chat_formatting::strip_formatting(&stringified);
+                logger().error(&format!("[Skyblocker Status Bar Tracker] Failed to update status bars! Content: '{}' {}", stripped, compat::panic_message(&e)));
             }
         }
-        // TODO(fabric2seer): the `catch (Exception e)` block is not reached in Rust - the try body returns, breaks or continues, so it cannot run inside `catch_unwind`
-        //   java: {
-        //   java: 			String stripped = ChatFormatting.stripFormatting(stringified);
-        //   java: 			LOGGER.error("[Skyblocker Status Bar Tracker] Failed to update status bars! Content: '{}'", stripped, e);
-        //   java: 		}
-        // TODO(fabric2seer): an assignment used as a value
         //   java: return lastReturn = text;
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        *LAST_RETURN.get_mut() = text.clone();
+        return text;
     }
 
     /// java: @VisibleForTesting protected static String update(String actionBar, boolean filterManaUse)
     pub fn update(action_bar: &str, mut filter_mana_use: bool) -> String {
         let mut statuses: compat::regex::Matcher = STATUS_PATTERN.matcher(action_bar);
         let mut output = String::new();
+        // the matcher's append position (`Matcher.appendReplacement` / `appendTail`, see `append_replacement`)
+        let mut append_pos: i32 = 0;
         while statuses.find() {
             let mut status: compat::regex::Matcher;
             if Utils::is_in_the_rift() {
                 status = RIFT_TIME_STATUS.matcher(&chat_formatting::strip_formatting(statuses.group_named("status").as_deref().unwrap()));
                 if FancyStatusBars::is_experience_fancy_bar_enabled(fancy_status_bars::INSTANCE.get_mut()) && status.find() {
-                    // TODO(fabric2seer): Matcher.appendReplacement
                     //   java: statuses.appendReplacement(output, "");
+                    append_replacement(&mut output, action_bar, &mut append_pos, &statuses, "");
                 }
             } else {
                 status = HEALTH_STATUS.matcher(&chat_formatting::strip_formatting(statuses.group_named("status").as_deref().unwrap()));
@@ -203,8 +213,8 @@ impl StatusBarTracker {
                     StatusBarTracker::update_health(&status);
                     if FancyStatusBars::is_health_fancy_bar_enabled(fancy_status_bars::INSTANCE.get_mut()) {
                         if status.group_named("healing").is_none() {
-                            // TODO(fabric2seer): Matcher.appendReplacement
                             //   java: statuses.appendReplacement(output, "");
+                            append_replacement(&mut output, action_bar, &mut append_pos, &statuses, "");
                         } else {
                             status = HEALING.matcher(statuses.group(0).as_deref().unwrap());
                             if !status.find() {
@@ -213,52 +223,52 @@ impl StatusBarTracker {
                             if !(status.group(0).unwrap().starts_with("§")) {
                                 { output.push_str("§c"); };
                             }
-                            // TODO(fabric2seer): Matcher.appendReplacement
                             //   java: statuses.appendReplacement(output, statuses.group().substring(status.start()));
+                            append_replacement(&mut output, action_bar, &mut append_pos, &statuses, &compat::substring(&statuses.group(0).unwrap(), status.start(0)));
                         }
                     } else {
-                        // TODO(fabric2seer): Matcher.appendReplacement
                         //   java: statuses.appendReplacement(output, "$0");
+                        append_replacement(&mut output, action_bar, &mut append_pos, &statuses, "$0");
                     }
                 } else if status.use_pattern(&DEFENSE_STATUS).find() {
                     compat::set_state(&DEFENSE, RegexUtils::parse_int_from_matcher_matcher_string(&status, "defense"));
                     if FancyStatusBars::is_health_fancy_bar_enabled(fancy_status_bars::INSTANCE.get_mut()) {
-                        // TODO(fabric2seer): Matcher.appendReplacement
                         //   java: statuses.appendReplacement(output, "");
+                        append_replacement(&mut output, action_bar, &mut append_pos, &statuses, "");
                     } else {
-                        // TODO(fabric2seer): Matcher.appendReplacement
                         //   java: statuses.appendReplacement(output, "$0");
+                        append_replacement(&mut output, action_bar, &mut append_pos, &statuses, "$0");
                     }
                 } else if status.use_pattern(&VITALITY_STATUS).find() {
                     StatusBarTracker::update_vitality(&status);
                     if FancyStatusBars::is_bar_enabled(fancy_status_bars::INSTANCE.get_mut(), StatusBarType::Vitality) {
-                        // TODO(fabric2seer): Matcher.appendReplacement
                         //   java: statuses.appendReplacement(output, "");
+                        append_replacement(&mut output, action_bar, &mut append_pos, &statuses, "");
                     } else {
-                        // TODO(fabric2seer): Matcher.appendReplacement
                         //   java: statuses.appendReplacement(output, "$0");
+                        append_replacement(&mut output, action_bar, &mut append_pos, &statuses, "$0");
                     }
                 }
             }
             if status.use_pattern(&MANA_USE).find() {
                 if filter_mana_use {
-                    // TODO(fabric2seer): Matcher.appendReplacement
                     //   java: statuses.appendReplacement(output, "");
+                    append_replacement(&mut output, action_bar, &mut append_pos, &statuses, "");
                 }
             } else if status.use_pattern(&MANA_STATUS).find() {
                 StatusBarTracker::update_mana(&status);
                 if FancyStatusBars::is_bar_enabled(fancy_status_bars::INSTANCE.get_mut(), StatusBarType::Intelligence) {
-                    // TODO(fabric2seer): Matcher.appendReplacement
                     //   java: statuses.appendReplacement(output, "");
+                    append_replacement(&mut output, action_bar, &mut append_pos, &statuses, "");
                 } else {
-                    // TODO(fabric2seer): Matcher.appendReplacement
                     //   java: statuses.appendReplacement(output, "$0");
+                    append_replacement(&mut output, action_bar, &mut append_pos, &statuses, "$0");
                 }
             }
         }
-        // TODO(fabric2seer): Matcher.appendTail
         //   java: return statuses.appendTail(output).toString().trim();
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        append_tail(&mut output, action_bar, append_pos);
+        return compat::trim(&output);
     }
 
     /// java: private static void updateHealth(Matcher matcher)
@@ -443,4 +453,63 @@ impl EstimatedResource {
         return __this.lock().borrow().resource.overflow();
     }
 
+}
+
+/// `matcher.appendReplacement(sb, replacement)` (`java.util.regex.Matcher:1001-1034`): the input from the append
+/// position to the match's start, then the replacement - `$n` / `${name}` are the match's groups, `\x` is `x` - and
+/// the append position moves to the match's end. `compat::regex::Matcher` keeps no append position, so the caller
+/// keeps it (`append_pos`, a char index into `input`, as the matcher's `start` / `end` are).
+fn append_replacement(output: &mut String, input: &str, append_pos: &mut i32, matcher: &compat::regex::Matcher, replacement: &str) {
+    let start = matcher.start(0);
+    output.push_str(&compat::substring2(input, *append_pos, start));
+    let chars: Vec<char> = replacement.chars().collect();
+    let mut i = 0;
+    while i < chars.len() {
+        let c = chars[i];
+        if c == '\\' {
+            i += 1;
+            if i < chars.len() {
+                output.push(chars[i]);
+                i += 1;
+            }
+        } else if c == '$' {
+            i += 1;
+            if i < chars.len() && chars[i] == '{' {
+                i += 1;
+                let mut name = String::new();
+                while i < chars.len() && chars[i] != '}' {
+                    name.push(chars[i]);
+                    i += 1;
+                }
+                i += 1;
+                if let Some(group) = matcher.group_named(&name) {
+                    output.push_str(&group);
+                }
+            } else {
+                // the first digit, then more digits while the number stays a group of the pattern
+                let mut group = chars.get(i).and_then(|d| d.to_digit(10)).expect("IllegalArgumentException: Illegal group reference") as i32;
+                i += 1;
+                while let Some(d) = chars.get(i).and_then(|d| d.to_digit(10)) {
+                    let next = group * 10 + d as i32;
+                    if next > matcher.group_count() {
+                        break;
+                    }
+                    group = next;
+                    i += 1;
+                }
+                if let Some(text) = matcher.group(group) {
+                    output.push_str(&text);
+                }
+            }
+        } else {
+            output.push(c);
+            i += 1;
+        }
+    }
+    *append_pos = matcher.end(0);
+}
+
+/// `matcher.appendTail(sb)`: the input from the append position to its end.
+fn append_tail(output: &mut String, input: &str, append_pos: i32) {
+    output.push_str(&compat::substring(input, append_pos));
 }

@@ -60,9 +60,8 @@ impl ItemRepository {
         if mcrust::mcrust::modding::game::level().is_none() || minecraft::get_connection(client).is_none() {
             return;
         }
-        // TODO(fabric2seer): `.empty(..)` on a value of unknown type
-        //   java: ClientboundUpdateRecipesPacket packet = new ClientboundUpdateRecipesPacket(Map.of(), SelectableRecipe.SingleInputSet.empty());
-        let mut packet: ClientboundUpdateRecipesPacket = todo!("fabric2seer: the initialiser of `packet` (TODO above)");
+        // java: ClientboundUpdateRecipesPacket packet = new ClientboundUpdateRecipesPacket(Map.of(), SelectableRecipe.SingleInputSet.empty());
+        let mut packet: ClientboundUpdateRecipesPacket = ClientboundUpdateRecipesPacket::new(std::collections::HashMap::new(), mcrust::net::minecraft::world::item::crafting::selectable_recipe::SingleInputSet::empty());
         // java: try {..} catch (Exception e) - an exception here is a panic, caught by `catch_unwind`
         let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             mcrust::mcrust::modding::game::execute(move || {
@@ -102,9 +101,15 @@ impl ItemRepository {
         NEURepoManager::for_each_item(Arc::new(move |__a0| { ItemRepository::load_recipes(&__a0); }));
         recipe_item_stack_cache::CACHE.get_mut().clear();
         compat::set_state(&FILES_IMPORTED, true);
-        for task in AFTER_IMPORT_TASKS.get_mut().iter() {
-            // TODO(fabric2seer): CompletableFuture.runAsync of a non-lambda
-            //   java: CompletableFuture.runAsync(..).exceptionally(..);
+        // java: afterImportTasks.forEach(task -> CompletableFuture.runAsync(task.runnable, task.async ? SkyblockerMod.VIRTUAL_THREAD_EXECUTOR : Minecraft.getInstance()).exceptionally(e -> {
+        // java: 	LOGGER.error("[Skyblocker Item Repo Loader] Encountered unknown exception while running after import tasks", e);
+        // java: 	return null;
+        // java: }));
+        // Both executors: the runnables are the mod's (not `Send`), so they run deferred on the render thread
+        // (`compat::execute_local`, the Minecraft executor) - batch F pattern 10.
+        let __tasks: Vec<AfterImportTask> = AFTER_IMPORT_TASKS.get().clone();
+        for task in __tasks {
+            ItemRepository::run_async_logging(task.runnable.clone(), "[Skyblocker Item Repo Loader] Encountered unknown exception while running after import tasks");
         }
     }
 
@@ -114,18 +119,21 @@ impl ItemRepository {
         let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             let mut stack: compat::Shared<FlexibleItemStack> = ItemStackBuilder::from_neu_item(item);
             StackOverlays::apply_overlay(item, &stack);
-            // TODO(fabric2seer): the condition: `is` is not a method of FlexibleItemStack
-            //   java: stack.is(Items.ENCHANTED_BOOK) && stack.getSkyblockId().contains(";")
-            if todo!("fabric2seer: the condition (TODO above)") {
+            // java: stack.is(Items.ENCHANTED_BOOK) && stack.getSkyblockId().contains(";")
+            // (`TypedInstance.is(T rawType)` = `typeHolder().value() == rawType`, identity)
+            if Arc::ptr_eq(&crate::de::hysky::skyblocker::utils::flexible_item_stack::item_of(&FlexibleItemStack::type_holder(&stack)), &mcrust::net::minecraft::world::item::items::items().get("enchanted_book")) && compat::read(&stack, |__s| __s.get_skyblock_id()).contains(";") {
                 compat::read(&stack, |__s| ItemUtils::get_custom_data(__s)).put_string("id", "ENCHANTED_BOOK");
             }
             ITEMS.get_mut().push(stack.clone());
-            // TODO(fabric2seer): `.getSkyblockItemId(..)` on a NEUItem
-            //   java: itemsMap.put(item.getSkyblockItemId(), stack);
+            // java: itemsMap.put(item.getSkyblockItemId(), stack);
+            // rust: port gap (GAPS_batchB L1 / GAPS_J #5) - `NEUItem` is a `crate::unresolved` unit struct (the NEU repo
+            // library is unported), so it has no `getSkyblockItemId()`.
         }));
         if let Err(e) = __result {
-            // TODO(fabric2seer): `.getSkyblockItemId(..)` on a NEUItem
-            //   java: LOGGER.error("[Skyblocker Item Repo Loader] Failed to load item, please report this! Skyblock Id: {}", item.getSkyblockItemId(), e);
+            // java: LOGGER.error("[Skyblocker Item Repo Loader] Failed to load item, please report this! Skyblock Id: {}", item.getSkyblockItemId(), e);
+            // rust: port gap (GAPS_J #5) - `NEUItem.getSkyblockItemId()` (unported NEU library); the id is left out.
+            logger().error(&format!("[Skyblocker Item Repo Loader] Failed to load item, please report this! Skyblock Id: {}", "<NEUItem.getSkyblockItemId unported>"));
+            let _ = compat::panic_message(&e);
         }
     }
 
@@ -235,7 +243,9 @@ impl ItemRepository {
 
     /// java: private static @Nullable SkyblockRecipe toSkyblockRecipe(NEURecipe neuRecipe)
     pub fn to_skyblock_recipe(neu_recipe: &crate::unresolved::NEURecipe) -> Option<compat::Shared<dyn SkyblockRecipe>> {
-        // TODO(fabric2seer): a pattern switch expression
+        // rust: port gap (GAPS_J #5) - the switch dispatches on the NEU library's recipe subclasses
+        // (`NEUCraftingRecipe`, `NEUForgeRecipe`, `NEUNpcShopRecipe`, `NEUKatUpgradeRecipe`), all `crate::unresolved`
+        // unit structs with no common type to match on. The todo! stays until the NEU repo library is ported.
         //   java: return switch (neuRecipe) {
         //   java: 			case NEUCraftingRecipe craftingRecipe -> new SkyblockCraftingRecipe(craftingRecipe);
         //   java: 			case NEUForgeRecipe forgeRecipe -> new SkyblockForgeRecipe(forgeRecipe);
@@ -255,11 +265,11 @@ impl ItemRepository {
     pub fn run_after_import(runnable: Arc<dyn Fn()>, mut r#async: bool) {
         if compat::get_state(&FILES_IMPORTED) {
             if r#async {
-                // TODO(fabric2seer): CompletableFuture.runAsync of a non-lambda
-                //   java: CompletableFuture.runAsync(runnable, SkyblockerMod.VIRTUAL_THREAD_EXECUTOR).exceptionally(e -> {
-                //   java: 					LOGGER.error("[Skyblocker Item Repo Loader] Encountered unknown exception while running after import task", e);
-                //   java: 					return null;
-                //   java: 				});
+                // java: CompletableFuture.runAsync(runnable, SkyblockerMod.VIRTUAL_THREAD_EXECUTOR).exceptionally(e -> {
+                // java: 					LOGGER.error("[Skyblocker Item Repo Loader] Encountered unknown exception while running after import task", e);
+                // java: 					return null;
+                // java: 				});
+                ItemRepository::run_async_logging(runnable.clone(), "[Skyblocker Item Repo Loader] Encountered unknown exception while running after import task");
             } else {
                 // java: try {..} catch (Exception e) - an exception here is a panic, caught by `catch_unwind`
                 let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
@@ -272,6 +282,19 @@ impl ItemRepository {
         }
         AFTER_IMPORT_TASKS.get_mut().push(AfterImportTask::new(runnable.clone(), r#async));
     }
+
+    /// `CompletableFuture.runAsync(runnable, executor).exceptionally(e -> { LOGGER.error(message, e); return null; })`
+    /// for a runnable over the mod's objects (`Arc<dyn Fn()>`, not `Send`): it runs deferred on the render thread
+    /// (`compat::execute_local`), and a panic is the exceptional completion, logged.
+    fn run_async_logging(runnable: Arc<dyn Fn()>, message: &'static str) {
+        compat::execute_local(move || {
+            let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| (runnable)()));
+            if let Err(e) = __result {
+                logger().error(&format!("{} {}", message, compat::panic_message(&e)));
+            }
+        });
+    }
+
 
 }
 

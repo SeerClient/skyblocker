@@ -22,23 +22,43 @@ pub static SKYBLOCKER_MOD: compat::MainThread<std::sync::Arc<mcrust::mcrust::mod
 /// java: public static final String VERSION = SKYBLOCKER_MOD.getMetadata().getVersion().getFriendlyString();
 pub static VERSION: LazyLock<String> = LazyLock::new(|| SKYBLOCKER_MOD.get_mut().metadata.version.to_string());
 /// java: public static final Path CONFIG_DIR = FabricLoader.getInstance().getConfigDir().resolve(NAMESPACE);
-pub static CONFIG_DIR: compat::MainThread<std::path::PathBuf> = compat::MainThread::new(|| mcrust::mcrust::modding::config::config_dir().join(NAMESPACE));
-// TODO(fabric2seer): `new GsonBuilder(..)`
-//   java: public static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
+///
+/// Read from the async loaders as well as the render thread (Java's `static final` is safely published), so it is a
+/// thread-safe cell rather than a `compat::MainThread` (which panics off the thread that first used it); `get` and
+/// `get_mut` both answer the path (it is never written).
+pub static CONFIG_DIR: PathStatic = PathStatic(LazyLock::new(|| mcrust::mcrust::modding::config::config_dir().join(NAMESPACE)));
+
+/// A `static final Path`: read-only, reachable from any thread.
+pub struct PathStatic(pub LazyLock<std::path::PathBuf>);
+
+impl PathStatic {
+    pub fn get(&self) -> &std::path::PathBuf {
+        &self.0
+    }
+
+    /// The same path as `get` (the generated code reads the static through `get_mut`; nothing writes it).
+    pub fn get_mut(&self) -> &std::path::PathBuf {
+        &self.0
+    }
+}
 /// java: public static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
-pub static GSON: compat::MainThread<crate::unresolved::Gson> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `GSON` - see the TODO above"));
-// TODO(fabric2seer): `new GsonBuilder(..)`
-//   java: public static final Gson GSON_COMPACT = new GsonBuilder().create();
+///
+/// The mod's JSON trees are `serde_json` values: `GSON.toJson(tree)` is `serde_json::to_string_pretty` (Gson's pretty
+/// printer indents by two spaces, as `to_string_pretty` does) and `GSON.fromJson(reader, JsonObject.class)` is
+/// `serde_json::from_str`; this placeholder object is what the static holds (`crate::unresolved::Gson`, the library
+/// is not ported).
+pub static GSON: compat::MainThread<crate::unresolved::Gson> = compat::MainThread::new(|| crate::unresolved::Gson);
 /// java: public static final Gson GSON_COMPACT = new GsonBuilder().create();
-pub static GSON_COMPACT: compat::MainThread<crate::unresolved::Gson> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `GSON_COMPACT` - see the TODO above"));
-// TODO(fabric2seer): static `KeyMapping.Category` has no Rust counterpart in the port's KeyMapping file
-//   java: public static final KeyMapping.Category KEYBINDING_CATEGORY = KeyMapping.Category.register(id("main"));
+///
+/// `GSON_COMPACT.toJson(tree)` is `serde_json::to_string` (see `GSON`).
+pub static GSON_COMPACT: compat::MainThread<crate::unresolved::Gson> = compat::MainThread::new(|| crate::unresolved::Gson);
 /// java: public static final KeyMapping.Category KEYBINDING_CATEGORY = KeyMapping.Category.register(id("main"));
-pub static KEYBINDING_CATEGORY: compat::MainThread<mcrust::net::minecraft::client::key_mapping::Category> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `KEYBINDING_CATEGORY` - see the TODO above"));
-// TODO(fabric2seer): Executors.newVirtualThreadPerTaskExecutor: use std::thread / the port's executors
-//   java: public static final ExecutorService VIRTUAL_THREAD_EXECUTOR = Executors.newVirtualThreadPerTaskExecutor();
+pub static KEYBINDING_CATEGORY: compat::MainThread<mcrust::net::minecraft::client::key_mapping::Category> = compat::MainThread::new(|| compat::category(&id("main").to_string()));
 /// java: public static final ExecutorService VIRTUAL_THREAD_EXECUTOR = Executors.newVirtualThreadPerTaskExecutor();
-pub static VIRTUAL_THREAD_EXECUTOR: compat::MainThread<crate::unresolved::ExecutorService> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `VIRTUAL_THREAD_EXECUTOR` - see the TODO above"));
+///
+/// The executor the mod's tasks run on is `compat::executor` (one thread per task, as a virtual-thread-per-task
+/// executor runs them); this placeholder object is what the static holds (`crate::unresolved::ExecutorService`).
+pub static VIRTUAL_THREAD_EXECUTOR: compat::MainThread<crate::unresolved::ExecutorService> = compat::MainThread::new(|| crate::unresolved::ExecutorService);
 
 pub fn id(path: &str) -> Identifier {
     return Identifier::from_namespace_and_path(NAMESPACE, path);

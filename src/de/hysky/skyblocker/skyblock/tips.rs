@@ -22,7 +22,6 @@ pub static DISABLE_TEXT: compat::MainThread<MutableComponent> = compat::MainThre
 pub static ENABLE_TEXT: compat::MainThread<MutableComponent> = compat::MainThread::new(|| component::translatable("skyblocker.tips.clickEnable").with_color_text(mcrust::net::minecraft::network::chat::text_color::TextColor::GREEN).with_style_fn(|style| style.with_click_event(Some(ClickEvent::new_run_command("/skyblocker tips enable".to_string())))));
 /// java: private static int currentTipIndex = 0;
 pub static CURRENT_TIP_INDEX: LazyLock<Mutex<i32>> = LazyLock::new(|| Mutex::new(0));
-// TODO(fabric2seer): static `ClickEvent.Action` has no Rust counterpart in the port's ClickEvent file
 //   java: private static final List<Supplier<Component>> TIPS = new ArrayList<>(List.of(
 //   java: 			getTipFactory("skyblocker.tips.customItemNames", ClickEvent.Action.SUGGEST_COMMAND, "/skyblocker custom renameItem"),
 //   java: 			getTipFactory("skyblocker.tips.customArmorDyeColors", ClickEvent.Action.SUGGEST_COMMAND, "/skyblocker custom"),
@@ -67,7 +66,51 @@ pub static CURRENT_TIP_INDEX: LazyLock<Mutex<i32>> = LazyLock::new(|| Mutex::new
 //   java: 			getTipFactory("skyblocker.tips.viewRecipe")
 //   java: 	));
 /// java: private static final List<Supplier<Component>> TIPS = new ArrayList<>(List.of( getTipFactory("skyblocker.tips.customItemNames", ClickEvent.Action.SUGGEST_COMMAND, "/skyblocker custom renameItem"), get
-pub static TIPS: compat::MainThread<Vec<Arc<dyn Fn() -> MutableComponent>>> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `TIPS` - see the TODO above"));
+pub static TIPS: compat::MainThread<Vec<Arc<dyn Fn() -> MutableComponent>>> = compat::MainThread::new(|| {
+    vec![
+        Tips::get_tip_factory_3("skyblocker.tips.customItemNames", &Action::SuggestCommand, "/skyblocker custom renameItem"),
+        Tips::get_tip_factory_3("skyblocker.tips.customArmorDyeColors", &Action::SuggestCommand, "/skyblocker custom"),
+        Tips::get_tip_factory_3("skyblocker.tips.customArmorTrims", &Action::SuggestCommand, "/skyblocker custom"),
+        Tips::get_tip_factory_3("skyblocker.tips.customAnimatedDyes", &Action::SuggestCommand, "/skyblocker custom"),
+        Tips::get_tip_factory("skyblocker.tips.fancyTabExtraInfo"),
+        Tips::get_tip_factory_3("skyblocker.tips.helpCommand", &Action::SuggestCommand, "/skyblocker help"),
+        Tips::get_tip_factory_3("skyblocker.tips.discordRichPresence", &Action::SuggestCommand, "/skyblocker config"),
+        Tips::get_tip_factory_3("skyblocker.tips.customDungeonSecretWaypoints", &Action::SuggestCommand, "/skyblocker dungeons secrets addWaypoint"),
+        Tips::get_tip_factory_3("skyblocker.tips.shortcuts", &Action::SuggestCommand, "/skyblocker shortcuts"),
+        Tips::get_tip_factory_3("skyblocker.tips.gallery", &Action::OpenUrl, "https://hysky.de/skyblocker/gallery"),
+        Tips::get_tip_factory_3("skyblocker.tips.itemRarityBackground", &Action::SuggestCommand, "/skyblocker config"),
+        Tips::get_tip_factory("skyblocker.tips.modMenuUpdate"),
+        Tips::get_tip_factory_3("skyblocker.tips.issues", &Action::OpenUrl, "https://github.com/SkyblockerMod/Skyblocker/issues"),
+        Tips::get_tip_factory_3("skyblocker.tips.beta", &Action::OpenUrl, "https://github.com/SkyblockerMod/Skyblocker/actions"),
+        Tips::get_tip_factory_3("skyblocker.tips.contribute", &Action::OpenUrl, "https://github.com/SkyblockerMod/Skyblocker/wiki/contribute"),
+        Tips::get_tip_factory_3("skyblocker.tips.discord", &Action::OpenUrl, "https://discord.gg/aNNJHQykck"),
+        Tips::get_tip_factory_3("skyblocker.tips.flameOverlay", &Action::SuggestCommand, "/skyblocker config"),
+        Tips::get_tip_factory_3("skyblocker.tips.wikiLookup", &Action::SuggestCommand, "/skyblocker config"),
+        Tips::get_tip_factory_3("skyblocker.tips.protectItem", &Action::SuggestCommand, "/skyblocker protectItem"),
+        Tips::get_tip_factory_3("skyblocker.tips.fairySoulsEnigmaSoulsRelics", &Action::SuggestCommand, "/skyblocker fairySouls"),
+        Tips::get_tip_factory_3("skyblocker.tips.quickNav", &Action::SuggestCommand, "/skyblocker config"),
+        Tips::get_tip_factory_3("skyblocker.tips.waypoints", &Action::SuggestCommand, "/skyblocker waypoint"),
+        Tips::get_tip_factory_3("skyblocker.tips.orderedWaypoints", &Action::SuggestCommand, "/skyblocker waypoints"),
+        Tips::get_tip_factory("skyblocker.tips.visitorHelper"),
+        Tips::get_tip_factory("skyblocker.tips.slotText"),
+        Tips::get_tip_factory_3("skyblocker.tips.profileViewer", &Action::SuggestCommand, "/pv"),
+        Tips::get_tip_factory_3("skyblocker.tips.configSearch", &Action::SuggestCommand, "/skyblocker config"),
+        Tips::get_tip_factory_4("skyblocker.tips.configureNewFeatures", &Action::SuggestCommand, &format!("{}{}", "/skyblocker config v", *MOD_VERSION), &vec![mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::literal(&MOD_VERSION))]),
+        Tips::get_tip_factory_3("skyblocker.tips.compactDamage", &Action::SuggestCommand, "/skyblocker config"),
+        Tips::get_tip_factory_3("skyblocker.tips.skyblockerScreen", &Action::SuggestCommand, "/skyblocker"),
+        Tips::get_tip_factory_3("skyblocker.tips.tipsClick", &Action::SuggestCommand, "/skyblocker tips next"),
+        Tips::get_tip_factory_3("skyblocker.tips.eventNotifications", &Action::SuggestCommand, "/skyblocker config"),
+        Tips::get_tip_factory("skyblocker.tips.signCalculator"),
+        Tips::get_tip_factory_3("skyblocker.tips.calculateCommand", &Action::SuggestCommand, "/skyblocker calculate"),
+        Tips::get_tip_factory_3("skyblocker.tips.fancierBars", &Action::SuggestCommand, "/skyblocker bars"),
+        Tips::get_tip_factory_3("skyblocker.tips.crystalWaypointsShare", &Action::SuggestCommand, "/skyblocker crystalWaypoints share"),
+        Tips::get_tip_factory_3("skyblocker.tips.gardenMouseLock", &Action::SuggestCommand, "/skyblocker config"),
+        Tips::get_tip_factory("skyblocker.tips.newYearCakesHelper"),
+        Tips::get_tip_factory("skyblocker.tips.accessoryHelper"),
+        Tips::get_tip_factory("skyblocker.tips.fancyAuctionHouseCheapHighlight"),
+        Tips::get_tip_factory("skyblocker.tips.viewRecipe"),
+    ]
+});
 /// java: private static boolean sentTip = false;
 pub static SENT_TIP: LazyLock<Mutex<bool>> = LazyLock::new(|| Mutex::new(false));
 

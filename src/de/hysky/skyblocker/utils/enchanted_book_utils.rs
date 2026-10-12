@@ -8,10 +8,8 @@ use mcrust::java::text::decimal_format_symbols::Locale;
 use mcrust::net::minecraft::network::chat::mutable_component::MutableComponent;
 use mcrust::net::minecraft::network::chat::component::Component as _;
 
-// TODO(fabric2seer): static call Object2ObjectMaps.synchronize(..)
-//   java: private static final Map<String, String> API_ID_OVERRIDES = Object2ObjectMaps.synchronize(new Object2ObjectOpenHashMap<>());
 /// java: private static final Map<String, String> API_ID_OVERRIDES = Object2ObjectMaps.synchronize(new Object2ObjectOpenHashMap<>());
-pub static API_ID_OVERRIDES: LazyLock<Mutex<std::collections::HashMap<String, String>>> = LazyLock::new(|| Mutex::new(todo!("fabric2seer: the initialiser of `API_ID_OVERRIDES` - see the TODO above")));
+pub static API_ID_OVERRIDES: LazyLock<Mutex<std::collections::HashMap<String, String>>> = LazyLock::new(|| Mutex::new(std::collections::HashMap::new()));
 
 /// java: public final class EnchantedBookUtils
 #[derive(Clone)]

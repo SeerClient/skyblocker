@@ -105,9 +105,8 @@ impl UpdateNotifications {
         let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             let mut current_mod_version: mcrust::mcrust::modding::version::SemanticVersion = MOD_VERSION.get_mut().as_semantic().cloned().expect("ClassCastException: not a SemanticVersion");
             let mut current_minecraft_version: mcrust::mcrust::modding::version::SemanticVersion = UpdateNotifications::parse_minecraft_version(shared_constants::get_current_version().id()).get_or_throw().unwrap();
-            // TODO(fabric2seer): `Http.sendGetRequest` is not a static method of Http
-            //   java: String response = Http.sendGetRequest(VERSIONS_URL);
-            let mut response: String = todo!("fabric2seer: the initialiser of `response` (TODO above)");
+            // java: String response = Http.sendGetRequest(VERSIONS_URL);
+            let mut response: String = crate::de::hysky::skyblocker::utils::http::Http::send_get_request(VERSIONS_URL);
             let mut mr_versions: Vec<MrVersion> = (MR_VERSION_LIST_CODEC.get_mut().parse(&mcrust::com::mojang::serialization::json_ops::JsonOps::instance(), &compat::json_to_port(&serde_json::from_str::<serde_json::Value>(&response).expect("JsonSyntaxException")))).get_or_throw().unwrap();
             compat::set_state(&SENT_UPDATE_NOTIFICATION, true);
             let mut optimal_version: Option<MrVersion> = UpdateNotifications::get_optimal_version(&current_mod_version, &current_minecraft_version, &mr_versions);
@@ -192,9 +191,8 @@ impl UpdateNotifications {
 
     /// java: private static DataResult<SemanticVersion> parseMinecraftVersion(String minecraftVersion)
     pub fn parse_minecraft_version(minecraft_version: &str) -> DataResult<mcrust::mcrust::modding::version::SemanticVersion> {
-        // TODO(fabric2seer): static call McVersionLookup.normalizeVersion(..)
-        //   java: String normalized = McVersionLookup.normalizeVersion(minecraftVersion, McVersionLookup.getRelease(minecraftVersion));
-        let mut normalized: String = todo!("fabric2seer: the initialiser of `normalized` (TODO above)");
+        // java: String normalized = McVersionLookup.normalizeVersion(minecraftVersion, McVersionLookup.getRelease(minecraftVersion));
+        let mut normalized: String = normalize_minecraft_version(minecraft_version);
         return UpdateNotifications::parse_version(&normalized);
     }
 
@@ -410,4 +408,30 @@ impl std::fmt::Display for Channel {
         write!(f, "{}", Channel::to_string(self))
 
     }
+}
+
+/// Fabric Loader's `McVersionLookup.normalizeVersion(name, getRelease(name))` for the version ids this client can
+/// carry: a release (`26.2`) is its own release and normalizes to itself; `X-preN` / `X-rcN` become the semver
+/// pre-releases `X-beta.N` / `X-rc.N`.
+/// rust: port gap - the loader's snapshot (`26w14a`) table is not in the crate: such an id is answered unchanged
+/// and the semantic-version parse after it fails, as the update check's `catch` expects of a bad version
+/// (GAPS_L.md).
+fn normalize_minecraft_version(name: &str) -> String {
+    let is_release = |v: &str| !v.is_empty() && v.split('.').all(|part| !part.is_empty() && part.chars().all(|c| c.is_ascii_digit()));
+    if is_release(name) {
+        return name.to_string();
+    }
+    if let Some((release, pre)) = name.split_once("-pre")
+        && is_release(release)
+        && pre.chars().all(|c| c.is_ascii_digit())
+    {
+        return format!("{release}-beta.{pre}");
+    }
+    if let Some((release, rc)) = name.split_once("-rc")
+        && is_release(release)
+        && rc.chars().all(|c| c.is_ascii_digit())
+    {
+        return format!("{release}-rc.{rc}");
+    }
+    name.to_string()
 }

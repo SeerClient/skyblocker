@@ -18,27 +18,21 @@ impl OkLabColor {
 
     /// java: public static Lab linearSRGB2OkLab(float r, float g, float b)
     pub fn linear_srgb2_ok_lab(mut r: f32, mut g: f32, mut b: f32) -> Lab {
-        // TODO(fabric2seer): Math.fma
-        //   java: float l = Math.fma(0.4122214708f, r, Math.fma(0.5363325363f, g, 0.0514459929f * b));
-        let mut l: f32 = todo!("fabric2seer: the initialiser of `l` (TODO above)");
-        // TODO(fabric2seer): Math.fma
-        //   java: float m = Math.fma(0.2119034982f, r, Math.fma(0.6806995451f, g, 0.1073969566f * b));
-        let mut m: f32 = todo!("fabric2seer: the initialiser of `m` (TODO above)");
-        // TODO(fabric2seer): Math.fma
-        //   java: float s = Math.fma(0.0883024619f, r, Math.fma(0.2817188376f, g, 0.6299787005f * b));
-        let mut s: f32 = todo!("fabric2seer: the initialiser of `s` (TODO above)");
+        // java: float l = Math.fma(0.4122214708f, r, Math.fma(0.5363325363f, g, 0.0514459929f * b));
+        let mut l: f32 = 0.4122214708f32.mul_add(r, 0.5363325363f32.mul_add(g, 0.0514459929f32 * b));
+        // java: float m = Math.fma(0.2119034982f, r, Math.fma(0.6806995451f, g, 0.1073969566f * b));
+        let mut m: f32 = 0.2119034982f32.mul_add(r, 0.6806995451f32.mul_add(g, 0.1073969566f32 * b));
+        // java: float s = Math.fma(0.0883024619f, r, Math.fma(0.2817188376f, g, 0.6299787005f * b));
+        let mut s: f32 = 0.0883024619f32.mul_add(r, 0.2817188376f32.mul_add(g, 0.6299787005f32 * b));
         let mut l_: f32 = (((l as f64).cbrt()) as f32);
         let mut m_: f32 = (((m as f64).cbrt()) as f32);
         let mut s_: f32 = (((s as f64).cbrt()) as f32);
-        // TODO(fabric2seer): Math.fma
-        //   java: float L = Math.fma(0.2104542553f, l_, Math.fma(+0.7936177850f, m_, -0.0040720468f * s_));
-        let mut l: f32 = todo!("fabric2seer: the initialiser of `L` (TODO above)");
-        // TODO(fabric2seer): Math.fma
-        //   java: float A = Math.fma(1.9779984951f, l_, Math.fma(-2.4285922050f, m_, +0.4505937099f * s_));
-        let mut a: f32 = todo!("fabric2seer: the initialiser of `A` (TODO above)");
-        // TODO(fabric2seer): Math.fma
-        //   java: float B = Math.fma(0.0259040371f, l_, Math.fma(+0.7827717662f, m_, -0.8086757660f * s_));
-        let mut b: f32 = todo!("fabric2seer: the initialiser of `B` (TODO above)");
+        // java: float L = Math.fma(0.2104542553f, l_, Math.fma(+0.7936177850f, m_, -0.0040720468f * s_));
+        let mut l: f32 = 0.2104542553f32.mul_add(l_, 0.7936177850f32.mul_add(m_, -0.0040720468f32 * s_));
+        // java: float A = Math.fma(1.9779984951f, l_, Math.fma(-2.4285922050f, m_, +0.4505937099f * s_));
+        let mut a: f32 = 1.9779984951f32.mul_add(l_, (-2.4285922050f32).mul_add(m_, 0.4505937099f32 * s_));
+        // java: float B = Math.fma(0.0259040371f, l_, Math.fma(+0.7827717662f, m_, -0.8086757660f * s_));
+        let mut b: f32 = 0.0259040371f32.mul_add(l_, 0.7827717662f32.mul_add(m_, -0.8086757660f32 * s_));
         return Lab::new(l, a, b);
     }
 
@@ -50,15 +44,12 @@ impl OkLabColor {
         let mut l: f32 = ((l_ * l_) * l_);
         let mut m: f32 = ((m_ * m_) * m_);
         let mut s: f32 = ((s_ * s_) * s_);
-        // TODO(fabric2seer): Math.fma
-        //   java: float r = Math.fma(+4.0767416621f, l, Math.fma(-3.3077115913f, m, +0.2309699292f * s));
-        let mut r: f32 = todo!("fabric2seer: the initialiser of `r` (TODO above)");
-        // TODO(fabric2seer): Math.fma
-        //   java: float g = Math.fma(-1.2684380046f, l, Math.fma(+2.6097574011f, m, -0.3413193965f * s));
-        let mut g: f32 = todo!("fabric2seer: the initialiser of `g` (TODO above)");
-        // TODO(fabric2seer): Math.fma
-        //   java: float b = Math.fma(-0.0041960863f, l, Math.fma(-0.7034186147f, m, +1.7076147010f * s));
-        let mut b: f32 = todo!("fabric2seer: the initialiser of `b` (TODO above)");
+        // java: float r = Math.fma(+4.0767416621f, l, Math.fma(-3.3077115913f, m, +0.2309699292f * s));
+        let mut r: f32 = 4.0767416621f32.mul_add(l, (-3.3077115913f32).mul_add(m, 0.2309699292f32 * s));
+        // java: float g = Math.fma(-1.2684380046f, l, Math.fma(+2.6097574011f, m, -0.3413193965f * s));
+        let mut g: f32 = (-1.2684380046f32).mul_add(l, 2.6097574011f32.mul_add(m, -0.3413193965f32 * s));
+        // java: float b = Math.fma(-0.0041960863f, l, Math.fma(-0.7034186147f, m, +1.7076147010f * s));
+        let mut b: f32 = (-0.0041960863f32).mul_add(l, (-0.7034186147f32).mul_add(m, 1.7076147010f32 * s));
         return RGB::new(r, g, b);
     }
 
@@ -69,9 +60,8 @@ impl OkLabColor {
 
     /// java: private static float delinearize(float channel)
     pub fn delinearize(mut channel: f32) -> f32 {
-        // TODO(fabric2seer): Math.fma
-        //   java: return channel <= 0.0031308f ? channel * 12.92f : Math.fma(1.055f, (float) Math.pow(channel, 1.0f / 2.4f), -0.055f);
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        // java: return channel <= 0.0031308f ? channel * 12.92f : Math.fma(1.055f, (float) Math.pow(channel, 1.0f / 2.4f), -0.055f);
+        return if channel <= 0.0031308f32 { channel * 12.92f32 } else { 1.055f32.mul_add((channel as f64).powf((1.0f32 / 2.4f32) as f64) as f32, -0.055f32) };
     }
 
     /// java: public static int interpolate(int firstColor, int secondColor, float progress)
@@ -84,15 +74,12 @@ impl OkLabColor {
         let mut normalized_b2: f32 = (((second_color & 0xFF) as f32) / 255.0f32);
         let mut lab1: Lab = OkLabColor::linear_srgb2_ok_lab(OkLabColor::linearize(normalized_r1), OkLabColor::linearize(normalized_g1), OkLabColor::linearize(normalized_b1));
         let mut lab2: Lab = OkLabColor::linear_srgb2_ok_lab(OkLabColor::linearize(normalized_r2), OkLabColor::linearize(normalized_g2), OkLabColor::linearize(normalized_b2));
-        // TODO(fabric2seer): Math.fma
-        //   java: float L = Math.fma(progress, (lab2.l - lab1.l), lab1.l);
-        let mut l: f32 = todo!("fabric2seer: the initialiser of `L` (TODO above)");
-        // TODO(fabric2seer): Math.fma
-        //   java: float A = Math.fma(progress, (lab2.a - lab1.a), lab1.a);
-        let mut a: f32 = todo!("fabric2seer: the initialiser of `A` (TODO above)");
-        // TODO(fabric2seer): Math.fma
-        //   java: float B = Math.fma(progress, (lab2.b - lab1.b), lab1.b);
-        let mut b: f32 = todo!("fabric2seer: the initialiser of `B` (TODO above)");
+        // java: float L = Math.fma(progress, (lab2.l - lab1.l), lab1.l);
+        let mut l: f32 = progress.mul_add(lab2.l - lab1.l, lab1.l);
+        // java: float A = Math.fma(progress, (lab2.a - lab1.a), lab1.a);
+        let mut a: f32 = progress.mul_add(lab2.a - lab1.a, lab1.a);
+        // java: float B = Math.fma(progress, (lab2.b - lab1.b), lab1.b);
+        let mut b: f32 = progress.mul_add(lab2.b - lab1.b, lab1.b);
         let mut rgb: RGB = OkLabColor::ok_lab2_linear_srgb(l, a, b);
         let mut r: i32 = compat::java_round_f32((OkLabColor::delinearize(rgb.r) * 255.0f32).clamp((0 as f32), (255 as f32)));
         let mut g: i32 = compat::java_round_f32((OkLabColor::delinearize(rgb.g) * 255.0f32).clamp((0 as f32), (255 as f32)));

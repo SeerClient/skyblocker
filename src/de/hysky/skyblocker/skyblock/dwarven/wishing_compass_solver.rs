@@ -131,9 +131,9 @@ impl WishingCompassSolver {
 
     /// java: private static Zone getZoneOfLocation(Vec3 location)
     pub fn get_zone_of_location(location: &Vec3) -> Zone {
-        // TODO(fabric2seer): static field Map.Entry
         //   java: return ZONE_BOUNDING_BOXES.entrySet().stream().filter(zone -> zone.getValue().contains(location)).findFirst().map(Map.Entry::getKey).orElse(Zone.CRYSTAL_NUCLEUS);
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        // (`Map.of` iterates in an unspecified order, as the `HashMap` here does.)
+        return ZONE_BOUNDING_BOXES.get().iter().find(|(_, bounding_box)| bounding_box.contains_vec(location)).map(|(zone, _)| *zone).unwrap_or(Zone::CrystalNucleus);
     }
 
     /// java: private static Boolean isZoneComplete(Zone zone)
@@ -241,41 +241,20 @@ impl WishingCompassSolver {
         if direction_one == direction_two {
             return None;
         }
-        // TODO(fabric2seer): `new Vector3D(..)`
-        //   java: Vector3D lineOneStart = new Vector3D(startPosOne.x, startPosOne.y, startPosOne.z);
-        let mut line_one_start: crate::unresolved::Vector3D = todo!("fabric2seer: the initialiser of `lineOneStart` (TODO above)");
-        // TODO(fabric2seer): `new Vector3D(..)`
-        //   java: Vector3D lineOneEnd = new Vector3D(directionOne.x, directionOne.y, directionOne.z).add(lineOneStart);
-        let mut line_one_end: crate::unresolved::Vector3D = todo!("fabric2seer: the initialiser of `lineOneEnd` (TODO above)");
-        // TODO(fabric2seer): `new Vector3D(..)`
-        //   java: Vector3D lineTwoStart = new Vector3D(startPosTwo.x, startPosTwo.y, startPosTwo.z);
-        let mut line_two_start: crate::unresolved::Vector3D = todo!("fabric2seer: the initialiser of `lineTwoStart` (TODO above)");
-        // TODO(fabric2seer): `new Vector3D(..)`
-        //   java: Vector3D lineTwoEnd = new Vector3D(directionTwo.x, directionTwo.y, directionTwo.z).add(lineTwoStart);
-        let mut line_two_end: crate::unresolved::Vector3D = todo!("fabric2seer: the initialiser of `lineTwoEnd` (TODO above)");
-        // TODO(fabric2seer): `new Line(..)`
-        //   java: Line line = new Line(lineOneStart, lineOneEnd, 1);
-        let mut line: crate::unresolved::Line = todo!("fabric2seer: the initialiser of `line` (TODO above)");
-        // TODO(fabric2seer): `new Line(..)`
-        //   java: Line lineTwo = new Line(lineTwoStart, lineTwoEnd, 1);
-        let mut line_two: crate::unresolved::Line = todo!("fabric2seer: the initialiser of `lineTwo` (TODO above)");
-        // TODO(fabric2seer): `.closestPoint(..)` on a Line
-        //   java: Vector3D close = line.closestPoint(lineTwo);
-        let mut close: crate::unresolved::Vector3D = todo!("fabric2seer: the initialiser of `close` (TODO above)");
-        // TODO(fabric2seer): `.closestPoint(..)` on a Line
-        //   java: Vector3D closeTwo = lineTwo.closestPoint(line);
-        let mut close_two: crate::unresolved::Vector3D = todo!("fabric2seer: the initialiser of `closeTwo` (TODO above)");
-        // TODO(fabric2seer): `.distance(..)` on a Vector3D
-        //   java: double distance = close.distance(closeTwo);
-        let mut distance: f64 = todo!("fabric2seer: the initialiser of `distance` (TODO above)");
+        let line_one_start: Vector3D = Vector3D::new(start_pos_one.x, start_pos_one.y, start_pos_one.z);
+        let line_one_end: Vector3D = Vector3D::new(direction_one.x, direction_one.y, direction_one.z).add(&line_one_start);
+        let line_two_start: Vector3D = Vector3D::new(start_pos_two.x, start_pos_two.y, start_pos_two.z);
+        let line_two_end: Vector3D = Vector3D::new(direction_two.x, direction_two.y, direction_two.z).add(&line_two_start);
+        let line: Line = Line::new(&line_one_start, &line_one_end, 1.0);
+        let line_two: Line = Line::new(&line_two_start, &line_two_end, 1.0);
+        let close: Vector3D = line.closest_point(&line_two);
+        let close_two: Vector3D = line_two.closest_point(&line);
+        let distance: f64 = close.distance(&close_two);
         let mut intersection: Option<Vec3> = None;
         if distance < DISTANCE_TOLERANCE {
-            // TODO(fabric2seer): `.getX(..)` on a Vector3D
-            //   java: Vec3 c1 = new Vec3(close.getX(), close.getY(), close.getZ());
-            let mut c1: Vec3 = todo!("fabric2seer: the initialiser of `c1` (TODO above)");
-            // TODO(fabric2seer): `.getX(..)` on a Vector3D
-            //   java: Vec3 c2 = new Vec3(close.getX(), close.getY(), close.getZ());
-            let mut c2: Vec3 = todo!("fabric2seer: the initialiser of `c2` (TODO above)");
+            let c1: Vec3 = Vec3::new(close.get_x(), close.get_y(), close.get_z());
+            // (Java builds `c2` from `close` too, not `closeTwo`.)
+            let c2: Vec3 = Vec3::new(close.get_x(), close.get_y(), close.get_z());
             intersection = Some(c1.add_vec(&c2).scale(0.5));
         }
         return intersection;
@@ -481,5 +460,149 @@ impl Zone {
 impl std::fmt::Display for Zone {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(self.name())
+    }
+}
+
+/// `MathArrays.linearCombination(a1, b1, a2, b2, a3, b3)` (commons-math3): `a1 * b1 + a2 * b2 + a3 * b3` with each
+/// product's rounding error kept (`mul_add` gives Dekker's exact low part) and the partial sums compensated; a NaN
+/// answer falls back to the plain sum, as the library does.
+fn linear_combination3(a1: f64, b1: f64, a2: f64, b2: f64, a3: f64, b3: f64) -> f64 {
+    let prod1 = a1 * b1;
+    let prod1_low = a1.mul_add(b1, -prod1);
+    let prod2 = a2 * b2;
+    let prod2_low = a2.mul_add(b2, -prod2);
+    let prod3 = a3 * b3;
+    let prod3_low = a3.mul_add(b3, -prod3);
+    // accurate addition a1 * b1 + a2 * b2
+    let s12_high = prod1 + prod2;
+    let s12_prime = s12_high - prod2;
+    let s12_low = (prod2 - (s12_high - s12_prime)) + (prod1 - s12_prime);
+    // accurate addition a1 * b1 + a2 * b2 + a3 * b3
+    let s123_high = s12_high + prod3;
+    let s123_prime = s123_high - prod3;
+    let s123_low = (prod3 - (s123_high - s123_prime)) + (s12_high - s123_prime);
+    let result = s123_high + (prod1_low + prod2_low + prod3_low + s12_low + s123_low);
+    if result.is_nan() { a1 * b1 + a2 * b2 + a3 * b3 } else { result }
+}
+
+/// `MathArrays.linearCombination(a1, b1, a2, b2)` (commons-math3) - the two-term form of `linear_combination3`.
+fn linear_combination2(a1: f64, b1: f64, a2: f64, b2: f64) -> f64 {
+    let prod1 = a1 * b1;
+    let prod1_low = a1.mul_add(b1, -prod1);
+    let prod2 = a2 * b2;
+    let prod2_low = a2.mul_add(b2, -prod2);
+    let s12_high = prod1 + prod2;
+    let s12_prime = s12_high - prod2;
+    let s12_low = (prod2 - (s12_high - s12_prime)) + (prod1 - s12_prime);
+    let result = s12_high + (prod1_low + prod2_low + s12_low);
+    if result.is_nan() { prod1 + prod2 } else { result }
+}
+
+/// `org.apache.commons.math3.geometry.euclidean.threed.Vector3D` (commons-math3, unported - `crate::unresolved`): the
+/// part this class uses. rust: belongs in its own file with the library's other classes (as batch D's 2D `Vector2D` /
+/// `Line` in `waypoint/mythological_ritual.rs`).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Vector3D {
+    x: f64,
+    y: f64,
+    z: f64,
+}
+
+impl Vector3D {
+    /// `new Vector3D(double x, double y, double z)`
+    pub fn new(x: f64, y: f64, z: f64) -> Vector3D {
+        Vector3D { x, y, z }
+    }
+
+    /// `new Vector3D(double a, Vector3D u)` - `a * u`
+    fn scaled(a: f64, u: &Vector3D) -> Vector3D {
+        Vector3D::new(a * u.x, a * u.y, a * u.z)
+    }
+
+    /// `new Vector3D(double a1, Vector3D u1, double a2, Vector3D u2)` - `a1 * u1 + a2 * u2`
+    fn linear(a1: f64, u1: &Vector3D, a2: f64, u2: &Vector3D) -> Vector3D {
+        Vector3D::new(linear_combination2(a1, u1.x, a2, u2.x), linear_combination2(a1, u1.y, a2, u2.y), linear_combination2(a1, u1.z, a2, u2.z))
+    }
+
+    /// `getX()`
+    pub fn get_x(&self) -> f64 {
+        self.x
+    }
+
+    /// `getY()`
+    pub fn get_y(&self) -> f64 {
+        self.y
+    }
+
+    /// `getZ()`
+    pub fn get_z(&self) -> f64 {
+        self.z
+    }
+
+    /// `add(Vector<Euclidean3D> v)`
+    pub fn add(&self, v: &Vector3D) -> Vector3D {
+        Vector3D::new(self.x + v.x, self.y + v.y, self.z + v.z)
+    }
+
+    /// `subtract(Vector<Euclidean3D> v)`
+    pub fn subtract(&self, v: &Vector3D) -> Vector3D {
+        Vector3D::new(self.x - v.x, self.y - v.y, self.z - v.z)
+    }
+
+    /// `getNormSq()`
+    pub fn get_norm_sq(&self) -> f64 {
+        self.x * self.x + self.y * self.y + self.z * self.z
+    }
+
+    /// `dotProduct(Vector<Euclidean3D> v)`
+    pub fn dot_product(&self, v: &Vector3D) -> f64 {
+        linear_combination3(self.x, v.x, self.y, v.y, self.z, v.z)
+    }
+
+    /// `distance(Vector<Euclidean3D> v)`
+    pub fn distance(&self, v: &Vector3D) -> f64 {
+        let dx = v.x - self.x;
+        let dy = v.y - self.y;
+        let dz = v.z - self.z;
+        (dx * dx + dy * dy + dz * dz).sqrt()
+    }
+}
+
+/// `org.apache.commons.math3.geometry.euclidean.threed.Line` (commons-math3, unported): `Line(p1, p2, tolerance)`
+/// (`reset(p1, p2)`) and `closestPoint(Line)`.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Line {
+    direction: Vector3D,
+    zero: Vector3D,
+    tolerance: f64,
+}
+
+impl Line {
+    /// `public Line(Vector3D p1, Vector3D p2, double tolerance)` - `reset(p1, p2)`; a zero-length line throws
+    /// `MathIllegalArgumentException(ZERO_NORM)`.
+    pub fn new(p1: &Vector3D, p2: &Vector3D, tolerance: f64) -> Line {
+        let delta = p2.subtract(p1);
+        let norm2 = delta.get_norm_sq();
+        if norm2 == 0.0 {
+            panic!("MathIllegalArgumentException: zero norm");
+        }
+        let direction = Vector3D::scaled(1.0 / norm2.sqrt(), &delta);
+        let zero = Vector3D::linear(1.0, p1, -p1.dot_product(&delta) / norm2, &delta);
+        Line { direction, zero, tolerance }
+    }
+
+    /// `closestPoint(Line line)`: the point of this line closest to `line` (`zero` for parallel lines).
+    pub fn closest_point(&self, line: &Line) -> Vector3D {
+        let cos = self.direction.dot_product(&line.direction);
+        let n = 1.0 - cos * cos;
+        // `Precision.EPSILON` = 2^-53
+        if n < f64::EPSILON / 2.0 {
+            // the lines are parallel
+            return self.zero;
+        }
+        let delta0 = line.zero.subtract(&self.zero);
+        let a = delta0.dot_product(&self.direction);
+        let b = delta0.dot_product(&line.direction);
+        Vector3D::linear(1.0, &self.zero, (a - b * cos) / n, &self.direction)
     }
 }

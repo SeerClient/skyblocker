@@ -60,10 +60,8 @@ pub static IS_ON_HYPIXEL: LazyLock<Mutex<bool>> = LazyLock::new(|| Mutex::new(fa
 pub static IS_ON_SKYBLOCK: LazyLock<Mutex<bool>> = LazyLock::new(|| Mutex::new(false));
 /// java: private static boolean isGuest = false;
 pub static IS_GUEST: LazyLock<Mutex<bool>> = LazyLock::new(|| Mutex::new(false));
-// TODO(fabric2seer): static field PackageRank.NONE
-//   java: private static RankType rank = PackageRank.NONE;
 /// java: private static RankType rank = PackageRank.NONE;
-pub static RANK: compat::MainThread<crate::unresolved::RankType> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `rank` - see the TODO above"));
+pub static RANK: compat::MainThread<crate::unresolved::RankType> = compat::MainThread::new(|| crate::unresolved::RankType::Package(crate::unresolved::PackageRank::None));
 /// java: private static Location location = Location.UNKNOWN;
 pub static LOCATION: LazyLock<Mutex<Location>> = LazyLock::new(|| Mutex::new(Location::Unknown));
 /// java: private static Area area = Area.UNKNOWN;
@@ -76,11 +74,8 @@ pub static PROFILE_ID: LazyLock<Mutex<String>> = LazyLock::new(|| Mutex::new("".
 pub static PROFILE_ID_REQUEST: LazyLock<Mutex<i32>> = LazyLock::new(|| Mutex::new(0));
 /// java: private static int profileSuggestionMessages = Integer.MAX_VALUE / 2;
 pub static PROFILE_SUGGESTION_MESSAGES: LazyLock<Mutex<i32>> = LazyLock::new(|| Mutex::new((i32::MAX).wrapping_div(2)));
-// TODO(fabric2seer): static field Environment.PRODUCTION
-//   java: @SuppressWarnings("JavadocDeclaration")
-//   java: 	private static Environment environment = Environment.PRODUCTION;
 /// java: @SuppressWarnings("JavadocDeclaration") private static Environment environment = Environment.PRODUCTION;
-pub static ENVIRONMENT: compat::MainThread<crate::unresolved::Environment> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `environment` - see the TODO above"));
+pub static ENVIRONMENT: compat::MainThread<crate::unresolved::Environment> = compat::MainThread::new(|| crate::unresolved::Environment::Production);
 /// java: private static String server = "";
 pub static SERVER: LazyLock<Mutex<String>> = LazyLock::new(|| Mutex::new("".to_string()));
 /// java: private static String gameType = "";
@@ -207,7 +202,8 @@ impl Utils {
 
     /// java: public static boolean isInBiome(Identifier targetBiome)
     pub fn is_in_biome(target_biome: &Identifier) -> bool {
-        return (BIOME.get_mut().is_some() && Holder::is_identifier_direct(target_biome));
+        // java: return biome != null && biome.is(targetBiome);
+        return BIOME.get().as_ref().is_some_and(|biome| biome.is_identifier(target_biome));
     }
 
     /// java: public static boolean isOnBingo()
@@ -322,10 +318,13 @@ impl Utils {
     /// java: private static boolean isConnectedToHypixel(Minecraft client)
     pub fn is_connected_to_hypixel(client: &mut mcrust::net::minecraft::client::minecraft::Minecraft) -> bool {
         let mut server_address: String = (if minecraft::get_current_server(client).is_some() { minecraft::get_current_server(client).unwrap().ip.to_lowercase() } else { "".to_string() });
-        // TODO(fabric2seer): the mod keeps the game's `ClientPacketListener` (Java holds a reference to the live object); the port's `ClientPacketListener` is not a value to copy and the port lends the mod no handle to it
-        // TODO(fabric2seer): `ClientCommonPacketListenerImpl::server_brand` ports `serverBrand`, but the port's `ClientPacketListener` holds no `ClientCommonPacketListenerImpl` (no Deref, no `base` field) to call it on
-        // rust: let mut server_brand: String = (if mcrust::mcrust::modding::game::with_player(|_| ()).is_some() && mcrust::mcrust::modding::game::with_player(|player| player.connection.clone()).flatten().is_some() && mcrust::mcrust::modding::game::with_player(|player| player.connection.as_ref().unwrap().server_brand()).flatten().is_some() { mcrust::mcrust::modding::game::with_player(|player| player.connection.as_ref().unwrap().server_brand()).flatten() } else { Some("".to_string()) }).unwrap();
-        let mut server_brand: String = todo!("fabric2seer: the initialiser of `serverBrand` (TODO above)");
+        // java: client.player != null && client.player.connection != null && client.player.connection.serverBrand() != null
+        //   ? client.player.connection.serverBrand() : ""
+        // The port publishes the connection's brand beside the play listener (`PlayListenerSinks.server_brand`);
+        // `get_connection` answers None without a player, as Java's first two guards do.
+        let mut server_brand: String = minecraft::get_connection(client)
+            .and_then(|sinks| sinks.server_brand.lock().unwrap_or_else(|p| p.into_inner()).clone())
+            .unwrap_or_else(|| "".to_string());
         return (!server_address.is_empty() && compat::equals_ignore_case(&server_address, &ALTERNATE_HYPIXEL_ADDRESS) || server_address.contains("hypixel.net") || server_address.contains("hypixel.io") || server_brand.contains("Hypixel BungeeCord"));
     }
 
@@ -484,13 +483,17 @@ impl Utils {
     /// java: private static void updateBiome(Minecraft minecraft)
     pub fn update_biome(minecraft: &mut mcrust::net::minecraft::client::minecraft::Minecraft) {
         if mcrust::mcrust::modding::game::with_player(|_| ()).is_some() {
-            // TODO(fabric2seer): `LocalPlayer.level` has no Rust method in the port (looked for `level` in LocalPlayer and its supertypes)
-            // rust: let mut level: Level = mcrust::mcrust::modding::game::with_player(|player| player.level()).unwrap();
-            let mut level: Level = todo!("fabric2seer: the initialiser of `level` (TODO above)");
+            // java: Level level = minecraft.player.level(); - the client's level
+            let Some(level) = mcrust::mcrust::modding::game::level() else {
+                *BIOME.get_mut() = None;
+                return;
+            };
             let mut feet_pos: BlockPos = mcrust::mcrust::modding::game::with_player(|player| player.base.base.base.base.block_position()).unwrap();
             if level.is_inside_build_height_pos(&feet_pos) {
-                // TODO(fabric2seer): `Level.getBiome` has no Rust method in the port (looked for `get_biome` in Level and its supertypes)
-                // rust: *BIOME.get_mut() = Some(level.get_biome(&feet_pos));
+                // java: biome = level.getBiome(feetPos); - the port's palette keeps the erased `Holder<Biome>` as a
+                // `BiomeHolder` (a registry reference)
+                let holder = level.get_biome_holder(&feet_pos);
+                *BIOME.get_mut() = mcrust::com::mojang::serialization::cast::<mcrust::net::minecraft::world::level::chunk::paletted_container_factory::BiomeHolder>(&holder).map(|b| Holder::Reference(b.0.clone()));
                 return;
             }
         }
@@ -571,19 +574,19 @@ impl Utils {
     /// java: private static void tickProfileId()
     pub fn tick_profile_id() {
         compat::set_state(&PROFILE_ID_REQUEST, compat::get_state(&PROFILE_ID_REQUEST) + 1);
-        // TODO(fabric2seer): `new Runnable(..) {..}` (an anonymous class with state or several methods)
-        //   java: Scheduler.INSTANCE.schedule(new Runnable() {
-        //   java: 			private final int requestId = profileIdRequest;
-        //   java:
-        //   java: 			@Override
-        //   java: 			public void run() {
-        //   java: 				if (!Utils.isOnSkyblock()) return;
-        //   java: 				if (requestId == profileIdRequest) {
-        //   java: 					MessageScheduler.INSTANCE.sendMessageAfterCooldown("/profileid", true);
-        //   java: 					profileSuggestionMessages = 0;
-        //   java: 				}
-        //   java: 			}
-        //   java: 		}, 20 * 8);
+        // java: Scheduler.INSTANCE.schedule(new Runnable() { private final int requestId = profileIdRequest; .. }, 20 * 8);
+        // The anonymous class's one field is captured by value when it is built.
+        let request_id: i32 = compat::get_state(&PROFILE_ID_REQUEST);
+        let task: Arc<dyn Fn()> = Arc::new(move || {
+            if !Utils::is_on_skyblock() {
+                return;
+            }
+            if request_id == compat::get_state(&PROFILE_ID_REQUEST) {
+                crate::de::hysky::skyblocker::utils::scheduler::message_scheduler::MessageScheduler::send_message_after_cooldown(crate::de::hysky::skyblocker::utils::scheduler::message_scheduler::INSTANCE.get(), "/profileid", true);
+                compat::set_state(&PROFILE_SUGGESTION_MESSAGES, 0);
+            }
+        });
+        { let __r = scheduler::INSTANCE.get_mut(); let __f = compat::dispatch(__r, |__t| __t.schedule()); __f(__r, task, 20 * 8) };
     }
 
     /// java: @Deprecated private static void parseLocRaw(String message)
@@ -622,9 +625,8 @@ impl Utils {
             } else if message.starts_with(PROFILE_ID_PREFIX) {
                 let mut prev_profile_id: String = compat::get_state(&PROFILE_ID);
                 compat::set_state(&PROFILE_ID, compat::substring(&message, compat::str_len(PROFILE_ID_PREFIX)));
-                // TODO(fabric2seer): the condition: static field Environment.PRODUCTION
-                //   java: Utils.getEnvironment() != Environment.PRODUCTION
-                if todo!("fabric2seer: the condition (TODO above)") {
+                // java: Utils.getEnvironment() != Environment.PRODUCTION
+                if *Utils::get_environment() != crate::unresolved::Environment::Production {
                     compat::set_state(&PROFILE_ID, format!("{}-alpha", compat::get_state(&PROFILE_ID)));
                 }
                 compat::set_state(&PROFILE_ID_REQUEST, compat::get_state(&PROFILE_ID_REQUEST) + 1);
@@ -643,13 +645,17 @@ impl Utils {
     /// java: public static void sendMessageToBypassEvents(Component message)
     pub fn send_message_to_bypass_events(message: &MutableComponent) {
         let client = compat::minecraft();
-        // TODO(fabric2seer): `add_client_system_message` takes 5 argument(s) in the port (`message: FormattedText, gui_ticks: i32, splitter: &StringSplitter<impl WidthProvider>, options: ChatOptions, is_chat_focused: bool`), Java passes 1
-        // rust: client.gui.hud.get_chat().add_client_system_message(mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(message.clone()));
-        // TODO(fabric2seer): `Gui.chatListener` has no Rust method in the port (looked for `chat_listener` in Gui and its supertypes)
-        // TODO(fabric2seer): `ChatListenerAccessor.logSystemMessage` has no Rust method in the port (looked for `log_system_message` in ChatListenerAccessor and JavaSrc)
-        // rust: client.gui.chat_listener().log_system_message(message, &std::time::SystemTime::now());
-        // TODO(fabric2seer): `say_system_queued` takes 2 argument(s) in the port (`options: &OptionsData, message: &FormattedText`), Java passes 1
-        // rust: client.get_narrator().say_system_queued(message);
+        let message = mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(message.clone());
+        // java: client.gui.hud.getChat().addClientSystemMessage(message); - as `Minecraft.showDebugChat` calls it
+        let chat_focused = client.gui.screen_kind == mcrust::net::minecraft::client::gui::gui::ScreenKind::Chat;
+        let options = mcrust::net::minecraft::client::gui::components::chat_component::chat_options(&client.options.borrow(), chat_focused);
+        let ticks = client.gui.hud.tick_count;
+        let splitter = client.font.splitter();
+        client.gui.hud.chat.add_client_system_message(message.clone(), ticks, &splitter, options, chat_focused);
+        // java: ((ChatListenerAccessor) client.gui.chatListener()).invokeLogSystemMessage(message, Instant.now());
+        mcrust::net::minecraft::client::multiplayer::chat::chat_listener::log_system_message(&message, mcrust::java::time::instant::Instant::now());
+        // java: client.getNarrator().saySystemQueued(message);
+        client.narrator.say_system_queued(&client.options.borrow(), &message);
     }
 
     /// java: public static UUID getUuid()

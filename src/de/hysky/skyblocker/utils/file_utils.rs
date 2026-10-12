@@ -21,9 +21,9 @@ impl FileUtils {
         if !dir.exists() {
             return;
         }
-        // TODO(fabric2seer): the condition: Files.isSymbolicLink
-        //   java: Files.isDirectory(dir) && !Files.isSymbolicLink(dir)
-        if todo!("fabric2seer: the condition (TODO above)") {
+        // java: Files.isDirectory(dir) && !Files.isSymbolicLink(dir)
+        let is_symbolic_link = std::fs::symlink_metadata(dir).map(|m| m.file_type().is_symlink()).unwrap_or(false);
+        if dir.is_dir() && !is_symbolic_link {
             {
                 let mut stream = std::fs::read_dir(dir).expect("IOException").filter_map(|e| e.ok()).map(|e| e.path());
                 for child in stream {
@@ -37,12 +37,28 @@ impl FileUtils {
                 }
             }
         }
-        // TODO(fabric2seer): the condition: Files.isWritable
-        //   java: !Files.isWritable(dir) && !dir.toFile().setWritable(true)
-        if todo!("fabric2seer: the condition (TODO above)") {
+        // java: !Files.isWritable(dir) && !dir.toFile().setWritable(true)
+        let is_writable = std::fs::metadata(dir).map(|m| !m.permissions().readonly()).unwrap_or(false);
+        let set_writable = || -> bool {
+            match std::fs::metadata(dir) {
+                Ok(m) => {
+                    let mut permissions = m.permissions();
+                    #[allow(clippy::permissions_set_readonly_false)]
+                    permissions.set_readonly(false);
+                    std::fs::set_permissions(dir, permissions).is_ok()
+                }
+                Err(_) => false,
+            }
+        };
+        if !is_writable && !set_writable() {
             logger().error(&format!("[Skyblocker] Failed to make file writable. Path: {}", std::path::absolute(&dir).unwrap_or_else(|_| dir.clone()).display()));
         }
-        std::fs::remove_file(dir).expect("IOException");
+        // java: Files.delete(dir) - a file, a link or an (emptied) directory
+        if dir.is_dir() && !is_symbolic_link {
+            std::fs::remove_dir(dir).expect("IOException");
+        } else {
+            std::fs::remove_file(dir).expect("IOException");
+        }
     }
 
     /// java: public static String normalizePath(Path path)

@@ -93,9 +93,9 @@ impl ProfileViewerTextWidget {
                     if item.get_skyblock_id().is_empty() {
                         continue;
                     }
-                    // TODO(fabric2seer): `.get(..)` on a T
-                    //   java: AccessoriesHelper.Accessory accessory = Objects.requireNonNull(TooltipInfoType.ACCESSORIES.getData()).get(item.getSkyblockId());
-                    let mut accessory: Accessory = todo!("fabric2seer: the initialiser of `accessory` (TODO above)");
+                    // java: AccessoriesHelper.Accessory accessory = Objects.requireNonNull(TooltipInfoType.ACCESSORIES.getData()).get(item.getSkyblockId());
+                    // (a missing accessory is Java's NPE at `accessory.family()`, which the catch below swallows)
+                    let mut accessory: Accessory = tooltip_info_type::ACCESSORIES.get_mut().lock().borrow().get_data().expect("NullPointerException").get(&item.get_skyblock_id()).cloned().expect("NullPointerException: accessory");
                     let mut name: String = accessory.family().unwrap_or(accessory.id());
                     if accessories.get(&name).cloned().unwrap_or_else(|| 0) >= item.get_skyblock_rarity().get_mp() {
                         continue;
@@ -197,8 +197,9 @@ impl ProfileViewerTextWidget {
 
     /// java: private double addItemNetworth(PriorityQueue<ItemValue> top, ItemStack stack)
     pub fn add_item_networth(&self, top: &mut compat::JavaPriorityQueue<ItemValue>, stack: &mcrust::net::minecraft::world::item::item_stack::ItemStack) -> f64 {
-        // TODO(fabric2seer): `.price(..)` on a NetworthResult
-        //   java: double p = NetworthCalculator.getItemNetworth(stack).price();
+        // java: double p = NetworthCalculator.getItemNetworth(stack).price();
+        // rust: port gap (GAPS_J #7) - `NetworthResult` is a `crate::unresolved` placeholder (the external
+        // `net.azureaaron.networth` library is unported), so it has no `price()`.
         let mut p: f64 = todo!("fabric2seer: the initialiser of `p` (TODO above)");
         if p > (0 as f64) {
             // java: top.offer(new ItemValue(stack.getHoverName().getString(), p));
@@ -228,8 +229,9 @@ impl ProfileViewerTextWidget {
         let mut nw_y: i32 = (root_y.wrapping_add(7)).wrapping_add(ROW_GAP.wrapping_mul(4));
         gui_graphics_extractor::text_string_with_drop_shadow(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), Some(&nw_string), nw_x, nw_y, mcrust::net::minecraft::util::common_colors::WHITE, true);
         if mouse_x >= nw_x && mouse_x <= nw_x.wrapping_add(text_renderer.width(&nw_string)) && mouse_y >= nw_y && mouse_y <= nw_y.wrapping_add(mcrust::net::minecraft::client::gui::font::LINE_HEIGHT) {
-            // TODO(fabric2seer): the port's `set_component_tooltip_for_next_frame` ports this Java method with other parameters (tooltip_for_next_frame, lines for Java's lines, xo, yo)
-            // TODO(fabric2seer): `set_component_tooltip_for_next_frame` takes 2 argument(s) in the port (`tooltip_for_next_frame: &mut Option<DeferredTooltip>, lines: Vec<crate::net::minecraft::network::chat::formatted_text::FormattedText>`), Java passes 4
+            // java: graphics.setComponentTooltipForNextFrame(textRenderer, networthTooltip, mouseX, mouseY);
+            // rust: port gap (GAPS_batchE #1) - the frame's `DeferredTooltip` (`tooltip_for_next_frame`) lives in the
+            // render loop and is not reachable from mod draw code; the port's call is:
             // rust: gui_graphics_extractor::set_component_tooltip_for_next_frame(&mut text_renderer, self.networth_tooltip.clone(), mouse_x, mouse_y);
         }
         gui_graphics_extractor::text_string_with_drop_shadow(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), Some(&format!("§6MP:§r {}", self.magical_power)), root_x.wrapping_add(2), (root_y.wrapping_add(7)).wrapping_add(ROW_GAP.wrapping_mul(5)), mcrust::net::minecraft::util::common_colors::WHITE, true);

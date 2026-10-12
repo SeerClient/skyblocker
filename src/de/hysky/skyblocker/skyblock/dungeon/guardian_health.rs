@@ -56,24 +56,34 @@ impl GuardianHealth {
         }
         let client = compat::minecraft();
         if Utils::is_in_dungeons() && compat::get_state(&IN_BOSS) && mcrust::mcrust::modding::game::with_player(|_| ()).is_some() && mcrust::mcrust::modding::game::level().is_some() {
-            // TODO(fabric2seer): the port's `get_entities_of_class` ports this Java method with other parameters (base_class, except, bb, selector for Java's base_class, bb, selector)
-            // TODO(fabric2seer): `get_entities_of_class` takes 4 argument(s) in the port (`base_class: crate::net::minecraft::world::level::entity::entity_type_test::EntityClass, except: Option<i32>, bb: &AABB, selector: &dyn Fn(&(dyn Entity + Send + Sync)) -> bool`), Java passes 3
-            // TODO(fabric2seer): a lambda for a parameter the port does not type as a closure (`Predicate<? super T>`)
-            // rust: let mut guardians: Vec<Guardian> = mcrust::mcrust::modding::game::level().unwrap().get_entities_of_class(std::any::TypeId::of::<Guardian>(), Some(BOSS_ROOM.get_mut().clone()), |_| true);
-            let mut guardians: Vec<Guardian> = todo!("fabric2seer: the initialiser of `guardians` (TODO above)");
+            // java: List<Guardian> guardians = client.level.getEntitiesOfClass(Guardian.class, bossRoom, _ -> true);
+            // (the port's class filter has no Guardian.class: the base class Entity plus `instanceof Guardian`)
+            let level = mcrust::mcrust::modding::game::level().unwrap();
+            let guardians: Vec<mcrust::net::minecraft::world::level::entity_getter::SharedEntity> = level.get_entities_of_class(
+                mcrust::net::minecraft::world::level::entity::entity_type_test::EntityClass::Entity,
+                None,
+                BOSS_ROOM.get(),
+                &|entity| is_guardian(entity),
+            );
             for guardian in guardians.iter() {
-                // TODO(fabric2seer): static `EntityTypes.ARMOR_STAND` has no Rust counterpart in the port's EntityTypes file
-                // TODO(fabric2seer): `ClientLevel.getEntities` has no Rust method in the port (looked for `get_entities` in ClientLevel and its supertypes)
-                // rust: let mut armor_stands: Vec<ArmorStand> = mcrust::mcrust::modding::game::level().unwrap().get_entities(&crate::unresolved::EntityTypes::ARMOR_STAND, &guardian.base.base.base.base.base.get_bounding_box().inflate3((0) as f64, (1) as f64, (0) as f64), &Arc::new(move |__a0| GuardianHealth::is_guardian_name(&__a0)));
-                let mut armor_stands: Vec<ArmorStand> = todo!("fabric2seer: the initialiser of `armorStands` (TODO above)");
+                let partial_tick: f32 = RenderHelper::get_tick_counter().get_game_time_delta_partial_tick(false);
+                // the guardian's box and `getPosition(tickDelta)`, read under one hold
+                let (search_box, guardian_position) = {
+                    let guardian = mcrust::mcrust::modding::game::lock_entity(&**guardian, "skyblocker GuardianHealth.extractRendering");
+                    (guardian.base().get_bounding_box().inflate3((0) as f64, (1) as f64, (0) as f64), guardian.base().get_position_partial(partial_tick))
+                };
+                // java: List<ArmorStand> armorStands = client.level.getEntities(EntityTypes.ARMOR_STAND, guardian.getBoundingBox().inflate(0, 1, 0), GuardianHealth::isGuardianName);
+                let armor_stands: Vec<mcrust::net::minecraft::world::level::entity_getter::SharedEntity> = level.get_entities(
+                    None,
+                    &search_box,
+                    &|entity| entity.as_any().and_then(|any| any.downcast_ref::<ArmorStand>()).is_some_and(|armor_stand| GuardianHealth::is_guardian_name(armor_stand)),
+                );
                 for armor_stand in armor_stands.iter() {
-                    // TODO(fabric2seer): `get_display_name` takes 1 argument(s) in the port (`team: Option<&crate::net::minecraft::world::scores::player_team::PlayerTeam>`), Java passes 0
-                    if false /* java: compat::component_of(armor_stand.get_display_name()) == null: never null here */ {
-                        continue;
-                    }
-                    // TODO(fabric2seer): `get_display_name` takes 1 argument(s) in the port (`team: Option<&crate::net::minecraft::world::scores::player_team::PlayerTeam>`), Java passes 0
-                    // rust: let mut display: String = compat::component_of(armor_stand.get_display_name()).get_string();
-                    let mut display: String = todo!("fabric2seer: the initialiser of `display` (TODO above)");
+                    // java: if (armorStand.getDisplayName() == null) continue; - getDisplayName never answers null
+                    let mut display: String = {
+                        let armor_stand = mcrust::mcrust::modding::game::lock_entity(&**armor_stand, "skyblocker GuardianHealth.extractRendering");
+                        display_name_string(&*armor_stand)
+                    };
                     let mut professor: bool = display.contains("The Professor");
                     let mut matcher: compat::regex::Matcher = (if professor { PROFESSOR_REGEX.matcher(&display) } else { GUARDIAN_REGEX.matcher(&display) });
                     if !matcher.matches() {
@@ -81,11 +91,8 @@ impl GuardianHealth {
                     }
                     let mut health: String = matcher.group(2).unwrap();
                     let mut quantity: String = matcher.group(3).unwrap();
-                    // TODO(fabric2seer): `DeltaTracker.getGameTimeDeltaPartialTick` has no Rust method in the port (looked for `get_game_time_delta_partial_tick` in DeltaTracker and its supertypes)
-                    // rust: let mut distance: f64 = RenderHelper::get_camera().position().distance_to(&guardian.base.base.base.base.base.get_position_partial(RenderHelper::get_tick_counter().get_game_time_delta_partial_tick(false)));
-                    let mut distance: f64 = todo!("fabric2seer: the initialiser of `distance` (TODO above)");
-                    // TODO(fabric2seer): `DeltaTracker.getGameTimeDeltaPartialTick` has no Rust method in the port (looked for `get_game_time_delta_partial_tick` in DeltaTracker and its supertypes)
-                    // rust: ({ let __f = compat::dispatch(collector, |__t| __t.submit_text_4()); __f(collector, &(component::literal(&format!("{}{}", health, quantity))).with_style_format(ChatFormatting::Green), &guardian.base.base.base.base.base.get_position_partial(RenderHelper::get_tick_counter().get_game_time_delta_partial_tick(false)), ((((1 as f64) + (distance / (10 as f64)))) as f32), true) });
+                    let mut distance: f64 = RenderHelper::get_camera().position().distance_to(&guardian_position);
+                    ({ let __f = compat::dispatch(collector, |__t| __t.submit_text_4()); __f(collector, &(component::literal(&format!("{}{}", health, quantity))).with_style_format(ChatFormatting::Green), &guardian_position, ((((1 as f64) + (distance / (10 as f64)))) as f32), true) });
                 }
             }
         }
@@ -107,17 +114,27 @@ impl GuardianHealth {
 
     /// java: private static boolean isGuardianName(ArmorStand entity)
     pub fn is_guardian_name(entity: &ArmorStand) -> bool {
-        // TODO(fabric2seer): `get_display_name` takes 1 argument(s) in the port (`team: Option<&crate::net::minecraft::world::scores::player_team::PlayerTeam>`), Java passes 0
-        if false /* java: compat::component_of(entity.get_display_name()) == null: never null here */ {
-            return false;
-        }
-        // TODO(fabric2seer): `get_display_name` takes 1 argument(s) in the port (`team: Option<&crate::net::minecraft::world::scores::player_team::PlayerTeam>`), Java passes 0
-        // rust: let mut display: String = compat::component_of(entity.get_display_name()).get_string();
-        let mut display: String = todo!("fabric2seer: the initialiser of `display` (TODO above)");
+        // java: if (entity.getDisplayName() == null) return false; - getDisplayName never answers null
+        let mut display: String = display_name_string(entity);
         if display.contains("The Professor") {
             return PROFESSOR_REGEX.matcher(&display).matches();
         }
         return (!(display == "Armor Stand") && GUARDIAN_REGEX.matcher(&display).matches());
     }
 
+}
+
+/// `entity instanceof Guardian` (an `ElderGuardian` is one: its `base` is a real `Guardian`).
+fn is_guardian(entity: &(dyn mcrust::net::minecraft::world::entity::entity::Entity + Send + Sync)) -> bool {
+    entity.as_any().is_some_and(|any| any.is::<Guardian>() || any.is::<mcrust::net::minecraft::world::entity::monster::elder_guardian::ElderGuardian>())
+}
+
+/// `entity.getDisplayName().getString()`: Java's `getDisplayName()` reads the entity's team off the level's scoreboard
+/// (`getTeam()`), which the port's `get_display_name` takes as a parameter.
+fn display_name_string<E: mcrust::net::minecraft::world::entity::entity::Entity + ?Sized>(entity: &E) -> String {
+    let level = mcrust::mcrust::modding::game::level();
+    let board = level.as_ref().and_then(|level| level.get_scoreboard());
+    let guard = board.as_ref().map(|board| board.lock().unwrap_or_else(|p| p.into_inner()));
+    let team = guard.as_deref().and_then(|board| entity.get_team(board, level.as_deref()));
+    entity.get_display_name(team).get_string()
 }

@@ -84,11 +84,10 @@ impl ProfileUtils {
     /// java: private static @Nullable JsonObject fetchProfilesInternal(String uuid)
     pub fn fetch_profiles_internal(uuid: &str) -> Option<serde_json::Map<String, serde_json::Value>> {
         {
-            // TODO(fabric2seer): `Http.sendHypixelRequest` is not a static method of Http
-            //   java: Http.ApiResponse response = Http.sendHypixelRequest(..);
-            let mut response: crate::de::hysky::skyblocker::utils::http::ApiResponse = todo!("fabric2seer: the initialiser of `response` (TODO above)");
-            // java: try {..} catch (Exception e) - an exception here is a panic, caught by `catch_unwind`; the body's `return` is the closure's value
+            // java: try (Http.ApiResponse response = Http.sendHypixelRequest("skyblock/profiles", "?uuid=" + uuid)) {..} catch (Exception e)
+            // - the request is inside the try: its failure is caught too
             match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                let response: crate::de::hysky::skyblocker::utils::http::ApiResponse = crate::de::hysky::skyblocker::utils::http::Http::send_hypixel_request("skyblock/profiles", &format!("?uuid={}", uuid));
                 if !response.ok() {
                     panic!("IllegalStateException: {}", format!("Failed to get profile for player: {}!, Status Code: {}, Response: {}", uuid, response.status_code(), response.content()));
                 }

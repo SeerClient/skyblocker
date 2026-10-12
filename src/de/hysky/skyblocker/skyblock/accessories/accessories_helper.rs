@@ -152,8 +152,8 @@ impl AccessoriesHelper {
         if accessory.family().is_none() {
             panic!("IllegalArgumentException: {}", "accessory family cannot be empty");
         }
-        let mut has_same_family: Arc<dyn Fn(Accessory) -> bool> = Arc::new(move |__a0| accessory.has_same_family(&__a0));
-        // TODO(fabric2seer): not a lambda
+        let __accessory: Accessory = accessory.clone();
+        let mut has_same_family: Arc<dyn Fn(Accessory) -> bool> = Arc::new(move |__a0| __accessory.has_same_family(&__a0));
         //   java: return new FamilyReport(
         //   java: 				ACCESSORY_DATA.values().stream()
         //   java: 						.filter(HAS_FAMILY)
@@ -165,7 +165,24 @@ impl AccessoriesHelper {
         //   java: 						.filter(hasSameFamily)
         //   java: 						.max(Comparator.comparingInt(ACCESSORY_TIER))
         //   java: 		);
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        // (`Stream.max(comparator)` is `reduce(BinaryOperator.maxBy(comparator))`, which keeps the FIRST of equal
+        // elements - `Iterator::max_by_key` keeps the last)
+        let max_by_tier = |best: Option<Accessory>, candidate: Accessory| -> Option<Accessory> {
+            match best {
+                Some(best) if (ACCESSORY_TIER.get())(best.clone()) >= (ACCESSORY_TIER.get())(candidate.clone()) => Some(best),
+                _ => Some(candidate),
+            }
+        };
+        let highest_in_family: Accessory = compat::lock(&ACCESSORY_DATA).values().cloned()
+            .filter(|a| (HAS_FAMILY.get())(a.clone()))
+            .filter(|a| (has_same_family)(a.clone()))
+            .fold(None, max_by_tier)
+            .unwrap_or_else(|| accessory.clone());
+        let highest_collected_in_family: Option<Accessory> = collected_accessories.iter().cloned()
+            .filter(|a| (HAS_FAMILY.get())(a.clone()))
+            .filter(|a| (has_same_family)(a.clone()))
+            .fold(None, max_by_tier);
+        return FamilyReport::new(highest_in_family, highest_collected_in_family);
     }
 
     /// java: public static Set<Accessory> getCollectedAccessories()
@@ -285,9 +302,8 @@ impl Accessory {
 
     /// java: public boolean hasSameFamily(Accessory other)
     pub fn has_same_family(&self, other: &Accessory) -> bool {
-        // TODO(fabric2seer): Optional.equals
-        //   java: return other.family().equals(this.family);
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        // java: return other.family().equals(this.family); - `Optional.equals`
+        return other.family() == self.family;
     }
 
 }

@@ -20,6 +20,7 @@ use crate::de::hysky::skyblocker::utils::scheduler::scheduler;
 use crate::de::hysky::skyblocker::utils::scheduler::scheduler::Scheduler;
 use crate::de::hysky::skyblocker::utils::utils;
 use crate::de::hysky::skyblocker::utils::utils::Utils;
+use crate::de::hysky::skyblocker::utils::item_utils::ItemUtils;
 use mcrust::net::minecraft::client::gui::hud;
 use mcrust::net::minecraft::network::chat::component;
 use mcrust::net::minecraft::world::entity::entity::Entity;
@@ -289,13 +290,18 @@ impl DungeonScore {
 
     /// java: public static boolean isEntityMimic(Entity entity)
     pub fn is_entity_mimic(entity: &dyn Entity) -> bool {
-        // TODO(fabric2seer): an `instanceof` pattern under `||` / `!`
         //   java: if (!Utils.isInDungeons() || !floorHasMimics || !(entity instanceof Zombie zombie) || !zombie.isBaby()) return false;
+        // `instanceof Zombie` is the port's `as_zombie` slot (every zombie-family class answers it)
+        let Some(zombie) = entity.as_zombie() else {
+            return false;
+        };
+        if !Utils::is_in_dungeons() || !compat::get_state(&FLOOR_HAS_MIMICS) || !zombie.is_baby() {
+            return false;
+        }
         // java: try {..} catch (Exception e) - an exception here is a panic, caught by `catch_unwind`; the body's `return` is the closure's value
         match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            // TODO(fabric2seer): unknown name `zombie`
             //   java: List<ItemStack> armor = ItemUtils.getArmor(zombie);
-            let mut armor: Vec<mcrust::net::minecraft::world::item::item_stack::ItemStack> = todo!("fabric2seer: the initialiser of `armor` (TODO above)");
+            let mut armor: Vec<mcrust::net::minecraft::world::item::item_stack::ItemStack> = ItemUtils::get_armor(zombie.as_living());
             return armor.iter().cloned().all(|__a0| __a0.is_empty());
         })) {
             Ok(__v) => return __v,
@@ -304,7 +310,6 @@ impl DungeonScore {
                 return false;
             }
         }
-        todo!("fabric2seer: the value of this function is in a TODO above")
     }
 
     /// java: public static void handleEntityDeath(Entity entity)
@@ -441,8 +446,8 @@ impl DungeonScore {
             logger().error(&format!("[Skyblocker] Spirit pet lookup by name failed! (likely due to an earlier error!) Name: {}", name));
             return false;
         };
-        // java: try {..} catch (Exception e) - the body runs inline: a Rust body does not throw checked exceptions (a panic in it propagates)
-        {
+        // java: try {..} catch (Exception e) - an exception in the body is a panic, caught by `catch_unwind`
+        match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             for pet in (compat::json::get_as_json_array_of(&(compat::json::get_as_json_object_of(&player, "pets_data")), "pets")).iter() {
                 if !(compat::json::get_as_string(&compat::json::get_as_json_object(&pet).get("type").cloned().unwrap()) == "SPIRIT") {
                     continue;
@@ -452,11 +457,14 @@ impl DungeonScore {
                 }
                 return true;
             }
+            false
+        })) {
+            Ok(true) => return true,
+            Ok(false) => {}
+            Err(e) => {
+                logger().error(&format!("[Skyblocker] Spirit pet lookup by name failed! Name: {} {}", name, compat::panic_message(&e)));
+            }
         }
-        // TODO(fabric2seer): the `catch (Exception e)` block is not reached in Rust - the try body returns, breaks or continues, so it cannot run inside `catch_unwind`
-        //   java: {
-        //   java: 			LOGGER.error("[Skyblocker] Spirit pet lookup by name failed! Name: {}", name, e);
-        //   java: 		}
         return false;
     }
 
@@ -473,14 +481,18 @@ impl DungeonScore {
         if compat::get_state(&DEATH_COUNT) > 1 {
             return;
         }
-        // TODO(fabric2seer): String.transform(..)
         //   java: final String whoDied = matcher.group("whodied").transform(s -> {
         //   java: 			if (s.equals("You")) return Minecraft.getInstance().getUser().getName(); //This will be wrong if the dead player is called 'You' but that's unlikely
         //   java: 			else return s;
         //   java: 		});
-        let mut who_died: String = todo!("fabric2seer: the initialiser of `whoDied` (TODO above)");
-        // TODO(fabric2seer): an assignment used as a value
+        let who_died: String = {
+            let s = matcher.group_named("whodied").unwrap_or_default();
+            if s == "You" { compat::minecraft().get_user().get_name().to_string() } else { s }
+        };
         //   java: ProfileUtils.fetchProfileMember(whoDied).thenAccept(player -> firstDeathHasSpiritPet = hasSpiritPet(player, whoDied));
+        if let Some(future) = ProfileUtils::fetch_profile_member(&who_died) {
+            future.then_accept(move |player| compat::set_state(&FIRST_DEATH_HAS_SPIRIT_PET, DungeonScore::has_spirit_pet(player.clone(), &who_died)));
+        }
     }
 
     /// java: private static void checkMessageForWatcher(String message)

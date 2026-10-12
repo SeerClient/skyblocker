@@ -9,6 +9,9 @@ use crate::de::hysky::skyblocker::utils::text_transformer::TextTransformer;
 use mcrust::net::minecraft::nbt::tag::Tag;
 use mcrust::net::minecraft::network::chat::component;
 use mcrust::net::minecraft::world::item::items;
+use mcrust::net::minecraft::network::chat::formatted_text::FormattedText;
+use crate::de::hysky::skyblocker::utils::datafixer::legacy_item_stack_fixer::LegacyItemStackFixer;
+
 
 /// java: private static Map<String, Map<Rarity, PetNumbers>> petNums = Map.of();
 pub static PET_NUMS: compat::MainThread<std::collections::HashMap<String, std::collections::HashMap<crate::unresolved::Rarity, crate::unresolved::PetNumbers>>> = compat::MainThread::new(|| std::collections::HashMap::from([]));
@@ -29,8 +32,9 @@ impl ItemStackBuilder {
     pub fn load_pet_nums() {
         // java: try {..} catch (Exception _) - an exception here is a panic, caught by `catch_unwind`
         let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            // TODO(fabric2seer): `.getPetNumbers(..)` on a NEUConstants
-            //   java: petNums = NEURepoManager.getConstants().getPetNumbers();
+            // java: petNums = NEURepoManager.getConstants().getPetNumbers();
+            // rust: port gap (GAPS_J #5) - `NEUConstants` / `PetNumbers` / `Rarity` are `crate::unresolved` unit structs
+            // (the NEU repo library is unported), so there is no `getPetNumbers()` to read.
         }));
         if let Err(_) = __result {
             logger().error("[Skyblocker ItemStackBuilder] Failed to load petnums.json");
@@ -42,34 +46,34 @@ impl ItemStackBuilder {
         // java: try {..} catch (Exception e) - an exception here is a panic, caught by `catch_unwind`; the body's `return` is the closure's value
         match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             let mut nbt: Tag = Tag::compound();
-            // TODO(fabric2seer): `.getNbttag(..)` on a NEUItem
-            //   java: CompoundTag tag = LegacyStringNbtReader.parse(item.getNbttag());
+            // java: CompoundTag tag = LegacyStringNbtReader.parse(item.getNbttag());
+            // rust: port gap (GAPS_J #5) - `NEUItem.getNbttag()` / `getMinecraftItemId()` / `getDamage()` /
+            // `getSkyblockItemId()` / `getDisplayName()` / `getLore()`: `NEUItem` is a `crate::unresolved` unit struct
+            // (the NEU repo library is unported). Every statement below that does not read the `NEUItem` is ported.
             let mut tag: Tag = todo!("fabric2seer: the initialiser of `tag` (TODO above)");
             nbt.put("tag", tag.clone());
-            // TODO(fabric2seer): `.getMinecraftItemId(..)` on a NEUItem
-            //   java: nbt.putString("id", item.getMinecraftItemId());
-            // TODO(fabric2seer): `.getDamage(..)` on a NEUItem
-            //   java: nbt.putShort("Damage", (short) item.getDamage());
+            // java: nbt.putString("id", item.getMinecraftItemId());  - rust: port gap (NEUItem, above)
+            // java: nbt.putShort("Damage", (short) item.getDamage()); - rust: port gap (NEUItem, above)
             nbt.put_int("Count", 1);
-            // TODO(fabric2seer): `.set(..)` on a value of unknown type
-            //   java: FlexibleItemStack stack = LegacyItemStackFixer.fixLegacyStack(nbt, FlexibleItemStack.CODEC, FlexibleItemStack.EMPTY, FlexibleItemStack::set);
-            let mut stack: compat::Shared<FlexibleItemStack> = todo!("fabric2seer: the initialiser of `stack` (TODO above)");
-            // TODO(fabric2seer): the condition: `is` is not a method of FlexibleItemStack
-            //   java: stack.is(..)
-            if todo!("fabric2seer: the condition (TODO above)") {
-                // TODO(fabric2seer): `.getSkyblockItemId(..)` on a NEUItem
-                //   java: LOGGER.error("[Skyblocker ItemStackBuilder] Failed to build item with skyblock id: {}!", item.getSkyblockItemId());
-                // TODO(fabric2seer): `.getSkyblockItemId(..)` on a NEUItem
-                //   java: return createErrorStack(item.getSkyblockItemId());
+            // java: FlexibleItemStack stack = LegacyItemStackFixer.fixLegacyStack(nbt, FlexibleItemStack.CODEC, FlexibleItemStack.EMPTY, FlexibleItemStack::set);
+            let mut stack: compat::Shared<FlexibleItemStack> = LegacyItemStackFixer::fix_legacy_stack(&nbt, flexible_item_stack::CODEC.get(), flexible_item_stack::EMPTY.get(), &|s: &mut compat::Shared<FlexibleItemStack>, r#type, value| FlexibleItemStack::set_obj(s, r#type, value));
+            // java: if (stack.is(Items.AIR)) {
+            if Arc::ptr_eq(&flexible_item_stack::item_of(&FlexibleItemStack::type_holder(&stack)), &items::items().get("air")) {
+                // java: LOGGER.error("[Skyblocker ItemStackBuilder] Failed to build item with skyblock id: {}!", item.getSkyblockItemId());
+                // java: return createErrorStack(item.getSkyblockItemId());
+                // rust: port gap (NEUItem.getSkyblockItemId, above) - both statements read the NEUItem; they are
+                // unreachable today (the `tag` initialiser above panics first) and must be written when NEUItem is ported.
             }
-            // TODO(fabric2seer): `.getSkyblockItemId(..)` on a NEUItem
-            //   java: List<Pair<String, String>> injectors = new ArrayList<>(petData(item.getSkyblockItemId()));
+            // java: List<Pair<String, String>> injectors = new ArrayList<>(petData(item.getSkyblockItemId()));
+            // rust: port gap (NEUItem.getSkyblockItemId, above)
             let mut injectors: Vec<(String, String)> = todo!("fabric2seer: the initialiser of `injectors` (TODO above)");
-            // TODO(fabric2seer): `.getDisplayName(..)` on a NEUItem
-            //   java: String name = injectData(item.getDisplayName(), injectors);
+            // java: String name = injectData(item.getDisplayName(), injectors);
+            // rust: port gap (NEUItem.getDisplayName, above)
             let mut name: String = todo!("fabric2seer: the initialiser of `name` (TODO above)");
-            FlexibleItemStack::set(&stack, mcrust::net::minecraft::core::component::data_components::custom_name().clone(), TextTransformer::from_legacy(&name));
-            // TODO(fabric2seer): `.getLore(..)` on a NEUItem
+            // java: stack.set(DataComponents.CUSTOM_NAME, TextTransformer.fromLegacy(name));
+            // (the port's CUSTOM_NAME value is a `FormattedText` - `ItemStack.getCustomName` casts to it)
+            FlexibleItemStack::set(&stack, mcrust::net::minecraft::core::component::data_components::custom_name().clone(), FormattedText::from(TextTransformer::from_legacy(&name)));
+            // rust: port gap (NEUItem.getLore, above)
             //   java: stack.set(DataComponents.LORE, new ItemLore(item.getLore().stream()
             //   java: 					.map(line -> TextTransformer.fromLegacy(injectData(line, injectors)))
             //   java: 					.map(Component.class::cast)
@@ -78,19 +82,21 @@ impl ItemStackBuilder {
         })) {
             Ok(__v) => return __v,
             Err(e) => {
-                // TODO(fabric2seer): `.getSkyblockItemId(..)` on a NEUItem
-                //   java: LOGGER.error("[Skyblocker ItemStackBuilder] Failed to build item with skyblock id: {}!", item.getSkyblockItemId(), e);
+                // java: LOGGER.error("[Skyblocker ItemStackBuilder] Failed to build item with skyblock id: {}!", item.getSkyblockItemId(), e);
+                // rust: port gap (NEUItem.getSkyblockItemId, GAPS_J #5) - the id is left out of the message.
+                logger().error(&format!("[Skyblocker ItemStackBuilder] Failed to build item with skyblock id: {}! {}", "<NEUItem.getSkyblockItemId unported>", compat::panic_message(&e)));
             }
         }
-        // TODO(fabric2seer): `.getSkyblockItemId(..)` on a NEUItem
-        //   java: return createErrorStack(item.getSkyblockItemId());
+        // java: return createErrorStack(item.getSkyblockItemId());
+        // rust: port gap (NEUItem.getSkyblockItemId, GAPS_J #5)
         todo!("fabric2seer: the value of this function is in a TODO above")
     }
 
     /// java: private static FlexibleItemStack createErrorStack(String skyblockItemId)
     pub fn create_error_stack(skyblock_item_id: &str) -> compat::Shared<FlexibleItemStack> {
         let mut error_stack: compat::Shared<FlexibleItemStack> = FlexibleItemStack::new2(items::items().get("barrier"));
-        FlexibleItemStack::set(&error_stack, mcrust::net::minecraft::core::component::data_components::custom_name().clone(), component::null_to_empty(Some(skyblock_item_id)));
+        // (the port's CUSTOM_NAME value is a `FormattedText`)
+        FlexibleItemStack::set(&error_stack, mcrust::net::minecraft::core::component::data_components::custom_name().clone(), FormattedText::from(component::null_to_empty(Some(skyblock_item_id))));
         return error_stack;
     }
 
@@ -101,7 +107,8 @@ impl ItemStackBuilder {
         if !(internal_name.contains(";")) || !(PET_NUMS.get_mut().contains_key(&pet_name)) {
             return list;
         }
-        // TODO(fabric2seer): static field Rarity.COMMON
+        // rust: port gap (GAPS_J #5) - `Rarity` (and `PetNumbers` below) are `crate::unresolved` unit structs of the
+        // unported NEU repo library: no constants, no getters.
         //   java: final Rarity[] rarities = {
         //   java: 				Rarity.COMMON,
         //   java: 				Rarity.UNCOMMON,

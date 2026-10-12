@@ -10,7 +10,8 @@ pub static KEY_STR_URI_SAFE: LazyLock<Mutex<Vec<char>>> = LazyLock::new(|| Mutex
 // TODO(fabric2seer): expression not parsed
 //   java:
 /// java: 
-pub static BASE_REVERSE_DIC: LazyLock<Mutex<std::collections::HashMap<Vec<char>, std::collections::HashMap<char, i32>>>> = LazyLock::new(|| Mutex::new(todo!("fabric2seer: the initialiser of `baseReverseDic` - see the TODO above")));
+/// java: private static Map<char[], Map<Character, Integer>> baseReverseDic = new HashMap<char[], Map<Character, Integer>>();
+pub static BASE_REVERSE_DIC: LazyLock<Mutex<std::collections::HashMap<Vec<char>, std::collections::HashMap<char, i32>>>> = LazyLock::new(|| Mutex::new(std::collections::HashMap::new()));
 /// java: 
 pub static MAP: LazyLock<Mutex<std::collections::HashMap<Vec<char>, std::collections::HashMap<char, i32>>>> = LazyLock::new(|| Mutex::new(Default::default()));
 
@@ -31,10 +32,11 @@ impl LZString {
         let mut map: Option<std::collections::HashMap<char, i32>> = compat::lock(&BASE_REVERSE_DIC).get(&alphabet).cloned();
         if map.is_none() {
             map = Some(std::collections::HashMap::new());
-            compat::lock(&BASE_REVERSE_DIC).insert(alphabet.clone(), map.clone().unwrap());
+            // Java puts the map and then fills it through the same reference: fill first, then store the filled map.
             for i in 0..(alphabet.len() as i32) {
                 map.as_mut().unwrap().insert(alphabet[(i) as usize], i);
             }
+            compat::lock(&BASE_REVERSE_DIC).insert(alphabet.clone(), map.clone().unwrap());
         }
         return char::from_u32((map.as_ref().unwrap().get(&character).cloned().unwrap()) as u32).unwrap_or('\0');
     }

@@ -74,9 +74,8 @@ impl ColorUtils {
         let mut r: f64 = (if red <= 0.04045f32 { ((red / 12.92f32)) as f64 } else { (((red + 0.055f32) / 1.055f32) as f64).powf((2.4f32 as f64)) });
         let mut g: f64 = (if green <= 0.04045f32 { ((green / 12.92f32)) as f64 } else { (((green + 0.055f32) / 1.055f32) as f64).powf((2.4f32 as f64)) });
         let mut b: f64 = (if blue <= 0.04045f32 { ((blue / 12.92f32)) as f64 } else { (((blue + 0.055f32) / 1.055f32) as f64).powf((2.4f32 as f64)) });
-        // TODO(fabric2seer): Math.fma
-        //   java: return Math.fma(0.2126, r, Math.fma(0.7152, g, 0.0722 * b));
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        // java: return Math.fma(0.2126, r, Math.fma(0.7152, g, 0.0722 * b));
+        return 0.2126f64.mul_add(r, 0.7152f64.mul_add(g, 0.0722 * b));
     }
 
     /// java: private static double contrastRatio(double background, double content)

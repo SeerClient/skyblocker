@@ -130,16 +130,14 @@ impl CompactDamage {
             let mut power_to_round_to: i64 = POWERS_OF_TEN[(used_precision.wrapping_sub(precision)) as usize];
             return (compat::java_round_f64((number / (power_to_round_to as f64)))).wrapping_mul(power_to_round_to).to_string();
         }
-        // TODO(fabric2seer): String.format with a non-literal format
         //   java: return ("%." + remainingPrecision + "f").formatted(number);
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        return compat::string_format(&format!("%.{}f", remaining_precision), &[number.into()]);
     }
 
     /// java: private static int baseTwoDigits(long x)
     pub fn base_two_digits(mut x: i64) -> i32 {
-        // TODO(fabric2seer): Long.numberOfLeadingZeros
         //   java: return 64 - Long.numberOfLeadingZeros(x);
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        return 64 - (x.leading_zeros() as i32);
     }
 
     /// java: @VisibleForTesting static int baseTenDigits(long x)

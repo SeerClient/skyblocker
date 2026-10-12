@@ -61,7 +61,6 @@ pub static ACTIVE: LazyLock<Mutex<bool>> = LazyLock::new(|| Mutex::new(false));
 pub static GATE_DESTROYED_2: LazyLock<Mutex<bool>> = LazyLock::new(|| Mutex::new(false));
 /// java: private static short currentPhase = 0;
 pub static CURRENT_PHASE: LazyLock<Mutex<i16>> = LazyLock::new(|| Mutex::new((0) as i16));
-// TODO(fabric2seer): field `kind` of a value of unknown type
 //   java: public static final Codec<GoldorWaypoint> CODEC = RecordCodecBuilder.create(i -> i.group(
 //   java: 				WaypointTargetKind.CODEC.fieldOf("kind").forGetter(w -> w.kind),
 //   java: 				Codec.INT.fieldOf("phase").forGetter(customWaypoint -> customWaypoint.phase),
@@ -69,13 +68,32 @@ pub static CURRENT_PHASE: LazyLock<Mutex<i16>> = LazyLock::new(|| Mutex::new((0)
 //   java: 				BlockPos.CODEC.fieldOf("pos").forGetter(customWaypoint -> customWaypoint.pos)
 //   java: 		).apply(i, GoldorWaypoint::new));
 /// java: public static final Codec<GoldorWaypoint> CODEC = RecordCodecBuilder.create(i -> i.group( WaypointTargetKind.CODEC.fieldOf("kind").forGetter(w -> w.kind), Codec.INT.fieldOf("phase").forGetter(customWa
-pub static GOLDOR_WAYPOINT_CODEC: compat::MainThread<CodecRef<compat::Shared<GoldorWaypoint>>> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `CODEC` - see the TODO above"));
+pub static GOLDOR_WAYPOINT_CODEC: compat::MainThread<CodecRef<compat::Shared<GoldorWaypoint>>> = compat::MainThread::new(|| {
+    // the record is over the four getters' values, `xmap`ped to the waypoint (a waypoint handle is not `Send + Sync`;
+    // see `NamedWaypoint.CODEC`): `apply(i, GoldorWaypoint::new)` on decode, the `forGetter`s on encode
+    type Fields = (WaypointTargetKind, i32, MutableComponent, BlockPos);
+    let record: CodecRef<Fields> = record_codec_builder::create(record_codec_builder::apply4(
+        // WaypointTargetKind.CODEC.fieldOf("kind").forGetter(w -> w.kind)
+        record_codec_builder::of(|o: &Fields| o.0, codec::field_of(WAYPOINT_TARGET_KIND_CODEC.get().clone(), "kind")),
+        // Codec.INT.fieldOf("phase").forGetter(customWaypoint -> customWaypoint.phase)
+        record_codec_builder::of(|o: &Fields| o.1, codec::field_of(codec::int_codec(), "phase")),
+        // ComponentSerialization.CODEC.fieldOf("name").forGetter(NamedWaypoint::getName)
+        record_codec_builder::of(|o: &Fields| o.2.clone(), codec::field_of(mcrust::net::minecraft::network::chat::component_serialization::component_codec(), "name")),
+        // BlockPos.CODEC.fieldOf("pos").forGetter(customWaypoint -> customWaypoint.pos)
+        record_codec_builder::of(|o: &Fields| o.3.clone(), codec::field_of(mcrust::net::minecraft::core::block_pos::codec(), "pos")),
+        |kind, phase, name, pos| (kind, phase, name, pos),
+    ));
+    codec::xmap(
+        record,
+        |(kind, phase, name, pos): Fields| GoldorWaypoint::new(kind, phase, name, pos),
+        |waypoint: &compat::Shared<GoldorWaypoint>| compat::read(waypoint, |w| (w.kind, w.phase, w.base.name.clone().unwrap(), w.base.pos.clone().unwrap())),
+    )
+});
 /// java: private static final Supplier<Type> TYPE_SUPPLIER = () -> SkyblockerConfigManager.get().dungeons.goldor.waypointType;
 pub static GOLDOR_WAYPOINT_TYPE_SUPPLIER: compat::MainThread<Arc<dyn Fn() -> Type>> = compat::MainThread::new(|| Arc::new(move || SkyblockerConfigManager::get().dungeons.goldor.waypoint_type));
-// TODO(fabric2seer): `from_values` takes 2 argument(s) in the port (`values: Vec<E>, serialized_name: impl Fn(&E) -> String + Send + Sync + Copy + 'static`), Java passes 1
 //   java: private static final Codec<WaypointTargetKind> CODEC = StringRepresentable.fromValues(WaypointTargetKind::values);
 /// java: private static final Codec<WaypointTargetKind> CODEC = StringRepresentable.fromValues(WaypointTargetKind::values);
-pub static WAYPOINT_TARGET_KIND_CODEC: compat::MainThread<CodecRef<WaypointTargetKind>> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `CODEC` - see the TODO above"));
+pub static WAYPOINT_TARGET_KIND_CODEC: compat::MainThread<CodecRef<WaypointTargetKind>> = compat::MainThread::new(|| mcrust::net::minecraft::util::string_representable::from_values(WaypointTargetKind::values(), |kind: &WaypointTargetKind| kind.get_serialized_name()));
 
 /// java: public class GoldorWaypointsManager
 #[derive(Clone)]
@@ -103,13 +121,12 @@ impl GoldorWaypointsManager {
 
     /// java: private static void load(Minecraft client)
     pub fn load(client: &mut mcrust::net::minecraft::client::minecraft::Minecraft) {
-        // TODO(fabric2seer): an assignment used as a value
         //   java: loadWaypoints(client, SkyblockerMod.id("dungeons/goldorwaypoints.json")).thenRun(() -> loaded = true);
+        GoldorWaypointsManager::load_waypoints(client, &skyblocker_mod::id("dungeons/goldorwaypoints.json")).then_run(|| compat::set_state(&LOADED, true));
     }
 
     /// java: private static CompletableFuture<Void> loadWaypoints(Minecraft client, Identifier file)
     pub fn load_waypoints(client: &mut mcrust::net::minecraft::client::minecraft::Minecraft, file: &Identifier) -> mcrust::java::util::concurrent::completable_future::CompletableFuture<()> {
-        // TODO(fabric2seer): `.forEach(..)` on a value of unknown type
         //   java: return CompletableFuture.supplyAsync(() -> {
         //   java: 			try (BufferedReader reader = client.getResourceManager().openAsReader(file)) {
         //   java: 				JsonArray arr = JsonParser.parseReader(reader).getAsJsonArray();
@@ -127,7 +144,40 @@ impl GoldorWaypointsManager {
         //   java: 				case LEVER -> LEVERS.add(waypoint);
         //   java: 			}
         //   java: 		}), client);
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        // The read and the JSON parse run on the executor (Java's `supplyAsync`); the waypoints are render-thread
+        // objects, so the codec builds them in the `thenAcceptAsync(.., client)` half, on the render thread.
+        let manager = client.get_resource_manager();
+        let file: Identifier = file.clone();
+        let done: CompletableFuture<()> = CompletableFuture::new();
+        let done_task = done.clone();
+        compat::executor(Box::new(move || {
+            let arr: Result<serde_json::Value, String> = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                let reader: String = manager.open_as_reader(&file).unwrap_or_else(|e| panic!("IOException: {e}"));
+                let json: serde_json::Value = serde_json::from_str(&reader).unwrap_or_else(|e| panic!("JsonSyntaxException: {e}"));
+                serde_json::Value::Array(compat::json::get_as_json_array(&json))
+            }))
+            .map_err(|e| compat::panic_message(&e));
+            mcrust::mcrust::modding::game::execute(move || {
+                let list: Vec<compat::Shared<GoldorWaypoint>> = match arr.and_then(|arr| {
+                    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| CODEC.get().parse(&mcrust::com::mojang::serialization::json_ops::JsonOps::instance(), &compat::json_to_port(&arr)).get_or_throw().unwrap())).map_err(|e| compat::panic_message(&e))
+                }) {
+                    Ok(list) => list,
+                    Err(e) => {
+                        logger().error(&format!("[Skyblocker Goldor Waypoints] Failed to load waypoints from: {} {}", compat::jstring(&file), e));
+                        vec![]
+                    }
+                };
+                for waypoint in list {
+                    match compat::read(&waypoint, |w| w.kind) {
+                        WaypointTargetKind::Terminal => TERMINALS.get_mut().push(waypoint),
+                        WaypointTargetKind::Device => DEVICES.get_mut().push(waypoint),
+                        WaypointTargetKind::Lever => LEVERS.get_mut().push(waypoint),
+                    }
+                }
+                done_task.complete(());
+            });
+        }));
+        return done;
     }
 
     /// java: private static boolean shouldProcess()
@@ -438,9 +488,8 @@ impl WaypointTargetKind {
 
     /// java: @Override public String getSerializedName()
     pub fn get_serialized_name(&self) -> String {
-        // TODO(fabric2seer): call to `name(..)` (not a method of this class)
         //   java: return name().toLowerCase(Locale.ENGLISH);
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        return self.name().to_lowercase();
     }
 
 }

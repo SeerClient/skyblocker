@@ -134,10 +134,9 @@ impl StereoHarmonyHelper {
     pub fn get_colors_impl(__this: &compat::Shared<Self>, slots: &mut std::collections::HashMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack>) -> Vec<ColorHighlight> {
         let mut highlights: Vec<ColorHighlight> = Vec::new();
         for entry in slots.iter().map(|(k, v)| (k.clone(), v.clone())) {
-            // TODO(fabric2seer): static `ChatFormatting.stripFormatting` has no Rust counterpart in the port
-            // rust: let mut matcher: Option<compat::regex::Matcher> = Some(RegexListUtils::match_in_list_list_function_pattern(&entry.1.skyblocker_get_lore_strings(), Arc::new(move |__a0| ChatFormatting::strip_formatting(__a0.clone())), &PEST_NAME_PATTERN));
-            let mut matcher: compat::regex::Matcher = todo!("fabric2seer: the initialiser of `matcher` (TODO above)");
-            if true /* java: matcher != null: never null here */ {
+            // java: Matcher matcher = RegexListUtils.matchInList(entry.getValue().skyblocker$getLoreStrings(), ChatFormatting::stripFormatting, PEST_NAME_PATTERN);
+            let mut matcher: Option<compat::regex::Matcher> = RegexListUtils::match_in_list_list_function_pattern(&entry.1.skyblocker_get_lore_strings(), Arc::new(move |__a0: String| chat_formatting::strip_formatting(&__a0)), &PEST_NAME_PATTERN);
+            if let Some(mut matcher) = matcher {
                 let mut pest_name: String = compat::trim(&matcher.group_named("name").unwrap());
                 let Some(mut crop) = garden_constants::CROP_BY_PEST.get(&pest_name).cloned() else {
                     continue;

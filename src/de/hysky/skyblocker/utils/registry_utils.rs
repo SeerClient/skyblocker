@@ -5,10 +5,18 @@ use crate::prelude::*;
 use mcrust::net::minecraft::client::minecraft;
 use mcrust::net::minecraft::core::holder_lookup::Provider;
 
-// TODO(fabric2seer): static `VanillaRegistries.createLookup` has no Rust counterpart in the port
-//   java: private static final HolderLookup.Provider LOOKUP = VanillaRegistries.createLookup();
 /// java: private static final HolderLookup.Provider LOOKUP = VanillaRegistries.createLookup();
-pub static LOOKUP: compat::MainThread<Arc<dyn Provider>> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `LOOKUP` - see the TODO above"));
+///
+/// `VanillaRegistries.createLookup()` is `RegistrySetBuilder.build(RegistryAccess.fromRegistryOfRegistries(
+/// BuiltInRegistries.REGISTRY))`. The port has the built-in half; the data-generator half (the worldgen /
+/// enchantment / ... bootstrap registries `VanillaRegistries.BUILDER` adds) is datagen-only there (GAPS_L.md).
+pub static LOOKUP: compat::MainThread<Arc<dyn Provider>> = compat::MainThread::new(|| {
+    use mcrust::net::minecraft::core::registries::built_in_registries;
+    use mcrust::net::minecraft::core::registry::Registry;
+    use mcrust::net::minecraft::core::registry_access::RegistryAccess;
+    let root: Arc<dyn Registry> = built_in_registries::registry().clone();
+    Arc::new(RegistryAccess::from_registry_of_registries(&root)) as Arc<dyn Provider>
+});
 
 /// java: public final class RegistryUtils
 #[derive(Clone)]

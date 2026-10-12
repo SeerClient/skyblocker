@@ -58,18 +58,49 @@ pub const UUID: &str = "uuid";
 pub static NOT_DURABILITY: LazyLock<compat::regex::Pattern> = LazyLock::new(|| compat::regex::Pattern::compile("[^0-9 /]"));
 /// java: public static final Predicate<String> FUEL_PREDICATE = line -> line.contains("Fuel: ");
 pub static FUEL_PREDICATE: compat::MainThread<Arc<dyn Fn(String) -> bool>> = compat::MainThread::new(|| Arc::new(move |line| line.contains("Fuel: ")));
-// TODO(fabric2seer): `holder_by_name_codec` takes 1 argument(s) in the port (`registry: Arc<dyn Registry>`), Java passes 0
-//   java: private static final Codec<Holder<Item>> EMPTY_ALLOWING_ITEM_CODEC = BuiltInRegistries.ITEM.holderByNameCodec();
 /// java: private static final Codec<Holder<Item>> EMPTY_ALLOWING_ITEM_CODEC = BuiltInRegistries.ITEM.holderByNameCodec();
-pub static EMPTY_ALLOWING_ITEM_CODEC: compat::MainThread<CodecRef<Holder>> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `EMPTY_ALLOWING_ITEM_CODEC` - see the TODO above"));
-// TODO(fabric2seer): `PrimitiveCodec.orElse` has no Rust method in the port (looked for `or_else` in PrimitiveCodec and its supertypes)
-//   java: public static final Codec<ItemStack> EMPTY_ALLOWING_ITEMSTACK_CODEC = Codec.lazyInitialized(() -> RecordCodecBuilder.create(instance -> instance.group(
-//   java: 			EMPTY_ALLOWING_ITEM_CODEC.fieldOf("id").forGetter(ItemStack::typeHolder),
-//   java: 			Codec.INT.orElse(1).fieldOf("count").forGetter(ItemStack::getCount),
-//   java: 			DataComponentPatch.CODEC.optionalFieldOf("components", DataComponentPatch.EMPTY).forGetter(ItemStack::getComponentsPatch)
-//   java: 	).apply(instance, ItemStack::new)));
+pub static EMPTY_ALLOWING_ITEM_CODEC: compat::MainThread<CodecRef<Holder>> = compat::MainThread::new(|| {
+    let registry: Arc<dyn mcrust::net::minecraft::core::registry::Registry> = mcrust::net::minecraft::core::registries::built_in_registries::item().clone();
+    mcrust::net::minecraft::core::registry::holder_by_name_codec(registry)
+});
 /// java: public static final Codec<ItemStack> EMPTY_ALLOWING_ITEMSTACK_CODEC = Codec.lazyInitialized(() -> RecordCodecBuilder.create(instance -> instance.group( EMPTY_ALLOWING_ITEM_CODEC.fieldOf("id").forGette
-pub static EMPTY_ALLOWING_ITEMSTACK_CODEC: compat::MainThread<CodecRef<mcrust::net::minecraft::world::item::item_stack::ItemStack>> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `EMPTY_ALLOWING_ITEMSTACK_CODEC` - see the TODO above"));
+pub static EMPTY_ALLOWING_ITEMSTACK_CODEC: compat::MainThread<CodecRef<mcrust::net::minecraft::world::item::item_stack::ItemStack>> = compat::MainThread::new(|| {
+    use mcrust::net::minecraft::world::item::item_stack::ItemStack;
+    // `Codec.lazyInitialized`: the body is built on first use (it reads EMPTY_ALLOWING_ITEM_CODEC, captured here
+    // because the render-thread static cannot be read from the codec's own call)
+    let item_codec: CodecRef<Holder> = EMPTY_ALLOWING_ITEM_CODEC.get().clone();
+    codec::lazy_initialized(move || {
+        record_codec_builder::create(record_codec_builder::apply3(
+            // EMPTY_ALLOWING_ITEM_CODEC.fieldOf("id").forGetter(ItemStack::typeHolder)
+            record_codec_builder::of(|o: &ItemStack| TypedInstance::type_holder(o), codec::field_of(item_codec.clone(), "id")),
+            // Codec.INT.orElse(1).fieldOf("count").forGetter(ItemStack::getCount)
+            record_codec_builder::of(|o: &ItemStack| o.get_count(), codec::field_of(codec::map_result(codec::int_codec(), Arc::new(OrElse { value: 1 })), "count")),
+            // DataComponentPatch.CODEC.optionalFieldOf("components", DataComponentPatch.EMPTY).forGetter(ItemStack::getComponentsPatch)
+            record_codec_builder::of(|o: &ItemStack| o.get_components_patch(), codec::optional_field_of(mcrust::net::minecraft::core::component::data_component_patch::codec(), "components", mcrust::net::minecraft::core::component::data_component_patch::empty())),
+            // ItemStack::new (Holder<Item>, int, DataComponentPatch)
+            |item: Holder, count: i32, components: mcrust::net::minecraft::core::component::data_component_patch::DataComponentPatch| {
+                let item: Arc<Item> = mcrust::net::minecraft::world::item::item::from_obj(&item.value()).expect("a Holder<Item>");
+                ItemStack::with_patch(item, count, &components)
+            },
+        ))
+    })
+});
+
+/// DFU `Codec.orElse(A value)` = `orElseGet(noop, () -> value)`'s `ResultFunction`: a decode that has no result
+/// answers `success((value, input))`; the encode is unchanged.
+struct OrElse<A> {
+    value: A,
+}
+
+impl<A: Clone + Send + Sync + 'static> mcrust::com::mojang::serialization::codec::ResultFunction<A> for OrElse<A> {
+    fn apply(&self, _ops: &mcrust::com::mojang::serialization::dynamic_ops::Ops, input: &mcrust::com::mojang::serialization::Obj, a: mcrust::com::mojang::serialization::data_result::DataResult<(A, mcrust::com::mojang::serialization::Obj)>) -> mcrust::com::mojang::serialization::data_result::DataResult<(A, mcrust::com::mojang::serialization::Obj)> {
+        mcrust::com::mojang::serialization::data_result::DataResult::success(a.result().unwrap_or_else(|| (self.value.clone(), input.clone())))
+    }
+
+    fn co_apply(&self, _ops: &mcrust::com::mojang::serialization::dynamic_ops::Ops, _input: &A, t: mcrust::com::mojang::serialization::data_result::DataResult<mcrust::com::mojang::serialization::Obj>) -> mcrust::com::mojang::serialization::data_result::DataResult<mcrust::com::mojang::serialization::Obj> {
+        t
+    }
+}
 /// java: private static final Pattern STORED_PATTERN = Pattern.compile("Stored: ([\\d,]+)/\\S+");
 pub static STORED_PATTERN: LazyLock<compat::regex::Pattern> = LazyLock::new(|| compat::regex::Pattern::compile("Stored: ([\\d,]+)/\\S+"));
 /// java: private static final Pattern GEMSTONES_SACK_AMOUNT_PATTERN = Pattern.compile(" Amount: ([\\d,]+)");
@@ -165,102 +196,116 @@ impl ItemUtils {
             // TODO(fabric2seer): `.getBazaarStocks(..)` on a NEUConstants
             //   java: return NEURepoManager.getConstants().getBazaarStocks().getBazaarStockOrDefault(id);
         }
-        // TODO(fabric2seer): a constant `case` among pattern cases
-        //   java: switch (id) {
-        //   java: 			case "ENCHANTED_BOOK" -> {
-        //   java: 				if (customData.contains("enchantments")) {
-        //   java: 					CompoundTag enchants = customData.getCompoundOrEmpty("enchantments");
-        //   java: 					Optional<String> firstEnchant = enchants.keySet().stream().findFirst();
-        //   java: 					String enchant = firstEnchant.orElse("");
-        //   java: 					return "ENCHANTMENT_" + enchant.toUpperCase(Locale.ENGLISH) + "_" + enchants.getIntOr(enchant, 0);
-        //   java: 				}
-        //   java: 			}
-        //   java: 			case "PET" -> {
-        //   java: 				PetInfo petInfo = getPetInfo(stack);
-        //   java: 				return "LVL_1_" + petInfo.tier() + "_" + petInfo.type();
-        //   java: 			}
-        //   java: 			case "POTION" -> {
-        //   java: 				String enhanced = customData.getBooleanOr("enhanced", false) ? "_ENHANCED" : "";
-        //   java: 				String extended = customData.getBooleanOr("extended", false) ? "_EXTENDED" : "";
-        //   java: 				String splash = customData.getBooleanOr("splash", false) ? "_SPLASH" : "";
-        //   java: 				if (customData.contains("potion") && customData.contains("potion_level")) {
-        //   java: 					return (customData.getStringOr("potion", "") + "_" + id + "_" + customData.getIntOr("potion_level", 0)
-        //   java: 							+ enhanced + extended + splash).toUpperCase(Locale.ENGLISH);
-        //   java: 				}
-        //   java: 			}
-        //   java: 			case "RUNE", "UNIQUE_RUNE" -> {
-        //   java: 				if (customData.contains("runes")) {
-        //   java: 					CompoundTag runes = customData.getCompoundOrEmpty("runes");
-        //   java: 					String rune = runes.keySet().stream().findFirst().orElse("");
-        //   java: 					return rune.toUpperCase(Locale.ENGLISH) + "_RUNE_" + runes.getIntOr(rune, 0);
-        //   java: 				}
-        //   java: 			}
-        //   java: 			case String s when s.equals("ATTRIBUTE_SHARD") && stack instanceof DataComponentHolder holder -> {
-        //   java: 				Attribute attribute = Attributes.getAttributeFromItemName(holder);
-        //   java:
-        //   java: 				if (attribute != null) return attribute.apiId();
-        //   java: 			}
-        //   java: 			case "NEW_YEAR_CAKE" -> {
-        //   java: 				return id + "_" + customData.getIntOr("new_years_cake", 0);
-        //   java: 			}
-        //   java: 			case "PARTY_HAT_CRAB", "PARTY_HAT_CRAB_ANIMATED", "BALLOON_HAT_2024", "BALLOON_HAT_2025", "CAKE_HAT_2026" -> {
-        //   java: 				return id + "_" + customData.getStringOr("party_hat_color", "").toUpperCase(Locale.ENGLISH);
-        //   java: 			}
-        //   java: 			case "PARTY_HAT_SLOTH" -> {
-        //   java: 				return id + "_" + customData.getStringOr("party_hat_emoji", "").toUpperCase(Locale.ENGLISH);
-        //   java: 			}
-        //   java: 			case "MIDAS_SWORD" -> {
-        //   java: 				if (customData.getIntOr("winning_bid", 0) >= 50000000) {
-        //   java: 					return id + "_50M";
-        //   java: 				}
-        //   java: 			}
-        //   java: 			case "MIDAS_STAFF" -> {
-        //   java: 				if (customData.getIntOr("winning_bid", 0) >= 100000000) {
-        //   java: 					return id + "_100M";
-        //   java: 				}
-        //   java: 			}
-        //   java: 			case "FACTION_RABBIT" -> {
-        //   java: 				return id + "_" + customData.getStringOr("faction_rabbit_id", "").toUpperCase(Locale.ENGLISH);
-        //   java: 			}
-        //   java: 			case "" -> {
-        //   java: 				Screen currentScreen = Minecraft.getInstance().gui.screen();
-        //   java: 				if (currentScreen instanceof ContainerScreen container && container.getTitle().getString().startsWith("Superpairs")) {
-        //   java: 					ItemLore lore = stack.get(DataComponents.LORE);
-        //   java: 					if (lore == null) return id;
-        //   java: 					List<Component> lines = lore.lines();
-        //   java: 					if (lines.size() < 3) return id;
-        //   java: 					return EnchantedBookUtils.getApiIdByName(lines.get(2));
-        //   java: 				}
-        //   java:
-        //   java: 				if (currentScreen instanceof ContainerScreen container && container.getTitle().getString().contains("Experimentation Table RNG")) {
-        //   java: 					Component stackName = stack.getOrDefault(DataComponents.CUSTOM_NAME, Component.empty());
-        //   java: 					return switch (stackName.getString()) {
-        //   java: 							case "Titanic Experience Bottle" -> "TITANIC_EXP_BOTTLE";
-        //   java: 							case "Grand Experience Bottle" -> "GRAND_EXP_BOTTLE";
-        //   java: 							default -> EnchantedBookUtils.getApiIdByName(stackName);
-        //   java: 					};
-        //   java: 				}
-        //   java:
-        //   java: 				if (currentScreen instanceof ContainerScreen container && container.getTitle().getString().contains("Attribute Menu")) {
-        //   java: 					Component stackName = stack.getOrDefault(DataComponents.CUSTOM_NAME, Component.empty());
-        //   java: 					Attribute attribute = Attributes.getAttributeFromAbilityName(stackName.getString());
-        //   java: 					if (attribute != null) return attribute.apiId();
-        //   java: 					return id;
-        //   java: 				}
-        //   java:
-        //   java: 				if (stack instanceof ItemStack realStack && realStack.has(DataComponents.CUSTOM_NAME)) {
-        //   java: 					Component stackName = stack.getOrDefault(DataComponents.CUSTOM_NAME, Component.empty());
-        //   java: 					// Enchanted Books in the Bazaar
-        //   java: 					if (realStack.is(Items.ENCHANTED_BOOK)) return EnchantedBookUtils.getApiIdByName(stackName);
-        //   java: 					// Essences
-        //   java: 					if (realStack.is(Items.PLAYER_HEAD)) {
-        //   java: 						Matcher matcher = ChestValue.ESSENCE_PATTERN.matcher(stackName.getString());
-        //   java: 						if (matcher.find()) return "ESSENCE_" + matcher.group("type").toUpperCase(Locale.ENGLISH);
-        //   java: 					}
-        //   java: 				}
-        //   java: 			}
-        //   java: 			default -> {}
-        //   java: 		}
+        // java: switch (id) { .. } - arrow cases, no fall-through: a case whose test fails leaves the switch
+        match id.as_str() {
+            "ENCHANTED_BOOK" => {
+                if custom_data.contains("enchantments") {
+                    let enchants: Tag = custom_data.get_compound_or_empty("enchantments");
+                    // java: enchants.keySet().stream().findFirst() - the port's compound keeps its keys sorted
+                    let enchant: String = enchants.key_set().first().map(|k| k.to_string()).unwrap_or_default();
+                    return format!("ENCHANTMENT_{}_{}", enchant.to_uppercase(), enchants.get_int_or(&enchant, 0));
+                }
+            }
+            "PET" => {
+                let pet_info: PetInfo = ItemUtils::get_pet_info(stack);
+                return format!("LVL_1_{}_{}", pet_info.tier().to_string(), pet_info.r#type());
+            }
+            "POTION" => {
+                let enhanced: &str = if custom_data.get_boolean_or("enhanced", false) { "_ENHANCED" } else { "" };
+                let extended: &str = if custom_data.get_boolean_or("extended", false) { "_EXTENDED" } else { "" };
+                let splash: &str = if custom_data.get_boolean_or("splash", false) { "_SPLASH" } else { "" };
+                if custom_data.contains("potion") && custom_data.contains("potion_level") {
+                    return format!("{}_{}_{}{}{}{}", custom_data.get_string_or("potion", ""), id, custom_data.get_int_or("potion_level", 0), enhanced, extended, splash).to_uppercase();
+                }
+            }
+            "RUNE" | "UNIQUE_RUNE" => {
+                if custom_data.contains("runes") {
+                    let runes: Tag = custom_data.get_compound_or_empty("runes");
+                    let rune: String = runes.key_set().first().map(|k| k.to_string()).unwrap_or_default();
+                    return format!("{}_RUNE_{}", rune.to_uppercase(), runes.get_int_or(&rune, 0));
+                }
+            }
+            // java: case String s when s.equals("ATTRIBUTE_SHARD") && stack instanceof DataComponentHolder holder
+            "ATTRIBUTE_SHARD" if stack.as_any().is_some_and(|a| a.is::<mcrust::net::minecraft::world::item::item_stack::ItemStack>()) => {
+                let holder = stack.as_any().and_then(|a| a.downcast_ref::<mcrust::net::minecraft::world::item::item_stack::ItemStack>()).unwrap();
+                let attribute = crate::de::hysky::skyblocker::skyblock::hunting::attributes::Attributes::get_attribute_from_item_name(holder);
+                if let Some(attribute) = attribute {
+                    return attribute.api_id();
+                }
+            }
+            "NEW_YEAR_CAKE" => {
+                return format!("{}_{}", id, custom_data.get_int_or("new_years_cake", 0));
+            }
+            "PARTY_HAT_CRAB" | "PARTY_HAT_CRAB_ANIMATED" | "BALLOON_HAT_2024" | "BALLOON_HAT_2025" | "CAKE_HAT_2026" => {
+                return format!("{}_{}", id, custom_data.get_string_or("party_hat_color", "").to_uppercase());
+            }
+            "PARTY_HAT_SLOTH" => {
+                return format!("{}_{}", id, custom_data.get_string_or("party_hat_emoji", "").to_uppercase());
+            }
+            "MIDAS_SWORD" => {
+                if custom_data.get_int_or("winning_bid", 0) >= 50000000 {
+                    return format!("{}_50M", id);
+                }
+            }
+            "MIDAS_STAFF" => {
+                if custom_data.get_int_or("winning_bid", 0) >= 100000000 {
+                    return format!("{}_100M", id);
+                }
+            }
+            "FACTION_RABBIT" => {
+                return format!("{}_{}", id, custom_data.get_string_or("faction_rabbit_id", "").to_uppercase());
+            }
+            "" => {
+                // java: Screen currentScreen = Minecraft.getInstance().gui.screen(); `instanceof ContainerScreen` is the
+                // screen's kind here, and its title the screen's title
+                let container_title: Option<String> = container_screen_title();
+                if container_title.as_ref().is_some_and(|t| t.starts_with("Superpairs")) {
+                    let Some(lore) = stack.get(mcrust::net::minecraft::core::component::data_components::lore()) else {
+                        return id;
+                    };
+                    let lore = mcrust::com::mojang::serialization::cast::<mcrust::net::minecraft::world::item::component::item_lore::ItemLore>(&lore).expect("ClassCastException: ItemLore");
+                    let lines = lore.lines();
+                    if lines.len() < 3 {
+                        return id;
+                    }
+                    return crate::de::hysky::skyblocker::utils::enchanted_book_utils::EnchantedBookUtils::get_api_id_by_name(&compat::component_of(lines[2].clone()));
+                }
+                if container_title.as_ref().is_some_and(|t| t.contains("Experimentation Table RNG")) {
+                    let stack_name: MutableComponent = custom_name_or_empty(stack);
+                    return match stack_name.get_string().as_str() {
+                        "Titanic Experience Bottle" => "TITANIC_EXP_BOTTLE".to_string(),
+                        "Grand Experience Bottle" => "GRAND_EXP_BOTTLE".to_string(),
+                        _ => crate::de::hysky::skyblocker::utils::enchanted_book_utils::EnchantedBookUtils::get_api_id_by_name(&stack_name),
+                    };
+                }
+                if container_title.as_ref().is_some_and(|t| t.contains("Attribute Menu")) {
+                    let stack_name: MutableComponent = custom_name_or_empty(stack);
+                    let attribute = crate::de::hysky::skyblocker::skyblock::hunting::attributes::Attributes::get_attribute_from_ability_name(&stack_name.get_string());
+                    if let Some(attribute) = attribute {
+                        return attribute.api_id();
+                    }
+                    return id;
+                }
+                // java: if (stack instanceof ItemStack realStack && realStack.has(DataComponents.CUSTOM_NAME))
+                if let Some(real_stack) = stack.as_any().and_then(|a| a.downcast_ref::<mcrust::net::minecraft::world::item::item_stack::ItemStack>())
+                    && stack.get(mcrust::net::minecraft::core::component::data_components::custom_name()).is_some()
+                {
+                    let stack_name: MutableComponent = custom_name_or_empty(stack);
+                    // Enchanted Books in the Bazaar
+                    if real_stack.is_value(&items::items().get("enchanted_book").erased_obj()) {
+                        return crate::de::hysky::skyblocker::utils::enchanted_book_utils::EnchantedBookUtils::get_api_id_by_name(&stack_name);
+                    }
+                    // Essences
+                    if real_stack.is_value(&items::items().get("player_head").erased_obj()) {
+                        let mut matcher: compat::regex::Matcher = crate::de::hysky::skyblocker::skyblock::chest_value::ESSENCE_PATTERN.matcher(&stack_name.get_string());
+                        if matcher.find() {
+                            return format!("ESSENCE_{}", matcher.group_named("type").unwrap_or_default().to_uppercase());
+                        }
+                    }
+                }
+            }
+            _ => {}
+        }
         return id;
     }
 
@@ -271,35 +316,38 @@ impl ItemUtils {
         }
         let mut custom_data: Tag = ItemUtils::get_custom_data(stack);
         let mut id: String = custom_data.get_string_or(ID, "");
-        // TODO(fabric2seer): a pattern switch expression
-        //   java: return switch (id) {
-        //   java: 			case "ENCHANTED_BOOK" -> {
-        //   java: 				CompoundTag enchantments = customData.getCompoundOrEmpty("enchantments");
-        //   java: 				String enchant = enchantments.keySet().stream().findFirst().orElse("");
-        //   java: 				yield enchant.toUpperCase(Locale.ENGLISH) + ";" + enchantments.getIntOr(enchant, 0);
-        //   java: 			}
-        //   java: 			case "PET" -> {
-        //   java: 				PetInfo petInfo = getPetInfo(stack);
-        //   java: 				yield petInfo.type() + ';' + petInfo.tierIndex();
-        //   java: 			}
-        //   java: 			case "RUNE", "UNIQUE_RUNE" -> {
-        //   java: 				CompoundTag runes = customData.getCompoundOrEmpty("runes");
-        //   java: 				String rune = runes.keySet().stream().findFirst().orElse("");
-        //   java: 				yield rune.toUpperCase(Locale.ENGLISH) + "_RUNE;" + runes.getIntOr(rune, 0);
-        //   java: 			}
-        //   java: 			case "POTION" -> "POTION_" + customData.getStringOr("potion", "").toUpperCase(Locale.ENGLISH) + ";" + customData.getIntOr("potion_level", 0);
-        //   java: 			case String s when s.equals("ATTRIBUTE_SHARD") && stack instanceof DataComponentHolder holder -> {
-        //   java: 				Attribute attribute = Attributes.getAttributeFromItemName(holder);
-        //   java: 				if (attribute == null) yield id;
-        //   java: 				yield attribute.neuId();
-        //   java: 			}
-        //   java: 			case "PARTY_HAT_CRAB", "BALLOON_HAT_2024", "BALLOON_HAT_2025", "CAKE_HAT_2026" -> id + "_" + customData.getStringOr("party_hat_color", "").toUpperCase(Locale.ENGLISH);
-        //   java: 			case "PARTY_HAT_CRAB_ANIMATED" -> "PARTY_HAT_CRAB_" + customData.getStringOr("party_hat_color", "").toUpperCase(Locale.ENGLISH) + "_ANIMATED";
-        //   java: 			case "PARTY_HAT_SLOTH" -> id + "_" + customData.getStringOr("party_hat_emoji", "").toUpperCase(Locale.ENGLISH);
-        //   java: 			case "FACTION_RABBIT" -> id + "_" + customData.getStringOr("faction_rabbit_id", "").toUpperCase(Locale.ENGLISH);
-        //   java: 			default -> id.replace(":", "-");
-        //   java: 		};
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        // java: return switch (id) { .. };
+        return match id.as_str() {
+            "ENCHANTED_BOOK" => {
+                let enchantments: Tag = custom_data.get_compound_or_empty("enchantments");
+                // java: enchantments.keySet().stream().findFirst() - the port's compound keeps its keys sorted
+                let enchant: String = enchantments.key_set().first().map(|k| k.to_string()).unwrap_or_default();
+                format!("{};{}", enchant.to_uppercase(), enchantments.get_int_or(&enchant, 0))
+            }
+            "PET" => {
+                let pet_info: PetInfo = ItemUtils::get_pet_info(stack);
+                format!("{};{}", pet_info.r#type(), pet_info.tier_index())
+            }
+            "RUNE" | "UNIQUE_RUNE" => {
+                let runes: Tag = custom_data.get_compound_or_empty("runes");
+                let rune: String = runes.key_set().first().map(|k| k.to_string()).unwrap_or_default();
+                format!("{}_RUNE;{}", rune.to_uppercase(), runes.get_int_or(&rune, 0))
+            }
+            "POTION" => format!("POTION_{};{}", custom_data.get_string_or("potion", "").to_uppercase(), custom_data.get_int_or("potion_level", 0)),
+            // java: case String s when s.equals("ATTRIBUTE_SHARD") && stack instanceof DataComponentHolder holder
+            "ATTRIBUTE_SHARD" if stack.as_any().is_some_and(|a| a.is::<mcrust::net::minecraft::world::item::item_stack::ItemStack>()) => {
+                let holder = stack.as_any().and_then(|a| a.downcast_ref::<mcrust::net::minecraft::world::item::item_stack::ItemStack>()).unwrap();
+                match crate::de::hysky::skyblocker::skyblock::hunting::attributes::Attributes::get_attribute_from_item_name(holder) {
+                    None => id,
+                    Some(attribute) => attribute.neu_id(),
+                }
+            }
+            "PARTY_HAT_CRAB" | "BALLOON_HAT_2024" | "BALLOON_HAT_2025" | "CAKE_HAT_2026" => format!("{}_{}", id, custom_data.get_string_or("party_hat_color", "").to_uppercase()),
+            "PARTY_HAT_CRAB_ANIMATED" => format!("PARTY_HAT_CRAB_{}_ANIMATED", custom_data.get_string_or("party_hat_color", "").to_uppercase()),
+            "PARTY_HAT_SLOTH" => format!("{}_{}", id, custom_data.get_string_or("party_hat_emoji", "").to_uppercase()),
+            "FACTION_RABBIT" => format!("{}_{}", id, custom_data.get_string_or("faction_rabbit_id", "").to_uppercase()),
+            _ => id.replace(":", "-"),
+        };
     }
 
     /// java: public static @NEUId String getNeuIdFromApiId(String apiId)
@@ -339,8 +387,10 @@ impl ItemUtils {
             match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                 let mut json_element: serde_json::Value = serde_json::from_str::<serde_json::Value>(&pet_info).expect("JsonSyntaxException");
                 // java: if (stack instanceof ItemStack itemStack) jsonElement.getAsJsonObject().addProperty("name", itemStack.getHoverName().getString());
-                // rust: port gap - the port's `DataComponentGetter` trait objects cannot be asked for their concrete class
-                // (no `as_any`), so the item name is not added for the wiki lookup (GAPS_batchA.md)
+                if let Some(item_stack) = stack.as_any().and_then(|a| a.downcast_ref::<mcrust::net::minecraft::world::item::item_stack::ItemStack>()) {
+                    let name: String = compat::component_of(item_stack.get_hover_name()).get_string();
+                    json_element.as_object_mut().expect("IllegalStateException: Not a JSON Object").insert("name".to_string(), serde_json::Value::String(name));
+                }
                 return (pet_info::CODEC.get_mut().parse(&mcrust::com::mojang::serialization::json_ops::JsonOps::instance(), &compat::json_to_port(&json_element))).set_partial(pet_info::EMPTY.clone()).get_partial_or_throw().unwrap();
             })) {
                 Ok(__v) => return __v,
@@ -400,9 +450,8 @@ impl ItemUtils {
     /// java: public static boolean hasCustomDurability(ItemStack stack)
     pub fn has_custom_durability(stack: &mcrust::net::minecraft::world::item::item_stack::ItemStack) -> bool {
         let mut custom_data: Tag = ItemUtils::get_custom_data(stack);
-        // TODO(fabric2seer): `is_empty` takes 1 argument(s) in the port (`tags: &BTreeMap<String, Tag>`), Java passes 0
-        // rust: return (!(compound_tag::is_empty()) && custom_data.contains("drill_fuel") || stack.get_skyblock_id() == "PICKONIMBUS");
-        return todo!("fabric2seer: see the TODO above");
+        // java: return !customData.isEmpty() && customData.contains("drill_fuel") || stack.getSkyblockId().equals("PICKONIMBUS");
+        return (!custom_data.compound_is_empty() && custom_data.contains("drill_fuel")) || stack.get_skyblock_id() == "PICKONIMBUS";
     }
 
     /// java: public static @Nullable IntIntPair getDurability(ItemStack stack)
@@ -499,9 +548,8 @@ impl ItemUtils {
     /// java: public static String toTextureBase64(String textureUUID)
     pub fn to_texture_base64(texture_uuid: &str) -> String {
         let mut str: String = format!("{{textures:{{SKIN:{{url:\"http://textures.minecraft.net/texture/{}\"}}}}}}", texture_uuid);
-        // TODO(fabric2seer): `.encodeToString(..)` on a Encoder
-        //   java: return Base64.getEncoder().encodeToString(str.getBytes());
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        // java: return Base64.getEncoder().encodeToString(str.getBytes()); - `getBytes()` in the default charset (UTF-8)
+        return base64::get_encoder().encode_to_string(str.as_bytes());
     }
 
     /// java: public static FlexibleItemStack createSkull(String textureBase64)
@@ -576,9 +624,8 @@ impl ItemUtils {
 
     /// java: public static OptionalInt getItemCountInSack(ItemStack itemStack, List<String> lines)
     pub fn get_item_count_in_sack(item_stack: &mcrust::net::minecraft::world::item::item_stack::ItemStack, lines: &Vec<String>) -> Option<i32> {
-        // TODO(fabric2seer): the condition: static field Strings.CS
-        //   java: lines.size() < 2 || !Strings.CS.endsWithAny(lines.getFirst(), "Sack", "Gemstones")
-        if todo!("fabric2seer: the condition (TODO above)") {
+        // java: lines.size() < 2 || !Strings.CS.endsWithAny(lines.getFirst(), "Sack", "Gemstones") - case-sensitive
+        if (lines.len() as i32) < 2 || !["Sack", "Gemstones"].iter().any(|suffix| lines[0].ends_with(suffix)) {
             return None;
         }
         if compat::component_of(item_stack.get_hover_name()).get_string().ends_with("Gemstone") {
@@ -676,8 +723,10 @@ impl ItemUtils {
     pub fn get_item_id_placeholder(item_id: &str) -> compat::Shared<FlexibleItemStack> {
         let mut stack: compat::Shared<FlexibleItemStack> = FlexibleItemStack::copy(ico::POISONOUS_POTATO.get_mut());
         FlexibleItemStack::set(&stack, mcrust::net::minecraft::core::component::data_components::item_name().clone(), component::literal(item_id));
-        // TODO(fabric2seer): `.putString(..)` on a T
-        //   java: stack.set(DataComponents.CUSTOM_DATA, CustomData.of(Util.make(new CompoundTag(), c -> c.putString(ID, itemId))));
+        // java: stack.set(DataComponents.CUSTOM_DATA, CustomData.of(Util.make(new CompoundTag(), c -> c.putString(ID, itemId))));
+        let mut tag: Tag = compound_tag::compound();
+        tag.put_string(ID, item_id);
+        FlexibleItemStack::set(&stack, mcrust::net::minecraft::core::component::data_components::custom_data().clone(), mcrust::net::minecraft::world::item::component::custom_data::CustomData::of(&tag));
         return stack;
     }
 
@@ -690,8 +739,41 @@ impl ItemUtils {
         //   java: 			case BlockItem _ -> new AtlasSprite(AtlasIds.BLOCKS, BuiltInRegistries.ITEM.getKey(item).withPath(itemId -> "block/" + itemId));
         //   java: 			default -> new AtlasSprite(AtlasIds.ITEMS, BuiltInRegistries.ITEM.getKey(item).withPath(itemId -> "item/" + itemId));
         //   java: 		};
-        let mut object_info: Arc<dyn ObjectInfo> = todo!("fabric2seer: the initialiser of `objectInfo` (TODO above)");
+        use mcrust::net::minecraft::core::registry::Registry as _;
+        // `case BlockItem _` is `item.block().is_some()` in the port (`Item.block` is BlockItem's field)
+        let item_key: Identifier = mcrust::net::minecraft::core::registries::built_in_registries::item().get_key(&item.erased_obj()).expect("a registered item");
+        let profile: Option<mcrust::net::minecraft::world::item::component::resolvable_profile::ResolvableProfile> = item_instance
+            .get(mcrust::net::minecraft::core::component::data_components::profile())
+            .and_then(|o| mcrust::com::mojang::serialization::cast::<mcrust::net::minecraft::world::item::component::resolvable_profile::ResolvableProfile>(&o).cloned());
+        let mut object_info: Arc<dyn ObjectInfo> = if item.block().is_some() && item_instance.is_value(&items::items().get("player_head").erased_obj()) && profile.is_some() {
+            Arc::new(mcrust::net::minecraft::network::chat::contents::objects::player_sprite::PlayerSprite::new(profile.unwrap(), true))
+        } else if item.block().is_some() {
+            Arc::new(mcrust::net::minecraft::network::chat::contents::objects::atlas_sprite::AtlasSprite::new(mcrust::net::minecraft::data::atlas_ids::blocks(), item_key.with_path_op(|item_id| format!("block/{}", item_id))))
+        } else {
+            Arc::new(mcrust::net::minecraft::network::chat::contents::objects::atlas_sprite::AtlasSprite::new(mcrust::net::minecraft::data::atlas_ids::items(), item_key.with_path_op(|item_id| format!("item/{}", item_id))))
+        };
         return component::object(object_info);
     }
 
+}
+
+/// `Minecraft.getInstance().gui.screen()` when it is a `ContainerScreen`: its title (the port names the open
+/// screen by its kind).
+fn container_screen_title() -> Option<String> {
+    let client = compat::minecraft();
+    if !matches!(client.gui.screen_kind, mcrust::net::minecraft::client::gui::gui::ScreenKind::Container) {
+        return None;
+    }
+    client.gui.screen().map(|screen| screen.get_title().to_string())
+}
+
+/// `stack.getOrDefault(DataComponents.CUSTOM_NAME, Component.empty())`.
+fn custom_name_or_empty(stack: &dyn DataComponentGetter) -> MutableComponent {
+    match stack.get(mcrust::net::minecraft::core::component::data_components::custom_name()) {
+        Some(name) => match mcrust::com::mojang::serialization::cast::<mcrust::net::minecraft::network::chat::formatted_text::FormattedText>(&name) {
+            Some(text) => compat::component_of(text.clone()),
+            None => component::empty(),
+        },
+        None => component::empty(),
+    }
 }

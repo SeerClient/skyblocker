@@ -34,6 +34,12 @@ use mcrust::net::minecraft::network::chat::mutable_component::MutableComponent;
 use mcrust::net::minecraft::resources::identifier::Identifier;
 use mcrust::net::minecraft::world::item::component::resolvable_profile::ResolvableProfile;
 use mcrust::net::minecraft::client::gui::components::renderable::Renderable as _;
+use crate::de::hysky::skyblocker::utils::scheduler::scheduler::SchedulerBase;
+use mcrust::com::mojang::brigadier::arguments::string_argument_type::StringArgumentType;
+use mcrust::com::mojang::brigadier::builder::argument_builder::ArgumentBuilder as _;
+use mcrust::com::mojang::brigadier::context::command_context::CommandContext;
+use mcrust::com::mojang::brigadier::suggestion::suggestions_builder::SuggestionsBuilder;
+use mcrust::net::minecraft::commands::shared_suggestion_provider;
 use mcrust::net::minecraft::network::chat::component::Component as _;
 
 /// java: private static final Component TITLE = Component.nullToEmpty("Skyblocker Profile Viewer");
@@ -114,13 +120,25 @@ impl ProfileViewerScreen {
             text_widget: None,
         });
         compat::write(&__this, |__t| __t.self_ref = std::sync::Arc::downgrade(&__this));
-        // TODO(fabric2seer): no overload of `initialisePagesAndWidgets` takes 1 argument(s)
-        //   java: fetchPlayerData(username).thenRun(this::initialisePagesAndWidgets).exceptionally(err -> {
-        //   java: 			LOGGER.error("[Skyblocker Profile Viewer] An error occurred while fetching player data!", err);
-        //   java: 			errorMessage = "Unable to get player data!";
-        //   java: 			profileNotFound = true;
-        //   java: 			return null;
-        //   java: 		});
+        // java: fetchPlayerData(username).thenRun(this::initialisePagesAndWidgets).exceptionally(err -> {
+        // java: 			LOGGER.error("[Skyblocker Profile Viewer] An error occurred while fetching player data!", err);
+        // java: 			errorMessage = "Unable to get player data!";
+        // java: 			profileNotFound = true;
+        // java: 			return null;
+        // java: 		});
+        // (the stages touch this screen, so they continue on the render thread - `compat::LocalFuture`)
+        {
+            let (__this_r, __this_e) = (__this.clone(), __this.clone());
+            let _ = ProfileViewerScreen::fetch_player_data(&__this, &username)
+                .then_apply_async(move |()| ProfileViewerScreen::initialise_pages_and_widgets(&__this_r))
+                .exceptionally_async(move |err: String| {
+                    logger().error(&format!("[Skyblocker Profile Viewer] An error occurred while fetching player data! {}", err));
+                    compat::write(&__this_e, |__t| {
+                        __t.error_message = "Unable to get player data!".to_string();
+                        __t.profile_not_found = true;
+                    });
+                });
+        }
         for i in 0..(PAGE_NAMES.len() as i32) {
             let __h0 = ProfileViewerNavButton::new(__this.clone(), PAGE_NAMES[(i) as usize].clone(), i, (i == 0));
             __this.lock().borrow_mut().profile_viewer_nav_buttons.push(__h0);
@@ -133,18 +151,31 @@ impl ProfileViewerScreen {
         ProfileViewerScreen::fetch_collections_data();
         client_command_registration_callback::EVENT.register(Arc::new(
             |dispatcher: &mut client_command_registration_callback::ClientCommandDispatcher| {
-                // TODO(fabric2seer): a command builder outside dispatcher.register(..)
-                //   java: LiteralArgumentBuilder<FabricClientCommandSource> literalArgumentBuilder = ClientCommands.literal("pv")
-                //   java: 					.then(ClientCommands.argument("username", StringArgumentType.string())
-                //   java: 							.suggests((source, builder) -> SharedSuggestionProvider.suggest(getPlayerSuggestions(source.getSource()), builder))
-                //   java: 							.executes(Scheduler.queueOpenScreenFactoryCommand(context -> new ProfileViewerScreen(StringArgumentType.getString(context, "username"))))
-                //   java: 					)
-                //   java: 					.executes(Scheduler.queueOpenScreenCommand(() -> new ProfileViewerScreen(Minecraft.getInstance().getUser().getName())));
-                let mut literal_argument_builder: LiteralArgumentBuilder<crate::unresolved::FabricClientCommandSource> = todo!("fabric2seer: the initialiser of `literalArgumentBuilder` (TODO above)");
-                // TODO(fabric2seer): a command tree this tool cannot read (arguments, redirects, requires) - SeerClient commands receive the words after the name in `ctx.args`
-                //   java: dispatcher.register(literalArgumentBuilder);
-                // TODO(fabric2seer): a command tree this tool cannot read (arguments, redirects, requires) - SeerClient commands receive the words after the name in `ctx.args`
-                //   java: dispatcher.register(ClientCommands.literal(SkyblockerMod.NAMESPACE).then(literalArgumentBuilder));
+                // java: LiteralArgumentBuilder<FabricClientCommandSource> literalArgumentBuilder = ClientCommands.literal("pv")
+                // java: 					.then(ClientCommands.argument("username", StringArgumentType.string())
+                // java: 							.suggests((source, builder) -> SharedSuggestionProvider.suggest(getPlayerSuggestions(source.getSource()), builder))
+                // java: 							.executes(Scheduler.queueOpenScreenFactoryCommand(context -> new ProfileViewerScreen(StringArgumentType.getString(context, "username"))))
+                // java: 					)
+                // java: 					.executes(Scheduler.queueOpenScreenCommand(() -> new ProfileViewerScreen(Minecraft.getInstance().getUser().getName())));
+                let mut literal_argument_builder: LiteralArgumentBuilder<client_command_registration_callback::FabricClientCommandSource> = client_command_registration_callback::literal("pv");
+                let mut username_argument = client_command_registration_callback::argument("username", Arc::new(StringArgumentType::string()));
+                username_argument.suggests(Some(Arc::new(|source: &CommandContext<client_command_registration_callback::FabricClientCommandSource>, builder: &mut SuggestionsBuilder| {
+                    Ok(shared_suggestion_provider::suggest(&ProfileViewerScreen::get_player_suggestions(source.get_source()), builder))
+                })));
+                username_argument.executes(SchedulerBase::queue_open_screen_factory_command(Arc::new(|context: &CommandContext<client_command_registration_callback::FabricClientCommandSource>| {
+                    Box::new(compat::ScreenAdapter::new(ProfileViewerScreen::new(StringArgumentType::get_string(context, "username")))) as Box<dyn ModScreen>
+                })));
+                literal_argument_builder.then(&username_argument);
+                literal_argument_builder.executes(SchedulerBase::queue_open_screen_command(Arc::new(|| {
+                    let __name: String = compat::minecraft().get_user().get_name().to_string();
+                    Box::new(compat::ScreenAdapter::new(ProfileViewerScreen::new(__name))) as Box<dyn ModScreen>
+                })));
+                // java: dispatcher.register(literalArgumentBuilder);
+                dispatcher.dispatcher().register(&literal_argument_builder);
+                // java: dispatcher.register(ClientCommands.literal(SkyblockerMod.NAMESPACE).then(literalArgumentBuilder));
+                let mut namespace_literal = client_command_registration_callback::literal(crate::entry::skyblocker_mod::NAMESPACE);
+                namespace_literal.then(&literal_argument_builder);
+                dispatcher.dispatcher().register(&namespace_literal);
             },
         ));
     }
@@ -154,13 +185,12 @@ impl ProfileViewerScreen {
         CompletableFuture::<()>::run_async(move || (|| {
             // java: try {..} catch (Exception e) - an exception here is a panic, caught by `catch_unwind`
             let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                // TODO(fabric2seer): `Http.sendGetRequest` is not a static method of Http
-                //   java: JsonObject jsonObject = JsonParser.parseString(Http.sendGetRequest(HYPIXEL_COLLECTIONS)).getAsJsonObject();
-                let mut json_object: serde_json::Map<String, serde_json::Value> = todo!("fabric2seer: the initialiser of `jsonObject` (TODO above)");
+                // java: JsonObject jsonObject = JsonParser.parseString(Http.sendGetRequest(HYPIXEL_COLLECTIONS)).getAsJsonObject();
+                let mut json_object: serde_json::Map<String, serde_json::Value> = compat::json::get_as_json_object(&serde_json::from_str::<serde_json::Value>(&crate::de::hysky::skyblocker::utils::http::Http::send_get_request(HYPIXEL_COLLECTIONS)).expect("JsonSyntaxException"));
                 compat::set_state(&COLLECTIONS, Collection::parse(&json_object));
             }));
             if let Err(e) = __result {
-                logger().error(&format!("[Skyblocker Profile Viewer] Failed to fetch collections data"));
+                logger().error(&format!("[Skyblocker Profile Viewer] Failed to fetch collections data {}", compat::panic_message(&e)));
             }
         })(), compat::executor);
     }
@@ -171,10 +201,11 @@ impl ProfileViewerScreen {
     }
 
     /// java: private static String[] getPlayerSuggestions(FabricClientCommandSource source)
-    pub fn get_player_suggestions(source: &crate::unresolved::FabricClientCommandSource) -> Vec<String> {
-        // TODO(fabric2seer): `.getOnlinePlayerNames(..)` on a FabricClientCommandSource
-        //   java: return source.getOnlinePlayerNames().stream().filter(playerName -> playerName.matches("[A-Za-z0-9_]+")).toArray(String[]::new);
-        todo!("fabric2seer: the value of this function is in a TODO above")
+    pub fn get_player_suggestions(source: &client_command_registration_callback::FabricClientCommandSource) -> Vec<String> {
+        // java: return source.getOnlinePlayerNames().stream().filter(playerName -> playerName.matches("[A-Za-z0-9_]+")).toArray(String[]::new);
+        // (`FabricClientCommandSource` is the port's `Arc<ClientSuggestionProvider>`)
+        use mcrust::net::minecraft::commands::shared_suggestion_provider::SharedSuggestionProvider as _;
+        return source.get_online_player_names().into_iter().filter(|player_name| compat::regex::Pattern::matches("[A-Za-z0-9_]+", player_name)).collect::<Vec<_>>();
     }
 
     /// java: private void initialisePagesAndWidgets()
@@ -280,84 +311,223 @@ impl ProfileViewerScreen {
     /// java: private void extractPlayerEntity(GuiGraphicsExtractor graphics, String username, int rootX, int rootY, int mouseX, int mouseY)
     pub fn extract_player_entity(__this: &compat::Shared<Self>, graphics: &GuiGraphicsExtractor, username: &str, mut root_x: i32, mut root_y: i32, mut mouse_x: i32, mut mouse_y: i32) {
         if compat::read(__this, |__t| __t.entity.is_some()) {
-            // TODO(fabric2seer): `Screen.extractEntityInInventoryFollowsMouse` has no Rust method in the port (looked for `extract_entity_in_inventory_follows_mouse` in Screen and JavaSrc)
-            // rust: let __h0 = root_x.wrapping_add(9);
-            // rust: let __h1 = root_y.wrapping_add(16);
-            // rust: let __h2 = root_x.wrapping_add(89);
-            // rust: let __h3 = root_y.wrapping_add(124);
-            // rust: let __h4 = &compat::read(__this, |__t| __t.entity.clone()).unwrap();
-            // rust: __this.lock().borrow().extract_entity_in_inventory_follows_mouse(graphics, __h0, __h1, __h2, __h3, 42, 0.0625f32, mouse_x, mouse_y, __h4);
+            // java: extractEntityInInventoryFollowsMouse(graphics, rootX + 9, rootY + 16, rootX + 89, rootY + 124, 42, 0.0625f, mouseX, mouseY, entity);
+            // (`InventoryScreen.extractEntityInInventoryFollowsMouse`, inherited static; the port's takes the frame's
+            // dispatcher, light and item models as `AbstractMountInventoryScreen:42` hands them)
+            let client = compat::minecraft();
+            if let Some(dispatcher) = client.game_renderer.get_entity_render_dispatcher() {
+                let level = mcrust::mcrust::modding::game::level();
+                use mcrust::net::minecraft::client::renderer::item::item_model_resolver::{ItemModelResolver, ItemModelSource};
+                let baked_models = mcrust::net::minecraft::client::renderer::game_renderer::baked();
+                let resolver = baked_models.as_ref().map(|models| ItemModelResolver::new(models.item_models.clone() as Arc<dyn ItemModelSource + Send + Sync>));
+                let hud_is_hidden: bool = client.gui.hud.is_hidden;
+                // the entity is this screen's own (not in the level); borrowed for the one draw, nothing here reaches the screen
+                let __guard = __this.lock();
+                let __screen = __guard.borrow();
+                if let Some(entity) = __screen.entity.as_ref() {
+                    mcrust::net::minecraft::client::gui::screens::inventory::inventory_screen::extract_entity_in_inventory_follows_mouse(
+                        root_x.wrapping_add(9),
+                        root_y.wrapping_add(16),
+                        root_x.wrapping_add(89),
+                        root_y.wrapping_add(124),
+                        42,
+                        0.0625f32,
+                        mouse_x as f32,
+                        mouse_y as f32,
+                        dispatcher,
+                        entity,
+                        &|layer, pos| match level.as_deref() {
+                            Some(level) => level.get_brightness(layer, pos),
+                            None => 0,
+                        },
+                        resolver.as_ref(),
+                        level.as_deref(),
+                        hud_is_hidden,
+                    );
+                }
+            }
         }
+
         // java: graphics.centeredText(font, username.length() > 15 ? username.substring(0, 15) : username, rootX + 47, rootY + 14, Color.WHITE.getRGB());
         let __name: String = if compat::str_len(username) > 15 { compat::substring2(username, 0, 15) } else { username.to_string() };
         gui_graphics_extractor::centered_text_string(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), &__name, root_x.wrapping_add(47), root_y.wrapping_add(14), mcrust::java::awt::color::white().get_rgb());
     }
 
     /// java: private CompletableFuture<Void> fetchPlayerData(String username)
-    pub fn fetch_player_data(__this: &compat::Shared<Self>, username: &str) -> Option<mcrust::java::util::concurrent::completable_future::CompletableFuture<()>> {
-        // TODO(fabric2seer): `CompletableFuture.thenAccept` has no Rust method in the port (looked for `then_accept` in CompletableFuture and JavaSrc)
-        // rust: let __this_1 = compat::RenderThread::new(__this.clone());
-        // rust: let mut profile_future: mcrust::java::util::concurrent::completable_future::CompletableFuture<()> = ProfileUtils::fetch_full_profile(username).unwrap().then_accept(&Arc::new(move |profiles| {
-        // rust: // java: try {..} catch (Exception e) - an exception here is a panic, caught by `catch_unwind`
-        // rust: let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        // rust: // TODO(fabric2seer): `.getAsJsonArray(..)` on a value of unknown type
-        // rust: //   java: Optional<JsonObject> selectedProfile = profiles.getAsJsonArray("profiles").asList().stream()
-        // rust: //   java: 						.map(JsonElement::getAsJsonObject)
-        // rust: //   java: 						.filter(profile -> profile.getAsJsonPrimitive("selected").getAsBoolean())
-        // rust: //   java: 						.findFirst();
-        // rust: let mut selected_profile: Option<serde_json::Map<String, serde_json::Value>> = todo!("fabric2seer: the initialiser of `selectedProfile` (TODO above)");
-        // rust: if selected_profile.is_some() {
-        // rust: { let __v = Some(selected_profile.clone().unwrap()); compat::write(__this_1.get(), |__t| __t.hypixel_profile = __v); }
-        // rust: { let __v = Some(compat::json::get_as_json_object(&(compat::json::get_as_json_object_of(&__this_1.get().lock().borrow().hypixel_profile.as_ref().unwrap(), "members")).get(&ApiUtils::name2_uuid(username)).cloned().unwrap())); compat::write(__this_1.get(), |__t| __t.player_profile = __v); }
-        // rust: }
-        // rust: }));
-        // rust: if let Err(e) = __result {
-        // rust: { let __v = (if ApiAuthentication::get_token().is_none() { "Invalid Skyblocker token" } else { "Skyblock profile not found" }).to_string(); compat::write(__this_1.get(), |__t| __t.error_message = __v); }
-        // rust: { let __v = true; compat::write(__this_1.get(), |__t| __t.profile_not_found = __v); }
-        // rust: logger().warn(&format!("[Skyblocker Profile Viewer] Error while looking for profile"));
-        // rust: }
-        // rust: }));
-        let mut profile_future: mcrust::java::util::concurrent::completable_future::CompletableFuture<()> = todo!("fabric2seer: the initialiser of `profileFuture` (TODO above)");
-        let __this_3 = compat::RenderThread::new(__this.clone());
-        let mut player_future: mcrust::java::util::concurrent::completable_future::CompletableFuture<()> = CompletableFuture::<()>::run_async(move || (|| {
-            let mut stringified_uuid: String = ApiUtils::name2_uuid(username);
-            if stringified_uuid.is_empty() {
-                { let __v = Some("User not found".to_string()); compat::write(__this_3.get(), |__t| __t.player_name = __v); }
-                { let __v = "Player UUID not found".to_string(); compat::write(__this_3.get(), |__t| __t.error_message = __v); }
-                { let __v = true; compat::write(__this_3.get(), |__t| __t.profile_not_found = __v); }
-            }
-            let mut uuid: Uuid = undashed_uuid::from_string_lenient(&stringified_uuid).unwrap();
-            // TODO(fabric2seer): `.exceptionally(..)` on a value of unknown type
-            //   java: Minecraft.getInstance().playerSkinRenderCache().lookup(ResolvableProfile.createUnresolved(uuid)).thenAccept(entry -> {
-            //   java: 				this.playerName = entry.get().gameProfile().name();
-            //   java: 				entity = new RemotePlayer(Minecraft.getInstance().level, entry.get().gameProfile()) {
-            //   java: 					@Override
-            //   java: 					public PlayerSkin getSkin() {
-            //   java: 						PlayerInfo playerListEntry = new PlayerInfo(entry.get().gameProfile(), false);
-            //   java: 						return playerListEntry.getSkin();
-            //   java: 					}
-            //   java:
-            //   java: 					@Override
-            //   java: 					public boolean isModelPartShown(PlayerModelPart modelPart) {
-            //   java: 						return !(modelPart.equals(PlayerModelPart.CAPE));
-            //   java: 					}
-            //   java:
-            //   java: 					@Override
-            //   java: 					public boolean isInvisibleTo(Player player) {
-            //   java: 						return true;
-            //   java: 					}
-            //   java: 				};
-            //   java: 				entity.setCustomNameVisible(false);
-            //   java: 				entity.setId(EntityUtils.PLACEHOLDER_ID);
-            //   java: 			}).exceptionally(_ -> {
-            //   java: 				// "Player not found" doesn't fit on the screen lol
-            //   java: 				this.playerName = "User not found";
-            //   java: 				this.errorMessage = "Player skin not found";
-            //   java: 				this.profileNotFound = true;
-            //   java: 				return null;
-            //   java: 			}).join();
-        })(), compat::executor);
-        return Some(CompletableFuture::all_of(&[profile_future.clone(), player_future.clone()]));
+    ///
+    /// Both halves write this screen's fields, which are the mod's objects (not `Send`): the network half runs where
+    /// Java runs it (the fetch future's worker / `SkyblockerMod.VIRTUAL_THREAD_EXECUTOR`), and the field writes run on
+    /// the render thread (`game::execute`) in the order Java makes them, each half then completing a
+    /// `compat::LocalFuture` (batch B pattern 27). `CompletableFuture.allOf(profileFuture, playerFuture)` is their
+    /// `then_combine_async`.
+    pub fn fetch_player_data(__this: &compat::Shared<Self>, username: &str) -> compat::LocalFuture<()> {
+        let username: String = username.to_string();
+        let render_thread: mcrust::java::util::concurrent::completable_future::Executor = Arc::new(|__t: Box<dyn FnOnce() + Send>| mcrust::mcrust::modding::game::execute(__t));
+
+        // java: CompletableFuture<Void> profileFuture = ProfileUtils.fetchFullProfile(username).thenAccept(profiles -> {
+        // java: 	try {
+        // java: 		Optional<JsonObject> selectedProfile = profiles.getAsJsonArray("profiles").asList().stream()
+        // java: 				.map(JsonElement::getAsJsonObject)
+        // java: 				.filter(profile -> profile.getAsJsonPrimitive("selected").getAsBoolean())
+        // java: 				.findFirst();
+        // java: 		if (selectedProfile.isPresent()) {
+        // java: 			this.hypixelProfile = selectedProfile.get();
+        // java: 			this.playerProfile = hypixelProfile.getAsJsonObject("members").get(ApiUtils.name2Uuid(username)).getAsJsonObject();
+        // java: 		}
+        // java: 	} catch (Exception e) {
+        // java: 		this.errorMessage = ApiAuthentication.getToken() == null ? "Invalid Skyblocker token" : "Skyblock profile not found";
+        // java: 		this.profileNotFound = true;
+        // java: 		LOGGER.warn("[Skyblocker Profile Viewer] Error while looking for profile", e);
+        // java: 	}
+        // java: });
+        let profile_future: compat::LocalFuture<()> = compat::LocalFuture::new();
+        {
+            let __name_1 = username.clone();
+            // the action's reads and its `name2Uuid` request, on the thread that completes the fetch:
+            // (the selected profile, the member, the exception the try block caught)
+            let read = ProfileUtils::fetch_full_profile(&username).expect("fetchFullProfile").then_apply(move |profiles: &Option<serde_json::Map<String, serde_json::Value>>| {
+                let mut selected: Option<serde_json::Map<String, serde_json::Value>> = None;
+                let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                    let profiles = profiles.as_ref().expect("NullPointerException: profiles");
+                    let selected_profile: Option<serde_json::Map<String, serde_json::Value>> = compat::json::get_as_json_array_of(profiles, "profiles").iter()
+                        .map(|profile| compat::json::get_as_json_object(profile))
+                        .find(|profile| compat::json::get_as_boolean(&compat::json::get_as_json_primitive_of(profile, "selected")));
+                    if let Some(selected_profile) = selected_profile {
+                        selected = Some(selected_profile.clone());
+                        let member: serde_json::Map<String, serde_json::Value> = compat::json::get_as_json_object(&compat::json::get_as_json_object_of(&selected_profile, "members").get(&ApiUtils::name2_uuid(&__name_1)).cloned().expect("NullPointerException: member"));
+                        return Some(member);
+                    }
+                    None
+                }));
+                match __result {
+                    Ok(member) => (selected, member, None),
+                    Err(e) => (selected, None, Some(compat::panic_message(&e))),
+                }
+            });
+            // the writes, on the render thread
+            let __this_1 = compat::RenderThread::new(__this.clone());
+            let __done_1 = compat::RenderThread::new(profile_future.clone());
+            let _ = read.when_complete_async(move |outcome| {
+                let (__this_1, __done_1) = (__this_1.get(), __done_1.get());
+                match outcome {
+                    Ok((selected, member, error)) => {
+                        if let Some(selected) = selected {
+                            // java: this.hypixelProfile = selectedProfile.get();
+                            { let __v = Some(selected.clone()); compat::write(__this_1, |__t| __t.hypixel_profile = __v); }
+                        }
+                        if let Some(member) = member {
+                            // java: this.playerProfile = ..
+                            { let __v = Some(member.clone()); compat::write(__this_1, |__t| __t.player_profile = __v); }
+                        }
+                        if let Some(error) = error {
+                            { let __v = (if ApiAuthentication::get_token().is_none() { "Invalid Skyblocker token" } else { "Skyblock profile not found" }).to_string(); compat::write(__this_1, |__t| __t.error_message = __v); }
+                            { let __v = true; compat::write(__this_1, |__t| __t.profile_not_found = __v); }
+                            logger().warn(&format!("[Skyblocker Profile Viewer] Error while looking for profile {}", error));
+                        }
+                        __done_1.complete(());
+                    }
+                    Err(exception) => {
+                        __done_1.complete_exceptionally(exception.to_string());
+                    }
+                }
+            }, render_thread.clone());
+        }
+
+        // java: CompletableFuture<Void> playerFuture = CompletableFuture.runAsync(() -> {
+        // java: 	String stringifiedUuid = ApiUtils.name2Uuid(username);
+        // java: 	if (stringifiedUuid.isEmpty()) {
+        // java: 		this.playerName = "User not found";
+        // java: 		this.errorMessage = "Player UUID not found";
+        // java: 		this.profileNotFound = true;
+        // java: 	}
+        // java: 	UUID uuid = UndashedUuid.fromStringLenient(stringifiedUuid);
+        // java: 	Minecraft.getInstance().playerSkinRenderCache().lookup(ResolvableProfile.createUnresolved(uuid)).thenAccept(entry -> {
+        // java: 		this.playerName = entry.get().gameProfile().name();
+        // java: 		entity = new RemotePlayer(Minecraft.getInstance().level, entry.get().gameProfile()) {
+        // java: 			@Override public PlayerSkin getSkin() { PlayerInfo playerListEntry = new PlayerInfo(entry.get().gameProfile(), false); return playerListEntry.getSkin(); }
+        // java: 			@Override public boolean isModelPartShown(PlayerModelPart modelPart) { return !(modelPart.equals(PlayerModelPart.CAPE)); }
+        // java: 			@Override public boolean isInvisibleTo(Player player) { return true; }
+        // java: 		};
+        // java: 		entity.setCustomNameVisible(false);
+        // java: 		entity.setId(EntityUtils.PLACEHOLDER_ID);
+        // java: 	}).exceptionally(_ -> {
+        // java: 		this.playerName = "User not found";
+        // java: 		this.errorMessage = "Player skin not found";
+        // java: 		this.profileNotFound = true;
+        // java: 		return null;
+        // java: 	}).join();
+        // java: }, SkyblockerMod.VIRTUAL_THREAD_EXECUTOR);
+        let player_future: compat::LocalFuture<()> = compat::LocalFuture::new();
+        {
+            let __name_3 = username.clone();
+            let __cache = compat::minecraft().game_renderer.player_skin_render_cache.clone();
+            let __this_3 = compat::RenderThread::new(__this.clone());
+            let __done_3 = compat::RenderThread::new(player_future.clone());
+            let __render_thread = render_thread.clone();
+            let _ = CompletableFuture::<()>::run_async(move || {
+                // on the worker: the request, the parse, the skin lookup and its `join()`
+                let mut uuid_not_found: bool = false;
+                let outcome: Result<Option<mcrust::com::mojang::authlib::game_profile::GameProfile>, String> = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                    let mut stringified_uuid: String = ApiUtils::name2_uuid(&__name_3);
+                    if stringified_uuid.is_empty() {
+                        uuid_not_found = true;
+                    }
+                    // java: UUID uuid = UndashedUuid.fromStringLenient(stringifiedUuid); - throws on a bad id
+                    let mut uuid: Uuid = undashed_uuid::from_string_lenient(&stringified_uuid).expect("IllegalArgumentException: Invalid UUID string");
+                    // java: ...lookup(ResolvableProfile.createUnresolved(uuid)).thenAccept(entry -> ..entry.get()..).exceptionally(_ -> ..).join()
+                    // (`entry.get()` on an empty Optional throws, which the exceptionally arm catches, as a failed lookup does)
+                    let cache = __cache.as_ref().expect("Minecraft.playerSkinRenderCache()");
+                    let profile = ResolvableProfile::create_unresolved_id(uuid).expect("ResolvableProfile.createUnresolved");
+                    match cache.lookup(&profile).join_blocking() {
+                        Ok(Some(entry)) => Some(entry.game_profile().clone()),
+                        _ => None,
+                    }
+                })).map_err(|e| compat::panic_message(&e));
+                // the writes, on the render thread
+                (__render_thread)(Box::new(move || {
+                    let (__this_3, __done_3) = (__this_3.get(), __done_3.get());
+                    if uuid_not_found {
+                        // "Player not found" doesn't fit on the screen lol
+                        { let __v = Some("User not found".to_string()); compat::write(__this_3, |__t| __t.player_name = __v); }
+                        { let __v = "Player UUID not found".to_string(); compat::write(__this_3, |__t| __t.error_message = __v); }
+                        { let __v = true; compat::write(__this_3, |__t| __t.profile_not_found = __v); }
+                    }
+                    match outcome {
+                        Ok(Some(game_profile)) => {
+                            // java: this.playerName = entry.get().gameProfile().name();
+                            { let __v = Some(game_profile.name().to_string()); compat::write(__this_3, |__t| __t.player_name = __v); }
+                            // java: entity = new RemotePlayer(Minecraft.getInstance().level, entry.get().gameProfile()) {..};
+                            // rust: port gap (GAPS_batchB #9) - the anonymous subclass's overrides (`getSkin` from a fresh
+                            // `PlayerInfo`, `isModelPartShown` hiding the CAPE, `isInvisibleTo` true) have no home: the port's
+                            // entity classes take no mod subclass, so a plain `RemotePlayer` stands in (as `ArmorTab`'s).
+                            // Its dimensions are the player's (`Player.STANDING_DIMENSIONS`, `EntityType.PLAYER`).
+                            let mut entity = RemotePlayer::new(mcrust::net::minecraft::world::entity::entity_dimensions::scalable(0.6, 1.8), &game_profile);
+                            {
+                                use mcrust::net::minecraft::world::entity::entity::Entity as _;
+                                // java: entity.setCustomNameVisible(false);
+                                entity.base_mut().set_custom_name_visible(false);
+                                // java: entity.setId(EntityUtils.PLACEHOLDER_ID);
+                                entity.base_mut().set_id(entity_utils::PLACEHOLDER_ID);
+                            }
+                            compat::write(__this_3, |__t| __t.entity = Some(entity));
+                            __done_3.complete(());
+                        }
+                        Ok(None) => {
+                            // java: .exceptionally(_ -> { .. })
+                            { let __v = Some("User not found".to_string()); compat::write(__this_3, |__t| __t.player_name = __v); }
+                            { let __v = "Player skin not found".to_string(); compat::write(__this_3, |__t| __t.error_message = __v); }
+                            { let __v = true; compat::write(__this_3, |__t| __t.profile_not_found = __v); }
+                            __done_3.complete(());
+                        }
+                        Err(exception) => {
+                            __done_3.complete_exceptionally(exception);
+                        }
+                    }
+                }));
+            }, compat::executor);
+        }
+        // java: return CompletableFuture.allOf(profileFuture, playerFuture);
+        return profile_future.then_combine_async(&player_future, |_, _| ());
     }
 
     /// java: public void onNavButtonClick(ProfileViewerNavButton clickedButton)

@@ -31,17 +31,79 @@ pub static COLOR_CODEC: LazyLock<CodecRef<Color>> = LazyLock::new(|| {
         |color: &Color| color.get_rgb(),
     )
 });
-// TODO(fabric2seer): static `ExtraCodecs.JSON` has no Rust counterpart in the port's ExtraCodecs file
-//   java: public static final Codec<JsonObject> JSON_OBJECT_CODEC = ExtraCodecs.JSON.flatXmap(
-//   java: 			element -> element.isJsonObject() ? DataResult.success(element.getAsJsonObject()) : DataResult.error(() -> "Not a json object."),
-//   java: 			DataResult::success
-//   java: 	);
-/// java: public static final Codec<JsonObject> JSON_OBJECT_CODEC = ExtraCodecs.JSON.flatXmap( element -> element.isJsonObject() ? DataResult.success(element.getAsJsonObject()) : DataResult.error(() -> "Not a j
-pub static JSON_OBJECT_CODEC: compat::MainThread<CodecRef<serde_json::Map<String, serde_json::Value>>> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `JSON_OBJECT_CODEC` - see the TODO above"));
-// TODO(fabric2seer): static `MapCodec.assumeMapUnsafe` has no Rust counterpart in the port
-//   java: public static final MapCodec<Dynamic<?>> MAP_PASSTHROUGH = MapCodec.assumeMapUnsafe(Codec.PASSTHROUGH);
-/// java: public static final MapCodec<Dynamic<?>> MAP_PASSTHROUGH = MapCodec.assumeMapUnsafe(Codec.PASSTHROUGH);
-pub static MAP_PASSTHROUGH: compat::MainThread<MapCodecRef<Dynamic>> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `MAP_PASSTHROUGH` - see the TODO above"));
+///
+/// `ExtraCodecs.JSON` is `converter(JsonOps.INSTANCE)`: the port's `converter` over its `JsonOps` (whose tree is
+/// `lwjgl::json::Value`), read back as the mod's Gson tree (`compat::json_from_port`).
+pub static JSON_OBJECT_CODEC: compat::MainThread<CodecRef<serde_json::Map<String, serde_json::Value>>> = compat::MainThread::new(|| {
+    use mcrust::com::mojang::serialization::data_result::{message, DataResult};
+    let json = mcrust::net::minecraft::util::extra_codecs::converter(mcrust::com::mojang::serialization::json_ops::JsonOps::instance());
+    codec::flat_xmap(
+        json,
+        // element -> element.isJsonObject() ? DataResult.success(element.getAsJsonObject()) : DataResult.error(() -> "Not a json object.")
+        |element: mcrust::com::mojang::serialization::Obj| match compat::json_from_port(&element) {
+            serde_json::Value::Object(object) => DataResult::success(object),
+            _ => DataResult::error(message("Not a json object.")),
+        },
+        // DataResult::success
+        |object: &serde_json::Map<String, serde_json::Value>| DataResult::success(compat::json_to_port(&serde_json::Value::Object(object.clone()))),
+    )
+});
+pub static MAP_PASSTHROUGH: compat::MainThread<MapCodecRef<Dynamic>> = compat::MainThread::new(|| assume_map_unsafe(codec::passthrough()));
+
+/// DFU `MapCodec.assumeMapUnsafe(Codec<A> codec)` - the anonymous `MapCodec` it answers (the port's DFU has no
+/// counterpart; GAPS_L.md). It reads the whole map (or, compressed, its one `value` key) with `codec`, and
+/// writes `codec`'s encoded map into the prefix entry by entry.
+fn assume_map_unsafe<A: 'static>(codec: CodecRef<A>) -> MapCodecRef<A> {
+    std::sync::Arc::new(AssumeMapUnsafe { codec })
+}
+
+/// java: `private static final String COMPRESSED_VALUE_KEY = "value";`
+const COMPRESSED_VALUE_KEY: &str = "value";
+
+struct AssumeMapUnsafe<A: 'static> {
+    codec: CodecRef<A>,
+}
+
+impl<A: 'static> mcrust::com::mojang::serialization::keyable::Keyable for AssumeMapUnsafe<A> {
+    /// java: `return Stream.of(ops.createString(COMPRESSED_VALUE_KEY));`
+    fn keys(&self, ops: &mcrust::com::mojang::serialization::dynamic_ops::Ops) -> Vec<mcrust::com::mojang::serialization::Obj> {
+        vec![ops.create_string(COMPRESSED_VALUE_KEY)]
+    }
+}
+
+impl<A: 'static> mcrust::com::mojang::serialization::map_decoder::MapDecoder<A> for AssumeMapUnsafe<A> {
+    fn decode(&self, ops: &mcrust::com::mojang::serialization::dynamic_ops::Ops, input: &mcrust::com::mojang::serialization::map_like::MapLike) -> mcrust::com::mojang::serialization::data_result::DataResult<A> {
+        use mcrust::com::mojang::serialization::data_result::{message, DataResult};
+        use mcrust::com::mojang::serialization::decoder::Decoder as _;
+        if ops.compress_maps() {
+            let Some(value) = input.get(&ops.create_string(COMPRESSED_VALUE_KEY)) else {
+                return DataResult::error(message("Missing value"));
+            };
+            return self.codec.parse(ops, value);
+        }
+        self.codec.parse(ops, &ops.create_map(input.entries().to_vec()))
+    }
+}
+
+impl<A: 'static> mcrust::com::mojang::serialization::map_encoder::MapEncoder<A> for AssumeMapUnsafe<A> {
+    fn encode(&self, input: &A, ops: &mcrust::com::mojang::serialization::dynamic_ops::Ops, prefix: &mut dyn mcrust::com::mojang::serialization::record_builder::RecordBuilder) {
+        use mcrust::com::mojang::serialization::encoder::Encoder as _;
+        let encoded = self.codec.encode_start(ops, input);
+        if ops.compress_maps() {
+            prefix.add_string_result(COMPRESSED_VALUE_KEY, encoded);
+            return;
+        }
+        let encoded_map_result = encoded.flat_map(|e| ops.get_map(ops, &e));
+        match encoded_map_result.result_ref() {
+            Some(encoded_map) => {
+                for (key, value) in encoded_map.entries() {
+                    prefix.add(key, value);
+                }
+            }
+            None => prefix.with_errors_from(encoded_map_result.erase()),
+        }
+    }
+}
 /// java: public static final Codec<Vector2ic> VECTOR_2I = RecordCodecBuilder.create(instance -> instance.group( Codec.INT.fieldOf("x").forGetter(Vector2ic::x), Codec.INT.fieldOf("y").forGetter(Vector2ic::y) ).
 pub static VECTOR_2I: compat::MainThread<CodecRef<Vector2i>> = compat::MainThread::new(|| record_codec_builder::create(record_codec_builder::apply2(record_codec_builder::of(|o: &Vector2i| o.x(), codec::field_of(mcrust::com::mojang::serialization::codec::int_codec(), "x")), record_codec_builder::of(|o: &Vector2i| o.y(), codec::field_of(mcrust::com::mojang::serialization::codec::int_codec(), "y")), move |__a0, __a1| Vector2i::new(__a0.clone(), __a1.clone()))));
 

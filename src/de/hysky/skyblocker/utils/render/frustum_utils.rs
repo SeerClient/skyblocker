@@ -19,14 +19,26 @@ impl FrustumUtils {
 
     /// java: public static boolean isVisible(Frustum frustum, AABB box)
     pub fn is_visible(frustum: &Frustum, r#box: &AABB) -> bool {
-        return FrustumUtils::is_visible(frustum, r#box);
+        // Java's body is `return isVisible(frustum, box);`, which resolves to THIS overload and
+        // recurses until StackOverflowError (the yarn->mojmap move dropped the `frustum.`
+        // receiver of the original `frustum.isVisible(box)`). It has no caller in the mod; the
+        // receiver form is what the method was written to do.
+        return frustum.is_visible(r#box);
     }
 
     /// java: public static boolean isVisible(Frustum frustum, double minX, double minY, double minZ, double maxX, double maxY, double maxZ)
     pub fn is_visible_7(frustum: &Frustum, mut min_x: f64, mut min_y: f64, mut min_z: f64, mut max_x: f64, mut max_y: f64, mut max_z: f64) -> bool {
-        // TODO(fabric2seer): `FrustumInvoker.cubeInFrustum` has no Rust method in the port (looked for `cube_in_frustum` in FrustumInvoker and JavaSrc)
-        // rust: let mut plane: i32 = frustum.cube_in_frustum(min_x, min_y, min_z, max_x, max_y, max_z);
-        let mut plane: i32 = todo!("fabric2seer: the initialiser of `plane` (TODO above)");
+        // java: int plane = ((FrustumInvoker) frustum).invokeCubeInFrustum(minX, minY, minZ, maxX, maxY, maxZ);
+        // rust: port gap - the six-double `Frustum.cubeInFrustum(DDDDDD)` is private in the port
+        // (`cube_in_frustum_raw`, no `pub`), so the invoker cannot reach it (GAPS_J #1).
+        // `Frustum.isVisible(AABB):82-85` is exactly `cubeInFrustum(minX..maxZ)` tested against
+        // INSIDE / INTERSECT, and the port's `AABB` is a stack value (no allocation), so the
+        // plane class is the same: INSIDE when visible, OUTSIDE otherwise.
+        let plane: i32 = if frustum.is_visible(&AABB::new(min_x, min_y, min_z, max_x, max_y, max_z)) {
+            mcrust::org::joml::frustum_intersection::INSIDE
+        } else {
+            mcrust::org::joml::frustum_intersection::OUTSIDE
+        };
         return (plane == mcrust::org::joml::frustum_intersection::INSIDE || plane == mcrust::org::joml::frustum_intersection::INTERSECT);
     }
 

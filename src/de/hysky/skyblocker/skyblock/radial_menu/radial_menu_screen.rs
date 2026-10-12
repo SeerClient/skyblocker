@@ -24,6 +24,9 @@ use mcrust::net::minecraft::network::chat::component;
 use mcrust::net::minecraft::network::chat::mutable_component::MutableComponent;
 use mcrust::net::minecraft::world::inventory::abstract_container_menu::AbstractContainerMenu;
 use mcrust::net::minecraft::world::inventory::container_input::ContainerInput;
+use mcrust::net::minecraft::world::inventory::chest_menu::ChestMenu;
+use mcrust::net::minecraft::world::inventory::container_listener::ContainerListener;
+use mcrust::net::minecraft::world::item::item_stack::ItemStack;
 use mcrust::net::minecraft::client::gui::components::events::gui_event_listener::GuiEventListener as _;
 use mcrust::net::minecraft::network::chat::component::Component as _;
 
@@ -58,6 +61,13 @@ pub struct RadialMenuScreen {
     pub navigation_direction_last_time: i64,
     /// java: private int navigationDirection = 1;
     pub navigation_direction: i32,
+    /// `handler.getRowCount()`: the count of the menu this screen was built over (the menu itself is reached by
+    /// its id, `handler`)
+    pub row_count: i32,
+    /// java: `implements ContainerListener` - the listener the menu holds is `SlotListener`, which records what
+    /// `slotChanged` is handed (it runs inside the packet handler's hold of the player, where this screen cannot be
+    /// reached); `drain_slot_changes` runs `slotChanged` with it in this screen's next own call
+    pub pending_slot_changes: Arc<Mutex<Vec<(i32, ItemStack)>>>,
     /// the object's own shared handle: Java's `this` handed to other objects
     pub self_ref: compat::WeakShared<Self>,
     /// the screen's widgets as this object last saw them (see `compat::WidgetCache`)
@@ -96,13 +106,41 @@ impl RadialMenuScreen {
             last_navigation_direction_input: None,
             navigation_direction_last_time: 0,
             navigation_direction: 1,
+            row_count: handler.with(|__chest| __chest.get_row_count()).unwrap_or(0),
+            pending_slot_changes: Arc::new(Mutex::new(Vec::new())),
         });
         compat::write(&__this, |__t| __t.self_ref = std::sync::Arc::downgrade(&__this));
         __this.lock().borrow_mut().options.clear();
         { let __v = Some(handler); compat::write(&__this, |__t| __t.handler = __v); }
-        // TODO(fabric2seer): `add_slot_listener` takes 2 argument(s) in the port (`listener: Box<dyn ContainerListener>, containers: &mut Containers<'_>`), Java passes 1
-        // rust: { let _ = handler.with(|__chest| __chest.menu.add_slot_listener(__this)); };
+        //   java: handler.addSlotListener(this);
+        // The menu `fromPacket` builds is not the player's yet when the screen is made, so it is reachable only as the
+        // factory hands it: `new_listening` is this constructor over that menu (it adds the listener).
         __this
+    }
+
+    /// java: `new RadialMenuScreen(handler, type, title)` over the `ChestMenu` the screen factory
+    /// (`MenuScreens.fromPacket`) is handed: the constructor, then `handler.addSlotListener(this)` on that menu.
+    pub fn new_listening(handler: &mut ChestMenu, r#type: compat::Shared<dyn RadialMenu>, title: MutableComponent) -> compat::Shared<Self> {
+        let __this = RadialMenuScreen::new(compat::LiveChestMenu::of(handler), r#type, title);
+        let row_count = handler.get_row_count();
+        compat::write(&__this, |__t| __t.row_count = row_count);
+        //   java: handler.addSlotListener(this);
+        let pending = compat::read(&__this, |__t| __t.pending_slot_changes.clone());
+        add_slot_listener(handler, Box::new(SlotListener { pending }));
+        __this
+    }
+
+    /// The `ContainerListener` calls the menu made since this screen's last own call (see `pending_slot_changes`):
+    /// `slotChanged(handler, slotId, stack)` for each, in order.
+    pub fn drain_slot_changes(__this: &compat::Shared<Self>) {
+        let pending: Vec<(i32, ItemStack)> = {
+            let queue = compat::read(__this, |__t| __t.pending_slot_changes.clone());
+            let mut queue = queue.lock().unwrap_or_else(|p| p.into_inner());
+            std::mem::take(&mut *queue)
+        };
+        for (slot_id, stack) in pending {
+            RadialMenuScreen::slot_changed(__this, slot_id, stack);
+        }
     }
 
     /// java: private static boolean validName(ItemStack stack, String validName)
@@ -129,9 +167,8 @@ impl RadialMenuScreen {
                 navigation_entries.push(__a0.clone());
             }
         }
-        // TODO(fabric2seer): Math.ceilDiv
         //   java: int bottom = Math.ceilDiv((optionOrdered.size() - navigationEntries.size()), 2);
-        let mut bottom: i32 = todo!("fabric2seer: the initialiser of `bottom` (TODO above)");
+        let mut bottom: i32 = -compat::floor_div_i32(-((option_ordered.len() as i32).wrapping_sub(navigation_entries.len() as i32)), 2);
         for entry in navigation_entries.iter() {
             compat::remove_item(&mut option_ordered, &entry.clone());
         }
@@ -158,8 +195,9 @@ impl RadialMenuScreen {
 
     /// java: @Override public void mouseMoved(double mouseX, double mouseY)
     pub fn mouse_moved(__this: &compat::Shared<Self>, mut mouse_x: f64, mut mouse_y: f64) {
-        // TODO(fabric2seer): `mouse_moved` is a method of the port's trait `GuiEventListener`, which the port's `Screen` does not implement
-        // rust: __this.lock().borrow_mut().base.mouse_moved(mouse_x, mouse_y);
+        //   java: super.mouseMoved(mouseX, mouseY); - `GuiEventListener.mouseMoved`'s empty default (neither `Screen` nor
+        //   `AbstractContainerEventHandler` overrides it)
+        // rust: port gap - `ModScreen` has no `mouseMoved` slot, so the game never calls this method (GAPS_K)
         if compat::minecraft().gui.screen().is_none() {
             return;
         }
@@ -261,8 +299,9 @@ impl RadialMenuScreen {
         if mcrust::mcrust::modding::game::with_player(|_| ()).is_none() {
             return;
         }
-        // TODO(fabric2seer): the mod keeps the game's `Inventory` (Java holds a reference to the live object); the port's `Inventory` is not a value to copy and the port lends the mod no handle to it
-        // TODO(fabric2seer): `set_screen` takes 14 argument(s) in the port (`gfx: &mut Minecraft, screen: &mut GuiScreen, screen_extra: &mut ScreenExtra, screen_stack: &mut Vec<HeldScreen>, screen_kind_before_pause: &mut Option<ScreenKind>, screen_is_open: &mut bool, level_screen_closed: &mut bool, frames_on_this_sc ..`), Java passes 1
+        //   java: CLIENT.gui.setScreen(new ContainerScreen(handler, CLIENT.player.getInventory(), parentName));
+        // rust: port gap - a mod cannot open the game's own `ContainerScreen` over the open menu (`game::set_screen` takes
+        // a `ModScreen`; `gui::set_screen` is the client loop's) (GAPS_K)
         // rust: gui::set_screen(&mut ContainerScreen::new(compat::read(__this, |__t| __t.handler.clone()).unwrap(), mcrust::mcrust::modding::game::with_player(|player| player.base.base.get_inventory().clone()).unwrap(), __this.lock().borrow().parent_name.get_string()));
     }
 
@@ -278,13 +317,19 @@ impl RadialMenuScreen {
         if false /* java: compat::minecraft().game_mode == null: never null here */ {
             return;
         }
-        // TODO(fabric2seer): `MultiPlayerGameMode.handleContainerInput` has no Rust method in the port (looked for `handle_container_input` in MultiPlayerGameMode and its supertypes)
-        // rust: mcrust::mcrust::modding::game::with_player(|player| { compat::minecraft().game_mode.handle_container_input(__this.lock().borrow().handler.as_ref().unwrap().container_id, slot_id.wrapping_add({ let __r = &compat::read(__this, |__t| __t.menu_type.clone()); let __f = compat::dispatch(__r, |__t| __t.click_slot_offset()); __f(__r, slot_id) }), ContainerUtils::get_container_click_button(({ let __r = &compat::read(__this, |__t| __t.menu_type.clone()); let __f = compat::dispatch(__r, |__t| __t.remap_click_slot_button()); __f(__r, button, slot_id.wrapping_add({ let __r = &compat::read(__this, |__t| __t.menu_type.clone()); let __f = compat::dispatch(__r, |__t| __t.click_slot_offset()); __f(__r, slot_id) })) })), ContainerInput::Pickup, player); });
+        //   java: CLIENT.gameMode.handleContainerInput(handler.containerId, slotId + menuType.clickSlotOffset(slotId), ContainerUtils.getContainerClickButton(menuType.remapClickSlotButton(button, slotId + menuType.clickSlotOffset(slotId))), ContainerInput.PICKUP, CLIENT.player);
+        let menu_type = compat::read(__this, |__t| __t.menu_type.clone());
+        let offset_slot: i32 = slot_id.wrapping_add({ let __f = compat::dispatch(&menu_type, |__t| __t.click_slot_offset()); __f(&menu_type, slot_id) });
+        let remapped_button: i32 = { let __f = compat::dispatch(&menu_type, |__t| __t.remap_click_slot_button()); __f(&menu_type, button, offset_slot) };
+        let container_id = compat::read(__this, |__t| __t.handler.as_ref().unwrap().container_id);
+        handle_container_input(container_id, offset_slot, ContainerUtils::get_container_click_button(remapped_button), ContainerInput::Pickup);
     }
 
     /// java: @Override public void slotChanged(AbstractContainerMenu handler, int slotId, ItemStack stack)
-    pub fn slot_changed(__this: &compat::Shared<Self>, handler: &AbstractContainerMenu, mut slot_id: i32, mut stack: mcrust::net::minecraft::world::item::item_stack::ItemStack) {
-        if compat::read(__this, |__t| __t.handler.clone()).is_none() || slot_id >= (__this.lock().borrow().handler.as_ref().unwrap().with(|__chest| __chest.get_row_count()).unwrap()).wrapping_mul(9) {
+    ///
+    /// (the port's `ContainerListener` is not handed the menu: it is `this.handler`, the one this screen was built over)
+    pub fn slot_changed(__this: &compat::Shared<Self>, mut slot_id: i32, mut stack: mcrust::net::minecraft::world::item::item_stack::ItemStack) {
+        if compat::read(__this, |__t| __t.handler.clone()).is_none() || slot_id >= compat::read(__this, |__t| __t.row_count).wrapping_mul(9) {
             return;
         }
         if { let __r = &compat::read(__this, |__t| __t.menu_type.clone()); let __f = compat::dispatch(__r, |__t| __t.item_matches()); __f(__r, slot_id, &stack) } {
@@ -343,7 +388,7 @@ impl ModScreen for compat::ScreenAdapter<RadialMenuScreen> {
 
     /// java: Screen.tick (the base body)
     fn tick(&mut self, screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen) {
-        self.lend(screen, |_| ())
+        self.lend(screen, |__h| RadialMenuScreen::drain_slot_changes(__h))
     }
 
     /// java: @Override public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a)
@@ -353,12 +398,18 @@ impl ModScreen for compat::ScreenAdapter<RadialMenuScreen> {
 
     /// java: @Override public boolean keyPressed(KeyEvent keyEvent)
     fn key_pressed(&mut self, screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, event: &mcrust::net::minecraft::client::input::key_event::KeyEvent) -> bool {
-        self.lend(screen, |__h| RadialMenuScreen::key_pressed(__h, event))
+        self.lend(screen, |__h| {
+            RadialMenuScreen::drain_slot_changes(__h);
+            RadialMenuScreen::key_pressed(__h, event)
+        })
     }
 
     /// java: @Override public boolean mouseClicked(MouseButtonEvent click, boolean doubled)
     fn mouse_clicked(&mut self, screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, x: f64, y: f64, button: i32) -> bool {
-        self.lend(screen, |__h| RadialMenuScreen::mouse_clicked(__h, &MouseButtonEvent::new(x, y, MouseButtonInfo::new(button, 0)), false))
+        self.lend(screen, |__h| {
+            RadialMenuScreen::drain_slot_changes(__h);
+            RadialMenuScreen::mouse_clicked(__h, &MouseButtonEvent::new(x, y, MouseButtonInfo::new(button, 0)), false)
+        })
     }
 
     /// java: @Override public void onClose()
@@ -369,3 +420,61 @@ impl ModScreen for compat::ScreenAdapter<RadialMenuScreen> {
 }
 
 // NOTE(fabric2seer): dataChanged, extractRenderState, init, keyPressed, mouseClicked, mouseMoved, onClose, slotChanged override(s) of Screen - the port dispatches its own calls, so these run only where the mod calls them; hook the port's method to make the game call them
+
+/// java: `RadialMenuScreen implements ContainerListener` - the listener the menu holds. The menu calls it inside the
+/// packet handler's hold of the player (`AbstractContainerMenu.broadcastChanges`), where the screen object cannot be
+/// reached, so it records the call for `RadialMenuScreen::drain_slot_changes`.
+struct SlotListener {
+    pending: Arc<Mutex<Vec<(i32, ItemStack)>>>,
+}
+
+impl std::fmt::Debug for SlotListener {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("RadialMenuScreen")
+    }
+}
+
+impl ContainerListener for SlotListener {
+    /// java: @Override public void slotChanged(AbstractContainerMenu handler, int slotId, ItemStack stack)
+    fn slot_changed(&mut self, slot_index: i32, item_stack: &ItemStack) {
+        self.pending.lock().unwrap_or_else(|p| p.into_inner()).push((slot_index, item_stack.duplicate()));
+    }
+
+    /// java: @Override public void dataChanged(AbstractContainerMenu handler, int property, int value) {}
+    fn data_changed(&mut self, id: i32, value: i32) {
+        let _ = (id, value);
+    }
+}
+
+/// `handler.addSlotListener(listener)` on the menu `fromPacket` built (not the player's yet): the port's takes the
+/// `Containers` its `broadcastChanges` reads - the chest's own and the player's inventory. The menu half is moved out
+/// of the `ChestMenu` for the call (the chest's containers borrow the rest of it) and put back.
+fn add_slot_listener(handler: &mut ChestMenu, listener: Box<dyn ContainerListener>) {
+    use mcrust::net::minecraft::world::entity::player::player::Player as _;
+    let container_id = handler.menu.container_id;
+    let mut menu = std::mem::replace(&mut handler.menu, AbstractContainerMenu::new(container_id));
+    mcrust::mcrust::modding::game::with_player(|player| {
+        let (_, _, inventory) = player.player_mut().get_container_menu_and_inventory();
+        let mut containers = handler.containers_for(inventory);
+        menu.add_slot_listener(listener, &mut containers);
+    });
+    handler.menu = menu;
+}
+
+/// `CLIENT.gameMode.handleContainerInput(containerId, slotId, buttonNum, containerInput, CLIENT.player)`: the port's
+/// `handleContainerInput:443-481` over the player (its `:445-447` check of the container id is made here - the port's
+/// body is handed the open menu's own id), then `:480`'s send.
+fn handle_container_input(container_id: i32, slot_id: i32, button_num: i32, container_input: ContainerInput) {
+    use mcrust::net::minecraft::client::multiplayer::multi_player_game_mode;
+    use mcrust::net::minecraft::world::entity::player::player::Player as _;
+    let packet = mcrust::mcrust::modding::game::with_player(|player| {
+        let open_container_id = player.player().container_menu_container_id();
+        if container_id != open_container_id {
+            logger().warn(&format!("Ignoring click in mismatching container. Click in {}, player has {}.", container_id, open_container_id));
+            return None;
+        }
+        multi_player_game_mode::handle_container_input_on_player(&mut compat::minecraft().game_mode, player, slot_id, button_num, container_input)
+    })
+    .flatten();
+    multi_player_game_mode::send_container_click(packet, container_input, slot_id, button_num);
+}

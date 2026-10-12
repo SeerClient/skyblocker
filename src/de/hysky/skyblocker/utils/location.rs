@@ -6,10 +6,8 @@ use crate::de::hysky::skyblocker::utils::codec_utils::CodecUtils;
 use mcrust::com::mojang::serialization::codec::Codec;
 use mcrust::com::mojang::serialization::codec::CodecRef;
 
-// TODO(fabric2seer): `from_enum` takes 2 argument(s) in the port (`values: Vec<E>, serialized_name: impl Fn(&E) -> String + Send + Sync + Copy + 'static`), Java passes 1
-//   java: public static final Codec<Location> CODEC = StringRepresentable.fromEnum(Location::values);
 /// java: public static final Codec<Location> CODEC = StringRepresentable.fromEnum(Location::values);
-pub static CODEC: compat::MainThread<CodecRef<Location>> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `CODEC` - see the TODO above"));
+pub static CODEC: compat::MainThread<CodecRef<Location>> = compat::MainThread::new(|| mcrust::net::minecraft::util::string_representable::from_enum(Location::values(), |e: &Location| e.get_serialized_name()));
 /// java: public static final Codec<EnumSet<Location>> SET_CODEC = CodecUtils.enumSetCodec(CODEC, Location.class);
 pub static SET_CODEC: compat::MainThread<CodecRef<std::collections::HashSet<Location>>> = compat::MainThread::new(|| CodecUtils::enum_set_codec(CODEC.get_mut(), &std::any::TypeId::of::<Location>()));
 

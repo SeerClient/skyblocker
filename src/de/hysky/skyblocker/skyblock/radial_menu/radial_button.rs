@@ -110,7 +110,8 @@ impl RadialButton {
             if compat::minecraft().gui.screen().is_some() && compat::minecraft().gui.screen().unwrap().get_title().to_string() == "Storage" {
                 BackpackPreview::extract_preview(graphics, &compat::minecraft().gui.screen().unwrap(), self.linked_slot, mouse_x, mouse_y);
             } else {
-                // TODO(fabric2seer): `GuiGraphicsExtractor.setTooltipForNextFrame` has no Rust method in the port (looked for `set_tooltip_for_next_frame` in GuiGraphicsExtractor and its supertypes)
+                //   java: graphics.setTooltipForNextFrame(CLIENT.font, icon, mouseX, mouseY);
+                // rust: port gap - the frame's `DeferredTooltip` is not reachable from a `ModWidget`'s draw (GAPS_batchE #1)
                 // rust: graphics.set_tooltip_for_next_frame(&compat::font(), &self.icon, mouse_x, mouse_y);
             }
         }
@@ -133,10 +134,9 @@ impl RadialButton {
     }
 
     /// java: @Override public Collection<? extends NarratableEntry> getNarratables()
-    pub fn get_narratables(&self) -> Vec<Box<dyn NarratableEntry>> {
-        // TODO(fabric2seer): `.getNarratables(..)` on a value of unknown type
-        //   java: return NarratableEntry.super.getNarratables();
-        todo!("fabric2seer: the value of this function is in a TODO above")
+    pub fn get_narratables(&self) -> Vec<&dyn NarratableEntry> {
+        //   java: return NarratableEntry.super.getNarratables(); - `List.of(this)`
+        return vec![self as &dyn NarratableEntry];
     }
 
     /// java: @Override public void updateNarration(NarrationElementOutput builder)
@@ -225,5 +225,29 @@ impl mcrust::mcrust::modding::widgets::ModWidget for RadialButtonWidget {
     /// java: @Override public NarrationPriority narrationPriority()
     fn narration_priority(&self, _widget: &AbstractWidget, _super_answer: mcrust::net::minecraft::client::gui::narration::narratable_entry::NarrationPriority) -> mcrust::net::minecraft::client::gui::narration::narratable_entry::NarrationPriority {
         self.button.get().narration_priority()
+    }
+}
+
+/// java: `RadialButton implements NarratableEntry` (and `NarrationSupplier`, `TabOrderedElement`, which it extends): the
+/// overrides above
+impl mcrust::net::minecraft::client::gui::narration::narration_supplier::NarrationSupplier for RadialButton {
+    fn update_narration(&self, output: &mut dyn NarrationElementOutput) {
+        RadialButton::update_narration(self, output)
+    }
+}
+
+impl mcrust::net::minecraft::client::gui::components::tab_ordered_element::TabOrderedElement for RadialButton {}
+
+impl NarratableEntry for RadialButton {
+    fn narration_priority(&self) -> mcrust::net::minecraft::client::gui::narration::narratable_entry::NarrationPriority {
+        RadialButton::narration_priority(self)
+    }
+
+    fn is_active(&self) -> bool {
+        RadialButton::is_active(self)
+    }
+
+    fn get_narratables(&self) -> Vec<&dyn NarratableEntry> {
+        RadialButton::get_narratables(self)
     }
 }

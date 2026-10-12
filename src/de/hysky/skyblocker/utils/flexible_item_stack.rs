@@ -26,10 +26,9 @@ use mcrust::net::minecraft::core::typed_instance::TypedInstance as _;
 
 /// java: private static final Codec<FlexibleItemStack> MAP_CODEC = RecordCodecBuilder.create(instance -> instance.group( Item.CODEC.fieldOf(FIELD_ID).forGetter(FlexibleItemStack::typeHolder), ExtraCodecs.intRa
 pub static MAP_CODEC: compat::MainThread<CodecRef<compat::Shared<FlexibleItemStack>>> = compat::MainThread::new(|| record_codec_builder::create(record_codec_builder::apply3(record_codec_builder::of(|o: &compat::Shared<FlexibleItemStack>| FlexibleItemStack::type_holder(o), codec::field_of(codec::xmap(mcrust::net::minecraft::world::item::item::codec(), |item: Arc<Item>| Holder::Reference(item.built_in_registry_holder()), |holder: &Holder| item_of(holder)), FIELD_ID)), record_codec_builder::of(|o: &compat::Shared<FlexibleItemStack>| FlexibleItemStack::count(o), codec::optional_field_of(extra_codecs::int_range(1, mcrust::net::minecraft::world::item::item::ABSOLUTE_MAX_STACK_SIZE), FIELD_COUNT, 1)), record_codec_builder::of(|o: &compat::Shared<FlexibleItemStack>| FlexibleItemStack::components(o), codec::optional_field_of(mcrust::net::minecraft::core::component::data_component_patch::codec(), FIELD_COMPONENTS, mcrust::net::minecraft::core::component::data_component_patch::empty())), move |__a0, __a1, __a2| FlexibleItemStack::new(__a0.clone(), __a1.clone(), Some(__a2.clone())))));
-// TODO(fabric2seer): `.value(..)` on a U
-//   java: public static final Codec<FlexibleItemStack> CODEC = Codec.withAlternative(MAP_CODEC, Item.CODEC, item -> new FlexibleItemStack(item.value()));
 /// java: public static final Codec<FlexibleItemStack> CODEC = Codec.withAlternative(MAP_CODEC, Item.CODEC, item -> new FlexibleItemStack(item.value()));
-pub static CODEC: compat::MainThread<CodecRef<compat::Shared<FlexibleItemStack>>> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `CODEC` - see the TODO above"));
+pub static CODEC: compat::MainThread<CodecRef<compat::Shared<FlexibleItemStack>>> = compat::MainThread::new(|| codec::with_alternative_mapped(MAP_CODEC.get().clone(), mcrust::net::minecraft::world::item::item::codec(), |item: Arc<Item>| FlexibleItemStack::new2(item)));
+// (the port's `Item.CODEC` answers the holder's value: `item.value()` above is the item itself)
 /// java: public static final FlexibleItemStack EMPTY = new FlexibleItemStack((Void) null);
 pub static EMPTY: compat::MainThread<compat::Shared<FlexibleItemStack>> = compat::MainThread::new(|| FlexibleItemStack::new5(None));
 /// java: private static final DataComponentGetter FALLBACK_COMPONENT_GETTER = new FallbackComponentGetter();
@@ -279,9 +278,10 @@ impl SkyblockerStack for FlexibleItemStack {
         if self.skyblock_id.is_some() && !(self.skyblock_id.as_ref().unwrap().is_empty()) {
             return self.skyblock_id.clone().unwrap();
         }
-        // TODO(fabric2seer): an assignment used as a value
-        //   java: return this.skyblockId = ItemUtils.getItemId(this);
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        // java: return this.skyblockId = ItemUtils.getItemId(this);
+        // The cache field cannot be written here: the getter is handed `&self` while the object's cell is borrowed
+        // (Java's write is a memo - the value is recomputed instead, the same answer).
+        crate::de::hysky::skyblocker::utils::item_utils::ItemUtils::get_item_id(self)
     }
 
     /// java: @SuppressWarnings("deprecation") @Override public String getSkyblockApiId()
@@ -289,9 +289,10 @@ impl SkyblockerStack for FlexibleItemStack {
         if self.skyblock_api_id.is_some() && !(self.skyblock_api_id.as_ref().unwrap().is_empty()) {
             return self.skyblock_api_id.clone().unwrap();
         }
-        // TODO(fabric2seer): an assignment used as a value
-        //   java: return this.skyblockApiId = ItemUtils.getSkyblockApiId(this);
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        // java: return this.skyblockApiId = ItemUtils.getSkyblockApiId(this);
+        // The cache field cannot be written here: the getter is handed `&self` while the object's cell is borrowed
+        // (Java's write is a memo - the value is recomputed instead, the same answer).
+        crate::de::hysky::skyblocker::utils::item_utils::ItemUtils::get_skyblock_api_id(self)
     }
 
     /// java: @SuppressWarnings("deprecation") @Override public String getNeuName()
@@ -299,9 +300,10 @@ impl SkyblockerStack for FlexibleItemStack {
         if self.neu_name.is_some() && !(self.neu_name.as_ref().unwrap().is_empty()) {
             return self.neu_name.clone().unwrap();
         }
-        // TODO(fabric2seer): an assignment used as a value
-        //   java: return this.neuName = ItemUtils.getNeuId(this);
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        // java: return this.neuName = ItemUtils.getNeuId(this);
+        // The cache field cannot be written here: the getter is handed `&self` while the object's cell is borrowed
+        // (Java's write is a memo - the value is recomputed instead, the same answer).
+        crate::de::hysky::skyblocker::utils::item_utils::ItemUtils::get_neu_id(self)
     }
 
     /// java: @SuppressWarnings("deprecation") @Override public String getUuid()
@@ -309,9 +311,10 @@ impl SkyblockerStack for FlexibleItemStack {
         if self.uuid.is_some() {
             return self.uuid.clone().unwrap();
         }
-        // TODO(fabric2seer): an assignment used as a value
-        //   java: return this.uuid = ItemUtils.getItemUuid(this);
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        // java: return this.uuid = ItemUtils.getItemUuid(this);
+        // The cache field cannot be written here: the getter is handed `&self` while the object's cell is borrowed
+        // (Java's write is a memo - the value is recomputed instead, the same answer).
+        crate::de::hysky::skyblocker::utils::item_utils::ItemUtils::get_item_uuid(self)
     }
 
     /// java: @SuppressWarnings("deprecation") @Override public List<String> skyblocker$getLoreStrings()
@@ -319,9 +322,10 @@ impl SkyblockerStack for FlexibleItemStack {
         if self.lore_strings.is_some() {
             return self.lore_strings.clone().unwrap();
         }
-        // TODO(fabric2seer): an assignment used as a value
-        //   java: return this.loreStrings = ItemUtils.getLore(this).stream().map(Component::getString).toList();
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        // java: return this.loreStrings = ItemUtils.getLore(this).stream().map(Component::getString).toList();
+        // The cache field cannot be written here: the getter is handed `&self` while the object's cell is borrowed
+        // (Java's write is a memo - the value is recomputed instead, the same answer).
+        { use mcrust::net::minecraft::network::chat::component::Component as _; crate::de::hysky::skyblocker::utils::item_utils::ItemUtils::get_lore(self).iter().map(|line| line.get_string()).collect::<Vec<String>>() }
     }
 
     /// java: @SuppressWarnings("deprecation") @Override public List<ItemAbility> skyblocker$getAbilities()
@@ -329,9 +333,10 @@ impl SkyblockerStack for FlexibleItemStack {
         if self.abilities.is_some() {
             return self.abilities.clone().unwrap();
         }
-        // TODO(fabric2seer): an assignment used as a value
-        //   java: return this.abilities = ItemAbility.getAbilities(this);
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        // java: return this.abilities = ItemAbility.getAbilities(this);
+        // The cache field cannot be written here: the getter is handed `&self` while the object's cell is borrowed
+        // (Java's write is a memo - the value is recomputed instead, the same answer).
+        ItemAbility::get_abilities(self)
     }
 
     /// java: @SuppressWarnings("deprecation") @Override public PetInfo getPetInfo()
@@ -339,9 +344,10 @@ impl SkyblockerStack for FlexibleItemStack {
         if self.pet_info.is_some() {
             return self.pet_info.clone().unwrap();
         }
-        // TODO(fabric2seer): an assignment used as a value
-        //   java: return this.petInfo = ItemUtils.getPetInfo(this);
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        // java: return this.petInfo = ItemUtils.getPetInfo(this);
+        // The cache field cannot be written here: the getter is handed `&self` while the object's cell is borrowed
+        // (Java's write is a memo - the value is recomputed instead, the same answer).
+        crate::de::hysky::skyblocker::utils::item_utils::ItemUtils::get_pet_info(self)
     }
 
     /// java: @SuppressWarnings("deprecation") @Override public SkyblockItemRarity getSkyblockRarity()
@@ -349,9 +355,10 @@ impl SkyblockerStack for FlexibleItemStack {
         if self.skyblock_rarity.is_some() {
             return self.skyblock_rarity.clone().unwrap();
         }
-        // TODO(fabric2seer): an assignment used as a value
-        //   java: return this.skyblockRarity = ItemUtils.getItemRarity(this);
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        // java: return this.skyblockRarity = ItemUtils.getItemRarity(this);
+        // The cache field cannot be written here: the getter is handed `&self` while the object's cell is borrowed
+        // (Java's write is a memo - the value is recomputed instead, the same answer).
+        crate::de::hysky::skyblocker::utils::item_utils::ItemUtils::get_item_rarity(self)
     }
 
 }
@@ -366,6 +373,25 @@ impl DataComponentGetter for FlexibleItemStack {
         } else {
             self.components.as_ref().unwrap().get(&*FALLBACK_COMPONENT_GETTER, r#type)
         }
+    }
+
+    /// `getter instanceof FlexibleItemStack` (an owned implementer, see the port's trait).
+    fn as_any(&self) -> Option<&dyn std::any::Any> {
+        Some(self)
+    }
+}
+
+/// java: `FlexibleItemStack implements ItemInstance`: `count()`.
+impl mcrust::net::minecraft::world::item::item_instance::ItemInstance for FlexibleItemStack {
+    fn count(&self) -> i32 {
+        self.count
+    }
+}
+
+/// java: `ItemInstance extends TypedInstance<Item>`: `typeHolder()`.
+impl mcrust::net::minecraft::core::typed_instance::TypedInstance for FlexibleItemStack {
+    fn type_holder(&self) -> Holder {
+        self.item.clone().unwrap()
     }
 }
 

@@ -116,10 +116,10 @@ impl RenderHelper {
     }
 
     /// java: public static Camera getCamera()
-    pub fn get_camera() -> Camera {
-        // TODO(fabric2seer): the mod keeps the game's `Camera` (Java holds a reference to the live object); the port's `Camera` is not a value to copy and the port lends the mod no handle to it
-        // rust: return compat::minecraft().game_renderer.main_camera().clone();
-        return todo!("fabric2seer: see the TODO above");
+    pub fn get_camera() -> &'static Camera {
+        // java: return CLIENT.gameRenderer.mainCamera(); - the live object, by reference
+        // (`Minecraft.gameRenderer` is a field of the port's `Minecraft`).
+        return compat::minecraft().game_renderer.main_camera();
     }
 
     /// java: public static @Nullable AABB getBlockBoundingBox(ClientLevel world, BlockPos pos)

@@ -29,7 +29,21 @@ pub fn from(name: &str) -> compat::Shared<dyn Area> {
     //   java: 				.filter(area -> area.displayName().equals(name))
     //   java: 				.findFirst()
     //   java: 				.orElse(UNKNOWN);
-    todo!("fabric2seer: the value of this function is in a TODO above")
+    // `getPermittedSubclasses()` answers the sealed interface's subclasses in source order; only the enums
+    // contribute constants (the Unknown record is the fallback anyway).
+    macro_rules! find_in {
+        ($($e:ident),*) => {
+            $(
+                for area in $e::values() {
+                    if area.display_name() == name {
+                        return compat::shared(area) as compat::Shared<dyn Area>;
+                    }
+                }
+            )*
+        };
+    }
+    find_in!(PrivateIsland, Hub, TheFarmingIslands, Galatea, TorrhusCanyon, TheEnd, CrimsonIsle, DwarvenMines, CrystalHollows, TheRift);
+    return UNKNOWN.get().clone();
 }
 
 /// java: @Deprecated record Unknown() implements Area

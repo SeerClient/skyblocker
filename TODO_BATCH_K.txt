@@ -1,0 +1,17 @@
+src/de/hysky/skyblocker/skyblock/dungeon/
+src/de/hysky/skyblocker/skyblock/chat/
+src/de/hysky/skyblocker/skyblock/
+src/de/hysky/skyblocker/skyblock/auction/
+src/de/hysky/skyblocker/debug/
+src/de/hysky/skyblocker/skyblock/fancybars/
+src/de/hysky/skyblocker/config/categories/
+src/de/hysky/skyblocker/utils/ws/
+src/de/hysky/skyblocker/utils/time/
+src/de/hysky/skyblocker/skyblock/radial_menu/
+src/entry/
+src/de/hysky/skyblocker/compatibility/emi/
+src/de/hysky/skyblocker/skyblock/events/
+src/de/hysky/skyblocker/skyblock/shortcut/
+src/de/hysky/skyblocker/config/datafixer/
+src/de/hysky/skyblocker/skyblock/carnival/
+src/de/hysky/skyblocker/utils/mayor/

@@ -1,0 +1,16 @@
+src/de/hysky/skyblocker/skyblock/item/
+src/de/hysky/skyblocker/skyblock/waypoint/
+src/de/hysky/skyblocker/utils/
+src/de/hysky/skyblocker/
+src/de/hysky/skyblocker/config/backup/
+src/de/hysky/skyblocker/config/
+src/de/hysky/skyblocker/skyblock/speedpreset/
+src/de/hysky/skyblocker/utils/config/
+src/de/hysky/skyblocker/skyblock/bazaar/
+src/de/hysky/skyblocker/skyblock/foraging/
+src/de/hysky/skyblocker/skyblock/end/
+src/de/hysky/skyblocker/skyblock/slayers/
+src/
+src/de/hysky/skyblocker/skyblock/special/
+src/de/hysky/skyblocker/config/screens/
+src/de/hysky/skyblocker/skyblock/fishing/

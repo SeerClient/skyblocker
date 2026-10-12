@@ -6,7 +6,7 @@ use crate::prelude::*;
 // TODO(fabric2seer): call to `values(..)` (not a method of this class)
 //   java: private static final Map<String, DungeonBoss> BOSSES = Arrays.stream(values()).collect(Collectors.toUnmodifiableMap(DungeonBoss::message, Function.identity()));
 /// java: private static final Map<String, DungeonBoss> BOSSES = Arrays.stream(values()).collect(Collectors.toUnmodifiableMap(DungeonBoss::message, Function.identity()));
-pub static BOSSES: LazyLock<std::collections::HashMap<String, DungeonBoss>> = LazyLock::new(|| todo!("fabric2seer: the initialiser of `BOSSES` - see the TODO above"));
+pub static BOSSES: LazyLock<std::collections::HashMap<String, DungeonBoss>> = LazyLock::new(|| DungeonBoss::VALUES.iter().map(|b| (b.message(), *b)).collect());
 
 /// java: public enum DungeonBoss
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]

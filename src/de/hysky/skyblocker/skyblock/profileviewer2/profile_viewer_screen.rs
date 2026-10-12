@@ -211,13 +211,17 @@ impl ProfileViewerScreen {
             if only_selected && compat::read(__this, |__t| __t.tab_widgets.iter().position(|e| std::sync::Arc::ptr_eq(e, &tab_widget)).map_or(-1, |i| i as i32)) != compat::read(__this, |__t| __t.selected_page_index) {
                 continue;
             }
-            // TODO(fabric2seer): `extract_render_state` is a method of the port's trait `Renderable`, which the port's `AbstractWidget` does not implement
-            // rust: let __wa1 = graphics.clone();
-            // rust: let __wa2 = mouse_x;
-            // rust: let __wa3 = mouse_y;
-            // rust: let __wa4 = a;
-            // rust: let __o1 = tab_widget.clone();
-            // rust: compat::write(&__o1, |__t| __t.extract_render_state(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), __wa2, __wa3, __wa4));
+            //   java: tabWidget.extractRenderState(graphics, mouseX, mouseY, a);
+            // `AbstractWidget.extractRenderState:55-61` over the tab's own widget half (the screen draws its tabs itself;
+            // they are not in its widget list): `if (this.visible) { this.isHovered = ..; this.extractWidgetRenderState(..) }`.
+            let visible: bool = compat::write(&tab_widget, |__t| {
+                let widget: &mut AbstractWidget = &mut __t.base.base;
+                widget.set_hovered_from_extract(mouse_x, mouse_y);
+                widget.visible
+            });
+            if visible {
+                PageTabWidget::extract_widget_render_state(&tab_widget, graphics, mouse_x, mouse_y, a);
+            }
         }
     }
 
@@ -250,10 +254,14 @@ impl ProfileViewerScreen {
         ProfileViewerScreen::extract_tab_buttons(__this, graphics, mouse_x, mouse_y, a, true);
         let mut selected_page: compat::Shared<dyn ProfileViewerPageAny> = ProfileViewerScreen::get_selected_page(__this);
         if compat::read(__this, |__t| __t.loaded_pages.iter().any(|p| std::sync::Arc::ptr_eq(p, &selected_page))) {
+            //   java: for (AbstractWidget widget : selectedPage.getWidgets()) widget.extractRenderState(graphics, mouseX, mouseY, a);
+            // The page's widgets are game widgets the screen draws itself: held in a `Screen` for the call and drawn by the
+            // widget pass (`WidgetRenderContext::extract_widgets` - `extractRenderState:56-62`'s hover test, then the pass).
+            let mut __page_widgets = mcrust::net::minecraft::client::gui::screens::screen::Screen::new(String::new());
             for widget in compat::read(&selected_page, |__p| __p.get_widgets()) {
-                // TODO(fabric2seer): `extract_render_state` is a method of the port's trait `Renderable`, which the port's `AbstractWidget` does not implement
-                // rust: widget.extract_render_state(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), mouse_x, mouse_y, a);
+                __page_widgets.add_renderable_widget(widget);
             }
+            mcrust::mcrust::modding::widgets::WidgetRenderContext::new(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft()).extract_widgets(&mut __page_widgets, mouse_x, mouse_y);
         } else {
             let mut centre_x: i32 = ({ let __f = compat::dispatch(__this, |__t| __t.get_background_x()); __f(&compat::view(__this, |a| a as compat::Shared<dyn AbstractProfileViewerScreen>)) }).wrapping_add((abstract_profile_viewer_screen::BACKGROUND_WIDTH).wrapping_div(2));
             let mut centre_y: i32 = ({ let __f = compat::dispatch(__this, |__t| __t.get_background_y()); __f(&compat::view(__this, |a| a as compat::Shared<dyn AbstractProfileViewerScreen>)) }).wrapping_add((abstract_profile_viewer_screen::BACKGROUND_HEIGHT).wrapping_div(2));

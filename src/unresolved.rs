@@ -130,8 +130,16 @@ pub struct EntryRegistry;
 pub struct EntryStack;
 /// TODO(fabric2seer): java net.azureaaron.dandelion.api.controllers.EnumController
 pub struct EnumController;
-/// TODO(fabric2seer): java net.azureaaron.hmapi.data.server.Environment
-pub struct Environment;
+/// java net.azureaaron.hmapi.data.server.Environment (the hm-api library, ported here: it is three constants)
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum Environment {
+    /// The main server network (e.g. mc.hypixel.net)
+    Production,
+    /// The alpha server (alpha.hypixel.net)
+    Beta,
+    /// Hypixel's internal developer server
+    Test,
+}
 /// TODO(fabric2seer): java net.fabricmc.fabric.api.event.Event
 pub struct Event;
 /// TODO(fabric2seer): java java.lang.Exception
@@ -358,11 +366,149 @@ pub struct Program;
 pub struct QuadEmitter;
 /// TODO(fabric2seer): java java.util.Random
 pub struct Random;
-/// TODO(fabric2seer): java net.azureaaron.hmapi.data.rank.RankType
-pub struct RankType;
-/// TODO(fabric2seer): java io.github.moulberry.repo.data.Rarity (an enum of the NEU repo library, which is not ported)
+/// java net.azureaaron.hmapi.data.rank.PlayerRank (hm-api)
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub struct Rarity;
+pub enum PlayerRank {
+    Normal,
+    Youtuber,
+    GameMaster,
+    Admin,
+}
+
+impl PlayerRank {
+    pub const VALUES: [PlayerRank; 4] = [PlayerRank::Normal, PlayerRank::Youtuber, PlayerRank::GameMaster, PlayerRank::Admin];
+
+    /// java: public int id()
+    pub fn id(self) -> i32 {
+        match self {
+            PlayerRank::Normal => 1,
+            PlayerRank::Youtuber => 2,
+            PlayerRank::GameMaster => 3,
+            PlayerRank::Admin => 4,
+        }
+    }
+
+    /// java: BY_ID = ByIdMap.sparse(PlayerRank::id, values(), NORMAL)
+    pub fn by_id(id: i32) -> PlayerRank {
+        Self::VALUES.into_iter().find(|r| r.id() == id).unwrap_or(PlayerRank::Normal)
+    }
+}
+
+/// java net.azureaaron.hmapi.data.rank.PackageRank (hm-api)
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum PackageRank {
+    None,
+    Vip,
+    VipPlus,
+    Mvp,
+    MvpPlus,
+}
+
+impl PackageRank {
+    pub const VALUES: [PackageRank; 5] = [PackageRank::None, PackageRank::Vip, PackageRank::VipPlus, PackageRank::Mvp, PackageRank::MvpPlus];
+
+    /// java: public int id()
+    pub fn id(self) -> i32 {
+        match self {
+            PackageRank::None => 1,
+            PackageRank::Vip => 2,
+            PackageRank::VipPlus => 3,
+            PackageRank::Mvp => 4,
+            PackageRank::MvpPlus => 5,
+        }
+    }
+
+    /// java: BY_ID = ByIdMap.sparse(PackageRank::id, values(), NONE)
+    pub fn by_id(id: i32) -> PackageRank {
+        Self::VALUES.into_iter().find(|r| r.id() == id).unwrap_or(PackageRank::None)
+    }
+}
+
+/// java net.azureaaron.hmapi.data.rank.MonthlyPackageRank (hm-api)
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum MonthlyPackageRank {
+    None,
+    /// MVP++
+    Superstar,
+}
+
+impl MonthlyPackageRank {
+    pub const VALUES: [MonthlyPackageRank; 2] = [MonthlyPackageRank::None, MonthlyPackageRank::Superstar];
+
+    /// java: public int id()
+    pub fn id(self) -> i32 {
+        match self {
+            MonthlyPackageRank::None => 1,
+            MonthlyPackageRank::Superstar => 2,
+        }
+    }
+
+    /// java: BY_ID = ByIdMap.sparse(MonthlyPackageRank::id, values(), NONE)
+    pub fn by_id(id: i32) -> MonthlyPackageRank {
+        Self::VALUES.into_iter().find(|r| r.id() == id).unwrap_or(MonthlyPackageRank::None)
+    }
+}
+
+/// java net.azureaaron.hmapi.data.rank.RankType (hm-api): `sealed interface RankType permits MonthlyPackageRank,
+/// PackageRank, PlayerRank` - a value of one of the three enums.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum RankType {
+    Player(PlayerRank),
+    Package(PackageRank),
+    Monthly(MonthlyPackageRank),
+}
+
+impl RankType {
+    /// java: static RankType getEffectiveRank(PlayerRank baseRank, PackageRank packageRank, MonthlyPackageRank monthlyPackageRank)
+    pub fn get_effective_rank(base_rank: PlayerRank, package_rank: PackageRank, monthly_package_rank: MonthlyPackageRank) -> RankType {
+        match base_rank {
+            // Staff ranks take precedence
+            PlayerRank::Youtuber | PlayerRank::GameMaster | PlayerRank::Admin => RankType::Player(base_rank),
+            PlayerRank::Normal => match monthly_package_rank {
+                MonthlyPackageRank::None => RankType::Package(package_rank),
+                MonthlyPackageRank::Superstar => RankType::Monthly(monthly_package_rank),
+            },
+        }
+    }
+
+    /// java: static int compare(RankType first, RankType second)
+    pub fn compare(first: RankType, second: RankType) -> i32 {
+        RankType::get_rank_weight(first).cmp(&RankType::get_rank_weight(second)) as i32
+    }
+
+    /// java: private static int getRankWeight(RankType rank)
+    fn get_rank_weight(rank: RankType) -> i32 {
+        match rank {
+            RankType::Player(PlayerRank::Normal) | RankType::Monthly(MonthlyPackageRank::None) => -1,
+            RankType::Package(PackageRank::None) => 0,
+            RankType::Package(PackageRank::Vip) => 1,
+            RankType::Package(PackageRank::VipPlus) => 2,
+            RankType::Package(PackageRank::Mvp) => 3,
+            RankType::Package(PackageRank::MvpPlus) => 4,
+            RankType::Monthly(MonthlyPackageRank::Superstar) => 5,
+            RankType::Player(PlayerRank::Youtuber) => 6,
+            RankType::Player(PlayerRank::GameMaster) => 7,
+            RankType::Player(PlayerRank::Admin) => 8,
+        }
+    }
+}
+/// java io.github.moulberry.repo.data.Rarity - an enum of the NEU repo library (the rest of the library is not
+/// ported, GAPS_batchB L1). Its constants are the ones the mod names (`SkyblockItemRarity.toNeuRarity`, the pet
+/// tables); the library's declaration order is not on disk, so the enum derives no ordering.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum Rarity {
+    Common,
+    Uncommon,
+    Rare,
+    Epic,
+    Legendary,
+    Mythic,
+    Divine,
+    Special,
+    VerySpecial,
+    Supreme,
+    Unknown,
+}
 /// TODO(fabric2seer): java de.hysky.skyblocker.mixins.accessors.RecipeBookComponentAccessor
 pub struct RecipeBookComponentAccessor;
 /// TODO(fabric2seer): java me.shedaniel.math.Rectangle

@@ -90,7 +90,7 @@ impl CroesusProfit {
                     let mut chest_cost: String = compat::regex::replace_all(&(line_string.replace(",", "")), "[^\\d.]", "");
                     // TODO(fabric2seer): the condition: static call NumberUtils.isCreatable(..)
                     //   java: !NumberUtils.isCreatable(chestCost)
-                    if todo!("fabric2seer: the condition (TODO above)") {
+                    if !is_creatable(&chest_cost) {
                         continue;
                     }
                     chest_price = chest_cost.trim().parse::<f64>().expect("NumberFormatException");
@@ -370,4 +370,82 @@ impl CroesusProfit {
         Self::get_priority_impl(&compat::view_as::<Self, _, Self>(__this, |a| a))
     }
 
+}
+
+/// commons-lang3 `NumberUtils.isCreatable(str)`, statement for statement (private: batch K helper).
+fn is_creatable(str: &str) -> bool {
+    if str.is_empty() {
+        return false;
+    }
+    let chars: Vec<char> = str.chars().collect();
+    let mut sz = chars.len();
+    let mut has_exp = false;
+    let mut has_dec_point = false;
+    let mut allow_signs = false;
+    let mut found_digit = false;
+    let start = if chars[0] == '-' || chars[0] == '+' { 1 } else { 0 };
+    if sz > start + 1 && chars[start] == '0' && !str.contains('.') {
+        if chars[start + 1] == 'x' || chars[start + 1] == 'X' {
+            let i = start + 2;
+            if i == sz {
+                return false;
+            }
+            return chars[i..].iter().all(|c| c.is_ascii_hexdigit());
+        }
+        if chars[start + 1].is_numeric() {
+            return chars[start + 1..].iter().all(|c| ('0'..='7').contains(c));
+        }
+    }
+    sz -= 1;
+    let mut i = start;
+    while i < sz || (i < sz + 1 && allow_signs && !found_digit) {
+        let c = chars[i];
+        if c.is_ascii_digit() {
+            found_digit = true;
+            allow_signs = false;
+        } else if c == '.' {
+            if has_dec_point || has_exp {
+                return false;
+            }
+            has_dec_point = true;
+        } else if c == 'e' || c == 'E' {
+            if has_exp || !found_digit {
+                return false;
+            }
+            has_exp = true;
+            allow_signs = true;
+        } else if c == '+' || c == '-' {
+            if !allow_signs {
+                return false;
+            }
+            allow_signs = false;
+            found_digit = false;
+        } else {
+            return false;
+        }
+        i += 1;
+    }
+    if i < chars.len() {
+        let c = chars[i];
+        if c.is_ascii_digit() {
+            return true;
+        }
+        if c == 'e' || c == 'E' {
+            return false;
+        }
+        if c == '.' {
+            if has_dec_point || has_exp {
+                return false;
+            }
+            return found_digit;
+        }
+        if !allow_signs && (c == 'd' || c == 'D' || c == 'f' || c == 'F') {
+            return found_digit;
+        }
+        if c == 'l' || c == 'L' {
+            return found_digit && !has_exp && !has_dec_point;
+        }
+        return false;
+    }
+    !allow_signs && found_digit
 }

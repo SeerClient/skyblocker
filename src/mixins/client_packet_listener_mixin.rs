@@ -21,13 +21,10 @@ fn skyblocker_on_entity_tracker_update(ci: &mut CallbackInfo<'_>) {
         crate::de::hysky::skyblocker::skyblock::slayers::boss::demonlord::fire_pillar_announcer::FirePillarAnnouncer::check_fire_pillar(entity);
         // java: CorpseFinder.checkIfCorpse(armorStandEntity) - the ArmorStand overload
         crate::de::hysky::skyblocker::skyblock::dwarven::corpse_finder::CorpseFinder::check_if_corpse_armor_stand(armor_stand_entity);
-        // TODO(fabric2seer): the mod keeps the game's `ArmorStand` (Java holds a reference to the live object); the port's `ArmorStand` is not a value to copy and the port lends the mod no handle to it
-        // rust: crate::de::hysky::skyblocker::skyblock::health_bars::HealthBars::health_bar(armor_stand_entity.clone());
-        // TODO(fabric2seer): the mod keeps the game's `ArmorStand` (Java holds a reference to the live object); the port's `ArmorStand` is not a value to copy and the port lends the mod no handle to it
-        // rust: crate::de::hysky::skyblocker::skyblock::fishing::sea_creature_tracker::SeaCreatureTracker::on_entity_spawn(armor_stand_entity.clone());
+        crate::de::hysky::skyblocker::skyblock::health_bars::HealthBars::health_bar(armor_stand_entity);
+        crate::de::hysky::skyblocker::skyblock::fishing::sea_creature_tracker::SeaCreatureTracker::on_entity_spawn(armor_stand_entity);
         crate::de::hysky::skyblocker::skyblock::fishing::fishing_helper::FishingHelper::check_if_fish_was_caught(armor_stand_entity);
-        // TODO(fabric2seer): the mod keeps the game's `ArmorStand` (Java holds a reference to the live object); the port's `ArmorStand` is not a value to copy and the port lends the mod no handle to it
-        // rust: crate::de::hysky::skyblocker::skyblock::foraging::galatea::tree_break_progress_hud::TreeBreakProgressHud::on_entity_update(armor_stand_entity.clone());
+        crate::de::hysky::skyblocker::skyblock::foraging::galatea::tree_break_progress_hud::TreeBreakProgressHud::on_entity_update(armor_stand_entity);
         crate::de::hysky::skyblocker::skyblock::hunting::lasso_hud::LassoHud::on_entity_update(armor_stand_entity);
         // java: try {..} catch (Exception e) - an exception here is a panic, caught by `catch_unwind`
         let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
@@ -36,8 +33,7 @@ fn skyblocker_on_entity_tracker_update(ci: &mut CallbackInfo<'_>) {
         if let Err(e) = __result {
             logger().error(&format!("[Skyblocker Compact Damage] Failed to compact damage number: {}", compat::panic_message(&e)));
         }
-        // TODO(fabric2seer): the mod keeps the game's `ArmorStand` (Java holds a reference to the live object); the port's `ArmorStand` is not a value to copy and the port lends the mod no handle to it
-        // rust: crate::de::hysky::skyblocker::skyblock::fishing::fishing_hook_display_helper::FishingHookDisplayHelper::on_armor_stand_spawn(armor_stand_entity.clone());
+        crate::de::hysky::skyblocker::skyblock::fishing::fishing_hook_display_helper::FishingHookDisplayHelper::on_armor_stand_spawn(armor_stand_entity);
     });
 }
 
@@ -196,10 +192,23 @@ fn skyblocker_on_play_sound(ci: &mut CallbackInfo<'_>) {
 /// target: org.slf4j.Logger#warn(Ljava/lang/String;Ljava/lang/Object;)V  [class not in JavaSrc]
 /// within: net.minecraft.client.multiplayer.ClientPacketListener#handleUnknownCustomPayload
 /// note: class not in JavaSrc: org.slf4j.Logger has no file in JavaSrc/src - a remapping problem, or a class this Minecraft version does not have
+///
+/// `handleUnknownCustomPayload:2198-2200` is that one `LOGGER.warn` call and nothing else; the port's body is the
+/// warning (client_packet_listener.rs:2199, a `warn_once`, not a hookable `Logger` call). So "skip the warn" is "skip
+/// the body": a HEAD injector that cancels when the condition says not to log. `identifier` is `payload.type().id()`,
+/// the port method's `id` argument (0).
 fn skyblocker_drop_badlion_packet_warnings(ci: &CallbackInfo<'_>) -> bool {
-    // TODO(fabric2seer): `identifier`: this argument is not visible to the injector (see the notes above the handler)
+    let Some(identifier) = ci.arg::<str>(0) else { return true; };
+    let namespace: String = mcrust::net::minecraft::resources::identifier::Identifier::try_parse(identifier).map(|identifier| identifier.namespace().to_string()).unwrap_or_default();
     //   java: return !(Utils.isOnHypixel() && ((Identifier) identifier).getNamespace().equals("badlion"));
-    todo!("fabric2seer: the value of this function is in a TODO above")
+    return !(crate::de::hysky::skyblocker::utils::utils::Utils::is_on_hypixel() && namespace == "badlion");
+}
+
+/// HEAD of `handleUnknownCustomPayload`: the `@WrapWithCondition` above over the method's only statement.
+fn skyblocker_drop_badlion_packet_warnings_at_head(ci: &mut CallbackInfo<'_>) {
+    if !skyblocker_drop_badlion_packet_warnings(ci) {
+        ci.cancel();
+    }
 }
 
 /// @WrapWithCondition skyblocker$cancelUnknownScoreboardObjectiveWarnings
@@ -291,8 +300,8 @@ pub fn register() {
     // report(hook::call_site(`net.minecraft.client.multiplayer.ClientPacketListener#handlePlayerInfoUpdate`, `org.slf4j.Logger#warn(Ljava/lang/String;Ljava/lang/Object;Ljava/lang/Object;)V`).priority(1000).wrap_with_condition(skyblocker_cancel_player_list_warning));
     // java: @At(INVOKE PacketUtils.ensureRunningOnSameThread, shift = AFTER) - see `after_ensure_running_on_same_thread`
     report(hook::register_injector("net.minecraft.client.multiplayer.ClientPacketListener#handleSoundEvent", InjectOptions::at(At::Head).kind(InjectorKind::Inject).priority(1000), Arc::new(skyblocker_on_play_sound)));
-    // TODO(fabric2seer): not registered - class not in JavaSrc: org.slf4j.Logger has no file in JavaSrc/src - a remapping problem, or a class this Minecraft version does not have
-    // report(hook::call_site(`net.minecraft.client.multiplayer.ClientPacketListener#handleUnknownCustomPayload`, `org.slf4j.Logger#warn(Ljava/lang/String;Ljava/lang/Object;)V`).priority(1000).wrap_with_condition(skyblocker_drop_badlion_packet_warnings));
+    // java: @WrapWithCondition on the `Logger.warn` that is handleUnknownCustomPayload's whole body - see the handler.
+    report(hook::register_injector("net.minecraft.client.multiplayer.ClientPacketListener#handleUnknownCustomPayload", InjectOptions::at(At::Head).kind(InjectorKind::Inject).priority(1000), Arc::new(skyblocker_drop_badlion_packet_warnings_at_head)));
     // TODO(fabric2seer): not registered - class not in JavaSrc: org.slf4j.Logger has no file in JavaSrc/src - a remapping problem, or a class this Minecraft version does not have
     // report(hook::call_site(`net.minecraft.client.multiplayer.ClientPacketListener#handleSetScore`, `org.slf4j.Logger#warn(Ljava/lang/String;Ljava/lang/Object;)V`).priority(1000).wrap_with_condition(skyblocker_cancel_unknown_scoreboard_objective_warnings));
     // TODO(fabric2seer): not registered - class not in JavaSrc: org.slf4j.Logger has no file in JavaSrc/src - a remapping problem, or a class this Minecraft version does not have

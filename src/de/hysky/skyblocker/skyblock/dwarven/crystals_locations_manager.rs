@@ -39,10 +39,8 @@ use mcrust::net::minecraft::world::phys::vec3;
 use crate::de::hysky::skyblocker::utils::waypoint::distanced_named_waypoint::DistancedNamedWaypoint as _;
 use mcrust::net::minecraft::network::chat::component::Component as _;
 
-// TODO(fabric2seer): `CrystalHollowsLocationsCategory.getName` is not a static method of CrystalHollowsLocationsCategory
-//   java: private static final Map<String, MiningLocationLabel.CrystalHollowsLocationsCategory> WAYPOINT_LOCATIONS = Arrays.stream(MiningLocationLabel.CrystalHollowsLocationsCategory.values()).collect(Collectors.toMap(MiningLocationLabel.CrystalHollowsLocationsCategory::getName, Function.identity()));
 /// java: private static final Map<String, MiningLocationLabel.CrystalHollowsLocationsCategory> WAYPOINT_LOCATIONS = Arrays.stream(MiningLocationLabel.CrystalHollowsLocationsCategory.values()).collect(Collector
-pub static WAYPOINT_LOCATIONS: LazyLock<std::collections::HashMap<String, CrystalHollowsLocationsCategory>> = LazyLock::new(|| todo!("fabric2seer: the initialiser of `WAYPOINT_LOCATIONS` - see the TODO above"));
+pub static WAYPOINT_LOCATIONS: LazyLock<std::collections::HashMap<String, CrystalHollowsLocationsCategory>> = LazyLock::new(|| CrystalHollowsLocationsCategory::values().into_iter().map(|category| (category.get_name(), category)).collect());
 /// java: static final Pattern TEXT_CWORDS_PATTERN = Pattern.compile("\\Dx?(\\d{3})(?=[, ]),? ?y?(\\d{2,3})(?=[, ]),? ?z?(\\d{3})\\D?(?!\\d)");
 pub static TEXT_CWORDS_PATTERN: LazyLock<compat::regex::Pattern> = LazyLock::new(|| compat::regex::Pattern::compile("\\Dx?(\\d{3})(?=[, ]),? ?y?(\\d{2,3})(?=[, ]),? ?z?(\\d{3})\\D?(?!\\d)"));
 /// java: private static final int REMOVE_UNKNOWN_DISTANCE = 50;

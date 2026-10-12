@@ -10,7 +10,12 @@ use mcrust::java::text::decimal_format_symbols::Locale;
 //   java: 			new String[]{"M", "CM", "D", "CD", "C", "XC", "L", "XL", "X", "IX", "V", "IV", "I"}
 //   java: 	));
 /// java: private static final Int2ObjectMap<String> ROMAN_NUMERALS = Int2ObjectMaps.unmodifiable(new Int2ObjectLinkedOpenHashMap<>( new int[]{1000, 900, 500, 400, 100, 90, 50, 40, 10, 9, 5, 4, 1}, new String[]
-pub static ROMAN_NUMERALS: LazyLock<std::collections::HashMap<i32, String>> = LazyLock::new(|| todo!("fabric2seer: the initialiser of `ROMAN_NUMERALS` - see the TODO above"));
+/// An `Int2ObjectLinkedOpenHashMap`: iteration keeps insertion order, so the entries are an ordered list.
+pub static ROMAN_NUMERALS: LazyLock<Vec<(i32, String)>> = LazyLock::new(|| {
+    let keys = [1000, 900, 500, 400, 100, 90, 50, 40, 10, 9, 5, 4, 1];
+    let values = ["M", "CM", "D", "CD", "C", "XC", "L", "XL", "X", "IX", "V", "IV", "I"];
+    keys.iter().zip(values.iter()).map(|(k, v)| (*k, v.to_string())).collect()
+});
 
 /// java: public class RomanNumerals
 #[derive(Clone)]

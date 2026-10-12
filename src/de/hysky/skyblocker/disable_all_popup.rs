@@ -47,9 +47,18 @@ impl DisableAllPopup {
         //   java: 				.addButton(confirmComponent, this::tryReset)
         //   java: 				.addButton(CommonComponents.GUI_CANCEL, PopupScreen::onClose);
         let mut builder: crate::unresolved::PopupScreen_Builder = todo!("fabric2seer: the initialiser of `builder` (TODO above)");
-        // TODO(fabric2seer): `Builder.build` has no Rust method in the port (looked for `build` in PopupScreen and its supertypes)
-        // TODO(fabric2seer): `set_screen` takes 14 argument(s) in the port (`gfx: &mut Minecraft, screen: &mut GuiScreen, screen_extra: &mut ScreenExtra, screen_stack: &mut Vec<HeldScreen>, screen_kind_before_pause: &mut Option<ScreenKind>, screen_is_open: &mut bool, level_screen_closed: &mut bool, frames_on_this_sc ..`), Java passes 1
+        // rust: port gap - `PopupScreen.Builder` (a vanilla popup with mod callbacks on its buttons) has no modding
+        // API: the game builds its popups itself (`gui::PopupState`), and a mod can only open a `ModScreen` (GAPS_L.md)
         // rust: gui::set_screen(&mut builder.build());
+    }
+
+    /// `SystemToast.add(minecraft.gui.toastManager(), TOAST_ID, Component.translatable("skyblocker.disableAll.toast.title"),
+    /// Component.translatable(message).withStyle(ChatFormatting.RED))` - the two calls of `tryReset`.
+    fn add_toast(message: &str) {
+        let minecraft = compat::minecraft();
+        let title = mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::translatable("skyblocker.disableAll.toast.title"));
+        let message = mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::translatable(message).with_style_format(ChatFormatting::Red));
+        system_toast::add(&mut minecraft.gui.toast_manager().borrow_mut(), &minecraft.font, *TOAST_ID.get(), &title, Some(&message));
     }
 
     /// java: private void tryReset(PopupScreen popupScreen)
@@ -59,17 +68,18 @@ impl DisableAllPopup {
             // java: try {..} catch (Exception e) - an exception here is a panic, caught by `catch_unwind`
             let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                 DisableAll::disable_all_0();
-                // TODO(fabric2seer): `on_close_for_interrupt` takes 12 argument(s) in the port (`gfx: &mut crate::net::minecraft::client::minecraft::Minecraft, screen: &mut Screen, screen_extra: &mut crate::net::minecraft::client::gui::gui::ScreenExtra, options_data: &mut crate::net::minecraft::client::options::OptionsData, open_sign_e ..`), Java passes 0
-                // rust: screen::on_close_for_interrupt();
-                // TODO(fabric2seer): `set_screen` takes 14 argument(s) in the port (`gfx: &mut Minecraft, screen: &mut GuiScreen, screen_extra: &mut ScreenExtra, screen_stack: &mut Vec<HeldScreen>, screen_kind_before_pause: &mut Option<ScreenKind>, screen_is_open: &mut bool, level_screen_closed: &mut bool, frames_on_this_sc ..`), Java passes 1
-                // rust: gui::set_screen(&mut SkyblockerConfigManager::create_gui(None));
-                // TODO(fabric2seer): `add` takes 5 argument(s) in the port (`toast_manager: &mut ToastManager, font: &FontSet, id: SystemToastId, title: &FormattedText, message: Option<&FormattedText>`), Java passes 4
-                // rust: system_toast::add(&mut minecraft.gui.toast_manager(), TOAST_ID.get_mut(), component::translatable("skyblocker.disableAll.toast.title"), &mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::translatable("skyblocker.disableAll.success").with_style_format(ChatFormatting::Red)));
+                // java: popupScreen.onClose(); - `PopupScreen.onClose` sets the screen back to its background screen
+                mcrust::mcrust::modding::game::set_screen_to_parent();
+                // java: minecraft.gui.setScreen(SkyblockerConfigManager.createGUI(null));
+                // rust: port gap - the config GUI is the YACL / Dandelion screen the config merge replaces
+                // (`SkyblockerConfigManager.createGUI` answers the port's `Screen` husk, which a mod cannot open)
+                // java: SystemToast.add(minecraft.gui.toastManager(), TOAST_ID, Component.translatable("skyblocker.disableAll.toast.title"), Component.translatable("skyblocker.disableAll.success").withStyle(ChatFormatting.RED));
+                DisableAllPopup::add_toast("skyblocker.disableAll.success");
             }));
             if let Err(e) = __result {
                 logger().error(&format!("[Skyblocker DisableAll] Failed to disable all features"));
-                // TODO(fabric2seer): `add` takes 5 argument(s) in the port (`toast_manager: &mut ToastManager, font: &FontSet, id: SystemToastId, title: &FormattedText, message: Option<&FormattedText>`), Java passes 4
-                // rust: system_toast::add(&mut minecraft.gui.toast_manager(), TOAST_ID.get_mut(), component::translatable("skyblocker.disableAll.toast.title"), &mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::translatable("skyblocker.disableAll.failed").with_style_format(ChatFormatting::Red)));
+                // java: SystemToast.add(minecraft.gui.toastManager(), TOAST_ID, Component.translatable("skyblocker.disableAll.toast.title"), Component.translatable("skyblocker.disableAll.failed").withStyle(ChatFormatting.RED));
+                DisableAllPopup::add_toast("skyblocker.disableAll.failed");
             }
         }
     }

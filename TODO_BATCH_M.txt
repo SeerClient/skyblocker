@@ -1,0 +1,16 @@
+src/de/hysky/skyblocker/skyblock/tabhud/
+src/de/hysky/skyblocker/skyblock/profileviewer2/
+src/de/hysky/skyblocker/skyblock/dwarven/
+src/mixins/
+src/de/hysky/skyblocker/compatibility/rei/
+src/de/hysky/skyblocker/skyblock/storageoverlay/
+src/de/hysky/skyblocker/compatibility/
+src/de/hysky/skyblocker/skyblock/crimson/
+src/de/hysky/skyblocker/skyblock/searchoverlay/
+src/de/hysky/skyblocker/utils/data/
+src/de/hysky/skyblocker/skyblock/hunting/
+src/de/hysky/skyblocker/utils/networth/
+src/de/hysky/skyblocker/skyblock/experiment/
+src/de/hysky/skyblocker/config/configs/
+src/de/hysky/skyblocker/utils/discord/
+src/de/hysky/skyblocker/utils/chat/

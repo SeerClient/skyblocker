@@ -24,16 +24,12 @@ use crate::de::hysky::skyblocker::injected::skyblocker_stack::SkyblockerStack as
 use crate::de::hysky::skyblocker::utils::waypoint::distanced_named_waypoint::DistancedNamedWaypoint as _;
 use mcrust::net::minecraft::network::chat::component::Component as _;
 
-// TODO(fabric2seer): `DwarvenCategory.toString` is not a static method of DwarvenCategory
-//   java: private static final Map<String, MiningLocationLabel.DwarvenCategory> DWARVEN_LOCATIONS = Arrays.stream(MiningLocationLabel.DwarvenCategory.values()).collect(Collectors.toMap(MiningLocationLabel.DwarvenCategory::toString, Function.identity()));
 /// java: private static final Map<String, MiningLocationLabel.DwarvenCategory> DWARVEN_LOCATIONS = Arrays.stream(MiningLocationLabel.DwarvenCategory.values()).collect(Collectors.toMap(MiningLocationLabel.Dwarv
-pub static DWARVEN_LOCATIONS: LazyLock<std::collections::HashMap<String, DwarvenCategory>> = LazyLock::new(|| todo!("fabric2seer: the initialiser of `DWARVEN_LOCATIONS` - see the TODO above"));
+pub static DWARVEN_LOCATIONS: LazyLock<std::collections::HashMap<String, DwarvenCategory>> = LazyLock::new(|| DwarvenCategory::values().into_iter().map(|category| (category.to_string(), category)).collect());
 /// java: private static final List<MiningLocationLabel.DwarvenEmissaries> DWARVEN_EMISSARIES = Arrays.stream(MiningLocationLabel.DwarvenEmissaries.values()).toList();
 pub static DWARVEN_EMISSARIES: LazyLock<Vec<DwarvenEmissaries>> = LazyLock::new(|| DwarvenEmissaries::values().iter().copied().collect::<Vec<_>>());
-// TODO(fabric2seer): `GlaciteCategory.toString` is not a static method of GlaciteCategory
-//   java: private static final Map<String, MiningLocationLabel.GlaciteCategory> GLACITE_LOCATIONS = Arrays.stream(MiningLocationLabel.GlaciteCategory.values()).collect(Collectors.toMap(MiningLocationLabel.GlaciteCategory::toString, Function.identity()));
 /// java: private static final Map<String, MiningLocationLabel.GlaciteCategory> GLACITE_LOCATIONS = Arrays.stream(MiningLocationLabel.GlaciteCategory.values()).collect(Collectors.toMap(MiningLocationLabel.Glaci
-pub static GLACITE_LOCATIONS: LazyLock<std::collections::HashMap<String, GlaciteCategory>> = LazyLock::new(|| todo!("fabric2seer: the initialiser of `GLACITE_LOCATIONS` - see the TODO above"));
+pub static GLACITE_LOCATIONS: LazyLock<std::collections::HashMap<String, GlaciteCategory>> = LazyLock::new(|| GlaciteCategory::values().into_iter().map(|category| (category.to_string(), category)).collect());
 /// java: protected static List<MiningLocationLabel> activeWaypoints = new ArrayList<>();
 pub static ACTIVE_WAYPOINTS: compat::MainThread<Vec<compat::Shared<MiningLocationLabel>>> = compat::MainThread::new(|| Vec::new());
 /// java: private static List<String> commissions = List.of();

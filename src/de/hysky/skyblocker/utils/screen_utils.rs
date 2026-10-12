@@ -33,7 +33,21 @@ impl ScreenUtils {
         //   java: 			case AbstractPopupScreen popupScreen -> getUnderlyingScreen(popupScreen.backgroundScreen);
         //   java: 			case null, default -> screen;
         //   java: 		};
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        // The port keeps a vanilla `PopupScreen`'s `backgroundScreen` beside the popup's own tree, in the
+        // `Gui.screen_extra` state of the screen it belongs to (`PopupState.background_widgets`): the screen is a
+        // popup when it IS the current screen and that state is a popup's.
+        // rust: port gap - `case AbstractPopupScreen` is not reachable from the port's `Screen` tree: the mod popup's
+        // `backgroundScreen` is a stand-in (GAPS_batchA #19), so such a screen answers itself (GAPS_L.md).
+        let Some(s) = screen else {
+            return None;
+        };
+        let gui: &'static mcrust::net::minecraft::client::gui::gui::Gui = &compat::minecraft().gui;
+        if gui.screen().is_some_and(|current| std::ptr::eq(current, s))
+            && let mcrust::net::minecraft::client::gui::gui::ScreenExtra::Popup(state) = &gui.screen_extra
+        {
+            return ScreenUtils::get_underlying_screen_1(Some(&*state.background_widgets));
+        }
+        return Some(s);
     }
 
     /// java: public static ScreenRectangle getSnapBox(ScreenRectangle rect, ScreenDirection side)

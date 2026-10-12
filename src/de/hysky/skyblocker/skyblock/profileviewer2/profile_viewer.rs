@@ -10,22 +10,28 @@ use crate::de::hysky::skyblocker::skyblock::profileviewer2::model::profile_membe
 use crate::de::hysky::skyblocker::skyblock::profileviewer2::profile_viewer_screen::ProfileViewerScreen;
 use crate::de::hysky::skyblocker::utils::api_utils::ApiUtils;
 use crate::de::hysky::skyblocker::utils::profile_utils::ProfileUtils;
-use crate::entry::skyblocker_mod;
 use mcrust::com::mojang::authlib::game_profile::GameProfile;
 use mcrust::com::mojang::brigadier::builder::literal_argument_builder::LiteralArgumentBuilder;
 use mcrust::com::mojang::util::undashed_uuid;
 use mcrust::java::util::concurrent::completable_future::CompletableFuture;
-use mcrust::net::minecraft::client::gui::gui;
+use mcrust::com::mojang::brigadier::arguments::string_argument_type::StringArgumentType;
+use mcrust::com::mojang::brigadier::context::command_context::CommandContext;
+use mcrust::mcrust::modding::events::client_command_registration_callback::FabricClientCommandSource;
+use crate::de::hysky::skyblocker::skyblock::profileviewer2::utils::elite_leaderboards::EliteLeaderboards;
 use mcrust::net::minecraft::world::item::component::resolvable_profile::ResolvableProfile;
 
-// TODO(fabric2seer): `.newBuilder(..)` on a Gson
-//   java: private static final Gson GSON = SkyblockerMod.GSON.newBuilder()
-//   java: 			.registerTypeHierarchyAdapter(UUID.class, new LenientUuidTypeAdapter())
-//   java: 			.create();
 /// java: private static final Gson GSON = SkyblockerMod.GSON.newBuilder() .registerTypeHierarchyAdapter(UUID.class, new LenientUuidTypeAdapter()) .create();
-pub static GSON: compat::MainThread<crate::unresolved::Gson> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `GSON` - see the TODO above"));
+///
+/// rust: port gap - Gson's reflective object binding (`GSON.fromJson(json, ApiProfileResponse.class)`, every field of
+/// the ~40 `profileviewer2.model` classes by name, `@SerializedName`, and the `UUID` hierarchy adapter) has no
+/// counterpart in the port or the mod (`crate::unresolved::Gson` is a name only; GAPS_batchC, GAPS_M #9). The value is
+/// the placeholder the mod's `Gson` type stands for; `api_profile_response_from_json` is where its one use lands.
+pub static GSON: compat::MainThread<crate::unresolved::Gson> = compat::MainThread::new(|| crate::unresolved::Gson);
 /// java: public static final boolean ENABLED = Debug.debugEnabled();
 pub static ENABLED: LazyLock<bool> = LazyLock::new(|| crate::de::hysky::skyblocker::debug::debug::Debug::debug_enabled());
+
+/// `String.matches("[A-Za-z0-9_]+")`, compiled once.
+static VALID_PLAYER_NAME: LazyLock<compat::regex::Pattern> = LazyLock::new(|| compat::regex::Pattern::compile("[A-Za-z0-9_]+"));
 
 /// java: public class ProfileViewer
 #[derive(Clone)]
@@ -46,101 +52,221 @@ impl ProfileViewer {
         }
         client_command_registration_callback::EVENT.register(Arc::new(
             |dispatcher: &mut client_command_registration_callback::ClientCommandDispatcher| {
-                // TODO(fabric2seer): a command builder outside dispatcher.register(..)
+                use mcrust::com::mojang::brigadier::builder::argument_builder::ArgumentBuilder as _;
                 //   java: LiteralArgumentBuilder<FabricClientCommandSource> pvCommandBuilder = ClientCommands.literal("pv2")
                 //   java: 					.executes(Scheduler.queueOpenScreenFactoryCommand(context -> openProfileViewer(context.getSource(), context.getSource().getClient().getUser().getName())))
                 //   java: 					.then(ClientCommands.argument("name", StringArgumentType.string())
                 //   java: 							.suggests((context, builder) -> SharedSuggestionProvider.suggest(getPlayerSuggestions(context.getSource()), builder))
                 //   java: 							.executes(Scheduler.queueOpenScreenFactoryCommand(context -> openProfileViewer(context.getSource(), StringArgumentType.getString(context, "name")))));
-                let mut pv_command_builder: LiteralArgumentBuilder<crate::unresolved::FabricClientCommandSource> = todo!("fabric2seer: the initialiser of `pvCommandBuilder` (TODO above)");
-                // TODO(fabric2seer): a command tree this tool cannot read (arguments, redirects, requires) - SeerClient commands receive the words after the name in `ctx.args`
+                let mut pv_command_builder: LiteralArgumentBuilder<FabricClientCommandSource> = client_command_registration_callback::literal("pv2");
+                pv_command_builder.executes(crate::de::hysky::skyblocker::utils::scheduler::scheduler::SchedulerBase::queue_open_screen_factory_command(Arc::new(|context: &CommandContext<FabricClientCommandSource>| {
+                    let name: String = compat::minecraft().get_user().get_name().to_string();
+                    ProfileViewer::open_profile_viewer(context.get_source(), &name)
+                })));
+                let mut name_argument = client_command_registration_callback::argument("name", Arc::new(StringArgumentType::string()));
+                let player_suggestions: mcrust::com::mojang::brigadier::suggestion::suggestion_provider::SuggestionProvider<FabricClientCommandSource> = Arc::new(|context: &CommandContext<FabricClientCommandSource>, builder: &mut mcrust::com::mojang::brigadier::suggestion::suggestions_builder::SuggestionsBuilder| {
+                    Ok(mcrust::net::minecraft::commands::shared_suggestion_provider::suggest(&ProfileViewer::get_player_suggestions(context.get_source()), builder))
+                });
+                name_argument.suggests(Some(player_suggestions));
+                name_argument.executes(crate::de::hysky::skyblocker::utils::scheduler::scheduler::SchedulerBase::queue_open_screen_factory_command(Arc::new(|context: &CommandContext<FabricClientCommandSource>| {
+                    ProfileViewer::open_profile_viewer(context.get_source(), &StringArgumentType::get_string(context, "name"))
+                })));
+                pv_command_builder.then(&name_argument);
                 //   java: dispatcher.register(pvCommandBuilder);
+                dispatcher.dispatcher().register(&pv_command_builder);
             },
         ));
     }
 
     /// java: private static String[] getPlayerSuggestions(FabricClientCommandSource source)
-    pub fn get_player_suggestions(source: &crate::unresolved::FabricClientCommandSource) -> Vec<String> {
-        // TODO(fabric2seer): `.getOnlinePlayerNames(..)` on a FabricClientCommandSource
-        //   java: return source.getOnlinePlayerNames().stream()
-        //   java: 				.filter(playerName -> playerName.matches("[A-Za-z0-9_]+"))
-        //   java: 				.toArray(String[]::new);
-        todo!("fabric2seer: the value of this function is in a TODO above")
+    ///
+    /// Ensures that "dummy" players aren't included in command suggestions
+    pub fn get_player_suggestions(source: &FabricClientCommandSource) -> Vec<String> {
+        use mcrust::net::minecraft::commands::shared_suggestion_provider::SharedSuggestionProvider as _;
+        return source.get_online_player_names().into_iter()
+            .filter(|player_name| VALID_PLAYER_NAME.matches_all(player_name))
+            .collect();
     }
 
     /// java: private static Screen openProfileViewer(FabricClientCommandSource source, String name)
     /// (the screen the command opens: a mod screen object, as `game::set_screen` takes it)
-    pub fn open_profile_viewer(source: &crate::unresolved::FabricClientCommandSource, name: &str) -> Option<Box<dyn mcrust::mcrust::modding::screens::ModScreen>> {
-        // TODO(fabric2seer): `.getClient(..)` on a FabricClientCommandSource
-        //   java: Minecraft minecraft = source.getClient();
-        let mut minecraft: mcrust::net::minecraft::client::minecraft::Minecraft = todo!("fabric2seer: the initialiser of `minecraft` (TODO above)");
-        // TODO(fabric2seer): `set_screen` takes 14 argument(s) in the port (`gfx: &mut Minecraft, screen: &mut GuiScreen, screen_extra: &mut ScreenExtra, screen_stack: &mut Vec<HeldScreen>, screen_kind_before_pause: &mut Option<ScreenKind>, screen_is_open: &mut bool, level_screen_closed: &mut bool, frames_on_this_sc ..`), Java passes 1
-        // rust: let mut data_future: mcrust::java::util::concurrent::completable_future::CompletableFuture<()> = { let (__q0, __q1,) = (|throwable| {
-        // rust: logger().error(&format!("[Skyblocker Profile Viewer] Encountered an unknown exception when loading the data."));
-        // rust: mcrust::mcrust::modding::game::set_screen(Box::new(compat::ScreenAdapter::new(ErrorProfileViewerScreen::new("Encountered an unknown error.".to_string()))));
-        // rust: return Default::default(); // java: return null
-        // rust: }, std::sync::Arc::new(|__t: Box<dyn FnOnce() + Send>| mcrust::mcrust::modding::game::execute(__t)),); ({ let (__q0, __q1,) = (|__a0| gui::set_screen(&mut __a0), std::sync::Arc::new(|__t: Box<dyn FnOnce() + Send>| mcrust::mcrust::modding::game::execute(__t)),); (ProfileViewer::load_data(name).then_apply_async(|loaded_data| {
-        // rust: // TODO(fabric2seer): `.apiProfileResponse(..)` on a value of unknown type
-        // rust: //   java: Optional<ApiProfileResponse> apiProfileResponse = loadedData.apiProfileResponse();
-        // rust: let mut api_profile_response: Option<compat::Shared<ApiProfileResponse>> = todo!("fabric2seer: the initialiser of `apiProfileResponse` (TODO above)");
-        // rust: let mut selected_profile: Option<compat::Shared<ApiProfile>> = api_profile_response.clone().and_then(|__a0| ApiProfileResponse::get_selected_profile(&__a0));
-        // rust: // TODO(fabric2seer): `.gameProfile(..)` on a value of unknown type
-        // rust: //   java: Optional<GameProfile> gameProfile = loadedData.gameProfile();
-        // rust: let mut game_profile: Option<GameProfile> = todo!("fabric2seer: the initialiser of `gameProfile` (TODO above)");
-        // rust: let mut loaded_skyblock_profile: bool = api_profile_response.is_some();
-        // rust: let mut has_skyblock_profile: bool = selected_profile.is_some();
-        // rust: let mut loaded_game_profile: bool = game_profile.is_some();
-        // rust: if !loaded_skyblock_profile {
-        // rust: return ErrorProfileViewerScreen::new("Failed to load Skyblock profiles.".to_string());
-        // rust: } else if !has_skyblock_profile {
-        // rust: return ErrorProfileViewerScreen::new("This user has no Skyblock profiles.".to_string());
-        // rust: } else if !loaded_game_profile {
-        // rust: return ErrorProfileViewerScreen::new("Player not found.".to_string());
-        // rust: } else {
-        // rust: let mut member: compat::Shared<ProfileMember> = selected_profile.clone().unwrap().lock().borrow().members.get(&game_profile.clone().unwrap().id()).cloned().unwrap();
-        // rust: logger().info(&format!("[Skyblocker Profile Viewer] Successfully loaded the profile for {}!", name));
-        // rust: // TODO(fabric2seer): `.leaderboards(..)` on a value of unknown type
-        // rust: //   java: return new ProfileViewerScreen(apiProfileResponse.get(), selectedProfile.get(), gameProfile.get(), member, loadedData.leaderboards());
-        // rust: }
-        // rust: }, std::sync::Arc::new(|__t: Box<dyn FnOnce() + Send>| mcrust::mcrust::modding::game::execute(__t)))).then_accept_async(__q0, __q1) }).exceptionally_async(__q0, __q1) };
-        let mut data_future: mcrust::java::util::concurrent::completable_future::CompletableFuture<()> = todo!("fabric2seer: the initialiser of `dataFuture` (TODO above)");
-        return Some(Box::new(compat::ScreenAdapter::new(LoadingProfileViewerScreen::new(name.to_string()))));
+    ///
+    /// `source.getClient()` is the one `Minecraft`; its executor (`thenApplyAsync(.., minecraft)`) is the render
+    /// thread, which is where `compat::LocalFuture`'s `*_async` stages run.
+    pub fn open_profile_viewer(_source: &FabricClientCommandSource, name: &str) -> Box<dyn mcrust::mcrust::modding::screens::ModScreen> {
+        let name: String = name.to_string();
+        // In a variable for stylistic purposes, do not change this
+        let __name = name.clone();
+        let _data_future: compat::LocalFuture<()> = ProfileViewer::load_data(&name)
+            .then_apply_async(move |loaded_data: LoadedData| {
+                let api_profile_response: Option<compat::Shared<ApiProfileResponse>> = loaded_data.api_profile_response();
+                let selected_profile: Option<compat::Shared<ApiProfile>> = api_profile_response.as_ref().and_then(ApiProfileResponse::get_selected_profile);
+                let game_profile: Option<GameProfile> = loaded_data.game_profile();
+                // `loadedSkyblockProfile` / `hasSkyblockProfile` / `loadedGameProfile`, tested in Java's order
+                match (api_profile_response, selected_profile, game_profile) {
+                    (None, _, _) => {
+                        return PendingScreen::of(Box::new(compat::ScreenAdapter::new(ErrorProfileViewerScreen::new("Failed to load Skyblock profiles.".to_string()))));
+                    }
+                    (Some(_), None, _) => {
+                        return PendingScreen::of(Box::new(compat::ScreenAdapter::new(ErrorProfileViewerScreen::new("This user has no Skyblock profiles.".to_string()))));
+                    }
+                    (Some(_), Some(_), None) => {
+                        return PendingScreen::of(Box::new(compat::ScreenAdapter::new(ErrorProfileViewerScreen::new("Player not found.".to_string()))));
+                    }
+                    (Some(api_profile_response), Some(selected_profile), Some(game_profile)) => {
+                        // This should never throw since I presume the API cannot return a profile that the user is not a member of (given we request the user's profiles)
+                        let member: compat::Shared<ProfileMember> = compat::read(&selected_profile, |__t| __t.members.get(&game_profile.id()).cloned()).unwrap_or_else(|| panic!("NullPointerException: {}", "profile member must not be null"));
+                        logger().info(&format!("[Skyblocker Profile Viewer] Successfully loaded the profile for {}!", __name));
+                        return PendingScreen::of(Box::new(compat::ScreenAdapter::new(ProfileViewerScreen::new(api_profile_response, selected_profile, game_profile, member, loaded_data.leaderboards()))));
+                    }
+                }
+            })
+            //   java: .thenAcceptAsync(minecraft.gui::setScreen, minecraft)
+            .then_accept_async(|screen: PendingScreen| {
+                if let Some(screen) = screen.take() {
+                    mcrust::mcrust::modding::game::set_screen(screen);
+                }
+            })
+            .exceptionally_async(|throwable: String| {
+                logger().error(&format!("[Skyblocker Profile Viewer] Encountered an unknown exception when loading the data. {}", throwable));
+                mcrust::mcrust::modding::game::set_screen(Box::new(compat::ScreenAdapter::new(ErrorProfileViewerScreen::new("Encountered an unknown error.".to_string()))));
+                // java: return null
+            });
+        return Box::new(compat::ScreenAdapter::new(LoadingProfileViewerScreen::new(name)));
     }
 
     /// java: private static CompletableFuture<LoadedData> loadData(String name)
-    /// rust: port gap - `LoadedData` holds the GSON object graph of the profile response (the mod's objects, not `Send`),
-    /// which the port's `CompletableFuture` cannot carry and which no JSON-to-object binder of the port can build
-    /// (GAPS_batchC): the supplier runs deferred on the render thread (`compat::LocalFuture::supply_local`) instead of
-    /// on SkyblockerMod's executor
+    ///
+    /// {@return a {@link Pair} optionally containing the user's {@link ApiProfileResponse} and {@link GameProfile}}
+    ///
+    /// The network half - `name2Uuid`, the profiles request and the skin lookup, joined in turn - runs on the mod's
+    /// executor as Java's `supplyAsync(.., VIRTUAL_THREAD_EXECUTOR)` does, over `Send` values only. The mod objects
+    /// (`ApiProfileResponse`, which are render-thread `Shared`s) are built from the fetched JSON on the render thread,
+    /// and the leaderboards request - which needs the selected profile's id - follows from there; the answer is a
+    /// `LocalFuture` completed on the render thread.
     pub fn load_data(name: &str) -> compat::LocalFuture<LoadedData> {
-        let minecraft = compat::minecraft();
-        let name = name.to_string();
-        return compat::LocalFuture::supply_local(move || (|| {
-            let mut uuid: String = ApiUtils::name2_uuid(&name);
-            if uuid.is_empty() {
-                panic!("IllegalStateException: {}", "Invalid username");
-            }
-            // TODO(fabric2seer): `.map(..)` on a value of unknown type
-            //   java: CompletableFuture<Optional<ApiProfileResponse>> skyblockProfileFuture = ProfileUtils.fetchFullProfileByUuid(uuid)
-            //   java: 					.thenApply(Optional::ofNullable)
-            //   java: 					.thenApply(opt -> opt.map(json -> GSON.fromJson(json, ApiProfileResponse.class)));
-            let mut skyblock_profile_future: mcrust::java::util::concurrent::completable_future::CompletableFuture<Option<compat::Shared<ApiProfileResponse>>> = todo!("fabric2seer: the initialiser of `skyblockProfileFuture` (TODO above)");
-            let mut resolvable_profile: ResolvableProfile = ResolvableProfile::create_unresolved_id(undashed_uuid::from_string(&uuid).unwrap()).unwrap();
-            // TODO(fabric2seer): `.map(..)` on a value of unknown type
-            //   java: CompletableFuture<Optional<GameProfile>> gameProfileFuture = minecraft.playerSkinRenderCache().lookup(resolvableProfile)
-            //   java: 					.thenApply(optional -> optional.map(PlayerSkinRenderCache.RenderInfo::gameProfile));
-            let mut game_profile_future: mcrust::java::util::concurrent::completable_future::CompletableFuture<Option<GameProfile>> = todo!("fabric2seer: the initialiser of `gameProfileFuture` (TODO above)");
-            // TODO(fabric2seer): `.map(..)` on a value of unknown type
-            //   java: CompletableFuture<Map<String, Integer>> leaderboards = skyblockProfileFuture
-            //   java: 					.thenCompose(apiProfileResponse -> apiProfileResponse.map(ApiProfileResponse::getSelectedProfile)
-            //   java: 							.map(profile -> EliteLeaderboards.fetchPlayerLeaderboards(uuid, profile.profileId))
-            //   java: 							.orElse(CompletableFuture.completedFuture(Map.of()))
-            //   java: 							);
-            let mut leaderboards: mcrust::java::util::concurrent::completable_future::CompletableFuture<std::collections::HashMap<String, i32>> = todo!("fabric2seer: the initialiser of `leaderboards` (TODO above)");
-            return LoadedData::new(skyblock_profile_future.join().unwrap(), leaderboards.join().unwrap(), game_profile_future.join().unwrap());
-        })());
+        let name: String = name.to_string();
+        // `Minecraft minecraft = Minecraft.getInstance()` - its `playerSkinRenderCache()`
+        let player_skin_render_cache = compat::minecraft().game_renderer.player_skin_render_cache.clone();
+        let fetched: CompletableFuture<FetchedData> = CompletableFuture::supply_async(move || {
+            std::panic::catch_unwind(std::panic::AssertUnwindSafe(move || {
+                let uuid: String = ApiUtils::name2_uuid(&name);
+                if uuid.is_empty() {
+                    panic!("IllegalStateException: {}", "Invalid username");
+                }
+                // Load skyblock profiles
+                //   java: ProfileUtils.fetchFullProfileByUuid(uuid).thenApply(Optional::ofNullable) - joined below
+                let profiles_json: Option<serde_json::Map<String, serde_json::Value>> = match ProfileUtils::fetch_full_profile_by_uuid(&uuid) {
+                    Some(future) => future.join_blocking().unwrap_or_else(|e| panic!("CompletionException: {e}")),
+                    None => None,
+                };
+                // Load game profile
+                //   java: ResolvableProfile resolvableProfile = ResolvableProfile.createUnresolved(UndashedUuid.fromString(uuid));
+                //   java: minecraft.playerSkinRenderCache().lookup(resolvableProfile).thenApply(optional -> optional.map(PlayerSkinRenderCache.RenderInfo::gameProfile))
+                let resolvable_profile: ResolvableProfile = ResolvableProfile::create_unresolved_id(undashed_uuid::from_string(&uuid).unwrap_or_else(|| panic!("IllegalArgumentException: Invalid UUID string: {uuid}"))).unwrap_or_else(|e| panic!("{e}"));
+                let game_profile: Option<GameProfile> = match &player_skin_render_cache {
+                    Some(cache) => cache.lookup(&resolvable_profile).join_blocking().unwrap_or_else(|e| panic!("CompletionException: {e}")).map(|render_info| render_info.game_profile().clone()),
+                    None => None,
+                };
+                FetchedData { uuid, profiles_json, game_profile }
+            })).map_err(|e| compat::panic_message(&e))
+        }, compat::executor);
+        let loaded: compat::LocalFuture<LoadedData> = compat::LocalFuture::new();
+        let target = loaded.clone();
+        let failed = loaded.clone();
+        local_of(&fetched)
+            .then_apply_async(move |fetched: FetchedData| {
+                //   java: .thenApply(opt -> opt.map(json -> GSON.fromJson(json, ApiProfileResponse.class)))
+                let api_profile_response: Option<compat::Shared<ApiProfileResponse>> = fetched.profiles_json.as_ref().and_then(api_profile_response_from_json);
+                // Load leaderboards for current profile
+                //   java: skyblockProfileFuture.thenCompose(apiProfileResponse -> apiProfileResponse.map(ApiProfileResponse::getSelectedProfile)
+                //   java: 		.map(profile -> EliteLeaderboards.fetchPlayerLeaderboards(uuid, profile.profileId))
+                //   java: 		.orElse(CompletableFuture.completedFuture(Map.of())));
+                let leaderboards: compat::LocalFuture<std::collections::HashMap<String, i32>> = match api_profile_response.as_ref().and_then(ApiProfileResponse::get_selected_profile) {
+                    Some(profile) => local_of(&EliteLeaderboards::fetch_player_leaderboards(&fetched.uuid, &compat::read(&profile, |__t| __t.profile_id.clone()))),
+                    None => compat::LocalFuture::completed_future(std::collections::HashMap::new()),
+                };
+                let game_profile = fetched.game_profile;
+                let failed = target.clone();
+                leaderboards
+                    .then_accept_async(move |leaderboards: std::collections::HashMap<String, i32>| {
+                        target.complete(LoadedData::new(api_profile_response, leaderboards, game_profile));
+                    })
+                    .exceptionally_async(move |throwable: String| {
+                        failed.complete_exceptionally(throwable);
+                    });
+            })
+            .exceptionally_async(move |throwable: String| {
+                failed.complete_exceptionally(throwable);
+            });
+        return loaded;
     }
 
+}
+
+/// What `loadData`'s supplier reads off the network (`Send`, so it rides from the worker to the render thread).
+#[derive(Clone)]
+struct FetchedData {
+    uuid: String,
+    profiles_json: Option<serde_json::Map<String, serde_json::Value>>,
+    game_profile: Option<GameProfile>,
+}
+
+/// `GSON.fromJson(json, ApiProfileResponse.class)`.
+///
+/// rust: port gap - Gson's reflective binding of the `profileviewer2.model` graph (see `GSON`; GAPS_M #9): there is no
+/// binder to build an `ApiProfileResponse` from the JSON, so the profile does not load (`Optional.empty()`, which the
+/// caller answers with "Failed to load Skyblock profiles.").
+fn api_profile_response_from_json(json: &serde_json::Map<String, serde_json::Value>) -> Option<compat::Shared<ApiProfileResponse>> {
+    let _ = (GSON.get(), json);
+    None
+}
+
+thread_local! {
+    /// The render-thread futures `local_of` completes, by id: a worker's completion reaches the render thread as a
+    /// `Send` task carrying the id and the value.
+    static PENDING_LOCAL_FUTURES: std::cell::RefCell<std::collections::HashMap<u64, Box<dyn std::any::Any>>> = std::cell::RefCell::new(std::collections::HashMap::new());
+}
+static NEXT_LOCAL_FUTURE: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+/// A worker's `CompletableFuture<T>` (`Send` values) continued on the render thread as a `compat::LocalFuture<T>`:
+/// completed (or failed) through `game::execute` when the worker's future completes - Java's
+/// `thenApplyAsync(.., minecraft)` hop.
+fn local_of<T: Clone + Send + 'static>(future: &CompletableFuture<T>) -> compat::LocalFuture<T> {
+    let local = compat::LocalFuture::<T>::new();
+    let id = NEXT_LOCAL_FUTURE.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    PENDING_LOCAL_FUTURES.with(|pending| pending.borrow_mut().insert(id, Box::new(local.clone())));
+    future.when_complete(Box::new(move |result: Result<&T, &str>| {
+        let result: Result<T, String> = result.map(|value| value.clone()).map_err(|e| e.to_string());
+        mcrust::mcrust::modding::game::execute(move || {
+            let Some(local) = PENDING_LOCAL_FUTURES.with(|pending| pending.borrow_mut().remove(&id)) else { return; };
+            let Ok(local) = local.downcast::<compat::LocalFuture<T>>() else { return; };
+            match result {
+                Ok(value) => {
+                    local.complete(value);
+                }
+                Err(e) => {
+                    local.complete_exceptionally(e);
+                }
+            }
+        });
+    }));
+    local
+}
+
+/// The screen `thenApplyAsync` hands `thenAcceptAsync(minecraft.gui::setScreen)` (`LocalFuture` values are cloned
+/// between stages; the screen itself is moved out once).
+#[derive(Clone)]
+struct PendingScreen(std::rc::Rc<std::cell::RefCell<Option<Box<dyn mcrust::mcrust::modding::screens::ModScreen>>>>);
+
+impl PendingScreen {
+    fn of(screen: Box<dyn mcrust::mcrust::modding::screens::ModScreen>) -> PendingScreen {
+        PendingScreen(std::rc::Rc::new(std::cell::RefCell::new(Some(screen))))
+    }
+
+    fn take(&self) -> Option<Box<dyn mcrust::mcrust::modding::screens::ModScreen>> {
+        self.0.borrow_mut().take()
+    }
 }
 
 /// java: private record LoadedData(Optional<ApiProfileResponse> apiProfileResponse, Map<String, Integer> leaderboards, Optional<GameProfile> gameProfile)

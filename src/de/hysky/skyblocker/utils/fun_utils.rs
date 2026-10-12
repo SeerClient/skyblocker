@@ -9,7 +9,7 @@ use mcrust::net::minecraft::network::chat::mutable_component::MutableComponent;
 use mcrust::net::minecraft::util::argb;
 
 /// java: private static final boolean FUN_DISABLED = Boolean.parseBoolean(System.getProperty("skyblocker.iAmABoringPersonAndHateFun", "false"));
-pub static FUN_DISABLED: LazyLock<bool> = LazyLock::new(|| std::env::var("skyblocker.iAmABoringPersonAndHateFun").ok().unwrap().eq_ignore_ascii_case("true"));
+pub static FUN_DISABLED: LazyLock<bool> = LazyLock::new(|| std::env::var("skyblocker.iAmABoringPersonAndHateFun").unwrap_or_else(|_| "false".to_string()).eq_ignore_ascii_case("true"));
 /// java: public static final Random RANDOM = new Random();
 pub static RANDOM: compat::MainThread<compat::Random> = compat::MainThread::new(|| compat::Random::new());
 /// java: private static final String OBFUSCATED_NAME = "Corruptedblocker";
@@ -31,9 +31,9 @@ impl FunUtils {
 
     /// java: public static Component getRandomFunName()
     pub fn get_random_fun_name() -> MutableComponent {
-        // TODO(fabric2seer): `.nextInt(..)` on a Random
-        //   java: return createUnpleasantGradient(FUN_NAMES.get(RANDOM.nextInt(FUN_NAMES.size())));
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        // java: return createUnpleasantGradient(FUN_NAMES.get(RANDOM.nextInt(FUN_NAMES.size())));
+        let index = RANDOM.get_mut().next_int(FUN_NAMES.len() as i32);
+        return FunUtils::create_unpleasant_gradient(&FUN_NAMES[index as usize]);
     }
 
     /// java: public static boolean shouldEnableFun()

@@ -33,8 +33,12 @@ fn skyblocker_open(args: &mcrust::mcrust::modding::container_screens::ContainerS
         if let Some(__sel4) = compat::minecraft().gui.screen().as_ref() && let Some(screen) = mcrust::mcrust::modding::game::current_mod_screen::<compat::ScreenAdapter<crate::de::hysky::skyblocker::skyblock::dungeon::partyfinder::party_finder_screen::PartyFinderScreen>, _>(|__s| __s.object().clone()) {
             crate::de::hysky::skyblocker::skyblock::dungeon::partyfinder::party_finder_screen::PartyFinderScreen::update_handler(&screen, compat::LiveChestMenu::of(&*container_screen_handler), mcrust::net::minecraft::network::chat::component::literal(&args.title).clone());
         } else {
-            // TODO(fabric2seer): the mod keeps the game's `Inventory` (Java holds a reference to the live object); the port's `Inventory` is not a value to copy and the port lends the mod no handle to it
-            // rust: __result.mod_screen(Box::new(compat::ScreenAdapter::new(crate::de::hysky::skyblocker::skyblock::dungeon::partyfinder::party_finder_screen::PartyFinderScreen::new(compat::LiveChestMenu::of(&*container_screen_handler), mcrust::mcrust::modding::game::with_player(|player| player.base.base.get_inventory().clone()).unwrap(), mcrust::net::minecraft::network::chat::component::literal(&args.title).clone()))));
+            //   java: client.gui.setScreen(new PartyFinderScreen(containerScreenHandler, player.getInventory(), title));
+            // rust: cross-package - `PartyFinderScreen::new` (skyblock/dungeon/partyfinder/party_finder_screen.rs:147, in no
+            // batch's list) still takes the port's `Inventory` by value, which the mod cannot have; every other screen
+            // here takes `compat::PlayerInventory` (the screen reads the live inventory through `game::with_player`).
+            // Once its `inventory` field is a `compat::PlayerInventory`, this is:
+            // __result.mod_screen(Box::new(compat::ScreenAdapter::new(crate::de::hysky::skyblocker::skyblock::dungeon::partyfinder::party_finder_screen::PartyFinderScreen::new(compat::LiveChestMenu::of(&*container_screen_handler), compat::PlayerInventory, mcrust::net::minecraft::network::chat::component::literal(&args.title).clone()))));
         }
         return __result.finish();
     } else if let mcrust::net::minecraft::world::entity::player::player::ContainerMenu::Chest(container_screen_handler) = &mut *menu && crate::de::hysky::skyblocker::config::skyblocker_config_manager::SkyblockerConfigManager::get().ui_and_visuals.fancy_auction_house.enabled && (name_lowercase == "auctions browser" || name_lowercase.starts_with("auctions: ")) {

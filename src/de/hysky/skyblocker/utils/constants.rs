@@ -10,10 +10,21 @@ use mcrust::net::minecraft::network::chat::mutable_component::MutableComponent;
 pub const LEVEL_EMBLEMS: &str = "⸕✿❁⸙α✎☕☖♣℻⚔➶⚡☄⚚⚓☠⚛♦♠❤✧⎊፠☬⚝⧉ꈔ㋖⸎⚠ꕁ〠ツ⥈☢☣✾⚜ௐ੭❂ᛃ〣ჶф♪♫Ӄ⛁⛃ᛝ☘ꖘꀾᱪΣ৫☃♔🐸⛂࿇ꤥ✨ꕪ▒☀✩✬✭✯✶✳✴✷✸✹✺ዞ";
 /// java: Pattern PLAYER_NAME = Pattern.compile("(?:\\[[0-9]+\\] )?(?:[" + Constants.LEVEL_EMBLEMS + "] )?(?:\\[[A-Z+]+\\] )?([A-Za-z0-9_]+)");
 pub static PLAYER_NAME: LazyLock<compat::regex::Pattern> = LazyLock::new(|| compat::regex::Pattern::compile(&format!("(?:\\[[0-9]+\\] )?(?:[{}] )?(?:\\[[A-Z+]+\\] )?([A-Za-z0-9_]+)", LEVEL_EMBLEMS)));
-// TODO(fabric2seer): expression not parsed
-//   java:
-/// java: 
-pub static PREFIX: compat::MainThread<Arc<dyn Fn() -> MutableComponent>> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `PREFIX` - see the TODO above"));
+/// java: Supplier<MutableComponent> PREFIX = () -> { .. };
+pub static PREFIX: compat::MainThread<Arc<dyn Fn() -> MutableComponent>> = compat::MainThread::new(|| {
+    Arc::new(|| -> MutableComponent {
+        use crate::de::hysky::skyblocker::utils::fun_utils::FunUtils;
+        use mcrust::net::minecraft::chat_formatting::ChatFormatting;
+        if FunUtils::should_enable_fun() {
+            return component::empty().append(component::literal("[").with_style_format(ChatFormatting::Gray)).append(FunUtils::get_random_fun_name()).append(component::literal("] ").with_style_format(ChatFormatting::Gray));
+        } else if FunUtils::should_enable_christmas_fun() {
+            return component::empty().append(component::literal("[").with_style_format(ChatFormatting::Gray)).append(create_skyblocker_gradient("Jollyblocker")).append(component::literal("] ").with_style_format(ChatFormatting::Gray));
+        } else if FunUtils::should_enable_spooky_fun() {
+            return component::empty().append(component::literal("[").with_style_format(ChatFormatting::Gray)).append(create_skyblocker_gradient("S-Scaryblocker")).append(component::literal("] ").with_style_format(ChatFormatting::Gray));
+        }
+        return component::empty().append(component::literal("[").with_style_format(ChatFormatting::Gray)).append(create_skyblocker_gradient("Skyblocker")).append(component::literal("] ").with_style_format(ChatFormatting::Gray));
+    })
+});
 /// java: List<String> SEYMOUR_IDS = List.of("VELVET_TOP_HAT", "CASHMERE_JACKET", "SATIN_TROUSERS", "OXFORD_SHOES");
 pub static SEYMOUR_IDS: LazyLock<Vec<String>> = LazyLock::new(|| vec!["VELVET_TOP_HAT".to_string(), "CASHMERE_JACKET".to_string(), "SATIN_TROUSERS".to_string(), "OXFORD_SHOES".to_string()]);
 /// java: List<String> CRYSTAL_HEXES = List.of("1F0030", "46085E", "54146E", "5D1C78", "63237D", "6A2C82", "7E4196", "8E51A6", "9C64B3", "A875BD", "B88BC9", "C6A3D4", "D9C1E3", "E5D1ED", "EFE1F5", "FCF3FF");
