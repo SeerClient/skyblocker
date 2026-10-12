@@ -135,7 +135,7 @@ impl CreeperBeams {
     /// java: private static boolean isTarget(ClientLevel world, BlockPos pos)
     pub fn is_target(world: &ClientLevel, pos: &BlockPos) -> bool {
         let mut block: Arc<Block> = world.get_block_state_typed(pos).get_block();
-        return (std::ptr::addr_eq(std::sync::Arc::as_ptr(&block), std::sync::Arc::as_ptr(&blocks::blocks().get("sea_lantern"))) || std::ptr::addr_eq(std::sync::Arc::as_ptr(&block), std::sync::Arc::as_ptr(&blocks::blocks().get("prismarine"))));
+        return (std::ptr::addr_eq(std::sync::Arc::as_ptr(&block), std::sync::Arc::as_ptr(&blocks::blocks().get("SEA_LANTERN"))) || std::ptr::addr_eq(std::sync::Arc::as_ptr(&block), std::sync::Arc::as_ptr(&blocks::blocks().get("PRISMARINE"))));
     }
 
 }
@@ -291,7 +291,7 @@ impl Beam {
 
     /// java: private void updateState(ClientLevel world)
     pub fn update_state(&mut self, world: &ClientLevel) {
-        self.to_do = !(std::ptr::addr_eq(std::sync::Arc::as_ptr(&world.get_block_state_typed(&self.block_one).get_block()), std::sync::Arc::as_ptr(&blocks::blocks().get("prismarine"))) && std::ptr::addr_eq(std::sync::Arc::as_ptr(&world.get_block_state_typed(&self.block_two).get_block()), std::sync::Arc::as_ptr(&blocks::blocks().get("prismarine"))));
+        self.to_do = !(std::ptr::addr_eq(std::sync::Arc::as_ptr(&world.get_block_state_typed(&self.block_one).get_block()), std::sync::Arc::as_ptr(&blocks::blocks().get("PRISMARINE"))) && std::ptr::addr_eq(std::sync::Arc::as_ptr(&world.get_block_state_typed(&self.block_two).get_block()), std::sync::Arc::as_ptr(&blocks::blocks().get("PRISMARINE"))));
     }
 
     /// java: private void extractRendering(PrimitiveCollector collector, float[] color)

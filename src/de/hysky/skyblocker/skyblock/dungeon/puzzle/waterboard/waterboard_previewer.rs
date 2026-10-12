@@ -170,7 +170,7 @@ impl WaterboardPreviewer {
         }
         let mut state: Arc<BlockState> = { let (__q0,) = (&({ let __r = &compat::read(__this, |__t| __t.room.clone()).unwrap(); let __f = compat::dispatch(__r, |__t| __t.relative_to_actual()); __f(__r, pos) }),); __this.lock().borrow().world.as_ref().unwrap().get_block_state_typed(__q0) };
         let mut behind_state: Arc<BlockState> = { let (__q0,) = (&({ let __r = &compat::read(__this, |__t| __t.room.clone()).unwrap(); let __f = compat::dispatch(__r, |__t| __t.relative_to_actual()); __f(__r, &pos.relative(Direction::South)) }),); __this.lock().borrow().world.as_ref().unwrap().get_block_state_typed(__q0) };
-        let mut open: bool = (state.is_air() || state.is_block(&blocks::blocks().get("water")));
+        let mut open: bool = (state.is_air() || state.is_block(&blocks::blocks().get("WATER")));
         if compat::read(__this, |__t| __t.prospective.clone()).is_none() {
             return open;
         } else {

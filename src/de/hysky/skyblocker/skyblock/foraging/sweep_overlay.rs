@@ -43,7 +43,7 @@ pub static THROWABLE_AXES: LazyLock<std::collections::HashSet<String>> = LazyLoc
 pub static NEIGHBOR_OFFSETS: compat::MainThread<Vec<BlockPos>> = compat::MainThread::new(|| vec![BlockPos::new(-1, -1, -1), BlockPos::new(-1, -1, 0), BlockPos::new(-1, -1, 1), BlockPos::new(-1, 0, -1), BlockPos::new(-1, 0, 0), BlockPos::new(-1, 0, 1), BlockPos::new(-1, 1, -1), BlockPos::new(-1, 1, 0), BlockPos::new(-1, 1, 1), BlockPos::new(0, -1, -1), BlockPos::new(0, -1, 0), BlockPos::new(0, -1, 1), BlockPos::new(0, 0, -1), BlockPos::new(0, 0, 1), BlockPos::new(0, 1, -1), BlockPos::new(0, 1, 0), BlockPos::new(0, 1, 1), BlockPos::new(1, -1, -1), BlockPos::new(1, -1, 0), BlockPos::new(1, -1, 1), BlockPos::new(1, 0, -1), BlockPos::new(1, 0, 0), BlockPos::new(1, 0, 1), BlockPos::new(1, 1, -1), BlockPos::new(1, 1, 0), BlockPos::new(1, 1, 1)]);
 /// java: private static final Map<Block, Float> TOUGHNESS_MAP = Map.of( Blocks.STRIPPED_SPRUCE_LOG, 10f, Blocks.STRIPPED_SPRUCE_WOOD, 10f, Blocks.MANGROVE_LOG, 50f, Blocks.MANGROVE_WOOD, 50f, Blocks.STRIPPED_B
 /// (keyed by the block's identity, as `Map.of` over `Block`s that keep `Object.equals`)
-pub static TOUGHNESS_MAP: compat::MainThread<Vec<(Arc<Block>, f32)>> = compat::MainThread::new(|| Vec::from([(blocks::blocks().get("stripped_spruce_log"), 10.0f32), (blocks::blocks().get("stripped_spruce_wood"), 10.0f32), (blocks::blocks().get("mangrove_log"), 50.0f32), (blocks::blocks().get("mangrove_wood"), 50.0f32), (blocks::blocks().get("stripped_birch_log"), 150.0f32), (blocks::blocks().get("stripped_birch_wood"), 150.0f32), (blocks::blocks().get("stripped_mangrove_log"), 150.0f32), (blocks::blocks().get("stripped_mangrove_wood"), 150.0f32)]));
+pub static TOUGHNESS_MAP: compat::MainThread<Vec<(Arc<Block>, f32)>> = compat::MainThread::new(|| Vec::from([(blocks::blocks().get("STRIPPED_SPRUCE_LOG"), 10.0f32), (blocks::blocks().get("STRIPPED_SPRUCE_WOOD"), 10.0f32), (blocks::blocks().get("MANGROVE_LOG"), 50.0f32), (blocks::blocks().get("MANGROVE_WOOD"), 50.0f32), (blocks::blocks().get("STRIPPED_BIRCH_LOG"), 150.0f32), (blocks::blocks().get("STRIPPED_BIRCH_WOOD"), 150.0f32), (blocks::blocks().get("STRIPPED_MANGROVE_LOG"), 150.0f32), (blocks::blocks().get("STRIPPED_MANGROVE_WOOD"), 150.0f32)]));
 /// java: @VisibleForTesting protected static final Map<String, List<Integer>> REQUIRED_SWEEP_VALUES = Map.ofEntries( Map.entry("FIG", List.of(7, 9, 11, 16, 21, 26, 34, 42, 50, 62, 74, 86, 102, 118, 134, 154, 1
 pub static REQUIRED_SWEEP_VALUES: LazyLock<std::collections::HashMap<String, Vec<i32>>> = LazyLock::new(|| std::collections::HashMap::from([("FIG".to_string(), vec![7, 9, 11, 16, 21, 26, 34, 42, 50, 62, 74, 86, 102, 118, 134, 154, 174, 194, 214, 234]), ("MANGROVE".to_string(), vec![50, 55, 60, 75, 90, 105, 130, 155, 180, 230, 280, 330, 405, 480, 555, 655, 755, 855, 955, 1055]), ("HELIX".to_string(), vec![150, 160, 170, 200, 230, 260, 320, 380, 440, 540, 640, 740, 890, 1040, 1190, 1390, 1590, 1790, 1990, 2190])]));
 
@@ -135,7 +135,7 @@ impl SweepOverlay {
         } else if Utils::is_in_torrhus_canyon() {
             return SweepOverlay::is_helix_log(state);
         } else if Utils::is_in_hub() {
-            return (state.is_block(&blocks::blocks().get("oak_log")) || state.is_block(&blocks::blocks().get("oak_wood")));
+            return (state.is_block(&blocks::blocks().get("OAK_LOG")) || state.is_block(&blocks::blocks().get("OAK_WOOD")));
         }
         // TODO(fabric2seer): `BlockState.is` has no Rust method in the port (looked for `is` in BlockState and its supertypes)
         // rust: return state.is(&mcrust::net::minecraft::tags::block_tags::logs());
@@ -144,17 +144,17 @@ impl SweepOverlay {
 
     /// java: private static boolean isFigLog(BlockState state)
     pub fn is_fig_log(state: &Arc<BlockState>) -> bool {
-        return (state.is_block(&blocks::blocks().get("stripped_spruce_log")) || state.is_block(&blocks::blocks().get("stripped_spruce_wood")));
+        return (state.is_block(&blocks::blocks().get("STRIPPED_SPRUCE_LOG")) || state.is_block(&blocks::blocks().get("STRIPPED_SPRUCE_WOOD")));
     }
 
     /// java: private static boolean isMangroveLog(BlockState state)
     pub fn is_mangrove_log(state: &Arc<BlockState>) -> bool {
-        return (state.is_block(&blocks::blocks().get("mangrove_log")) || state.is_block(&blocks::blocks().get("mangrove_wood")));
+        return (state.is_block(&blocks::blocks().get("MANGROVE_LOG")) || state.is_block(&blocks::blocks().get("MANGROVE_WOOD")));
     }
 
     /// java: private static boolean isHelixLog(BlockState state)
     pub fn is_helix_log(state: &Arc<BlockState>) -> bool {
-        return (state.is_block(&blocks::blocks().get("stripped_birch_log")) || state.is_block(&blocks::blocks().get("stripped_birch_wood")) || state.is_block(&blocks::blocks().get("stripped_mangrove_log")) || state.is_block(&blocks::blocks().get("stripped_mangrove_wood")));
+        return (state.is_block(&blocks::blocks().get("STRIPPED_BIRCH_LOG")) || state.is_block(&blocks::blocks().get("STRIPPED_BIRCH_WOOD")) || state.is_block(&blocks::blocks().get("STRIPPED_MANGROVE_LOG")) || state.is_block(&blocks::blocks().get("STRIPPED_MANGROVE_WOOD")));
     }
 
     /// java: private static boolean shouldBeChopped(BlockState source, BlockState destination)

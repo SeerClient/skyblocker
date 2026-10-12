@@ -126,7 +126,7 @@ impl BuildersWandPreview {
         }
         let mut start_pos: BlockPos = hit_result.get_block_pos();
         let mut is_sneaking: bool = mcrust::mcrust::modding::game::with_player(|player| player.is_shift_key_down()).unwrap();
-        let mut start_block: Arc<Block> = blocks::blocks().get("air");
+        let mut start_block: Arc<Block> = blocks::blocks().get("AIR");
         if !is_sneaking {
             start_pos = start_pos.relative(hit_result.get_direction());
         } else {
@@ -143,7 +143,7 @@ impl BuildersWandPreview {
                 if is_sneaking {
                     ({ let __f = compat::dispatch(collector, |__t| __t.submit_filled_box()); __f(collector, &pos.immutable(), &RED, SkyblockerConfigManager::get().helpers.builders_wand.preview_opacity, true) });
                 } else {
-                    BuildersWandPreview::extract_block_preview(collector, &pos.immutable(), &blocks::blocks().get("dirt").default_block_state());
+                    BuildersWandPreview::extract_block_preview(collector, &pos.immutable(), &blocks::blocks().get("DIRT").default_block_state());
                 }
                 pos.move_direction(dir);
                 i += 1;

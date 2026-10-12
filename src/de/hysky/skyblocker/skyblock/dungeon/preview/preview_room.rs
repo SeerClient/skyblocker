@@ -101,12 +101,12 @@ impl PreviewRoom {
         let mut block: Option<Arc<Block>> = match compat::read(waypoint, |__t| __t.category.clone()) {
             Some(crate::de::hysky::skyblocker::skyblock::dungeon::secrets::secret_waypoint::Category::Entrance) | Some(crate::de::hysky::skyblocker::skyblock::dungeon::secrets::secret_waypoint::Category::Stonk) | Some(crate::de::hysky::skyblocker::skyblock::dungeon::secrets::secret_waypoint::Category::Aotv) | Some(crate::de::hysky::skyblocker::skyblock::dungeon::secrets::secret_waypoint::Category::Pearl) | Some(crate::de::hysky::skyblocker::skyblock::dungeon::secrets::secret_waypoint::Category::Prince) | Some(crate::de::hysky::skyblocker::skyblock::dungeon::secrets::secret_waypoint::Category::Default) => None,
             Some(crate::de::hysky::skyblocker::skyblock::dungeon::secrets::secret_waypoint::Category::Bat) => Some(mcrust::net::minecraft::world::level::block::blocks::stained_glass().green().clone()),
-            Some(crate::de::hysky::skyblocker::skyblock::dungeon::secrets::secret_waypoint::Category::Chest) => Some(blocks::blocks().get("chest")),
+            Some(crate::de::hysky::skyblocker::skyblock::dungeon::secrets::secret_waypoint::Category::Chest) => Some(blocks::blocks().get("CHEST")),
             Some(crate::de::hysky::skyblocker::skyblock::dungeon::secrets::secret_waypoint::Category::Fairysoul) => Some(mcrust::net::minecraft::world::level::block::blocks::stained_glass().pink().clone()),
             Some(crate::de::hysky::skyblocker::skyblock::dungeon::secrets::secret_waypoint::Category::Item) => Some(mcrust::net::minecraft::world::level::block::blocks::stained_glass().blue().clone()),
-            Some(crate::de::hysky::skyblocker::skyblock::dungeon::secrets::secret_waypoint::Category::Lever) => Some(blocks::blocks().get("lever")),
-            Some(crate::de::hysky::skyblocker::skyblock::dungeon::secrets::secret_waypoint::Category::Superboom) => Some(blocks::blocks().get("tnt")),
-            Some(crate::de::hysky::skyblocker::skyblock::dungeon::secrets::secret_waypoint::Category::Wither) | Some(crate::de::hysky::skyblocker::skyblock::dungeon::secrets::secret_waypoint::Category::RedstoneKey) => Some(blocks::blocks().get("player_head")),
+            Some(crate::de::hysky::skyblocker::skyblock::dungeon::secrets::secret_waypoint::Category::Lever) => Some(blocks::blocks().get("LEVER")),
+            Some(crate::de::hysky::skyblocker::skyblock::dungeon::secrets::secret_waypoint::Category::Superboom) => Some(blocks::blocks().get("TNT")),
+            Some(crate::de::hysky::skyblocker::skyblock::dungeon::secrets::secret_waypoint::Category::Wither) | Some(crate::de::hysky::skyblocker::skyblock::dungeon::secrets::secret_waypoint::Category::RedstoneKey) => Some(blocks::blocks().get("PLAYER_HEAD")),
             _ => unreachable!("switch expression: no case matched"),
         };
         let Some(mut block) = block.clone() else {

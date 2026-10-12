@@ -261,14 +261,14 @@ impl RoomType {
     /// the constant's constructor data (Java keeps it in the constant's fields)
     pub fn fields(self) -> &'static RoomTypeFields {
         static FIELDS: LazyLock<Vec<RoomTypeFields>> = LazyLock::new(|| vec![
-            RoomTypeFields::new(blocks::blocks().get("barrier"), DyeColor::Gray),
-            RoomTypeFields::new(blocks::blocks().get("coal_ore"), DyeColor::Black),
-            RoomTypeFields::new(blocks::blocks().get("iron_ore"), DyeColor::LightGray),
-            RoomTypeFields::new(blocks::blocks().get("redstone_ore"), DyeColor::Red),
-            RoomTypeFields::new(blocks::blocks().get("lapis_ore"), DyeColor::Blue),
-            RoomTypeFields::new(blocks::blocks().get("gold_ore"), DyeColor::Yellow),
-            RoomTypeFields::new(blocks::blocks().get("diamond_ore"), DyeColor::Cyan),
-            RoomTypeFields::new(blocks::blocks().get("emerald_ore"), DyeColor::Lime),
+            RoomTypeFields::new(blocks::blocks().get("BARRIER"), DyeColor::Gray),
+            RoomTypeFields::new(blocks::blocks().get("COAL_ORE"), DyeColor::Black),
+            RoomTypeFields::new(blocks::blocks().get("IRON_ORE"), DyeColor::LightGray),
+            RoomTypeFields::new(blocks::blocks().get("REDSTONE_ORE"), DyeColor::Red),
+            RoomTypeFields::new(blocks::blocks().get("LAPIS_ORE"), DyeColor::Blue),
+            RoomTypeFields::new(blocks::blocks().get("GOLD_ORE"), DyeColor::Yellow),
+            RoomTypeFields::new(blocks::blocks().get("DIAMOND_ORE"), DyeColor::Cyan),
+            RoomTypeFields::new(blocks::blocks().get("EMERALD_ORE"), DyeColor::Lime),
         ]);
         &FIELDS[self as usize]
     }

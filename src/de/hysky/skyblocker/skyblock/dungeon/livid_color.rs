@@ -35,7 +35,7 @@ pub static CONFIG: compat::MainThread<Arc<dyn Fn() -> compat::Shared<Livid>>> = 
 /// java: private static ChatFormatting color = ChatFormatting.AQUA;
 pub static COLOR: compat::MainThread<ChatFormatting> = compat::MainThread::new(|| ChatFormatting::Aqua);
 /// java: private static Block lastColor = Blocks.AIR;
-pub static LAST_COLOR: compat::MainThread<Arc<Block>> = compat::MainThread::new(|| blocks::blocks().get("air"));
+pub static LAST_COLOR: compat::MainThread<Arc<Block>> = compat::MainThread::new(|| blocks::blocks().get("AIR"));
 /// java: private static boolean isInitialized = false;
 pub static IS_INITIALIZED: LazyLock<Mutex<bool>> = LazyLock::new(|| Mutex::new(false));
 /// java: private static boolean correctLividIdFound = false;
@@ -160,7 +160,7 @@ impl LividColor {
 
     /// java: private static void reset()
     pub fn reset() {
-        *LAST_COLOR.get_mut() = blocks::blocks().get("air");
+        *LAST_COLOR.get_mut() = blocks::blocks().get("AIR");
         compat::set_state(&TOGGLE_TIME, ((0) as i64) as i64);
         compat::set_state(&IS_INITIALIZED, false);
         compat::set_state(&CORRECT_LIVID_ID_FOUND, false);

@@ -85,10 +85,10 @@ impl FarmingHud {
             if false /* java: old_state == null: never null here */ {
                 return;
             }
-            if !new_state.is_air() || !(old_state.is_block(&blocks::blocks().get("cactus"))) {
+            if !new_state.is_air() || !(old_state.is_block(&blocks::blocks().get("CACTUS"))) {
                 return;
             }
-            if !(mcrust::mcrust::modding::game::level().unwrap().get_block_state_typed(&pos.below()).is_block(&blocks::blocks().get("cactus"))) {
+            if !(mcrust::mcrust::modding::game::level().unwrap().get_block_state_typed(&pos.below()).is_block(&blocks::blocks().get("CACTUS"))) {
                 return;
             }
             if mcrust::mcrust::modding::game::with_player(|player| player.base.base.base.base.distance_to_sqr((pos.get_x()) as f64, (pos.get_y()) as f64, (pos.get_z()) as f64)).unwrap() > (64 as f64) {

@@ -89,7 +89,7 @@ impl CritterCapsuleHelper {
             }
             let mut block: BlockPos = BlockPos::containing_position(&pos);
             let mut state: Arc<BlockState> = mcrust::mcrust::modding::game::level().unwrap().get_block_state_typed(&block);
-            if !state.is_air() && !(state.is_block(&blocks::blocks().get("water"))) {
+            if !state.is_air() && !(state.is_block(&blocks::blocks().get("WATER"))) {
                 return Some(AnyHitResult::Block(BlockHitResult::new(pos.clone(), Direction::Down, block.clone(), true)));
             }
             let mut detection_box: AABB = (AABB::of_corners(&last_pos, &pos)).inflate(0.05);

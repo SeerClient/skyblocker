@@ -54,18 +54,18 @@ impl TargetPractice {
         if !(TargetPractice::should_process()) {
             return;
         }
-        if pos == PRESSURE_PLATE.get_mut() && std::ptr::addr_eq(std::sync::Arc::as_ptr(&new_state.get_block()), std::sync::Arc::as_ptr(&blocks::blocks().get("light_weighted_pressure_plate"))) {
+        if pos == PRESSURE_PLATE.get_mut() && std::ptr::addr_eq(std::sync::Arc::as_ptr(&new_state.get_block()), std::sync::Arc::as_ptr(&blocks::blocks().get("LIGHT_WEIGHTED_PRESSURE_PLATE"))) {
             if new_state.get_value(&mcrust::net::minecraft::world::level::block::state::properties::block_state_properties::power()) < mcrust::net::minecraft::world::level::block::state::properties::property::Comparable::Integer(ACTIVATION_THRESHOLD) {
                 TargetPractice::reset();
                 return;
             }
-            if std::ptr::addr_eq(std::sync::Arc::as_ptr(&old_state.get_block()), std::sync::Arc::as_ptr(&blocks::blocks().get("light_weighted_pressure_plate"))) && old_state.get_value(&mcrust::net::minecraft::world::level::block::state::properties::block_state_properties::power()) == mcrust::net::minecraft::world::level::block::state::properties::property::Comparable::Integer(UNACTIVATED) {
+            if std::ptr::addr_eq(std::sync::Arc::as_ptr(&old_state.get_block()), std::sync::Arc::as_ptr(&blocks::blocks().get("LIGHT_WEIGHTED_PRESSURE_PLATE"))) && old_state.get_value(&mcrust::net::minecraft::world::level::block::state::properties::block_state_properties::power()) == mcrust::net::minecraft::world::level::block::state::properties::property::Comparable::Integer(UNACTIVATED) {
                 TargetPractice::reset();
                 return;
             }
         }
         if POSSIBLE_TARGETS.get_mut().contains(pos) {
-            if std::ptr::addr_eq(std::sync::Arc::as_ptr(&old_state.get_block()), std::sync::Arc::as_ptr(&blocks::blocks().get("emerald_block"))) && std::ptr::addr_eq(std::sync::Arc::as_ptr(&new_state.get_block()), std::sync::Arc::as_ptr(mcrust::net::minecraft::world::level::block::blocks::dyed_terracotta().blue())) {
+            if std::ptr::addr_eq(std::sync::Arc::as_ptr(&old_state.get_block()), std::sync::Arc::as_ptr(&blocks::blocks().get("EMERALD_BLOCK"))) && std::ptr::addr_eq(std::sync::Arc::as_ptr(&new_state.get_block()), std::sync::Arc::as_ptr(mcrust::net::minecraft::world::level::block::blocks::dyed_terracotta().blue())) {
                 HIT_TARGETS.get_mut().push(pos.immutable());
             }
         }

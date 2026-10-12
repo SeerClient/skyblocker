@@ -883,7 +883,7 @@ impl dyn Room {
     /// java: protected void onUseBlock(Level world, BlockPos pos)
     pub fn on_use_block_body(__this: &compat::Shared<dyn Room>, world: &Level, mut pos: BlockPos) {
         let mut state: Arc<BlockState> = world.get_block_state_typed(&pos);
-        if state.is_block(&blocks::blocks().get("chest")) || state.is_block(&blocks::blocks().get("trapped_chest")) {
+        if state.is_block(&blocks::blocks().get("CHEST")) || state.is_block(&blocks::blocks().get("TRAPPED_CHEST")) {
             { let __v = Some(pos.clone()); compat::write(__this, |__t| __t.room_base_mut().last_chest_secret = __v); }
             { let __v = compat::millis(); compat::write(__this, |__t| __t.room_base_mut().last_chest_secret_time = __v); }
             // the lambda captures `world`: the client's level (the object `world` is), held by its handle
@@ -899,7 +899,7 @@ impl dyn Room {
                 //   java: secretWaypoints.column(pos).values().stream().filter(SecretWaypoint::needsInteraction).filter(SecretWaypoint::isEnabled).findAny()
                 //   java: 						.ifPresent(secretWaypoint -> markSecretsFoundAndLogInfo(secretWaypoint, "[Skyblocker Dungeon Secrets] Detected chest block removed, setting secret #{} as found", secretWaypoint.secretIndex));
             }), 5) });
-        } else if state.is_block(&blocks::blocks().get("player_head")) || state.is_block(&blocks::blocks().get("player_wall_head")) {
+        } else if state.is_block(&blocks::blocks().get("PLAYER_HEAD")) || state.is_block(&blocks::blocks().get("PLAYER_WALL_HEAD")) {
             // TODO(fabric2seer): `.column(..)` on a Table
             //   java: secretWaypoints.column(pos).values().stream().filter(SecretWaypoint::needsInteraction).filter(SecretWaypoint::isEnabled).findAny()
             //   java: 					.ifPresent(secretWaypoint -> {
@@ -910,11 +910,11 @@ impl dyn Room {
             //   java: 						}
             //   java: 						markSecretsFoundAndLogInfo(secretWaypoint, "[Skyblocker Dungeon Secrets] Detected {} interaction, setting secret #{} as found", secretWaypoint.category, secretWaypoint.secretIndex);
             //   java: 					});
-        } else if state.is_block(&blocks::blocks().get("redstone_block")) {
+        } else if state.is_block(&blocks::blocks().get("REDSTONE_BLOCK")) {
             // TODO(fabric2seer): `.column(..)` on a Table
             //   java: secretWaypoints.column(pos.above()).values().stream().filter(SecretWaypoint::needsInteraction).filter(SecretWaypoint::isEnabled).findAny()
             //   java: 					.ifPresent(secretWaypoint -> markSecretsFoundAndLogInfo(secretWaypoint, "[Skyblocker Dungeon Secrets] Detected {} interaction, setting secret #{} as found", secretWaypoint.category, secretWaypoint.secretIndex));
-        } else if state.is_block(&blocks::blocks().get("lever")) {
+        } else if state.is_block(&blocks::blocks().get("LEVER")) {
             // TODO(fabric2seer): `.column(..)` on a Table
             //   java: secretWaypoints.column(pos).values().stream().filter(SecretWaypoint::isLever).forEach(SecretWaypoint::setFound);
         }

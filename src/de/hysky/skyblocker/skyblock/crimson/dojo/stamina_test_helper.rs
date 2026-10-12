@@ -84,7 +84,7 @@ impl StaminaTestHelper {
                     for z in player_pos.get_z().wrapping_sub(10)..player_pos.get_z().wrapping_add(10) {
                         let mut pos: BlockPos = BlockPos::new(x, y, z);
                         let mut state: Arc<BlockState> = mcrust::mcrust::modding::game::level().unwrap().get_block_state_typed(&pos);
-                        if state.is_block(&blocks::blocks().get("chiseled_stone_bricks")) {
+                        if state.is_block(&blocks::blocks().get("CHISELED_STONE_BRICKS")) {
                             *MIDDLE_BASE.get_mut() = Some(pos.clone());
                             return None;
                         }

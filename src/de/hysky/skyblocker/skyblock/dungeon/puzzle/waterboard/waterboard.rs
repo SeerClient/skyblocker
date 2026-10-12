@@ -97,13 +97,13 @@ impl LeverType {
     /// the constant's constructor data (Java keeps it in the constant's fields)
     pub fn fields(self) -> &'static LeverTypeFields {
         static FIELDS: LazyLock<Vec<LeverTypeFields>> = LazyLock::new(|| vec![
-            LeverTypeFields::new(blocks::blocks().get("coal_block"), BlockPos::new(20, 61, 10), DyeColor::Red, Some(vec![Some(BlockPos::new(0, -2, 0)), Some(BlockPos::new(2, -1, 1)), None, Some(BlockPos::new(5, -1, 0))])),
-            LeverTypeFields::new(blocks::blocks().get("gold_block"), BlockPos::new(20, 61, 15), DyeColor::Yellow, Some(vec![Some(BlockPos::new(1, -1, 0)), Some(BlockPos::new(3, -2, 0)), Some(BlockPos::new(-4, -1, 1)), Some(BlockPos::new(1, 0, 0))])),
-            LeverTypeFields::new(blocks::blocks().get("quartz_block"), BlockPos::new(20, 61, 20), DyeColor::LightGray, Some(vec![Some(BlockPos::new(1, -4, 1)), Some(BlockPos::new(-1, 0, 0)), Some(BlockPos::new(1, 0, 0)), Some(BlockPos::new(-1, 0, 1))])),
-            LeverTypeFields::new(blocks::blocks().get("diamond_block"), BlockPos::new(10, 61, 20), DyeColor::Cyan, Some(vec![Some(BlockPos::new(0, -5, 1)), Some(BlockPos::new(-2, -1, 0)), Some(BlockPos::new(-1, 0, 1)), Some(BlockPos::new(-3, -4, 1))])),
-            LeverTypeFields::new(blocks::blocks().get("emerald_block"), BlockPos::new(10, 61, 15), DyeColor::Lime, Some(vec![Some(BlockPos::new(-1, -10, 1)), Some(BlockPos::new(1, 0, 1)), Some(BlockPos::new(-6, 0, 0)), Some(BlockPos::new(1, -4, 0))])),
-            LeverTypeFields::new(blocks::blocks().get("terracotta"), BlockPos::new(10, 61, 10), DyeColor::Orange, Some(vec![Some(BlockPos::new(-1, -1, 1)), Some(BlockPos::new(0, -3, 1)), None, Some(BlockPos::new(-4, -5, 1))])),
-            LeverTypeFields::new(blocks::blocks().get("lava"), BlockPos::new(15, 60, 5), DyeColor::LightBlue, None),
+            LeverTypeFields::new(blocks::blocks().get("COAL_BLOCK"), BlockPos::new(20, 61, 10), DyeColor::Red, Some(vec![Some(BlockPos::new(0, -2, 0)), Some(BlockPos::new(2, -1, 1)), None, Some(BlockPos::new(5, -1, 0))])),
+            LeverTypeFields::new(blocks::blocks().get("GOLD_BLOCK"), BlockPos::new(20, 61, 15), DyeColor::Yellow, Some(vec![Some(BlockPos::new(1, -1, 0)), Some(BlockPos::new(3, -2, 0)), Some(BlockPos::new(-4, -1, 1)), Some(BlockPos::new(1, 0, 0))])),
+            LeverTypeFields::new(blocks::blocks().get("QUARTZ_BLOCK"), BlockPos::new(20, 61, 20), DyeColor::LightGray, Some(vec![Some(BlockPos::new(1, -4, 1)), Some(BlockPos::new(-1, 0, 0)), Some(BlockPos::new(1, 0, 0)), Some(BlockPos::new(-1, 0, 1))])),
+            LeverTypeFields::new(blocks::blocks().get("DIAMOND_BLOCK"), BlockPos::new(10, 61, 20), DyeColor::Cyan, Some(vec![Some(BlockPos::new(0, -5, 1)), Some(BlockPos::new(-2, -1, 0)), Some(BlockPos::new(-1, 0, 1)), Some(BlockPos::new(-3, -4, 1))])),
+            LeverTypeFields::new(blocks::blocks().get("EMERALD_BLOCK"), BlockPos::new(10, 61, 15), DyeColor::Lime, Some(vec![Some(BlockPos::new(-1, -10, 1)), Some(BlockPos::new(1, 0, 1)), Some(BlockPos::new(-6, 0, 0)), Some(BlockPos::new(1, -4, 0))])),
+            LeverTypeFields::new(blocks::blocks().get("TERRACOTTA"), BlockPos::new(10, 61, 10), DyeColor::Orange, Some(vec![Some(BlockPos::new(-1, -1, 1)), Some(BlockPos::new(0, -3, 1)), None, Some(BlockPos::new(-4, -5, 1))])),
+            LeverTypeFields::new(blocks::blocks().get("LAVA"), BlockPos::new(15, 60, 5), DyeColor::LightBlue, None),
         ]);
         &FIELDS[self as usize]
     }

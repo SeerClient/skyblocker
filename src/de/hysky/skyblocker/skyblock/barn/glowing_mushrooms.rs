@@ -69,7 +69,7 @@ impl GlowingMushrooms {
         }
         let mut pos: BlockPos = BlockPos::containing(packet.get_x(), packet.get_y(), packet.get_z());
         let mut block: Arc<Block> = mcrust::mcrust::modding::game::level().unwrap().get_block_state_typed(&pos).get_block();
-        if !std::ptr::addr_eq(std::sync::Arc::as_ptr(&block), std::sync::Arc::as_ptr(&blocks::blocks().get("red_mushroom"))) && !std::ptr::addr_eq(std::sync::Arc::as_ptr(&block), std::sync::Arc::as_ptr(&blocks::blocks().get("brown_mushroom"))) {
+        if !std::ptr::addr_eq(std::sync::Arc::as_ptr(&block), std::sync::Arc::as_ptr(&blocks::blocks().get("RED_MUSHROOM"))) && !std::ptr::addr_eq(std::sync::Arc::as_ptr(&block), std::sync::Arc::as_ptr(&blocks::blocks().get("BROWN_MUSHROOM"))) {
             return;
         }
         let mut mushroom: compat::Shared<GlowingMushroom> = GLOWING_MUSHROOMS.get_mut().entry(pos.clone()).or_insert_with_key(|k: &BlockPos| GlowingMushroom::new(k.clone())).clone();
@@ -96,7 +96,7 @@ impl GlowingMushrooms {
                 continue;
             }
             let mut block: Arc<Block> = (mcrust::mcrust::modding::game::level().unwrap().get_block_state_typed(&compat::read(&glowing_mushroom, |__t| __t.pos.clone()).unwrap())).get_block();
-            if !std::ptr::addr_eq(std::sync::Arc::as_ptr(&block), std::sync::Arc::as_ptr(&blocks::blocks().get("red_mushroom"))) && !std::ptr::addr_eq(std::sync::Arc::as_ptr(&block), std::sync::Arc::as_ptr(&blocks::blocks().get("brown_mushroom"))) {
+            if !std::ptr::addr_eq(std::sync::Arc::as_ptr(&block), std::sync::Arc::as_ptr(&blocks::blocks().get("RED_MUSHROOM"))) && !std::ptr::addr_eq(std::sync::Arc::as_ptr(&block), std::sync::Arc::as_ptr(&blocks::blocks().get("BROWN_MUSHROOM"))) {
                 continue;
             }
             let mut bounding_box: AABB = RenderHelper::get_block_bounding_box(&mcrust::mcrust::modding::game::level().unwrap(), &compat::read(&glowing_mushroom, |__t| __t.pos.clone()).unwrap()).unwrap();

@@ -35,7 +35,7 @@ impl std::ops::DerefMut for LushlilacHighlighter {
 impl LushlilacHighlighter {
     /// java: private LushlilacHighlighter()
     pub fn new() -> compat::Shared<Self> {
-        let (_, __this) = AbstractBlockHighlighterBase::new_in(blocks::blocks().get("flowering_azalea"), DyeColor::Magenta, move |__base| {
+        let (_, __this) = AbstractBlockHighlighterBase::new_in(blocks::blocks().get("FLOWERING_AZALEA"), DyeColor::Magenta, move |__base| {
             let __h = compat::shared(Self {
                 base: __base,
             });

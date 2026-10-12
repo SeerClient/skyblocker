@@ -265,7 +265,7 @@ impl WaterboardOneFlow {
             for y in waterboard::BOARD_MIN_Y..=waterboard::BOARD_MAX_Y {
                 let mut pos: BlockPos = ({ let __r = &compat::read(__this, |__t| __t.room.clone()).unwrap(); let __f = compat::dispatch(__r, |__t| __t.relative_to_actual()); __f(__r, &BlockPos::new(x, y, waterboard::BOARD_Z)) });
                 let mut state: Arc<BlockState> = __this.lock().borrow().world.as_ref().unwrap().get_block_state_typed(&pos);
-                if state.is_block(&blocks::blocks().get("water")) {
+                if state.is_block(&blocks::blocks().get("WATER")) {
                     return false;
                 }
             }
@@ -476,7 +476,7 @@ impl WaterboardOneFlow {
             // java: for (Mark mark : marks) { .. mark.reached = true; .. } - the list's own objects
             for __mark_index in 0..compat::read(__this, |__t| __t.marks.len()) {
                 let mark = compat::read(__this, |__t| __t.marks[__mark_index].clone());
-                if !mark.reached && { let (__q0,) = (&blocks::blocks().get("water"),); __this.lock().borrow().world.as_ref().unwrap().get_block_state_typed(&mark.pos).is_block(__q0) } {
+                if !mark.reached && { let (__q0,) = (&blocks::blocks().get("WATER"),); __this.lock().borrow().world.as_ref().unwrap().get_block_state_typed(&mark.pos).is_block(__q0) } {
                     compat::write(__this, |__t| __t.marks[__mark_index].reached = true);
                     let mut elapsed: f64 = (((compat::read(__this, |__t| __t.current_time_millis)).wrapping_sub(compat::read(__this, |__t| __t.water_start_millis)) as f64) / 1000.0);
                     // TODO(fabric2seer): `fmt` takes 1 argument(s) in the port (`f: &mut std::fmt::Formatter<'_>`), Java passes 0

@@ -41,14 +41,14 @@ impl HoneyhiveHighlighter {
     /// java: private HoneyhiveHighlighter()
     pub fn new() -> compat::Shared<Self> {
         // Beehives attached to protected trees aren't Honeyhives and can be identifed since they're attached above via a Birch Fence
-        let mut pos_predicate: Arc<dyn Fn(&ClientLevel, BlockPos) -> bool> = Arc::new(move |level: &ClientLevel, pos: BlockPos| !(level.get_block_state_typed(&pos.above()).is_block(&blocks::blocks().get("birch_fence"))));
+        let mut pos_predicate: Arc<dyn Fn(&ClientLevel, BlockPos) -> bool> = Arc::new(move |level: &ClientLevel, pos: BlockPos| !(level.get_block_state_typed(&pos.above()).is_block(&blocks::blocks().get("BIRCH_FENCE"))));
         // java: state -> state.is(Blocks.BEE_NEST) && state.getValueOrElse(BeehiveBlock.HONEY_LEVEL, 0) == BeehiveBlock.MAX_HONEY_LEVELS
         // (`BeehiveBlock.HONEY_LEVEL` is `BlockStateProperties.LEVEL_HONEY`; `MAX_HONEY_LEVELS` is BeehiveBlock:68's 5,
         // which the port's beehive_block.rs does not declare - rust: port gap)
         let mut state_predicate: Arc<dyn Fn(&BlockState) -> bool> = Arc::new(move |state: &BlockState| {
             use mcrust::net::minecraft::world::level::block::state::properties::property::Comparable;
             const MAX_HONEY_LEVELS: i32 = 5;
-            state.is_block(&blocks::blocks().get("bee_nest"))
+            state.is_block(&blocks::blocks().get("BEE_NEST"))
                 && state.get_value_or_else(&mcrust::net::minecraft::world::level::block::state::properties::block_state_properties::level_honey(), Comparable::Integer(0)) == Comparable::Integer(MAX_HONEY_LEVELS)
         });
         // java: super(posPredicate, statePredicate, ColorUtils.getFloatComponents(DyeColor.BLUE.getTextColor()));

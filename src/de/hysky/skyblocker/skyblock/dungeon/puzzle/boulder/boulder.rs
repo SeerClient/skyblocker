@@ -83,7 +83,7 @@ impl Boulder {
     /// java: public static String getBlockType(ClientLevel world, Room room, int x, int y, int z)
     pub fn get_block_type(world: &ClientLevel, room: &compat::Shared<dyn Room>, mut x: i32, mut y: i32, mut z: i32) -> String {
         let mut block: Arc<Block> = (world.get_block_state_typed(&({ let __f = compat::dispatch(room, |__t| __t.relative_to_actual()); __f(room, &BlockPos::new(x, y, z)) }))).get_block();
-        return (if std::ptr::addr_eq(std::sync::Arc::as_ptr(&block), std::sync::Arc::as_ptr(&blocks::blocks().get("birch_planks"))) || std::ptr::addr_eq(std::sync::Arc::as_ptr(&block), std::sync::Arc::as_ptr(&blocks::blocks().get("jungle_planks"))) { "B" } else { "." }).to_string();
+        return (if std::ptr::addr_eq(std::sync::Arc::as_ptr(&block), std::sync::Arc::as_ptr(&blocks::blocks().get("BIRCH_PLANKS"))) || std::ptr::addr_eq(std::sync::Arc::as_ptr(&block), std::sync::Arc::as_ptr(&blocks::blocks().get("JUNGLE_PLANKS"))) { "B" } else { "." }).to_string();
     }
 
     /// java: private static @Nullable BlockPos checkForButtonBlocksOnLine(ClientLevel world, Vec3 point1, Vec3 point2)
@@ -104,7 +104,7 @@ impl Boulder {
             let mut current_z: f64 = (z1 + ((step as f64) * z_step));
             let mut block_pos: BlockPos = BlockPos::containing(current_x, current_y, current_z);
             let mut block: Arc<Block> = world.get_block_state_typed(&block_pos).get_block();
-            if std::ptr::addr_eq(std::sync::Arc::as_ptr(&block), std::sync::Arc::as_ptr(&blocks::blocks().get("stone_button"))) {
+            if std::ptr::addr_eq(std::sync::Arc::as_ptr(&block), std::sync::Arc::as_ptr(&blocks::blocks().get("STONE_BUTTON"))) {
                 return Some(block_pos.clone());
             }
         }

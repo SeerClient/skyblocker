@@ -61,7 +61,7 @@ impl LightsOn {
         for lever in LEVERS.get_mut().iter() {
             let mut world: Arc<ClientLevel> = mcrust::mcrust::modding::game::level().unwrap();
             let mut state: Arc<BlockState> = world.get_block_state_typed(lever);
-            if std::ptr::addr_eq(std::sync::Arc::as_ptr(&state.get_block()), std::sync::Arc::as_ptr(&blocks::blocks().get("lever"))) && state.has_property(&mcrust::net::minecraft::world::level::block::state::properties::block_state_properties::powered()) && state.get_value(&mcrust::net::minecraft::world::level::block::state::properties::block_state_properties::powered()) != mcrust::net::minecraft::world::level::block::state::properties::property::Comparable::Boolean(true) {
+            if std::ptr::addr_eq(std::sync::Arc::as_ptr(&state.get_block()), std::sync::Arc::as_ptr(&blocks::blocks().get("LEVER"))) && state.has_property(&mcrust::net::minecraft::world::level::block::state::properties::block_state_properties::powered()) && state.get_value(&mcrust::net::minecraft::world::level::block::state::properties::block_state_properties::powered()) != mcrust::net::minecraft::world::level::block::state::properties::property::Comparable::Boolean(true) {
                 let mut r#box: Option<AABB> = RenderHelper::get_block_bounding_box_3(&world, &state, lever);
                 if let Some(r#box) = &r#box {
                     ({ let __f = compat::dispatch(collector, |__t| __t.submit_filled_box_aabb_float_float_boolean()); __f(collector, r#box, &RED, ALPHA, false) });

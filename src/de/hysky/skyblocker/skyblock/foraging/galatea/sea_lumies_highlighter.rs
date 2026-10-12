@@ -44,7 +44,7 @@ impl std::ops::DerefMut for SeaLumiesHighlighter {
 impl SeaLumiesHighlighter {
     /// java: private SeaLumiesHighlighter()
     pub fn new() -> compat::Shared<Self> {
-        let (_, __this) = AbstractBlockHighlighterBase::new_in(blocks::blocks().get("sea_pickle"), DyeColor::Cyan, move |__base| {
+        let (_, __this) = AbstractBlockHighlighterBase::new_in(blocks::blocks().get("SEA_PICKLE"), DyeColor::Cyan, move |__base| {
             let __h = compat::shared(Self {
                 base: __base,
                 all_blocks: BlockPosSet::new(),

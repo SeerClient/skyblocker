@@ -35,7 +35,7 @@ impl std::ops::DerefMut for RubyVeilshroomHighlighter {
 impl RubyVeilshroomHighlighter {
     /// java: private RubyVeilshroomHighlighter()
     pub fn new() -> compat::Shared<Self> {
-        let (_, __this) = AbstractBlockHighlighterBase::new_in(blocks::blocks().get("crimson_fungus"), DyeColor::Purple, move |__base| {
+        let (_, __this) = AbstractBlockHighlighterBase::new_in(blocks::blocks().get("CRIMSON_FUNGUS"), DyeColor::Purple, move |__base| {
             let __h = compat::shared(Self {
                 base: __base,
             });

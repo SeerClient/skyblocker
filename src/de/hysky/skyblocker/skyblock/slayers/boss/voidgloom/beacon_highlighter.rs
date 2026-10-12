@@ -131,10 +131,10 @@ impl BeaconHighlighter {
     pub fn on_block_state_update(pos: &BlockPos, mut old_state: Option<Arc<BlockState>>, new_state: &Arc<BlockState>) {
         if Utils::is_in_the_end() && SlayerManager::is_fighting_slayer_type(SlayerType::Voidgloom) && SkyblockerConfigManager::get().slayers.enderman_slayer.highlight_beacons {
             BEACONS.get_mut().remove(pos);
-            if new_state.is_block(&blocks::blocks().get("beacon")) {
+            if new_state.is_block(&blocks::blocks().get("BEACON")) {
                 BEACONS.get_mut().insert(pos.immutable(), compat::millis());
                 compat::set_state(&BEACON_THROWN, false);
-            } else if old_state.is_none() || old_state.as_ref().unwrap().is_block(&blocks::blocks().get("beacon")) {
+            } else if old_state.is_none() || old_state.as_ref().unwrap().is_block(&blocks::blocks().get("BEACON")) {
                 let key = |path: &Vec<Vec3>| (path[path.len() - 1]).distance_to_sqr_vec(&vec3::at_center_of(pos));
                 // the closest path, by its key (Java removes that list object: `path == closestPath`)
                 let mut closest_path: Option<Uuid> = BEACON_ENTITY_PATHS.get().iter().min_by(|a, b| key(a.1).total_cmp(&key(b.1))).filter(|(_, path)| key(path) < (4 as f64)).map(|(uuid, _)| uuid.clone());
