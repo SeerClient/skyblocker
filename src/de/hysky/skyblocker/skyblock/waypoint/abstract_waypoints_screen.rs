@@ -3,6 +3,7 @@
 #[allow(unused_imports)]
 use crate::prelude::*;
 use crate::de::hysky::skyblocker::skyblock::waypoint::waypoints_list_widget::WaypointsListWidget;
+use crate::de::hysky::skyblocker::skyblock::waypoint::waypoints::LocationMultimap;
 use crate::de::hysky::skyblocker::utils::location::Location;
 use crate::de::hysky::skyblocker::utils::render::gui::dropdown_widget::DropdownWidget;
 use crate::de::hysky::skyblocker::utils::render::gui::dropdown_widget::DropdownWidgetBase;
@@ -37,7 +38,7 @@ pub struct AbstractWaypointsScreenBase<T> {
     /// java: protected final T parent;
     pub parent: Option<T>,
     /// java: protected final Multimap<Location, WaypointGroup> waypoints;
-    pub waypoints: Option<crate::unresolved::Multimap>,
+    pub waypoints: Option<compat::Shared<LocationMultimap>>,
     /// java: protected Location island;
     pub island: Option<Location>,
     /// java: protected WaypointsListWidget waypointsListWidget;
@@ -68,20 +69,19 @@ impl<T: 'static> std::ops::DerefMut for AbstractWaypointsScreenBase<T> {
 impl<T: Clone + 'static> AbstractWaypointsScreenBase<T> {
     /// java: public AbstractWaypointsScreen(Component title, T parent)
     pub fn new(mut title: MutableComponent, mut parent: T) -> Self {
-        // TODO(fabric2seer): static call MultimapBuilder.enumKeys(..)
-        //   java: this(title, parent, MultimapBuilder.enumKeys(Location.class).arrayListValues().build());
-        let mut this: Self = todo!("constructor");
+        // `this(title, parent, MultimapBuilder.enumKeys(Location.class).arrayListValues().build())`
+        let mut this = Self::new_3(title, parent, compat::shared(LocationMultimap::new()));
         this
     }
 
     /// java: public AbstractWaypointsScreen(Component title, T parent, Multimap<Location, WaypointGroup> waypoints)
-    pub fn new_3(mut title: MutableComponent, mut parent: T, mut waypoints: crate::unresolved::Multimap) -> Self {
+    pub fn new_3(mut title: MutableComponent, mut parent: T, mut waypoints: compat::Shared<LocationMultimap>) -> Self {
         let mut this = Self::new_4(title.clone(), parent.clone(), waypoints.clone(), Utils::get_location());
         this
     }
 
     /// java: public AbstractWaypointsScreen(Component title, T parent, Multimap<Location, WaypointGroup> waypoints, Location island)
-    pub fn new_4(mut title: MutableComponent, mut parent: T, mut waypoints: crate::unresolved::Multimap, mut island: Location) -> Self {
+    pub fn new_4(mut title: MutableComponent, mut parent: T, mut waypoints: compat::Shared<LocationMultimap>, mut island: Location) -> Self {
         let __init_parent = Some(parent.clone());
         let __init_waypoints = Some(waypoints.clone());
         let __init_island = Some(island);
@@ -103,32 +103,74 @@ impl<T: Clone + 'static> AbstractWaypointsScreenBase<T> {
 
 }
 
+impl<T> AbstractWaypointsScreenBase<T> {
+    /// `waypointsListWidget.x(..)`: the list object behind the screen's widget, the live list lent to it for `f`.
+    pub fn with_list<R>(&mut self, f: impl FnOnce(&compat::Shared<WaypointsListWidget>) -> R) -> R {
+        let __s = self;
+        let __r = __s.waypoints_list_widget.as_mut().expect("NullPointerException: waypointsListWidget");
+        __s.__widgets.with(&mut __s.base, __r, |__w| __w.mod_widget().and_then(|__ms| __ms.with::<mcrust::mcrust::modding::widgets::ModSelectionList, _>(|__l| {
+            let __h = __l.class::<compat::ListClass<WaypointsListWidget>>().map(|__c| __c.object().clone()).expect("a mod list without its class");
+            compat::lend_list(&__h, __l, || f(&__h))
+        })).expect("a mod list reached from inside its own method"))
+    }
+}
+
 /// java: the virtual methods of AbstractWaypointsScreen (implemented by AbstractWaypointsScreenBase and every subclass)
-pub trait AbstractWaypointsScreen<T> {
+pub trait AbstractWaypointsScreen<T: 'static> {
     fn abstract_waypoints_screen_base(&self) -> &AbstractWaypointsScreenBase<T>;
     fn abstract_waypoints_screen_base_mut(&mut self) -> &mut AbstractWaypointsScreenBase<T>;
     fn as_any(&self) -> &dyn std::any::Any;
 
     /// java: @Override protected void init()
     fn init(&mut self) {
-        ();
-        // TODO(fabric2seer): a widget put in a layout outside a mod screen's own methods: the port's layouts hold a widget by its index in the screen's widget list
-        // rust: { let __s0 = compat::string_widget(0, 0, -1, 9, self.abstract_waypoints_screen_base().title.clone()); self.abstract_waypoints_screen_base_mut().layout.as_mut().unwrap().add_to_header(__s0) };
-        { let __s0 = self.abstract_waypoints_screen_base().popup_container.clone(); self.abstract_waypoints_screen_base().add_widget(__s0) };
+        self.init_super();
+    }
+
+    /// `AbstractWaypointsScreen.init()`'s body, which a subclass's `init` runs as `super.init()` (a Rust trait default
+    /// method cannot be reached once overridden).
+    fn init_super(&mut self) {
+        // `super.init()`: `Screen.init()` is empty.
+        // `layout.addToHeader(new StringWidget(title, font))`: the widget joins the screen's list, the layout holds its index.
+        {
+            let __base = self.abstract_waypoints_screen_base_mut();
+            let __w = compat::string_widget(0, 0, -1, 9, __base.base.title.clone());
+            let (__ww, __wh) = (__w.get_width(), __w.get_height());
+            let __i = __base.base.add_widget(__w);
+            __base.layout.as_mut().unwrap().add_to_header(LayoutElement::widget(__i, __ww, __wh));
+        }
+        // java: addWidget(popupContainer);
+        // TODO(batchD): structural - `PopupContainer` is an `AbstractContainerWidget` subclass whose children (the close
+        // button and the popup's layout) are widgets the screen does not hold, and its constructor is unported
+        // (`ImageButton` over `WidgetSprites` with an action that writes the container's own `visible`); it is not a
+        // game widget (`ModWidget` over `container_widget_mut`), so the screen cannot take it.
         // TODO(fabric2seer): `this` handed on as a reference other objects keep: the object has no shared handle to itself (port by hand)
         //   java: waypointsListWidget = addRenderableWidget(new WaypointsListWidget(minecraft, this, width, height - 120, 32, 24));
     }
 
     /// java: protected final void lateInit()
     fn late_init(&mut self) {
-        // TODO(fabric2seer): `visit_widgets` takes 0 argument(s) in the port (``), Java passes 1
-        // TODO(fabric2seer): a lambda for a parameter the port does not type as a closure (`Consumer<net.minecraft.client.gui.components.AbstractWidget>`)
-        // rust: self.abstract_waypoints_screen_base().layout.as_ref().unwrap().visit_widgets(|__a0| { self.abstract_waypoints_screen_base().add_renderable_widget(__a0.clone()); });
-        self.abstract_waypoints_screen_base_mut().island_widget = Some({ let __s0 = (compat::shared(DropdownWidgetBase::new_9(compat::minecraft(), (self.abstract_waypoints_screen_base().width).wrapping_sub(160), 8, 150, (self.abstract_waypoints_screen_base().height).wrapping_sub(8), Location::values().to_vec(), Arc::new(move |__a0| { self.island_changed(__a0.clone()); }), self.abstract_waypoints_screen_base().island.clone().unwrap(), Arc::new(move |_| {
+        // `layout.visitWidgets(this::addRenderableWidget)`: the layout's widgets are in the screen's list already; each
+        // is made renderable.
+        {
+            let __base = self.abstract_waypoints_screen_base_mut();
+            let __vw = __base.layout.as_ref().unwrap().visit_widgets();
+            for (__i, _, _) in __vw {
+                __base.base.mark_renderable(__i);
+            }
+        }
+        // `islandWidget = addRenderableWidget(new DropdownWidget<>(minecraft, width - 160, 8, 150, height - 8,
+        // Arrays.asList(Location.values()), this::islandChanged, island, _ -> {}))`
+        let (__width, __height, __island) = { let __b = self.abstract_waypoints_screen_base(); (__b.width, __b.height, __b.island.clone().unwrap()) };
+        let __island_widget = compat::shared(DropdownWidgetBase::new_9(compat::minecraft(), __width.wrapping_sub(160), 8, 150, __height.wrapping_sub(8), Location::values().to_vec(), self.island_changed_callback(), __island, Arc::new(move |_| {
 
-        }))) as compat::Shared<dyn DropdownWidget<compat::Object>>); self.abstract_waypoints_screen_base().add_renderable_widget(__s0) });
-        // TODO(fabric2seer): `Screen.addRenderableOnly` has no Rust method in the port (looked for `add_renderable_only` in Screen and its supertypes)
-        // rust: self.abstract_waypoints_screen_base().add_renderable_only(&self.abstract_waypoints_screen_base().popup_container);
+        }))) as compat::Shared<dyn DropdownWidget<Location>>;
+        // TODO(batchD): cross-package - `DropdownWidget` (utils/render/gui) is an `AbstractContainerWidget` with no
+        // `ModWidget` form, so the screen's widget list cannot take it (`addRenderableWidget`); the screen keeps the object
+        // and hands it its clicks and scrolls itself (`mouse_clicked` / `mouse_scrolled`), but nothing draws it.
+        self.abstract_waypoints_screen_base_mut().island_widget = Some(__island_widget);
+        // java: addRenderableOnly(popupContainer);
+        // TODO(batchD): structural - see `init`: the popup container is not a game widget (and `Screen.addRenderableOnly`
+        // has no port method).
         self.reposition_elements();
     }
 
@@ -138,7 +180,7 @@ pub trait AbstractWaypointsScreen<T> {
             self.abstract_waypoints_screen_base_mut().popup_container.visible = false;
         } else {
             self.abstract_waypoints_screen_base_mut().popup_container.visible = true;
-            self.abstract_waypoints_screen_base_mut().popup_container.set_widget(*w);
+            self.abstract_waypoints_screen_base_mut().popup_container.set_widget(w.clone());
             { let __s0 = x.clamp(0, (self.abstract_waypoints_screen_base().width).wrapping_sub(self.abstract_waypoints_screen_base().popup_container.get_width())); let __s1 = y.clamp(0, (self.abstract_waypoints_screen_base().height).wrapping_sub(self.abstract_waypoints_screen_base().popup_container.get_height())); self.abstract_waypoints_screen_base_mut().popup_container.set_position(__s0, __s1) };
         }
     }
@@ -148,9 +190,9 @@ pub trait AbstractWaypointsScreen<T> {
         self.abstract_waypoints_screen_base_mut().layout.as_mut().unwrap().arrange_elements();
         let __wa1 = self.abstract_waypoints_screen_base().width;
         let __wa2 = self.abstract_waypoints_screen_base().layout.clone();
-        let __o1 = self.abstract_waypoints_screen_base().waypoints_list_widget.clone().unwrap();
-        compat::write(&__o1, |__t| __t.update_size(__wa1, __wa2.as_ref().unwrap()));
-        WaypointsListWidget::update_entries(self.abstract_waypoints_screen_base().waypoints_list_widget.as_ref().unwrap());
+        // `waypointsListWidget.updateSize(width, layout)` (the list's own method) and `updateEntries()`
+        self.abstract_waypoints_screen_base_mut().with_list(|__h| compat::write(__h, |__t| __t.base.list.update_size(__wa1, __wa2.as_ref().unwrap())));
+        self.abstract_waypoints_screen_base_mut().with_list(|__h| WaypointsListWidget::update_entries(__h));
         let __o2 = self.abstract_waypoints_screen_base().island_widget.clone().unwrap();
         { let __s0 = ((self.abstract_waypoints_screen_base().width).wrapping_sub(compat::write(&__o2, |__t| __t.dropdown_widget_base_mut().get_width()))).wrapping_sub(10); self.abstract_waypoints_screen_base_mut().island_widget.as_mut().unwrap().lock().borrow_mut().set_x(__s0) };
         // TODO(fabric2seer): `align_in_dimension` takes 4 argument(s) in the port (`pos: i32, length: i32, widget_length: i32, align: f32`), Java passes 5
@@ -187,7 +229,8 @@ pub trait AbstractWaypointsScreen<T> {
     /// java: protected void islandChanged(Location location)
     fn island_changed(&mut self, mut location: Location) {
         self.abstract_waypoints_screen_base_mut().island = Some(location);
-        WaypointsListWidget::set_island(self.abstract_waypoints_screen_base().waypoints_list_widget.as_ref().unwrap(), self.abstract_waypoints_screen_base().island.clone().unwrap());
+        let __island = self.abstract_waypoints_screen_base().island.clone().unwrap();
+        self.abstract_waypoints_screen_base_mut().with_list(|__h| WaypointsListWidget::set_island(__h, __island));
     }
 
     /// java: protected boolean isEnabled(NamedWaypoint waypoint)
@@ -201,9 +244,13 @@ pub trait AbstractWaypointsScreen<T> {
     }
 
     /// java: protected void updateButtons()
-    fn update_buttons(&self) {
-        WaypointsListWidget::update_buttons(self.abstract_waypoints_screen_base().waypoints_list_widget.as_ref().unwrap());
+    fn update_buttons(&mut self) {
+        self.abstract_waypoints_screen_base_mut().with_list(|__h| WaypointsListWidget::update_buttons(__h));
     }
+
+    /// `this::islandChanged` handed to the island dropdown: the callback reaches this screen through its own handle
+    /// (the subclass's `self_ref`), since a trait method has no `this` to give away.
+    fn island_changed_callback(&self) -> Arc<dyn Fn(Location)>;
 
 }
 
@@ -272,7 +319,8 @@ impl PopupContainer {
     }
 
     /// java: @Override public List<? extends GuiEventListener> children()
-    pub fn children(&self) -> Vec<Box<dyn GuiEventListener>> {
+    /// The port's widgets are no `GuiEventListener` objects; the list answers the widgets themselves.
+    pub fn children(&self) -> Vec<AbstractWidget> {
         return (if self.visible { self.children.clone() } else { vec![] });
     }
 
@@ -297,7 +345,7 @@ impl PopupContainer {
     }
 
     /// java: @Override protected void extractWidgetRenderState(GuiGraphicsExtractor context, int mouseX, int mouseY, float deltaTicks)
-    pub fn extract_widget_render_state(&self, context: &mut GuiGraphicsExtractor, mut mouse_x: i32, mut mouse_y: i32, mut delta_ticks: f32) {
+    pub fn extract_widget_render_state(&mut self, context: &mut GuiGraphicsExtractor, mut mouse_x: i32, mut mouse_y: i32, mut delta_ticks: f32) {
         if self.is_hovered() {
             // TODO(fabric2seer): `GuiGraphicsExtractor.requestCursor` has no Rust method in the port (looked for `request_cursor` in GuiGraphicsExtractor and its supertypes)
             // rust: context.request_cursor(&mcrust::com::mojang::blaze3d::platform::cursor::cursor_type::CursorType::DEFAULT);
@@ -308,7 +356,7 @@ impl PopupContainer {
             // TODO(fabric2seer): `extract_render_state` is a method of the port's trait `Renderable`, which the port's `AbstractWidget` does not implement
             // rust: child.extract_render_state(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), mouse_x, mouse_y, delta_ticks);
         }
-        if !self.is_focused() && mouse_x <= self.get_x().wrapping_sub(50) || mouse_x >= self.get_right().wrapping_add(50) || mouse_y <= self.get_y().wrapping_sub(50) || mouse_y >= self.get_bottom().wrapping_add(50) {
+        if !self.is_focused() && (mouse_x <= self.get_x().wrapping_sub(50) || mouse_x >= self.get_right().wrapping_add(50) || mouse_y <= self.get_y().wrapping_sub(50) || mouse_y >= self.get_bottom().wrapping_add(50)) {
             self.visible = false;
         }
     }

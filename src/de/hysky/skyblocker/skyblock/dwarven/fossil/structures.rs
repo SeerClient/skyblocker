@@ -142,13 +142,20 @@ impl TileGrid {
         Self { state }
     }
 
+    /// `new TileGrid(new TileState[height][width])`: Java's array starts full of nulls, and every site that builds one
+    /// (`convertItemsToTiles`, `flipGrid`, `rotateGrid`) writes each slot before anything reads it, so the
+    /// placeholder below is never observed.
+    pub fn of_size(width: i32, height: i32) -> Self {
+        Self { state: vec![vec![TileState::Unknown; width as usize]; height as usize] }
+    }
+
     /// java: the record accessor `state()`
     pub fn state(&self) -> Vec<Vec<TileState>> {
         self.state.clone()
     }
 
     /// java: void updateSlot(int x, int y, TileState newState)
-    pub fn update_slot(&self, mut x: i32, mut y: i32, mut new_state: TileState) {
+    pub fn update_slot(&mut self, mut x: i32, mut y: i32, mut new_state: TileState) {
         (self.state[(y) as usize])[(x) as usize] = new_state;
     }
 
@@ -169,21 +176,30 @@ impl TileGrid {
 
     /// java: @Override public boolean equals(Object o)
     pub fn equals(&self, o: &compat::Object) -> bool {
-        if self == o {
+        // `this == o` (identity): the same object behind the handle.
+        if std::ptr::addr_eq(self as *const TileGrid, std::sync::Arc::as_ptr(o)) {
             return true;
         }
-        // TODO(fabric2seer): not translated (expected ')' at '(' (offset 949))
-        //   java: if (o instanceof TileGrid(TileState[][] state2)) {
-        //   java: 				return Arrays.deepEquals(state, state2);
-        //   java: 			}
+        // `o instanceof TileGrid(TileState[][] state2)` -> `Arrays.deepEquals(state, state2)`
+        if let Some(other) = o.downcast_ref::<TileGrid>() {
+            return self.state == other.state;
+        }
         return false;
     }
 
     /// java: @Override public int hashCode()
     pub fn hash_code(&self) -> i32 {
-        // TODO(fabric2seer): Arrays.deepHashCode
-        //   java: return Arrays.deepHashCode(state);
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        // `Arrays.deepHashCode(state)`: 31 * h + element hash per level, 0 for null; an enum's hash is its identity in
+        // Java, so the constant's ordinal stands for it (it is consistent with `equals`, which is all it is used for).
+        let mut result: i32 = 1;
+        for row in self.state.iter() {
+            let mut row_hash: i32 = 1;
+            for tile in row.iter() {
+                row_hash = row_hash.wrapping_mul(31).wrapping_add(tile.ordinal());
+            }
+            result = result.wrapping_mul(31).wrapping_add(row_hash);
+        }
+        return result;
     }
 
 }
@@ -228,8 +244,8 @@ impl permutation {
     }
 
     /// java: boolean isValid(TileGrid currentState, String percentage)
-    pub fn is_valid(&self, current_state: &TileGrid, percentage: &str) -> bool {
-        if true /* java: percentage != null: never null here */ && !(percentage == (self.r#type).fields().percentage) {
+    pub fn is_valid(&self, current_state: &TileGrid, percentage: Option<&str>) -> bool {
+        if let Some(percentage) = percentage && !(percentage == (self.r#type).fields().percentage) {
             return false;
         }
         for x in 0..current_state.width() {

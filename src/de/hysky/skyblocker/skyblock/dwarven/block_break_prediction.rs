@@ -30,7 +30,14 @@ use mcrust::net::minecraft::core::registry::Registry as _;
 use mcrust::net::minecraft::world::entity::living_entity::LivingEntity as _;
 
 /// java: private static final EnumMap<Location, Map<Block, IntIntPair>> blockStrengths = new EnumMap<>(Location.class);
-pub static BLOCK_STRENGTHS: compat::MainThread<std::collections::HashMap<Location, std::collections::HashMap<Arc<Block>, (i32, i32)>>> = compat::MainThread::new(|| std::any::TypeId::of::<Location>());
+/// The inner `Map<Block, IntIntPair>` is keyed by the `Block` OBJECT (`Object.hashCode`): an identity map, kept as
+/// pairs compared with `Arc::ptr_eq`.
+pub static BLOCK_STRENGTHS: compat::MainThread<std::collections::HashMap<Location, Vec<(Arc<Block>, (i32, i32))>>> = compat::MainThread::new(|| std::collections::HashMap::new());
+
+/// `map.get(block)` on one of `BLOCK_STRENGTHS`' identity maps.
+fn strength_of(strengths: &[(Arc<Block>, (i32, i32))], block: &Arc<Block>) -> Option<(i32, i32)> {
+    strengths.iter().find(|(key, _)| Arc::ptr_eq(key, block)).map(|(_, value)| *value)
+}
 /// java: private static final Pattern MINING_SPEED_PATTERN = Pattern.compile(String.format("Mining Speed: %s(\\d+)", SkyBlockIcons.MINING_SPEED));
 pub static MINING_SPEED_PATTERN: LazyLock<compat::regex::Pattern> = LazyLock::new(|| compat::regex::Pattern::compile(&format!("Mining Speed: {}(\\d+)", sky_block_icons::MINING_SPEED)));
 /// java: private static final Pattern BREAKING_POWER_PATTERN = Pattern.compile("Breaking Power (\\d+)");
@@ -84,8 +91,8 @@ impl BlockBreakPrediction {
         if mcrust::mcrust::modding::game::with_player(|_| ()).is_none() || false /* java: compat::minecraft().game_mode == null: never null here */ || !(SkyblockerConfigManager::get().mining.block_break_prediction.enabled) {
             return progression;
         }
-        if let Some(hit_result) = compat::minecraft().hit_result.as_ref().unwrap().as_any().downcast_ref::<BlockHitResult>() {
-            if !(hit_result.get_block_pos() == pos) {
+        if let Some(mcrust::net::minecraft::world::phys::hit_result::AnyHitResult::Block(hit_result)) = compat::minecraft().hit_result.as_ref() {
+            if !(hit_result.get_block_pos() == *pos) {
                 return progression;
             }
         } else {
@@ -95,9 +102,8 @@ impl BlockBreakPrediction {
             compat::set_state(&NEW_BLOCK, false);
             let mut lore_match: Option<compat::regex::Matcher> = ItemUtils::get_lore_line_if_match(&mcrust::mcrust::modding::game::with_player(|player| player.get_main_hand_item().clone()).unwrap(), &BREAKING_POWER_PATTERN);
             if let Some(lore_match) = &lore_match {
-                // TODO(fabric2seer): static call NumberUtils.toInt(..)
-                //   java: int toolBreakingPower = NumberUtils.toInt(loreMatch.group(1));
-                let mut tool_breaking_power: i32 = todo!("fabric2seer: the initialiser of `toolBreakingPower` (TODO above)");
+                // `NumberUtils.toInt(str)`: `Integer.parseInt` (no trimming), 0 when it throws or the string is null.
+                let mut tool_breaking_power: i32 = lore_match.group(1).and_then(|group| group.parse::<i32>().ok()).unwrap_or(0);
                 compat::set_state(&CURRENT_BLOCK_BREAK_TIME, BlockBreakPrediction::get_break_time(pos, tool_breaking_power));
             } else {
                 compat::set_state(&CURRENT_BLOCK_BREAK_TIME, ((-1) as i64) as i64);
@@ -122,7 +128,7 @@ impl BlockBreakPrediction {
         if mcrust::mcrust::modding::game::with_player(|_| ()).is_none() {
             return -1;
         }
-        let mut speed: Option<compat::regex::Matcher> = PlayerListManager::get_player_string_list().into_iter().map(|__a0| MINING_SPEED_PATTERN.matcher(&__a0)).filter(|__a0| __a0.matches()).next();
+        let mut speed: Option<compat::regex::Matcher> = PlayerListManager::get_player_string_list().into_iter().map(|__a0| MINING_SPEED_PATTERN.matcher(&__a0)).filter_map(|mut __a0| __a0.matches().then_some(__a0)).next();
         if speed.is_none() {
             if !(compat::get_state(&SENT_WARNING_MESSAGE)) {
                 mcrust::mcrust::modding::game::with_player(|player| { script_host::send_feedback(&(constants::PREFIX.get_mut())().append(component::translatable("skyblocker.config.mining.blockBreakPrediction.enableStatsMessage")).with_style_format(ChatFormatting::Red).to_string()); });
@@ -130,9 +136,8 @@ impl BlockBreakPrediction {
             }
             return -1;
         }
-        // TODO(fabric2seer): static call NumberUtils.toInt(..)
-        //   java: return NumberUtils.toInt(speed.get().group(1));
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        // `NumberUtils.toInt(str)`: `Integer.parseInt` (no trimming), 0 when it throws or the string is null.
+        return speed.unwrap().group(1).and_then(|group| group.parse::<i32>().ok()).unwrap_or(0);
     }
 
     /// java: private static long getBreakTime(BlockPos pos, int toolBreakingPower)
@@ -141,10 +146,10 @@ impl BlockBreakPrediction {
             return ((-1) as i64) as i64;
         }
         let mut target_block: Arc<Block> = mcrust::mcrust::modding::game::level().unwrap().get_block_state_typed(pos).get_block();
-        if !(BLOCK_STRENGTHS.get_mut().contains_key(&Utils::get_location())) || !(BLOCK_STRENGTHS.get_mut().get(&Utils::get_location()).cloned().unwrap().contains_key(&target_block)) {
+        if !(BLOCK_STRENGTHS.get().contains_key(&Utils::get_location())) || strength_of(BLOCK_STRENGTHS.get().get(&Utils::get_location()).unwrap(), &target_block).is_none() {
             return ((-1) as i64) as i64;
         }
-        let mut block_strength_and_breaking_power: (i32, i32) = BLOCK_STRENGTHS.get_mut().get(&Utils::get_location()).cloned().unwrap().get(&target_block).cloned().unwrap();
+        let mut block_strength_and_breaking_power: (i32, i32) = strength_of(BLOCK_STRENGTHS.get().get(&Utils::get_location()).unwrap(), &target_block).unwrap();
         if block_strength_and_breaking_power.1 > tool_breaking_power {
             return ((-1) as i64) as i64;
         }
@@ -155,7 +160,12 @@ impl BlockBreakPrediction {
 
     /// java: public static void addStrength(Location location, Block blockId, int strength, int breakingPower)
     pub fn add_strength(mut location: Location, mut block_id: Arc<Block>, mut strength: i32, mut breaking_power: i32) {
-        (BLOCK_STRENGTHS.get_mut().entry(location).or_insert_with_key(|k| (|_| std::collections::HashMap::new())(k.clone()))).insert(block_id.clone(), (strength, breaking_power));
+        // `computeIfAbsent(location, _ -> new HashMap<>()).put(blockId, IntIntPair.of(strength, breakingPower))`
+        let strengths = BLOCK_STRENGTHS.get_mut().entry(location).or_insert_with(Vec::new);
+        match strengths.iter_mut().find(|(key, _)| Arc::ptr_eq(key, &block_id)) {
+            Some((_, value)) => *value = (strength, breaking_power),
+            None => strengths.push((block_id.clone(), (strength, breaking_power))),
+        }
     }
 
     /// java: private static void loadBlockStrength()
@@ -208,7 +218,14 @@ impl BlockBreakPrediction {
 
     /// java: public static Block getBlockFromRepo(String id)
     pub fn get_block_from_repo(id: &str) -> Arc<Block> {
-        return mcrust::net::minecraft::core::registries::built_in_registries::block().get_value_by_identifier(&Identifier::try_parse(id).unwrap()).unwrap();
+        // `BuiltInRegistries.BLOCK.getValue(Identifier.parse(id))`: a defaulted registry (air for an unknown id); the
+        // value is the erased block.
+        let value = mcrust::net::minecraft::core::registries::built_in_registries::block().get_value_by_identifier(&Identifier::parse(id));
+        return value
+            .as_ref()
+            .and_then(|value| mcrust::com::mojang::serialization::cast::<mcrust::net::minecraft::world::level::block::block::ErasedBlock>(value))
+            .map(|block| Arc::clone(&block.0))
+            .unwrap_or_else(|| mcrust::net::minecraft::world::level::block::blocks::blocks().get("AIR"));
     }
 
 }

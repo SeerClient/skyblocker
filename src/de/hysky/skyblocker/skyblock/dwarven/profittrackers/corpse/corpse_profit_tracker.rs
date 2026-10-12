@@ -56,8 +56,10 @@ pub static INSTANCE: compat::MainThread<compat::Shared<CorpseProfitTracker>> = c
 /// java: private static final Pattern CORPSE_PATTERN = Pattern.compile(" {2}(LAPIS|UMBER|TUNGSTEN|VANGUARD) CORPSE LOOT! *");
 pub static CORPSE_PATTERN: LazyLock<compat::regex::Pattern> = LazyLock::new(|| compat::regex::Pattern::compile(" {2}(LAPIS|UMBER|TUNGSTEN|VANGUARD) CORPSE LOOT! *"));
 /// java: private static final Object2ObjectArrayMap<String, String> NAME2ID_MAP = new Object2ObjectArrayMap<>(50);
-pub static NAME2ID_MAP: LazyLock<std::collections::HashMap<String, String>> = LazyLock::new(|| {
-    let mut value = std::collections::HashMap::with_capacity((50) as usize);
+/// An `Object2ObjectArrayMap` keeps insertion order (its iteration order is read: `comparePriority`, the filter
+/// screen's item list), so it is an `IndexMap`.
+pub static NAME2ID_MAP: LazyLock<indexmap::IndexMap<String, String>> = LazyLock::new(|| {
+    let mut value = indexmap::IndexMap::with_capacity((50) as usize);
     value.insert(format!("{} Flawed Onyx Gemstone", sky_block_icons::CRIT_DAMAGE), "FLAWED_ONYX_GEM".to_string());
     value.insert(format!("{} Fine Onyx Gemstone", sky_block_icons::CRIT_DAMAGE), "FINE_ONYX_GEM".to_string());
     value.insert(format!("{} Flawless Onyx Gemstone", sky_block_icons::CRIT_DAMAGE), "FLAWLESS_ONYX_GEM".to_string());
@@ -159,7 +161,8 @@ impl CorpseProfitTracker {
     pub fn init() {
         // TODO(fabric2seer): ClientReceiveMessageEvents.ALLOW_GAME.register: no SeerClient equivalent yet
         //   java: ClientReceiveMessageEvents.ALLOW_GAME.register(INSTANCE::onChatMessage);
-        INSTANCE.get_mut().lock().borrow_mut().all_rewards.as_mut().unwrap().init();
+        let all_rewards = compat::read(INSTANCE.get(), |__t| __t.all_rewards.clone()).unwrap();
+        compat::write(&all_rewards, |__t| { __t.init(); });
         skyblock_events::PROFILE_CHANGE.register(Arc::new(move |__a0, __a1| { CorpseProfitTracker::on_profile_change(INSTANCE.get_mut(), &__a0, &__a1); }));
         client_command_registration_callback::EVENT.register(Arc::new(
             |dispatcher: &mut client_command_registration_callback::ClientCommandDispatcher| {
@@ -178,10 +181,9 @@ impl CorpseProfitTracker {
     }
 
     /// java: @UnmodifiableView public static Object2ObjectMap<String, String> getName2IdMap()
-    pub fn get_name2_id_map() -> std::collections::HashMap<String, String> {
-        // TODO(fabric2seer): static call Object2ObjectMaps.unmodifiable(..)
-        //   java: return Object2ObjectMaps.unmodifiable(NAME2ID_MAP);
-        todo!("fabric2seer: the value of this function is in a TODO above")
+    pub fn get_name2_id_map() -> &'static indexmap::IndexMap<String, String> {
+        // `Object2ObjectMaps.unmodifiable(NAME2ID_MAP)`: a read-only view of the map.
+        return &NAME2ID_MAP;
     }
 
     /// java: private void onProfileChange(String prevProfileId, String newProfileId)
@@ -238,16 +240,20 @@ impl CorpseProfitTracker {
         let mut matcher: compat::regex::Matcher = CORPSE_PATTERN.matcher(&message);
         if !(compat::read(__this, |__t| __t.inside_reward_message)) && matcher.matches() {
             let mut corpse: String = matcher.group(1).unwrap();
-            let mut r#type: CorpseType;
-            // java: try {..} catch (IllegalArgumentException _) - an exception here is a panic, caught by `catch_unwind`
+            // java: try {..} catch (IllegalArgumentException _) - an exception here is a panic, caught by `catch_unwind`;
+            // the try block assigns `type`, which the code after it reads, so the block hands it out.
             let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                r#type = CorpseType::value_of(&corpse.to_uppercase());
+                let r#type = CorpseType::value_of(&corpse.to_uppercase());
                 { let __v = Some(CorpseLoot::new_3(r#type, Vec::new(), std::time::SystemTime::now())); compat::write(__this, |__t| __t.last_corpse_loot = __v); }
+                r#type
             }));
-            if let Err(_) = __result {
-                logger().error(&format!("Unknown corpse type `{}` for message: `{}`. Report this!", corpse, message));
-                return true;
-            }
+            let r#type: CorpseType = match __result {
+                Ok(r#type) => r#type,
+                Err(_) => {
+                    logger().error(&format!("Unknown corpse type `{}` for message: `{}`. Report this!", corpse, message));
+                    return true;
+                }
+            };
             // java: try {..} catch (IllegalStateException _) - an exception here is a panic, caught by `catch_unwind`
             let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                 CorpseLoot::profit_1(&compat::read(__this, |__t| __t.last_corpse_loot.clone()).unwrap(), (CorpseLoot::profit(&compat::read(__this, |__t| __t.last_corpse_loot.clone()).unwrap()) - (r#type).get_key_price()));

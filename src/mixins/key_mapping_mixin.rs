@@ -9,8 +9,8 @@ use crate::prelude::*;
 /// target: net.minecraft.client.KeyMapping#click  [exists]
 /// Rust: net/minecraft/client/key_mapping.rs:590 fn click(key: &Key)
 fn on_key_pressed(ci: &mut CallbackInfo<'_>) {
-    let Some(key) = compat::detach_ref(ci.arg::<Key>(0)) else { return; };
-    crate::de::hysky::skyblocker::skyblock::shortcut::shortcuts::Shortcuts::on_key_pressed(&key);
+    let Some(key) = compat::detach_ref(ci.arg::<mcrust::com::mojang::blaze3d::platform::input_constants::Key>(0)) else { return; };
+    crate::de::hysky::skyblocker::skyblock::shortcut::shortcuts::Shortcuts::on_key_pressed(key);
 }
 
 /// @Inject setKeyPressed
@@ -18,7 +18,7 @@ fn on_key_pressed(ci: &mut CallbackInfo<'_>) {
 /// target: net.minecraft.client.KeyMapping#set  [exists]
 /// Rust: net/minecraft/client/key_mapping.rs:549 fn set(key: &Key, state: bool)
 fn set_key_pressed(ci: &mut CallbackInfo<'_>) {
-    let Some(key) = compat::detach_ref(ci.arg::<Key>(0)) else { return; };
+    let Some(key) = compat::detach_ref(ci.arg::<mcrust::com::mojang::blaze3d::platform::input_constants::Key>(0)) else { return; };
     let pressed: bool = ci.arg::<bool>(1).copied().unwrap_or_default();
     crate::de::hysky::skyblocker::skyblock::shortcut::shortcuts::Shortcuts::set_key_pressed(key.clone(), pressed);
 }

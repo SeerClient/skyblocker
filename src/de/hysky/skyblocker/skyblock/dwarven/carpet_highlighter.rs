@@ -23,7 +23,7 @@ use mcrust::net::minecraft::world::phys::vec3::Vec3;
 /// java: public static final CarpetHighlighter INSTANCE = new CarpetHighlighter();
 pub static INSTANCE: LazyLock<compat::Shared<CarpetHighlighter>> = LazyLock::new(|| CarpetHighlighter::new());
 /// java: private static final Vec3 CARPET_BOUNDING_BOX = Boxes.getLengthVec(CarpetBlock.SHAPE.bounds());
-pub static CARPET_BOUNDING_BOX: compat::MainThread<Vec3> = compat::MainThread::new(|| Boxes::get_length_vec(&mcrust::net::minecraft::world::level::block::carpet_block::shape().bounds().unwrap()));
+pub static CARPET_BOUNDING_BOX: compat::MainThread<Vec3> = compat::MainThread::new(|| Boxes::get_length_vec(&mcrust::net::minecraft::world::level::block::block::column(16.0, 0.0, 1.0).bounds().unwrap()) /* `CarpetBlock.SHAPE` (private in the port) is `Block.column(16.0, 0.0, 1.0)` (:17) */);
 /// java: private static final int SEARCH_RADIUS = 15;
 pub const SEARCH_RADIUS: i32 = 15;
 /// java: private static final int TICK_INTERVAL = 15;
@@ -67,10 +67,10 @@ impl CarpetHighlighter {
         if !(compat::get_state(&IS_LOCATION_VALID)) || !(SkyblockerConfigManager::get().mining.dwarven_mines.enable_carpet_highlighter) || mcrust::mcrust::modding::game::level().is_none() || mcrust::mcrust::modding::game::with_player(|_| ()).is_none() {
             return;
         }
-        let mut iterable: Vec<BlockPos> = BlockPos::within_manhattan(&mcrust::mcrust::modding::game::with_player(|player| player.base.base.base.base.block_position()).unwrap(), SEARCH_RADIUS, SEARCH_RADIUS, SEARCH_RADIUS);
-        for block_pos in iterable.iter() {
-            if CarpetHighlighter::check_for_carpet(__this, block_pos) {
-                BlockPosSet::add(CARPET_LOCATIONS.get_mut(), block_pos);
+        let mut iterable: mcrust::net::minecraft::core::block_pos::WithinManhattan = BlockPos::within_manhattan(&mcrust::mcrust::modding::game::with_player(|player| player.base.base.base.base.block_position()).unwrap(), SEARCH_RADIUS, SEARCH_RADIUS, SEARCH_RADIUS);
+        for block_pos in iterable {
+            if CarpetHighlighter::check_for_carpet(__this, &block_pos) {
+                BlockPosSet::add(CARPET_LOCATIONS.get_mut(), &block_pos);
             }
         }
     }
@@ -82,7 +82,7 @@ impl CarpetHighlighter {
             return false;
         }
         let mut block_below: Arc<BlockState> = mcrust::mcrust::modding::game::level().unwrap().get_block_state_typed(&block_pos.below());
-        return block_below.is_block(&blocks::blocks().get("sea_lantern"));
+        return block_below.is_block(&blocks::blocks().get("SEA_LANTERN"));
     }
 
     /// java: public void configCallback(Color color)
@@ -124,7 +124,7 @@ impl CarpetHighlighter {
             return;
         }
         for carpet_location in BlockPosSet::iterate_mut(CARPET_LOCATIONS.get_mut()) {
-            ({ let __f = compat::dispatch(collector, |__t| __t.submit_filled_box_5()); __f(collector, &vec3::at_lower_corner_of(&carpet_location), CARPET_BOUNDING_BOX.get_mut(), &compat::get_state(&COLOR_COMPONENTS), compat::lock(&COLOR_COMPONENTS)[(3) as usize], false) });
+            ({ let __f = compat::dispatch(collector, |__t| __t.submit_filled_box_5()); __f(collector, &vec3::at_lower_corner_of(&carpet_location.immutable()), CARPET_BOUNDING_BOX.get_mut(), &compat::get_state(&COLOR_COMPONENTS), compat::lock(&COLOR_COMPONENTS)[(3) as usize], false) });
         }
     }
 

@@ -5,9 +5,10 @@
 use crate::prelude::*;
 
 /// @Unique
-fn swing_hand_without_packets(this: &mut mcrust::net::minecraft::client::multiplayer::multi_player_game_mode::MultiPlayerGameMode, player_entity: &mut mcrust::net::minecraft::world::entity::player::player::Player, hand: &mut mcrust::net::minecraft::world::interaction_hand::InteractionHand) {
-    // TODO(fabric2seer): `.swing(..)` on a Player
-    //   java: playerEntity.swing(hand, false);
+fn swing_hand_without_packets(player_entity: &mut dyn mcrust::net::minecraft::world::entity::player::player::Player, hand: mcrust::net::minecraft::world::interaction_hand::InteractionHand) {
+    // The playerEntity override for swingHand is the other method with just the hand parameter, this one isn't
+    // overridden and doesn't lead to sending packets.
+    player_entity.swing_with(hand, false);
 }
 
 /// @Inject swingOnAbility
@@ -19,13 +20,14 @@ fn swing_hand_without_packets(this: &mut mcrust::net::minecraft::client::multipl
 /// note: slice = @Slice(..) ignored
 /// note: `getItemInHand` is inherited: hooked on net.minecraft.world.entity.LivingEntity (it fires for every subclass - test the object's type in the handler if net.minecraft.world.entity.player.Player matters)
 /// note: `within` net.minecraft.client.multiplayer.MultiPlayerGameMode#lambda$useItem$0: not a method of that class in JavaSrc (a synthetic lambda of the vanilla method: the port has no method of that name - hook the method that contains the lambda) - the caller must be hooked for `within` to see it on the stack; the registration is left commented out
-fn swing_on_ability(ci: &mut CallbackInfo<'_>) {
-    // TODO(fabric2seer): the condition: `itemStack`: this argument is not visible to the injector (see the notes above the handler)
-    //   java: SkyblockerConfigManager.get().uiAndVisuals.swingOnAbilities
-    //   java: 				&& SwingAnimation.hasAbility(itemStack)
-    if todo!("fabric2seer: the condition (TODO above)") {
-        // TODO(fabric2seer): `playerEntity`: this argument is not visible to the injector (see the notes above the handler)
-        //   java: swingHandWithoutPackets(playerEntity, hand);
+///
+/// rust: port gap - `lambda$useItem$0` is a synthetic lambda with no port method to be `within`, and its locals
+/// (`playerEntity`, `hand`, `itemStack`) are not visible to a call-site injector on `getItemInHand` (GAPS_batchD); the
+/// handler's body is the Java's over those three, and it is not registered.
+fn swing_on_ability(player_entity: &mut dyn mcrust::net::minecraft::world::entity::player::player::Player, hand: mcrust::net::minecraft::world::interaction_hand::InteractionHand, item_stack: &mcrust::net::minecraft::world::item::item_stack::ItemStack) {
+    if crate::de::hysky::skyblocker::config::skyblocker_config_manager::SkyblockerConfigManager::get().ui_and_visuals.swing_on_abilities
+        && crate::de::hysky::skyblocker::skyblock::swing_animation::SwingAnimation::has_ability(item_stack) {
+        swing_hand_without_packets(player_entity, hand);
     }
 }
 

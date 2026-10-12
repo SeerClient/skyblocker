@@ -52,11 +52,14 @@ impl FairySouls {
     pub fn run_async_after_fairy_souls_load(runnable: Arc<dyn Fn()>) -> mcrust::java::util::concurrent::completable_future::CompletableFuture<()> {
         if FAIRY_SOULS_LOADED.get_mut().is_none() {
             logger().error("[Skyblocker] Fairy Souls have not being initialized yet! Please ensure the Fairy Souls configs is initialized before modules calling this method in SkyblockerMod#onInitializeClient. This error can be safely ignore in a test environment.");
-            return CompletableFuture::completed_future(None);
+            return CompletableFuture::completed_future(());
         }
-        // TODO(fabric2seer): `then_run_async` takes 2 argument(s) in the port (`action: F, executor: Executor`), Java passes 1
-        // rust: return FAIRY_SOULS_LOADED.get_mut().as_ref().unwrap().then_run_async(runnable.clone());
-        return todo!("fabric2seer: see the TODO above");
+        // `fairySoulsLoaded.thenRunAsync(runnable)`: Java's default executor is the common pool. The mod's objects are
+        // the render thread's (not `Send`), so the task is handed to the game's own task queue (`game::execute`), which
+        // runs it on that thread once the souls have loaded.
+        let runnable = compat::RenderThread::new(runnable);
+        let executor: mcrust::java::util::concurrent::completable_future::Executor = Arc::new(|task| mcrust::mcrust::modding::game::execute(task));
+        return FAIRY_SOULS_LOADED.get_mut().as_ref().unwrap().then_run_async(move || (runnable.get())(), executor);
     }
 
     /// java: public static int getFairySoulsSize(@Nullable String location)
@@ -100,34 +103,32 @@ impl FairySouls {
             //   java: NEURepoManager.getConstants().getFairySouls().getSoulLocations().forEach((location, fairiesForLocation) -> fairySouls.put(location, fairiesForLocation.stream().map(coordinate -> new BlockPos(coordinate.getX(), coordinate.getY(), coordinate.getZ())).collect(Collectors.toUnmodifiableMap(pos -> pos, pos -> new FairySoul(pos, TYPE_SUPPLIER, ColorUtils.getFloatComponents(DyeColor.GREEN), ColorUtils.getFloatComponents(DyeColor.RED))))));
             // TODO(fabric2seer): static call Map.size(..)
             //   java: LOGGER.debug("[Skyblocker] Loaded {} fairy souls across {} locations", fairySouls.values().stream().mapToInt(Map::size).sum(), fairySouls.size());
-            {
-                // TODO(fabric2seer): Files.newBufferedReader
-                //   java: BufferedReader reader = Files.newBufferedReader(..);
-                let mut reader: crate::unresolved::BufferedReader = todo!("fabric2seer: the initialiser of `reader` (TODO above)");
-                // java: try {..} catch (NoSuchFileException _) catch (IOException e) - an exception here is a panic, caught by `catch_unwind`
-                let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                    // TODO(fabric2seer): static call JsonParser.parseReader(..)
-                    //   java: for (Map.Entry<String, JsonElement> foundFairiesForProfileJson : JsonParser.parseReader(reader).getAsJsonObject().asMap().entrySet()) {
-                    //   java: 					for (Map.Entry<String, JsonElement> foundFairiesForLocationJson : foundFairiesForProfileJson.getValue().getAsJsonObject().asMap().entrySet()) {
-                    //   java: 						Map<BlockPos, ProfileAwareWaypoint> fairiesForLocation = fairySouls.get(foundFairiesForLocationJson.getKey());
-                    //   java: 						for (JsonElement foundFairy : foundFairiesForLocationJson.getValue().getAsJsonArray().asList()) {
-                    //   java: 							ProfileAwareWaypoint waypoint = fairiesForLocation.get(PosUtils.parsePosString(foundFairy.getAsString()));
-                    //   java: 							if (waypoint == null) {
-                    //   java: 								LOGGER.warn("[Skyblocker] Ignored found fairy soul at {}", foundFairy.getAsString());
-                    //   java: 							} else {
-                    //   java: 								waypoint.setFound(foundFairiesForProfileJson.getKey());
-                    //   java: 							}
-                    //   java: 						}
-                    //   java: 					}
-                    //   java: 				}
+            // try (BufferedReader reader = Files.newBufferedReader(CONFIG_DIR.resolve("found_fairy_souls.json"))) {..}
+            // catch (NoSuchFileException _) {} catch (IOException e) {..}
+            match std::fs::read_to_string(skyblocker_mod::CONFIG_DIR.get_mut().join("found_fairy_souls.json")) {
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+                Err(e) => logger().error(&format!("[Skyblocker] Failed to load found fairy souls {}", e)),
+                Ok(text) => {
+                    // `JsonParser.parseReader(reader).getAsJsonObject()`: the unchecked exceptions (syntax, cast) are not caught.
+                    let json: serde_json::Value = serde_json::from_str(&text).unwrap_or_else(|e| panic!("JsonSyntaxException: {e}"));
+                    let serde_json::Value::Object(profiles) = json else { panic!("IllegalStateException: Not a JSON Object: {}", json) };
+                    for (profile, found_fairies_for_profile_json) in profiles.iter() {
+                        let serde_json::Value::Object(locations) = found_fairies_for_profile_json else { panic!("IllegalStateException: Not a JSON Object: {}", found_fairies_for_profile_json) };
+                        for (location, found_fairies_for_location_json) in locations.iter() {
+                            // `fairySouls.get(location)`: a location the repo does not list is null, and `.get(..)` on it throws.
+                            let fairies_for_location = FAIRY_SOULS.get().get(location).cloned().expect("NullPointerException");
+                            let serde_json::Value::Array(found_fairies) = found_fairies_for_location_json else { panic!("IllegalStateException: Not a JSON Array: {}", found_fairies_for_location_json) };
+                            for found_fairy in found_fairies.iter() {
+                                let found_fairy = compat::json::get_as_string(found_fairy);
+                                match fairies_for_location.get(&PosUtils::parse_pos_string(&found_fairy)) {
+                                    None => logger().warn(&format!("[Skyblocker] Ignored found fairy soul at {}", found_fairy)),
+                                    Some(waypoint) => ({ let __f = compat::dispatch(waypoint, |__t| __t.set_found_1()); __f(waypoint, profile.clone()) }),
+                                }
+                            }
+                        }
+                    }
                     logger().debug("[Skyblocker] Loaded found fairy souls");
-                }));
-                if let Err(_) = __result {
                 }
-                // TODO(fabric2seer): the second `catch (IOException e)` clause (merged into the first)
-                //   java: {
-                //   java: 				LOGGER.error("[Skyblocker] Failed to load found fairy souls", e);
-                //   java: 			}
             }
             // TODO(fabric2seer): static call Map.size(..)
             //   java: LOGGER.info("[Skyblocker] Loaded {} fairy souls across {} locations", fairySouls.values().stream().mapToInt(Map::size).sum(), fairySouls.size());
@@ -137,40 +138,34 @@ impl FairySouls {
     /// java: private static void saveFoundFairySouls(Minecraft client)
     pub fn save_found_fairy_souls(client: &mut mcrust::net::minecraft::client::minecraft::Minecraft) {
         let mut found_fairies: std::collections::HashMap<String, std::collections::HashMap<String, compat::Shared<BlockPosSet>>> = std::collections::HashMap::new();
-        for fairies_for_location in FAIRY_SOULS.get_mut().iter().map(|(k, v)| (k.clone(), v.clone())) {
-            for fairy_soul in fairies_for_location.1.values().cloned() {
-                for profile in compat::read(&fairy_soul, |__t| __t.profile_aware_waypoint_base().found_profiles.clone()) {
-                    found_fairies.entry(profile.clone()).or_insert_with_key(|k| (|_| std::collections::HashMap::new())(k.clone()));
-                    found_fairies.get(&profile).cloned().unwrap().entry(fairies_for_location.0.clone()).or_insert_with_key(|k| (|_| BlockPosSet::new())(k.clone()));
-                    BlockPosSet::add(&found_fairies.get(&profile).cloned().unwrap().get(&fairies_for_location.0).cloned().unwrap(), &compat::read(&fairy_soul, |__t| __t.profile_aware_waypoint_base().pos.clone()).unwrap());
+        for (location, fairies_for_location) in FAIRY_SOULS.get().iter() {
+            for fairy_soul in fairies_for_location.values() {
+                let (profiles, pos) = compat::read(fairy_soul, |__t| (__t.profile_aware_waypoint_base().found_profiles.clone(), __t.profile_aware_waypoint_base().pos.clone().unwrap()));
+                for profile in profiles {
+                    // `foundFairies.computeIfAbsent(profile, ..)`, `.get(profile).computeIfAbsent(location, ..)`, `.add(pos)`: on
+                    // the maps themselves (a copy of the inner map would lose the new set).
+                    let set = found_fairies.entry(profile).or_default().entry(location.clone()).or_insert_with(BlockPosSet::new).clone();
+                    BlockPosSet::add(&set, &pos);
                 }
             }
         }
-        {
-            // TODO(fabric2seer): Files.newBufferedWriter
-            //   java: BufferedWriter writer = Files.newBufferedWriter(..);
-            let mut writer: crate::unresolved::BufferedWriter = todo!("fabric2seer: the initialiser of `writer` (TODO above)");
-            // java: try {..} catch (IOException e) - an exception here is a panic, caught by `catch_unwind`
-            let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                let mut found_fairies_json: serde_json::Map<String, serde_json::Value> = serde_json::Map::new();
-                for found_fairies_for_profile in found_fairies.iter().map(|(k, v)| (k.clone(), v.clone())) {
-                    let mut found_fairies_for_profile_json: serde_json::Map<String, serde_json::Value> = serde_json::Map::new();
-                    for found_fairies_for_location in found_fairies_for_profile.1.iter().map(|(k, v)| (k.clone(), v.clone())) {
-                        let mut found_fairies_for_location_json: Vec<serde_json::Value> = Vec::new();
-                        for found_fairy in BlockPosSet::iterate_mut(&found_fairies_for_location.1) {
-                            found_fairies_for_location_json.push(compat::json::to_value(PosUtils::get_pos_string(&found_fairy)));
-                        }
-                        found_fairies_for_profile_json.insert(found_fairies_for_location.0.clone(), compat::json::to_value(found_fairies_for_location_json.clone()));
-                    }
-                    found_fairies_json.insert(found_fairies_for_profile.0.clone(), compat::json::to_value(found_fairies_for_profile_json.clone()));
+        // try (BufferedWriter writer = Files.newBufferedWriter(CONFIG_DIR.resolve("found_fairy_souls.json"))) {..} catch (IOException e) {..}
+        let mut found_fairies_json: serde_json::Map<String, serde_json::Value> = serde_json::Map::new();
+        for (profile, found_fairies_for_profile) in found_fairies.iter() {
+            let mut found_fairies_for_profile_json: serde_json::Map<String, serde_json::Value> = serde_json::Map::new();
+            for (location, found_fairies_for_location) in found_fairies_for_profile.iter() {
+                let mut found_fairies_for_location_json: Vec<serde_json::Value> = Vec::new();
+                for found_fairy in BlockPosSet::iterate_mut(found_fairies_for_location) {
+                    found_fairies_for_location_json.push(serde_json::Value::String(PosUtils::get_pos_string(&found_fairy.immutable())));
                 }
-                // TODO(fabric2seer): `.toJson(..)` on a Gson
-                //   java: SkyblockerMod.GSON.toJson(foundFairiesJson, writer);
-                logger().info("[Skyblocker] Saved found fairy souls");
-            }));
-            if let Err(e) = __result {
-                logger().error(&format!("[Skyblocker] Failed to write found fairy souls to file"));
+                found_fairies_for_profile_json.insert(location.clone(), serde_json::Value::Array(found_fairies_for_location_json));
             }
+            found_fairies_json.insert(profile.clone(), serde_json::Value::Object(found_fairies_for_profile_json));
+        }
+        // `GSON.toJson(foundFairiesJson, writer)` (pretty printing: two-space indentation).
+        match std::fs::write(skyblocker_mod::CONFIG_DIR.get_mut().join("found_fairy_souls.json"), serde_json::to_string_pretty(&serde_json::Value::Object(found_fairies_json)).unwrap()) {
+            Ok(()) => logger().info("[Skyblocker] Saved found fairy souls"),
+            Err(e) => logger().error(&format!("[Skyblocker] Failed to write found fairy souls to file {}", e)),
         }
     }
 
@@ -194,11 +189,11 @@ impl FairySouls {
     /// java: private static void extractRendering(PrimitiveCollector collector)
     pub fn extract_rendering(collector: &compat::Shared<dyn PrimitiveCollector>) {
         let fairy_souls_config = &SkyblockerConfigManager::get().helpers.fairy_souls;
-        if fairy_souls_config.enable_fairy_souls_helper && fairy_souls_config.highlight_on_bingo || !(Utils::is_on_bingo()) && FAIRY_SOULS_LOADED.get_mut().as_ref().unwrap().is_done() && FAIRY_SOULS.get_mut().contains_key(&Utils::get_location_raw()) {
+        if fairy_souls_config.enable_fairy_souls_helper && (fairy_souls_config.highlight_on_bingo || !(Utils::is_on_bingo())) && FAIRY_SOULS_LOADED.get_mut().as_ref().unwrap().is_done() && FAIRY_SOULS.get_mut().contains_key(&Utils::get_location_raw()) {
             for fairy_soul in FAIRY_SOULS.get_mut().get(&Utils::get_location_raw()).cloned().unwrap().values().cloned() {
-                let mut fairy_soul_not_found: bool = ({ let __f = compat::dispatch(&fairy_soul, |__t| __t.should_render()); __f(&fairy_soul) });
-                // TODO(fabric2seer): `dist_to_center_sqr` takes 3 argument(s) in the port (`x: f64, y: f64, z: f64`), Java passes 1
-                if !fairy_souls_config.highlight_found_souls && !fairy_soul_not_found || fairy_souls_config.highlight_only_nearby_souls && { let (__q0,) = (RenderHelper::get_camera().position(),); fairy_soul.lock().borrow().waypoint_base().pos.as_ref().unwrap().dist_to_center_sqr(__q0) } > (2500 as f64) {
+                let fairy_soul_waypoint = compat::view(&fairy_soul, |a| a as compat::Shared<dyn Waypoint>);
+                let mut fairy_soul_not_found: bool = ({ let __f = compat::dispatch(&fairy_soul_waypoint, |__t| __t.should_render()); __f(&fairy_soul_waypoint) });
+                if !fairy_souls_config.highlight_found_souls && !fairy_soul_not_found || fairy_souls_config.highlight_only_nearby_souls && { let __q0 = RenderHelper::get_camera().position(); compat::read(&fairy_soul, |__t| __t.waypoint_base().pos.clone()).unwrap().as_vec3i().dist_to_center_sqr_pos(&__q0) } > (2500 as f64) {
                     continue;
                 }
                 ({ let __f = compat::dispatch(&fairy_soul, |__t| __t.extract_rendering()); __f(&compat::view(&fairy_soul, |a| a as compat::Shared<dyn Renderable>), collector) });
@@ -228,10 +223,15 @@ impl FairySouls {
             logger().warn("[Skyblocker] Failed to mark closest fairy soul as found because there are no fairy souls loaded on the current island. NEU repo probably failed to load.");
             return;
         };
-        // TODO(fabric2seer): `dist_to_center_sqr` takes 3 argument(s) in the port (`x: f64, y: f64, z: f64`), Java passes 1
-        // rust: if let Some(__a0) = fairies_on_current_island.values().cloned().filter(|__a0| ({ let __f = compat::dispatch(__a0, |__t| __t.should_render()); __f(&compat::view(__a0, |a| a as compat::Shared<dyn Waypoint>)) })).min_by(|a, b| { let key = |fairy_soul| { let (__q0,) = (mcrust::mcrust::modding::game::with_player(|player| player.position()).unwrap(),); fairy_soul.lock().borrow().profile_aware_waypoint_base().pos.as_ref().unwrap().dist_to_center_sqr(__q0) }; key(a).total_cmp(&key(b)) }).filter(|fairy_soul| ({ let (__q0,) = (mcrust::mcrust::modding::game::with_player(|player| player.position()).unwrap(),); fairy_soul.lock().borrow().profile_aware_waypoint_base().pos.as_ref().unwrap().dist_to_center_sqr(__q0) } <= (16 as f64))) {
-        // rust: ({ let __f = compat::dispatch(&__a0, |__t| __t.set_found()); __f(&compat::view(&__a0, |a| a as compat::Shared<dyn Waypoint>)) });
-        // rust: }
+        // `.filter(Waypoint::shouldRender).min(comparingDouble(f -> f.pos.distToCenterSqr(player.position())))
+        // .filter(f -> f.pos.distToCenterSqr(player.position()) <= 16).ifPresent(Waypoint::setFound)`
+        let player_position = mcrust::mcrust::modding::game::with_player(|player| player.position()).unwrap();
+        let distance = |fairy_soul: &compat::Shared<dyn ProfileAwareWaypoint>| compat::read(fairy_soul, |__t| __t.profile_aware_waypoint_base().pos.clone()).unwrap().as_vec3i().dist_to_center_sqr_pos(&player_position);
+        let closest = fairies_on_current_island.values().cloned().filter(|fairy_soul| { let w = compat::view(fairy_soul, |a| a as compat::Shared<dyn Waypoint>); ({ let __f = compat::dispatch(&w, |__t| __t.should_render()); __f(&w) }) }).min_by(|a, b| distance(a).total_cmp(&distance(b)));
+        if let Some(fairy_soul) = closest.filter(|fairy_soul| distance(fairy_soul) <= (16 as f64)) {
+            let w = compat::view(&fairy_soul, |a| a as compat::Shared<dyn Waypoint>);
+            ({ let __f = compat::dispatch(&w, |__t| __t.set_found()); __f(&w) });
+        }
     }
 
     /// java: public static void markAllFairiesOnCurrentIslandFound()

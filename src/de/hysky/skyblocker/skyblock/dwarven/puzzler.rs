@@ -104,9 +104,10 @@ impl Puzzler {
                 x -= 1;
             }
         }
-        let mut world: Option<ClientLevel> = mcrust::mcrust::modding::game::level();
+        let mut world: Option<std::sync::Arc<ClientLevel>> = mcrust::mcrust::modding::game::level();
         if let Some(world) = &world {
-            world.set_block_and_update(&BlockPos::new(x, 195, z), &blocks::blocks().get("crimson_planks").default_block_state());
+            // the port's level takes the erased state (`block::erase`)
+            world.set_block_and_update(&BlockPos::new(x, 195, z), &mcrust::net::minecraft::world::level::block::block::erase(&blocks::blocks().get("CRIMSON_PLANKS").default_block_state()));
         }
         return false;
     }

@@ -4,6 +4,8 @@
 use crate::prelude::*;
 use crate::de::hysky::skyblocker::config::skyblocker_config_manager::SkyblockerConfigManager;
 use crate::de::hysky::skyblocker::utils::block_pos_set::BlockPosSet;
+use crate::de::hysky::skyblocker::utils::color_utils::ColorUtils;
+use mcrust::net::minecraft::world::item::dye_color::DyeColor;
 use crate::de::hysky::skyblocker::utils::pos_utils::PosUtils;
 use crate::de::hysky::skyblocker::utils::render::level_render_extraction_callback;
 use crate::de::hysky::skyblocker::utils::render::primitive::primitive_collector::PrimitiveCollector;
@@ -76,83 +78,75 @@ impl Relics {
 
     /// java: private static void loadRelics(Minecraft client)
     pub fn load_relics(client: &mut mcrust::net::minecraft::client::minecraft::Minecraft) {
-        *RELICS_LOADED.get_mut() = Some(CompletableFuture::<()>::run_async(move || (|| {
-            {
-                let mut reader: crate::unresolved::BufferedReader = client.get_resource_manager().open_as_reader(&crate::entry::skyblocker_mod::id("spidersden/relics.json")).unwrap();
-                // java: try {..} catch (IOException e) - an exception here is a panic, caught by `catch_unwind`
-                let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                    // TODO(fabric2seer): static call JsonParser.parseReader(..)
-                    //   java: for (Map.Entry<String, JsonElement> json : JsonParser.parseReader(reader).getAsJsonObject().asMap().entrySet()) {
-                    //   java: 					if (json.getKey().equals("total")) {
-                    //   java: 						totalRelics = json.getValue().getAsInt();
-                    //   java: 					} else if (json.getKey().equals("locations")) {
-                    //   java: 						for (JsonElement locationJson : json.getValue().getAsJsonArray().asList()) {
-                    //   java: 							JsonObject posData = locationJson.getAsJsonObject();
-                    //   java: 							BlockPos pos = new BlockPos(posData.get("x").getAsInt(), posData.get("y").getAsInt(), posData.get("z").getAsInt());
-                    //   java: 							relics.put(pos, new Relic(pos, TYPE_SUPPLIER, ColorUtils.getFloatComponents(DyeColor.YELLOW), ColorUtils.getFloatComponents(DyeColor.BROWN)));
-                    //   java: 						}
-                    //   java: 					}
-                    //   java: 				}
+        // `CompletableFuture.runAsync(.., SkyblockerMod.VIRTUAL_THREAD_EXECUTOR)`: the task fills `relics`, a map of the
+        // mod's render-thread objects (not `Send`), so it runs on that thread through the game's task queue
+        // (`game::execute`); `client` is `Minecraft.getInstance()` there.
+        *RELICS_LOADED.get_mut() = Some(CompletableFuture::<()>::run_async(move || {
+            // try (BufferedReader reader = client.getResourceManager().openAsReader(SkyblockerMod.id("spidersden/relics.json"))) {..}
+            // catch (IOException e) {..}
+            match compat::minecraft().get_resource_manager().open_as_reader(&crate::entry::skyblocker_mod::id("spidersden/relics.json")) {
+                Err(e) => logger().error(&format!("[Skyblocker] Failed to load relics locations {}", e)),
+                Ok(text) => {
+                    // `JsonParser.parseReader(reader).getAsJsonObject()`: its unchecked exceptions are not caught.
+                    let json: serde_json::Value = serde_json::from_str(&text).unwrap_or_else(|e| panic!("JsonSyntaxException: {e}"));
+                    for (key, value) in compat::json::get_as_json_object(&json).iter() {
+                        if key == "total" {
+                            compat::set_state(&TOTAL_RELICS, compat::json::get_as_int(value));
+                        } else if key == "locations" {
+                            for location_json in compat::json::get_as_json_array(value).iter() {
+                                let pos_data = compat::json::get_as_json_object(location_json);
+                                let pos = BlockPos::new(compat::json::get_as_int_of(&pos_data, "x"), compat::json::get_as_int_of(&pos_data, "y"), compat::json::get_as_int_of(&pos_data, "z"));
+                                let relic = Relic::new(pos.clone(), TYPE_SUPPLIER.get().clone(), ColorUtils::get_float_components_dye_color(&DyeColor::Yellow), ColorUtils::get_float_components_dye_color(&DyeColor::Brown)) as compat::Shared<dyn ProfileAwareWaypoint>;
+                                RELICS.get_mut().insert(pos, relic);
+                            }
+                        }
+                    }
                     logger().info("[Skyblocker] Loaded relics locations");
-                }));
-                if let Err(e) = __result {
-                    logger().error(&format!("[Skyblocker] Failed to load relics locations"));
                 }
             }
-            {
-                // TODO(fabric2seer): Files.newBufferedReader
-                //   java: BufferedReader reader = Files.newBufferedReader(..);
-                let mut reader: crate::unresolved::BufferedReader = todo!("fabric2seer: the initialiser of `reader` (TODO above)");
-                // java: try {..} catch (NoSuchFileException _) catch (IOException e) - an exception here is a panic, caught by `catch_unwind`
-                let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                    // TODO(fabric2seer): static call JsonParser.parseReader(..)
-                    //   java: for (Map.Entry<String, JsonElement> profileJson : JsonParser.parseReader(reader).getAsJsonObject().asMap().entrySet()) {
-                    //   java: 					for (JsonElement foundRelicsJson : profileJson.getValue().getAsJsonArray().asList()) {
-                    //   java: 						relics.get(PosUtils.parsePosString(foundRelicsJson.getAsString())).setFound(profileJson.getKey());
-                    //   java: 					}
-                    //   java: 				}
+            // try (BufferedReader reader = Files.newBufferedReader(CONFIG_DIR.resolve("found_relics.json"))) {..}
+            // catch (NoSuchFileException _) {} catch (IOException e) {..}
+            match std::fs::read_to_string(skyblocker_mod::CONFIG_DIR.get_mut().join("found_relics.json")) {
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+                Err(e) => logger().error(&format!("[Skyblocker] Failed to load found relics {}", e)),
+                Ok(text) => {
+                    let json: serde_json::Value = serde_json::from_str(&text).unwrap_or_else(|e| panic!("JsonSyntaxException: {e}"));
+                    for (profile, found_relics_json) in compat::json::get_as_json_object(&json).iter() {
+                        for found_relic in compat::json::get_as_json_array(found_relics_json).iter() {
+                            // `relics.get(pos).setFound(profile)`: an unknown position is null, and the call throws.
+                            let relic = RELICS.get().get(&PosUtils::parse_pos_string(&compat::json::get_as_string(found_relic))).cloned().expect("NullPointerException");
+                            ({ let __f = compat::dispatch(&relic, |__t| __t.set_found_1()); __f(&relic, profile.clone()) });
+                        }
+                    }
                     logger().debug("[Skyblocker] Loaded found relics");
-                }));
-                if let Err(_) = __result {
                 }
-                // TODO(fabric2seer): the second `catch (IOException e)` clause (merged into the first)
-                //   java: {
-                //   java: 				LOGGER.error("[Skyblocker] Failed to load found relics", e);
-                //   java: 			}
             }
-        })(), compat::executor));
+        }, |task| mcrust::mcrust::modding::game::execute(task)));
     }
 
     /// java: private static void saveFoundRelics(Minecraft client)
     pub fn save_found_relics(client: &mut mcrust::net::minecraft::client::minecraft::Minecraft) {
         let mut found_relics: std::collections::HashMap<String, compat::Shared<BlockPosSet>> = std::collections::HashMap::new();
-        for relic in RELICS.get_mut().values().cloned() {
-            for profile in compat::read(&relic, |__t| __t.profile_aware_waypoint_base().found_profiles.clone()) {
-                found_relics.entry(profile.clone()).or_insert_with_key(|k| (|_| BlockPosSet::new())(k.clone()));
-                BlockPosSet::add(&found_relics.get(&profile).cloned().unwrap(), &compat::read(&relic, |__t| __t.profile_aware_waypoint_base().pos.clone()).unwrap());
+        for relic in RELICS.get().values() {
+            let (profiles, pos) = compat::read(relic, |__t| (__t.profile_aware_waypoint_base().found_profiles.clone(), __t.profile_aware_waypoint_base().pos.clone().unwrap()));
+            for profile in profiles {
+                let set = found_relics.entry(profile).or_insert_with(BlockPosSet::new).clone();
+                BlockPosSet::add(&set, &pos);
             }
         }
-        {
-            // TODO(fabric2seer): Files.newBufferedWriter
-            //   java: BufferedWriter writer = Files.newBufferedWriter(..);
-            let mut writer: crate::unresolved::BufferedWriter = todo!("fabric2seer: the initialiser of `writer` (TODO above)");
-            // java: try {..} catch (IOException e) - an exception here is a panic, caught by `catch_unwind`
-            let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                let mut json: serde_json::Map<String, serde_json::Value> = serde_json::Map::new();
-                for found_relics_for_profile in found_relics.iter().map(|(k, v)| (k.clone(), v.clone())) {
-                    let mut found_relics_json: Vec<serde_json::Value> = Vec::new();
-                    for found_relic in BlockPosSet::iterate_mut(&found_relics_for_profile.1) {
-                        found_relics_json.push(compat::json::to_value(PosUtils::get_pos_string(&found_relic)));
-                    }
-                    json.insert(found_relics_for_profile.0.clone(), compat::json::to_value(found_relics_json.clone()));
-                }
-                // TODO(fabric2seer): `.toJson(..)` on a Gson
-                //   java: SkyblockerMod.GSON.toJson(json, writer);
-                logger().debug("[Skyblocker] Saved found relics");
-            }));
-            if let Err(e) = __result {
-                logger().error(&format!("[Skyblocker] Failed to write found relics to file"));
+        // try (BufferedWriter writer = Files.newBufferedWriter(CONFIG_DIR.resolve("found_relics.json"))) {..} catch (IOException e) {..}
+        let mut json: serde_json::Map<String, serde_json::Value> = serde_json::Map::new();
+        for (profile, found_relics_for_profile) in found_relics.iter() {
+            let mut found_relics_json: Vec<serde_json::Value> = Vec::new();
+            for found_relic in BlockPosSet::iterate_mut(found_relics_for_profile) {
+                found_relics_json.push(serde_json::Value::String(PosUtils::get_pos_string(&found_relic.immutable())));
             }
+            json.insert(profile.clone(), serde_json::Value::Array(found_relics_json));
+        }
+        // `GSON.toJson(json, writer)` (pretty printing: two-space indentation).
+        match std::fs::write(skyblocker_mod::CONFIG_DIR.get_mut().join("found_relics.json"), serde_json::to_string_pretty(&serde_json::Value::Object(json)).unwrap()) {
+            Ok(()) => logger().debug("[Skyblocker] Saved found relics"),
+            Err(e) => logger().error(&format!("[Skyblocker] Failed to write found relics to file {}", e)),
         }
     }
 

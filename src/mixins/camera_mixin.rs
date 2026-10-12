@@ -10,21 +10,21 @@ use crate::prelude::*;
 /// Rust: net/minecraft/client/camera.rs:1227 fn position(&self)
 fn skyblocker_on_camera_update(ci: &mut CallbackInfo<'_>) {
     let Some(this) = compat::detach_ref(ci.this::<mcrust::net::minecraft::client::camera::Camera>()) else { return; };
-    // TODO(fabric2seer): read the return value typed: ci.return_value::<T>() (Vec3)
+    let Some(original) = ci.take_return_value::<mcrust::net::minecraft::world::phys::vec3::Vec3>() else { return; };
     if crate::de::hysky::skyblocker::config::skyblocker_config_manager::SkyblockerConfigManager::get().ui_and_visuals.smooth_aote.predictive {
-        let mut pos: mcrust::net::minecraft::world::phys::vec3::Vec3 = crate::de::hysky::skyblocker::skyblock::teleport::predictive_smooth_aote::PredictiveSmoothAOTE::get_interpolated_pos().unwrap();
-        if true /* java: pos != null: never null here */ {
-            ci.set_return_value(pos.clone());
+        let pos: Option<mcrust::net::minecraft::world::phys::vec3::Vec3> = crate::de::hysky::skyblocker::skyblock::teleport::predictive_smooth_aote::PredictiveSmoothAOTE::get_interpolated_pos();
+        if let Some(pos) = pos {
+            ci.set_return_value(pos);
             return;
         }
     } else {
-        let mut pos: mcrust::net::minecraft::world::phys::vec3::Vec3 = crate::de::hysky::skyblocker::skyblock::teleport::responsive_smooth_aote::ResponsiveSmoothAOTE::get_interpolated_pos(original.clone()).unwrap();
-        if true /* java: pos != null: never null here */ {
-            ci.set_return_value(pos.clone());
+        let pos: Option<mcrust::net::minecraft::world::phys::vec3::Vec3> = crate::de::hysky::skyblocker::skyblock::teleport::responsive_smooth_aote::ResponsiveSmoothAOTE::get_interpolated_pos(original.clone());
+        if let Some(pos) = pos {
+            ci.set_return_value(pos);
             return;
         }
     }
-    ci.set_return_value(original.clone());
+    ci.set_return_value(original);
     return;
 }
 

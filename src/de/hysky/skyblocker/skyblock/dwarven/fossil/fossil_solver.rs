@@ -211,7 +211,7 @@ impl FossilSolver {
         if compat::get_state(&PERCENTAGE).is_none() {
             compat::set_state(&PERCENTAGE, FossilSolver::get_fossil_percentage(__this, slots));
         }
-        compat::set_state(&PROBABILITY, Some(FossilCalculations::get_fossil_chance(&main_tile_grid, compat::get_state(&PERCENTAGE).as_deref().unwrap())));
+        compat::set_state(&PROBABILITY, Some(FossilCalculations::get_fossil_chance(&main_tile_grid, compat::get_state(&PERCENTAGE).as_deref())));
         return FossilSolver::convert_chance_to_color(&compat::get_state(&PROBABILITY).unwrap());
     }
 
@@ -243,8 +243,8 @@ impl FossilSolver {
         }
         lines.push(component::translatable("skyblocker.config.mining.glacite.fossilSolver.toolTip.possiblePatterns").append(component::literal(&compat::get_state(&fossil_calculations::PERMUTATIONS).to_string()).with_style_format(ChatFormatting::Yellow)));
         lines.push(component::translatable("skyblocker.config.mining.glacite.fossilSolver.toolTip.minimumTilesLeft").append(component::literal(&compat::get_state(&fossil_calculations::MINIMUM_TILES).to_string()).with_style_format((if compat::get_state(&CHISEL_LEFT) >= compat::get_state(&fossil_calculations::MINIMUM_TILES) { ChatFormatting::Yellow } else { ChatFormatting::Red }))));
-        if focused_slot.is_some() && compat::get_state(&PROBABILITY).is_some() && (compat::lock(&PROBABILITY).unwrap().len() as i32) > focused_slot.as_ref().unwrap().get_container_slot() && std::ptr::addr_eq(std::sync::Arc::as_ptr(&stack.get_item()), std::sync::Arc::as_ptr(mcrust::net::minecraft::world::item::items::stained_glass_pane().brown())) {
-            lines.push(component::translatable("skyblocker.config.mining.glacite.fossilSolver.toolTip.probability").append((component::literal(&format!("{}%", compat::java_round_f64((compat::lock(&PROBABILITY).unwrap()[(focused_slot.as_ref().unwrap().get_container_slot()) as usize] * (100 as f64)))))).with_style_format(ChatFormatting::Yellow)));
+        if focused_slot.is_some() && compat::get_state(&PROBABILITY).is_some() && (compat::lock(&PROBABILITY).as_ref().unwrap().len() as i32) > focused_slot.as_ref().unwrap().get_container_slot() && std::ptr::addr_eq(std::sync::Arc::as_ptr(&stack.get_item()), std::sync::Arc::as_ptr(mcrust::net::minecraft::world::item::items::stained_glass_pane().brown())) {
+            lines.push(component::translatable("skyblocker.config.mining.glacite.fossilSolver.toolTip.probability").append((component::literal(&format!("{}%", compat::java_round_f64((compat::lock(&PROBABILITY).as_ref().unwrap()[(focused_slot.as_ref().unwrap().get_container_slot()) as usize] * (100 as f64)))))).with_style_format(ChatFormatting::Yellow)));
         }
         if compat::get_state(&fossil_calculations::FOSSIL_NAME).is_some() && compat::get_state(&PERCENTAGE).is_some() {
             lines.push(component::translatable("skyblocker.config.mining.glacite.fossilSolver.toolTip.foundFossil").append(component::literal(compat::get_state(&fossil_calculations::FOSSIL_NAME).as_deref().unwrap()).with_style_format(ChatFormatting::Yellow)));

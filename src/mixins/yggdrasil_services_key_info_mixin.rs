@@ -48,7 +48,6 @@ fn skyblocker_replace_known_wrong_base64(ci: &mut CallbackInfo<'_>, original: &m
 /// note: class not in JavaSrc: org.slf4j.Logger has no file in JavaSrc/src - a remapping problem, or a class this Minecraft version does not have
 /// note: `within` com.mojang.authlib.yggdrasil.YggdrasilServicesKeyInfo#validateProperty: class not in JavaSrc - the caller must be hooked for `within` to see it on the stack; the registration is left commented out
 fn skyblocker_dont_log_failed_signature_validations(ci: &CallbackInfo<'_>) -> bool {
-    let Some(this) = compat::detach(ci.this_mut::<Logger>()) else { return true; };
     return !(crate::de::hysky::skyblocker::utils::utils::Utils::is_on_hypixel());
 }
 

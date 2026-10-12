@@ -16,9 +16,9 @@ fn skyblocker_open(args: &mcrust::mcrust::modding::container_screens::ContainerS
     }
     let mut name_lowercase: String = (compat::trim(&(<_ as mcrust::net::minecraft::network::chat::component::Component>::get_string(&mcrust::net::minecraft::network::chat::component::literal(&args.title))))).to_lowercase();
     if let mcrust::net::minecraft::world::entity::player::player::ContainerMenu::Chest(_) = &mut *menu && crate::de::hysky::skyblocker::config::skyblocker_config_manager::SkyblockerConfigManager::get().dungeons.fancy_party_finder && name_lowercase.starts_with("select tier") {
-        compat::set_state(&crate::classes::party_finder_screen::IS_IN_KUUDRA_PARTY_FINDER, true);
+        compat::set_state(&crate::de::hysky::skyblocker::skyblock::dungeon::partyfinder::party_finder_screen::IS_IN_KUUDRA_PARTY_FINDER, true);
     } else if let mcrust::net::minecraft::world::entity::player::player::ContainerMenu::Chest(_) = &mut *menu && crate::de::hysky::skyblocker::config::skyblocker_config_manager::SkyblockerConfigManager::get().dungeons.fancy_party_finder && name_lowercase.starts_with("catacombs") {
-        compat::set_state(&crate::classes::party_finder_screen::IS_IN_KUUDRA_PARTY_FINDER, false);
+        compat::set_state(&crate::de::hysky::skyblocker::skyblock::dungeon::partyfinder::party_finder_screen::IS_IN_KUUDRA_PARTY_FINDER, false);
     } else if let mcrust::net::minecraft::world::entity::player::player::ContainerMenu::Chest(container_screen_handler) = &mut *menu && crate::de::hysky::skyblocker::config::skyblocker_config_manager::SkyblockerConfigManager::get().dungeons.fancy_party_finder && crate::de::hysky::skyblocker::skyblock::dungeon::partyfinder::party_finder_screen::POSSIBLE_INVENTORY_NAMES.iter().any(|e| *e == name_lowercase.clone()) {
         if compat::minecraft().gui.screen().is_some() {
             let mut lower_case: String = compat::minecraft().gui.screen().unwrap().get_title().to_string().to_lowercase();
@@ -56,14 +56,16 @@ fn skyblocker_open(args: &mcrust::mcrust::modding::container_screens::ContainerS
         }
         return __result.finish();
     } else if let mcrust::net::minecraft::world::entity::player::player::ContainerMenu::Chest(container_screen_handler) = &mut *menu && crate::de::hysky::skyblocker::config::skyblocker_config_manager::SkyblockerConfigManager::get().ui_and_visuals.fancy_auction_house.enabled && (name_lowercase == "confirm purchase" || name_lowercase == "confirm bid") && let Some(auction_view_screen) = mcrust::mcrust::modding::container_screens::current_mod_container_screen::<compat::ContainerScreenAdapter<crate::de::hysky::skyblocker::skyblock::auction::auction_view_screen::AuctionViewScreen>, _>(|__s| __s.object().clone()) {
-        // TODO(fabric2seer): `setScreen(..)` of a screen that is not the mod's own in the `fromPacket` interception
+        // TODO(batchD): cross-package - `AuctionViewScreen::get_confirm_purchase_popup` answers the port's `Screen` husk
+        // where Java builds a `PopupScreen` (a mod screen); once it answers a `ModScreen`, this is
+        // `__result.mod_screen(Box::new(..))` (`fromPacket:108` shows it instead of the vanilla screen).
         //   java: client.gui.setScreen(auctionViewScreen.getConfirmPurchasePopup(name));
         // java: player.containerMenu = the server's menu - it already is
         return __result.finish();
     } else if let mcrust::net::minecraft::world::entity::player::player::ContainerMenu::Chest(container_screen_handler) = &mut *menu && crate::de::hysky::skyblocker::config::skyblocker_config_manager::SkyblockerConfigManager::get().ui_and_visuals.fancy_crafting_table && ((<_ as mcrust::net::minecraft::network::chat::component::Component>::get_string(&mcrust::net::minecraft::network::chat::component::literal(&args.title))).to_lowercase()).contains("craft item") {
         let mut skyblock_crafting_table_screen_handler: compat::Shared<crate::de::hysky::skyblocker::skyblock::item::skyblock_crafting_table_screen_handler::SkyblockCraftingTableScreenHandler> = crate::de::hysky::skyblocker::skyblock::item::skyblock_crafting_table_screen_handler::SkyblockCraftingTableScreenHandler::new_2(container_screen_handler, compat::PlayerInventory);
         __result.menu(compat::mod_menu(skyblock_crafting_table_screen_handler.clone()));
-        __result.container_screen(Box::new(compat::ContainerScreenAdapter::new(crate::de::hysky::skyblocker::skyblock::item::skyblock_crafting_table_screen::SkyblockCraftingTableScreen::new(skyblock_crafting_table_screen_handler.clone(), compat::PlayerInventory, "Craft Item".to_string()))));
+        __result.container_screen(Box::new(compat::ContainerScreenAdapter::new(crate::de::hysky::skyblocker::skyblock::item::skyblock_crafting_table_screen::SkyblockCraftingTableScreen::new(skyblock_crafting_table_screen_handler.clone(), compat::PlayerInventory, mcrust::net::minecraft::network::chat::component::literal("Craft Item")))));
         return __result.finish();
     } else if let mcrust::net::minecraft::world::entity::player::player::ContainerMenu::Chest(container_screen_handler) = &mut *menu && compat::get_state(&crate::de::hysky::skyblocker::skyblock::tabhud::config::list::widgets_list_screen::OVERRIDE_WIDGETS_SCREEN) && (compat::lock(&crate::de::hysky::skyblocker::skyblock::tabhud::config::widgets_configuration_screen::SCREEN_TITLE_PATTERN).matcher(&name_lowercase).find() || name_lowercase == "tablist widgets" || name_lowercase.ends_with("widget settings") && !(name_lowercase.starts_with("reset")) || name_lowercase.starts_with("shown") && mcrust::mcrust::modding::game::current_screen_is::<compat::ScreenAdapter<crate::de::hysky::skyblocker::skyblock::tabhud::config::list::widgets_list_screen::WidgetsListScreen>>()) {
         // java: player.containerMenu = the server's menu - it already is

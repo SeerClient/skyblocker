@@ -32,6 +32,12 @@ pub const BORDER_COLOR: i32 = 0xFF6C7086u32 as i32;
 /// java: private static final int INNER_MARGIN = 2;
 pub const INNER_MARGIN: i32 = 2;
 
+/// `NumberFormat.getInstance()`: the default locale's NUMBER pattern `#,##0.###`. The port models no default locale
+/// (`java::text` has ROOT and US, whose CLDR symbols are the same); US is used.
+pub(crate) fn number_format_instance() -> mcrust::java::text::decimal_format::DecimalFormat {
+    mcrust::java::text::decimal_format::DecimalFormat::new("#,##0.###", mcrust::java::text::decimal_format_symbols::get_instance(mcrust::java::text::decimal_format_symbols::Locale::Us))
+}
+
 /// java: public class RewardList extends ContainerObjectSelectionList<RewardList.AbstractEntry>
 pub struct RewardList {
     /// java: extends net.minecraft.client.gui.components.ContainerObjectSelectionList
@@ -76,14 +82,30 @@ impl RewardList {
         //   java: 								list.add(new Reward(entry.amount(), entry.itemId(), entry.pricePerUnit())); // Add a clone of the entry so we don't modify the original
         //   java: 							}
         //   java: 						}, ObjectArrayList::addAll);
-        let mut rewards: Vec<compat::Shared<Reward>> = todo!("fabric2seer: the initialiser of `rewards` (TODO above)");
-        rewards.sort_by(|a, b| (|a, b| { let key = |__a0| RewardList::compare_priority(__a0); key(a).cmp(&key(b)) })(a, b).then_with(|| (|a, b| { let key = |__a0| Reward::item_id(__a0); key(a).cmp(&key(b)) })(a, b)));
+        let mut rewards: Vec<compat::Shared<Reward>> = Vec::new();
+        for entry in loot_list.iter().flat_map(|loot| CorpseLoot::rewards(loot)) {
+            if let Some(reward) = rewards.iter().find(|reward| Reward::item_id(reward) == Reward::item_id(&entry)) {
+                Reward::amount_1(reward, Reward::amount(reward).wrapping_add(Reward::amount(&entry)));
+            } else {
+                rewards.push(Reward::new(Reward::amount(&entry), Reward::item_id(&entry), Reward::price_per_unit(&entry))); // Add a clone of the entry so we don't modify the original
+            }
+        }
+        // Sorts in-place: `comparingInt(RewardList::comparePriority).thenComparing(Reward::itemId)` (a stable sort, as `List.sort`)
+        rewards.sort_by(|a, b| RewardList::compare_priority(a).cmp(&RewardList::compare_priority(b)).then_with(|| compat::compare_to(&Reward::item_id(a), &Reward::item_id(b)).cmp(&0)));
         // TODO(fabric2seer): Stream.collect
         //   java: Reference2IntArrayMap<CorpseType> keyAmounts = lootList.stream()
         //   java: 				.collect(Reference2IntArrayMap::new,
         //   java: 						(map, loot) -> map.mergeInt(loot.corpseType(), 1, Integer::sum),
         //   java: 						Reference2IntArrayMap::putAll);
-        let mut key_amounts: std::collections::HashMap<CorpseType, i32> = todo!("fabric2seer: the initialiser of `keyAmounts` (TODO above)");
+        // `Reference2IntArrayMap`: insertion-ordered, keyed by identity (an enum constant).
+        let mut key_amounts: Vec<(CorpseType, i32)> = Vec::new();
+        for loot in loot_list.iter() {
+            let corpse_type = CorpseLoot::corpse_type(loot);
+            match key_amounts.iter_mut().find(|(key, _)| *key == corpse_type) {
+                Some((_, value)) => *value = value.wrapping_add(1),
+                None => key_amounts.push((corpse_type, 1)),
+            }
+        }
         let mut profit: f64 = loot_list.iter().cloned().map(|__a0| CorpseLoot::profit(&__a0)).sum::<f64>();
         for reward in rewards.iter() {
             let mut item_name: MutableComponent = CorpseList::get_item_name(&Reward::item_id(reward));
@@ -97,10 +119,10 @@ impl RewardList {
         }
         let __entry = (EmptyEntry::new() as compat::Shared<dyn AbstractEntry>);
         compat::write(&__this, |__t| { let __l = &mut __t.base; (__l.add_entry(Box::new(compat::EntryAdapter::new(__entry))) as i32) });
-        // TODO(fabric2seer): Map.reference2IntEntrySet(..)
-        //   java: for (var entry : keyAmounts.reference2IntEntrySet()) {
-        //   java: 			addEntry(new MultiEntry(entry.getKey(), entry.getIntValue()));
-        //   java: 		}
+        for entry in key_amounts.iter() {
+            let __entry = (MultiEntry::new4(entry.0, entry.1) as compat::Shared<dyn AbstractEntry>);
+            compat::write(&__this, |__t| { let __l = &mut __t.base; (__l.add_entry(Box::new(compat::EntryAdapter::new(__entry))) as i32) });
+        }
         let __entry = (EmptyEntry::new() as compat::Shared<dyn AbstractEntry>);
         compat::write(&__this, |__t| { let __l = &mut __t.base; (__l.add_entry(Box::new(compat::EntryAdapter::new(__entry))) as i32) });
         let __entry = (MultiEntry::new_1(profit) as compat::Shared<dyn AbstractEntry>);
@@ -110,14 +132,12 @@ impl RewardList {
 
     /// java: private static int comparePriority(Reward reward)
     pub fn compare_priority(reward: &compat::Shared<Reward>) -> i32 {
-        let mut ids: crate::unresolved::ObjectIterator = CorpseProfitTracker::get_name2_id_map().values().cloned();
+        // Lists according to the order in which they appear in the NAME2ID map
+        let item_id = Reward::item_id(reward);
+        let mut ids = CorpseProfitTracker::get_name2_id_map().values();
         let mut i: i32 = 0;
-        // TODO(fabric2seer): the condition: `.hasNext(..)` on a ObjectIterator
-        //   java: ids.hasNext(..)
-        while todo!("fabric2seer: the condition (TODO above)") {
-            // TODO(fabric2seer): the condition: `.next(..)` on a ObjectIterator
-            //   java: ids.next(..).equals(..)
-            if todo!("fabric2seer: the condition (TODO above)") {
+        while let Some(id) = ids.next() {
+            if *id == item_id {
                 return i;
             }
             i += 1;
@@ -139,11 +159,16 @@ impl RewardList {
 
     /// java: @Override public void refreshScrollAmount()
     pub fn refresh_scroll_amount(__this: &compat::Shared<Self>) {
-        __this.lock().borrow_mut().base.list.refresh_scroll_amount();
-        for entry in compat::write(__this, |__t| { let __l = &mut __t.base; compat::list_entries::<dyn AbstractEntry>(__l) }) {
-            let __o1 = entry.clone();
-            let __o2 = entry.clone();
-            ({ let __f = compat::dispatch(&entry, |__t| __t.reposition_elements()); __f(&entry, compat::write(&__o1, |__t| __t.abstract_entry_base_mut().get_x()), compat::write(&__o2, |__t| __t.abstract_entry_base_mut().get_y()), compat::read(__this, |__t| __t.width), compat::read(__this, |__t| __t.height)) });
+        compat::write(__this, |__t| __t.base.list.refresh_scroll_amount());
+        // `entry.getX()` / `entry.getY()`: the row's box in the list (lent to this call), not the row object's copy,
+        // which is only brought up to date when the row is drawn.
+        let (__entries, __w, __h) = compat::write(__this, |__t| {
+            let __l = &mut __t.base;
+            let __entries = (0..__l.entry_count()).filter_map(|__i| compat::entry_at::<dyn AbstractEntry>(__l, __i).map(|__e| (__e, __l.list.entry(__i).get_x(), __l.list.entry(__i).get_y()))).collect::<Vec<_>>();
+            (__entries, __l.list.width, __l.list.height)
+        });
+        for (entry, __x, __y) in __entries {
+            ({ let __f = compat::dispatch(&entry, |__t| __t.reposition_elements()); __f(&entry, __x, __y, __w, __h) });
         }
     }
 
@@ -172,7 +197,8 @@ pub struct AbstractEntryBase {
     /// java: extends net.minecraft.client.gui.components.ContainerObjectSelectionList$Entry
     pub base: mcrust::net::minecraft::client::gui::components::abstract_selection_list::Entry,
     /// java: protected List<AbstractWidget> children;
-    pub children: Vec<AbstractWidget>,
+    /// The widgets are the row's (`__row`, which the game draws and clicks); the list holds their references.
+    pub children: Vec<compat::WidgetRef>,
     /// the row's widgets (`children()`): lent to the object by its `compat::EntryAdapter`
     pub __row: mcrust::net::minecraft::client::gui::screens::screen::Screen,
     /// the screen's widgets as this object last saw them (see `compat::WidgetCache`)
@@ -208,6 +234,18 @@ impl AbstractEntryBase {
 
 }
 
+/// `children = List.of(a, b, ..)`: each widget joins the row's widget list (`__row`, which the game draws and clicks
+/// through `ModListEntry::children`), and `children` holds the references. `List.of` throws on a null element, as
+/// the `unwrap` at each call does.
+pub fn set_children(base: &mut AbstractEntryBase, widgets: Vec<&mut compat::WidgetRef>) {
+    let mut children = Vec::with_capacity(widgets.len());
+    for widget in widgets {
+        let index = base.__widgets.add(&mut base.__row, widget, true);
+        children.push(compat::WidgetRef::Screen(index));
+    }
+    base.children = children;
+}
+
 /// java: the virtual methods of AbstractEntry (implemented by AbstractEntryBase and every subclass)
 pub trait AbstractEntry: compat::DynAny {
     fn abstract_entry_base(&self) -> &AbstractEntryBase;
@@ -225,12 +263,14 @@ pub trait AbstractEntry: compat::DynAny {
     }
 
     /// java: @Override public List<? extends NarratableEntry> narratables() (dispatch: the body for this class)
-    fn narratables(&self) -> fn(&compat::Shared<dyn AbstractEntry>) -> Vec<Box<dyn NarratableEntry>> {
+    /// The port's widgets are neither `NarratableEntry` nor `GuiEventListener` objects; the game narrates and clicks
+    /// the row's widgets through `ModListEntry::children`, and these answer the references (`children`).
+    fn narratables(&self) -> fn(&compat::Shared<dyn AbstractEntry>) -> Vec<compat::WidgetRef> {
         <dyn AbstractEntry>::narratables_body
     }
 
     /// java: @Override public List<? extends GuiEventListener> children() (dispatch: the body for this class)
-    fn children(&self) -> fn(&compat::Shared<dyn AbstractEntry>) -> Vec<Box<dyn GuiEventListener>> {
+    fn children(&self) -> fn(&compat::Shared<dyn AbstractEntry>) -> Vec<compat::WidgetRef> {
         <dyn AbstractEntry>::children_body
     }
 
@@ -246,12 +286,12 @@ impl dyn AbstractEntry {
     }
 
     /// java: @Override public List<? extends NarratableEntry> narratables()
-    pub fn narratables_body(__this: &compat::Shared<dyn AbstractEntry>) -> Vec<Box<dyn NarratableEntry>> {
+    pub fn narratables_body(__this: &compat::Shared<dyn AbstractEntry>) -> Vec<compat::WidgetRef> {
         return compat::read(__this, |__t| __t.abstract_entry_base().children.clone());
     }
 
     /// java: @Override public List<? extends GuiEventListener> children()
-    pub fn children_body(__this: &compat::Shared<dyn AbstractEntry>) -> Vec<Box<dyn GuiEventListener>> {
+    pub fn children_body(__this: &compat::Shared<dyn AbstractEntry>) -> Vec<compat::WidgetRef> {
         return compat::read(__this, |__t| __t.abstract_entry_base().children.clone());
     }
 
@@ -263,7 +303,7 @@ impl compat::RowHalf for dyn AbstractEntry {
         &mut self.abstract_entry_base_mut().base
     }
     fn row_parts(&mut self) -> (&mut mcrust::net::minecraft::client::gui::screens::screen::Screen, &mut compat::WidgetCache) {
-        let __s = &mut self.abstract_entry_base_mut();
+        let __s = self.abstract_entry_base_mut();
         (&mut __s.__row, &mut __s.__widgets)
     }
 }
@@ -388,7 +428,8 @@ impl SingleEntry {
             });
             ((__h.clone() as compat::Shared<dyn AbstractEntry>), __h)
         });
-        { let __v = vec![compat::string_widget(0, 0, -1, 9, text.clone())]; compat::write(&__this, |__t| __t.children = __v); }
+        let mut __text_widget = compat::WidgetRef::value(compat::string_widget(0, 0, -1, 9, text.clone()));
+        compat::write(&__this, |__t| set_children(&mut __t.base, vec![&mut __text_widget]));
         __this
     }
 
@@ -431,10 +472,10 @@ impl SingleEntry {
         if compat::read(__this, |__t| __t.draw_border) {
             GuiHelper::border(graphics, __this.lock().borrow().get_x(), __this.lock().borrow().get_y(), __this.lock().borrow().get_width(), (__this.lock().borrow().get_height()).wrapping_add(1), BORDER_COLOR);
         }
-        for child in compat::read(__this, |__t| __t.children.clone()) {
-            child.set_y((__this.lock().borrow().get_y()).wrapping_add(INNER_MARGIN));
-            // TODO(fabric2seer): `extract_render_state` is a method of the port's trait `Renderable`, which the port's `AbstractWidget` does not implement
-            // rust: child.extract_render_state(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), mouse_x, mouse_y, a);
+        let __y = compat::read(__this, |__t| __t.get_y()).wrapping_add(INNER_MARGIN);
+        for mut child in compat::read(__this, |__t| __t.children.clone()) {
+            compat::write(__this, |__t| { let __s = &mut __t.base; __s.__widgets.with(&mut __s.__row, &mut child, |__w| __w.set_y(__y)) });
+            // `child.extractRenderState(..)`: the game draws the row's widgets after this body (`context.extract_widgets`).
         }
     }
 
@@ -445,9 +486,12 @@ impl SingleEntry {
 
     /// java: @Override public void repositionElements(int x, int y, int width, int height)
     pub fn reposition_elements_impl(__this: &compat::Shared<Self>, mut x: i32, mut y: i32, mut width: i32, mut height: i32) {
-        let child = &mut __this.lock().borrow().children[0];
-        child.set_x((x.wrapping_add(INNER_MARGIN)).wrapping_add(((__this.lock().borrow().get_width()).wrapping_sub(child.get_width())).wrapping_div(2)));
-        child.set_y((__this.lock().borrow().get_y()).wrapping_add(INNER_MARGIN));
+        let (__width, __y) = compat::read(__this, |__t| (__t.get_width(), __t.get_y()));
+        let mut child = compat::read(__this, |__t| __t.children[0].clone());
+        compat::write(__this, |__t| { let __s = &mut __t.base; __s.__widgets.with(&mut __s.__row, &mut child, |child| {
+            child.set_x((x.wrapping_add(INNER_MARGIN)).wrapping_add((__width.wrapping_sub(child.get_width())).wrapping_div(2)));
+            child.set_y(__y.wrapping_add(INNER_MARGIN));
+        }) });
     }
 
     /// SingleEntry.repositionElements as the dispatch of AbstractEntry.repositionElements
@@ -515,24 +559,22 @@ impl MultiEntry {
     pub fn new(mut item_name: MutableComponent, mut amount: i32, mut price_per_unit: f64) -> compat::Shared<Self> {
         let __init_item_name = (Some(compat::string_widget(0, 0, -1, 9, item_name.clone()))).map(compat::WidgetRef::value);
         let __init_amount = (Some(compat::string_widget(0, 0, -1, 9, (component::literal(&format!("x{}", amount))).with_style_format(ChatFormatting::Aqua)))).map(compat::WidgetRef::value);
-        // TODO(fabric2seer): static `NumberFormat.getInstance` has no Rust counterpart in the port
-        //   java: this.totalPrice = new StringWidget(Component.literal(NumberFormat.getInstance().format(amount * pricePerUnit) + " Coins").withStyle(ChatFormatting.GOLD), Minecraft.getInstance().font);
+        let __init_total_price = Some(compat::WidgetRef::value(compat::string_widget(0, 0, -1, 9, component::literal(&format!("{} Coins", number_format_instance().format((amount as f64) * price_per_unit))).with_style_format(ChatFormatting::Gold))));
         let (_, __this) = AbstractEntryBase::new_in(move |__base| {
             let __h = compat::shared(Self {
                 base: __base,
                 item_name: __init_item_name,
                 amount: __init_amount,
-                total_price: todo!("fabric2seer: the field value (TODO above)"),
+                total_price: __init_total_price,
                 price_per_unit: None,
             });
             ((__h.clone() as compat::Shared<dyn AbstractEntry>), __h)
         });
         if amount > 1 {
-            // TODO(fabric2seer): `.format(..)` on a value of unknown type
-            //   java: this.pricePerUnit = new StringWidget(Component.literal(NumberFormat.getInstance().format(pricePerUnit) + " each").withStyle(ChatFormatting.GRAY), Minecraft.getInstance().font);
-            { let __v = vec![compat::write(&__this, |__t| { let __s = &mut *__t; match __s.item_name.as_mut() { Some(__r) => Some(__s.base.__widgets.with(&mut __s.base.__row, __r, |__w| __w.clone())), None => None } }).unwrap(), compat::write(&__this, |__t| { let __s = &mut *__t; match __s.amount.as_mut() { Some(__r) => Some(__s.base.__widgets.with(&mut __s.base.__row, __r, |__w| __w.clone())), None => None } }).unwrap(), compat::write(&__this, |__t| { let __s = &mut *__t; match __s.total_price.as_mut() { Some(__r) => Some(__s.base.__widgets.with(&mut __s.base.__row, __r, |__w| __w.clone())), None => None } }).unwrap(), compat::write(&__this, |__t| { let __s = &mut *__t; match __s.price_per_unit.as_mut() { Some(__r) => Some(__s.base.__widgets.with(&mut __s.base.__row, __r, |__w| __w.clone())), None => None } }).unwrap()]; compat::write(&__this, |__t| __t.children = __v); }
+            { let __v = Some(compat::WidgetRef::value(compat::string_widget(0, 0, -1, 9, component::literal(&format!("{} each", number_format_instance().format(price_per_unit))).with_style_format(ChatFormatting::Gray)))); compat::write(&__this, |__t| __t.price_per_unit = __v); }
+            compat::write(&__this, |__t| { let __s = &mut *__t; crate::de::hysky::skyblocker::skyblock::dwarven::profittrackers::corpse::reward_list::set_children(&mut __s.base, vec![__s.item_name.as_mut().unwrap(), __s.amount.as_mut().unwrap(), __s.total_price.as_mut().unwrap(), __s.price_per_unit.as_mut().unwrap()]) });
         } else {
-            { let __v = vec![compat::write(&__this, |__t| { let __s = &mut *__t; match __s.item_name.as_mut() { Some(__r) => Some(__s.base.__widgets.with(&mut __s.base.__row, __r, |__w| __w.clone())), None => None } }).unwrap(), compat::write(&__this, |__t| { let __s = &mut *__t; match __s.amount.as_mut() { Some(__r) => Some(__s.base.__widgets.with(&mut __s.base.__row, __r, |__w| __w.clone())), None => None } }).unwrap(), compat::write(&__this, |__t| { let __s = &mut *__t; match __s.total_price.as_mut() { Some(__r) => Some(__s.base.__widgets.with(&mut __s.base.__row, __r, |__w| __w.clone())), None => None } }).unwrap()]; compat::write(&__this, |__t| __t.children = __v); }
+            compat::write(&__this, |__t| { let __s = &mut *__t; crate::de::hysky::skyblocker::skyblock::dwarven::profittrackers::corpse::reward_list::set_children(&mut __s.base, vec![__s.item_name.as_mut().unwrap(), __s.amount.as_mut().unwrap(), __s.total_price.as_mut().unwrap()]) });
         }
         __this
     }
@@ -551,44 +593,41 @@ impl MultiEntry {
             });
             ((__h.clone() as compat::Shared<dyn AbstractEntry>), __h)
         });
-        { let __v = vec![compat::write(&__this, |__t| { let __s = &mut *__t; match __s.item_name.as_mut() { Some(__r) => Some(__s.base.__widgets.with(&mut __s.base.__row, __r, |__w| __w.clone())), None => None } }).unwrap(), compat::write(&__this, |__t| { let __s = &mut *__t; match __s.amount.as_mut() { Some(__r) => Some(__s.base.__widgets.with(&mut __s.base.__row, __r, |__w| __w.clone())), None => None } }).unwrap()]; compat::write(&__this, |__t| __t.children = __v); }
+        compat::write(&__this, |__t| { let __s = &mut *__t; crate::de::hysky::skyblocker::skyblock::dwarven::profittrackers::corpse::reward_list::set_children(&mut __s.base, vec![__s.item_name.as_mut().unwrap(), __s.amount.as_mut().unwrap()]) });
         __this
     }
 
     /// java: protected MultiEntry(double profit)
     pub fn new_1(mut profit: f64) -> compat::Shared<Self> {
         let __init_item_name = (Some(compat::string_widget(0, 0, -1, 9, component::literal("Total Profit").with_style_formats(&[ChatFormatting::Bold, ChatFormatting::Gold])))).map(compat::WidgetRef::value);
-        // TODO(fabric2seer): static `NumberFormat.getInstance` has no Rust counterpart in the port
-        //   java: this.totalPrice = new StringWidget(Component.literal(NumberFormat.getInstance().format(profit) + " Coins").withStyle(profit > 0 ? ChatFormatting.GREEN : ChatFormatting.RED), Minecraft.getInstance().font);
+        let __init_total_price = Some(compat::WidgetRef::value(compat::string_widget(0, 0, -1, 9, component::literal(&format!("{} Coins", number_format_instance().format(profit))).with_style_format(if profit > 0.0 { ChatFormatting::Green } else { ChatFormatting::Red }))));
         let (_, __this) = AbstractEntryBase::new_in(move |__base| {
             let __h = compat::shared(Self {
                 base: __base,
                 item_name: __init_item_name,
                 amount: None,
-                total_price: todo!("fabric2seer: the field value (TODO above)"),
+                total_price: __init_total_price,
                 price_per_unit: None,
             });
             ((__h.clone() as compat::Shared<dyn AbstractEntry>), __h)
         });
-        { let __v = vec![compat::write(&__this, |__t| { let __s = &mut *__t; match __s.item_name.as_mut() { Some(__r) => Some(__s.base.__widgets.with(&mut __s.base.__row, __r, |__w| __w.clone())), None => None } }).unwrap(), compat::write(&__this, |__t| { let __s = &mut *__t; match __s.total_price.as_mut() { Some(__r) => Some(__s.base.__widgets.with(&mut __s.base.__row, __r, |__w| __w.clone())), None => None } }).unwrap()]; compat::write(&__this, |__t| __t.children = __v); }
+        compat::write(&__this, |__t| { let __s = &mut *__t; crate::de::hysky::skyblocker::skyblock::dwarven::profittrackers::corpse::reward_list::set_children(&mut __s.base, vec![__s.item_name.as_mut().unwrap(), __s.total_price.as_mut().unwrap()]) });
         __this
     }
 
     /// java: protected MultiEntry(CorpseType corpseType, int amount)
     pub fn new4(mut corpse_type: CorpseType, mut amount: i32) -> compat::Shared<Self> {
-        // TODO(fabric2seer): static call WordUtils.capitalizeFully(..)
-        //   java: this.itemName = new StringWidget(Component.literal(WordUtils.capitalizeFully(corpseType.name()) + " Corpse Key Cost").withStyle(corpseType.color), Minecraft.getInstance().font);
+        let __init_item_name = Some(compat::WidgetRef::value(compat::string_widget(0, 0, -1, 9, component::literal(&format!("{} Corpse Key Cost", compat::capitalize_fully(corpse_type.name()))).with_style_format(corpse_type.fields().color))));
         let __init_amount = (Some(compat::string_widget(0, 0, -1, 9, (component::literal(&format!("x{}", formatters::INTEGER_NUMBERS.get_mut().format((amount) as f64)))).with_style_format(ChatFormatting::Aqua)))).map(compat::WidgetRef::value);
         let mut price_per_key: f64 = corpse_type.get_key_price();
-        // TODO(fabric2seer): `.format(..)` on a value of unknown type
-        //   java: String priceString = (pricePerKey > 0 ? "-" + NumberFormat.getInstance().format(pricePerKey * amount) : 0) + " Coins";
-        let mut price_string: String = todo!("fabric2seer: the initialiser of `priceString` (TODO above)");
+        // `(pricePerKey > 0 ? "-" + format(pricePerKey * amount) : 0) + " Coins"`: the else arm is the int 0.
+        let mut price_string: String = format!("{} Coins", if price_per_key > (0 as f64) { format!("-{}", number_format_instance().format(price_per_key * (amount as f64))) } else { "0".to_string() });
         let mut price_text: MutableComponent = component::literal(&price_string).with_style_format((if price_per_key > (0 as f64) { ChatFormatting::Red } else { ChatFormatting::Gold }));
         let __init_total_price = (Some(compat::string_widget(0, 0, -1, 9, price_text.clone()))).map(compat::WidgetRef::value);
         let (_, __this) = AbstractEntryBase::new_in(move |__base| {
             let __h = compat::shared(Self {
                 base: __base,
-                item_name: todo!("fabric2seer: the field value (TODO above)"),
+                item_name: __init_item_name,
                 amount: __init_amount,
                 total_price: __init_total_price,
                 price_per_unit: None,
@@ -596,21 +635,21 @@ impl MultiEntry {
             ((__h.clone() as compat::Shared<dyn AbstractEntry>), __h)
         });
         if amount > 1 {
-            // TODO(fabric2seer): `.format(..)` on a value of unknown type
-            //   java: this.pricePerUnit = new StringWidget(Component.literal(NumberFormat.getInstance().format(pricePerKey) + " each").withStyle(ChatFormatting.GRAY), Minecraft.getInstance().font);
-            { let __v = vec![compat::write(&__this, |__t| { let __s = &mut *__t; match __s.item_name.as_mut() { Some(__r) => Some(__s.base.__widgets.with(&mut __s.base.__row, __r, |__w| __w.clone())), None => None } }).unwrap(), compat::write(&__this, |__t| { let __s = &mut *__t; match __s.amount.as_mut() { Some(__r) => Some(__s.base.__widgets.with(&mut __s.base.__row, __r, |__w| __w.clone())), None => None } }).unwrap(), compat::write(&__this, |__t| { let __s = &mut *__t; match __s.total_price.as_mut() { Some(__r) => Some(__s.base.__widgets.with(&mut __s.base.__row, __r, |__w| __w.clone())), None => None } }).unwrap(), compat::write(&__this, |__t| { let __s = &mut *__t; match __s.price_per_unit.as_mut() { Some(__r) => Some(__s.base.__widgets.with(&mut __s.base.__row, __r, |__w| __w.clone())), None => None } }).unwrap()]; compat::write(&__this, |__t| __t.children = __v); }
+            { let __v = Some(compat::WidgetRef::value(compat::string_widget(0, 0, -1, 9, component::literal(&format!("{} each", number_format_instance().format(price_per_key))).with_style_format(ChatFormatting::Gray)))); compat::write(&__this, |__t| __t.price_per_unit = __v); }
+            compat::write(&__this, |__t| { let __s = &mut *__t; crate::de::hysky::skyblocker::skyblock::dwarven::profittrackers::corpse::reward_list::set_children(&mut __s.base, vec![__s.item_name.as_mut().unwrap(), __s.amount.as_mut().unwrap(), __s.total_price.as_mut().unwrap(), __s.price_per_unit.as_mut().unwrap()]) });
         } else {
-            { let __v = vec![compat::write(&__this, |__t| { let __s = &mut *__t; match __s.item_name.as_mut() { Some(__r) => Some(__s.base.__widgets.with(&mut __s.base.__row, __r, |__w| __w.clone())), None => None } }).unwrap(), compat::write(&__this, |__t| { let __s = &mut *__t; match __s.amount.as_mut() { Some(__r) => Some(__s.base.__widgets.with(&mut __s.base.__row, __r, |__w| __w.clone())), None => None } }).unwrap(), compat::write(&__this, |__t| { let __s = &mut *__t; match __s.total_price.as_mut() { Some(__r) => Some(__s.base.__widgets.with(&mut __s.base.__row, __r, |__w| __w.clone())), None => None } }).unwrap()]; compat::write(&__this, |__t| __t.children = __v); }
+            compat::write(&__this, |__t| { let __s = &mut *__t; crate::de::hysky::skyblocker::skyblock::dwarven::profittrackers::corpse::reward_list::set_children(&mut __s.base, vec![__s.item_name.as_mut().unwrap(), __s.amount.as_mut().unwrap(), __s.total_price.as_mut().unwrap()]) });
         }
         __this
     }
 
     /// java: private static void position(StringWidget widget, int start, int width, int y)
     pub fn position(widget: &mut AbstractWidget, mut start: i32, mut width: i32, mut y: i32) {
-        // TODO(fabric2seer): field `SCROLLING` of a value of unknown type
-        //   java: widget.setMaxWidth(width, StringWidget.TextOverflow.SCROLLING);
-        // TODO(fabric2seer): `width` takes 2 argument(s) in the port (`max_width: i32, text_width: i32`), Java passes 0
-        // rust: widget.set_x(start.wrapping_add((width.wrapping_sub(string_widget::width())).wrapping_div(2)));
+        widget.set_max_width(width, string_widget::TextOverflow::Scrolling);
+        // `widget.getWidth()` is `StringWidget.getWidth`: `min(maxWidth, font.width(message))` once a max width is set.
+        let text_width = compat::font().width_of(&widget.get_message_component());
+        let widget_width = string_widget::width(widget.max_width, text_width);
+        widget.set_x(start.wrapping_add((width.wrapping_sub(widget_width)).wrapping_div(2)));
         widget.set_y(y);
     }
 
@@ -651,11 +690,12 @@ impl MultiEntry {
         GuiHelper::border(graphics, x.wrapping_add(entry_width.wrapping_div(3)), y, (entry_width.wrapping_div(6)).wrapping_add(2), entry_height.wrapping_add(1), BORDER_COLOR);
         GuiHelper::border(graphics, x.wrapping_add(entry_width.wrapping_div(2)), y, entry_width.wrapping_div(4), entry_height.wrapping_add(1), BORDER_COLOR);
         let mut entry_y: i32 = y.wrapping_add(INNER_MARGIN);
-        if compat::write(__this, |__t| { let __s = &mut *__t; match __s.item_name.as_mut() { Some(__r) => Some(__s.base.__widgets.with(&mut __s.base.__row, __r, |__w| __w.clone())), None => None } }).is_some() {
+        if compat::read(__this, |__t| __t.item_name.is_some()) {
             let __wa1 = entry_y;
             compat::write(__this, |__t| { let __s = &mut *__t; let __r = __s.item_name.as_mut().unwrap(); __s.base.__widgets.with(&mut __s.base.__row, __r, |__w| __w.set_y(__wa1)) });
-            // TODO(fabric2seer): field `SCROLLING` of a value of unknown type
-            //   java: itemName.setMaxWidth(entryWidth / 3 - 2 * INNER_MARGIN, StringWidget.TextOverflow.SCROLLING);
+            let __wa2 = (entry_width.wrapping_div(3)).wrapping_sub(2i32.wrapping_mul(INNER_MARGIN));
+            compat::write(__this, |__t| { let __s = &mut *__t; let __r = __s.item_name.as_mut().unwrap(); __s.base.__widgets.with(&mut __s.base.__row, __r, |__w| __w.set_max_width(__wa2, string_widget::TextOverflow::Scrolling)) });
+            // `itemName.extractRenderState(..)` (and each one below): the game draws the row's widgets after this body.
             // TODO(fabric2seer): `extract_render_state` is a method of the port's trait `Renderable`, which the port's `AbstractWidget` does not implement
             // rust: let __wa3 = graphics.clone();
             // rust: let __wa4 = mouse_x;
@@ -663,7 +703,7 @@ impl MultiEntry {
             // rust: let __wa6 = a;
             // rust: compat::write(__this, |__t| { let __s = &mut *__t; let __r = __s.item_name.as_mut().unwrap(); __s.base.__widgets.with(&mut __s.base.__row, __r, |__w| __w.extract_render_state(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), __wa4, __wa5, __wa6)) });
         }
-        if compat::write(__this, |__t| { let __s = &mut *__t; match __s.amount.as_mut() { Some(__r) => Some(__s.base.__widgets.with(&mut __s.base.__row, __r, |__w| __w.clone())), None => None } }).is_some() {
+        if compat::read(__this, |__t| __t.amount.is_some()) {
             let __wa7 = entry_y;
             compat::write(__this, |__t| { let __s = &mut *__t; let __r = __s.amount.as_mut().unwrap(); __s.base.__widgets.with(&mut __s.base.__row, __r, |__w| __w.set_y(__wa7)) });
             // TODO(fabric2seer): `extract_render_state` is a method of the port's trait `Renderable`, which the port's `AbstractWidget` does not implement
@@ -673,7 +713,7 @@ impl MultiEntry {
             // rust: let __wa11 = a;
             // rust: compat::write(__this, |__t| { let __s = &mut *__t; let __r = __s.amount.as_mut().unwrap(); __s.base.__widgets.with(&mut __s.base.__row, __r, |__w| __w.extract_render_state(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), __wa9, __wa10, __wa11)) });
         }
-        if compat::write(__this, |__t| { let __s = &mut *__t; match __s.total_price.as_mut() { Some(__r) => Some(__s.base.__widgets.with(&mut __s.base.__row, __r, |__w| __w.clone())), None => None } }).is_some() {
+        if compat::read(__this, |__t| __t.total_price.is_some()) {
             let __wa12 = entry_y;
             compat::write(__this, |__t| { let __s = &mut *__t; let __r = __s.total_price.as_mut().unwrap(); __s.base.__widgets.with(&mut __s.base.__row, __r, |__w| __w.set_y(__wa12)) });
             // TODO(fabric2seer): `extract_render_state` is a method of the port's trait `Renderable`, which the port's `AbstractWidget` does not implement
@@ -683,7 +723,7 @@ impl MultiEntry {
             // rust: let __wa16 = a;
             // rust: compat::write(__this, |__t| { let __s = &mut *__t; let __r = __s.total_price.as_mut().unwrap(); __s.base.__widgets.with(&mut __s.base.__row, __r, |__w| __w.extract_render_state(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), __wa14, __wa15, __wa16)) });
         }
-        if compat::write(__this, |__t| { let __s = &mut *__t; match __s.price_per_unit.as_mut() { Some(__r) => Some(__s.base.__widgets.with(&mut __s.base.__row, __r, |__w| __w.clone())), None => None } }).is_some() {
+        if compat::read(__this, |__t| __t.price_per_unit.is_some()) {
             let __wa17 = entry_y;
             compat::write(__this, |__t| { let __s = &mut *__t; let __r = __s.price_per_unit.as_mut().unwrap(); __s.base.__widgets.with(&mut __s.base.__row, __r, |__w| __w.set_y(__wa17)) });
             // TODO(fabric2seer): `extract_render_state` is a method of the port's trait `Renderable`, which the port's `AbstractWidget` does not implement
@@ -702,19 +742,19 @@ impl MultiEntry {
 
     /// java: @Override public void repositionElements(int x, int y, int width, int entryHeight)
     pub fn reposition_elements_impl(__this: &compat::Shared<Self>, mut x: i32, mut y: i32, mut width: i32, mut entry_height: i32) {
-        if compat::write(__this, |__t| { let __s = &mut *__t; match __s.item_name.as_mut() { Some(__r) => Some(__s.base.__widgets.with(&mut __s.base.__row, __r, |__w| __w.clone())), None => None } }).is_some() {
+        if compat::read(__this, |__t| __t.item_name.is_some()) {
             let __wa1 = x.wrapping_add(INNER_MARGIN);
             compat::write(__this, |__t| { let __s = &mut *__t; let __r = __s.item_name.as_mut().unwrap(); __s.base.__widgets.with(&mut __s.base.__row, __r, |__w| __w.set_x(__wa1)) });
         }
         let mut entry_width: i32 = __this.lock().borrow().get_width();
-        if compat::write(__this, |__t| { let __s = &mut *__t; match __s.amount.as_mut() { Some(__r) => Some(__s.base.__widgets.with(&mut __s.base.__row, __r, |__w| __w.clone())), None => None } }).is_some() {
-            MultiEntry::position(compat::write(__this, |__t| { let __s = &mut *__t; match __s.amount.as_mut() { Some(__r) => Some(__s.base.__widgets.with(&mut __s.base.__row, __r, |__w| __w.clone())), None => None } }).as_mut().unwrap(), (x.wrapping_add(entry_width.wrapping_div(3))).wrapping_add(INNER_MARGIN), (entry_width.wrapping_div(6)).wrapping_sub(2i32.wrapping_mul(INNER_MARGIN)), y);
+        if compat::read(__this, |__t| __t.amount.is_some()) {
+            compat::write(__this, |__t| { let __s = &mut *__t; let __r = __s.amount.as_mut().unwrap(); __s.base.__widgets.with(&mut __s.base.__row, __r, |__w| MultiEntry::position(__w, (x.wrapping_add(entry_width.wrapping_div(3))).wrapping_add(INNER_MARGIN), (entry_width.wrapping_div(6)).wrapping_sub(2i32.wrapping_mul(INNER_MARGIN)), y)) });
         }
-        if compat::write(__this, |__t| { let __s = &mut *__t; match __s.total_price.as_mut() { Some(__r) => Some(__s.base.__widgets.with(&mut __s.base.__row, __r, |__w| __w.clone())), None => None } }).is_some() {
-            MultiEntry::position(compat::write(__this, |__t| { let __s = &mut *__t; match __s.total_price.as_mut() { Some(__r) => Some(__s.base.__widgets.with(&mut __s.base.__row, __r, |__w| __w.clone())), None => None } }).as_mut().unwrap(), (x.wrapping_add(entry_width.wrapping_div(2))).wrapping_add(INNER_MARGIN), (entry_width.wrapping_div(4)).wrapping_sub(2i32.wrapping_mul(INNER_MARGIN)), y);
+        if compat::read(__this, |__t| __t.total_price.is_some()) {
+            compat::write(__this, |__t| { let __s = &mut *__t; let __r = __s.total_price.as_mut().unwrap(); __s.base.__widgets.with(&mut __s.base.__row, __r, |__w| MultiEntry::position(__w, (x.wrapping_add(entry_width.wrapping_div(2))).wrapping_add(INNER_MARGIN), (entry_width.wrapping_div(4)).wrapping_sub(2i32.wrapping_mul(INNER_MARGIN)), y)) });
         }
-        if compat::write(__this, |__t| { let __s = &mut *__t; match __s.price_per_unit.as_mut() { Some(__r) => Some(__s.base.__widgets.with(&mut __s.base.__row, __r, |__w| __w.clone())), None => None } }).is_some() {
-            MultiEntry::position(compat::write(__this, |__t| { let __s = &mut *__t; match __s.price_per_unit.as_mut() { Some(__r) => Some(__s.base.__widgets.with(&mut __s.base.__row, __r, |__w| __w.clone())), None => None } }).as_mut().unwrap(), (x.wrapping_add((3i32.wrapping_mul(entry_width)).wrapping_div(4))).wrapping_add(INNER_MARGIN), (entry_width.wrapping_div(4)).wrapping_sub(2i32.wrapping_mul(INNER_MARGIN)), y);
+        if compat::read(__this, |__t| __t.price_per_unit.is_some()) {
+            compat::write(__this, |__t| { let __s = &mut *__t; let __r = __s.price_per_unit.as_mut().unwrap(); __s.base.__widgets.with(&mut __s.base.__row, __r, |__w| MultiEntry::position(__w, (x.wrapping_add((3i32.wrapping_mul(entry_width)).wrapping_div(4))).wrapping_add(INNER_MARGIN), (entry_width.wrapping_div(4)).wrapping_sub(2i32.wrapping_mul(INNER_MARGIN)), y)) });
         }
     }
 

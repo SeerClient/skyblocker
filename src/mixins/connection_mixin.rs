@@ -11,7 +11,7 @@ use crate::prelude::*;
 /// note: class not in JavaSrc: java.io.IOException has no file in JavaSrc/src - a remapping problem, or a class this Minecraft version does not have
 /// note: `within` meteordevelopment.discordipc.connection.UnixConnection#write: class not in JavaSrc - the caller must be hooked for `within` to see it on the stack; the registration is left commented out
 fn write(ci: &mut CallbackInfo<'_>) {
-    let Some(this) = compat::detach(ci.this_mut::<IOException>()) else { return; };
+    // `IOException instance` (the redirected call's receiver) is not read by the handler.
     // TODO(fabric2seer): static call DiscordIPC.stop(..)
     //   java: DiscordIPC.stop();
     logger().warn(&format!("[Skyblocker] Discord RPC failed to update activity, connection lost"));

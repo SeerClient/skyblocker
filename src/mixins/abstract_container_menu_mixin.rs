@@ -24,20 +24,22 @@ fn on_set_stack_in_slot(ci: &mut CallbackInfo<'_>) {
     let Some(this) = compat::detach(ci.this_mut::<mcrust::net::minecraft::world::inventory::abstract_container_menu::AbstractContainerMenu>()) else { return; };
     let slot: i32 = ci.arg::<i32>(1).copied().unwrap_or_default();
     let revision: i32 = ci.arg::<i32>(2).copied().unwrap_or_default();
-    let Some(stack) = compat::detach_ref(ci.arg::<mcrust::net::minecraft::world::item::item_stack::ItemStack>(3)) else { return; };
+    // `stack` (argument 3) is by value and was moved into the body: unreadable at RETURN, and unused here.
     crate::de::hysky::skyblocker::utils::container::container_solver_manager::ContainerSolverManager::mark_highlights_dirty();
     if crate::de::hysky::skyblocker::skyblock::inventory_search::InventorySearch::is_searching() {
         crate::de::hysky::skyblocker::skyblock::inventory_search::InventorySearch::refresh_slot(slot);
     }
-    if this.is::<compat::LiveChestMenu>() {
+    if compat::is_chest_menu(this) {
         if let Some(__sel1) = compat::minecraft().gui.screen().as_ref() && let Some(screen) = mcrust::mcrust::modding::game::current_mod_screen::<compat::ScreenAdapter<crate::de::hysky::skyblocker::skyblock::dungeon::partyfinder::party_finder_screen::PartyFinderScreen>, _>(|__s| __s.object().clone()) {
             crate::de::hysky::skyblocker::skyblock::dungeon::partyfinder::party_finder_screen::PartyFinderScreen::mark_dirty(&screen);
         } else if let Some(__sel3) = compat::minecraft().gui.screen().as_ref() && let Some(screen) = mcrust::mcrust::modding::container_screens::current_mod_container_screen::<compat::ContainerScreenAdapter<crate::de::hysky::skyblocker::skyblock::storageoverlay::storage_overlay_screen::StorageOverlayScreen>, _>(|__s| __s.object().clone()) {
             crate::de::hysky::skyblocker::skyblock::storageoverlay::storage_overlay_screen::StorageOverlayScreen::refresh_search(&screen);
         } else {
         }
-        // TODO(fabric2seer): `broadcast_changes` takes 1 argument(s) in the port (`containers: &mut Containers<'_>`), Java passes 0
-        // rust: this.broadcast_changes();
+        // `broadcastChanges()`: the port's takes the hooked call's own `containers` (argument 0).
+        if let Some(containers) = compat::hook_arg_mut::<mcrust::net::minecraft::world::inventory::slot::Containers<'_>>(ci, 0) {
+            this.broadcast_changes(containers);
+        }
     }
 }
 
@@ -48,18 +50,20 @@ fn on_set_stack_in_slot(ci: &mut CallbackInfo<'_>) {
 fn initialize_contents(ci: &mut CallbackInfo<'_>) {
     let Some(this) = compat::detach(ci.this_mut::<mcrust::net::minecraft::world::inventory::abstract_container_menu::AbstractContainerMenu>()) else { return; };
     let state_id: i32 = ci.arg::<i32>(1).copied().unwrap_or_default();
-    // TODO(fabric2seer): `items` is Rust argument 2: `Vec<ItemStack>` - generic or borrowed with a lifetime; read it with `unsafe { ci.arg_unchecked::<..>(2) }`
-    let Some(carried) = compat::detach_ref(ci.arg::<mcrust::net::minecraft::world::item::item_stack::ItemStack>(3)) else { return; };
+    // `items` and `carried` (arguments 2 and 3) are by value and were moved into the body: unreadable at RETURN, and
+    // unused here.
     crate::de::hysky::skyblocker::utils::container::container_solver_manager::ContainerSolverManager::mark_highlights_dirty();
-    if this.is::<compat::LiveChestMenu>() {
+    if compat::is_chest_menu(this) {
         if let Some(__sel1) = compat::minecraft().gui.screen().as_ref() && let Some(screen) = mcrust::mcrust::modding::game::current_mod_screen::<compat::ScreenAdapter<crate::de::hysky::skyblocker::skyblock::dungeon::partyfinder::party_finder_screen::PartyFinderScreen>, _>(|__s| __s.object().clone()) {
             crate::de::hysky::skyblocker::skyblock::dungeon::partyfinder::party_finder_screen::PartyFinderScreen::mark_dirty(&screen);
         } else if let Some(__sel3) = compat::minecraft().gui.screen().as_ref() && let Some(screen) = mcrust::mcrust::modding::container_screens::current_mod_container_screen::<compat::ContainerScreenAdapter<crate::de::hysky::skyblocker::skyblock::storageoverlay::storage_overlay_screen::StorageOverlayScreen>, _>(|__s| __s.object().clone()) {
             crate::de::hysky::skyblocker::skyblock::storageoverlay::storage_overlay_screen::StorageOverlayScreen::refresh_search(&screen);
         } else {
         }
-        // TODO(fabric2seer): `broadcast_changes` takes 1 argument(s) in the port (`containers: &mut Containers<'_>`), Java passes 0
-        // rust: this.broadcast_changes();
+        // `broadcastChanges()`: the port's takes the hooked call's own `containers` (argument 0).
+        if let Some(containers) = compat::hook_arg_mut::<mcrust::net::minecraft::world::inventory::slot::Containers<'_>>(ci, 0) {
+            this.broadcast_changes(containers);
+        }
     }
 }
 

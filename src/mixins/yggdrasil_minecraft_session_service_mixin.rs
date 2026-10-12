@@ -12,7 +12,6 @@ use crate::prelude::*;
 /// note: class not in JavaSrc: org.slf4j.Logger has no file in JavaSrc/src - a remapping problem, or a class this Minecraft version does not have
 /// note: `within` com.mojang.authlib.yggdrasil.YggdrasilMinecraftSessionService#unpackTextures: class not in JavaSrc - the caller must be hooked for `within` to see it on the stack; the registration is left commented out
 fn skyblocker_dont_log_incorrect_ending_byte_exceptions(ci: &CallbackInfo<'_>) -> bool {
-    let Some(this) = compat::detach(ci.this_mut::<Logger>()) else { return true; };
     // TODO(fabric2seer): `throwable`: this argument is not visible to the injector (see the notes above the handler)
     //   java: return !Utils.isOnHypixel() && throwable instanceof IllegalArgumentException;
     todo!("fabric2seer: the value of this function is in a TODO above")

@@ -11,8 +11,8 @@ use crate::prelude::*;
 /// note: class not in JavaSrc: java.util.Map has no file in JavaSrc/src - a remapping problem, or a class this Minecraft version does not have
 /// note: `within` org.eclipse.jgit.transport.UrlConfig#load: class not in JavaSrc - the caller must be hooked for `within` to see it on the stack; the registration is left commented out
 fn skyblocker_ignore_url_redirects(ci: &mut CallbackInfo<'_>, original: &mut Original<'_>) {
-    let Some(this) = compat::detach(ci.this_mut::<Map>()) else { return; };
-    ci.set_return_value(None);
+    // java: return null; (the redirect is never stored)
+    ci.set_return_value::<Option<compat::Object>>(None);
     return;
 }
 

@@ -9,10 +9,9 @@ use mcrust::com::mojang::serialization::codec::CodecRef;
 use mcrust::net::minecraft::chat_formatting::ChatFormatting;
 use mcrust::net::minecraft::commands::arguments::string_representable_argument::StringRepresentableArgument;
 
-// TODO(fabric2seer): `from_enum` takes 2 argument(s) in the port (`values: Vec<E>, serialized_name: impl Fn(&E) -> String + Send + Sync + Copy + 'static`), Java passes 1
-//   java: public static final Codec<CorpseType> CODEC = StringRepresentable.fromEnum(CorpseType::values);
 /// java: public static final Codec<CorpseType> CODEC = StringRepresentable.fromEnum(CorpseType::values);
-pub static CODEC: compat::MainThread<CodecRef<CorpseType>> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `CODEC` - see the TODO above"));
+/// The port's `fromEnum` is handed the values and the `getSerializedName` it calls on each (Java's interface method).
+pub static CODEC: compat::MainThread<CodecRef<CorpseType>> = compat::MainThread::new(|| mcrust::net::minecraft::util::string_representable::from_enum(CorpseType::values(), |value: &CorpseType| value.get_serialized_name()));
 
 /// java: public enum CorpseType implements StringRepresentable
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -74,20 +73,17 @@ impl CorpseType {
 
     /// java: static CorpseType fromHelmetItemId(String helmetItemId)
     pub fn from_helmet_item_id(helmet_item_id: &str) -> CorpseType {
-        // TODO(fabric2seer): call to `values(..)` (not a method of this class)
-        //   java: for (CorpseType value : values()) {
-        //   java: 			if (value.helmetItemId.equals(helmetItemId)) {
-        //   java: 				return value;
-        //   java: 			}
-        //   java: 		}
-        return UNKNOWN;
+        for value in CorpseType::values() {
+            if value.fields().helmet_item_id == helmet_item_id {
+                return value;
+            }
+        }
+        return CorpseType::Unknown;
     }
 
     /// java: @Override public String getSerializedName()
     pub fn get_serialized_name(&self) -> String {
-        // TODO(fabric2seer): call to `name(..)` (not a method of this class)
-        //   java: return name().toLowerCase(Locale.ENGLISH);
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        return self.name().to_lowercase();
     }
 
     /// java: public double getKeyPrice() throws IllegalStateException
@@ -97,7 +93,7 @@ impl CorpseType {
                 panic!("IllegalStateException: {}", "There's no key or key price for the UNKNOWN corpse type!");
             }
             CorpseType::Lapis => ((0) as f64) as f64,
-            _ => ItemUtils::get_item_price_string(Some(self.fields().key_item_id.clone())).expect("Optional.orElseThrow"),
+            _ => ItemUtils::get_item_price_string(self.fields().key_item_id.clone()).unwrap_or_else(|| panic!("IllegalStateException: No price found for key item `{}`!", compat::opt_str(&self.fields().key_item_id))),
         };
     }
 
@@ -119,13 +115,10 @@ pub struct CorpseTypeFields {
 impl CorpseTypeFields {
     fn new(mut helmet_item_id: String, mut key_item_id: Option<String>, mut color: ChatFormatting) -> Self {
         let mut this = Self {
-            helmet_item_id: Default::default(),
-            key_item_id: None,
-            color: Default::default(),
+            helmet_item_id,
+            key_item_id,
+            color,
         };
-        this.helmet_item_id = helmet_item_id.clone();
-        this.key_item_id = key_item_id.clone().unwrap();
-        this.color = color;
         this
     }
 
@@ -133,12 +126,12 @@ impl CorpseTypeFields {
 
 /// java: public static class CorpseTypeArgumentType extends StringRepresentableArgument<CorpseType>
 pub struct CorpseTypeArgumentType {
-    /// java: extends net.minecraft.commands.arguments.StringRepresentableArgument
-    pub base: StringRepresentableArgument<compat::Object>,
+    /// java: extends net.minecraft.commands.arguments.StringRepresentableArgument<CorpseType>
+    pub base: StringRepresentableArgument<CorpseType>,
 }
 
 impl std::ops::Deref for CorpseTypeArgumentType {
-    type Target = StringRepresentableArgument<compat::Object>;
+    type Target = StringRepresentableArgument<CorpseType>;
     fn deref(&self) -> &Self::Target {
         &self.base
     }
@@ -153,9 +146,11 @@ impl std::ops::DerefMut for CorpseTypeArgumentType {
 impl CorpseTypeArgumentType {
     /// java: protected CorpseTypeArgumentType()
     pub fn new() -> Self {
-        // TODO(fabric2seer): `new` takes 3 argument(s) in the port (`values: Vec<T>, codec_name: fn(&T) -> String, convert_id: fn(&str) -> String`), Java passes 2
-        //   java: super(CODEC, CorpseType::values);
-        let mut this: Self = todo!("constructor");
+        // java: super(CODEC, CorpseType::values); - the two-argument constructor is `this(codec, values, s -> s)`; the
+        // port's is handed the names the codec writes (`CODEC`'s `getSerializedName`) and that identity.
+        let mut this: Self = Self {
+            base: StringRepresentableArgument::new(CorpseType::values(), |value: &CorpseType| value.get_serialized_name(), |id: &str| id.to_string()),
+        };
         this
     }
 
@@ -166,7 +161,7 @@ impl CorpseTypeArgumentType {
 
     /// java: static <S> CorpseType getCorpseType(CommandContext<S> context, String name)
     pub fn get_corpse_type<S: 'static>(context: &CommandContext<S>, name: &str) -> CorpseType {
-        return context.get_argument::<CorpseType>(name).unwrap();
+        return *context.get_argument::<CorpseType>(name).unwrap();
     }
 
 }

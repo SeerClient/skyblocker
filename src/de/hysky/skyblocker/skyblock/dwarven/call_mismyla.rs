@@ -102,7 +102,9 @@ impl CallMismyla {
             return false;
         }
         let mut call_message: MutableComponent = (constants::PREFIX.get_mut())().append(component::translatable("skyblocker.config.mining.callMismyla.message"));
-        call_message.with_style_fn(|style| (style.with_click_event(Some(ClickEvent::new_run_command("/call mismyla".to_string())))).with_color_format(Some(ChatFormatting::Aqua)));
+        call_message = call_message.with_style_fn(|style| (style.with_click_event(Some(ClickEvent::new_run_command("/call mismyla".to_string())))).with_color_format(Some(ChatFormatting::Aqua)));
+        // java: player.sendSystemMessage(callMessage); - rust: port gap: a mod has only the text form of a system
+        // message (`script_host::send_feedback`), so the click event is not carried (GAPS_batchD).
         mcrust::mcrust::modding::game::with_player(|player| { script_host::send_feedback(&call_message.to_string()); });
         return false;
     }

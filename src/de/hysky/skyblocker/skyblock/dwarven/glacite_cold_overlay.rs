@@ -44,7 +44,9 @@ impl GlaciteColdOverlay {
             // SAFETY: `ctx` outlives every call made through `graphics` (this callback).
             let graphics = unsafe { ScriptGraphics::new(ctx.gl, &*ctx.minecraft, ctx.gui_width, ctx.gui_height) };
             let _session = graphics.session();
-            GlaciteColdOverlay::extract(&graphics);
+            // java: GlaciteColdOverlay::extract, the HUD element - the port's GuiGraphicsExtractor is stateless; the script
+            // graphics session above scopes the pose stack for the duration of the element
+            GlaciteColdOverlay::extract(&mcrust::net::minecraft::client::gui::gui_graphics_extractor::GuiGraphicsExtractor::new());
         }));
     }
 
@@ -71,7 +73,7 @@ impl GlaciteColdOverlay {
             let mut cold_matcher: compat::regex::Matcher = COLD_PATTERN.matcher(&line);
             if cold_matcher.matches() {
                 let mut value: String = cold_matcher.group(1).unwrap();
-                compat::set_state(&COLD, value.trim().parse::<i32>().expect("NumberFormatException"));
+                compat::set_state(&COLD, value.parse::<i32>().expect("NumberFormatException"));
                 return;
             }
         }

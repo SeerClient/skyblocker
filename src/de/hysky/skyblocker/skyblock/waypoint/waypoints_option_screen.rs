@@ -35,7 +35,9 @@ pub struct WaypointsOptionScreen {
     /// java: extends net.minecraft.client.gui.screens.Screen
     pub base: mcrust::net::minecraft::client::gui::screens::screen::Screen,
     /// java: private final Screen parent;
-    pub parent: mcrust::net::minecraft::client::gui::screens::screen::Screen,
+    /// `None`: the screen is opened with `set_screen_keeping_parent`, and `onClose` returns to that parent through the
+    /// game's screen stack (`set_screen_to_parent`), as the mod's other screens do.
+    pub parent: Option<mcrust::net::minecraft::client::gui::screens::screen::Screen>,
     /// java: private final HeaderAndFooterLayout layout = new HeaderAndFooterLayout(this);
     pub layout: Option<HeaderAndFooterLayout>,
     /// the object's own shared handle: Java's `this` handed to other objects
@@ -59,14 +61,12 @@ impl std::ops::DerefMut for WaypointsOptionScreen {
 
 impl WaypointsOptionScreen {
     /// java: protected WaypointsOptionScreen(Screen parent)
-    pub fn new(mut parent: mcrust::net::minecraft::client::gui::screens::screen::Screen) -> compat::Shared<Self> {
-        // TODO(fabric2seer): the mod keeps the game's `Screen` (Java holds a reference to the live object); the port's `Screen` is not a value to copy and the port lends the mod no handle to it
-        //   java: this.parent = parent;
+    pub fn new(mut parent: Option<mcrust::net::minecraft::client::gui::screens::screen::Screen>) -> compat::Shared<Self> {
         let __this = compat::shared(Self {
             base: mcrust::net::minecraft::client::gui::screens::screen::Screen::new(component::translatable("skyblocker.waypoints.waypointsOptions").get_string()),
             self_ref: std::sync::Weak::new(),
             __widgets: Default::default(),
-            parent: todo!("fabric2seer: the field value (TODO above)"),
+            parent,
             layout: None,
         });
         compat::write(&__this, |__t| __t.self_ref = std::sync::Arc::downgrade(&__this));
@@ -77,8 +77,10 @@ impl WaypointsOptionScreen {
     /// java: @Override protected void init()
     pub fn init(__this: &compat::Shared<Self>) {
         ();
-        let mut grid: GridLayout = GridLayout::new_default().spacing(2);
-        { let (__q0,) = (LayoutElement::Grid(grid.clone()),); __this.lock().borrow_mut().layout.as_mut().unwrap().add_to_contents(__q0) };
+        let mut grid: GridLayout = GridLayout::new_default();
+        grid.spacing(2);
+        // java: layout.addToContents(grid) - the port's layout holds the grid BY VALUE, so it is added once its rows are
+        // in (below); Java adds the reference first and fills it after, which arranges the same.
         let mut adder: RowHelper = grid.create_row_helper(2);
         let waypoints_read_only = &SkyblockerConfigManager::get().ui_and_visuals.waypoints;
         // TODO(fabric2seer): the port's `create` ports this Java method with other parameters (name, generic_value_format, value_change_listener for Java's x, y, width, height, name, value_change_listener)
@@ -119,33 +121,52 @@ impl WaypointsOptionScreen {
         // TODO(fabric2seer): the port's `add_child` ports this Java method with other parameters (grid, child for Java's widget)
         // TODO(fabric2seer): `add_child` takes 2 argument(s) in the port (`grid: &mut GridLayout, child: LayoutElement`), Java passes 1
         // rust: adder.add_child(&mut SpacerElement::width(0)).unwrap();
+        { let __spacer = SpacerElement::width(0); adder.add_child(&mut grid, LayoutElement::Spacer { x: __spacer.get_x(), y: __spacer.get_y(), width: __spacer.get_width(), height: __spacer.get_height() }).unwrap(); }
         // TODO(fabric2seer): the port's `add_child_spanning` ports this Java method with other parameters (grid, child, column_width, settings for Java's widget, column_width, layout_settings)
         // TODO(fabric2seer): `add_child_spanning` takes 4 argument(s) in the port (`grid: &mut GridLayout, child: LayoutElement, column_width: i32, settings: LayoutSettings`), Java passes 3
         // rust: adder.add_child_spanning(&mut compat::string_widget(0, 0, -1, 9, component::translatable("skyblocker.config.uiAndVisuals.waypoints.lineColor")), 2, LayoutSettings::defaults().align_horizontally_center().padding_top(4)).unwrap();
+        {
+            // `adder.addChild(new StringWidget(..), 2, gridWidget.newCellSettings().alignHorizontallyCenter().paddingTop(4))`
+            let __w = compat::string_widget(0, 0, -1, 9, component::translatable("skyblocker.config.uiAndVisuals.waypoints.lineColor"));
+            let (__ww, __wh) = (__w.get_width(), __w.get_height());
+            let __q0 = LayoutElement::widget(compat::write(__this, |__t| __t.add_widget(__w)), __ww, __wh);
+            let __settings = grid.new_cell_settings().align_horizontally_center().padding_top(4);
+            adder.add_child_spanning(&mut grid, __q0, 2, __settings).unwrap();
+        }
         let mut color_layout: LinearLayout = LinearLayout::horizontal();
         // TODO(fabric2seer): the port's `add_child_spanning` ports this Java method with other parameters (grid, child, column_width, settings for Java's widget, column_width, layout_settings)
         // TODO(fabric2seer): `add_child_spanning` takes 4 argument(s) in the port (`grid: &mut GridLayout, child: LayoutElement, column_width: i32, settings: LayoutSettings`), Java passes 3
         // rust: adder.add_child_spanning(&mut color_layout, 2, LayoutSettings::defaults().align_horizontally_center()).unwrap();
-        let mut color_picker_widget: compat::Shared<ColorPickerWidget> = color_layout.add_child({ let __w = compat::WidgetAdapter::widget(ColorPickerWidget::new_5(0, 0, 200, 100, true)); let (__ww, __wh) = (__w.get_width(), __w.get_height()); LayoutElement::widget(compat::write(__this, |__t| __t.add_widget(__w)), __ww, __wh) });
-        let mut argb_text_input: compat::Shared<ARGBTextInput> = color_layout.add_child({ let __w = compat::WidgetAdapter::widget(ARGBTextInput::new(0, 0, compat::font(), true, true)); let (__ww, __wh) = (__w.get_width(), __w.get_height()); LayoutElement::widget(compat::write(__this, |__t| __t.add_widget(__w)), __ww, __wh) });
+        // `colorLayout.addChild(new ColorPickerWidget(..))` answers the widget: the object is kept, its game widget joins the screen.
+        let mut color_picker_widget: compat::Shared<ColorPickerWidget> = ColorPickerWidget::new_5(0, 0, 200, 100, true);
+        color_layout.add_child({ let __w = compat::WidgetAdapter::widget(color_picker_widget.clone()); let (__ww, __wh) = (__w.get_width(), __w.get_height()); LayoutElement::widget(compat::write(__this, |__t| __t.add_widget(__w)), __ww, __wh) });
+        let mut argb_text_input: compat::Shared<ARGBTextInput> = ARGBTextInput::new(0, 0, compat::font(), true, true);
+        color_layout.add_child({ let __w = compat::WidgetAdapter::widget(argb_text_input.clone()); let (__ww, __wh) = (__w.get_width(), __w.get_height()); LayoutElement::widget(compat::write(__this, |__t| __t.add_widget(__w)), __ww, __wh) });
+        // `adder.addChild(colorLayout, 2, gridWidget.newCellSettings().alignHorizontallyCenter())`: added once filled (by value).
+        { let __settings = grid.new_cell_settings().align_horizontally_center(); adder.add_child_spanning(&mut grid, LayoutElement::Grid(color_layout.clone().wrapped), 2, __settings).unwrap(); }
+        { let (__q0,) = (LayoutElement::Grid(grid.clone()),); __this.lock().borrow_mut().layout.as_mut().unwrap().add_to_contents(__q0) };
         let __this_6 = compat::RenderThread::new(__this.clone());
+        // The two widgets' callbacks reach each other: each holds the other weakly (Java's lambdas hold references
+        // the GC can collect together; strong handles would keep both alive for ever).
+        let __argb_text_input_w = std::sync::Arc::downgrade(&argb_text_input);
         ColorPickerWidget::set_on_color_change(&color_picker_widget, Arc::new(move |color, mouse_release| {
+            let Some(argb_text_input) = __argb_text_input_w.upgrade() else { return };
             ARGBTextInput::set_argb_color(&argb_text_input, color);
             if mouse_release {
-                // TODO(fabric2seer): `new` takes 3 argument(s) in the port (`r: i32, g: i32, b: i32`), Java passes 2
-                // rust: WaypointsOptionScreen::update_config(__this_6.get(), Arc::new(move |waypoints| { waypoints.line_color = Color::new(color, true); }));
+                // `new Color(color, true)` (the alpha bits kept)
+                WaypointsOptionScreen::update_config(__this_6.get(), Arc::new(move |mut waypoints: Waypoints| { waypoints.line_color = Color::from_rgba(color, true); }));
             }
         }));
         let __this_7 = compat::RenderThread::new(__this.clone());
+        let __color_picker_widget_w = std::sync::Arc::downgrade(&color_picker_widget);
         ARGBTextInput::set_on_change(&argb_text_input, Arc::new(move |color| {
+            let Some(color_picker_widget) = __color_picker_widget_w.upgrade() else { return };
             ColorPickerWidget::set_argb_color(&color_picker_widget, color);
-            // TODO(fabric2seer): `new` takes 3 argument(s) in the port (`r: i32, g: i32, b: i32`), Java passes 2
-            // rust: WaypointsOptionScreen::update_config(__this_7.get(), Arc::new(move |waypoints| { waypoints.line_color = Color::new(color, true); }));
+            // `new Color(color, true)` (the alpha bits kept)
+            WaypointsOptionScreen::update_config(__this_7.get(), Arc::new(move |mut waypoints: Waypoints| { waypoints.line_color = Color::from_rgba(color, true); }));
         }));
-        // TODO(fabric2seer): `.getRGB(..)` on a Color
-        //   java: colorPickerWidget.setARGBColor(waypointsReadOnly.lineColor.getRGB());
-        // TODO(fabric2seer): `.getRGB(..)` on a Color
-        //   java: argbTextInput.setARGBColor(waypointsReadOnly.lineColor.getRGB());
+        ColorPickerWidget::set_argb_color(&color_picker_widget, waypoints_read_only.line_color.get_rgb());
+        ARGBTextInput::set_argb_color(&argb_text_input, waypoints_read_only.line_color.get_rgb());
         { let (__q0,) = ({ let __w = compat::string_widget(0, 0, -1, 9, mcrust::net::minecraft::network::chat::component::literal(__this.lock().borrow().get_title())); let (__ww, __wh) = (__w.get_width(), __w.get_height()); LayoutElement::widget(compat::write(__this, |__t| __t.add_widget(__w)), __ww, __wh) },); __this.lock().borrow_mut().layout.as_mut().unwrap().add_to_header(__q0) };
         let __this_w8 = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
         { let (__q0,) = ({ let __w = (button::builder(mcrust::net::minecraft::network::chat::common_components::gui_done().get_string(), OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| { let Some(__this_8) = __this_w8.get().upgrade() else { return Default::default(); }; compat::lend_screen(&__this_8, __screen, || { let mut __pidx = compat::WidgetRef::Screen(__index); { WaypointsOptionScreen::on_close((&__this_8)); } }) })))).build(); let (__ww, __wh) = (__w.get_width(), __w.get_height()); LayoutElement::widget(compat::write(__this, |__t| __t.add_widget(__w)), __ww, __wh) },); __this.lock().borrow_mut().layout.as_mut().unwrap().add_to_footer(__q0) };

@@ -74,7 +74,7 @@ impl CommissionLabels {
         let mut new_commission_done: bool = false;
         for i in 0..(PlayerListManager::get_player_list().len() as i32) {
             let entry = &PlayerListManager::get_player_list()[(i) as usize];
-            let Some(mut display_name) = entry.get_tab_list_display_name() else {
+            let Some(mut display_name) = compat::read(entry, |__e| __e.get_tab_list_display_name().cloned()) else {
                 continue;
             };
             let mut string: String = display_name.get_string();
@@ -94,7 +94,7 @@ impl CommissionLabels {
                 found_commissions = true;
             }
         }
-        if !(new_commissions == &compat::get_state(&COMMISSIONS)) || new_commission_done != compat::get_state(&COMMISSION_DONE) {
+        if !(new_commissions == compat::get_state(&COMMISSIONS)) || new_commission_done != compat::get_state(&COMMISSION_DONE) {
             compat::set_state(&COMMISSIONS, new_commissions.clone());
             compat::set_state(&COMMISSION_DONE, new_commission_done);
             CommissionLabels::update(&compat::get_state(&COMMISSIONS), compat::get_state(&COMMISSION_DONE));
@@ -109,7 +109,9 @@ impl CommissionLabels {
         let mut current_mode: CommissionWaypointMode = SkyblockerConfigManager::get().mining.commission_waypoints.mode;
         ACTIVE_WAYPOINTS.get_mut().clear();
         let mut area: compat::Shared<dyn Area> = Utils::get_area();
-        if area == DwarvenMines::DwarvenBaseCamp || area == DwarvenMines::GlaciteTunnels || area == DwarvenMines::GlaciteMineshafts || area == DwarvenMines::GreatGlaciteLake {
+        // `area.equals(Area.DwarvenMines.X)`: the area is that enum constant.
+        let area_is = |constant: DwarvenMines| compat::read(&area, |__t| compat::DynAny::dyn_any(__t).downcast_ref::<DwarvenMines>().is_some_and(|__e| *__e == constant));
+        if area_is(DwarvenMines::DwarvenBaseCamp) || area_is(DwarvenMines::GlaciteTunnels) || area_is(DwarvenMines::GlaciteMineshafts) || area_is(DwarvenMines::GreatGlaciteLake) {
             if current_mode != CommissionWaypointMode::Both && current_mode != CommissionWaypointMode::Glacite {
                 return;
             }
@@ -135,18 +137,18 @@ impl CommissionLabels {
             for dwarven_location in DWARVEN_LOCATIONS.iter().map(|(k, v)| (k.clone(), v.clone())) {
                 if commission.contains(&dwarven_location.0) {
                     let mut category: DwarvenCategory = dwarven_location.1;
-                    category.fields().is_titanium = commission.contains("Titanium");
+                    category.fields().is_titanium.store(commission.contains("Titanium"), std::sync::atomic::Ordering::Relaxed);
                     ACTIVE_WAYPOINTS.get_mut().push(MiningLocationLabel::new((compat::shared(category) as compat::Shared<dyn crate::de::hysky::skyblocker::skyblock::dwarven::mining_location_label::Category>), category.get_location()));
                 }
             }
         }
         if SkyblockerConfigManager::get().mining.commission_waypoints.show_emissary && completed {
             if SkyblockerConfigManager::get().mining.commission_waypoints.hide_emissary_on_pigeon {
-                // TODO(fabric2seer): the mod keeps the game's `NonNullList` (Java holds a reference to the live object); the port's `NonNullList` is not a value to copy and the port lends the mod no handle to it
-                for stack in mcrust::mcrust::modding::game::with_player(|player| player.base.base.get_inventory().get_non_equipment_items().clone()) {
-                    if stack.get_skyblock_id() == "ROYAL_PIGEON" {
-                        return;
-                    }
+                // `for (ItemStack stack : player.getInventory().getNonEquipmentItems()) if (..) return;` - the list is
+                // read where the player is lent.
+                let has_royal_pigeon: bool = mcrust::mcrust::modding::game::with_player(|player| player.base.base.get_inventory().get_non_equipment_items().iter().any(|stack| stack.get_skyblock_id() == "ROYAL_PIGEON")).unwrap_or(false);
+                if has_royal_pigeon {
+                    return;
                 }
             }
             for emissaries in DWARVEN_EMISSARIES.iter().copied() {

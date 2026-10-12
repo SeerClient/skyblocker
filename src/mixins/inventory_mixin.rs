@@ -10,7 +10,7 @@ use crate::prelude::*;
 /// Rust: net/minecraft/world/entity/player/inventory.rs:313 fn set_selected_slot(&mut self, selected: i32)
 fn skyblocker_on_hotbar_scroll(ci: &mut CallbackInfo<'_>) {
     let Some(this) = compat::detach(ci.this_mut::<mcrust::net::minecraft::world::entity::player::inventory::Inventory>()) else { return; };
-    crate::de::hysky::skyblocker::skyblock::crimson::kuudra::arrow_poison_warning::ArrowPoisonWarning::try_warn(this.selected);
+    crate::de::hysky::skyblocker::skyblock::crimson::kuudra::arrow_poison_warning::ArrowPoisonWarning::try_warn(this.get_selected_slot());
 }
 
 /// Mixins apply before the game runs: the `preLaunch` entrypoint calls this.

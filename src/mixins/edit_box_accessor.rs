@@ -6,12 +6,12 @@ use crate::prelude::*;
 
 /// @Accessor getHighlightPos -> net.minecraft.client.gui.components.EditBox.highlightPos
 pub fn get_highlight_pos(obj: &mcrust::net::minecraft::client::gui::components::edit_box::EditBox) -> i32 {
-    obj.highlight_pos
+    obj.get_highlight_pos()
 }
 
 /// @Accessor getMaxLength -> net.minecraft.client.gui.components.EditBox.maxLength
 pub fn get_max_length(obj: &mcrust::net::minecraft::client::gui::components::edit_box::EditBox) -> i32 {
-    obj.max_length
+    obj.get_max_length()
 }
 
 /// @Invoker invokeOnValueChange -> net.minecraft.client.gui.components.EditBox.onValueChange

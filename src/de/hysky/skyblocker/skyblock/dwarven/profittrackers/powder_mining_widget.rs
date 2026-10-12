@@ -137,7 +137,12 @@ impl PowderMiningWidget {
     /// java: @Override public void getOptionWidgets(OptionWidgetCollector collector)
     pub fn get_option_widgets_impl(__this: &compat::Shared<Self>, collector: &mut OptionWidgetCollector) {
         <dyn HudWidget>::get_option_widgets_body(&compat::view(__this, |a| a as compat::Shared<dyn HudWidget>), collector);
-        collector.add_widget((button::builder(component::translatable("skyblocker.config.mining.crystalHollows.powderTrackerFilter").get_string(), OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| { mcrust::mcrust::modding::game::set_screen(Box::new(compat::ScreenAdapter::new(PowderFilterConfigScreen::new(Some(collector.config_screen()), PowderMiningTracker::get_name2_id_map().keys().cloned().collect::<Vec<_>>())))); })))).tooltip_text(Some((Tooltip::create((component::translatable("skyblocker.config.mining.crystalHollows.powderTrackerFilter.@Tooltip")).get_string())).message.clone())).build());
+        // TODO(batchD): cross-package - `PowderFilterConfigScreen::new` (config/screens/powdertracker) takes the parent
+        // as `Option<Screen>` by value, which a live `WidgetsConfigurationScreen` handle (`collector.configScreen()`)
+        // cannot become; its `close` returns through `game::set_screen_to_parent`, the game's own screen stack, which
+        // reaches the configuration screen without the field. Its owner should type `parent` as a screen handle.
+        //   java: new PowderFilterConfigScreen(collector.configScreen(), ...)
+        collector.add_widget((button::builder(component::translatable("skyblocker.config.mining.crystalHollows.powderTrackerFilter").get_string(), OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| { mcrust::mcrust::modding::game::set_screen(Box::new(compat::ScreenAdapter::new(PowderFilterConfigScreen::new(None, PowderMiningTracker::get_name2_id_map().keys().cloned().collect::<Vec<_>>())))); })))).tooltip_text(Some((Tooltip::create((component::translatable("skyblocker.config.mining.crystalHollows.powderTrackerFilter.@Tooltip")).get_string())).message.clone())).build());
     }
 
     /// PowderMiningWidget.getOptionWidgets as the dispatch of HudWidget.getOptionWidgets

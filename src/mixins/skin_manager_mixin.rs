@@ -11,7 +11,6 @@ use crate::prelude::*;
 /// note: class not in JavaSrc: org.slf4j.Logger has no file in JavaSrc/src - a remapping problem, or a class this Minecraft version does not have
 /// note: `within` net.minecraft.client.resources.SkinManager$1#lambda$load$0: class not in JavaSrc (a synthetic lambda of the vanilla method: the port has no method of that name - hook the method that contains the lambda) - the caller must be hooked for `within` to see it on the stack; the registration is left commented out
 fn skyblocker_dont_log_invalid_signature_warnings(ci: &CallbackInfo<'_>) -> bool {
-    let Some(this) = compat::detach(ci.this_mut::<Logger>()) else { return true; };
     return !(crate::de::hysky::skyblocker::utils::utils::Utils::is_on_hypixel());
 }
 

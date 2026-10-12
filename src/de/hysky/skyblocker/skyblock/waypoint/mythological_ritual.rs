@@ -26,6 +26,9 @@ use mcrust::net::minecraft::world::level::level::Level;
 use mcrust::net::minecraft::world::level::levelgen::heightmap::Heightmap;
 use mcrust::net::minecraft::world::phys::block_hit_result::BlockHitResult;
 use mcrust::net::minecraft::world::phys::vec3::Vec3;
+use mcrust::net::minecraft::world::phys::vec3;
+use mcrust::net::minecraft::core::particles::particle_types;
+use mcrust::net::minecraft::util::tri_state::TriState;
 use crate::de::hysky::skyblocker::injected::skyblocker_stack::SkyblockerStack as _;
 use mcrust::net::minecraft::core::particles::particle_options::ParticleOptions as _;
 use mcrust::net::minecraft::network::chat::component::Component as _;
@@ -81,19 +84,21 @@ impl MythologicalRitual {
             },
         ));
         particle_events::FROM_SERVER.register(Arc::new(move |__a0| { MythologicalRitual::on_particle(&__a0); }));
-        // TODO(fabric2seer): static field TriState.DEFAULT
-        //   java: previousBurrow.confirmed = TriState.DEFAULT;
+        // Put a root burrow so echo detection works without a previous burrow
+        compat::write(PREVIOUS_BURROW.get(), |__t| __t.confirmed = TriState::Default);
         GRIFFIN_BURROWS.get_mut().insert(mcrust::net::minecraft::core::block_pos::ZERO, PREVIOUS_BURROW.get_mut().clone());
     }
 
     /// java: private static void onParticle(ClientboundLevelParticlesPacket packet)
     pub fn on_particle(packet: &ClientboundLevelParticlesPacket) {
         if MythologicalRitual::is_active() {
-            if true && (mcrust::net::minecraft::core::particles::particle_types::crit() == packet.get_particle().unwrap().get_type() || mcrust::net::minecraft::core::particles::particle_types::enchant() == packet.get_particle().unwrap().get_type()) {
+            // `switch (packet.getParticle().getType())` with `case ParticleType<?> type when ParticleTypes.X.equals(type)`
+            let particle = packet.get_particle().expect("NullPointerException");
+            if particle_type_is(particle, &**particle_types::crit()) || particle_type_is(particle, &**particle_types::enchant()) {
                 MythologicalRitual::handle_burrow_particle(packet);
-            } else if true && mcrust::net::minecraft::core::particles::particle_types::dust() == packet.get_particle().unwrap().get_type() {
+            } else if particle_type_is(particle, &**particle_types::dust()) {
                 MythologicalRitual::handle_next_burrow_particle(packet);
-            } else if true && mcrust::net::minecraft::core::particles::particle_types::dripping_lava() == packet.get_particle().unwrap().get_type() && packet.get_count() == 2 {
+            } else if particle_type_is(particle, &**particle_types::dripping_lava()) && packet.get_count() == 2 {
                 MythologicalRitual::handle_echo_burrow_particle(packet);
             } else {
             }
@@ -103,19 +108,18 @@ impl MythologicalRitual {
     /// java: private static void handleBurrowParticle(ClientboundLevelParticlesPacket packet)
     pub fn handle_burrow_particle(packet: &ClientboundLevelParticlesPacket) {
         let mut pos: BlockPos = (BlockPos::containing(packet.get_x(), packet.get_y(), packet.get_z())).below();
-        if mcrust::mcrust::modding::game::level().is_none() || !(mcrust::mcrust::modding::game::level().unwrap().get_block_state_typed(&pos).is_block(&blocks::blocks().get("grass_block"))) {
+        if mcrust::mcrust::modding::game::level().is_none() || !(mcrust::mcrust::modding::game::level().unwrap().get_block_state_typed(&pos).is_block(&blocks::blocks().get("GRASS_BLOCK"))) {
             return;
         }
-        let mut burrow: compat::Shared<GriffinBurrow> = GRIFFIN_BURROWS.get_mut().entry(pos.clone()).or_insert_with_key(|k| (|__a0| GriffinBurrow::new(__a0.clone()))(k.clone())).clone();
-        if mcrust::net::minecraft::core::particles::particle_types::crit() == packet.get_particle().unwrap().get_type() {
-            { let __v = compat::read(&burrow, |__t| __t.crit_particle) + 1; compat::write(&burrow, |__t| __t.crit_particle = __v); }
+        let mut burrow: compat::Shared<GriffinBurrow> = GRIFFIN_BURROWS.get_mut().entry(pos.clone()).or_insert_with_key(|k| GriffinBurrow::new(k.clone())).clone();
+        let particle = packet.get_particle().expect("NullPointerException");
+        if particle_type_is(particle, &**particle_types::crit()) {
+            compat::write(&burrow, |__t| __t.crit_particle += 1);
         }
-        if mcrust::net::minecraft::core::particles::particle_types::enchant() == packet.get_particle().unwrap().get_type() {
-            { let __v = compat::read(&burrow, |__t| __t.enchant_particle) + 1; compat::write(&burrow, |__t| __t.enchant_particle = __v); }
+        if particle_type_is(particle, &**particle_types::enchant()) {
+            compat::write(&burrow, |__t| __t.enchant_particle += 1);
         }
-        // TODO(fabric2seer): the condition: static field TriState.FALSE
-        //   java: burrow.critParticle >= 5 && burrow.enchantParticle >= 5 && burrow.confirmed == TriState.FALSE
-        if todo!("fabric2seer: the condition (TODO above)") {
+        if compat::read(&burrow, |__t| __t.crit_particle >= 5 && __t.enchant_particle >= 5 && __t.confirmed == TriState::False) {
             GriffinBurrow::init(&GRIFFIN_BURROWS.get_mut().get(&pos).cloned().unwrap());
         }
     }
@@ -124,38 +128,29 @@ impl MythologicalRitual {
     pub fn handle_next_burrow_particle(packet: &ClientboundLevelParticlesPacket) {
         let mut pos: BlockPos = BlockPos::containing(packet.get_x(), packet.get_y(), packet.get_z());
         let mut burrow_pos: BlockPos;
-        if mcrust::mcrust::modding::game::level().is_some() {
-            // TODO(fabric2seer): field `WORLD_SURFACE` of a value of unknown type
-            //   java: burrowPos = Minecraft.getInstance().level.getHeightmapPos(Heightmap.Types.WORLD_SURFACE, pos);
+        if let Some(level) = mcrust::mcrust::modding::game::level() {
+            burrow_pos = mcrust::net::minecraft::world::level::level_reader::get_heightmap_pos(&level, mcrust::net::minecraft::world::level::levelgen::heightmap::Types::WorldSurface, &pos);
         } else {
             burrow_pos = pos.below_n(2);
         }
         let Some(mut burrow) = GRIFFIN_BURROWS.get_mut().get(&burrow_pos).cloned() else {
             return;
         };
-        // TODO(fabric2seer): `.addData(..)` on a SimpleRegression
-        //   java: burrow.regression.addData(packet.getX(), packet.getZ());
-        // TODO(fabric2seer): `.getSlope(..)` on a SimpleRegression
-        //   java: double slope = burrow.regression.getSlope();
-        let mut slope: f64 = todo!("fabric2seer: the initialiser of `slope` (TODO above)");
+        compat::write(&burrow, |__t| __t.regression.add_data(packet.get_x(), packet.get_z()));
+        let mut slope: f64 = compat::read(&burrow, |__t| __t.regression.get_slope());
         if slope.is_nan() {
             return;
         }
         let mut next_burrow_direction: Vec3 = (Vec3::new((100) as f64, (0) as f64, (slope * (100 as f64)))).normalize();
-        // TODO(fabric2seer): `new Vector2D(..)`
-        //   java: Vector2D pos2D = new Vector2D(pos.getX() + 0.5, pos.getZ() + 0.5);
-        let mut pos2_d: crate::unresolved::Vector2D = todo!("fabric2seer: the initialiser of `pos2D` (TODO above)");
-        // TODO(fabric2seer): `new Line(..)`
-        //   java: burrow.nextBurrowLineEstimation = new Line(pos2D, pos2D.add(new Vector2D(nextBurrowDirection.x, nextBurrowDirection.z)), 0.0001);
+        // Save the line of the next burrow and try to estimate the next burrow
+        let mut pos2_d: Vector2D = Vector2D::new((pos.get_x() as f64) + 0.5, (pos.get_z() as f64) + 0.5);
+        { let __v = Some(Line::new(pos2_d, pos2_d.add(&Vector2D::new(next_burrow_direction.x, next_burrow_direction.z)), 0.0001)); compat::write(&burrow, |__t| __t.next_burrow_line_estimation = __v); }
         MythologicalRitual::estimate_next_burrow(&burrow);
-        // TODO(fabric2seer): the condition: `nextBurrowLine` is not a field of GriffinBurrow
-        //   java: burrow.nextBurrowLine == null
-        if todo!("fabric2seer: the condition (TODO above)") {
-            // TODO(fabric2seer): `nextBurrowLine` is not a field of GriffinBurrow
-            //   java: burrow.nextBurrowLine = new Vec3[1001];
-        }
-        // TODO(fabric2seer): `nextBurrowLine` is not a field of GriffinBurrow
-        //   java: fillLine(burrow.nextBurrowLine, Vec3.atCenterOf(pos.above()), nextBurrowDirection);
+        // Fill line in the direction of the next burrow
+        compat::write(&burrow, |__t| {
+            let line = __t.next_burrow_line.get_or_insert_with(|| vec![vec3::ZERO; 1001]);
+            MythologicalRitual::fill_line(line, vec3::at_center_of(&pos.above()), next_burrow_direction);
+        });
     }
 
     /// java: private static void handleEchoBurrowParticle(ClientboundLevelParticlesPacket packet)
@@ -166,56 +161,42 @@ impl MythologicalRitual {
         if mcrust::mcrust::modding::game::level().is_some() && !((mcrust::mcrust::modding::game::level().unwrap().get_block_state_typed(&BlockPos::containing(packet.get_x(), (packet.get_y() - 0.25), packet.get_z()))).is_air()) {
             return;
         }
-        // TODO(fabric2seer): the condition: `echoBurrowDirection` is not a field of GriffinBurrow
-        //   java: previousBurrow.echoBurrowDirection == null
-        if todo!("fabric2seer: the condition (TODO above)") {
-            // TODO(fabric2seer): `echoBurrowDirection` is not a field of GriffinBurrow
-            //   java: previousBurrow.echoBurrowDirection = new Vec3[2];
-        }
-        // TODO(fabric2seer): `echoBurrowDirection` is not a field of GriffinBurrow
-        //   java: previousBurrow.echoBurrowDirection[0] = previousBurrow.echoBurrowDirection[1];
-        // TODO(fabric2seer): `echoBurrowDirection` is not a field of GriffinBurrow
-        //   java: previousBurrow.echoBurrowDirection[1] = new Vec3(packet.getX(), packet.getY(), packet.getZ());
-        // TODO(fabric2seer): the condition: `echoBurrowDirection` is not a field of GriffinBurrow
-        //   java: previousBurrow.echoBurrowDirection[0] == null || previousBurrow.echoBurrowDirection[1] == null
-        if todo!("fabric2seer: the condition (TODO above)") {
+        let previous_burrow = PREVIOUS_BURROW.get().clone();
+        let echo = compat::write(&previous_burrow, |__t| {
+            let direction = __t.echo_burrow_direction.get_or_insert_with(|| vec![None; 2]);
+            direction[0] = direction[1];
+            direction[1] = Some(Vec3::new(packet.get_x(), packet.get_y(), packet.get_z()));
+            match (direction[0], direction[1]) {
+                (Some(first), Some(second)) => Some((first, second)),
+                _ => None,
+            }
+        });
+        let Some((first, second)) = echo else {
             return;
-        }
-        // TODO(fabric2seer): `new Vector2D(..)`
-        //   java: Vector2D pos1 = new Vector2D(previousBurrow.echoBurrowDirection[0].x, previousBurrow.echoBurrowDirection[0].z);
-        let mut pos1: crate::unresolved::Vector2D = todo!("fabric2seer: the initialiser of `pos1` (TODO above)");
-        // TODO(fabric2seer): `new Vector2D(..)`
-        //   java: Vector2D pos2 = new Vector2D(previousBurrow.echoBurrowDirection[1].x, previousBurrow.echoBurrowDirection[1].z);
-        let mut pos2: crate::unresolved::Vector2D = todo!("fabric2seer: the initialiser of `pos2` (TODO above)");
-        // TODO(fabric2seer): `new Line(..)`
-        //   java: previousBurrow.echoBurrowLineEstimation = new Line(pos1, pos2, 0.0001);
-        MythologicalRitual::estimate_next_burrow(PREVIOUS_BURROW.get_mut());
-        // TODO(fabric2seer): `echoBurrowDirection` is not a field of GriffinBurrow
-        //   java: Vec3 echoBurrowDirection = previousBurrow.echoBurrowDirection[1].subtract(previousBurrow.echoBurrowDirection[0]).normalize();
-        let mut echo_burrow_direction: Vec3 = todo!("fabric2seer: the initialiser of `echoBurrowDirection` (TODO above)");
-        // TODO(fabric2seer): the condition: `echoBurrowLine` is not a field of GriffinBurrow
-        //   java: previousBurrow.echoBurrowLine == null
-        if todo!("fabric2seer: the condition (TODO above)") {
-            // TODO(fabric2seer): `echoBurrowLine` is not a field of GriffinBurrow
-            //   java: previousBurrow.echoBurrowLine = new Vec3[1001];
-        }
-        // TODO(fabric2seer): `echoBurrowLine` is not a field of GriffinBurrow
-        //   java: fillLine(previousBurrow.echoBurrowLine, previousBurrow.echoBurrowDirection[0], echoBurrowDirection);
+        };
+        // Save the line of the echo burrow and try to estimate the next burrow
+        let mut pos1: Vector2D = Vector2D::new(first.x, first.z);
+        let mut pos2: Vector2D = Vector2D::new(second.x, second.z);
+        { let __v = Some(Line::new(pos1, pos2, 0.0001)); compat::write(&previous_burrow, |__t| __t.echo_burrow_line_estimation = __v); }
+        MythologicalRitual::estimate_next_burrow(&previous_burrow);
+        // Fill line in the direction of the echo burrow
+        let mut echo_burrow_direction: Vec3 = second.subtract_vec(&first).normalize();
+        compat::write(&previous_burrow, |__t| {
+            let line = __t.echo_burrow_line.get_or_insert_with(|| vec![vec3::ZERO; 1001]);
+            MythologicalRitual::fill_line(line, first, echo_burrow_direction);
+        });
     }
 
     /// java: private static void estimateNextBurrow(GriffinBurrow burrow)
     pub fn estimate_next_burrow(burrow: &compat::Shared<GriffinBurrow>) {
-        if compat::read(burrow, |__t| __t.next_burrow_line_estimation.clone()).is_none() || compat::read(burrow, |__t| __t.echo_burrow_line_estimation.clone()).is_none() {
+        let (Some(next_line), Some(echo_line)) = compat::read(burrow, |__t| (__t.next_burrow_line_estimation, __t.echo_burrow_line_estimation)) else {
             return;
-        }
-        // TODO(fabric2seer): `.intersection(..)` on a Line
-        //   java: Vector2D intersection = burrow.nextBurrowLineEstimation.intersection(burrow.echoBurrowLineEstimation);
-        let mut intersection: crate::unresolved::Vector2D = todo!("fabric2seer: the initialiser of `intersection` (TODO above)");
-        if false /* java: intersection == null: never null here */ {
+        };
+        // `Line.intersection` answers null for (near-)parallel lines.
+        let Some(intersection) = next_line.intersection(&echo_line) else {
             return;
-        }
-        // TODO(fabric2seer): `.getX(..)` on a Vector2D
-        //   java: burrow.nextBurrowEstimatedPos = BlockPos.containing(intersection.getX(), 5, intersection.getY());
+        };
+        { let __v = Some(BlockPos::containing(intersection.get_x(), 5.0, intersection.get_y())); compat::write(burrow, |__t| __t.next_burrow_estimated_pos = __v); }
     }
 
     /// java: static void fillLine(Vec3[] line, Vec3 start, Vec3 direction)
@@ -236,24 +217,14 @@ impl MythologicalRitual {
                 if { let __f = compat::dispatch(&burrow, |__t| __t.should_render()); __f(&compat::view(&burrow, |a| a as compat::Shared<dyn Waypoint>)) } {
                     ({ let __f = compat::dispatch(&burrow, |__t| __t.extract_rendering()); __f(&compat::view(&burrow, |a| a as compat::Shared<dyn Renderable>), collector) });
                 }
-                // TODO(fabric2seer): the condition: static field TriState.FALSE
-                //   java: burrow.confirmed != TriState.FALSE
-                if todo!("fabric2seer: the condition (TODO above)") {
-                    // TODO(fabric2seer): the condition: `nextBurrowLine` is not a field of GriffinBurrow
-                    //   java: burrow.nextBurrowLine != null
-                    if todo!("fabric2seer: the condition (TODO above)") {
-                        // TODO(fabric2seer): `nextBurrowLine` is not a field of GriffinBurrow
-                        //   java: collector.submitLinesFromPoints(burrow.nextBurrowLine, ORANGE_COLOR_COMPONENTS, 0.5f, 5f, false);
+                if compat::read(&burrow, |__t| __t.confirmed != TriState::False) {
+                    if let Some(next_burrow_line) = compat::read(&burrow, |__t| __t.next_burrow_line.clone()) {
+                        ({ let __f = compat::dispatch(collector, |__t| __t.submit_lines_from_points()); __f(collector, &next_burrow_line, &ORANGE_COLOR_COMPONENTS, 0.5f32, 5f32, false) });
                     }
-                    // TODO(fabric2seer): the condition: `echoBurrowLine` is not a field of GriffinBurrow
-                    //   java: burrow.echoBurrowLine != null
-                    if todo!("fabric2seer: the condition (TODO above)") {
-                        // TODO(fabric2seer): `echoBurrowLine` is not a field of GriffinBurrow
-                        //   java: collector.submitLinesFromPoints(burrow.echoBurrowLine, ORANGE_COLOR_COMPONENTS, 0.5f, 5f, false);
+                    if let Some(echo_burrow_line) = compat::read(&burrow, |__t| __t.echo_burrow_line.clone()) {
+                        ({ let __f = compat::dispatch(collector, |__t| __t.submit_lines_from_points()); __f(collector, &echo_burrow_line, &ORANGE_COLOR_COMPONENTS, 0.5f32, 5f32, false) });
                     }
-                    // TODO(fabric2seer): the condition: static field TriState.DEFAULT
-                    //   java: burrow.nextBurrowEstimatedPos != null && burrow.confirmed == TriState.DEFAULT
-                    if todo!("fabric2seer: the condition (TODO above)") {
+                    if compat::read(&burrow, |__t| __t.next_burrow_estimated_pos.is_some() && __t.confirmed == TriState::Default) {
                         ({ let __f = compat::dispatch(collector, |__t| __t.submit_filled_box_with_beacon_beam()); __f(collector, &compat::read(&burrow, |__t| __t.next_burrow_estimated_pos.clone()).unwrap(), &RED_COLOR_COMPONENTS, 0.5f32, true) });
                     }
                 }
@@ -291,14 +262,14 @@ impl MythologicalRitual {
     /// java: @SuppressWarnings("SameReturnValue") public static boolean onChatMessage(Component message, boolean overlay)
     pub fn on_chat_message(message: &MutableComponent, mut overlay: bool) -> bool {
         if MythologicalRitual::is_active() && GRIFFIN_BURROW_DUG.matcher(&message.get_string()).matches() {
-            // TODO(fabric2seer): static field TriState.FALSE
-            //   java: previousBurrow.confirmed = TriState.FALSE;
-            if LAST_DUG_BURROW_POS.get_mut().is_none() {
+            compat::write(PREVIOUS_BURROW.get(), |__t| __t.confirmed = TriState::False);
+            let Some(last_dug_burrow_pos) = LAST_DUG_BURROW_POS.get().clone() else {
                 return true;
-            }
-            *PREVIOUS_BURROW.get_mut() = GRIFFIN_BURROWS.get_mut().get(LAST_DUG_BURROW_POS.get_mut()).cloned().unwrap();
-            // TODO(fabric2seer): static field TriState.DEFAULT
-            //   java: previousBurrow.confirmed = TriState.DEFAULT;
+            };
+            // `previousBurrow = griffinBurrows.get(lastDugBurrowPos)`: the position was recorded only for a known burrow,
+            // but a `reset()` in between can leave it unmapped, which Java reads as null and throws on below.
+            *PREVIOUS_BURROW.get_mut() = GRIFFIN_BURROWS.get_mut().get(&last_dug_burrow_pos).cloned().expect("NullPointerException");
+            compat::write(PREVIOUS_BURROW.get(), |__t| __t.confirmed = TriState::Default);
         }
         return true;
     }
@@ -313,8 +284,7 @@ impl MythologicalRitual {
         GRIFFIN_BURROWS.get_mut().clear();
         *LAST_DUG_BURROW_POS.get_mut() = None;
         *PREVIOUS_BURROW.get_mut() = GriffinBurrow::new(mcrust::net::minecraft::core::block_pos::ZERO);
-        // TODO(fabric2seer): static field TriState.DEFAULT
-        //   java: previousBurrow.confirmed = TriState.DEFAULT;
+        compat::write(PREVIOUS_BURROW.get(), |__t| __t.confirmed = TriState::Default);
         GRIFFIN_BURROWS.get_mut().insert(mcrust::net::minecraft::core::block_pos::ZERO, PREVIOUS_BURROW.get_mut().clone());
     }
 
@@ -329,15 +299,23 @@ pub struct GriffinBurrow {
     /// java: private int enchantParticle;
     pub enchant_particle: i32,
     /// java: private TriState confirmed = TriState.FALSE;
-    pub confirmed: crate::unresolved::TriState,
+    /// Fabric's `net.fabricmc.fabric.api.util.TriState` (FALSE / DEFAULT / TRUE, compared by identity here) has no
+    /// port; the game's `net.minecraft.util.TriState` has the same three constants.
+    pub confirmed: TriState,
     /// java: private final SimpleRegression regression = new SimpleRegression();
-    pub regression: crate::unresolved::SimpleRegression,
+    pub regression: SimpleRegression,
+    /// java: private Vec3 @Nullable[] nextBurrowLine;
+    pub next_burrow_line: Option<Vec<Vec3>>,
+    /// java: private @Nullable Vec3 @Nullable[] echoBurrowDirection; - the positions of the last two echo burrow particles.
+    pub echo_burrow_direction: Option<Vec<Option<Vec3>>>,
+    /// java: private Vec3 @Nullable[] echoBurrowLine;
+    pub echo_burrow_line: Option<Vec<Vec3>>,
     /// java: private @Nullable BlockPos nextBurrowEstimatedPos;
     pub next_burrow_estimated_pos: Option<BlockPos>,
     /// java: private @Nullable Line nextBurrowLineEstimation;
-    pub next_burrow_line_estimation: Option<crate::unresolved::Line>,
+    pub next_burrow_line_estimation: Option<Line>,
     /// java: private @Nullable Line echoBurrowLineEstimation;
-    pub echo_burrow_line_estimation: Option<crate::unresolved::Line>,
+    pub echo_burrow_line_estimation: Option<Line>,
 }
 
 impl std::ops::Deref for GriffinBurrow {
@@ -356,17 +334,16 @@ impl std::ops::DerefMut for GriffinBurrow {
 impl GriffinBurrow {
     /// java: private GriffinBurrow(BlockPos pos)
     pub fn new(mut pos: BlockPos) -> compat::Shared<Self> {
-        // TODO(fabric2seer): the initialiser of `confirmed`: static field TriState.FALSE
-        //   java: private TriState confirmed = TriState.FALSE;
-        // TODO(fabric2seer): the initialiser of `regression`: `new SimpleRegression(..)`
-        //   java: private final SimpleRegression regression = new SimpleRegression();
         let (_, __this) = WaypointBase::new3_in(pos.clone(), Type::Waypoint, ORANGE_COLOR_COMPONENTS.clone(), 0.25f32, move |__base| {
             let __h = compat::shared(Self {
                 base: __base,
                 crit_particle: 0,
                 enchant_particle: 0,
-                confirmed: Default::default(),
-                regression: Default::default(),
+                confirmed: TriState::False,
+                regression: SimpleRegression::new(),
+                next_burrow_line: None,
+                echo_burrow_direction: None,
+                echo_burrow_line: None,
                 next_burrow_estimated_pos: None,
                 next_burrow_line_estimation: None,
                 echo_burrow_line_estimation: None,
@@ -378,10 +355,10 @@ impl GriffinBurrow {
 
     /// java: private void init()
     pub fn init(__this: &compat::Shared<Self>) {
-        // TODO(fabric2seer): static field TriState.TRUE
-        //   java: confirmed = TriState.TRUE;
-        // TODO(fabric2seer): `.clear(..)` on a SimpleRegression
-        //   java: regression.clear();
+        compat::write(__this, |__t| {
+            __t.confirmed = TriState::True;
+            __t.regression.clear();
+        });
     }
 
 }
@@ -416,9 +393,7 @@ impl Renderable for GriffinBurrow {
 impl GriffinBurrow {
     /// java: @Override public boolean shouldRender()
     pub fn should_render_impl(__this: &compat::Shared<Self>) -> bool {
-        // TODO(fabric2seer): static field TriState.TRUE
-        //   java: return super.shouldRender() && confirmed == TriState.TRUE;
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        return <dyn Waypoint>::should_render_body(&compat::view(__this, |a| a as compat::Shared<dyn Waypoint>)) && compat::read(__this, |__t| __t.confirmed == TriState::True);
     }
 
     /// GriffinBurrow.shouldRender as the dispatch of Waypoint.shouldRender
@@ -426,4 +401,156 @@ impl GriffinBurrow {
         Self::should_render_impl(&compat::view_as::<Self, _, Self>(__this, |a| a))
     }
 
+}
+
+/// `ParticleTypes.X.equals(type)`: the port erases `getType()` (`Obj`), so the registered type is compared through
+/// `Object.equals` (identity for a `ParticleType`, as in Java).
+fn particle_type_is(options: &dyn mcrust::net::minecraft::core::particles::particle_options::ParticleOptions, particle_type: &dyn mcrust::com::mojang::serialization::JavaObject) -> bool {
+    options.get_type().java_equals(particle_type)
+}
+
+/// `MathArrays.linearCombination(a1, b1, a2, b2)` (commons-math3): `a1 * b1 + a2 * b2` without the cancellation of
+/// the plain sum - each product split exactly (`mul_add` for Dekker's split) and the parts summed with their errors;
+/// a NaN answer falls back to the plain sum, as the library does.
+fn linear_combination(a1: f64, b1: f64, a2: f64, b2: f64) -> f64 {
+    let prod1 = a1 * b1;
+    let prod1_low = a1.mul_add(b1, -prod1);
+    let prod2 = a2 * b2;
+    let prod2_low = a2.mul_add(b2, -prod2);
+    let s12_high = prod1 + prod2;
+    let s12_prime = s12_high - prod2;
+    let s12_low = (prod2 - (s12_high - s12_prime)) + (prod1 - s12_prime);
+    let result = s12_high + (prod1_low + prod2_low + s12_low);
+    if result.is_nan() { prod1 + prod2 } else { result }
+}
+
+/// `org.apache.commons.math3.geometry.euclidean.twod.Vector2D` (commons-math3, unported - `crate::unresolved`): the
+/// part this class uses. rust: belongs in its own file with the library's other classes.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Vector2D {
+    x: f64,
+    y: f64,
+}
+
+impl Vector2D {
+    /// `new Vector2D(double x, double y)`
+    pub fn new(x: f64, y: f64) -> Vector2D {
+        Vector2D { x, y }
+    }
+
+    /// `add(Vector<Euclidean2D> v)`
+    pub fn add(&self, v: &Vector2D) -> Vector2D {
+        Vector2D::new(self.x + v.x, self.y + v.y)
+    }
+
+    /// `getX()`
+    pub fn get_x(&self) -> f64 {
+        self.x
+    }
+
+    /// `getY()`
+    pub fn get_y(&self) -> f64 {
+        self.y
+    }
+}
+
+/// `org.apache.commons.math3.geometry.euclidean.twod.Line` (commons-math3, unported): `Line(p1, p2, tolerance)`
+/// (`reset(p1, p2)`) and `intersection(Line)`.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Line {
+    angle: f64,
+    cos: f64,
+    sin: f64,
+    origin_offset: f64,
+    tolerance: f64,
+}
+
+impl Line {
+    /// `new Line(Vector2D p1, Vector2D p2, double tolerance)`
+    pub fn new(p1: Vector2D, p2: Vector2D, tolerance: f64) -> Line {
+        let dx = p2.get_x() - p1.get_x();
+        let dy = p2.get_y() - p1.get_y();
+        let d = dx.hypot(dy);
+        if d == 0.0 {
+            Line { angle: 0.0, cos: 1.0, sin: 0.0, origin_offset: p1.get_y(), tolerance }
+        } else {
+            let angle = std::f64::consts::PI + (-dy).atan2(-dx);
+            Line { angle, cos: angle.cos(), sin: angle.sin(), origin_offset: linear_combination(p2.get_x(), p1.get_y(), -p1.get_x(), p2.get_y()) / d, tolerance }
+        }
+    }
+
+    /// `intersection(Line other)`: null when the lines are parallel within the tolerance.
+    pub fn intersection(&self, other: &Line) -> Option<Vector2D> {
+        let d = linear_combination(self.sin, other.cos, -other.sin, self.cos);
+        if d.abs() < self.tolerance {
+            return None;
+        }
+        Some(Vector2D::new(
+            linear_combination(self.cos, other.origin_offset, -other.cos, self.origin_offset) / d,
+            linear_combination(self.sin, other.origin_offset, -other.sin, self.origin_offset) / d,
+        ))
+    }
+}
+
+/// `org.apache.commons.math3.stat.regression.SimpleRegression` (commons-math3, unported), with an intercept (the
+/// no-argument constructor): `addData`, `getSlope`, `clear`.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct SimpleRegression {
+    sum_x: f64,
+    sum_xx: f64,
+    sum_y: f64,
+    sum_yy: f64,
+    sum_xy: f64,
+    n: i64,
+    xbar: f64,
+    ybar: f64,
+}
+
+impl SimpleRegression {
+    /// `new SimpleRegression()`
+    pub fn new() -> SimpleRegression {
+        SimpleRegression::default()
+    }
+
+    /// `addData(double x, double y)`: the running means and centred sums.
+    pub fn add_data(&mut self, x: f64, y: f64) {
+        if self.n == 0 {
+            self.xbar = x;
+            self.ybar = y;
+        } else {
+            let fact1 = 1.0 + self.n as f64;
+            let fact2 = self.n as f64 / (1.0 + self.n as f64);
+            let dx = x - self.xbar;
+            let dy = y - self.ybar;
+            self.sum_xx += dx * dx * fact2;
+            self.sum_yy += dy * dy * fact2;
+            self.sum_xy += dx * dy * fact2;
+            self.xbar += dx / fact1;
+            self.ybar += dy / fact1;
+        }
+        self.sum_x += x;
+        self.sum_y += y;
+        self.n += 1;
+    }
+
+    /// `getSlope()`: NaN with fewer than two points or no spread in x.
+    pub fn get_slope(&self) -> f64 {
+        if self.n < 2 {
+            return f64::NAN;
+        }
+        if self.sum_xx.abs() < 10.0 * f64::from_bits(1) {
+            return f64::NAN;
+        }
+        self.sum_xy / self.sum_xx
+    }
+
+    /// `clear()`: the sums and the count (the means restart from the next point).
+    pub fn clear(&mut self) {
+        self.sum_x = 0.0;
+        self.sum_xx = 0.0;
+        self.sum_y = 0.0;
+        self.sum_yy = 0.0;
+        self.sum_xy = 0.0;
+        self.n = 0;
+    }
 }

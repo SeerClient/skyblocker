@@ -10,7 +10,6 @@ use crate::prelude::*;
 /// within: net.minecraft.world.scores.Scoreboard#addPlayerTeam
 /// note: class not in JavaSrc: org.slf4j.Logger has no file in JavaSrc/src - a remapping problem, or a class this Minecraft version does not have
 fn skyblocker_cancel_team_warning(ci: &CallbackInfo<'_>) -> bool {
-    let Some(this) = compat::detach(ci.this_mut::<Logger>()) else { return true; };
     return !(crate::de::hysky::skyblocker::utils::utils::Utils::is_on_hypixel());
 }
 

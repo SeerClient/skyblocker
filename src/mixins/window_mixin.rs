@@ -9,7 +9,7 @@ use crate::prelude::*;
 /// target: com.mojang.blaze3d.platform.Window#setGuiScale  [exists]
 /// Rust: com/mojang/blaze3d/platform/window.rs:660 fn set_gui_scale(&mut self, gui_scale: i32)
 fn skyblocker_on_scale_factor_change(ci: &mut CallbackInfo<'_>) {
-    let Some(this) = compat::detach(ci.this_mut::<mcrust::com::mojang::blaze3d::platform::window::Window>()) else { return; };
+    let Some(this) = compat::detach(ci.this_mut::<mcrust::com::mojang::blaze3d::platform::window::WindowState>()) else { return; };
     crate::de::hysky::skyblocker::skyblock::fancybars::fancy_status_bars::FancyStatusBars::update_positions(crate::de::hysky::skyblocker::skyblock::fancybars::fancy_status_bars::INSTANCE.get_mut(), false);
 }
 

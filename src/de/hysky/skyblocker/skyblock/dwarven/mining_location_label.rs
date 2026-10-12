@@ -25,7 +25,8 @@ pub const CRYSTALS_SPACER: &str = "                                ";
 // TODO(fabric2seer): `from_values` takes 2 argument(s) in the port (`values: Vec<E>, serialized_name: impl Fn(&E) -> String + Send + Sync + Copy + 'static`), Java passes 1
 //   java: public static final Codec<CrystalHollowsLocationsCategory> CODEC = StringRepresentable.fromValues(CrystalHollowsLocationsCategory::values);
 /// java: public static final Codec<CrystalHollowsLocationsCategory> CODEC = StringRepresentable.fromValues(CrystalHollowsLocationsCategory::values);
-pub static CRYSTAL_HOLLOWS_LOCATIONS_CATEGORY_CODEC: compat::MainThread<CodecRef<CrystalHollowsLocationsCategory>> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `CODEC` - see the TODO above"));
+/// The port's `fromValues` is handed the values and the `getSerializedName` it calls on each.
+pub static CRYSTAL_HOLLOWS_LOCATIONS_CATEGORY_CODEC: compat::MainThread<CodecRef<CrystalHollowsLocationsCategory>> = compat::MainThread::new(|| mcrust::net::minecraft::util::string_representable::from_values(CrystalHollowsLocationsCategory::values(), |value: &CrystalHollowsLocationsCategory| value.get_serialized_name()));
 
 /// java: public class MiningLocationLabel extends DistancedNamedWaypoint
 #[derive(Clone)]
@@ -268,7 +269,7 @@ impl DwarvenCategory {
 
     /// java: @Override public int getColor()
     pub fn get_color(&self) -> i32 {
-        if self.fields().is_titanium {
+        if self.fields().is_titanium.load(std::sync::atomic::Ordering::Relaxed) {
             return 0xD8D6D8;
         }
         return 0x45BDE0;
@@ -278,13 +279,14 @@ impl DwarvenCategory {
 
 impl std::fmt::Display for DwarvenCategory {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", DwarvenCategory::to_string(*self))
+        write!(f, "{}", DwarvenCategory::to_string(self))
     }
 }
 
 /// the constructor data of each DwarvenCategory constant
 pub struct DwarvenCategoryFields {
-    pub is_titanium: bool,
+    /// java: public boolean isTitanium; - a mutable field of the enum constant (written by `CommissionLabels.update`).
+    pub is_titanium: std::sync::atomic::AtomicBool,
     pub name: String,
     pub location: BlockPos,
 }
@@ -292,12 +294,10 @@ pub struct DwarvenCategoryFields {
 impl DwarvenCategoryFields {
     fn new(mut name: String, mut location: BlockPos) -> Self {
         let mut this = Self {
-            is_titanium: false,
-            name: Default::default(),
-            location: Default::default(),
+            is_titanium: std::sync::atomic::AtomicBool::new(false),
+            name,
+            location,
         };
-        this.name = name.clone();
-        this.location = location.clone();
         this
     }
 
@@ -421,7 +421,7 @@ impl DwarvenEmissaries {
 
 impl std::fmt::Display for DwarvenEmissaries {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", DwarvenEmissaries::to_string(*self))
+        write!(f, "{}", DwarvenEmissaries::to_string(self))
     }
 }
 
@@ -433,9 +433,8 @@ pub struct DwarvenEmissariesFields {
 impl DwarvenEmissariesFields {
     fn new(mut location: BlockPos) -> Self {
         let mut this = Self {
-            location: Default::default(),
+            location,
         };
-        this.location = location.clone();
         this
     }
 
@@ -551,7 +550,7 @@ impl GlaciteCategory {
 
 impl std::fmt::Display for GlaciteCategory {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", GlaciteCategory::to_string(*self))
+        write!(f, "{}", GlaciteCategory::to_string(self))
     }
 }
 
@@ -565,13 +564,10 @@ pub struct GlaciteCategoryFields {
 impl GlaciteCategoryFields {
     fn new(mut name: String, mut color: i32, mut location: Vec<BlockPos>) -> Self {
         let mut this = Self {
-            name: Default::default(),
-            color: 0,
-            location: Default::default(),
+            name,
+            color,
+            location,
         };
-        this.name = name.clone();
-        this.color = color;
-        this.location = location.clone();
         this
     }
 
@@ -679,13 +675,13 @@ impl CrystalHollowsLocationsCategory {
     pub fn fields(self) -> &'static CrystalHollowsLocationsCategoryFields {
         static FIELDS: LazyLock<Vec<CrystalHollowsLocationsCategoryFields>> = LazyLock::new(|| vec![
             CrystalHollowsLocationsCategoryFields::new("Unknown".to_string(), mcrust::java::awt::color::white(), None),
-            todo!("JUNGLE_TEMPLE"),
+            CrystalHollowsLocationsCategoryFields::new("Jungle Temple".to_string(), mcrust::java::awt::color::Color::from_rgb(DyeColor::Purple.get_text_color()), Some("[NPC] Kalhuiki Door Guardian:".to_string())),
             CrystalHollowsLocationsCategoryFields::new("Mines of Divan".to_string(), mcrust::java::awt::color::green(), Some(format!("{}Jade Crystal", CRYSTALS_SPACER))),
-            todo!("GOBLIN_QUEENS_DEN"),
+            CrystalHollowsLocationsCategoryFields::new("Goblin Queen's Den".to_string(), mcrust::java::awt::color::Color::from_rgb(DyeColor::Orange.get_text_color()), Some(format!("{}Amber Crystal", CRYSTALS_SPACER))),
             CrystalHollowsLocationsCategoryFields::new("Lost Precursor City".to_string(), mcrust::java::awt::color::cyan(), Some(format!("{}Sapphire Crystal", CRYSTALS_SPACER))),
             CrystalHollowsLocationsCategoryFields::new("Khazad-dûm".to_string(), mcrust::java::awt::color::yellow(), Some(format!("{}Topaz Crystal", CRYSTALS_SPACER))),
             CrystalHollowsLocationsCategoryFields::new("Fairy Grotto".to_string(), mcrust::java::awt::color::pink(), None),
-            todo!("DRAGONS_LAIR"),
+            CrystalHollowsLocationsCategoryFields::new("Dragon's Lair".to_string(), mcrust::java::awt::color::Color::from_rgb(mcrust::net::minecraft::network::chat::text_color::TextColor::GOLD.get_value()), Some("[NPC] Golden Dragon:".to_string())),
             CrystalHollowsLocationsCategoryFields::new("Corleone".to_string(), mcrust::java::awt::color::white(), None),
             CrystalHollowsLocationsCategoryFields::new("King Yolkar".to_string(), mcrust::java::awt::color::red(), Some("[NPC] King Yolkar:".to_string())),
             CrystalHollowsLocationsCategoryFields::new("Odawa".to_string(), mcrust::java::awt::color::magenta(), Some("[NPC] Odawa:".to_string())),
@@ -702,21 +698,17 @@ impl CrystalHollowsLocationsCategory {
 
     /// java: @Override public int getColor()
     pub fn get_color(&self) -> i32 {
-        // TODO(fabric2seer): `.getRGB(..)` on a Color
-        //   java: return this.color.getRGB();
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        return self.fields().color.get_rgb();
     }
 
     /// java: public @Nullable String getLinkedMessage()
     pub fn get_linked_message(&self) -> Option<String> {
-        return Some(self.fields().linked_message.clone());
+        return self.fields().linked_message.clone();
     }
 
     /// java: @Override public String getSerializedName()
     pub fn get_serialized_name(&self) -> String {
-        // TODO(fabric2seer): call to `name(..)` (not a method of this class)
-        //   java: return name();
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        return self.name().to_string();
     }
 
 }
@@ -737,13 +729,10 @@ pub struct CrystalHollowsLocationsCategoryFields {
 impl CrystalHollowsLocationsCategoryFields {
     fn new(mut name: String, mut color: Color, mut linked_message: Option<String>) -> Self {
         let mut this = Self {
-            color: Default::default(),
-            name: Default::default(),
-            linked_message: None,
+            color,
+            name,
+            linked_message,
         };
-        this.name = name.clone();
-        this.color = color.clone();
-        this.linked_message = linked_message.clone().unwrap();
         this
     }
 

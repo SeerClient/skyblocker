@@ -11,6 +11,8 @@ use crate::de::hysky::skyblocker::utils::scheduler::scheduler::Scheduler;
 use crate::de::hysky::skyblocker::utils::utils::Utils;
 use crate::de::hysky::skyblocker::utils::waypoint::waypoint_group;
 use crate::de::hysky::skyblocker::utils::waypoint::waypoint_group::WaypointGroup;
+use crate::de::hysky::skyblocker::utils::waypoint::named_waypoint::NamedWaypoint;
+use crate::de::hysky::skyblocker::utils::waypoint::waypoint::Waypoint;
 use crate::entry::skyblocker_mod;
 use mcrust::com::mojang::brigadier::command_dispatcher::CommandDispatcher;
 use mcrust::com::mojang::brigadier::context::command_context::CommandContext;
@@ -28,10 +30,25 @@ use mcrust::com::mojang::serialization::encoder::Encoder as _;
 pub static CODEC: compat::MainThread<CodecRef<Vec<compat::Shared<WaypointGroup>>>> = compat::MainThread::new(|| codec::list(waypoint_group::CODEC.get_mut().clone()));
 /// java: private static final Codec<List<WaypointGroup>> SKYTILS_CODEC = WaypointGroup.SKYTILS_CODEC.listOf();
 pub static SKYTILS_CODEC: compat::MainThread<CodecRef<Vec<compat::Shared<WaypointGroup>>>> = compat::MainThread::new(|| codec::list(waypoint_group::SKYTILS_CODEC.get_mut().clone()));
-// TODO(fabric2seer): static call Map.values(..)
 //   java: private static final Codec<Collection<WaypointGroup>> SKYBLOCKER_LEGACY_ORDERED_CODEC = Codec.unboundedMap(Codec.STRING, WaypointGroup.SKYBLOCKER_LEGACY_ORDERED_CODEC).xmap(Map::values, groups -> groups.stream().collect(Collectors.toMap(WaypointGroup::name, Function.identity())));
 /// java: private static final Codec<Collection<WaypointGroup>> SKYBLOCKER_LEGACY_ORDERED_CODEC = Codec.unboundedMap(Codec.STRING, WaypointGroup.SKYBLOCKER_LEGACY_ORDERED_CODEC).xmap(Map::values, groups -> grou
-pub static SKYBLOCKER_LEGACY_ORDERED_CODEC: compat::MainThread<CodecRef<Vec<compat::Shared<WaypointGroup>>>> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `SKYBLOCKER_LEGACY_ORDERED_CODEC` - see the TODO above"));
+/// `Map::values` decodes (the map's order); `Collectors.toMap(WaypointGroup::name, identity())` encodes, throwing on
+/// a repeated name. The map's order on encode is the list's (Java's `HashMap` order is unspecified).
+pub static SKYBLOCKER_LEGACY_ORDERED_CODEC: compat::MainThread<CodecRef<Vec<compat::Shared<WaypointGroup>>>> = compat::MainThread::new(|| codec::xmap(
+    codec::unbounded_map(codec::string_codec(), waypoint_group::SKYBLOCKER_LEGACY_ORDERED_CODEC.get().clone()),
+    |map: Vec<(String, compat::Shared<WaypointGroup>)>| map.into_iter().map(|(_, group)| group).collect::<Vec<_>>(),
+    |groups: &Vec<compat::Shared<WaypointGroup>>| {
+        let mut map: Vec<(String, compat::Shared<WaypointGroup>)> = Vec::with_capacity(groups.len());
+        for group in groups.iter() {
+            let name = WaypointGroup::name(group);
+            if map.iter().any(|(key, _)| *key == name) {
+                panic!("IllegalStateException: Duplicate key {}", name);
+            }
+            map.push((name, group.clone()));
+        }
+        map
+    },
+));
 /// java: private static final String PREFIX = "[Skyblocker-Waypoint-Data-V1]";
 pub const PREFIX: &str = "[Skyblocker-Waypoint-Data-V1]";
 /// java: private static final String SKYBLOCKER_LEGACY_ORDERED = "[Skyblocker::OrderedWaypoints::v1]";
@@ -42,14 +59,124 @@ pub static WAYPOINTS_TOAST_TYPE: compat::MainThread<SystemToastId> = compat::Mai
 pub static WAYPOINTS_FILE: compat::MainThread<std::path::PathBuf> = compat::MainThread::new(|| skyblocker_mod::CONFIG_DIR.get_mut().join("waypoints.json"));
 /// java: private static final Path SKYBLOCKER_LEGACY_ORDERED_FILE = SkyblockerMod.CONFIG_DIR.resolve("ordered_waypoints.json");
 pub static SKYBLOCKER_LEGACY_ORDERED_FILE: compat::MainThread<std::path::PathBuf> = compat::MainThread::new(|| skyblocker_mod::CONFIG_DIR.get_mut().join("ordered_waypoints.json"));
-// TODO(fabric2seer): static call MultimapBuilder.enumKeys(..)
-//   java: private static final Multimap<Location, WaypointGroup> waypoints = MultimapBuilder.enumKeys(Location.class).arrayListValues().build();
 /// java: private static final Multimap<Location, WaypointGroup> waypoints = MultimapBuilder.enumKeys(Location.class).arrayListValues().build();
-pub static WAYPOINTS: compat::MainThread<crate::unresolved::Multimap> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `waypoints` - see the TODO above"));
-// TODO(fabric2seer): `from_enum` takes 2 argument(s) in the port (`values: Vec<E>, serialized_name: impl Fn(&E) -> String + Send + Sync + Copy + 'static`), Java passes 1
-//   java: private static final Codec<OrderedAction> CODEC = StringRepresentable.fromEnum(OrderedAction::values);
+pub static WAYPOINTS: compat::MainThread<compat::Shared<LocationMultimap>> = compat::MainThread::new(|| compat::shared(LocationMultimap::new()));
 /// java: private static final Codec<OrderedAction> CODEC = StringRepresentable.fromEnum(OrderedAction::values);
-pub static ORDERED_ACTION_CODEC: compat::MainThread<CodecRef<OrderedAction>> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `CODEC` - see the TODO above"));
+pub static ORDERED_ACTION_CODEC: compat::MainThread<CodecRef<OrderedAction>> = compat::MainThread::new(|| mcrust::net::minecraft::util::string_representable::from_enum(OrderedAction::values(), |value: &OrderedAction| value.get_serialized_name()));
+
+/// `Multimap<Location, WaypointGroup>` as `MultimapBuilder.enumKeys(Location.class).arrayListValues().build()`
+/// makes it: the keys in `Location`'s declaration order (an `EnumMap`; `Location`'s derived `Ord` is that order),
+/// each key's values an `ArrayList` in insertion order. A key whose list is empty is not in the map (Guava drops
+/// it), which `equals` and `values` both see. Java holds the map by reference (`WaypointsScreen` and the
+/// `WaypointsShareScreen` it opens edit the same one), so every holder keeps a `compat::Shared` of it.
+/// rust: belongs with `compat` (Guava's `Multimap` is unported - `crate::unresolved::Multimap`); kept here, the one
+/// package that builds this map.
+#[derive(Default)]
+pub struct LocationMultimap {
+    map: std::collections::BTreeMap<Location, Vec<compat::Shared<WaypointGroup>>>,
+}
+
+impl LocationMultimap {
+    /// `MultimapBuilder.enumKeys(Location.class).arrayListValues().build()`
+    pub fn new() -> LocationMultimap {
+        LocationMultimap { map: std::collections::BTreeMap::new() }
+    }
+
+    /// `get(key)`, read: the groups of the key, in order (empty when there are none).
+    pub fn get(&self, key: Location) -> Vec<compat::Shared<WaypointGroup>> {
+        self.map.get(&key).cloned().unwrap_or_default()
+    }
+
+    /// `get(key)` as the live collection Guava hands out: a change to it is a change to the map.
+    pub fn get_mut(&mut self, key: Location) -> &mut Vec<compat::Shared<WaypointGroup>> {
+        self.map.entry(key).or_default()
+    }
+
+    /// `put(key, value)`: an `ArrayList` value collection always grows, so it answers `true`.
+    pub fn put(&mut self, key: Location, value: compat::Shared<WaypointGroup>) -> bool {
+        self.map.entry(key).or_default().push(value);
+        true
+    }
+
+    /// `remove(key, value)`: the first group of the key that `equals` the value (`ArrayList.remove(Object)`).
+    pub fn remove(&mut self, key: Location, value: &compat::Shared<WaypointGroup>) -> bool {
+        let Some(list) = self.map.get_mut(&key) else { return false };
+        let Some(index) = list.iter().position(|group| waypoint_group_equals(group, value)) else { return false };
+        list.remove(index);
+        true
+    }
+
+    /// `putAll(multimap)`: every entry of the other map, in its order; `true` when anything was added.
+    pub fn put_all(&mut self, other: &LocationMultimap) -> bool {
+        let mut changed = false;
+        for (key, values) in other.map.iter() {
+            for value in values.iter() {
+                changed |= self.put(*key, value.clone());
+            }
+        }
+        changed
+    }
+
+    /// `clear()`
+    pub fn clear(&mut self) {
+        self.map.clear();
+    }
+
+    /// `values()`: every group, key by key.
+    pub fn values(&self) -> Vec<compat::Shared<WaypointGroup>> {
+        self.map.values().flat_map(|values| values.iter().cloned()).collect()
+    }
+
+    /// The keys that hold at least one group, in key order (`asMap().keySet()`).
+    pub fn keys(&self) -> Vec<Location> {
+        self.map.iter().filter(|(_, values)| !values.is_empty()).map(|(key, _)| *key).collect()
+    }
+
+    /// `equals(Object)`: `asMap().equals(other.asMap())` - the same keys, and for each key lists that are equal
+    /// element by element (`WaypointGroup.equals`).
+    pub fn equals(&self, other: &LocationMultimap) -> bool {
+        let keys = self.keys();
+        if keys != other.keys() {
+            return false;
+        }
+        keys.iter().all(|key| {
+            let (a, b) = (&self.map[key], &other.map[key]);
+            a.len() == b.len() && a.iter().zip(b.iter()).all(|(a, b)| waypoint_group_equals(a, b))
+        })
+    }
+}
+
+/// `WaypointGroup.equals(Object)`, the `@GenEquals` body: every non-transient field - `name`, `island`, `waypoints`
+/// (`List.equals`, element by element with `NamedWaypoint.equals`), `ordered`, `renderThroughWalls`, `waypointType`.
+/// rust: the owners' bodies (`WaypointGroup.equals`, `NamedWaypoint.equals`, `Waypoint.equals`, utils/waypoint) are
+/// `todo!` and take a `compat::Object` no `Shared` group can become; the Java bodies are read here until they are
+/// ported, and this should then call them.
+pub(crate) fn waypoint_group_equals(a: &compat::Shared<WaypointGroup>, b: &compat::Shared<WaypointGroup>) -> bool {
+    if Arc::ptr_eq(a, b) {
+        return true;
+    }
+    let (a_fields, a_waypoints) = compat::read(a, |t| ((t.name.clone(), t.island, t.ordered, t.render_through_walls, t.waypoint_type), t.waypoints.clone()));
+    let (b_fields, b_waypoints) = compat::read(b, |t| ((t.name.clone(), t.island, t.ordered, t.render_through_walls, t.waypoint_type), t.waypoints.clone()));
+    a_fields == b_fields && a_waypoints.len() == b_waypoints.len() && a_waypoints.iter().zip(b_waypoints.iter()).all(|(a, b)| named_waypoint_equals(a, b))
+}
+
+/// `NamedWaypoint.equals:` `this == obj || super.equals(obj) && obj instanceof NamedWaypoint w && name.equals(w.name)`,
+/// with `Waypoint.equals:246-248`: `pos`, `typeSupplier.get()`, `colorComponents` (`Arrays.equals`), `alpha`,
+/// `lineWidth`, `throughWalls`, `enabled`. See `waypoint_group_equals`.
+pub(crate) fn named_waypoint_equals(a: &compat::Shared<dyn NamedWaypoint>, b: &compat::Shared<dyn NamedWaypoint>) -> bool {
+    if std::ptr::addr_eq(Arc::as_ptr(a), Arc::as_ptr(b)) {
+        return true;
+    }
+    let read = |w: &compat::Shared<dyn NamedWaypoint>| compat::read(w, |t| {
+        let base = t.waypoint_base();
+        (base.pos.clone(), base.type_supplier.clone(), base.color_components.clone(), base.alpha, base.line_width, base.through_walls, base.enabled, t.named_waypoint_base().name.clone())
+    });
+    let (a, b) = (read(a), read(b));
+    // `typeSupplier.get()` is called outside the borrow: a supplier may read the config.
+    let a_type = a.1.as_ref().map(|supplier| supplier());
+    let b_type = b.1.as_ref().map(|supplier| supplier());
+    a.0 == b.0 && a_type == b_type && a.2 == b.2 && a.3 == b.3 && a.4 == b.4 && a.5 == b.5 && a.6 == b.6 && a.7 == b.7
+}
 
 /// java: public class Waypoints
 #[derive(Clone)]
@@ -95,13 +222,17 @@ impl Waypoints {
 
     /// java: private static int executeOrderedWaypointAction(CommandContext<FabricClientCommandSource> context)
     pub fn execute_ordered_waypoint_action(context: &CommandContext<crate::unresolved::FabricClientCommandSource>) -> i32 {
-        // TODO(fabric2seer): `.get(..)` on a Multimap
-        //   java: Optional<WaypointGroup> groupOptional = waypoints.get(Utils.getLocation()).stream()
-        //   java: 				.filter(group -> group.ordered() && !group.waypoints().isEmpty() && group.waypoints().stream().allMatch(Waypoint::isEnabled))
-        //   java: 				.findFirst();
-        let mut group_optional: Option<compat::Shared<WaypointGroup>> = todo!("fabric2seer: the initialiser of `groupOptional` (TODO above)");
+        // `waypoints.get(Utils.getLocation()).stream().filter(group -> group.ordered() && !group.waypoints().isEmpty()
+        // && group.waypoints().stream().allMatch(Waypoint::isEnabled)).findFirst()`
+        let mut group_optional: Option<compat::Shared<WaypointGroup>> = compat::read(WAYPOINTS.get(), |__t| __t.get(Utils::get_location())).into_iter().find(|group| {
+            WaypointGroup::ordered(group) && !WaypointGroup::waypoints(group).is_empty() && WaypointGroup::waypoints(group).iter().all(|waypoint| {
+                let waypoint = compat::view(waypoint, |a| a as compat::Shared<dyn Waypoint>);
+                ({ let __f = compat::dispatch(&waypoint, |__t| __t.is_enabled()); __f(&waypoint) })
+            })
+        });
         if group_optional.is_none() {
-            // TODO(fabric2seer): `.sendFeedback(..)` on a FabricClientCommandSource
+            // TODO(batchD): cross-package - `FabricClientCommandSource` is `crate::unresolved` (no `sendFeedback`); the
+            // command that calls this is not registered either (see `init`).
             //   java: context.getSource().sendFeedback(Constants.PREFIX.get().append(Component.literal("No ordered group enabled here! (make sure all waypoints in the group are enabled)")));
             return 1;
         }
@@ -119,79 +250,76 @@ impl Waypoints {
             OrderedAction::Previous => {
                 WaypointGroup::set_current_index(&group, ((index.wrapping_sub(1)).wrapping_add(waypoint_count)).wrapping_rem(waypoint_count));
             }
-            _ => {}
         }
         return 1;
     }
 
     /// java: public static void loadWaypoints()
     pub fn load_waypoints() {
-        // TODO(fabric2seer): `.clear(..)` on a Multimap
-        //   java: waypoints.clear();
-        {
-            // TODO(fabric2seer): Files.newBufferedReader
-            //   java: BufferedReader reader = Files.newBufferedReader(..);
-            let mut reader: crate::unresolved::BufferedReader = todo!("fabric2seer: the initialiser of `reader` (TODO above)");
-            // java: try {..} catch (NoSuchFileException _) catch (Exception e) - an exception here is a panic, caught by `catch_unwind`
-            let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                // TODO(fabric2seer): `.fromJson(..)` on a Gson
-                //   java: List<WaypointGroup> waypointGroups = CODEC.parse(JsonOps.INSTANCE, SkyblockerMod.GSON.fromJson(reader, JsonArray.class)).resultOrPartial(LOGGER::error).orElseThrow();
-                let mut waypoint_groups: Vec<compat::Shared<WaypointGroup>> = todo!("fabric2seer: the initialiser of `waypointGroups` (TODO above)");
-                for __a0 in waypoint_groups.iter() {
-                    Waypoints::put_waypoint_group(__a0.clone());
+        compat::write(WAYPOINTS.get(), |__t| __t.clear());
+        // try (BufferedReader reader = Files.newBufferedReader(WAYPOINTS_FILE)) {..} catch (NoSuchFileException _) {} catch (Exception e) {..}
+        match std::fs::read_to_string(WAYPOINTS_FILE.get()) {
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+            Err(e) => logger().error(&format!("[Skyblocker Waypoints] Encountered exception while loading waypoints {}", e)),
+            Ok(text) => {
+                let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                    // `GSON.fromJson(reader, JsonArray.class)`: anything but an array is a `JsonSyntaxException`.
+                    let json: serde_json::Value = serde_json::from_str(&text).unwrap_or_else(|e| panic!("JsonSyntaxException: {e}"));
+                    if !json.is_array() {
+                        panic!("JsonSyntaxException: Expected a com.google.gson.JsonArray but was {}", json);
+                    }
+                    let mut waypoint_groups: Vec<compat::Shared<WaypointGroup>> = CODEC.get().parse(&mcrust::com::mojang::serialization::json_ops::JsonOps::instance(), &compat::json_to_port(&json)).result_or_partial_with(|__a0| { logger().error(&__a0); }).expect("NoSuchElementException: No value present");
+                    for __a0 in waypoint_groups.iter() {
+                        Waypoints::put_waypoint_group(__a0.clone());
+                    }
+                }));
+                if let Err(e) = __result {
+                    logger().error(&format!("[Skyblocker Waypoints] Encountered exception while loading waypoints {}", compat::panic_message(&e)));
                 }
-            }));
-            if let Err(_) = __result {
             }
-            // TODO(fabric2seer): the second `catch (Exception e)` clause (merged into the first)
-            //   java: {
-            //   java: 			LOGGER.error("[Skyblocker Waypoints] Encountered exception while loading waypoints", e);
-            //   java: 		}
         }
-        {
-            // TODO(fabric2seer): Files.newBufferedReader
-            //   java: BufferedReader reader = Files.newBufferedReader(..);
-            let mut reader: crate::unresolved::BufferedReader = todo!("fabric2seer: the initialiser of `reader` (TODO above)");
-            // java: try {..} catch (NoSuchFileException | FileAlreadyExistsException _) catch (IOException e) - an exception here is a panic, caught by `catch_unwind`
-            let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                // TODO(fabric2seer): `.fromJson(..)` on a Gson
-                //   java: Collection<WaypointGroup> waypointGroups = SKYBLOCKER_LEGACY_ORDERED_CODEC.parse(JsonOps.INSTANCE, SkyblockerMod.GSON.fromJson(reader, JsonObject.class)).resultOrPartial(LOGGER::error).orElseThrow();
-                let mut waypoint_groups: Vec<compat::Shared<WaypointGroup>> = todo!("fabric2seer: the initialiser of `waypointGroups` (TODO above)");
+        // try (BufferedReader reader = Files.newBufferedReader(SKYBLOCKER_LEGACY_ORDERED_FILE)) {..}
+        // catch (NoSuchFileException | FileAlreadyExistsException _) {} catch (IOException e) {..}
+        match std::fs::read_to_string(SKYBLOCKER_LEGACY_ORDERED_FILE.get()) {
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+            Err(e) => logger().error(&format!("[Skyblocker Waypoints] Encountered exception while loading legacy ordered waypoints {}", e)),
+            Ok(text) => {
+                // `GSON.fromJson(reader, JsonObject.class)` and the codec throw unchecked exceptions, which Java does not catch here.
+                let json: serde_json::Value = serde_json::from_str(&text).unwrap_or_else(|e| panic!("JsonSyntaxException: {e}"));
+                if !json.is_object() {
+                    panic!("JsonSyntaxException: Expected a com.google.gson.JsonObject but was {}", json);
+                }
+                let mut waypoint_groups: Vec<compat::Shared<WaypointGroup>> = SKYBLOCKER_LEGACY_ORDERED_CODEC.get().parse(&mcrust::com::mojang::serialization::json_ops::JsonOps::instance(), &compat::json_to_port(&json)).result_or_partial_with(|__a0| { logger().error(&__a0); }).expect("NoSuchElementException: No value present");
                 for group in waypoint_groups.iter() {
                     Waypoints::put_waypoint_group(WaypointGroup::deep_copy(&WaypointGroup::with_island(group, Location::DwarvenMines)));
                     Waypoints::put_waypoint_group(WaypointGroup::deep_copy(&WaypointGroup::with_island(group, Location::CrystalHollows)));
                 }
-                std::fs::rename(SKYBLOCKER_LEGACY_ORDERED_FILE.get_mut(), &skyblocker_mod::CONFIG_DIR.get_mut().join("legacy_ordered_waypoints.json")).expect("IOException");
-                // TODO(fabric2seer): static `List.size` has no Rust counterpart in the port
-                // rust: logger().info(&format!("[Skyblocker Waypoints] Successfully migrated {} ordered waypoints from {} groups to waypoints!", waypoint_groups.iter().cloned().map(|__a0| WaypointGroup::waypoints(&__a0)).map(|__a0| List::size(__a0.clone())).sum::<i32>(), (waypoint_groups.len() as i32)));
-            }));
-            if let Err(_) = __result {
+                // `Files.move(source, target)` without REPLACE_EXISTING: a target that exists is `FileAlreadyExistsException`, caught silently.
+                let target = skyblocker_mod::CONFIG_DIR.get_mut().join("legacy_ordered_waypoints.json");
+                if target.exists() {
+                    return;
+                }
+                if let Err(e) = std::fs::rename(SKYBLOCKER_LEGACY_ORDERED_FILE.get(), &target) {
+                    logger().error(&format!("[Skyblocker Waypoints] Encountered exception while loading legacy ordered waypoints {}", e));
+                    return;
+                }
+                logger().info(&format!("[Skyblocker Waypoints] Successfully migrated {} ordered waypoints from {} groups to waypoints!", waypoint_groups.iter().map(|group| WaypointGroup::waypoints(group).len() as i32).sum::<i32>(), (waypoint_groups.len() as i32)));
             }
-            // TODO(fabric2seer): the second `catch (IOException e)` clause (merged into the first)
-            //   java: {
-            //   java: 			LOGGER.error("[Skyblocker Waypoints] Encountered exception while loading legacy ordered waypoints", e);
-            //   java: 		}
         }
     }
 
     /// java: public static void saveWaypoints(Minecraft client)
     pub fn save_waypoints(client: &mut mcrust::net::minecraft::client::minecraft::Minecraft) {
-        {
-            // TODO(fabric2seer): Files.newBufferedWriter
-            //   java: BufferedWriter writer = Files.newBufferedWriter(..);
-            let mut writer: crate::unresolved::BufferedWriter = todo!("fabric2seer: the initialiser of `writer` (TODO above)");
-            // java: try {..} catch (Exception e) - an exception here is a panic, caught by `catch_unwind`
-            let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                // TODO(fabric2seer): `.values(..)` on a Multimap
-                //   java: JsonElement waypointsJson = CODEC.encodeStart(JsonOps.INSTANCE, List.copyOf(waypoints.values())).resultOrPartial(LOGGER::error).orElseThrow();
-                let mut waypoints_json: serde_json::Value = todo!("fabric2seer: the initialiser of `waypointsJson` (TODO above)");
-                // TODO(fabric2seer): `.toJson(..)` on a Gson
-                //   java: SkyblockerMod.GSON.toJson(waypointsJson, writer);
-                logger().info("[Skyblocker Waypoints] Saved waypoints");
-            }));
-            if let Err(e) = __result {
-                logger().error(&format!("[Skyblocker Waypoints] Encountered exception while saving waypoints"));
-            }
+        // try (BufferedWriter writer = Files.newBufferedWriter(WAYPOINTS_FILE)) {..} catch (Exception e) {..}
+        let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let values = compat::read(WAYPOINTS.get(), |__t| __t.values());
+            let mut waypoints_json: serde_json::Value = compat::json_from_port(&CODEC.get().encode_start(&mcrust::com::mojang::serialization::json_ops::JsonOps::instance(), &values).result_or_partial_with(|__a0| { logger().error(&__a0); }).expect("NoSuchElementException: No value present"));
+            // `GSON.toJson(waypointsJson, writer)` with `setPrettyPrinting()`: two-space indentation, as serde's pretty printer.
+            std::fs::write(WAYPOINTS_FILE.get(), serde_json::to_string_pretty(&waypoints_json).unwrap()).unwrap_or_else(|e| panic!("IOException: {e}"));
+            logger().info("[Skyblocker Waypoints] Saved waypoints");
+        }));
+        if let Err(e) = __result {
+            logger().error(&format!("[Skyblocker Waypoints] Encountered exception while saving waypoints {}", compat::panic_message(&e)));
         }
     }
 
@@ -199,39 +327,35 @@ impl Waypoints {
     pub fn from_skyblocker(mut waypoints_string: String, mut default_island: Location) -> Option<Vec<compat::Shared<WaypointGroup>>> {
         waypoints_string = compat::trim(&waypoints_string);
         if waypoints_string.starts_with(PREFIX) {
-            {
-                // TODO(fabric2seer): `new GZIPInputStream(..)`
-                //   java: GZIPInputStream reader = new GZIPInputStream(new ByteArrayInputStream(Base64.getDecoder().decode(waypointsString.replace(PREFIX, ""))));
-                let mut reader: crate::unresolved::GZIPInputStream = todo!("fabric2seer: the initialiser of `reader` (TODO above)");
-                // java: try {..} catch (IOException e) - an exception here is a panic, caught by `catch_unwind`; the body's `return` is the closure's value
-                match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                    // TODO(fabric2seer): `.fromJson(..)` on a Gson
-                    //   java: return CODEC.parse(JsonOps.INSTANCE, SkyblockerMod.GSON.fromJson(new String(reader.readAllBytes()), JsonArray.class)).resultOrPartial(LOGGER::error).orElseThrow();
-                })) {
-                    Ok(__v) => return __v,
-                    Err(e) => {
-                        logger().error(&format!("[Skyblocker Waypoints] Encountered exception while parsing Skyblocker waypoint data"));
-                        return None;
-                    }
+            // `Base64.getDecoder().decode(..)` throws `IllegalArgumentException` (not caught: it is no `IOException`).
+            let compressed = base64::get_decoder().decode(&waypoints_string.replace(PREFIX, "")).unwrap_or_else(|e| panic!("IllegalArgumentException: {e}"));
+            // try (GZIPInputStream reader = ..) {..} catch (IOException e) {..}
+            let bytes = match mcrust::java::util::zip::gzip::gzip_decompress(&compressed) {
+                Ok(bytes) => bytes,
+                Err(e) => {
+                    logger().error(&format!("[Skyblocker Waypoints] Encountered exception while parsing Skyblocker waypoint data {}", e));
+                    return None;
                 }
+            };
+            let json: serde_json::Value = serde_json::from_str(&String::from_utf8_lossy(&bytes)).unwrap_or_else(|e| panic!("JsonSyntaxException: {e}"));
+            if !json.is_array() {
+                panic!("JsonSyntaxException: Expected a com.google.gson.JsonArray but was {}", json);
             }
+            return Some(CODEC.get().parse(&mcrust::com::mojang::serialization::json_ops::JsonOps::instance(), &compat::json_to_port(&json)).result_or_partial_with(|__a0| { logger().error(&__a0); }).expect("NoSuchElementException: No value present"));
         } else if waypoints_string.starts_with(SKYBLOCKER_LEGACY_ORDERED) {
-            {
-                // TODO(fabric2seer): `new GZIPInputStream(..)`
-                //   java: GZIPInputStream reader = new GZIPInputStream(new ByteArrayInputStream(Base64.getDecoder().decode(waypointsString.replace(SKYBLOCKER_LEGACY_ORDERED, ""))));
-                let mut reader: crate::unresolved::GZIPInputStream = todo!("fabric2seer: the initialiser of `reader` (TODO above)");
-                // java: try {..} catch (IOException e) - an exception here is a panic, caught by `catch_unwind`; the body's `return` is the closure's value
-                match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                    // TODO(fabric2seer): `.fromJson(..)` on a Gson
-                    //   java: return applyDefaultLocation(SKYBLOCKER_LEGACY_ORDERED_CODEC.parse(JsonOps.INSTANCE, SkyblockerMod.GSON.fromJson(new String(reader.readAllBytes()), JsonObject.class)).resultOrPartial(LOGGER::error).orElseThrow(), defaultIsland);
-                })) {
-                    Ok(__v) => return __v,
-                    Err(e) => {
-                        logger().error(&format!("[Skyblocker Waypoints] Encountered exception while parsing Skyblocker legacy ordered waypoint data"));
-                        return None;
-                    }
+            let compressed = base64::get_decoder().decode(&waypoints_string.replace(SKYBLOCKER_LEGACY_ORDERED, "")).unwrap_or_else(|e| panic!("IllegalArgumentException: {e}"));
+            let bytes = match mcrust::java::util::zip::gzip::gzip_decompress(&compressed) {
+                Ok(bytes) => bytes,
+                Err(e) => {
+                    logger().error(&format!("[Skyblocker Waypoints] Encountered exception while parsing Skyblocker legacy ordered waypoint data {}", e));
+                    return None;
                 }
+            };
+            let json: serde_json::Value = serde_json::from_str(&String::from_utf8_lossy(&bytes)).unwrap_or_else(|e| panic!("JsonSyntaxException: {e}"));
+            if !json.is_object() {
+                panic!("JsonSyntaxException: Expected a com.google.gson.JsonObject but was {}", json);
             }
+            return Some(Waypoints::apply_default_location(&SKYBLOCKER_LEGACY_ORDERED_CODEC.get().parse(&mcrust::com::mojang::serialization::json_ops::JsonOps::instance(), &compat::json_to_port(&json)).result_or_partial_with(|__a0| { logger().error(&__a0); }).expect("NoSuchElementException: No value present"), default_island));
         }
         logger().error("[Skyblocker Waypoints] Unknown skyblocker waypoint data prefix");
         return None;
@@ -239,109 +363,102 @@ impl Waypoints {
 
     /// java: public static String toSkyblocker(List<WaypointGroup> waypointGroups)
     pub fn to_skyblocker(waypoint_groups: &Vec<compat::Shared<WaypointGroup>>) -> String {
-        // TODO(fabric2seer): `.toJson(..)` on a Gson
-        //   java: String waypointsJson = SkyblockerMod.GSON.toJson(CODEC.encodeStart(JsonOps.INSTANCE, waypointGroups).resultOrPartial(LOGGER::error).orElseThrow());
-        let mut waypoints_json: String = todo!("fabric2seer: the initialiser of `waypointsJson` (TODO above)");
-        // TODO(fabric2seer): `new ByteArrayOutputStream(..)`
-        //   java: ByteArrayOutputStream output = new ByteArrayOutputStream();
-        let mut output: crate::unresolved::ByteArrayOutputStream = todo!("fabric2seer: the initialiser of `output` (TODO above)");
-        {
-            // TODO(fabric2seer): `new GZIPOutputStream(..)`
-            //   java: GZIPOutputStream gzip = new GZIPOutputStream(output);
-            let mut gzip: crate::unresolved::GZIPOutputStream = todo!("fabric2seer: the initialiser of `gzip` (TODO above)");
-            // java: try {..} catch (IOException e) - an exception here is a panic, caught by `catch_unwind`
-            let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                // TODO(fabric2seer): `.write(..)` on a GZIPOutputStream
-                //   java: gzip.write(waypointsJson.getBytes());
-            }));
-            if let Err(e) = __result {
-                logger().error(&format!("[Skyblocker Waypoints] Encountered exception while serializing Skyblocker waypoint data"));
-            }
-        }
-        // TODO(fabric2seer): `.encode(..)` on a Encoder
-        //   java: return PREFIX + new String(Base64.getEncoder().encode(output.toByteArray()));
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        let mut waypoints_json: String = serde_json::to_string_pretty(&compat::json_from_port(&CODEC.get().encode_start(&mcrust::com::mojang::serialization::json_ops::JsonOps::instance(), waypoint_groups).result_or_partial_with(|__a0| { logger().error(&__a0); }).expect("NoSuchElementException: No value present"))).unwrap();
+        // `new GZIPOutputStream(output)` written and closed: writing to memory raises no `IOException`.
+        let output: Vec<u8> = mcrust::java::util::zip::gzip::gzip_compress(waypoints_json.as_bytes());
+        return format!("{}{}", PREFIX, base64::get_encoder().encode_to_string(&output));
     }
 
     /// java: public static @Nullable List<WaypointGroup> fromSkytils(String waypointsString, Location defaultIsland)
     pub fn from_skytils(mut waypoints_string: String, mut default_island: Location) -> Option<Vec<compat::Shared<WaypointGroup>>> {
         waypoints_string = compat::trim(&waypoints_string);
-        // java: try {..} catch (NumberFormatException e) catch (Exception e) - the body runs inline: a Rust body does not throw checked exceptions (a panic in it propagates)
-        {
+        // try {..} catch (NumberFormatException e) {..} catch (Exception e) {..}: the body's `return` is the closure's
+        // `Some`; falling out of it reaches `return Collections.emptyList()`.
+        let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| -> Option<Vec<compat::Shared<WaypointGroup>>> {
             if waypoints_string.starts_with("<Skytils-Waypoint-Data>(V") {
-                let mut version: i32 = (compat::substring2(&waypoints_string, 25, compat::index_of(&waypoints_string, ')'))).trim().parse::<i32>().expect("NumberFormatException");
-                waypoints_string = compat::substring(&waypoints_string, (compat::index_of(&waypoints_string, ':')).wrapping_add(1));
+                // `Integer.parseInt` does not trim.
+                let version_string = compat::substring2(&waypoints_string, 25, compat::index_of(&waypoints_string, ')'));
+                let mut version: i32 = version_string.parse::<i32>().unwrap_or_else(|_| panic!("NumberFormatException: For input string: \"{}\"", version_string));
+                let rest = compat::substring(&waypoints_string, (compat::index_of(&waypoints_string, ':')).wrapping_add(1));
                 if version == 1 {
-                    {
-                        // TODO(fabric2seer): `new GZIPInputStream(..)`
-                        //   java: GZIPInputStream reader = new GZIPInputStream(new ByteArrayInputStream(Base64.getDecoder().decode(waypointsString)));
-                        let mut reader: crate::unresolved::GZIPInputStream = todo!("fabric2seer: the initialiser of `reader` (TODO above)");
-                        // TODO(fabric2seer): static call IOUtils.toString(..)
-                        //   java: return fromSkytilsJson(IOUtils.toString(reader, StandardCharsets.UTF_8), defaultIsland);
-                    }
+                    let compressed = base64::get_decoder().decode(&rest).unwrap_or_else(|e| panic!("IllegalArgumentException: {e}"));
+                    let bytes = mcrust::java::util::zip::gzip::gzip_decompress(&compressed).unwrap_or_else(|e| panic!("IOException: {e}"));
+                    // `IOUtils.toString(reader, StandardCharsets.UTF_8)`
+                    return Some(Waypoints::from_skytils_json(&String::from_utf8_lossy(&bytes), default_island));
                 } else {
                     logger().error(&format!("[Skyblocker Waypoints] Unknown Skytils waypoint data version: {}", version));
                 }
             } else {
-                // TODO(fabric2seer): `.decode(..)` on a Decoder
-                //   java: return fromSkytilsJson(new String(Base64.getDecoder().decode(waypointsString)), defaultIsland);
+                let bytes = base64::get_decoder().decode(&waypoints_string).unwrap_or_else(|e| panic!("IllegalArgumentException: {e}"));
+                return Some(Waypoints::from_skytils_json(&String::from_utf8_lossy(&bytes), default_island));
+            }
+            None
+        }));
+        match __result {
+            Ok(Some(groups)) => return Some(groups),
+            Ok(None) => {}
+            Err(e) => {
+                let message = compat::panic_message(&e);
+                if message.starts_with("NumberFormatException") {
+                    logger().error(&format!("[Skyblocker Waypoints] Encountered exception while parsing Skytils waypoint data version {}", message));
+                } else {
+                    logger().error(&format!("[Skyblocker Waypoints] Encountered exception while decoding Skytils waypoint data {}", message));
+                }
+                return None;
             }
         }
-        // TODO(fabric2seer): the `catch (NumberFormatException e)` block is not reached in Rust - the try body returns, breaks or continues, so it cannot run inside `catch_unwind`
-        //   java: {
-        //   java: 			LOGGER.error("[Skyblocker Waypoints] Encountered exception while parsing Skytils waypoint data version", e);
-        //   java: 			return null;
-        //   java: 		}
-        // TODO(fabric2seer): the `catch (Exception e)` block is not reached in Rust - the try body returns, breaks or continues, so it cannot run inside `catch_unwind`
-        //   java: {
-        //   java: 			LOGGER.error("[Skyblocker Waypoints] Encountered exception while decoding Skytils waypoint data", e);
-        //   java: 			return null;
-        //   java: 		}
-        return Some(Default::default());
+        return Some(Vec::new());
     }
 
     /// java: public static List<WaypointGroup> fromSkytilsJson(String waypointGroupsString, Location defaultIsland)
     pub fn from_skytils_json(waypoint_groups_string: &str, mut default_island: Location) -> Vec<compat::Shared<WaypointGroup>> {
-        let mut waypoint_groups_json: Vec<serde_json::Value>;
-        // java: try {..} catch (JsonSyntaxException _) - an exception here is a panic, caught by `catch_unwind`
-        let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            // TODO(fabric2seer): `.fromJson(..)` on a Gson
-            //   java: waypointGroupsJson = SkyblockerMod.GSON.fromJson(waypointGroupsString, JsonObject.class).getAsJsonArray("categories");
-        }));
-        if let Err(_) = __result {
-            let mut waypoint_group_json: serde_json::Map<String, serde_json::Value> = serde_json::Map::new();
-            waypoint_group_json.insert("name".to_string(), serde_json::json!("New Group".to_string()));
-            waypoint_group_json.insert("island".to_string(), serde_json::json!(default_island.id()));
-            // TODO(fabric2seer): `.fromJson(..)` on a Gson
-            //   java: waypointGroupJson.add("waypoints", SkyblockerMod.GSON.fromJson(waypointGroupsString, JsonArray.class));
-            waypoint_groups_json = Vec::new();
-            waypoint_groups_json.push(compat::json::to_value(waypoint_group_json.clone()));
-        }
-        let mut waypoint_groups: Vec<compat::Shared<WaypointGroup>> = (SKYTILS_CODEC.get_mut().parse(&mcrust::com::mojang::serialization::json_ops::JsonOps::instance(), &compat::json_to_port(&waypoint_groups_json))).result_or_partial_with(|__a0| { logger().error(&__a0); }).unwrap();
+        // try { waypointGroupsJson = GSON.fromJson(waypointGroupsString, JsonObject.class).getAsJsonArray("categories"); }
+        // catch (JsonSyntaxException _) {..}: text that is not a JSON object is the syntax exception.
+        let mut waypoint_groups_json: serde_json::Value = match serde_json::from_str::<serde_json::Value>(waypoint_groups_string) {
+            Ok(serde_json::Value::Object(object)) => match object.get("categories") {
+                Some(categories @ serde_json::Value::Array(_)) => categories.clone(),
+                // `getAsJsonArray` casts: another element type is a `ClassCastException`.
+                Some(other) => panic!("ClassCastException: {} is not a com.google.gson.JsonArray", other),
+                // an absent member is null, which `SKYTILS_CODEC.parse(..)` reads as `JsonNull`.
+                None => serde_json::Value::Null,
+            },
+            _ => {
+                // Handle the case where there is only a single json list of waypoints and no group data.
+                let mut waypoint_group_json: serde_json::Map<String, serde_json::Value> = serde_json::Map::new();
+                waypoint_group_json.insert("name".to_string(), serde_json::json!("New Group".to_string()));
+                waypoint_group_json.insert("island".to_string(), serde_json::json!(default_island.id()));
+                // `GSON.fromJson(waypointGroupsString, JsonArray.class)`: its own syntax exception is not caught.
+                let waypoints: serde_json::Value = serde_json::from_str(waypoint_groups_string).unwrap_or_else(|e| panic!("JsonSyntaxException: {e}"));
+                if !waypoints.is_array() {
+                    panic!("JsonSyntaxException: Expected a com.google.gson.JsonArray but was {}", waypoints);
+                }
+                waypoint_group_json.insert("waypoints".to_string(), waypoints);
+                serde_json::Value::Array(vec![serde_json::Value::Object(waypoint_group_json)])
+            }
+        };
+        let mut waypoint_groups: Vec<compat::Shared<WaypointGroup>> = (SKYTILS_CODEC.get().parse(&mcrust::com::mojang::serialization::json_ops::JsonOps::instance(), &compat::json_to_port(&waypoint_groups_json))).result_or_partial_with(|__a0| { logger().error(&__a0); }).expect("NoSuchElementException: No value present");
         return Waypoints::apply_default_location(&waypoint_groups, default_island);
     }
 
     /// java: public static String toSkytilsBase64(List<WaypointGroup> waypointGroups)
     pub fn to_skytils_base64(waypoint_groups: &Vec<compat::Shared<WaypointGroup>>) -> String {
-        // TODO(fabric2seer): `.encodeToString(..)` on a Encoder
-        //   java: return Base64.getEncoder().encodeToString(toSkytilsJson(waypointGroups).getBytes());
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        return base64::get_encoder().encode_to_string(Waypoints::to_skytils_json(waypoint_groups).as_bytes());
     }
 
     /// java: public static String toSkytilsJson(List<WaypointGroup> waypointGroups)
     pub fn to_skytils_json(waypoint_groups: &Vec<compat::Shared<WaypointGroup>>) -> String {
         let mut waypoint_groups_json: serde_json::Map<String, serde_json::Value> = serde_json::Map::new();
-        waypoint_groups_json.insert("categories".to_string(), compat::json::to_value((SKYTILS_CODEC.get_mut().encode_start(&mcrust::com::mojang::serialization::json_ops::JsonOps::instance(), waypoint_groups)).result_or_partial_with(|__a0| { logger().error(&__a0); }).unwrap()));
-        // TODO(fabric2seer): `.toJson(..)` on a Gson
-        //   java: return SkyblockerMod.GSON_COMPACT.toJson(waypointGroupsJson);
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        waypoint_groups_json.insert("categories".to_string(), compat::json_from_port(&(SKYTILS_CODEC.get().encode_start(&mcrust::com::mojang::serialization::json_ops::JsonOps::instance(), waypoint_groups)).result_or_partial_with(|__a0| { logger().error(&__a0); }).expect("NoSuchElementException: No value present")));
+        // `GSON_COMPACT.toJson(..)`: no whitespace, as serde's compact writer.
+        return serde_json::to_string(&waypoint_groups_json).unwrap();
     }
 
     /// java: public static WaypointGroup fromColeweightJson(String waypointsJson, Location defaultIsland)
     pub fn from_coleweight_json(waypoints_json: &str, mut default_island: Location) -> compat::Shared<WaypointGroup> {
-        // TODO(fabric2seer): Optional.withIsland
-        //   java: return WaypointGroup.COLEWEIGHT_CODEC.parse(JsonOps.INSTANCE, JsonParser.parseString(waypointsJson)).resultOrPartial(LOGGER::error).orElseThrow().withIsland(defaultIsland);
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        // `JsonParser.parseString(waypointsJson)`
+        let json: serde_json::Value = serde_json::from_str(waypoints_json).unwrap_or_else(|e| panic!("JsonSyntaxException: {e}"));
+        let group = waypoint_group::COLEWEIGHT_CODEC.get().parse(&mcrust::com::mojang::serialization::json_ops::JsonOps::instance(), &compat::json_to_port(&json)).result_or_partial_with(|__a0| { logger().error(&__a0); }).expect("NoSuchElementException: No value present");
+        return WaypointGroup::with_island(&group, default_island);
     }
 
     /// java: public static List<WaypointGroup> applyDefaultLocation(Collection<WaypointGroup> waypointGroups, Location defaultIsland)
@@ -351,60 +468,60 @@ impl Waypoints {
 
     /// java: public static Collection<WaypointGroup> getWaypointGroup(Location island)
     pub fn get_waypoint_group(mut island: Location) -> Vec<compat::Shared<WaypointGroup>> {
-        // TODO(fabric2seer): `.get(..)` on a Multimap
-        //   java: return waypoints.get(island);
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        return compat::read(WAYPOINTS.get(), |__t| __t.get(island));
     }
 
     /// java: public static boolean putWaypointGroup(WaypointGroup waypointGroup)
     pub fn put_waypoint_group(mut waypoint_group: compat::Shared<WaypointGroup>) -> bool {
-        // TODO(fabric2seer): `.put(..)` on a Multimap
-        //   java: return waypoints.put(waypointGroup.island(), waypointGroup);
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        let island = WaypointGroup::island(&waypoint_group);
+        return compat::write(WAYPOINTS.get(), |__t| __t.put(island, waypoint_group));
     }
 
     /// java: public static boolean clearAndPutAllWaypoints(Multimap<Location, WaypointGroup> newWaypoints)
-    pub fn clear_and_put_all_waypoints(new_waypoints: &crate::unresolved::Multimap) -> bool {
-        // TODO(fabric2seer): `.clear(..)` on a Multimap
-        //   java: waypoints.clear();
-        // TODO(fabric2seer): `.putAll(..)` on a Multimap
-        //   java: return waypoints.putAll(newWaypoints);
-        todo!("fabric2seer: the value of this function is in a TODO above")
+    pub fn clear_and_put_all_waypoints(new_waypoints: &compat::Shared<LocationMultimap>) -> bool {
+        compat::write(WAYPOINTS.get(), |__t| __t.clear());
+        // `putAll` reads the other map after the clear (the same object would be empty by then).
+        let other = compat::read(new_waypoints, |__t| { let mut copy = LocationMultimap::new(); copy.put_all(__t); copy });
+        return compat::write(WAYPOINTS.get(), |__t| __t.put_all(&other));
     }
 
     /// java: public static boolean areWaypointsEqual(Multimap<Location, WaypointGroup> otherWaypoints)
-    pub fn are_waypoints_equal(other_waypoints: &crate::unresolved::Multimap) -> bool {
-        return (WAYPOINTS.get_mut() == other_waypoints);
+    pub fn are_waypoints_equal(other_waypoints: &compat::Shared<LocationMultimap>) -> bool {
+        if Arc::ptr_eq(WAYPOINTS.get(), other_waypoints) {
+            return true;
+        }
+        return compat::read(WAYPOINTS.get(), |a| compat::read(other_waypoints, |b| a.equals(b)));
     }
 
     /// java: public static Multimap<Location, WaypointGroup> waypointsDeepCopy()
-    pub fn waypoints_deep_copy() -> crate::unresolved::Multimap {
-        // TODO(fabric2seer): `.values(..)` on a Multimap
-        //   java: return waypoints.values().stream().map(WaypointGroup::deepCopy).collect(Multimaps.toMultimap(WaypointGroup::island, Function.identity(), () -> MultimapBuilder.enumKeys(Location.class).arrayListValues().build()));
-        todo!("fabric2seer: the value of this function is in a TODO above")
+    pub fn waypoints_deep_copy() -> compat::Shared<LocationMultimap> {
+        // `waypoints.values().stream().map(WaypointGroup::deepCopy).collect(Multimaps.toMultimap(WaypointGroup::island, identity(), ..))`
+        let mut copy = LocationMultimap::new();
+        for group in compat::read(WAYPOINTS.get(), |__t| __t.values()) {
+            let group = WaypointGroup::deep_copy(&group);
+            copy.put(WaypointGroup::island(&group), group);
+        }
+        return compat::shared(copy);
     }
 
     /// java: private static void forEachGroup(Consumer<WaypointGroup> consumer)
-    pub fn for_each_group(consumer: Arc<dyn Fn(compat::Shared<WaypointGroup>)>) {
+    pub fn for_each_group(consumer: &dyn Fn(compat::Shared<WaypointGroup>)) {
+        // java: `group != null` - an `ArrayListMultimap` value can be null in Java; the port's list holds no null.
         for group in Waypoints::get_waypoint_group(Utils::get_location()) {
-            if true /* java: group != null: never null here */ {
-                (consumer)(group.clone());
-            }
+            (consumer)(group.clone());
         }
         if Utils::get_location_raw().is_empty() {
             return;
         }
         for group in Waypoints::get_waypoint_group(Location::Unknown) {
-            if true /* java: group != null: never null here */ {
-                (consumer)(group.clone());
-            }
+            (consumer)(group.clone());
         }
     }
 
     /// java: private static void extractRendering(PrimitiveCollector collector)
     pub fn extract_rendering(collector: &compat::Shared<dyn PrimitiveCollector>) {
         if SkyblockerConfigManager::get().ui_and_visuals.waypoints.enable_waypoints {
-            Waypoints::for_each_group(Arc::new(move |group| { WaypointGroup::extract_rendering(&group, collector); }));
+            Waypoints::for_each_group(&|group| { WaypointGroup::extract_rendering(&group, collector); });
         }
     }
 
@@ -413,13 +530,14 @@ impl Waypoints {
         if !(SkyblockerConfigManager::get().ui_and_visuals.waypoints.enable_waypoints) {
             return;
         }
-        Waypoints::for_each_group(Arc::new(move |__a0| { WaypointGroup::tick(&__a0); }));
+        Waypoints::for_each_group(&|__a0| { WaypointGroup::tick(&__a0); });
     }
 
     /// java: private static void reset()
     pub fn reset() {
-        // TODO(fabric2seer): `.values(..)` on a Multimap
-        //   java: waypoints.values().forEach(WaypointGroup::resetCurrentIndex);
+        for group in compat::read(WAYPOINTS.get(), |__t| __t.values()) {
+            WaypointGroup::reset_current_index(&group);
+        }
     }
 
 }
@@ -469,9 +587,7 @@ impl OrderedAction {
 
     /// java: @Override public String getSerializedName()
     pub fn get_serialized_name(&self) -> String {
-        // TODO(fabric2seer): call to `name(..)` (not a method of this class)
-        //   java: return name().toLowerCase(Locale.ENGLISH);
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        return self.name().to_lowercase();
     }
 
 }
@@ -485,11 +601,11 @@ impl std::fmt::Display for OrderedAction {
 /// java: static class ArgumentType extends StringRepresentableArgument<OrderedAction>
 pub struct ArgumentType {
     /// java: extends net.minecraft.commands.arguments.StringRepresentableArgument
-    pub base: StringRepresentableArgument<compat::Object>,
+    pub base: StringRepresentableArgument<OrderedAction>,
 }
 
 impl std::ops::Deref for ArgumentType {
-    type Target = StringRepresentableArgument<compat::Object>;
+    type Target = StringRepresentableArgument<OrderedAction>;
     fn deref(&self) -> &Self::Target {
         &self.base
     }
@@ -504,9 +620,9 @@ impl std::ops::DerefMut for ArgumentType {
 impl ArgumentType {
     /// java: protected ArgumentType()
     pub fn new() -> Self {
-        // TODO(fabric2seer): `new` takes 3 argument(s) in the port (`values: Vec<T>, codec_name: fn(&T) -> String, convert_id: fn(&str) -> String`), Java passes 2
-        //   java: super(CODEC, OrderedAction::values);
-        let mut this: Self = todo!("constructor");
+        // `super(CODEC, OrderedAction::values)`: the port's argument takes the values and the codec's naming
+        // (`fromEnum`'s `getSerializedName`, no id conversion) in place of the codec itself.
+        let mut this = Self { base: StringRepresentableArgument::new(OrderedAction::values(), |value: &OrderedAction| value.get_serialized_name(), |id: &str| id.to_string()) };
         this
     }
 
@@ -517,7 +633,7 @@ impl ArgumentType {
 
     /// java: static <S> OrderedAction getOrderedAction(CommandContext<S> context, String name)
     pub fn get_ordered_action<S: 'static>(context: &CommandContext<S>, name: &str) -> OrderedAction {
-        return context.get_argument::<OrderedAction>(name).unwrap();
+        return *context.get_argument::<OrderedAction>(name).unwrap();
     }
 
 }

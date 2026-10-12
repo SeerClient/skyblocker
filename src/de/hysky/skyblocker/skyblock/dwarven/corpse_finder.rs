@@ -38,7 +38,7 @@ pub static COORDS_PATTERN: LazyLock<compat::regex::Pattern> = LazyLock::new(|| c
 /// java: private static final String PREFIX = "[Skyblocker Corpse Finder] ";
 pub const PREFIX: &str = "[Skyblocker Corpse Finder] ";
 /// java: private static final Map<CorpseType, List<Corpse>> corpsesByType = new EnumMap<>(CorpseType.class);
-pub static CORPSES_BY_TYPE: compat::MainThread<std::collections::HashMap<CorpseType, Vec<Corpse>>> = compat::MainThread::new(|| std::any::TypeId::of::<CorpseType>());
+pub static CORPSES_BY_TYPE: compat::MainThread<std::collections::HashMap<CorpseType, Vec<Corpse>>> = compat::MainThread::new(|| std::collections::HashMap::new());
 /// java: private static boolean seenDebugWarning = false;
 pub static SEEN_DEBUG_WARNING: LazyLock<Mutex<bool>> = LazyLock::new(|| Mutex::new(false));
 
@@ -71,11 +71,11 @@ impl CorpseFinder {
             if !(compat::get_state(&IS_LOCATION_CORRECT)) {
                 return;
             }
-            for corpses in CORPSES_BY_TYPE.get_mut().values().cloned() {
-                for corpse in corpses.iter() {
-                    // TODO(fabric2seer): `LocalPlayer.hasLineOfSight` has no Rust method in the port (looked for `has_line_of_sight` in LocalPlayer and its supertypes)
-                    if !corpse.seen && mcrust::mcrust::modding::game::with_player(|player| player.has_line_of_sight(&corpse.entity)).unwrap_or(false) {
-                        CorpseFinder::set_seen(&mut corpse);
+            for corpses in CORPSES_BY_TYPE.get_mut().values_mut() {
+                for corpse in corpses.iter_mut() {
+                    // `client.player.hasLineOfSight(corpse.entity)`
+                    if !corpse.seen && mcrust::mcrust::modding::game::with_player(|player| mcrust::mcrust::modding::game::with_entity(corpse.entity, |entity| compat::has_line_of_sight(&*player, &*entity))).flatten().unwrap_or(false) {
+                        CorpseFinder::set_seen(corpse);
                     }
                 }
             }
@@ -119,20 +119,18 @@ impl CorpseFinder {
             return;
         }
         logger().debug(&format!("{}Triggered code for handleArmorStand and matched with ITEM_IDS", PREFIX));
-        let corpses = CORPSES_BY_TYPE.get_mut().entry(corpse_type).or_insert_with_key(|k| (|_| Vec::new())(k.clone()));
-        if !corpses.iter().cloned().any(|c| (c.entity.base.base.block_position() == armor_stand.base.base.block_position())) {
+        let corpses = CORPSES_BY_TYPE.get_mut().entry(corpse_type).or_insert_with(Vec::new);
+        let armor_stand_position: BlockPos = armor_stand.base.base.block_position();
+        if !corpses.iter().any(|c| c.block_position() == armor_stand_position) {
             let mut corpse_waypoint: compat::Shared<dyn Waypoint>;
             let mut color: Vec<f32> = CorpseFinder::get_colors(&corpse_type.fields().color);
-            corpse_waypoint = (WaypointBase::new(armor_stand.base.base.block_position().above(), Type::OutlinedWaypoint, color.clone()) as compat::Shared<dyn Waypoint>);
-            // TODO(fabric2seer): the condition: an assignment used as a value
-            //   java: Debug.debugEnabled() && SkyblockerConfigManager.get().debug.corpseFinderDebug && !seenDebugWarning && (seenDebugWarning = true)
-            if todo!("fabric2seer: the condition (TODO above)") {
+            corpse_waypoint = (WaypointBase::new(armor_stand_position.above(), Type::OutlinedWaypoint, color.clone()) as compat::Shared<dyn Waypoint>);
+            // `!seenDebugWarning && (seenDebugWarning = true)`
+            if crate::de::hysky::skyblocker::debug::debug::Debug::debug_enabled() && SkyblockerConfigManager::get().debug.corpse_finder_debug && !compat::get_state(&SEEN_DEBUG_WARNING) && { compat::set_state(&SEEN_DEBUG_WARNING, true); true } {
                 mcrust::mcrust::modding::game::with_player(|player| { script_host::send_feedback(&(constants::PREFIX.get_mut())().append((component::literal("Corpse finder debug mode is active! Please use it only for the sake of debugging corpse detection!")).with_style_formats(&[ChatFormatting::Gold, ChatFormatting::Bold])).to_string()); });
             }
-            // TODO(fabric2seer): the mod keeps the game's `ArmorStand` (Java holds a reference to the live object); the port's `ArmorStand` is not a value to copy and the port lends the mod no handle to it
-            // rust: let mut new_corpse: Corpse = Corpse::new(armor_stand.clone(), corpse_waypoint.clone(), corpse_type);
-            let mut new_corpse: Corpse = todo!("fabric2seer: the initialiser of `newCorpse` (TODO above)");
-            corpses.push(new_corpse.clone());
+            let mut new_corpse: Corpse = Corpse::new(armor_stand, corpse_waypoint.clone(), corpse_type);
+            corpses.push(new_corpse);
         }
     }
 
@@ -141,9 +139,9 @@ impl CorpseFinder {
         if !(SkyblockerConfigManager::get().mining.glacite.enable_corpse_finder) || !(compat::get_state(&IS_LOCATION_CORRECT)) {
             return;
         }
-        for corpses in CORPSES_BY_TYPE.get_mut().values().cloned() {
+        for corpses in CORPSES_BY_TYPE.get().values() {
             for corpse in corpses.iter() {
-                if { let __f = compat::dispatch(&corpse.waypoint, |__t| __t.should_render()); __f(&corpse.waypoint) } && corpse.seen || crate::de::hysky::skyblocker::debug::debug::Debug::debug_enabled() && SkyblockerConfigManager::get().debug.corpse_finder_debug {
+                if { let __f = compat::dispatch(&corpse.waypoint, |__t| __t.should_render()); __f(&corpse.waypoint) } && (corpse.seen || (crate::de::hysky::skyblocker::debug::debug::Debug::debug_enabled() && SkyblockerConfigManager::get().debug.corpse_finder_debug)) {
                     ({ let __f = compat::dispatch(&corpse.waypoint, |__t| __t.extract_rendering()); __f(&compat::view(&corpse.waypoint, |a| a as compat::Shared<dyn Renderable>), collector) });
                 }
             }
@@ -167,20 +165,21 @@ impl CorpseFinder {
             return true;
         }
         logger().debug(&format!("{}Triggered code for onChatMessage", PREFIX));
-        // TODO(fabric2seer): a log call with a non-literal format
-        //   java: LOGGER.debug(PREFIX + "State of corpsesByType: {}", corpsesByType);
+        logger().debug(&format!("{}State of corpsesByType: {:?}", PREFIX, CORPSES_BY_TYPE.get()));
         let mut corpse_type_string: String = matcher_corpse.group(1).unwrap().to_uppercase();
-        // TODO(fabric2seer): static call EnumUtils.getEnum(..)
-        //   java: CorpseType corpseType = EnumUtils.getEnum(CorpseType.class, corpseTypeString, CorpseType.UNKNOWN);
-        let mut corpse_type: CorpseType = todo!("fabric2seer: the initialiser of `corpseType` (TODO above)");
-        let Some(mut corpses) = CORPSES_BY_TYPE.get_mut().get(&corpse_type).cloned() else {
-            // TODO(fabric2seer): a log call with a non-literal format
-            //   java: LOGGER.warn(PREFIX + "Couldn't get corpses! corpse type string: {}, parsed corpse type: {}", corpseTypeString, corpseType);
+        // `EnumUtils.getEnum(CorpseType.class, corpseTypeString, CorpseType.UNKNOWN)`: the constant of that name, else
+        // the default.
+        let mut corpse_type: CorpseType = CorpseType::values().into_iter().find(|value| value.name() == corpse_type_string).unwrap_or(CorpseType::Unknown);
+        let Some(corpses) = CORPSES_BY_TYPE.get().get(&corpse_type) else {
+            logger().warn(&format!("{}Couldn't get corpses! corpse type string: {}, parsed corpse type: {}", PREFIX, corpse_type_string, corpse_type));
             return true;
         };
-        if let Some(corpse) = corpses.iter().cloned().min_by(|a, b| { let key = |corpse| mcrust::mcrust::modding::game::with_player(|player| corpse.entity.base.base.distance_to_sqr_entity(player)); key(a).total_cmp(&key(b)) }) {
-            // TODO(fabric2seer): a log call with a non-literal format
-            //   java: LOGGER.info(PREFIX + "Found corpse, marking as found! {}: {}", corpse.entity.getType(), corpse.entity.blockPosition().toShortString());
+        // Since squared distance comparison will yield the same result as normal distance comparison, we can use squared distance to avoid square root calculation
+        let distance_to_player = |corpse: &Corpse| -> f64 {
+            mcrust::mcrust::modding::game::with_player(|player| mcrust::mcrust::modding::game::with_entity(corpse.entity, |entity| entity.base().distance_to_sqr_entity(&player.base.base.base.base))).flatten().unwrap_or(f64::INFINITY)
+        };
+        if let Some(corpse) = corpses.iter().min_by(|a, b| distance_to_player(a).total_cmp(&distance_to_player(b))) {
+            logger().info(&format!("{}Found corpse, marking as found! {}: {}", PREFIX, corpse.entity, corpse.block_position().as_vec3i().to_short_string()));
             ({ let __f = compat::dispatch(&corpse.waypoint, |__t| __t.set_found()); __f(&corpse.waypoint) });
         } else {
             logger().warn(&format!("{}Couldn't find the closest corpse despite triggering onChatMessage!", PREFIX));
@@ -192,28 +191,29 @@ impl CorpseFinder {
     pub fn set_seen(corpse: &mut Corpse) {
         corpse.seen = true;
         if SkyblockerConfigManager::get().mining.glacite.auto_share_corpses {
-            CorpseFinder::share_location(&corpse.entity.base.base.block_position().above(), corpse.corpse_type);
+            CorpseFinder::share_location(&corpse.block_position().above(), corpse.corpse_type);
             return;
         }
         if (util::get_millis()).wrapping_sub(corpse.message_last_sent) < (300 as i64) {
             return;
         }
         corpse.message_last_sent = util::get_millis();
-        // TODO(fabric2seer): static call WordUtils.capitalizeFully(..)
-        //   java: Minecraft.getInstance().player.sendSystemMessage(
-        //   java: 				Constants.PREFIX.get()
-        //   java: 						.append("Found a ")
-        //   java: 						.append(Component.literal(WordUtils.capitalizeFully(corpse.corpseType.getSerializedName()) + " Corpse")
-        //   java: 								.withColor(TextColor.fromLegacyFormat(corpse.corpseType.color).getValue()))
-        //   java: 						.append(" at " + corpse.entity.blockPosition().above().toShortString() + "!")
-        //   java: 						.withStyle(style -> style.withClickEvent(new ClickEvent.RunCommand("/skyblocker corpseHelper shareLocation " + PosUtils.toSpaceSeparatedString(corpse.waypoint.pos) + " " + corpse.corpseType.toString().toLowerCase(Locale.ENGLISH)))
-        //   java: 								.withHoverEvent(new HoverEvent.ShowText(Component.literal("Click to share the location in chat!").withStyle(ChatFormatting.GREEN)))));
+        let waypoint_pos: BlockPos = compat::read(&corpse.waypoint, |__t| __t.waypoint_base().pos.clone()).unwrap();
+        let mut message: MutableComponent = (constants::PREFIX.get_mut())()
+            .append_str("Found a ")
+            .append(component::literal(&format!("{} Corpse", compat::capitalize_fully(&corpse.corpse_type.get_serialized_name()))).with_color(TextColor::from_legacy_format(corpse.corpse_type.fields().color).unwrap().get_value()))
+            .append_str(&format!(" at {}!", corpse.block_position().above().as_vec3i().to_short_string()));
+        message = message.with_style_fn(|style| style
+            .with_click_event(Some(mcrust::net::minecraft::network::chat::click_event::ClickEvent::new_run_command(format!("/skyblocker corpseHelper shareLocation {} {}", crate::de::hysky::skyblocker::utils::pos_utils::PosUtils::to_space_separated_string(&waypoint_pos), corpse.corpse_type.to_string().to_lowercase())))));
+        // java: Minecraft.getInstance().player.sendSystemMessage(..) - rust: port gap: a mod has only the text form of a
+        // system message (`script_host::send_feedback`), so the click and hover events are not carried (GAPS_batchD).
+        //   java: .withHoverEvent(new HoverEvent.ShowText(Component.literal("Click to share the location in chat!").withStyle(ChatFormatting.GREEN)))
+        mcrust::mcrust::modding::game::with_player(|player| { script_host::send_feedback(&message.to_string()); });
     }
 
     /// java: private static void shareLocation(BlockPos pos, CorpseType corpseType)
     pub fn share_location(pos: &BlockPos, mut corpse_type: CorpseType) {
-        // TODO(fabric2seer): static call WordUtils.capitalizeFully(..)
-        //   java: MessageScheduler.INSTANCE.sendMessageAfterCooldown("/pc " + toSkyhanniFormat(pos) + " | (" + WordUtils.capitalizeFully(corpseType.getSerializedName()) + " Corpse)", true);
+        message_scheduler::MessageScheduler::send_message_after_cooldown(message_scheduler::INSTANCE.get(), &format!("/pc {} | ({} Corpse)", CorpseFinder::to_skyhanni_format(pos), compat::capitalize_fully(&corpse_type.get_serialized_name())), true);
     }
 
     /// java: @SuppressWarnings("DataFlowIssue") private static float[] getColors(ChatFormatting color)
@@ -233,44 +233,39 @@ impl CorpseFinder {
         if !matcher.find() {
             return;
         }
-        let mut x: i32;
-        let mut y: i32;
-        let mut z: i32;
-        // java: try {..} catch (NumberFormatException e) - an exception here is a panic, caught by `catch_unwind`
-        let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            x = matcher.group_named("x").unwrap().trim().parse::<i32>().expect("NumberFormatException");
-            y = matcher.group_named("y").unwrap().trim().parse::<i32>().expect("NumberFormatException");
-            z = matcher.group_named("z").unwrap().trim().parse::<i32>().expect("NumberFormatException");
-        }));
-        if let Err(e) = __result {
-            // TODO(fabric2seer): a log call with a non-literal format
-            //   java: LOGGER.warn(PREFIX + "Failed to parse message: `{}`, reason: {}", message, e.getMessage());
-            return;
-        }
-        // TODO(fabric2seer): a log call with a non-literal format
-        //   java: LOGGER.debug(PREFIX + "Parsed message! X:{}, Y:{}, Z:{}", x, y, z);
+        // java: try { x = Integer.parseInt(..); y = ..; z = ..; } catch (NumberFormatException e) - `parseInt` does
+        // not trim; the first failing group is the exception, whose message is `For input string: "<s>"`.
+        let parse = |group: &str| -> Result<i32, String> {
+            let s = matcher.group_named(group).unwrap();
+            s.parse::<i32>().map_err(|_| format!("For input string: \"{}\"", s))
+        };
+        let (x, y, z): (i32, i32, i32) = match (|| Ok::<_, String>((parse("x")?, parse("y")?, parse("z")?)))() {
+            Ok(xyz) => xyz,
+            Err(reason) => {
+                logger().warn(&format!("{}Failed to parse message: `{}`, reason: {}", PREFIX, message, reason));
+                return;
+            }
+        };
+        logger().debug(&format!("{}Parsed message! X:{}, Y:{}, Z:{}", PREFIX, x, y, z));
         let mut found_corpse: bool = false;
         let mut parsed_pos: BlockPos = BlockPos::new(x.wrapping_sub(1), y, z.wrapping_sub(1));
-        for corpses in CORPSES_BY_TYPE.get_mut().values().cloned() {
+        for corpses in CORPSES_BY_TYPE.get_mut().values_mut() {
             for corpse in corpses.iter_mut() {
-                if compat::read(&corpse.waypoint, |__t| __t.waypoint_base().pos.clone()).unwrap() == parsed_pos {
+                if compat::read(&corpse.waypoint, |__t| __t.waypoint_base().pos.clone()) == Some(parsed_pos) {
                     corpse.seen = true;
                     found_corpse = true;
-                    // TODO(fabric2seer): a log call with a non-literal format
-                    //   java: LOGGER.info(PREFIX + "Setting corpse {} as seen!", corpse.entity);
-                    mcrust::mcrust::modding::game::with_player(|player| { script_host::send_feedback(&(constants::PREFIX.get_mut())().append_str("Parsed message from chat, adding corpse at ").append_str(&corpse.entity.base.base.block_position().as_vec3i().to_short_string()).to_string()); });
+                    logger().info(&format!("{}Setting corpse {} as seen!", PREFIX, corpse.entity));
+                    mcrust::mcrust::modding::game::with_player(|player| { script_host::send_feedback(&(constants::PREFIX.get_mut())().append_str("Parsed message from chat, adding corpse at ").append_str(&corpse.block_position().as_vec3i().to_short_string()).to_string()); });
                     break;
                 }
             }
         }
         if !found_corpse {
-            // TODO(fabric2seer): a log call with a non-literal format
-            //   java: LOGGER.warn(PREFIX + "Did NOT find any match for corpses! corpsesByType.values(): {}", corpsesByType.values());
+            logger().warn(&format!("{}Did NOT find any match for corpses! corpsesByType.values(): {:?}", PREFIX, CORPSES_BY_TYPE.get().values().collect::<Vec<_>>()));
             logger().info(&format!("{}Proceeding to iterate over all corpses!", PREFIX));
-            for corpses in CORPSES_BY_TYPE.get_mut().values().cloned() {
+            for corpses in CORPSES_BY_TYPE.get().values() {
                 for corpse in corpses.iter() {
-                    // TODO(fabric2seer): a log call with a non-literal format
-                    //   java: LOGGER.info(PREFIX + "Corpse: {}, BlockPos: {}", corpse.entity, corpse.entity.blockPosition());
+                    logger().info(&format!("{}Corpse: {}, BlockPos: {}", PREFIX, corpse.entity, corpse.block_position().as_vec3i().to_short_string()));
                 }
             }
         }
@@ -281,8 +276,11 @@ impl CorpseFinder {
 /// java: static class Corpse
 pub struct Corpse {
     /// java: private final ArmorStand entity;
-    pub entity: ArmorStand,
+    /// The port's entities live in the level's storage and are lent by id (`game::with_entity`): Java's reference
+    /// is the entity's id here.
+    pub entity: i32,
     /// java: private final Waypoint waypoint;
+    /// Waypoint position is always 1 above entity position
     pub waypoint: compat::Shared<dyn Waypoint>,
     /// java: private final CorpseType corpseType;
     pub corpse_type: CorpseType,
@@ -292,22 +290,29 @@ pub struct Corpse {
     pub message_last_sent: i64,
 }
 
+impl std::fmt::Debug for Corpse {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Corpse[entity={}, corpseType={}, seen={}]", self.entity, self.corpse_type, self.seen)
+    }
+}
+
 impl Corpse {
     /// java: Corpse(ArmorStand entity, Waypoint waypoint, CorpseType corpseType)
-    pub fn new(mut entity: ArmorStand, mut waypoint: compat::Shared<dyn Waypoint>, mut corpse_type: CorpseType) -> Self {
-        // TODO(fabric2seer): the mod keeps the game's `ArmorStand` (Java holds a reference to the live object); the port's `ArmorStand` is not a value to copy and the port lends the mod no handle to it
-        //   java: this.entity = entity;
-        let __init_waypoint = waypoint.clone();
-        let __init_seen = false;
-        let __init_corpse_type = corpse_type;
+    pub fn new(entity: &ArmorStand, mut waypoint: compat::Shared<dyn Waypoint>, mut corpse_type: CorpseType) -> Self {
         let mut this = Self {
-            entity: todo!("fabric2seer: the field value (TODO above)"),
-            waypoint: __init_waypoint,
-            corpse_type: __init_corpse_type,
-            seen: __init_seen,
+            entity: entity.base.base.get_id(),
+            waypoint,
+            corpse_type,
+            seen: false,
             message_last_sent: ((0) as i64) as i64,
         };
         this
     }
 
+    /// `this.entity.blockPosition()`: the live entity's; once the level has dropped it, the position it was found at
+    /// (the waypoint is "always 1 above entity position", and a corpse's armor stand does not move).
+    fn block_position(&self) -> BlockPos {
+        mcrust::mcrust::modding::game::with_entity(self.entity, |entity| entity.base().block_position())
+            .unwrap_or_else(|| compat::read(&self.waypoint, |__t| __t.waypoint_base().pos.clone()).unwrap().below())
+    }
 }

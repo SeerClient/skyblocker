@@ -123,7 +123,7 @@ impl MetalDetector {
             if MINES_CENTER.get_mut().is_some() {
                 for known_offset in KNOWN_CHEST_OFFSETS.get_mut().iter() {
                     let mut check_pos: Vec3i = MINES_CENTER.get_mut().as_ref().unwrap().offset_vec(known_offset).offset(0, 1, 0);
-                    if (player_pos.distance_to(&vec3::at_lower_corner_of(&check_pos)) - distance).abs() < 0.25 {
+                    if (player_pos.distance_to(&at_lower_corner_of(&check_pos)) - distance).abs() < 0.25 {
                         POSSIBLE_BLOCKS.get_mut().push(check_pos.clone());
                     }
                 }
@@ -131,14 +131,14 @@ impl MetalDetector {
                 for x in (((-distance)) as i32)..=(distance) as i32 {
                     for z in (((-distance)) as i32)..=(distance) as i32 {
                         let mut check_pos: Vec3i = Vec3i::new(((player_pos.x) as i32).wrapping_add(x), ((player_pos.y) as i32), ((player_pos.z) as i32).wrapping_add(z));
-                        if (player_pos.distance_to(&vec3::at_lower_corner_of(&check_pos)) - distance).abs() < 0.25 {
+                        if (player_pos.distance_to(&at_lower_corner_of(&check_pos)) - distance).abs() < 0.25 {
                             POSSIBLE_BLOCKS.get_mut().push(check_pos.clone());
                         }
                     }
                 }
             }
         } else {
-            POSSIBLE_BLOCKS.get_mut().retain(|location| !(((player_pos.distance_to(&vec3::at_lower_corner_of(location)) - distance).abs() >= 0.25)));
+            POSSIBLE_BLOCKS.get_mut().retain(|location| !(((player_pos.distance_to(&at_lower_corner_of(location)) - distance).abs() >= 0.25)));
         }
         if POSSIBLE_BLOCKS.get_mut().is_empty() {
             compat::set_state(&NEW_TREASURE, true);
@@ -154,15 +154,18 @@ impl MetalDetector {
             return;
         }
         let mut search_box: AABB = mcrust::mcrust::modding::game::with_player(|player| player.base.base.base.base.get_bounding_box().inflate(500.0)).unwrap();
-        // TODO(fabric2seer): `.hasCustomName(..)` on a T
-        //   java: List<ArmorStand> armorStands = CLIENT.level.getEntitiesOfClass(ArmorStand.class, searchBox, ArmorStand::hasCustomName);
-        let mut armor_stands: Vec<ArmorStand> = todo!("fabric2seer: the initialiser of `armorStands` (TODO above)");
+        // `CLIENT.level.getEntitiesOfClass(ArmorStand.class, searchBox, ArmorStand::hasCustomName)`: the level's entities
+        // in the box that are armor stands with a custom name, each read through the game's tracked lock.
+        use mcrust::net::minecraft::world::level::entity_getter::EntityGetter as _;
+        let armor_stands = mcrust::mcrust::modding::game::level().unwrap().get_entities(None, &search_box, &|entity| {
+            entity.as_any().and_then(|any| any.downcast_ref::<ArmorStand>()).is_some_and(|armor_stand| armor_stand.base.base.has_custom_name())
+        });
         for armor_stand in armor_stands.iter() {
-            let mut name: String = compat::component_of(armor_stand.get_name()).get_string();
+            let Some((name, armor_stand_position)) = compat::with_entity_handle(armor_stand, |armor_stand| (compat::component_of(armor_stand.get_name()).get_string(), armor_stand.base().block_position())) else { continue; };
             let mut name_matcher: compat::regex::Matcher = KEEPER_PATTERN.matcher(&name);
             if name_matcher.matches() {
                 let mut offset: Vec3i = KEEPER_OFFSETS.get_mut().get(name_matcher.group(1).as_ref().unwrap()).cloned().unwrap();
-                *MINES_CENTER.get_mut() = Some(armor_stand.base.base.block_position().offset_vec(&offset));
+                *MINES_CENTER.get_mut() = Some(*armor_stand_position.offset_vec(&offset).as_vec3i());
                 mcrust::mcrust::modding::game::with_player(|player| { script_host::send_feedback(&(constants::PREFIX.get_mut())().append(component::translatable("skyblocker.dwarvenMines.metalDetectorHelper.foundCenter").with_style_format(ChatFormatting::Green)).to_string()); });
                 return;
             }
@@ -182,19 +185,20 @@ impl MetalDetector {
         }
         if (POSSIBLE_BLOCKS.get_mut().len() as i32) == 1 {
             let mut block: Vec3i = POSSIBLE_BLOCKS.get_mut()[0].offset(0, -1, 0);
-            // TODO(fabric2seer): `.getColorComponents(..)` on a value of unknown type
-            //   java: NamedWaypoint waypoint = new NamedWaypoint(new BlockPos(block.getX(), block.getY(), block.getZ()), Component.translatable("skyblocker.dwarvenMines.metalDetectorHelper.treasure").getString(), Color.yellow.getColorComponents(null));
-            let mut waypoint: compat::Shared<dyn NamedWaypoint> = todo!("fabric2seer: the initialiser of `waypoint` (TODO above)");
+            let mut waypoint: compat::Shared<dyn NamedWaypoint> = NamedWaypointBase::new_3(BlockPos::new(block.get_x(), block.get_y(), block.get_z()), component::translatable("skyblocker.dwarvenMines.metalDetectorHelper.treasure").get_string(), mcrust::java::awt::color::yellow().get_color_components(None).to_vec()) as compat::Shared<dyn NamedWaypoint>;
             ({ let __f = compat::dispatch(&waypoint, |__t| __t.extract_rendering()); __f(&compat::view(&waypoint, |a| a as compat::Shared<dyn Renderable>), collector) });
-            ({ let __f = compat::dispatch(collector, |__t| __t.submit_line_from_cursor()); __f(collector, &vec3::at_center_of(&block), &LIGHT_GRAY, 1.0f32, 5.0f32) });
+            ({ let __f = compat::dispatch(collector, |__t| __t.submit_line_from_cursor()); __f(collector, &vec3::at_center_of(&BlockPos::from_vec3i(&block)), &LIGHT_GRAY, 1.0f32, 5.0f32) });
             return;
         }
         for block in POSSIBLE_BLOCKS.get_mut().iter() {
-            // TODO(fabric2seer): `.getColorComponents(..)` on a value of unknown type
-            //   java: NamedWaypoint waypoint = new NamedWaypoint(new BlockPos(block.getX(), block.getY(), block.getZ()), Component.translatable("skyblocker.dwarvenMines.metalDetectorHelper.possible").getString(), Color.white.getColorComponents(null));
-            let mut waypoint: compat::Shared<dyn NamedWaypoint> = todo!("fabric2seer: the initialiser of `waypoint` (TODO above)");
+            let mut waypoint: compat::Shared<dyn NamedWaypoint> = NamedWaypointBase::new_3(BlockPos::new(block.get_x(), block.get_y(), block.get_z()), component::translatable("skyblocker.dwarvenMines.metalDetectorHelper.possible").get_string(), mcrust::java::awt::color::white().get_color_components(None).to_vec()) as compat::Shared<dyn NamedWaypoint>;
             ({ let __f = compat::dispatch(&waypoint, |__t| __t.extract_rendering()); __f(&compat::view(&waypoint, |a| a as compat::Shared<dyn Renderable>), collector) });
         }
     }
 
+}
+
+/// `Vec3.atLowerCornerOf(Vec3i)`: the port's takes the `BlockPos` (Java's parameter is the `Vec3i` it extends).
+fn at_lower_corner_of(pos: &Vec3i) -> Vec3 {
+    vec3::at_lower_corner_of(&BlockPos::from_vec3i(pos))
 }

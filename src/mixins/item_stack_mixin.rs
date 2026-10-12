@@ -38,12 +38,14 @@ pub static ATTACH_PET_INFO: AttachmentType<crate::de::hysky::skyblocker::skybloc
 pub static ATTACH_SKYBLOCK_RARITY: AttachmentType<crate::de::hysky::skyblocker::skyblock::item::skyblock_item_rarity::SkyblockItemRarity> = AttachmentType::new("skyblocker:item_stack_mixin_skyblock_rarity");
 
 /// @Unique
-fn skyblocker_should_process(this: &mut mcrust::net::minecraft::world::item::item_stack::ItemStack) -> bool {
-    return (!(true /* java: compat::minecraft() != null: never null here */ && true /* java: compat::minecraft().gui != null: never null here */ && mcrust::mcrust::modding::game::current_screen_is::<compat::ScreenAdapter<crate::de::hysky::skyblocker::skyblock::profileviewer::profile_viewer_screen::ProfileViewerScreen>>()) && crate::de::hysky::skyblocker::utils::utils::Utils::is_on_skyblock() && crate::de::hysky::skyblocker::config::skyblocker_config_manager::SkyblockerConfigManager::get().mining.enable_drill_fuel && crate::de::hysky::skyblocker::utils::item_utils::ItemUtils::has_custom_durability(&this));
+fn skyblocker_should_process(this: &mcrust::net::minecraft::world::item::item_stack::ItemStack) -> bool {
+    // java: `Minecraft.getInstance() != null && Minecraft.getInstance().gui != null`: the game's one Minecraft and
+    // its `Gui` always exist here; `current_screen_is` answers false before there is a screen.
+    return (!(mcrust::mcrust::modding::game::current_screen_is::<compat::ScreenAdapter<crate::de::hysky::skyblocker::skyblock::profileviewer::profile_viewer_screen::ProfileViewerScreen>>()) && crate::de::hysky::skyblocker::utils::utils::Utils::is_on_skyblock() && crate::de::hysky::skyblocker::config::skyblocker_config_manager::SkyblockerConfigManager::get().mining.enable_drill_fuel && crate::de::hysky::skyblocker::utils::item_utils::ItemUtils::has_custom_durability(this));
 }
 
 /// @Unique
-fn skyblocker_get_and_cache_durability(this: &mut mcrust::net::minecraft::world::item::item_stack::ItemStack) {
+fn skyblocker_get_and_cache_durability(this: &mcrust::net::minecraft::world::item::item_stack::ItemStack) {
     if !(skyblocker_should_process(this)) {
         this.set_attached(&ATTACH_DURABILITY_BAR_FILL, ((-1) as f32) as f32);
         return;
@@ -56,75 +58,94 @@ fn skyblocker_get_and_cache_durability(this: &mut mcrust::net::minecraft::world:
 }
 
 /// @SuppressWarnings("deprecation")
-fn get_skyblock_id(this: &mut mcrust::net::minecraft::world::item::item_stack::ItemStack) -> String {
-    if this.get_attached(&ATTACH_SKYBLOCK_ID).is_some() && !(this.get_attached(&ATTACH_SKYBLOCK_ID).unwrap().is_empty()) {
-        return this.get_attached(&ATTACH_SKYBLOCK_ID).unwrap();
+fn get_skyblock_id(this: &mcrust::net::minecraft::world::item::item_stack::ItemStack) -> String {
+    if let Some(skyblock_id) = this.get_attached(&ATTACH_SKYBLOCK_ID) && !skyblock_id.is_empty() {
+        return skyblock_id;
     }
-    // TODO(fabric2seer): an assignment used as a value
-    //   java: return skyblockId = ItemUtils.getItemId(this);
+    // java: return skyblockId = ItemUtils.getItemId(this);
+    let skyblock_id = crate::de::hysky::skyblocker::utils::item_utils::ItemUtils::get_item_id(this);
+    this.set_attached(&ATTACH_SKYBLOCK_ID, skyblock_id.clone());
+    return skyblock_id;
 }
 
 /// @SuppressWarnings("deprecation")
-fn get_skyblock_api_id(this: &mut mcrust::net::minecraft::world::item::item_stack::ItemStack) -> String {
-    if this.get_attached(&ATTACH_SKYBLOCK_API_ID).is_some() && !(this.get_attached(&ATTACH_SKYBLOCK_API_ID).unwrap().is_empty()) {
-        return this.get_attached(&ATTACH_SKYBLOCK_API_ID).unwrap();
+fn get_skyblock_api_id(this: &mcrust::net::minecraft::world::item::item_stack::ItemStack) -> String {
+    if let Some(skyblock_api_id) = this.get_attached(&ATTACH_SKYBLOCK_API_ID) && !skyblock_api_id.is_empty() {
+        return skyblock_api_id;
     }
-    // TODO(fabric2seer): an assignment used as a value
-    //   java: return skyblockApiId = ItemUtils.getSkyblockApiId(this);
+    // java: return skyblockApiId = ItemUtils.getSkyblockApiId(this);
+    let skyblock_api_id = crate::de::hysky::skyblocker::utils::item_utils::ItemUtils::get_skyblock_api_id(this);
+    this.set_attached(&ATTACH_SKYBLOCK_API_ID, skyblock_api_id.clone());
+    return skyblock_api_id;
 }
 
 /// @SuppressWarnings("deprecation")
-fn get_neu_name(this: &mut mcrust::net::minecraft::world::item::item_stack::ItemStack) -> String {
-    if this.get_attached(&ATTACH_NEU_NAME).is_some() && !(this.get_attached(&ATTACH_NEU_NAME).unwrap().is_empty()) {
-        return this.get_attached(&ATTACH_NEU_NAME).unwrap();
+fn get_neu_name(this: &mcrust::net::minecraft::world::item::item_stack::ItemStack) -> String {
+    if let Some(neu_name) = this.get_attached(&ATTACH_NEU_NAME) && !neu_name.is_empty() {
+        return neu_name;
     }
-    // TODO(fabric2seer): an assignment used as a value
-    //   java: return neuName = ItemUtils.getNeuId((ItemStack) (Object) this);
+    // java: return neuName = ItemUtils.getNeuId((ItemStack) (Object) this);
+    let neu_name = crate::de::hysky::skyblocker::utils::item_utils::ItemUtils::get_neu_id(this);
+    this.set_attached(&ATTACH_NEU_NAME, neu_name.clone());
+    return neu_name;
 }
 
 /// @SuppressWarnings("deprecation")
-fn get_uuid(this: &mut mcrust::net::minecraft::world::item::item_stack::ItemStack) -> String {
-    if this.get_attached(&ATTACH_UUID).is_some() {
-        return this.get_attached(&ATTACH_UUID).unwrap();
+fn get_uuid(this: &mcrust::net::minecraft::world::item::item_stack::ItemStack) -> String {
+    if let Some(uuid) = this.get_attached(&ATTACH_UUID) {
+        return uuid;
     }
-    // TODO(fabric2seer): an assignment used as a value
-    //   java: return uuid = ItemUtils.getItemUuid(this);
+    // java: return uuid = ItemUtils.getItemUuid(this);
+    let uuid = crate::de::hysky::skyblocker::utils::item_utils::ItemUtils::get_item_uuid(this);
+    this.set_attached(&ATTACH_UUID, uuid.clone());
+    return uuid;
 }
 
 /// @SuppressWarnings("deprecation")
-fn skyblocker_get_lore_strings(this: &mut mcrust::net::minecraft::world::item::item_stack::ItemStack) -> /* TODO: List<String> */ () {
-    if this.get_attached(&ATTACH_LORE_STRING).is_some() {
-        return this.get_attached(&ATTACH_LORE_STRING).unwrap();
+fn skyblocker_get_lore_strings(this: &mcrust::net::minecraft::world::item::item_stack::ItemStack) -> Vec<String> {
+    if let Some(lore_string) = this.get_attached(&ATTACH_LORE_STRING) {
+        return lore_string;
     }
-    // TODO(fabric2seer): an assignment used as a value
-    //   java: return loreString = ItemUtils.getLore((ItemStack) (Object) this).stream().map(Component::getString).toList();
+    // java: return loreString = ItemUtils.getLore((ItemStack) (Object) this).stream().map(Component::getString).toList();
+    let lore_string: Vec<String> = crate::de::hysky::skyblocker::utils::item_utils::ItemUtils::get_lore(this)
+        .iter()
+        .map(|line| <_ as mcrust::net::minecraft::network::chat::component::Component>::get_string(line))
+        .collect();
+    this.set_attached(&ATTACH_LORE_STRING, lore_string.clone());
+    return lore_string;
 }
 
 /// @SuppressWarnings("deprecation")
-fn skyblocker_get_abilities(this: &mut mcrust::net::minecraft::world::item::item_stack::ItemStack) -> /* TODO: List<ItemAbility> */ () {
-    if this.get_attached(&ATTACH_ABILITIES).is_some() {
-        return this.get_attached(&ATTACH_ABILITIES).unwrap();
+fn skyblocker_get_abilities(this: &mcrust::net::minecraft::world::item::item_stack::ItemStack) -> Vec<ItemAbility> {
+    if let Some(abilities) = this.get_attached(&ATTACH_ABILITIES) {
+        return abilities;
     }
-    // TODO(fabric2seer): an assignment used as a value
-    //   java: return abilities = ItemAbility.getAbilities((ItemStack) (Object) this);
+    // java: return abilities = ItemAbility.getAbilities((ItemStack) (Object) this);
+    let abilities = ItemAbility::get_abilities(this);
+    this.set_attached(&ATTACH_ABILITIES, abilities.clone());
+    return abilities;
 }
 
 /// @SuppressWarnings("deprecation")
-fn get_pet_info(this: &mut mcrust::net::minecraft::world::item::item_stack::ItemStack) -> /* TODO: PetInfo */ () {
-    if this.get_attached(&ATTACH_PET_INFO).is_some() {
-        return this.get_attached(&ATTACH_PET_INFO).unwrap();
+fn get_pet_info(this: &mcrust::net::minecraft::world::item::item_stack::ItemStack) -> PetInfo {
+    if let Some(pet_info) = this.get_attached(&ATTACH_PET_INFO) {
+        return pet_info;
     }
-    // TODO(fabric2seer): an assignment used as a value
-    //   java: return petInfo = ItemUtils.getPetInfo((ItemStack) (Object) this);
+    // java: return petInfo = ItemUtils.getPetInfo((ItemStack) (Object) this);
+    let pet_info = crate::de::hysky::skyblocker::utils::item_utils::ItemUtils::get_pet_info(this);
+    this.set_attached(&ATTACH_PET_INFO, pet_info.clone());
+    return pet_info;
 }
 
 /// @SuppressWarnings("deprecation")
-fn get_skyblock_rarity(this: &mut mcrust::net::minecraft::world::item::item_stack::ItemStack) -> /* TODO: SkyblockItemRarity */ () {
-    if this.get_attached(&ATTACH_SKYBLOCK_RARITY).is_some() {
-        return this.get_attached(&ATTACH_SKYBLOCK_RARITY).unwrap();
+fn get_skyblock_rarity(this: &mcrust::net::minecraft::world::item::item_stack::ItemStack) -> SkyblockItemRarity {
+    if let Some(skyblock_rarity) = this.get_attached(&ATTACH_SKYBLOCK_RARITY) {
+        return skyblock_rarity;
     }
-    // TODO(fabric2seer): an assignment used as a value
-    //   java: return skyblockRarity = ItemUtils.getItemRarity((ItemStack) (Object) this);
+    // java: return skyblockRarity = ItemUtils.getItemRarity((ItemStack) (Object) this);
+    let skyblock_rarity = crate::de::hysky::skyblocker::utils::item_utils::ItemUtils::get_item_rarity(this);
+    this.set_attached(&ATTACH_SKYBLOCK_RARITY, skyblock_rarity);
+    return skyblock_rarity;
 }
 
 /// @ModifyReturnValue skyblocker$customItemNames
@@ -133,12 +154,13 @@ fn get_skyblock_rarity(this: &mut mcrust::net::minecraft::world::item::item_stac
 /// Rust: net/minecraft/world/item/item_stack.rs:986 fn get_hover_name(&self)
 fn skyblocker_custom_item_names(ci: &mut CallbackInfo<'_>) {
     let Some(this) = compat::detach_ref(ci.this::<mcrust::net::minecraft::world::item::item_stack::ItemStack>()) else { return; };
-    // TODO(fabric2seer): read the return value typed: ci.return_value::<T>() (Component)
+    // `Component original`: the port's `getHoverName` answers the component as the `FormattedText` it is.
+    let Some(original) = ci.take_return_value::<mcrust::net::minecraft::network::chat::formatted_text::FormattedText>() else { return; };
     if crate::de::hysky::skyblocker::utils::utils::Utils::is_on_skyblock() {
-        ci.set_return_value(crate::de::hysky::skyblocker::config::skyblocker_config_manager::SkyblockerConfigManager::get().general.custom_item_names.get(&this.get_uuid()).cloned().unwrap_or_else(|| original.clone()));
+        ci.set_return_value(crate::de::hysky::skyblocker::config::skyblocker_config_manager::SkyblockerConfigManager::get().general.custom_item_names.get(&get_uuid(this)).cloned().map(mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from).unwrap_or(original));
         return;
     }
-    ci.set_return_value(original.clone());
+    ci.set_return_value(original);
     return;
 }
 
@@ -147,11 +169,15 @@ fn skyblocker_custom_item_names(ci: &mut CallbackInfo<'_>) {
 /// target: net.minecraft.world.item.component.TooltipDisplay#shows  [exists]
 /// within: net.minecraft.world.item.ItemStack#addToTooltip
 /// Rust: net/minecraft/world/item/component/tooltip_display.rs:98 fn shows(&self, component: &Arc<DataComponentType>)
-fn skyblocker_hide_vanilla_enchants(v: bool) -> bool {
-    let mut should_display = v;
-    // TODO(fabric2seer): `component`: this argument is not visible to the injector (see the notes above the handler)
-    //   java: return shouldDisplay && !(Utils.isOnSkyblock() && component instanceof ItemEnchantments);
-    todo!("fabric2seer: the value of this function is in a TODO above")
+fn skyblocker_hide_vanilla_enchants(ci: &mut CallbackInfo<'_>) {
+    let Some(should_display) = ci.return_value::<bool>().copied() else { return; };
+    // `@Local(name = "component") TooltipProvider component` is `this.get(type)` of `addToTooltip:845`; the call's
+    // own argument is that `type`, and a component is an `ItemEnchantments` exactly when its type is one of the two
+    // `ItemEnchantments`-valued components (`ENCHANTMENTS`, `STORED_ENCHANTMENTS`).
+    let Some(component_type) = ci.arg::<std::sync::Arc<mcrust::net::minecraft::core::component::data_component_type::DataComponentType>>(0) else { return; };
+    let is_item_enchantments = std::sync::Arc::ptr_eq(component_type, mcrust::net::minecraft::core::component::data_components::enchantments())
+        || std::sync::Arc::ptr_eq(component_type, mcrust::net::minecraft::core::component::data_components::stored_enchantments());
+    ci.set_return_value(should_display && !(crate::de::hysky::skyblocker::utils::utils::Utils::is_on_skyblock() && is_item_enchantments));
 }
 
 /// @Inject skyblocker$skyblockIdTooltip
@@ -163,8 +189,11 @@ fn skyblocker_hide_vanilla_enchants(v: bool) -> bool {
 /// note: slice = @Slice(..) ignored
 /// note: class not in JavaSrc: java.util.function.Consumer has no file in JavaSrc/src - a remapping problem, or a class this Minecraft version does not have
 fn skyblocker_skyblock_id_tooltip(ci: &mut CallbackInfo<'_>) {
+    // rust: port gap - the injection point (`Consumer.accept` after the item-id line of `addDetailsToTooltip:924`)
+    // is a call of the `builder` closure, which is not a hooked method (GAPS_batchD); `this` is the stack.
+    let Some(this) = compat::detach_ref(ci.this::<mcrust::net::minecraft::world::item::item_stack::ItemStack>()) else { return; };
     if crate::de::hysky::skyblocker::utils::utils::Utils::is_on_skyblock() {
-        let mut skyblock_id: String = get_skyblock_id();
+        let mut skyblock_id: String = get_skyblock_id(this);
         if !skyblock_id.is_empty() {
             // TODO(fabric2seer): `textConsumer`: this argument is not visible to the injector (see the notes above the handler)
             //   java: textConsumer.accept(Component.literal("skyblock:" + skyblockId).withStyle(ChatFormatting.DARK_GRAY));
@@ -188,7 +217,7 @@ fn skyblocker_update_damage(ci: &mut CallbackInfo<'_>) {
 fn modify_item_bar_visible(ci: &mut CallbackInfo<'_>) {
     let Some(this) = compat::detach_ref(ci.this::<mcrust::net::minecraft::world::item::item_stack::ItemStack>()) else { return; };
     let original: bool = ci.return_value::<bool>().copied().unwrap_or_default();
-    ci.set_return_value((original || this.get_attached(&ATTACH_DURABILITY_BAR_FILL).unwrap_or(-1) >= 0.0f32));
+    ci.set_return_value((original || this.get_attached(&ATTACH_DURABILITY_BAR_FILL).unwrap_or(-1.0f32) >= 0.0f32));
     return;
 }
 
@@ -199,7 +228,7 @@ fn modify_item_bar_visible(ci: &mut CallbackInfo<'_>) {
 fn modify_item_bar_step(ci: &mut CallbackInfo<'_>) {
     let Some(this) = compat::detach_ref(ci.this::<mcrust::net::minecraft::world::item::item_stack::ItemStack>()) else { return; };
     let original: i32 = ci.return_value::<i32>().copied().unwrap_or_default();
-    ci.set_return_value((if this.get_attached(&ATTACH_DURABILITY_BAR_FILL).unwrap_or(-1) >= (0 as f32) { (((this.get_attached(&ATTACH_DURABILITY_BAR_FILL).unwrap_or(-1) * (13 as f32))) as i32) } else { original }));
+    ci.set_return_value((if this.get_attached(&ATTACH_DURABILITY_BAR_FILL).unwrap_or(-1.0f32) >= (0 as f32) { (((this.get_attached(&ATTACH_DURABILITY_BAR_FILL).unwrap_or(-1.0f32) * (13 as f32))) as i32) } else { original }));
     return;
 }
 
@@ -210,7 +239,7 @@ fn modify_item_bar_step(ci: &mut CallbackInfo<'_>) {
 fn modify_item_bar_color(ci: &mut CallbackInfo<'_>) {
     let Some(this) = compat::detach_ref(ci.this::<mcrust::net::minecraft::world::item::item_stack::ItemStack>()) else { return; };
     let original: i32 = ci.return_value::<i32>().copied().unwrap_or_default();
-    ci.set_return_value((if this.get_attached(&ATTACH_DURABILITY_BAR_FILL).unwrap_or(-1) >= (0 as f32) { crate::de::hysky::skyblocker::utils::ok_lab_color::OkLabColor::interpolate(mcrust::net::minecraft::util::common_colors::RED, mcrust::net::minecraft::util::common_colors::GREEN, this.get_attached(&ATTACH_DURABILITY_BAR_FILL).unwrap_or(-1)) } else { original }));
+    ci.set_return_value((if this.get_attached(&ATTACH_DURABILITY_BAR_FILL).unwrap_or(-1.0f32) >= (0 as f32) { crate::de::hysky::skyblocker::utils::ok_lab_color::OkLabColor::interpolate(mcrust::net::minecraft::util::common_colors::RED, mcrust::net::minecraft::util::common_colors::GREEN, this.get_attached(&ATTACH_DURABILITY_BAR_FILL).unwrap_or(-1.0f32)) } else { original }));
     return;
 }
 
@@ -219,7 +248,9 @@ fn modify_item_bar_color(ci: &mut CallbackInfo<'_>) {
 /// target: net.minecraft.world.item.ItemStack#<init>(Lnet/minecraft/core/Holder;ILnet/minecraft/core/component/PatchedDataComponentMap;)V  [exists]
 /// Rust: net/minecraft/world/item/item_stack.rs:223 fn new_with_components(item: Arc<Item>, count: i32, components: PatchedDataComponentMap)
 fn on_init(ci: &mut CallbackInfo<'_>) {
-    skyblocker_get_and_cache_durability();
+    // The port's constructor is the static `new_with_components`: the object under construction is its value.
+    let Some(this) = compat::detach_ref(ci.return_value::<mcrust::net::minecraft::world::item::item_stack::ItemStack>()) else { return; };
+    skyblocker_get_and_cache_durability(this);
 }
 
 /// @Inject skyblocker$resetFields
@@ -229,19 +260,18 @@ fn on_init(ci: &mut CallbackInfo<'_>) {
 /// note: target hooked only with another descriptor - hooked overloads: (Lnet/minecraft/core/component/DataComponentType;Ljava/lang/Object;)Ljava/lang/Object;, (Lnet/minecraft/core/component/TypedDataComponent;)Ljava/lang/Object;; the mod gave no descriptor; the registration (with the mod's own descriptor) is left commented out until that overload is hooked
 fn skyblocker_reset_fields(ci: &mut CallbackInfo<'_>) {
     let Some(this) = compat::detach(ci.this_mut::<mcrust::net::minecraft::world::item::item_stack::ItemStack>()) else { return; };
-    // TODO(fabric2seer): `value` is Rust argument 1: `Option<Obj>` - generic or borrowed with a lifetime; read it with `unsafe { ci.arg_unchecked::<..>(1) }`
-    // TODO(fabric2seer): the condition: `type`: this argument is not visible to the injector (see the notes above the handler)
-    //   java: type == DataComponents.CUSTOM_DATA
-    if todo!("fabric2seer: the condition (TODO above)") {
+    // `type` is by value and moved into the body, so this runs at HEAD (registered there): the caches are only read
+    // lazily by the getters above, none of which `set` calls, so clearing them before the write is clearing them
+    // after it.
+    let Some(r#type) = ci.arg::<std::sync::Arc<mcrust::net::minecraft::core::component::data_component_type::DataComponentType>>(0) else { return; };
+    if std::sync::Arc::ptr_eq(r#type, mcrust::net::minecraft::core::component::data_components::custom_data()) {
         this.remove_attached(&ATTACH_UUID);
         this.remove_attached(&ATTACH_SKYBLOCK_ID);
         this.remove_attached(&ATTACH_SKYBLOCK_API_ID);
         this.remove_attached(&ATTACH_NEU_NAME);
         this.remove_attached(&ATTACH_PET_INFO);
     }
-    // TODO(fabric2seer): the condition: `type`: this argument is not visible to the injector (see the notes above the handler)
-    //   java: type == DataComponents.LORE
-    if todo!("fabric2seer: the condition (TODO above)") {
+    if std::sync::Arc::ptr_eq(r#type, mcrust::net::minecraft::core::component::data_components::lore()) {
         this.remove_attached(&ATTACH_LORE_STRING);
         this.remove_attached(&ATTACH_SKYBLOCK_RARITY);
         this.remove_attached(&ATTACH_ABILITIES);
@@ -256,67 +286,35 @@ impl SkyblockerStack for mcrust::net::minecraft::world::item::item_stack::ItemSt
     }
 
     fn get_skyblock_id(&self) -> String {
-        if self.get_attached(&ATTACH_SKYBLOCK_ID).is_some() && !(self.get_attached(&ATTACH_SKYBLOCK_ID).unwrap().is_empty()) {
-            return self.get_attached(&ATTACH_SKYBLOCK_ID).unwrap();
-        }
-        // TODO(fabric2seer): an assignment used as a value
-        //   java: return skyblockId = ItemUtils.getItemId(this);
+        get_skyblock_id(self)
     }
 
     fn get_skyblock_api_id(&self) -> String {
-        if self.get_attached(&ATTACH_SKYBLOCK_API_ID).is_some() && !(self.get_attached(&ATTACH_SKYBLOCK_API_ID).unwrap().is_empty()) {
-            return self.get_attached(&ATTACH_SKYBLOCK_API_ID).unwrap();
-        }
-        // TODO(fabric2seer): an assignment used as a value
-        //   java: return skyblockApiId = ItemUtils.getSkyblockApiId(this);
+        get_skyblock_api_id(self)
     }
 
     fn get_neu_name(&self) -> String {
-        if self.get_attached(&ATTACH_NEU_NAME).is_some() && !(self.get_attached(&ATTACH_NEU_NAME).unwrap().is_empty()) {
-            return self.get_attached(&ATTACH_NEU_NAME).unwrap();
-        }
-        // TODO(fabric2seer): an assignment used as a value
-        //   java: return neuName = ItemUtils.getNeuId((ItemStack) (Object) this);
+        get_neu_name(self)
     }
 
     fn get_uuid(&self) -> String {
-        if self.get_attached(&ATTACH_UUID).is_some() {
-            return self.get_attached(&ATTACH_UUID).unwrap();
-        }
-        // TODO(fabric2seer): an assignment used as a value
-        //   java: return uuid = ItemUtils.getItemUuid(this);
+        get_uuid(self)
     }
 
     fn skyblocker_get_lore_strings(&self) -> Vec<String> {
-        if self.get_attached(&ATTACH_LORE_STRING).is_some() {
-            return self.get_attached(&ATTACH_LORE_STRING).unwrap();
-        }
-        // TODO(fabric2seer): an assignment used as a value
-        //   java: return loreString = ItemUtils.getLore((ItemStack) (Object) this).stream().map(Component::getString).toList();
+        skyblocker_get_lore_strings(self)
     }
 
     fn skyblocker_get_abilities(&self) -> Vec<ItemAbility> {
-        if self.get_attached(&ATTACH_ABILITIES).is_some() {
-            return self.get_attached(&ATTACH_ABILITIES).unwrap();
-        }
-        // TODO(fabric2seer): an assignment used as a value
-        //   java: return abilities = ItemAbility.getAbilities((ItemStack) (Object) this);
+        skyblocker_get_abilities(self)
     }
 
     fn get_pet_info(&self) -> PetInfo {
-        if self.get_attached(&ATTACH_PET_INFO).is_some() {
-            return self.get_attached(&ATTACH_PET_INFO).unwrap();
-        }
-        // TODO(fabric2seer): an assignment used as a value
-        //   java: return petInfo = ItemUtils.getPetInfo((ItemStack) (Object) this);
+        get_pet_info(self)
     }
 
     fn get_skyblock_rarity(&self) -> SkyblockItemRarity {
-        if self.get_attached(&ATTACH_SKYBLOCK_RARITY).is_some() {
-            return self.get_attached(&ATTACH_SKYBLOCK_RARITY).unwrap();
-        }
-        // TODO(fabric2seer): an assignment used as a value
-        //   java: return skyblockRarity = ItemUtils.getItemRarity((ItemStack) (Object) this);
+        get_skyblock_rarity(self)
     }
 
 }
@@ -324,7 +322,8 @@ impl SkyblockerStack for mcrust::net::minecraft::world::item::item_stack::ItemSt
 /// Mixins apply before the game runs: the `preLaunch` entrypoint calls this.
 pub fn register() {
     report(hook::register_injector("net.minecraft.world.item.ItemStack#getHoverName", InjectOptions::at(At::Return).kind(InjectorKind::ModifyReturnValue).priority(1000), Arc::new(skyblocker_custom_item_names)));
-    report(hook::call_site("net.minecraft.world.item.ItemStack#addToTooltip", "net.minecraft.world.item.component.TooltipDisplay#shows").priority(1000).modify_expression_value::<bool>(skyblocker_hide_vanilla_enchants));
+    // @ModifyExpressionValue: runs after the call (it reads the call's `type` argument and replaces its value).
+    report(hook::call_site("net.minecraft.world.item.ItemStack#addToTooltip", "net.minecraft.world.item.component.TooltipDisplay#shows").priority(1000).inject(Shift::After, skyblocker_hide_vanilla_enchants));
     // TODO(fabric2seer): not registered - class not in JavaSrc: java.util.function.Consumer has no file in JavaSrc/src - a remapping problem, or a class this Minecraft version does not have
     // report(hook::call_site(`net.minecraft.world.item.ItemStack#addDetailsToTooltip`, `java.util.function.Consumer#accept(Ljava/lang/Object;)V`).ordinal(0).priority(1000).inject(Shift::After, skyblocker_skyblock_id_tooltip));
     report(hook::register_injector("net.minecraft.world.item.ItemStack#inventoryTick", InjectOptions::at(At::Tail).kind(InjectorKind::Inject).priority(1000), Arc::new(skyblocker_update_damage)));
@@ -332,6 +331,7 @@ pub fn register() {
     report(hook::register_injector("net.minecraft.world.item.ItemStack#getBarWidth", InjectOptions::at(At::Return).kind(InjectorKind::ModifyReturnValue).priority(1000), Arc::new(modify_item_bar_step)));
     report(hook::register_injector("net.minecraft.world.item.ItemStack#getBarColor", InjectOptions::at(At::Return).kind(InjectorKind::ModifyReturnValue).priority(1000), Arc::new(modify_item_bar_color)));
     report(hook::register_injector("net.minecraft.world.item.ItemStack#<init>(Lnet/minecraft/core/Holder;ILnet/minecraft/core/component/PatchedDataComponentMap;)V", InjectOptions::at(At::Tail).kind(InjectorKind::Inject).priority(1000), Arc::new(on_init)));
-    // TODO(fabric2seer): not registered - target hooked only with another descriptor - hooked overloads: (Lnet/minecraft/core/component/DataComponentType;Ljava/lang/Object;)Ljava/lang/Object;, (Lnet/minecraft/core/component/TypedDataComponent;)Ljava/lang/Object;; the mod gave no descriptor; the registration (with the mod's own descriptor) is left commented out until that overload is hooked
-    // report(hook::register_injector(`net.minecraft.world.item.ItemStack#set`, InjectOptions::at(At::Tail).kind(InjectorKind::Inject).priority(1000), Arc::new(skyblocker_reset_fields)));
+    // java: `method = "set*"` with a `(DataComponentType<T>, T)` handler: the one `set` overload of that shape. At HEAD
+    // (see `skyblocker_reset_fields`): its `type` argument is moved into the body.
+    report(hook::register_injector("net.minecraft.world.item.ItemStack#set(Lnet/minecraft/core/component/DataComponentType;Ljava/lang/Object;)Ljava/lang/Object;", InjectOptions::at(At::Head).kind(InjectorKind::Inject).priority(1000), Arc::new(skyblocker_reset_fields)));
 }

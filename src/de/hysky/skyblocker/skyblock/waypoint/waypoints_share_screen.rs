@@ -28,13 +28,16 @@ use mcrust::net::minecraft::client::input::mouse_button_event::MouseButtonEvent;
 use mcrust::net::minecraft::client::input::mouse_button_info::MouseButtonInfo;
 use mcrust::net::minecraft::network::chat::component;
 use mcrust::net::minecraft::network::chat::component::Component as _;
+use crate::de::hysky::skyblocker::skyblock::waypoint::waypoints::named_waypoint_equals;
 
 /// java: public class WaypointsShareScreen extends AbstractWaypointsScreen<WaypointsScreen>
 pub struct WaypointsShareScreen {
     /// java: extends AbstractWaypointsScreen
     pub base: AbstractWaypointsScreenBase<compat::Shared<WaypointsScreen>>,
     /// java: private final Set<NamedWaypoint> selectedWaypoints = new HashSet<>();
-    pub selected_waypoints: std::collections::HashSet<compat::Shared<dyn NamedWaypoint>>,
+    /// A `HashSet` keyed by `NamedWaypoint.equals` / `hashCode` (structural, not identity): the members are kept in a
+    /// list and asked with `named_waypoint_equals`.
+    pub selected_waypoints: Vec<compat::Shared<dyn NamedWaypoint>>,
     /// java: private boolean overrideLocation = false;
     pub override_location: bool,
     /// java: private boolean sortWaypoints = false;
@@ -58,11 +61,11 @@ impl std::ops::DerefMut for WaypointsShareScreen {
 
 impl WaypointsShareScreen {
     /// java: protected WaypointsShareScreen(WaypointsScreen parent, Multimap<Location, WaypointGroup> waypoints)
-    pub fn new(mut parent: compat::Shared<WaypointsScreen>, mut waypoints: crate::unresolved::Multimap) -> compat::Shared<Self> {
+    pub fn new(mut parent: compat::Shared<WaypointsScreen>, mut waypoints: compat::Shared<crate::de::hysky::skyblocker::skyblock::waypoint::waypoints::LocationMultimap>) -> compat::Shared<Self> {
         let __this = compat::shared(Self {
             base: AbstractWaypointsScreenBase::<compat::Shared<WaypointsScreen>>::new_4(component::translatable("skyblocker.waypoints.shareWaypoints"), parent.clone(), waypoints.clone(), compat::read(&parent, |__t| __t.island.clone()).unwrap()),
             self_ref: std::sync::Weak::new(),
-            selected_waypoints: std::collections::HashSet::new(),
+            selected_waypoints: Vec::new(),
             override_location: false,
             sort_waypoints: false,
         });
@@ -78,8 +81,9 @@ impl WaypointsShareScreen {
 
     /// java: @SuppressWarnings("DataFlowIssue") @Override public void onClose()
     pub fn on_close(__this: &compat::Shared<Self>) {
-        // TODO(fabric2seer): `set_screen` takes 14 argument(s) in the port (`gfx: &mut Minecraft, screen: &mut GuiScreen, screen_extra: &mut ScreenExtra, screen_stack: &mut Vec<HeldScreen>, screen_kind_before_pause: &mut Option<ScreenKind>, screen_is_open: &mut bool, level_screen_closed: &mut bool, frames_on_this_sc ..`), Java passes 1
-        // rust: gui::set_screen(compat::read(__this, |__t| __t.parent.clone()).as_mut().unwrap());
+        // `minecraft.gui.setScreen(parent)`: the waypoints screen opened this one keeping itself as the parent
+        // (`set_screen_keeping_parent`), and the game's stack hands that same object back.
+        mcrust::mcrust::modding::game::set_screen_to_parent();
     }
 
 }
@@ -98,10 +102,12 @@ impl AbstractWaypointsScreen<compat::Shared<crate::de::hysky::skyblocker::skyblo
 
     /// java: @Override protected void init()
     fn init(&mut self) {
-        self.base.init();
+        self.init_super();
         let mut row_spacing: i32 = 2;
         let mut column_spacing: i32 = 5;
-        let mut grid_widget: GridLayout = GridLayout::new_default().column_spacing(column_spacing).row_spacing(row_spacing);
+        let mut grid_widget: GridLayout = GridLayout::new_default();
+        grid_widget.column_spacing(column_spacing);
+        grid_widget.row_spacing(row_spacing);
         let mut adder: RowHelper = grid_widget.create_row_helper(2);
         // TODO(fabric2seer): static `Checkbox.builder` has no Rust counterpart in the port
         // TODO(fabric2seer): `Builder.maxWidth` has no Rust method in the port (looked for `max_width` in Checkbox and its supertypes)
@@ -235,21 +241,34 @@ impl AbstractWaypointsScreen<compat::Shared<crate::de::hysky::skyblocker::skyblo
         self.layout.as_mut().unwrap().add_to_footer(LayoutElement::Grid(grid_widget.clone()));
         let mut rows: i32 = 4;
         self.layout.as_mut().unwrap().set_footer_height(((20i32.wrapping_mul(rows)).wrapping_add(row_spacing.wrapping_mul(rows.wrapping_sub(1)))).wrapping_add(8));
-        self.base.late_init();
+        self.late_init();
     }
 
     /// java: @Override protected boolean isEnabled(NamedWaypoint waypoint)
     fn is_enabled(&self, waypoint: &compat::Shared<dyn NamedWaypoint>) -> bool {
-        return self.selected_waypoints.contains(waypoint);
+        return self.selected_waypoints.iter().any(|w| named_waypoint_equals(w, waypoint));
     }
 
     /// java: @Override protected void enabledChanged(NamedWaypoint waypoint, boolean enabled)
     fn enabled_changed(&mut self, waypoint: &compat::Shared<dyn NamedWaypoint>, mut enabled: bool) {
         if enabled {
-            self.selected_waypoints.insert(waypoint.clone());
-        } else {
-            self.selected_waypoints.remove(waypoint);
+            // `Set.add`: only when no equal member is there.
+            if !self.selected_waypoints.iter().any(|w| named_waypoint_equals(w, waypoint)) {
+                self.selected_waypoints.push(waypoint.clone());
+            }
+        } else if let Some(index) = self.selected_waypoints.iter().position(|w| named_waypoint_equals(w, waypoint)) {
+            self.selected_waypoints.remove(index);
         }
+    }
+
+    /// `this::islandChanged` for the island dropdown, through this screen's own handle.
+    fn island_changed_callback(&self) -> Arc<dyn Fn(Location)> {
+        let __this_w = compat::RenderThread::new(self.self_ref.clone());
+        Arc::new(move |location| {
+            if let Some(__this) = __this_w.get().upgrade() {
+                compat::write(&__this, |__t| __t.island_changed(location));
+            }
+        })
     }
 
 }

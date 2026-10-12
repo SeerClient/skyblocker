@@ -35,7 +35,7 @@ impl FossilCalculations {
     }
 
     /// java: protected static double[] getFossilChance(Structures.TileGrid tiles, String percentage)
-    pub fn get_fossil_chance(tiles: &TileGrid, percentage: &str) -> Vec<f64> {
+    pub fn get_fossil_chance(tiles: &TileGrid, percentage: Option<&str>) -> Vec<f64> {
         let mut total: Vec<i32> = vec![0; (EXCAVATOR_WIDTH.wrapping_mul(EXCAVATOR_HEIGHT)) as usize];
         compat::set_state(&MINIMUM_TILES, EXCAVATOR_WIDTH.wrapping_mul(EXCAVATOR_HEIGHT));
         let mut fossil_count: std::sync::atomic::AtomicI32 = std::sync::atomic::AtomicI32::new(0);
@@ -86,7 +86,7 @@ impl FossilCalculations {
 
     /// java: protected static Structures.TileGrid convertItemsToTiles(Int2ObjectMap<ItemStack> currentState)
     pub fn convert_items_to_tiles(current_state: &std::collections::HashMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack>) -> TileGrid {
-        let mut output: TileGrid = TileGrid::new(vec![(0..(EXCAVATOR_WIDTH) as usize).map(|_| Default::default()).collect::<Vec<_>>(); (EXCAVATOR_HEIGHT) as usize]);
+        let mut output: TileGrid = TileGrid::of_size(EXCAVATOR_WIDTH, EXCAVATOR_HEIGHT);
         let mut index: i32 = 0;
         for y in 0..EXCAVATOR_HEIGHT {
             for x in 0..EXCAVATOR_WIDTH {
@@ -154,7 +154,7 @@ impl FossilCalculations {
 
     /// java: protected static Structures.TileGrid flipGrid(Structures.TileGrid grid)
     pub fn flip_grid(grid: &TileGrid) -> TileGrid {
-        let mut output: TileGrid = TileGrid::new(vec![(0..(grid.width()) as usize).map(|_| Default::default()).collect::<Vec<_>>(); (grid.height()) as usize]);
+        let mut output: TileGrid = TileGrid::of_size(grid.width(), grid.height());
         for x in 0..grid.width() {
             for y in 0..grid.height() {
                 output.update_slot(x, y, grid.get_slot(x, (grid.height().wrapping_sub(1)).wrapping_sub(y)));
@@ -169,7 +169,7 @@ impl FossilCalculations {
         let mut starting_height: i32 = grid.height().wrapping_sub(1);
         match rotation {
             90 => {
-                let mut output: TileGrid = TileGrid::new(vec![(0..(grid.height()) as usize).map(|_| Default::default()).collect::<Vec<_>>(); (grid.width()) as usize]);
+                let mut output: TileGrid = TileGrid::of_size(grid.height(), grid.width());
                 for original_x in 0..grid.width() {
                     for original_y in 0..grid.height() {
                         output.update_slot(starting_height.wrapping_sub(original_y), original_x, grid.get_slot(original_x, original_y));
@@ -178,7 +178,7 @@ impl FossilCalculations {
                 return output.clone();
             }
             180 => {
-                let mut output: TileGrid = TileGrid::new(vec![(0..(grid.width()) as usize).map(|_| Default::default()).collect::<Vec<_>>(); (grid.height()) as usize]);
+                let mut output: TileGrid = TileGrid::of_size(grid.width(), grid.height());
                 for x in 0..grid.width() {
                     for y in 0..grid.height() {
                         output.update_slot(starting_width.wrapping_sub(x), starting_height.wrapping_sub(y), grid.get_slot(x, y));
@@ -187,7 +187,7 @@ impl FossilCalculations {
                 return output.clone();
             }
             270 => {
-                let mut output: TileGrid = TileGrid::new(vec![(0..(grid.height()) as usize).map(|_| Default::default()).collect::<Vec<_>>(); (grid.width()) as usize]);
+                let mut output: TileGrid = TileGrid::of_size(grid.height(), grid.width());
                 for original_x in 0..grid.width() {
                     for original_y in 0..grid.height() {
                         output.update_slot(original_y, starting_width.wrapping_sub(original_x), grid.get_slot(original_x, original_y));

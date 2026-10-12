@@ -178,7 +178,7 @@ impl WishingCompassSolver {
 
     /// java: @SuppressWarnings("incomplete-switch") private static void onParticle(ClientboundLevelParticlesPacket packet)
     pub fn on_particle(packet: &ClientboundLevelParticlesPacket) {
-        if !(Utils::is_in_crystal_hollows()) || !(mcrust::net::minecraft::core::particles::particle_types::happy_villager() == packet.get_particle().unwrap().get_type()) {
+        if !(Utils::is_in_crystal_hollows()) || !packet.get_particle().is_some_and(|particle| compat::particle_type_is(particle, mcrust::net::minecraft::core::particles::particle_types::happy_villager())) {
             return;
         }
         let mut particle_pos: Vec3 = Vec3::new(packet.get_x(), packet.get_y(), packet.get_z());

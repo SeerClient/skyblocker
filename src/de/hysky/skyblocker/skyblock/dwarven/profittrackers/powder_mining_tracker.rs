@@ -28,8 +28,10 @@ use mcrust::net::minecraft::network::chat::component::Component as _;
 /// java: public static final PowderMiningTracker INSTANCE = new PowderMiningTracker();
 pub static INSTANCE: compat::MainThread<compat::Shared<PowderMiningTracker>> = compat::MainThread::new(|| PowderMiningTracker::new());
 /// java: private static final Object2ObjectArrayMap<String, String> NAME2ID_MAP = new Object2ObjectArrayMap<>(50);
-pub static NAME2ID_MAP: LazyLock<std::collections::HashMap<String, String>> = LazyLock::new(|| {
-    let mut value = std::collections::HashMap::with_capacity((50) as usize);
+/// An `Object2ObjectArrayMap` keeps insertion order (its iteration order is read: `comparePriority`, the filter
+/// screen's item list), so it is an `IndexMap`.
+pub static NAME2ID_MAP: LazyLock<indexmap::IndexMap<String, String>> = LazyLock::new(|| {
+    let mut value = indexmap::IndexMap::with_capacity((50) as usize);
     value.insert("Gemstone Powder".to_string(), "GEMSTONE_POWDER".to_string());
     value.insert(format!("{} Rough Ruby Gemstone", sky_block_icons::HEALTH), "ROUGH_RUBY_GEM".to_string());
     value.insert(format!("{} Flawed Ruby Gemstone", sky_block_icons::HEALTH), "FLAWED_RUBY_GEM".to_string());
@@ -91,8 +93,10 @@ pub struct PowderMiningTracker {
     pub base: AbstractProfitTrackerBase,
     /// java: @SuppressWarnings("JavadocReference") private Object2IntMap<String> currentProfileRewards = new Object2IntOpenHashMap<>();
     pub current_profile_rewards: std::collections::HashMap<String, i32>,
-    /// java: private final Object2IntAVLTreeMap<Component> shownRewards = new Object2IntAVLTreeMap<>(Comparator.<Component>comparingInt(text -> comparePriority(text.getStrin
-    pub shown_rewards: std::collections::BTreeMap<MutableComponent, i32>,
+    /// java: private final Object2IntAVLTreeMap<Component> shownRewards = new Object2IntAVLTreeMap<>(Comparator.<Component>comparingInt(text -> comparePriority(text.getString())).thenComparing(c -> c.getString()));
+    /// `Component` has no `Ord`; the tree is kept as entries sorted by that comparator, and two keys are the same key
+    /// when the comparator answers 0 (equal `getString()`), as in the AVL map - see `shown_rewards_merge`/`_put`.
+    pub shown_rewards: Vec<(MutableComponent, i32)>,
     /// java: private final ProfiledData<Object2IntMap<String>> allRewards = new ProfiledData<>(getRewardFilePath("powder-mining.json"), CodecUtils.object2IntMapCodec(Codec.S
     pub all_rewards: Option<compat::Shared<ProfiledData<std::collections::HashMap<String, i32>>>>,
     /// java: private boolean insideChestMessage = false;
@@ -117,13 +121,11 @@ impl std::ops::DerefMut for PowderMiningTracker {
 impl PowderMiningTracker {
     /// java: private PowderMiningTracker()
     pub fn new() -> compat::Shared<Self> {
-        // TODO(fabric2seer): the initialiser of `shownRewards`: `.getString(..)` on a value of unknown type
-        //   java: private final Object2IntAVLTreeMap<Component> shownRewards = new Object2IntAVLTreeMap<>(Comparator.<Component>comparingInt(text -> comparePriority(text.getString())).thenComparing(c -> c.getString()));
         let (_, __this) = AbstractProfitTrackerBase::new_in(move |__base| {
             let __h = compat::shared(Self {
                 base: __base,
                 current_profile_rewards: std::collections::HashMap::new(),
-                shown_rewards: Default::default(),
+                shown_rewards: Vec::new(),
                 all_rewards: None,
                 inside_chest_message: false,
                 profit: ((0) as f64) as f64,
@@ -139,7 +141,8 @@ impl PowderMiningTracker {
         // TODO(fabric2seer): ClientReceiveMessageEvents.ALLOW_GAME.register: no SeerClient equivalent yet
         //   java: ClientReceiveMessageEvents.ALLOW_GAME.register(INSTANCE::onChatMessage);
         item_price_update_event::ON_PRICE_UPDATE.register(Arc::new(move || { PowderMiningTracker::on_price_update(INSTANCE.get_mut()); }));
-        INSTANCE.get_mut().lock().borrow_mut().all_rewards.as_mut().unwrap().init();
+        let all_rewards = compat::read(INSTANCE.get(), |__t| __t.all_rewards.clone()).unwrap();
+        compat::write(&all_rewards, |__t| { __t.init(); });
         client_command_registration_callback::EVENT.register(Arc::new(
             |dispatcher: &mut client_command_registration_callback::ClientCommandDispatcher| {
                 // TODO(fabric2seer): a command tree this tool cannot read (arguments, redirects, requires) - SeerClient commands receive the words after the name in `ctx.args`
@@ -151,25 +154,47 @@ impl PowderMiningTracker {
 
     /// java: private static int comparePriority(String itemName)
     pub fn compare_priority(item_name: &str) -> i32 {
-        // TODO(fabric2seer): a pattern switch expression
-        //   java: return switch (replaceGemstoneSymbols(itemName)) {
-        //   java: 			case "Gemstone Powder" -> 1;
-        //   java: 			case "Gold Essence" -> 2;
-        //   java: 			case "Diamond Essence" -> 3;
-        //   java: 			case String s when s.startsWith("Rough") -> 4;
-        //   java: 			case String s when s.startsWith("Flawed") -> 5;
-        //   java: 			case String s when s.startsWith("Fine") -> 6;
-        //   java: 			case String s when s.startsWith("Flawless") -> 7;
-        //   java: 			default -> 8;
-        //   java: 		};
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        let s = AbstractProfitTrackerBase::replace_gemstone_symbols(item_name);
+        return match s.as_str() {
+            "Gemstone Powder" => 1,
+            "Gold Essence" => 2,
+            "Diamond Essence" => 3,
+            // The guards are tried in order, so "Flawed"/"Flawless" (which also start with "Fla") are told apart as Java does.
+            s if s.starts_with("Rough") => 4,
+            s if s.starts_with("Flawed") => 5,
+            s if s.starts_with("Fine") => 6,
+            s if s.starts_with("Flawless") => 7,
+            _ => 8,
+        };
+    }
+
+    /// The `shownRewards` comparator: `comparingInt(text -> comparePriority(text.getString())).thenComparing(c -> c.getString())`.
+    fn shown_rewards_compare(a: &str, b: &str) -> std::cmp::Ordering {
+        PowderMiningTracker::compare_priority(a).cmp(&PowderMiningTracker::compare_priority(b)).then_with(|| compat::compare_to(a, b).cmp(&0))
+    }
+
+    /// `shownRewards.mergeInt(key, amount, Integer::sum)` on the sorted entries.
+    fn shown_rewards_merge(shown_rewards: &mut Vec<(MutableComponent, i32)>, key: MutableComponent, amount: i32) {
+        let key_string = key.get_string();
+        match shown_rewards.binary_search_by(|(k, _)| PowderMiningTracker::shown_rewards_compare(&k.get_string(), &key_string)) {
+            Ok(i) => shown_rewards[i].1 = shown_rewards[i].1.wrapping_add(amount),
+            Err(i) => shown_rewards.insert(i, (key, amount)),
+        }
+    }
+
+    /// `shownRewards.put(key, value)` on the sorted entries (an AVL put keeps the existing key object).
+    fn shown_rewards_put(shown_rewards: &mut Vec<(MutableComponent, i32)>, key: MutableComponent, value: i32) {
+        let key_string = key.get_string();
+        match shown_rewards.binary_search_by(|(k, _)| PowderMiningTracker::shown_rewards_compare(&k.get_string(), &key_string)) {
+            Ok(i) => shown_rewards[i].1 = value,
+            Err(i) => shown_rewards.insert(i, (key, value)),
+        }
     }
 
     /// java: @Unmodifiable public static Object2ObjectMap<String, String> getName2IdMap()
-    pub fn get_name2_id_map() -> std::collections::HashMap<String, String> {
-        // TODO(fabric2seer): static call Object2ObjectMaps.unmodifiable(..)
-        //   java: return Object2ObjectMaps.unmodifiable(NAME2ID_MAP);
-        todo!("fabric2seer: the value of this function is in a TODO above")
+    pub fn get_name2_id_map() -> &'static indexmap::IndexMap<String, String> {
+        // `Object2ObjectMaps.unmodifiable(NAME2ID_MAP)`: a read-only view of the map.
+        return &NAME2ID_MAP;
     }
 
     /// java: public static double getProfit()
@@ -178,13 +203,15 @@ impl PowderMiningTracker {
     }
 
     /// java: public static Object2IntMap<Component> getShownRewards()
-    pub fn get_shown_rewards() -> std::collections::HashMap<MutableComponent, i32> {
+    pub fn get_shown_rewards() -> Vec<(MutableComponent, i32)> {
         return compat::read(INSTANCE.get_mut(), |__t| __t.shown_rewards.clone());
     }
 
     /// java: @SuppressWarnings("BooleanMethodIsAlwaysInverted") public boolean isEnabled()
     pub fn is_enabled(__this: &compat::Shared<Self>) -> bool {
-        return WidgetManager::is_widget_in_current_screen(&(powder_mining_widget::INSTANCE.get_mut().clone() as compat::Shared<dyn HudWidget>));
+        // `PowderMiningWidget.INSTANCE` is assigned by the widget's constructor; before that Java passes null, which is in
+        // no screen.
+        return powder_mining_widget::INSTANCE.get().clone().is_some_and(|widget| WidgetManager::is_widget_in_current_screen(&(widget as compat::Shared<dyn HudWidget>)));
     }
 
     /// java: private void onProfileChange(String prevProfileId, String newProfileId)
@@ -206,7 +233,7 @@ impl PowderMiningTracker {
             { let __v = false; compat::write(__this, |__t| __t.inside_chest_message = __v); }
             return true;
         }
-        if !(compat::read(__this, |__t| __t.inside_chest_message)) && message == "  CHEST LOCKPICKED " || SkyblockerConfigManager::get().mining.crystal_hollows.count_natural_chests_in_tracker && message == "  LOOT CHEST COLLECTED " {
+        if !(compat::read(__this, |__t| __t.inside_chest_message)) && (message == "  CHEST LOCKPICKED " || (SkyblockerConfigManager::get().mining.crystal_hollows.count_natural_chests_in_tracker && message == "  LOOT CHEST COLLECTED ")) {
             { let __v = true; compat::write(__this, |__t| __t.inside_chest_message = __v); }
             return true;
         }
@@ -218,9 +245,8 @@ impl PowderMiningTracker {
             return true;
         }
         let mut item_name: String = matcher.group(1).unwrap();
-        // TODO(fabric2seer): static call NumberUtils.toInt(..)
-        //   java: int amount = NumberUtils.toInt(matcher.group(2).replace(",", ""), 1);
-        let mut amount: i32 = todo!("fabric2seer: the initialiser of `amount` (TODO above)");
+        // `NumberUtils.toInt(matcher.group(2).replace(",", ""), 1)`: `Integer.parseInt` (no trim), 1 on null or failure.
+        let mut amount: i32 = matcher.group(2).and_then(|g| g.replace(",", "").parse::<i32>().ok()).unwrap_or(1);
         let mut item_id: String = PowderMiningTracker::get_item_id(__this, &item_name);
         if item_id.is_empty() {
             logger().error(&format!("No matching item id for name `{}`. Report this!", item_name));
@@ -233,17 +259,28 @@ impl PowderMiningTracker {
 
     /// java: private void incrementReward(String itemName, String itemId, int amount)
     pub fn increment_reward(__this: &compat::Shared<Self>, item_name: &str, item_id: &str, mut amount: i32) {
-        // TODO(fabric2seer): Map.mergeInt(..)
-        //   java: currentProfileRewards.mergeInt(itemId, amount, Integer::sum);
+        // `currentProfileRewards.mergeInt(itemId, amount, Integer::sum)`. Java's map IS the entry of `allRewards` for
+        // this profile (`computeIfAbsent` hands back the stored object); `ProfiledData::compute_if_absent` returns a
+        // copy, so the merged map is put back as the entry to keep the two the same.
+        {
+            let current = compat::write(__this, |__t| {
+                let value = __t.current_profile_rewards.entry(item_id.to_string()).or_insert(0);
+                *value = value.wrapping_add(amount);
+                __t.current_profile_rewards.clone()
+            });
+            ProfiledData::put(&compat::read(__this, |__t| __t.all_rewards.clone()).unwrap(), current);
+        }
         if !(SkyblockerConfigManager::get().mining.crystal_hollows.powder_tracker_filter.iter().any(|e| *e == item_name.to_string())) {
             if item_id == "GEMSTONE_POWDER" {
-                { *__this.lock().borrow_mut().shown_rewards.entry(component::literal("Gemstone Powder").with_style_format(ChatFormatting::LightPurple)).or_insert(Default::default()) += amount; };
+                compat::write(__this, |__t| PowderMiningTracker::shown_rewards_merge(&mut __t.shown_rewards, component::literal("Gemstone Powder").with_style_format(ChatFormatting::LightPurple), amount));
             } else {
                 let Some(mut stack) = ItemRepository::get_item_stack(item_id) else {
                     logger().warn(&format!("Item stack for id `{}` is null! This might be caused by failed item repository downloads.", item_id));
                     return;
                 };
-                { *__this.lock().borrow_mut().shown_rewards.entry(FlexibleItemStack::get(&stack, mcrust::net::minecraft::core::component::data_components::custom_name())).or_insert(Default::default()) += amount; };
+                // `stack.get(DataComponents.CUSTOM_NAME)`; a null name throws in the comparator's `getString()` in Java.
+                let name = compat::component_of(FlexibleItemStack::get::<mcrust::net::minecraft::network::chat::formatted_text::FormattedText>(&stack, mcrust::net::minecraft::core::component::data_components::custom_name()).expect("NullPointerException: CUSTOM_NAME"));
+                compat::write(__this, |__t| PowderMiningTracker::shown_rewards_merge(&mut __t.shown_rewards, name, amount));
             }
         }
     }
@@ -266,17 +303,16 @@ impl PowderMiningTracker {
     /// java: private void recalculatePrices()
     pub fn recalculate_prices(__this: &compat::Shared<Self>) {
         { let __v = ((0) as f64) as f64; compat::write(__this, |__t| __t.profit = __v); }
-        let mut set: crate::unresolved::ObjectSortedSet = __this.lock().borrow().shown_rewards.iter().map(|(k, v)| (k.clone(), v.clone())).collect::<Vec<_>>();
+        let mut set: Vec<(String, i32)> = compat::read(__this, |__t| __t.shown_rewards.iter().map(|(k, v)| (k.get_string(), *v)).collect::<Vec<_>>());
         for entry in set.iter() {
-            // TODO(fabric2seer): `.getString(..)` on a value of unknown type
-            //   java: calculateProfitForItem(getItemId(entry.getKey().getString()), entry.getIntValue());
+            PowderMiningTracker::calculate_profit_for_item(__this, &PowderMiningTracker::get_item_id(__this, &entry.0), entry.1);
         }
     }
 
     /// java: public void recalculateAll()
     pub fn recalculate_all(__this: &compat::Shared<Self>) {
-        __this.lock().borrow_mut().shown_rewards.clear();
-        let mut set: std::collections::HashSet<(_, _)> = __this.lock().borrow().current_profile_rewards.iter().map(|(k, v)| (k.clone(), v.clone())).collect::<Vec<_>>();
+        compat::write(__this, |__t| __t.shown_rewards.clear());
+        let mut set: Vec<(String, i32)> = compat::read(__this, |__t| __t.current_profile_rewards.iter().map(|(k, v)| (k.clone(), *v)).collect::<Vec<_>>());
         let mut filters: Vec<String> = SkyblockerConfigManager::get().mining.crystal_hollows.powder_tracker_filter.iter().cloned().map(|__a0| PowderMiningTracker::get_item_id(INSTANCE.get_mut(), &__a0)).collect::<Vec<_>>();
         for entry in set.iter() {
             if filters.iter().any(|e| *e == entry.0.clone()) {
@@ -285,15 +321,15 @@ impl PowderMiningTracker {
             if entry.0 == "GEMSTONE_POWDER" {
                 let __h0 = component::literal("Gemstone Powder").with_style_format(ChatFormatting::LightPurple);
                 let __h1 = entry.1.clone();
-                __this.lock().borrow_mut().shown_rewards.insert(__h0, __h1);
+                compat::write(__this, |__t| PowderMiningTracker::shown_rewards_put(&mut __t.shown_rewards, __h0, __h1));
             } else {
                 let Some(mut stack) = ItemRepository::get_item_stack(&compat::jstring(&entry.0)) else {
                     logger().warn(&format!("Item stack for id `{}` is null! This might be caused by failed item repository downloads.", compat::jstring(&entry.0)));
                     continue;
                 };
-                let __h0 = FlexibleItemStack::get(&stack, mcrust::net::minecraft::core::component::data_components::custom_name());
+                let __h0 = compat::component_of(FlexibleItemStack::get::<mcrust::net::minecraft::network::chat::formatted_text::FormattedText>(&stack, mcrust::net::minecraft::core::component::data_components::custom_name()).expect("NullPointerException: CUSTOM_NAME"));
                 let __h1 = entry.1.clone();
-                __this.lock().borrow_mut().shown_rewards.insert(__h0, __h1);
+                compat::write(__this, |__t| PowderMiningTracker::shown_rewards_put(&mut __t.shown_rewards, __h0, __h1));
             }
         }
         PowderMiningTracker::recalculate_prices(__this);

@@ -144,7 +144,7 @@ impl CrystalsLocationsManager {
                 let mut user_message: String = (compat::regex::split_limit(&text, ":", 2))[(1) as usize].clone();
                 let mut matcher: compat::regex::Matcher = TEXT_CWORDS_PATTERN.matcher(&user_message);
                 if matcher.find() {
-                    let mut block_pos: BlockPos = BlockPos::new(matcher.group(1).unwrap().trim().parse::<i32>().expect("NumberFormatException"), matcher.group(2).unwrap().trim().parse::<i32>().expect("NumberFormatException"), matcher.group(3).unwrap().trim().parse::<i32>().expect("NumberFormatException"));
+                    let mut block_pos: BlockPos = BlockPos::new(matcher.group(1).unwrap().parse::<i32>().expect("NumberFormatException"), matcher.group(2).unwrap().parse::<i32>().expect("NumberFormatException"), matcher.group(3).unwrap().parse::<i32>().expect("NumberFormatException"));
                     let mut location: String = format!("{} {} {}", block_pos.get_x(), block_pos.get_y(), block_pos.get_z());
                     if !(CrystalsLocationsManager::check_in_crystals(&block_pos)) {
                         return true;
@@ -253,7 +253,7 @@ impl CrystalsLocationsManager {
                 continue;
             }
             let mut location_color: i32 = WAYPOINT_LOCATIONS.get(&waypoint_location).cloned().unwrap().get_color();
-            text.append((component::literal(&format!("[{}]", waypoint_location))).with_color(location_color).with_style_fn(|style| (style.with_click_event(Some(ClickEvent::new_run_command(format!("/skyblocker crystalWaypoints add {} {}", location, waypoint_location))))).with_hover_event(Some(HoverEvent::new_show_text(mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::translatable("skyblocker.config.mining.crystalsWaypoints.getLocationHover.add").with_color(location_color)))))));
+            text = text.append((component::literal(&format!("[{}]", waypoint_location))).with_color(location_color).with_style_fn(|style| (style.with_click_event(Some(ClickEvent::new_run_command(format!("/skyblocker crystalWaypoints add {} {}", location, waypoint_location))))).with_hover_event(Some(HoverEvent::new_show_text(mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::translatable("skyblocker.config.mining.crystalsWaypoints.getLocationHover.add").with_color(location_color)))))));
         }
         return (constants::PREFIX.get_mut())().append(component::translatable_args("skyblocker.config.mining.crystalsWaypoints.markLocation", vec![mcrust::net::minecraft::network::chat::formatted_text::FormattedText::of(location.to_string()), mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(text.clone())]));
     }
@@ -266,15 +266,19 @@ impl CrystalsLocationsManager {
         }
         let mut hover_message: MutableComponent;
         if action == "remove" {
-            text.append(component::translatable("skyblocker.config.mining.crystalsWaypoints.getLocationHover.remove").append(component::literal(": ")));
+            text = text.append(component::translatable("skyblocker.config.mining.crystalsWaypoints.getLocationHover.remove").append(component::literal(": ")));
             hover_message = component::translatable("skyblocker.config.mining.crystalsWaypoints.getLocationHover.remove");
         } else {
-            text.append(component::translatable("skyblocker.config.mining.crystalsWaypoints.getLocationHover.share").append(component::literal(": ")));
+            text = text.append(component::translatable("skyblocker.config.mining.crystalsWaypoints.getLocationHover.share").append(component::literal(": ")));
             hover_message = component::translatable("skyblocker.config.mining.crystalsWaypoints.getLocationHover.share");
         }
         for waypoint_location in ACTIVE_WAYPOINTS.get_mut().keys().cloned() {
             let mut location_color: i32 = WAYPOINT_LOCATIONS.get(&waypoint_location).cloned().unwrap().get_color();
-            text.append((component::literal(&format!("[{}]", waypoint_location))).with_color(location_color).with_style_fn(|style| (style.with_click_event(Some(ClickEvent::new_run_command(format!("/skyblocker crystalWaypoints {} {}", action, waypoint_location))))).with_hover_event(Some(HoverEvent::new_show_text(mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(hover_message.with_color(location_color)))))));
+            // `hoverMessage.withColor(locationColor)` recolours the one component every iteration's hover holds (Java
+            // shares the object); the port's components are values, so each hover gets the component as recoloured.
+            hover_message = hover_message.with_color(location_color);
+            let hover = hover_message.clone();
+            text = text.append((component::literal(&format!("[{}]", waypoint_location))).with_color(location_color).with_style_fn(|style| (style.with_click_event(Some(ClickEvent::new_run_command(format!("/skyblocker crystalWaypoints {} {}", action, waypoint_location))))).with_hover_event(Some(HoverEvent::new_show_text(mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(hover))))));
         }
         return text;
     }
@@ -314,7 +318,7 @@ impl CrystalsLocationsManager {
         if ACTIVE_WAYPOINTS.get_mut().contains_key(place) {
             mcrust::mcrust::modding::game::with_player(|player| { script_host::send_feedback(&(constants::PREFIX.get_mut())().append(component::translatable("skyblocker.config.mining.crystalsWaypoints.removeSuccess").with_style_format(ChatFormatting::Green)).append(component::literal(place).with_color(WAYPOINT_LOCATIONS.get(place).cloned().unwrap().get_color())).to_string()); });
             ACTIVE_WAYPOINTS.get_mut().remove(place);
-            compat::remove_item(&mut compat::get_state(&VERIFIED_WAYPOINTS), &place.to_string());
+            compat::remove_item(&mut compat::lock(&VERIFIED_WAYPOINTS), &place.to_string());
         } else {
             mcrust::mcrust::modding::game::with_player(|player| { script_host::send_feedback(&(constants::PREFIX.get_mut())().append(component::translatable("skyblocker.config.mining.crystalsWaypoints.removeFail").with_style_format(ChatFormatting::Red)).to_string()); });
         }
@@ -339,9 +343,9 @@ impl CrystalsLocationsManager {
             let mut waypoint: compat::Shared<MiningLocationLabel> = MiningLocationLabel::new((compat::shared(category) as compat::Shared<dyn crate::de::hysky::skyblocker::skyblock::dwarven::mining_location_label::Category>), pos.clone());
             compat::lock(&WAYPOINTS_SENT2_SOCKET).push(category);
             ACTIVE_WAYPOINTS.get_mut().insert(category.get_name(), waypoint.clone());
-            received_waypoint_names.append(component::literal(&category.get_name()).with_color(category.get_color()));
+            received_waypoint_names = received_waypoint_names.append(component::literal(&category.get_name()).with_color(category.get_color()));
             if !std::ptr::eq(message, &messages[((messages.len() as i32).wrapping_sub(1)) as usize]) {
-                received_waypoint_names.append_str(", ");
+                received_waypoint_names = received_waypoint_names.append_str(", ");
             }
         }
         if !should_send {
@@ -362,7 +366,7 @@ impl CrystalsLocationsManager {
     /// java: private static void removeUnknownNear(BlockPos location)
     pub fn remove_unknown_near(location: &BlockPos) {
         let mut name: String = CrystalHollowsLocationsCategory::Unknown.get_name();
-        let mut unknown_waypoint: Option<compat::Shared<MiningLocationLabel>> = Some(ACTIVE_WAYPOINTS.get_mut().get(&name).cloned().unwrap_or_else(|| None));
+        let mut unknown_waypoint: Option<compat::Shared<MiningLocationLabel>> = ACTIVE_WAYPOINTS.get_mut().get(&name).cloned();
         if let Some(unknown_waypoint) = &unknown_waypoint {
             let mut distance: f64 = { let (__q0,) = (&vec3::at_center_of(location),); unknown_waypoint.lock().borrow().center_pos.as_ref().unwrap().distance_to(__q0) };
             if distance < (REMOVE_UNKNOWN_DISTANCE as f64) {
@@ -407,7 +411,11 @@ impl CrystalsLocationsManager {
             return;
         }
         if compat::get_state(&UPDATED_TIME) && compat::get_state(&UPDATED_LOCATION) {
-            WsStateManager::subscribe_server(Service::CrystalWaypoints, &Some(CrystalsWaypointSubscribeMessage::create(&mcrust::mcrust::modding::game::level().unwrap())));
+            // TODO(batchD): cross-package - `WsStateManager::subscribe_server` (utils/ws) takes
+            // `Shared<dyn Message<Shared<dyn Message<Object>>>>` for Java's `Message<? extends Message<?>>`, a type no
+            // concrete message (`impl Message<Self>`) converts to; its owner should take an erased encodable message.
+            //   java: WsStateManager.subscribeServer(Service.CRYSTAL_WAYPOINTS, Optional.of(CrystalsWaypointSubscribeMessage.create(CLIENT.level)));
+            let _ = CrystalsWaypointSubscribeMessage::create(&mcrust::mcrust::modding::game::level().unwrap());
             compat::set_state(&UPDATED_TIME, false);
             compat::set_state(&UPDATED_LOCATION, false);
         }
@@ -429,7 +437,10 @@ impl CrystalsLocationsManager {
         if category == CrystalHollowsLocationsCategory::FairyGrotto && !(SkyblockerConfigManager::get().mining.crystals_waypoints.share_fairy_grotto) {
             return;
         }
-        WsMessageHandler::send_server_message(Service::CrystalWaypoints, &(compat::shared(CrystalsWaypointMessage::new(category, mcrust::mcrust::modding::game::with_player(|player| player.base.base.base.base.block_position()).unwrap())) as compat::Shared<dyn Message<compat::Object>>));
+        // TODO(batchD): cross-package - `WsMessageHandler::send_server_message` (utils/ws) takes the same unconstructible
+        // `Shared<dyn Message<Shared<dyn Message<Object>>>>` (see `update`).
+        //   java: WsMessageHandler.sendServerMessage(Service.CRYSTAL_WAYPOINTS, new CrystalsWaypointMessage(category, CLIENT.player.blockPosition()));
+        let _ = CrystalsWaypointMessage::new(category, mcrust::mcrust::modding::game::with_player(|player| player.base.base.base.base.block_position()).unwrap());
         compat::lock(&WAYPOINTS_SENT2_SOCKET).push(category);
     }
 

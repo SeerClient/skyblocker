@@ -7,12 +7,14 @@ use crate::prelude::*;
 use crate::de::hysky::skyblocker::injected::recipe_book_holder::RecipeBookHolder;
 
 /// java: @Unique private final List<Runnable> recipeBookToggleCallbacks = new ArrayList<>();
-/// One value per InventoryScreen OBJECT (a Mixin field): an attachment.
-pub static ATTACH_RECIPE_BOOK_TOGGLE_CALLBACKS: AttachmentType<Vec<Arc<dyn Fn()>>> = AttachmentType::new("skyblocker:inventory_screen_mixin_recipe_book_toggle_callbacks");
+/// A field of the open `InventoryScreen`. The port's `onRecipeBookButtonClick` is a free function with no screen to
+/// read an attachment from, and there is one inventory screen at a time (`init` clears the list as each one opens),
+/// so the field is this mixin's own list. `Runnable`s run on the render thread only.
+pub static RECIPE_BOOK_TOGGLE_CALLBACKS: compat::MainThread<Vec<Arc<dyn Fn()>>> = compat::MainThread::new(|| Vec::new());
 
 /// @Override
-fn register_recipe_book_toggle_callback(this: &mut mcrust::net::minecraft::client::gui::screens::inventory::inventory_screen::InventoryScreen, runnable: /* TODO: Runnable */ ()) {
-    this.get_attached(&ATTACH_RECIPE_BOOK_TOGGLE_CALLBACKS).unwrap().push(runnable.clone());
+fn register_recipe_book_toggle_callback(runnable: Arc<dyn Fn()>) {
+    RECIPE_BOOK_TOGGLE_CALLBACKS.get_mut().push(runnable);
 }
 
 /// @ModifyArg skyblocker$replaceRecipeBook
@@ -20,11 +22,14 @@ fn register_recipe_book_toggle_callback(this: &mut mcrust::net::minecraft::clien
 /// target: net.minecraft.client.gui.screens.inventory.AbstractRecipeBookScreen#<init>  [exists]
 /// within: net.minecraft.client.gui.screens.inventory.InventoryScreen#<init>
 /// Rust: net/minecraft/client/gui/screens/inventory/abstract_recipe_book_screen.rs:458 fn new(recipe_book_component: RecipeBookComponent, player_inventory_title: String, title: String, recipe_book_button_position: fn(i32, i32) -> ScreenPosition,)
-fn skyblocker_replace_recipe_book(v: &RecipeBookComponent) -> RecipeBookComponent {
-    let mut original = v.clone();
-    // TODO(fabric2seer): unknown name `player`
+///
+/// rust: port gap - the port's `RecipeBookComponent` is a concrete struct (recipe_book_component.rs:828), so the mod's
+/// `SkyblockRecipeBookComponent extends RecipeBookComponent<?>` (a mod object) cannot be handed to
+/// `AbstractRecipeBookScreen`'s constructor in its place (GAPS_batchD). Registered as `@ModifyArgs`, which leaves the
+/// argument as it is.
+fn skyblocker_replace_recipe_book(ci: &mut CallbackInfo<'_>) {
     //   java: return SkyblockerConfigManager.get().general.itemList.enableRecipeBook && Utils.isOnSkyblock() ? new SkyblockRecipeBookComponent(player.inventoryMenu) : original;
-    todo!("fabric2seer: the value of this function is in a TODO above")
+    let _ = ci;
 }
 
 /// @ModifyArg skyblocker$moveButton
@@ -82,8 +87,11 @@ fn skyblocker_get_background(ci: &mut CallbackInfo<'_>) {
 /// target: net.minecraft.client.gui.screens.inventory.InventoryScreen#onRecipeBookButtonClick  [exists]
 /// Rust: net/minecraft/client/gui/screens/inventory/inventory_screen.rs:349 fn on_recipe_book_button_click()
 fn skyblocker_call_recipe_toggle_callbacks(ci: &mut CallbackInfo<'_>) {
-    // TODO(fabric2seer): `this` (the hooked object) is not available in this callback
-    //   java: recipeBookToggleCallbacks.forEach(Runnable::run);
+    // A snapshot of the handles, so a callback may register another without re-entering the list.
+    let callbacks: Vec<Arc<dyn Fn()>> = RECIPE_BOOK_TOGGLE_CALLBACKS.get().clone();
+    for callback in callbacks.iter() {
+        (callback)();
+    }
 }
 
 /// @Inject skyblocker$clearRecipeToggleCallbacks
@@ -91,8 +99,7 @@ fn skyblocker_call_recipe_toggle_callbacks(ci: &mut CallbackInfo<'_>) {
 /// target: net.minecraft.client.gui.screens.inventory.InventoryScreen#init  [exists]
 /// Rust: net/minecraft/client/gui/screens/inventory/inventory_screen.rs:495 fn init(&mut self, width: i32, height: i32, gfx: &crate::net::minecraft::client::minecraft::Minecraft)
 fn skyblocker_clear_recipe_toggle_callbacks(ci: &mut CallbackInfo<'_>) {
-    let Some(this) = compat::detach(ci.this_mut::<mcrust::net::minecraft::client::gui::screens::inventory::inventory_screen::InventoryScreen>()) else { return; };
-    this.get_attached(&ATTACH_RECIPE_BOOK_TOGGLE_CALLBACKS).unwrap().clear();
+    RECIPE_BOOK_TOGGLE_CALLBACKS.get_mut().clear();
 }
 
 /// InventoryScreenMixin makes every InventoryScreen implement RecipeBookHolder (an interface added by a Mixin): an
@@ -103,14 +110,14 @@ impl RecipeBookHolder for mcrust::net::minecraft::client::gui::screens::inventor
     }
 
     fn register_recipe_book_toggle_callback(&self, callback: Arc<dyn Fn()>) {
-        self.get_attached(&ATTACH_RECIPE_BOOK_TOGGLE_CALLBACKS).unwrap().push(callback.clone());
+        register_recipe_book_toggle_callback(callback);
     }
 
 }
 
 /// Mixins apply before the game runs: the `preLaunch` entrypoint calls this.
 pub fn register() {
-    report(hook::call_site("net.minecraft.client.gui.screens.inventory.InventoryScreen#<init>", "net.minecraft.client.gui.screens.inventory.AbstractRecipeBookScreen#<init>").priority(1000).modify_arg::<RecipeBookComponent>(0, skyblocker_replace_recipe_book));
+    report(hook::call_site("net.minecraft.client.gui.screens.inventory.InventoryScreen#<init>", "net.minecraft.client.gui.screens.inventory.AbstractRecipeBookScreen#<init>").priority(1000).modify_args(skyblocker_replace_recipe_book));
     report(hook::call_site("net.minecraft.client.gui.screens.inventory.InventoryScreen#getRecipeBookButtonPosition", "net.minecraft.client.gui.navigation.ScreenPosition#<init>").priority(1000).modify_arg::<i32>(0, skyblocker_move_button));
     report(hook::call_site("net.minecraft.client.gui.screens.inventory.InventoryScreen#extractRenderState(Lnet/minecraft/client/gui/GuiGraphicsExtractor;IIF)V", "net.minecraft.client.gui.screens.inventory.EffectsInInventory#extractRenderState").priority(1000).wrap_with_condition(skyblocker_dont_extract_status_effects));
     report(hook::register_injector("net.minecraft.client.gui.screens.inventory.InventoryScreen#showsActiveEffects", InjectOptions::at(At::Return).kind(InjectorKind::ModifyReturnValue).priority(1000), Arc::new(skyblocker_mark_status_effects_hidden)));

@@ -4,16 +4,29 @@
 #[allow(unused_imports)]
 use crate::prelude::*;
 
+/// The client's command node type: `ClientPacketListener.handleCommands` resolves the packet with the
+/// `CommandNodeBuilder` over `ClientSuggestionProvider` (`client_packet_listener.rs:3782`).
+type ClientCommandNode = std::sync::Arc<
+    mcrust::com::mojang::brigadier::tree::command_node::CommandNode<
+        std::sync::Arc<mcrust::net::minecraft::client::multiplayer::client_suggestion_provider::ClientSuggestionProvider>,
+    >,
+>;
+
 /// @ModifyExpressionValue modifyCommandSuggestions
 ///   java: @ModifyExpressionValue(method = "resolve", at = @At(value = "INVOKE", target = "Lnet/minecraft/network/protocol/game/ClientboundCommandsPacket$NodeResolver;resolve(I)Lcom/mojang/brigadier/tree/CommandNode;", ordinal = 1))
 /// target: net.minecraft.network.protocol.game.ClientboundCommandsPacket$NodeResolver#resolve  [exists]
 /// within: net.minecraft.network.protocol.game.ClientboundCommandsPacket$NodeResolver#resolve
 /// Rust: net/minecraft/network/protocol/game/clientbound_commands_packet.rs:559 fn resolve(&mut self, index: i32)
-/// note: ordinal 1: the call is under an `if` in the Java of the method, so the run-time count (per run of the method) may differ from Mixin's bytecode ordinal - check it
-fn modify_command_suggestions(v: mcrust::com::mojang::brigadier::tree::command_node::CommandNode<Box<dyn mcrust::net::minecraft::commands::shared_suggestion_provider::SharedSuggestionProvider>>) -> mcrust::com::mojang::brigadier::tree::command_node::CommandNode<Box<dyn mcrust::net::minecraft::commands::shared_suggestion_provider::SharedSuggestionProvider>> {
+fn modify_command_suggestions(v: ClientCommandNode) -> ClientCommandNode {
     let mut original = v;
-    if crate::de::hysky::skyblocker::utils::utils::Utils::is_on_hypixel() && let Some(literal_command_node) = original.as_any().downcast_ref::<mcrust::com::mojang::brigadier::tree::literal_command_node::LiteralCommandNode>() {
-        // TODO(fabric2seer): a pattern switch expression
+    if crate::de::hysky::skyblocker::utils::utils::Utils::is_on_hypixel()
+        && let mcrust::com::mojang::brigadier::tree::command_node::NodeKind::Literal(literal_command_node) = original.kind()
+    {
+        // TODO(batchD): cross-package - every replacement node below is a static of another package typed
+        // `Option<LiteralCommandNode>` (the literal's name only, no children or suggestions) or a
+        // `CommandNode<FabricClientCommandSource>`; Java hands back the mod's whole `CommandNode`, which here must be
+        // a `ClientCommandNode` (`Arc<CommandNode<Arc<ClientSuggestionProvider>>>`). Until those statics carry that
+        // type, each case answers `original` (Java's `default`).
         //   java: return switch (literalCommandNode.getLiteral()) {
         //   java: 				case String s when s.equals("setmaxspeed") -> SpeedPresets.getCommandNode();
         //   java: 				case String s when s.equals("warp") && WarpAutocomplete.commandNode != null -> WarpAutocomplete.commandNode;
@@ -34,11 +47,17 @@ fn modify_command_suggestions(v: mcrust::com::mojang::brigadier::tree::command_n
         //   java: 				case String s when s.equals("chapters") && ChaptersAutocomplete.pluralCommandNode != null -> ChaptersAutocomplete.pluralCommandNode;
         //   java: 				default -> original;
         //   java: 			};
+        let _literal: &str = literal_command_node.get_literal();
+        return original;
     }
     return original;
 }
 
 /// Mixins apply before the game runs: the `preLaunch` entrypoint calls this.
 pub fn register() {
-    report(hook::call_site("net.minecraft.network.protocol.game.ClientboundCommandsPacket$NodeResolver#resolve", "net.minecraft.network.protocol.game.ClientboundCommandsPacket$NodeResolver#resolve").ordinal(1).priority(1000).modify_expression_value::<mcrust::com::mojang::brigadier::tree::command_node::CommandNode<Box<dyn mcrust::net::minecraft::commands::shared_suggestion_provider::SharedSuggestionProvider>>>(modify_command_suggestions));
+    // `ordinal = 1` is the SECOND `resolve` call INSTRUCTION of `resolve:309-340` - the children loop's `:332`, for
+    // every child - while SeerClient's `ordinal(n)` counts calls as they run (the first `:321` redirect call shifts
+    // it). So no ordinal is given: every nested `resolve` result passes through the handler, which also sees a
+    // redirect target (`:321`); the handler leaves any node it does not replace unchanged.
+    report(hook::call_site("net.minecraft.network.protocol.game.ClientboundCommandsPacket$NodeResolver#resolve", "net.minecraft.network.protocol.game.ClientboundCommandsPacket$NodeResolver#resolve").priority(1000).modify_expression_value::<ClientCommandNode>(modify_command_suggestions));
 }
