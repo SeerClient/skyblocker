@@ -13,14 +13,10 @@ use mcrust::net::minecraft::network::chat::mutable_component::MutableComponent;
 pub static SKYBLOCK_EPOCH: compat::MainThread<mcrust::java::time::instant::Instant> = compat::MainThread::new(|| mcrust::java::time::instant::Instant::of_epoch_milli(1560275700000));
 /// java: public static final AtomicInteger skyblockYear = new AtomicInteger(0);
 pub static SKYBLOCK_YEAR: LazyLock<Mutex<std::sync::atomic::AtomicI32>> = LazyLock::new(|| Mutex::new(std::sync::atomic::AtomicI32::new(0)));
-// TODO(fabric2seer): `new AtomicReference(..)`
-//   java: public static final AtomicReference<Season> skyblockSeason = new AtomicReference<>(Season.SPRING);
 /// java: public static final AtomicReference<Season> skyblockSeason = new AtomicReference<>(Season.SPRING);
-pub static SKYBLOCK_SEASON: compat::MainThread<crate::unresolved::AtomicReference> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `skyblockSeason` - see the TODO above"));
-// TODO(fabric2seer): `new AtomicReference(..)`
-//   java: public static final AtomicReference<Month> skyblockMonth = new AtomicReference<>(Month.EARLY_SPRING);
+pub static SKYBLOCK_SEASON: LazyLock<Mutex<Season>> = LazyLock::new(|| Mutex::new(Season::Spring));
 /// java: public static final AtomicReference<Month> skyblockMonth = new AtomicReference<>(Month.EARLY_SPRING);
-pub static SKYBLOCK_MONTH: compat::MainThread<crate::unresolved::AtomicReference> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `skyblockMonth` - see the TODO above"));
+pub static SKYBLOCK_MONTH: LazyLock<Mutex<Month>> = LazyLock::new(|| Mutex::new(Month::EarlySpring));
 /// java: public static final AtomicInteger skyblockDay = new AtomicInteger(0);
 pub static SKYBLOCK_DAY: LazyLock<Mutex<std::sync::atomic::AtomicI32>> = LazyLock::new(|| Mutex::new(std::sync::atomic::AtomicI32::new(0)));
 /// java: public static final AtomicInteger skyblockHour = new AtomicInteger(0);
@@ -122,9 +118,7 @@ impl SkyblockTime {
 
     /// java: public static long getSkyblockMillis()
     pub fn get_skyblock_millis() -> i64 {
-        // TODO(fabric2seer): `.toEpochMilli(..)` on a Instant
-        //   java: return System.currentTimeMillis() - SKYBLOCK_EPOCH.toEpochMilli();
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        return compat::millis().wrapping_sub(SKYBLOCK_EPOCH.get().to_epoch_milli());
     }
 
     /// java: private static int calculateSkyblockYear()
@@ -155,19 +149,13 @@ impl SkyblockTime {
             (year_change_invoker())(year);
         }
         let mut season: Season = Season::values()[((SkyblockTime::calculate_skyblock_month()).wrapping_div(3)) as usize];
-        // TODO(fabric2seer): the condition: `.get(..)` on a AtomicReference
-        //   java: skyblockSeason.get() != season
-        if todo!("fabric2seer: the condition (TODO above)") {
-            // TODO(fabric2seer): `.set(..)` on a AtomicReference
-            //   java: skyblockSeason.set(season);
+        if compat::get_state(&SKYBLOCK_SEASON) != season {
+            compat::set_state(&SKYBLOCK_SEASON, season);
             (season_change_invoker())(season);
         }
         let mut month: Month = Month::values()[(SkyblockTime::calculate_skyblock_month()) as usize];
-        // TODO(fabric2seer): the condition: `.get(..)` on a AtomicReference
-        //   java: skyblockMonth.get() != month
-        if todo!("fabric2seer: the condition (TODO above)") {
-            // TODO(fabric2seer): `.set(..)` on a AtomicReference
-            //   java: skyblockMonth.set(month);
+        if compat::get_state(&SKYBLOCK_MONTH) != month {
+            compat::set_state(&SKYBLOCK_MONTH, month);
             (month_change_invoker())(month);
         }
         let mut day: i32 = SkyblockTime::calculate_skyblock_day();

@@ -113,6 +113,9 @@ impl SkyblockTimeField {
         //   java: 		} else if (temporal.isSupported(ChronoField.EPOCH_DAY)) {
         //   java: 			seconds = temporal.getLong(ChronoField.EPOCH_DAY) * ChronoUnit.DAYS.getDuration().getSeconds();
         //   java: 		} else throw new UnsupportedTemporalTypeException("Temporal must support epoch seconds or days.");
+        // rust: port gap (GAPS_batchH #3) - java.time's TemporalAccessor is a `crate::unresolved` placeholder that supports no
+        // field, so Java's else-branch is the one taken
+        seconds = panic!("java.time.temporal.UnsupportedTemporalTypeException: Temporal must support epoch seconds or days.");
         // TODO(fabric2seer): `.getEpochSecond(..)` on a Instant
         //   java: seconds -= SkyblockTime.SKYBLOCK_EPOCH.getEpochSecond();
         let mut value: i64;
