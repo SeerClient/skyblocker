@@ -144,7 +144,7 @@ impl ProfileViewerScreen {
                     if compat::read(&__page_1, |__p| __p.centred()) {
                         compat::write(&__this_1, |__t| __t.content_layout.add_child(layout_element.clone()));
                     } else {
-                        compat::write(&__this_1, |__t| __t.content_layout.add_child_adjusted(layout_element.clone(), &mut |l| { l.align_vertically_top().align_horizontally_left(); }));
+                        compat::write(&__this_1, |__t| __t.content_layout.add_child_adjusted(layout_element.clone(), &mut |l| { *l = l.align_vertically_top().align_horizontally_left(); }));
                     }
                     // java: this.contentLayout.arrangeElements(); (the arranged widgets take their positions in the screen)
                     { compat::write(&__this_1, |__t| __t.content_layout.arrange_elements()); let mut __vw = Vec::new(); compat::read(&__this_1, |__t| __t.content_layout.visit_widgets(&mut __vw)); for (__i, __x, __y) in __vw { compat::write(&__this_1, |__t| __t.widget_mut(__i).set_position(__x, __y)); } };

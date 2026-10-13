@@ -42,16 +42,28 @@ impl std::ops::DerefMut for AbstractPopupScreenBase {
 impl AbstractPopupScreenBase {
     /// java: protected AbstractPopupScreen(Component title, Screen backgroundScreen) (built by the most-derived class's `wrap`, then run on its handle)
     pub fn new_in<__R>(mut title: MutableComponent, mut background_screen: mcrust::net::minecraft::client::gui::screens::screen::Screen, __wrap: impl FnOnce(Self) -> (compat::Shared<dyn AbstractPopupScreen>, __R)) -> (compat::Shared<dyn AbstractPopupScreen>, __R) {
-        // TODO(fabric2seer): the mod keeps the game's `Screen` (Java holds a reference to the live object); the port's `Screen` is not a value to copy and the port lends the mod no handle to it
-        //   java: this.backgroundScreen = backgroundScreen;
+        // java: this.backgroundScreen = backgroundScreen;
+        // The live background screen is the one the popup is opened over: `game::set_screen_keeping_parent` holds it
+        // and `onClose`'s `setScreen(this.backgroundScreen)` is `game::set_screen_to_parent()`. The value kept here is
+        // the caller's stand-in (the port lends a mod no handle to the game's screen object).
         let this = Self {
             base: mcrust::net::minecraft::client::gui::screens::screen::Screen::new(title.get_string()),
             __widgets: Default::default(),
-            background_screen: todo!("fabric2seer: the field value (TODO above)"),
+            background_screen,
         };
         let (__h, __r) = __wrap(this);
         let __this = __h;
         (__this, __r)
+    }
+
+    /// `super(title, backgroundScreen)` for a subclass that keeps this base as a field of its own base (its `wrap`
+    /// builds the object around the value)
+    pub fn new_base(title: MutableComponent, background_screen: mcrust::net::minecraft::client::gui::screens::screen::Screen) -> Self {
+        Self {
+            base: mcrust::net::minecraft::client::gui::screens::screen::Screen::new(title.get_string()),
+            __widgets: Default::default(),
+            background_screen,
+        }
     }
 
     /// java: protected AbstractPopupScreen(Component title, Screen backgroundScreen)
@@ -110,14 +122,15 @@ impl dyn AbstractPopupScreen {
 
     /// java: @Override public void extractBackground(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a)
     pub fn extract_background_body(__this: &compat::Shared<dyn AbstractPopupScreen>, graphics: &mut GuiGraphicsExtractor, mut mouse_x: i32, mut mouse_y: i32, mut a: f32) {
-        // TODO(fabric2seer): `Screen.extractBackground` has no Rust method in the port (looked for `extract_background` in Screen and its supertypes)
-        // rust: __this.lock().borrow().abstract_popup_screen_base().background_screen.extract_background(graphics, -1, -1, a);
+        // java: this.backgroundScreen.extractBackground(graphics, -1, -1, a);
+        // rust: port gap - the held parent screen (`set_screen_keeping_parent`) is not drawn under a mod screen: the
+        // port has no call that extracts the held screen's background and widgets from a mod screen (GAPS_N #1)
         gui_graphics_extractor::next_stratum();
-        // TODO(fabric2seer): `extract_render_state` is a method of the port's trait `Renderable`, which the port's `Screen` does not implement
-        // rust: { let (__q0, __q1, __q2, __q3, __q4,) = (mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), -1, -1, a,); __this.lock().borrow_mut().abstract_popup_screen_base_mut().background_screen.extract_render_state(__q0, __q1, __q2, __q3, __q4) };
+        // java: this.backgroundScreen.extractRenderState(graphics, -1, -1, a);
+        // rust: port gap - the held parent screen is not drawn under a mod screen (GAPS_N #1)
         gui_graphics_extractor::next_stratum();
-        // TODO(fabric2seer): `Screen.extractTransparentBackground` has no Rust method in the port (looked for `extract_transparent_background` in Screen and its supertypes)
-        // rust: __this.lock().borrow().abstract_popup_screen_base().extract_transparent_background(graphics);
+        // java: this.extractTransparentBackground(graphics);
+        // (the port's generic screen pass draws a mod screen's background before the screen's own extract)
     }
 
     /// java: @Override protected void init()
@@ -128,10 +141,9 @@ impl dyn AbstractPopupScreen {
 
     /// java: @Override protected void repositionElements()
     pub fn reposition_elements_body(__this: &compat::Shared<dyn AbstractPopupScreen>) {
-        // TODO(fabric2seer): `resize` takes 3 argument(s) in the port (`width: i32, height: i32, build: impl FnOnce(&mut Screen)`), Java passes 2
-        // rust: let __r0 = compat::read(__this, |__t| __t.abstract_popup_screen_base().width);
-        // rust: let __r1 = compat::read(__this, |__t| __t.abstract_popup_screen_base().height);
-        // rust: { let (__q0, __q1,) = (__r0, __r1,); __this.lock().borrow_mut().abstract_popup_screen_base_mut().background_screen.resize(__q0, __q1) };
+        // java: this.backgroundScreen.resize(this.width, this.height);
+        // (the held parent is re-initialised at its own size when the game puts it back - `create_screen_from_pending`'s
+        // `Parent` arm runs `resize_dispatch` on it - so there is nothing to resize while it is held)
     }
 
     /// java: @Override public void added()
@@ -205,11 +217,20 @@ impl EnterConfirmTextFieldWidget {
     }
 
     /// java: @Override public boolean keyPressed(KeyEvent input)
-    pub fn key_pressed(__this: &compat::Shared<Self>, input: &mcrust::net::minecraft::client::input::key_event::KeyEvent) -> bool {
-        // java: if (!super.keyPressed(input)) - the port's `EditBox.keyPressed` takes the widget's `focused`/`active`
-        // state and the window clipboard from its caller (the game's widget tree); a mod-built edit box can reach
-        // neither, so `super.keyPressed` cannot be called from here (port gap, GAPS_batchA.md)
-        let __super_key_pressed: bool = todo!("rust: port gap - EditBox.keyPressed needs the widget focus/active state and a ClipboardAccess the mod cannot reach");
+    ///
+    /// `focused` / `active` are the widget's (`AbstractWidget` keeps them; the box here is the `EditBox` half), handed
+    /// in by the screen that dispatches the key to this box.
+    pub fn key_pressed(__this: &compat::Shared<Self>, input: &mcrust::net::minecraft::client::input::key_event::KeyEvent, focused: bool, active: bool) -> bool {
+        // java: if (!super.keyPressed(input)) - `EditBox.keyPressed` with the window clipboard
+        let __font = compat::font();
+        let __super_key_pressed: bool = compat::write(__this, |__t| {
+            let b = &mut __t.filtered_edit_box_base_mut().base;
+            let mut memory = mcrust::net::minecraft::client::gui::components::edit_box::MemoryClipboard::default();
+            match mcrust::net::minecraft::client::minecraft::GlfwClipboard::published() {
+                Some(mut clipboard) => b.key_pressed(&__font.splitter(), input.clone(), focused, active, &mut clipboard),
+                None => b.key_pressed(&__font.splitter(), input.clone(), focused, active, &mut memory),
+            }
+        });
         if !(__super_key_pressed) {
             if input.is_confirmation() {
                 ((compat::read(__this, |__t| __t.on_enter.clone()).unwrap()))();

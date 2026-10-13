@@ -75,13 +75,17 @@ impl MobGlowAdder for HubGlowAdder {
 impl HubGlowAdder {
     /// java: @Override public int computeColour(Entity entity)
     pub fn compute_colour_impl(__this: &compat::Shared<Self>, entity: &dyn Entity) -> i32 {
-        // TODO(fabric2seer): a pattern switch expression
-        //   java: return switch (entity) {
-        //   java: 			case Zombie zombie when ZombieShootout.isInZombieShootout() -> ZombieShootout.getZombieGlowColor(zombie);
-        //   java: 			case ArmorStand armorStand when CatchAFish.isInCatchAFish() -> CatchAFish.getFishGlowColor(armorStand);
-        //   java: 			default -> NO_GLOW;
-        //   java: 		};
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        // java: return switch (entity) { case Zombie zombie when ZombieShootout.isInZombieShootout() -> ZombieShootout.getZombieGlowColor(zombie);
+        //   case ArmorStand armorStand when CatchAFish.isInCatchAFish() -> CatchAFish.getFishGlowColor(armorStand); default -> NO_GLOW; };
+        use crate::de::hysky::skyblocker::skyblock::carnival::catch_a_fish::CatchAFish;
+        use crate::de::hysky::skyblocker::skyblock::carnival::zombie_shootout::ZombieShootout;
+        if let Some(zombie) = entity.as_any().unwrap_or(&() as &dyn std::any::Any).downcast_ref::<mcrust::net::minecraft::world::entity::monster::zombie::zombie::Zombie>() && ZombieShootout::is_in_zombie_shootout() {
+            return ZombieShootout::get_zombie_glow_color(zombie);
+        }
+        if let Some(armor_stand) = entity.as_any().unwrap_or(&() as &dyn std::any::Any).downcast_ref::<mcrust::net::minecraft::world::entity::decoration::armor_stand::ArmorStand>() && CatchAFish::is_in_catch_a_fish() {
+            return CatchAFish::get_fish_glow_color(armor_stand);
+        }
+        return *crate::de::hysky::skyblocker::skyblock::entity::mob_glow::NO_GLOW;
     }
 
     /// HubGlowAdder.computeColour as the dispatch of MobGlowAdder.computeColour

@@ -109,7 +109,7 @@ impl ItemRepository {
         // (`compat::execute_local`, the Minecraft executor) - batch F pattern 10.
         let __tasks: Vec<AfterImportTask> = AFTER_IMPORT_TASKS.get().clone();
         for task in __tasks {
-            ItemRepository::run_async_logging(task.runnable.clone(), "[Skyblocker Item Repo Loader] Encountered unknown exception while running after import tasks");
+            compat::run_async_logging(task.runnable.clone(), "[Skyblocker Item Repo Loader] Encountered unknown exception while running after import tasks");
         }
     }
 
@@ -269,7 +269,7 @@ impl ItemRepository {
                 // java: 					LOGGER.error("[Skyblocker Item Repo Loader] Encountered unknown exception while running after import task", e);
                 // java: 					return null;
                 // java: 				});
-                ItemRepository::run_async_logging(runnable.clone(), "[Skyblocker Item Repo Loader] Encountered unknown exception while running after import task");
+                compat::run_async_logging(runnable.clone(), "[Skyblocker Item Repo Loader] Encountered unknown exception while running after import task");
             } else {
                 // java: try {..} catch (Exception e) - an exception here is a panic, caught by `catch_unwind`
                 let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
@@ -282,19 +282,6 @@ impl ItemRepository {
         }
         AFTER_IMPORT_TASKS.get_mut().push(AfterImportTask::new(runnable.clone(), r#async));
     }
-
-    /// `CompletableFuture.runAsync(runnable, executor).exceptionally(e -> { LOGGER.error(message, e); return null; })`
-    /// for a runnable over the mod's objects (`Arc<dyn Fn()>`, not `Send`): it runs deferred on the render thread
-    /// (`compat::execute_local`), and a panic is the exceptional completion, logged.
-    fn run_async_logging(runnable: Arc<dyn Fn()>, message: &'static str) {
-        compat::execute_local(move || {
-            let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| (runnable)()));
-            if let Err(e) = __result {
-                logger().error(&format!("{} {}", message, compat::panic_message(&e)));
-            }
-        });
-    }
-
 
 }
 

@@ -75,14 +75,19 @@ impl MobGlowAdder for GalateaGlowAdder {
 impl GalateaGlowAdder {
     /// java: @Override public int computeColour(Entity entity)
     pub fn compute_colour_impl(__this: &compat::Shared<Self>, entity: &dyn Entity) -> i32 {
-        // TODO(fabric2seer): a pattern switch expression
-        //   java: return switch (entity) {
-        //   java: 			case Shulker shulker when shulker.getColor() == DyeColor.GREEN && SkyblockerConfigManager.get().hunting.moongladeMobs.highlightHideonleaf -> SkyblockerConfigManager.get().hunting.moongladeMobs.hideonleafGlowColor.getRGB();
-        //   java: 			case Turtle _ when SkyblockerConfigManager.get().hunting.moongladeMobs.highlightShellwise -> SkyblockerConfigManager.get().hunting.moongladeMobs.shellwiseGlowColor.getRGB();
-        //   java: 			case Axolotl _ when SkyblockerConfigManager.get().hunting.moongladeMobs.highlightCoralot -> SkyblockerConfigManager.get().hunting.moongladeMobs.coralotGlowColor.getRGB();
-        //   java: 			default -> NO_GLOW;
-        //   java: 		};
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        // java: return switch (entity) { case Shulker shulker when shulker.getColor() == DyeColor.GREEN && ..highlightHideonleaf -> ..hideonleafGlowColor.getRGB();
+        //   case Turtle _ when ..highlightShellwise -> ..shellwiseGlowColor.getRGB(); case Axolotl _ when ..highlightCoralot -> ..coralotGlowColor.getRGB(); default -> NO_GLOW; };
+        let config = &crate::de::hysky::skyblocker::config::skyblocker_config_manager::SkyblockerConfigManager::get().hunting.moonglade_mobs;
+        if let Some(shulker) = entity.as_any().unwrap_or(&() as &dyn std::any::Any).downcast_ref::<mcrust::net::minecraft::world::entity::monster::shulker::Shulker>() && shulker.get_color() == Some(mcrust::net::minecraft::world::item::dye_color::DyeColor::Green) && config.highlight_hideonleaf {
+            return config.hideonleaf_glow_color.get_rgb();
+        }
+        if entity.as_any().unwrap_or(&() as &dyn std::any::Any).is::<mcrust::net::minecraft::world::entity::animal::turtle::turtle::Turtle>() && config.highlight_shellwise {
+            return config.shellwise_glow_color.get_rgb();
+        }
+        if entity.as_any().unwrap_or(&() as &dyn std::any::Any).is::<mcrust::net::minecraft::world::entity::animal::axolotl::axolotl::Axolotl>() && config.highlight_coralot {
+            return config.coralot_glow_color.get_rgb();
+        }
+        return *crate::de::hysky::skyblocker::skyblock::entity::mob_glow::NO_GLOW;
     }
 
     /// GalateaGlowAdder.computeColour as the dispatch of MobGlowAdder.computeColour

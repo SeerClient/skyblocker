@@ -49,13 +49,18 @@ impl<T: 'static> std::ops::DerefMut for CustomDropdownWidget<T> {
 
 impl<T: Clone + 'static> CustomDropdownWidget<T> {
     /// java: CustomDropdownWidget(int x, int y, int width, int maxHeight, List<T> entries, Consumer<T> selectCallback, T selected)
-    pub fn new(mut x: i32, mut y: i32, mut width: i32, mut max_height: i32, mut entries: Vec<T>, select_callback: Arc<dyn Fn(T)>, mut selected: T) -> compat::Shared<Self> {
-        let __this = compat::shared(Self {
-            base: DropdownWidgetBase::<T>::new(compat::minecraft(), x, y, width, max_height, 12, entries.clone(), select_callback.clone(), selected.clone(), Arc::new(move |_| {
+    pub fn new(mut x: i32, mut y: i32, mut width: i32, mut max_height: i32, mut entries: Vec<T>, select_callback: Arc<dyn Fn(T)>, mut selected: T) -> compat::Shared<Self> where T: std::fmt::Display {
+        // java: super(Minecraft.getInstance(), x, y, width, maxHeight, 12, entries, selectCallback, selected, _ -> {}); - the
+        // base's constructor runs `createDropdown()` / `createEntry(..)`, which are this class's overrides: the value is
+        // built first and the constructor's second half runs on it (`init_dropdown`)
+        let mut __value = Self {
+            base: DropdownWidgetBase::<T>::new_base(x, y, width, max_height, 12, entries.clone(), select_callback.clone(), selected.clone(), Arc::new(move |_| {
 
         })),
             first_entry: None,
-        });
+        };
+        __value.init_dropdown();
+        let __this = compat::shared(__value);
         { let __v = 15; compat::write(&__this, |__t| __t.header_height = __v); }
         { let __v = Some(entries[0].clone()); compat::write(&__this, |__t| __t.first_entry = __v); }
         __this
@@ -87,23 +92,34 @@ impl<T: Clone + 'static> DropdownWidget<T> for CustomDropdownWidget<T> {
             graphics.fill(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), self.get_x(), y, self.get_right().wrapping_add(1), y2, argb::color_alpha_rgb(50, 0));
         }
         gui_graphics_extractor::text_string_with_drop_shadow(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), Some(">"), self.get_x().wrapping_add(4), (self.get_y().wrapping_add((self.header_height.wrapping_sub(mcrust::net::minecraft::client::gui::font::LINE_HEIGHT)).wrapping_div(2))).wrapping_add(1), mcrust::net::minecraft::util::common_colors::LIGHTER_GRAY, true);
-        // TODO(fabric2seer): the port's `text_renderer` ports this Java method with other parameters (mouse_x, mouse_y for Java's )
-        // TODO(fabric2seer): `text_renderer` takes 2 argument(s) in the port (`mouse_x: f64, mouse_y: f64`), Java passes 0
-        // TODO(fabric2seer): the port's `accept_scrolling` ports this Java method with other parameters (center_x, left, right, top, bottom, line_width, time_millis for Java's message, center_x, left, right, top, bottom)
-        // TODO(fabric2seer): `accept_scrolling` takes 7 argument(s) in the port (`center_x: i32, left: i32, right: i32, top: i32, bottom: i32, line_width: i32, time_millis: i64`), Java passes 6
-        // rust: active_text_collector::accept_scrolling((self.formatter)(self.selected.clone()), self.get_x().wrapping_add(self.get_width().wrapping_div(2)), (self.get_x().wrapping_add(4)).wrapping_add(6), self.get_right().wrapping_sub(2), self.get_y().wrapping_add(2), (self.get_y().wrapping_add(self.header_height)).wrapping_sub(2));
+        // java: graphics.textRenderer().acceptScrolling(formatter.apply(selected), getX() + getWidth() / 2, getX() + 4 + 6, getRight() - 2, getY() + 2, getY() + headerHeight - 2);
+        let __message = mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from((self.formatter)(self.selected.clone().expect("java.lang.NullPointerException: selected")));
+        accept_scrolling(&__message, self.get_x().wrapping_add(self.get_width().wrapping_div(2)), (self.get_x().wrapping_add(4)).wrapping_add(6), self.get_right().wrapping_sub(2), self.get_y().wrapping_add(2), (self.get_y().wrapping_add(self.header_height)).wrapping_sub(2));
     }
 
     /// java: @Override protected DropdownWidget<T>.DropdownList createDropdown()
     fn create_dropdown(&self) -> compat::Shared<dyn DropdownList> {
-        return (CustomDropdownList::new(compat::minecraft()) as compat::Shared<dyn DropdownList>);
+        return (CustomDropdownList::new(compat::minecraft(), self.dropdown_widget_base().entry_height) as compat::Shared<dyn DropdownList>);
     }
 
     /// java: @Override protected DropdownWidget<T>.Entry createEntry(T element)
     fn create_entry(&self, element: &T) -> compat::Shared<dyn crate::de::hysky::skyblocker::utils::render::gui::dropdown_widget::Entry> {
-        return (CustomEntry::new(element.clone()) as compat::Shared<dyn crate::de::hysky::skyblocker::utils::render::gui::dropdown_widget::Entry>);
+        // `entry != firstEntry` (firstEntry = entries.get(0)): the entries are created in `entries` order, so the first
+        // one is the one created while the list is still empty
+        let is_first = self.dropdown_widget_base().dropdown_list.as_ref().is_some_and(|__l| compat::read(__l, |__t| __t.dropdown_list_base().base.entry_count() == 0));
+        return (CustomEntry::new(element.clone(), is_first) as compat::Shared<dyn crate::de::hysky::skyblocker::utils::render::gui::dropdown_widget::Entry>);
     }
 
+}
+
+/// `graphics.textRenderer().acceptScrolling(message, centerX, left, right, top, bottom)` from a draw that holds only the
+/// extractor: the scrolling placement (`ActiveTextCollector.acceptScrolling`) and the clipped draw, as
+/// `compat::accept_scrolling_with_default_center` does with a widget render context
+fn accept_scrolling(message: &mcrust::net::minecraft::network::chat::formatted_text::FormattedText, center_x: i32, left: i32, right: i32, top: i32, bottom: i32) {
+    let minecraft = &*compat::minecraft();
+    let width = mcrust::net::minecraft::client::gui::font::width(minecraft.font.splitter().string_width_formatted(message));
+    let placement = active_text_collector::accept_scrolling(center_x, left, right, top, bottom, width, mcrust::net::minecraft::util::util::get_millis());
+    gui_graphics_extractor::draw_clipped_formatted_text(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), minecraft, placement.x, placement.y, message, -1, &mcrust::net::minecraft::network::chat::style::Style::EMPTY, placement.scissor, None, minecraft.window.get_gui_scale(), minecraft.window.get_height());
 }
 
 /// java: class CustomDropdownList extends DropdownList
@@ -127,8 +143,10 @@ impl std::ops::DerefMut for CustomDropdownList {
 
 impl CustomDropdownList {
     /// java: protected CustomDropdownList(Minecraft minecraftClient)
-    pub fn new(minecraft_client: &mut mcrust::net::minecraft::client::minecraft::Minecraft) -> compat::Shared<Self> {
-        let (_, __this) = DropdownListBase::new_in(minecraft_client, move |__base| {
+    ///
+    /// (`entry_height` is the enclosing `DropdownWidget.this.entryHeight`, which `DropdownList(..)` reads)
+    pub fn new(minecraft_client: &mut mcrust::net::minecraft::client::minecraft::Minecraft, entry_height: i32) -> compat::Shared<Self> {
+        let (_, __this) = DropdownListBase::new_in(minecraft_client, entry_height, move |__base| {
             let __h = compat::shared(Self {
                 base: __base,
             });
@@ -216,6 +234,9 @@ impl ModList for compat::ListClass<CustomDropdownList> {
 pub struct CustomEntry {
     /// java: extends Entry
     pub base: EntryBase,
+    /// `entry == CustomDropdownWidget.this.firstEntry` (the inner class's read of its enclosing widget, fixed when the
+    /// entry is made)
+    pub is_first: bool,
 }
 
 impl std::ops::Deref for CustomEntry {
@@ -233,10 +254,11 @@ impl std::ops::DerefMut for CustomEntry {
 
 impl CustomEntry {
     /// java: protected CustomEntry(T element) (`T` is the enclosing CustomDropdownWidget's)
-    pub fn new<T: Clone + 'static>(element: T) -> compat::Shared<Self> {
+    pub fn new<T: Clone + 'static>(element: T, is_first: bool) -> compat::Shared<Self> {
         let (_, __this) = EntryBase::new_in(element.clone(), move |__base| {
             let __h = compat::shared(Self {
                 base: __base,
+                is_first,
             });
             ((__h.clone() as compat::Shared<dyn crate::de::hysky::skyblocker::utils::render::gui::dropdown_widget::Entry>), __h)
         });
@@ -267,12 +289,13 @@ impl crate::de::hysky::skyblocker::utils::render::gui::dropdown_widget::Entry fo
 impl CustomEntry {
     /// java: @Override public void extractContent(GuiGraphicsExtractor graphics, int mouseX, int mouseY, boolean hovered, float deltaTicks)
     pub fn extract_content_impl(__this: &compat::Shared<Self>, graphics: &GuiGraphicsExtractor, mut mouse_x: i32, mut mouse_y: i32, mut hovered: bool, mut delta_ticks: f32) {
-        // TODO(fabric2seer): the condition: `firstEntry` is a field of the enclosing instance (CustomDropdownWidget.this) - an inner class has no outer reference in Rust
         //   java: entry != firstEntry
-        if todo!("fabric2seer: the condition (TODO above)") {
+        if !compat::read(__this, |__t| __t.is_first) {
             gui_graphics_extractor::horizontal_line(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), __this.lock().borrow().get_x(), (__this.lock().borrow().get_x()).wrapping_add(__this.lock().borrow().get_width()), __this.lock().borrow().get_y(), argb::color_alpha_rgb(15, 0));
         }
-        // TODO(fabric2seer): `formatter` is a field of the enclosing instance (CustomDropdownWidget.this) - an inner class has no outer reference in Rust
+        // rust: port gap - `formatter` is a field of the enclosing CustomDropdownWidget.this, which the entry (made by the
+        // widget's constructor before the widget is shared, and erased to `Rc<dyn Any>`) cannot reach; the label is not
+        // drawn (GAPS_O)
         //   java: graphics.textRenderer().acceptScrollingWithDefaultCenter(
         //   java: 					formatter.apply(entry).copy().withStyle(Style.EMPTY.withUnderlined(hovered)),
         //   java: 					this.getX(),

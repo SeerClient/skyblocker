@@ -76,7 +76,7 @@ pub static EMPTY_ALLOWING_ITEMSTACK_CODEC: compat::MainThread<CodecRef<mcrust::n
             // Codec.INT.orElse(1).fieldOf("count").forGetter(ItemStack::getCount)
             record_codec_builder::of(|o: &ItemStack| o.get_count(), codec::field_of(codec::map_result(codec::int_codec(), Arc::new(OrElse { value: 1 })), "count")),
             // DataComponentPatch.CODEC.optionalFieldOf("components", DataComponentPatch.EMPTY).forGetter(ItemStack::getComponentsPatch)
-            record_codec_builder::of(|o: &ItemStack| o.get_components_patch(), codec::optional_field_of(mcrust::net::minecraft::core::component::data_component_patch::codec(), "components", mcrust::net::minecraft::core::component::data_component_patch::empty())),
+            record_codec_builder::of(|o: &ItemStack| o.clone().get_components_patch(), codec::optional_field_of(mcrust::net::minecraft::core::component::data_component_patch::codec(), "components", mcrust::net::minecraft::core::component::data_component_patch::empty())),
             // ItemStack::new (Holder<Item>, int, DataComponentPatch)
             |item: Holder, count: i32, components: mcrust::net::minecraft::core::component::data_component_patch::DataComponentPatch| {
                 let item: Arc<Item> = mcrust::net::minecraft::world::item::item::from_obj(&item.value()).expect("a Holder<Item>");

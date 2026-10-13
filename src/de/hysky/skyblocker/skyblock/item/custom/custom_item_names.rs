@@ -1,6 +1,7 @@
 //! Ported from de.hysky.skyblocker.skyblock.item.custom.CustomItemNames by fabric2seer.
 
 #[allow(unused_imports)]
+use mcrust::net::minecraft::world::entity::living_entity::LivingEntity as _;
 use crate::prelude::*;
 use crate::de::hysky::skyblocker::config::skyblocker_config_manager::SkyblockerConfigManager;
 use crate::de::hysky::skyblocker::skyblock::item::custom::screen::customize_screen::CustomizeScreen;
@@ -60,7 +61,7 @@ impl CustomItemNames {
         }
         // TODO(fabric2seer): `.getPlayer(..)` on a FabricClientCommandSource
         //   java: ItemStack handStack = source.getPlayer().getMainHandItem();
-        let mut hand_stack: mcrust::net::minecraft::world::item::item_stack::ItemStack = todo!("fabric2seer: the initialiser of `handStack` (TODO above)");
+        let mut hand_stack: mcrust::net::minecraft::world::item::item_stack::ItemStack = mcrust::mcrust::modding::game::with_player(|player| player.get_main_hand_item().clone()).unwrap_or_else(mcrust::net::minecraft::world::item::item_stack::empty);
         if hand_stack.is_empty() {
             // TODO(fabric2seer): `.sendError(..)` on a FabricClientCommandSource
             //   java: source.sendError(Constants.PREFIX.get().append(Component.translatable("skyblocker.customItemNames.noItem")));
@@ -80,12 +81,12 @@ impl CustomItemNames {
         if Utils::is_on_skyblock() {
             // TODO(fabric2seer): `.getPlayer(..)` on a FabricClientCommandSource
             //   java: String itemUuid = source.getPlayer().getMainHandItem().getUuid();
-            let mut item_uuid: String = todo!("fabric2seer: the initialiser of `itemUuid` (TODO above)");
+            let mut item_uuid: String = mcrust::mcrust::modding::game::with_player(|player| player.get_main_hand_item().get_uuid()).unwrap_or_default();
             if !item_uuid.is_empty() {
                 // Set italic to false if it hasn't been changed (or was already false):
                 // ((MutableComponent) text).setStyle(currentStyle.withItalic(currentStyle.isItalic())) - the update's
                 // lambda runs once, at once, so the component is restyled before it is handed in
-                let current_style = text.get_style();
+                let current_style = text.get_style().clone();
                 let text = text.set_style(current_style.with_italic(Some(current_style.is_italic())));
                 SkyblockerConfigManager::update(Arc::new(move |mut config| {
                     let custom_item_names = &mut config.general.custom_item_names;

@@ -46,10 +46,9 @@ pub struct GuiEquipmentRenderState<S> {
 impl<S: Clone + 'static> GuiEquipmentRenderState<S> {
     /// java: public GuiEquipmentRenderState( EquipmentLayerRenderer equipmentRenderer, EquipmentClientInfo.LayerType layerType, ResourceKey<EquipmentAsset> assetKey, Model<S> model, S state, ItemStack stack, int x
     pub fn new(mut equipment_renderer: EquipmentLayerRenderer, mut layer_type: LayerType, mut asset_key: ResourceKey, mut model: std::rc::Rc<std::cell::RefCell<dyn mcrust::net::minecraft::client::renderer::feature::model_feature_renderer::AnimatedModel>>, mut state: std::rc::Rc<S>, mut stack: mcrust::net::minecraft::world::item::item_stack::ItemStack, mut x1: i32, mut y1: i32, mut x2: i32, mut y2: i32, mut rotation: f32, mut scale: f32, mut offset: f32, mut scissor_area: Option<ScreenRectangle>) -> Self {
-        // TODO(fabric2seer): the mod keeps the game's `EquipmentLayerRenderer` (Java holds a reference to the live object); the port's `EquipmentLayerRenderer` is not a value to copy and the port lends the mod no handle to it
-        //   java: this(equipmentRenderer, layerType, assetKey, model, state, stack, x1, y1, x2, y2, rotation, scale, offset, scissorArea, PictureInPictureRenderState.getBounds(x1, y1, x2, y2, scissorArea));
-        let mut this: Self = todo!("constructor");
-        this
+        // java: this(equipmentRenderer, layerType, assetKey, model, state, stack, x1, y1, x2, y2, rotation, scale, offset, scissorArea, PictureInPictureRenderState.getBounds(x1, y1, x2, y2, scissorArea));
+        let bounds = mcrust::net::minecraft::client::renderer::state::gui::pip::picture_in_picture_render_state::get_bounds(x1, y1, x2, y2, scissor_area.clone());
+        Self::new_canonical(equipment_renderer, layer_type, asset_key, model, state, stack, x1, y1, x2, y2, rotation, scale, offset, scissor_area, bounds)
     }
 
     /// java: the canonical record constructor

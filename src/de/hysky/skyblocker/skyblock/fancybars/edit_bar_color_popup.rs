@@ -54,9 +54,17 @@ impl EditBarColorPopup {
     pub fn new(mut title: MutableComponent, mut background_screen: mcrust::net::minecraft::client::gui::screens::screen::Screen, set_color: Arc<dyn Fn(Color)>, mut initial_color: i32) -> compat::Shared<Self> {
         let __init_set_color = set_color.clone();
         let __init_current_color = initial_color;
-        // TODO(fabric2seer): the mod keeps the game's `Screen` (Java holds a reference to the live object); the port's `Screen` is not a value to copy and the port lends the mod no handle to it
-        //   java: super(title, backgroundScreen);
-        let __this: compat::Shared<Self> = todo!("constructor");
+        // java: super(title, backgroundScreen); (the base keeps a stand-in: the held screen is the one the popup is
+        // opened over, see `AbstractPopupScreenBase::new_in`)
+        let (_, __this) = AbstractPopupScreenBase::new_in(title, background_screen, move |__base| {
+            let __h = compat::shared(Self {
+                base: __base,
+                set_color: __init_set_color,
+                current_color: __init_current_color,
+                layout: LinearLayout::vertical(),
+            });
+            ((__h.clone() as compat::Shared<dyn AbstractPopupScreen>), __h)
+        });
         __this
     }
 

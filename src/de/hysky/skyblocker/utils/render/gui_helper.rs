@@ -71,12 +71,9 @@ impl GuiHelper {
     /// java: public static void horizontalGradient(GuiGraphicsExtractor graphics, float startX, float startY, float endX, float endY, int colorStart, int colorEnd)
     pub fn horizontal_gradient(graphics: &GuiGraphicsExtractor, mut start_x: f32, mut start_y: f32, mut end_x: f32, mut end_y: f32, mut color_start: i32, mut color_end: i32) {
         // java: graphics.guiRenderState.addGuiElement(new GuiHorizontalGradientRenderState(RenderPipelines.GUI, TextureSetup.noTexture(), new Matrix3x2f(graphics.pose()), (int) startX, (int) startY, (int) endX, (int) endY, colorStart, colorEnd, graphics.scissorStack.peek()));
-        // rust: blocked (cross-package, GAPS_J #3) - `graphics.guiRenderState.addGuiElement` is
-        // `gui_graphics_extractor::with_gui_render_state(|s| s.add_gui_element(Box::new(..)))` and
-        // `new Matrix3x2f(graphics.pose())` / `scissorStack.peek()` are `current_pose()` /
-        // `peek_scissor()`, but `utils/render/state/gui/GuiHorizontalGradientRenderState` (no batch
-        // owns it) does not implement the port's `GuiElementRenderState` (+ `ScreenArea`), so it
-        // cannot be boxed as an element.
+        let _ = graphics;
+        let state = GuiHorizontalGradientRenderState::new(mcrust::net::minecraft::client::renderer::render_pipelines::gui(), mcrust::net::minecraft::client::gui::render::texture_setup::TextureSetup::no_texture(), gui_graphics_extractor::current_pose(), start_x as i32, start_y as i32, end_x as i32, end_y as i32, color_start, color_end, gui_graphics_extractor::peek_scissor());
+        gui_graphics_extractor::with_gui_render_state(|__s| __s.add_gui_element(Box::new(state)));
     }
 
     /// java: public static void border(GuiGraphicsExtractor context, int x, int y, int width, int height, int color)
@@ -90,8 +87,9 @@ impl GuiHelper {
     /// java: public static void customShape(GuiGraphicsExtractor graphics, List<Vector2f> vertices, int color)
     pub fn custom_shape(graphics: &GuiGraphicsExtractor, vertices: &Vec<Vector2f>, mut color: i32) {
         // java: graphics.guiRenderState.addGuiElement(new GuiCustomShapeRenderState(RenderPipelines.GUI, TextureSetup.noTexture(), new Matrix3x2f(graphics.pose()), vertices, color, graphics.scissorStack.peek()));
-        // rust: blocked (cross-package, GAPS_J #3) - `GuiCustomShapeRenderState` (unowned
-        // `utils/render/state/gui/`) does not implement the port's `GuiElementRenderState`.
+        let _ = graphics;
+        let state = GuiCustomShapeRenderState::new(mcrust::net::minecraft::client::renderer::render_pipelines::gui(), mcrust::net::minecraft::client::gui::render::texture_setup::TextureSetup::no_texture(), gui_graphics_extractor::current_pose(), vertices.clone(), color, gui_graphics_extractor::peek_scissor());
+        gui_graphics_extractor::with_gui_render_state(|__s| __s.add_gui_element(Box::new(state)));
     }
 
     /// java: public static void playerHead(GuiGraphicsExtractor graphics, int x, int y, int size, UUID uuid)

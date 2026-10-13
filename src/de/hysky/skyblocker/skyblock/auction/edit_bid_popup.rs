@@ -7,10 +7,7 @@ use crate::de::hysky::skyblocker::skyblock::auction::auction_view_screen::Auctio
 use crate::de::hysky::skyblocker::skyblock::calculators::sign_calculator::SignCalculator;
 use crate::de::hysky::skyblocker::utils::render::gui::abstract_popup_screen::AbstractPopupScreen;
 use crate::de::hysky::skyblocker::utils::render::gui::abstract_popup_screen::AbstractPopupScreenBase;
-use crate::de::hysky::skyblocker::utils::render::gui::abstract_popup_screen::EnterConfirmTextFieldWidget;
-use crate::de::hysky::skyblocker::utils::render::gui::filtered_edit_box::FilteredEditBox;
 use mcrust::mcrust::modding::screens::ModScreen;
-use mcrust::mcrust::modding::screens::ScreenRenderContext;
 use mcrust::net::minecraft::client::gui::components::abstract_widget::AbstractWidget;
 use mcrust::net::minecraft::client::gui::components::abstract_widget::OnPress;
 use mcrust::net::minecraft::client::gui::components::abstract_widget::PressLambda;
@@ -20,12 +17,9 @@ use mcrust::net::minecraft::client::gui::gui_graphics_extractor::GuiGraphicsExtr
 use mcrust::net::minecraft::client::gui::layouts::frame_layout;
 use mcrust::net::minecraft::client::gui::layouts::layout_element::LayoutElement;
 use mcrust::net::minecraft::client::gui::layouts::linear_layout::LinearLayout;
-use mcrust::net::minecraft::client::input::character_event::CharacterEvent;
-use mcrust::net::minecraft::client::input::mouse_button_event::MouseButtonEvent;
-use mcrust::net::minecraft::client::input::mouse_button_info::MouseButtonInfo;
 use mcrust::net::minecraft::network::chat::component;
 use mcrust::net::minecraft::network::protocol::game::serverbound_sign_update_packet::ServerboundSignUpdatePacket;
-use mcrust::net::minecraft::world::level::block::entity::sign_block_entity::SignBlockEntity;
+use mcrust::net::minecraft::world::level::block::entity::block_entity::BlockEntityObj;
 use mcrust::net::minecraft::network::chat::component::Component as _;
 
 /// java: public class EditBidPopup extends AbstractPopupScreen
@@ -36,12 +30,14 @@ pub struct EditBidPopup {
     pub layout: LinearLayout,
     /// java: private final String minimumBid;
     pub minimum_bid: String,
-    /// java: private final SignBlockEntity signBlockEntity;
-    pub sign_block_entity: SignBlockEntity,
+    /// java: private final SignBlockEntity signBlockEntity; - the level's sign (the block entity the editor was opened
+    /// for, shared with the level)
+    pub sign_block_entity: std::sync::Arc<dyn BlockEntityObj>,
     /// java: private final boolean signFront;
     pub sign_front: bool,
-    /// java: private FilteredEditBox textFieldWidget;
-    pub text_field_widget: Option<compat::Shared<dyn FilteredEditBox>>,
+    /// java: private FilteredEditBox textFieldWidget; - an `EnterConfirmTextFieldWidget`, one of the screen's widgets
+    /// (the game's `EditBox`; its `onEnter` is this screen's `keyPressed`, see `ModScreen::key_pressed` below)
+    pub text_field_widget: Option<compat::WidgetRef>,
     /// java: private boolean packetSent = false;
     pub packet_sent: bool,
 }
@@ -61,22 +57,20 @@ impl std::ops::DerefMut for EditBidPopup {
 
 impl EditBidPopup {
     /// java: public EditBidPopup(AuctionViewScreen auctionViewScreen, SignBlockEntity signBlockEntity, boolean signFront, String minimumBid)
-    pub fn new(mut auction_view_screen: compat::Shared<AuctionViewScreen>, mut sign_block_entity: SignBlockEntity, mut sign_front: bool, mut minimum_bid: String) -> compat::Shared<Self> {
-        let __init_minimum_bid = minimum_bid.clone();
-        // TODO(fabric2seer): the mod keeps the game's `SignBlockEntity` (Java holds a reference to the live object); the port's `SignBlockEntity` is not a value to copy and the port lends the mod no handle to it
-        //   java: this.signBlockEntity = signBlockEntity;
-        let __init_sign_front = sign_front;
+    ///
+    /// (open it with `game::set_screen_keeping_parent`: the auction view is the screen held under it, Java's
+    /// `backgroundScreen`)
+    pub fn new(auction_view_screen: compat::Shared<AuctionViewScreen>, sign_block_entity: std::sync::Arc<dyn BlockEntityObj>, sign_front: bool, minimum_bid: String) -> compat::Shared<Self> {
         // java: super(Component.literal("Edit Bid"), auctionViewScreen);
-        // rust: port gap (GAPS_batchA #19) - the popup base keeps its background as the game's `Screen` value; a mod screen
-        // (AuctionViewScreen) is not one, so an empty screen stands in (the base's own background field is still a TODO)
+        // (the base keeps a stand-in: the held screen is the auction view, see `AbstractPopupScreenBase::new_in`)
         let _ = &auction_view_screen;
         let (_, __this) = AbstractPopupScreenBase::new_in(component::literal("Edit Bid"), mcrust::net::minecraft::client::gui::screens::screen::Screen::new(String::new()), move |__base| {
             let __h = compat::shared(Self {
                 base: __base,
                 layout: LinearLayout::vertical(),
-                minimum_bid: __init_minimum_bid,
-                sign_block_entity: todo!("fabric2seer: the field value (TODO above)"),
-                sign_front: __init_sign_front,
+                minimum_bid,
+                sign_block_entity,
+                sign_front,
                 text_field_widget: None,
                 packet_sent: false,
             });
@@ -86,12 +80,21 @@ impl EditBidPopup {
     }
 
     /// java: private boolean isStringGood(String s)
-    pub fn is_string_good(__this: &compat::Shared<Self>, s: &str) -> bool {
-        return (compat::font().width(&compat::read(__this, |__t| __t.minimum_bid.clone())) <= __this.lock().borrow().sign_block_entity.get_max_text_line_width());
+    pub fn is_string_good(__this: &compat::Shared<Self>, _s: &str) -> bool {
+        // java: return this.minecraft.font.width(minimumBid) <= this.signBlockEntity.getMaxTextLineWidth();
+        let (minimum_bid, sign) = compat::read(__this, |__t| (__t.minimum_bid.clone(), __t.sign_block_entity.clone()));
+        let max_width = sign.as_sign().expect("ClassCastException: SignBlockEntity").get_max_text_line_width();
+        return compat::font().width(&minimum_bid) <= max_width;
+    }
+
+    /// java: textFieldWidget.getValue()
+    fn text_field_value(__this: &compat::Shared<Self>) -> String {
+        let Some(mut r) = compat::read(__this, |__t| __t.text_field_widget.clone()) else { return String::new(); };
+        compat::write(__this, |__t| { let __s = &mut __t.base; __s.__widgets.with(&mut __s.base, &mut r, |__w| compat::edit_box_value(__w)) })
     }
 
     /// java: private void buttonMinimumBid(Button widget)
-    pub fn button_minimum_bid(__this: &compat::Shared<Self>, widget: &AbstractWidget) {
+    pub fn button_minimum_bid(__this: &compat::Shared<Self>, _widget: &AbstractWidget) {
         if !(EditBidPopup::is_string_good(__this, &compat::read(__this, |__t| __t.minimum_bid.clone()))) {
             return;
         }
@@ -109,13 +112,10 @@ impl EditBidPopup {
             }
             EditBidPopup::send_packet(__this, &SignCalculator::get_new_value(false));
         } else {
-            let __o1 = compat::read(__this, |__t| __t.text_field_widget.clone()).unwrap();
-            let __o2 = compat::read(__this, |__t| __t.text_field_widget.clone()).unwrap();
-            if !(EditBidPopup::is_string_good(__this, &compat::trim(&(compat::write(&__o2, |__t| __t.filtered_edit_box_base_mut().get_value()))))) {
+            if !(EditBidPopup::is_string_good(__this, &compat::trim(&EditBidPopup::text_field_value(__this)))) {
                 return;
             }
-            let __o3 = compat::read(__this, |__t| __t.text_field_widget.clone()).unwrap();
-            EditBidPopup::send_packet(__this, &compat::trim(&(compat::write(&__o3, |__t| __t.filtered_edit_box_base_mut().get_value()))));
+            EditBidPopup::send_packet(__this, &compat::trim(&EditBidPopup::text_field_value(__this)));
         }
         ({ let __f = compat::dispatch(__this, |__t| __t.on_close()); __f(&compat::view(__this, |a| a as compat::Shared<dyn AbstractPopupScreen>)) });
     }
@@ -123,8 +123,10 @@ impl EditBidPopup {
     /// java: private void sendPacket(String string)
     pub fn send_packet(__this: &compat::Shared<Self>, string: &str) {
         debug_assert!(mcrust::mcrust::modding::game::with_player(|_| ()).is_some());
-        // TODO(fabric2seer): `ClientPacketListener.send` has no Rust method in the port (looked for `send` in ClientPacketListener and its supertypes)
-        // rust: mcrust::mcrust::modding::game::with_player(|player| { player.connection.as_ref().unwrap().send(&ServerboundSignUpdatePacket::new(__this.lock().borrow().sign_block_entity.get_block_pos(), compat::read(__this, |__t| __t.sign_front), string.replace("coins", ""), "".to_string(), "".to_string(), "".to_string())); });
+        // java: Minecraft.getInstance().player.connection.send(new ServerboundSignUpdatePacket(signBlockEntity.getBlockPos(), signFront, string.replace("coins", ""), "", "", ""));
+        let (sign, front) = compat::read(__this, |__t| (__t.sign_block_entity.clone(), __t.sign_front));
+        let pos = sign.as_sign().expect("ClassCastException: SignBlockEntity").get_block_pos();
+        compat::send_packet(ServerboundSignUpdatePacket::new(pos, front, string.replace("coins", ""), "".to_string(), "".to_string(), "".to_string()));
         { let __v = true; compat::write(__this, |__t| __t.packet_sent = __v); }
     }
 
@@ -133,7 +135,7 @@ impl EditBidPopup {
         if !(compat::read(__this, |__t| __t.packet_sent)) {
             EditBidPopup::send_packet(__this, "");
         }
-        ();
+        // java: super.removed(); - `Screen.removed` is empty
     }
 
 }
@@ -179,24 +181,27 @@ impl EditBidPopup {
             // (the port's `LayoutSettings` setters answer a new value: written back to the cell defaults)
             { let __s = __t.layout.default_cell_setting(); *__s = (*__s).align_horizontally_center(); }
         });
-        let __this_w1 = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
-        { let __v = Some((EnterConfirmTextFieldWidget::new(compat::font(), 120, 15, component::empty(), Arc::new(move || { let Some(__this_1) = __this_w1.get().upgrade() else { return Default::default(); }; { EditBidPopup::done((&__this_1), None::<&AbstractWidget> /* java: null */); } })) as compat::Shared<dyn FilteredEditBox>)); compat::write(__this, |__t| __t.text_field_widget = __v); }
-        let __this_w2 = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
-        ({ let __r = &compat::read(__this, |__t| __t.text_field_widget.clone()).unwrap(); let __f = compat::dispatch(__r, |__t| __t.set_filter()); __f(__r, Arc::new(move |__a0| { let Some(__this_2) = __this_w2.get().upgrade() else { return Default::default(); }; EditBidPopup::is_string_good((&__this_2), &__a0) })) });
+        // java: textFieldWidget = new EnterConfirmTextFieldWidget(font, 120, 15, Component.empty(), () -> done(null));
+        // java: textFieldWidget.setFilter(this::isStringGood);
+        // rust: port gap (GAPS_N #2) - the game's `EditBox` has no `filter`, so the box does not refuse input when
+        // `isStringGood` answers false (the "Done" path still checks it)
+        let mut __text_field = compat::WidgetRef::value(compat::edit_box(0, 0, 120, 15, component::empty()));
         { let (__q0,) = ({ let __w = compat::string_widget(0, 0, -1, 9, (component::literal("- Set Bid -")).with_style(&mcrust::net::minecraft::network::chat::style::Style::EMPTY.with_bold(Some(true)))); let (__ww, __wh) = (__w.get_width(), __w.get_height()); LayoutElement::widget(compat::write(__this, |__t| __t.add_widget(__w)), __ww, __wh) },); __this.lock().borrow_mut().layout.add_child(__q0) };
         // java: layout.addChild(textFieldWidget);
-        // rust: port gap (GAPS_batchA #3) - the text field is a mod subclass of EditBox (FilteredEditBox); the port has no
-        // widget adapter for an EditBox subclass, so it cannot join the screen's widgets or this layout
+        let (__ti, __tw, __th) = compat::write(__this, |__t| { let __s = &mut __t.base; __s.__widgets.add_to_layout(&mut __s.base, &mut __text_field) });
+        __this.lock().borrow_mut().layout.add_child(LayoutElement::widget(__ti, __tw, __th));
+        compat::write(__this, |__t| __t.text_field_widget = Some(__text_field));
         let __r0 = compat::read(__this, |__t| __t.minimum_bid.clone());
         { let (__q0,) = ({ let __w = compat::string_widget(0, 0, -1, 9, component::literal(&format!("Minimum Bid: {}", __r0))); let (__ww, __wh) = (__w.get_width(), __w.get_height()); LayoutElement::widget(compat::write(__this, |__t| __t.add_widget(__w)), __ww, __wh) },); __this.lock().borrow_mut().layout.add_child(__q0) };
         let mut horizontal: LinearLayout = LinearLayout::horizontal();
         let __this_w3 = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
         let mut button_widget: AbstractWidget = (button::builder(component::literal("Set Minimum Bid").get_string(), OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| { let Some(__this_3) = __this_w3.get().upgrade() else { return Default::default(); }; compat::lend_screen(&__this_3, __screen, || { let mut __pidx = compat::WidgetRef::Screen(__index); { EditBidPopup::button_minimum_bid((&__this_3), &compat::write((&__this_3), |__t| { let __s = &mut *__t; let __r = &mut __pidx; __s.base.__widgets.with(&mut __s.base.base, __r, |__w| __w.clone()) })); } }) })))).width(80).build();
         button_widget.active = EditBidPopup::is_string_good(__this, &compat::read(__this, |__t| __t.minimum_bid.clone()));
-        horizontal.add_child({ let __w = button_widget.clone(); let (__ww, __wh) = (__w.get_width(), __w.get_height()); LayoutElement::widget(compat::write(__this, |__t| __t.add_widget(__w)), __ww, __wh) });
+        horizontal.add_child({ let __w = button_widget; let (__ww, __wh) = (__w.get_width(), __w.get_height()); LayoutElement::widget(compat::write(__this, |__t| __t.add_widget(__w)), __ww, __wh) });
         let __this_w4 = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
         horizontal.add_child({ let __w = (button::builder(component::literal("Done").get_string(), OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| { let Some(__this_4) = __this_w4.get().upgrade() else { return Default::default(); }; compat::lend_screen(&__this_4, __screen, || { let mut __pidx = compat::WidgetRef::Screen(__index); { EditBidPopup::done((&__this_4), &compat::write((&__this_4), |__t| { let __s = &mut *__t; let __r = &mut __pidx; __s.base.__widgets.with(&mut __s.base.base, __r, |__w| __w.clone()) })); } }) })))).width(80).build(); let (__ww, __wh) = (__w.get_width(), __w.get_height()); LayoutElement::widget(compat::write(__this, |__t| __t.add_widget(__w)), __ww, __wh) });
-        { let (__q0,) = (LayoutElement::Grid(horizontal.clone().wrapped),); __this.lock().borrow_mut().layout.add_child(__q0) };
+        { let (__q0,) = (LayoutElement::Grid(horizontal.wrapped),); __this.lock().borrow_mut().layout.add_child(__q0) };
+        // java: layout.visitWidgets(this::addRenderableWidget);
         { let mut __vw = Vec::new(); LayoutElement::Grid(__this.lock().borrow().layout.wrapped.clone()).visit_widgets(&mut __vw); for (__i, _, _) in __vw { compat::write(__this, |__t| __t.mark_renderable(__i)); } };
         // java: layout.arrangeElements(); FrameLayout.centerInRectangle(layout, getRectangle()); - the widgets take their
         // positions from the centred layout
@@ -213,7 +218,7 @@ impl EditBidPopup {
             compat::write(__this, |__t| __t.layout = layout);
         }
         // java: setInitialFocus(textFieldWidget);
-        // rust: port gap (GAPS_batchA #3) - the text field is not one of the screen's widgets (see above), so it has no index to focus
+        compat::write(__this, |__t| __t.set_initial_focus_on(__ti));
     }
 
     /// EditBidPopup.init as the dispatch of AbstractPopupScreen.init
@@ -222,13 +227,14 @@ impl EditBidPopup {
     }
 
     /// java: @Override public void extractBackground(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a)
-    pub fn extract_background_impl(__this: &compat::Shared<Self>, graphics: &mut GuiGraphicsExtractor, mut mouse_x: i32, mut mouse_y: i32, mut a: f32) {
+    pub fn extract_background_impl(__this: &compat::Shared<Self>, graphics: &mut GuiGraphicsExtractor, mouse_x: i32, mouse_y: i32, a: f32) {
         <dyn AbstractPopupScreen>::extract_background_body(&compat::view(__this, |a| a as compat::Shared<dyn AbstractPopupScreen>), graphics, mouse_x, mouse_y, a);
-        AbstractPopupScreenBase::extract_popup_background(graphics, __this.lock().borrow().layout.get_x(), __this.lock().borrow().layout.get_y(), __this.lock().borrow().layout.get_width(), __this.lock().borrow().layout.get_height());
+        let (__x, __y, __w, __h) = compat::read(__this, |__t| (__t.layout.get_x(), __t.layout.get_y(), __t.layout.get_width(), __t.layout.get_height()));
+        AbstractPopupScreenBase::extract_popup_background(graphics, __x, __y, __w, __h);
         if SkyblockerConfigManager::get().ui_and_visuals.input_calculator.enabled {
-            let __o1 = compat::read(__this, |__t| __t.text_field_widget.clone()).unwrap();
-            let __o2 = compat::read(__this, |__t| __t.text_field_widget.clone()).unwrap();
-            SignCalculator::extract_calculator(graphics, compat::write(&__o1, |__t| __t.filtered_edit_box_base_mut().get_value()), (gui_graphics_extractor::gui_width(&*compat::minecraft())).wrapping_div(2), (compat::write(&__o2, |__t| __t.filtered_edit_box_base_mut().get_y())).wrapping_sub(8));
+            let Some(mut r) = compat::read(__this, |__t| __t.text_field_widget.clone()) else { return; };
+            let (__value, __field_y) = compat::write(__this, |__t| { let __s = &mut __t.base; __s.__widgets.with(&mut __s.base, &mut r, |__w| (compat::edit_box_value(__w), __w.get_y())) });
+            SignCalculator::extract_calculator(graphics, __value, (gui_graphics_extractor::gui_width(&*compat::minecraft())).wrapping_div(2), __field_y.wrapping_sub(8));
         }
     }
 
@@ -248,6 +254,19 @@ impl EditBidPopup {
     /// EditBidPopup.onClose as the dispatch of AbstractPopupScreen.onClose
     pub fn on_close_dyn(__this: &compat::Shared<dyn AbstractPopupScreen>) {
         Self::on_close_impl(&compat::view_as::<Self, _, Self>(__this, |a| a))
+    }
+
+    /// `EnterConfirmTextFieldWidget.keyPressed` for the text field (the focused child): `super.keyPressed` (the game's
+    /// `EditBox`, which takes no Enter) refused the key, so Enter runs `onEnter` - `done(null)`.
+    fn text_field_key_pressed(__this: &compat::Shared<Self>, event: &mcrust::net::minecraft::client::input::key_event::KeyEvent) -> bool {
+        let Some(r) = compat::read(__this, |__t| __t.text_field_widget.clone()) else { return false; };
+        let compat::WidgetRef::Screen(index) = r else { return false; };
+        let focused = compat::read(__this, |__t| __t.get_focused() == Some(index));
+        if focused && event.is_confirmation() {
+            EditBidPopup::done(__this, None::<&AbstractWidget>);
+            return true;
+        }
+        false
     }
 
 }
@@ -294,19 +313,16 @@ impl ModScreen for compat::ScreenAdapter<EditBidPopup> {
         self.call(|__h| ({ let __f = compat::dispatch(__h, |__t| __t.added()); __f(&compat::view(__h, |a| a as compat::Shared<dyn AbstractPopupScreen>)) }))
     }
 
-    /// java: Screen.keyPressed (the base body)
+    /// java: Screen.keyPressed - the text field's `EnterConfirmTextFieldWidget.keyPressed` first (the focused child)
     fn key_pressed(&mut self, screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, event: &mcrust::net::minecraft::client::input::key_event::KeyEvent) -> bool {
-        self.lend(screen, |_| ());
+        if self.lend(screen, |__h| EditBidPopup::text_field_key_pressed(__h, event)) {
+            return true;
+        }
         if event.is_escape() && self.should_close_on_esc() {
             self.on_close();
             return true;
         }
         false
-    }
-
-    /// java: Screen.mouseClicked (the base body)
-    fn mouse_clicked(&mut self, screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, x: f64, y: f64, button: i32) -> bool {
-        self.lend(screen, |_| false)
     }
 
     /// java: @Override public void onClose()

@@ -219,17 +219,25 @@ impl IcePath {
         // TODO(fabric2seer): the port's `get_entities_of_class` ports this Java method with other parameters (base_class, except, bb, selector for Java's base_class, bb, selector)
         // TODO(fabric2seer): `get_entities_of_class` takes 4 argument(s) in the port (`base_class: crate::net::minecraft::world::level::entity::entity_type_test::EntityClass, except: Option<i32>, bb: &AABB, selector: &dyn Fn(&(dyn Entity + Send + Sync)) -> bool`), Java passes 3
         // TODO(fabric2seer): a lambda for a parameter the port does not type as a closure (`Predicate<? super T>`)
-        // rust: let mut entities: Vec<Silverfish> = mcrust::mcrust::modding::game::level().unwrap().get_entities_of_class(std::any::TypeId::of::<Silverfish>(), Some(AABB::of_size(&vec3::at_center_of(&({ let __f = compat::dispatch(&room, |__t| __t.relative_to_actual()); __f(&room, &BlockPos::new(15, 66, 16)) })), (16) as f64, (16) as f64, (16) as f64)), |_| true);
-        let mut entities: Vec<Silverfish> = todo!("fabric2seer: the initialiser of `entities` (TODO above)");
+        // (the port's class filter has no Silverfish.class: the base class Entity plus `instanceof Silverfish`)
+        use mcrust::net::minecraft::world::level::entity_getter::EntityGetter as _;
+        let search_box = AABB::of_size(&vec3::at_center_of(&({ let __f = compat::dispatch(&room, |__t| __t.relative_to_actual()); __f(&room, &BlockPos::new(15, 66, 16)) })), (16) as f64, (16) as f64, (16) as f64);
+        let entities: Vec<mcrust::net::minecraft::world::level::entity_getter::SharedEntity> = mcrust::mcrust::modding::game::level().unwrap().get_entities_of_class(
+            mcrust::net::minecraft::world::level::entity::entity_type_test::EntityClass::Entity,
+            None,
+            &search_box,
+            &|entity| entity.as_any().is_some_and(|any| any.is::<Silverfish>()),
+        );
         if entities.is_empty() {
             return;
         }
-        let mut new_silverfish_block_pos: BlockPos = ({ let __f = compat::dispatch(&room, |__t| __t.actual_to_relative()); __f(&room, &entities[0].base.base.base.base.base.block_position()) });
+        let entity_block_pos: BlockPos = mcrust::mcrust::modding::game::lock_entity(&*entities[0], "skyblocker IcePath.tick").base().block_position();
+        let mut new_silverfish_block_pos: BlockPos = ({ let __f = compat::dispatch(&room, |__t| __t.actual_to_relative()); __f(&room, &entity_block_pos) });
         let mut new_silverfish_pos: Vector2i = Vector2i::new(24i32.wrapping_sub(new_silverfish_block_pos.get_z()), 23i32.wrapping_sub(new_silverfish_block_pos.get_x()));
         if new_silverfish_pos.x() < 0 || new_silverfish_pos.x() >= 17 || new_silverfish_pos.y() < 0 || new_silverfish_pos.y() >= 17 {
             return;
         }
-        let mut silverfish_changed: bool = !(new_silverfish_pos == compat::read(__this, |__t| __t.silverfish_pos.clone()).unwrap());
+        let mut silverfish_changed: bool = !(Some(&new_silverfish_pos) == compat::read(__this, |__t| __t.silverfish_pos.clone()).as_ref());
         if silverfish_changed {
             { let __v = Some(new_silverfish_pos.clone()); compat::write(__this, |__t| __t.silverfish_pos = __v); }
         }

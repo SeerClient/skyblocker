@@ -106,13 +106,16 @@ impl InventorySearch {
     /// java: private static EditBox getTextFieldWidget(AbstractContainerScreen<?> handledScreen)
     pub fn get_text_field_widget(handled_screen: &AbstractContainerScreen) -> EditBox {
         // TODO(fabric2seer): `AbstractContainerScreen.getFont` has no Rust method in the port (looked for `get_font` in AbstractContainerScreen and its supertypes)
-        // rust: let mut text_field_widget: EditBox = SearchTextFieldWidget::new(handled_screen.get_font(), component::translatable("skyblocker.inventorySearch.searchInventory"));
-        let mut text_field_widget: EditBox = todo!("fabric2seer: the initialiser of `textFieldWidget` (TODO above)");
-        // TODO(fabric2seer): `set_position` takes 3 argument(s) in the port (`x: i32, y: i32, splitter: &StringSplitter<W>`), Java passes 2
-        // rust: text_field_widget.set_position((handled_screen.screen.width.wrapping_sub(text_field_widget.get_width())).wrapping_div(2), 15);
+        //   java: EditBox textFieldWidget = new SearchTextFieldWidget(handledScreen.getFont(), Component.translatable("skyblocker.inventorySearch.searchInventory"));
+        // (`Screen.getFont()` is the game's font, `compat::font()`; the port's EditBox is the bare box, the subclass's
+        // overrides are not dispatched - GAPS_N #2)
+        let font = compat::font();
+        let mut text_field_widget: EditBox = SearchTextFieldWidget::new(compat::font(), component::translatable("skyblocker.inventorySearch.searchInventory")).base;
+        //   java: textFieldWidget.setPosition((handledScreen.width - textFieldWidget.getWidth()) / 2, 15);
+        { let __x = (handled_screen.screen.width.wrapping_sub(text_field_widget.get_width())).wrapping_div(2); text_field_widget.set_position(__x, 15, &font.splitter()); }
         text_field_widget.set_hint_component(component::translatable("gui.socialInteractions.search_hint"));
-        // TODO(fabric2seer): `set_value` takes 2 argument(s) in the port (`splitter: &StringSplitter<W>, value: &str`), Java passes 1
-        // rust: text_field_widget.set_value(&compat::get_state(&SEARCH));
+        //   java: textFieldWidget.setValue(search);
+        text_field_widget.set_value(&font.splitter(), &compat::get_state(&SEARCH));
         text_field_widget.set_responder(Responder::Lambda(ResponderLambda::new(move |__a0| { InventorySearch::on_search_typed(__a0); })));
         return text_field_widget;
     }
@@ -196,14 +199,22 @@ impl SearchTextWidget {
     pub fn new(mut handled_screen: AbstractContainerScreen) -> Self {
         // TODO(fabric2seer): `AbstractContainerScreen.getFont` has no Rust method in the port (looked for `get_font` in AbstractContainerScreen and its supertypes)
         //   java: super(Component.translatable("skyblocker.inventorySearch.clickHereToSearch"), handledScreen.getFont());
-        let mut this: Self = todo!("constructor");
-        // TODO(fabric2seer): `width` takes 2 argument(s) in the port (`max_width: i32, text_width: i32`), Java passes 0
-        // rust: this.set_position((handled_screen.screen.width.wrapping_sub(string_widget::width())).wrapping_div(2), 15);
+        // (`StringWidget(Component, Font)` = `this(0, 0, font.width(message), 9, message, font)`)
+        let mut this: Self = Self {
+            base: compat::string_widget(0, 0, -1, mcrust::net::minecraft::client::gui::font::LINE_HEIGHT, component::translatable("skyblocker.inventorySearch.clickHereToSearch")),
+            underlined_text: None,
+            normal_text: None,
+            screen: None,
+            hovered_state: false,
+        };
+        //   java: setPosition((handledScreen.width - getWidth()) / 2, 15);
+        { let __x = (handled_screen.screen.width.wrapping_sub(this.get_width())).wrapping_div(2); this.set_position(__x, 15); }
         this.underlined_text = Some(compat::component_of(this.get_message_component()).copy().with_style_format(ChatFormatting::Underline));
         this.normal_text = Some(compat::component_of(this.get_message_component()).copy().with_style_format(ChatFormatting::Gray));
         // TODO(fabric2seer): the mod keeps the game's `AbstractContainerScreen` (Java holds a reference to the live object); the port's `AbstractContainerScreen` is not a value to copy and the port lends the mod no handle to it
         // rust: this.screen = Some(handled_screen.clone());
-        this.set_message_text(mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(this.normal_text.clone().unwrap()));
+        let __normal = this.normal_text.clone().unwrap();
+        this.set_message_text(mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(__normal));
         this
     }
 
@@ -259,8 +270,14 @@ impl SearchTextFieldWidget {
         let __init_text_renderer = compat::font();
         let __init_message = message.clone();
         // TODO(fabric2seer): the port's `new` ports this Java method with other parameters (splitter, x, y, width, height for Java's width, height, narration)
-        //   java: super(textRenderer, 120, 20, message);
-        let mut this: Self = todo!("constructor");
+        //   java: super(textRenderer, 120, 20, message); - `EditBox(font, width, height, narration)` = `this(font, 0, 0, width, height, narration)`
+        // (the narration is the widget's message, which the game's `AbstractWidget` around the box keeps)
+        let __base = { let __splitter = __init_text_renderer.splitter(); EditBox::new(&__splitter, 0, 0, 120, 20) };
+        let mut this: Self = Self {
+            base: __base,
+            text_renderer: __init_text_renderer,
+            message: __init_message,
+        };
         this
     }
 
@@ -275,8 +292,11 @@ impl SearchTextFieldWidget {
     pub fn key_pressed(&self, input: &mcrust::net::minecraft::client::input::key_event::KeyEvent) -> bool {
         // TODO(fabric2seer): `key_pressed` takes 5 argument(s) in the port (`splitter: &StringSplitter<W>, event: KeyEvent, focused: bool, active: bool, clipboard: &mut dyn ClipboardAccess`), Java passes 1
         // TODO(fabric2seer): `AbstractWidget::is_focused` ports `isFocused`, but the port's `EditBox` holds no `AbstractWidget` (no Deref, no `base` field) to call it on
-        // rust: return (self.base.key_pressed(input) || !input.is_escape() && self.is_focused());
-        return todo!("fabric2seer: see the TODO above");
+        //   java: return super.keyPressed(input) || !input.isEscape() && isFocused();
+        // rust: port gap - as `mouseClicked` below: the focus, the active flag and the clipboard this body reads are the
+        // game `AbstractWidget`'s around the box, which this class does not hold, and the override is never dispatched (GAPS_N #2)
+        let _ = input;
+        return false;
     }
 
     /// java: @Override public boolean mouseClicked(MouseButtonEvent click, boolean doubled)
@@ -288,8 +308,8 @@ impl SearchTextFieldWidget {
         //   java: return false;
         // rust: port gap - a mod subclass of `EditBox`: the port's `EditBox` is the `WidgetKind::EditBox` of a game
         // `AbstractWidget`, which holds the focus, the hover and the click pass this body reads; this class holds the
-        // bare `EditBox`, so none of them is reachable (GAPS_batchG). Its constructor is the converter's todo, so no
-        // object of this class exists to reach here.
+        // bare `EditBox`, so none of them is reachable (GAPS_batchG); `getTextFieldWidget` hands the game only the box
+        // (`.base`), so the override is never dispatched (GAPS_N #2).
         return false;
     }
 

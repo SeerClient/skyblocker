@@ -75,13 +75,17 @@ impl MobGlowAdder for TorrhusCanyonGlowAdder {
 impl TorrhusCanyonGlowAdder {
     /// java: @Override public int computeColour(Entity entity)
     pub fn compute_colour_impl(__this: &compat::Shared<Self>, entity: &dyn Entity) -> i32 {
-        // TODO(fabric2seer): a pattern switch expression
-        //   java: return switch (entity) {
-        //   java: 			case Shulker shulker when SkyblockerConfigManager.get().hunting.torrhusMobs.highlightHideonsun && (shulker.getColor() == DyeColor.YELLOW || shulker.getColor() == DyeColor.ORANGE || shulker.getColor() == DyeColor.BROWN) -> SkyblockerConfigManager.get().hunting.torrhusMobs.hideonsunHighlightColor.getRGB();
-        //   java: 			case Parrot parrot when SkyblockerConfigManager.get().hunting.torrhusMobs.highlightBlueJay && parrot.getVariant() == Parrot.Variant.BLUE -> SkyblockerConfigManager.get().hunting.torrhusMobs.blueJayHighlightColor.getRGB();
-        //   java: 			default -> MobGlow.NO_GLOW;
-        //   java: 		};
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        // java: return switch (entity) { case Shulker shulker when ..highlightHideonsun && (color == YELLOW || ORANGE || BROWN) -> ..hideonsunHighlightColor.getRGB();
+        //   case Parrot parrot when ..highlightBlueJay && parrot.getVariant() == Parrot.Variant.BLUE -> ..blueJayHighlightColor.getRGB(); default -> MobGlow.NO_GLOW; };
+        use mcrust::net::minecraft::world::item::dye_color::DyeColor;
+        let config = &crate::de::hysky::skyblocker::config::skyblocker_config_manager::SkyblockerConfigManager::get().hunting.torrhus_mobs;
+        if let Some(shulker) = entity.as_any().unwrap_or(&() as &dyn std::any::Any).downcast_ref::<mcrust::net::minecraft::world::entity::monster::shulker::Shulker>() && config.highlight_hideonsun && matches!(shulker.get_color(), Some(DyeColor::Yellow) | Some(DyeColor::Orange) | Some(DyeColor::Brown)) {
+            return config.hideonsun_highlight_color.get_rgb();
+        }
+        if let Some(parrot) = entity.as_any().unwrap_or(&() as &dyn std::any::Any).downcast_ref::<mcrust::net::minecraft::world::entity::animal::parrot::parrot::Parrot>() && config.highlight_blue_jay && parrot.get_variant() == mcrust::net::minecraft::world::entity::animal::parrot::parrot::Variant::Blue {
+            return config.blue_jay_highlight_color.get_rgb();
+        }
+        return *crate::de::hysky::skyblocker::skyblock::entity::mob_glow::NO_GLOW;
     }
 
     /// TorrhusCanyonGlowAdder.computeColour as the dispatch of MobGlowAdder.computeColour

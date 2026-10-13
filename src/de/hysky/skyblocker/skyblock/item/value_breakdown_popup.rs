@@ -12,7 +12,8 @@ use mcrust::mcrust::modding::screens::ModScreen;
 use mcrust::mcrust::modding::screens::ScreenRenderContext;
 use mcrust::net::minecraft::chat_formatting::ChatFormatting;
 use mcrust::net::minecraft::client::gui::components::multi_line_text_widget::MultiLineTextWidget;
-use mcrust::net::minecraft::client::gui::components::scrollable_layout::ScrollableLayout;
+use mcrust::net::minecraft::client::gui::components::scrollable_layout::ScrollableLayoutElement;
+use mcrust::net::minecraft::client::gui::components::scrollable_layout::ReserveStrategy;
 use mcrust::net::minecraft::client::gui::font::Font;
 use mcrust::net::minecraft::client::gui::gui_graphics_extractor;
 use mcrust::net::minecraft::client::gui::gui_graphics_extractor::GuiGraphicsExtractor;
@@ -223,7 +224,9 @@ pub struct ValueBreakdownPopup {
     /// java: private final EnumMap<Calculation.Type, List<Calculation>> map;
     pub map: std::collections::HashMap<crate::unresolved::Type, Vec<crate::unresolved::Calculation>>,
     /// java: private ScrollableLayout scrollable;
-    pub scrollable: Option<ScrollableLayout>,
+    /// (the port's `ScrollableLayout` layout is `ScrollableLayoutElement`; its scroll container is not a widget of a
+    /// mod screen, so the content does not scroll - GAPS_O)
+    pub scrollable: Option<ScrollableLayoutElement>,
 }
 
 impl std::ops::Deref for ValueBreakdownPopup {
@@ -243,11 +246,19 @@ impl ValueBreakdownPopup {
     /// java: protected ValueBreakdownPopup(Screen backgroundScreen, NetworthResult networthResult)
     pub fn new(mut background_screen: mcrust::net::minecraft::client::gui::screens::screen::Screen, mut networth_result: crate::unresolved::NetworthResult) -> compat::Shared<Self> {
         let __init_networth_result = networth_result;
-        // TODO(fabric2seer): class literal
-        //   java: this.map = new EnumMap<>(Calculation.Type.class);
-        // TODO(fabric2seer): the mod keeps the game's `Screen` (Java holds a reference to the live object); the port's `Screen` is not a value to copy and the port lends the mod no handle to it
         //   java: super(Component.translatable("skyblocker.valueBreakdownPopup"), backgroundScreen);
-        let __this: compat::Shared<Self> = todo!("constructor");
+        //   java: this.map = new EnumMap<>(Calculation.Type.class);
+        // (open it with `game::set_screen_keeping_parent`: the screen it is opened over is its background screen, which
+        // the base keeps a stand-in for - see `AbstractPopupScreenBase::new_in`)
+        let (_, __this) = AbstractPopupScreenBase::new_in(component::translatable("skyblocker.valueBreakdownPopup"), background_screen, move |__base| {
+            let __h = compat::shared(Self {
+                base: __base,
+                networth_result: __init_networth_result,
+                map: std::collections::HashMap::new(),
+                scrollable: None,
+            });
+            ((__h.clone() as compat::Shared<dyn AbstractPopupScreen>), __h)
+        });
         // TODO(fabric2seer): `.calculations(..)` on a NetworthResult
         //   java: for (Calculation calculation : networthResult.calculations()) {
         //   java: 			map.computeIfAbsent(calculation.type(), _ -> new ArrayList<>()).add(calculation);
@@ -368,7 +379,8 @@ impl ValueBreakdownPopup {
         let __networth_result = compat::read(__this, |__t| __t.networth_result.clone());
         for entry in __entries {
             let mut appender: Option<compat::Shared<dyn LayoutAppender>> = FORMATTERS.get_mut().get(&entry.0).cloned();
-            if std::ptr::addr_eq(std::sync::Arc::as_ptr(appender.as_ref().unwrap()), std::sync::Arc::as_ptr(EMPTY_APPENDER.get_mut())) {
+            // java: if (appender == EMPTY_APPENDER) continue; - a null appender is not the empty one
+            if appender.as_ref().is_some_and(|__a| std::ptr::addr_eq(std::sync::Arc::as_ptr(__a), std::sync::Arc::as_ptr(EMPTY_APPENDER.get_mut()))) {
                 continue;
             }
             layout.add_child(SpacerElement::height(5).as_layout_element());
@@ -385,11 +397,10 @@ impl ValueBreakdownPopup {
         layout.add_child(SpacerElement::height(10).as_layout_element());
         // TODO(fabric2seer): `.price(..)` on a NetworthResult
         //   java: layout.addChild(createTextWidget(Component.translatable("skyblocker.valueBreakdownPopup.total", getCoinsText(networthResult.price())), font), LayoutSettings::alignHorizontallyRight);
-        // TODO(fabric2seer): `new` takes 2 argument(s) in the port (`height: i32, reserve_strategy: ReserveStrategy`), Java passes 3
-        // rust: { let __v = Some(ScrollableLayout::new(compat::minecraft(), LayoutElement::Grid(layout.clone().wrapped), 200)); compat::write(__this, |__t| __t.scrollable = __v); }
-        // TODO(fabric2seer): a lambda for a parameter the port does not type as a closure (`Consumer<net.minecraft.client.gui.components.AbstractWidget>`)
-        // rust: let __this_w1 = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
-        // rust: layout::visit_widgets(|__a0| { let Some(__this_1) = __this_w1.get().upgrade() else { return Default::default(); }; { { let (__q0,) = (__a0.clone(),); (&__this_1).lock().borrow_mut().add_renderable_widget(__q0) }; } });
+        // java: scrollable = new ScrollableLayout(minecraft, layout, 200); - the three-argument constructor's strategy is BOTH
+        { let __v = Some(ScrollableLayoutElement::new(LayoutElement::Grid(layout.wrapped.clone()), 200, ReserveStrategy::Both)); compat::write(__this, |__t| __t.scrollable = __v); }
+        // java: layout.visitWidgets(this::addRenderableWidget); - the widgets joined this screen when the layout took them
+        { let mut __vw = Vec::new(); LayoutElement::Grid(layout.wrapped.clone()).visit_widgets(&mut __vw); compat::write(__this, |__t| for (__i, _, _) in __vw { __t.base.base.mark_renderable(__i); }); }
         <dyn AbstractPopupScreen>::init_body(&compat::view(__this, |a| a as compat::Shared<dyn AbstractPopupScreen>));
     }
 
@@ -401,14 +412,23 @@ impl ValueBreakdownPopup {
     /// java: @Override protected void repositionElements()
     pub fn reposition_elements_impl(__this: &compat::Shared<Self>) {
         <dyn AbstractPopupScreen>::reposition_elements_body(&compat::view(__this, |a| a as compat::Shared<dyn AbstractPopupScreen>));
-        // TODO(fabric2seer): `ScrollableLayoutElement::arrange_elements` ports `arrangeElements`, but the port's `ScrollableLayout` holds no `ScrollableLayoutElement` (no Deref, no `base` field) to call it on
-        // rust: __this.lock().borrow_mut().scrollable.as_mut().unwrap().arrange_elements();
-        // TODO(fabric2seer): `ScrollableLayoutElement::get_width` ports `getWidth`, but the port's `ScrollableLayout` holds no `ScrollableLayoutElement` (no Deref, no `base` field) to call it on
-        // TODO(fabric2seer): `ScrollableLayoutElement::get_height` ports `getHeight`, but the port's `ScrollableLayout` holds no `ScrollableLayoutElement` (no Deref, no `base` field) to call it on
-        // TODO(fabric2seer): `LayoutElement::set_position` ports `setPosition`, but the port's `ScrollableLayout` holds no `LayoutElement` (no Deref, no `base` field) to call it on
-        // rust: let __r0 = compat::read(__this, |__t| __t.width);
-        // rust: let __r1 = compat::read(__this, |__t| __t.height);
-        // rust: { let (__q0, __q1,) = (((__r0).wrapping_sub(__this.lock().borrow().scrollable.as_ref().unwrap().get_width())).wrapping_div(2), ((__r1).wrapping_sub(__this.lock().borrow().scrollable.as_ref().unwrap().get_height())).wrapping_div(2),); __this.lock().borrow_mut().scrollable.as_mut().unwrap().set_position(__q0, __q1) };
+        // java: scrollable.arrangeElements();
+        // java: scrollable.setPosition((width - scrollable.getWidth()) / 2, (height - scrollable.getHeight()) / 2);
+        compat::write(__this, |__t| {
+            let (__width, __height) = (__t.width, __t.height);
+            let __s = &mut *__t;
+            let __l = __s.scrollable.as_mut().unwrap();
+            __l.arrange_elements();
+            let (__x, __y) = ((__width.wrapping_sub(__l.get_width())).wrapping_div(2), (__height.wrapping_sub(__l.get_height())).wrapping_div(2));
+            __l.set_x(__x);
+            __l.set_y(__y);
+            // the layout's widgets are this screen's: they take the places the layout gave them
+            let mut __placed = Vec::new();
+            __l.visit_widgets(&mut __placed);
+            for (__i, __wx, __wy) in __placed {
+                __s.base.base.widget_mut(__i).set_position(__wx, __wy);
+            }
+        });
     }
 
     /// ValueBreakdownPopup.repositionElements as the dispatch of AbstractPopupScreen.repositionElements
@@ -419,11 +439,8 @@ impl ValueBreakdownPopup {
     /// java: @Override public void extractBackground(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a)
     pub fn extract_background_impl(__this: &compat::Shared<Self>, graphics: &mut GuiGraphicsExtractor, mut mouse_x: i32, mut mouse_y: i32, mut a: f32) {
         <dyn AbstractPopupScreen>::extract_background_body(&compat::view(__this, |a| a as compat::Shared<dyn AbstractPopupScreen>), graphics, mouse_x, mouse_y, a);
-        // TODO(fabric2seer): `ScrollableLayoutElement::get_x` ports `getX`, but the port's `ScrollableLayout` holds no `ScrollableLayoutElement` (no Deref, no `base` field) to call it on
-        // TODO(fabric2seer): `ScrollableLayoutElement::get_y` ports `getY`, but the port's `ScrollableLayout` holds no `ScrollableLayoutElement` (no Deref, no `base` field) to call it on
-        // TODO(fabric2seer): `ScrollableLayoutElement::get_width` ports `getWidth`, but the port's `ScrollableLayout` holds no `ScrollableLayoutElement` (no Deref, no `base` field) to call it on
-        // TODO(fabric2seer): `ScrollableLayoutElement::get_height` ports `getHeight`, but the port's `ScrollableLayout` holds no `ScrollableLayoutElement` (no Deref, no `base` field) to call it on
-        // rust: AbstractPopupScreenBase::extract_popup_background(graphics, __this.lock().borrow().scrollable.as_ref().unwrap().get_x(), __this.lock().borrow().scrollable.as_ref().unwrap().get_y(), __this.lock().borrow().scrollable.as_ref().unwrap().get_width(), __this.lock().borrow().scrollable.as_ref().unwrap().get_height());
+        let (x, y, width, height) = compat::read(__this, |__t| { let __l = __t.scrollable.as_ref().unwrap(); (__l.get_x(), __l.get_y(), __l.get_width(), __l.get_height()) });
+        AbstractPopupScreenBase::extract_popup_background(graphics, x, y, width, height);
     }
 
     /// ValueBreakdownPopup.extractBackground as the dispatch of AbstractPopupScreen.extractBackground

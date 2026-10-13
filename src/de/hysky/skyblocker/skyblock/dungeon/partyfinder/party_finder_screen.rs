@@ -73,8 +73,8 @@ pub struct PartyFinderScreen {
     pub name: MutableComponent,
     /// java: private ChestMenu handler;
     pub handler: compat::LiveChestMenu,
-    /// java: private final Inventory inventory;
-    pub inventory: Inventory,
+    /// java: private final Inventory inventory; - the player's inventory (read through `game::with_player`)
+    pub inventory: compat::PlayerInventory,
     /// java: private Page currentPage;
     pub current_page: Option<Page>,
     /// java: public PartyEntryListWidget partyEntryListWidget;
@@ -144,10 +144,9 @@ impl std::ops::DerefMut for PartyFinderScreen {
 
 impl PartyFinderScreen {
     /// java: public PartyFinderScreen(ChestMenu handler, Inventory inventory, Component title)
-    pub fn new(mut handler: compat::LiveChestMenu, mut inventory: Inventory, mut title: MutableComponent) -> compat::Shared<Self> {
+    pub fn new(mut handler: compat::LiveChestMenu, inventory: compat::PlayerInventory, mut title: MutableComponent) -> compat::Shared<Self> {
         let __init_handler = handler;
-        // TODO(fabric2seer): the mod keeps the game's `Inventory` (Java holds a reference to the live object); the port's `Inventory` is not a value to copy and the port lends the mod no handle to it
-        //   java: this.inventory = inventory;
+        // java: this.inventory = inventory;
         let __init_name = title.clone();
         let __this = compat::shared(Self {
             base: mcrust::net::minecraft::client::gui::screens::screen::Screen::new(title.get_string()),
@@ -155,7 +154,7 @@ impl PartyFinderScreen {
             __widgets: Default::default(),
             name: __init_name,
             handler: __init_handler,
-            inventory: todo!("fabric2seer: the field value (TODO above)"),
+            inventory,
             current_page: None,
             party_entry_list_widget: None,
             settings_container: None,

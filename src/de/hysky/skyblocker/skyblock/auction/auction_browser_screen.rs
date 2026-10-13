@@ -10,6 +10,7 @@ use crate::de::hysky::skyblocker::skyblock::auction::widgets::rarity_widget::Rar
 use crate::de::hysky::skyblocker::skyblock::auction::widgets::sort_widget::SortWidget;
 use crate::de::hysky::skyblocker::skyblock::item::tooltip::info::tooltip_info_type;
 use crate::de::hysky::skyblocker::utils::item_utils::ItemUtils;
+use crate::de::hysky::skyblocker::utils::render::gui::abstract_custom_hypixel_gui;
 use crate::de::hysky::skyblocker::utils::render::gui::abstract_custom_hypixel_gui::AbstractCustomHypixelGUI;
 use crate::de::hysky::skyblocker::utils::render::gui::abstract_custom_hypixel_gui::AbstractCustomHypixelGUIBase;
 use crate::de::hysky::skyblocker::utils::render::gui::side_tab_button_widget::SideTabButtonWidget;
@@ -89,8 +90,10 @@ pub struct AuctionBrowserScreen {
     pub auction_type_widget: Option<compat::Shared<AuctionTypeWidget>>,
     /// java: private RarityWidget rarityWidget;
     pub rarity_widget: Option<compat::Shared<RarityWidget>>,
-    /// java: private Button resetFiltersButton;
-    pub reset_filters_button: Option<AbstractWidget>,
+    /// java: private Button resetFiltersButton; - its index in the screen's widgets (the screen holds the button)
+    pub reset_filters_button: Option<usize>,
+    /// whether `init` ran before (a second `init` is Java's `repositionElements`)
+    pub initialized: bool,
     /// java: `AbstractContainerScreen.menu` - the handler this screen was built over
     pub menu: compat::Shared<AuctionHouseScreenHandler>,
     /// java: private final List<CategoryTabWidget> categoryTabWidgets = new ArrayList<>(6);
@@ -133,6 +136,7 @@ impl AuctionBrowserScreen {
             auction_type_widget: None,
             rarity_widget: None,
             reset_filters_button: None,
+            initialized: false,
             menu: handler.clone(),
             category_tab_widgets: Vec::with_capacity((6) as usize),
             search: "".to_string(),
@@ -143,6 +147,14 @@ impl AuctionBrowserScreen {
         });
         compat::write(&__this, |__t| __t.self_ref = std::sync::Arc::downgrade(&__this));
         { let __v = 999; compat::write(&__this, |__t| __t.title_label_x = __v); }
+        __this
+    }
+
+    /// `new AuctionBrowserScreen(handler, ..)` from the screen factory, which is handed the server's menu: the
+    /// constructor's `handler.addSlotListener(this)` on it.
+    pub fn new_listening(handler: compat::Shared<AuctionHouseScreenHandler>, chest: &mut mcrust::net::minecraft::world::inventory::chest_menu::ChestMenu) -> compat::Shared<Self> {
+        let __this = AuctionBrowserScreen::new(handler, compat::PlayerInventory);
+        compat::write(&__this, |__t| __t.base.listen(chest));
         __this
     }
 
@@ -180,13 +192,12 @@ impl AuctionBrowserScreen {
         let __r0 = compat::read(__this, |__t| __t.rarity_widget.clone());
         { let (__q0,) = (compat::WidgetAdapter::widget(__r0.unwrap()),); __this.lock().borrow_mut().screen.add_renderable_widget(__q0) };
         let __this_w4 = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
-        { let __v = Some(ScaledTextButtonWidget::new((compat::read(__this, |__t| __t.left_pos)).wrapping_add(10), (compat::read(__this, |__t| __t.top_pos)).wrapping_add(77), 12, 12, component::literal("↻"), OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| { let Some(__this_4) = __this_w4.get().upgrade() else { return Default::default(); }; { AuctionBrowserScreen::on_reset_pressed((&__this_4), (__screen.widget_mut(__index))); } }))).base); compat::write(__this, |__t| __t.reset_filters_button = __v); }
-        let __r0 = compat::read(__this, |__t| __t.reset_filters_button.clone());
-        { let (__q0,) = (__r0.unwrap(),); __this.lock().borrow_mut().screen.add_renderable_widget(__q0) };
-        { let (__q0,) = (Tooltip::create(component::literal("Reset Filters").get_string()),); __this.lock().borrow_mut().reset_filters_button.as_mut().unwrap().set_tooltip(__q0) };
+        let mut __reset: AbstractWidget = ScaledTextButtonWidget::new((compat::read(__this, |__t| __t.left_pos)).wrapping_add(10), (compat::read(__this, |__t| __t.top_pos)).wrapping_add(77), 12, 12, component::literal("↻"), OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| { let Some(__this_4) = __this_w4.get().upgrade() else { return Default::default(); }; { AuctionBrowserScreen::on_reset_pressed((&__this_4), (__screen.widget_mut(__index))); } }))).base;
+        __reset.set_tooltip(Tooltip::create(component::literal("Reset Filters").get_string()));
         //   java: resetFiltersButton.setTooltipDelay(Duration.ofMillis(500));
-        // (the field holds the widget the screen was handed a copy of above: set on the field, as the converter keeps it)
-        __this.lock().borrow_mut().reset_filters_button.as_mut().unwrap().set_tooltip_delay(500);
+        __reset.set_tooltip_delay(500);
+        let __reset_index = compat::write(__this, |__t| __t.screen.add_renderable_widget(__reset));
+        compat::write(__this, |__t| __t.reset_filters_button = Some(__reset_index));
         let __this_w5 = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
         { let (__q0,) = (({ let (__q0, __q1,) = ((compat::read(__this, |__t| __t.left_pos)).wrapping_add(98), (compat::read(__this, |__t| __t.top_pos)).wrapping_add(4),); (Builder::new((component::literal("<")).get_string(), OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| { let Some(__this_5) = __this_w5.get().upgrade() else { return Default::default(); }; { (&__this_5).lock().borrow_mut().click_slot_1(BACK_BUTTON_SLOT); } })))).pos(__q0, __q1) }).size(12, 12).build(),); __this.lock().borrow_mut().screen.add_renderable_widget(__q0) };
         if __this.lock().borrow().category_tab_widgets.is_empty() {
@@ -379,43 +390,46 @@ impl AbstractCustomHypixelGUI<compat::Shared<crate::de::hysky::skyblocker::skybl
     }
 
     /// java: @Override public void onSlotChange(AuctionHouseScreenHandler handler, int slotId, ItemStack stack)
-    fn on_slot_change(&mut self, handler: &compat::Shared<AuctionHouseScreenHandler>, mut slot_id: i32, stack: &mcrust::net::minecraft::world::item::item_stack::ItemStack) {
+    fn on_slot_change(__this: &compat::Shared<Self>, handler: &compat::Shared<AuctionHouseScreenHandler>, slot_id: i32, stack: &mcrust::net::minecraft::world::item::item_stack::ItemStack) {
         if stack.is_empty() {
             return;
         }
-        self.is_waiting_for_server = false;
+        compat::write(__this, |__t| __t.is_waiting_for_server = false);
         match slot_id {
             PREV_PAGE_BUTTON => {
-                self.prev_page_visible = false;
+                compat::write(__this, |__t| __t.prev_page_visible = false);
                 if stack.is_item(&items::items().get("arrow")) {
-                    self.prev_page_visible = true;
-                    AuctionBrowserScreen::parse_page(&self.self_ref.upgrade().unwrap(), stack);
+                    compat::write(__this, |__t| __t.prev_page_visible = true);
+                    AuctionBrowserScreen::parse_page(__this, stack);
                 }
             }
             NEXT_PAGE_BUTTON => {
-                self.next_page_visible = false;
+                compat::write(__this, |__t| __t.next_page_visible = false);
                 if stack.is_item(&items::items().get("arrow")) {
-                    self.next_page_visible = true;
-                    AuctionBrowserScreen::parse_page(&self.self_ref.upgrade().unwrap(), stack);
+                    compat::write(__this, |__t| __t.next_page_visible = true);
+                    AuctionBrowserScreen::parse_page(__this, stack);
                 }
             }
             SORT_BUTTON_SLOT => {
-                { let (__a0,) = (crate::de::hysky::skyblocker::skyblock::auction::widgets::sort_widget::Option::get(AuctionBrowserScreen::get_ordinal(&stack.skyblocker_get_lore_strings())),); self.sort_widget.as_mut().unwrap().lock().borrow_mut().set_current(__a0) };
+                { let (__a0,) = (crate::de::hysky::skyblocker::skyblock::auction::widgets::sort_widget::Option::get(AuctionBrowserScreen::get_ordinal(&stack.skyblocker_get_lore_strings())),); compat::read(__this, |__t| __t.sort_widget.clone()).unwrap().lock().borrow_mut().set_current(__a0) };
             }
             AUCTION_TYPE_BUTTON_SLOT => {
-                { let (__a0,) = (crate::de::hysky::skyblocker::skyblock::auction::widgets::auction_type_widget::Option::get(AuctionBrowserScreen::get_ordinal(&stack.skyblocker_get_lore_strings())),); self.auction_type_widget.as_mut().unwrap().lock().borrow_mut().set_current(__a0) };
+                { let (__a0,) = (crate::de::hysky::skyblocker::skyblock::auction::widgets::auction_type_widget::Option::get(AuctionBrowserScreen::get_ordinal(&stack.skyblocker_get_lore_strings())),); compat::read(__this, |__t| __t.auction_type_widget.clone()).unwrap().lock().borrow_mut().set_current(__a0) };
             }
             RARITY_BUTTON_SLOT => {
                 let mut ordinal: i32 = AuctionBrowserScreen::get_ordinal(&stack.skyblocker_get_lore_strings());
                 let mut tooltip: Vec<MutableComponent> = ItemUtils::get_lore(stack);
                 let mut split: String = compat::substring(&((tooltip[(ordinal.wrapping_add(1)) as usize]).get_string()), 2);
-                RarityWidget::set_text(self.rarity_widget.as_ref().unwrap(), tooltip[(1) as usize..((tooltip.len() as i32).wrapping_sub(3)) as usize].to_vec(), split.clone());
+                RarityWidget::set_text(&compat::read(__this, |__t| __t.rarity_widget.clone()).unwrap(), tooltip[(1) as usize..((tooltip.len() as i32).wrapping_sub(3)) as usize].to_vec(), split.clone());
             }
             RESET_BUTTON_SLOT => {
                 //   java: resetFiltersButton.active = handler.getSlot(slotId).getItem().is(Items.ANVIL);
-                // (the slot's item is the `stack` this slot-change callback carries; the field is the screen's copy of
-                // the button, see `init`)
-                self.reset_filters_button.as_mut().unwrap().active = stack.is_item(&items::items().get("anvil"));
+                // (the slot's item is the `stack` this slot-change callback carries; the field is the button's index in
+                // the screen's widgets, see `init`)
+                let __active = stack.is_item(&items::items().get("anvil"));
+                if let Some(__i) = compat::read(__this, |__t| __t.reset_filters_button) {
+                    compat::write(__this, |__t| __t.screen.widget_mut(__i).active = __active);
+                }
             }
             SEARCH_BUTTON_SLOT => {
                 let mut tooltip_search: Vec<String> = stack.skyblocker_get_lore_strings();
@@ -424,9 +438,9 @@ impl AbstractCustomHypixelGUI<compat::Shared<crate::de::hysky::skyblocker::skybl
                         let string: String = chat_formatting::strip_formatting(string);
                         let mut split_search: Vec<String> = compat::regex::split(&string, ":");
                         if (split_search.len() as i32) < 2 {
-                            self.search = "".to_string();
+                            compat::write(__this, |__t| __t.search = "".to_string());
                         } else {
-                            self.search = compat::trim(&(split_search[(1) as usize]));
+                            { let __v = compat::trim(&(split_search[(1) as usize])); compat::write(__this, |__t| __t.search = __v); }
                         }
                         break;
                     }
@@ -436,7 +450,7 @@ impl AbstractCustomHypixelGUI<compat::Shared<crate::de::hysky::skyblocker::skybl
                 // java: slotId < this.menu.getRowCount() * 9 && slotId % 9 == 0 (`menu` is the handler this callback is given)
                 let row_count: i32 = compat::read(handler, |__t| __t.get_row_count());
                 if slot_id < row_count.wrapping_mul(9) && slot_id.wrapping_rem(9) == 0 {
-                    let mut category_tab_widget: compat::Shared<CategoryTabWidget> = self.category_tab_widgets[(slot_id.wrapping_div(9)) as usize].clone();
+                    let mut category_tab_widget: compat::Shared<CategoryTabWidget> = compat::read(__this, |__t| __t.category_tab_widgets[(slot_id.wrapping_div(9)) as usize].clone());
                     CategoryTabWidget::set_slot_id(&category_tab_widget, slot_id);
                     // java: categoryTabWidget.setIcon(handler.getSlot(slotId).getItem()); - the slot's item is the `stack` this
                     // slot-change callback carries (the menu's own slots hold no item in the port: they read the containers)
@@ -479,7 +493,7 @@ impl AbstractCustomHypixelGUI<compat::Shared<crate::de::hysky::skyblocker::skybl
                                     //   java: long parsed = NumberUtils.toLong(coins, Long.MAX_VALUE); - `Long.parseLong`, the default on failure
                                     let mut parsed: i64 = coins.parse::<i64>().unwrap_or(i64::MAX);
                                     let mut price: f64 = data.as_ref().unwrap().get(&stack.get_neu_name()).copied().unwrap_or_default();
-                                    self.is_slot_highlighted.insert(slot_id, (price > (parsed as f64)));
+                                    compat::write(__this, |__t| __t.is_slot_highlighted.insert(slot_id, (price > (parsed as f64))));
                                 }
                             }
                             k -= 1;
@@ -503,7 +517,19 @@ impl compat::ContainerHalf for AuctionBrowserScreen {
 impl ModContainerScreen for compat::ContainerScreenAdapter<AuctionBrowserScreen> {
     /// java: @Override protected void init()
     fn init(&mut self, screen: &mut AbstractContainerScreen) {
-        self.lend(screen, |__h| AuctionBrowserScreen::init(__h))
+        self.lend(screen, |__h| {
+            AuctionBrowserScreen::init(__h);
+            // a second `init` is `repositionElements` (a popup over the screen closed): the menu's items again
+            if compat::write(__h, |__t| std::mem::replace(&mut __t.initialized, true)) {
+                abstract_custom_hypixel_gui::reposition_elements::<compat::Shared<AuctionHouseScreenHandler>, AuctionBrowserScreen>(__h);
+            }
+            abstract_custom_hypixel_gui::drain_slot_changes::<compat::Shared<AuctionHouseScreenHandler>, AuctionBrowserScreen>(__h);
+        })
+    }
+
+    /// `containerTick` - the slot changes (`slotChanged`) the menu sent since the last call
+    fn container_tick(&mut self, screen: &mut AbstractContainerScreen) {
+        self.lend(screen, |__h| abstract_custom_hypixel_gui::drain_slot_changes::<compat::Shared<AuctionHouseScreenHandler>, AuctionBrowserScreen>(__h))
     }
 
     /// java: @Override public void extractBackground(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a)
@@ -518,7 +544,7 @@ impl ModContainerScreen for compat::ContainerScreenAdapter<AuctionBrowserScreen>
 
     /// java: @Override public boolean mouseClicked(MouseButtonEvent click, boolean doubled)
     fn mouse_clicked(&mut self, screen: &mut AbstractContainerScreen, event: &MouseButtonEvent, double_click: bool) -> bool {
-        self.lend(screen, |__h| AuctionBrowserScreen::mouse_clicked(__h, event, double_click))
+        self.lend(screen, |__h| { abstract_custom_hypixel_gui::drain_slot_changes::<compat::Shared<AuctionHouseScreenHandler>, AuctionBrowserScreen>(__h); AuctionBrowserScreen::mouse_clicked(__h, event, double_click) })
     }
 
     /// java: @Override public boolean keyPressed(KeyEvent input)

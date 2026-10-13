@@ -9,6 +9,6 @@ use mcrust::net::minecraft::client::renderer::submit_node_collector::SubmitNodeC
 pub trait VanillaRenderer<S> {
     fn as_any(&self) -> &dyn std::any::Any;
     /// java: void submitVanilla(S state, LevelRenderState levelState, SubmitNodeCollector submitNodeCollector);
-    fn submit_vanilla(&self, state: &S, level_state: &LevelRenderState, submit_node_collector: &dyn SubmitNodeCollector);
+    fn submit_vanilla(&self, state: &S, level_state: &LevelRenderState, submit_node_collector: &mut dyn SubmitNodeCollector);
 
 }

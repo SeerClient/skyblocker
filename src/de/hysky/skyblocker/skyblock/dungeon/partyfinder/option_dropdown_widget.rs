@@ -68,9 +68,23 @@ impl OptionDropdownWidget {
         let __init_max_height = max_height;
         let __init_screen = screen.clone();
         let __init_slot_id = slot_id;
-        // TODO(fabric2seer): `new` takes 4 argument(s) in the port (`width: i32, height: i32, y: i32, default_entry_height: i32`), Java passes 5
-        //   java: super(screen.getClient(), width, CLOSED_HEIGHT, y, 15);
-        let __this: compat::Shared<Self> = todo!("constructor");
+        //   java: super(screen.getClient(), width, CLOSED_HEIGHT, y, 15); - `AbstractSelectionList(minecraft, width, height, y, itemHeight)`
+        let __this = compat::shared(Self {
+            base: AbstractSelectionList::new(width, CLOSED_HEIGHT, y, 15),
+            slot_id: __init_slot_id,
+            name: None,
+            max_height: __init_max_height,
+            screen: __init_screen,
+            // java: private final Header header = new Header(); - the inner class's enclosing instance is set below
+            header: Header::new(std::sync::Weak::new()),
+            back_button_id: -1,
+            selected_option: None,
+            is_open: false,
+            animation_progress: 0f32,
+            self_ref: std::sync::Weak::new(),
+        });
+        compat::write(&__this, |__t| __t.self_ref = std::sync::Arc::downgrade(&__this));
+        { let __header = compat::read(&__this, |__t| __t.header.clone()); compat::write(&__header, |__t| __t.outer = std::sync::Arc::downgrade(&__this)); }
         __this.lock().borrow_mut().set_x(x);
         { let __v = Some(name.clone()); compat::write(&__this, |__t| __t.name = __v); }
         let __r0 = compat::read(&__this, |__t| __t.header.clone());
@@ -182,9 +196,9 @@ impl OptionDropdownWidget {
         { let __v = true; compat::write(__this, |__t| __t.is_open = __v); }
         { let __v = compat::read(__this, |__t| __t.max_height); compat::write(__this, |__t| __t.height = __v); }
         { let __v = 0.0f32; compat::write(__this, |__t| __t.animation_progress = __v); }
-        // TODO(fabric2seer): `AbstractSelectionList.clearEntriesExcept` has no Rust method in the port (looked for `clear_entries_except` in AbstractSelectionList and its supertypes)
-        // rust: let __h0 = &compat::read(__this, |__t| __t.header.clone());
-        // rust: __this.lock().borrow().clear_entries_except(__h0);
+        // java: clearEntriesExcept(header); - the header is the list's first row (the constructor adds it, every clear
+        // keeps it)
+        compat::write(__this, |__t| __t.base.clear_entries_except(0));
         for __a0 in entries.iter() {
             { let (__q0,) = (row_entry(__a0.clone()),); __this.lock().borrow_mut().add_entry(__q0) };
         }
@@ -198,9 +212,9 @@ impl OptionDropdownWidget {
         }
         { let __v = false; compat::write(__this, |__t| __t.is_open = __v); }
         { let __v = CLOSED_HEIGHT; compat::write(__this, |__t| __t.height = __v); }
-        // TODO(fabric2seer): `AbstractSelectionList.clearEntriesExcept` has no Rust method in the port (looked for `clear_entries_except` in AbstractSelectionList and its supertypes)
-        // rust: let __h0 = &compat::read(__this, |__t| __t.header.clone());
-        // rust: __this.lock().borrow().clear_entries_except(__h0);
+        // java: clearEntriesExcept(header); - the header is the list's first row (the constructor adds it, every clear
+        // keeps it)
+        compat::write(__this, |__t| __t.base.clear_entries_except(0));
     }
 
     /// java: @Override protected boolean entriesCanBeSelected()
@@ -216,6 +230,8 @@ impl OptionDropdownWidget {
 pub struct Header {
     /// java: extends AbstractEntry
     pub base: AbstractEntryBase,
+    /// java: OptionDropdownWidget.this
+    pub outer: compat::WeakShared<OptionDropdownWidget>,
 }
 
 impl std::ops::Deref for Header {
@@ -232,11 +248,12 @@ impl std::ops::DerefMut for Header {
 }
 
 impl Header {
-    /// java: the implicit no-argument constructor
-    pub fn new() -> compat::Shared<Self> {
+    /// java: the implicit no-argument constructor (`outer` is the enclosing `OptionDropdownWidget.this`)
+    pub fn new(outer: compat::WeakShared<OptionDropdownWidget>) -> compat::Shared<Self> {
         let (_, __this) = AbstractEntryBase::new_in(move |__base| {
             let __h = compat::shared(Self {
                 base: __base,
+                outer,
             });
             ((__h.clone() as compat::Shared<dyn AbstractEntry>), __h)
         });
@@ -245,27 +262,23 @@ impl Header {
 
     /// java: @Override public boolean mouseClicked(MouseButtonEvent click, boolean doubled)
     pub fn mouse_clicked(__this: &compat::Shared<Self>, click: &MouseButtonEvent, mut doubled: bool) -> bool {
-        // TODO(fabric2seer): the condition: `screen` is a field of the enclosing instance (OptionDropdownWidget.this) - an inner class has no outer reference in Rust
-        //   java: screen.isWaitingForServer(..)
-        if todo!("fabric2seer: the condition (TODO above)") {
+        let Some(outer) = compat::read(__this, |__t| __t.outer.upgrade()) else { return true; };
+        let screen = compat::read(&outer, |__t| __t.screen.clone());
+        //   java: if (screen.isWaitingForServer()) return false;
+        if PartyFinderScreen::is_waiting_for_server(&screen) {
             return false;
         }
-        // TODO(fabric2seer): the condition: `isOpen` is a field of the enclosing instance (OptionDropdownWidget.this) - an inner class has no outer reference in Rust
-        //   java: isOpen
-        if todo!("fabric2seer: the condition (TODO above)") {
-            // TODO(fabric2seer): the condition: `backButtonId` is a field of the enclosing instance (OptionDropdownWidget.this) - an inner class has no outer reference in Rust
-            //   java: backButtonId != -1
-            if todo!("fabric2seer: the condition (TODO above)") {
-                // TODO(fabric2seer): `screen` is a field of the enclosing instance (OptionDropdownWidget.this) - an inner class has no outer reference in Rust
-                //   java: screen.clickAndWaitForServer(backButtonId);
+        //   java: if (isOpen) { if (backButtonId != -1) screen.clickAndWaitForServer(backButtonId); }
+        if compat::read(&outer, |__t| __t.is_open) {
+            let back_button_id = compat::read(&outer, |__t| __t.back_button_id);
+            if back_button_id != -1 {
+                PartyFinderScreen::click_and_wait_for_server(&screen, back_button_id);
             }
         } else {
-            // TODO(fabric2seer): `animationProgress` is a field of the enclosing instance (OptionDropdownWidget.this) - an inner class has no outer reference in Rust
-            //   java: animationProgress = 0f;
-            // TODO(fabric2seer): `screen` is a field of the enclosing instance (OptionDropdownWidget.this) - an inner class has no outer reference in Rust
-            //   java: screen.clickAndWaitForServer(slotId);
-            // TODO(fabric2seer): `screen` is a field of the enclosing instance (OptionDropdownWidget.this) - an inner class has no outer reference in Rust
-            //   java: screen.partyFinderButton.active = false;
+            //   java: animationProgress = 0f; screen.clickAndWaitForServer(slotId); screen.partyFinderButton.active = false;
+            compat::write(&outer, |__t| __t.animation_progress = 0f32);
+            PartyFinderScreen::click_and_wait_for_server(&screen, compat::read(&outer, |__t| __t.slot_id));
+            compat::write(&screen, |__t| { let __s = &mut *__t; if let Some(__r) = __s.party_finder_button.as_mut() { __s.__widgets.with(&mut __s.base, __r, |__w| __w.active = false) } });
         }
         return true;
     }
@@ -279,18 +292,21 @@ impl Header {
     pub fn extract_content(__this: &compat::Shared<Self>, graphics: &mut GuiGraphicsExtractor, mut mouse_x: i32, mut mouse_y: i32, mut hovered: bool, mut a: f32) {
         let mut x: i32 = __this.lock().borrow().get_x();
         let mut y: i32 = __this.lock().borrow().get_y();
-        // TODO(fabric2seer): `name` is a field of the enclosing instance (OptionDropdownWidget.this) - an inner class has no outer reference in Rust
+        let outer = compat::read(__this, |__t| __t.outer.upgrade());
         //   java: graphics.text(Minecraft.getInstance().font, name, x, y + 1, 0xFFD0D0D0, false);
+        if let Some(name) = outer.as_ref().and_then(|__o| compat::read(__o, |__t| __t.name.clone())) {
+            gui_graphics_extractor::draw_formatted_text_with_drop_shadow(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), &mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(name), x, y.wrapping_add(1), 0xFFD0D0D0u32 as i32, false);
+        }
         let mut offset: i32 = 10;
-        // TODO(fabric2seer): `OptionDropdownWidget.this` (the enclosing instance of an inner class)
+        let outer_width: i32 = outer.as_ref().map_or(0, |__o| compat::read(__o, |__t| __t.get_width()));
         //   java: graphics.fill(x - 2, y + offset, x - 3 + OptionDropdownWidget.this.getWidth(), y + 15 + offset, 0xFFF0F0F0);
-        // TODO(fabric2seer): `OptionDropdownWidget.this` (the enclosing instance of an inner class)
+        graphics.fill(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), x.wrapping_sub(2), y.wrapping_add(offset), x.wrapping_sub(3).wrapping_add(outer_width), y.wrapping_add(15).wrapping_add(offset), 0xFFF0F0F0u32 as i32);
         //   java: graphics.fill(x - 1, y + 1 + offset, x - 3 + OptionDropdownWidget.this.getWidth() - 1, y + 14 + offset, CommonColors.BLACK);
-        // TODO(fabric2seer): the condition: `selectedOption` is a field of the enclosing instance (OptionDropdownWidget.this) - an inner class has no outer reference in Rust
-        //   java: selectedOption != null
-        if todo!("fabric2seer: the condition (TODO above)") {
-            // TODO(fabric2seer): `selectedOption` is a field of the enclosing instance (OptionDropdownWidget.this) - an inner class has no outer reference in Rust
+        graphics.fill(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), x.wrapping_sub(1), y.wrapping_add(1).wrapping_add(offset), x.wrapping_sub(3).wrapping_add(outer_width).wrapping_sub(1), y.wrapping_add(14).wrapping_add(offset), mcrust::net::minecraft::util::common_colors::BLACK);
+        //   java: if (selectedOption != null)
+        if let Some(selected_option) = outer.as_ref().and_then(|__o| compat::read(__o, |__t| __t.selected_option.clone())) {
             //   java: graphics.text(Minecraft.getInstance().font, selectedOption.message, x + 2, y + 3 + offset, CommonColors.WHITE, true);
+            gui_graphics_extractor::text_string_with_drop_shadow(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), Some(&compat::read(&selected_option, |__t| __t.message.clone())), x.wrapping_add(2), (y.wrapping_add(3)).wrapping_add(offset), mcrust::net::minecraft::util::common_colors::WHITE, true);
         } else {
             gui_graphics_extractor::text_string_with_drop_shadow(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), Some("???"), x.wrapping_add(2), (y.wrapping_add(3)).wrapping_add(offset), mcrust::net::minecraft::util::common_colors::WHITE, true);
         }
@@ -347,6 +363,8 @@ pub struct Option {
     pub icon: mcrust::net::minecraft::world::item::item_stack::ItemStack,
     /// java: private final int optionSlotId;
     pub option_slot_id: i32,
+    /// java: OptionDropdownWidget.this (`dropdownWidget.new Option(..)`)
+    pub outer: compat::WeakShared<OptionDropdownWidget>,
     /// the object's own shared handle: Java's `this` handed to other objects
     pub self_ref: compat::WeakShared<Self>,
 }
@@ -366,7 +384,10 @@ impl std::ops::DerefMut for Option {
 
 impl Option {
     /// java: public Option(String message, @Nullable ItemStack icon, int slotId)
-    pub fn new(mut message: String, mut icon: std::option::Option<mcrust::net::minecraft::world::item::item_stack::ItemStack>, mut slot_id: i32) -> compat::Shared<Self> {
+    ///
+    /// (`outer` is the enclosing instance: Java's `dropdownWidget.new Option(..)`)
+    pub fn new(outer: &compat::Shared<OptionDropdownWidget>, mut message: String, mut icon: std::option::Option<mcrust::net::minecraft::world::item::item_stack::ItemStack>, mut slot_id: i32) -> compat::Shared<Self> {
+        let __init_outer = std::sync::Arc::downgrade(outer);
         let __init_message = message.clone();
         let __init_icon = icon.clone().unwrap();
         let __init_option_slot_id = slot_id;
@@ -377,6 +398,7 @@ impl Option {
                 message: __init_message,
                 icon: __init_icon,
                 option_slot_id: __init_option_slot_id,
+                outer: __init_outer,
             });
             compat::write(&__h, |__t| __t.self_ref = std::sync::Arc::downgrade(&__h));
             ((__h.clone() as compat::Shared<dyn AbstractEntry>), __h)
@@ -394,18 +416,19 @@ impl Option {
         graphics.item(&compat::read(__this, |__t| __t.icon.clone()), __this.lock().borrow().get_x(), icon_y);
         gui_graphics_extractor::pop_pose(__pose_1);
         if compat::get_state(&party_finder_screen::DEBUG) {
-            // TODO(fabric2seer): unknown name `minecraft`
             //   java: graphics.text(minecraft.font, String.valueOf(optionSlotId), this.getX() + 8, this.getY(), CommonColors.RED, true);
+            gui_graphics_extractor::text_string_with_drop_shadow(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), Some(&compat::read(__this, |__t| __t.option_slot_id).to_string()), (__this.lock().borrow().get_x()).wrapping_add(8), __this.lock().borrow().get_y(), mcrust::net::minecraft::util::common_colors::RED, true);
         }
         let mut text: MutableComponent = (component::literal(&compat::read(__this, |__t| __t.message.clone()))).with_style(&mcrust::net::minecraft::network::chat::style::Style::EMPTY.with_underlined(Some(hovered)));
-        // TODO(fabric2seer): the condition: unknown name `minecraft`
         //   java: minecraft.font.width(text) >= this.getWidth() - 14
-        if todo!("fabric2seer: the condition (TODO above)") {
-            // TODO(fabric2seer): field `NONE` of a value of unknown type
+        let __text = mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(text.clone());
+        let (__x, __y, __width) = compat::read(__this, |__t| (__t.get_x(), __t.get_y(), __t.get_width()));
+        if mcrust::net::minecraft::client::gui::font::width(compat::minecraft().font.splitter().string_width_formatted(&__text)) >= __width.wrapping_sub(14) {
             //   java: graphics.textRenderer(GuiGraphicsExtractor.HoveredTextEffects.NONE).acceptScrollingWithDefaultCenter(text, this.getX() + 14, this.getX() + this.getWidth(), getY() + 3, this.getY() + 3 + minecraft.font.lineHeight);
+            accept_scrolling_with_default_center(&__text, __x.wrapping_add(14), __x.wrapping_add(__width), __y.wrapping_add(3), __y.wrapping_add(3).wrapping_add(mcrust::net::minecraft::client::gui::font::LINE_HEIGHT));
         } else {
-            // TODO(fabric2seer): unknown name `minecraft`
             //   java: graphics.text(minecraft.font, text, this.getX() + 14, this.getY() + 3, CommonColors.WHITE, false);
+            gui_graphics_extractor::draw_formatted_text_with_drop_shadow(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), &__text, __x.wrapping_add(14), __y.wrapping_add(3), mcrust::net::minecraft::util::common_colors::WHITE, false);
         }
     }
 
@@ -425,16 +448,17 @@ impl Option {
 
     /// java: @Override public boolean mouseClicked(MouseButtonEvent click, boolean doubled)
     pub fn mouse_clicked(__this: &compat::Shared<Self>, click: &MouseButtonEvent, mut doubled: bool) -> bool {
-        // TODO(fabric2seer): the condition: `screen` is a field of the enclosing instance (OptionDropdownWidget.this) - an inner class has no outer reference in Rust
-        //   java: screen.isWaitingForServer(..)
-        if todo!("fabric2seer: the condition (TODO above)") {
+        let Some(outer) = compat::read(__this, |__t| __t.outer.upgrade()) else { return true; };
+        let screen = compat::read(&outer, |__t| __t.screen.clone());
+        //   java: if (screen.isWaitingForServer()) return false;
+        if PartyFinderScreen::is_waiting_for_server(&screen) {
             return false;
         }
         if click.button() == 0 {
-            // TODO(fabric2seer): `screen` is a field of the enclosing instance (OptionDropdownWidget.this) - an inner class has no outer reference in Rust
             //   java: screen.clickAndWaitForServer(this.optionSlotId);
-            // TODO(fabric2seer): `setSelectedOption(..)` is a method of the enclosing instance (OptionDropdownWidget.this) - an inner class has no outer reference in Rust
+            PartyFinderScreen::click_and_wait_for_server(&screen, compat::read(__this, |__t| __t.option_slot_id));
             //   java: setSelectedOption(this);
+            OptionDropdownWidget::set_selected_option(&outer, __this.clone());
         }
         return true;
     }
@@ -554,6 +578,16 @@ impl ModListEntry for compat::EntryAdapter<dyn AbstractEntry> {
         self.lend(Some(list.list.entry(index)), |__h| { if let Some(__c) = compat::try_view::<Header, _>(__h) { return Header::mouse_clicked(&*__c, event, double_click); } if let Some(__c) = compat::try_view::<Option, _>(__h) { return Option::mouse_clicked(&*__c, event, double_click); } false })
     }
 
+}
+
+/// `graphics.textRenderer(HoveredTextEffects.NONE).acceptScrollingWithDefaultCenter(message, left, right, top, bottom)`
+/// from a draw that holds only the extractor: the scrolling placement and the clipped draw, as
+/// `compat::accept_scrolling_with_default_center` does with a widget render context
+fn accept_scrolling_with_default_center(message: &mcrust::net::minecraft::network::chat::formatted_text::FormattedText, left: i32, right: i32, top: i32, bottom: i32) {
+    let minecraft = &*compat::minecraft();
+    let width = mcrust::net::minecraft::client::gui::font::width(minecraft.font.splitter().string_width_formatted(message));
+    let placement = mcrust::net::minecraft::client::gui::active_text_collector::accept_scrolling_with_default_center(left, right, top, bottom, width, mcrust::net::minecraft::util::util::get_millis());
+    gui_graphics_extractor::draw_clipped_formatted_text(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), minecraft, placement.x, placement.y, message, -1, &mcrust::net::minecraft::network::chat::style::Style::EMPTY, placement.scissor, None, minecraft.window.get_gui_scale(), minecraft.window.get_height());
 }
 
 /// java: `addEntry(row)` on the list's `AbstractSelectionList` half - the port's `Entry` is the row's box, and the

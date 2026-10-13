@@ -38,7 +38,7 @@ impl Attributes {
             let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                 use mcrust::com::mojang::serialization::decoder::Decoder as _;
                 //   java: attributes = AttributesFile.CODEC.parse(JsonOps.INSTANCE, JsonParser.parseString(new String(stream.readAllBytes()))).getOrThrow().attributes();
-                let content: String = neu_repo_file_read_all(&file);
+                let content: String = compat::neu_repo_file_read_all(&file);
                 let parsed: attributes_file::AttributesFile = attributes_file::CODEC.get().parse(&mcrust::com::mojang::serialization::json_ops::JsonOps::instance(), &compat::json_to_port(&serde_json::from_str::<serde_json::Value>(&content).expect("JsonSyntaxException"))).get_or_throw().unwrap_or_else(|e| panic!("{e}"));
                 compat::set_state(&ATTRIBUTES, parsed.attributes());
                 logger().info("[Skyblocker Attributes] Successfully loaded attributes!");
@@ -87,11 +87,3 @@ impl Attributes {
 
 }
 
-/// `new String(file.stream().readAllBytes())`.
-///
-/// rust: port gap - the NEU repo library (`io.github.moulberry.repo`) is a `crate::unresolved` placeholder with no
-/// file behind it (`NEURepoManager.file(..)` answers none; GAPS_L, GAPS_M #10): a placeholder file has no content.
-fn neu_repo_file_read_all(file: &crate::unresolved::NEURepoFile) -> String {
-    let _ = file;
-    String::new()
-}

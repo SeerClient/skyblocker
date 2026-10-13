@@ -906,7 +906,38 @@ impl ContainerWidgetHalf for BackpackGridWidget {
 impl ModWidget for ContainerWidgetAdapter<BackpackGridWidget> {
     /// java: SearchableGridWidget.extractWidgetRenderState (BackpackGridWidget overrides it)
     fn extract_widget_render_state(&mut self, _widget: &AbstractWidget, context: &mut mcrust::mcrust::modding::widgets::WidgetRenderContext<'_>, mouse_x: i32, mouse_y: i32, a: f32) {
-        self.lend(|__h| { let __v = compat::view(__h, |a| a as compat::Shared<dyn SearchableGridWidget>); let __f = compat::dispatch(&__v, |__t| __t.extract_widget_render_state()); __f(&__v, &context.graphics, mouse_x, mouse_y, a) })
+        self.lend(|__h| {
+            let __v = compat::view(__h, |a| a as compat::Shared<dyn SearchableGridWidget>);
+            let __f = compat::dispatch(&__v, |__t| __t.extract_widget_render_state());
+            __f(&__v, &context.graphics, mouse_x, mouse_y, a);
+            // the search field and the grid's widgets (`SearchableGridWidget.extractWidgetRenderState`)
+            <dyn SearchableGridWidget>::extract_children(&__v, context, mouse_x, mouse_y);
+        })
+    }
+
+    /// java: AbstractContainerWidget.mouseClicked - the grid's scroll bar, then its children
+    fn mouse_clicked(&mut self, _widget: &mut AbstractWidget, event: &MouseButtonEvent, _double_click: bool) -> bool {
+        self.lend(|__h| { let __v = compat::view(__h, |a| a as compat::Shared<dyn SearchableGridWidget>); <dyn SearchableGridWidget>::mouse_clicked(&__v, event) })
+    }
+
+    /// java: ContainerEventHandler.mouseReleased
+    fn mouse_released(&mut self, _widget: &mut AbstractWidget, event: &MouseButtonEvent) -> bool {
+        self.lend(|__h| { let __v = compat::view(__h, |a| a as compat::Shared<dyn SearchableGridWidget>); <dyn SearchableGridWidget>::mouse_released(&__v, event) })
+    }
+
+    /// java: ContainerEventHandler.mouseDragged
+    fn mouse_dragged(&mut self, _widget: &mut AbstractWidget, event: &MouseButtonEvent, dx: f64, dy: f64) -> bool {
+        self.lend(|__h| { let __v = compat::view(__h, |a| a as compat::Shared<dyn SearchableGridWidget>); <dyn SearchableGridWidget>::mouse_dragged(&__v, event, dx, dy) })
+    }
+
+    /// java: ContainerEventHandler.keyPressed - the focused child (the search field)
+    fn key_pressed(&mut self, _widget: &mut AbstractWidget, event: &mcrust::net::minecraft::client::input::key_event::KeyEvent) -> bool {
+        self.lend(|__h| { let __v = compat::view(__h, |a| a as compat::Shared<dyn SearchableGridWidget>); <dyn SearchableGridWidget>::key_pressed(&__v, event) })
+    }
+
+    /// java: ContainerEventHandler.charTyped - the focused child (the search field)
+    fn char_typed(&mut self, _widget: &mut AbstractWidget, event: &mcrust::net::minecraft::client::input::character_event::CharacterEvent) -> bool {
+        self.lend(|__h| { let __v = compat::view(__h, |a| a as compat::Shared<dyn SearchableGridWidget>); <dyn SearchableGridWidget>::char_typed(&__v, event) })
     }
 
     /// java: SearchableGridWidget.updateWidgetNarration

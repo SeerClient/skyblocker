@@ -2,6 +2,7 @@
 
 #[allow(unused_imports)]
 use crate::prelude::*;
+use mcrust::net::minecraft::client::renderer::ordered_submit_node_collector::OrderedSubmitNodeCollector as _;
 use crate::de::hysky::skyblocker::config::skyblocker_config_manager::SkyblockerConfigManager;
 use crate::de::hysky::skyblocker::events::world_events;
 use crate::de::hysky::skyblocker::skyblock::garden::greenhouse_crops;
@@ -642,7 +643,7 @@ impl GreenhousePaste {
                     // java: SkullModelBase model = SkullBlockRenderer.createModel(CLIENT.getEntityModels(), SkullBlock.Types.PLAYER);
                     // java: if (model == null) continue;
                     // (`Minecraft.getEntityModels()` is the game's `EntityModelSet.vanilla()`, as its own screens read it)
-                    let Some(mut model) = mcrust::net::minecraft::client::renderer::blockentity::skull_block_renderer::create_model_owned(mcrust::net::minecraft::client::model::geom::entity_model_set::vanilla(), mcrust::net::minecraft::world::level::block::skull_block::Types::Player) else {
+                    let Some(model) = mcrust::net::minecraft::client::renderer::blockentity::skull_block_renderer::create_model(mcrust::net::minecraft::client::model::geom::entity_model_set::vanilla(), mcrust::net::minecraft::world::level::block::skull_block::Types::Player) else {
                         continue;
                     };
                     // java: RenderType renderType = CLIENT.playerSkinRenderCache().getOrDefault(profile).renderType();
@@ -654,7 +655,7 @@ impl GreenhousePaste {
                     let mut render_type: std::rc::Rc<RenderType> = compat::minecraft().game_renderer.player_skin_render_cache.as_ref().expect("Minecraft.playerSkinRenderCache()").get_or_default(&profile).render_type();
                     // collector.submitVanilla(null, (_, worldState, submitNodeCollector) -> {..}): the lambda is
                     // `SkullPreviewRenderer`; `submitVanilla` is generic, so it is reached on the one implementation
-                    let renderer: compat::Shared<dyn VanillaRenderer<Option<()>>> = compat::shared(SkullPreviewRenderer { pos: pos.clone(), model: std::cell::RefCell::new(model), render_type }) as compat::Shared<dyn VanillaRenderer<Option<()>>>;
+                    let renderer: compat::Shared<dyn VanillaRenderer<Option<()>>> = compat::shared(SkullPreviewRenderer { pos: pos.clone(), model, render_type }) as compat::Shared<dyn VanillaRenderer<Option<()>>>;
                     compat::write_as::<PrimitiveCollectorImpl, dyn PrimitiveCollector, _>(collector, |collector| collector.submit_vanilla(&None, &renderer));
                 } else {
                     let mut block_state: Arc<BlockState> = target_crop.crop_block().default_block_state();
@@ -786,7 +787,7 @@ impl std::fmt::Display for LayoutSite {
 /// `setupAnim` it calls) and `renderType`.
 struct SkullPreviewRenderer {
     pos: BlockPos,
-    model: std::cell::RefCell<SkullModelBase>,
+    model: std::rc::Rc<std::cell::RefCell<dyn mcrust::net::minecraft::client::renderer::feature::model_feature_renderer::AnimatedModel>>,
     render_type: std::rc::Rc<RenderType>,
 }
 
@@ -795,27 +796,18 @@ impl VanillaRenderer<Option<()>> for SkullPreviewRenderer {
         self
     }
 
-    fn submit_vanilla(&self, _state: &Option<()>, world_state: &mcrust::net::minecraft::client::renderer::state::level::level_render_state::LevelRenderState, submit_node_collector: &dyn mcrust::net::minecraft::client::renderer::submit_node_collector::SubmitNodeCollector) {
+    fn submit_vanilla(&self, _state: &Option<()>, world_state: &mcrust::net::minecraft::client::renderer::state::level::level_render_state::LevelRenderState, submit_node_collector: &mut dyn mcrust::net::minecraft::client::renderer::submit_node_collector::SubmitNodeCollector) {
         let pos = &self.pos;
         let mut matrices: PoseStack = PoseStack::new();
         matrices.translate_d((pos.get_x() as f64) - world_state.camera_render_state.pos.x, (pos.get_y() as f64) - world_state.camera_render_state.pos.y, (pos.get_z() as f64) - world_state.camera_render_state.pos.z);
         matrices.mul_pose_transformation(mcrust::net::minecraft::client::renderer::blockentity::skull_block_renderer::transformations().free_transformations(0));
         let mut skull_state: State = State::new();
         skull_state.animation_pos = 0.0f32;
-        self.model.borrow_mut().setup_anim(skull_state.clone());
-        // rust: port gap (GAPS_J #10) - `submitNodeCollector.submitModel(..)` is `&mut self` in the port
-        // (`OrderedSubmitNodeCollector::submit_model`), and `VanillaRenderer.submitVanilla` (the unowned
-        // `utils/render/primitive/vanilla_renderer.rs`) hands the collector as `&dyn SubmitNodeCollector`; the model would
-        // also have to be the shared `Rc<RefCell<dyn AnimatedModel>>` (`skull_block_renderer::create_model`).
-        //   java: submitNodeCollector.submitModel(
-        //   java: 										model,
-        //   java: 										skullState,
-        //   java: 										matrices,
-        //   java: 										renderType,
-        //   java: 										LightCoordsUtil.FULL_BRIGHT,
-        //   java: 										OverlayTexture.pack(PREVIEW_TINT, false),
-        //   java: 										0,
-        //   java: 										null
-        //   java: 								);
+        // java: model.setupAnim(skullState);
+        self.model.borrow_mut().setup_anim(&skull_state);
+        // java: submitNodeCollector.submitModel(model, skullState, matrices, renderType, LightCoordsUtil.FULL_BRIGHT,
+        //   OverlayTexture.pack(PREVIEW_TINT, false), 0, null);
+        let overlay = mcrust::net::minecraft::client::renderer::texture::overlay_texture::pack_progress(PREVIEW_TINT, false);
+        submit_node_collector.submit_model_untinted(self.model.clone(), std::rc::Rc::new(skull_state), &matrices, self.render_type.clone(), mcrust::net::minecraft::util::light_coords_util::FULL_BRIGHT, overlay, 0, None);
     }
 }

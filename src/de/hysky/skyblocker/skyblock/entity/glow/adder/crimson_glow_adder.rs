@@ -76,9 +76,12 @@ impl MobGlowAdder for CrimsonGlowAdder {
 impl CrimsonGlowAdder {
     /// java: @Override public int computeColour(Entity entity)
     pub fn compute_colour_impl(__this: &compat::Shared<Self>, entity: &dyn Entity) -> i32 {
-        // TODO(fabric2seer): instanceof with a pattern binding outside an `if` condition
-        //   java: return entity instanceof Zombie zombie && DojoManager.inArena && DojoManager.shouldGlow(MobGlow.getArmorStandName(zombie)) ? DojoManager.getColor() : NO_GLOW;
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        // java: return entity instanceof Zombie zombie && DojoManager.inArena && DojoManager.shouldGlow(MobGlow.getArmorStandName(zombie)) ? DojoManager.getColor() : NO_GLOW;
+        use crate::de::hysky::skyblocker::skyblock::crimson::dojo::dojo_manager::{self, DojoManager};
+        if entity.as_any().unwrap_or(&() as &dyn std::any::Any).is::<mcrust::net::minecraft::world::entity::monster::zombie::zombie::Zombie>() && compat::get_state(&dojo_manager::IN_ARENA) && DojoManager::should_glow(&crate::de::hysky::skyblocker::skyblock::entity::mob_glow::MobGlow::get_armor_stand_name(entity)) {
+            return DojoManager::get_color();
+        }
+        return *crate::de::hysky::skyblocker::skyblock::entity::mob_glow::NO_GLOW;
     }
 
     /// CrimsonGlowAdder.computeColour as the dispatch of MobGlowAdder.computeColour

@@ -22,7 +22,8 @@ use mcrust::net::minecraft::client::gui::components::abstract_widget::OnPress;
 use mcrust::net::minecraft::client::gui::components::abstract_widget::PressLambda;
 use mcrust::net::minecraft::client::gui::components::button;
 use mcrust::net::minecraft::client::gui::components::checkbox::Checkbox;
-use mcrust::net::minecraft::client::gui::components::scrollable_layout::ScrollableLayout;
+use mcrust::net::minecraft::client::gui::components::scrollable_layout::ScrollableLayoutElement;
+use mcrust::net::minecraft::client::gui::components::scrollable_layout::ReserveStrategy;
 use mcrust::net::minecraft::client::gui::gui_graphics_extractor::GuiGraphicsExtractor;
 use mcrust::net::minecraft::client::gui::layouts::layout_element::LayoutElement;
 use mcrust::net::minecraft::client::gui::layouts::linear_layout::LinearLayout;
@@ -54,7 +55,10 @@ pub struct CopyToPopup {
     /// java: private boolean copyPosition = true;
     pub copy_position: bool,
     /// java: private ScrollableLayout scrollable;
-    pub scrollable: Option<ScrollableLayout>,
+    /// (the port's `ScrollableLayout` layout is `ScrollableLayoutElement`, and `layout` holds it by value: this is the
+    /// value it was built with, the live one is `layout`'s child - see `scrollable_bounds`. Its scroll container is not a
+    /// widget of a mod screen, so the content does not scroll - GAPS_O)
+    pub scrollable: Option<ScrollableLayoutElement>,
 }
 
 impl std::ops::Deref for CopyToPopup {
@@ -78,22 +82,68 @@ impl CopyToPopup {
         let __init_available_locations = widget_manager::ALLOWED_LOCATIONS.iter().copied().filter(|l| (({ let __r = &compat::read(&copied_widget, |__t| __t.widget.clone()); let __f = compat::dispatch(__r, |__t| __t.get_information()); __f(__r) }).available())(*l)).collect::<std::collections::HashSet<Location>>();
         let __init_location = location;
         let __init_layer = layer;
-        // TODO(fabric2seer): the mod keeps the game's `Screen` (Java holds a reference to the live object); the port's `Screen` is not a value to copy and the port lends the mod no handle to it
         //   java: super(Component.literal("Copy to other locations"), backgroundScreen);
-        let __this: compat::Shared<Self> = todo!("constructor");
-        __this.lock().borrow_mut().layout.default_cell_setting().align_horizontally_center();
+        // (open it with `game::set_screen_keeping_parent`: the screen it is opened over is its background screen, which
+        // the base keeps a stand-in for - see `AbstractPopupScreenBase::new_in`)
+        let (_, __this) = AbstractPopupScreenBase::new_in(component::literal("Copy to other locations"), background_screen, move |__base| {
+            let __h = compat::shared(Self {
+                base: __base,
+                layout: LinearLayout::vertical().spacing(2),
+                selected_locations: __init_selected_locations,
+                available_locations: __init_available_locations,
+                copied_widget: __init_copied_widget,
+                location: __init_location,
+                layer: __init_layer,
+                copy_position: true,
+                scrollable: None,
+            });
+            ((__h.clone() as compat::Shared<dyn AbstractPopupScreen>), __h)
+        });
+        compat::write(&__this, |__t| { let __s = __t.layout.default_cell_setting(); *__s = (*__s).align_horizontally_center(); });
         __this
+    }
+
+    /// `scrollable`'s x, y, width and height: the live element is the one `layout` holds (it was added by value)
+    fn scrollable_bounds(__this: &compat::Shared<Self>) -> Option<(i32, i32, i32, i32)> {
+        let mut bounds = None;
+        compat::read(__this, |__t| __t.layout.wrapped.visit_children(&mut |__child| {
+            if let LayoutElement::Scrollable(__s) = __child {
+                bounds = Some((__s.get_x(), __s.get_y(), __s.get_width(), __s.get_height()));
+            }
+        }));
+        bounds
+    }
+
+    /// `Checkbox.builder(message, font).maxWidth(maxWidth).selected(selected).onValueChange(onValueChange).build()` whose
+    /// value-change listener is handed the screen the press runs on (`compat::checkbox`'s body, for a listener that
+    /// writes the screen's other checkboxes)
+    fn checkbox_on_screen(message: mcrust::net::minecraft::network::chat::formatted_text::FormattedText, max_width: Option<i32>, selected: bool, on_value_change: impl Fn(&mut mcrust::net::minecraft::client::gui::screens::screen::Screen, bool) + 'static) -> AbstractWidget {
+        use mcrust::net::minecraft::client::gui::components::abstract_widget::WidgetKind;
+        let font = compat::font();
+        let name = message.get_string();
+        let checkbox = Checkbox::build(&font.splitter(), 0, 0, max_width, message, selected, true);
+        let (width, height) = (checkbox.width, checkbox.height);
+        let on_value_change = compat::RenderThread::new(on_value_change);
+        AbstractWidget::new(0, 0, width, height, name, WidgetKind::Checkbox(checkbox), OnPress::Lambda(PressLambda::new(move |screen, index| {
+            let checked = match &mut screen.widget_mut(index).kind {
+                WidgetKind::Checkbox(c) => c.on_press(),
+                _ => return,
+            };
+            (on_value_change.get())(screen, checked);
+        })))
     }
 
     /// java: private void apply()
     pub fn apply(__this: &compat::Shared<Self>) {
         let mut widget_config: serde_json::Map<String, serde_json::Value> = serde_json::Map::new();
         {
-            // TODO(fabric2seer): `logger` (a logger) used as a value
-            //   java: ProblemReporter.ScopedCollector reporter = new ProblemReporter.ScopedCollector(WidgetManager.LOGGER);
-            let mut reporter: ScopedCollector = todo!("fabric2seer: the initialiser of `reporter` (TODO above)");
-            // TODO(fabric2seer): the mod keeps the game's `ProblemReporter$ScopedCollector` (Java holds a reference to the live object); the port's `ScopedCollector` is not a value to copy and the port lends the mod no handle to it
-            // rust: ({ let __r = &compat::read(&compat::read(__this, |__t| __t.copied_widget.clone()), |__t| __t.widget.clone()); let __f = compat::dispatch(__r, |__t| __t.save()); __f(__r, &mut JsonValueOutput::new(reporter.clone(), widget_config.clone())) });
+            //   java: try (ProblemReporter.ScopedCollector reporter = new ProblemReporter.ScopedCollector(WidgetManager.LOGGER)) {
+            //   java:     copiedWidget.widget.save(new JsonValueOutput(reporter, widgetConfig)); }
+            // (the port's JsonValueOutput owns the object it writes; `widgetConfig` is what it wrote)
+            let reporter: ScopedCollector = ScopedCollector::new("de.hysky.skyblocker.skyblock.tabhud.screenbuilder.WidgetManager");
+            let mut output = JsonValueOutput::new(reporter.reporter(), widget_config.clone());
+            ({ let __r = &compat::read(&compat::read(__this, |__t| __t.copied_widget.clone()), |__t| __t.widget.clone()); let __f = compat::dispatch(__r, |__t| __t.save()); __f(__r, &mut output) });
+            widget_config = output.output.unwrap_or_default();
         }
         { let __o = compat::read(__this, |__t| __t.available_locations.clone()); __this.lock().borrow_mut().selected_locations.retain(|e| __o.contains(e)); };
         for loc in compat::read(__this, |__t| __t.selected_locations.clone()) {
@@ -151,65 +201,84 @@ impl AbstractPopupScreen for CopyToPopup {
 impl CopyToPopup {
     /// java: @Override protected void init()
     pub fn init_impl(__this: &compat::Shared<Self>) {
-        // TODO(fabric2seer): an assignment used as a value
         //   java: layout.addChild(Checkbox.builder(Component.translatable("skyblocker.config.hud.copy.copyPosition"), font)
         //   java: 				.selected(selectedLocations.isEmpty()) // automatically select if it's empty
         //   java: 				.onValueChange((_, value) -> copyPosition = value).build()
         //   java: 		).setTooltip(Tooltip.create(Component.translatable("skyblocker.config.hud.copy.copyPosition.@Tooltip")));
+        {
+            let __this_w0 = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
+            let mut __w = compat::checkbox(mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::translatable("skyblocker.config.hud.copy.copyPosition")), 0, 0, None, compat::read(__this, |__t| __t.selected_locations.is_empty()), move |value: bool| { if let Some(__this_0) = __this_w0.get().upgrade() { compat::write(&__this_0, |__t| __t.copy_position = value); } });
+            __w.set_tooltip(mcrust::net::minecraft::client::gui::components::tooltip::Tooltip::create(component::translatable("skyblocker.config.hud.copy.copyPosition.@Tooltip").get_string()));
+            let (__ww, __wh) = (__w.get_width(), __w.get_height());
+            let __e = LayoutElement::widget(compat::write(__this, |__t| __t.add_widget(__w)), __ww, __wh);
+            compat::write(__this, |__t| __t.layout.add_child(__e));
+        }
         { let (__q0, __q1,) = ({ let __w = compat::string_widget(0, 0, -1, 9, component::translatable("skyblocker.config.hud.copy.targetLocations").with_style_format(ChatFormatting::Bold)); let (__ww, __wh) = (__w.get_width(), __w.get_height()); LayoutElement::widget(compat::write(__this, |__t| __t.add_widget(__w)), __ww, __wh) }, &mut |settings: &mut mcrust::net::minecraft::client::gui::layouts::layout_settings::LayoutSettings| { *settings = settings.clone().padding_vertical(4); },); __this.lock().borrow_mut().layout.add_child_adjusted(__q0, __q1) };
         let mut content: LinearLayout = LinearLayout::vertical().spacing(2);
-        let mut checkboxes: Vec<Checkbox> = Vec::new();
-        // TODO(fabric2seer): static `Checkbox.builder` has no Rust counterpart in the port
-        // TODO(fabric2seer): `Builder.maxWidth` has no Rust method in the port (looked for `max_width` in Checkbox and its supertypes)
-        // TODO(fabric2seer): `Builder.selected` has no Rust method in the port (looked for `selected` in Checkbox and its supertypes)
-        // TODO(fabric2seer): `Builder.onValueChange` has no Rust method in the port (looked for `on_value_change` in Checkbox and its supertypes)
-        // TODO(fabric2seer): `Builder.build` has no Rust method in the port (looked for `build` in Checkbox and its supertypes)
-        // rust: let __this_1 = compat::RenderThread::new(__this.clone());
-        // rust: let mut select_all: Checkbox = content.add_child((Checkbox::builder(component::translatable("skyblocker.config.hud.copy.selectAll").with_style_format(ChatFormatting::Bold), compat::font())).max_width(200).selected(compat::read(__this, |__t| __t.available_locations.clone()).into_iter().all(|x| __this.lock().borrow().selected_locations.contains(&x))).on_value_change(&Arc::new(move |_, value| {
-        // rust: if value {
-        // rust: __this_1.get().lock().borrow_mut().selected_locations.clear();
-        // rust: let __h0 = compat::read(__this_1.get(), |__t| __t.available_locations.clone()).into_iter();
-        // rust: __this_1.get().lock().borrow_mut().selected_locations.extend(__h0);
-        // rust: } else {
-        // rust: __this_1.get().lock().borrow_mut().selected_locations.clear();
-        // rust: }
-        // rust: for checkbox in checkboxes.iter() {
-        // rust: checkbox.selected = value;
-        // rust: }
-        // rust: })).build());
-        let mut select_all: Checkbox = todo!("fabric2seer: the initialiser of `selectAll` (TODO above)");
+        // java: List<Checkbox> checkboxes = new ArrayList<>(); - the checkboxes are this screen's widgets, by index; the
+        // value-change lambdas reach them through the screen the press runs on
+        let checkboxes: Arc<Mutex<Vec<usize>>> = Arc::new(Mutex::new(Vec::new()));
+        let select_all_index: Arc<std::sync::atomic::AtomicUsize> = Arc::new(std::sync::atomic::AtomicUsize::new(usize::MAX));
+        //   java: Checkbox selectAll = content.addChild(Checkbox.builder(Component.translatable("skyblocker.config.hud.copy.selectAll").withStyle(ChatFormatting.BOLD), font)
+        //   java:     .maxWidth(200).selected(selectedLocations.containsAll(availableLocations)).onValueChange((_, value) -> {..}).build());
+        {
+            let __this_w1 = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
+            let __checkboxes = checkboxes.clone();
+            let __selected = compat::read(__this, |__t| __t.available_locations.iter().all(|x| __t.selected_locations.contains(x)));
+            let __w = CopyToPopup::checkbox_on_screen(mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::translatable("skyblocker.config.hud.copy.selectAll").with_style_format(ChatFormatting::Bold)), Some(200), __selected, move |__screen, value| {
+                let Some(__this_1) = __this_w1.get().upgrade() else { return; };
+                if value {
+                    compat::write(&__this_1, |__t| { __t.selected_locations.clear(); let __all = __t.available_locations.clone(); __t.selected_locations.extend(__all); });
+                } else {
+                    compat::write(&__this_1, |__t| __t.selected_locations.clear());
+                }
+                // java: checkboxes.forEach(checkbox -> ((CheckboxAccessor) checkbox).setSelected(value));
+                for __i in compat::lock(&__checkboxes).iter().copied() {
+                    compat::set_checkbox_selected(__screen.widget_mut(__i), value);
+                }
+            });
+            let (__ww, __wh) = (__w.get_width(), __w.get_height());
+            let __i = compat::write(__this, |__t| __t.add_widget(__w));
+            select_all_index.store(__i, std::sync::atomic::Ordering::Relaxed);
+            content.add_child(LayoutElement::widget(__i, __ww, __wh));
+        }
         for location in compat::read(__this, |__t| __t.available_locations.clone()) {
             if location == compat::read(__this, |__t| __t.location) {
                 continue;
             }
-            // TODO(fabric2seer): static `Checkbox.builder` has no Rust counterpart in the port
-            // TODO(fabric2seer): `Builder.maxWidth` has no Rust method in the port (looked for `max_width` in Checkbox and its supertypes)
-            // TODO(fabric2seer): `Builder.selected` has no Rust method in the port (looked for `selected` in Checkbox and its supertypes)
-            // TODO(fabric2seer): `Builder.onValueChange` has no Rust method in the port (looked for `on_value_change` in Checkbox and its supertypes)
-            // TODO(fabric2seer): `Builder.build` has no Rust method in the port (looked for `build` in Checkbox and its supertypes)
-            // rust: let __this_2 = compat::RenderThread::new(__this.clone());
-            // rust: checkboxes.push(content.add_child((Checkbox::builder(component::literal(&location.to_string()), compat::font())).max_width(200).selected(__this.lock().borrow().selected_locations.contains(&location)).on_value_change(&Arc::new(move |_, value| {
-            // rust: if value {
-            // rust: __this_2.get().lock().borrow_mut().selected_locations.insert(location);
-            // rust: } else {
-            // rust: __this_2.get().lock().borrow_mut().selected_locations.remove(&location);
-            // rust: }
-            // rust: select_all.selected = checkboxes.iter().cloned().all(|__a0| __a0.selected());
-            // rust: })).build()));
+            //   java: checkboxes.add(content.addChild(Checkbox.builder(Component.literal(location.toString()), font).maxWidth(200)
+            //   java:     .selected(selectedLocations.contains(location)).onValueChange((_, value) -> {..}).build()));
+            let __this_w2 = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
+            let __checkboxes = checkboxes.clone();
+            let __select_all = select_all_index.clone();
+            let __selected = compat::read(__this, |__t| __t.selected_locations.contains(&location));
+            let __w = CopyToPopup::checkbox_on_screen(mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::literal(&location.to_string())), Some(200), __selected, move |__screen, value| {
+                let Some(__this_2) = __this_w2.get().upgrade() else { return; };
+                if value {
+                    compat::write(&__this_2, |__t| { __t.selected_locations.insert(location); });
+                } else {
+                    compat::write(&__this_2, |__t| { __t.selected_locations.remove(&location); });
+                }
+                // java: ((CheckboxAccessor) selectAll).setSelected(checkboxes.stream().allMatch(Checkbox::selected));
+                let __all = compat::lock(&__checkboxes).iter().all(|__i| compat::checkbox_selected(__screen.widget_mut(*__i)));
+                compat::set_checkbox_selected(__screen.widget_mut(__select_all.load(std::sync::atomic::Ordering::Relaxed)), __all);
+            });
+            let (__ww, __wh) = (__w.get_width(), __w.get_height());
+            let __i = compat::write(__this, |__t| __t.add_widget(__w));
+            compat::lock(&checkboxes).push(__i);
+            content.add_child(LayoutElement::widget(__i, __ww, __wh));
         }
         { content.arrange_elements(); let mut __vw = Vec::new(); LayoutElement::Grid(content.wrapped.clone()).visit_widgets(&mut __vw); for (__i, __x, __y) in __vw { compat::write(__this, |__t| __t.widget_mut(__i).set_position(__x, __y)); } };
         let mut max_height: i32 = 200i32.min((compat::read(__this, |__t| __t.height)).wrapping_sub(150));
-        // TODO(fabric2seer): `new` takes 2 argument(s) in the port (`height: i32, reserve_strategy: ReserveStrategy`), Java passes 3
-        // rust: { let __v = Some(ScrollableLayout::new(compat::minecraft(), LayoutElement::Grid(content.clone().wrapped), max_height)); compat::write(__this, |__t| __t.scrollable = __v); }
-        // TODO(fabric2seer): `ScrollableLayoutElement::set_max_height` ports `setMaxHeight`, but the port's `ScrollableLayout` holds no `ScrollableLayoutElement` (no Deref, no `base` field) to call it on
-        // rust: __this.lock().borrow_mut().scrollable.as_mut().unwrap().set_max_height(max_height);
-        // TODO(fabric2seer): `ScrollableLayoutElement::set_min_width` ports `setMinWidth`, but the port's `ScrollableLayout` holds no `ScrollableLayoutElement` (no Deref, no `base` field) to call it on
-        // rust: __this.lock().borrow_mut().scrollable.as_mut().unwrap().set_min_width(150);
-        // rust: port gap (GAPS_batchC #C6) - Java's `ScrollableLayout` is a layout element holding the content; the port's
-        // `ScrollableLayout` is its scroll helper and the element is `ScrollableLayoutElement`, built by the screens
-        // that own it (the construction above is the converter's TODO)
-        // rust: let __r0 = compat::read(__this, |__t| __t.scrollable.clone());
-        // rust: { let (__q0,) = (__r0.unwrap(),); __this.lock().borrow_mut().layout.add_child(__q0) };
+        // java: this.scrollable = new ScrollableLayout(minecraft, content, maxHeight); - the three-argument constructor's strategy is BOTH
+        let mut scrollable = ScrollableLayoutElement::new(LayoutElement::Grid(content.wrapped.clone()), max_height, ReserveStrategy::Both);
+        // java: scrollable.setMaxHeight(maxHeight);
+        scrollable.set_max_height(max_height);
+        // java: scrollable.setMinWidth(150);
+        scrollable.set_min_width(150);
+        { let __v = Some(scrollable.clone()); compat::write(__this, |__t| __t.scrollable = __v); }
+        // java: layout.addChild(scrollable);
+        compat::write(__this, |__t| __t.layout.add_child(LayoutElement::Scrollable(Box::new(scrollable))));
         { let (__q0,) = (SpacerElement::height(10).as_layout_element(),); __this.lock().borrow_mut().layout.add_child(__q0) };
         let __this_w3 = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
         { let (__q0,) = ({ let __w = (button::builder(mcrust::net::minecraft::network::chat::common_components::gui_done().get_string(), OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| { let Some(__this_3) = __this_w3.get().upgrade() else { return Default::default(); }; compat::lend_screen(&__this_3, __screen, || { let mut __pidx = compat::WidgetRef::Screen(__index); {
@@ -231,10 +300,18 @@ impl CopyToPopup {
     pub fn reposition_elements_impl(__this: &compat::Shared<Self>) {
         <dyn AbstractPopupScreen>::reposition_elements_body(&compat::view(__this, |a| a as compat::Shared<dyn AbstractPopupScreen>));
         { __this.lock().borrow_mut().layout.arrange_elements(); let mut __vw = Vec::new(); LayoutElement::Grid(__this.lock().borrow().layout.wrapped.clone()).visit_widgets(&mut __vw); for (__i, __x, __y) in __vw { compat::write(__this, |__t| __t.widget_mut(__i).set_position(__x, __y)); } };
-        // TODO(fabric2seer): `LayoutElement::set_position` ports `setPosition`, but the port's `LinearLayout` holds no `LayoutElement` (no Deref, no `base` field) to call it on
-        // rust: let __r0 = compat::read(__this, |__t| __t.width);
-        // rust: let __r1 = compat::read(__this, |__t| __t.height);
-        // rust: { let (__q0, __q1,) = (((__r0).wrapping_sub(__this.lock().borrow().layout.get_width())).wrapping_div(2), ((__r1).wrapping_sub(__this.lock().borrow().layout.get_height())).wrapping_div(2),); __this.lock().borrow_mut().layout.set_position(__q0, __q1) };
+        // java: layout.setPosition((width - layout.getWidth()) / 2, (height - layout.getHeight()) / 2); - and the widgets
+        // follow the layout (the port's layouts hold a widget by its place in the screen)
+        compat::write(__this, |__t| {
+            let (__width, __height) = (__t.width, __t.height);
+            let mut __element = LayoutElement::Grid(__t.layout.wrapped.clone());
+            let (__x, __y) = ((__width.wrapping_sub(__element.get_width())).wrapping_div(2), (__height.wrapping_sub(__element.get_height())).wrapping_div(2));
+            __element.set_position(__x, __y);
+            let mut __vw = Vec::new();
+            __element.visit_widgets(&mut __vw);
+            if let LayoutElement::Grid(__grid) = __element { __t.layout.wrapped = __grid; }
+            for (__i, __wx, __wy) in __vw { __t.widget_mut(__i).set_position(__wx, __wy); }
+        });
     }
 
     /// CopyToPopup.repositionElements as the dispatch of AbstractPopupScreen.repositionElements
@@ -246,11 +323,10 @@ impl CopyToPopup {
     pub fn extract_background_impl(__this: &compat::Shared<Self>, graphics: &mut GuiGraphicsExtractor, mut mouse_x: i32, mut mouse_y: i32, mut a: f32) {
         <dyn AbstractPopupScreen>::extract_background_body(&compat::view(__this, |a| a as compat::Shared<dyn AbstractPopupScreen>), graphics, mouse_x, mouse_y, a);
         AbstractPopupScreenBase::extract_popup_background(graphics, __this.lock().borrow().layout.get_x(), __this.lock().borrow().layout.get_y(), __this.lock().borrow().layout.get_width(), __this.lock().borrow().layout.get_height());
-        // TODO(fabric2seer): `ScrollableLayoutElement::get_x` ports `getX`, but the port's `ScrollableLayout` holds no `ScrollableLayoutElement` (no Deref, no `base` field) to call it on
-        // TODO(fabric2seer): `ScrollableLayoutElement::get_y` ports `getY`, but the port's `ScrollableLayout` holds no `ScrollableLayoutElement` (no Deref, no `base` field) to call it on
-        // TODO(fabric2seer): `ScrollableLayoutElement::get_width` ports `getWidth`, but the port's `ScrollableLayout` holds no `ScrollableLayoutElement` (no Deref, no `base` field) to call it on
-        // TODO(fabric2seer): `ScrollableLayoutElement::get_height` ports `getHeight`, but the port's `ScrollableLayout` holds no `ScrollableLayoutElement` (no Deref, no `base` field) to call it on
-        // rust: graphics.fill(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), __this.lock().borrow().scrollable.as_ref().unwrap().get_x(), __this.lock().borrow().scrollable.as_ref().unwrap().get_y(), (__this.lock().borrow().scrollable.as_ref().unwrap().get_x()).wrapping_add(__this.lock().borrow().scrollable.as_ref().unwrap().get_width()), (__this.lock().borrow().scrollable.as_ref().unwrap().get_y()).wrapping_add(__this.lock().borrow().scrollable.as_ref().unwrap().get_height()), argb::black_f32(0.1f32));
+        // java: graphics.fill(scrollable.getX(), scrollable.getY(), scrollable.getX() + scrollable.getWidth(), scrollable.getY() + scrollable.getHeight(), ARGB.black(0.1f));
+        if let Some((x, y, width, height)) = CopyToPopup::scrollable_bounds(__this) {
+            graphics.fill(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), x, y, x.wrapping_add(width), y.wrapping_add(height), argb::black_f32(0.1f32));
+        }
     }
 
     /// CopyToPopup.extractBackground as the dispatch of AbstractPopupScreen.extractBackground

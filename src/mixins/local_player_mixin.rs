@@ -63,12 +63,14 @@ fn skyblocker_redirect_edit_sign_screen(ci: &mut CallbackInfo<'_>) {
         return;
     }
     if let Some(auction_view_screen) = mcrust::mcrust::modding::container_screens::current_mod_container_screen::<compat::ContainerScreenAdapter<crate::de::hysky::skyblocker::skyblock::auction::auction_view_screen::AuctionViewScreen>, _>(|__s| __s.object().clone()) {
-        // TODO(batchD): cross-package - `EditBidPopup::new` takes a `SignBlockEntity` BY VALUE, where the sign is the
-        // level's shared block entity (`Arc<dyn BlockEntityObj>`, as `PartyFinderScreen::update_sign` takes it); the
-        // popup is not opened and the vanilla sign editor is left to open.
         //   java: this.minecraft.gui.setScreen(new EditBidPopup(auctionViewScreen, sign, front, auctionViewScreen.minBid));
+        // (the auction view is the popup's background screen: the game holds it under the popup)
+        let min_bid: String = compat::read(&auction_view_screen, |__t| __t.min_bid.clone()).unwrap_or_default();
+        let popup = crate::de::hysky::skyblocker::skyblock::auction::edit_bid_popup::EditBidPopup::new(auction_view_screen, sign.clone(), front, min_bid);
+        mcrust::mcrust::modding::game::set_screen_keeping_parent(Box::new(compat::ScreenAdapter::new(popup)));
         //   java: ci.cancel();
-        let _ = auction_view_screen;
+        cancel(ci, gfx);
+        return;
     }
     // Search Overlay
     if let Some(title) = screen_title {

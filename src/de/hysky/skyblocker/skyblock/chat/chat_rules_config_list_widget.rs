@@ -38,6 +38,11 @@ pub struct ChatRulesConfigListWidget {
     pub screen: compat::Shared<ChatRulesConfigScreen>,
     /// java: private boolean hasChanged;
     pub has_changed: bool,
+    /// `removeEntry(entry)` / `updateEntries()` asked for while the game holds the live list elsewhere (a confirm
+    /// screen's callback, with the rules screen held under it): run on the live list by the rules screen's next own
+    /// call (`ChatRulesConfigScreen::run_pending_list_updates`)
+    pub pending_removal: Vec<compat::Shared<dyn AbstractChatRuleEntry>>,
+    pub pending_update_entries: bool,
 }
 
 impl std::ops::Deref for ChatRulesConfigListWidget {
@@ -62,9 +67,23 @@ impl ChatRulesConfigListWidget {
             base: mcrust::mcrust::modding::widgets::ModSelectionList::new(mcrust::mcrust::modding::widgets::ListKind::Container, width, height, y, ROW_HEIGHT),
             screen: __init_screen,
             has_changed: __init_has_changed,
+            pending_removal: Vec::new(),
+            pending_update_entries: false,
         });
         ChatRulesConfigListWidget::update_entries(&__this);
         __this
+    }
+
+    /// The `removeEntry` / `updateEntries` calls asked for while the live list was not lent (see `pending_removal`),
+    /// run now that it is (`compat::lend_list`).
+    pub fn run_pending_updates(__this: &compat::Shared<Self>) {
+        let (removals, update) = compat::write(__this, |__t| (std::mem::take(&mut __t.pending_removal), std::mem::replace(&mut __t.pending_update_entries, false)));
+        for entry in removals.iter() {
+            ChatRulesConfigListWidget::remove_entry(__this, entry);
+        }
+        if update {
+            ChatRulesConfigListWidget::update_entries(__this);
+        }
     }
 
     /// java: public void updateEntries()
@@ -546,18 +565,18 @@ impl ChatRuleEntry {
                 list.lock().borrow_mut().set_data(data);
             }
             //   java: removeEntry(this);
-            // rust: port gap - the confirm screen's callback runs while the game holds the list (the rules screen is
-            // not up), so the list object's own half is the one changed here, not the live list (GAPS_K)
+            // (the confirm screen's callback runs while the rules screen - and its live list - is held under it: the
+            // removal is run on the live list by the rules screen's next own call)
             if let Some(outer) = &outer {
                 let __self: compat::Shared<dyn AbstractChatRuleEntry> = __this.clone();
-                ChatRulesConfigListWidget::remove_entry(outer, &__self);
+                compat::write(outer, |__t| __t.pending_removal.push(__self));
             }
         }
         //   java: minecraft.gui.setScreen(screen); - the rules screen, which the confirm screen holds as its parent
         mcrust::mcrust::modding::game::set_screen_to_parent();
-        //   java: updateEntries();
+        //   java: updateEntries(); - on the live list, as `removeEntry` above
         if let Some(outer) = &outer {
-            ChatRulesConfigListWidget::update_entries(outer);
+            compat::write(outer, |__t| __t.pending_update_entries = true);
         }
     }
 

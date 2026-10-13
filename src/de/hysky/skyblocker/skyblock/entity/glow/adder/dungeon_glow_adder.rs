@@ -96,42 +96,53 @@ impl DungeonGlowAdder {
     /// java: @Override public int computeColour(Entity entity)
     pub fn compute_colour_impl(__this: &compat::Shared<Self>, entity: &dyn Entity) -> i32 {
         let mut name: String = compat::component_of(entity.get_name()).get_string();
-        // TODO(fabric2seer): a pattern switch expression
-        //   java: return switch (entity) {
-        //   java: 			// Minibosses
-        //   java: 			case Player _ when SkyblockerConfigManager.get().dungeons.starredMobGlow && !DungeonManager.getBoss().isFloor(4) && name.equals("Lost Adventurer") -> LOST_ADVENTURER_COLOUR;
-        //   java: 			case Player _ when SkyblockerConfigManager.get().dungeons.starredMobGlow && !DungeonManager.getBoss().isFloor(4) && name.equals("Shadow Assassin") -> SHADOW_ASSASSIN_COLOUR;
-        //   java: 			case Player _ when SkyblockerConfigManager.get().dungeons.starredMobGlow && !DungeonManager.getBoss().isFloor(4) && name.equals("Diamond Guy") -> ANGRY_ARCHAEOLOGIST_COLOUR;
-        //   java: 			case Player _ when entity.getId() == LividColor.getCorrectLividId() && LividColor.shouldGlow(name) -> LividColor.getGlowColor(name);
-        //   java:
-        //   java: 			// Bats
-        //   java: 			case Bat _ when SkyblockerConfigManager.get().dungeons.starredMobGlow -> STARRED_COLOUR;
-        //   java:
-        //   java: 			// Fel Heads
-        //   java: 			case ArmorStand as when SkyblockerConfigManager.get().dungeons.starredMobGlow && as.isMarker() && as.hasItemInSlot(EquipmentSlot.HEAD) && ItemUtils.getHeadTexture(as.getItemBySlot(EquipmentSlot.HEAD)).equals(HeadTextures.FEL) -> ENDERMAN_EYE_COLOUR;
-        //   java:
-        //   java: 			// Wither & Blood Keys
-        //   java: 			case ArmorStand as when SkyblockerConfigManager.get().dungeons.highlightDoorKeys && as.hasItemInSlot(EquipmentSlot.HEAD) -> {
-        //   java: 				yield switch (ItemUtils.getHeadTexture(as.getItemBySlot(EquipmentSlot.HEAD))) {
-        //   java: 					case String s when s.equals(HeadTextures.WITHER_KEY) -> DyeColor.CYAN.getTextColor();
-        //   java: 					case String s when s.equals(HeadTextures.BLOOD_KEY) -> DyeColor.CYAN.getTextColor();
-        //   java: 					default -> NO_GLOW;
-        //   java: 				};
-        //   java: 			}
-        //   java:
-        //   java: 			// Armor Stands
-        //   java: 			case ArmorStand _ -> 0;
-        //   java:
-        //   java: 			// Regular Mobs
-        //   java: 			case Entity _ when SkyblockerConfigManager.get().dungeons.starredMobGlow && isStarred(entity) -> STARRED_COLOUR;
-        //   java:
-        //   java: 			//Class-based glow
-        //   java: 			//This goes after regular mobs to ensure starred player entities like dreadlords have the glow applied
-        //   java: 			case Player p when SkyblockerConfigManager.get().dungeons.classBasedPlayerGlow && DungeonScore.isDungeonStarted() -> DungeonPlayerManager.getClassFromPlayer(p).glowColor();
-        //   java:
-        //   java: 			default -> NO_GLOW;
-        //   java: 		};
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        // java: return switch (entity) { .. } - in Java's case order
+        use crate::de::hysky::skyblocker::skyblock::dungeon::secrets::dungeon_manager::DungeonManager;
+        use crate::de::hysky::skyblocker::skyblock::item::head_textures;
+        use crate::de::hysky::skyblocker::utils::item_utils::ItemUtils;
+        use mcrust::net::minecraft::world::entity::equipment_slot::EquipmentSlot;
+        use mcrust::net::minecraft::world::entity::living_entity::LivingEntity as _;
+        let config = crate::de::hysky::skyblocker::config::skyblocker_config_manager::SkyblockerConfigManager::get();
+        let any = entity.as_any().unwrap_or(&() as &dyn std::any::Any);
+        let player = entity.as_living_entity().and_then(|__l| __l.as_player());
+        // Minibosses
+        if player.is_some() && config.dungeons.starred_mob_glow && !DungeonManager::get_boss().is_floor(4) {
+            match name.as_str() {
+                "Lost Adventurer" => return LOST_ADVENTURER_COLOUR,
+                "Shadow Assassin" => return SHADOW_ASSASSIN_COLOUR,
+                "Diamond Guy" => return ANGRY_ARCHAEOLOGIST_COLOUR,
+                _ => {}
+            }
+        }
+        if player.is_some() && entity.base().get_id() == crate::de::hysky::skyblocker::skyblock::dungeon::livid_color::LividColor::get_correct_livid_id() && crate::de::hysky::skyblocker::skyblock::dungeon::livid_color::LividColor::should_glow(&name) {
+            return crate::de::hysky::skyblocker::skyblock::dungeon::livid_color::LividColor::get_glow_color(&name);
+        }
+        // Bats
+        if any.is::<mcrust::net::minecraft::world::entity::ambient::bat::Bat>() && config.dungeons.starred_mob_glow {
+            return STARRED_COLOUR;
+        }
+        if let Some(r#as) = any.downcast_ref::<ArmorStand>() {
+            // Fel Heads
+            if config.dungeons.starred_mob_glow && r#as.is_marker() && r#as.has_item_in_slot(EquipmentSlot::Head) && ItemUtils::get_head_texture(r#as.get_item_by_slot(EquipmentSlot::Head)) == head_textures::FEL {
+                return ENDERMAN_EYE_COLOUR;
+            }
+            // Wither & Blood Keys
+            if config.dungeons.highlight_door_keys && r#as.has_item_in_slot(EquipmentSlot::Head) {
+                let texture = ItemUtils::get_head_texture(r#as.get_item_by_slot(EquipmentSlot::Head));
+                return if texture == head_textures::WITHER_KEY || texture == head_textures::BLOOD_KEY { mcrust::net::minecraft::world::item::dye_color::DyeColor::Cyan.get_text_color() } else { *crate::de::hysky::skyblocker::skyblock::entity::mob_glow::NO_GLOW };
+            }
+            // Armor Stands
+            return 0;
+        }
+        // Regular Mobs
+        if config.dungeons.starred_mob_glow && DungeonGlowAdder::is_starred(entity) {
+            return STARRED_COLOUR;
+        }
+        // Class-based glow
+        if let Some(p) = player && config.dungeons.class_based_player_glow && crate::de::hysky::skyblocker::skyblock::dungeon::dungeon_score::DungeonScore::is_dungeon_started() {
+            return crate::de::hysky::skyblocker::skyblock::dungeon::secrets::dungeon_player_manager::DungeonPlayerManager::get_class_from_player(p).glow_color();
+        }
+        return *crate::de::hysky::skyblocker::skyblock::entity::mob_glow::NO_GLOW;
     }
 
     /// DungeonGlowAdder.computeColour as the dispatch of MobGlowAdder.computeColour

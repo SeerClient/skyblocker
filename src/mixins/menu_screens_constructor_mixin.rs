@@ -34,36 +34,31 @@ fn skyblocker_open(args: &mcrust::mcrust::modding::container_screens::ContainerS
             crate::de::hysky::skyblocker::skyblock::dungeon::partyfinder::party_finder_screen::PartyFinderScreen::update_handler(&screen, compat::LiveChestMenu::of(&*container_screen_handler), mcrust::net::minecraft::network::chat::component::literal(&args.title).clone());
         } else {
             //   java: client.gui.setScreen(new PartyFinderScreen(containerScreenHandler, player.getInventory(), title));
-            // rust: cross-package - `PartyFinderScreen::new` (skyblock/dungeon/partyfinder/party_finder_screen.rs:147, in no
-            // batch's list) still takes the port's `Inventory` by value, which the mod cannot have; every other screen
-            // here takes `compat::PlayerInventory` (the screen reads the live inventory through `game::with_player`).
-            // Once its `inventory` field is a `compat::PlayerInventory`, this is:
-            // __result.mod_screen(Box::new(compat::ScreenAdapter::new(crate::de::hysky::skyblocker::skyblock::dungeon::partyfinder::party_finder_screen::PartyFinderScreen::new(compat::LiveChestMenu::of(&*container_screen_handler), compat::PlayerInventory, mcrust::net::minecraft::network::chat::component::literal(&args.title).clone()))));
+            __result.mod_screen(Box::new(compat::ScreenAdapter::new(crate::de::hysky::skyblocker::skyblock::dungeon::partyfinder::party_finder_screen::PartyFinderScreen::new(compat::LiveChestMenu::of(&*container_screen_handler), compat::PlayerInventory, mcrust::net::minecraft::network::chat::component::literal(&args.title).clone()))));
         }
         return __result.finish();
     } else if let mcrust::net::minecraft::world::entity::player::player::ContainerMenu::Chest(container_screen_handler) = &mut *menu && crate::de::hysky::skyblocker::config::skyblocker_config_manager::SkyblockerConfigManager::get().ui_and_visuals.fancy_auction_house.enabled && (name_lowercase == "auctions browser" || name_lowercase.starts_with("auctions: ")) {
         let mut auction_house_screen_handler: compat::Shared<crate::de::hysky::skyblocker::skyblock::auction::auction_house_screen_handler::AuctionHouseScreenHandler> = crate::de::hysky::skyblocker::skyblock::auction::auction_house_screen_handler::AuctionHouseScreenHandler::of(container_screen_handler, false);
         __result.menu(compat::mod_menu(auction_house_screen_handler.clone()));
         if let Some(__sel7) = compat::minecraft().gui.screen().as_ref() && let Some(auction_browser_screen) = mcrust::mcrust::modding::container_screens::current_mod_container_screen::<compat::ContainerScreenAdapter<crate::de::hysky::skyblocker::skyblock::auction::auction_browser_screen::AuctionBrowserScreen>, _>(|__s| __s.object().clone()) {
-            auction_browser_screen.lock().borrow().change_handler(&auction_house_screen_handler);
+            auction_browser_screen.lock().borrow_mut().change_handler(auction_house_screen_handler.clone(), container_screen_handler);
         } else {
-            __result.container_screen(Box::new(compat::ContainerScreenAdapter::new(crate::de::hysky::skyblocker::skyblock::auction::auction_browser_screen::AuctionBrowserScreen::new(auction_house_screen_handler.clone(), compat::PlayerInventory))));
+            __result.container_screen(Box::new(compat::ContainerScreenAdapter::new(crate::de::hysky::skyblocker::skyblock::auction::auction_browser_screen::AuctionBrowserScreen::new_listening(auction_house_screen_handler.clone(), container_screen_handler))));
         }
         return __result.finish();
     } else if let mcrust::net::minecraft::world::entity::player::player::ContainerMenu::Chest(container_screen_handler) = &mut *menu && crate::de::hysky::skyblocker::config::skyblocker_config_manager::SkyblockerConfigManager::get().ui_and_visuals.fancy_auction_house.enabled && name_lowercase.ends_with("auction view") {
         let mut auction_house_screen_handler: compat::Shared<crate::de::hysky::skyblocker::skyblock::auction::auction_house_screen_handler::AuctionHouseScreenHandler> = crate::de::hysky::skyblocker::skyblock::auction::auction_house_screen_handler::AuctionHouseScreenHandler::of(container_screen_handler, true);
         __result.menu(compat::mod_menu(auction_house_screen_handler.clone()));
         if let Some(__sel10) = compat::minecraft().gui.screen().as_ref() && let Some(auction_view_screen) = mcrust::mcrust::modding::container_screens::current_mod_container_screen::<compat::ContainerScreenAdapter<crate::de::hysky::skyblocker::skyblock::auction::auction_view_screen::AuctionViewScreen>, _>(|__s| __s.object().clone()) {
-            auction_view_screen.lock().borrow().change_handler(&auction_house_screen_handler);
+            auction_view_screen.lock().borrow_mut().change_handler(auction_house_screen_handler.clone(), container_screen_handler);
         } else {
-            __result.container_screen(Box::new(compat::ContainerScreenAdapter::new(crate::de::hysky::skyblocker::skyblock::auction::auction_view_screen::AuctionViewScreen::new(auction_house_screen_handler.clone(), compat::PlayerInventory, mcrust::net::minecraft::network::chat::component::literal(&args.title).clone()))));
+            __result.container_screen(Box::new(compat::ContainerScreenAdapter::new(crate::de::hysky::skyblocker::skyblock::auction::auction_view_screen::AuctionViewScreen::new_listening(auction_house_screen_handler.clone(), container_screen_handler, mcrust::net::minecraft::network::chat::component::literal(&args.title).clone()))));
         }
         return __result.finish();
     } else if let mcrust::net::minecraft::world::entity::player::player::ContainerMenu::Chest(container_screen_handler) = &mut *menu && crate::de::hysky::skyblocker::config::skyblocker_config_manager::SkyblockerConfigManager::get().ui_and_visuals.fancy_auction_house.enabled && (name_lowercase == "confirm purchase" || name_lowercase == "confirm bid") && let Some(auction_view_screen) = mcrust::mcrust::modding::container_screens::current_mod_container_screen::<compat::ContainerScreenAdapter<crate::de::hysky::skyblocker::skyblock::auction::auction_view_screen::AuctionViewScreen>, _>(|__s| __s.object().clone()) {
-        // TODO(batchD): cross-package - `AuctionViewScreen::get_confirm_purchase_popup` answers the port's `Screen` husk
-        // where Java builds a `PopupScreen` (a mod screen); once it answers a `ModScreen`, this is
-        // `__result.mod_screen(Box::new(..))` (`fromPacket:108` shows it instead of the vanilla screen).
-        //   java: client.gui.setScreen(auctionViewScreen.getConfirmPurchasePopup(name));
+        //   java: client.gui.setScreen(auctionViewScreen.getConfirmPurchasePopup(name)); - shown instead of the vanilla screen
+        let _ = container_screen_handler;
+        __result.mod_screen(Box::new(crate::de::hysky::skyblocker::skyblock::auction::auction_view_screen::AuctionViewScreen::get_confirm_purchase_popup(&auction_view_screen, &mcrust::net::minecraft::network::chat::component::literal(&args.title))));
         // java: player.containerMenu = the server's menu - it already is
         return __result.finish();
     } else if let mcrust::net::minecraft::world::entity::player::player::ContainerMenu::Chest(container_screen_handler) = &mut *menu && crate::de::hysky::skyblocker::config::skyblocker_config_manager::SkyblockerConfigManager::get().ui_and_visuals.fancy_crafting_table && ((<_ as mcrust::net::minecraft::network::chat::component::Component>::get_string(&mcrust::net::minecraft::network::chat::component::literal(&args.title))).to_lowercase()).contains("craft item") {
@@ -81,12 +76,12 @@ fn skyblocker_open(args: &mcrust::mcrust::modding::container_screens::ContainerS
         return __result.finish();
     } else if let mcrust::net::minecraft::world::entity::player::player::ContainerMenu::Chest(container_screen_handler) = &mut *menu && crate::de::hysky::skyblocker::utils::utils::Utils::is_in_dungeons() && compat::read(&crate::de::hysky::skyblocker::config::skyblocker_config_manager::SkyblockerConfigManager::get().dungeons.leap_overlay, |__t| __t.enable_leap_overlay) && name_lowercase.contains(&crate::de::hysky::skyblocker::skyblock::dungeon::leap_overlay::TITLE.to_lowercase()) {
         // java: player.containerMenu = the server's menu - it already is
-        __result.mod_screen(Box::new(compat::ScreenAdapter::new(crate::de::hysky::skyblocker::skyblock::dungeon::leap_overlay::LeapOverlay::new(compat::LiveChestMenu::of(&*container_screen_handler)))));
+        __result.mod_screen(Box::new(compat::ScreenAdapter::new(crate::de::hysky::skyblocker::skyblock::dungeon::leap_overlay::LeapOverlay::new_listening(container_screen_handler))));
         return __result.finish();
     } else if let mcrust::net::minecraft::world::entity::player::player::ContainerMenu::Chest(container_screen_handler) = &mut *menu && crate::de::hysky::skyblocker::skyblock::radial_menu::radial_menu_manager::RadialMenuManager::is_menu_exists_from_title(&name_lowercase) {
         // java: player.containerMenu = the server's menu - it already is
         let mut menu_type: compat::Shared<dyn crate::de::hysky::skyblocker::skyblock::radial_menu::radial_menu::RadialMenu> = crate::de::hysky::skyblocker::skyblock::radial_menu::radial_menu_manager::RadialMenuManager::get_menu_from_title(&name_lowercase).unwrap();
-        __result.mod_screen(Box::new(compat::ScreenAdapter::new(crate::de::hysky::skyblocker::skyblock::radial_menu::radial_menu_screen::RadialMenuScreen::new(compat::LiveChestMenu::of(&*container_screen_handler), menu_type.clone(), mcrust::net::minecraft::network::chat::component::literal(&args.title).clone()))));
+        __result.mod_screen(Box::new(compat::ScreenAdapter::new(crate::de::hysky::skyblocker::skyblock::radial_menu::radial_menu_screen::RadialMenuScreen::new_listening(container_screen_handler, menu_type.clone(), mcrust::net::minecraft::network::chat::component::literal(&args.title).clone()))));
         return __result.finish();
     } else if let mcrust::net::minecraft::world::entity::player::player::ContainerMenu::Chest(container_screen_handler) = &mut *menu && crate::de::hysky::skyblocker::skyblock::storageoverlay::storage_overlay_screen::StorageOverlayScreen::enabled(&name_lowercase) {
         let mut height: i32 = (compat::minecraft().get_window().get_gui_scaled_height()).wrapping_sub((compat::minecraft().get_window().get_gui_scaled_height()).wrapping_div(5));

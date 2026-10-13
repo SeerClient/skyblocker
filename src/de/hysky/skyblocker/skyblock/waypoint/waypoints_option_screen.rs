@@ -83,48 +83,91 @@ impl WaypointsOptionScreen {
         // in (below); Java adds the reference first and fills it after, which arranges the same.
         let mut adder: RowHelper = grid.create_row_helper(2);
         let waypoints_read_only = &SkyblockerConfigManager::get().ui_and_visuals.waypoints;
-        // TODO(fabric2seer): the port's `create` ports this Java method with other parameters (name, generic_value_format, value_change_listener for Java's x, y, width, height, name, value_change_listener)
-        // TODO(fabric2seer): `create` takes 3 argument(s) in the port (`name: String, generic_value_format: String, value_change_listener: OnValueChange`), Java passes 6
-        // TODO(fabric2seer): a lambda for a parameter the port does not type as a closure (`net.minecraft.client.gui.components.CycleButton.OnValueChange<T>`)
-        // TODO(fabric2seer): the port's `add_child` ports this Java method with other parameters (grid, child for Java's widget)
-        // TODO(fabric2seer): `add_child` takes 2 argument(s) in the port (`grid: &mut GridLayout, child: LayoutElement`), Java passes 1
-        // rust: let __this_1 = compat::RenderThread::new(__this.clone());
-        // rust: adder.add_child(&mut (cycle_button::boolean_builder(mcrust::net::minecraft::network::chat::common_components::gui_yes().get_string(), mcrust::net::minecraft::network::chat::common_components::option_off().get_string(), waypoints_read_only.render_line)).create(0, 0, 150, 20, component::translatable("skyblocker.config.uiAndVisuals.waypoints.renderLine"), |_, value| { WaypointsOptionScreen::update_config(__this_1.get(), Arc::new(move |waypoints| { waypoints.render_line = value.clone(); })); }).unwrap()).unwrap();
-        // TODO(fabric2seer): a lambda for a parameter the port does not type as a closure (`net.minecraft.client.OptionInstance.TooltipSupplier<T>`)
-        // TODO(fabric2seer): the port's `create` ports this Java method with other parameters (name, generic_value_format, value_change_listener for Java's x, y, width, height, name, value_change_listener)
-        // TODO(fabric2seer): `create` takes 3 argument(s) in the port (`name: String, generic_value_format: String, value_change_listener: OnValueChange`), Java passes 6
-        // TODO(fabric2seer): a lambda for a parameter the port does not type as a closure (`net.minecraft.client.gui.components.CycleButton.OnValueChange<T>`)
-        // TODO(fabric2seer): the port's `add_child` ports this Java method with other parameters (grid, child for Java's widget)
-        // TODO(fabric2seer): `add_child` takes 2 argument(s) in the port (`grid: &mut GridLayout, child: LayoutElement`), Java passes 1
-        // rust: let __this_2 = compat::RenderThread::new(__this.clone());
-        // rust: adder.add_child(&mut (cycle_button::boolean_builder(mcrust::net::minecraft::network::chat::common_components::gui_yes().get_string(), mcrust::net::minecraft::network::chat::common_components::option_off().get_string(), waypoints_read_only.allow_skipping_waypoints)).with_tooltip(|_| Tooltip::create((component::translatable("skyblocker.config.uiAndVisuals.waypoints.allowSkippingWaypoints.@Tooltip")).get_string())).create(0, 0, 150, 20, component::translatable("skyblocker.config.uiAndVisuals.waypoints.allowSkippingWaypoints"), |_, value| { WaypointsOptionScreen::update_config(__this_2.get(), Arc::new(move |waypoints| { waypoints.allow_skipping_waypoints = value.clone(); })); }).unwrap()).unwrap();
-        // TODO(fabric2seer): a lambda for a parameter the port does not type as a closure (`net.minecraft.client.OptionInstance.TooltipSupplier<T>`)
-        // TODO(fabric2seer): the port's `create` ports this Java method with other parameters (name, generic_value_format, value_change_listener for Java's x, y, width, height, name, value_change_listener)
-        // TODO(fabric2seer): `create` takes 3 argument(s) in the port (`name: String, generic_value_format: String, value_change_listener: OnValueChange`), Java passes 6
-        // TODO(fabric2seer): a lambda for a parameter the port does not type as a closure (`net.minecraft.client.gui.components.CycleButton.OnValueChange<T>`)
-        // TODO(fabric2seer): the port's `add_child` ports this Java method with other parameters (grid, child for Java's widget)
-        // TODO(fabric2seer): `add_child` takes 2 argument(s) in the port (`grid: &mut GridLayout, child: LayoutElement`), Java passes 1
-        // rust: let __this_3 = compat::RenderThread::new(__this.clone());
-        // rust: adder.add_child(&mut (cycle_button::boolean_builder(mcrust::net::minecraft::network::chat::common_components::gui_yes().get_string(), mcrust::net::minecraft::network::chat::common_components::option_off().get_string(), waypoints_read_only.allow_going_backwards)).with_tooltip(|_| Tooltip::create((component::translatable("skyblocker.config.uiAndVisuals.waypoints.allowGoingBackwards.@Tooltip")).get_string())).create(0, 0, 150, 20, component::translatable("skyblocker.config.uiAndVisuals.waypoints.allowGoingBackwards"), |_, value| { WaypointsOptionScreen::update_config(__this_3.get(), Arc::new(move |waypoints| { waypoints.allow_going_backwards = value.clone(); })); }).unwrap()).unwrap();
-        // TODO(fabric2seer): the port's `add_child` ports this Java method with other parameters (grid, child for Java's widget)
-        // TODO(fabric2seer): `add_child` takes 2 argument(s) in the port (`grid: &mut GridLayout, child: LayoutElement`), Java passes 1
-        // rust: let __this_4 = compat::RenderThread::new(__this.clone());
-        // rust: adder.add_child(&mut (((((RangedSliderWidget::builder().option_formatter(&component::translatable("skyblocker.config.uiAndVisuals.waypoints.lineWidth"), formatters::FLOAT_NUMBERS.get_mut())).callback(Arc::new(move |value| WaypointsOptionScreen::update_config(__this_4.get(), Arc::new(move |waypoints| { waypoints.line_width = ((value) as f32); }))))).min_max(((1) as f64) as f64, ((15) as f64) as f64)).default_value((waypoints_read_only.line_width) as f64)).step(0.5)).build()).unwrap();
-        // TODO(fabric2seer): `.setTooltip(..)` on a value of unknown type
-        //   java: adder.addChild(RangedSliderWidget.builder()
-        //   java: 				.optionFormatter(Component.translatable("skyblocker.config.uiAndVisuals.waypoints.waypointActivationRadius"), Formatters.FLOAT_NUMBERS)
-        //   java: 				.callback(value -> updateConfig(waypoints -> waypoints.waypointActivationRadius = (float) value))
-        //   java: 				.minMax(1, 10)
-        //   java: 				.defaultValue(waypointsReadOnly.waypointActivationRadius)
-        //   java: 				.step(0.5)
-        //   java: 				.build()).setTooltip(Tooltip.create(Component.translatable("skyblocker.config.uiAndVisuals.waypoints.waypointActivationRadius.@Tooltip")));
-        // TODO(fabric2seer): the port's `add_child` ports this Java method with other parameters (grid, child for Java's widget)
-        // TODO(fabric2seer): `add_child` takes 2 argument(s) in the port (`grid: &mut GridLayout, child: LayoutElement`), Java passes 1
-        // rust: adder.add_child(&mut SpacerElement::width(0)).unwrap();
+        // java: adder.addChild(CycleButton.booleanBuilder(CommonComponents.GUI_YES, CommonComponents.OPTION_OFF, waypointsReadOnly.renderLine)
+        //   .create(Component.translatable("skyblocker.config.uiAndVisuals.waypoints.renderLine"), (_, value) -> updateConfig(waypoints -> waypoints.renderLine = value)));
+        {
+            let __builder = cycle_button::boolean_builder(mcrust::net::minecraft::network::chat::common_components::gui_yes().get_string(), mcrust::net::minecraft::network::chat::common_components::option_off().get_string(), waypoints_read_only.render_line);
+            let __this_w = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
+            let __w = compat::cycle_button_widget(0, 0, 150, 20, &component::translatable("skyblocker.config.uiAndVisuals.waypoints.renderLine"), __builder, move |__index: usize| {
+                let Some(__this_1) = __this_w.get().upgrade() else { return; };
+                let value = __index == 0;
+                WaypointsOptionScreen::update_config(&__this_1, Arc::new(move |waypoints: &mut Waypoints| { waypoints.render_line = value; }));
+            });
+            let (__ww, __wh) = (__w.get_width(), __w.get_height());
+            let __e = LayoutElement::widget(compat::write(__this, |__t| __t.add_widget(__w)), __ww, __wh);
+            adder.add_child(&mut grid, __e).unwrap();
+        }
+        // java: adder.addChild(CycleButton.booleanBuilder(CommonComponents.GUI_YES, CommonComponents.OPTION_OFF, waypointsReadOnly.allowSkippingWaypoints).withTooltip(..)
+        //   .create(Component.translatable("skyblocker.config.uiAndVisuals.waypoints.allowSkippingWaypoints"), (_, value) -> updateConfig(waypoints -> waypoints.allowSkippingWaypoints = value)));
+        {
+            let __builder = cycle_button::boolean_builder(mcrust::net::minecraft::network::chat::common_components::gui_yes().get_string(), mcrust::net::minecraft::network::chat::common_components::option_off().get_string(), waypoints_read_only.allow_skipping_waypoints)
+                .with_tooltip(cycle_button::TooltipSupplier::Constant(mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::translatable("skyblocker.config.uiAndVisuals.waypoints.allowSkippingWaypoints.@Tooltip"))));
+            let __this_w = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
+            let __w = compat::cycle_button_widget(0, 0, 150, 20, &component::translatable("skyblocker.config.uiAndVisuals.waypoints.allowSkippingWaypoints"), __builder, move |__index: usize| {
+                let Some(__this_1) = __this_w.get().upgrade() else { return; };
+                let value = __index == 0;
+                WaypointsOptionScreen::update_config(&__this_1, Arc::new(move |waypoints: &mut Waypoints| { waypoints.allow_skipping_waypoints = value; }));
+            });
+            let (__ww, __wh) = (__w.get_width(), __w.get_height());
+            let __e = LayoutElement::widget(compat::write(__this, |__t| __t.add_widget(__w)), __ww, __wh);
+            adder.add_child(&mut grid, __e).unwrap();
+        }
+        // java: adder.addChild(CycleButton.booleanBuilder(CommonComponents.GUI_YES, CommonComponents.OPTION_OFF, waypointsReadOnly.allowGoingBackwards).withTooltip(..)
+        //   .create(Component.translatable("skyblocker.config.uiAndVisuals.waypoints.allowGoingBackwards"), (_, value) -> updateConfig(waypoints -> waypoints.allowGoingBackwards = value)));
+        {
+            let __builder = cycle_button::boolean_builder(mcrust::net::minecraft::network::chat::common_components::gui_yes().get_string(), mcrust::net::minecraft::network::chat::common_components::option_off().get_string(), waypoints_read_only.allow_going_backwards)
+                .with_tooltip(cycle_button::TooltipSupplier::Constant(mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::translatable("skyblocker.config.uiAndVisuals.waypoints.allowGoingBackwards.@Tooltip"))));
+            let __this_w = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
+            let __w = compat::cycle_button_widget(0, 0, 150, 20, &component::translatable("skyblocker.config.uiAndVisuals.waypoints.allowGoingBackwards"), __builder, move |__index: usize| {
+                let Some(__this_1) = __this_w.get().upgrade() else { return; };
+                let value = __index == 0;
+                WaypointsOptionScreen::update_config(&__this_1, Arc::new(move |waypoints: &mut Waypoints| { waypoints.allow_going_backwards = value; }));
+            });
+            let (__ww, __wh) = (__w.get_width(), __w.get_height());
+            let __e = LayoutElement::widget(compat::write(__this, |__t| __t.add_widget(__w)), __ww, __wh);
+            adder.add_child(&mut grid, __e).unwrap();
+        }
+        // java: adder.addChild(RangedSliderWidget.builder().optionFormatter(Component.translatable("skyblocker.config.uiAndVisuals.waypoints.lineWidth"), Formatters.FLOAT_NUMBERS)
+        //   .callback(value -> updateConfig(waypoints -> waypoints.lineWidth = (float) value)).minMax(1, 15).defaultValue(waypointsReadOnly.lineWidth).step(0.5).build());
+        {
+            let __this_w = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
+            let __slider: compat::Shared<RangedSliderWidget> = RangedSliderWidget::builder()
+                .option_formatter(&component::translatable("skyblocker.config.uiAndVisuals.waypoints.lineWidth"), formatters::FLOAT_NUMBERS.get_mut())
+                .callback(Arc::new(move |value: f64| {
+                    let Some(__this_1) = __this_w.get().upgrade() else { return; };
+                    WaypointsOptionScreen::update_config(&__this_1, Arc::new(move |waypoints: &mut Waypoints| { waypoints.line_width = value as f32; }));
+                }))
+                .min_max(1.0, 15.0)
+                .default_value((waypoints_read_only.line_width) as f64)
+                .step(0.5)
+                .build();
+            let mut __w = RangedSliderWidget::widget(__slider);
+            let (__ww, __wh) = (__w.get_width(), __w.get_height());
+            let __e = LayoutElement::widget(compat::write(__this, |__t| __t.add_widget(__w)), __ww, __wh);
+            adder.add_child(&mut grid, __e).unwrap();
+        }
+        // java: adder.addChild(RangedSliderWidget.builder().optionFormatter(Component.translatable("skyblocker.config.uiAndVisuals.waypoints.waypointActivationRadius"), Formatters.FLOAT_NUMBERS)
+        //   .callback(value -> updateConfig(waypoints -> waypoints.waypointActivationRadius = (float) value)).minMax(1, 10).defaultValue(waypointsReadOnly.waypointActivationRadius).step(0.5).build()).setTooltip(..);
+        {
+            let __this_w = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
+            let __slider: compat::Shared<RangedSliderWidget> = RangedSliderWidget::builder()
+                .option_formatter(&component::translatable("skyblocker.config.uiAndVisuals.waypoints.waypointActivationRadius"), formatters::FLOAT_NUMBERS.get_mut())
+                .callback(Arc::new(move |value: f64| {
+                    let Some(__this_1) = __this_w.get().upgrade() else { return; };
+                    WaypointsOptionScreen::update_config(&__this_1, Arc::new(move |waypoints: &mut Waypoints| { waypoints.waypoint_activation_radius = value as f32; }));
+                }))
+                .min_max(1.0, 10.0)
+                .default_value((waypoints_read_only.waypoint_activation_radius) as f64)
+                .step(0.5)
+                .build();
+            let mut __w = RangedSliderWidget::widget(__slider);
+            __w.set_tooltip(Tooltip::create(component::translatable("skyblocker.config.uiAndVisuals.waypoints.waypointActivationRadius.@Tooltip").get_string()));
+            let (__ww, __wh) = (__w.get_width(), __w.get_height());
+            let __e = LayoutElement::widget(compat::write(__this, |__t| __t.add_widget(__w)), __ww, __wh);
+            adder.add_child(&mut grid, __e).unwrap();
+        }
+        // java: adder.addChild(SpacerElement.width(0));
         { let __spacer = SpacerElement::width(0); adder.add_child(&mut grid, LayoutElement::Spacer { x: __spacer.get_x(), y: __spacer.get_y(), width: __spacer.get_width(), height: __spacer.get_height() }).unwrap(); }
-        // TODO(fabric2seer): the port's `add_child_spanning` ports this Java method with other parameters (grid, child, column_width, settings for Java's widget, column_width, layout_settings)
-        // TODO(fabric2seer): `add_child_spanning` takes 4 argument(s) in the port (`grid: &mut GridLayout, child: LayoutElement, column_width: i32, settings: LayoutSettings`), Java passes 3
-        // rust: adder.add_child_spanning(&mut compat::string_widget(0, 0, -1, 9, component::translatable("skyblocker.config.uiAndVisuals.waypoints.lineColor")), 2, LayoutSettings::defaults().align_horizontally_center().padding_top(4)).unwrap();
         {
             // `adder.addChild(new StringWidget(..), 2, gridWidget.newCellSettings().alignHorizontallyCenter().paddingTop(4))`
             let __w = compat::string_widget(0, 0, -1, 9, component::translatable("skyblocker.config.uiAndVisuals.waypoints.lineColor"));
@@ -134,9 +177,7 @@ impl WaypointsOptionScreen {
             adder.add_child_spanning(&mut grid, __q0, 2, __settings).unwrap();
         }
         let mut color_layout: LinearLayout = LinearLayout::horizontal();
-        // TODO(fabric2seer): the port's `add_child_spanning` ports this Java method with other parameters (grid, child, column_width, settings for Java's widget, column_width, layout_settings)
-        // TODO(fabric2seer): `add_child_spanning` takes 4 argument(s) in the port (`grid: &mut GridLayout, child: LayoutElement, column_width: i32, settings: LayoutSettings`), Java passes 3
-        // rust: adder.add_child_spanning(&mut color_layout, 2, LayoutSettings::defaults().align_horizontally_center()).unwrap();
+        // java: adder.addChild(colorLayout, 2, LayoutSettings.defaults().alignHorizontallyCenter()); - added below, once filled (by value)
         // `colorLayout.addChild(new ColorPickerWidget(..))` answers the widget: the object is kept, its game widget joins the screen.
         let mut color_picker_widget: compat::Shared<ColorPickerWidget> = ColorPickerWidget::new_5(0, 0, 200, 100, true);
         color_layout.add_child({ let __w = compat::WidgetAdapter::widget(color_picker_widget.clone()); let (__ww, __wh) = (__w.get_width(), __w.get_height()); LayoutElement::widget(compat::write(__this, |__t| __t.add_widget(__w)), __ww, __wh) });
@@ -145,7 +186,7 @@ impl WaypointsOptionScreen {
         // `adder.addChild(colorLayout, 2, gridWidget.newCellSettings().alignHorizontallyCenter())`: added once filled (by value).
         { let __settings = grid.new_cell_settings().align_horizontally_center(); adder.add_child_spanning(&mut grid, LayoutElement::Grid(color_layout.clone().wrapped), 2, __settings).unwrap(); }
         { let (__q0,) = (LayoutElement::Grid(grid.clone()),); __this.lock().borrow_mut().layout.as_mut().unwrap().add_to_contents(__q0) };
-        let __this_6 = compat::RenderThread::new(__this.clone());
+        let __this_w6 = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
         // The two widgets' callbacks reach each other: each holds the other weakly (Java's lambdas hold references
         // the GC can collect together; strong handles would keep both alive for ever).
         let __argb_text_input_w = std::sync::Arc::downgrade(&argb_text_input);
@@ -153,17 +194,19 @@ impl WaypointsOptionScreen {
             let Some(argb_text_input) = __argb_text_input_w.upgrade() else { return };
             ARGBTextInput::set_argb_color(&argb_text_input, color);
             if mouse_release {
+                let Some(__this_6) = __this_w6.get().upgrade() else { return };
                 // `new Color(color, true)` (the alpha bits kept)
-                WaypointsOptionScreen::update_config(__this_6.get(), Arc::new(move |mut waypoints: Waypoints| { waypoints.line_color = Color::from_rgba(color, true); }));
+                WaypointsOptionScreen::update_config(&__this_6, Arc::new(move |waypoints: &mut Waypoints| { waypoints.line_color = Color::from_rgba(color, true); }));
             }
         }));
-        let __this_7 = compat::RenderThread::new(__this.clone());
+        let __this_w7 = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
         let __color_picker_widget_w = std::sync::Arc::downgrade(&color_picker_widget);
         ARGBTextInput::set_on_change(&argb_text_input, Arc::new(move |color| {
             let Some(color_picker_widget) = __color_picker_widget_w.upgrade() else { return };
             ColorPickerWidget::set_argb_color(&color_picker_widget, color);
+            let Some(__this_7) = __this_w7.get().upgrade() else { return };
             // `new Color(color, true)` (the alpha bits kept)
-            WaypointsOptionScreen::update_config(__this_7.get(), Arc::new(move |mut waypoints: Waypoints| { waypoints.line_color = Color::from_rgba(color, true); }));
+            WaypointsOptionScreen::update_config(&__this_7, Arc::new(move |waypoints: &mut Waypoints| { waypoints.line_color = Color::from_rgba(color, true); }));
         }));
         ColorPickerWidget::set_argb_color(&color_picker_widget, waypoints_read_only.line_color.get_rgb());
         ARGBTextInput::set_argb_color(&argb_text_input, waypoints_read_only.line_color.get_rgb());
@@ -175,8 +218,9 @@ impl WaypointsOptionScreen {
     }
 
     /// java: private void updateConfig(Consumer<UIAndVisualsConfig.Waypoints> consumer)
-    pub fn update_config(__this: &compat::Shared<Self>, consumer: Arc<dyn Fn(Waypoints)>) {
-        SkyblockerConfigManager::update_only(Arc::new(move |config| { (consumer)(config.ui_and_visuals.waypoints.clone()); }));
+    /// (the consumer writes the config's own object, as Java's does - not a copy of it)
+    pub fn update_config(__this: &compat::Shared<Self>, consumer: Arc<dyn Fn(&mut Waypoints)>) {
+        SkyblockerConfigManager::update_only(Arc::new(move |config| { (consumer)(&mut config.ui_and_visuals.waypoints); }));
     }
 
     /// java: @Override protected void repositionElements()

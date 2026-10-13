@@ -965,14 +965,22 @@ impl dyn Room {
         for i in 0..({ let __f = compat::dispatch(__this, |__t| __t.get_secret_count()); __f(__this) }) {
             // TODO(fabric2seer): the condition: `.containsRow(..)` on a Table
             //   java: !secretWaypoints.containsRow(i)
-            if todo!("fabric2seer: the condition (TODO above)") {
+            if !compat::read(__this, |__t| __t.room_base().secret_waypoints.contains_row(&i)) {
                 continue;
             }
-            // TODO(fabric2seer): `.row(..)` on a Table
             //   java: for (SecretWaypoint waypoint : secretWaypoints.row(i).values()) {
             //   java: 				if (!waypoint.isEnabled()) continue;
             //   java: 				if (waypoint.hashCode() == waypointHash) return i;
             //   java: 			}
+            for (_, waypoint) in compat::read(__this, |__t| __t.room_base().secret_waypoints.row(&i)) {
+                let waypoint = compat::view(&waypoint, |a| a as compat::Shared<dyn crate::de::hysky::skyblocker::utils::waypoint::waypoint::Waypoint>);
+                if !({ let __f = compat::dispatch(&waypoint, |__t| __t.is_enabled()); __f(&waypoint) }) {
+                    continue;
+                }
+                if { let __f = compat::dispatch(&waypoint, |__t| __t.hash_code()); __f(&waypoint) } == waypoint_hash {
+                    return i;
+                }
+            }
         }
         return -1;
     }
@@ -981,15 +989,21 @@ impl dyn Room {
     pub fn mark_secrets_body(__this: &compat::Shared<dyn Room>, mut secret_index: i32, mut found: bool) -> bool {
         // TODO(fabric2seer): `.row(..)` on a Table
         //   java: Map<BlockPos, SecretWaypoint> secret = secretWaypoints.row(secretIndex);
-        let mut secret: std::collections::HashMap<BlockPos, compat::Shared<SecretWaypoint>> = todo!("fabric2seer: the initialiser of `secret` (TODO above)");
+        let mut secret: Vec<(BlockPos, compat::Shared<SecretWaypoint>)> = compat::read(__this, |__t| __t.room_base().secret_waypoints.row(&secret_index));
         if secret.is_empty() {
             return false;
         } else {
-            // TODO(fabric2seer): `.setFound(..)` on a value of unknown type
             //   java: secret.values().forEach(found ? SecretWaypoint::setFound : SecretWaypoint::setMissing);
+            for (_, waypoint) in secret.iter() {
+                let waypoint = compat::view(waypoint, |a| a as compat::Shared<dyn crate::de::hysky::skyblocker::utils::waypoint::waypoint::Waypoint>);
+                if found {
+                    ({ let __f = compat::dispatch(&waypoint, |__t| __t.set_found()); __f(&waypoint) });
+                } else {
+                    ({ let __f = compat::dispatch(&waypoint, |__t| __t.set_missing()); __f(&waypoint) });
+                }
+            }
             return true;
         }
-        todo!("fabric2seer: the value of this function is in a TODO above")
     }
 
     /// java: protected void markAllSecrets(boolean found)
@@ -1007,7 +1021,7 @@ impl dyn Room {
     pub fn get_secret_count_body(__this: &compat::Shared<dyn Room>) -> i32 {
         // TODO(fabric2seer): `.rowMap(..)` on a Table
         //   java: return secretWaypoints.rowMap().size();
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        compat::read(__this, |__t| __t.room_base().secret_waypoints.row_map().len() as i32)
     }
 
     /// java: public int getFoundSecretCount()
@@ -1109,14 +1123,14 @@ impl Type {
     /// the constant's constructor data (Java keeps it in the constant's fields)
     pub fn fields(self) -> &'static TypeFields {
         static FIELDS: LazyLock<Vec<TypeFields>> = LazyLock::new(|| vec![
-            todo!("ENTRANCE"),
-            todo!("ROOM"),
-            todo!("PUZZLE"),
-            todo!("TRAP"),
-            todo!("MINIBOSS"),
-            todo!("FAIRY"),
-            todo!("BLOOD"),
-            todo!("UNKNOWN"),
+            TypeFields::new(mcrust::net::minecraft::world::level::material::map_color::PLANT.get_packed_id(mcrust::net::minecraft::world::level::material::map_color::Brightness::High), "Entrance".to_string()),
+            TypeFields::new(mcrust::net::minecraft::world::level::material::map_color::COLOR_ORANGE.get_packed_id(mcrust::net::minecraft::world::level::material::map_color::Brightness::Lowest), "Room".to_string()),
+            TypeFields::new(mcrust::net::minecraft::world::level::material::map_color::COLOR_MAGENTA.get_packed_id(mcrust::net::minecraft::world::level::material::map_color::Brightness::High), "Puzzle".to_string()),
+            TypeFields::new(mcrust::net::minecraft::world::level::material::map_color::COLOR_ORANGE.get_packed_id(mcrust::net::minecraft::world::level::material::map_color::Brightness::High), "Trap".to_string()),
+            TypeFields::new(mcrust::net::minecraft::world::level::material::map_color::COLOR_YELLOW.get_packed_id(mcrust::net::minecraft::world::level::material::map_color::Brightness::High), "Miniboss".to_string()),
+            TypeFields::new(mcrust::net::minecraft::world::level::material::map_color::COLOR_PINK.get_packed_id(mcrust::net::minecraft::world::level::material::map_color::Brightness::High), "Fairy".to_string()),
+            TypeFields::new(mcrust::net::minecraft::world::level::material::map_color::FIRE.get_packed_id(mcrust::net::minecraft::world::level::material::map_color::Brightness::High), "Blood".to_string()),
+            TypeFields::new(mcrust::net::minecraft::world::level::material::map_color::COLOR_GRAY.get_packed_id(mcrust::net::minecraft::world::level::material::map_color::Brightness::Normal), "Unknown".to_string()),
         ]);
         &FIELDS[self as usize]
     }
@@ -1355,11 +1369,11 @@ impl DirectionFields {
 /// java: static class DirectionArgumentType extends StringRepresentableArgument<Direction>
 pub struct DirectionArgumentType {
     /// java: extends net.minecraft.commands.arguments.StringRepresentableArgument
-    pub base: StringRepresentableArgument<compat::Object>,
+    pub base: StringRepresentableArgument<Direction>,
 }
 
 impl std::ops::Deref for DirectionArgumentType {
-    type Target = StringRepresentableArgument<compat::Object>;
+    type Target = StringRepresentableArgument<Direction>;
     fn deref(&self) -> &Self::Target {
         &self.base
     }
@@ -1375,8 +1389,11 @@ impl DirectionArgumentType {
     /// java: DirectionArgumentType()
     pub fn new() -> Self {
         // TODO(fabric2seer): `new` takes 3 argument(s) in the port (`values: Vec<T>, codec_name: fn(&T) -> String, convert_id: fn(&str) -> String`), Java passes 2
-        //   java: super(CODEC, Direction::values);
-        let mut this: Self = todo!("constructor");
+        //   java: super(CODEC, Direction::values); - the two-argument constructor is `this(codec, values, s -> s)`; the
+        // port's is handed the names the codec writes (`CODEC`'s `getSerializedName`) and that identity.
+        let mut this: Self = Self {
+            base: StringRepresentableArgument::new(Direction::values(), |value: &Direction| value.get_serialized_name(), |id: &str| id.to_string()),
+        };
         this
     }
 

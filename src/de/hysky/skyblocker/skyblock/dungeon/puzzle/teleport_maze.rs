@@ -277,7 +277,7 @@ impl RoomType {
     pub fn from_block(block: &Arc<Block>) -> Option<RoomType> {
         // TODO(fabric2seer): call to `values(..)` (not a method of this class)
         //   java: return Arrays.stream(values()).filter(type -> type.block == block).findFirst();
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        RoomType::values().into_iter().find(|r#type| Arc::ptr_eq(&r#type.fields().block, block))
     }
 
 }

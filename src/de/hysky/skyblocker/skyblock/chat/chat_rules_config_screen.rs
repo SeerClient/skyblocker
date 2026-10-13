@@ -94,8 +94,18 @@ impl ChatRulesConfigScreen {
         { let __vw = __this.lock().borrow().layout.as_ref().unwrap().visit_widgets(); for (__i, _, _) in __vw { compat::write(__this, |__t| __t.mark_renderable(__i)); } };
     }
 
+    /// The list's `removeEntry` / `updateEntries` asked for while the screen was held under a confirm screen, on the
+    /// live list (`ChatRulesConfigListWidget::run_pending_updates`).
+    pub fn run_pending_list_updates(__this: &compat::Shared<Self>) {
+        if compat::read(__this, |__t| __t.chat_rules_config_list_widget.is_none()) {
+            return;
+        }
+        compat::write(__this, |__t| { let __s = &mut *__t; let __r = __s.chat_rules_config_list_widget.as_mut().unwrap(); __s.__widgets.with(&mut __s.base, __r, |__w| __w.mod_widget().and_then(|__ms| __ms.with::<mcrust::mcrust::modding::widgets::ModSelectionList, _>(|__l| { let __h = &__l.class::<compat::ListClass<ChatRulesConfigListWidget>>().map(|__c| __c.object().clone()).expect("a mod list without its class"); compat::lend_list(__h, __l, || ChatRulesConfigListWidget::run_pending_updates(__h)) }))) });
+    }
+
     /// java: @Override protected void repositionElements()
     pub fn reposition_elements(__this: &compat::Shared<Self>) {
+        ChatRulesConfigScreen::run_pending_list_updates(__this);
         let __r0 = compat::read(__this, |__t| (__t.width, __t.height));
         { let (__sw, __sh) = __r0; __this.lock().borrow_mut().layout.as_mut().unwrap().screen_width = __sw; __this.lock().borrow_mut().layout.as_mut().unwrap().screen_height = __sh; __this.lock().borrow_mut().layout.as_mut().unwrap().arrange_elements(); let __vw = __this.lock().borrow().layout.as_ref().unwrap().visit_widgets(); for (__i, __x, __y) in __vw { compat::write(__this, |__t| __t.widget_mut(__i).set_position(__x, __y)); } };
         let __wa1 = compat::read(__this, |__t| __t.width);
@@ -158,9 +168,9 @@ impl ModScreen for compat::ScreenAdapter<ChatRulesConfigScreen> {
         self.lend(screen, |__h| ChatRulesConfigScreen::reposition_elements(__h))
     }
 
-    /// java: Screen.tick (the base body)
+    /// java: Screen.tick (the base body) - and the list's updates asked for while the screen was held
     fn tick(&mut self, screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen) {
-        self.lend(screen, |_| ())
+        self.lend(screen, |__h| ChatRulesConfigScreen::run_pending_list_updates(__h))
     }
 
     /// java: Screen.keyPressed (the base body)

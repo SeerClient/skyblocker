@@ -2,6 +2,7 @@
 
 #[allow(unused_imports)]
 use crate::prelude::*;
+use mcrust::net::minecraft::client::gui::components::abstract_widget::{OnPress, PressLambda};
 use crate::de::hysky::skyblocker::skyblock::item::skyblock_crafting_table_screen_handler::SkyblockCraftingTableScreenHandler;
 use crate::de::hysky::skyblocker::skyblock::itemlist::recipebook::skyblock_recipe_book_component::SkyblockRecipeBookComponent;
 use crate::de::hysky::skyblocker::utils::render::texture::fallbacked_texture;
@@ -49,7 +50,13 @@ pub struct SkyblockCraftingTableScreen {
     /// java: private boolean narrow;
     pub narrow: bool,
     /// java: private ImageButton moreCraftsButton;
-    pub more_crafts_button: Option<AbstractWidget>,
+    /// (its index in the screen's widgets: the screen holds the button)
+    pub more_crafts_button: Option<usize>,
+    /// the recipe book button `init` adds (its index in the screen's widgets)
+    pub recipe_book_button: Option<usize>,
+    /// the recipe book button's press, run in the screen's next own call (the press runs inside the game's widget
+    /// pass, where the screen's fields - `leftPos` - are the game's)
+    pub recipe_book_toggle_requested: std::sync::Arc<std::sync::atomic::AtomicBool>,
     /// java: `AbstractContainerScreen.menu` - the screen's handler (the port's container screen holds no menu of its
     /// own: the mod's object is kept here)
     pub menu: compat::Shared<SkyblockCraftingTableScreenHandler>,
@@ -80,6 +87,8 @@ impl SkyblockCraftingTableScreen {
             recipe_book: SkyblockRecipeBookComponent::new(mcrust::net::minecraft::world::inventory::abstract_container_menu::AbstractContainerMenu::new(__container_id)),
             narrow: false,
             more_crafts_button: None,
+            recipe_book_button: None,
+            recipe_book_toggle_requested: Default::default(),
             menu: handler.clone(),
         });
         __this
@@ -94,24 +103,18 @@ impl SkyblockCraftingTableScreen {
         let __wa2 = compat::read(__this, |__t| __t.image_width);
         let __o1 = compat::read(__this, |__t| __t.recipe_book.clone());
         { let __v = compat::write(&__o1, |__t| __t.update_screen_position(__wa1, __wa2)); compat::write(__this, |__t| __t.left_pos = __v); }
-        // TODO(fabric2seer): static `RecipeBookComponent.RECIPE_BUTTON_SPRITES` has no Rust counterpart in the port's RecipeBookComponent file
-        // TODO(fabric2seer): `new ImageButton(..)`: the port has no `ImageButton::new`
-        // rust: let __this_w4 = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
-        // rust: { let (__q0,) = (AbstractWidget::new((compat::read(__this, |__t| __t.left_pos)).wrapping_add(5), ((compat::read(__this, |__t| __t.screen.height)).wrapping_div(2)).wrapping_sub(49), 20, 18, RecipeBookComponent::RECIPE_BUTTON_SPRITES.clone(), Arc::new(move |button| { let Some(__this_4) = __this_w4.get().upgrade() else { return Default::default(); }; {
-        // rust: let __o5 = compat::read((&__this_4), |__t| __t.recipe_book.clone());
-        // rust: compat::write(&__o5, |__t| __t.toggle_visibility(&*compat::minecraft()));
-        // rust: let __wa5 = compat::read((&__this_4), |__t| __t.screen.width);
-        // rust: let __wa6 = compat::read((&__this_4), |__t| __t.image_width);
-        // rust: let __o6 = compat::read((&__this_4), |__t| __t.recipe_book.clone());
-        // rust: { let __v = compat::write(&__o6, |__t| __t.update_screen_position(__wa5, __wa6)); compat::write((&__this_4), |__t| __t.left_pos = __v); }
-        // rust: // TODO(fabric2seer): `.setPosition(..)` on a value of unknown type
-        // rust: //   java: button.setPosition(this.leftPos + 5, this.height / 2 - 49);
-        // rust: if compat::read((&__this_4), |__t| __t.more_crafts_button.clone()).is_some() {
-        // rust: let __r0 = compat::read((&__this_4), |__t| __t.left_pos);
-        // rust: let __r1 = compat::read((&__this_4), |__t| __t.top_pos);
-        // rust: { let (__q0, __q1,) = ((__r0).wrapping_add(152), (__r1).wrapping_add(63),); (&__this_4).lock().borrow_mut().more_crafts_button.as_mut().unwrap().set_position(__q0, __q1) };
-        // rust: }
-        // rust: } })),); __this.lock().borrow_mut().screen.add_renderable_widget(__q0) };
+        // java: addRenderableWidget(new ImageButton(this.leftPos + 5, this.height / 2 - 49, 20, 18, RecipeBookComponent.RECIPE_BUTTON_SPRITES, button -> {
+        //   this.recipeBook.toggleVisibility(); this.leftPos = this.recipeBook.updateScreenPosition(this.width, this.imageWidth);
+        //   button.setPosition(this.leftPos + 5, this.height / 2 - 49);
+        //   if (moreCraftsButton != null) moreCraftsButton.setPosition(this.leftPos + 152, this.topPos + 63); }));
+        // (the press is run by `toggle_recipe_book` in the screen's next own call)
+        let (__bx, __by) = compat::read(__this, |__t| (__t.left_pos.wrapping_add(5), (__t.screen.height.wrapping_div(2)).wrapping_sub(49)));
+        let __requested = compat::read(__this, |__t| __t.recipe_book_toggle_requested.clone());
+        let __recipe_button = AbstractWidget::new(__bx, __by, 20, 18, String::new(), mcrust::net::minecraft::client::gui::components::abstract_widget::WidgetKind::ImageButton(mcrust::net::minecraft::client::gui::components::widget_sprites::WidgetSprites::with_focused(mcrust::net::minecraft::client::gui::screens::recipebook::recipe_book_component::recipe_button_sprite(), mcrust::net::minecraft::client::gui::screens::recipebook::recipe_book_component::recipe_button_highlighted_sprite())), OnPress::Lambda(PressLambda::new(move |_: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, _: usize| {
+            __requested.store(true, std::sync::atomic::Ordering::Relaxed);
+        })));
+        let __recipe_index = compat::write(__this, |__t| __t.screen.add_renderable_widget(__recipe_button));
+        compat::write(__this, |__t| __t.recipe_book_button = Some(__recipe_index));
         // java: if (!menu.mirrorverse)
         let __menu = compat::read(__this, |__t| __t.menu.clone());
         let (__mirrorverse, __container_id) = compat::read(&__menu, |__m| (__m.mirrorverse, __m.base.container_id));
@@ -124,12 +127,14 @@ impl SkyblockCraftingTableScreen {
             let __button = AbstractWidget::new(__x, __y, 16, 16, mcrust::net::minecraft::client::gui::components::image_button::DEFAULT_MESSAGE.to_string(), mcrust::net::minecraft::client::gui::components::abstract_widget::WidgetKind::ImageButton(MORE_CRAFTS_TEXTURES.get().clone()), OnPress::Lambda(PressLambda::new(move |_: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, _: usize| {
                 compat::handle_container_input(__container_id, 26, 0, mcrust::net::minecraft::world::inventory::container_input::ContainerInput::Pickup);
             })));
-            compat::write(__this, |__t| __t.more_crafts_button = Some(__button));
+            let mut __button = __button;
             // java: moreCraftsButton.setTooltipDelay(Duration.ofMillis(250));
-            compat::write(__this, |__t| __t.more_crafts_button.as_mut().unwrap().set_tooltip_delay(250));
-            { let (__q0,) = (Tooltip::create(component::literal("More Crafts").get_string()),); __this.lock().borrow_mut().more_crafts_button.as_mut().unwrap().set_tooltip(__q0) };
-            let __r0 = compat::read(__this, |__t| __t.more_crafts_button.clone());
-            { let (__q0,) = (__r0.unwrap(),); __this.lock().borrow_mut().screen.add_renderable_widget(__q0) };
+            __button.set_tooltip_delay(250);
+            // java: moreCraftsButton.setTooltip(Tooltip.create(Component.literal("More Crafts")));
+            __button.set_tooltip(Tooltip::create(component::literal("More Crafts").get_string()));
+            // java: addRenderableWidget(moreCraftsButton);
+            let __index = compat::write(__this, |__t| __t.screen.add_renderable_widget(__button));
+            compat::write(__this, |__t| __t.more_crafts_button = Some(__index));
         }
         debug_assert!(mcrust::mcrust::modding::game::with_player(|_| ()).is_some());
         // java: this.addWidget(this.recipeBook); this.setInitialFocus(this.recipeBook);
@@ -138,8 +143,33 @@ impl SkyblockCraftingTableScreen {
         { let __v = 29; compat::write(__this, |__t| __t.title_label_x = __v); }
     }
 
+    /// The recipe book button's press (`init`): `recipeBook.toggleVisibility(); leftPos = recipeBook
+    /// .updateScreenPosition(width, imageWidth); button.setPosition(leftPos + 5, height / 2 - 49); if (moreCraftsButton
+    /// != null) moreCraftsButton.setPosition(leftPos + 152, topPos + 63);`
+    pub fn toggle_recipe_book(__this: &compat::Shared<Self>) {
+        let __requested = compat::read(__this, |__t| __t.recipe_book_toggle_requested.clone());
+        if !__requested.swap(false, std::sync::atomic::Ordering::Relaxed) {
+            return;
+        }
+        let __book = compat::read(__this, |__t| __t.recipe_book.clone());
+        compat::write(&__book, |__t| __t.toggle_visibility(&*compat::minecraft()));
+        let (__width, __image_width) = compat::read(__this, |__t| (__t.screen.width, __t.image_width));
+        let __left = compat::write(&__book, |__t| __t.update_screen_position(__width, __image_width));
+        compat::write(__this, |__t| __t.left_pos = __left);
+        let (__left, __top, __height, __recipe, __more) = compat::read(__this, |__t| (__t.left_pos, __t.top_pos, __t.screen.height, __t.recipe_book_button, __t.more_crafts_button));
+        compat::write(__this, |__t| {
+            if let Some(__i) = __recipe {
+                __t.screen.widget_mut(__i).set_position(__left.wrapping_add(5), (__height.wrapping_div(2)).wrapping_sub(49));
+            }
+            if let Some(__i) = __more {
+                __t.screen.widget_mut(__i).set_position(__left.wrapping_add(152), __top.wrapping_add(63));
+            }
+        });
+    }
+
     /// java: @Override public void containerTick()
     pub fn container_tick(__this: &compat::Shared<Self>) {
+        SkyblockCraftingTableScreen::toggle_recipe_book(__this);
         ();
         // TODO(fabric2seer): `tick` takes 2 argument(s) in the port (`times_inventory_changed: i32, gfx: &Minecraft`), Java passes 0
         // rust: let __o1 = compat::read(__this, |__t| __t.recipe_book.clone());
@@ -149,7 +179,10 @@ impl SkyblockCraftingTableScreen {
         }
         // java: ItemStack stack = menu.slots.get(26).getItem(); - the open menu's slot
         let mut stack: mcrust::net::minecraft::world::item::item_stack::ItemStack = compat::with_open_menu(|menu, containers| menu.slots[26].get_item(containers).duplicate()).unwrap_or_else(mcrust::net::minecraft::world::item::item_stack::empty);
-        __this.lock().borrow_mut().more_crafts_button.as_mut().unwrap().active = (stack.is_empty() || stack.is_item(&items::items().get("player_head")));
+        let __active = stack.is_empty() || stack.is_item(&items::items().get("player_head"));
+        if let Some(__index) = compat::read(__this, |__t| __t.more_crafts_button) {
+            compat::write(__this, |__t| __t.screen.widget_mut(__index).active = __active);
+        }
     }
 
     /// java: @Override public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a)

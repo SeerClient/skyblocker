@@ -20,6 +20,7 @@ use mcrust::net::minecraft::world::inventory::slot::Slot;
 use mcrust::net::minecraft::world::level::storage::tag_value_output::TagValueOutput;
 use mcrust::com::mojang::serialization::encoder::Encoder as _;
 use mcrust::net::minecraft::world::entity::entity::Entity as _;
+use mcrust::net::minecraft::world::entity::living_entity::LivingEntity as _;
 use mcrust::net::minecraft::world::level::entity_getter::EntityGetter as _;
 
 /// java: private static final boolean DEBUG_ENABLED = Boolean.parseBoolean(System.getProperty("skyblocker.debug", "false"));

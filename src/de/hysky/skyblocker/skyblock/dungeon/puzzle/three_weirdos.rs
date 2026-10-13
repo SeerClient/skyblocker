@@ -97,13 +97,22 @@ impl ThreeWeirdos {
         //   java: 				AABB.encapsulatingFullBlocks(npcPos, npcPos),
         //   java: 				entity -> entity.getName().getString().equals(name)
         //   java: 		);
-        let mut npcs: Vec<ArmorStand> = todo!("fabric2seer: the initialiser of `npcs` (TODO above)");
+        // (the port's class filter has no ArmorStand.class: the base class Entity plus `instanceof ArmorStand`)
+        use mcrust::net::minecraft::world::level::entity_getter::EntityGetter as _;
+        use mcrust::net::minecraft::network::chat::component::Component as _;
+        let npcs: Vec<mcrust::net::minecraft::world::level::entity_getter::SharedEntity> = world.get_entities_of_class(
+            mcrust::net::minecraft::world::level::entity::entity_type_test::EntityClass::Entity,
+            None,
+            &AABB::encapsulating_full_blocks(&npc_pos, &npc_pos),
+            &|entity| entity.as_any().is_some_and(|any| any.is::<ArmorStand>()) && compat::component_of(entity.get_name()).get_string() == name,
+        );
         if !npcs.is_empty() {
             *POS.get_mut() = Some(({ let __f = compat::dispatch(room, |__t| __t.relative_to_actual()); __f(room, &relative.offset(1, 0, 0)) }));
             *BOUNDING_BOX.get_mut() = RenderHelper::get_block_bounding_box(world, POS.get_mut().as_ref().unwrap());
             for entity in npcs.iter() {
-                // TODO(fabric2seer): `ArmorStand.skyblocker$setCustomName` has no Rust method in the port (looked for `skyblocker_set_custom_name` in ArmorStand and JavaSrc)
-                // rust: entity.skyblocker_set_custom_name(&component::literal(name).with_style_format(ChatFormatting::Green));
+                // the `EntityMixin` field (`SkyblockerEntity`, an attachment of the entity)
+                let entity = mcrust::mcrust::modding::game::lock_entity(&**entity, "skyblocker ThreeWeirdos.checkForNPC");
+                (&*entity as &dyn mcrust::net::minecraft::world::entity::entity::Entity).skyblocker_set_custom_name(&component::literal(name).with_style_format(ChatFormatting::Green));
             }
         }
     }

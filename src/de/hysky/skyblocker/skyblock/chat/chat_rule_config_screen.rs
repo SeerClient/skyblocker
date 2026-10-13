@@ -11,58 +11,56 @@ use crate::de::hysky::skyblocker::skyblock::tabhud::util::ico;
 use crate::de::hysky::skyblocker::utils::datafixer::item_stack_componentization_fixer::ItemStackComponentizationFixer;
 use crate::de::hysky::skyblocker::utils::flexible_item_stack::FlexibleItemStack;
 use crate::de::hysky::skyblocker::utils::formatters;
+use crate::de::hysky::skyblocker::utils::render::gui::item_selection_popup::ItemSelectionPopup;
 use crate::de::hysky::skyblocker::utils::render::gui::ranged_slider_widget::RangedSliderWidget;
-use crate::de::hysky::skyblocker::utils::render::gui::toggleable_layout_widget::ToggleableLayoutWidget;
+use crate::de::hysky::skyblocker::utils::render::gui::sound_selection_popup::SoundSelectionPopup;
 use crate::de::hysky::skyblocker::skyblock::dungeon::partyfinder::finder_settings_container::ContainerWidgetAdapter;
 use crate::de::hysky::skyblocker::skyblock::dungeon::partyfinder::finder_settings_container::ContainerWidgetHalf;
+use crate::de::hysky::skyblocker::utils::data::json_data::JsonData as _;
 use mcrust::net::minecraft::core::defaulted_registry::DefaultedRegistry as _;
 
 use mcrust::java::net::uri::Uri;
 use mcrust::mcrust::modding::screens::ModScreen;
-use mcrust::mcrust::modding::screens::ScreenRenderContext;
 use mcrust::mcrust::modding::widgets::ModWidget;
 use mcrust::mcrust::modding::widgets::WidgetRenderContext;
 use mcrust::net::minecraft::chat_formatting;
 use mcrust::net::minecraft::chat_formatting::ChatFormatting;
 use mcrust::net::minecraft::client::gui::active_text_collector::ClickableStyleFinder;
 use mcrust::net::minecraft::client::gui::components::abstract_container_widget::AbstractContainerWidget;
+use mcrust::net::minecraft::client::gui::components::abstract_scroll_area::ScrollArea;
+use mcrust::net::minecraft::client::gui::components::abstract_scroll_area::ScrollbarSettings;
 use mcrust::net::minecraft::client::gui::components::abstract_widget::AbstractWidget;
 use mcrust::net::minecraft::client::gui::components::abstract_widget::OnPress;
 use mcrust::net::minecraft::client::gui::components::abstract_widget::PressLambda;
 use mcrust::net::minecraft::client::gui::components::abstract_widget::WidgetKind;
 use mcrust::net::minecraft::client::gui::components::button;
 use mcrust::net::minecraft::client::gui::components::checkbox::Checkbox;
-use mcrust::net::minecraft::client::gui::components::cycle_button::CycleButton;
-use mcrust::net::minecraft::client::gui::components::edit_box::EditBox;
+use mcrust::net::minecraft::client::gui::components::cycle_button;
+use mcrust::net::minecraft::client::gui::components::cycle_button::ValueListSupplier;
 use mcrust::net::minecraft::client::gui::components::edit_box::Responder;
 use mcrust::net::minecraft::client::gui::components::edit_box::ResponderLambda;
-use mcrust::net::minecraft::client::gui::components::edit_box::TextFormatter;
-use mcrust::net::minecraft::client::gui::components::events::gui_event_listener::GuiEventListener;
 use mcrust::net::minecraft::client::gui::components::multi_line_text_widget::MultiLineTextWidget;
 use mcrust::net::minecraft::client::gui::components::tooltip::Tooltip;
+use mcrust::net::minecraft::client::gui::gui_graphics_extractor;
 use mcrust::net::minecraft::client::gui::gui_graphics_extractor::GuiGraphicsExtractor;
 use mcrust::net::minecraft::client::gui::layouts::frame_layout::FrameLayout;
 use mcrust::net::minecraft::client::gui::layouts::grid_layout::GridLayout;
-use mcrust::net::minecraft::client::gui::layouts::grid_layout::RowHelper;
 use mcrust::net::minecraft::client::gui::layouts::header_and_footer_layout::HeaderAndFooterLayout;
 use mcrust::net::minecraft::client::gui::layouts::layout_element::LayoutElement;
 use mcrust::net::minecraft::client::gui::layouts::layout_settings::LayoutSettings;
 use mcrust::net::minecraft::client::gui::layouts::linear_layout::LinearLayout;
-use mcrust::net::minecraft::client::gui::layouts::spacer_element::SpacerElement;
 use mcrust::net::minecraft::client::gui::narration::narration_element_output::NarrationElementOutput;
 use mcrust::net::minecraft::client::gui::text_alignment::TextAlignment;
-use mcrust::net::minecraft::client::input::character_event::CharacterEvent;
 use mcrust::net::minecraft::client::input::mouse_button_event::MouseButtonEvent;
 use mcrust::net::minecraft::client::input::mouse_button_info::MouseButtonInfo;
 use mcrust::net::minecraft::network::chat::click_event::ClickEvent;
 use mcrust::net::minecraft::network::chat::component;
+use mcrust::net::minecraft::network::chat::formatted_text::FormattedText;
 use mcrust::net::minecraft::network::chat::mutable_component::MutableComponent;
 use mcrust::net::minecraft::network::chat::style::Style;
 use mcrust::net::minecraft::resources::identifier::Identifier;
 use mcrust::net::minecraft::sounds::sound_event::SoundEvent;
 use mcrust::net::minecraft::util::util;
-use crate::de::hysky::skyblocker::utils::data::json_data::JsonData as _;
-use mcrust::net::minecraft::client::gui::components::renderable::Renderable as _;
 use mcrust::net::minecraft::core::registry::Registry as _;
 use mcrust::net::minecraft::network::chat::component::Component as _;
 
@@ -79,6 +77,18 @@ pub static REGEX_LINK: compat::MainThread<MutableComponent> = compat::MainThread
 /// java: private static final int SIDE_PADDING = 10;
 pub const CONTENT_CONTAINER_SIDE_PADDING: i32 = 10;
 
+/// One `contentAdder.addChild(..)` of `init`: the child, its column span and cell settings, and - for a
+/// `new ToggleableLayoutWidget(child, isEnabled)` - the predicate. The content grid is laid out from these on every
+/// `arrangeElements` (see `ChatRuleConfigScreen::build_content`).
+#[derive(Clone)]
+pub struct ContentEntry {
+    pub element: LayoutElement,
+    pub column_width: i32,
+    pub settings: LayoutSettings,
+    /// java: `ToggleableLayoutWidget.isEnabled`
+    pub is_enabled: Option<Arc<dyn Fn() -> bool>>,
+}
+
 /// java: public class ChatRuleConfigScreen extends Screen
 pub struct ChatRuleConfigScreen {
     /// java: extends net.minecraft.client.gui.screens.Screen
@@ -87,6 +97,8 @@ pub struct ChatRuleConfigScreen {
     /// (`SoundEvent` is a record over a `float`: no `Hash`/`Eq` in Rust, so the map is its entries, looked up by
     /// `equals`; the iteration order is insertion order where fastutil's is its hash order)
     pub sound_names: Vec<(Option<SoundEvent>, MutableComponent)>,
+    /// java: map.defaultReturnValue(..) - what `soundNames.get(sound)` answers for a sound not in the map
+    pub sound_names_default: MutableComponent,
     /// java: private final int chatRuleIndex;
     pub chat_rule_index: i32,
     /// java: private final ChatRule chatRule;
@@ -95,14 +107,21 @@ pub struct ChatRuleConfigScreen {
     pub previous_toast_message: Option<compat::Shared<ToastMessage>>,
     /// java: private ChatRule.@Nullable AnnouncementMessage previousAnnouncementMessage = null;
     pub previous_announcement_message: Option<compat::Shared<AnnouncementMessage>>,
-    /// java: private final Screen parent;
-    pub parent: mcrust::net::minecraft::client::gui::screens::screen::Screen,
+    // java: private final Screen parent; - the screen this one was opened over, which
+    // `game::set_screen_keeping_parent` holds; `onClose`'s `setScreen(parent)` is `game::set_screen_to_parent()`.
     /// java: private final HeaderAndFooterLayout layout = new HeaderAndFooterLayout(this);
     pub layout: Option<HeaderAndFooterLayout>,
     /// java: private final GridLayout content = new GridLayout().columnSpacing(GRID_SPACING);
     pub content: GridLayout,
     /// java: @SuppressWarnings("rawtypes") private CycleButton soundButton;
     pub sound_button: Option<compat::WidgetRef>,
+    /// `init`'s `contentAdder.addChild(..)` calls, in order (the grid is laid out from them)
+    pub content_entries: Vec<ContentEntry>,
+    /// the `ContentContainer` of `layout.addToContents(new ContentContainer())`, and its widget's index
+    pub content_container: Option<(compat::Shared<ContentContainer>, usize)>,
+    /// `recreateLayout()` asked for by a responder or a checkbox, which run inside the game's widget pass (where
+    /// the screen's widgets are not lent to this object): run at the start of the next lent call
+    pub recreate_requested: bool,
     /// the object's own shared handle: Java's `this` handed to other objects
     pub self_ref: compat::WeakShared<Self>,
     /// the screen's widgets as this object last saw them (see `compat::WidgetCache`)
@@ -124,42 +143,48 @@ impl std::ops::DerefMut for ChatRuleConfigScreen {
 
 impl ChatRuleConfigScreen {
     /// java: public ChatRuleConfigScreen(Screen parent, int chatRuleIndex)
-    pub fn new(mut parent: mcrust::net::minecraft::client::gui::screens::screen::Screen, mut chat_rule_index: i32) -> compat::Shared<Self> {
-        let __init_chat_rule_index = chat_rule_index;
-        // TODO(fabric2seer): `.get(..)` on a T
-        //   java: this.chatRule = ChatRulesHandler.CHAT_RULE_LIST.getData().get(chatRuleIndex);
-        // TODO(fabric2seer): the mod keeps the game's `Screen` (Java holds a reference to the live object); the port's `Screen` is not a value to copy and the port lends the mod no handle to it
-        //   java: this.parent = parent;
+    ///
+    /// (the parent is the screen up when this one is opened: `game::set_screen_keeping_parent` holds it)
+    pub fn new(chat_rule_index: i32) -> compat::Shared<Self> {
+        // java: this.chatRule = ChatRulesHandler.CHAT_RULE_LIST.getData().get(chatRuleIndex);
+        let chat_rule: compat::Shared<ChatRule> = chat_rules_handler::CHAT_RULE_LIST.get().lock().borrow().get_data()[chat_rule_index as usize].clone();
         let __this = compat::shared(Self {
             base: mcrust::net::minecraft::client::gui::screens::screen::Screen::new(component::translatable("skyblocker.config.chat.chatRules.screen.ruleScreen").get_string()),
             self_ref: std::sync::Weak::new(),
             __widgets: Default::default(),
             sound_names: util::make_with(Vec::new(), |map: &mut Vec<(Option<SoundEvent>, MutableComponent)>| {
-            use mcrust::net::minecraft::sounds::sound_events;
-            map.push((Some(sound_events::note_block_pling().clone()), component::translatable("skyblocker.config.chat.chatRules.screen.ruleScreen.sounds.pling").with_style_format(ChatFormatting::Yellow)));
-            map.push((Some(sound_events::ambient_cave().clone()), component::translatable("skyblocker.config.chat.chatRules.screen.ruleScreen.sounds.cave").with_style_format(ChatFormatting::Yellow)));
-            map.push((Some(sound_events::zombie_ambient().clone()), component::translatable("skyblocker.config.chat.chatRules.screen.ruleScreen.sounds.zombie").with_style_format(ChatFormatting::Yellow)));
-            map.push((Some(sound_events::player_attack_crit().clone()), component::translatable("skyblocker.config.chat.chatRules.screen.ruleScreen.sounds.crit").with_style_format(ChatFormatting::Yellow)));
-            map.push((Some(sound_events::arrow_hit_player().clone()), component::translatable("skyblocker.config.chat.chatRules.screen.ruleScreen.sounds.arrowHit").with_style_format(ChatFormatting::Yellow)));
-            map.push((Some(sound_events::amethyst_block_hit().clone()), component::translatable("skyblocker.config.chat.chatRules.screen.ruleScreen.sounds.amethyst").with_style_format(ChatFormatting::Yellow)));
-            map.push((Some(sound_events::anvil_land().clone()), component::translatable("skyblocker.config.chat.chatRules.screen.ruleScreen.sounds.anvil").with_style_format(ChatFormatting::Yellow)));
-            map.push((None, component::translatable("skyblocker.config.chat.chatRules.screen.ruleScreen.sounds.none").with_style_format(ChatFormatting::Red)));
-            // TODO(fabric2seer): `.defaultReturnValue(..)` on a T (read only by the sound button's name lambda, which is a TODO below)
-            //   java: map.defaultReturnValue(Component.translatable("skyblocker.config.chat.chatRules.screen.ruleScreen.sounds.custom").withStyle(ChatFormatting.YELLOW));
-        }),
-            chat_rule_index: __init_chat_rule_index,
-            chat_rule: todo!("fabric2seer: the field value (TODO above)"),
+                use mcrust::net::minecraft::sounds::sound_events;
+                map.push((Some(sound_events::note_block_pling().clone()), component::translatable("skyblocker.config.chat.chatRules.screen.ruleScreen.sounds.pling").with_style_format(ChatFormatting::Yellow)));
+                map.push((Some(sound_events::ambient_cave().clone()), component::translatable("skyblocker.config.chat.chatRules.screen.ruleScreen.sounds.cave").with_style_format(ChatFormatting::Yellow)));
+                map.push((Some(sound_events::zombie_ambient().clone()), component::translatable("skyblocker.config.chat.chatRules.screen.ruleScreen.sounds.zombie").with_style_format(ChatFormatting::Yellow)));
+                map.push((Some(sound_events::player_attack_crit().clone()), component::translatable("skyblocker.config.chat.chatRules.screen.ruleScreen.sounds.crit").with_style_format(ChatFormatting::Yellow)));
+                map.push((Some(sound_events::arrow_hit_player().clone()), component::translatable("skyblocker.config.chat.chatRules.screen.ruleScreen.sounds.arrowHit").with_style_format(ChatFormatting::Yellow)));
+                map.push((Some(sound_events::amethyst_block_hit().clone()), component::translatable("skyblocker.config.chat.chatRules.screen.ruleScreen.sounds.amethyst").with_style_format(ChatFormatting::Yellow)));
+                map.push((Some(sound_events::anvil_land().clone()), component::translatable("skyblocker.config.chat.chatRules.screen.ruleScreen.sounds.anvil").with_style_format(ChatFormatting::Yellow)));
+                map.push((None, component::translatable("skyblocker.config.chat.chatRules.screen.ruleScreen.sounds.none").with_style_format(ChatFormatting::Red)));
+            }),
+            // java: map.defaultReturnValue(Component.translatable("skyblocker.config.chat.chatRules.screen.ruleScreen.sounds.custom").withStyle(ChatFormatting.YELLOW));
+            sound_names_default: component::translatable("skyblocker.config.chat.chatRules.screen.ruleScreen.sounds.custom").with_style_format(ChatFormatting::Yellow),
+            chat_rule_index,
+            chat_rule,
             previous_toast_message: None,
             previous_announcement_message: None,
-            parent: todo!("fabric2seer: the field value (TODO above)"),
             layout: None,
             // java: new GridLayout().columnSpacing(GRID_SPACING) - `columnSpacing` answers `this`
             content: { let mut __g = GridLayout::new_default(); __g.column_spacing(GRID_SPACING); __g },
             sound_button: None,
+            content_entries: Vec::new(),
+            content_container: None,
+            recreate_requested: false,
         });
         compat::write(&__this, |__t| __t.self_ref = std::sync::Arc::downgrade(&__this));
         { let __v = Some(HeaderAndFooterLayout::new(0, 0)); compat::write(&__this, |__t| __t.layout = __v); }
         __this
+    }
+
+    /// java: soundNames.get(sound) - the map's value, or its default return value
+    fn sound_name(__this: &compat::Shared<Self>, sound: &Option<SoundEvent>) -> MutableComponent {
+        compat::read(__this, |__t| __t.sound_names.iter().find(|(__k, _)| __k == sound).map(|(_, __v)| __v.clone()).unwrap_or_else(|| __t.sound_names_default.clone()))
     }
 
     /// java: private static String getItemString(ItemStack stack)
@@ -169,315 +194,380 @@ impl ChatRuleConfigScreen {
     }
 
     /// java: private static int getWidth(float occupiedColumns)
-    pub fn get_width(mut occupied_columns: f32) -> i32 {
-        return (((((COLUMN_WIDTH as f32) * occupied_columns) + ((GRID_SPACING as f32) * (occupied_columns - (1 as f32))))) as i32);
+    pub fn get_width(occupied_columns: f32) -> i32 {
+        return (((COLUMN_WIDTH as f32) * occupied_columns) + ((GRID_SPACING as f32) * (occupied_columns - (1 as f32)))) as i32;
+    }
+
+    /// `new StringWidget(message, font)` added to the screen: its layout leaf.
+    fn add_string_widget(__this: &compat::Shared<Self>, message: MutableComponent) -> LayoutElement {
+        let __w = compat::string_widget(0, 0, -1, 9, message);
+        let (__ww, __wh) = (__w.get_width(), __w.get_height());
+        LayoutElement::widget(compat::write(__this, |__t| __t.add_widget(__w)), __ww, __wh)
+    }
+
+    /// `new MultiLineTextWidget(message, font).setMaxWidth(maxWidth).setCentered(centered)` added to the screen: its
+    /// layout leaf (the widget is sized as the text lays out in the font).
+    fn add_multi_line_text(__this: &compat::Shared<Self>, message: MutableComponent, max_width: i32, centered: bool) -> LayoutElement {
+        let text = FormattedText::from(message);
+        let widget = MultiLineTextWidget::new(0, 0, text.clone()).set_max_width(max_width).set_centered(centered);
+        let __font = compat::font();
+        let splitter = __font.splitter();
+        let (__ww, __wh) = (widget.get_width(&splitter), widget.get_height(&splitter));
+        let mut __w = AbstractWidget::new(0, 0, __ww, __wh, text.get_string(), WidgetKind::PlainMultiLineText(Box::new(widget)), OnPress::Inert);
+        __w.set_message_text(text);
+        __w.active = false;
+        LayoutElement::widget(compat::write(__this, |__t| __t.add_widget(__w)), __ww, __wh)
+    }
+
+    /// `new EditBox(font, width, 20, Component.empty())` with `setMaxLength`, `setValue`, `setResponder` (in Java's
+    /// order: the initial value does not reach the responder), `setHint` and `setTooltip`, joined to the screen's
+    /// widgets: the reference (which reaches the live box) and its layout leaf.
+    fn add_edit_box(__this: &compat::Shared<Self>, width: i32, max_length: i32, value: &str, responder: Option<Responder>, hint: Option<MutableComponent>, tooltip: Option<MutableComponent>) -> (compat::WidgetRef, LayoutElement) {
+        let mut __w = compat::edit_box(0, 0, width, 20, component::empty());
+        let __font = compat::font();
+        compat::with_edit_box(&mut __w, |__e| {
+            __e.set_max_length(max_length);
+            __e.set_value(&__font.splitter(), value);
+            if let Some(responder) = responder {
+                __e.set_responder(responder);
+            }
+            if let Some(hint) = hint {
+                __e.set_hint_component(FormattedText::from(hint));
+            }
+        });
+        if let Some(tooltip) = tooltip {
+            __w.set_tooltip(Tooltip::create_text(FormattedText::from(tooltip)));
+        }
+        let mut __r = compat::WidgetRef::value(__w);
+        let (__i, __ww, __wh) = compat::write(__this, |__t| { let __s = &mut *__t; __s.__widgets.add_to_layout(&mut __s.base, &mut __r) });
+        (__r, LayoutElement::widget(__i, __ww, __wh))
+    }
+
+    /// `contentAdder.addChild(child, columnWidth, settings)` - recorded; see `ContentEntry`.
+    fn add_content(__this: &compat::Shared<Self>, element: LayoutElement, column_width: i32, settings: Option<LayoutSettings>, is_enabled: Option<Arc<dyn Fn() -> bool>>) {
+        compat::write(__this, |__t| {
+            // `addChild(widget[, columnWidth])` takes `defaultCellSetting()` - the default itself
+            let settings = settings.unwrap_or(__t.content.default_cell_settings);
+            __t.content_entries.push(ContentEntry { element, column_width, settings, is_enabled });
+        });
+    }
+
+    /// The live chat rule (the `chatRule` field).
+    fn rule(__this: &compat::Shared<Self>) -> compat::Shared<ChatRule> {
+        compat::read(__this, |__t| __t.chat_rule.clone())
+    }
+
+    /// A responder's or checkbox's `recreateLayout()`: see `recreate_requested`.
+    fn request_recreate(__this: &compat::Shared<Self>) {
+        compat::write(__this, |__t| __t.recreate_requested = true);
+    }
+
+    /// The start of a lent call: a `recreateLayout()` asked for since the last one runs now.
+    fn run_requested_recreate(__this: &compat::Shared<Self>) {
+        if compat::write(__this, |__t| std::mem::take(&mut __t.recreate_requested)) {
+            ChatRuleConfigScreen::recreate_layout(__this);
+        }
     }
 
     /// java: @Override protected void init()
     pub fn init(__this: &compat::Shared<Self>) {
-        compat::minecraft();
-        let __r0 = compat::read(__this, |__t| __t.title.clone());
-        { let (__q0,) = ({ let __w = compat::string_widget(0, 0, -1, 9, __r0); let (__ww, __wh) = (__w.get_width(), __w.get_height()); LayoutElement::widget(compat::write(__this, |__t| __t.add_widget(__w)), __ww, __wh) },); __this.lock().borrow_mut().layout.as_mut().unwrap().add_to_header(__q0) };
+        compat::write(__this, |__t| { __t.content_entries.clear(); __t.content_container = None; __t.recreate_requested = false; });
+        { let __v = Some(HeaderAndFooterLayout::new(0, 0)); compat::write(__this, |__t| __t.layout = __v); }
+        compat::write(__this, |__t| { let mut __g = GridLayout::new_default(); __g.column_spacing(GRID_SPACING); __t.content = __g; });
+        // java: layout.addToHeader(new StringWidget(title, font));
+        let __title = compat::read(__this, |__t| __t.title.clone());
+        let __header = ChatRuleConfigScreen::add_string_widget(__this, component::literal(&__title));
+        compat::write(__this, |__t| __t.layout.as_mut().unwrap().add_to_header(__header));
+        // java: layout.addToFooter(Button.builder(CommonComponents.GUI_DONE, _ -> onClose()).build());
         let __this_w1 = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
-        { let (__q0,) = ({ let __w = (button::builder(mcrust::net::minecraft::network::chat::common_components::gui_done().get_string(), OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| { let Some(__this_1) = __this_w1.get().upgrade() else { return Default::default(); }; compat::lend_screen(&__this_1, __screen, || { let mut __pidx = compat::WidgetRef::Screen(__index); { ChatRuleConfigScreen::on_close((&__this_1)); } }) })))).build(); let (__ww, __wh) = (__w.get_width(), __w.get_height()); LayoutElement::widget(compat::write(__this, |__t| __t.add_widget(__w)), __ww, __wh) },); __this.lock().borrow_mut().layout.as_mut().unwrap().add_to_footer(__q0) };
-        // java: this.layout.addToContents(new ContentContainer());
-        let mut __content_container = compat::WidgetRef::value(ContainerWidgetAdapter::widget(ContentContainer::new()));
-        let (__i, __ww, __wh) = compat::write(__this, |__t| { let __s = &mut *__t; __s.__widgets.add_to_layout(&mut __s.base, &mut __content_container) });
-        { let (__q0,) = (LayoutElement::widget(__i, __ww, __wh),); __this.lock().borrow_mut().layout.as_mut().unwrap().add_to_contents(__q0) };
-        // (the port's `LayoutSettings` setters answer a new value: written back to the cell defaults)
+        let __footer = { let __w = (button::builder(mcrust::net::minecraft::network::chat::common_components::gui_done().get_string(), OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, _: usize| { let Some(__this_1) = __this_w1.get().upgrade() else { return; }; compat::lend_screen(&__this_1, __screen, || ChatRuleConfigScreen::on_close(&__this_1)) })))).build(); let (__ww, __wh) = (__w.get_width(), __w.get_height()); LayoutElement::widget(compat::write(__this, |__t| __t.add_widget(__w)), __ww, __wh) };
+        compat::write(__this, |__t| __t.layout.as_mut().unwrap().add_to_footer(__footer));
+        // java: layout.addToContents(new ContentContainer()); - the container joins the screen's widgets after the
+        // content's (the content's widgets are the screen's own children here, so they take the clicks first)
+        let __content_container: compat::Shared<ContentContainer> = ContentContainer::new();
+
+        // java: content.defaultCellSetting().alignVerticallyMiddle().alignHorizontallyCenter().paddingTop(GRID_SPACING);
         compat::write(__this, |__t| { let __s = __t.content.default_cell_setting(); *__s = (*__s).align_vertically_middle().align_horizontally_center().padding_top(GRID_SPACING); });
-        let mut aligned_left: LayoutSettings = __this.lock().borrow().content.new_cell_settings().align_horizontally_left();
-        let mut content_adder: RowHelper = __this.lock().borrow().content.create_row_helper(3);
-        // TODO(fabric2seer): the port's `add_child_width` ports this Java method with other parameters (grid, child, column_width for Java's widget, column_width)
-        // TODO(fabric2seer): `add_child_width` takes 3 argument(s) in the port (`grid: &mut GridLayout, child: LayoutElement, column_width: i32`), Java passes 2
-        // rust: content_adder.add_child_width(&mut compat::string_widget(0, 0, -1, 9, component::translatable("skyblocker.config.chat.chatRules.screen.ruleScreen.name").with_style_formats(&[ChatFormatting::Bold, ChatFormatting::Underline])), 3).unwrap();
-        // TODO(fabric2seer): the port's `new` ports this Java method with other parameters (splitter, x, y, width, height for Java's width, height, narration)
-        // TODO(fabric2seer): `new` takes 5 argument(s) in the port (`splitter: &StringSplitter<W>, x: i32, y: i32, width: i32, height: i32`), Java passes 4
-        // TODO(fabric2seer): the port's `add_child_width` ports this Java method with other parameters (grid, child, column_width for Java's widget, column_width)
-        // TODO(fabric2seer): `add_child_width` takes 3 argument(s) in the port (`grid: &mut GridLayout, child: LayoutElement, column_width: i32`), Java passes 2
-        // rust: let mut name_widget: EditBox = content_adder.add_child_width(&mut EditBox::new(&compat::font(), ChatRuleConfigScreen::get_width(((3) as f32) as f32), 20, component::empty()), 3).unwrap();
-        let mut name_widget: EditBox = todo!("fabric2seer: the initialiser of `nameWidget` (TODO above)");
-        // TODO(fabric2seer): `set_value` takes 2 argument(s) in the port (`splitter: &StringSplitter<W>, value: &str`), Java passes 1
-        // rust: name_widget.set_value(&ChatRule::get_name(&compat::read(__this, |__t| __t.chat_rule.clone())));
-        let __this_2 = compat::RenderThread::new(__this.clone());
-        name_widget.set_responder(Responder::Lambda(ResponderLambda::new(move |__a0| { ChatRule::set_name(&compat::read(__this_2.get(), |__t| __t.chat_rule.clone()), __a0.to_string()); })));
-        // TODO(fabric2seer): `AbstractWidget::set_tooltip` ports `setTooltip`, but the port's `EditBox` holds no `AbstractWidget` (no Deref, no `base` field) to call it on
-        // rust: name_widget.set_tooltip(Tooltip::create((component::translatable("skyblocker.config.chat.chatRules.screen.ruleScreen.name.@Tooltip")).get_string()));
-        // TODO(fabric2seer): the port's `add_child_width` ports this Java method with other parameters (grid, child, column_width for Java's widget, column_width)
-        // TODO(fabric2seer): `add_child_width` takes 3 argument(s) in the port (`grid: &mut GridLayout, child: LayoutElement, column_width: i32`), Java passes 2
-        // rust: content_adder.add_child_width(&mut compat::string_widget(0, 0, -1, 9, component::translatable("skyblocker.config.chat.chatRules.screen.ruleScreen.filter").with_style_formats(&[ChatFormatting::Bold, ChatFormatting::Underline])), 3).unwrap();
-        // TODO(fabric2seer): the port's `new` ports this Java method with other parameters (splitter, x, y, width, height for Java's width, height, narration)
-        // TODO(fabric2seer): `new` takes 5 argument(s) in the port (`splitter: &StringSplitter<W>, x: i32, y: i32, width: i32, height: i32`), Java passes 4
-        // TODO(fabric2seer): the port's `add_child_width` ports this Java method with other parameters (grid, child, column_width for Java's widget, column_width)
-        // TODO(fabric2seer): `add_child_width` takes 3 argument(s) in the port (`grid: &mut GridLayout, child: LayoutElement, column_width: i32`), Java passes 2
-        // rust: let mut filter_input: EditBox = content_adder.add_child_width(&mut EditBox::new(&compat::font(), ChatRuleConfigScreen::get_width(((3) as f32) as f32), 20, component::empty()), 3).unwrap();
-        let mut filter_input: EditBox = todo!("fabric2seer: the initialiser of `filterInput` (TODO above)");
-        filter_input.set_max_length(1024);
+        let aligned_left: LayoutSettings = compat::read(__this, |__t| __t.content.new_cell_settings().align_horizontally_left());
+        let rule = ChatRuleConfigScreen::rule(__this);
+
+        // Name
+        let __l = ChatRuleConfigScreen::add_string_widget(__this, component::translatable("skyblocker.config.chat.chatRules.screen.ruleScreen.name").with_style_formats(&[ChatFormatting::Bold, ChatFormatting::Underline]));
+        ChatRuleConfigScreen::add_content(__this, __l, 3, None, None);
+        let __rule_2 = compat::RenderThread::new(rule.clone());
+        let (_name_widget, __l) = ChatRuleConfigScreen::add_edit_box(__this, ChatRuleConfigScreen::get_width(3.0), 32, &ChatRule::get_name(&rule), Some(Responder::Lambda(ResponderLambda::new(move |__a0| ChatRule::set_name(__rule_2.get(), __a0.to_string())))), None, Some(component::translatable("skyblocker.config.chat.chatRules.screen.ruleScreen.name.@Tooltip")));
+        ChatRuleConfigScreen::add_content(__this, __l, 3, None, None);
+
+        // Filter
+        let __l = ChatRuleConfigScreen::add_string_widget(__this, component::translatable("skyblocker.config.chat.chatRules.screen.ruleScreen.filter").with_style_formats(&[ChatFormatting::Bold, ChatFormatting::Underline]));
+        ChatRuleConfigScreen::add_content(__this, __l, 3, None, None);
         // java: filterInput.addFormatter(createRenderTextProvider(filterInput::getValue, true));
         // rust: port gap - `EditBox.TextFormatter` is a closed enum of the game's two formatters, so the mod's formatter
         // (`create_render_text_provider_2`) cannot be attached to the box (GAPS_batchF.md)
-        // TODO(fabric2seer): `set_value` takes 2 argument(s) in the port (`splitter: &StringSplitter<W>, value: &str`), Java passes 1
-        // rust: filter_input.set_value(&ChatRule::get_filter(&compat::read(__this, |__t| __t.chat_rule.clone())));
-        let __this_3 = compat::RenderThread::new(__this.clone());
-        filter_input.set_responder(Responder::Lambda(ResponderLambda::new(move |__a0| { ChatRule::set_filter(&compat::read(__this_3.get(), |__t| __t.chat_rule.clone()), __a0.to_string()); })));
-        filter_input.set_hint_component(component::translatable("skyblocker.config.chat.chatRules.screen.ruleScreen.filter").with_style_formats(&[ChatFormatting::Gray, ChatFormatting::Italic]));
-        // TODO(fabric2seer): `AbstractWidget::set_tooltip` ports `setTooltip`, but the port's `EditBox` holds no `AbstractWidget` (no Deref, no `base` field) to call it on
-        // rust: filter_input.set_tooltip(Tooltip::create((component::translatable("skyblocker.config.chat.chatRules.screen.ruleScreen.filter.@Tooltip")).get_string()));
-        // TODO(fabric2seer): the port's `add_child_width` ports this Java method with other parameters (grid, child, column_width for Java's widget, column_width)
-        // TODO(fabric2seer): `add_child_width` takes 3 argument(s) in the port (`grid: &mut GridLayout, child: LayoutElement, column_width: i32`), Java passes 2
-        // rust: let mut filters_row1: LinearLayout = content_adder.add_child_width(&mut LinearLayout::horizontal().spacing(GRID_SPACING), 3).unwrap();
-        let mut filters_row1: LinearLayout = todo!("fabric2seer: the initialiser of `filtersRow1` (TODO above)");
-        let __this_w4 = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
-        filters_row1.add_child(LayoutElement::Frame(ChatRuleConfigScreen::build_checkbox(__this, &component::translatable_args("skyblocker.config.chat.chatRules.screen.ruleScreen.regex", vec![mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(REGEX_LINK.get_mut().clone())]), &component::translatable("skyblocker.config.chat.chatRules.screen.ruleScreen.regex.@Tooltip"), ChatRuleConfigScreen::get_width(1.5f32), &TextAlignment::Center, Arc::new(move |__a0| { let Some(__this_4) = __this_w4.get().upgrade() else { return Default::default(); }; { ChatRule::set_regex(&compat::read((&__this_4), |__t| __t.chat_rule.clone()), __a0); } }), ChatRule::get_regex(&compat::read(__this, |__t| __t.chat_rule.clone())))));
-        let __this_5 = compat::RenderThread::new(__this.clone());
-        filters_row1.add_child({ let __w = (button::builder(component::translatable("skyblocker.config.chat.chatRules.screen.ruleScreen.locations").get_string(), OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| { compat::lend_screen(__this_5.get(), __screen, || { let mut __pidx = compat::WidgetRef::Screen(__index); { mcrust::mcrust::modding::game::set_screen_keeping_parent(Box::new(compat::ScreenAdapter::new(ChatRuleLocationConfigScreen::new(None, compat::read(__this_5.get(), |__t| __t.chat_rule.clone()))))); } }) })))).tooltip_text(Some((Tooltip::create((component::translatable("skyblocker.config.chat.chatRules.screen.ruleScreen.locations.@Tooltip")).get_string())).message.clone())).width(ChatRuleConfigScreen::get_width(1.5f32)).build(); let (__ww, __wh) = (__w.get_width(), __w.get_height()); LayoutElement::widget(compat::write(__this, |__t| __t.add_widget(__w)), __ww, __wh) });
-        // TODO(fabric2seer): the port's `add_child_width` ports this Java method with other parameters (grid, child, column_width for Java's widget, column_width)
-        // TODO(fabric2seer): `add_child_width` takes 3 argument(s) in the port (`grid: &mut GridLayout, child: LayoutElement, column_width: i32`), Java passes 2
-        // rust: let mut filters_row2: LinearLayout = content_adder.add_child_width(&mut LinearLayout::horizontal().spacing(GRID_SPACING), 3).unwrap();
-        let mut filters_row2: LinearLayout = todo!("fabric2seer: the initialiser of `filtersRow2` (TODO above)");
-        let __this_w6 = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
-        filters_row2.add_child(LayoutElement::Frame(ChatRuleConfigScreen::build_checkbox(__this, &component::translatable("skyblocker.config.chat.chatRules.screen.ruleScreen.includeFormatting"), &component::translatable("skyblocker.config.chat.chatRules.screen.ruleScreen.includeFormatting.@Tooltip"), ChatRuleConfigScreen::get_width(1.25f32), &TextAlignment::Left, Arc::new(move |__a0| { let Some(__this_6) = __this_w6.get().upgrade() else { return Default::default(); }; { ChatRule::set_include_formatting(&compat::read((&__this_6), |__t| __t.chat_rule.clone()), __a0); } }), ChatRule::get_include_formatting(&compat::read(__this, |__t| __t.chat_rule.clone())))));
-        let __this_w7 = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
-        filters_row2.add_child(LayoutElement::Frame(ChatRuleConfigScreen::build_checkbox(__this, &component::translatable("skyblocker.config.chat.chatRules.screen.ruleScreen.partialMatch"), &component::translatable("skyblocker.config.chat.chatRules.screen.ruleScreen.partialMatch.@Tooltip"), ChatRuleConfigScreen::get_width(0.75f32), &TextAlignment::Center, Arc::new(move |__a0| { let Some(__this_7) = __this_w7.get().upgrade() else { return Default::default(); }; { ChatRule::set_partial_match(&compat::read((&__this_7), |__t| __t.chat_rule.clone()), __a0); } }), ChatRule::get_partial_match(&compat::read(__this, |__t| __t.chat_rule.clone())))));
-        let __this_w8 = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
-        filters_row2.add_child(LayoutElement::Frame(ChatRuleConfigScreen::build_checkbox(__this, &component::translatable("skyblocker.config.chat.chatRules.screen.ruleScreen.ignoreCase"), &component::translatable("skyblocker.config.chat.chatRules.screen.ruleScreen.ignoreCase.@Tooltip"), ChatRuleConfigScreen::get_width(1.0f32), &TextAlignment::Right, Arc::new(move |__a0| { let Some(__this_8) = __this_w8.get().upgrade() else { return Default::default(); }; { ChatRule::set_ignore_case(&compat::read((&__this_8), |__t| __t.chat_rule.clone()), __a0); } }), ChatRule::get_ignore_case(&compat::read(__this, |__t| __t.chat_rule.clone())))));
-        // TODO(fabric2seer): the port's `add_child_spanning` ports this Java method with other parameters (grid, child, column_width, settings for Java's widget, column_width, layout_settings)
-        // TODO(fabric2seer): `add_child_spanning` takes 4 argument(s) in the port (`grid: &mut GridLayout, child: LayoutElement, column_width: i32, settings: LayoutSettings`), Java passes 3
-        // rust: content_adder.add_child_spanning(&mut compat::string_widget(0, 0, -1, 9, component::translatable("skyblocker.config.chat.chatRules.screen.ruleScreen.outputs").with_style_formats(&[ChatFormatting::Bold, ChatFormatting::Underline])), 3, { let (__q0,) = (4i32.wrapping_add(GRID_SPACING),); __this.lock().borrow().content.new_cell_settings().padding_top(__q0) }).unwrap();
-        // TODO(fabric2seer): `.setCentered(..)` on a value of unknown type
-        //   java: contentAdder.addChild(new MultiLineTextWidget(Component.translatable("skyblocker.config.chat.chatRules.screen.ruleScreen.formatting"), font).setMaxWidth(getWidth(2)), 3).setCentered(true);
-        // TODO(fabric2seer): the port's `add_child_width` ports this Java method with other parameters (grid, child, column_width for Java's widget, column_width)
-        // TODO(fabric2seer): `add_child_width` takes 3 argument(s) in the port (`grid: &mut GridLayout, child: LayoutElement, column_width: i32`), Java passes 2
-        // rust: let mut buttons: LinearLayout = content_adder.add_child_width(&mut LinearLayout::horizontal().spacing(GRID_SPACING), 3).unwrap();
-        let mut buttons: LinearLayout = todo!("fabric2seer: the initialiser of `buttons` (TODO above)");
-        let __this_w9 = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
-        buttons.add_child(LayoutElement::Frame(ChatRuleConfigScreen::build_checkbox(__this, &component::translatable("skyblocker.config.chat.chatRules.screen.ruleScreen.hideMessage"), &component::translatable("skyblocker.config.chat.chatRules.screen.ruleScreen.hideMessage.@Tooltip"), ChatRuleConfigScreen::get_width(1.5f32), &TextAlignment::Left, Arc::new(move |value| { let Some(__this_9) = __this_w9.get().upgrade() else { return Default::default(); }; {
-            ChatRule::set_hide_message(&compat::read((&__this_9), |__t| __t.chat_rule.clone()), value);
-            ChatRuleConfigScreen::recreate_layout((&__this_9));
-        } }), ChatRule::get_hide_message(&compat::read(__this, |__t| __t.chat_rule.clone())))));
-        // java: List<Optional<SoundEvent>> availableValues = soundNames.keySet().stream().map(Optional::ofNullable).toList();
-        let mut available_values: Vec<Option<SoundEvent>> = compat::read(__this, |__t| __t.sound_names.iter().map(|(__k, _)| __k.clone()).collect::<Vec<_>>());
-        let mut displayed_values: Vec<Option<SoundEvent>>;
-        // java: if (soundNames.containsKey(chatRule.getCustomSound()))
-        let __custom_sound: Option<SoundEvent> = ChatRule::get_custom_sound(&compat::read(__this, |__t| __t.chat_rule.clone()));
+        let __rule_3 = compat::RenderThread::new(rule.clone());
+        let (_filter_input, __l) = ChatRuleConfigScreen::add_edit_box(__this, ChatRuleConfigScreen::get_width(3.0), 1024, &ChatRule::get_filter(&rule), Some(Responder::Lambda(ResponderLambda::new(move |__a0| ChatRule::set_filter(__rule_3.get(), __a0.to_string())))), Some(component::translatable("skyblocker.config.chat.chatRules.screen.ruleScreen.filter").with_style_formats(&[ChatFormatting::Gray, ChatFormatting::Italic])), Some(component::translatable("skyblocker.config.chat.chatRules.screen.ruleScreen.filter.@Tooltip")));
+        ChatRuleConfigScreen::add_content(__this, __l, 3, None, None);
+
+        // Filter settings
+        let mut filters_row1: LinearLayout = LinearLayout::horizontal().spacing(GRID_SPACING);
+        let __rule_4 = compat::RenderThread::new(rule.clone());
+        filters_row1.add_child(LayoutElement::Frame(ChatRuleConfigScreen::build_checkbox(__this, &component::translatable_args("skyblocker.config.chat.chatRules.screen.ruleScreen.regex", vec![FormattedText::from(REGEX_LINK.get_mut().clone())]), &component::translatable("skyblocker.config.chat.chatRules.screen.ruleScreen.regex.@Tooltip"), ChatRuleConfigScreen::get_width(1.5f32), &TextAlignment::Center, Arc::new(move |__a0| ChatRule::set_regex(__rule_4.get(), __a0)), ChatRule::get_regex(&rule))));
+        let __this_5 = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
+        filters_row1.add_child({
+            let mut __w = button::builder(component::translatable("skyblocker.config.chat.chatRules.screen.ruleScreen.locations").get_string(), OnPress::Lambda(PressLambda::new(move |_: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, _: usize| {
+                let Some(__this_5) = __this_5.get().upgrade() else { return; };
+                // java: minecraft.gui.setScreen(new ChatRuleLocationConfigScreen(this, chatRule))
+                mcrust::mcrust::modding::game::set_screen_keeping_parent(Box::new(compat::ScreenAdapter::new(ChatRuleLocationConfigScreen::new(ChatRuleConfigScreen::rule(&__this_5)))));
+            }))).width(ChatRuleConfigScreen::get_width(1.5f32)).build();
+            __w.set_tooltip(Tooltip::create_text(FormattedText::from(component::translatable("skyblocker.config.chat.chatRules.screen.ruleScreen.locations.@Tooltip"))));
+            let (__ww, __wh) = (__w.get_width(), __w.get_height());
+            LayoutElement::widget(compat::write(__this, |__t| __t.add_widget(__w)), __ww, __wh)
+        });
+        ChatRuleConfigScreen::add_content(__this, LayoutElement::Grid(filters_row1.wrapped), 3, None, None);
+        let mut filters_row2: LinearLayout = LinearLayout::horizontal().spacing(GRID_SPACING);
+        let __rule_6 = compat::RenderThread::new(rule.clone());
+        filters_row2.add_child(LayoutElement::Frame(ChatRuleConfigScreen::build_checkbox(__this, &component::translatable("skyblocker.config.chat.chatRules.screen.ruleScreen.includeFormatting"), &component::translatable("skyblocker.config.chat.chatRules.screen.ruleScreen.includeFormatting.@Tooltip"), ChatRuleConfigScreen::get_width(1.25f32), &TextAlignment::Left, Arc::new(move |__a0| ChatRule::set_include_formatting(__rule_6.get(), __a0)), ChatRule::get_include_formatting(&rule))));
+        let __rule_7 = compat::RenderThread::new(rule.clone());
+        filters_row2.add_child(LayoutElement::Frame(ChatRuleConfigScreen::build_checkbox(__this, &component::translatable("skyblocker.config.chat.chatRules.screen.ruleScreen.partialMatch"), &component::translatable("skyblocker.config.chat.chatRules.screen.ruleScreen.partialMatch.@Tooltip"), ChatRuleConfigScreen::get_width(0.75f32), &TextAlignment::Center, Arc::new(move |__a0| ChatRule::set_partial_match(__rule_7.get(), __a0)), ChatRule::get_partial_match(&rule))));
+        let __rule_8 = compat::RenderThread::new(rule.clone());
+        filters_row2.add_child(LayoutElement::Frame(ChatRuleConfigScreen::build_checkbox(__this, &component::translatable("skyblocker.config.chat.chatRules.screen.ruleScreen.ignoreCase"), &component::translatable("skyblocker.config.chat.chatRules.screen.ruleScreen.ignoreCase.@Tooltip"), ChatRuleConfigScreen::get_width(1.0f32), &TextAlignment::Right, Arc::new(move |__a0| ChatRule::set_ignore_case(__rule_8.get(), __a0)), ChatRule::get_ignore_case(&rule))));
+        ChatRuleConfigScreen::add_content(__this, LayoutElement::Grid(filters_row2.wrapped), 3, None, None);
+
+        // ==== Outputs
+        let __l = ChatRuleConfigScreen::add_string_widget(__this, component::translatable("skyblocker.config.chat.chatRules.screen.ruleScreen.outputs").with_style_formats(&[ChatFormatting::Bold, ChatFormatting::Underline]));
+        let __s = compat::read(__this, |__t| __t.content.new_cell_settings().padding_top(4 + GRID_SPACING));
+        ChatRuleConfigScreen::add_content(__this, __l, 3, Some(__s), None);
+        // java: contentAdder.addChild(new MultiLineTextWidget(..formatting.., font).setMaxWidth(getWidth(2)), 3).setCentered(true);
+        let __l = ChatRuleConfigScreen::add_multi_line_text(__this, component::translatable("skyblocker.config.chat.chatRules.screen.ruleScreen.formatting"), ChatRuleConfigScreen::get_width(2.0), true);
+        ChatRuleConfigScreen::add_content(__this, __l, 3, None, None);
+
+        let mut buttons: LinearLayout = LinearLayout::horizontal().spacing(GRID_SPACING);
+        let __this_9 = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
+        buttons.add_child(LayoutElement::Frame(ChatRuleConfigScreen::build_checkbox(__this, &component::translatable("skyblocker.config.chat.chatRules.screen.ruleScreen.hideMessage"), &component::translatable("skyblocker.config.chat.chatRules.screen.ruleScreen.hideMessage.@Tooltip"), ChatRuleConfigScreen::get_width(1.5f32), &TextAlignment::Left, Arc::new(move |value| {
+            let Some(__this_9) = __this_9.get().upgrade() else { return; };
+            ChatRule::set_hide_message(&ChatRuleConfigScreen::rule(&__this_9), value);
+            ChatRuleConfigScreen::request_recreate(&__this_9);
+        }), ChatRule::get_hide_message(&rule))));
+
+        // Sound
+        // java: List<Optional<SoundEvent>> availableValues = new ArrayList<>(soundNames.keySet().stream().map(Optional::ofNullable).toList());
+        let available_values: Vec<Option<SoundEvent>> = compat::read(__this, |__t| __t.sound_names.iter().map(|(__k, _)| __k.clone()).collect::<Vec<_>>());
+        let displayed_values: Vec<Option<SoundEvent>>;
+        let __custom_sound: Option<SoundEvent> = ChatRule::get_custom_sound(&rule);
         if compat::read(__this, |__t| __t.sound_names.iter().any(|(__k, _)| *__k == __custom_sound)) {
             displayed_values = available_values.clone();
         } else {
-            displayed_values = available_values.iter().cloned().collect::<Vec<_>>();
-            displayed_values.push(ChatRule::get_custom_sound(&compat::read(__this, |__t| __t.chat_rule.clone())));
+            displayed_values = available_values.iter().cloned().chain(std::iter::once(__custom_sound.clone())).collect::<Vec<_>>();
         }
-        // TODO(fabric2seer): `.orElse(..)` on a T
-        //   java: soundButton = CycleButton.builder(opt -> soundNames.get(opt.orElse(null)), Optional.ofNullable(chatRule.getCustomSound()))
-        //   java: 				.withValues(() -> true, displayedValues, availableValues)
-        //   java: 				.create(0, 0, getWidth(1.3f), 20, Component.translatable("skyblocker.config.chat.chatRules.screen.ruleScreen.sounds"), (_, value) -> {
-        //   java: 					chatRule.setCustomSound(value.orElse(null));
-        //   java: 					value.ifPresent(soundEvent -> minecraft.getSoundManager().play(SimpleSoundInstance.forUI(soundEvent, 1.0f)));
-        //   java: 				});
-        // TODO(fabric2seer): `AbstractWidget::set_tooltip` ports `setTooltip`, but the port's `CycleButton` holds no `AbstractWidget` (no Deref, no `base` field) to call it on
-        // rust: { let (__q0,) = (Tooltip::create((component::translatable("skyblocker.config.chat.chatRules.screen.ruleScreen.sounds.@Tooltip")).get_string()),); __this.lock().borrow_mut().sound_button.as_mut().unwrap().set_tooltip(__q0) };
-        buttons.add_child({ let (__i, __ww, __wh) = compat::write(__this, |__t| { let __s = &mut *__t; let __r = __s.sound_button.as_mut().unwrap(); __s.__widgets.add_to_layout(&mut __s.base, __r) }); LayoutElement::widget(__i, __ww, __wh) });
-        buttons.add_child_adjusted({ let __w = compat::WidgetAdapter::widget(SoundSearchMenu::new()); let (__ww, __wh) = (__w.get_width(), __w.get_height()); LayoutElement::widget(compat::write(__this, |__t| __t.add_widget(__w)), __ww, __wh) }, &mut |__a0| { __a0.align_horizontally_right(); });
-        // TODO(fabric2seer): the port's `new` ports this Java method with other parameters (splitter, x, y, width, height for Java's width, height, narration)
-        // TODO(fabric2seer): `new` takes 5 argument(s) in the port (`splitter: &StringSplitter<W>, x: i32, y: i32, width: i32, height: i32`), Java passes 4
-        // rust: let mut chat_message_input: EditBox = EditBox::new(&compat::font(), ChatRuleConfigScreen::get_width(((2) as f32) as f32), 20, component::empty());
-        let mut chat_message_input: EditBox = todo!("fabric2seer: the initialiser of `chatMessageInput` (TODO above)");
-        chat_message_input.set_max_length(1024);
-        // TODO(fabric2seer): the port's `new` ports this Java method with other parameters (x, y, message for Java's message)
-        // TODO(fabric2seer): `new` takes 3 argument(s) in the port (`x: i32, y: i32, message: FormattedText`), Java passes 2
-        // TODO(fabric2seer): the port's `add_child_with` ports this Java method with other parameters (grid, child, settings for Java's widget, layout_settings)
-        // TODO(fabric2seer): `add_child_with` takes 3 argument(s) in the port (`grid: &mut GridLayout, child: LayoutElement, settings: LayoutSettings`), Java passes 2
-        // rust: let __this_10 = compat::RenderThread::new(__this.clone());
-        // rust: content_adder.add_child_with(&mut ToggleableLayoutWidget::new(((MultiLineTextWidget::new(component::translatable("skyblocker.config.chat.chatRules.screen.ruleScreen.chatMessage"), compat::font())).set_max_width(ChatRuleConfigScreen::get_width(((1) as f32) as f32))).set_centered(false), Arc::new(move || !(ChatRule::get_hide_message(&compat::read(__this_10.get(), |__t| __t.chat_rule.clone()))))), aligned_left.clone()).unwrap();
+        // java: soundButton = CycleButton.builder(opt -> soundNames.get(opt.orElse(null)), Optional.ofNullable(chatRule.getCustomSound()))
+        //   .withValues(() -> true, displayedValues, availableValues) - the alt list (`availableValues`) is always the selected one
+        //   .create(0, 0, getWidth(1.3f), 20, ..sounds.., (_, value) -> {..});
+        // (the port's cycle button cycles the values' labels; the listener maps the index back to the value)
+        let __labels = |__values: &Vec<Option<SoundEvent>>| -> Vec<String> { __values.iter().map(|__v| ChatRuleConfigScreen::sound_name(__this, __v).get_string()).collect() };
+        let mut __supplier = ValueListSupplier::create_with_alt(__labels(&displayed_values), __labels(&available_values));
+        __supplier.alt_selected = true;
+        let __builder = cycle_button::builder(ChatRuleConfigScreen::sound_name(__this, &__custom_sound).get_string()).with_value_list_supplier(__supplier);
+        let __rule_10 = compat::RenderThread::new(rule.clone());
+        let __available = compat::RenderThread::new(available_values.clone());
+        let mut __sound_button = compat::cycle_button_widget(0, 0, ChatRuleConfigScreen::get_width(1.3f32), 20, &component::translatable("skyblocker.config.chat.chatRules.screen.ruleScreen.sounds"), __builder, move |__index: usize| {
+            let value: Option<SoundEvent> = __available.get().get(__index).cloned().flatten();
+            // java: chatRule.setCustomSound(value.orElse(null));
+            ChatRule::set_custom_sound(__rule_10.get(), value.clone());
+            // java: value.ifPresent(soundEvent -> minecraft.getSoundManager().play(SimpleSoundInstance.forUI(soundEvent, 1.0f)));
+            // rust: port gap (GAPS_batchH #1) - `SoundManager.play` is not reachable from a mod
+        });
+        // java: soundButton.setTooltip(Tooltip.create(..sounds.@Tooltip));
+        __sound_button.set_tooltip(Tooltip::create_text(FormattedText::from(component::translatable("skyblocker.config.chat.chatRules.screen.ruleScreen.sounds.@Tooltip"))));
+        let mut __sound_ref = compat::WidgetRef::value(__sound_button);
+        let (__i, __ww, __wh) = compat::write(__this, |__t| { let __s = &mut *__t; __s.__widgets.add_to_layout(&mut __s.base, &mut __sound_ref) });
+        compat::write(__this, |__t| __t.sound_button = Some(__sound_ref));
+        buttons.add_child(LayoutElement::widget(__i, __ww, __wh));
+        // search button
+        let __search = SoundSearchMenu::new(std::sync::Arc::downgrade(__this));
+        buttons.add_child_adjusted({ let __w = compat::WidgetAdapter::widget(__search.clone()); let (__ww, __wh) = (__w.get_width(), __w.get_height()); LayoutElement::widget(compat::write(__this, |__t| __t.add_widget(__w)), __ww, __wh) }, &mut |__a0| { *__a0 = __a0.align_horizontally_right(); });
+        ChatRuleConfigScreen::add_content(__this, LayoutElement::Grid(buttons.wrapped), 3, None, None);
+
+        // Chat message
+        let __rule_11 = compat::RenderThread::new(rule.clone());
+        let __not_hidden: Arc<dyn Fn() -> bool> = Arc::new(move || !ChatRule::get_hide_message(__rule_11.get()));
+        let __l = ChatRuleConfigScreen::add_multi_line_text(__this, component::translatable("skyblocker.config.chat.chatRules.screen.ruleScreen.chatMessage"), ChatRuleConfigScreen::get_width(1.0), false);
+        ChatRuleConfigScreen::add_content(__this, __l, 1, Some(aligned_left), Some(__not_hidden.clone()));
         // java: chatMessageInput.addFormatter(createRenderTextProvider(chatMessageInput::getValue));
         // rust: port gap - `EditBox.TextFormatter` is a closed enum; the mod's formatter cannot be attached (GAPS_batchF.md)
-        // TODO(fabric2seer): `set_value` takes 2 argument(s) in the port (`splitter: &StringSplitter<W>, value: &str`), Java passes 1
-        // rust: chat_message_input.set_value(&(if ChatRule::get_chat_message(&compat::read(__this, |__t| __t.chat_rule.clone())).is_some() { ChatRule::get_chat_message(&compat::read(__this, |__t| __t.chat_rule.clone())) } else { Some("".to_string()) }).unwrap());
-        let __this_11 = compat::RenderThread::new(__this.clone());
-        chat_message_input.set_responder(Responder::Lambda(ResponderLambda::new(move |__a0| { ChatRule::set_chat_message(&compat::read(__this_11.get(), |__t| __t.chat_rule.clone()), Some(__a0.to_string())); })));
-        chat_message_input.set_hint_component((component::translatable("skyblocker.config.chat.chatRules.screen.ruleScreen.chatMessage.@Placeholder")).with_style_formats(&[ChatFormatting::Gray, ChatFormatting::Italic]));
-        // TODO(fabric2seer): the port's `add_child_width` ports this Java method with other parameters (grid, child, column_width for Java's widget, column_width)
-        // TODO(fabric2seer): `add_child_width` takes 3 argument(s) in the port (`grid: &mut GridLayout, child: LayoutElement, column_width: i32`), Java passes 2
-        // rust: let __this_12 = compat::RenderThread::new(__this.clone());
-        // rust: content_adder.add_child_width(&mut ToggleableLayoutWidget::new(chat_message_input.clone(), Arc::new(move || !(ChatRule::get_hide_message(&compat::read(__this_12.get(), |__t| __t.chat_rule.clone()))))), 2).unwrap();
-        // TODO(fabric2seer): `.setMaxWidth(..)` on a value of unknown type
-        //   java: contentAdder.addChild(new MultiLineTextWidget(Component.translatable("skyblocker.config.chat.chatRules.screen.ruleScreen.actionBar"), font), alignedLeft).setMaxWidth(getWidth(1)).setCentered(false);
-        // TODO(fabric2seer): the port's `new` ports this Java method with other parameters (splitter, x, y, width, height for Java's width, height, narration)
-        // TODO(fabric2seer): `new` takes 5 argument(s) in the port (`splitter: &StringSplitter<W>, x: i32, y: i32, width: i32, height: i32`), Java passes 4
-        // rust: let mut action_bar_message_input: EditBox = EditBox::new(&compat::font(), ChatRuleConfigScreen::get_width(((2) as f32) as f32), 20, component::empty());
-        let mut action_bar_message_input: EditBox = todo!("fabric2seer: the initialiser of `actionBarMessageInput` (TODO above)");
-        action_bar_message_input.set_max_length(1024);
-        // java: actionBarMessageInput.addFormatter(createRenderTextProvider(actionBarMessageInput::getValue));
-        // rust: port gap - `EditBox.TextFormatter` is a closed enum; the mod's formatter cannot be attached (GAPS_batchF.md)
-        // TODO(fabric2seer): `set_value` takes 2 argument(s) in the port (`splitter: &StringSplitter<W>, value: &str`), Java passes 1
-        // rust: action_bar_message_input.set_value(&(if ChatRule::get_action_bar_message(&compat::read(__this, |__t| __t.chat_rule.clone())).is_some() { ChatRule::get_action_bar_message(&compat::read(__this, |__t| __t.chat_rule.clone())) } else { Some("".to_string()) }).unwrap());
-        let __this_13 = compat::RenderThread::new(__this.clone());
-        action_bar_message_input.set_responder(Responder::Lambda(ResponderLambda::new(move |__a0| { ChatRule::set_action_bar_message(&compat::read(__this_13.get(), |__t| __t.chat_rule.clone()), Some(__a0.to_string())); })));
-        action_bar_message_input.set_hint_component((component::translatable("skyblocker.config.chat.chatRules.screen.ruleScreen.outputField.@Placeholder")).with_style_formats(&[ChatFormatting::Gray, ChatFormatting::Italic]));
-        // TODO(fabric2seer): the port's `add_child_width` ports this Java method with other parameters (grid, child, column_width for Java's widget, column_width)
-        // TODO(fabric2seer): `add_child_width` takes 3 argument(s) in the port (`grid: &mut GridLayout, child: LayoutElement, column_width: i32`), Java passes 2
-        // rust: content_adder.add_child_width(&mut action_bar_message_input, 2).unwrap();
-        // TODO(fabric2seer): `.setMaxWidth(..)` on a value of unknown type
-        //   java: contentAdder.addChild(new MultiLineTextWidget(Component.translatable("skyblocker.config.chat.chatRules.screen.ruleScreen.announcement"), font), alignedLeft).setMaxWidth(getWidth(1)).setCentered(false);
-        // TODO(fabric2seer): the port's `new` ports this Java method with other parameters (splitter, x, y, width, height for Java's width, height, narration)
-        // TODO(fabric2seer): `new` takes 5 argument(s) in the port (`splitter: &StringSplitter<W>, x: i32, y: i32, width: i32, height: i32`), Java passes 4
-        // rust: let mut announcement_message_input: EditBox = EditBox::new(&compat::font(), ChatRuleConfigScreen::get_width(((2) as f32) as f32), 20, component::empty());
-        let mut announcement_message_input: EditBox = todo!("fabric2seer: the initialiser of `announcementMessageInput` (TODO above)");
-        announcement_message_input.set_max_length(1024);
-        // java: announcementMessageInput.addFormatter(createRenderTextProvider(announcementMessageInput::getValue));
-        // rust: port gap - `EditBox.TextFormatter` is a closed enum; the mod's formatter cannot be attached (GAPS_batchF.md)
-        // TODO(fabric2seer): `set_value` takes 2 argument(s) in the port (`splitter: &StringSplitter<W>, value: &str`), Java passes 1
-        // rust: announcement_message_input.set_value(&(if ChatRule::get_announcement_message(&compat::read(__this, |__t| __t.chat_rule.clone())).is_some() { compat::read(&ChatRule::get_announcement_message(&compat::read(__this, |__t| __t.chat_rule.clone())).unwrap(), |__t| __t.message.clone()) } else { "".to_string() }));
-        let __this_14 = compat::RenderThread::new(__this.clone());
-        announcement_message_input.set_responder(Responder::Lambda(ResponderLambda::new(move |s| {
+        let __rule_12 = compat::RenderThread::new(rule.clone());
+        let (_chat_message_input, __l) = ChatRuleConfigScreen::add_edit_box(__this, ChatRuleConfigScreen::get_width(2.0), 1024, &ChatRule::get_chat_message(&rule).unwrap_or_default(), Some(Responder::Lambda(ResponderLambda::new(move |__a0| ChatRule::set_chat_message(__rule_12.get(), Some(__a0.to_string()))))), Some(component::translatable("skyblocker.config.chat.chatRules.screen.ruleScreen.chatMessage.@Placeholder").with_style_formats(&[ChatFormatting::Gray, ChatFormatting::Italic])), None);
+        ChatRuleConfigScreen::add_content(__this, __l, 2, None, Some(__not_hidden));
+
+        // Action Bar
+        let __l = ChatRuleConfigScreen::add_multi_line_text(__this, component::translatable("skyblocker.config.chat.chatRules.screen.ruleScreen.actionBar"), ChatRuleConfigScreen::get_width(1.0), false);
+        ChatRuleConfigScreen::add_content(__this, __l, 1, Some(aligned_left), None);
+        let __rule_13 = compat::RenderThread::new(rule.clone());
+        let (_action_bar_message_input, __l) = ChatRuleConfigScreen::add_edit_box(__this, ChatRuleConfigScreen::get_width(2.0), 1024, &ChatRule::get_action_bar_message(&rule).unwrap_or_default(), Some(Responder::Lambda(ResponderLambda::new(move |__a0| ChatRule::set_action_bar_message(__rule_13.get(), Some(__a0.to_string()))))), Some(component::translatable("skyblocker.config.chat.chatRules.screen.ruleScreen.outputField.@Placeholder").with_style_formats(&[ChatFormatting::Gray, ChatFormatting::Italic])), None);
+        ChatRuleConfigScreen::add_content(__this, __l, 2, None, None);
+
+        // Announcement
+        let __l = ChatRuleConfigScreen::add_multi_line_text(__this, component::translatable("skyblocker.config.chat.chatRules.screen.ruleScreen.announcement"), ChatRuleConfigScreen::get_width(1.0), false);
+        ChatRuleConfigScreen::add_content(__this, __l, 1, Some(aligned_left), None);
+        let __announcement_value: String = ChatRule::get_announcement_message(&rule).map(|__m| compat::read(&__m, |__t| __t.message.clone())).unwrap_or_default();
+        let __this_14 = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
+        let (_announcement_message_input, __l) = ChatRuleConfigScreen::add_edit_box(__this, ChatRuleConfigScreen::get_width(2.0), 1024, &__announcement_value, Some(Responder::Lambda(ResponderLambda::new(move |s| {
+            let Some(__this_14) = __this_14.get().upgrade() else { return; };
+            let rule = ChatRuleConfigScreen::rule(&__this_14);
             if s.is_empty() {
-                { let __v = ChatRule::get_announcement_message(&compat::read(__this_14.get(), |__t| __t.chat_rule.clone())); compat::write(__this_14.get(), |__t| __t.previous_announcement_message = __v); }
-                ChatRule::set_announcement_message(&compat::read(__this_14.get(), |__t| __t.chat_rule.clone()), None);
+                { let __v = ChatRule::get_announcement_message(&rule); compat::write(&__this_14, |__t| __t.previous_announcement_message = __v); }
+                ChatRule::set_announcement_message(&rule, None);
             } else {
-                if ChatRule::get_announcement_message(&compat::read(__this_14.get(), |__t| __t.chat_rule.clone())).is_none() {
-                    ChatRule::set_announcement_message(&compat::read(__this_14.get(), |__t| __t.chat_rule.clone()), (if compat::read(__this_14.get(), |__t| __t.previous_announcement_message.clone()).is_some() { compat::read(__this_14.get(), |__t| __t.previous_announcement_message.clone()) } else { Some(AnnouncementMessage::new_0()) }));
+                if ChatRule::get_announcement_message(&rule).is_none() {
+                    let __previous = compat::read(&__this_14, |__t| __t.previous_announcement_message.clone());
+                    ChatRule::set_announcement_message(&rule, Some(__previous.unwrap_or_else(AnnouncementMessage::new_0)));
                 }
-                { let __v = s.to_string(); compat::write(&ChatRule::get_announcement_message(&compat::read(__this_14.get(), |__t| __t.chat_rule.clone())).unwrap(), |__t| __t.message = __v); }
+                { let __v = s.to_string(); compat::write(&ChatRule::get_announcement_message(&rule).unwrap(), |__t| __t.message = __v); }
             }
-            ChatRuleConfigScreen::recreate_layout(__this_14.get());
-        })));
-        // TODO(fabric2seer): `AbstractWidget::set_tooltip` ports `setTooltip`, but the port's `EditBox` holds no `AbstractWidget` (no Deref, no `base` field) to call it on
-        // rust: announcement_message_input.set_tooltip(Tooltip::create((component::translatable("skyblocker.config.chat.chatRules.screen.ruleScreen.announcement.@Tooltip")).get_string()));
-        announcement_message_input.set_hint_component((component::translatable("skyblocker.config.chat.chatRules.screen.ruleScreen.outputField.@Placeholder")).with_style_formats(&[ChatFormatting::Gray, ChatFormatting::Italic]));
-        // TODO(fabric2seer): the port's `add_child_width` ports this Java method with other parameters (grid, child, column_width for Java's widget, column_width)
-        // TODO(fabric2seer): `add_child_width` takes 3 argument(s) in the port (`grid: &mut GridLayout, child: LayoutElement, column_width: i32`), Java passes 2
-        // rust: content_adder.add_child_width(&mut announcement_message_input, 2).unwrap();
-        // TODO(fabric2seer): the port's `add_child_with` ports this Java method with other parameters (grid, child, settings for Java's widget, layout_settings)
-        // TODO(fabric2seer): `add_child_with` takes 3 argument(s) in the port (`grid: &mut GridLayout, child: LayoutElement, settings: LayoutSettings`), Java passes 2
-        // rust: content_adder.add_child_with(&mut SpacerElement::height(0), __this.lock().borrow().content.new_cell_settings().padding_top(0)).unwrap();
-        let __this_15 = compat::RenderThread::new(__this.clone());
-        let mut announcement_duration_slider: RangedSliderWidget = ((((((RangedSliderWidget::builder().min_max(((1) as f64) as f64, ((10) as f64) as f64)).step(0.1)).width(ChatRuleConfigScreen::get_width(((2) as f32) as f32))).default_value((if ChatRule::get_announcement_message(&compat::read(__this, |__t| __t.chat_rule.clone())).is_some() { ((compat::read(&ChatRule::get_announcement_message(&compat::read(__this, |__t| __t.chat_rule.clone())).unwrap(), |__t| __t.display_duration) as f64) / 1000.0) } else { 5000.0 }))).option_formatter_component_double2_object_function(&component::translatable("skyblocker.config.chat.chatRules.screen.ruleScreen.announcement.duration"), &(Arc::new(move |d: f64| component::literal(&format!("{}s", formatters::FLOAT_NUMBERS.get_mut().format(d.clone())))) as Arc<dyn Fn(f64) -> MutableComponent>))).callback(Arc::new(move |d: f64| {
-            if ChatRule::get_announcement_message(&compat::read(__this_15.get(), |__t| __t.chat_rule.clone())).is_none() {
-                return;
-            }
-            { let __v = ((d * 1000.0) as i64); compat::write(&ChatRule::get_announcement_message(&compat::read(__this_15.get(), |__t| __t.chat_rule.clone())).unwrap(), |__t| __t.display_duration = __v); }
-        }))).build();
-        // TODO(fabric2seer): `.addChild(..)` on a T
-        //   java: contentAdder.addChild(new ToggleableLayoutWidget(
-        //   java: 				Util.make(new FrameLayout(), w -> w.addChild(announcementDurationSlider, p -> p.paddingTop(GRID_SPACING))),
-        //   java: 				() -> chatRule.getAnnouncementMessage() != null
-        //   java: 		), 2, content.newCellSettings().paddingTop(0));
-        // TODO(fabric2seer): `.setMaxWidth(..)` on a value of unknown type
-        //   java: contentAdder.addChild(new MultiLineTextWidget(Component.translatable("skyblocker.config.chat.chatRules.screen.ruleScreen.toast"), font), alignedLeft).setMaxWidth(getWidth(1)).setCentered(false);
-        // TODO(fabric2seer): the port's `new` ports this Java method with other parameters (splitter, x, y, width, height for Java's width, height, narration)
-        // TODO(fabric2seer): `new` takes 5 argument(s) in the port (`splitter: &StringSplitter<W>, x: i32, y: i32, width: i32, height: i32`), Java passes 4
-        // rust: let mut toast_message_input: EditBox = EditBox::new(&compat::font(), ChatRuleConfigScreen::get_width(((2) as f32) as f32), 20, component::empty());
-        let mut toast_message_input: EditBox = todo!("fabric2seer: the initialiser of `toastMessageInput` (TODO above)");
-        toast_message_input.set_max_length(1024);
-        // java: toastMessageInput.addFormatter(createRenderTextProvider(toastMessageInput::getValue));
-        // rust: port gap - `EditBox.TextFormatter` is a closed enum; the mod's formatter cannot be attached (GAPS_batchF.md)
-        // TODO(fabric2seer): `set_value` takes 2 argument(s) in the port (`splitter: &StringSplitter<W>, value: &str`), Java passes 1
-        // rust: toast_message_input.set_value(&(if ChatRule::get_toast_message(&compat::read(__this, |__t| __t.chat_rule.clone())).is_some() { compat::read(&ChatRule::get_toast_message(&compat::read(__this, |__t| __t.chat_rule.clone())).unwrap(), |__t| __t.message.clone()) } else { "".to_string() }));
-        let __this_16 = compat::RenderThread::new(__this.clone());
-        toast_message_input.set_responder(Responder::Lambda(ResponderLambda::new(move |s| {
+            ChatRuleConfigScreen::request_recreate(&__this_14);
+        }))), Some(component::translatable("skyblocker.config.chat.chatRules.screen.ruleScreen.outputField.@Placeholder").with_style_formats(&[ChatFormatting::Gray, ChatFormatting::Italic])), Some(component::translatable("skyblocker.config.chat.chatRules.screen.ruleScreen.announcement.@Tooltip")));
+        ChatRuleConfigScreen::add_content(__this, __l, 2, None, None);
+
+        // java: contentAdder.addChild(SpacerElement.height(0), content.newCellSettings().paddingTop(0));
+        let __s = compat::read(__this, |__t| __t.content.new_cell_settings().padding_top(0));
+        ChatRuleConfigScreen::add_content(__this, LayoutElement::Spacer { x: 0, y: 0, width: 0, height: 0 }, 1, Some(__s), None);
+        let __rule_15 = compat::RenderThread::new(rule.clone());
+        let announcement_duration_slider: compat::Shared<RangedSliderWidget> = RangedSliderWidget::builder().min_max(1.0, 10.0).step(0.1).width(ChatRuleConfigScreen::get_width(2.0)).default_value(match ChatRule::get_announcement_message(&rule) { Some(__m) => compat::read(&__m, |__t| __t.display_duration) as f64 / 1000.0, None => 5000.0 }).option_formatter_component_double2_object_function(&component::translatable("skyblocker.config.chat.chatRules.screen.ruleScreen.announcement.duration"), &(Arc::new(move |d: f64| component::literal(&format!("{}s", formatters::FLOAT_NUMBERS.get_mut().format(d)))) as Arc<dyn Fn(f64) -> MutableComponent>)).callback(Arc::new(move |d: f64| {
+            let Some(__m) = ChatRule::get_announcement_message(__rule_15.get()) else { return; };
+            compat::write(&__m, |__t| __t.display_duration = (d * 1000.0) as i64);
+        })).build();
+        // java: Util.make(new FrameLayout(), w -> w.addChild(announcementDurationSlider, p -> p.paddingTop(GRID_SPACING)))
+        let mut __frame = FrameLayout::new();
+        { let __w = RangedSliderWidget::widget(announcement_duration_slider); let (__ww, __wh) = (__w.get_width(), __w.get_height()); let __i = compat::write(__this, |__t| __t.add_widget(__w)); __frame.add_child_adjusted(LayoutElement::widget(__i, __ww, __wh), &mut |__p| { *__p = __p.padding_top(GRID_SPACING); }); }
+        let __rule_16 = compat::RenderThread::new(rule.clone());
+        let __s = compat::read(__this, |__t| __t.content.new_cell_settings().padding_top(0));
+        ChatRuleConfigScreen::add_content(__this, LayoutElement::Frame(__frame), 2, Some(__s), Some(Arc::new(move || ChatRule::get_announcement_message(__rule_16.get()).is_some())));
+
+        // Toast
+        let __l = ChatRuleConfigScreen::add_multi_line_text(__this, component::translatable("skyblocker.config.chat.chatRules.screen.ruleScreen.toast"), ChatRuleConfigScreen::get_width(1.0), false);
+        ChatRuleConfigScreen::add_content(__this, __l, 1, Some(aligned_left), None);
+        let __toast_value: String = ChatRule::get_toast_message(&rule).map(|__m| compat::read(&__m, |__t| __t.message.clone())).unwrap_or_default();
+        let __this_17 = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
+        let (_toast_message_input, __l) = ChatRuleConfigScreen::add_edit_box(__this, ChatRuleConfigScreen::get_width(2.0), 1024, &__toast_value, Some(Responder::Lambda(ResponderLambda::new(move |s| {
+            let Some(__this_17) = __this_17.get().upgrade() else { return; };
+            let rule = ChatRuleConfigScreen::rule(&__this_17);
             if s.is_empty() {
-                { let __v = ChatRule::get_toast_message(&compat::read(__this_16.get(), |__t| __t.chat_rule.clone())); compat::write(__this_16.get(), |__t| __t.previous_toast_message = __v); }
-                ChatRule::set_toast_message(&compat::read(__this_16.get(), |__t| __t.chat_rule.clone()), None);
+                { let __v = ChatRule::get_toast_message(&rule); compat::write(&__this_17, |__t| __t.previous_toast_message = __v); }
+                ChatRule::set_toast_message(&rule, None);
             } else {
-                if ChatRule::get_toast_message(&compat::read(__this_16.get(), |__t| __t.chat_rule.clone())).is_none() {
-                    ChatRule::set_toast_message(&compat::read(__this_16.get(), |__t| __t.chat_rule.clone()), (if compat::read(__this_16.get(), |__t| __t.previous_toast_message.clone()).is_some() { compat::read(__this_16.get(), |__t| __t.previous_toast_message.clone()) } else { Some(ToastMessage::new_0()) }));
+                if ChatRule::get_toast_message(&rule).is_none() {
+                    let __previous = compat::read(&__this_17, |__t| __t.previous_toast_message.clone());
+                    ChatRule::set_toast_message(&rule, Some(__previous.unwrap_or_else(ToastMessage::new_0)));
                 }
-                { let __v = s.to_string(); compat::write(&ChatRule::get_toast_message(&compat::read(__this_16.get(), |__t| __t.chat_rule.clone())).unwrap(), |__t| __t.message = __v); }
+                { let __v = s.to_string(); compat::write(&ChatRule::get_toast_message(&rule).unwrap(), |__t| __t.message = __v); }
             }
-            ChatRuleConfigScreen::recreate_layout(__this_16.get());
-        })));
-        toast_message_input.set_hint_component((component::translatable("skyblocker.config.chat.chatRules.screen.ruleScreen.outputField.@Placeholder")).with_style_formats(&[ChatFormatting::Gray, ChatFormatting::Italic]));
-        // TODO(fabric2seer): the port's `add_child_width` ports this Java method with other parameters (grid, child, column_width for Java's widget, column_width)
-        // TODO(fabric2seer): `add_child_width` takes 3 argument(s) in the port (`grid: &mut GridLayout, child: LayoutElement, column_width: i32`), Java passes 2
-        // rust: content_adder.add_child_width(&mut toast_message_input, 2).unwrap();
-        let __this_17 = compat::RenderThread::new(__this.clone());
-        let mut toast_options_predicate: Arc<dyn Fn() -> bool> = Arc::new(move || ChatRule::get_toast_message(&compat::read(__this_17.get(), |__t| __t.chat_rule.clone())).is_some());
-        let mut text_and_icon: FrameLayout = FrameLayout::of(ChatRuleConfigScreen::get_width(((1) as f32) as f32), 0);
-        // TODO(fabric2seer): the port's `add_child` ports this Java method with other parameters (grid, child for Java's widget)
-        // TODO(fabric2seer): `add_child` takes 2 argument(s) in the port (`grid: &mut GridLayout, child: LayoutElement`), Java passes 1
-        // rust: content_adder.add_child(&mut ToggleableLayoutWidget::new(LayoutElement::Frame(text_and_icon.clone()), toast_options_predicate.clone())).unwrap();
-        // TODO(fabric2seer): the port's `new` ports this Java method with other parameters (splitter, x, y, width, height for Java's width, height, narration)
-        // TODO(fabric2seer): `new` takes 5 argument(s) in the port (`splitter: &StringSplitter<W>, x: i32, y: i32, width: i32, height: i32`), Java passes 4
-        // rust: let mut item_input: EditBox = EditBox::new(&compat::font(), ChatRuleConfigScreen::get_width(((1) as f32) as f32), 20, component::empty());
-        let mut item_input: EditBox = todo!("fabric2seer: the initialiser of `itemInput` (TODO above)");
-        item_input.set_max_length(300);
+            ChatRuleConfigScreen::request_recreate(&__this_17);
+        }))), Some(component::translatable("skyblocker.config.chat.chatRules.screen.ruleScreen.outputField.@Placeholder").with_style_formats(&[ChatFormatting::Gray, ChatFormatting::Italic])), None);
+        ChatRuleConfigScreen::add_content(__this, __l, 2, None, None);
+
+        let __rule_18 = compat::RenderThread::new(rule.clone());
+        let toast_options_predicate: Arc<dyn Fn() -> bool> = Arc::new(move || ChatRule::get_toast_message(__rule_18.get()).is_some());
+        // Label + preview
+        let mut text_and_icon: FrameLayout = FrameLayout::of(ChatRuleConfigScreen::get_width(1.0), 0);
+        // java: EditBox itemInput = new EditBox(font, getWidth(1), 20, Component.empty()); itemInput.setMaxLength(300);
         // java: ToastIconPreview preview = textAndIcon.addChild(new ToastIconPreview(itemInput), LayoutSettings::alignHorizontallyRight);
-        let mut preview: compat::Shared<ToastIconPreview> = ToastIconPreview::new(item_input.clone());
-        text_and_icon.add_child_adjusted({ let __w = compat::WidgetAdapter::widget(preview.clone()); let (__ww, __wh) = (__w.get_width(), __w.get_height()); LayoutElement::widget(compat::write(__this, |__t| __t.add_widget(__w)), __ww, __wh) }, &mut |__a0| { __a0.align_horizontally_right(); });
+        let preview: compat::Shared<ToastIconPreview> = ToastIconPreview::new(std::sync::Arc::downgrade(__this));
+        let __preview_widget = compat::WidgetAdapter::widget(preview.clone());
+        let (__pw, __ph) = (__preview_widget.get_width(), __preview_widget.get_height());
+        let __preview_index = compat::write(__this, |__t| __t.add_widget(__preview_widget));
+        text_and_icon.add_child_adjusted(LayoutElement::widget(__preview_index, __pw, __ph), &mut |__a0| { *__a0 = __a0.align_horizontally_right(); });
+        // java: textAndIcon.addChild(new MultiLineTextWidget(..toast.icon.., font), LayoutSettings::alignHorizontallyLeft).setMaxWidth(getWidth(1) - preview.getWidth()).setCentered(false);
+        let __l = ChatRuleConfigScreen::add_multi_line_text(__this, component::translatable("skyblocker.config.chat.chatRules.screen.ruleScreen.toast.icon"), ChatRuleConfigScreen::get_width(1.0) - __pw, false);
+        text_and_icon.add_child_adjusted(__l, &mut |__a0| { *__a0 = __a0.align_horizontally_left(); });
+        ChatRuleConfigScreen::add_content(__this, LayoutElement::Frame(text_and_icon), 1, None, Some(toast_options_predicate.clone()));
+
+        // Item input
         let __preview = compat::RenderThread::new(preview.clone());
-        // TODO(fabric2seer): `.setMaxWidth(..)` on a value of unknown type
-        //   java: textAndIcon.addChild(new MultiLineTextWidget(Component.translatable("skyblocker.config.chat.chatRules.screen.ruleScreen.toast.icon"), font), LayoutSettings::alignHorizontallyLeft).setMaxWidth(getWidth(1) - preview.getWidth()).setCentered(false);
-        // TODO(fabric2seer): the port's `add_child` ports this Java method with other parameters (grid, child for Java's widget)
-        // TODO(fabric2seer): `add_child` takes 2 argument(s) in the port (`grid: &mut GridLayout, child: LayoutElement`), Java passes 1
-        // rust: content_adder.add_child(&mut ToggleableLayoutWidget::new(item_input.clone(), toast_options_predicate.clone())).unwrap();
-        let __this_18 = compat::RenderThread::new(__this.clone());
-        item_input.set_responder(Responder::Lambda(ResponderLambda::new(move |item_data| {
-            let mut parsed_stack: Option<mcrust::net::minecraft::world::item::item_stack::ItemStack> = Some(ItemStackComponentizationFixer::from_item_string(item_data, 1));
-            if parsed_stack.as_ref().unwrap().is_empty() {
-                parsed_stack = FlexibleItemStack::get_stack(INVALID_ITEM.get_mut());
+        let __rule_19 = compat::RenderThread::new(rule.clone());
+        let __item_responder = Responder::Lambda(ResponderLambda::new(move |item_data| {
+            let mut parsed_stack: mcrust::net::minecraft::world::item::item_stack::ItemStack = ItemStackComponentizationFixer::from_item_string(item_data, 1);
+            if parsed_stack.is_empty() {
+                // java: parsedStack = INVALID_ITEM.getStack(); if (parsedStack == null) return;
+                let Some(__invalid) = FlexibleItemStack::get_stack(INVALID_ITEM.get_mut()) else { return; };
+                parsed_stack = __invalid;
             }
-            if let Some(parsed_stack) = &parsed_stack {
-            } else {
-                return;
-            }
-            let mut stack: compat::Shared<FlexibleItemStack> = FlexibleItemStack::new4(parsed_stack.clone().unwrap());
+            let stack: compat::Shared<FlexibleItemStack> = FlexibleItemStack::new4(parsed_stack);
             { let __v = FlexibleItemStack::get_stack_or_empty(&stack); compat::write(__preview.get(), |__t| __t.stack = __v); }
             if compat::read(__preview.get(), |__t| __t.stack.is_empty()) {
                 return;
             }
-            let Some(mut message) = ChatRule::get_toast_message(&compat::read(__this_18.get(), |__t| __t.chat_rule.clone())) else {
-                return;
-            };
-            { let __v = Some(stack.clone()); compat::write(&message, |__t| __t.icon = __v); }
-        })));
-        // TODO(fabric2seer): `AbstractWidget::set_tooltip` ports `setTooltip`, but the port's `EditBox` holds no `AbstractWidget` (no Deref, no `base` field) to call it on
-        // rust: item_input.set_tooltip(Tooltip::create((component::translatable("skyblocker.config.chat.chatRules.screen.ruleScreen.toast.icon.@Tooltip")).get_string()));
-        // TODO(fabric2seer): `set_value` takes 2 argument(s) in the port (`splitter: &StringSplitter<W>, value: &str`), Java passes 1
-        // rust: item_input.set_value(&(if ChatRule::get_toast_message(&compat::read(__this, |__t| __t.chat_rule.clone())).is_some() { ChatRuleConfigScreen::get_item_string(&mut compat::read(&ChatRule::get_toast_message(&compat::read(__this, |__t| __t.chat_rule.clone())).unwrap(), |__t| __t.icon.clone()).and_then(|__a0| FlexibleItemStack::get_stack(&__a0)).unwrap_or(mcrust::net::minecraft::world::item::item_stack::empty())) } else { "minecraft:painting".to_string() }));
+            let Some(message) = ChatRule::get_toast_message(__rule_19.get()) else { return; };
+            compat::write(&message, |__t| __t.icon = Some(stack.clone()));
+        }));
+        // java: itemInput.setValue(chatRule.getToastMessage() != null ? getItemString(chatRule.getToastMessage().icon.map(FlexibleItemStack::getStack).orElse(ItemStack.EMPTY)) : "minecraft:painting");
+        // (Java sets the value AFTER the responder, so the preview shows the icon from the start)
+        let __item_value: String = match ChatRule::get_toast_message(&rule) {
+            Some(__m) => ChatRuleConfigScreen::get_item_string(&mut compat::read(&__m, |__t| __t.icon.clone()).and_then(|__a0| FlexibleItemStack::get_stack(&__a0)).unwrap_or(mcrust::net::minecraft::world::item::item_stack::empty())),
+            None => "minecraft:painting".to_string(),
+        };
+        let (mut item_input, __l) = ChatRuleConfigScreen::add_edit_box(__this, ChatRuleConfigScreen::get_width(1.0), 300, "", Some(__item_responder), None, Some(component::translatable("skyblocker.config.chat.chatRules.screen.ruleScreen.toast.icon.@Tooltip")));
+        let __font = compat::font();
+        compat::write(__this, |__t| { let __s = &mut *__t; __s.__widgets.with(&mut __s.base, &mut item_input, |__w| compat::with_edit_box(__w, |__e| __e.set_value(&__font.splitter(), &__item_value))) });
+        compat::write(&preview, |__t| __t.input = Some(item_input.clone()));
+        ChatRuleConfigScreen::add_content(__this, __l, 1, None, Some(toast_options_predicate.clone()));
+        // java: if (minecraft.level == null)
         if mcrust::mcrust::modding::game::level().is_none() {
-            // TODO(fabric2seer): `set_editable` takes 2 argument(s) in the port (`is_editable: bool, is_focused: bool`), Java passes 1
-            // rust: item_input.set_editable(false);
-            { let __v = false; compat::write(&preview, |__t| __t.active = __v); }
-            let mut tooltip: Tooltip = Tooltip::create(component::translatable("skyblocker.config.chat.chatRules.screen.ruleScreen.toast.icon.unableToEdit").get_string());
-            // TODO(fabric2seer): `AbstractWidget::set_tooltip` ports `setTooltip`, but the port's `EditBox` holds no `AbstractWidget` (no Deref, no `base` field) to call it on
-            // rust: item_input.set_tooltip(tooltip.clone());
-            let __wa1 = tooltip.clone();
-            let __o19 = preview.clone();
-            compat::write(&__o19, |__t| __t.set_tooltip(__wa1.clone()));
+            let tooltip = Tooltip::create_text(FormattedText::from(component::translatable("skyblocker.config.chat.chatRules.screen.ruleScreen.toast.icon.unableToEdit")));
+            compat::write(__this, |__t| { let __s = &mut *__t; __s.__widgets.with(&mut __s.base, &mut item_input, |__w| {
+                // java: itemInput.setEditable(false);
+                let __focused = __w.is_focused();
+                compat::with_edit_box(__w, |__e| __e.set_editable(false, __focused));
+                // java: itemInput.setTooltip(tooltip);
+                __w.set_tooltip(tooltip.clone());
+            }) });
+            // java: preview.active = false; preview.setTooltip(tooltip);
+            compat::write(__this, |__t| { let __w = __t.widget_mut(__preview_index); __w.active = false; __w.set_tooltip(tooltip.clone()); });
         }
-        let __this_20 = compat::RenderThread::new(__this.clone());
-        let mut slider_widget: RangedSliderWidget = ((((((RangedSliderWidget::builder().min_max(((1) as f64) as f64, ((10) as f64) as f64)).step(0.1)).width(ChatRuleConfigScreen::get_width(((1) as f32) as f32))).default_value((if ChatRule::get_toast_message(&compat::read(__this, |__t| __t.chat_rule.clone())).is_some() { ((compat::read(&ChatRule::get_toast_message(&compat::read(__this, |__t| __t.chat_rule.clone())).unwrap(), |__t| __t.display_duration) as f64) / 1000.0) } else { 5000.0 }))).option_formatter_component_double2_object_function(&component::translatable("skyblocker.config.chat.chatRules.screen.ruleScreen.toast.duration"), &(Arc::new(move |d: f64| component::literal(&format!("{}s", formatters::FLOAT_NUMBERS.get_mut().format(d.clone())))) as Arc<dyn Fn(f64) -> MutableComponent>))).callback(Arc::new(move |d: f64| {
-            if ChatRule::get_toast_message(&compat::read(__this_20.get(), |__t| __t.chat_rule.clone())).is_none() {
-                return;
-            }
-            { let __v = ((d * 1000.0) as i64); compat::write(&ChatRule::get_toast_message(&compat::read(__this_20.get(), |__t| __t.chat_rule.clone())).unwrap(), |__t| __t.display_duration = __v); }
-        }))).build();
-        // TODO(fabric2seer): the port's `add_child` ports this Java method with other parameters (grid, child for Java's widget)
-        // TODO(fabric2seer): `add_child` takes 2 argument(s) in the port (`grid: &mut GridLayout, child: LayoutElement`), Java passes 1
-        // rust: content_adder.add_child(&mut ToggleableLayoutWidget::new(slider_widget.clone(), toast_options_predicate.clone())).unwrap();
-        slider_widget.set_tooltip(Tooltip::create((component::translatable("skyblocker.config.chat.chatRules.screen.ruleScreen.toast.duration.@Tooltip")).get_string()));
+
+        // Duration slider
+        let __rule_20 = compat::RenderThread::new(rule.clone());
+        let slider_widget: compat::Shared<RangedSliderWidget> = RangedSliderWidget::builder().min_max(1.0, 10.0).step(0.1).width(ChatRuleConfigScreen::get_width(1.0)).default_value(match ChatRule::get_toast_message(&rule) { Some(__m) => compat::read(&__m, |__t| __t.display_duration) as f64 / 1000.0, None => 5000.0 }).option_formatter_component_double2_object_function(&component::translatable("skyblocker.config.chat.chatRules.screen.ruleScreen.toast.duration"), &(Arc::new(move |d: f64| component::literal(&format!("{}s", formatters::FLOAT_NUMBERS.get_mut().format(d)))) as Arc<dyn Fn(f64) -> MutableComponent>)).callback(Arc::new(move |d: f64| {
+            let Some(__m) = ChatRule::get_toast_message(__rule_20.get()) else { return; };
+            compat::write(&__m, |__t| __t.display_duration = (d * 1000.0) as i64);
+        })).build();
+        {
+            let mut __w = RangedSliderWidget::widget(slider_widget);
+            // java: sliderWidget.setTooltip(Tooltip.create(..toast.duration.@Tooltip));
+            __w.set_tooltip(Tooltip::create_text(FormattedText::from(component::translatable("skyblocker.config.chat.chatRules.screen.ruleScreen.toast.duration.@Tooltip"))));
+            let (__ww, __wh) = (__w.get_width(), __w.get_height());
+            let __i = compat::write(__this, |__t| __t.add_widget(__w));
+            ChatRuleConfigScreen::add_content(__this, LayoutElement::widget(__i, __ww, __wh), 1, None, Some(toast_options_predicate));
+        }
+
+        // the container joins the layout (`layout.addToContents(new ContentContainer())`) and the screen's widgets
+        let __container_widget = ContainerWidgetAdapter::widget(__content_container.clone());
+        let __ci = compat::write(__this, |__t| __t.add_widget(__container_widget));
+        compat::write(__this, |__t| __t.content_container = Some((__content_container, __ci)));
         ChatRuleConfigScreen::recreate_layout(__this);
     }
 
     /// java: private FrameLayout buildCheckbox(Component text, Component tooltip, int width, TextAlignment align, Consumer<Boolean> setter, boolean selected)
-    pub fn build_checkbox(__this: &compat::Shared<Self>, text: &MutableComponent, tooltip: &MutableComponent, mut width: i32, align: &TextAlignment, setter: Arc<dyn Fn(bool)>, mut selected: bool) -> FrameLayout {
+    pub fn build_checkbox(__this: &compat::Shared<Self>, text: &MutableComponent, tooltip: &MutableComponent, width: i32, align: &TextAlignment, setter: Arc<dyn Fn(bool)>, selected: bool) -> FrameLayout {
         // java: FrameLayout frame = new FrameLayout().setMinWidth(width); - `setMinWidth` answers `this`
         let mut frame: FrameLayout = FrameLayout::new();
         frame.set_min_width(width);
         // java: Checkbox box = Checkbox.builder(text, font).selected(selected).onValueChange((_, value) -> setter.accept(value)).maxWidth(width).build();
         // (`Builder.build` keeps the tooltip only when the text overflows its rows; no tooltip was given to the builder)
         let __font = compat::font();
-        let mut r#box: Checkbox = Checkbox::build(&__font.splitter(), 0, 0, Some(width), mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(text.clone()), selected, false);
+        let r#box: Checkbox = Checkbox::build(&__font.splitter(), 0, 0, Some(width), FormattedText::from(text.clone()), selected, false);
+        // (the port's `LayoutSettings` setters answer a new value: written back to the frame's default)
         match *align {
             TextAlignment::Left => {
-                frame.default_child_layout_setting().align_horizontally_left();
+                let __s = frame.default_child_layout_setting();
+                *__s = __s.align_horizontally_left();
             }
             TextAlignment::Center => {
-                frame.default_child_layout_setting().align_horizontally_center();
+                let __s = frame.default_child_layout_setting();
+                *__s = __s.align_horizontally_center();
             }
             TextAlignment::Right => {
-                frame.default_child_layout_setting().align_horizontally_right();
+                let __s = frame.default_child_layout_setting();
+                *__s = __s.align_horizontally_right();
             }
-            _ => {}
         }
         // java: box.setTooltip(Tooltip.create(tooltip)); frame.addChild(box);
         // The box joins the screen's widgets (a layout holds a widget by index); its press is `Checkbox.onPress`:
@@ -488,7 +578,7 @@ impl ChatRuleConfigScreen {
             let __value = if let WidgetKind::Checkbox(__c) = &mut __screen.widget_mut(__index).kind { __c.on_press() } else { return; };
             (__setter.get())(__value);
         })));
-        __box_widget.set_tooltip(Tooltip::create(tooltip.get_string()));
+        __box_widget.set_tooltip(Tooltip::create_text(FormattedText::from(tooltip.clone())));
         frame.add_child(LayoutElement::widget(compat::write(__this, |__t| __t.add_widget(__box_widget)), __bw, __bh));
         return frame;
     }
@@ -499,7 +589,7 @@ impl ChatRuleConfigScreen {
     }
 
     /// java: private EditBox.TextFormatter createRenderTextProvider(Supplier<String> fullTextSupplier, boolean onlyIfFormatted)
-    pub fn create_render_text_provider_2(__this: &compat::Shared<Self>, full_text_supplier: Arc<dyn Fn() -> String>, mut only_if_formatted: bool) -> ModTextFormatter {
+    pub fn create_render_text_provider_2(__this: &compat::Shared<Self>, full_text_supplier: Arc<dyn Fn() -> String>, only_if_formatted: bool) -> ModTextFormatter {
         let __this_1 = compat::RenderThread::new(__this.clone());
         let __supplier = compat::RenderThread::new(full_text_supplier);
         return Arc::new(move |s: &str, start: i32| -> Option<mcrust::net::minecraft::util::formatted_char_sequence::Seq> {
@@ -511,61 +601,186 @@ impl ChatRuleConfigScreen {
         });
     }
 
-    /// java: private void recreateLayout()
-    pub fn recreate_layout(__this: &compat::Shared<Self>) {
-        __this.lock().borrow_mut().clear_widgets();
-        ChatRuleConfigScreen::reposition_elements(__this);
-        { let __vw = __this.lock().borrow().layout.as_ref().unwrap().visit_widgets(); for (__i, _, _) in __vw { compat::write(__this, |__t| __t.mark_renderable(__i)); } };
+    /// The content grid as `arrangeElements` sees it: each recorded `contentAdder.addChild` in order, a
+    /// `ToggleableLayoutWidget` whose `isEnabled` answers false standing as an empty cell (Java's disabled toggle is
+    /// 0 x 0 and visits no child, which is a `SpacerElement` of no size).
+    fn build_content(__this: &compat::Shared<Self>) {
+        let (entries, default_settings) = compat::read(__this, |__t| (__t.content_entries.clone(), __t.content.default_cell_settings));
+        let mut grid = GridLayout::new_default();
+        grid.column_spacing(GRID_SPACING);
+        grid.default_cell_settings = default_settings;
+        let mut adder = grid.create_row_helper(3);
+        for entry in entries {
+            let enabled = entry.is_enabled.as_ref().map_or(true, |__f| __f());
+            let element = if enabled { entry.element } else { LayoutElement::Spacer { x: 0, y: 0, width: 0, height: 0 } };
+            let _ = adder.add_child_spanning(&mut grid, element, entry.column_width, entry.settings);
+        }
+        compat::write(__this, |__t| __t.content = grid);
     }
 
-    /// java: @Override protected void repositionElements()
+    /// java: private void recreateLayout() - `clearWidgets(); repositionElements(); layout.visitWidgets(this::addRenderableWidget);`
+    ///
+    /// The screen keeps every widget `init` made (a layout holds them by index): the ones the layout visits now are
+    /// rendered and reachable, the rest (a disabled `ToggleableLayoutWidget`'s) leave the screen's lists.
+    pub fn recreate_layout(__this: &compat::Shared<Self>) {
+        ChatRuleConfigScreen::reposition_elements(__this);
+        let mut __visited: Vec<usize> = compat::read(__this, |__t| __t.layout.as_ref().unwrap().visit_widgets()).into_iter().map(|(__i, _, _)| __i).collect();
+        let mut __content: Vec<(usize, i32, i32)> = Vec::new();
+        compat::read(__this, |__t| LayoutElement::Grid(__t.content.clone()).visit_widgets(&mut __content));
+        __visited.extend(__content.into_iter().map(|(__i, _, _)| __i));
+        compat::write(__this, |__t| {
+            let __count = __t.children().len();
+            for __i in 0..__count {
+                if __visited.contains(&__i) {
+                    __t.widget_mut(__i).visible = true;
+                    __t.mark_renderable(__i);
+                } else {
+                    __t.remove_widget(__i);
+                }
+            }
+        });
+    }
+
+    /// java: @Override protected void repositionElements() - `layout.arrangeElements()`, which arranges the
+    /// `ContentContainer` (`content.arrangeElements()`, its size) and places it (`setX`/`setY`: the content follows,
+    /// scrolled)
     pub fn reposition_elements(__this: &compat::Shared<Self>) {
-        let __r0 = compat::read(__this, |__t| (__t.width, __t.height));
-        { let (__sw, __sh) = __r0; __this.lock().borrow_mut().layout.as_mut().unwrap().screen_width = __sw; __this.lock().borrow_mut().layout.as_mut().unwrap().screen_height = __sh; __this.lock().borrow_mut().layout.as_mut().unwrap().arrange_elements(); let __vw = __this.lock().borrow().layout.as_ref().unwrap().visit_widgets(); for (__i, __x, __y) in __vw { compat::write(__this, |__t| __t.widget_mut(__i).set_position(__x, __y)); } };
+        let (__sw, __sh) = compat::read(__this, |__t| (__t.width, __t.height));
+        // ContentContainer.arrangeElements: content.arrangeElements(); setWidth(content.getWidth() + SIDE_PADDING * 2);
+        // setHeight(layout.getContentHeight());
+        ChatRuleConfigScreen::build_content(__this);
+        let (content_width, content_height) = compat::write(__this, |__t| { __t.content.arrange_elements(); (__t.content.width, __t.content.height) });
+        let Some((container, container_index)) = compat::read(__this, |__t| __t.content_container.clone()) else { return; };
+        let (container_width, container_height) = compat::write(__this, |__t| {
+            let layout = __t.layout.as_mut().unwrap();
+            layout.screen_width = __sw;
+            layout.screen_height = __sh;
+            (content_width + CONTENT_CONTAINER_SIDE_PADDING * 2, layout.get_content_height())
+        });
+        compat::write(__this, |__t| {
+            __t.widget_mut(container_index).set_size(container_width, container_height);
+            let layout = __t.layout.as_mut().unwrap();
+            layout.contents_frame.remove_children();
+            layout.add_to_contents(LayoutElement::widget(container_index, container_width, container_height));
+            layout.arrange_elements();
+            for (__i, __x, __y) in layout.visit_widgets() {
+                __t.widget_mut(__i).set_position(__x, __y);
+            }
+        });
+        let (container_x, container_y) = compat::read(__this, |__t| (__t.widget(container_index).get_x(), __t.widget(container_index).get_y()));
+        // ContentContainer.setY: super.setY(y); refreshScrollAmount();
+        compat::write(&container, |__c| {
+            __c.base.set_position(container_x, container_y);
+            __c.base.set_size(container_width, container_height);
+            __c.content_height = content_height;
+            __c.area.y = container_y;
+            __c.area.height = container_height;
+            __c.area.refresh_scroll_amount(content_height);
+        });
+        ChatRuleConfigScreen::place_content(__this);
+    }
+
+    /// ContentContainer.setX / setScrollAmount: `content.setX(x + SIDE_PADDING)`, `content.setY(getY() - (int)
+    /// scrollAmount())` - the content's widgets moved with it.
+    fn place_content(__this: &compat::Shared<Self>) {
+        let Some((container, _)) = compat::read(__this, |__t| __t.content_container.clone()) else { return; };
+        let (x, y, bottom, scroll) = compat::read(&container, |__c| (__c.base.get_x(), __c.base.get_y(), __c.base.get_bottom(), __c.area.scroll_amount()));
+        let mut __placed: Vec<(usize, i32, i32)> = Vec::new();
+        compat::write(__this, |__t| {
+            __t.content.x = x + CONTENT_CONTAINER_SIDE_PADDING;
+            __t.content.y = y - scroll as i32;
+            __t.content.arrange_elements();
+            LayoutElement::Grid(__t.content.clone()).visit_widgets(&mut __placed);
+        });
+        compat::write(&container, |__c| __c.children = __placed.iter().map(|(__i, _, _)| *__i).collect());
+        compat::write(__this, |__t| {
+            for (__i, __x, __y) in &__placed {
+                let __w = __t.widget_mut(*__i);
+                __w.set_position(*__x, *__y);
+                // ContentContainer.extractWidgetRenderState draws its children inside `enableScissor(getX(), getY(),
+                // getRight(), getBottom())`: a child wholly outside the box draws nothing.
+                // rust: port gap - the game draws the content's widgets itself, without the container's scissor, so a
+                // child partly outside the box is drawn whole (GAPS_N #3)
+                __w.visible = *__y + __w.get_height() > y && *__y < bottom;
+            }
+        });
     }
 
     /// java: @Override public boolean mouseClicked(final MouseButtonEvent event, final boolean doubleClick)
-    pub fn mouse_clicked(__this: &compat::Shared<Self>, event: &MouseButtonEvent, mut double_click: bool) -> bool {
+    pub fn mouse_clicked(__this: &compat::Shared<Self>, event: &MouseButtonEvent, _double_click: bool) -> bool {
         // java: Optional<GuiEventListener> child = getChildAt(event.x(), event.y());
         //   while (child.isPresent() && child.get() instanceof ContainerEventHandler container) child = container.getChildAt(..);
         // The port's screen holds the boxes themselves (a layout holds its widgets by index in the screen's list), so
         // the non-container child under the mouse is a screen child: the first one that is not a container widget.
         let __check: Option<Checkbox> = compat::read(__this, |__t| {
-            __t.children().iter().find(|__w| __w.is_mouse_over(event.x(), event.y()) && !matches!(&__w.kind, WidgetKind::Mod(_))).and_then(|__w| if let WidgetKind::Checkbox(__c) = &__w.kind { Some(__c.clone()) } else { None })
+            __t.children().iter().find(|__w| __w.visible && __w.is_mouse_over(event.x(), event.y()) && !matches!(&__w.kind, WidgetKind::Mod(_))).and_then(|__w| if let WidgetKind::Checkbox(__c) = &__w.kind { Some(__c.clone()) } else { None })
         });
         if let Some(check) = &__check {
-            let mut finder: ClickableStyleFinder = (ClickableStyleFinder::new((((event.x()) as i32)) as f64, ((event.y()) as i32) as f64)).include_insertions(false);
+            let mut finder: ClickableStyleFinder = (ClickableStyleFinder::new(((event.x()) as i32) as f64, ((event.y()) as i32) as f64)).include_insertions(false);
             // java: ((CheckboxAccessor) check).getTextWidget().visitLines(finder);
             {
                 use mcrust::net::minecraft::client::string_splitter::WidthProvider as _;
                 let __font = compat::font();
                 let __splitter = __font.splitter();
                 let __advance = |__ch: char, __style: &Style| __splitter.width_provider.get_width(__ch as u32, __style);
-                check.visit_lines(&__splitter, &mut |__x: i32, __y: i32, __line: &mcrust::net::minecraft::network::chat::formatted_text::FormattedText| finder.accept(__x, __y, __line, &__advance));
+                check.visit_lines(&__splitter, &mut |__x: i32, __y: i32, __line: &FormattedText| finder.accept(__x, __y, __line, &__advance));
             }
-            let mut style: Option<Style> = finder.result().cloned();
-            if style.is_some() && style.as_ref().unwrap().get_click_event().is_some() {
-                // TODO(fabric2seer): `Screen.defaultHandleClickEvent` has no Rust method in the port (looked for `default_handle_click_event` in Screen and its supertypes)
-                // rust: let __h0 = style.as_ref().unwrap().get_click_event();
-                // rust: let __h1 = compat::minecraft();
-                // rust: let __h2 = __this;
-                // rust: __this.lock().borrow().default_handle_click_event(__h0, __h1, __h2);
+            let style: Option<Style> = finder.result().cloned();
+            if let Some(__click) = style.as_ref().and_then(|__s| __s.get_click_event()) {
+                // java: defaultHandleClickEvent(style.getClickEvent(), minecraft, this);
+                use mcrust::net::minecraft::client::gui::screens::screen::{default_handle_click_event, ClickEventOutcome};
+                let (__links, __prompt) = { let __o = compat::minecraft().options.borrow(); (mcrust::net::minecraft::client::options::chat_links(&__o), mcrust::net::minecraft::client::options::chat_links_prompt(&__o)) };
+                match default_handle_click_event(__click, __links, __prompt) {
+                    // `clickUrlAction`: the confirm screen over this one, or the link opened outright
+                    ClickEventOutcome::OpenUrl { uri, prompt } => {
+                        if prompt {
+                            compat::confirm_link_now(&uri);
+                        } else {
+                            mcrust::net::minecraft::util::util::open_uri(&uri);
+                        }
+                    }
+                    // rust: port gap - the other outcomes (`CopyToClipboard`, `OpenFile`, `SuggestCommand`) are run by the
+                    // game's screen pass, which a mod screen's override cannot hand them to (GAPS_N #4)
+                    _ => {}
+                }
                 return true;
             }
         }
         return false;
     }
 
+    /// AbstractScrollArea.mouseScrolled (the `ContentContainer` under the mouse): `setScrollAmount(scrollAmount() -
+    /// scrollY * scrollRate())`, which moves the content.
+    pub fn mouse_scrolled(__this: &compat::Shared<Self>, x: f64, y: f64, scroll_y: f64) -> bool {
+        let Some((container, _)) = compat::read(__this, |__t| __t.content_container.clone()) else { return false; };
+        let over = compat::read(&container, |__c| __c.base.visible && __c.base.is_mouse_over(x, y));
+        if !over {
+            return false;
+        }
+        compat::write(&container, |__c| { let __h = __c.content_height; __c.area.mouse_scrolled(__h, scroll_y); });
+        ChatRuleConfigScreen::place_content(__this);
+        true
+    }
+
     /// java: @Override public void onClose()
     pub fn on_close(__this: &compat::Shared<Self>) {
         ChatRuleConfigScreen::save(__this);
+        // java: minecraft.gui.setScreen(parent);
         mcrust::mcrust::modding::game::set_screen_to_parent();
     }
 
     /// java: private void save()
     pub fn save(__this: &compat::Shared<Self>) {
-        // TODO(fabric2seer): `.set(..)` on a T
-        //   java: ChatRulesHandler.CHAT_RULE_LIST.getData().set(chatRuleIndex, chatRule);
+        // java: ChatRulesHandler.CHAT_RULE_LIST.getData().set(chatRuleIndex, chatRule);
+        let (index, rule) = compat::read(__this, |__t| (__t.chat_rule_index as usize, __t.chat_rule.clone()));
+        let list = chat_rules_handler::CHAT_RULE_LIST.get().clone();
+        let mut data = list.lock().borrow().get_data();
+        if index < data.len() {
+            data[index] = rule;
+        } else {
+            panic!("IndexOutOfBoundsException: Index {} out of bounds for length {}", index, data.len());
+        }
+        list.lock().borrow_mut().set_data(data);
     }
 
 }
@@ -597,14 +812,14 @@ impl ModScreen for compat::ScreenAdapter<ChatRuleConfigScreen> {
         self.lend(screen, |__h| ChatRuleConfigScreen::reposition_elements(__h))
     }
 
-    /// java: Screen.tick (the base body)
+    /// java: Screen.tick (the base body) - and a `recreateLayout()` asked for since the last call
     fn tick(&mut self, screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen) {
-        self.lend(screen, |_| ())
+        self.lend(screen, |__h| ChatRuleConfigScreen::run_requested_recreate(__h))
     }
 
     /// java: Screen.keyPressed (the base body)
     fn key_pressed(&mut self, screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, event: &mcrust::net::minecraft::client::input::key_event::KeyEvent) -> bool {
-        self.lend(screen, |_| ());
+        self.lend(screen, |__h| ChatRuleConfigScreen::run_requested_recreate(__h));
         if event.is_escape() && self.should_close_on_esc() {
             self.on_close();
             return true;
@@ -614,7 +829,12 @@ impl ModScreen for compat::ScreenAdapter<ChatRuleConfigScreen> {
 
     /// java: @Override public boolean mouseClicked(final MouseButtonEvent event, final boolean doubleClick)
     fn mouse_clicked(&mut self, screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, x: f64, y: f64, button: i32) -> bool {
-        self.lend(screen, |__h| ChatRuleConfigScreen::mouse_clicked(__h, &MouseButtonEvent::new(x, y, MouseButtonInfo::new(button, 0)), false))
+        self.lend(screen, |__h| { ChatRuleConfigScreen::run_requested_recreate(__h); ChatRuleConfigScreen::mouse_clicked(__h, &MouseButtonEvent::new(x, y, MouseButtonInfo::new(button, 0)), false) })
+    }
+
+    /// ContainerEventHandler.mouseScrolled - the `ContentContainer` under the mouse scrolls
+    fn mouse_scrolled(&mut self, screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, x: f64, y: f64, _scroll_x: f64, scroll_y: f64) -> bool {
+        self.lend(screen, |__h| { ChatRuleConfigScreen::run_requested_recreate(__h); ChatRuleConfigScreen::mouse_scrolled(__h, x, y, scroll_y) })
     }
 
     /// java: @Override public void onClose()
@@ -624,17 +844,16 @@ impl ModScreen for compat::ScreenAdapter<ChatRuleConfigScreen> {
 
 }
 
-// NOTE(fabric2seer): init, mouseClicked, onClose, repositionElements override(s) of Screen - the port dispatches its own calls, so these run only where the mod calls them; hook the port's method to make the game call them
-
 /// java: private class ToastIconPreview extends AbstractWidget
-#[derive(Clone)]
 pub struct ToastIconPreview {
     /// java: extends net.minecraft.client.gui.components.AbstractWidget
     pub base: AbstractWidget,
     /// java: private ItemStack stack = ItemStack.EMPTY;
     pub stack: mcrust::net::minecraft::world::item::item_stack::ItemStack,
-    /// java: private final EditBox input;
-    pub input: EditBox,
+    /// java: private final EditBox input; - the screen's item input (set once it joined the screen)
+    pub input: Option<compat::WidgetRef>,
+    /// java: ChatRuleConfigScreen.this
+    pub outer: compat::WeakShared<ChatRuleConfigScreen>,
     /// the object's own shared handle: Java's `this` handed to other objects
     pub self_ref: compat::WeakShared<Self>,
 }
@@ -654,44 +873,52 @@ impl std::ops::DerefMut for ToastIconPreview {
 
 impl ToastIconPreview {
     /// java: private ToastIconPreview(EditBox input)
-    pub fn new(mut input: EditBox) -> compat::Shared<Self> {
-        let __init_input = input.clone();
+    pub fn new(outer: compat::WeakShared<ChatRuleConfigScreen>) -> compat::Shared<Self> {
         let __this = compat::shared(Self {
             base: AbstractWidget::new(0, 0, 16, 16, (&component::empty().get_string()).to_string(), WidgetKind::PlainText, OnPress::Inert),
             self_ref: std::sync::Weak::new(),
             stack: mcrust::net::minecraft::world::item::item_stack::empty(),
-            input: __init_input,
+            input: None,
+            outer,
         });
         compat::write(&__this, |__t| __t.self_ref = std::sync::Arc::downgrade(&__this));
-        { let (__q0,) = (Tooltip::create((component::translatable("skyblocker.config.chat.chatRules.screen.ruleScreen.toast.iconPreview.@Tooltip")).get_string()),); __this.lock().borrow_mut().set_tooltip(__q0) };
+        { let (__q0,) = (Tooltip::create_text(FormattedText::from(component::translatable("skyblocker.config.chat.chatRules.screen.ruleScreen.toast.iconPreview.@Tooltip"))),); __this.lock().borrow_mut().set_tooltip(__q0) };
         __this
     }
 
     /// java: @Override protected void extractWidgetRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a)
-    pub fn extract_widget_render_state(__this: &compat::Shared<Self>, graphics: &GuiGraphicsExtractor, mut mouse_x: i32, mut mouse_y: i32, mut a: f32) {
-        graphics.fake_item(&compat::read(__this, |__t| __t.stack.clone()), __this.lock().borrow().get_x(), __this.lock().borrow().get_y());
+    pub fn extract_widget_render_state(__this: &compat::Shared<Self>, graphics: &GuiGraphicsExtractor, _mouse_x: i32, _mouse_y: i32, _a: f32) {
+        let (__stack, __x, __y) = compat::read(__this, |__t| (__t.stack.clone(), __t.get_x(), __t.get_y()));
+        graphics.fake_item(&__stack, __x, __y);
     }
 
     /// java: @Override public void setX(int x)
-    pub fn set_x(__this: &compat::Shared<Self>, mut x: i32) {
+    pub fn set_x(__this: &compat::Shared<Self>, x: i32) {
         __this.lock().borrow_mut().base.set_x(x);
     }
 
     /// java: @Override public void onClick(MouseButtonEvent click, boolean doubled)
-    pub fn on_click(__this: &compat::Shared<Self>, click: &MouseButtonEvent, mut doubled: bool) {
-        // TODO(fabric2seer): `AbstractWidget.onClick` has no Rust method in the port (looked for `on_click` in AbstractWidget and its supertypes)
-        // rust: __this.lock().borrow_mut().base.on_click(click, doubled);
-        // TODO(fabric2seer): unknown name `minecraft`
-        //   java: Objects.requireNonNull(minecraft);
-        // TODO(fabric2seer): unknown name `minecraft`
-        //   java: minecraft.gui.setScreen(new ItemSelectionPopup(ChatRuleConfigScreen.this, item -> {
-        //   java: 				if (item == null) return;
-        //   java: 				input.setValue(getItemString(item));
-        //   java: 			}));
+    pub fn on_click(__this: &compat::Shared<Self>, _click: &MouseButtonEvent, _doubled: bool) {
+        // java: super.onClick(click, doubled); - `AbstractWidget.onClick` is empty
+        let Some(outer) = compat::read(__this, |__t| __t.outer.upgrade()) else { return; };
+        let Some(input) = compat::read(__this, |__t| __t.input.clone()) else { return; };
+        let __outer = compat::RenderThread::new(std::sync::Arc::downgrade(&outer));
+        let __input = compat::RenderThread::new(input);
+        // java: minecraft.gui.setScreen(new ItemSelectionPopup(ChatRuleConfigScreen.this, item -> {..}));
+        let popup = ItemSelectionPopup::new(mcrust::net::minecraft::client::gui::screens::screen::Screen::new(String::new()), Arc::new(move |item: Option<mcrust::net::minecraft::world::item::item_stack::ItemStack>| {
+            // java: if (item == null) return;
+            let Some(mut item) = item else { return; };
+            let Some(outer) = __outer.get().upgrade() else { return; };
+            // java: input.setValue(getItemString(item));
+            let value = ChatRuleConfigScreen::get_item_string(&mut item);
+            let mut input = __input.get().clone();
+            compat::write(&outer, |__t| { let __s = &mut *__t; __s.__widgets.with(&mut __s.base, &mut input, |__w| compat::set_edit_box_value(__w, &value)) });
+        }));
+        mcrust::mcrust::modding::game::set_screen_keeping_parent(Box::new(compat::ScreenAdapter::new(popup)));
     }
 
     /// java: @Override protected void updateWidgetNarration(NarrationElementOutput builder)
-    pub fn update_widget_narration(__this: &compat::Shared<Self>, builder: &dyn NarrationElementOutput) {
+    pub fn update_widget_narration(_this: &compat::Shared<Self>, _builder: &dyn NarrationElementOutput) {
     }
 
 }
@@ -722,13 +949,12 @@ impl ModWidget for compat::WidgetAdapter<ToastIconPreview> {
 
 }
 
-// NOTE(fabric2seer): extractWidgetRenderState, onClick, setX, updateWidgetNarration override(s) of AbstractWidget - the port dispatches its own calls, so these run only where the mod calls them; hook the port's method to make the game call them
-
 /// java: private class SoundSearchMenu extends AbstractWidget
-#[derive(Clone)]
 pub struct SoundSearchMenu {
     /// java: extends net.minecraft.client.gui.components.AbstractWidget
     pub base: AbstractWidget,
+    /// java: ChatRuleConfigScreen.this
+    pub outer: compat::WeakShared<ChatRuleConfigScreen>,
     /// the object's own shared handle: Java's `this` handed to other objects
     pub self_ref: compat::WeakShared<Self>,
 }
@@ -748,44 +974,51 @@ impl std::ops::DerefMut for SoundSearchMenu {
 
 impl SoundSearchMenu {
     /// java: private SoundSearchMenu()
-    pub fn new() -> compat::Shared<Self> {
+    pub fn new(outer: compat::WeakShared<ChatRuleConfigScreen>) -> compat::Shared<Self> {
         let __this = compat::shared(Self {
             base: AbstractWidget::new(0, 0, 16, 16, (&component::empty().get_string()).to_string(), WidgetKind::PlainText, OnPress::Inert),
+            outer,
             self_ref: std::sync::Weak::new(),
         });
         compat::write(&__this, |__t| __t.self_ref = std::sync::Arc::downgrade(&__this));
-        { let (__q0,) = (Tooltip::create((component::translatable("skyblocker.config.chat.chatRules.screen.ruleScreen.sounds.search.@Tooltip")).get_string()),); __this.lock().borrow_mut().set_tooltip(__q0) };
+        { let (__q0,) = (Tooltip::create_text(FormattedText::from(component::translatable("skyblocker.config.chat.chatRules.screen.ruleScreen.sounds.search.@Tooltip"))),); __this.lock().borrow_mut().set_tooltip(__q0) };
         __this
     }
 
     /// java: @Override protected void extractWidgetRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a)
-    pub fn extract_widget_render_state(__this: &compat::Shared<Self>, graphics: &GuiGraphicsExtractor, mut mouse_x: i32, mut mouse_y: i32, mut a: f32) {
-        // TODO(fabric2seer): no overload of `getWidth` takes 0 argument(s)
-        //   java: graphics.blitSprite(RenderPipelines.GUI_TEXTURED, SEARCH_ICON_TEXTURE, this.getX(), this.getY(), this.getWidth(), this.getHeight());
+    pub fn extract_widget_render_state(__this: &compat::Shared<Self>, context: &WidgetRenderContext<'_>, _mouse_x: i32, _mouse_y: i32, _a: f32) {
+        // java: graphics.blitSprite(RenderPipelines.GUI_TEXTURED, SEARCH_ICON_TEXTURE, this.getX(), this.getY(), this.getWidth(), this.getHeight());
+        let (__x, __y, __w, __h) = compat::read(__this, |__t| (__t.get_x(), __t.get_y(), __t.get_width(), __t.get_height()));
+        gui_graphics_extractor::blit_sprite_identifier(context.gl, context.minecraft, mcrust::net::minecraft::client::renderer::render_pipelines::gui_textured(), SEARCH_ICON_TEXTURE.get(), __x, __y, __w, __h);
     }
 
     /// java: @Override public void setX(int x)
-    pub fn set_x(__this: &compat::Shared<Self>, mut x: i32) {
+    pub fn set_x(__this: &compat::Shared<Self>, x: i32) {
         __this.lock().borrow_mut().base.set_x(x);
     }
 
     /// java: @Override public void onClick(MouseButtonEvent click, boolean doubled)
-    pub fn on_click(__this: &compat::Shared<Self>, click: &MouseButtonEvent, mut doubled: bool) {
-        // TODO(fabric2seer): `AbstractWidget.onClick` has no Rust method in the port (looked for `on_click` in AbstractWidget and its supertypes)
-        // rust: __this.lock().borrow_mut().base.on_click(click, doubled);
-        // TODO(fabric2seer): unknown name `minecraft`
-        //   java: Objects.requireNonNull(minecraft);
-        // TODO(fabric2seer): unknown name `minecraft`
-        //   java: minecraft.gui.setScreen(new SoundSelectionPopup(ChatRuleConfigScreen.this, sound -> {
-        //   java: 				if (sound != null) {
-        //   java: 					chatRule.setCustomSound(sound);
-        //   java: 					soundButton.setMessage(Component.translatable("skyblocker.config.chat.chatRules.screen.ruleScreen.sounds.custom").withStyle(ChatFormatting.YELLOW));
-        //   java: 				}
-        //   java: 			}));
+    pub fn on_click(__this: &compat::Shared<Self>, _click: &MouseButtonEvent, _doubled: bool) {
+        // java: super.onClick(click, doubled); - `AbstractWidget.onClick` is empty
+        let Some(outer) = compat::read(__this, |__t| __t.outer.upgrade()) else { return; };
+        let __outer = compat::RenderThread::new(std::sync::Arc::downgrade(&outer));
+        // java: minecraft.gui.setScreen(new SoundSelectionPopup(ChatRuleConfigScreen.this, sound -> {..}));
+        let popup = SoundSelectionPopup::new(mcrust::net::minecraft::client::gui::screens::screen::Screen::new(String::new()), Arc::new(move |sound: Option<SoundEvent>| {
+            let Some(outer) = __outer.get().upgrade() else { return; };
+            if let Some(sound) = sound {
+                // java: chatRule.setCustomSound(sound);
+                ChatRule::set_custom_sound(&ChatRuleConfigScreen::rule(&outer), Some(sound));
+                // java: soundButton.setMessage(Component.translatable("..sounds.custom").withStyle(ChatFormatting.YELLOW));
+                let Some(mut sound_button) = compat::read(&outer, |__t| __t.sound_button.clone()) else { return; };
+                let message = FormattedText::from(component::translatable("skyblocker.config.chat.chatRules.screen.ruleScreen.sounds.custom").with_style_format(ChatFormatting::Yellow));
+                compat::write(&outer, |__t| { let __s = &mut *__t; __s.__widgets.with(&mut __s.base, &mut sound_button, |__w| __w.set_message_text(message.clone())) });
+            }
+        }));
+        mcrust::mcrust::modding::game::set_screen_keeping_parent(Box::new(compat::ScreenAdapter::new(popup)));
     }
 
     /// java: @Override protected void updateWidgetNarration(NarrationElementOutput builder)
-    pub fn update_widget_narration(__this: &compat::Shared<Self>, builder: &dyn NarrationElementOutput) {
+    pub fn update_widget_narration(_this: &compat::Shared<Self>, _builder: &dyn NarrationElementOutput) {
     }
 
 }
@@ -801,7 +1034,7 @@ impl compat::WidgetHalf for SoundSearchMenu {
 impl ModWidget for compat::WidgetAdapter<SoundSearchMenu> {
     /// java: @Override protected void extractWidgetRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a)
     fn extract_widget_render_state(&mut self, widget: &AbstractWidget, context: &mut WidgetRenderContext<'_>, mouse_x: i32, mouse_y: i32, a: f32) {
-        self.lend_ref(widget, |__h| SoundSearchMenu::extract_widget_render_state(__h, &context.graphics, mouse_x, mouse_y, a))
+        self.lend_ref(widget, |__h| SoundSearchMenu::extract_widget_render_state(__h, context, mouse_x, mouse_y, a))
     }
 
     /// java: @Override protected void updateWidgetNarration(NarrationElementOutput builder)
@@ -816,15 +1049,21 @@ impl ModWidget for compat::WidgetAdapter<SoundSearchMenu> {
 
 }
 
-// NOTE(fabric2seer): extractWidgetRenderState, onClick, setX, updateWidgetNarration override(s) of AbstractWidget - the port dispatches its own calls, so these run only where the mod calls them; hook the port's method to make the game call them
-
 /// java: private class ContentContainer extends AbstractContainerWidget implements Layout
-#[derive(Clone)]
+///
+/// The content grid and its widgets belong to the screen here (a layout holds its widgets by index in the screen's
+/// list, and the game dispatches input to them as screen children); the container keeps `AbstractScrollArea`'s
+/// scroll state, its box and the content's height, which the screen brings up to date in `repositionElements`.
 pub struct ContentContainer {
     /// java: extends net.minecraft.client.gui.components.AbstractContainerWidget
     pub base: AbstractContainerWidget,
-    /// java: private final List<AbstractWidget> children = new ArrayList<>();
-    pub children: Vec<AbstractWidget>,
+    /// java: private final List<AbstractWidget> children = new ArrayList<>(); - the screen's indices of the content's
+    /// widgets (`content.visitWidgets(children::add)`)
+    pub children: Vec<usize>,
+    /// AbstractScrollArea's scroll state (`AbstractScrollArea.defaultSettings(8)`, `scrollRate()` 10)
+    pub area: ScrollArea,
+    /// java: @Override protected int contentHeight() - `content.getHeight()`, as of the last arrangement
+    pub content_height: i32,
     /// the object's own shared handle: Java's `this` handed to other objects
     pub self_ref: compat::WeakShared<Self>,
 }
@@ -846,9 +1085,14 @@ impl ContentContainer {
     /// java: private ContentContainer()
     pub fn new() -> compat::Shared<Self> {
         // java: super(0, 0, 0, 0, Component.empty(), AbstractScrollArea.defaultSettings(8));
+        let mut settings = ScrollbarSettings::default_settings(8.0);
+        // java: @Override protected double scrollRate() { return 10; }
+        settings.scroll_rate = ContentContainer::scroll_rate();
         let __this: compat::Shared<Self> = compat::shared(Self {
-            base: AbstractContainerWidget::new_with_scrollbar_settings(0, 0, 0, 0, mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::empty()), mcrust::net::minecraft::client::gui::components::abstract_scroll_area::ScrollbarSettings::default_settings(8.0)),
+            base: AbstractContainerWidget::new_with_scrollbar_settings(0, 0, 0, 0, FormattedText::from(component::empty()), ScrollbarSettings::default_settings(8.0)),
             children: Vec::new(),
+            area: ScrollArea::new(0, 0, settings),
+            content_height: 0,
             self_ref: std::sync::Weak::new(),
         });
         compat::write(&__this, |__t| __t.self_ref = std::sync::Arc::downgrade(&__this));
@@ -856,86 +1100,32 @@ impl ContentContainer {
     }
 
     /// java: @Override public List<? extends GuiEventListener> children() - the `children` list itself
-    pub fn children(__this: &compat::Shared<Self>) -> Vec<AbstractWidget> {
+    pub fn children(__this: &compat::Shared<Self>) -> Vec<usize> {
         return compat::read(__this, |__t| __t.children.clone());
     }
 
     /// java: @Override protected int contentHeight()
     pub fn content_height(__this: &compat::Shared<Self>) -> i32 {
-        // TODO(fabric2seer): `content` is a field of the enclosing instance (ChatRuleConfigScreen.this) - an inner class has no outer reference in Rust
-        //   java: return content.getHeight();
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        // java: return content.getHeight();
+        compat::read(__this, |__t| __t.content_height)
     }
 
     /// java: @Override protected double scrollRate()
-    pub fn scroll_rate(__this: &compat::Shared<Self>) -> f64 {
-        return ((10) as f64) as f64;
+    pub fn scroll_rate() -> f64 {
+        return 10.0;
     }
 
     /// java: @Override protected void extractWidgetRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a)
-    pub fn extract_widget_render_state(__this: &compat::Shared<Self>, graphics: &GuiGraphicsExtractor, mut mouse_x: i32, mut mouse_y: i32, mut a: f32) {
-        graphics.enable_scissor(__this.lock().borrow().get_x(), __this.lock().borrow().get_y(), (__this.lock().borrow().get_x()).wrapping_add(compat::read(__this, |__t| __t.width)), (__this.lock().borrow().get_y()).wrapping_add(compat::read(__this, |__t| __t.height)));
-        for clickable_widget in compat::read(__this, |__t| __t.children.clone()) {
-            // TODO(fabric2seer): `extract_render_state` is a method of the port's trait `Renderable`, which the port's `AbstractWidget` does not implement
-            // rust: clickable_widget.extract_render_state(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), mouse_x, mouse_y, a);
-        }
-        graphics.disable_scissor();
-        // TODO(fabric2seer): `AbstractContainerWidget.extractScrollbar` has no Rust method in the port (looked for `extract_scrollbar` in AbstractContainerWidget and its supertypes)
-        // rust: __this.lock().borrow().extract_scrollbar(graphics, mouse_x, mouse_y);
+    ///
+    /// (the children are the screen's widgets, which the game draws; see `ChatRuleConfigScreen::place_content`)
+    pub fn extract_widget_render_state(__this: &compat::Shared<Self>, context: &WidgetRenderContext<'_>, _mouse_x: i32, _mouse_y: i32, _a: f32) {
+        // java: this.extractScrollbar(graphics, mouseX, mouseY);
+        let (area, content_height, scroll_bar_x) = compat::read(__this, |__t| (__t.area, __t.content_height, __t.base.get_right() - __t.area.scrollbar_width()));
+        compat::extract_scrollbar(context, &area, content_height, scroll_bar_x);
     }
 
     /// java: @Override protected void updateWidgetNarration(NarrationElementOutput builder)
-    pub fn update_widget_narration(__this: &compat::Shared<Self>, builder: &dyn NarrationElementOutput) {
-    }
-
-    /// java: @Override public void visitChildren(Consumer<LayoutElement> consumer)
-    /// (`consumer` takes the container itself - Java's `this` as a `LayoutElement`; the port's layout element for a
-    /// widget is its index in a screen, which the object does not know)
-    pub fn visit_children(__this: &compat::Shared<Self>, consumer: Arc<dyn Fn(compat::Shared<ContentContainer>)>) {
-        (consumer)(__this.clone());
-    }
-
-    /// java: @Override public void setX(int x)
-    pub fn set_x(__this: &compat::Shared<Self>, mut x: i32) {
-        __this.lock().borrow_mut().base.set_x(x);
-        // TODO(fabric2seer): `content` is a field of the enclosing instance (ChatRuleConfigScreen.this) - an inner class has no outer reference in Rust
-        //   java: content.setX(x + SIDE_PADDING);
-    }
-
-    /// java: @Override public void setY(int y)
-    pub fn set_y(__this: &compat::Shared<Self>, mut y: i32) {
-        __this.lock().borrow_mut().base.set_y(y);
-        // TODO(fabric2seer): `refresh_scroll_amount` takes 1 argument(s) in the port (`content_height: i32`), Java passes 0
-        // TODO(fabric2seer): `ScrollArea::refresh_scroll_amount` ports `refreshScrollAmount`, but the port's `AbstractContainerWidget` holds no `ScrollArea` (no Deref, no `base` field) to call it on
-        // rust: __this.lock().borrow_mut().refresh_scroll_amount();
-    }
-
-    /// java: @Override public void setScrollAmount(double scrollY)
-    pub fn set_scroll_amount(__this: &compat::Shared<Self>, mut scroll_y: f64) {
-        // TODO(fabric2seer): `set_scroll_amount` takes 2 argument(s) in the port (`content_height: i32, scroll_amount: f64`), Java passes 1
-        // TODO(fabric2seer): `ScrollArea::set_scroll_amount` ports `setScrollAmount`, but the port's `AbstractContainerWidget` holds no `ScrollArea` (no Deref, no `base` field) to call it on
-        // rust: __this.lock().borrow_mut().base.set_scroll_amount(scroll_y);
-        // TODO(fabric2seer): `content` is a field of the enclosing instance (ChatRuleConfigScreen.this) - an inner class has no outer reference in Rust
-        //   java: content.setY(getY() - (int) scrollAmount());
-    }
-
-    /// java: @Override public void arrangeElements()
-    pub fn arrange_elements(__this: &compat::Shared<Self>) {
-        // TODO(fabric2seer): `content` is a field of the enclosing instance (ChatRuleConfigScreen.this) - an inner class has no outer reference in Rust
-        //   java: content.arrangeElements();
-        __this.lock().borrow_mut().children.clear();
-        // TODO(fabric2seer): `content` is a field of the enclosing instance (ChatRuleConfigScreen.this) - an inner class has no outer reference in Rust
-        //   java: content.visitWidgets(children::add);
-        // TODO(fabric2seer): `content` is a field of the enclosing instance (ChatRuleConfigScreen.this) - an inner class has no outer reference in Rust
-        //   java: setWidth(content.getWidth() + SIDE_PADDING * 2);
-        // TODO(fabric2seer): `layout` is a field of the enclosing instance (ChatRuleConfigScreen.this) - an inner class has no outer reference in Rust
-        //   java: setHeight(layout.getContentHeight());
-    }
-
-    /// java: @Override public void visitWidgets(Consumer<AbstractWidget> consumer)
-    pub fn visit_widgets(__this: &compat::Shared<Self>, consumer: Arc<dyn Fn(AbstractWidget)>) {
-        // TODO(fabric2seer): `AbstractWidget::visit_widgets` ports `visitWidgets`, but the port's `AbstractContainerWidget` holds no `AbstractWidget` (no Deref, no `base` field) to call it on
-        // rust: __this.lock().borrow_mut().base.visit_widgets(&mut consumer);
+    pub fn update_widget_narration(_this: &compat::Shared<Self>, _builder: &dyn NarrationElementOutput) {
     }
 
     /// java: @Override public void removeChildren()
@@ -944,8 +1134,6 @@ impl ContentContainer {
     }
 
 }
-
-// NOTE(fabric2seer): arrangeElements, children, contentHeight, extractWidgetRenderState, removeChildren, scrollRate, setScrollAmount, setX, setY, updateWidgetNarration, visitChildren, visitWidgets override(s) of AbstractContainerWidget - the port dispatches its own calls, so these run only where the mod calls them; hook the port's method to make the game call them
 
 /// ContentContainer's container half (`super`'s fields)
 impl ContainerWidgetHalf for ContentContainer {
@@ -958,7 +1146,7 @@ impl ContainerWidgetHalf for ContentContainer {
 impl ModWidget for ContainerWidgetAdapter<ContentContainer> {
     /// java: @Override protected void extractWidgetRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a)
     fn extract_widget_render_state(&mut self, _widget: &AbstractWidget, context: &mut WidgetRenderContext<'_>, mouse_x: i32, mouse_y: i32, a: f32) {
-        self.lend(|__h| ContentContainer::extract_widget_render_state(__h, &context.graphics, mouse_x, mouse_y, a))
+        self.lend(|__h| ContentContainer::extract_widget_render_state(__h, context, mouse_x, mouse_y, a))
     }
 
     /// java: @Override protected void updateWidgetNarration(NarrationElementOutput builder)

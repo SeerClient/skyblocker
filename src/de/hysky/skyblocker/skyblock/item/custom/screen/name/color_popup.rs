@@ -89,12 +89,28 @@ impl ColorPopup {
         return ColorPopup::new(background_screen, gradient_consumer, true);
     }
 
+    /// `addRenderableWidget(widget)`: the widget joins this screen, and the layout gets its leaf (the port's layouts
+    /// hold a widget by its place in the screen)
+    fn renderable_element(__this: &compat::Shared<Self>, widget: mcrust::net::minecraft::client::gui::components::abstract_widget::AbstractWidget) -> LayoutElement {
+        let (w, h) = (widget.get_width(), widget.get_height());
+        LayoutElement::widget(compat::write(__this, |__t| __t.add_renderable_widget(widget)), w, h)
+    }
+
+    /// `adder.addChild(child, columnWidth[, settings])` on this popup's `layout` (the port's RowHelper is handed its grid)
+    fn grid_add(__this: &compat::Shared<Self>, adder: &mut RowHelper, child: LayoutElement, column_width: i32, settings: Option<LayoutSettings>) {
+        compat::write(__this, |__t| match settings {
+            None => adder.add_child_width(&mut __t.layout, child, column_width),
+            Some(settings) => adder.add_child_spanning(&mut __t.layout, child, column_width, settings),
+        })
+        .expect("GridLayout.addChild");
+    }
+
     /// java: private void createLayout(GridLayout.RowHelper adder)
     pub fn create_layout(__this: &compat::Shared<Self>, adder: &mut RowHelper) {
         let mut color_picker: compat::Shared<ColorPickerWidget> = ColorPickerWidget::new(0, 0, 200, 100);
         let mut argb: compat::Shared<ARGBTextInput> = ARGBTextInput::new(0, 0, compat::font(), true, false);
-        { let (__q0,) = (compat::WidgetAdapter::widget(color_picker.clone()),); __this.lock().borrow_mut().add_renderable_widget(__q0) };
-        { let (__q0,) = (compat::WidgetAdapter::widget(argb.clone()),); __this.lock().borrow_mut().add_renderable_widget(__q0) };
+        let __color_picker_element: LayoutElement = { let __w = compat::WidgetAdapter::widget(color_picker.clone()); let (__ww, __wh) = (__w.get_width(), __w.get_height()); LayoutElement::widget(compat::write(__this, |__t| __t.add_renderable_widget(__w)), __ww, __wh) };
+        let __argb_element: LayoutElement = { let __w = compat::WidgetAdapter::widget(argb.clone()); let (__ww, __wh) = (__w.get_width(), __w.get_height()); LayoutElement::widget(compat::write(__this, |__t| __t.add_renderable_widget(__w)), __ww, __wh) };
         let __this_w1 = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
         let __color_picker = compat::RenderThread::new(std::sync::Arc::downgrade(&color_picker)); // captured weakly: the two widgets refer to each other
         ARGBTextInput::set_on_change(&argb, Arc::new(move |color| { let Some(__this_1) = __this_w1.get().upgrade() else { return Default::default(); }; {
@@ -107,12 +123,8 @@ impl ColorPopup {
             if let Some(__argb) = __argb.get().upgrade() { ARGBTextInput::set_argb_color(&__argb, color); }
             compat::write((&__this_2), |__t| __t.current_color.0 = color); // currentColor.first(color)
         } }));
-        // TODO(fabric2seer): the port's `add_child_width` ports this Java method with other parameters (grid, child, column_width for Java's widget, column_width)
-        // TODO(fabric2seer): `add_child_width` takes 3 argument(s) in the port (`grid: &mut GridLayout, child: LayoutElement, column_width: i32`), Java passes 2
-        // rust: adder.add_child_width(&mut color_picker, 2).unwrap();
-        // TODO(fabric2seer): the port's `add_child_width` ports this Java method with other parameters (grid, child, column_width for Java's widget, column_width)
-        // TODO(fabric2seer): `add_child_width` takes 3 argument(s) in the port (`grid: &mut GridLayout, child: LayoutElement, column_width: i32`), Java passes 2
-        // rust: adder.add_child_width(&mut argb, 2).unwrap();
+        ColorPopup::grid_add(__this, adder, __color_picker_element, 2, None);
+        ColorPopup::grid_add(__this, adder, __argb_element, 2, None);
     }
 
     /// java: private void createLayoutGradient(GridLayout.RowHelper adder)
@@ -121,10 +133,10 @@ impl ColorPopup {
         let mut argb_start: compat::Shared<ARGBTextInput> = ARGBTextInput::new(0, 0, compat::font(), true, false);
         let mut color_picker_end: compat::Shared<ColorPickerWidget> = ColorPickerWidget::new(0, 0, 200, 100);
         let mut argb_end: compat::Shared<ARGBTextInput> = ARGBTextInput::new(0, 0, compat::font(), true, false);
-        { let (__q0,) = (compat::WidgetAdapter::widget(color_picker_start.clone()),); __this.lock().borrow_mut().add_renderable_widget(__q0) };
-        { let (__q0,) = (compat::WidgetAdapter::widget(argb_start.clone()),); __this.lock().borrow_mut().add_renderable_widget(__q0) };
-        { let (__q0,) = (compat::WidgetAdapter::widget(color_picker_end.clone()),); __this.lock().borrow_mut().add_renderable_widget(__q0) };
-        { let (__q0,) = (compat::WidgetAdapter::widget(argb_end.clone()),); __this.lock().borrow_mut().add_renderable_widget(__q0) };
+        let __color_picker_start_element: LayoutElement = { let __w = compat::WidgetAdapter::widget(color_picker_start.clone()); let (__ww, __wh) = (__w.get_width(), __w.get_height()); LayoutElement::widget(compat::write(__this, |__t| __t.add_renderable_widget(__w)), __ww, __wh) };
+        let __argb_start_element: LayoutElement = { let __w = compat::WidgetAdapter::widget(argb_start.clone()); let (__ww, __wh) = (__w.get_width(), __w.get_height()); LayoutElement::widget(compat::write(__this, |__t| __t.add_renderable_widget(__w)), __ww, __wh) };
+        let __color_picker_end_element: LayoutElement = { let __w = compat::WidgetAdapter::widget(color_picker_end.clone()); let (__ww, __wh) = (__w.get_width(), __w.get_height()); LayoutElement::widget(compat::write(__this, |__t| __t.add_renderable_widget(__w)), __ww, __wh) };
+        let __argb_end_element: LayoutElement = { let __w = compat::WidgetAdapter::widget(argb_end.clone()); let (__ww, __wh) = (__w.get_width(), __w.get_height()); LayoutElement::widget(compat::write(__this, |__t| __t.add_renderable_widget(__w)), __ww, __wh) };
         let __this_w1 = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
         let __color_picker_start = compat::RenderThread::new(std::sync::Arc::downgrade(&color_picker_start)); // captured weakly: the two widgets refer to each other
         ARGBTextInput::set_on_change(&argb_start, Arc::new(move |color| { let Some(__this_1) = __this_w1.get().upgrade() else { return Default::default(); }; {
@@ -149,24 +161,12 @@ impl ColorPopup {
             if let Some(__argb_end) = __argb_end.get().upgrade() { ARGBTextInput::set_argb_color(&__argb_end, color); }
             compat::write((&__this_4), |__t| __t.current_color.1 = color); // currentColor.second(color)
         } }));
-        // TODO(fabric2seer): the port's `add_child` ports this Java method with other parameters (grid, child for Java's widget)
-        // TODO(fabric2seer): `add_child` takes 2 argument(s) in the port (`grid: &mut GridLayout, child: LayoutElement`), Java passes 1
-        // rust: { let (__q0,) = (adder.add_child(&mut compat::string_widget(0, 0, -1, 9, component::translatable("skyblocker.customItemNames.screen.gradientStart"))).unwrap(),); __this.lock().borrow_mut().add_renderable_widget(__q0) };
-        // TODO(fabric2seer): the port's `add_child` ports this Java method with other parameters (grid, child for Java's widget)
-        // TODO(fabric2seer): `add_child` takes 2 argument(s) in the port (`grid: &mut GridLayout, child: LayoutElement`), Java passes 1
-        // rust: { let (__q0,) = (adder.add_child(&mut compat::string_widget(0, 0, -1, 9, component::translatable("skyblocker.customItemNames.screen.gradientEnd"))).unwrap(),); __this.lock().borrow_mut().add_renderable_widget(__q0) };
-        // TODO(fabric2seer): the port's `add_child` ports this Java method with other parameters (grid, child for Java's widget)
-        // TODO(fabric2seer): `add_child` takes 2 argument(s) in the port (`grid: &mut GridLayout, child: LayoutElement`), Java passes 1
-        // rust: adder.add_child(&mut color_picker_start).unwrap();
-        // TODO(fabric2seer): the port's `add_child` ports this Java method with other parameters (grid, child for Java's widget)
-        // TODO(fabric2seer): `add_child` takes 2 argument(s) in the port (`grid: &mut GridLayout, child: LayoutElement`), Java passes 1
-        // rust: adder.add_child(&mut color_picker_end).unwrap();
-        // TODO(fabric2seer): the port's `add_child` ports this Java method with other parameters (grid, child for Java's widget)
-        // TODO(fabric2seer): `add_child` takes 2 argument(s) in the port (`grid: &mut GridLayout, child: LayoutElement`), Java passes 1
-        // rust: adder.add_child(&mut argb_start).unwrap();
-        // TODO(fabric2seer): the port's `add_child` ports this Java method with other parameters (grid, child for Java's widget)
-        // TODO(fabric2seer): `add_child` takes 2 argument(s) in the port (`grid: &mut GridLayout, child: LayoutElement`), Java passes 1
-        // rust: adder.add_child(&mut argb_end).unwrap();
+        { let __e = ColorPopup::renderable_element(__this, compat::string_widget(0, 0, -1, 9, component::translatable("skyblocker.customItemNames.screen.gradientStart"))); ColorPopup::grid_add(__this, adder, __e, 1, None); }
+        { let __e = ColorPopup::renderable_element(__this, compat::string_widget(0, 0, -1, 9, component::translatable("skyblocker.customItemNames.screen.gradientEnd"))); ColorPopup::grid_add(__this, adder, __e, 1, None); }
+        ColorPopup::grid_add(__this, adder, __color_picker_start_element, 1, None);
+        ColorPopup::grid_add(__this, adder, __color_picker_end_element, 1, None);
+        ColorPopup::grid_add(__this, adder, __argb_start_element, 1, None);
+        ColorPopup::grid_add(__this, adder, __argb_end_element, 1, None);
     }
 
 }
@@ -204,28 +204,21 @@ impl ColorPopup {
     /// java: @Override protected void init()
     pub fn init_impl(__this: &compat::Shared<Self>) {
         let mut adder: RowHelper = __this.lock().borrow().layout.create_row_helper(2);
-        // TODO(fabric2seer): the port's `add_child_width` ports this Java method with other parameters (grid, child, column_width for Java's widget, column_width)
-        // TODO(fabric2seer): `add_child_width` takes 3 argument(s) in the port (`grid: &mut GridLayout, child: LayoutElement, column_width: i32`), Java passes 2
-        // rust: { let (__q0,) = (adder.add_child_width(&mut compat::string_widget(0, 0, -1, 9, component::translatable("skyblocker.customItemNames.screen.customColorTitle")), 2).unwrap(),); __this.lock().borrow_mut().add_renderable_widget(__q0) };
+        { let __e = ColorPopup::renderable_element(__this, compat::string_widget(0, 0, -1, 9, component::translatable("skyblocker.customItemNames.screen.customColorTitle"))); ColorPopup::grid_add(__this, &mut adder, __e, 2, None); }
         if compat::read(__this, |__t| __t.gradient) {
             ColorPopup::create_layout_gradient(__this, &mut adder);
         } else {
             ColorPopup::create_layout(__this, &mut adder);
         }
-        // TODO(fabric2seer): the port's `add_child_width` ports this Java method with other parameters (grid, child, column_width for Java's widget, column_width)
-        // TODO(fabric2seer): `add_child_width` takes 3 argument(s) in the port (`grid: &mut GridLayout, child: LayoutElement, column_width: i32`), Java passes 2
-        // rust: adder.add_child_width(&mut SpacerElement::height(15), 2).unwrap();
-        // TODO(fabric2seer): the port's `add_child_with` ports this Java method with other parameters (grid, child, settings for Java's widget, layout_settings)
-        // TODO(fabric2seer): `add_child_with` takes 3 argument(s) in the port (`grid: &mut GridLayout, child: LayoutElement, settings: LayoutSettings`), Java passes 2
-        // rust: let __this_w1 = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
-        // rust: { let (__q0,) = (adder.add_child_with(&mut (button::builder(component::translatable("gui.cancel").get_string(), OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| { let Some(__this_1) = __this_w1.get().upgrade() else { return Default::default(); }; compat::lend_screen(&__this_1, __screen, || { let mut __pidx = compat::WidgetRef::Screen(__index); { ({ let __f = compat::dispatch((&__this_1), |__t| __t.on_close()); __f(&compat::view((&__this_1), |a| a as compat::Shared<dyn AbstractPopupScreen>)) }); } }) })))).build(), LayoutSettings::defaults().align_horizontally_right().padding_right(2)).unwrap(),); __this.lock().borrow_mut().add_renderable_widget(__q0) };
-        // TODO(fabric2seer): the port's `add_child_with` ports this Java method with other parameters (grid, child, settings for Java's widget, layout_settings)
-        // TODO(fabric2seer): `add_child_with` takes 3 argument(s) in the port (`grid: &mut GridLayout, child: LayoutElement, settings: LayoutSettings`), Java passes 2
-        // rust: let __this_w2 = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
-        // rust: { let (__q0,) = (adder.add_child_with(&mut (button::builder(component::translatable("gui.done").get_string(), OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| { let Some(__this_2) = __this_w2.get().upgrade() else { return Default::default(); }; compat::lend_screen(&__this_2, __screen, || { let mut __pidx = compat::WidgetRef::Screen(__index); {
-        // rust: (compat::read((&__this_2), |__t| __t.gradient_consumer.clone()).unwrap())(compat::read((&__this_2), |__t| __t.current_color.clone()).0, compat::read((&__this_2), |__t| __t.current_color.clone()).1);
-        // rust: ({ let __f = compat::dispatch((&__this_2), |__t| __t.on_close()); __f(&compat::view((&__this_2), |a| a as compat::Shared<dyn AbstractPopupScreen>)) });
-        // rust: } }) })))).build(), LayoutSettings::defaults().align_horizontally_left().padding_left(2)).unwrap(),); __this.lock().borrow_mut().add_renderable_widget(__q0) };
+        ColorPopup::grid_add(__this, &mut adder, SpacerElement::height(15).as_layout_element(), 2, None);
+        let __this_w1 = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
+        { let __e = ColorPopup::renderable_element(__this, button::builder(component::translatable("gui.cancel").get_string(), OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| { let Some(__this_1) = __this_w1.get().upgrade() else { return Default::default(); }; compat::lend_screen(&__this_1, __screen, || { ({ let __f = compat::dispatch((&__this_1), |__t| __t.on_close()); __f(&compat::view((&__this_1), |a| a as compat::Shared<dyn AbstractPopupScreen>)) }); }) }))).build()); ColorPopup::grid_add(__this, &mut adder, __e, 1, Some(LayoutSettings::defaults().align_horizontally_right().padding_right(2))); }
+        let __this_w2 = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
+        { let __e = ColorPopup::renderable_element(__this, button::builder(component::translatable("gui.done").get_string(), OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| { let Some(__this_2) = __this_w2.get().upgrade() else { return Default::default(); }; compat::lend_screen(&__this_2, __screen, || {
+            let (__first, __second) = compat::read((&__this_2), |__t| __t.current_color);
+            (compat::read((&__this_2), |__t| __t.gradient_consumer.clone()).unwrap())(__first, __second);
+            ({ let __f = compat::dispatch((&__this_2), |__t| __t.on_close()); __f(&compat::view((&__this_2), |a| a as compat::Shared<dyn AbstractPopupScreen>)) });
+        }) }))).build()); ColorPopup::grid_add(__this, &mut adder, __e, 1, Some(LayoutSettings::defaults().align_horizontally_left().padding_left(2))); }
         <dyn AbstractPopupScreen>::init_body(&compat::view(__this, |a| a as compat::Shared<dyn AbstractPopupScreen>));
     }
 
@@ -238,10 +231,18 @@ impl ColorPopup {
     pub fn reposition_elements_impl(__this: &compat::Shared<Self>) {
         <dyn AbstractPopupScreen>::reposition_elements_body(&compat::view(__this, |a| a as compat::Shared<dyn AbstractPopupScreen>));
         { __this.lock().borrow_mut().layout.arrange_elements(); let mut __vw = Vec::new(); LayoutElement::Grid(__this.lock().borrow().layout.clone()).visit_widgets(&mut __vw); for (__i, __x, __y) in __vw { compat::write(__this, |__t| __t.widget_mut(__i).set_position(__x, __y)); } };
-        // TODO(fabric2seer): `LayoutElement::set_position` ports `setPosition`, but the port's `GridLayout` holds no `LayoutElement` (no Deref, no `base` field) to call it on
-        // rust: let __r0 = compat::read(__this, |__t| __t.width);
-        // rust: let __r1 = compat::read(__this, |__t| __t.height);
-        // rust: { let (__q0, __q1,) = (((__r0).wrapping_sub(__this.lock().borrow().layout.get_width())).wrapping_div(2), ((__r1).wrapping_sub(__this.lock().borrow().layout.get_height())).wrapping_div(2),); __this.lock().borrow_mut().layout.set_position(__q0, __q1) };
+        // java: layout.setPosition((width - layout.getWidth()) / 2, (height - layout.getHeight()) / 2); - and the widgets
+        // follow the layout (the port's layouts hold a widget by its place in the screen)
+        compat::write(__this, |__t| {
+            let (__width, __height) = (__t.width, __t.height);
+            let mut __element = LayoutElement::Grid(__t.layout.clone());
+            let (__x, __y) = ((__width.wrapping_sub(__element.get_width())).wrapping_div(2), (__height.wrapping_sub(__element.get_height())).wrapping_div(2));
+            __element.set_position(__x, __y);
+            let mut __vw = Vec::new();
+            __element.visit_widgets(&mut __vw);
+            if let LayoutElement::Grid(__grid) = __element { __t.layout = __grid; }
+            for (__i, __wx, __wy) in __vw { __t.widget_mut(__i).set_position(__wx, __wy); }
+        });
     }
 
     /// ColorPopup.repositionElements as the dispatch of AbstractPopupScreen.repositionElements

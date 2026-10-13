@@ -114,7 +114,7 @@ pub trait SliderWidget<E: Clone + OptionInfo + 'static> {
         }
         (self.slider_widget_base().click_slot)(self.slider_widget_base().slot_id, self.slider_widget_base().button);
         // TODO(fabric2seer): `AbstractWidget.onClick` has no Rust method in the port (looked for `on_click` in AbstractWidget and its supertypes)
-        // rust: self.slider_widget_base().on_click(click, doubled);
+        // java: super.onClick(click, doubled) - AbstractWidget.onClick:100-101 is an empty body, nothing to run
     }
 
     /// java: @Override protected boolean isValidClickButton(MouseButtonInfo input)

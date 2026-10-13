@@ -32,9 +32,9 @@ impl CaxtonCompatibility {
             return None;
         }
         //   java: MethodHandles.Lookup lookup = MethodHandles.publicLookup();
-        let lookup: crate::unresolved::Lookup = public_lookup();
+        let lookup: crate::unresolved::Lookup = compat::jvm_public_lookup();
         // java: try { clazz = Class.forName("xyz.flirora.caxton.render.Voepfxo"); } catch (ClassNotFoundException e) - a panic, caught by `catch_unwind`
-        let clazz: crate::unresolved::Class = match std::panic::catch_unwind(|| class_for_name("xyz.flirora.caxton.render.Voepfxo")) {
+        let clazz: crate::unresolved::Class = match std::panic::catch_unwind(|| compat::jvm_class_for_name("xyz.flirora.caxton.render.Voepfxo")) {
             Ok(clazz) => clazz,
             Err(e) => {
                 logger().error(&format!("[Skyblocker Caxton Compat] Could not find xyz.flirora.caxton.render.Voepfxo {}", compat::panic_message(&e)));
@@ -44,7 +44,7 @@ impl CaxtonCompatibility {
         // java: try {..} catch (NoSuchMethodException | IllegalAccessException e) - a panic, caught by `catch_unwind`
         //   java: return lookup.findStatic(clazz, "drawText4Way",
         //   java: 		MethodType.methodType(void.class, GuiGraphicsExtractor.class, Font.class, FormattedCharSequence.class, float.class, float.class, int.class, int.class));
-        match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| find_method(&lookup, &clazz, "drawText4Way"))) {
+        match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| compat::jvm_find_method(&lookup, &clazz, "drawText4Way"))) {
             Ok(handle) => Some(handle),
             Err(e) => {
                 logger().error(&format!("[Skyblocker Caxton Compat] Could not find drawText4Way method {}", compat::panic_message(&e)));
@@ -59,7 +59,7 @@ impl CaxtonCompatibility {
             return None;
         }
         // java: try { clazz = Class.forName("xyz.flirora.caxton.render.CaxtonShaders"); } catch (ClassNotFoundException e) - a panic, caught by `catch_unwind`
-        let clazz: crate::unresolved::Class = match std::panic::catch_unwind(|| class_for_name("xyz.flirora.caxton.render.CaxtonShaders")) {
+        let clazz: crate::unresolved::Class = match std::panic::catch_unwind(|| compat::jvm_class_for_name("xyz.flirora.caxton.render.CaxtonShaders")) {
             Ok(clazz) => clazz,
             Err(e) => {
                 logger().error(&format!("[Skyblocker Caxton Compat] Could not find xyz.flirora.caxton.render.CaxtonShaders {}", compat::panic_message(&e)));
@@ -91,7 +91,7 @@ impl CaxtonCompatibility {
             //   java: HANDLE.invoke(graphics, Minecraft.getInstance().font, text, x, y, color, outlineColor);
             if let Some(handle) = HANDLE.get().as_ref() {
                 let _ = (graphics, text, x, y, color, outline_color);
-                invoke(handle);
+                compat::jvm_invoke(handle);
             }
         }));
         if let Err(e) = __result {
@@ -114,27 +114,3 @@ impl CaxtonCompatibility {
 
 }
 
-/// `Class.forName(name)` - another mod's JVM class.
-///
-/// rust: port gap - SeerClient runs no JVM: there are no Java mod classes to load or reflect on (`Class.forName`,
-/// `MethodHandles.Lookup.findStatic/findVirtual`, `Field.get`, `MethodHandle.invoke`), so the lookup fails as
-/// `ClassNotFoundException` does in Java for an absent class (GAPS_batchF, GAPS_M #11). Every caller only gets here
-/// after `FabricLoader.isModLoaded(..)` answered true for a SeerClient mod of that id.
-fn class_for_name(name: &str) -> crate::unresolved::Class {
-    panic!("ClassNotFoundException: {name}");
-}
-
-/// `MethodHandles.publicLookup()` - see `class_for_name` (the lookup exists; nothing can be found through it).
-fn public_lookup() -> crate::unresolved::Lookup {
-    crate::unresolved::Lookup
-}
-
-/// `lookup.findStatic(clazz, name, type)` / `findVirtual(..)` - see `class_for_name`.
-fn find_method(_lookup: &crate::unresolved::Lookup, _clazz: &crate::unresolved::Class, name: &str) -> crate::unresolved::MethodHandle {
-    panic!("NoSuchMethodException: {name}");
-}
-
-/// `methodHandle.invoke(..)` - see `class_for_name` (no handle can have been found).
-fn invoke(_handle: &crate::unresolved::MethodHandle) -> compat::Object {
-    panic!("WrongMethodTypeException: no JVM method behind the handle");
-}

@@ -136,8 +136,11 @@ impl SlotTextManager {
 
     /// java: public static void extractSlotText(GuiGraphicsExtractor graphics, Font textRenderer, Slot slot)
     pub fn extract_slot_text(graphics: &GuiGraphicsExtractor, text_renderer: &Font, slot: &Slot) {
-        // TODO(fabric2seer): `get_item` takes 1 argument(s) in the port (`containers: &'a Containers<'_>`), Java passes 0
-        // rust: SlotTextManager::extract_slot_text_7(graphics, text_renderer, Some(slot.clone()), slot.get_item(), slot.index, slot.x, slot.y);
+        // java: extractSlotText(graphics, textRenderer, slot, slot.getItem(), slot.index, slot.x, slot.y);
+        // (`slot.getItem()` reads the open menu's containers: `compat::slot_item`; a caller that holds the stack - the
+        // container screen's slot pass - calls `extract_slot_text_7` with it)
+        let stack = compat::slot_item(slot);
+        SlotTextManager::extract_slot_text_7(graphics, text_renderer, Some(slot.clone()), &stack, slot.index, slot.x, slot.y);
     }
 
     /// java: public static void extractSlotText(GuiGraphicsExtractor graphics, Font textRenderer, @Nullable Slot slot, ItemStack stack, int slotId, int x, int y)

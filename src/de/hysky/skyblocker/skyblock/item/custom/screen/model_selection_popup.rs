@@ -48,9 +48,29 @@ impl std::ops::DerefMut for ModelSelectionPopup {
 impl ModelSelectionPopup {
     /// java: protected ModelSelectionPopup(Screen backgroundScreen, Consumer<@Nullable Identifier> onDone)
     pub fn new(mut background_screen: mcrust::net::minecraft::client::gui::screens::screen::Screen, on_done: Arc<dyn Fn(Option<Identifier>)>) -> compat::Shared<Self> {
-        // TODO(fabric2seer): the mod keeps the game's `Screen` (Java holds a reference to the live object); the port's `Screen` is not a value to copy and the port lends the mod no handle to it
         //   java: super(Component.literal("Select Model"), backgroundScreen, opt -> onDone.accept(opt.map(Widget::getValue).orElse(null)), 20);
-        let __this: compat::Shared<Self> = todo!("constructor");
+        // (open it with `game::set_screen_keeping_parent`: the screen it is opened over is its background screen, which
+        // the base keeps a stand-in for - see `AbstractPopupScreenBase::new_in`)
+        let __on_done: Arc<dyn Fn(Option<compat::Shared<Widget>>)> = Arc::new(move |opt: Option<compat::Shared<Widget>>| on_done(opt.map(|__w| Widget::get_value(&__w))));
+        let (_, __this) = AbstractSelectionPopupBase::new_in(component::literal("Select Model"), background_screen, __on_done, 20, move |__base| {
+            let __h = compat::shared(Self {
+                base: __base,
+                widgets: Vec::new(),
+            });
+            ((__h.clone() as compat::Shared<dyn AbstractSelectionPopup<compat::Shared<Widget>>>), __h)
+        });
+        // java: private final List<Widget> widgets = ((ModelManagerAccessor) Minecraft.getInstance().getModelManager())
+        //   .getBakedItemStackModels().keySet().stream().sorted().map(Widget::new).toList();
+        // (the model manager's baked item models are the published bake's `item_models`; the map is ordered by
+        // `Identifier.compareTo` already)
+        let outer = std::sync::Arc::downgrade(&__this);
+        let widgets: Vec<compat::Shared<Widget>> = mcrust::net::minecraft::client::renderer::game_renderer::baked()
+            .map(|__models| __models.item_models.baked_item_stack_models.keys().cloned().collect::<Vec<Identifier>>())
+            .unwrap_or_default()
+            .into_iter()
+            .map(|__id| Widget::new(outer.clone(), __id))
+            .collect();
+        compat::write(&__this, |__t| __t.widgets = widgets);
         __this
     }
 
@@ -66,9 +86,9 @@ impl AbstractSelectionPopup<compat::Shared<crate::de::hysky::skyblocker::skybloc
 
     /// java: @Override protected Collection<Widget> filterWidgets(String input)
     fn filter_widgets(&self, input: &str) -> Vec<compat::Shared<Widget>> {
-        // TODO(fabric2seer): `fmt` takes 1 argument(s) in the port (`f: &mut fmt::Formatter<'_>`), Java passes 0
-        // rust: return self.widgets.iter().cloned().filter(|w| w.lock().borrow().value.fmt().contains(&(input.replace(' ', &'_'.to_string())).to_lowercase())).collect::<Vec<_>>();
-        return todo!("fabric2seer: see the TODO above");
+        // java: return widgets.stream().filter(w -> w.value.toString().contains(input.replace(' ', '_').toLowerCase(Locale.ENGLISH))).toList();
+        let needle = input.replace(' ', "_").to_lowercase();
+        return self.widgets.iter().cloned().filter(|w| compat::read(w, |__t| __t.value.to_string()).contains(&needle)).collect::<Vec<_>>();
     }
 
 }
@@ -170,6 +190,8 @@ pub struct Widget {
     pub icon: mcrust::net::minecraft::world::item::item_stack::ItemStack,
     /// java: private final Identifier value;
     pub value: Identifier,
+    /// java: ModelSelectionPopup.this
+    pub outer: compat::WeakShared<ModelSelectionPopup>,
     /// the object's own shared handle: Java's `this` handed to other objects
     pub self_ref: compat::WeakShared<Self>,
 }
@@ -189,12 +211,18 @@ impl std::ops::DerefMut for Widget {
 
 impl Widget {
     /// java: @SuppressWarnings("deprecation") public Widget(Identifier identifier)
-    pub fn new(mut identifier: Identifier) -> compat::Shared<Self> {
+    pub fn new(outer: compat::WeakShared<ModelSelectionPopup>, mut identifier: Identifier) -> compat::Shared<Self> {
         let __init_value = identifier.clone();
         let __init_icon = mcrust::net::minecraft::world::item::item_stack::ItemStack::with_patch(/* Items.CAT_SPAWN_EGG.builtInRegistryHolder(): the holder's item */ items::items().get("cat_spawn_egg"), 1, &(data_component_patch::builder().set(mcrust::net::minecraft::core::component::data_components::item_model().clone(), mcrust::com::mojang::serialization::obj(identifier.clone()))).build());
-        // TODO(fabric2seer): `fmt` takes 1 argument(s) in the port (`f: &mut fmt::Formatter<'_>`), Java passes 0
         //   java: super(0, 0, 20, 20, Component.literal(identifier.toString()));
-        let __this: compat::Shared<Self> = todo!("constructor");
+        let __this = compat::shared(Self {
+            base: AbstractWidget::new(0, 0, 20, 20, identifier.to_string(), mcrust::net::minecraft::client::gui::components::abstract_widget::WidgetKind::PlainText, mcrust::net::minecraft::client::gui::components::abstract_widget::OnPress::Inert),
+            icon: __init_icon,
+            value: __init_value,
+            outer,
+            self_ref: std::sync::Weak::new(),
+        });
+        compat::write(&__this, |__t| __t.self_ref = std::sync::Arc::downgrade(&__this));
         { let (__q0,) = (Tooltip::create(compat::component_of(__this.lock().borrow().get_message_component()).get_string()),); __this.lock().borrow_mut().set_tooltip(__q0) };
         __this
     }
@@ -207,9 +235,10 @@ impl Widget {
     /// java: @Override protected void extractWidgetRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a)
     pub fn extract_widget_render_state(__this: &compat::Shared<Self>, graphics: &mut GuiGraphicsExtractor, mut mouse_x: i32, mut mouse_y: i32, mut a: f32) {
         graphics.item(&compat::read(__this, |__t| __t.icon.clone()), (__this.lock().borrow().get_x()).wrapping_add(2), (__this.lock().borrow().get_y()).wrapping_add(2));
-        // TODO(fabric2seer): the condition: `selectedItem` is a field of the enclosing instance (ModelSelectionPopup.this) - an inner class has no outer reference in Rust
-        //   java: selectedItem == this
-        if todo!("fabric2seer: the condition (TODO above)") {
+        // java: if (selectedItem == this)
+        let __outer = compat::read(__this, |__t| __t.outer.upgrade());
+        let __selected = __outer.is_some_and(|__o| compat::read(&__o, |__t| __t.base.selected_item.as_ref().is_some_and(|__s| std::sync::Arc::ptr_eq(__s, __this))));
+        if __selected {
             graphics.fill(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), __this.lock().borrow().get_x(), __this.lock().borrow().get_y(), (__this.lock().borrow().get_x()).wrapping_add(__this.lock().borrow().get_width()), (__this.lock().borrow().get_y()).wrapping_add(__this.lock().borrow().get_height()), 0x3000FF00);
         }
         if __this.lock().borrow().is_hovered() {
@@ -219,10 +248,11 @@ impl Widget {
 
     /// java: @Override public void onClick(MouseButtonEvent click, boolean doubled)
     pub fn on_click(__this: &compat::Shared<Self>, click: &MouseButtonEvent, mut doubled: bool) {
-        // TODO(fabric2seer): `AbstractWidget.onClick` has no Rust method in the port (looked for `on_click` in AbstractWidget and its supertypes)
-        // rust: __this.lock().borrow_mut().base.on_click(click, doubled);
-        // TODO(fabric2seer): `ModelSelectionPopup.this` (the enclosing instance of an inner class)
-        //   java: ModelSelectionPopup.this.setSelectedItem(this);
+        // java: super.onClick(click, doubled); - `AbstractWidget.onClick` is empty
+        let _ = (click, doubled);
+        // java: ModelSelectionPopup.this.setSelectedItem(this);
+        let Some(outer) = compat::read(__this, |__t| __t.outer.upgrade()) else { return; };
+        compat::write(&outer, |__t| __t.set_selected_item(__this.clone()));
     }
 
     /// java: @Override protected void updateWidgetNarration(NarrationElementOutput output)
@@ -258,3 +288,9 @@ impl ModWidget for compat::WidgetAdapter<Widget> {
 }
 
 // NOTE(fabric2seer): extractWidgetRenderState, onClick, updateWidgetNarration override(s) of AbstractWidget - the port dispatches its own calls, so these run only where the mod calls them; hook the port's method to make the game call them
+
+impl crate::de::hysky::skyblocker::utils::render::gui::abstract_selection_popup::SelectionWidget for compat::Shared<Widget> {
+    fn game_widget(&self) -> AbstractWidget {
+        compat::WidgetAdapter::widget(self.clone())
+    }
+}

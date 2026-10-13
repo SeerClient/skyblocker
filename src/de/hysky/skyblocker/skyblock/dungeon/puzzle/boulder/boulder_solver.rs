@@ -182,14 +182,17 @@ impl GameState {
     pub fn equals(&self, mut obj: Option<compat::Object>) -> bool {
         // TODO(fabric2seer): instanceof with a pattern binding outside an `if` condition
         //   java: return obj instanceof GameState gameState && Arrays.deepEquals(grid, gameState.grid) && playerX == gameState.playerX && playerY == gameState.playerY && movedBoxes == gameState.movedBoxes;
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        obj.as_ref().and_then(|o| o.downcast_ref::<GameState>()).is_some_and(|game_state| self.grid == game_state.grid && self.player_x == game_state.player_x && self.player_y == game_state.player_y && self.moved_boxes == game_state.moved_boxes)
     }
 
     /// java: @Override public int hashCode()
     pub fn hash_code(&self) -> i32 {
         // TODO(fabric2seer): Arrays.deepHashCode
         //   java: return Objects.hash(Arrays.deepHashCode(grid), playerX, playerY, movedBoxes);
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        // Arrays.hashCode / deepHashCode / Objects.hash: `31 * h + e` from 1
+        let fold = |values: &mut dyn Iterator<Item = i32>| values.fold(1i32, |h, e| h.wrapping_mul(31).wrapping_add(e));
+        let deep_hash_code: i32 = fold(&mut self.grid.iter().map(|row| fold(&mut row.iter().map(|c| *c as i32))));
+        fold(&mut [deep_hash_code, self.player_x, self.player_y, self.moved_boxes].into_iter())
     }
 
     /// java: public boolean movePlayer(int dx, int dy)

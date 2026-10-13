@@ -91,11 +91,11 @@ impl GardenGlowAdder {
         if !(GardenGlowAdder::contest_enabled(INSTANCE.get_mut())) {
             return false;
         }
-        // TODO(fabric2seer): `.get(..)` on a Multimap
-        //   java: return GardenConstants.PEST_HEAD_BY_CROP
-        //   java: 				.get(CurrentJacobCrop.CURRENT_CROP_CONTEST)
-        //   java: 				.contains(ItemUtils.getHeadTexture(entity.getItemBySlot(EquipmentSlot.HEAD)));
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        // java: return GardenConstants.PEST_HEAD_BY_CROP.get(CurrentJacobCrop.CURRENT_CROP_CONTEST).contains(ItemUtils.getHeadTexture(entity.getItemBySlot(EquipmentSlot.HEAD)));
+        // (a `Multimap.get` of an absent key is the empty collection)
+        let crop: Option<String> = compat::get_state(&current_jacob_crop::CURRENT_CROP_CONTEST);
+        let texture = ItemUtils::get_head_texture(entity.get_item_by_slot(EquipmentSlot::Head));
+        return crop.and_then(|__c| garden_constants::PEST_HEAD_BY_CROP.get(&__c).map(|__heads| __heads.contains(&texture))).unwrap_or(false);
     }
 
     /// java: public static boolean doesPestMatchCurrentVinyl(ArmorStand entity)
@@ -107,18 +107,16 @@ impl GardenGlowAdder {
         if GardenGlowAdder::contest_enabled(INSTANCE.get_mut()) || vinyl.is_empty() {
             return false;
         }
-        // TODO(fabric2seer): `.get(..)` on a Multimap
-        //   java: return GardenConstants.PEST_HEAD_BY_CROP
-        //   java: 				.get(GardenConstants.CROP_BY_VINYL.get(vinyl))
-        //   java: 				.contains(ItemUtils.getHeadTexture(entity.getItemBySlot(EquipmentSlot.HEAD)));
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        // java: return GardenConstants.PEST_HEAD_BY_CROP.get(GardenConstants.CROP_BY_VINYL.get(vinyl)).contains(ItemUtils.getHeadTexture(entity.getItemBySlot(EquipmentSlot.HEAD)));
+        let texture = ItemUtils::get_head_texture(entity.get_item_by_slot(EquipmentSlot::Head));
+        return garden_constants::CROP_BY_VINYL.get(&vinyl).and_then(|__c| garden_constants::PEST_HEAD_BY_CROP.get(__c).map(|__heads| __heads.contains(&texture))).unwrap_or(false);
     }
 
     /// java: public boolean contestEnabled()
     pub fn contest_enabled(__this: &compat::Shared<Self>) -> bool {
-        // TODO(fabric2seer): static call StringUtils.isEmpty(..)
-        //   java: return SkyblockerConfigManager.get().farming.pestHighlighter.contestHighlighter && !StringUtils.isEmpty(CurrentJacobCrop.CURRENT_CROP_CONTEST);
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        // java: return SkyblockerConfigManager.get().farming.pestHighlighter.contestHighlighter && !StringUtils.isEmpty(CurrentJacobCrop.CURRENT_CROP_CONTEST);
+        let _ = __this;
+        return SkyblockerConfigManager::get().farming.pest_highlighter.contest_highlighter && compat::get_state(&current_jacob_crop::CURRENT_CROP_CONTEST).is_some_and(|__c: String| !__c.is_empty());
     }
 
 }
@@ -150,20 +148,22 @@ impl MobGlowAdder for GardenGlowAdder {
 impl GardenGlowAdder {
     /// java: @Override public int computeColour(Entity entity)
     pub fn compute_colour_impl(__this: &compat::Shared<Self>, entity: &dyn Entity) -> i32 {
-        // TODO(fabric2seer): a pattern switch expression
-        //   java: return switch (entity) {
-        //   java: 			case ArmorStand as when isPestHead(as) ->
-        //   java: 					doesPestMatchCurrentContest(as) ?
-        //   java: 							// Pests but during Jacob's Contest
-        //   java: 							TextColor.GREEN.getValue() :
-        //   java: 							// Pests from currently playing vinyl
-        //   java: 							doesPestMatchCurrentVinyl(as) ?
-        //   java: 									TextColor.DARK_AQUA.getValue() :
-        //   java: 									// Default color
-        //   java: 									PEST_COLOUR;
-        //   java: 			default -> NO_GLOW;
-        //   java: 		};
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        // java: return switch (entity) { case ArmorStand as when isPestHead(as) -> doesPestMatchCurrentContest(as) ? TextColor.GREEN.getValue()
+        //   : doesPestMatchCurrentVinyl(as) ? TextColor.DARK_AQUA.getValue() : PEST_COLOUR; default -> NO_GLOW; };
+        let _ = __this;
+        if let Some(r#as) = entity.as_any().unwrap_or(&() as &dyn std::any::Any).downcast_ref::<ArmorStand>() && GardenGlowAdder::is_pest_head(r#as) {
+            return if GardenGlowAdder::does_pest_match_current_contest(r#as) {
+                // Pests but during Jacob's Contest
+                mcrust::net::minecraft::network::chat::text_color::TextColor::GREEN.get_value()
+            } else if GardenGlowAdder::does_pest_match_current_vinyl(r#as) {
+                // Pests from currently playing vinyl
+                mcrust::net::minecraft::network::chat::text_color::TextColor::DARK_AQUA.get_value()
+            } else {
+                // Default color
+                PEST_COLOUR
+            };
+        }
+        return *crate::de::hysky::skyblocker::skyblock::entity::mob_glow::NO_GLOW;
     }
 
     /// GardenGlowAdder.computeColour as the dispatch of MobGlowAdder.computeColour

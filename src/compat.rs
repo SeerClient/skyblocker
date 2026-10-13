@@ -5073,3 +5073,178 @@ pub fn handle_container_input(
     .flatten();
     multi_player_game_mode::send_container_click(packet, container_input, slot_id, button_num);
 }
+
+// ===========================================================================
+// batch N
+// ===========================================================================
+
+/// `player.connection.send(packet)` / `minecraft.getConnection().send(packet)` from the client thread: the play
+/// connection's own hand-off (`client_advancements::send`, the handle's event loop runs the write). `false` when
+/// there is no play connection (Java's `connection` would be null).
+pub fn send_packet<P: mcrust::net::minecraft::network::protocol::packet::Packet + Send + 'static>(packet: P) -> bool {
+    match mcrust::net::minecraft::client::multiplayer::client_packet_listener::published_play_sinks() {
+        Some(sinks) => {
+            mcrust::net::minecraft::client::multiplayer::client_advancements::send(&sinks.connection, packet);
+            true
+        }
+        None => false,
+    }
+}
+
+/// The `ContainerListener.slotChanged` calls a menu made, recorded for the screen that listens (`implements
+/// ContainerListener`): the menu calls its listeners inside the packet handler's hold of the player, where the mod's
+/// screen object cannot be reached, so the call is queued and the screen runs its `slotChanged` for each in its next
+/// own call (`drain_slot_changes`). (Was a private copy in `leap_overlay` and `radial_menu_screen`.)
+pub type SlotChangeQueue = std::sync::Arc<std::sync::Mutex<Vec<(i32, mcrust::net::minecraft::world::item::item_stack::ItemStack)>>>;
+
+/// The listener the menu holds for a `SlotChangeQueue` (`name` is the listening class, for the menu's logs).
+pub struct QueueSlotListener {
+    pub pending: SlotChangeQueue,
+    pub name: &'static str,
+}
+
+impl std::fmt::Debug for QueueSlotListener {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.name)
+    }
+}
+
+impl mcrust::net::minecraft::world::inventory::container_listener::ContainerListener for QueueSlotListener {
+    /// java: @Override public void slotChanged(AbstractContainerMenu handler, int slotId, ItemStack stack)
+    fn slot_changed(&mut self, slot_index: i32, item_stack: &mcrust::net::minecraft::world::item::item_stack::ItemStack) {
+        self.pending.lock().unwrap_or_else(|p| p.into_inner()).push((slot_index, item_stack.duplicate()));
+    }
+
+    /// java: @Override public void dataChanged(AbstractContainerMenu handler, int property, int value)
+    fn data_changed(&mut self, id: i32, value: i32) {
+        let _ = (id, value);
+    }
+}
+
+/// `handler.addSlotListener(listener)` on the menu `fromPacket` built (not the player's yet): the port's takes the
+/// `Containers` its `broadcastChanges` reads - the chest's own and the player's inventory. The menu half is moved out
+/// of the `ChestMenu` for the call (the chest's containers borrow the rest of it) and put back.
+pub fn add_slot_listener(
+    handler: &mut mcrust::net::minecraft::world::inventory::chest_menu::ChestMenu,
+    listener: Box<dyn mcrust::net::minecraft::world::inventory::container_listener::ContainerListener>,
+) {
+    use mcrust::net::minecraft::world::entity::player::player::Player as _;
+    let container_id = handler.menu.container_id;
+    let mut menu = std::mem::replace(&mut handler.menu, mcrust::net::minecraft::world::inventory::abstract_container_menu::AbstractContainerMenu::new(container_id));
+    mcrust::mcrust::modding::game::with_player(|player| {
+        let (_, _, inventory) = player.player_mut().get_container_menu_and_inventory();
+        let mut containers = handler.containers_for(inventory);
+        menu.add_slot_listener(listener, &mut containers);
+    });
+    handler.menu = menu;
+}
+
+/// `handler.addSlotListener(this)` for a screen that queues its `slotChanged` calls: the queue the screen drains.
+pub fn listen_slot_changes(handler: &mut mcrust::net::minecraft::world::inventory::chest_menu::ChestMenu, name: &'static str) -> SlotChangeQueue {
+    let pending: SlotChangeQueue = Default::default();
+    add_slot_listener(handler, Box::new(QueueSlotListener { pending: pending.clone(), name }));
+    pending
+}
+
+/// The queued `slotChanged` calls, in order (the queue is left empty).
+pub fn take_slot_changes(queue: &SlotChangeQueue) -> Vec<(i32, mcrust::net::minecraft::world::item::item_stack::ItemStack)> {
+    std::mem::take(&mut *queue.lock().unwrap_or_else(|p| p.into_inner()))
+}
+
+/// `CompletableFuture.runAsync(runnable, executor).exceptionally(e -> { LOGGER.error(message, e); return null; })` for a
+/// runnable over the mod's objects (`Arc<dyn Fn()>`, not `Send`): it runs deferred on the render thread
+/// (`execute_local`), and a panic is the exceptional completion, logged. (Was `ItemRepository::run_async_logging`.)
+pub fn run_async_logging(runnable: std::sync::Arc<dyn Fn()>, message: &'static str) {
+    execute_local(move || {
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| (runnable)()));
+        if let Err(e) = result {
+            crate::prelude::logger().error(&format!("{} {}", message, panic_message(&e)));
+        }
+    });
+}
+
+thread_local! {
+    /// The render-thread futures `local_of` completes, by id: a worker's completion reaches the render thread as a
+    /// `Send` task carrying the id and the value.
+    static PENDING_LOCAL_FUTURES: std::cell::RefCell<std::collections::HashMap<u64, Box<dyn std::any::Any>>> = std::cell::RefCell::new(std::collections::HashMap::new());
+}
+static NEXT_LOCAL_FUTURE: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+/// A worker's `CompletableFuture<T>` (`Send` values) continued on the render thread as a `LocalFuture<T>`: completed (or
+/// failed) through `game::execute` when the worker's future completes - Java's `thenApplyAsync(.., minecraft)` hop.
+/// (Was a private helper of `profileviewer2/profile_viewer.rs`.)
+pub fn local_of<T: Clone + Send + 'static>(future: &mcrust::java::util::concurrent::completable_future::CompletableFuture<T>) -> LocalFuture<T> {
+    let local = LocalFuture::<T>::new();
+    let id = NEXT_LOCAL_FUTURE.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    PENDING_LOCAL_FUTURES.with(|pending| pending.borrow_mut().insert(id, Box::new(local.clone())));
+    future.when_complete(Box::new(move |result: Result<&T, &str>| {
+        let result: Result<T, String> = result.map(|value| value.clone()).map_err(|e| e.to_string());
+        mcrust::mcrust::modding::game::execute(move || {
+            let Some(local) = PENDING_LOCAL_FUTURES.with(|pending| pending.borrow_mut().remove(&id)) else { return; };
+            let Ok(local) = local.downcast::<LocalFuture<T>>() else { return; };
+            match result {
+                Ok(value) => {
+                    local.complete(value);
+                }
+                Err(e) => {
+                    local.complete_exceptionally(e);
+                }
+            }
+        });
+    }));
+    local
+}
+
+/// `NEURepoFile.isFile()`.
+///
+/// rust: port gap - the NEU repo library (`io.github.moulberry.repo`) is a `crate::unresolved` placeholder with no file
+/// behind it, and `NEURepoManager.tree(..)` answers no files (GAPS_L, GAPS_M #10); a placeholder file is no regular file.
+/// (Was a private copy in `block_break_prediction.rs`.)
+pub fn neu_repo_file_is_file(file: &crate::unresolved::NEURepoFile) -> bool {
+    let _ = file;
+    false
+}
+
+/// `new String(file.stream().readAllBytes())`.
+///
+/// rust: port gap - see `neu_repo_file_is_file` (GAPS_M #10): a placeholder file has no content. (Was a private copy in
+/// `block_break_prediction.rs` and `attributes.rs`.)
+pub fn neu_repo_file_read_all(file: &crate::unresolved::NEURepoFile) -> String {
+    let _ = file;
+    String::new()
+}
+
+/// `Class.forName(name)` - another mod's JVM class.
+///
+/// rust: port gap - SeerClient runs no JVM: there are no Java mod classes to load or reflect on (`Class.forName`,
+/// `MethodHandles.Lookup.findStatic/findVirtual`, `Field.get`, `MethodHandle.invoke`), so the lookup fails as
+/// `ClassNotFoundException` does in Java for an absent class (GAPS_batchF, GAPS_M #11). Every caller only gets here
+/// after `FabricLoader.isModLoaded(..)` answered true for a SeerClient mod of that id. (Was a private copy in the
+/// three `compatibility/*_compatibility.rs` files.)
+pub fn jvm_class_for_name(name: &str) -> crate::unresolved::Class {
+    panic!("ClassNotFoundException: {name}");
+}
+
+/// `MethodHandles.publicLookup()` - see `jvm_class_for_name` (the lookup exists; nothing can be found through it).
+pub fn jvm_public_lookup() -> crate::unresolved::Lookup {
+    crate::unresolved::Lookup
+}
+
+/// `lookup.findStatic(clazz, name, type)` / `findVirtual(..)` - see `jvm_class_for_name`.
+pub fn jvm_find_method(_lookup: &crate::unresolved::Lookup, _clazz: &crate::unresolved::Class, name: &str) -> crate::unresolved::MethodHandle {
+    panic!("NoSuchMethodException: {name}");
+}
+
+/// `methodHandle.invoke(..)` - see `jvm_class_for_name` (no handle can have been found).
+pub fn jvm_invoke(_handle: &crate::unresolved::MethodHandle) -> Object {
+    panic!("WrongMethodTypeException: no JVM method behind the handle");
+}
+
+/// `layout.defaultCellSetting().alignX()...` (Java's setters change the cell defaults in place): the port's
+/// `LayoutSettings` setters answer a new value, so the chain is applied to the default and written back.
+pub fn adjust_layout_settings(
+    settings: &mut mcrust::net::minecraft::client::gui::layouts::layout_settings::LayoutSettings,
+    adjust: impl FnOnce(mcrust::net::minecraft::client::gui::layouts::layout_settings::LayoutSettings) -> mcrust::net::minecraft::client::gui::layouts::layout_settings::LayoutSettings,
+) {
+    *settings = adjust(*settings);
+}

@@ -129,7 +129,7 @@ impl AccessoriesHelperWidget {
         // `layout.addChild(LinearLayout.vertical())` answers the child itself; the port's layouts hold children by value,
         // so the child is built here and added once it is finished (below, before it is arranged)
         let mut main_layout: LinearLayout = LinearLayout::vertical();
-        main_layout.default_cell_setting().align_horizontally_center();
+        { let __s = main_layout.default_cell_setting(); *__s = (*__s).align_horizontally_center(); }
         // TODO(fabric2seer): `.createRowHelper(..)` on a value of unknown type
         //   java: GridLayout.RowHelper adder = mainLayout.addChild(new GridLayout()).createRowHelper(5);
         let mut adder: RowHelper = todo!("fabric2seer: the initialiser of `adder` (TODO above)");
@@ -148,14 +148,14 @@ impl AccessoriesHelperWidget {
         // the port's layouts hold a child by value (see `main_layout` above), so the switcher is built here and added
         // to `main_layout` once its children are in (below), in the same place among `main_layout`'s children
         let mut page_switcher: LinearLayout = LinearLayout::horizontal().spacing(2);
-        page_switcher.default_cell_setting().align_vertically_middle();
+        { let __s = page_switcher.default_cell_setting(); *__s = (*__s).align_vertically_middle(); }
         // TODO(fabric2seer): a widget put in a layout outside a mod screen's own methods: the port's layouts hold a widget by its index in the screen's widget list
         // rust: page_switcher.add_child(compat::read(&__this, |__t| __t.prev_page_button.clone()));
         // TODO(fabric2seer): `.addChild(..)` on a value of unknown type
         //   java: pageSwitcher.addChild(new FrameLayout(30, 0)).addChild(pageText);
         // TODO(fabric2seer): a widget put in a layout outside a mod screen's own methods: the port's layouts hold a widget by its index in the screen's widget list
         // rust: page_switcher.add_child(compat::read(&__this, |__t| __t.next_page_button.clone()));
-        main_layout.add_child_adjusted(LayoutElement::Grid(page_switcher.wrapped.clone()), &mut |p| { p.padding_vertical(4); });
+        main_layout.add_child_adjusted(LayoutElement::Grid(page_switcher.wrapped.clone()), &mut |p| { *p = p.padding_vertical(4); });
         let mut filter_width: i32 = (__this.lock().borrow().layout.as_ref().unwrap().get_width()).wrapping_sub(2);
         // TODO(fabric2seer): the port's `builder` ports this Java method with other parameters (default_value for Java's value_stringifier, default_value)
         // TODO(fabric2seer): `builder` takes 1 argument(s) in the port (`default_value: String`), Java passes 2

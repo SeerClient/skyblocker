@@ -27,10 +27,7 @@ fn modify_command_suggestions(v: ClientCommandNode) -> ClientCommandNode {
         let literal: String = literal_command_node.get_literal().to_string();
         let replacement: Option<ClientCommandNode> = match literal.as_str() {
             //   java: case String s when s.equals("setmaxspeed") -> SpeedPresets.getCommandNode();
-            // rust: cross-package - `SpeedPresets::get_command_node` (skyblock/speedpreset/speed_presets.rs:46) still answers a
-            // `CommandNode<crate::unresolved::FabricClientCommandSource>`, not this `ClientCommandNode`; the case
-            // answers `original` until it does.
-            "setmaxspeed" => None,
+            "setmaxspeed" => Some(sb::speedpreset::speed_presets::SpeedPresets::get_command_node()),
             "warp" => compat::get_state(&sb::warp_autocomplete::COMMAND_NODE),
             "getfromsacks" => compat::get_state(&sb::sack_item_autocomplete::LONG_COMMAND_NODE),
             "gfs" => compat::get_state(&sb::sack_item_autocomplete::SHORT_COMMAND_NODE),
@@ -41,9 +38,7 @@ fn modify_command_suggestions(v: ClientCommandNode) -> ClientCommandNode {
             "rngmeter" => compat::get_state(&sb::rng_meter_autocomplete::LONG_COMMAND),
             "rng" => compat::get_state(&sb::rng_meter_autocomplete::SHORT_COMMAND),
             //   java: case String s when s.equals("call") && CallAutocomplete.commandNode != null -> CallAutocomplete.commandNode;
-            // (the same cross-package wait: `CallAutocomplete::COMMAND_NODE` is still an `Option<LiteralCommandNode>`
-            // (skyblock/call_autocomplete.rs:10), not a `ClientCommandNode`)
-            "call" => None,
+            "call" => compat::get_state(&sb::call_autocomplete::COMMAND_NODE),
             "ahs" => compat::get_state(&sb::auction_bazaar_autocomplete::AHS_NODE),
             "ahsearch" => compat::get_state(&sb::auction_bazaar_autocomplete::AHSEARCH_NODE),
             "bz" => compat::get_state(&sb::auction_bazaar_autocomplete::BZ_NODE),

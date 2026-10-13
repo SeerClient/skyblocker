@@ -23,7 +23,7 @@ pub static OPTION_BACK_TEXTURE: compat::MainThread<Identifier> = compat::MainThr
 // TODO(fabric2seer): call to `values(..)` (not a method of this class)
 //   java: private static final Option[] values = values();
 /// java: private static final Option[] values = values();
-pub static OPTION_VALUES: LazyLock<Vec<Option>> = LazyLock::new(|| todo!("fabric2seer: the initialiser of `values` - see the TODO above"));
+pub static OPTION_VALUES: LazyLock<Vec<Option>> = LazyLock::new(Option::values);
 
 /// java: public class SortWidget extends SliderWidget<SortWidget.Option>
 #[derive(Clone)]
@@ -164,7 +164,7 @@ impl Option {
     pub fn get_offset(&self) -> i32 {
         // TODO(fabric2seer): call to `ordinal(..)` (not a method of this class)
         //   java: return 5 * ordinal();
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        5 * self.ordinal()
     }
 
     /// java: @Override public int[] getOptionSize()

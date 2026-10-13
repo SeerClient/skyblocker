@@ -12,7 +12,7 @@ use mcrust::org::joml::matrix3x2f::Matrix3x2f;
 #[derive(Clone, Debug)]
 pub struct GuiHorizontalGradientRenderState {
     /// java: RenderPipeline pipeline
-    pub pipeline: RenderPipeline,
+    pub pipeline: std::rc::Rc<RenderPipeline>,
     /// java: TextureSetup textureSetup
     pub texture_setup: TextureSetup,
     /// java: Matrix3x2f matrix
@@ -37,18 +37,18 @@ pub struct GuiHorizontalGradientRenderState {
 
 impl GuiHorizontalGradientRenderState {
     /// java: public GuiHorizontalGradientRenderState( RenderPipeline pipeline, TextureSetup textureSetup, Matrix3x2f pose, int startX, int startY, int endX, int endY, int colorStart, int colorEnd, @Nullable Screen
-    pub fn new(mut pipeline: RenderPipeline, mut texture_setup: TextureSetup, mut pose: Matrix3x2f, mut start_x: i32, mut start_y: i32, mut end_x: i32, mut end_y: i32, mut color_start: i32, mut color_end: i32, mut scissor_area: Option<ScreenRectangle>) -> Self {
+    pub fn new(mut pipeline: std::rc::Rc<RenderPipeline>, mut texture_setup: TextureSetup, mut pose: Matrix3x2f, mut start_x: i32, mut start_y: i32, mut end_x: i32, mut end_y: i32, mut color_start: i32, mut color_end: i32, mut scissor_area: Option<ScreenRectangle>) -> Self {
         let mut this = Self::new_canonical(pipeline.clone(), texture_setup.clone(), pose.clone(), start_x, start_y, end_x, end_y, color_start, color_end, scissor_area.clone(), GuiHorizontalGradientRenderState::create_bounds(start_x, start_y, end_x, end_y, &pose, scissor_area.clone()));
         this
     }
 
     /// java: the canonical record constructor
-    pub fn new_canonical(mut pipeline: RenderPipeline, mut texture_setup: TextureSetup, mut matrix: Matrix3x2f, mut start_x: i32, mut start_y: i32, mut end_x: i32, mut end_y: i32, mut color_start: i32, mut color_end: i32, mut scissor_area: Option<ScreenRectangle>, mut bounds: Option<ScreenRectangle>) -> Self {
+    pub fn new_canonical(mut pipeline: std::rc::Rc<RenderPipeline>, mut texture_setup: TextureSetup, mut matrix: Matrix3x2f, mut start_x: i32, mut start_y: i32, mut end_x: i32, mut end_y: i32, mut color_start: i32, mut color_end: i32, mut scissor_area: Option<ScreenRectangle>, mut bounds: Option<ScreenRectangle>) -> Self {
         Self { pipeline, texture_setup, matrix, start_x, start_y, end_x, end_y, color_start, color_end, scissor_area, bounds }
     }
 
     /// java: the record accessor `pipeline()`
-    pub fn pipeline(&self) -> RenderPipeline {
+    pub fn pipeline(&self) -> std::rc::Rc<RenderPipeline> {
         self.pipeline.clone()
     }
 
@@ -116,4 +116,30 @@ impl GuiHorizontalGradientRenderState {
         { vertices.add_vertex_with_2d_pose(&self.matrix(), (self.end_x()) as f32, (self.start_y()) as f32); vertices.set_color(self.color_end()); &mut *vertices };
     }
 
+}
+
+/// java: `implements GuiElementRenderState` - `ScreenArea.bounds()` is the record's `bounds`
+impl mcrust::net::minecraft::client::renderer::state::gui::screen_area::ScreenArea for GuiHorizontalGradientRenderState {
+    fn bounds(&self) -> Option<ScreenRectangle> {
+        self.bounds.clone()
+    }
+}
+
+/// java: `implements GuiElementRenderState` - the record's accessors and `buildVertices`
+impl mcrust::net::minecraft::client::renderer::state::gui::gui_element_render_state::GuiElementRenderState for GuiHorizontalGradientRenderState {
+    fn build_vertices(&self, vertex_consumer: &mut dyn VertexConsumer) {
+        GuiHorizontalGradientRenderState::build_vertices(self, vertex_consumer)
+    }
+
+    fn pipeline(&self) -> std::rc::Rc<RenderPipeline> {
+        self.pipeline.clone()
+    }
+
+    fn texture_setup(&self) -> &TextureSetup {
+        &self.texture_setup
+    }
+
+    fn scissor_area(&self) -> Option<ScreenRectangle> {
+        self.scissor_area.clone()
+    }
 }

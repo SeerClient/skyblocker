@@ -81,7 +81,7 @@ impl PositionRuleWidget {
             modified_widget: modified_widget.clone(),
             widget_config: config.clone(),
         });
-        compat::write(&__this, |__t| { __t.layout.default_cell_setting().align_horizontally_center(); });
+        compat::write(&__this, |__t| { let __s = __t.layout.default_cell_setting(); *__s = (*__s).align_horizontally_center(); });
         // java: parentButton = Button.builder(Component.translatable(.., getParentName()), _ -> config.promptSelectWidget(this::onWidgetSelected, false, ..)).tooltip(..).build();
         // (this widget belongs to the screen: the action holds the screen and this object weakly)
         let __parent_name = compat::read(&__this, |__t| __t.get_parent_name());

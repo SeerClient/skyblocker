@@ -2,6 +2,7 @@
 
 #[allow(unused_imports)]
 use crate::prelude::*;
+use crate::de::hysky::skyblocker::utils::command::command_utils::no_op;
 use crate::de::hysky::skyblocker::config::skyblocker_config_manager::SkyblockerConfigManager;
 use crate::de::hysky::skyblocker::skyblock::searchoverlay::search_over_manager::SearchOverManager;
 use crate::de::hysky::skyblocker::utils::neu_repo_manager::NEURepoManager;
@@ -85,8 +86,3 @@ impl AuctionBazaarAutocomplete {
 /// `CommandNode` (its `NodeKind::Literal`), the type `ClientboundCommandsPacketMixin` hands back.
 pub type ClientCommandNode = Arc<CommandNode<FabricClientCommandSource>>;
 
-/// `CommandUtils.noOp` (`_ -> -1`). The nodes are built on the executor's thread and `command_utils::NO_OP` is a
-/// render-thread cell (`compat::MainThread`), so the command is made here, the same body.
-fn no_op() -> Command<FabricClientCommandSource> {
-    Arc::new(|_: &CommandContext<FabricClientCommandSource>| Ok(-1))
-}

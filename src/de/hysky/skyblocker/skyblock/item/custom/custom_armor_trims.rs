@@ -1,6 +1,7 @@
 //! Ported from de.hysky.skyblocker.skyblock.item.custom.CustomArmorTrims by fabric2seer.
 
 #[allow(unused_imports)]
+use mcrust::net::minecraft::world::entity::living_entity::LivingEntity as _;
 use crate::prelude::*;
 use crate::de::hysky::skyblocker::config::skyblocker_config_manager::SkyblockerConfigManager;
 use crate::de::hysky::skyblocker::events::skyblock_events;
@@ -96,17 +97,19 @@ impl CustomArmorTrims {
     }
 
     /// java: private static SuggestionProvider<FabricClientCommandSource> getIdSuggestionProvider(ResourceKey<? extends Registry<?>> registryKey)
-    pub fn get_id_suggestion_provider(registry_key: &ResourceKey) -> SuggestionProvider<crate::unresolved::FabricClientCommandSource> {
-        // TODO(fabric2seer): `.getSource(..)` on a value of unknown type
+    pub fn get_id_suggestion_provider(registry_key: &ResourceKey) -> SuggestionProvider<mcrust::mcrust::modding::events::client_command_registration_callback::FabricClientCommandSource> {
         //   java: return (context, builder) -> context.getSource().suggestRegistryElements(registryKey, SharedSuggestionProvider.ElementSuggestionType.ELEMENTS, builder, context);
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        // (the port's `suggestRegistryElements` takes the context's input, which is what it reads of the context)
+        use mcrust::net::minecraft::commands::shared_suggestion_provider::SharedSuggestionProvider as _;
+        let registry_key = registry_key.clone();
+        Arc::new(move |context, builder| Ok(context.get_source().suggest_registry_elements(&registry_key, mcrust::net::minecraft::commands::shared_suggestion_provider::ElementSuggestionType::Elements, builder, context.get_input())))
     }
 
     /// java: @SuppressWarnings("SameReturnValue") private static int customizeTrim(FabricClientCommandSource source, Identifier material, Identifier pattern)
     pub fn customize_trim(source: &crate::unresolved::FabricClientCommandSource, material: Option<&Identifier>, pattern: Option<&Identifier>) -> i32 {
         // TODO(fabric2seer): `.getPlayer(..)` on a FabricClientCommandSource
         //   java: ItemStack heldItem = source.getPlayer().getMainHandItem();
-        let mut held_item: mcrust::net::minecraft::world::item::item_stack::ItemStack = todo!("fabric2seer: the initialiser of `heldItem` (TODO above)");
+        let mut held_item: mcrust::net::minecraft::world::item::item_stack::ItemStack = mcrust::mcrust::modding::game::with_player(|player| player.get_main_hand_item().clone()).unwrap_or_else(mcrust::net::minecraft::world::item::item_stack::empty);
         if Utils::is_on_skyblock() && true /* java: held_item != null: never null here */ {
             if held_item.is_in_tag(&mcrust::net::minecraft::tags::item_tags::trimmable_armor()) {
                 let mut item_uuid: String = held_item.get_uuid();

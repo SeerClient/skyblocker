@@ -37,7 +37,6 @@ use mcrust::net::minecraft::network::chat::component::Component as _;
 pub static INNER_SPACE_TEXTURE: compat::MainThread<Identifier> = compat::MainThread::new(|| crate::entry::skyblocker_mod::id("menu_inner_space"));
 
 /// java: public class HeadSelectionWidget extends SearchableGridWidget
-#[derive(Clone)]
 pub struct HeadSelectionWidget {
     /// java: extends SearchableGridWidget
     pub base: SearchableGridWidgetBase,
@@ -582,6 +581,9 @@ impl ModWidget for HeadSelectionWidgetSlot {
         self.sync(widget);
         if self.visible() {
             HeadSelectionWidget::extract_widget_render_state_impl(self.object.get(), &context.graphics, mouse_x, mouse_y, a);
+            // the search field and the grid's widgets (`SearchableGridWidget.extractWidgetRenderState`)
+            let handle = compat::view(self.object.get(), |a| a as compat::Shared<dyn SearchableGridWidget>);
+            <dyn SearchableGridWidget>::extract_children(&*handle, context, mouse_x, mouse_y);
         }
     }
 
@@ -596,13 +598,36 @@ impl ModWidget for HeadSelectionWidgetSlot {
         }
         let object = self.object.get();
         let handle = compat::view(object, |a| a as compat::Shared<dyn SearchableGridWidget>);
-        let mut children = ({ let __f = compat::dispatch(&*handle, |__t| __t.children()); __f(&*handle) });
-        for child in children.iter_mut() {
-            if child.mouse_clicked(event.button(), event.x(), event.y(), double_click) {
-                return true;
-            }
-        }
-        false
+        let _ = double_click;
+        <dyn SearchableGridWidget>::mouse_clicked(&*handle, event)
+    }
+
+    /// java: ContainerEventHandler.mouseReleased over `children()`
+    fn mouse_released(&mut self, widget: &mut AbstractWidget, event: &MouseButtonEvent) -> bool {
+        self.sync(widget);
+        let handle = compat::view(self.object.get(), |a| a as compat::Shared<dyn SearchableGridWidget>);
+        <dyn SearchableGridWidget>::mouse_released(&*handle, event)
+    }
+
+    /// java: ContainerEventHandler.mouseDragged over `children()` (and the grid's scroll bar)
+    fn mouse_dragged(&mut self, widget: &mut AbstractWidget, event: &MouseButtonEvent, dx: f64, dy: f64) -> bool {
+        self.sync(widget);
+        let handle = compat::view(self.object.get(), |a| a as compat::Shared<dyn SearchableGridWidget>);
+        <dyn SearchableGridWidget>::mouse_dragged(&*handle, event, dx, dy)
+    }
+
+    /// java: ContainerEventHandler.keyPressed - the focused child (the search field)
+    fn key_pressed(&mut self, widget: &mut AbstractWidget, event: &mcrust::net::minecraft::client::input::key_event::KeyEvent) -> bool {
+        self.sync(widget);
+        let handle = compat::view(self.object.get(), |a| a as compat::Shared<dyn SearchableGridWidget>);
+        <dyn SearchableGridWidget>::key_pressed(&*handle, event)
+    }
+
+    /// java: ContainerEventHandler.charTyped - the focused child (the search field)
+    fn char_typed(&mut self, widget: &mut AbstractWidget, event: &mcrust::net::minecraft::client::input::character_event::CharacterEvent) -> bool {
+        self.sync(widget);
+        let handle = compat::view(self.object.get(), |a| a as compat::Shared<dyn SearchableGridWidget>);
+        <dyn SearchableGridWidget>::char_typed(&*handle, event)
     }
 
     /// java: @Override public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount)

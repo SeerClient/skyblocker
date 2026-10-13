@@ -76,9 +76,11 @@ impl MobGlowAdder for EndGlowAdder {
 impl EndGlowAdder {
     /// java: @Override public int computeColour(Entity entity)
     pub fn compute_colour_impl(__this: &compat::Shared<Self>, entity: &dyn Entity) -> i32 {
-        // TODO(fabric2seer): instanceof with a pattern binding outside an `if` condition
-        //   java: return entity instanceof EnderMan enderman && TheEnd.isSpecialZealot(enderman) ? TextColor.RED.getValue() : NO_GLOW;
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        // java: return entity instanceof EnderMan enderman && TheEnd.isSpecialZealot(enderman) ? TextColor.RED.getValue() : NO_GLOW;
+        if let Some(enderman) = entity.as_any().unwrap_or(&() as &dyn std::any::Any).downcast_ref::<EnderMan>() && crate::de::hysky::skyblocker::skyblock::end::the_end::TheEnd::is_special_zealot(enderman) {
+            return mcrust::net::minecraft::network::chat::text_color::TextColor::RED.get_value();
+        }
+        return *crate::de::hysky::skyblocker::skyblock::entity::mob_glow::NO_GLOW;
     }
 
     /// EndGlowAdder.computeColour as the dispatch of MobGlowAdder.computeColour

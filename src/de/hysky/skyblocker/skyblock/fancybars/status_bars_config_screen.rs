@@ -61,6 +61,8 @@ pub struct StatusBarsConfigScreen {
     pub resizing: bool,
     /// java: private EditBarWidget editBarWidget;
     pub edit_bar_widget: Option<EditBarWidget>,
+    /// `addRenderableWidget(statusBar)` (`setup`): the bars the screen draws and hands its clicks, in order
+    pub bar_children: Vec<compat::Shared<dyn StatusBar>>,
     /// the object's own shared handle: Java's `this` handed to other objects
     pub self_ref: compat::WeakShared<Self>,
     /// the screen's widgets as this object last saw them (see `compat::WidgetCache`)
@@ -97,6 +99,7 @@ impl StatusBarsConfigScreen {
             current_insert_location: BarLocation::new(None, 0, 0),
             resizing: false,
             edit_bar_widget: None,
+            bar_children: Vec::new(),
         });
         compat::write(&__this, |__t| __t.self_ref = std::sync::Arc::downgrade(&__this));
         __this
@@ -132,10 +135,19 @@ impl StatusBarsConfigScreen {
 
     /// java: @Override public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a)
     pub fn extract_render_state(__this: &compat::Shared<Self>, graphics: &mut GuiGraphicsExtractor, mut mouse_x: i32, mut mouse_y: i32, mut a: f32) {
-        ();
+        // java: super.extractRenderState(graphics, mouseX, mouseY, a); - the screen's renderables: the bars `setup` added
+        for __bar in compat::read(__this, |__t| __t.bar_children.clone()) {
+            let __f = compat::dispatch(&__bar, |__t| __t.extract_render_state());
+            __f(&__bar, graphics, mouse_x, mouse_y, a);
+        }
         gui_graphics_extractor::blit_sprite_identifier(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), mcrust::net::minecraft::client::renderer::render_pipelines::gui_textured(), HOTBAR_TEXTURE.get_mut(), ((compat::read(__this, |__t| __t.width)).wrapping_div(2)).wrapping_sub(HOTBAR_WIDTH.wrapping_div(2)), (compat::read(__this, |__t| __t.height)).wrapping_sub(22), HOTBAR_WIDTH, 22);
-        // TODO(fabric2seer): `extract_render_state` is a method of the port's trait `Renderable`, which the port's `AbstractContainerWidget` does not implement
-        // rust: { let (__q0, __q1, __q2, __q3, __q4,) = (mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), mouse_x, mouse_y, a,); __this.lock().borrow_mut().edit_bar_widget.as_mut().unwrap().extract_render_state(__q0, __q1, __q2, __q3, __q4) };
+        // java: editBarWidget.extractRenderState(graphics, mouseX, mouseY, a); - the widget is taken out of the screen for
+        // the call (its options reach the screen)
+        let mut __edit = compat::write(__this, |__t| __t.edit_bar_widget.take());
+        if let Some(__w) = __edit.as_mut() {
+            __w.extract_render_state(graphics, mouse_x, mouse_y, a);
+        }
+        compat::write(__this, |__t| __t.edit_bar_widget = __edit);
         let window = compat::minecraft().get_window();
         let mut scale_factor: i32 = ((window.calculate_scale(0, minecraft::is_enforce_unicode(compat::minecraft()))).wrapping_sub(window.get_gui_scale())).wrapping_add(3);
         if (scale_factor & 2) == 0 {
@@ -340,43 +352,51 @@ impl StatusBarsConfigScreen {
     pub fn init(__this: &compat::Shared<Self>) {
         ();
         FancyStatusBars::update_positions(&compat::read(__this, |__t| __t.bars.clone()), true);
+        compat::write(__this, |__t| __t.bar_children.clear());
         { let __v = Some(EditBarWidget::new(0, 0, __this.clone())); compat::write(__this, |__t| __t.edit_bar_widget = __v); }
         __this.lock().borrow_mut().edit_bar_widget.as_mut().unwrap().visible = false;
-        // java: addWidget(editBarWidget);
-        // rust: port gap (GAPS_batchB L3) - EditBarWidget is a mod composite widget (AbstractContainerWidget with child
-        // option widgets); the port has no adapter that makes one a screen listener, so it is held as a field and asked directly
+        // java: addWidget(editBarWidget); - the screen holds the widget itself and hands it its clicks first (`mouseClicked`)
         let mut values: Vec<compat::Shared<dyn StatusBar>> = compat::read(__this, |__t| __t.bars.clone()).lock().borrow().status_bars.values().cloned().collect::<Vec<_>>();
         for __a0 in values.iter() {
             StatusBarsConfigScreen::setup(__this, __a0);
         }
         StatusBarsConfigScreen::update_screen_rects(__this);
-        // TODO(fabric2seer): `build` on a void
-        //   java: this.addRenderableWidget(Button.builder(Component.literal("?"),
-        //   java: 						_ -> minecraft.gui.setScreen(new PopupScreen.Builder(this, Component.translatable("skyblocker.bars.config.explanationTitle"))
-        //   java: 								.addButton(Component.translatable("gui.ok"), PopupScreen::onClose)
-        //   java: 								.addMessage(Component.translatable("skyblocker.bars.config.explanation"))
-        //   java: 								.build()))
-        //   java: 				.bounds(width - 20, height / 2 - 17, 15, 15)
-        //   java: 				.build());
-        // TODO(fabric2seer): `build` on a void
-        //   java: this.addRenderableWidget(Button.builder(Component.literal("⟲"),
-        //   java: 						_ -> minecraft.gui.setScreen(new PopupScreen.Builder(this, Component.translatable("skyblocker.bars.config.resetTitle"))
-        //   java: 								.addButton(CommonComponents.GUI_NO, PopupScreen::onClose)
-        //   java: 								.addButton(CommonComponents.GUI_YES, popup -> {
-        //   java: 									bars.resetBarPositions();
-        //   java: 									popup.onClose();
-        //   java: 								})
-        //   java: 								.addMessage(Component.translatable("skyblocker.bars.config.reset"))
-        //   java: 								.build()))
-        //   java: 				.bounds(width - 20, height / 2 + 2, 15, 15)
-        //   java: 				.build());
+        // java: this.addRenderableWidget(Button.builder(Component.literal("?"), _ -> minecraft.gui.setScreen(new PopupScreen.Builder(this,
+        //   Component.translatable("skyblocker.bars.config.explanationTitle")).addButton(Component.translatable("gui.ok"), PopupScreen::onClose)
+        //   .addMessage(Component.translatable("skyblocker.bars.config.explanation")).build())).bounds(width - 20, height / 2 - 17, 15, 15).build());
+        // rust: port gap (GAPS_L G3) - a mod cannot build the game's `PopupScreen`: the game's confirm dialog stands in, both
+        // of its buttons closing it (`PopupScreen::onClose`)
+        let (__w, __h) = compat::read(__this, |__t| (__t.width, __t.height));
+        let __explain = mcrust::net::minecraft::client::gui::components::button::builder(component::literal("?").get_string(), mcrust::net::minecraft::client::gui::components::abstract_widget::OnPress::Lambda(mcrust::net::minecraft::client::gui::components::abstract_widget::PressLambda::new(|_, _| {
+            let popup = compat::ConfirmScreen::new(|_: bool| mcrust::mcrust::modding::game::set_screen_to_parent(), component::translatable("skyblocker.bars.config.explanationTitle"), component::translatable("skyblocker.bars.config.explanation"), component::translatable("gui.ok"), component::translatable("gui.ok"));
+            mcrust::mcrust::modding::game::set_screen_keeping_parent(Box::new(popup));
+        }))).bounds(__w.wrapping_sub(20), (__h.wrapping_div(2)).wrapping_sub(17), 15, 15).build();
+        compat::write(__this, |__t| __t.add_renderable_widget(__explain));
+        // java: this.addRenderableWidget(Button.builder(Component.literal("⟲"), _ -> minecraft.gui.setScreen(new PopupScreen.Builder(this,
+        //   Component.translatable("skyblocker.bars.config.resetTitle")).addButton(CommonComponents.GUI_NO, PopupScreen::onClose)
+        //   .addButton(CommonComponents.GUI_YES, popup -> { bars.resetBarPositions(); popup.onClose(); })
+        //   .addMessage(Component.translatable("skyblocker.bars.config.reset")).build())).bounds(width - 20, height / 2 + 2, 15, 15).build());
+        // rust: port gap (GAPS_L G3) - the game's confirm dialog stands in for the `PopupScreen` (YES resets, both close it)
+        let __bars = compat::RenderThread::new(compat::read(__this, |__t| __t.bars.clone()));
+        let __reset = mcrust::net::minecraft::client::gui::components::button::builder(component::literal("⟲").get_string(), mcrust::net::minecraft::client::gui::components::abstract_widget::OnPress::Lambda(mcrust::net::minecraft::client::gui::components::abstract_widget::PressLambda::new(move |_, _| {
+            let __bars = compat::RenderThread::new(__bars.get().clone());
+            let popup = compat::ConfirmScreen::new(move |yes: bool| {
+                if yes {
+                    FancyStatusBars::reset_bar_positions(__bars.get());
+                }
+                mcrust::mcrust::modding::game::set_screen_to_parent();
+            }, component::translatable("skyblocker.bars.config.resetTitle"), component::translatable("skyblocker.bars.config.reset"), component::translatable(mcrust::net::minecraft::client::gui::screens::confirm_screen::GUI_YES_KEY), component::translatable(mcrust::net::minecraft::client::gui::screens::confirm_screen::GUI_NO_KEY));
+            mcrust::mcrust::modding::game::set_screen_keeping_parent(Box::new(popup));
+        }))).bounds(__w.wrapping_sub(20), (__h.wrapping_div(2)).wrapping_add(2), 15, 15).build();
+        compat::write(__this, |__t| __t.add_renderable_widget(__reset));
     }
 
     /// java: private void setup(StatusBar statusBar)
     pub fn setup(__this: &compat::Shared<Self>, status_bar: &compat::Shared<dyn StatusBar>) {
-        // java: addRenderableWidget(statusBar);
-        // rust: port gap (GAPS_batchH #2) - a StatusBar is a mod `Renderable + GuiEventListener + LayoutElement`, not an
-        // AbstractWidget; the port's screens hold only AbstractWidgets, so the bar cannot join the screen's widget list
+        // java: addRenderableWidget(statusBar); - a StatusBar is a mod `Renderable + GuiEventListener + LayoutElement`,
+        // not an `AbstractWidget`: the screen keeps it in its own list, draws it (`extractRenderState`) and hands it its
+        // clicks (`mouseClicked`)
+        compat::write(__this, |__t| __t.bar_children.push(status_bar.clone()));
         let __this_w1 = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
         ({ let __f = compat::dispatch(status_bar, |__t| __t.set_on_click()); __f(status_bar, Some(Arc::new(move |__a0: compat::Shared<dyn StatusBar>, __a1: MouseButtonEvent| { let Some(__this_1) = __this_w1.get().upgrade() else { return Default::default(); }; { StatusBarsConfigScreen::on_bar_click((&__this_1), __a0.clone(), &__a1); } }))) });
     }
@@ -514,6 +534,20 @@ impl StatusBarsConfigScreen {
             }
             { let __v = true; compat::write(__this, |__t| __t.resizing = __v); }
             return true;
+        }
+        // java: return super.mouseClicked(click, doubled); - `ContainerEventHandler.mouseClicked`: the first child under
+        // the click that takes it (`addWidget(editBarWidget)` first, then the bars in the order `setup` added them)
+        let mut __edit = compat::write(__this, |__t| __t.edit_bar_widget.take());
+        let __taken = __edit.as_mut().is_some_and(|__w| __w.mouse_clicked(click, doubled));
+        compat::write(__this, |__t| __t.edit_bar_widget = __edit);
+        if __taken {
+            return true;
+        }
+        for __bar in compat::read(__this, |__t| __t.bar_children.clone()) {
+            let __f = compat::dispatch(&__bar, |__t| __t.mouse_clicked());
+            if __f(&__bar, click, doubled) {
+                return true;
+            }
         }
         return false;
     }

@@ -171,7 +171,7 @@ impl CorpseProfitScreen {
         compat::write(__this, |__t| __t.selection_list = Some(compat::WidgetRef::Screen(__i)));
         __this.lock().borrow_mut().layout.as_mut().unwrap().add_to_contents(LayoutElement::widget(__i, __ww, __wh));
         let mut grid_widget: GridLayout = GridLayout::new_default();
-        grid_widget.default_cell_setting().padding_horizontal(5).padding_vertical(2);
+        { let __s = grid_widget.default_cell_setting(); *__s = (*__s).padding_horizontal(5).padding_vertical(2); }
         let mut adder: RowHelper = grid_widget.create_row_helper(2);
         let total_profit = compat::read(__this, |__t| __t.total_profit).unwrap();
         // `NumberFormat.getInstance().format(x).formatted(GREEN or RED)`: `String.formatted` is `String.format(this,

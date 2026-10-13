@@ -68,7 +68,7 @@ impl SafariGlowAdder {
         if entity.as_any().unwrap_or(&() as &dyn std::any::Any).is::<ArmorStand>() || entity.as_any().unwrap_or(&() as &dyn std::any::Any).is::<TextDisplay>() {
             return false;
         }
-        if let Some(shulker) = entity.as_any().unwrap_or(&() as &dyn std::any::Any).downcast_ref::<Shulker>() && shulker.get_color().unwrap() == DyeColor::Purple {
+        if let Some(shulker) = entity.as_any().unwrap_or(&() as &dyn std::any::Any).downcast_ref::<Shulker>() && shulker.get_color() == Some(DyeColor::Purple) {
             return false;
         }
         if let Some(display) = entity.as_any().unwrap_or(&() as &dyn std::any::Any).downcast_ref::<ItemDisplay>() {
@@ -113,27 +113,37 @@ impl SafariGlowAdder {
     /// java: @Override public int computeColour(Entity entity)
     pub fn compute_colour_impl(__this: &compat::Shared<Self>, entity: &dyn Entity) -> i32 {
         let hunting_config = &SkyblockerConfigManager::get().hunting;
-        // TODO(fabric2seer): a pattern switch expression
-        //   java: return switch (entity) {
-        //   java: 			//Critter Capsule
-        //   java: 			case Entity target when CritterCapsuleHelper.highlighted != null && CritterCapsuleHelper.highlighted.equals(target) -> huntingConfig.safari.critterCapsuleHelperColor.getRGB();
-        //   java: 			// Cavern Biome
-        //   java: 			case ItemDisplay display when huntingConfig.cavernBiome.highlightRockmiteMounds && SafariUtils.isInCavernBiome() && ItemUtils.getHeadTexture(display.getItemStack()).equals(HeadTextures.ROCKMITE_MOUND) && display.getPosRotInterpolationDuration() == 0 -> huntingConfig.cavernBiome.rockmiteMoundHighlightColor.getRGB();
-        //   java:
-        //   java: 			// Forest Biome
-        //   java: 			case Shulker shulker when huntingConfig.forestBiome.highlightHideonfloor && SafariUtils.isInForestBiome() && shulker.getColor() == DyeColor.GREEN -> huntingConfig.forestBiome.hideonfloorHighlightColor.getRGB();
-        //   java: 			case ItemDisplay display when huntingConfig.forestBiome.highlightHideonfloor && SafariUtils.isInForestBiome() && display.getItemStack().is(Items.DYED_SHULKER_BOX.green()) -> huntingConfig.forestBiome.hideonfloorHighlightColor.getRGB();
-        //   java:
-        //   java: 			// Haunted Biome
-        //   java: 			case ItemDisplay display when huntingConfig.hauntedBiome.highlightDuplico && SafariUtils.isInHauntedBiome() && display.getPosRotInterpolationDuration() == 3 && isNotDuplico(display) -> huntingConfig.hauntedBiome.duplicoHighlightColor.getRGB();
-        //   java: 			case Bat _ when huntingConfig.hauntedBiome.highlightBloodbat && SafariUtils.isInHauntedBiome() -> huntingConfig.hauntedBiome.bloodbatHighlightColor.getRGB();
-        //   java:
-        //   java: 			// Sparkling Critters
-        //   java: 			case Entity _ when huntingConfig.safari.highlightSparklingCritters && isSparkling(entity) -> huntingConfig.safari.sparklingCritterHighlightColor.getRGB();
-        //   java:
-        //   java: 			default -> NO_GLOW;
-        //   java: 		};
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        // java: return switch (entity) { .. } - in Java's case order
+        use crate::de::hysky::skyblocker::skyblock::hunting::safari::safari_utils::SafariUtils;
+        use mcrust::net::minecraft::world::entity::display::Display as _;
+        let any = entity.as_any().unwrap_or(&() as &dyn std::any::Any);
+        //Critter Capsule
+        if crate::de::hysky::skyblocker::skyblock::foraging::torrhus::critter_capsule_helper::HIGHLIGHTED.get().is_some_and(|__id| __id == entity.base().get_id()) {
+            return hunting_config.safari.critter_capsule_helper_color.get_rgb();
+        }
+        // Cavern Biome
+        if let Some(display) = any.downcast_ref::<ItemDisplay>() && hunting_config.cavern_biome.highlight_rockmite_mounds && SafariUtils::is_in_cavern_biome() && crate::de::hysky::skyblocker::utils::item_utils::ItemUtils::get_head_texture(&display.get_item_stack()) == crate::de::hysky::skyblocker::skyblock::item::head_textures::ROCKMITE_MOUND && display.get_pos_rot_interpolation_duration() == 0 {
+            return hunting_config.cavern_biome.rockmite_mound_highlight_color.get_rgb();
+        }
+        // Forest Biome
+        if let Some(shulker) = any.downcast_ref::<Shulker>() && hunting_config.forest_biome.highlight_hideonfloor && SafariUtils::is_in_forest_biome() && shulker.get_color() == Some(DyeColor::Green) {
+            return hunting_config.forest_biome.hideonfloor_highlight_color.get_rgb();
+        }
+        if let Some(display) = any.downcast_ref::<ItemDisplay>() && hunting_config.forest_biome.highlight_hideonfloor && SafariUtils::is_in_forest_biome() && display.get_item_stack().is_item(mcrust::net::minecraft::world::item::items::dyed_shulker_box().green()) {
+            return hunting_config.forest_biome.hideonfloor_highlight_color.get_rgb();
+        }
+        // Haunted Biome
+        if let Some(display) = any.downcast_ref::<ItemDisplay>() && hunting_config.haunted_biome.highlight_duplico && SafariUtils::is_in_haunted_biome() && display.get_pos_rot_interpolation_duration() == 3 && SafariGlowAdder::is_not_duplico(display) {
+            return hunting_config.haunted_biome.duplico_highlight_color.get_rgb();
+        }
+        if any.is::<mcrust::net::minecraft::world::entity::ambient::bat::Bat>() && hunting_config.haunted_biome.highlight_bloodbat && SafariUtils::is_in_haunted_biome() {
+            return hunting_config.haunted_biome.bloodbat_highlight_color.get_rgb();
+        }
+        // Sparkling Critters
+        if hunting_config.safari.highlight_sparkling_critters && SafariGlowAdder::is_sparkling(entity) {
+            return hunting_config.safari.sparkling_critter_highlight_color.get_rgb();
+        }
+        return *crate::de::hysky::skyblocker::skyblock::entity::mob_glow::NO_GLOW;
     }
 
     /// SafariGlowAdder.computeColour as the dispatch of MobGlowAdder.computeColour

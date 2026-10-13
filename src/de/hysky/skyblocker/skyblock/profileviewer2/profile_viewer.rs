@@ -174,7 +174,7 @@ impl ProfileViewer {
         let loaded: compat::LocalFuture<LoadedData> = compat::LocalFuture::new();
         let target = loaded.clone();
         let failed = loaded.clone();
-        local_of(&fetched)
+        compat::local_of(&fetched)
             .then_apply_async(move |fetched: FetchedData| {
                 //   java: .thenApply(opt -> opt.map(json -> GSON.fromJson(json, ApiProfileResponse.class)))
                 let api_profile_response: Option<compat::Shared<ApiProfileResponse>> = fetched.profiles_json.as_ref().and_then(api_profile_response_from_json);
@@ -183,7 +183,7 @@ impl ProfileViewer {
                 //   java: 		.map(profile -> EliteLeaderboards.fetchPlayerLeaderboards(uuid, profile.profileId))
                 //   java: 		.orElse(CompletableFuture.completedFuture(Map.of())));
                 let leaderboards: compat::LocalFuture<std::collections::HashMap<String, i32>> = match api_profile_response.as_ref().and_then(ApiProfileResponse::get_selected_profile) {
-                    Some(profile) => local_of(&EliteLeaderboards::fetch_player_leaderboards(&fetched.uuid, &compat::read(&profile, |__t| __t.profile_id.clone()))),
+                    Some(profile) => compat::local_of(&EliteLeaderboards::fetch_player_leaderboards(&fetched.uuid, &compat::read(&profile, |__t| __t.profile_id.clone()))),
                     None => compat::LocalFuture::completed_future(std::collections::HashMap::new()),
                 };
                 let game_profile = fetched.game_profile;
@@ -222,37 +222,6 @@ fn api_profile_response_from_json(json: &serde_json::Map<String, serde_json::Val
     None
 }
 
-thread_local! {
-    /// The render-thread futures `local_of` completes, by id: a worker's completion reaches the render thread as a
-    /// `Send` task carrying the id and the value.
-    static PENDING_LOCAL_FUTURES: std::cell::RefCell<std::collections::HashMap<u64, Box<dyn std::any::Any>>> = std::cell::RefCell::new(std::collections::HashMap::new());
-}
-static NEXT_LOCAL_FUTURE: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
-
-/// A worker's `CompletableFuture<T>` (`Send` values) continued on the render thread as a `compat::LocalFuture<T>`:
-/// completed (or failed) through `game::execute` when the worker's future completes - Java's
-/// `thenApplyAsync(.., minecraft)` hop.
-fn local_of<T: Clone + Send + 'static>(future: &CompletableFuture<T>) -> compat::LocalFuture<T> {
-    let local = compat::LocalFuture::<T>::new();
-    let id = NEXT_LOCAL_FUTURE.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-    PENDING_LOCAL_FUTURES.with(|pending| pending.borrow_mut().insert(id, Box::new(local.clone())));
-    future.when_complete(Box::new(move |result: Result<&T, &str>| {
-        let result: Result<T, String> = result.map(|value| value.clone()).map_err(|e| e.to_string());
-        mcrust::mcrust::modding::game::execute(move || {
-            let Some(local) = PENDING_LOCAL_FUTURES.with(|pending| pending.borrow_mut().remove(&id)) else { return; };
-            let Ok(local) = local.downcast::<compat::LocalFuture<T>>() else { return; };
-            match result {
-                Ok(value) => {
-                    local.complete(value);
-                }
-                Err(e) => {
-                    local.complete_exceptionally(e);
-                }
-            }
-        });
-    }));
-    local
-}
 
 /// The screen `thenApplyAsync` hands `thenAcceptAsync(minecraft.gui::setScreen)` (`LocalFuture` values are cloned
 /// between stages; the screen itself is moved out once).

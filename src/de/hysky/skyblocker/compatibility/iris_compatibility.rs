@@ -55,9 +55,9 @@ impl IrisCompatibility {
         let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             //   java: REGISTER_PIPELINE.invoke(GET_IRIS_API.invoke(), pipeline, GET_IRIS_PROGRAM.invoke(irisProgramName));
             let _ = (pipeline, iris_program_name);
-            invoke(GET_IRIS_API.get());
-            invoke(GET_IRIS_PROGRAM.get());
-            invoke(REGISTER_PIPELINE.get());
+            compat::jvm_invoke(GET_IRIS_API.get());
+            compat::jvm_invoke(GET_IRIS_PROGRAM.get());
+            compat::jvm_invoke(REGISTER_PIPELINE.get());
         }));
         if let Err(e) = __result {
             let message = compat::panic_message(&e);
@@ -72,11 +72,11 @@ impl IrisCompatibility {
     pub fn get_iris_api_handle() -> Option<crate::unresolved::MethodHandle> {
         // java: try {..} catch (Exception _) - an exception here is a panic, caught by `catch_unwind`; the body's `return` is the closure's value
         match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            let iris_api_class: crate::unresolved::Class = class_for_name(IRIS_API_CLASS);
-            let lookup: crate::unresolved::Lookup = public_lookup();
+            let iris_api_class: crate::unresolved::Class = compat::jvm_class_for_name(IRIS_API_CLASS);
+            let lookup: crate::unresolved::Lookup = compat::jvm_public_lookup();
             //   java: MethodType type = MethodType.methodType(irisApiClass);
             //   java: return lookup.findStatic(irisApiClass, "getInstance", type);
-            Some(find_method(&lookup, &iris_api_class, "getInstance"))
+            Some(compat::jvm_find_method(&lookup, &iris_api_class, "getInstance"))
         })) {
             Ok(__v) => return __v,
             Err(_) => {
@@ -90,13 +90,13 @@ impl IrisCompatibility {
         // java: try {..} catch (Exception _) - an exception here is a panic, caught by `catch_unwind`; the body's `return` is the closure's value
         match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             //   java: Class<?> irisApiClass = Class.forName(IRIS_API_CLASS);
-            let iris_api_class: crate::unresolved::Class = class_for_name(IRIS_API_CLASS);
+            let iris_api_class: crate::unresolved::Class = compat::jvm_class_for_name(IRIS_API_CLASS);
             //   java: Class<?> irisProgramClass = Class.forName(IRIS_PROGRAM_CLASS);
-            let _iris_program_class: crate::unresolved::Class = class_for_name(IRIS_PROGRAM_CLASS);
-            let lookup: crate::unresolved::Lookup = public_lookup();
+            let _iris_program_class: crate::unresolved::Class = compat::jvm_class_for_name(IRIS_PROGRAM_CLASS);
+            let lookup: crate::unresolved::Lookup = compat::jvm_public_lookup();
             //   java: MethodType type = MethodType.methodType(void.class, RenderPipeline.class, irisProgramClass);
             //   java: return lookup.findVirtual(irisApiClass, "assignPipeline", type);
-            Some(find_method(&lookup, &iris_api_class, "assignPipeline"))
+            Some(compat::jvm_find_method(&lookup, &iris_api_class, "assignPipeline"))
         })) {
             Ok(__v) => return __v,
             Err(_) => {
@@ -110,12 +110,12 @@ impl IrisCompatibility {
         // java: try {..} catch (Exception _) - an exception here is a panic, caught by `catch_unwind`; the body's `return` is the closure's value
         match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             //   java: Class<?> irisProgramClass = Class.forName(IRIS_PROGRAM_CLASS);
-            let iris_program_class: crate::unresolved::Class = class_for_name(IRIS_PROGRAM_CLASS);
-            let lookup: crate::unresolved::Lookup = public_lookup();
+            let iris_program_class: crate::unresolved::Class = compat::jvm_class_for_name(IRIS_PROGRAM_CLASS);
+            let lookup: crate::unresolved::Lookup = compat::jvm_public_lookup();
             //   java: MethodType type = MethodType.methodType(Enum.class, Class.class, String.class);
             //   java: MethodHandle enumValueOf = lookup.findStatic(Enum.class, "valueOf", type);
             //   java: return MethodHandles.insertArguments(enumValueOf, 0, irisProgramClass);
-            Some(find_method(&lookup, &iris_program_class, "valueOf"))
+            Some(compat::jvm_find_method(&lookup, &iris_program_class, "valueOf"))
         })) {
             Ok(__v) => return __v,
             Err(_) => {
@@ -126,27 +126,3 @@ impl IrisCompatibility {
 
 }
 
-/// `Class.forName(name)` - another mod's JVM class.
-///
-/// rust: port gap - SeerClient runs no JVM: there are no Java mod classes to load or reflect on (`Class.forName`,
-/// `MethodHandles.Lookup.findStatic/findVirtual`, `Field.get`, `MethodHandle.invoke`), so the lookup fails as
-/// `ClassNotFoundException` does in Java for an absent class (GAPS_batchF, GAPS_M #11). Every caller only gets here
-/// after `FabricLoader.isModLoaded(..)` answered true for a SeerClient mod of that id.
-fn class_for_name(name: &str) -> crate::unresolved::Class {
-    panic!("ClassNotFoundException: {name}");
-}
-
-/// `MethodHandles.publicLookup()` - see `class_for_name` (the lookup exists; nothing can be found through it).
-fn public_lookup() -> crate::unresolved::Lookup {
-    crate::unresolved::Lookup
-}
-
-/// `lookup.findStatic(clazz, name, type)` / `findVirtual(..)` - see `class_for_name`.
-fn find_method(_lookup: &crate::unresolved::Lookup, _clazz: &crate::unresolved::Class, name: &str) -> crate::unresolved::MethodHandle {
-    panic!("NoSuchMethodException: {name}");
-}
-
-/// `methodHandle.invoke(..)` - see `class_for_name` (no handle can have been found).
-fn invoke(_handle: &crate::unresolved::MethodHandle) -> compat::Object {
-    panic!("WrongMethodTypeException: no JVM method behind the handle");
-}

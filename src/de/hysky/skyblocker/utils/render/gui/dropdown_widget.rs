@@ -66,33 +66,37 @@ impl<T: 'static> std::ops::DerefMut for DropdownWidgetBase<T> {
 
 impl<T: Clone + 'static> DropdownWidgetBase<T> {
     /// java: public DropdownWidget(Minecraft minecraftClient, int x, int y, int width, int maxHeight, int entryHeight, List<T> entries, Consumer<T> selectCallback, T selected, Consumer<Boolean> openedCallback)
-    pub fn new(minecraft_client: &mut mcrust::net::minecraft::client::minecraft::Minecraft, mut x: i32, mut y: i32, mut width: i32, mut max_height: i32, mut entry_height: i32, mut entries: Vec<T>, select_callback: Arc<dyn Fn(T)>, mut selected: T, opened_callback: Arc<dyn Fn(bool)>) -> Self {
-        let __init_entry_height = entry_height;
-        let __init_header_height = entry_height.wrapping_add(4);
-        let __init_max_height = max_height;
-        let __init_entries = entries.clone();
-        let __init_select_callback = Some(select_callback.clone());
-        let __init_opened_callback = Some(opened_callback.clone());
-        let __init_selected = Some(selected.clone());
-        // TODO(fabric2seer): call to `defaultSettings(..)` (not a method of this class)
-        //   java: super(x, y, width, 0, Component.empty(), defaultSettings(4));
-        let mut this: Self = todo!("constructor");
-        this.dropdown_list = Some(this.create_dropdown());
-        let __wa1 = width.wrapping_sub(2);
-        let __wa2 = max_height.wrapping_sub(this.header_height);
-        let __wa3 = x.wrapping_add(1);
-        let __wa4 = y.wrapping_add(this.header_height);
-        let __o1 = this.dropdown_list.clone().unwrap();
-        compat::write(&__o1, |__t| __t.dropdown_list_base_mut().set_rectangle(__wa1, __wa2, __wa3, __wa4));
-        for element in entries.iter() {
-            ({ let __r = this.dropdown_list.as_ref().unwrap(); let __f = compat::dispatch(__r, |__t| __t.add_entry()); __f(__r, &this.create_entry(element)) });
-        }
-        this.set_height(this.header_height);
+    pub fn new(minecraft_client: &mut mcrust::net::minecraft::client::minecraft::Minecraft, mut x: i32, mut y: i32, mut width: i32, mut max_height: i32, mut entry_height: i32, mut entries: Vec<T>, select_callback: Arc<dyn Fn(T)>, mut selected: T, opened_callback: Arc<dyn Fn(bool)>) -> Self where T: std::fmt::Display {
+        let _ = minecraft_client;
+        let mut this: Self = Self::new_base(x, y, width, max_height, entry_height, entries, select_callback, selected, opened_callback);
+        this.init_dropdown();
         this
     }
 
+    /// The constructor's field half: `super(x, y, width, 0, Component.empty(), defaultSettings(4))` and the field
+    /// writes, before `dropdownList = createDropdown();`. A subclass builds its value around this base and then runs
+    /// `init_dropdown` on ITSELF, so that `createDropdown()` / `createEntry(..)` dispatch to its overrides as Java's
+    /// constructor does.
+    pub fn new_base(mut x: i32, mut y: i32, mut width: i32, mut max_height: i32, mut entry_height: i32, mut entries: Vec<T>, select_callback: Arc<dyn Fn(T)>, mut selected: T, opened_callback: Arc<dyn Fn(bool)>) -> Self where T: std::fmt::Display {
+        Self {
+            base: AbstractContainerWidget::new_with_scrollbar_settings(x, y, width, 0, mcrust::net::minecraft::network::chat::formatted_text::FormattedText::Empty, mcrust::net::minecraft::client::gui::components::abstract_scroll_area::ScrollbarSettings::default_settings(4.0)),
+            entry_height,
+            header_height: entry_height.wrapping_add(4),
+            entries,
+            select_callback: Some(select_callback),
+            opened_callback: Some(opened_callback),
+            dropdown_list: None,
+            prev_selected: None,
+            selected: Some(selected),
+            open: false,
+            max_height,
+            // java: protected Function<T, Component> formatter = t -> Component.literal(t.toString());
+            formatter: Arc::new(|t: T| component::literal(&compat::jstring(&t))),
+        }
+    }
+
     /// java: public DropdownWidget(Minecraft minecraftClient, int x, int y, int width, int maxHeight, List<T> entries, Consumer<T> selectCallback, T selected, Consumer<Boolean> openedCallback)
-    pub fn new_9(minecraft_client: &mut mcrust::net::minecraft::client::minecraft::Minecraft, mut x: i32, mut y: i32, mut width: i32, mut max_height: i32, mut entries: Vec<T>, select_callback: Arc<dyn Fn(T)>, mut selected: T, opened_callback: Arc<dyn Fn(bool)>) -> Self {
+    pub fn new_9(minecraft_client: &mut mcrust::net::minecraft::client::minecraft::Minecraft, mut x: i32, mut y: i32, mut width: i32, mut max_height: i32, mut entries: Vec<T>, select_callback: Arc<dyn Fn(T)>, mut selected: T, opened_callback: Arc<dyn Fn(bool)>) -> Self where T: std::fmt::Display {
         let mut this = Self::new(minecraft_client, x, y, width, max_height, 15, entries.clone(), select_callback.clone(), selected.clone(), opened_callback.clone());
         this
     }
@@ -105,6 +109,21 @@ pub trait DropdownWidget<T: Clone + 'static> {
     fn dropdown_widget_base_mut(&mut self) -> &mut DropdownWidgetBase<T>;
     fn as_any(&self) -> &dyn std::any::Any;
 
+    /// The constructor's second half (`DropdownWidget(..)`, after the field writes):
+    /// `dropdownList = createDropdown(); dropdownList.setRectangle(width - 2, maxHeight - headerHeight, x + 1, y + headerHeight);
+    /// for (T element : entries) dropdownList.addEntry(createEntry(element)); setHeight(headerHeight);`
+    fn init_dropdown(&mut self) {
+        let list = self.create_dropdown();
+        self.dropdown_widget_base_mut().dropdown_list = Some(list.clone());
+        let (width, max_height, header_height, x, y) = { let b = self.dropdown_widget_base(); (b.get_width(), b.max_height, b.header_height, b.get_x(), b.get_y()) };
+        compat::write(&list, |__t| __t.dropdown_list_base_mut().set_rectangle(width.wrapping_sub(2), max_height.wrapping_sub(header_height), x.wrapping_add(1), y.wrapping_add(header_height)));
+        for element in self.dropdown_widget_base().entries.clone().iter() {
+            let entry = self.create_entry(element);
+            ({ let __f = compat::dispatch(&list, |__t| __t.add_entry()); __f(&list, &entry) });
+        }
+        self.set_height(header_height);
+    }
+
     /// java: public int getHeaderHeight()
     fn get_header_height(&self) -> i32 {
         return self.dropdown_widget_base().header_height;
@@ -112,7 +131,7 @@ pub trait DropdownWidget<T: Clone + 'static> {
 
     /// java: protected DropdownList createDropdown()
     fn create_dropdown(&self) -> compat::Shared<dyn DropdownList> {
-        return (DropdownListBase::new(compat::minecraft()) as compat::Shared<dyn DropdownList>);
+        return (DropdownListBase::new(compat::minecraft(), self.dropdown_widget_base().entry_height) as compat::Shared<dyn DropdownList>);
     }
 
     /// java: protected Entry createEntry(T element)
@@ -142,8 +161,8 @@ pub trait DropdownWidget<T: Clone + 'static> {
 
     /// java: @Override protected void extractWidgetRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta)
     fn extract_widget_render_state(&mut self, graphics: &mut GuiGraphicsExtractor, mut mouse_x: i32, mut mouse_y: i32, mut delta: f32) where T: std::fmt::Display {
-        // TODO(fabric2seer): `AbstractContainerWidget.visible` is a field of the port's `AbstractContainerWidget`, which the port's `AbstractSelectionList` does not hold (no Deref, no `base` field)
-        // rust: { let __v = self.dropdown_widget_base().open; compat::write(self.dropdown_widget_base().dropdown_list.as_ref().unwrap(), |__t| __t.dropdown_list_base_mut().visible = __v); }
+        // java: dropdownList.visible = open; - `ModSelectionList.visible` is the list's own field
+        { let __v = self.dropdown_widget_base().open; compat::write(self.dropdown_widget_base().dropdown_list.as_ref().unwrap(), |__t| __t.dropdown_list_base_mut().base.visible = __v); }
         // TODO(fabric2seer): `extract_render_state` is a method of the port's trait `Renderable`, which the port's `AbstractSelectionList` does not implement
         // rust: let __wa1 = graphics.clone();
         // rust: let __wa2 = mouse_x;
@@ -324,16 +343,18 @@ impl std::ops::DerefMut for DropdownListBase {
 
 impl DropdownListBase {
     /// java: protected DropdownList(Minecraft minecraftClient) (built by the most-derived class's `wrap`, then run on its handle)
-    pub fn new_in<__R>(minecraft_client: &mut mcrust::net::minecraft::client::minecraft::Minecraft, __wrap: impl FnOnce(Self) -> (compat::Shared<dyn DropdownList>, __R)) -> (compat::Shared<dyn DropdownList>, __R) {
-        // TODO(fabric2seer): `entryHeight` is a field of the enclosing instance (DropdownWidget.this) - an inner class has no outer reference in Rust
-        //   java: super(minecraftClient, 0, 0, 0, entryHeight);
-        let (__this, __r): (compat::Shared<dyn DropdownList>, __R) = todo!("constructor");
-        (__this, __r)
+    ///
+    /// (`entry_height` is the enclosing `DropdownWidget.this.entryHeight`, which the inner class reads)
+    pub fn new_in<__R>(minecraft_client: &mut mcrust::net::minecraft::client::minecraft::Minecraft, entry_height: i32, __wrap: impl FnOnce(Self) -> (compat::Shared<dyn DropdownList>, __R)) -> (compat::Shared<dyn DropdownList>, __R) {
+        //   java: super(minecraftClient, 0, 0, 0, entryHeight); - `ContainerObjectSelectionList(minecraft, width, height, y, itemHeight)`
+        let _ = minecraft_client;
+        let this = Self { base: ModSelectionList::new(mcrust::mcrust::modding::widgets::ListKind::Container, 0, 0, 0, entry_height) };
+        __wrap(this)
     }
 
     /// java: protected DropdownList(Minecraft minecraftClient)
-    pub fn new(minecraft_client: &mut mcrust::net::minecraft::client::minecraft::Minecraft) -> compat::Shared<Self> {
-        Self::new_in(minecraft_client, |this| {
+    pub fn new(minecraft_client: &mut mcrust::net::minecraft::client::minecraft::Minecraft, entry_height: i32) -> compat::Shared<Self> {
+        Self::new_in(minecraft_client, entry_height, |this| {
             let __h = compat::shared(this);
             ((__h.clone() as compat::Shared<dyn DropdownList>), __h)
         }).1
@@ -444,9 +465,8 @@ impl dyn DropdownList {
     /// java: @Override public boolean mouseClicked(MouseButtonEvent click, boolean doubled)
     pub fn mouse_clicked_body(__this: &compat::Shared<dyn DropdownList>, click: &MouseButtonEvent, mut doubled: bool) -> bool {
         // java: if (!visible) return false;
-        // rust: port gap - the port's `AbstractSelectionList` holds no `visible` (AbstractWidget's field), and the mod
-        // list's host lends none (GAPS_batchA.md)
-        let __visible: bool = todo!("rust: port gap - AbstractSelectionList has no `visible`");
+        // (`ModSelectionList.visible` is the list's own `visible`, synced from its widget)
+        let __visible: bool = __this.lock().borrow().dropdown_list_base().base.visible;
         if !(__visible) {
             return false;
         }
@@ -458,9 +478,8 @@ impl dyn DropdownList {
     /// java: @Override public boolean mouseReleased(MouseButtonEvent click)
     pub fn mouse_released_body(__this: &compat::Shared<dyn DropdownList>, click: &MouseButtonEvent) -> bool {
         // java: if (!visible) return false;
-        // rust: port gap - the port's `AbstractSelectionList` holds no `visible` (AbstractWidget's field), and the mod
-        // list's host lends none (GAPS_batchA.md)
-        let __visible: bool = todo!("rust: port gap - AbstractSelectionList has no `visible`");
+        // (`ModSelectionList.visible` is the list's own `visible`, synced from its widget)
+        let __visible: bool = __this.lock().borrow().dropdown_list_base().base.visible;
         if !(__visible) {
             return false;
         }
@@ -473,9 +492,8 @@ impl dyn DropdownList {
     /// java: @Override public boolean mouseDragged(MouseButtonEvent click, double offsetX, double offsetY)
     pub fn mouse_dragged_body(__this: &compat::Shared<dyn DropdownList>, click: &MouseButtonEvent, mut offset_x: f64, mut offset_y: f64) -> bool {
         // java: if (!visible) return false;
-        // rust: port gap - the port's `AbstractSelectionList` holds no `visible` (AbstractWidget's field), and the mod
-        // list's host lends none (GAPS_batchA.md)
-        let __visible: bool = todo!("rust: port gap - AbstractSelectionList has no `visible`");
+        // (`ModSelectionList.visible` is the list's own `visible`, synced from its widget)
+        let __visible: bool = __this.lock().borrow().dropdown_list_base().base.visible;
         if !(__visible) {
             return false;
         }
@@ -487,9 +505,8 @@ impl dyn DropdownList {
     /// java: @Override public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount)
     pub fn mouse_scrolled_body(__this: &compat::Shared<dyn DropdownList>, mut mouse_x: f64, mut mouse_y: f64, mut horizontal_amount: f64, mut vertical_amount: f64) -> bool {
         // java: if (!visible) return false;
-        // rust: port gap - the port's `AbstractSelectionList` holds no `visible` (AbstractWidget's field), and the mod
-        // list's host lends none (GAPS_batchA.md)
-        let __visible: bool = todo!("rust: port gap - AbstractSelectionList has no `visible`");
+        // (`ModSelectionList.visible` is the list's own `visible`, synced from its widget)
+        let __visible: bool = __this.lock().borrow().dropdown_list_base().base.visible;
         if !(__visible) {
             return false;
         }

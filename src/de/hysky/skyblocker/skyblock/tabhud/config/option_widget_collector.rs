@@ -196,13 +196,12 @@ impl SliderBuilder {
         let (min, max, step, label, format, initial_value, callback, tooltip) = compat::read(&self.this, |t| {
             (t.min, t.max, t.step, t.label.clone(), t.format.clone(), t.initial_value, t.callback.clone(), t.tooltip.clone())
         });
-        let mut slider_widget: RangedSliderWidget = RangedSliderWidget::builder().min_max(min, max).step(step).option_formatter(&label, &format).default_value(initial_value).callback(callback).build();
+        let slider_widget: compat::Shared<RangedSliderWidget> = RangedSliderWidget::builder().min_max(min, max).step(step).option_formatter(&label, &format).default_value(initial_value).callback(callback).build();
+        let mut widget: AbstractWidget = RangedSliderWidget::widget(slider_widget);
         if let Some(tooltip) = tooltip {
-            slider_widget.set_tooltip_text(FormattedText::from(tooltip));
+            widget.set_tooltip_text(FormattedText::from(tooltip));
         }
-        // rust: port gap - `RangedSliderWidget extends AbstractSliderButton` (utils/, batch A) has no widget adapter, so
-        // its widget half is what the list holds (GAPS_batchA #11)
-        return slider_widget.base;
+        return widget;
     }
 
 }

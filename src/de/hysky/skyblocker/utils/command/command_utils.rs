@@ -7,7 +7,14 @@ use mcrust::com::mojang::brigadier::context::command_context::CommandContext;
 use mcrust::mcrust::modding::events::client_command_registration_callback::FabricClientCommandSource;
 
 /// java: public static final Command<FabricClientCommandSource> noOp = _ -> -1;
-pub static NO_OP: compat::MainThread<Command<FabricClientCommandSource>> = compat::MainThread::new(|| Arc::new(move |_: &CommandContext<FabricClientCommandSource>| Ok(-1)));
+/// (a `LazyLock`: the command is read on the threads that build command nodes - the executor's - as well as the
+/// render thread)
+pub static NO_OP: LazyLock<Command<FabricClientCommandSource>> = LazyLock::new(|| Arc::new(move |_: &CommandContext<FabricClientCommandSource>| Ok(-1)));
+
+/// `CommandUtils.noOp` - the one command (`NO_OP`)
+pub fn no_op() -> Command<FabricClientCommandSource> {
+    NO_OP.clone()
+}
 
 /// java: public final class CommandUtils
 #[derive(Clone)]

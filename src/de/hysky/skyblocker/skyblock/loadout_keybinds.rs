@@ -157,7 +157,7 @@ impl LoadoutKeybinds {
             return true;
         }
         //   java: minecraft.gameMode.handleContainerInput(containerScreen.getMenu().containerId, slotIndex, ContainerUtils.getContainerClickButton(InputConstants.MOUSE_BUTTON_LEFT), ContainerInput.PICKUP, minecraft.player);
-        handle_container_input(container_id, slot_index, crate::de::hysky::skyblocker::utils::container_utils::ContainerUtils::get_container_click_button(0), mcrust::net::minecraft::world::inventory::container_input::ContainerInput::Pickup);
+        compat::handle_container_input(container_id, slot_index, crate::de::hysky::skyblocker::utils::container_utils::ContainerUtils::get_container_click_button(0), mcrust::net::minecraft::world::inventory::container_input::ContainerInput::Pickup);
         return false;
     }
 
@@ -288,20 +288,3 @@ impl LoadoutKeybinds {
 
 }
 
-/// `minecraft.gameMode.handleContainerInput(containerId, slotId, buttonNum, containerInput, minecraft.player)`: the
-/// port's `handleContainerInput:443-481` over the player (its `:445-447` check of the container id is made here - the
-/// port's body is handed the open menu's own id), then `:480`'s send.
-fn handle_container_input(container_id: i32, slot_id: i32, button_num: i32, container_input: mcrust::net::minecraft::world::inventory::container_input::ContainerInput) {
-    use mcrust::net::minecraft::client::multiplayer::multi_player_game_mode;
-    use mcrust::net::minecraft::world::entity::player::player::Player as _;
-    let packet = mcrust::mcrust::modding::game::with_player(|player| {
-        let open_container_id = player.player().container_menu_container_id();
-        if container_id != open_container_id {
-            logger().warn(&format!("Ignoring click in mismatching container. Click in {}, player has {}.", container_id, open_container_id));
-            return None;
-        }
-        multi_player_game_mode::handle_container_input_on_player(&mut compat::minecraft().game_mode, player, slot_id, button_num, container_input)
-    })
-    .flatten();
-    multi_player_game_mode::send_container_click(packet, container_input, slot_id, button_num);
-}

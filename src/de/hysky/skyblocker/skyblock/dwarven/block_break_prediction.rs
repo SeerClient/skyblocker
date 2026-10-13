@@ -175,7 +175,7 @@ impl BlockBreakPrediction {
             let mut blocks: Vec<crate::unresolved::NEURepoFile> = NEURepoManager::tree("mining/blocks").collect::<Vec<_>>();
             for file in blocks.iter() {
                 //   java: !file.isFile()
-                if !neu_repo_file_is_file(file) {
+                if !compat::neu_repo_file_is_file(file) {
                     continue;
                 }
                 {
@@ -184,7 +184,7 @@ impl BlockBreakPrediction {
                     let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                         //   java: BlockFile data = BlockFile.CODEC.parse(JsonOps.INSTANCE, JsonParser.parseString(new String(stream.readAllBytes()))).getOrThrow();
                         use mcrust::com::mojang::serialization::decoder::Decoder as _;
-                        let content: String = neu_repo_file_read_all(file);
+                        let content: String = compat::neu_repo_file_read_all(file);
                         let data: BlockFile = BLOCK_FILE_CODEC.get().parse(&mcrust::com::mojang::serialization::json_ops::JsonOps::instance(), &compat::json_to_port(&serde_json::from_str::<serde_json::Value>(&content).expect("JsonSyntaxException"))).get_or_throw().unwrap_or_else(|e| panic!("{e}"));
                         for skyblock_block_type in data.skyblock_blocks.iter() {
                             for location in skyblock_block_type.only_in.iter().copied() {
@@ -296,20 +296,3 @@ impl SkyblockBlock {
 
 }
 
-/// `NEURepoFile.isFile()`.
-///
-/// rust: port gap - the NEU repo library (`io.github.moulberry.repo`) is a `crate::unresolved` placeholder with no
-/// file behind it, and `NEURepoManager.tree(..)` answers no files (GAPS_L, GAPS_M #10); a placeholder file is no
-/// regular file.
-fn neu_repo_file_is_file(file: &crate::unresolved::NEURepoFile) -> bool {
-    let _ = file;
-    false
-}
-
-/// `new String(file.stream().readAllBytes())`.
-///
-/// rust: port gap - see `neu_repo_file_is_file` (GAPS_M #10): a placeholder file has no content.
-fn neu_repo_file_read_all(file: &crate::unresolved::NEURepoFile) -> String {
-    let _ = file;
-    String::new()
-}

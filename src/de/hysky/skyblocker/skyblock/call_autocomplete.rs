@@ -3,11 +3,13 @@
 #[allow(unused_imports)]
 use crate::prelude::*;
 use crate::de::hysky::skyblocker::utils::neu_repo_manager::NEURepoManager;
-use mcrust::com::mojang::brigadier::tree::literal_command_node::LiteralCommandNode;
+use crate::de::hysky::skyblocker::skyblock::viewstash_autocomplete::ClientCommandNode;
+use crate::de::hysky::skyblocker::utils::command::command_utils::no_op;
 use mcrust::java::text::decimal_format_symbols::Locale;
 
 /// java: public static @Nullable LiteralCommandNode<FabricClientCommandSource> commandNode;
-pub static COMMAND_NODE: compat::MainThread<Option<LiteralCommandNode>> = compat::MainThread::new(|| None);
+/// (set on the executor's thread once the NEU repo loaded, read on the network thread: a `LazyLock<Mutex<..>>`)
+pub static COMMAND_NODE: LazyLock<Mutex<Option<ClientCommandNode>>> = LazyLock::new(|| Mutex::new(None));
 
 /// java: public class CallAutocomplete
 #[derive(Clone)]
@@ -28,15 +30,12 @@ impl CallAutocomplete {
 
     /// java: private static void loadCallNames()
     pub fn load_call_names() {
-        let mut suggestions: Vec<String> = Vec::new();
-        // TODO(fabric2seer): `.getAbiphoneContacts(..)` on a NEUConstants
+        let suggestions: Vec<String> = Vec::new();
         //   java: for (Map.Entry<String, AbiphoneContact> entry : NEURepoManager.getConstants().getAbiphoneContacts().entrySet()) {
-        //   java: 			String npcName = entry.getKey();
-        //   java: 			List<String> callNameOverrides = entry.getValue().getCallNames();
-        //   java:
-        //   java: 			suggestions.addAll(computeCallNames(npcName, callNameOverrides));
+        //   java: 			suggestions.addAll(computeCallNames(entry.getKey(), entry.getValue().getCallNames()));
         //   java: 		}
-        // TODO(fabric2seer): a command builder outside dispatcher.register(..)
+        // rust: port gap (NEU repo library) - `NEUConstants.getAbiphoneContacts()` is not ported (crate::unresolved::NEUConstants),
+        // so the contacts add no names
         //   java: commandNode = literal("call")
         //   java: 				.requires(_ -> Utils.isOnSkyblock())
         //   java: 				.executes(CommandUtils.noOp)
@@ -44,6 +43,20 @@ impl CallAutocomplete {
         //   java: 						.suggests((_, builder) -> SharedSuggestionProvider.suggest(suggestions, builder))
         //   java: 						.executes(CommandUtils.noOp))
         //   java: 				.build();
+        use mcrust::com::mojang::brigadier::arguments::string_argument_type::StringArgumentType;
+        use mcrust::com::mojang::brigadier::builder::argument_builder::ArgumentBuilder as _;
+        use mcrust::com::mojang::brigadier::context::command_context::CommandContext;
+        use mcrust::com::mojang::brigadier::suggestion::suggestions_builder::SuggestionsBuilder;
+        use mcrust::mcrust::modding::events::client_command_registration_callback::{self, FabricClientCommandSource};
+        let suggestions = Arc::new(suggestions);
+        let mut contact = client_command_registration_callback::argument("contact", Arc::new(StringArgumentType::greedy_string()));
+        contact.suggests(Some(Arc::new(move |_: &CommandContext<FabricClientCommandSource>, builder: &mut SuggestionsBuilder| Ok(mcrust::net::minecraft::commands::shared_suggestion_provider::suggest(&suggestions, builder)))));
+        contact.executes(no_op());
+        let mut node = client_command_registration_callback::literal("call");
+        node.requires(Arc::new(|_: &FabricClientCommandSource| crate::de::hysky::skyblocker::utils::utils::Utils::is_on_skyblock()));
+        node.executes(no_op());
+        node.then(&contact);
+        compat::set_state(&COMMAND_NODE, Some(node.build()));
     }
 
     /// java: private static List<String> computeCallNames(String npcName, @Nullable List<String> callNameOverrides)

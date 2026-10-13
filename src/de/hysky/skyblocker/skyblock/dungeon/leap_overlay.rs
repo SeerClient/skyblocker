@@ -148,7 +148,7 @@ impl LeapOverlay {
         compat::write(&__this, |__t| __t.row_count = row_count);
         //   java: handler.addSlotListener(this);
         let pending = compat::read(&__this, |__t| __t.pending_slot_changes.clone());
-        add_slot_listener(handler, Box::new(SlotListener { pending }));
+        compat::add_slot_listener(handler, Box::new(compat::QueueSlotListener { pending, name: "LeapOverlay" }));
         __this
     }
 
@@ -654,7 +654,7 @@ impl PlayerReference {
     /// java: private void clickSlot()
     pub fn click_slot(&self) {
         //   java: CLIENT.gameMode.handleContainerInput(this.syncId(), this.slotId(), ContainerUtils.getContainerClickButton(InputConstants.MOUSE_BUTTON_LEFT), ContainerInput.PICKUP, CLIENT.player);
-        handle_container_input(self.sync_id(), self.slot_id(), ContainerUtils::get_container_click_button(0), ContainerInput::Pickup);
+        compat::handle_container_input(self.sync_id(), self.slot_id(), ContainerUtils::get_container_click_button(0), ContainerInput::Pickup);
         if compat::read(&(CONFIG.get_mut())(), |__t| __t.enable_leap_message) {
             MessageScheduler::send_message_after_cooldown(message_scheduler::INSTANCE.get_mut(), &format!("/pc {}{}", (constants::PREFIX.get_mut())().get_string(), compat::regex::replace_all(&(CONFIG.get_mut())().lock().borrow().leap_message, "\\[name]", &self.name)), true);
         }
@@ -755,60 +755,3 @@ impl PlayerStatusFields {
 
 }
 
-/// java: `LeapOverlay implements ContainerListener` - the listener the menu holds. The menu calls it inside the packet
-/// handler's hold of the player (`AbstractContainerMenu.broadcastChanges`), where the screen object cannot be reached,
-/// so it records the call for `LeapOverlay::drain_slot_changes`.
-struct SlotListener {
-    pending: Arc<Mutex<Vec<(i32, ItemStack)>>>,
-}
-
-impl std::fmt::Debug for SlotListener {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str("LeapOverlay")
-    }
-}
-
-impl ContainerListener for SlotListener {
-    /// java: @Override public void slotChanged(AbstractContainerMenu handler, int slotId, ItemStack stack)
-    fn slot_changed(&mut self, slot_index: i32, item_stack: &ItemStack) {
-        self.pending.lock().unwrap_or_else(|p| p.into_inner()).push((slot_index, item_stack.duplicate()));
-    }
-
-    /// java: @Override public void dataChanged(AbstractContainerMenu handler, int property, int value) {}
-    fn data_changed(&mut self, id: i32, value: i32) {
-        let _ = (id, value);
-    }
-}
-
-/// `handler.addSlotListener(listener)` on the menu `fromPacket` built (not the player's yet): the port's takes the
-/// `Containers` its `broadcastChanges` reads - the chest's own and the player's inventory. The menu half is moved out
-/// of the `ChestMenu` for the call (the chest's containers borrow the rest of it) and put back.
-fn add_slot_listener(handler: &mut ChestMenu, listener: Box<dyn ContainerListener>) {
-    use mcrust::net::minecraft::world::entity::player::player::Player as _;
-    let container_id = handler.menu.container_id;
-    let mut menu = std::mem::replace(&mut handler.menu, AbstractContainerMenu::new(container_id));
-    mcrust::mcrust::modding::game::with_player(|player| {
-        let (_, _, inventory) = player.player_mut().get_container_menu_and_inventory();
-        let mut containers = handler.containers_for(inventory);
-        menu.add_slot_listener(listener, &mut containers);
-    });
-    handler.menu = menu;
-}
-
-/// `CLIENT.gameMode.handleContainerInput(containerId, slotId, buttonNum, containerInput, CLIENT.player)`: the port's
-/// `handleContainerInput:443-481` over the player (its `:445-447` check of the container id is made here - the port's
-/// body is handed the open menu's own id), then `:480`'s send.
-fn handle_container_input(container_id: i32, slot_id: i32, button_num: i32, container_input: ContainerInput) {
-    use mcrust::net::minecraft::client::multiplayer::multi_player_game_mode;
-    use mcrust::net::minecraft::world::entity::player::player::Player as _;
-    let packet = mcrust::mcrust::modding::game::with_player(|player| {
-        let open_container_id = player.player().container_menu_container_id();
-        if container_id != open_container_id {
-            logger().warn(&format!("Ignoring click in mismatching container. Click in {}, player has {}.", container_id, open_container_id));
-            return None;
-        }
-        multi_player_game_mode::handle_container_input_on_player(&mut compat::minecraft().game_mode, player, slot_id, button_num, container_input)
-    })
-    .flatten();
-    multi_player_game_mode::send_container_click(packet, container_input, slot_id, button_num);
-}

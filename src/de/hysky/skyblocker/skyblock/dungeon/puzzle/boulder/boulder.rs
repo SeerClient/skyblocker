@@ -26,6 +26,7 @@ use mcrust::net::minecraft::world::level::block::block::Block;
 use mcrust::net::minecraft::world::level::block::blocks;
 use mcrust::net::minecraft::world::phys::aabb::AABB;
 use mcrust::net::minecraft::world::phys::vec3::Vec3;
+use crate::de::hysky::skyblocker::utils::render::render_helper::RenderHelper;
 
 /// java: @SuppressWarnings("unused") private static final Boulder INSTANCE = new Boulder();
 pub static INSTANCE: compat::MainThread<compat::Shared<Boulder>> = compat::MainThread::new(|| Boulder::new());
@@ -37,6 +38,8 @@ pub static ORANGE_COLOR_COMPONENTS: LazyLock<Vec<f32>> = LazyLock::new(|| ColorU
 pub const BASE_Y: i32 = 65;
 /// java: static @Nullable AABB boundingBox;
 pub static BOUNDING_BOX: compat::MainThread<Option<AABB>> = compat::MainThread::new(|| None);
+/// java: static Vec3 @Nullable [] linePoints;
+pub static LINE_POINTS: compat::MainThread<Option<Vec<Vec3>>> = compat::MainThread::new(|| None);
 
 /// java: public class Boulder extends DungeonPuzzle
 #[derive(Clone)]
@@ -197,20 +200,18 @@ impl Boulder {
         let mut initial_states: Vec<GameState> = Boulder::get_initial_states(&board);
         let mut solution: Option<Vec<Vec<i32>>> = BoulderSolver::a_star_solve(&initial_states);
         if let Some(solution) = &solution {
-            // TODO(fabric2seer): assignment to unknown `linePoints`
             //   java: linePoints = new Vec3[solution.size()];
-            let mut index: i32 = 0;
+            let mut line_points: Vec<Vec3> = Vec::with_capacity(solution.len());
             for coord in solution.iter() {
                 let mut x: i32 = coord[(0) as usize];
                 let mut y: i32 = coord[(1) as usize];
-                // TODO(fabric2seer): unknown name `linePoints`
                 //   java: linePoints[index++] = Vec3.atCenterOf(room.relativeToActual(board.getObject3DPosition(x, y)));
+                line_points.push(mcrust::net::minecraft::world::phys::vec3::at_center_of(&({ let __f = compat::dispatch(&room, |__t| __t.relative_to_actual()); __f(&room, &board.get_object3_d_position(x, y)) })));
             }
+            *LINE_POINTS.get_mut() = Some(line_points);
             let mut button: Option<BlockPos> = None;
-            // TODO(fabric2seer): the condition: unknown name `linePoints`
             //   java: linePoints != null && linePoints.length > 0
-            if todo!("fabric2seer: the condition (TODO above)") {
-                // TODO(fabric2seer): unknown name `linePoints`
+            if LINE_POINTS.get().as_ref().is_some_and(|line_points| !line_points.is_empty()) {
                 //   java: for (int i = 0; i < linePoints.length - 1; i++) {
                 //   java: 					Vec3 point1 = linePoints[i];
                 //   java: 					Vec3 point2 = linePoints[i + 1];
@@ -221,6 +222,18 @@ impl Boulder {
                 //   java: 						break;
                 //   java: 					}
                 //   java: 				}
+                let line_points: Vec<Vec3> = LINE_POINTS.get().clone().unwrap_or_default();
+                let level = mcrust::mcrust::modding::game::level().unwrap();
+                for i in 0..line_points.len().saturating_sub(1) {
+                    let point1: &Vec3 = &line_points[i];
+                    let point2: &Vec3 = &line_points[i + 1];
+                    button = Boulder::check_for_button_blocks_on_line(&level, point1, point2);
+                    if let Some(button) = &button {
+                        // If a button is found, calculate its bounding box
+                        *BOUNDING_BOX.get_mut() = RenderHelper::get_block_bounding_box(&level, button);
+                        break;
+                    }
+                }
                 if let Some(button) = &button {
                 } else {
                     ({ let __f = compat::dispatch(__this, |__t| __t.reset()); __f(&compat::view(__this, |a| a as compat::Shared<dyn Resettable>)) });
@@ -245,15 +258,18 @@ impl Boulder {
         }
         let mut alpha: f32 = 1.0f32;
         let mut line_width: f32 = 5.0f32;
-        // TODO(fabric2seer): the condition: unknown name `linePoints`
         //   java: linePoints != null && linePoints.length > 0
-        if todo!("fabric2seer: the condition (TODO above)") {
-            // TODO(fabric2seer): unknown name `linePoints`
+        if LINE_POINTS.get().as_ref().is_some_and(|line_points| !line_points.is_empty()) {
             //   java: for (int i = 0; i < linePoints.length - 1; i++) {
             //   java: 				Vec3 startPoint = linePoints[i];
             //   java: 				Vec3 endPoint = linePoints[i + 1];
             //   java: 				collector.submitLinesFromPoints(new Vec3[]{startPoint, endPoint}, ORANGE_COLOR_COMPONENTS, alpha, lineWidth, true);
             //   java: 			}
+            if let Some(line_points) = LINE_POINTS.get().as_ref() {
+                for i in 0..line_points.len().saturating_sub(1) {
+                    ({ let __f = compat::dispatch(collector, |__t| __t.submit_lines_from_points()); __f(collector, &vec![line_points[i].clone(), line_points[i + 1].clone()], &ORANGE_COLOR_COMPONENTS, alpha, line_width, true) });
+                }
+            }
             if BOUNDING_BOX.get_mut().is_some() {
                 ({ let __f = compat::dispatch(collector, |__t| __t.submit_filled_box_aabb_float_float_boolean()); __f(collector, BOUNDING_BOX.get_mut().as_ref().unwrap(), &RED_COLOR_COMPONENTS, 0.5f32, false) });
                 ({ let __f = compat::dispatch(collector, |__t| __t.submit_outlined_box_aabb_float_float_boolean()); __f(collector, BOUNDING_BOX.get_mut().as_ref().unwrap(), &RED_COLOR_COMPONENTS, 5.0f32, false) });
@@ -269,8 +285,8 @@ impl Boulder {
     /// java: @Override public void reset()
     pub fn reset_impl(__this: &compat::Shared<Self>) {
         <dyn DungeonPuzzle>::reset_body(&compat::view(__this, |a| a as compat::Shared<dyn DungeonPuzzle>));
-        // TODO(fabric2seer): assignment to unknown `linePoints`
         //   java: linePoints = null;
+        *LINE_POINTS.get_mut() = None;
         *BOUNDING_BOX.get_mut() = None;
     }
 

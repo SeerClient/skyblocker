@@ -158,7 +158,7 @@ impl SidePanelWidget {
         self.positioned_widget = Some(positioned_widget.clone());
         let mut hud_widget: compat::Shared<dyn HudWidget> = compat::read(&positioned_widget, |__t| __t.widget.clone());
         self.layout = LinearLayout::vertical().spacing(5);
-        self.layout.default_cell_setting().align_horizontally_center();
+        { let __s = self.layout.default_cell_setting(); *__s = (*__s).align_horizontally_center(); }
         self.option_widgets.clear();
         // TODO(fabric2seer): `new StringWidget(..) {..}` (an anonymous class with state or several methods)
         //   java: add(new StringWidget(0, 15, hudWidget.getInformation().displayName().copy().withStyle(ChatFormatting.UNDERLINE), client.font) {

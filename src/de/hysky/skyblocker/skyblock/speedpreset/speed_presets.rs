@@ -43,8 +43,12 @@ impl SpeedPresets {
     }
 
     /// java: public static CommandNode<FabricClientCommandSource> getCommandNode()
-    pub fn get_command_node() -> CommandNode<crate::unresolved::FabricClientCommandSource> {
-        // TODO(fabric2seer): a command builder outside dispatcher.register(..)
+    pub fn get_command_node() -> crate::de::hysky::skyblocker::skyblock::viewstash_autocomplete::ClientCommandNode {
+        use mcrust::com::mojang::brigadier::arguments::string_argument_type::StringArgumentType;
+        use mcrust::com::mojang::brigadier::builder::argument_builder::ArgumentBuilder as _;
+        use mcrust::com::mojang::brigadier::context::command_context::CommandContext;
+        use mcrust::com::mojang::brigadier::suggestion::suggestions_builder::SuggestionsBuilder;
+        use mcrust::mcrust::modding::events::client_command_registration_callback::{self, FabricClientCommandSource};
         //   java: return ClientCommands.literal("setmaxspeed")
         //   java: 				.requires(_ -> Utils.isOnSkyblock())
         //   java: 				.executes(CommandUtils.noOp)
@@ -55,7 +59,21 @@ impl SpeedPresets {
         //   java: 							}
         //   java: 							return builder.buildFuture();
         //   java: 						}).executes(CommandUtils.noOp)).build();
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        let mut preset = client_command_registration_callback::argument("preset", Arc::new(StringArgumentType::string()));
+        preset.suggests(Some(Arc::new(|_: &CommandContext<FabricClientCommandSource>, builder: &mut SuggestionsBuilder| {
+            let instance = SpeedPresets::get_instance();
+            if crate::de::hysky::skyblocker::config::skyblocker_config_manager::SkyblockerConfigManager::get().general.speed_presets.enable_speed_presets && instance.presets.lock().borrow().is_loaded() {
+                let keys: Vec<String> = instance.get_presets().keys().cloned().collect();
+                return Ok(mcrust::net::minecraft::commands::shared_suggestion_provider::suggest(&keys, builder));
+            }
+            Ok(builder.build_future())
+        })));
+        preset.executes(crate::de::hysky::skyblocker::utils::command::command_utils::no_op());
+        let mut node = client_command_registration_callback::literal("setmaxspeed");
+        node.requires(Arc::new(|_: &FabricClientCommandSource| crate::de::hysky::skyblocker::utils::utils::Utils::is_on_skyblock()));
+        node.executes(crate::de::hysky::skyblocker::utils::command::command_utils::no_op());
+        node.then(&preset);
+        return node.build();
     }
 
     /// java: @Init public static void init()

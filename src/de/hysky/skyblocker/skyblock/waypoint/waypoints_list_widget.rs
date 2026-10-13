@@ -90,6 +90,10 @@ pub struct WaypointsListWidget {
     /// java: private final Set<WaypointGroup> collapsedGroups = new ReferenceOpenHashSet<>();
     /// A `ReferenceOpenHashSet` (identity): the members, asked with `contains_group` (`Arc::ptr_eq`).
     pub collapsed_groups: Vec<compat::Shared<WaypointGroup>>,
+    /// An `updateEntries()` asked for by a row's button: the press runs in the game's widget pass, where the list
+    /// is not lent to this object, so it is queued and run at the list's next draw (`extract_list_items`, which is
+    /// handed the list) - PATTERNS_N #1.
+    pub update_entries_requested: bool,
 }
 
 impl std::ops::Deref for WaypointsListWidget {
@@ -131,6 +135,7 @@ impl WaypointsListWidget {
             waypoints: None,
             insert_position: None,
             collapsed_groups: Vec::new(),
+            update_entries_requested: false,
         });
         WaypointsListWidget::set_island(&__this, compat::read(&screen, |__t| __t.abstract_waypoints_screen_base().island.clone()).unwrap());
         __this
@@ -192,7 +197,7 @@ impl WaypointsListWidget {
 
     /// java: void addWaypointGroupAfterSelected()
     pub fn add_waypoint_group_after_selected(__this: &compat::Shared<Self>) {
-        let mut group_entry: compat::Shared<WaypointGroupEntry> = WaypointGroupEntry::new();
+        let mut group_entry: compat::Shared<WaypointGroupEntry> = WaypointGroupEntry::new(std::sync::Arc::downgrade(__this));
         let mut selected_group_entry_optional: Option<compat::Shared<WaypointGroupEntry>> = WaypointsListWidget::get_group(__this);
         let mut index: i32 = (WaypointsListWidget::waypoint_groups(__this).len() as i32);
         if selected_group_entry_optional.is_some() {
@@ -305,7 +310,7 @@ impl WaypointsListWidget {
     pub fn mouse_clicked(__this: &compat::Shared<Self>, click: &MouseButtonEvent, mut doubled: bool) -> bool {
         if compat::read(__this, |__t| __t.insert_position.clone()).is_some() {
             let insert_position = compat::read(__this, |__t| __t.insert_position.clone()).unwrap();
-            let mut entry: compat::Shared<WaypointEntry> = WaypointEntry::new(insert_position.group_entry.clone());
+            let mut entry: compat::Shared<WaypointEntry> = WaypointEntry::new(std::sync::Arc::downgrade(__this), insert_position.group_entry.clone());
             // `insertPosition.groupEntry.group.waypoints().add(position, entry.waypoint)`: the group's own list.
             let group = compat::read(&insert_position.group_entry, |__t| __t.group.clone()).unwrap();
             let waypoint = compat::read(&entry, |__t| __t.waypoint.clone()).unwrap();
@@ -317,20 +322,32 @@ impl WaypointsListWidget {
         return todo!("fabric2seer: see the TODO above");
     }
 
+    /// `updateEntries()` from a row's button: queued for the list's next draw (see `update_entries_requested`)
+    pub fn request_update_entries(outer: &compat::WeakShared<Self>) {
+        if let Some(outer) = outer.upgrade() {
+            compat::write(&outer, |__t| __t.update_entries_requested = true);
+        }
+    }
+
+    /// `waypoints.indexOf(group)`: `List.indexOf` asks `WaypointGroup.equals`
+    pub fn index_of_group(__this: &compat::Shared<Self>, group: &compat::Shared<WaypointGroup>) -> i32 {
+        WaypointsListWidget::waypoint_groups(__this).iter().position(|g| std::sync::Arc::ptr_eq(g, group) || WaypointGroup::equals_shared(g, group)).map_or(-1, |i| i as i32)
+    }
+
     /// java: void updateEntries()
     pub fn update_entries(__this: &compat::Shared<Self>) {
         compat::write(__this, |__t| { let __l = &mut __t.base; __l.clear_entries() });
         WaypointsListWidget::check_and_add_warning(__this);
         for group in WaypointsListWidget::waypoint_groups(__this) {
             let mut collapsed: bool = compat::read(__this, |__t| contains_group(&__t.collapsed_groups, &group));
-            let mut group_entry: compat::Shared<WaypointGroupEntry> = WaypointGroupEntry::new_2(group.clone(), collapsed);
+            let mut group_entry: compat::Shared<WaypointGroupEntry> = WaypointGroupEntry::new_2(std::sync::Arc::downgrade(__this), group.clone(), collapsed);
             let __entry = (group_entry.clone() as compat::Shared<dyn AbstractWaypointEntry>);
             compat::write(__this, |__t| { let __l = &mut __t.base; (__l.add_entry(Box::new(compat::EntryAdapter::new(__entry))) as i32) });
             if collapsed {
                 continue;
             }
             for waypoint in WaypointGroup::waypoints(&group) {
-                let __entry = (WaypointEntry::new_2(group_entry.clone(), waypoint.clone()) as compat::Shared<dyn AbstractWaypointEntry>);
+                let __entry = (WaypointEntry::new_2(std::sync::Arc::downgrade(__this), group_entry.clone(), waypoint.clone()) as compat::Shared<dyn AbstractWaypointEntry>);
                 compat::write(__this, |__t| { let __l = &mut __t.base; (__l.add_entry(Box::new(compat::EntryAdapter::new(__entry))) as i32) });
             }
         }
@@ -357,7 +374,7 @@ impl WaypointsListWidget {
     /// java: void checkAndAddWarning()
     pub fn check_and_add_warning(__this: &compat::Shared<Self>) {
         if !(SkyblockerConfigManager::get().ui_and_visuals.waypoints.enable_waypoints) {
-            let __entry = WaypointsDisabledWarningEntry::new() as compat::Shared<dyn AbstractWaypointEntry>;
+            let __entry = WaypointsDisabledWarningEntry::new(std::sync::Arc::downgrade(__this)) as compat::Shared<dyn AbstractWaypointEntry>;
             compat::write(__this, |__t| __t.base.add_entry_to_top(Box::new(compat::EntryAdapter::new(__entry))));
         }
     }
@@ -402,6 +419,11 @@ impl ModList for compat::ListClass<WaypointsListWidget> {
 
     /// java: @Override protected void extractListItems(GuiGraphicsExtractor context, int mouseX, int mouseY, float deltaTicks)
     fn extract_list_items(&self, list: &mut ModSelectionList, context: &mut WidgetRenderContext<'_>, mouse_x: i32, mouse_y: i32, a: f32, super_extract_list_items: &mut dyn FnMut(&mut ModSelectionList, &mut WidgetRenderContext<'_>)) {
+        // a row's queued `updateEntries()` (see `update_entries_requested`), run with the list lent
+        let __h = self.object().clone();
+        if compat::write(&__h, |__t| std::mem::take(&mut __t.update_entries_requested)) {
+            compat::lend_list(&__h, list, || WaypointsListWidget::update_entries(&__h));
+        }
         super_extract_list_items(list, context);
         compat::with_super(&mut || {}, || self.ask(&list.list, (), |__h| WaypointsListWidget::extract_list_items(__h, &context.graphics, mouse_x, mouse_y, a)))
     }
@@ -418,6 +440,8 @@ pub struct AbstractWaypointEntryBase {
     pub __row: mcrust::net::minecraft::client::gui::screens::screen::Screen,
     /// the screen's widgets as this object last saw them (see `compat::WidgetCache`)
     pub __widgets: compat::WidgetCache,
+    /// java: WaypointsListWidget.this (every entry class is an inner class of the list)
+    pub outer: compat::WeakShared<WaypointsListWidget>,
 }
 
 impl std::ops::Deref for AbstractWaypointEntryBase {
@@ -435,11 +459,14 @@ impl std::ops::DerefMut for AbstractWaypointEntryBase {
 
 impl AbstractWaypointEntryBase {
     /// java: the implicit no-argument constructor (built by the most-derived class's `wrap`, then run on its handle)
-    pub fn new_in<__R>(__wrap: impl FnOnce(Self) -> (compat::Shared<dyn AbstractWaypointEntry>, __R)) -> (compat::Shared<dyn AbstractWaypointEntry>, __R) {
+    ///
+    /// (`outer` is the enclosing `WaypointsListWidget.this`)
+    pub fn new_in<__R>(outer: compat::WeakShared<WaypointsListWidget>, __wrap: impl FnOnce(Self) -> (compat::Shared<dyn AbstractWaypointEntry>, __R)) -> (compat::Shared<dyn AbstractWaypointEntry>, __R) {
         let this = Self {
             base: mcrust::net::minecraft::client::gui::components::abstract_selection_list::Entry::new(0),
             __widgets: Default::default(),
             __row: mcrust::net::minecraft::client::gui::screens::screen::Screen::new(String::new()),
+            outer,
         };
         let (__h, __r) = __wrap(this);
         let __this = __h;
@@ -511,37 +538,40 @@ impl std::ops::DerefMut for WaypointsDisabledWarningEntry {
 }
 
 impl WaypointsDisabledWarningEntry {
-    /// java: the implicit no-argument constructor
-    pub fn new() -> compat::Shared<Self> {
-        // TODO(fabric2seer): the initialiser of `textSize`: unknown name `minecraft`
+    /// java: the implicit no-argument constructor (`outer` is the enclosing `WaypointsListWidget.this`)
+    pub fn new(outer: compat::WeakShared<WaypointsListWidget>) -> compat::Shared<Self> {
+        let text: MutableComponent = component::translatable("skyblocker.waypoints.disabledWarning").with_style_format(ChatFormatting::Red);
         //   java: int textSize = minecraft.font.width(text);
-        // TODO(fabric2seer): the initialiser of `children`: instance field `textWidget` read in a static context
-        //   java: List<AbstractWidget> children = List.of(textWidget);
-        let (_, __this) = AbstractWaypointEntryBase::new_in(move |__base| {
+        let text_size: i32 = compat::font().width_of(&mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(text.clone()));
+        let (_, __this) = AbstractWaypointEntryBase::new_in(outer, move |__base| {
             let __h = compat::shared(Self {
                 base: __base,
-                text: component::translatable("skyblocker.waypoints.disabledWarning").with_style_format(ChatFormatting::Red),
+                text,
                 text_widget: None,
-                text_size: Default::default(),
+                text_size,
                 children: Default::default(),
             });
             ((__h.clone() as compat::Shared<dyn AbstractWaypointEntry>), __h)
         });
-        // TODO(fabric2seer): unknown name `minecraft`
-        //   java: StringWidget textWidget = new StringWidget(text, minecraft.font);
+        //   java: StringWidget textWidget = new StringWidget(text, minecraft.font); List<AbstractWidget> children = List.of(textWidget);
+        let __text = compat::read(&__this, |__t| __t.text.clone());
+        let __index = compat::write(&__this, |__t| { let __i = __t.base.__row.add_widget(compat::string_widget(0, 0, -1, mcrust::net::minecraft::client::gui::font::LINE_HEIGHT, __text)); __t.base.__row.mark_renderable(__i); __i });
+        compat::write(&__this, |__t| { __t.text_widget = Some(compat::WidgetRef::Screen(__index)); __t.children = vec![compat::WidgetRef::Screen(__index)]; });
         __this
     }
 
     /// java: @Override public void extractContent(GuiGraphicsExtractor graphics, int mouseX, int mouseY, boolean hovered, float a)
     pub fn extract_content(__this: &compat::Shared<Self>, graphics: &GuiGraphicsExtractor, mut mouse_x: i32, mut mouse_y: i32, mut hovered: bool, mut a: f32) {
-        // TODO(fabric2seer): `getRowWidth(..)` is a method of the enclosing instance (WaypointsListWidget.this) - an inner class has no outer reference in Rust
         //   java: textWidget.setPosition(getX() + (getRowWidth() - textSize) / 2, getY() + (getHeight() - minecraft.font.lineHeight) / 2);
-        // TODO(fabric2seer): `extract_render_state` is a method of the port's trait `Renderable`, which the port's `AbstractWidget` does not implement
-        // rust: let __wa1 = graphics.clone();
-        // rust: let __wa2 = mouse_x;
-        // rust: let __wa3 = mouse_y;
-        // rust: let __wa4 = a;
-        // rust: compat::write(__this, |__t| { let __s = &mut *__t; let __r = __s.text_widget.as_mut().unwrap(); __s.base.__widgets.with(&mut __s.base.__row, __r, |__w| __w.extract_render_state(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), __wa2, __wa3, __wa4)) });
+        let row_width: i32 = match compat::read(__this, |__t| __t.base.outer.upgrade()) { Some(outer) => WaypointsListWidget::get_row_width(&outer), None => 340 };
+        compat::write(__this, |__t| {
+            let (__x, __y, __h, __size) = (__t.get_x(), __t.get_y(), __t.get_height(), __t.text_size);
+            let __s = &mut *__t;
+            let __r = __s.text_widget.as_mut().unwrap();
+            __s.base.__widgets.with(&mut __s.base.__row, __r, |__w| __w.set_position(__x.wrapping_add((row_width.wrapping_sub(__size)).wrapping_div(2)), __y.wrapping_add((__h.wrapping_sub(mcrust::net::minecraft::client::gui::font::LINE_HEIGHT)).wrapping_div(2))))
+        });
+        //   java: textWidget.extractRenderState(graphics, mouseX, mouseY, a); - the row's widgets are drawn by its adapter
+        //   (`context.extract_widgets` over the row) right after this body
     }
 
     /// java: @Override public List<? extends GuiEventListener> children()
@@ -633,119 +663,181 @@ impl WaypointGroupEntry {
         compat::write(__this, |__t| { let __s = &mut *__t; let __r = __s.enabled.as_mut().expect("NullPointerException: enabled"); __s.base.__widgets.with(&mut __s.base.__row, __r, |__w| if let WidgetKind::Checkbox(__c) = &__w.kind { __c.selected() } else { panic!("ClassCastException: the enabled widget is not a Checkbox") }) })
     }
 
-    /// java: public WaypointGroupEntry()
-    pub fn new() -> compat::Shared<Self> {
-        // TODO(fabric2seer): `island` is a field of the enclosing instance (WaypointsListWidget.this) - an inner class has no outer reference in Rust
+    /// java: public WaypointGroupEntry() (`outer` is the enclosing `WaypointsListWidget.this`)
+    pub fn new(outer: compat::WeakShared<WaypointsListWidget>) -> compat::Shared<Self> {
         //   java: this(new WaypointGroup("New Group", island), false);
-        let __this: compat::Shared<Self> = todo!("constructor");
-        __this
+        let island: Location = outer.upgrade().and_then(|__o| compat::read(&__o, |__t| __t.island)).expect("NullPointerException: island");
+        WaypointGroupEntry::new_2(outer, WaypointGroup::new("New Group".to_string(), island), false)
     }
 
-    /// java: public WaypointGroupEntry(WaypointGroup initialGroup, boolean collapsed)
-    pub fn new_2(mut initial_group: compat::Shared<WaypointGroup>, mut collapsed: bool) -> compat::Shared<Self> {
+    /// java: public WaypointGroupEntry(WaypointGroup initialGroup, boolean collapsed) (`outer` is the enclosing
+    /// `WaypointsListWidget.this`)
+    pub fn new_2(outer: compat::WeakShared<WaypointsListWidget>, mut initial_group: compat::Shared<WaypointGroup>, mut collapsed: bool) -> compat::Shared<Self> {
         let __init_group = Some(initial_group.clone());
-        let mut left_layout: LinearLayout = LinearLayout::horizontal().spacing(4);
-        let (_, __this) = AbstractWaypointEntryBase::new_in(move |__base| {
+        //   java: private final FrameLayout layout = new FrameLayout(getRowWidth(), defaultEntryHeight);
+        let __layout = WaypointGroupEntry::entry_layout(&outer);
+        let __outer = outer.clone();
+        let (_, __this) = AbstractWaypointEntryBase::new_in(outer, move |__base| {
             let __h = compat::shared(Self {
                 base: __base,
                 self_ref: std::sync::Weak::new(),
                 group: __init_group,
                 children: Default::default(),
                 enabled: None,
-                layout: None,
+                layout: Some(__layout),
             });
             compat::write(&__h, |__t| __t.self_ref = std::sync::Arc::downgrade(&__h));
             ((__h.clone() as compat::Shared<dyn AbstractWaypointEntry>), __h)
         });
-        // TODO(fabric2seer): `getRowWidth(..)` is a method of the enclosing instance (WaypointsListWidget.this) - an inner class has no outer reference in Rust
-        //   java: private final FrameLayout layout = new FrameLayout(getRowWidth(), defaultEntryHeight);
-        left_layout.default_cell_setting().align_vertically_middle();
-        { let (__q0, __q1,) = (LayoutElement::Grid(left_layout.clone().wrapped), &mut |__a0: &mut LayoutSettings| { *__a0 = __a0.align_horizontally_left(); },); __this.lock().borrow_mut().layout.as_mut().unwrap().add_child_adjusted(__q0, __q1) };
+        let outer = __outer;
+        // (the port's layouts hold their children by value: `leftLayout` / `rightLayout` join `layout` once filled, below)
+        let mut left_layout: LinearLayout = LinearLayout::horizontal().spacing(4);
+        { let __s = left_layout.default_cell_setting(); *__s = (*__s).align_vertically_middle(); }
         let mut right_layout: LinearLayout = LinearLayout::horizontal().spacing(4);
-        right_layout.default_cell_setting().align_vertically_middle();
-        { let (__q0, __q1,) = (LayoutElement::Grid(right_layout.clone().wrapped), &mut |__a0: &mut LayoutSettings| { *__a0 = __a0.align_horizontally_right(); },); __this.lock().borrow_mut().layout.as_mut().unwrap().add_child_adjusted(__q0, __q1) };
-        let mut arrow: MutableComponent = component::null_to_empty(Some((if collapsed { "▲" } else { "▼" })));
-        let mut collapse_waypoint: AbstractWidget = (button::builder(arrow.get_string(), OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| {
-            if collapsed {
-                // TODO(fabric2seer): `collapsedGroups` is a field of the enclosing instance (WaypointsListWidget.this) - an inner class has no outer reference in Rust
-                //   java: collapsedGroups.remove(group);
-            } else {
-                // TODO(fabric2seer): `collapsedGroups` is a field of the enclosing instance (WaypointsListWidget.this) - an inner class has no outer reference in Rust
-                //   java: collapsedGroups.add(group);
-            }
-            // TODO(fabric2seer): `updateEntries(..)` is a method of the enclosing instance (WaypointsListWidget.this) - an inner class has no outer reference in Rust
-            //   java: updateEntries();
-        })))).size(11, 11).build();
-        left_layout.add_child({ let __w = collapse_waypoint.clone(); let (__ww, __wh) = (__w.get_width(), __w.get_height()); LayoutElement::widget(compat::write(&__this, |__t| __t.base.__row.add_widget(__w)), __ww, __wh) });
-        // TODO(fabric2seer): unknown name `minecraft`
-        //   java: enabled = Checkbox.builder(Component.empty(), minecraft.font).selected(shouldBeChecked()).onValueChange((_, checked) -> group.waypoints().forEach(waypoint -> screen.enabledChanged(waypoint, checked))).build();
+        { let __s = right_layout.default_cell_setting(); *__s = (*__s).align_vertically_middle(); }
         let mut __children: Vec<compat::WidgetRef> = Vec::new();
-        // `leftLayout.addChild(enabled)`: the checkbox (a row widget) joins the row's list.
-        left_layout.add_child({ let (__i, __ww, __wh) = compat::write(&__this, |__t| { let __s = &mut *__t; let __r = __s.enabled.as_mut().expect("NullPointerException: enabled"); __s.base.__widgets.add_to_layout(&mut __s.base.__row, __r) }); __children.push(compat::WidgetRef::Screen(__i)); LayoutElement::widget(__i, __ww, __wh) });
-        // TODO(fabric2seer): unknown name `minecraft`
-        //   java: EditBox nameField = new EditBox(minecraft.font, 70, 20, Component.literal("Name"));
-        let mut name_field: EditBox = todo!("fabric2seer: the initialiser of `nameField` (TODO above)");
-        // TODO(fabric2seer): `set_value` takes 2 argument(s) in the port (`splitter: &StringSplitter<W>, value: &str`), Java passes 1
-        // rust: name_field.set_value(&WaypointGroup::name(&compat::read(&__this, |__t| __t.group.clone()).unwrap()));
+
+        let mut arrow: MutableComponent = component::null_to_empty(Some((if collapsed { "▲" } else { "▼" })));
+        let __this_w0 = compat::RenderThread::new(std::sync::Arc::downgrade(&__this));
+        let __outer_0 = compat::RenderThread::new(outer.clone());
+        let mut collapse_waypoint: AbstractWidget = (button::builder(arrow.get_string(), OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| {
+            let (Some(__this_0), Some(__outer)) = (__this_w0.get().upgrade(), __outer_0.get().upgrade()) else { return; };
+            let group = compat::read(&__this_0, |__t| __t.group.clone()).unwrap();
+            //   java: if (collapsed) collapsedGroups.remove(group); else collapsedGroups.add(group);
+            if collapsed {
+                compat::write(&__outer, |__t| __t.collapsed_groups.retain(|g| !(std::sync::Arc::ptr_eq(g, &group) || WaypointGroup::equals_shared(g, &group))));
+            } else {
+                compat::write(&__outer, |__t| __t.collapsed_groups.push(group));
+            }
+            //   java: updateEntries();
+            WaypointsListWidget::request_update_entries(__outer_0.get());
+        })))).size(11, 11).build();
+        let __collapse_index = compat::write(&__this, |__t| __t.base.__row.add_widget(collapse_waypoint));
+        left_layout.add_child(WaypointGroupEntry::row_element(&__this, __collapse_index));
+
+        //   java: enabled = Checkbox.builder(Component.empty(), minecraft.font).selected(shouldBeChecked())
+        //   java:     .onValueChange((_, checked) -> group.waypoints().forEach(waypoint -> screen.enabledChanged(waypoint, checked))).build();
+        let __selected = WaypointGroupEntry::should_be_checked(&__this);
         let __this_w1 = compat::RenderThread::new(std::sync::Arc::downgrade(&__this));
-        name_field.set_responder(Responder::Lambda(ResponderLambda::new(move |__a0| { let Some(__this_1) = __this_w1.get().upgrade() else { return Default::default(); }; { WaypointGroupEntry::update_name(&__this_1, __a0); } })));
-        // java: leftLayout.addChild(nameField);
-        // TODO(batchD): structural - the name field is an `EditBox` VALUE (its constructor is unported above); a row
-        // widget is an `AbstractWidget` of kind `WidgetKind::EditBox`, which the field has to become before the layout
-        // can hold it by index.
-        // rust: left_layout.add_child(name_field.clone());
-        // TODO(fabric2seer): static `CommonComponents.optionNameValue` has no Rust counterpart in the port
-        // rust: let __this_w2 = compat::RenderThread::new(std::sync::Arc::downgrade(&__this));
-        // rust: let mut ordered_widget: compat::Shared<CyclingIconButtonWidget<bool>> = left_layout.add_child({ let __w = compat::WidgetAdapter::widget(CyclingIconButtonWidget::new_7(20, 20, WaypointGroup::ordered(&compat::read(&__this, |__t| __t.group.clone()).unwrap()), vec![false, true], Arc::new(move |b| Icon::new(crate::entry::skyblocker_mod::id(&format!("waypoints_screen/ordered_{}", (if b { "enabled" } else { "disabled" }))), 16, 16)), Arc::new(move |b| Tooltip::create((CommonComponents::option_name_value(component::translatable("skyblocker.waypoints.groupType"), (component::translatable((if b { "skyblocker.waypoints.groupType.ordered" } else { "skyblocker.waypoints.groupType.normal" }))).with_style_format(ChatFormatting::Yellow))).get_string())), Arc::new(move |__a0| { let Some(__this_2) = __this_w2.get().upgrade() else { return Default::default(); }; { WaypointGroupEntry::update_ordered(&__this_2, __a0.clone()); } }))); let (__ww, __wh) = (__w.get_width(), __w.get_height()); LayoutElement::widget(compat::write(&__this, |__t| __t.base.__row.add_widget(__w)), __ww, __wh) });
-        let mut ordered_widget: compat::Shared<CyclingIconButtonWidget<bool>> = todo!("fabric2seer: the initialiser of `orderedWidget` (TODO above)");
-        // TODO(fabric2seer): static `CommonComponents.optionNameValue` has no Rust counterpart in the port
-        // rust: let __this_w3 = compat::RenderThread::new(std::sync::Arc::downgrade(&__this));
-        // rust: let mut through_walls_widget: compat::Shared<CyclingIconButtonWidget<bool>> = left_layout.add_child({ let __w = compat::WidgetAdapter::widget(CyclingIconButtonWidget::new_7(20, 20, WaypointGroup::render_through_walls(&compat::read(&__this, |__t| __t.group.clone()).unwrap()), vec![false, true], Arc::new(move |b| Icon::new(crate::entry::skyblocker_mod::id(&format!("waypoints_screen/through_walls_{}", (if b { "enabled" } else { "disabled" }))), 15, 16)), Arc::new(move |b| Tooltip::create((CommonComponents::option_name_value(component::translatable("skyblocker.waypoints.throughWalls"), (if b { mcrust::net::minecraft::network::chat::common_components::gui_yes() } else { mcrust::net::minecraft::network::chat::common_components::gui_no() }).copy().with_style_format(ChatFormatting::Yellow))).get_string())), Arc::new(move |__a0| { let Some(__this_3) = __this_w3.get().upgrade() else { return Default::default(); }; { WaypointGroupEntry::update_render_through_walls(&__this_3, __a0.clone()); } }))); let (__ww, __wh) = (__w.get_width(), __w.get_height()); LayoutElement::widget(compat::write(&__this, |__t| __t.base.__row.add_widget(__w)), __ww, __wh) });
-        let mut through_walls_widget: compat::Shared<CyclingIconButtonWidget<bool>> = todo!("fabric2seer: the initialiser of `throughWallsWidget` (TODO above)");
-        // TODO(fabric2seer): `.getSerializedName(..)` on a T
-        //   java: CyclingIconButtonWidget<Waypoint.Type> waypointTypeWidget = leftLayout.addChild(new CyclingIconButtonWidget<>(
-        //   java: 					20,
-        //   java: 					20,
-        //   java: 					group.waypointType(),
-        //   java: 					Waypoint.Type.values(),
-        //   java: 					t -> new CyclingIconButtonWidget.Icon(SkyblockerMod.id("waypoints_screen/waypoint_type_" + t.getSerializedName()), 12, 15),
-        //   java: 					t -> Tooltip.create(CommonComponents.optionNameValue(Component.translatable("skyblocker.waypoints.waypointType"), Component.literal(t.toString()).withStyle(ChatFormatting.YELLOW))),
-        //   java: 					this::updateWaypointType
-        //   java: 			));
-        let mut waypoint_type_widget: compat::Shared<CyclingIconButtonWidget<Type>> = todo!("fabric2seer: the initialiser of `waypointTypeWidget` (TODO above)");
+        let __outer_1 = compat::RenderThread::new(outer.clone());
+        let __enabled = compat::checkbox(mcrust::net::minecraft::network::chat::formatted_text::FormattedText::Empty, 0, 0, None, __selected, move |checked: bool| {
+            let (Some(__this_1), Some(__outer)) = (__this_w1.get().upgrade(), __outer_1.get().upgrade()) else { return; };
+            let group = compat::read(&__this_1, |__t| __t.group.clone()).unwrap();
+            let screen = compat::read(&__outer, |__t| __t.screen.clone());
+            for waypoint in WaypointGroup::waypoints(&group) {
+                compat::write(&screen, |__s| __s.enabled_changed(&waypoint, checked));
+            }
+        });
+        let __enabled_index = compat::write(&__this, |__t| __t.base.__row.add_widget(__enabled));
+        compat::write(&__this, |__t| __t.enabled = Some(compat::WidgetRef::Screen(__enabled_index)));
+        left_layout.add_child(WaypointGroupEntry::row_element(&__this, __enabled_index));
+        __children.push(compat::WidgetRef::Screen(__enabled_index));
+
+        //   java: EditBox nameField = new EditBox(minecraft.font, 70, 20, Component.literal("Name"));
+        //   java: nameField.setValue(group.name()); nameField.setResponder(this::updateName); leftLayout.addChild(nameField);
+        let mut name_field: AbstractWidget = compat::edit_box(0, 0, 70, 20, component::literal("Name"));
+        let __name = WaypointGroup::name(&compat::read(&__this, |__t| __t.group.clone()).unwrap());
+        let __this_w2 = compat::RenderThread::new(std::sync::Arc::downgrade(&__this));
+        if let WidgetKind::EditBox(__e) = &mut name_field.kind {
+            __e.set_value(&compat::font().splitter(), &__name);
+            __e.set_responder(Responder::Lambda(ResponderLambda::new(move |__a0| { let Some(__this_2) = __this_w2.get().upgrade() else { return Default::default(); }; { WaypointGroupEntry::update_name(&__this_2, __a0); } })));
+        }
+        let __name_index = compat::write(&__this, |__t| __t.base.__row.add_widget(name_field));
+        left_layout.add_child(WaypointGroupEntry::row_element(&__this, __name_index));
+        __children.push(compat::WidgetRef::Screen(__name_index));
+
+        // java: the three CyclingIconButtonWidgets (ordered, throughWalls, waypointType)
+        // rust: port gap (GAPS_O) - `CyclingIconButtonWidget` (utils/render/gui) has no widget adapter (`WidgetHalf` /
+        // `ModWidget`), so the row cannot hold it: the objects are built as Java builds them and are not shown
+        let __this_w3 = compat::RenderThread::new(std::sync::Arc::downgrade(&__this));
+        let mut ordered_widget: compat::Shared<CyclingIconButtonWidget<bool>> = CyclingIconButtonWidget::new_7(20, 20, WaypointGroup::ordered(&compat::read(&__this, |__t| __t.group.clone()).unwrap()), vec![false, true], Arc::new(move |b: bool| Icon::new(crate::entry::skyblocker_mod::id(&format!("waypoints_screen/ordered_{}", (if b { "enabled" } else { "disabled" }))), 16, 16)), Arc::new(move |b: bool| Tooltip::create_text(mcrust::net::minecraft::network::chat::common_components::option_name_value(&component::translatable("skyblocker.waypoints.groupType").get_string(), &component::translatable(if b { "skyblocker.waypoints.groupType.ordered" } else { "skyblocker.waypoints.groupType.normal" }).with_style_format(ChatFormatting::Yellow).get_string()))), Arc::new(move |__a0: bool| { let Some(__this_3) = __this_w3.get().upgrade() else { return Default::default(); }; { WaypointGroupEntry::update_ordered(&__this_3, __a0); } }));
         let __this_w4 = compat::RenderThread::new(std::sync::Arc::downgrade(&__this));
-        let mut button_new_waypoint: AbstractWidget = (button::builder(component::translatable("skyblocker.waypoints.new").get_string(), OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| { let Some(__this_4) = __this_w4.get().upgrade() else { return Default::default(); }; compat::lend_row(&__this_4, __screen, || { let mut __pidx = compat::WidgetRef::Screen(__index); {
-            let mut waypoint_entry: compat::Shared<WaypointEntry> = WaypointEntry::new(__this_4.clone());
-            // `group.waypoints().add(waypointEntry.waypoint)`: the group's own list.
-            let __group = compat::read(&__this_4, |__t| __t.group.clone()).unwrap();
+        let mut through_walls_widget: compat::Shared<CyclingIconButtonWidget<bool>> = CyclingIconButtonWidget::new_7(20, 20, WaypointGroup::render_through_walls(&compat::read(&__this, |__t| __t.group.clone()).unwrap()), vec![false, true], Arc::new(move |b: bool| Icon::new(crate::entry::skyblocker_mod::id(&format!("waypoints_screen/through_walls_{}", (if b { "enabled" } else { "disabled" }))), 15, 16)), Arc::new(move |b: bool| Tooltip::create_text(mcrust::net::minecraft::network::chat::common_components::option_name_value(&component::translatable("skyblocker.waypoints.throughWalls").get_string(), &compat::component_of(if b { mcrust::net::minecraft::network::chat::common_components::gui_yes() } else { mcrust::net::minecraft::network::chat::common_components::gui_no() }).with_style_format(ChatFormatting::Yellow).get_string()))), Arc::new(move |__a0: bool| { let Some(__this_4) = __this_w4.get().upgrade() else { return Default::default(); }; { WaypointGroupEntry::update_render_through_walls(&__this_4, __a0); } }));
+        let __this_w5 = compat::RenderThread::new(std::sync::Arc::downgrade(&__this));
+        let mut waypoint_type_widget: compat::Shared<CyclingIconButtonWidget<Type>> = CyclingIconButtonWidget::new_7(20, 20, WaypointGroup::waypoint_type(&compat::read(&__this, |__t| __t.group.clone()).unwrap()), Type::values(), Arc::new(move |t: Type| Icon::new(crate::entry::skyblocker_mod::id(&format!("waypoints_screen/waypoint_type_{}", t.get_serialized_name())), 12, 15)), Arc::new(move |t: Type| Tooltip::create_text(mcrust::net::minecraft::network::chat::common_components::option_name_value(&component::translatable("skyblocker.waypoints.waypointType").get_string(), &component::literal(&t.to_string()).with_style_format(ChatFormatting::Yellow).get_string()))), Arc::new(move |__a0: Type| { let Some(__this_5) = __this_w5.get().upgrade() else { return Default::default(); }; { WaypointGroupEntry::update_waypoint_type(&__this_5, __a0); } }));
+        let _ = (&ordered_widget, &through_walls_widget, &waypoint_type_widget);
+
+        //   java: Button buttonNewWaypoint = Button.builder(Component.translatable("skyblocker.waypoints.new"), _ -> {..}).width(72).build();
+        let __this_w6 = compat::RenderThread::new(std::sync::Arc::downgrade(&__this));
+        let __outer_6 = compat::RenderThread::new(outer.clone());
+        let mut button_new_waypoint: AbstractWidget = (button::builder(component::translatable("skyblocker.waypoints.new").get_string(), OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| {
+            let Some(__this_6) = __this_w6.get().upgrade() else { return; };
+            //   java: WaypointEntry waypointEntry = new WaypointEntry(this); group.waypoints().add(waypointEntry.waypoint);
+            let waypoint_entry: compat::Shared<WaypointEntry> = WaypointEntry::new(__outer_6.get().clone(), __this_6.clone());
+            let __group = compat::read(&__this_6, |__t| __t.group.clone()).unwrap();
             let __waypoint = compat::read(&waypoint_entry, |__t| __t.waypoint.clone()).unwrap();
             compat::write(&__group, |__g| __g.waypoints.push(__waypoint));
-            // TODO(fabric2seer): `WaypointsListWidget.this` (the enclosing instance of an inner class)
             //   java: WaypointsListWidget.this.updateEntries();
+            WaypointsListWidget::request_update_entries(__outer_6.get());
+            //   java: if (collapsed) { collapsedGroups.remove(group); updateEntries(); }
             if collapsed {
-                // TODO(fabric2seer): `collapsedGroups` is a field of the enclosing instance (WaypointsListWidget.this) - an inner class has no outer reference in Rust
-                //   java: collapsedGroups.remove(group);
-                // TODO(fabric2seer): `updateEntries(..)` is a method of the enclosing instance (WaypointsListWidget.this) - an inner class has no outer reference in Rust
-                //   java: updateEntries();
+                if let Some(__outer) = __outer_6.get().upgrade() {
+                    compat::write(&__outer, |__t| __t.collapsed_groups.retain(|g| !(std::sync::Arc::ptr_eq(g, &__group) || WaypointGroup::equals_shared(g, &__group))));
+                }
+                WaypointsListWidget::request_update_entries(__outer_6.get());
             }
-        } }) })))).width(72).build();
-        right_layout.add_child({ let __w = button_new_waypoint.clone(); let (__ww, __wh) = (__w.get_width(), __w.get_height()); LayoutElement::widget(compat::write(&__this, |__t| __t.base.__row.add_widget(__w)), __ww, __wh) });
+        })))).width(72).build();
+        let __new_index = compat::write(&__this, |__t| __t.base.__row.add_widget(button_new_waypoint));
+        right_layout.add_child(WaypointGroupEntry::row_element(&__this, __new_index));
+
+        //   java: Button buttonDelete = SpriteIconButton.builder(deleteText, _ -> { waypoints.remove(group); updateEntries(); }, true)..build();
         let mut delete_text: MutableComponent = component::translatable("selectServer.deleteButton");
+        let __this_w7 = compat::RenderThread::new(std::sync::Arc::downgrade(&__this));
+        let __outer_7 = compat::RenderThread::new(outer.clone());
         let mut button_delete: AbstractWidget = (sprite_icon_button::builder(delete_text.get_string(), OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| {
-            // TODO(fabric2seer): `waypoints` is a field of the enclosing instance (WaypointsListWidget.this) - an inner class has no outer reference in Rust
-            //   java: waypoints.remove(group);
-            // TODO(fabric2seer): `updateEntries(..)` is a method of the enclosing instance (WaypointsListWidget.this) - an inner class has no outer reference in Rust
-            //   java: updateEntries();
+            let (Some(__this_7), Some(__outer)) = (__this_w7.get().upgrade(), __outer_7.get().upgrade()) else { return; };
+            let group = compat::read(&__this_7, |__t| __t.group.clone()).unwrap();
+            // `waypoints.remove(group)`: the first equal group of the island's list
+            let __index = WaypointsListWidget::index_of_group(&__outer, &group);
+            if __index >= 0 {
+                WaypointsListWidget::with_waypoint_groups(&__outer, |__groups| { __groups.remove(__index as usize); });
+            }
+            WaypointsListWidget::request_update_entries(__outer_7.get());
         })), true)).size(20, 20).sprite(DELETE_ICON.get_mut().clone(), ICON_WIDTH, ICON_HEIGHT).build().unwrap();
         button_delete.set_tooltip(Tooltip::create(delete_text.get_string()));
-        right_layout.add_child({ let __w = button_delete.clone(); let (__ww, __wh) = (__w.get_width(), __w.get_height()); LayoutElement::widget(compat::write(&__this, |__t| __t.base.__row.add_widget(__w)), __ww, __wh) });
-        { __this.lock().borrow_mut().layout.as_mut().unwrap().arrange_elements(); let mut __vw = Vec::new(); __this.lock().borrow().layout.as_ref().unwrap().visit_widgets(&mut __vw); for (__i, __x, __y) in __vw { compat::write(&__this, |__t| __t.base.__row.widget_mut(__i).set_position(__x, __y)); } };
-        // `children = List.of(enabled, nameField, orderedWidget, throughWallsWidget, waypointTypeWidget, buttonNewWaypoint,
-        // buttonDelete, collapseWaypoint)`: the row widgets that joined the row's list above, by reference.
-        // TODO(batchD): structural - the name field and the three cycling widgets (`CyclingIconButtonWidget`, utils/render/gui,
-        // no widget adapter) are not row widgets, so they are not in the list.
+        let __delete_index = compat::write(&__this, |__t| __t.base.__row.add_widget(button_delete));
+        right_layout.add_child(WaypointGroupEntry::row_element(&__this, __delete_index));
+
+        //   java: layout.addChild(leftLayout, LayoutSettings::alignHorizontallyLeft); layout.addChild(rightLayout, LayoutSettings::alignHorizontallyRight);
+        { let (__q0, __q1,) = (LayoutElement::Grid(left_layout.wrapped), &mut |__a0: &mut LayoutSettings| { *__a0 = __a0.align_horizontally_left(); },); __this.lock().borrow_mut().layout.as_mut().unwrap().add_child_adjusted(__q0, __q1) };
+        { let (__q0, __q1,) = (LayoutElement::Grid(right_layout.wrapped), &mut |__a0: &mut LayoutSettings| { *__a0 = __a0.align_horizontally_right(); },); __this.lock().borrow_mut().layout.as_mut().unwrap().add_child_adjusted(__q0, __q1) };
+        //   java: layout.arrangeElements();
+        WaypointGroupEntry::place_widgets(&__this);
+        { let mut __vw = Vec::new(); __this.lock().borrow().layout.as_ref().unwrap().visit_widgets(&mut __vw); for (__i, _, _) in __vw { compat::write(&__this, |__t| __t.base.__row.mark_renderable(__i)); } };
+        //   java: children = List.of(enabled, nameField, orderedWidget, throughWallsWidget, waypointTypeWidget, buttonNewWaypoint, buttonDelete, collapseWaypoint);
+        // (the three cycling widgets are not row widgets - see above)
+        __children.push(compat::WidgetRef::Screen(__new_index));
+        __children.push(compat::WidgetRef::Screen(__delete_index));
+        __children.push(compat::WidgetRef::Screen(__collapse_index));
         compat::write(&__this, |__t| __t.children = __children);
         __this
+    }
+
+    /// `new FrameLayout(getRowWidth(), defaultEntryHeight)` - the enclosing list's row width and entry height
+    fn entry_layout(outer: &compat::WeakShared<WaypointsListWidget>) -> FrameLayout {
+        let (row_width, entry_height) = match outer.upgrade() {
+            Some(outer) => (WaypointsListWidget::get_row_width(&outer), compat::read(&outer, |__t| __t.base.list.default_entry_height)),
+            None => (340, 0),
+        };
+        FrameLayout::new_at(0, 0, row_width, entry_height)
+    }
+
+    /// The row widget at `index` as a layout leaf
+    fn row_element(__this: &compat::Shared<Self>, index: usize) -> LayoutElement {
+        let (w, h) = compat::read(__this, |__t| { let __w = __t.base.__row.widget(index); (__w.get_width(), __w.get_height()) });
+        LayoutElement::widget(index, w, h)
+    }
+
+    /// `layout.arrangeElements()` and the row widgets moved to the places it gave them
+    fn place_widgets(__this: &compat::Shared<Self>) {
+        compat::write(__this, |__t| {
+            let __s = &mut *__t;
+            let __layout = __s.layout.as_mut().unwrap();
+            __layout.arrange_elements();
+            let mut __vw = Vec::new();
+            __layout.visit_widgets(&mut __vw);
+            for (__i, __x, __y) in __vw { __s.base.__row.widget_mut(__i).set_position(__x, __y); }
+        });
     }
 
     /// java: @Override public List<? extends NarratableEntry> narratables()
@@ -760,66 +852,79 @@ impl WaypointGroupEntry {
 
     /// java: private boolean shouldBeChecked()
     pub fn should_be_checked(__this: &compat::Shared<Self>) -> bool {
-        // TODO(fabric2seer): `screen` is a field of the enclosing instance (WaypointsListWidget.this) - an inner class has no outer reference in Rust
         //   java: return !group.waypoints().isEmpty() && group.waypoints().stream().allMatch(screen::isEnabled);
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        let waypoints = WaypointGroup::waypoints(&compat::read(__this, |__t| __t.group.clone()).unwrap());
+        let Some(outer) = compat::read(__this, |__t| __t.base.outer.upgrade()) else { return false; };
+        let screen = compat::read(&outer, |__t| __t.screen.clone());
+        return !waypoints.is_empty() && waypoints.iter().all(|w| compat::read(&screen, |__s| __s.is_enabled(w)));
     }
 
     /// java: private void updateName(String name)
     pub fn update_name(__this: &compat::Shared<Self>, name: &str) {
-        // TODO(fabric2seer): `waypoints` is a field of the enclosing instance (WaypointsListWidget.this) - an inner class has no outer reference in Rust
         //   java: int index = waypoints.indexOf(group);
-        let mut index: i32 = todo!("fabric2seer: the initialiser of `index` (TODO above)");
+        let __outer = compat::read(__this, |__t| __t.base.outer.upgrade());
+        let mut index: i32 = __outer.as_ref().map_or(-1, |__o| WaypointsListWidget::index_of_group(__o, &compat::read(__this, |__t| __t.group.clone()).unwrap()));
         { let __v = Some(WaypointGroup::with_name(&compat::read(__this, |__t| __t.group.clone()).unwrap(), name)); compat::write(__this, |__t| __t.group = __v); }
         if index >= 0 {
-            // TODO(fabric2seer): `waypoints` is a field of the enclosing instance (WaypointsListWidget.this) - an inner class has no outer reference in Rust
             //   java: waypoints.set(index, group);
+            let group = compat::read(__this, |__t| __t.group.clone()).unwrap();
+            if let Some(__o) = __outer.as_ref() { WaypointsListWidget::with_waypoint_groups(__o, |__groups| __groups[index as usize] = group); }
         }
     }
 
     /// java: private void updateOrdered(boolean ordered)
     pub fn update_ordered(__this: &compat::Shared<Self>, mut ordered: bool) {
-        // TODO(fabric2seer): `waypoints` is a field of the enclosing instance (WaypointsListWidget.this) - an inner class has no outer reference in Rust
         //   java: int index = waypoints.indexOf(group);
-        let mut index: i32 = todo!("fabric2seer: the initialiser of `index` (TODO above)");
+        let __outer = compat::read(__this, |__t| __t.base.outer.upgrade());
+        let mut index: i32 = __outer.as_ref().map_or(-1, |__o| WaypointsListWidget::index_of_group(__o, &compat::read(__this, |__t| __t.group.clone()).unwrap()));
         { let __v = Some(WaypointGroup::with_ordered(&compat::read(__this, |__t| __t.group.clone()).unwrap(), ordered)); compat::write(__this, |__t| __t.group = __v); }
         if index >= 0 {
-            // TODO(fabric2seer): `waypoints` is a field of the enclosing instance (WaypointsListWidget.this) - an inner class has no outer reference in Rust
             //   java: waypoints.set(index, group);
+            let group = compat::read(__this, |__t| __t.group.clone()).unwrap();
+            if let Some(__o) = __outer.as_ref() { WaypointsListWidget::with_waypoint_groups(__o, |__groups| __groups[index as usize] = group); }
         }
     }
 
     /// java: private void updateRenderThroughWalls(boolean renderThroughWalls)
     pub fn update_render_through_walls(__this: &compat::Shared<Self>, mut render_through_walls: bool) {
-        // TODO(fabric2seer): `waypoints` is a field of the enclosing instance (WaypointsListWidget.this) - an inner class has no outer reference in Rust
         //   java: int index = waypoints.indexOf(group);
-        let mut index: i32 = todo!("fabric2seer: the initialiser of `index` (TODO above)");
+        let __outer = compat::read(__this, |__t| __t.base.outer.upgrade());
+        let mut index: i32 = __outer.as_ref().map_or(-1, |__o| WaypointsListWidget::index_of_group(__o, &compat::read(__this, |__t| __t.group.clone()).unwrap()));
         { let __v = Some(WaypointGroup::with_render_through_walls(&compat::read(__this, |__t| __t.group.clone()).unwrap(), render_through_walls)); compat::write(__this, |__t| __t.group = __v); }
         if index >= 0 {
-            // TODO(fabric2seer): `waypoints` is a field of the enclosing instance (WaypointsListWidget.this) - an inner class has no outer reference in Rust
             //   java: waypoints.set(index, group);
+            let group = compat::read(__this, |__t| __t.group.clone()).unwrap();
+            if let Some(__o) = __outer.as_ref() { WaypointsListWidget::with_waypoint_groups(__o, |__groups| __groups[index as usize] = group); }
         }
     }
 
     /// java: private void updateWaypointType(Waypoint.Type waypointType)
     pub fn update_waypoint_type(__this: &compat::Shared<Self>, mut waypoint_type: Type) {
-        // TODO(fabric2seer): `waypoints` is a field of the enclosing instance (WaypointsListWidget.this) - an inner class has no outer reference in Rust
         //   java: int index = waypoints.indexOf(group);
-        let mut index: i32 = todo!("fabric2seer: the initialiser of `index` (TODO above)");
+        let __outer = compat::read(__this, |__t| __t.base.outer.upgrade());
+        let mut index: i32 = __outer.as_ref().map_or(-1, |__o| WaypointsListWidget::index_of_group(__o, &compat::read(__this, |__t| __t.group.clone()).unwrap()));
         { let __v = Some(WaypointGroup::with_waypoint_type(&compat::read(__this, |__t| __t.group.clone()).unwrap(), waypoint_type)); compat::write(__this, |__t| __t.group = __v); }
         if index >= 0 {
-            // TODO(fabric2seer): `waypoints` is a field of the enclosing instance (WaypointsListWidget.this) - an inner class has no outer reference in Rust
             //   java: waypoints.set(index, group);
+            let group = compat::read(__this, |__t| __t.group.clone()).unwrap();
+            if let Some(__o) = __outer.as_ref() { WaypointsListWidget::with_waypoint_groups(__o, |__groups| __groups[index as usize] = group); }
         }
     }
 
     /// java: @Override public void extractContent(GuiGraphicsExtractor context, int mouseX, int mouseY, boolean hovered, float deltaTicks)
     pub fn extract_content(__this: &compat::Shared<Self>, context: &GuiGraphicsExtractor, mut mouse_x: i32, mut mouse_y: i32, mut hovered: bool, mut delta_ticks: f32) {
-        { let (__q0, __q1,) = (__this.lock().borrow().get_x(), __this.lock().borrow().get_y(),); __this.lock().borrow_mut().layout.as_mut().unwrap().set_position(__q0, __q1) };
-        for child in compat::read(__this, |__t| __t.children.clone()) {
-            // TODO(fabric2seer): `extract_render_state` is a method of the port's trait `Renderable`, which the port's `AbstractWidget` does not implement
-            // rust: child.extract_render_state(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), mouse_x, mouse_y, delta_ticks);
-        }
+        //   java: layout.setPosition(this.getX(), this.getY()); - and the row widgets follow the layout
+        compat::write(__this, |__t| {
+            let (__x, __y) = (__t.get_x(), __t.get_y());
+            let __s = &mut *__t;
+            let __layout = __s.layout.as_mut().unwrap();
+            __layout.set_position(__x, __y);
+            let mut __vw = Vec::new();
+            __layout.visit_widgets(&mut __vw);
+            for (__i, __wx, __wy) in __vw { __s.base.__row.widget_mut(__i).set_position(__wx, __wy); }
+        });
+        //   java: for (AbstractWidget child : children) child.extractRenderState(context, mouseX, mouseY, deltaTicks);
+        //   - the row's widgets are drawn by its adapter (`context.extract_widgets` over the row) right after this body
     }
 
 }
@@ -907,20 +1012,25 @@ impl WaypointEntry {
         compat::write(__this, |__t| { let __s = &mut *__t; let __r = __s.enabled.as_mut().expect("NullPointerException: enabled"); __s.base.__widgets.with(&mut __s.base.__row, __r, |__w| if let WidgetKind::Checkbox(__c) = &__w.kind { __c.selected() } else { panic!("ClassCastException: the enabled widget is not a Checkbox") }) })
     }
 
-    /// java: public WaypointEntry(WaypointGroupEntry groupEntry)
-    pub fn new(mut group_entry: compat::Shared<WaypointGroupEntry>) -> compat::Shared<Self> {
-        // TODO(fabric2seer): `getDefaultPos(..)` is a method of the enclosing instance (WaypointsListWidget.this) - an inner class has no outer reference in Rust
+    /// java: public WaypointEntry(WaypointGroupEntry groupEntry) (`outer` is the enclosing `WaypointsListWidget.this`)
+    pub fn new(outer: compat::WeakShared<WaypointsListWidget>, mut group_entry: compat::Shared<WaypointGroupEntry>) -> compat::Shared<Self> {
         //   java: this(groupEntry, groupEntry.group.createWaypoint(getDefaultPos()));
-        let __this: compat::Shared<Self> = todo!("constructor");
-        __this
+        let pos: BlockPos = match outer.upgrade() { Some(__o) => WaypointsListWidget::get_default_pos(&__o), None => mcrust::net::minecraft::core::block_pos::ZERO };
+        let waypoint = WaypointGroup::create_waypoint(&compat::read(&group_entry, |__t| __t.group.clone()).unwrap(), &pos);
+        WaypointEntry::new_2(outer, group_entry, waypoint)
     }
 
     /// java: public WaypointEntry(WaypointGroupEntry groupEntry, NamedWaypoint initialWaypoint)
-    pub fn new_2(mut group_entry: compat::Shared<WaypointGroupEntry>, mut initial_waypoint: compat::Shared<dyn NamedWaypoint>) -> compat::Shared<Self> {
+    ///
+    /// (`outer` is the enclosing `WaypointsListWidget.this`)
+    pub fn new_2(outer: compat::WeakShared<WaypointsListWidget>, mut group_entry: compat::Shared<WaypointGroupEntry>, mut initial_waypoint: compat::Shared<dyn NamedWaypoint>) -> compat::Shared<Self> {
         let __init_group_entry = Some(group_entry.clone());
         let __init_waypoint = Some(initial_waypoint.clone());
         let mut left_layout: LinearLayout = LinearLayout::horizontal();
-        let (_, __this) = AbstractWaypointEntryBase::new_in(move |__base| {
+        //   java: private final FrameLayout layout = new FrameLayout(getRowWidth(), defaultEntryHeight);
+        let __layout = WaypointGroupEntry::entry_layout(&outer);
+        let __outer = outer.clone();
+        let (_, __this) = AbstractWaypointEntryBase::new_in(outer, move |__base| {
             let __h = compat::shared(Self {
                 base: __base,
                 group_entry: __init_group_entry,
@@ -930,14 +1040,13 @@ impl WaypointEntry {
                 button_down: None,
                 enabled: None,
                 color_picker_button: None,
-                layout: None,
+                layout: Some(__layout),
             });
             ((__h.clone() as compat::Shared<dyn AbstractWaypointEntry>), __h)
         });
-        // TODO(fabric2seer): `getRowWidth(..)` is a method of the enclosing instance (WaypointsListWidget.this) - an inner class has no outer reference in Rust
-        //   java: private final FrameLayout layout = new FrameLayout(getRowWidth(), defaultEntryHeight);
-        left_layout.default_cell_setting().align_vertically_middle();
-        { let (__q0, __q1,) = (LayoutElement::Grid(left_layout.clone().wrapped), &mut |__a0: &mut LayoutSettings| { *__a0 = __a0.align_horizontally_left(); },); __this.lock().borrow_mut().layout.as_mut().unwrap().add_child_adjusted(__q0, __q1) };
+        let outer = __outer;
+        { let __s = left_layout.default_cell_setting(); *__s = (*__s).align_vertically_middle(); }
+        // java: layout.addChild(leftLayout, LayoutSettings::alignHorizontallyLeft); - added below, once filled (by value)
         left_layout.add_child(SpacerElement::width(6).as_layout_element());
         let __this_w1 = compat::RenderThread::new(std::sync::Arc::downgrade(&__this));
         { let __v = (Some((button::builder((component::null_to_empty(Some("↑"))).get_string(), OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| { let Some(__this_1) = __this_w1.get().upgrade() else { return Default::default(); }; compat::lend_row(&__this_1, __screen, || { let mut __pidx = compat::WidgetRef::Screen(__index); { WaypointEntry::shift_waypoint_index(&__this_1, -1); } }) })))).size(11, 11).build())).map(compat::WidgetRef::value); compat::write(&__this, |__t| { let __s = &mut *__t; __s.button_up = __v; }); }
@@ -945,68 +1054,62 @@ impl WaypointEntry {
         let __this_w2 = compat::RenderThread::new(std::sync::Arc::downgrade(&__this));
         { let __v = (Some((button::builder((component::null_to_empty(Some("↓"))).get_string(), OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| { let Some(__this_2) = __this_w2.get().upgrade() else { return Default::default(); }; compat::lend_row(&__this_2, __screen, || { let mut __pidx = compat::WidgetRef::Screen(__index); { WaypointEntry::shift_waypoint_index(&__this_2, 1); } }) })))).size(11, 11).build())).map(compat::WidgetRef::value); compat::write(&__this, |__t| { let __s = &mut *__t; __s.button_down = __v; }); }
         left_layout.add_child({ let (__i, __ww, __wh) = compat::write(&__this, |__t| { let __s = &mut *__t; let __r = __s.button_down.as_mut().unwrap(); __s.base.__widgets.add_to_layout(&mut __s.base.__row, __r) }); LayoutElement::widget(__i, __ww, __wh) });
-        // TODO(fabric2seer): unknown name `minecraft`
         //   java: enabled = Checkbox.builder(Component.literal(""), minecraft.font).selected(screen.isEnabled(waypoint)).onValueChange((_, checked) -> screen.enabledChanged(waypoint, checked)).build();
+        {
+            let __screen = outer.upgrade().map(|__o| compat::read(&__o, |__t| __t.screen.clone()));
+            let __waypoint = compat::read(&__this, |__t| __t.waypoint.clone()).unwrap();
+            let __selected = __screen.as_ref().is_some_and(|__s| compat::read(__s, |__s| __s.is_enabled(&__waypoint)));
+            let __this_wc = compat::RenderThread::new(std::sync::Arc::downgrade(&__this));
+            let __outer_c = compat::RenderThread::new(outer.clone());
+            let __enabled = compat::checkbox(mcrust::net::minecraft::network::chat::formatted_text::FormattedText::Empty, 0, 0, None, __selected, move |checked: bool| {
+                let (Some(__this_c), Some(__outer)) = (__this_wc.get().upgrade(), __outer_c.get().upgrade()) else { return; };
+                let waypoint = compat::read(&__this_c, |__t| __t.waypoint.clone()).unwrap();
+                let screen = compat::read(&__outer, |__t| __t.screen.clone());
+                compat::write(&screen, |__s| __s.enabled_changed(&waypoint, checked));
+            });
+            compat::write(&__this, |__t| __t.enabled = Some(compat::WidgetRef::value(__enabled)));
+        }
         left_layout.add_child_adjusted({ let (__i, __ww, __wh) = compat::write(&__this, |__t| { let __s = &mut *__t; let __r = __s.enabled.as_mut().expect("NullPointerException: enabled"); __s.base.__widgets.add_to_layout(&mut __s.base.__row, __r) }); LayoutElement::widget(__i, __ww, __wh) }, &mut |p: &mut LayoutSettings| { *p = p.padding_left(4); });
-        // TODO(fabric2seer): unknown name `minecraft`
         //   java: EditBox nameField = new EditBox(minecraft.font, 65, 20, Component.literal("Name"));
-        let mut name_field: EditBox = todo!("fabric2seer: the initialiser of `nameField` (TODO above)");
-        // TODO(fabric2seer): `set_value` takes 2 argument(s) in the port (`splitter: &StringSplitter<W>, value: &str`), Java passes 1
-        // rust: name_field.set_value(&({ let __r = &compat::read(&__this, |__t| __t.waypoint.clone()).unwrap(); let __f = compat::dispatch(__r, |__t| __t.get_name()); __f(__r) }).get_string());
-        let __this_w3 = compat::RenderThread::new(std::sync::Arc::downgrade(&__this));
-        name_field.set_responder(Responder::Lambda(ResponderLambda::new(move |__a0| { let Some(__this_3) = __this_w3.get().upgrade() else { return Default::default(); }; { WaypointEntry::update_name(&__this_3, __a0); } })));
-        // java: leftLayout.addChild(nameField, p -> p.paddingLeft(2));
-        // TODO(batchD): structural - see `WaypointGroupEntry::new_2`: the name field is an `EditBox` value, not a row widget.
-        // rust: left_layout.add_child_adjusted(name_field.clone(), &mut |p| { p.padding_left(2); });
-        // TODO(fabric2seer): unknown name `minecraft`
-        //   java: leftLayout.addChild(new StringWidget(Component.literal("X:"), minecraft.font), p -> p.paddingLeft(2));
-        // TODO(fabric2seer): unknown name `minecraft`
-        //   java: FilteredEditBox xField = new FilteredEditBox(minecraft.font, 26, 20, Component.literal("X"));
-        let mut x_field: compat::Shared<dyn FilteredEditBox> = todo!("fabric2seer: the initialiser of `xField` (TODO above)");
-        ({ let __f = compat::dispatch(&x_field, |__t| __t.set_value()); __f(&x_field, &compat::read(&__this, |__t| __t.waypoint.clone()).unwrap().lock().borrow().named_waypoint_base().pos.as_ref().unwrap().get_x().to_string()) });
-        let __this_w4 = compat::RenderThread::new(std::sync::Arc::downgrade(&__this));
-        ({ let __f = compat::dispatch(&x_field, |__t| __t.set_filter()); __f(&x_field, Arc::new(move |__a0| { let Some(__this_4) = __this_w4.get().upgrade() else { return Default::default(); }; WaypointEntry::check_int(&__this_4, &__a0) })) });
-        let __o5 = x_field.clone();
-        let __this_w6 = compat::RenderThread::new(std::sync::Arc::downgrade(&__this));
-        compat::write(&__o5, |__t| __t.filtered_edit_box_base_mut().set_responder(Responder::Lambda(ResponderLambda::new(move |__a0| { let Some(__this_6) = __this_w6.get().upgrade() else { return Default::default(); }; { WaypointEntry::update_x(&__this_6, __a0); } }))));
-        // java: leftLayout.addChild(xField);
-        // TODO(batchD): cross-package - `FilteredEditBox` (utils/render/gui) has no widget adapter (`WidgetHalf` /
-        // `ModWidget`), so the screen's layout cannot hold it.
-        // rust: left_layout.add_child(x_field.clone());
-        // TODO(fabric2seer): unknown name `minecraft`
-        //   java: leftLayout.addChild(new StringWidget(Component.literal("Y:"), minecraft.font), p -> p.paddingLeft(2));
-        // TODO(fabric2seer): unknown name `minecraft`
-        //   java: FilteredEditBox yField = new FilteredEditBox(minecraft.font, 26, 20, Component.literal("Y"));
-        let mut y_field: compat::Shared<dyn FilteredEditBox> = todo!("fabric2seer: the initialiser of `yField` (TODO above)");
-        ({ let __f = compat::dispatch(&y_field, |__t| __t.set_value()); __f(&y_field, &compat::read(&__this, |__t| __t.waypoint.clone()).unwrap().lock().borrow().named_waypoint_base().pos.as_ref().unwrap().get_y().to_string()) });
-        let __this_w7 = compat::RenderThread::new(std::sync::Arc::downgrade(&__this));
-        ({ let __f = compat::dispatch(&y_field, |__t| __t.set_filter()); __f(&y_field, Arc::new(move |__a0| { let Some(__this_7) = __this_w7.get().upgrade() else { return Default::default(); }; WaypointEntry::check_int(&__this_7, &__a0) })) });
-        let __o8 = y_field.clone();
-        let __this_w9 = compat::RenderThread::new(std::sync::Arc::downgrade(&__this));
-        compat::write(&__o8, |__t| __t.filtered_edit_box_base_mut().set_responder(Responder::Lambda(ResponderLambda::new(move |__a0| { let Some(__this_9) = __this_w9.get().upgrade() else { return Default::default(); }; { WaypointEntry::update_y(&__this_9, __a0); } }))));
-        // java: leftLayout.addChild(yField);
-        // TODO(batchD): cross-package - `FilteredEditBox` (utils/render/gui) has no widget adapter (`WidgetHalf` /
-        // `ModWidget`), so the screen's layout cannot hold it.
-        // rust: left_layout.add_child(y_field.clone());
-        // TODO(fabric2seer): unknown name `minecraft`
-        //   java: leftLayout.addChild(new StringWidget(Component.literal("Z:"), minecraft.font), p -> p.paddingLeft(2));
-        // TODO(fabric2seer): unknown name `minecraft`
-        //   java: FilteredEditBox zField = new FilteredEditBox(minecraft.font, 26, 20, Component.literal("Z"));
-        let mut z_field: compat::Shared<dyn FilteredEditBox> = todo!("fabric2seer: the initialiser of `zField` (TODO above)");
-        ({ let __f = compat::dispatch(&z_field, |__t| __t.set_value()); __f(&z_field, &compat::read(&__this, |__t| __t.waypoint.clone()).unwrap().lock().borrow().named_waypoint_base().pos.as_ref().unwrap().get_z().to_string()) });
-        let __this_w10 = compat::RenderThread::new(std::sync::Arc::downgrade(&__this));
-        ({ let __f = compat::dispatch(&z_field, |__t| __t.set_filter()); __f(&z_field, Arc::new(move |__a0| { let Some(__this_10) = __this_w10.get().upgrade() else { return Default::default(); }; WaypointEntry::check_int(&__this_10, &__a0) })) });
-        let __o11 = z_field.clone();
-        let __this_w12 = compat::RenderThread::new(std::sync::Arc::downgrade(&__this));
-        compat::write(&__o11, |__t| __t.filtered_edit_box_base_mut().set_responder(Responder::Lambda(ResponderLambda::new(move |__a0| { let Some(__this_12) = __this_w12.get().upgrade() else { return Default::default(); }; { WaypointEntry::update_z(&__this_12, __a0); } }))));
-        // java: leftLayout.addChild(zField);
-        // TODO(batchD): cross-package - `FilteredEditBox` (utils/render/gui) has no widget adapter (`WidgetHalf` /
-        // `ModWidget`), so the screen's layout cannot hold it.
-        // rust: left_layout.add_child(z_field.clone());
-        // TODO(fabric2seer): unknown name `minecraft`
+        //   java: nameField.setValue(waypoint.getName().getString()); nameField.setResponder(this::updateName); leftLayout.addChild(nameField, p -> p.paddingLeft(2));
+        {
+            let mut name_field: AbstractWidget = compat::edit_box(0, 0, 65, 20, component::literal("Name"));
+            let __name = ({ let __r = &compat::read(&__this, |__t| __t.waypoint.clone()).unwrap(); let __f = compat::dispatch(__r, |__t| __t.get_name()); __f(__r) }).get_string();
+            let __this_w3 = compat::RenderThread::new(std::sync::Arc::downgrade(&__this));
+            if let WidgetKind::EditBox(__e) = &mut name_field.kind {
+                __e.set_value(&compat::font().splitter(), &__name);
+                __e.set_responder(Responder::Lambda(ResponderLambda::new(move |__a0| { let Some(__this_3) = __this_w3.get().upgrade() else { return Default::default(); }; { WaypointEntry::update_name(&__this_3, __a0); } })));
+            }
+            let (__ww, __wh) = (name_field.get_width(), name_field.get_height());
+            let __i = compat::write(&__this, |__t| __t.base.__row.add_widget(name_field));
+            left_layout.add_child_adjusted(LayoutElement::widget(__i, __ww, __wh), &mut |p: &mut LayoutSettings| { *p = p.padding_left(2); });
+        }
+        // java: the X, Y and Z fields - `leftLayout.addChild(new StringWidget(Component.literal("X:"), font), p -> p.paddingLeft(2));`
+        //   then `FilteredEditBox xField = new FilteredEditBox(minecraft.font, 26, 20, Component.literal("X")); xField.setValue(..);
+        //   xField.setFilter(this::checkInt); xField.setResponder(this::updateX); leftLayout.addChild(xField);`
+        // rust: port gap (GAPS_N #2) - the game's EditBox has no filter slot, so `checkInt` does not reject a keystroke;
+        // the responder (`updateInt`) ignores what does not parse, as Java's catch does
+        let __pos = compat::read(&compat::read(&__this, |__t| __t.waypoint.clone()).unwrap(), |__t| __t.named_waypoint_base().pos.clone()).unwrap();
+        for (__label, __value, __axis) in [("X", __pos.get_x(), 0), ("Y", __pos.get_y(), 1), ("Z", __pos.get_z(), 2)] {
+            let __label_widget = compat::string_widget(0, 0, -1, mcrust::net::minecraft::client::gui::font::LINE_HEIGHT, component::literal(&format!("{}:", __label)));
+            let (__lw, __lh) = (__label_widget.get_width(), __label_widget.get_height());
+            let __li = compat::write(&__this, |__t| __t.base.__row.add_widget(__label_widget));
+            left_layout.add_child_adjusted(LayoutElement::widget(__li, __lw, __lh), &mut |p: &mut LayoutSettings| { *p = p.padding_left(2); });
+            let mut __field: AbstractWidget = compat::edit_box(0, 0, 26, 20, component::literal(__label));
+            let __this_wf = compat::RenderThread::new(std::sync::Arc::downgrade(&__this));
+            if let WidgetKind::EditBox(__e) = &mut __field.kind {
+                __e.set_value(&compat::font().splitter(), &__value.to_string());
+                __e.set_responder(Responder::Lambda(ResponderLambda::new(move |__a0| {
+                    let Some(__this_f) = __this_wf.get().upgrade() else { return Default::default(); };
+                    match __axis { 0 => WaypointEntry::update_x(&__this_f, __a0), 1 => WaypointEntry::update_y(&__this_f, __a0), _ => WaypointEntry::update_z(&__this_f, __a0) }
+                })));
+            }
+            let (__fw, __fh) = (__field.get_width(), __field.get_height());
+            let __fi = compat::write(&__this, |__t| __t.base.__row.add_widget(__field));
+            left_layout.add_child(LayoutElement::widget(__fi, __fw, __fh));
+        }
         //   java: ARGBTextInput colorField = new ARGBTextInput(0, 0, minecraft.font, true, true);
-        let mut color_field: compat::Shared<ARGBTextInput> = todo!("fabric2seer: the initialiser of `colorField` (TODO above)");
-        let __this_w13 = compat::RenderThread::new(std::sync::Arc::downgrade(&__this));
+        let mut color_field: compat::Shared<ARGBTextInput> = ARGBTextInput::new(0, 0, compat::font(), true, true);        let __this_w13 = compat::RenderThread::new(std::sync::Arc::downgrade(&__this));
         { let __v = (Some(ColorPickerButton::new(color_field.clone(), Arc::new(move |__a0| { let Some(__this_13) = __this_w13.get().upgrade() else { return Default::default(); }; { WaypointEntry::update_color(&__this_13, __a0); } })))).map(|__o| compat::WidgetRef::value(compat::WidgetAdapter::widget(__o))); compat::write(&__this, |__t| { let __s = &mut *__t; __s.color_picker_button = __v; }); }
         left_layout.add_child_adjusted({ let (__i, __ww, __wh) = compat::write(&__this, |__t| { let __s = &mut *__t; let __r = __s.color_picker_button.as_mut().unwrap(); __s.base.__widgets.add_to_layout(&mut __s.base.__row, __r) }); LayoutElement::widget(__i, __ww, __wh) }, &mut |p: &mut LayoutSettings| { *p = p.padding_left(2); });
         let mut color: i32 = argb::color_from_float(compat::read(&compat::read(&__this, |__t| __t.waypoint.clone()).unwrap(), |__t| __t.named_waypoint_base().alpha), compat::read(&__this, |__t| __t.waypoint.clone()).unwrap().lock().borrow().named_waypoint_base().color_components[(0) as usize], compat::read(&__this, |__t| __t.waypoint.clone()).unwrap().lock().borrow().named_waypoint_base().color_components[(1) as usize], compat::read(&__this, |__t| __t.waypoint.clone()).unwrap().lock().borrow().named_waypoint_base().color_components[(2) as usize]);
@@ -1029,19 +1132,19 @@ impl WaypointEntry {
             // waypoint's supplier reads this group (`this::waypointType`)
             let __index = compat::read(&group, |__g| __g.waypoints.iter().position(|w| <dyn NamedWaypoint>::equals_shared(w, &waypoint)));
             if let Some(__i) = __index { compat::write(&group, |__g| { __g.waypoints.remove(__i); }); }
-            // TODO(fabric2seer): `WaypointsListWidget.this` (the enclosing instance of an inner class)
             //   java: WaypointsListWidget.this.updateEntries();
+            if let Some(__outer) = compat::read(&__this_16, |__t| __t.base.outer.clone()).upgrade() { WaypointsListWidget::request_update_entries(&std::sync::Arc::downgrade(&__outer)); }
         } }) })), true)).size(20, 20).sprite(DELETE_ICON.get_mut().clone(), ICON_WIDTH, ICON_HEIGHT).build().unwrap();
         button_delete.set_tooltip(Tooltip::create(delete_text.get_string()));
+        //   java: layout.addChild(leftLayout, LayoutSettings::alignHorizontallyLeft); (by value, now that it is filled)
+        { let (__q0, __q1,) = (LayoutElement::Grid(left_layout.wrapped), &mut |__a0: &mut LayoutSettings| { *__a0 = __a0.align_horizontally_left(); },); __this.lock().borrow_mut().layout.as_mut().unwrap().add_child_adjusted(__q0, __q1) };
         { let (__q0, __q1,) = ({ let __w = button_delete.clone(); let (__ww, __wh) = (__w.get_width(), __w.get_height()); LayoutElement::widget(compat::write(&__this, |__t| __t.base.__row.add_widget(__w)), __ww, __wh) }, &mut |__a0: &mut LayoutSettings| { *__a0 = __a0.align_horizontally_right(); },); __this.lock().borrow_mut().layout.as_mut().unwrap().add_child_adjusted(__q0, __q1) };
         { __this.lock().borrow_mut().layout.as_mut().unwrap().arrange_elements(); let mut __vw = Vec::new(); __this.lock().borrow().layout.as_ref().unwrap().visit_widgets(&mut __vw); for (__i, __x, __y) in __vw { compat::write(&__this, |__t| __t.base.__row.widget_mut(__i).set_position(__x, __y)); } };
-        // TODO(fabric2seer): static call ImmutableList.builder(..)
-        //   java: ImmutableList.Builder<AbstractWidget> builder = ImmutableList.builder();
-        let mut builder: crate::unresolved::Builder = todo!("fabric2seer: the initialiser of `builder` (TODO above)");
-        { let mut __vw = Vec::new(); __this.lock().borrow().layout.as_ref().unwrap().visit_widgets(&mut __vw); for (__i, _, _) in __vw { compat::write(&__this, |__t| __t.base.__row.mark_renderable(__i)); } };
-        // TODO(fabric2seer): `.build(..)` on a Builder
-        //   java: children = builder.build();
-        __this
+        //   java: ImmutableList.Builder<AbstractWidget> builder = ImmutableList.builder(); layout.visitWidgets(builder::add); children = builder.build();
+        let mut __vw = Vec::new();
+        __this.lock().borrow().layout.as_ref().unwrap().visit_widgets(&mut __vw);
+        for (__i, _, _) in __vw.iter() { compat::write(&__this, |__t| __t.base.__row.mark_renderable(*__i)); }
+        compat::write(&__this, |__t| __t.children = __vw.iter().map(|(__i, _, _)| compat::WidgetRef::Screen(*__i)).collect());        __this
     }
 
     /// java: @Override public List<? extends NarratableEntry> narratables()
@@ -1065,8 +1168,8 @@ impl WaypointEntry {
             __g.waypoints.remove((current_index) as usize);
             __g.waypoints.insert((new_index) as usize, waypoint);
         });
-        // TODO(fabric2seer): `WaypointsListWidget.this` (the enclosing instance of an inner class)
         //   java: WaypointsListWidget.this.updateEntries();
+        WaypointsListWidget::request_update_entries(&compat::read(__this, |__t| __t.base.outer.clone()));
     }
 
     /// java: private void updateName(String name)
@@ -1122,7 +1225,14 @@ impl WaypointEntry {
         {
             let group = compat::read(&compat::read(__this, |__t| __t.group_entry.clone()).unwrap(), |__t| __t.group.clone()).unwrap();
             let mut index: i32 = index_of_waypoint(&group, &compat::read(__this, |__t| __t.waypoint.clone()).unwrap());
-            let mut new_value: i32 = WaypointEntry::parse_emptiable_int(__this, new_value_string);
+            // java: catch (NumberFormatException e) { Waypoints.LOGGER.warn("[Skyblocker Waypoints] Failed to parse integer: {}", newValueString, e); }
+            let mut new_value: i32 = match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| WaypointEntry::parse_emptiable_int(__this, new_value_string))) {
+                Ok(__v) => __v,
+                Err(_) => {
+                    logger().warn(&format!("[Skyblocker Waypoints] Failed to parse integer: {}", new_value_string));
+                    return;
+                }
+            };
             if new_value == current_value {
                 return;
             }
@@ -1132,10 +1242,6 @@ impl WaypointEntry {
                 compat::write(&group, |__g| __g.waypoints[(index) as usize] = waypoint);
             }
         }
-        // TODO(fabric2seer): the `catch (NumberFormatException e)` block is not reached in Rust - the try body returns, breaks or continues, so it cannot run inside `catch_unwind`
-        //   java: {
-        //   java: 				Waypoints.LOGGER.warn("[Skyblocker Waypoints] Failed to parse integer: {}", newValueString, e);
-        //   java: 			}
     }
 
     /// java: private void updateColor(int colorInt)
@@ -1163,14 +1269,21 @@ impl WaypointEntry {
 
     /// java: @Override public void extractContent(GuiGraphicsExtractor context, int mouseX, int mouseY, boolean hovered, float deltaTicks)
     pub fn extract_content(__this: &compat::Shared<Self>, context: &GuiGraphicsExtractor, mut mouse_x: i32, mut mouse_y: i32, mut hovered: bool, mut delta_ticks: f32) {
-        { let (__q0, __q1,) = (__this.lock().borrow().get_x(), __this.lock().borrow().get_y(),); __this.lock().borrow_mut().layout.as_mut().unwrap().set_position(__q0, __q1) };
+        //   java: layout.setPosition(this.getX(), this.getY()); - and the row widgets follow the layout
+        compat::write(__this, |__t| {
+            let (__x, __y) = (__t.get_x(), __t.get_y());
+            let __s = &mut *__t;
+            let __layout = __s.layout.as_mut().unwrap();
+            __layout.set_position(__x, __y);
+            let mut __vw = Vec::new();
+            __layout.visit_widgets(&mut __vw);
+            for (__i, __wx, __wy) in __vw { __s.base.__row.widget_mut(__i).set_position(__wx, __wy); }
+        });
         let mut show_buttons: bool = (hovered && mouse_y >= (compat::write(__this, |__t| { let __s = &mut *__t; let __r = __s.button_up.as_mut().unwrap(); __s.base.__widgets.with(&mut __s.base.__row, __r, |__w| __w.get_y()) })).wrapping_sub(1) && mouse_y <= compat::write(__this, |__t| { let __s = &mut *__t; let __r = __s.button_up.as_mut().unwrap(); __s.base.__widgets.with(&mut __s.base.__row, __r, |__w| __w.get_bottom()) }));
         { let __v = show_buttons; compat::write(__this, |__t| { let __s = &mut *__t; let __r = __s.button_up.as_mut().unwrap(); __s.base.__widgets.with(&mut __s.base.__row, __r, |__w| __w.visible = __v) }); }
         { let __v = show_buttons; compat::write(__this, |__t| { let __s = &mut *__t; let __r = __s.button_down.as_mut().unwrap(); __s.base.__widgets.with(&mut __s.base.__row, __r, |__w| __w.visible = __v) }); }
-        for child in compat::read(__this, |__t| __t.children.clone()) {
-            // TODO(fabric2seer): `extract_render_state` is a method of the port's trait `Renderable`, which the port's `AbstractWidget` does not implement
-            // rust: child.extract_render_state(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), mouse_x, mouse_y, delta_ticks);
-        }
+        //   java: for (AbstractWidget child : children) child.extractRenderState(context, mouseX, mouseY, deltaTicks);
+        //   - the row's widgets are drawn by its adapter (`context.extract_widgets` over the row) right after this body
     }
 
 }

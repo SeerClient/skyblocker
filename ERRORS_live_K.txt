@@ -1,0 +1,4 @@
+src/de/hysky/skyblocker/skyblock/chat/chat_rule_config_screen.rs:353:68: error[E0308]: mismatched types: expected `RangedSliderWidget`, found `Arc<ReentrantMutex<RawMutex, ..., ...>>`
+src/de/hysky/skyblocker/skyblock/chat/chat_rule_config_screen.rs:448:53: error[E0308]: mismatched types: expected `RangedSliderWidget`, found `Arc<ReentrantMutex<RawMutex, ..., ...>>`
+src/de/hysky/skyblocker/skyblock/chat/chat_rule_config_screen.rs:457:23: error[E0599]: no method named `set_tooltip` found for struct `RangedSliderWidget` in the current scope: method not found in `RangedSliderWidget`
+src/de/hysky/skyblocker/skyblock/chat/chat_rules_config_list_widget.rs:476:106: error[E0061]: this function takes 2 arguments but 1 argument was supplied

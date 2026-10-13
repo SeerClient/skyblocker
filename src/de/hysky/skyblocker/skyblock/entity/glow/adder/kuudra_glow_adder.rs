@@ -78,9 +78,12 @@ impl MobGlowAdder for KuudraGlowAdder {
 impl KuudraGlowAdder {
     /// java: @Override public int computeColour(Entity entity)
     pub fn compute_colour_impl(__this: &compat::Shared<Self>, entity: &dyn Entity) -> i32 {
-        // TODO(fabric2seer): instanceof with a pattern binding outside an `if` condition
-        //   java: return entity instanceof MagmaCube magmaCube && SkyblockerConfigManager.get().crimsonIsle.kuudra.kuudraGlow && magmaCube.getSize() == Kuudra.KUUDRA_MAGMA_CUBE_SIZE ? KUUDRA_COLOUR : NO_GLOW;
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        // java: return entity instanceof MagmaCube magmaCube && ..kuudra.kuudraGlow && magmaCube.getSize() == Kuudra.KUUDRA_MAGMA_CUBE_SIZE ? KUUDRA_COLOUR : NO_GLOW;
+        use mcrust::net::minecraft::world::entity::monster::cubemob::abstract_cube_mob::AbstractCubeMobLike as _;
+        if let Some(magma_cube) = entity.as_any().unwrap_or(&() as &dyn std::any::Any).downcast_ref::<MagmaCube>() && compat::read(&crate::de::hysky::skyblocker::config::skyblocker_config_manager::SkyblockerConfigManager::get().crimson_isle.kuudra, |__k| __k.kuudra_glow) && magma_cube.get_size() == crate::de::hysky::skyblocker::skyblock::crimson::kuudra::kuudra::KUUDRA_MAGMA_CUBE_SIZE {
+            return KUUDRA_COLOUR;
+        }
+        return *crate::de::hysky::skyblocker::skyblock::entity::mob_glow::NO_GLOW;
     }
 
     /// KuudraGlowAdder.computeColour as the dispatch of MobGlowAdder.computeColour

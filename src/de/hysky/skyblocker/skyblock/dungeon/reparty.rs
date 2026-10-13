@@ -14,9 +14,14 @@ use crate::de::hysky::skyblocker::utils::scheduler::scheduler::Scheduler;
 use crate::de::hysky::skyblocker::utils::utils::Utils;
 use mcrust::com::mojang::brigadier::context::command_context::CommandContext;
 use mcrust::net::minecraft::network::chat::mutable_component::MutableComponent;
+use mcrust::com::mojang::brigadier::builder::argument_builder::ArgumentBuilder as _;
 
 /// java: private static final int BASE_DELAY = 10;
 pub const BASE_DELAY: i32 = 10;
+
+/// The one `Reparty` (`ChatMessageListener.init` makes it): the `/reparty` command and the party-info packet reach it
+/// here (`this::executeCommand`, `this::onPacket`).
+pub static INSTANCE: compat::MainThread<Option<compat::Shared<Reparty>>> = compat::MainThread::new(|| None);
 
 /// java: public class Reparty extends ChatPatternListener
 #[derive(Clone)]
@@ -53,67 +58,84 @@ impl Reparty {
             });
             ((__h.clone() as compat::Shared<dyn ChatPatternListener>), __h)
         });
-        // TODO(fabric2seer): static field HypixelPacketEvents.PARTY_INFO
-        //   java: HypixelPacketEvents.PARTY_INFO.register(this::onPacket);
+        *INSTANCE.get_mut() = Some(__this.clone());
+        // java: HypixelPacketEvents.PARTY_INFO.register(this::onPacket);
+        crate::net::azureaaron::hmapi::events::hypixel_packet_events::PARTY_INFO.get_mut().register(Arc::new(|packet: &crate::unresolved::HypixelS2CPacket| {
+            if let Some(this) = INSTANCE.get().clone() {
+                Reparty::on_packet(&this, packet);
+            }
+        }));
         client_command_registration_callback::EVENT.register(Arc::new(
             |dispatcher: &mut client_command_registration_callback::ClientCommandDispatcher| {
-                // TODO(fabric2seer): method reference `::executeCommand` to a method this tool cannot see
-                //   java: dispatcher.register(ClientCommands.literal("reparty").executes(this::executeCommand));
-                // TODO(fabric2seer): method reference `::executeCommand` to a method this tool cannot see
-                //   java: dispatcher.register(ClientCommands.literal("rp").executes(this::executeCommand));
+                // java: dispatcher.register(ClientCommands.literal("reparty").executes(this::executeCommand));
+                // java: dispatcher.register(ClientCommands.literal("rp").executes(this::executeCommand));
+                for name in ["reparty", "rp"] {
+                    let mut node = client_command_registration_callback::literal(name);
+                    node.executes(Arc::new(|source: &CommandContext<client_command_registration_callback::FabricClientCommandSource>| {
+                        Ok(match INSTANCE.get().clone() { Some(this) => Reparty::execute_command(&this, source), None => 0 })
+                    }));
+                    dispatcher.dispatcher().register(&node);
+                }
             },
         ));
         __this
     }
 
     /// java: private int executeCommand(CommandContext<FabricClientCommandSource> source)
-    pub fn execute_command(__this: &compat::Shared<Self>, source: &CommandContext<crate::unresolved::FabricClientCommandSource>) -> i32 {
+    pub fn execute_command(__this: &compat::Shared<Self>, _source: &CommandContext<client_command_registration_callback::FabricClientCommandSource>) -> i32 {
         if !(Utils::is_on_skyblock()) || compat::read(__this, |__t| __t.repartying) || mcrust::mcrust::modding::game::with_player(|_| ()).is_none() {
             return 0;
         }
         { let __v = true; compat::write(__this, |__t| __t.repartying = __v); }
-        // TODO(fabric2seer): static call HypixelNetworking.sendPartyInfoC2SPacket(..)
-        //   java: HypixelNetworking.sendPartyInfoC2SPacket(2);
+        // java: HypixelNetworking.sendPartyInfoC2SPacket(2);
+        crate::net::azureaaron::hmapi::network::hypixel_networking::HypixelNetworking::send_party_info_c2s_packet(2);
         return 1;
     }
 
     /// java: private void onPacket(HypixelS2CPacket packet)
     pub fn on_packet(__this: &compat::Shared<Self>, packet: &crate::unresolved::HypixelS2CPacket) {
-        // TODO(fabric2seer): not translated (record patterns are not translated)
-        //   java: switch (packet) {
-        //   java: 			case PartyInfoS2CPacket(var inParty, var members) when this.repartying -> {
-        //   java: 				UUID ourUuid = Objects.requireNonNull(CLIENT.getUser().getProfileId());
-        //   java:
-        //   java: 				if (inParty && members != null && members.get(ourUuid) == PartyRole.LEADER) {
-        //   java: 					sendCommand("/p disband", 1);
-        //   java: 					int count = 0;
-        //   java:
-        //   java: 					for (Map.Entry<UUID, PartyRole> entry : members.entrySet()) {
-        //   java: 						UUID uuid = entry.getKey();
-        //   java: 						PartyRole role = entry.getValue();
-        //   java:
-        //   java: 						//Don't invite ourselves
-        //   java: 						if (role != PartyRole.LEADER) sendCommand("/p " + uuid, ++count + 2);
-        //   java: 					}
-        //   java:
-        //   java: 					Scheduler.INSTANCE.schedule(() -> this.repartying = false, count * BASE_DELAY);
-        //   java: 				} else {
-        //   java: 					assert CLIENT.player != null;
-        //   java: 					CLIENT.player.sendSystemMessage(Constants.PREFIX.get().append(Component.translatable("skyblocker.reparty.notInPartyOrNotLeader")));
-        //   java: 					this.repartying = false;
-        //   java: 				}
-        //   java: 			}
-        //   java:
-        //   java: 			case ErrorS2CPacket(var id, var error) when id.equals(PartyInfoS2CPacket.ID) && this.repartying -> {
-        //   java: 				assert CLIENT.player != null;
-        //   java: 				CLIENT.player.sendSystemMessage(Constants.PREFIX.get().append(Component.translatable("skyblocker.reparty.error")));
-        //   java: 				LOGGER.error("[Skyblocker Reparty] The party info packet returned an unexpected error! {}", error);
-        //   java:
-        //   java: 				this.repartying = false;
-        //   java: 			}
-        //   java:
-        //   java: 			default -> {} //Do nothing
-        //   java: 		}
+        use crate::net::azureaaron::hmapi::data::party::party_role::PartyRole;
+        use crate::net::azureaaron::hmapi::network::packet::v2::s2c::party_info_s2c_packet::PartyInfoS2CPacket;
+        let repartying = compat::read(__this, |__t| __t.repartying);
+        match packet {
+            // java: case PartyInfoS2CPacket(var inParty, var members) when this.repartying -> {..}
+            crate::unresolved::HypixelS2CPacket::PartyInfo(info) if repartying => {
+                // java: UUID ourUuid = Objects.requireNonNull(CLIENT.getUser().getProfileId());
+                let our_uuid: String = compat::minecraft().get_user().get_profile_id().replace("-", "").to_lowercase();
+                let our_role = info.members.as_ref().and_then(|members| members.iter().find(|(uuid, _)| uuid.to_string().replace("-", "") == our_uuid).map(|(_, role)| *role));
+                if info.in_party && info.members.is_some() && our_role == Some(PartyRole::Leader) {
+                    Reparty::send_command(__this, "/p disband", 1);
+                    let mut count: i32 = 0;
+                    for (uuid, role) in info.members.as_ref().unwrap().iter() {
+                        // Don't invite ourselves
+                        if *role != PartyRole::Leader {
+                            count += 1;
+                            Reparty::send_command(__this, &format!("/p {}", uuid), count + 2);
+                        }
+                    }
+                    // java: Scheduler.INSTANCE.schedule(() -> this.repartying = false, count * BASE_DELAY);
+                    let __this_1 = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
+                    let __r = scheduler::INSTANCE.get_mut();
+                    let __f = compat::dispatch(__r, |__t| __t.schedule());
+                    __f(__r, Arc::new(move || { if let Some(this) = __this_1.get().upgrade() { compat::write(&this, |__t| __t.repartying = false); } }), count.wrapping_mul(BASE_DELAY));
+                } else {
+                    // java: CLIENT.player.sendSystemMessage(Constants.PREFIX.get().append(Component.translatable("skyblocker.reparty.notInPartyOrNotLeader")));
+                    // rust: port gap (GAPS_batchD #17) - a mod's system message is its text form (`script_host::send_feedback`)
+                    let message = (crate::de::hysky::skyblocker::utils::constants::PREFIX.get())().append(mcrust::net::minecraft::network::chat::component::translatable("skyblocker.reparty.notInPartyOrNotLeader"));
+                    script_host::send_feedback(&message.to_string());
+                    compat::write(__this, |__t| __t.repartying = false);
+                }
+            }
+            // java: case ErrorS2CPacket(var id, var error) when id.equals(PartyInfoS2CPacket.ID) && this.repartying -> {..}
+            crate::unresolved::HypixelS2CPacket::Error(error) if error.id == PartyInfoS2CPacket::ID && repartying => {
+                let message = (crate::de::hysky::skyblocker::utils::constants::PREFIX.get())().append(mcrust::net::minecraft::network::chat::component::translatable("skyblocker.reparty.error"));
+                script_host::send_feedback(&message.to_string());
+                logger().error(&format!("[Skyblocker Reparty] The party info packet returned an unexpected error! {:?}", error.reason));
+                compat::write(__this, |__t| __t.repartying = false);
+            }
+            // java: default -> {} //Do nothing
+            _ => {}
+        }
     }
 
     /// java: private void sendCommand(String command, int delay)

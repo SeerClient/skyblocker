@@ -4,32 +4,32 @@
 use crate::prelude::*;
 use crate::de::hysky::skyblocker::utils::render::gui::abstract_popup_screen::AbstractPopupScreen;
 use crate::de::hysky::skyblocker::utils::render::gui::abstract_popup_screen::AbstractPopupScreenBase;
-use mcrust::java::text::decimal_format_symbols::Locale;
 use mcrust::mcrust::modding::screens::ModScreen;
-use mcrust::mcrust::modding::screens::ScreenRenderContext;
+use mcrust::mcrust::modding::widgets::ModWidget;
+use mcrust::mcrust::modding::widgets::WidgetRenderContext;
 use mcrust::net::minecraft::chat_formatting::ChatFormatting;
 use mcrust::net::minecraft::client::gui::components::abstract_container_widget::AbstractContainerWidget;
+use mcrust::net::minecraft::client::gui::components::abstract_scroll_area::ScrollArea;
+use mcrust::net::minecraft::client::gui::components::abstract_scroll_area::ScrollbarSettings;
 use mcrust::net::minecraft::client::gui::components::abstract_widget::AbstractWidget;
 use mcrust::net::minecraft::client::gui::components::abstract_widget::OnPress;
 use mcrust::net::minecraft::client::gui::components::abstract_widget::PressLambda;
+use mcrust::net::minecraft::client::gui::components::abstract_widget::WidgetKind;
 use mcrust::net::minecraft::client::gui::components::button;
 use mcrust::net::minecraft::client::gui::components::cycle_button;
-use mcrust::net::minecraft::client::gui::components::cycle_button::CycleButton;
-use mcrust::net::minecraft::client::gui::components::edit_box::EditBox;
 use mcrust::net::minecraft::client::gui::components::edit_box::Responder;
 use mcrust::net::minecraft::client::gui::components::edit_box::ResponderLambda;
-use mcrust::net::minecraft::client::gui::components::events::gui_event_listener::GuiEventListener;
-use mcrust::net::minecraft::client::gui::components::tooltip::Tooltip;
+use mcrust::net::minecraft::client::gui::gui_graphics_extractor;
 use mcrust::net::minecraft::client::gui::gui_graphics_extractor::GuiGraphicsExtractor;
 use mcrust::net::minecraft::client::gui::layouts::grid_layout::GridLayout;
 use mcrust::net::minecraft::client::gui::layouts::grid_layout::RowHelper;
 use mcrust::net::minecraft::client::gui::layouts::layout_element::LayoutElement;
 use mcrust::net::minecraft::client::gui::layouts::linear_layout::LinearLayout;
 use mcrust::net::minecraft::client::gui::narration::narration_element_output::NarrationElementOutput;
-use mcrust::net::minecraft::client::input::character_event::CharacterEvent;
+use mcrust::net::minecraft::client::gui::screens::screen::Screen;
 use mcrust::net::minecraft::client::input::mouse_button_event::MouseButtonEvent;
-use mcrust::net::minecraft::client::input::mouse_button_info::MouseButtonInfo;
 use mcrust::net::minecraft::network::chat::component;
+use mcrust::net::minecraft::network::chat::formatted_text::FormattedText;
 use mcrust::net::minecraft::network::chat::mutable_component::MutableComponent;
 use mcrust::net::minecraft::sounds::sound_event::SoundEvent;
 use mcrust::net::minecraft::client::gui::layouts::abstract_layout::AbstractLayout as _;
@@ -45,8 +45,10 @@ pub static NO_TEXT: compat::MainThread<MutableComponent> = compat::MainThread::n
 pub struct SoundSelectionPopup {
     /// java: extends AbstractPopupScreen
     pub base: AbstractPopupScreenBase,
-    /// java: private final List<AbstractWidget> filteredWidgets = new ObjectArrayList<>();
-    pub filtered_widgets: Vec<AbstractWidget>,
+    /// java: private final List<AbstractWidget> filteredWidgets = new ObjectArrayList<>(); - the game's widgets (over
+    /// `SoundWidget` objects), held in a screen of the popup's own: the list container draws them and hands them
+    /// their clicks (`ListContainer.children()`)
+    pub filtered_widgets: Screen,
     /// java: private final Consumer<@Nullable SoundEvent> onDone;
     pub on_done: Arc<dyn Fn(Option<SoundEvent>)>,
     /// java: private @Nullable SoundEvent selectedSound = null;
@@ -60,7 +62,11 @@ pub struct SoundSelectionPopup {
     /// java: private @Nullable Button doneButton;
     pub done_button: Option<compat::WidgetRef>,
     /// java: private @Nullable ListContainer widgetsContainer;
-    pub widgets_container: Option<ListContainer>,
+    pub widgets_container: Option<compat::Shared<ListContainer>>,
+    /// the search field (`init`'s local, read by the advanced toggle)
+    pub search_field: Option<compat::WidgetRef>,
+    /// the list container's index in the screen's widgets
+    pub container_index: Option<usize>,
 }
 
 impl std::ops::Deref for SoundSelectionPopup {
@@ -78,11 +84,27 @@ impl std::ops::DerefMut for SoundSelectionPopup {
 
 impl SoundSelectionPopup {
     /// java: public SoundSelectionPopup(Screen backgroundScreen, Consumer<@Nullable SoundEvent> onDone)
-    pub fn new(mut background_screen: mcrust::net::minecraft::client::gui::screens::screen::Screen, on_done: Arc<dyn Fn(Option<SoundEvent>)>) -> compat::Shared<Self> {
-        let __init_on_done = on_done.clone();
-        // TODO(fabric2seer): the mod keeps the game's `Screen` (Java holds a reference to the live object); the port's `Screen` is not a value to copy and the port lends the mod no handle to it
-        //   java: super(Component.literal("Select Sound"), backgroundScreen);
-        let __this: compat::Shared<Self> = todo!("constructor");
+    ///
+    /// (open it with `game::set_screen_keeping_parent`: the screen it is opened over is its background screen, which
+    /// the base keeps a stand-in for - see `AbstractPopupScreenBase::new_in`)
+    pub fn new(background_screen: Screen, on_done: Arc<dyn Fn(Option<SoundEvent>)>) -> compat::Shared<Self> {
+        // java: super(Component.literal("Select Sound"), backgroundScreen);
+        let (_, __this) = AbstractPopupScreenBase::new_in(component::literal("Select Sound"), background_screen, move |__base| {
+            let __h = compat::shared(Self {
+                base: __base,
+                filtered_widgets: Screen::new(String::new()),
+                on_done,
+                selected_sound: None,
+                advanced: false,
+                grid_widget: GridLayout::new_default(),
+                list_layout: LinearLayout::new(0, 0, mcrust::net::minecraft::client::gui::layouts::linear_layout::Orientation::Vertical),
+                done_button: None,
+                widgets_container: None,
+                search_field: None,
+                container_index: None,
+            });
+            ((__h.clone() as compat::Shared<dyn AbstractPopupScreen>), __h)
+        });
         __this
     }
 
@@ -90,13 +112,15 @@ impl SoundSelectionPopup {
     ///
     /// (`sound` is the registry's own `SoundEvent` object - `getKey` finds an element by identity)
     pub fn get_sound_name(__this: &compat::Shared<Self>, sound: &mcrust::com::mojang::serialization::Obj) -> Option<MutableComponent> {
-        let mut key: String = mcrust::net::minecraft::core::registries::built_in_registries::sound_event().get_key(sound).unwrap().to_short_language_key();
-        let mut translation: MutableComponent = component::translatable_with_fallback(&format!("subtitles.{}", key), Some("null"));
+        let key: String = mcrust::net::minecraft::core::registries::built_in_registries::sound_event().get_key(sound).unwrap().to_short_language_key();
+        //first check for translation
+        let translation: MutableComponent = component::translatable_with_fallback(&format!("subtitles.{}", key), Some("null"));
         if !(translation.get_string() == "null") {
             return Some(translation);
         }
+        //convert note block sounds
         if key.contains("note_block") {
-            let mut split: Vec<String> = compat::regex::split(&key, "\\.");
+            let split: Vec<String> = compat::regex::split(&key, "\\.");
             return Some(component::literal(&format!("note block {}", (split[((split.len() as i32).wrapping_sub(1)) as usize]).replace("_", " "))));
         }
         if compat::read(__this, |__t| __t.advanced) {
@@ -108,16 +132,18 @@ impl SoundSelectionPopup {
 
     /// java: private void filterSounds(String input)
     pub fn filter_sounds(__this: &compat::Shared<Self>, input: &str) {
-        __this.lock().borrow_mut().filtered_widgets.clear();
+        // java: filteredWidgets.clear();
+        compat::write(__this, |__t| __t.filtered_widgets.truncate_widgets(0));
         // java: for (SoundEvent soundEvent : BuiltInRegistries.SOUND_EVENT)
         for sound_event in mcrust::net::minecraft::core::registries::built_in_registries::sound_event().iterator() {
-            let mut translation: Option<MutableComponent> = SoundSelectionPopup::get_sound_name(__this, &sound_event);
-            if translation.is_some() && translation.as_ref().unwrap().get_string().to_lowercase().contains(&input.to_lowercase()) {
-                let widget: SoundWidget = SoundWidget::new(translation.clone().unwrap(), sound_event.clone());
-                // java: filteredWidgets.add(new SoundWidget(..)); - rust: port gap - the list holds the port's concrete
-                // `AbstractWidget`, which has no subclass dispatch, so the SoundWidget's overrides (getHeight, its
-                // render state, onClick) do not travel with it (GAPS_batchA.md)
-                __this.lock().borrow_mut().filtered_widgets.push(widget.base);
+            let translation: Option<MutableComponent> = SoundSelectionPopup::get_sound_name(__this, &sound_event);
+            //filter sounds
+            if let Some(translation) = translation && translation.get_string().to_lowercase().contains(&input.to_lowercase()) {
+                let Some(sound) = mcrust::com::mojang::serialization::cast::<SoundEvent>(&sound_event).cloned() else { continue; };
+                // java: AbstractWidget widget = new SoundWidget(translation, soundEvent); filteredWidgets.add(widget);
+                let widget = SoundWidget::new(std::sync::Arc::downgrade(__this), translation, sound);
+                let __w = compat::WidgetAdapter::widget(widget);
+                compat::write(__this, |__t| { __t.filtered_widgets.add_renderable_widget(__w); });
             }
         }
         SoundSelectionPopup::recreate_list(__this);
@@ -125,21 +151,49 @@ impl SoundSelectionPopup {
 
     /// java: private void recreateList()
     pub fn recreate_list(__this: &compat::Shared<Self>) {
-        let mut list_x: i32 = __this.lock().borrow().list_layout.get_x();
-        let mut list_y: i32 = __this.lock().borrow().list_layout.get_y();
-        // TODO(fabric2seer): field `VERTICAL` of a value of unknown type
-        //   java: listLayout = new LinearLayout(0, 0, LinearLayout.Orientation.VERTICAL);
-        for __a0 in compat::read(__this, |__t| __t.filtered_widgets.clone()) {
-            { let (__q0,) = ({ let __w = __a0.clone(); let (__ww, __wh) = (__w.get_width(), __w.get_height()); LayoutElement::widget(compat::write(__this, |__t| __t.add_widget(__w)), __ww, __wh) },); __this.lock().borrow_mut().list_layout.add_child(__q0) };
+        let list_x: i32 = __this.lock().borrow().list_layout.wrapped.x;
+        let list_y: i32 = __this.lock().borrow().list_layout.wrapped.y;
+        // java: listLayout = new LinearLayout(0, 0, LinearLayout.Orientation.VERTICAL); filteredWidgets.forEach(listLayout::addChild);
+        // listLayout.arrangeElements(); listLayout.setPosition(listX, listY);
+        compat::write(__this, |__t| {
+            let mut layout = LinearLayout::new(list_x, list_y, mcrust::net::minecraft::client::gui::layouts::linear_layout::Orientation::Vertical);
+            for __i in 0..__t.filtered_widgets.children().len() {
+                let __w = __t.filtered_widgets.widget(__i);
+                layout.add_child(LayoutElement::widget(__i, __w.get_width(), __w.get_height()));
+            }
+            layout.arrange_elements();
+            __t.list_layout = layout;
+        });
+        SoundSelectionPopup::place_list(__this);
+        // java: if (widgetsContainer != null) widgetsContainer.refreshScrollAmount();
+        if let Some(container) = compat::read(__this, |__t| __t.widgets_container.clone()) {
+            let content_height = compat::read(__this, |__t| __t.list_layout.get_height());
+            compat::write(&container, |__t| __t.area.refresh_scroll_amount(content_height));
         }
-        { __this.lock().borrow_mut().list_layout.arrange_elements(); let mut __vw = Vec::new(); LayoutElement::Grid(__this.lock().borrow().list_layout.wrapped.clone()).visit_widgets(&mut __vw); for (__i, __x, __y) in __vw { compat::write(__this, |__t| __t.widget_mut(__i).set_position(__x, __y)); } };
-        // TODO(fabric2seer): `LayoutElement::set_position` ports `setPosition`, but the port's `LinearLayout` holds no `LayoutElement` (no Deref, no `base` field) to call it on
-        // rust: __this.lock().borrow_mut().list_layout.set_position(list_x, list_y);
-        if compat::read(__this, |__t| __t.widgets_container.clone()).is_some() {
-            // TODO(fabric2seer): `refresh_scroll_amount` takes 1 argument(s) in the port (`content_height: i32`), Java passes 0
-            // TODO(fabric2seer): `ScrollArea::refresh_scroll_amount` ports `refreshScrollAmount`, but the port's `AbstractContainerWidget` holds no `ScrollArea` (no Deref, no `base` field) to call it on
-            // rust: __this.lock().borrow_mut().widgets_container.as_mut().unwrap().refresh_scroll_amount();
-        }
+    }
+
+    /// The filtered widgets at the places `listLayout` gives them (its x and y as of now).
+    pub fn place_list(__this: &compat::Shared<Self>) {
+        compat::write(__this, |__t| {
+            __t.list_layout.arrange_elements();
+            let mut placed: Vec<(usize, i32, i32)> = Vec::new();
+            LayoutElement::Grid(__t.list_layout.wrapped.clone()).visit_widgets(&mut placed);
+            for (__i, __x, __y) in placed {
+                if __i < __t.filtered_widgets.children().len() {
+                    __t.filtered_widgets.widget_mut(__i).set_position(__x, __y);
+                }
+            }
+        });
+    }
+
+    /// `doneButton.active = true` (a `SoundWidget`'s click, which runs between the game's calls on the popup)
+    fn activate_done_button(__this: &compat::Shared<Self>) {
+        compat::write(__this, |__t| {
+            let __s = &mut *__t;
+            if let Some(__r) = __s.done_button.as_mut() {
+                __s.base.__widgets.with(&mut __s.base.base, __r, |__w| __w.active = true);
+            }
+        });
     }
 
 }
@@ -174,54 +228,75 @@ impl AbstractPopupScreen for SoundSelectionPopup {
 }
 
 impl SoundSelectionPopup {
+    /// `addRenderableWidget(adder.addChild(widget[, columns]))`
+    fn add_to_grid(__this: &compat::Shared<Self>, adder: &mut RowHelper, widget: AbstractWidget, columns: i32) -> usize {
+        let (__w, __h) = (widget.get_width(), widget.get_height());
+        let __i = compat::write(__this, |__t| __t.add_renderable_widget(widget));
+        compat::write(__this, |__t| { let _ = adder.add_child_width(&mut __t.grid_widget, LayoutElement::widget(__i, __w, __h), columns); });
+        __i
+    }
+
     /// java: @Override protected void init()
     pub fn init_impl(__this: &compat::Shared<Self>) {
+        compat::write(__this, |__t| __t.grid_widget = GridLayout::new_default());
         let mut adder: RowHelper = __this.lock().borrow().grid_widget.create_row_helper(2);
-        // TODO(fabric2seer): the port's `new` ports this Java method with other parameters (splitter, x, y, width, height for Java's width, height, narration)
-        // TODO(fabric2seer): `new` takes 5 argument(s) in the port (`splitter: &StringSplitter<W>, x: i32, y: i32, width: i32, height: i32`), Java passes 4
-        // rust: let mut search_field: EditBox = EditBox::new(&compat::font(), 200, 20, component::empty());
-        let mut search_field: EditBox = todo!("fabric2seer: the initialiser of `searchField` (TODO above)");
-        search_field.set_hint_component(component::translatable("gui.recipebook.search_hint").with_style_format(ChatFormatting::Italic).with_style_format(ChatFormatting::Gray));
+        // java: EditBox searchField = new EditBox(Minecraft.getInstance().font, 200, 20, Component.empty());
+        let mut search_field = compat::edit_box(0, 0, 200, 20, component::empty());
         let __this_w1 = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
-        search_field.set_responder(Responder::Lambda(ResponderLambda::new(move |__a0| { let Some(__this_1) = __this_w1.get().upgrade() else { return Default::default(); }; { SoundSelectionPopup::filter_sounds((&__this_1), __a0); } })));
-        // TODO(fabric2seer): the port's `add_child` ports this Java method with other parameters (grid, child for Java's widget)
-        // TODO(fabric2seer): `add_child` takes 2 argument(s) in the port (`grid: &mut GridLayout, child: LayoutElement`), Java passes 1
-        // rust: { let (__q0,) = (adder.add_child(&mut search_field).unwrap(),); __this.lock().borrow_mut().add_renderable_widget(__q0) };
-        // TODO(fabric2seer): a lambda for a parameter the port does not type as a closure (`net.minecraft.client.OptionInstance.TooltipSupplier<T>`)
-        // TODO(fabric2seer): the port's `create` ports this Java method with other parameters (name, generic_value_format, value_change_listener for Java's x, y, width, height, name, value_change_listener)
-        // TODO(fabric2seer): `create` takes 3 argument(s) in the port (`name: String, generic_value_format: String, value_change_listener: OnValueChange`), Java passes 6
-        // TODO(fabric2seer): a lambda for a parameter the port does not type as a closure (`net.minecraft.client.gui.components.CycleButton.OnValueChange<T>`)
-        // rust: let __this_2 = compat::RenderThread::new(__this.clone());
-        // rust: let mut toggle_advanced: CycleButton = (cycle_button::boolean_builder(YES_TEXT.get_mut().get_string(), NO_TEXT.get_mut().get_string(), compat::read(__this, |__t| __t.advanced))).with_tooltip(|_| Tooltip::create((component::translatable("skyblocker.utils.render.gui.soundSelectionPopup.advanced.@Tooltip")).get_string())).create(0, 0, 100, 20, component::translatable("skyblocker.utils.render.gui.soundSelectionPopup.advanced"), |_, _| {
-        // rust: { let __v = !(compat::read(__this_2.get(), |__t| __t.advanced)); compat::write(__this_2.get(), |__t| __t.advanced = __v); }
-        // rust: SoundSelectionPopup::filter_sounds(__this_2.get(), &search_field.get_value());
-        // rust: }).unwrap();
-        let mut toggle_advanced: CycleButton = todo!("fabric2seer: the initialiser of `toggleAdvanced` (TODO above)");
-        // TODO(fabric2seer): the port's `add_child` ports this Java method with other parameters (grid, child for Java's widget)
-        // TODO(fabric2seer): `add_child` takes 2 argument(s) in the port (`grid: &mut GridLayout, child: LayoutElement`), Java passes 1
-        // rust: { let (__q0,) = (adder.add_child(&mut toggle_advanced).unwrap(),); __this.lock().borrow_mut().add_renderable_widget(__q0) };
-        { let __v = Some(ListContainer::new(0, 0, 400, (compat::read(__this, |__t| __t.height)).wrapping_div(2))); compat::write(__this, |__t| __t.widgets_container = __v); }
-        // TODO(fabric2seer): the port's `add_child_width` ports this Java method with other parameters (grid, child, column_width for Java's widget, column_width)
-        // TODO(fabric2seer): `add_child_width` takes 3 argument(s) in the port (`grid: &mut GridLayout, child: LayoutElement, column_width: i32`), Java passes 2
-        // rust: let __r0 = compat::read(__this, |__t| __t.widgets_container.clone());
-        // rust: { let (__q0,) = (adder.add_child_width(__r0.as_mut().unwrap(), 2).unwrap(),); __this.lock().borrow_mut().add_renderable_widget(__q0) };
-        // TODO(fabric2seer): the port's `add_child` ports this Java method with other parameters (grid, child for Java's widget)
-        // TODO(fabric2seer): `add_child` takes 2 argument(s) in the port (`grid: &mut GridLayout, child: LayoutElement`), Java passes 1
-        // rust: let __this_w3 = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
-        // rust: { let (__q0,) = (adder.add_child(&mut (button::builder(mcrust::net::minecraft::network::chat::common_components::gui_cancel().get_string(), OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| { let Some(__this_3) = __this_w3.get().upgrade() else { return Default::default(); }; compat::lend_screen(&__this_3, __screen, || { let mut __pidx = compat::WidgetRef::Screen(__index); {
-        // rust: ({ let __f = compat::dispatch((&__this_3), |__t| __t.on_close()); __f(&compat::view((&__this_3), |a| a as compat::Shared<dyn AbstractPopupScreen>)) });
-        // rust: ((compat::read((&__this_3), |__t| __t.on_done.clone())))(None);
-        // rust: } }) })))).build()).unwrap(),); __this.lock().borrow_mut().add_renderable_widget(__q0) };
+        compat::with_edit_box(&mut search_field, |__e| {
+            // java: searchField.setHint(Component.translatable("gui.recipebook.search_hint").withStyle(ChatFormatting.ITALIC).withStyle(ChatFormatting.GRAY));
+            __e.set_hint_component(FormattedText::from(component::translatable("gui.recipebook.search_hint").with_style_format(ChatFormatting::Italic).with_style_format(ChatFormatting::Gray)));
+            // java: searchField.setResponder(this::filterSounds);
+            __e.set_responder(Responder::Lambda(ResponderLambda::new(move |__a0| { let Some(__this_1) = __this_w1.get().upgrade() else { return; }; SoundSelectionPopup::filter_sounds(&__this_1, __a0); })));
+        });
+        // java: addRenderableWidget(adder.addChild(searchField));
+        let mut __search_ref = compat::WidgetRef::value(search_field);
+        let (__si, __sw, __sh) = compat::write(__this, |__t| { let __s = &mut __t.base; let __i = __s.__widgets.add(&mut __s.base, &mut __search_ref, true); let __w = __s.base.widget(__i); (__i, __w.get_width(), __w.get_height()) });
+        compat::write(__this, |__t| { __t.search_field = Some(__search_ref); let _ = adder.add_child(&mut __t.grid_widget, LayoutElement::widget(__si, __sw, __sh)); });
+        // java: CycleButton<Boolean> toggleAdvanced = CycleButton.booleanBuilder(YES_TEXT, NO_TEXT, advanced)
+        //   .withTooltip(_ -> Tooltip.create(..advanced.@Tooltip)).create(0, 0, 100, 20, ..advanced.., (_, _) -> { advanced = !advanced; filterSounds(searchField.getValue()); });
+        let __builder = cycle_button::boolean_builder(YES_TEXT.get().get_string(), NO_TEXT.get().get_string(), compat::read(__this, |__t| __t.advanced))
+            .with_tooltip(cycle_button::TooltipSupplier::Constant(FormattedText::from(component::translatable("skyblocker.utils.render.gui.soundSelectionPopup.advanced.@Tooltip"))));
+        let __this_w2 = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
+        let toggle_advanced = compat::cycle_button_widget(0, 0, 100, 20, &component::translatable("skyblocker.utils.render.gui.soundSelectionPopup.advanced"), __builder, move |_: usize| {
+            let Some(__this_2) = __this_w2.get().upgrade() else { return; };
+            compat::write(&__this_2, |__t| __t.advanced = !__t.advanced);
+            let Some(mut __r) = compat::read(&__this_2, |__t| __t.search_field.clone()) else { return; };
+            let value = compat::write(&__this_2, |__t| { let __s = &mut __t.base; __s.__widgets.with(&mut __s.base, &mut __r, |__w| compat::edit_box_value(__w)) });
+            SoundSelectionPopup::filter_sounds(&__this_2, &value);
+        });
+        // java: addRenderableWidget(adder.addChild(toggleAdvanced));
+        SoundSelectionPopup::add_to_grid(__this, &mut adder, toggle_advanced, 1);
+        // java: widgetsContainer = new ListContainer(0, 0, 400, this.height / 2);
+        let container = ListContainer::new(std::sync::Arc::downgrade(__this), 0, 0, 400, (compat::read(__this, |__t| __t.height)).wrapping_div(2));
+        compat::write(__this, |__t| __t.widgets_container = Some(container.clone()));
+        // java: addRenderableWidget(adder.addChild(widgetsContainer, 2));
+        let __ci = SoundSelectionPopup::add_to_grid(__this, &mut adder, compat::object_widget(container, "List"), 2);
+        compat::write(__this, |__t| __t.container_index = Some(__ci));
+        // java: addRenderableWidget(adder.addChild(Button.builder(CommonComponents.GUI_CANCEL, _ -> { onClose(); onDone.accept(null); }).build()));
+        let __this_w3 = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
+        let cancel = button::builder(mcrust::net::minecraft::network::chat::common_components::gui_cancel().get_string(), OnPress::Lambda(PressLambda::new(move |_: &mut Screen, _: usize| {
+            let Some(__this_3) = __this_w3.get().upgrade() else { return; };
+            ({ let __f = compat::dispatch(&__this_3, |__t| __t.on_close()); __f(&compat::view(&__this_3, |a| a as compat::Shared<dyn AbstractPopupScreen>)) });
+            (compat::read(&__this_3, |__t| __t.on_done.clone()))(None);
+        }))).build();
+        SoundSelectionPopup::add_to_grid(__this, &mut adder, cancel, 1);
+        // java: doneButton = Button.builder(CommonComponents.GUI_DONE, _ -> { onClose(); onDone.accept(selectedSound); }).build();
         let __this_w4 = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
-        { let __v = (Some((button::builder(mcrust::net::minecraft::network::chat::common_components::gui_done().get_string(), OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| { let Some(__this_4) = __this_w4.get().upgrade() else { return Default::default(); }; compat::lend_screen(&__this_4, __screen, || { let mut __pidx = compat::WidgetRef::Screen(__index); {
-            ({ let __f = compat::dispatch((&__this_4), |__t| __t.on_close()); __f(&compat::view((&__this_4), |a| a as compat::Shared<dyn AbstractPopupScreen>)) });
-            ((compat::read((&__this_4), |__t| __t.on_done.clone())))(compat::read((&__this_4), |__t| __t.selected_sound.clone()));
-        } }) })))).build())).map(compat::WidgetRef::value); compat::write(__this, |__t| { let __s = &mut *__t; __s.done_button = __v; }); }
-        { let __v = false; compat::write(__this, |__t| { let __s = &mut *__t; let __r = __s.done_button.as_mut().unwrap(); __s.base.__widgets.with(&mut __s.base.base, __r, |__w| __w.active = __v) }); }
-        // TODO(fabric2seer): the port's `add_child` ports this Java method with other parameters (grid, child for Java's widget)
-        // TODO(fabric2seer): `add_child` takes 2 argument(s) in the port (`grid: &mut GridLayout, child: LayoutElement`), Java passes 1
-        // rust: { let (__q0,) = (adder.add_child(compat::write(__this, |__t| { let __s = &mut *__t; match __s.done_button.as_mut() { Some(__r) => Some(__s.base.__widgets.with(&mut __s.base.base, __r, |__w| __w.clone())), None => None } }).as_mut().unwrap()).unwrap(),); __this.lock().borrow_mut().add_renderable_widget(__q0) };
-        { __this.lock().borrow_mut().grid_widget.arrange_elements(); let mut __vw = Vec::new(); LayoutElement::Grid(__this.lock().borrow().grid_widget.clone()).visit_widgets(&mut __vw); for (__i, __x, __y) in __vw { compat::write(__this, |__t| __t.widget_mut(__i).set_position(__x, __y)); } };
+        let mut done = button::builder(mcrust::net::minecraft::network::chat::common_components::gui_done().get_string(), OnPress::Lambda(PressLambda::new(move |_: &mut Screen, _: usize| {
+            let Some(__this_4) = __this_w4.get().upgrade() else { return; };
+            ({ let __f = compat::dispatch(&__this_4, |__t| __t.on_close()); __f(&compat::view(&__this_4, |a| a as compat::Shared<dyn AbstractPopupScreen>)) });
+            let (on_done, selected) = compat::read(&__this_4, |__t| (__t.on_done.clone(), __t.selected_sound.clone()));
+            on_done(selected);
+        }))).build();
+        // java: doneButton.active = false;
+        done.active = false;
+        // java: addRenderableWidget(adder.addChild(doneButton));
+        let mut __done_ref = compat::WidgetRef::value(done);
+        let (__di, __dw, __dh) = compat::write(__this, |__t| { let __s = &mut __t.base; let __i = __s.__widgets.add(&mut __s.base, &mut __done_ref, true); let __w = __s.base.widget(__i); (__i, __w.get_width(), __w.get_height()) });
+        compat::write(__this, |__t| { __t.done_button = Some(__done_ref); let _ = adder.add_child(&mut __t.grid_widget, LayoutElement::widget(__di, __dw, __dh)); });
+        // java: gridWidget.arrangeElements(); repositionElements(); filterSounds("");
+        compat::write(__this, |__t| __t.grid_widget.arrange_elements());
         ({ let __f = compat::dispatch(__this, |__t| __t.reposition_elements()); __f(&compat::view(__this, |a| a as compat::Shared<dyn AbstractPopupScreen>)) });
         SoundSelectionPopup::filter_sounds(__this, "");
     }
@@ -233,10 +308,28 @@ impl SoundSelectionPopup {
 
     /// java: @Override protected void repositionElements()
     pub fn reposition_elements_impl(__this: &compat::Shared<Self>) {
-        // TODO(fabric2seer): `LayoutElement::set_position` ports `setPosition`, but the port's `GridLayout` holds no `LayoutElement` (no Deref, no `base` field) to call it on
-        // rust: let __r0 = compat::read(__this, |__t| __t.width);
-        // rust: let __r1 = compat::read(__this, |__t| __t.height);
-        // rust: { let (__q0, __q1,) = (((__r0).wrapping_sub(__this.lock().borrow().grid_widget.get_width())).wrapping_div(2), ((__r1).wrapping_sub(__this.lock().borrow().grid_widget.get_height())).wrapping_div(2),); __this.lock().borrow_mut().grid_widget.set_position(__q0, __q1) };
+        // java: gridWidget.setPosition((width - gridWidget.getWidth()) / 2, (height - gridWidget.getHeight()) / 2);
+        // (the grid's widgets are the screen's: they take the places the grid gives them; the list container moves
+        // the list with it - its `setX` / `setY`)
+        let placed: Vec<(usize, i32, i32)> = compat::write(__this, |__t| {
+            let (width, height) = (__t.width, __t.height);
+            __t.grid_widget.x = (width.wrapping_sub(__t.grid_widget.get_width())).wrapping_div(2);
+            __t.grid_widget.y = (height.wrapping_sub(__t.grid_widget.get_height())).wrapping_div(2);
+            __t.grid_widget.arrange_elements();
+            let mut placed: Vec<(usize, i32, i32)> = Vec::new();
+            LayoutElement::Grid(__t.grid_widget.clone()).visit_widgets(&mut placed);
+            placed
+        });
+        for (__i, __x, __y) in placed {
+            compat::write(__this, |__t| { if __i < __t.children().len() { __t.widget_mut(__i).set_position(__x, __y); } });
+        }
+        if let Some(container) = compat::read(__this, |__t| __t.widgets_container.clone()) {
+            // the container's box as the grid placed it (`ListContainer.setX` / `setY`)
+            if let Some(index) = compat::read(__this, |__t| __t.container_index) {
+                let (x, y) = compat::read(__this, |__t| (__t.widget(index).get_x(), __t.widget(index).get_y()));
+                ListContainer::move_to(&container, x, y);
+            }
+        }
     }
 
     /// SoundSelectionPopup.repositionElements as the dispatch of AbstractPopupScreen.repositionElements
@@ -245,9 +338,10 @@ impl SoundSelectionPopup {
     }
 
     /// java: @Override public void extractBackground(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a)
-    pub fn extract_background_impl(__this: &compat::Shared<Self>, graphics: &mut GuiGraphicsExtractor, mut mouse_x: i32, mut mouse_y: i32, mut a: f32) {
+    pub fn extract_background_impl(__this: &compat::Shared<Self>, graphics: &mut GuiGraphicsExtractor, mouse_x: i32, mouse_y: i32, a: f32) {
         <dyn AbstractPopupScreen>::extract_background_body(&compat::view(__this, |a| a as compat::Shared<dyn AbstractPopupScreen>), graphics, mouse_x, mouse_y, a);
-        AbstractPopupScreenBase::extract_popup_background(graphics, __this.lock().borrow().grid_widget.get_x(), __this.lock().borrow().grid_widget.get_y(), __this.lock().borrow().grid_widget.get_width(), __this.lock().borrow().grid_widget.get_height());
+        let (__x, __y, __w, __h) = compat::read(__this, |__t| (__t.grid_widget.get_x(), __t.grid_widget.get_y(), __t.grid_widget.get_width(), __t.grid_widget.get_height()));
+        AbstractPopupScreenBase::extract_popup_background(graphics, __x, __y, __w, __h);
     }
 
     /// SoundSelectionPopup.extractBackground as the dispatch of AbstractPopupScreen.extractBackground
@@ -316,11 +410,18 @@ impl ModScreen for compat::ScreenAdapter<SoundSelectionPopup> {
 
 }
 
+
 /// java: private class ListContainer extends AbstractContainerWidget
-#[derive(Clone)]
+///
+/// (an inner class: its children - `filteredWidgets` - and `listLayout` are the enclosing popup's, reached through
+/// `outer`; the popup is not borrowed while the game calls this widget)
 pub struct ListContainer {
     /// java: extends net.minecraft.client.gui.components.AbstractContainerWidget
     pub base: AbstractContainerWidget,
+    /// AbstractScrollArea's scroll state (`AbstractScrollArea.defaultSettings(8)`, `scrollRate()` 15)
+    pub area: ScrollArea,
+    /// java: SoundSelectionPopup.this
+    pub outer: compat::WeakShared<SoundSelectionPopup>,
 }
 
 impl std::ops::Deref for ListContainer {
@@ -338,32 +439,51 @@ impl std::ops::DerefMut for ListContainer {
 
 impl ListContainer {
     /// java: ListContainer(int x, int y, int width, int height)
-    pub fn new(mut x: i32, mut y: i32, mut width: i32, mut height: i32) -> Self {
-        // TODO(fabric2seer): static `AbstractScrollArea.defaultSettings` has no Rust counterpart in the port
-        //   java: super(x, y, width, height, Component.literal("List"), AbstractScrollArea.defaultSettings(8));
-        let mut this: Self = todo!("constructor");
-        this
+    pub fn new(outer: compat::WeakShared<SoundSelectionPopup>, x: i32, y: i32, width: i32, height: i32) -> compat::Shared<Self> {
+        // java: super(x, y, width, height, Component.literal("List"), AbstractScrollArea.defaultSettings(8));
+        let mut settings = ScrollbarSettings::default_settings(8.0);
+        settings.scroll_rate = ListContainer::scroll_rate();
+        compat::shared(ListContainer {
+            base: AbstractContainerWidget::new_with_scrollbar_settings(x, y, width, height, FormattedText::from(component::literal("List")), ScrollbarSettings::default_settings(8.0)),
+            area: ScrollArea::new(y, height, settings),
+            outer,
+        })
     }
 
-    /// java: @Override protected int contentHeight()
+    /// java: @Override protected int contentHeight() - `listLayout.getHeight()`
     pub fn content_height(&self) -> i32 {
-        // TODO(fabric2seer): `listLayout` is a field of the enclosing instance (SoundSelectionPopup.this) - an inner class has no outer reference in Rust
-        //   java: return listLayout.getHeight();
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        self.outer.upgrade().map_or(0, |__o| compat::read(&__o, |__t| __t.list_layout.get_height()))
     }
 
     /// java: @Override protected double scrollRate()
-    pub fn scroll_rate(&self) -> f64 {
-        return ((15) as f64) as f64;
+    pub fn scroll_rate() -> f64 {
+        return 15.0;
     }
 
     /// java: @Override public void setScrollAmount(double scrollY)
-    pub fn set_scroll_amount(&self, mut scroll_y: f64) {
-        // TODO(fabric2seer): `set_scroll_amount` takes 2 argument(s) in the port (`content_height: i32, scroll_amount: f64`), Java passes 1
-        // TODO(fabric2seer): `ScrollArea::set_scroll_amount` ports `setScrollAmount`, but the port's `AbstractContainerWidget` holds no `ScrollArea` (no Deref, no `base` field) to call it on
-        // rust: self.base.set_scroll_amount(scroll_y);
-        // TODO(fabric2seer): `listLayout` is a field of the enclosing instance (SoundSelectionPopup.this) - an inner class has no outer reference in Rust
-        //   java: listLayout.setY(getY() - (int) scrollAmount());
+    pub fn set_scroll_amount(&mut self, scroll_y: f64) {
+        // java: super.setScrollAmount(scrollY); listLayout.setY(getY() - (int) scrollAmount());
+        let content_height = self.content_height();
+        self.area.set_scroll_amount(content_height, scroll_y);
+        self.move_list();
+    }
+
+    /// `listLayout.setX(getX()); listLayout.setY(getY() - (int) scrollAmount())` - the list follows the box
+    fn move_list(&self) {
+        let Some(outer) = self.outer.upgrade() else { return; };
+        let (x, y) = (self.base.get_x(), self.base.get_y() - self.area.scroll_amount() as i32);
+        compat::write(&outer, |__t| { __t.list_layout.wrapped.x = x; __t.list_layout.wrapped.y = y; });
+        SoundSelectionPopup::place_list(&outer);
+    }
+
+    /// `setX(x); setY(y)` from the popup that placed the container's widget
+    pub fn move_to(__this: &compat::Shared<Self>, x: i32, y: i32) {
+        compat::write(__this, |__t| {
+            __t.base.set_x(x);
+            __t.base.set_y(y);
+            __t.area.y = y;
+            __t.move_list();
+        });
     }
 
     /// java: private boolean isVisible(AbstractWidget widget)
@@ -371,55 +491,120 @@ impl ListContainer {
         return (widget.get_bottom() >= self.get_y() && widget.get_y() < self.get_bottom());
     }
 
-    /// java: @Override protected void extractWidgetRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a)
-    pub fn extract_widget_render_state(&self, graphics: &GuiGraphicsExtractor, mut mouse_x: i32, mut mouse_y: i32, mut a: f32) {
-        graphics.enable_scissor(self.get_x(), self.get_y(), self.get_right(), self.get_bottom());
-        // TODO(fabric2seer): `filteredWidgets` is a field of the enclosing instance (SoundSelectionPopup.this) - an inner class has no outer reference in Rust
-        //   java: for (AbstractWidget widget : filteredWidgets) {
-        //   java: 				if (isVisible(widget)) widget.extractRenderState(graphics, mouseX, mouseY, a);
-        //   java: 			}
-        // TODO(fabric2seer): `AbstractContainerWidget.extractScrollbar` has no Rust method in the port (looked for `extract_scrollbar` in AbstractContainerWidget and its supertypes)
-        // rust: self.extract_scrollbar(graphics, mouse_x, mouse_y);
-        graphics.disable_scissor();
+    /// java: @Override public List<? extends GuiEventListener> children() - `filteredWidgets`: the popup's widget
+    /// screen, lent to `f` (taken out of the popup for the call: a child's click reaches the popup)
+    fn with_children<R>(&self, f: impl FnOnce(&mut Screen) -> R) -> Option<R> {
+        let outer = self.outer.upgrade()?;
+        let mut children = compat::write(&outer, |__t| std::mem::take(&mut __t.filtered_widgets));
+        let out = f(&mut children);
+        compat::write(&outer, |__t| {
+            // a child's click may have refiltered the list meanwhile: the newer list stays
+            if __t.filtered_widgets.children().is_empty() {
+                __t.filtered_widgets = children;
+            }
+        });
+        Some(out)
+    }
+}
+
+impl compat::ObjectWidget for ListContainer {
+    fn object_box(&mut self) -> &mut AbstractContainerWidget {
+        &mut self.base
+    }
+
+    fn object_box_ref(&self) -> &AbstractContainerWidget {
+        &self.base
     }
 
     /// java: @Override public void setX(int x)
-    pub fn set_x(&mut self, mut x: i32) {
+    fn set_x(&mut self, x: i32) {
+        // java: super.setX(x); listLayout.setX(x);
         self.base.set_x(x);
-        // TODO(fabric2seer): `listLayout` is a field of the enclosing instance (SoundSelectionPopup.this) - an inner class has no outer reference in Rust
-        //   java: listLayout.setX(x);
+        self.move_list();
     }
 
     /// java: @Override public void setY(int y)
-    pub fn set_y(&mut self, mut y: i32) {
+    fn set_y(&mut self, y: i32) {
+        // java: super.setY(y); listLayout.setY(y);
         self.base.set_y(y);
-        // TODO(fabric2seer): `listLayout` is a field of the enclosing instance (SoundSelectionPopup.this) - an inner class has no outer reference in Rust
-        //   java: listLayout.setY(y);
+        self.area.y = y;
+        self.move_list();
+    }
+
+    /// java: @Override protected void extractWidgetRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a)
+    fn extract_widget_render_state(&mut self, _widget: &AbstractWidget, context: &mut WidgetRenderContext<'_>, mouse_x: i32, mouse_y: i32, _a: f32) {
+        // java: graphics.enableScissor(getX(), getY(), getRight(), getBottom());
+        // java: for (AbstractWidget widget : filteredWidgets) if (isVisible(widget)) widget.extractRenderState(graphics, mouseX, mouseY, a);
+        // rust: port gap (GAPS_N #3) - the scissor is not applied to the game's widget pass: a widget partly outside the
+        // container is drawn whole
+        let (top, bottom) = (self.base.get_y(), self.base.get_bottom());
+        self.with_children(|children| {
+            for __i in 0..children.children().len() {
+                let __w = children.widget_mut(__i);
+                __w.visible = __w.get_bottom() >= top && __w.get_y() < bottom;
+            }
+            context.extract_widgets(children, mouse_x, mouse_y);
+        });
+        // java: extractScrollbar(graphics, mouseX, mouseY); graphics.disableScissor();
+        let content_height = self.content_height();
+        compat::extract_scrollbar(context, &self.area, content_height, self.base.get_right() - self.area.scrollbar_width());
+    }
+
+    /// AbstractContainerWidget.mouseClicked - the scroll bar, then `ContainerEventHandler.mouseClicked` over `children()`
+    fn mouse_clicked(&mut self, _widget: &mut AbstractWidget, event: &MouseButtonEvent, _double_click: bool) -> bool {
+        if !self.base.is_active() || !self.base.visible {
+            return false;
+        }
+        let content_height = self.content_height();
+        let scroll_bar_x = self.base.get_right() - self.area.scrollbar_width();
+        let scrolling = self.area.update_scrolling(content_height, scroll_bar_x, event.button(), event.x(), event.y());
+        let taken = self.with_children(|children| compat::children_mouse_clicked(children, event)).unwrap_or(false);
+        taken || scrolling
+    }
+
+    /// ContainerEventHandler.mouseReleased
+    fn mouse_released(&mut self, _widget: &mut AbstractWidget, event: &MouseButtonEvent) -> bool {
+        self.area.on_release();
+        self.with_children(|children| compat::children_mouse_released(children, event));
+        false
+    }
+
+    /// AbstractScrollArea.mouseDragged (the scroll bar) / ContainerEventHandler.mouseDragged
+    fn mouse_dragged(&mut self, _widget: &mut AbstractWidget, event: &MouseButtonEvent, dx: f64, dy: f64) -> bool {
+        let content_height = self.content_height();
+        if self.area.mouse_dragged(content_height, event.y(), dy) {
+            self.move_list();
+            return true;
+        }
+        self.with_children(|children| compat::children_mouse_dragged(children, event, dx, dy));
+        false
+    }
+
+    /// AbstractScrollArea.mouseScrolled - `setScrollAmount(scrollAmount() - scrollY * scrollRate())`
+    fn mouse_scrolled(&mut self, _widget: &mut AbstractWidget, _x: f64, _y: f64, _scroll_x: f64, scroll_y: f64) -> bool {
+        if !self.base.visible {
+            return false;
+        }
+        let amount = self.area.scroll_amount() - scroll_y * self.area.scroll_rate();
+        self.set_scroll_amount(amount);
+        true
     }
 
     /// java: @Override protected void updateWidgetNarration(NarrationElementOutput narrationElementOutput)
-    pub fn update_widget_narration(&self, narration_element_output: &dyn NarrationElementOutput) {
+    fn update_widget_narration(&mut self, _widget: &AbstractWidget, _output: &mut dyn NarrationElementOutput) {
     }
-
-    /// java: @Override public List<? extends GuiEventListener> children()
-    pub fn children(&self) -> Vec<Box<dyn GuiEventListener>> {
-        // TODO(fabric2seer): `filteredWidgets` is a field of the enclosing instance (SoundSelectionPopup.this) - an inner class has no outer reference in Rust
-        //   java: return filteredWidgets;
-        todo!("fabric2seer: the value of this function is in a TODO above")
-    }
-
 }
-
-// NOTE(fabric2seer): children, contentHeight, extractWidgetRenderState, scrollRate, setScrollAmount, setX, setY, updateWidgetNarration override(s) of AbstractContainerWidget - the port dispatches its own calls, so these run only where the mod calls them; hook the port's method to make the game call them
 
 /// java: private class SoundWidget extends StringWidget
 pub struct SoundWidget {
     /// java: extends net.minecraft.client.gui.components.StringWidget
     pub base: AbstractWidget,
-    /// java: SoundEvent sound; (the registry's own object, by reference)
-    pub sound: mcrust::com::mojang::serialization::Obj,
-    /// java: @SuppressWarnings("unused") Component name;
+    /// java: SoundEvent sound;
+    pub sound: SoundEvent,
+    /// java: Component name;
     pub name: MutableComponent,
+    /// java: SoundSelectionPopup.this
+    pub outer: compat::WeakShared<SoundSelectionPopup>,
 }
 
 impl std::ops::Deref for SoundWidget {
@@ -437,53 +622,75 @@ impl std::ops::DerefMut for SoundWidget {
 
 impl SoundWidget {
     /// java: SoundWidget(Component name, SoundEvent sound)
-    pub fn new(mut name: MutableComponent, mut sound: mcrust::com::mojang::serialization::Obj) -> Self {
-        let __init_name = name.clone();
-        let __init_sound = sound.clone();
-        // TODO(fabric2seer): unknown name `font`
-        //   java: super(name, font);
-        let mut this: Self = todo!("constructor");
-        this.active = true;
-        this
+    pub fn new(outer: compat::WeakShared<SoundSelectionPopup>, name: MutableComponent, sound: SoundEvent) -> compat::Shared<Self> {
+        // java: super(name, font); - `StringWidget(0, 0, font.width(name), 9, name, font)`; `getHeight()` is
+        // overridden to `super.getHeight() + 10`, which is the box the layout and the clicks see
+        let text = FormattedText::from(name.clone());
+        let width = compat::font().width_of(&text);
+        let mut base = AbstractWidget::new(0, 0, width, mcrust::net::minecraft::client::gui::font::LINE_HEIGHT + 10, name.get_string(), WidgetKind::StringWidget, OnPress::Inert);
+        base.set_message_text(text);
+        // java: this.active = true;
+        base.active = true;
+        compat::shared(SoundWidget { base, sound, name, outer })
     }
 
     /// java: @Override public int getHeight()
     pub fn get_height(&self) -> i32 {
-        return self.base.get_height().wrapping_add(10);
+        // (the widget's box is built with the extra 10)
+        self.base.get_height()
     }
 
     /// java: @Override public void extractWidgetRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a)
-    pub fn extract_widget_render_state(&self, graphics: &mut GuiGraphicsExtractor, mut mouse_x: i32, mut mouse_y: i32, mut a: f32) {
-        // TODO(fabric2seer): `StringWidget.extractWidgetRenderState` has no Rust method in the port (looked for `extract_widget_render_state` in StringWidget and its supertypes)
-        // rust: self.base.extract_widget_render_state(graphics, mouse_x, mouse_y, a);
-        // TODO(fabric2seer): the condition: `selectedSound` is a field of the enclosing instance (SoundSelectionPopup.this) - an inner class has no outer reference in Rust
-        //   java: selectedSound == sound
-        if todo!("fabric2seer: the condition (TODO above)") {
-            // java: graphics.fill(RenderPipelines.GUI, ..) - the port's `fill` draws with the GUI pipeline
-            graphics.fill(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), self.get_x(), self.get_y(), self.get_right(), self.get_bottom(), 0x3000FF00);
-        } else if self.is_hovered() {
-            graphics.fill(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), self.get_x(), self.get_y(), self.get_right(), self.get_bottom(), 0x20FFFFFF);
+    pub fn extract_widget_render_state(__this: &compat::Shared<Self>, graphics: &mut GuiGraphicsExtractor, _mouse_x: i32, _mouse_y: i32, _a: f32) {
+        // java: super.extractWidgetRenderState(graphics, mouseX, mouseY, a); - StringWidget: the message, centred in the height
+        let (x, y, right, bottom, height, message, hovered, sound) = compat::read(__this, |__t| (__t.get_x(), __t.get_y(), __t.get_right(), __t.get_bottom(), __t.get_height(), __t.message_text.clone(), __t.is_hovered(), __t.sound.clone()));
+        let gl = mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl();
+        if let Some(message) = message {
+            gui_graphics_extractor::draw_formatted_text_with_drop_shadow(gl, &*compat::minecraft(), &message, x, y + (height - mcrust::net::minecraft::client::gui::font::LINE_HEIGHT) / 2, -1, true);
+        }
+        let selected = compat::read(__this, |__t| __t.outer.upgrade()).is_some_and(|__o| compat::read(&__o, |__t| __t.selected_sound.as_ref() == Some(&sound)));
+        if selected {
+            graphics.fill(gl, x, y, right, bottom, 0x3000FF00);
+        } else if hovered {
+            graphics.fill(gl, x, y, right, bottom, 0x20FFFFFF);
         }
     }
 
     /// java: @Override public void onClick(MouseButtonEvent click, boolean doubled)
-    pub fn on_click(&self, click: &MouseButtonEvent, mut doubled: bool) {
-        // TODO(fabric2seer): `selectedSound` is a field of the enclosing instance (SoundSelectionPopup.this) - an inner class has no outer reference in Rust
-        //   java: selectedSound = sound;
-        // TODO(fabric2seer): the condition: `doneButton` is a field of the enclosing instance (SoundSelectionPopup.this) - an inner class has no outer reference in Rust
-        //   java: doneButton != null
-        if todo!("fabric2seer: the condition (TODO above)") {
-            // TODO(fabric2seer): `doneButton` is a field of the enclosing instance (SoundSelectionPopup.this) - an inner class has no outer reference in Rust
-            //   java: doneButton.active = true;
-        }
-        // TODO(fabric2seer): unknown name `minecraft`
-        //   java: minecraft.getSoundManager().stop();
-        // TODO(fabric2seer): unknown name `minecraft`
-        //   java: minecraft.getSoundManager().play(SimpleSoundInstance.forUI(sound, 1.0f));
-        // TODO(fabric2seer): `StringWidget.onClick` has no Rust method in the port (looked for `on_click` in StringWidget and its supertypes)
-        // rust: self.base.on_click(click, doubled);
+    pub fn on_click(__this: &compat::Shared<Self>, _click: &MouseButtonEvent, _doubled: bool) {
+        let Some(outer) = compat::read(__this, |__t| __t.outer.upgrade()) else { return; };
+        // java: selectedSound = sound;
+        let sound = compat::read(__this, |__t| __t.sound.clone());
+        compat::write(&outer, |__t| __t.selected_sound = Some(sound));
+        // java: if (doneButton != null) doneButton.active = true;
+        SoundSelectionPopup::activate_done_button(&outer);
+        // java: minecraft.getSoundManager().stop(); minecraft.getSoundManager().play(SimpleSoundInstance.forUI(sound, 1.0f));
+        // rust: port gap (GAPS_batchH #1) - `SoundManager.stop` / `play` are not reachable from a mod
+        // java: super.onClick(click, doubled); - empty
     }
 
 }
 
-// NOTE(fabric2seer): extractWidgetRenderState, getHeight, onClick override(s) of StringWidget - the port dispatches its own calls, so these run only where the mod calls them; hook the port's method to make the game call them
+/// SoundWidget's widget half (`super`'s fields: x, y, size, message, ...), lent by the game for each call
+impl compat::WidgetHalf for SoundWidget {
+    fn widget_half(&mut self) -> &mut AbstractWidget {
+        &mut self.base
+    }
+}
+
+/// SoundWidget as the game's widget (`filteredWidgets.add(widget)`)
+impl ModWidget for compat::WidgetAdapter<SoundWidget> {
+    /// java: @Override public void extractWidgetRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a)
+    fn extract_widget_render_state(&mut self, widget: &AbstractWidget, context: &mut WidgetRenderContext<'_>, mouse_x: i32, mouse_y: i32, a: f32) {
+        self.lend_ref(widget, |__h| SoundWidget::extract_widget_render_state(__h, &mut context.graphics, mouse_x, mouse_y, a))
+    }
+
+    /// StringWidget.updateWidgetNarration - empty
+    fn update_widget_narration(&mut self, _widget: &AbstractWidget, _output: &mut dyn NarrationElementOutput) {
+    }
+
+    /// java: @Override public void onClick(MouseButtonEvent click, boolean doubled)
+    fn on_click(&mut self, widget: &mut AbstractWidget, event: &MouseButtonEvent, double_click: bool) {
+        self.lend(widget, |__h| SoundWidget::on_click(__h, event, double_click))
+    }
+}

@@ -17,7 +17,8 @@ use mcrust::net::minecraft::client::gui::components::abstract_widget::AbstractWi
 use mcrust::net::minecraft::client::gui::components::abstract_widget::OnPress;
 use mcrust::net::minecraft::client::gui::components::abstract_widget::PressLambda;
 use mcrust::net::minecraft::client::gui::components::button;
-use mcrust::net::minecraft::client::gui::components::scrollable_layout::ScrollableLayout;
+use mcrust::net::minecraft::client::gui::components::scrollable_layout::ScrollableLayoutElement;
+use mcrust::net::minecraft::client::gui::components::scrollable_layout::ReserveStrategy;
 use mcrust::net::minecraft::client::gui::components::string_widget;
 use mcrust::net::minecraft::client::gui::gui_graphics_extractor::GuiGraphicsExtractor;
 use mcrust::net::minecraft::client::gui::layouts::layout;
@@ -43,7 +44,9 @@ pub struct DyeSelectPopup {
     /// java: extends AbstractPopupScreen
     pub base: AbstractPopupScreenBase,
     /// java: private ScrollableLayout scrollableLayout;
-    pub scrollable_layout: Option<ScrollableLayout>,
+    /// (the port's `ScrollableLayout` layout is `ScrollableLayoutElement`; its scroll container is not a widget of a
+    /// mod screen, so the content does not scroll - GAPS_O)
+    pub scrollable_layout: Option<ScrollableLayoutElement>,
     /// java: private StringWidget titleWidget;
     pub title_widget: Option<compat::WidgetRef>,
     /// java: private Button closeButton;
@@ -168,11 +171,8 @@ impl DyeSelectPopup {
     /// java: @Override public void extractBackground(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a)
     pub fn extract_background_impl(__this: &compat::Shared<Self>, graphics: &mut GuiGraphicsExtractor, mut mouse_x: i32, mut mouse_y: i32, mut a: f32) {
         <dyn AbstractPopupScreen>::extract_background_body(&compat::view(__this, |a| a as compat::Shared<dyn AbstractPopupScreen>), graphics, mouse_x, mouse_y, a);
-        // TODO(fabric2seer): `ScrollableLayoutElement::get_x` ports `getX`, but the port's `ScrollableLayout` holds no `ScrollableLayoutElement` (no Deref, no `base` field) to call it on
-        // TODO(fabric2seer): `ScrollableLayoutElement::get_y` ports `getY`, but the port's `ScrollableLayout` holds no `ScrollableLayoutElement` (no Deref, no `base` field) to call it on
-        // TODO(fabric2seer): `ScrollableLayoutElement::get_width` ports `getWidth`, but the port's `ScrollableLayout` holds no `ScrollableLayoutElement` (no Deref, no `base` field) to call it on
-        // TODO(fabric2seer): `ScrollableLayoutElement::get_height` ports `getHeight`, but the port's `ScrollableLayout` holds no `ScrollableLayoutElement` (no Deref, no `base` field) to call it on
-        // rust: AbstractPopupScreenBase::extract_popup_background(graphics, __this.lock().borrow().scrollable_layout.as_ref().unwrap().get_x(), __this.lock().borrow().scrollable_layout.as_ref().unwrap().get_y(), __this.lock().borrow().scrollable_layout.as_ref().unwrap().get_width(), __this.lock().borrow().scrollable_layout.as_ref().unwrap().get_height());
+        let (x, y, width, height) = compat::read(__this, |__t| { let __l = __t.scrollable_layout.as_ref().unwrap(); (__l.get_x(), __l.get_y(), __l.get_width(), __l.get_height()) });
+        AbstractPopupScreenBase::extract_popup_background(graphics, x, y, width, height);
     }
 
     /// DyeSelectPopup.extractBackground as the dispatch of AbstractPopupScreen.extractBackground
@@ -183,27 +183,40 @@ impl DyeSelectPopup {
     /// java: @Override protected void repositionElements()
     pub fn reposition_elements_impl(__this: &compat::Shared<Self>) {
         <dyn AbstractPopupScreen>::reposition_elements_body(&compat::view(__this, |a| a as compat::Shared<dyn AbstractPopupScreen>));
-        // TODO(fabric2seer): `ScrollableLayoutElement::set_max_height` ports `setMaxHeight`, but the port's `ScrollableLayout` holds no `ScrollableLayoutElement` (no Deref, no `base` field) to call it on
-        // rust: let __r0 = compat::read(__this, |__t| __t.height);
-        // rust: { let (__q0,) = (300i32.min(((((__r0 as f64) * 0.68)) as i32)),); __this.lock().borrow_mut().scrollable_layout.as_mut().unwrap().set_max_height(__q0) };
-        // TODO(fabric2seer): `ScrollableLayoutElement::arrange_elements` ports `arrangeElements`, but the port's `ScrollableLayout` holds no `ScrollableLayoutElement` (no Deref, no `base` field) to call it on
-        // rust: __this.lock().borrow_mut().scrollable_layout.as_mut().unwrap().arrange_elements();
-        // TODO(fabric2seer): `ScrollableLayoutElement::get_width` ports `getWidth`, but the port's `ScrollableLayout` holds no `ScrollableLayoutElement` (no Deref, no `base` field) to call it on
-        // TODO(fabric2seer): `ScrollableLayoutElement::get_height` ports `getHeight`, but the port's `ScrollableLayout` holds no `ScrollableLayoutElement` (no Deref, no `base` field) to call it on
-        // TODO(fabric2seer): `LayoutElement::set_position` ports `setPosition`, but the port's `ScrollableLayout` holds no `LayoutElement` (no Deref, no `base` field) to call it on
-        // rust: let __r0 = compat::read(__this, |__t| __t.width);
-        // rust: let __r1 = compat::read(__this, |__t| __t.height);
-        // rust: { let (__q0, __q1,) = (((__r0).wrapping_sub(__this.lock().borrow().scrollable_layout.as_ref().unwrap().get_width())).wrapping_div(2), ((__r1).wrapping_sub(__this.lock().borrow().scrollable_layout.as_ref().unwrap().get_height())).wrapping_div(2),); __this.lock().borrow_mut().scrollable_layout.as_mut().unwrap().set_position(__q0, __q1) };
-        // TODO(fabric2seer): `ScrollableLayoutElement::get_y` ports `getY`, but the port's `ScrollableLayout` holds no `ScrollableLayoutElement` (no Deref, no `base` field) to call it on
-        // TODO(fabric2seer): `ScrollableLayoutElement::get_height` ports `getHeight`, but the port's `ScrollableLayout` holds no `ScrollableLayoutElement` (no Deref, no `base` field) to call it on
-        // rust: let __wa1 = ((compat::read(__this, |__t| __t.width)).wrapping_sub(compat::write(__this, |__t| { let __s = &mut *__t; let __r = __s.close_button.as_mut().unwrap(); __s.base.__widgets.with(&mut __s.base.base, __r, |__w| __w.get_width()) }))).wrapping_div(2);
-        // rust: let __wa2 = ((__this.lock().borrow().scrollable_layout.as_ref().unwrap().get_y()).wrapping_add(__this.lock().borrow().scrollable_layout.as_ref().unwrap().get_height())).wrapping_add(20);
-        // rust: compat::write(__this, |__t| { let __s = &mut *__t; let __r = __s.close_button.as_mut().unwrap(); __s.base.__widgets.with(&mut __s.base.base, __r, |__w| __w.set_position(__wa1, __wa2)) });
-        // TODO(fabric2seer): `width` takes 2 argument(s) in the port (`max_width: i32, text_width: i32`), Java passes 0
-        // TODO(fabric2seer): `ScrollableLayoutElement::get_y` ports `getY`, but the port's `ScrollableLayout` holds no `ScrollableLayoutElement` (no Deref, no `base` field) to call it on
-        // rust: let __wa3 = ((compat::read(__this, |__t| __t.width)).wrapping_sub(compat::write(__this, |__t| { let __s = &mut *__t; let __r = __s.title_widget.as_mut().unwrap(); __s.base.__widgets.with(&mut __s.base.base, __r, |__w| string_widget::width()) }))).wrapping_div(2);
-        // rust: let __wa4 = (__this.lock().borrow().scrollable_layout.as_ref().unwrap().get_y()).wrapping_sub(30);
-        // rust: compat::write(__this, |__t| { let __s = &mut *__t; let __r = __s.title_widget.as_mut().unwrap(); __s.base.__widgets.with(&mut __s.base.base, __r, |__w| __w.set_position(__wa3, __wa4)) });
+        // java: scrollableLayout.setMaxHeight(Math.min(300, (int) (height * 0.68)));
+        // java: scrollableLayout.arrangeElements();
+        // java: scrollableLayout.setPosition((width - scrollableLayout.getWidth()) / 2, (height - scrollableLayout.getHeight()) / 2);
+        compat::write(__this, |__t| {
+            let (__width, __height) = (__t.width, __t.height);
+            let __s = &mut *__t;
+            let __l = __s.scrollable_layout.as_mut().unwrap();
+            __l.set_max_height(300i32.min(((__height as f64) * 0.68) as i32));
+            __l.arrange_elements();
+            let (__x, __y) = ((__width.wrapping_sub(__l.get_width())).wrapping_div(2), (__height.wrapping_sub(__l.get_height())).wrapping_div(2));
+            __l.set_x(__x);
+            __l.set_y(__y);
+            // the layout's widgets are this screen's: they take the places the layout gave them
+            let mut __placed = Vec::new();
+            __l.visit_widgets(&mut __placed);
+            for (__i, __wx, __wy) in __placed {
+                __s.base.base.widget_mut(__i).set_position(__wx, __wy);
+            }
+        });
+        let (__layout_y, __layout_height) = compat::read(__this, |__t| { let __l = __t.scrollable_layout.as_ref().unwrap(); (__l.get_y(), __l.get_height()) });
+        // java: closeButton.setPosition((width - closeButton.getWidth()) / 2, scrollableLayout.getY() + scrollableLayout.getHeight() + 20);
+        compat::write(__this, |__t| {
+            let __width = __t.width;
+            let __s = &mut *__t;
+            let __r = __s.close_button.as_mut().unwrap();
+            __s.base.__widgets.with(&mut __s.base.base, __r, |__w| { let __x = (__width.wrapping_sub(__w.get_width())).wrapping_div(2); __w.set_position(__x, (__layout_y.wrapping_add(__layout_height)).wrapping_add(20)) })
+        });
+        // java: titleWidget.setPosition((width - titleWidget.getWidth()) / 2, scrollableLayout.getY() - 30);
+        compat::write(__this, |__t| {
+            let __width = __t.width;
+            let __s = &mut *__t;
+            let __r = __s.title_widget.as_mut().unwrap();
+            __s.base.__widgets.with(&mut __s.base.base, __r, |__w| { let __x = (__width.wrapping_sub(__w.get_width())).wrapping_div(2); __w.set_position(__x, __layout_y.wrapping_sub(30)) })
+        });
     }
 
     /// DyeSelectPopup.repositionElements as the dispatch of AbstractPopupScreen.repositionElements
@@ -214,7 +227,7 @@ impl DyeSelectPopup {
     /// java: @Override protected void init()
     pub fn init_impl(__this: &compat::Shared<Self>) {
         let mut layout: LinearLayout = LinearLayout::vertical();
-        layout.default_cell_setting().align_horizontally_center();
+        { let __s = layout.default_cell_setting(); *__s = (*__s).align_horizontally_center(); }
         let mut header_layout: LayoutSettings = layout.default_cell_setting().copy().padding_bottom(6);
         layout.add_child_with({ let __w = compat::string_widget(0, 0, -1, 9, component::translatable_args("skyblocker.customization.armor.pickDye.dyes", vec![mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::translatable("skyblocker.customization.armor.pickDye.dyes.static"))])); let (__ww, __wh) = (__w.get_width(), __w.get_height()); LayoutElement::widget(compat::write(__this, |__t| __t.add_widget(__w)), __ww, __wh) }, header_layout.clone());
         for (name, hex) in compat::lock(&repo_dye_colors::STATIC_DYES).iter() {
@@ -235,11 +248,10 @@ impl DyeSelectPopup {
             let __this_2 = compat::RenderThread::new(__this.clone());
             layout.add_child(DyeSelectPopup::add_dye_button(__this, AnimatedDyeColor::new(name.to_string(), colors.clone(), OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| { compat::lend_screen(__this_2.get(), __screen, || { let mut __pidx = compat::WidgetRef::Screen(__index); { DyeSelectPopup::select_animated_dye(__this_2.get(), &compat::write(__this_2.get(), |__t| { let __s = &mut *__t; let __r = &mut __pidx; __s.base.__widgets.with(&mut __s.base.base, __r, |__w| __w.clone()) }), &colors); } }) }))) as compat::Shared<dyn StaticDyeButton>));
         }
-        // TODO(fabric2seer): `new` takes 2 argument(s) in the port (`height: i32, reserve_strategy: ReserveStrategy`), Java passes 3
-        // rust: { let __v = Some(ScrollableLayout::new(compat::minecraft(), LayoutElement::Grid(layout.clone().wrapped), 0)); compat::write(__this, |__t| __t.scrollable_layout = __v); }
-        // TODO(fabric2seer): a lambda for a parameter the port does not type as a closure (`Consumer<net.minecraft.client.gui.components.AbstractWidget>`)
-        // rust: let __this_w3 = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
-        // rust: layout::visit_widgets(|__a0| { let Some(__this_3) = __this_w3.get().upgrade() else { return Default::default(); }; { { let (__q0,) = (__a0.clone(),); (&__this_3).lock().borrow_mut().add_renderable_widget(__q0) }; } });
+        // java: scrollableLayout = new ScrollableLayout(client, layout, 0); - the three-argument constructor's strategy is BOTH
+        { let __v = Some(ScrollableLayoutElement::new(LayoutElement::Grid(layout.wrapped.clone()), 0, ReserveStrategy::Both)); compat::write(__this, |__t| __t.scrollable_layout = __v); }
+        // java: layout.visitWidgets(this::addRenderableWidget); - the widgets joined this screen when the layout took them
+        { let mut __vw = Vec::new(); LayoutElement::Grid(layout.wrapped.clone()).visit_widgets(&mut __vw); compat::write(__this, |__t| for (__i, _, _) in __vw { __t.base.base.mark_renderable(__i); }); }
         { let __v = (Some(compat::string_widget(0, 0, -1, 9, component::translatable("skyblocker.customization.armor.pickDye.title")))).map(compat::WidgetRef::value); compat::write(__this, |__t| { let __s = &mut *__t; __s.title_widget = __v; }); }
         let __this_w4 = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
         { let __v = (Some(((button::builder(mcrust::net::minecraft::network::chat::common_components::gui_cancel().get_string(), OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| { let Some(__this_4) = __this_w4.get().upgrade() else { return Default::default(); }; compat::lend_screen(&__this_4, __screen, || { let mut __pidx = compat::WidgetRef::Screen(__index); { ({ let __f = compat::dispatch((&__this_4), |__t| __t.on_close()); __f(&compat::view((&__this_4), |a| a as compat::Shared<dyn AbstractPopupScreen>)) }); } }) })))).width(75)).build())).map(compat::WidgetRef::value); compat::write(__this, |__t| { let __s = &mut *__t; __s.close_button = __v; }); }

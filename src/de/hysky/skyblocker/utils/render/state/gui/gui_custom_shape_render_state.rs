@@ -13,7 +13,7 @@ use mcrust::org::joml::vector2f::Vector2f;
 #[derive(Clone, Debug)]
 pub struct GuiCustomShapeRenderState {
     /// java: RenderPipeline pipeline
-    pub pipeline: RenderPipeline,
+    pub pipeline: std::rc::Rc<RenderPipeline>,
     /// java: TextureSetup textureSetup
     pub texture_setup: TextureSetup,
     /// java: Matrix3x2f matrix
@@ -30,18 +30,18 @@ pub struct GuiCustomShapeRenderState {
 
 impl GuiCustomShapeRenderState {
     /// java: public GuiCustomShapeRenderState( RenderPipeline pipeline, TextureSetup textureSetup, Matrix3x2f pose, List<Vector2f> inputVertices, int color, @Nullable ScreenRectangle scissorArea )
-    pub fn new(mut pipeline: RenderPipeline, mut texture_setup: TextureSetup, mut pose: Matrix3x2f, mut input_vertices: Vec<Vector2f>, mut color: i32, mut scissor_area: Option<ScreenRectangle>) -> Self {
+    pub fn new(mut pipeline: std::rc::Rc<RenderPipeline>, mut texture_setup: TextureSetup, mut pose: Matrix3x2f, mut input_vertices: Vec<Vector2f>, mut color: i32, mut scissor_area: Option<ScreenRectangle>) -> Self {
         let mut this = Self::new_canonical(pipeline.clone(), texture_setup.clone(), pose.clone(), input_vertices.clone(), color, scissor_area.clone(), GuiCustomShapeRenderState::create_bounds(&input_vertices, &pose, scissor_area.clone()));
         this
     }
 
     /// java: the canonical record constructor
-    pub fn new_canonical(mut pipeline: RenderPipeline, mut texture_setup: TextureSetup, mut matrix: Matrix3x2f, mut input_vertices: Vec<Vector2f>, mut color: i32, mut scissor_area: Option<ScreenRectangle>, mut bounds: Option<ScreenRectangle>) -> Self {
+    pub fn new_canonical(mut pipeline: std::rc::Rc<RenderPipeline>, mut texture_setup: TextureSetup, mut matrix: Matrix3x2f, mut input_vertices: Vec<Vector2f>, mut color: i32, mut scissor_area: Option<ScreenRectangle>, mut bounds: Option<ScreenRectangle>) -> Self {
         Self { pipeline, texture_setup, matrix, input_vertices, color, scissor_area, bounds }
     }
 
     /// java: the record accessor `pipeline()`
-    pub fn pipeline(&self) -> RenderPipeline {
+    pub fn pipeline(&self) -> std::rc::Rc<RenderPipeline> {
         self.pipeline.clone()
     }
 
@@ -92,4 +92,30 @@ impl GuiCustomShapeRenderState {
         }
     }
 
+}
+
+/// java: `implements GuiElementRenderState` - `ScreenArea.bounds()` is the record's `bounds`
+impl mcrust::net::minecraft::client::renderer::state::gui::screen_area::ScreenArea for GuiCustomShapeRenderState {
+    fn bounds(&self) -> Option<ScreenRectangle> {
+        self.bounds.clone()
+    }
+}
+
+/// java: `implements GuiElementRenderState` - the record's accessors and `buildVertices`
+impl mcrust::net::minecraft::client::renderer::state::gui::gui_element_render_state::GuiElementRenderState for GuiCustomShapeRenderState {
+    fn build_vertices(&self, vertex_consumer: &mut dyn VertexConsumer) {
+        GuiCustomShapeRenderState::build_vertices(self, vertex_consumer)
+    }
+
+    fn pipeline(&self) -> std::rc::Rc<RenderPipeline> {
+        self.pipeline.clone()
+    }
+
+    fn texture_setup(&self) -> &TextureSetup {
+        &self.texture_setup
+    }
+
+    fn scissor_area(&self) -> Option<ScreenRectangle> {
+        self.scissor_area.clone()
+    }
 }

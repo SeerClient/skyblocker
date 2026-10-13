@@ -23,7 +23,8 @@ use mcrust::net::minecraft::client::gui::components::abstract_widget::PressLambd
 use mcrust::net::minecraft::client::gui::components::button;
 use mcrust::net::minecraft::client::gui::components::checkbox::Checkbox;
 use mcrust::net::minecraft::client::gui::components::cycle_button;
-use mcrust::net::minecraft::client::gui::components::scrollable_layout::ScrollableLayout;
+use mcrust::net::minecraft::client::gui::components::scrollable_layout::ScrollableLayoutElement;
+use mcrust::net::minecraft::client::gui::components::scrollable_layout::ReserveStrategy;
 use mcrust::net::minecraft::client::gui::components::tooltip::Tooltip;
 use mcrust::net::minecraft::client::gui::gui_graphics_extractor::GuiGraphicsExtractor;
 use mcrust::net::minecraft::client::gui::layouts::grid_layout::GridLayout;
@@ -98,11 +99,14 @@ impl OtherOptionsScreen {
         // java: LinearLayout body = layout.addToContents(LinearLayout.vertical().spacing(5)); - the port's layouts own their
         // children, so the body is filled first and joins the contents once complete (the same tree)
         let mut body: LinearLayout = LinearLayout::vertical().spacing(5);
-        body.default_cell_setting().align_horizontally_center();
+        { let __s = body.default_cell_setting(); *__s = (*__s).align_horizontally_center(); }
         body.add_child({ let __w = compat::string_widget(0, 0, -1, 9, component::translatable("skyblocker.config.hud.otherOptions.globalOptions")); let (__ww, __wh) = (__w.get_width(), __w.get_height()); LayoutElement::widget(compat::write(__this, |__t| __t.add_widget(__w)), __ww, __wh) });
-        // TODO(fabric2seer): `.createRowHelper(..)` on a value of unknown type
         //   java: GridLayout.RowHelper globalOptions = body.addChild(new GridLayout().spacing(2)).createRowHelper(2);
-        let mut global_options: RowHelper = todo!("fabric2seer: the initialiser of `globalOptions` (TODO above)");
+        // (the port's layouts own their children: the grid is filled first and joins the body once complete, in the
+        // same place)
+        let mut global_grid: GridLayout = GridLayout::new_default();
+        global_grid.spacing(2);
+        let mut global_options: RowHelper = global_grid.create_row_helper(2);
         let __this_w1 = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
         { let (__q0,) = ({ let __w = (button::builder(mcrust::net::minecraft::network::chat::common_components::gui_done().get_string(), OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| { let Some(__this_1) = __this_w1.get().upgrade() else { return Default::default(); }; compat::lend_screen(&__this_1, __screen, || { let mut __pidx = compat::WidgetRef::Screen(__index); { OtherOptionsScreen::on_close((&__this_1)); } }) })))).build(); let (__ww, __wh) = (__w.get_width(), __w.get_height()); LayoutElement::widget(compat::write(__this, |__t| __t.add_widget(__w)), __ww, __wh) },); __this.lock().borrow_mut().layout.as_mut().unwrap().add_to_footer(__q0) };
         let conf = &SkyblockerConfigManager::get().ui_and_visuals.tab_hud;
@@ -111,47 +115,115 @@ impl OtherOptionsScreen {
         // TODO(fabric2seer): `builder` takes 1 argument(s) in the port (`default_value: String`), Java passes 2
         // TODO(fabric2seer): a lambda for a parameter the port does not type as a closure (`Function<T, net.minecraft.network.chat.Component>`)
         // TODO(fabric2seer): a lambda for a parameter the port does not type as a closure (`net.minecraft.client.OptionInstance.TooltipSupplier<T>`)
-        // TODO(fabric2seer): the port's `create` ports this Java method with other parameters (name, generic_value_format, value_change_listener for Java's x, y, width, height, name, value_change_listener)
-        // TODO(fabric2seer): `create` takes 3 argument(s) in the port (`name: String, generic_value_format: String, value_change_listener: OnValueChange`), Java passes 6
-        // TODO(fabric2seer): a lambda for a parameter the port does not type as a closure (`net.minecraft.client.gui.components.CycleButton.OnValueChange<T>`)
-        // TODO(fabric2seer): the port's `add_child_width` ports this Java method with other parameters (grid, child, column_width for Java's widget, column_width)
-        // TODO(fabric2seer): `add_child_width` takes 3 argument(s) in the port (`grid: &mut GridLayout, child: LayoutElement, column_width: i32`), Java passes 2
-        // rust: let __this_2 = compat::RenderThread::new(__this.clone());
-        // rust: let __this_3 = compat::RenderThread::new(__this.clone());
-        // rust: global_options.add_child_width(&mut (cycle_button::builder(|style| component::translatable(&compat::jstring(&style)), conf.style)).with_values(TabHudStyle::values()).with_tooltip(|_| compat::read(__this_2.get(), |__t| __t.style_tooltip.clone())).create(0, 0, large_width, mcrust::net::minecraft::client::gui::components::button::DEFAULT_HEIGHT, component::translatable("skyblocker.config.uiAndVisuals.tabHud.style"), |_, value| { OtherOptionsScreen::update_config(__this_3.get(), Arc::new(move |config| { config.style = value.clone(); })); }).unwrap(), 2).unwrap();
-        // TODO(fabric2seer): the port's `add_child_width` ports this Java method with other parameters (grid, child, column_width for Java's widget, column_width)
-        // TODO(fabric2seer): `add_child_width` takes 3 argument(s) in the port (`grid: &mut GridLayout, child: LayoutElement, column_width: i32`), Java passes 2
-        // rust: let __this_4 = compat::RenderThread::new(__this.clone());
-        // rust: global_options.add_child_width(&mut ((((((RangedSliderWidget::builder().option_formatter(&component::translatable("skyblocker.config.hud.globalScale"), &Arc::new(move |d| component::literal(&format!("{}%", formatters::INTEGER_NUMBERS.get_mut().format(d.clone())))))).default_value((conf.tab_hud_scale) as f64)).step(((1) as f64) as f64)).min_max(((10) as f64) as f64, ((200) as f64) as f64)).width(large_width)).callback(Arc::new(move |d| OtherOptionsScreen::update_config(__this_4.get(), Arc::new(move |config| { config.tab_hud_scale = ((compat::java_round_f64(d)) as i32); }))))).build(), 2).unwrap();
-        // TODO(fabric2seer): the port's `create` ports this Java method with other parameters (name, generic_value_format, value_change_listener for Java's x, y, width, height, name, value_change_listener)
-        // TODO(fabric2seer): `create` takes 3 argument(s) in the port (`name: String, generic_value_format: String, value_change_listener: OnValueChange`), Java passes 6
-        // TODO(fabric2seer): a lambda for a parameter the port does not type as a closure (`net.minecraft.client.gui.components.CycleButton.OnValueChange<T>`)
-        // TODO(fabric2seer): the port's `add_child` ports this Java method with other parameters (grid, child for Java's widget)
-        // TODO(fabric2seer): `add_child` takes 2 argument(s) in the port (`grid: &mut GridLayout, child: LayoutElement`), Java passes 1
-        // rust: let __this_5 = compat::RenderThread::new(__this.clone());
-        // rust: global_options.add_child(&mut { let (__q0, __q1, __q2, __q3, __q4, __q5,) = (0, 0, 150, 20, component::translatable("skyblocker.config.uiAndVisuals.tabHud.displayIcons"), |_, value| { OtherOptionsScreen::update_config(__this_5.get(), Arc::new(move |config| { config.display_icons = value.clone(); })); },); (cycle_button::boolean_builder(__this.lock().borrow().yes.get_string(), __this.lock().borrow().no.get_string(), conf.display_icons)).create(__q0, __q1, __q2, __q3, __q4, __q5) }.unwrap()).unwrap();
-        // TODO(fabric2seer): a lambda for a parameter the port does not type as a closure (`net.minecraft.client.OptionInstance.TooltipSupplier<T>`)
-        // TODO(fabric2seer): the port's `create` ports this Java method with other parameters (name, generic_value_format, value_change_listener for Java's x, y, width, height, name, value_change_listener)
-        // TODO(fabric2seer): `create` takes 3 argument(s) in the port (`name: String, generic_value_format: String, value_change_listener: OnValueChange`), Java passes 6
-        // TODO(fabric2seer): a lambda for a parameter the port does not type as a closure (`net.minecraft.client.gui.components.CycleButton.OnValueChange<T>`)
-        // TODO(fabric2seer): the port's `add_child` ports this Java method with other parameters (grid, child for Java's widget)
-        // TODO(fabric2seer): `add_child` takes 2 argument(s) in the port (`grid: &mut GridLayout, child: LayoutElement`), Java passes 1
-        // rust: let __this_6 = compat::RenderThread::new(__this.clone());
-        // rust: global_options.add_child(&mut { let (__q0, __q1, __q2, __q3, __q4, __q5,) = (0, 0, 150, 20, component::translatable("skyblocker.config.uiAndVisuals.tabHud.compactWidgets"), |_, value| { OtherOptionsScreen::update_config(__this_6.get(), Arc::new(move |config| { config.compact_widgets = value.clone(); })); },); ({ let (__q0,) = (|_| Tooltip::create((component::translatable("skyblocker.config.uiAndVisuals.tabHud.compactWidgets.@Tooltip")).get_string()),); (cycle_button::boolean_builder(__this.lock().borrow().yes.get_string(), __this.lock().borrow().no.get_string(), conf.compact_widgets)).with_tooltip(__q0) }).create(__q0, __q1, __q2, __q3, __q4, __q5) }.unwrap()).unwrap();
+        // java: globalOptions.addChild(CycleButton.builder(style -> Component.translatable(style.toString()), conf.style)
+        //   .withValues(TabHudStyle.values()).withTooltip(_ -> STYLE_TOOLTIP)
+        //   .create(0, 0, largeWidth, Button.DEFAULT_HEIGHT, Component.translatable("..tabHud.style"), (_, value) -> updateConfig(config -> config.style = value)), 2);
+        // (the port's cycle button holds each value's LABEL and answers the chosen INDEX, which maps back to the value)
+        {
+            let __values: Vec<TabHudStyle> = TabHudStyle::values();
+            let __label = |__style: &TabHudStyle| component::translatable(&__style.to_string()).get_string();
+            let __builder = cycle_button::builder(__label(&conf.style))
+                .with_values(__values.iter().map(__label).collect())
+                .with_tooltip(cycle_button::TooltipSupplier::Constant(mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from((component::translatable("skyblocker.config.uiAndVisuals.tabHud.style.@Tooltip[0]")).append_str("
+").append(component::translatable("skyblocker.config.uiAndVisuals.tabHud.style.@Tooltip[1]")).append_str("
+").append(component::translatable("skyblocker.config.uiAndVisuals.tabHud.style.@Tooltip[2]")).append_str("
+").append(component::translatable("skyblocker.config.uiAndVisuals.tabHud.style.@Tooltip[3]")))/* STYLE_TOOLTIP's text */));
+            let __this_w3 = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
+            let __w = compat::cycle_button_widget(0, 0, large_width, mcrust::net::minecraft::client::gui::components::button::DEFAULT_HEIGHT, &component::translatable("skyblocker.config.uiAndVisuals.tabHud.style"), __builder, move |__index: usize| {
+                let Some(__this_3) = __this_w3.get().upgrade() else { return; };
+                let value = __values[__index];
+                OtherOptionsScreen::update_config(&__this_3, Arc::new(move |config: &mut TabHudConf| { config.style = value; }));
+            });
+            OtherOptionsScreen::grid_add(__this, &mut global_options, &mut global_grid, __w, 2);
+        }
+        // java: globalOptions.addChild(RangedSliderWidget.builder()
+        //   .optionFormatter(Component.translatable("skyblocker.config.hud.globalScale"), d -> Component.literal(Formatters.INTEGER_NUMBERS.format(d) + '%'))
+        //   .defaultValue(conf.tabHudScale).step(1).minMax(10, 200).width(largeWidth)
+        //   .callback(d -> updateConfig(config -> config.tabHudScale = (int) Math.round(d))).build(), 2);
+        {
+            let __this_w4 = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
+            let __slider: compat::Shared<RangedSliderWidget> = RangedSliderWidget::builder()
+                .option_formatter_component_double2_object_function(&component::translatable("skyblocker.config.hud.globalScale"), &(Arc::new(move |d: f64| component::literal(&format!("{}%", formatters::INTEGER_NUMBERS.get_mut().format(d)))) as Arc<dyn Fn(f64) -> MutableComponent>))
+                .default_value((conf.tab_hud_scale) as f64)
+                .step(1.0)
+                .min_max(10.0, 200.0)
+                .width(large_width)
+                .callback(Arc::new(move |d: f64| {
+                    let Some(__this_4) = __this_w4.get().upgrade() else { return; };
+                    OtherOptionsScreen::update_config(&__this_4, Arc::new(move |config: &mut TabHudConf| { config.tab_hud_scale = (compat::java_round_f64(d)) as i32; }));
+                }))
+                .build();
+            OtherOptionsScreen::grid_add(__this, &mut global_options, &mut global_grid, RangedSliderWidget::widget(__slider), 2);
+        }
+        // java: globalOptions.addChild(CycleButton.booleanBuilder(YES, NO, conf.displayIcons)
+        //   .create(Component.translatable("..tabHud.displayIcons"), (_, value) -> updateConfig(config -> config.displayIcons = value)));
+        // (`create(name, ..)` is CycleButton's 150x20 at (0, 0); index 0 is `true`)
+        {
+            let (__yes, __no) = compat::read(__this, |__t| (__t.yes.get_string(), __t.no.get_string()));
+            let __builder = cycle_button::boolean_builder(__yes, __no, conf.display_icons);
+            let __this_w5 = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
+            let __w = compat::cycle_button_widget(0, 0, 150, 20, &component::translatable("skyblocker.config.uiAndVisuals.tabHud.displayIcons"), __builder, move |__index: usize| {
+                let Some(__this_5) = __this_w5.get().upgrade() else { return; };
+                let value = __index == 0;
+                OtherOptionsScreen::update_config(&__this_5, Arc::new(move |config: &mut TabHudConf| { config.display_icons = value; }));
+            });
+            OtherOptionsScreen::grid_add(__this, &mut global_options, &mut global_grid, __w, 1);
+        }
+        // java: globalOptions.addChild(CycleButton.booleanBuilder(YES, NO, conf.compactWidgets)
+        //   .withTooltip(_ -> Tooltip.create(Component.translatable("..tabHud.compactWidgets.@Tooltip")))
+        //   .create(Component.translatable("..tabHud.compactWidgets"), (_, value) -> updateConfig(config -> config.compactWidgets = value)));
+        {
+            let (__yes, __no) = compat::read(__this, |__t| (__t.yes.get_string(), __t.no.get_string()));
+            let __builder = cycle_button::boolean_builder(__yes, __no, conf.compact_widgets)
+                .with_tooltip(cycle_button::TooltipSupplier::Constant(mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::translatable("skyblocker.config.uiAndVisuals.tabHud.compactWidgets.@Tooltip"))));
+            let __this_w6 = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
+            let __w = compat::cycle_button_widget(0, 0, 150, 20, &component::translatable("skyblocker.config.uiAndVisuals.tabHud.compactWidgets"), __builder, move |__index: usize| {
+                let Some(__this_6) = __this_w6.get().upgrade() else { return; };
+                let value = __index == 0;
+                OtherOptionsScreen::update_config(&__this_6, Arc::new(move |config: &mut TabHudConf| { config.compact_widgets = value; }));
+            });
+            OtherOptionsScreen::grid_add(__this, &mut global_options, &mut global_grid, __w, 1);
+        }
+        body.add_child(LayoutElement::Grid(global_grid));
         body.add_child({ let __w = compat::string_widget(0, 0, -1, 9, component::translatable_args("skyblocker.config.hud.otherOptions.locationOptions", vec![mcrust::net::minecraft::network::chat::formatted_text::FormattedText::of(compat::jstring(&WidgetsConfigurationScreen::get_current_location(&compat::read(__this, |__t| __t.parent.clone()))))])); let (__ww, __wh) = (__w.get_width(), __w.get_height()); LayoutElement::widget(compat::write(__this, |__t| __t.add_widget(__w)), __ww, __wh) });
-        // TODO(fabric2seer): `.createRowHelper(..)` on a value of unknown type
         //   java: GridLayout.RowHelper screenOptions = body.addChild(new GridLayout().spacing(2)).createRowHelper(2);
-        let mut screen_options: RowHelper = todo!("fabric2seer: the initialiser of `screenOptions` (TODO above)");
-        // TODO(fabric2seer): field `active` of a value of unknown type
+        let mut screen_grid: GridLayout = GridLayout::new_default();
+        screen_grid.spacing(2);
+        let mut screen_options: RowHelper = screen_grid.create_row_helper(2);
         //   java: screenOptions.addChild(Button.builder(Component.translatable("skyblocker.config.hud.otherOptions.hiddenTabWidgets"), _ -> minecraft.gui.setScreen(new HiddenWidgetsPopup(this, parent.getScreenConfig()))).width(largeWidth).build(), 2).active = SkyblockerConfigManager.get().uiAndVisuals.tabHud.tabHudEnabled;
+        {
+            let __this_w7 = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
+            let mut __w = button::builder(component::translatable("skyblocker.config.hud.otherOptions.hiddenTabWidgets").get_string(), OnPress::Lambda(PressLambda::new(move |_: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, _: usize| {
+                let Some(__this_7) = __this_w7.get().upgrade() else { return; };
+                let screen_config = WidgetsConfigurationScreen::get_screen_config(&compat::read(&__this_7, |__t| __t.parent.clone()));
+                // (opened over this screen, which the game keeps as its parent; the popup's background screen is that)
+                let popup = HiddenWidgetsPopup::new(mcrust::net::minecraft::client::gui::screens::screen::Screen::new(String::new()), screen_config);
+                compat::write(&popup, |__t| __t.background_other_options = std::sync::Arc::downgrade(&__this_7));
+                mcrust::mcrust::modding::game::set_screen_keeping_parent(Box::new(compat::ScreenAdapter::new(popup)));
+            })))
+            .width(large_width)
+            .build();
+            __w.active = SkyblockerConfigManager::get().ui_and_visuals.tab_hud.tab_hud_enabled;
+            OtherOptionsScreen::grid_add(__this, &mut screen_options, &mut screen_grid, __w, 2);
+        }
+        body.add_child(LayoutElement::Grid(screen_grid));
         { let (__q0,) = (LayoutElement::Grid(body.wrapped),); __this.lock().borrow_mut().layout.as_mut().unwrap().add_to_contents(__q0) };
         { let __vw = __this.lock().borrow().layout.as_ref().unwrap().visit_widgets(); for (__i, _, _) in __vw { compat::write(__this, |__t| __t.mark_renderable(__i)); } };
         OtherOptionsScreen::reposition_elements(__this);
     }
 
+    /// `rowHelper.addChild(widget, columnWidth)` on one of `init`'s grids: the widget joins this screen (the port's
+    /// layouts hold a widget by its place in the screen)
+    fn grid_add(__this: &compat::Shared<Self>, adder: &mut RowHelper, grid: &mut GridLayout, widget: AbstractWidget, column_width: i32) {
+        let (w, h) = (widget.get_width(), widget.get_height());
+        let index = compat::write(__this, |__t| __t.add_widget(widget));
+        adder.add_child_width(grid, LayoutElement::widget(index, w, h), column_width).expect("GridLayout.addChild");
+    }
+
     /// java: private void updateConfig(Consumer<UIAndVisualsConfig.TabHudConf> consumer)
-    pub fn update_config(__this: &compat::Shared<Self>, consumer: Arc<dyn Fn(TabHudConf)>) {
-        SkyblockerConfigManager::update_only(Arc::new(move |config| { (consumer)(config.ui_and_visuals.tab_hud.clone()); }));
+    /// (the consumer writes the config's own object, as Java's does - not a copy of it)
+    pub fn update_config(__this: &compat::Shared<Self>, consumer: Arc<dyn Fn(&mut TabHudConf)>) {
+        SkyblockerConfigManager::update_only(Arc::new(move |config| { (consumer)(&mut config.ui_and_visuals.tab_hud); }));
     }
 
     /// java: @Override protected void repositionElements()
@@ -237,6 +309,9 @@ pub struct HiddenWidgetsPopup {
     pub screen_config: ScreenConfig,
     /// java: private final LinearLayout layout = LinearLayout.vertical().spacing(10);
     pub layout: LinearLayout,
+    /// java: `backgroundScreen` as `init`'s `backgroundScreen instanceof OtherOptionsScreen screen` reads it (the base
+    /// keeps only a stand-in for the screen the popup is opened over; the opener records itself here)
+    pub background_other_options: compat::WeakShared<OtherOptionsScreen>,
 }
 
 impl std::ops::Deref for HiddenWidgetsPopup {
@@ -256,9 +331,17 @@ impl HiddenWidgetsPopup {
     /// java: private HiddenWidgetsPopup(Screen backgroundScreen, ScreenConfig screenConfig)
     pub fn new(mut background_screen: mcrust::net::minecraft::client::gui::screens::screen::Screen, mut screen_config: ScreenConfig) -> compat::Shared<Self> {
         let __init_screen_config = screen_config.clone();
-        // TODO(fabric2seer): the mod keeps the game's `Screen` (Java holds a reference to the live object); the port's `Screen` is not a value to copy and the port lends the mod no handle to it
         //   java: super(Component.literal("Edit hidden Fancy TAB widgets"), backgroundScreen);
-        let __this: compat::Shared<Self> = todo!("constructor");
+        //   java: this.screenConfig = screenConfig;
+        let (_, __this) = AbstractPopupScreenBase::new_in(component::literal("Edit hidden Fancy TAB widgets"), background_screen, move |__base| {
+            let __h = compat::shared(Self {
+                base: __base,
+                screen_config: __init_screen_config,
+                layout: LinearLayout::vertical().spacing(10),
+                background_other_options: std::sync::Weak::new(),
+            });
+            ((__h.clone() as compat::Shared<dyn AbstractPopupScreen>), __h)
+        });
         __this
     }
 
@@ -301,37 +384,44 @@ impl HiddenWidgetsPopup {
             let Some(mut widget) = PlayerListManager::get_tab_widget(&widget_id) else {
                 continue;
             };
-            // TODO(fabric2seer): static `Checkbox.builder` has no Rust counterpart in the port
-            // TODO(fabric2seer): `Builder.maxWidth` has no Rust method in the port (looked for `max_width` in Checkbox and its supertypes)
-            // TODO(fabric2seer): `Builder.selected` has no Rust method in the port (looked for `selected` in Checkbox and its supertypes)
-            // TODO(fabric2seer): `Builder.onValueChange` has no Rust method in the port (looked for `on_value_change` in Checkbox and its supertypes)
-            // TODO(fabric2seer): `Builder.build` has no Rust method in the port (looked for `build` in Checkbox and its supertypes)
-            // rust: let __this_1 = compat::RenderThread::new(__this.clone());
-            // rust: content.add_child(((Checkbox::builder(({ let __f = compat::dispatch(&widget, |__t| __t.get_information()); __f(&widget) }).display_name(), compat::font())).max_width(200).selected(__this.lock().borrow().screen_config.hidden_tab_widgets().contains(&({ let __f = compat::dispatch(&widget, |__t| __t.get_internal_id()); __f(&widget) }))).on_value_change(&Arc::new(move |_, value| {
-            // rust: if value {
-            // rust: let __h0 = ({ let __f = compat::dispatch(&widget, |__t| __t.get_internal_id()); __f(&widget) });
-            // rust: __this_1.get().lock().borrow().screen_config.hidden_tab_widgets().insert(__h0);
-            // rust: } else {
-            // rust: let __h0 = &({ let __f = compat::dispatch(&widget, |__t| __t.get_internal_id()); __f(&widget) });
-            // rust: __this_1.get().lock().borrow().screen_config.hidden_tab_widgets().remove(__h0);
-            // rust: }
-            // rust: if let Some(screen) = mcrust::mcrust::modding::game::current_mod_screen::<compat::ScreenAdapter<OtherOptionsScreen>, _>(|__s| __s.object().clone()) {
-            // rust: ({ let __r = &compat::read(&compat::read(&screen, |__t| __t.parent.clone()), |__t| __t.screen_builder.clone()); let __f = compat::dispatch(__r, |__t| __t.update_fancy_tab()); __f(&compat::view(__r, |a| a as compat::Shared<dyn ScreenBuilder>)) });
-            // rust: }
-            // rust: }))).build());
+            //   java: content.addChild(Checkbox.builder(widget.getInformation().displayName(), font).maxWidth(200)
+            //   java:     .selected(screenConfig.hiddenTabWidgets().contains(widget.getInternalID())).onValueChange((_, value) -> {..}).build());
+            let __id: String = ({ let __f = compat::dispatch(&widget, |__t| __t.get_internal_id()); __f(&widget) });
+            let __name = ({ let __f = compat::dispatch(&widget, |__t| __t.get_information()); __f(&widget) }).display_name();
+            let __hidden = compat::read(__this, |__t| __t.screen_config.hidden_tab_widgets());
+            let __selected = compat::read(&__hidden, |__s| __s.contains(&__id));
+            let __this_w1 = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
+            let __w = compat::checkbox(mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(__name.unwrap_or_else(component::empty)), 0, 0, Some(200), __selected, move |value: bool| {
+                let Some(__this_1) = __this_w1.get().upgrade() else { return; };
+                let __hidden = compat::read(&__this_1, |__t| __t.screen_config.hidden_tab_widgets());
+                if value {
+                    compat::write(&__hidden, |__s| { __s.insert(__id.clone()); });
+                } else {
+                    compat::write(&__hidden, |__s| { __s.remove(&__id); });
+                }
+                // Update the fancy tab after hidden widgets changes
+                // java: if (backgroundScreen instanceof OtherOptionsScreen screen) screen.parent.screenBuilder.updateFancyTab();
+                if let Some(screen) = compat::read(&__this_1, |__t| __t.background_other_options.upgrade()) {
+                    let __r = &compat::read(&compat::read(&screen, |__t| __t.parent.clone()), |__t| __t.screen_builder.clone());
+                    let __f = compat::dispatch(__r, |__t| __t.update_fancy_tab());
+                    __f(&compat::view(__r, |a| a as compat::Shared<dyn ScreenBuilder>));
+                }
+            });
+            let (__ww, __wh) = (__w.get_width(), __w.get_height());
+            content.add_child(LayoutElement::widget(compat::write(__this, |__t| __t.add_widget(__w)), __ww, __wh));
         }
         { content.arrange_elements(); let mut __vw = Vec::new(); LayoutElement::Grid(content.wrapped.clone()).visit_widgets(&mut __vw); for (__i, __x, __y) in __vw { compat::write(__this, |__t| __t.widget_mut(__i).set_position(__x, __y)); } };
         let mut max_height: i32 = 200i32.min((compat::read(__this, |__t| __t.height)).wrapping_sub(150));
-        // TODO(fabric2seer): `new` takes 2 argument(s) in the port (`height: i32, reserve_strategy: ReserveStrategy`), Java passes 3
-        // rust: let mut scrollable: ScrollableLayout = ScrollableLayout::new(compat::minecraft(), LayoutElement::Grid(content.clone().wrapped), max_height);
-        let mut scrollable: ScrollableLayout = todo!("fabric2seer: the initialiser of `scrollable` (TODO above)");
-        // TODO(fabric2seer): `ScrollableLayoutElement::set_max_height` ports `setMaxHeight`, but the port's `ScrollableLayout` holds no `ScrollableLayoutElement` (no Deref, no `base` field) to call it on
-        // rust: scrollable.set_max_height(max_height);
-        // TODO(fabric2seer): `ScrollableLayoutElement::set_min_width` ports `setMinWidth`, but the port's `ScrollableLayout` holds no `ScrollableLayoutElement` (no Deref, no `base` field) to call it on
-        // rust: scrollable.set_min_width(150);
-        // rust: port gap (GAPS_batchC #C6) - Java's `ScrollableLayout` is a layout element holding the content; the port's
-        // `ScrollableLayout` is its scroll helper and the element is `ScrollableLayoutElement`
-        // rust: { let (__q0,) = (scrollable.clone(),); __this.lock().borrow_mut().layout.add_child(__q0) };
+        // java: ScrollableLayout scrollable = new ScrollableLayout(minecraft, content, maxHeight); - the three-argument
+        // constructor's strategy is BOTH. (Its scroll container is not a widget of a mod screen, so the content does
+        // not scroll - GAPS_O)
+        let mut scrollable = ScrollableLayoutElement::new(LayoutElement::Grid(content.wrapped.clone()), max_height, ReserveStrategy::Both);
+        // java: scrollable.setMaxHeight(maxHeight);
+        scrollable.set_max_height(max_height);
+        // java: scrollable.setMinWidth(150);
+        scrollable.set_min_width(150);
+        // java: layout.addChild(scrollable);
+        compat::write(__this, |__t| __t.layout.add_child(LayoutElement::Scrollable(Box::new(scrollable))));
         let __this_w2 = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
         { let (__q0,) = ({ let __w = (button::builder(mcrust::net::minecraft::network::chat::common_components::gui_done().get_string(), OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| { let Some(__this_2) = __this_w2.get().upgrade() else { return Default::default(); }; compat::lend_screen(&__this_2, __screen, || { let mut __pidx = compat::WidgetRef::Screen(__index); { ({ let __f = compat::dispatch((&__this_2), |__t| __t.on_close()); __f(&compat::view((&__this_2), |a| a as compat::Shared<dyn AbstractPopupScreen>)) }); } }) })))).build(); let (__ww, __wh) = (__w.get_width(), __w.get_height()); LayoutElement::widget(compat::write(__this, |__t| __t.add_widget(__w)), __ww, __wh) },); __this.lock().borrow_mut().layout.add_child(__q0) };
         { let mut __vw = Vec::new(); LayoutElement::Grid(__this.lock().borrow().layout.wrapped.clone()).visit_widgets(&mut __vw); for (__i, _, _) in __vw { compat::write(__this, |__t| __t.mark_renderable(__i)); } };
@@ -347,10 +437,18 @@ impl HiddenWidgetsPopup {
     pub fn reposition_elements_impl(__this: &compat::Shared<Self>) {
         <dyn AbstractPopupScreen>::reposition_elements_body(&compat::view(__this, |a| a as compat::Shared<dyn AbstractPopupScreen>));
         { __this.lock().borrow_mut().layout.arrange_elements(); let mut __vw = Vec::new(); LayoutElement::Grid(__this.lock().borrow().layout.wrapped.clone()).visit_widgets(&mut __vw); for (__i, __x, __y) in __vw { compat::write(__this, |__t| __t.widget_mut(__i).set_position(__x, __y)); } };
-        // TODO(fabric2seer): `LayoutElement::set_position` ports `setPosition`, but the port's `LinearLayout` holds no `LayoutElement` (no Deref, no `base` field) to call it on
-        // rust: let __r0 = compat::read(__this, |__t| __t.width);
-        // rust: let __r1 = compat::read(__this, |__t| __t.height);
-        // rust: { let (__q0, __q1,) = (((__r0).wrapping_sub(__this.lock().borrow().layout.get_width())).wrapping_div(2), ((__r1).wrapping_sub(__this.lock().borrow().layout.get_height())).wrapping_div(2),); __this.lock().borrow_mut().layout.set_position(__q0, __q1) };
+        // java: layout.setPosition((width - layout.getWidth()) / 2, (height - layout.getHeight()) / 2); - and the widgets
+        // follow the layout (the port's layouts hold a widget by its place in the screen)
+        compat::write(__this, |__t| {
+            let (__width, __height) = (__t.width, __t.height);
+            let mut __element = LayoutElement::Grid(__t.layout.wrapped.clone());
+            let (__x, __y) = ((__width.wrapping_sub(__element.get_width())).wrapping_div(2), (__height.wrapping_sub(__element.get_height())).wrapping_div(2));
+            __element.set_position(__x, __y);
+            let mut __vw = Vec::new();
+            __element.visit_widgets(&mut __vw);
+            if let LayoutElement::Grid(__grid) = __element { __t.layout.wrapped = __grid; }
+            for (__i, __wx, __wy) in __vw { __t.widget_mut(__i).set_position(__wx, __wy); }
+        });
     }
 
     /// HiddenWidgetsPopup.repositionElements as the dispatch of AbstractPopupScreen.repositionElements

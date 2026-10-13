@@ -78,13 +78,20 @@ impl CreeperBeams {
         // TODO(fabric2seer): static `EntitySelector.ENTITY_STILL_ALIVE` has no Rust counterpart in the port's EntitySelector file
         // TODO(fabric2seer): the port's `get_entities_of_class` ports this Java method with other parameters (base_class, except, bb, selector for Java's base_class, bb, selector)
         // TODO(fabric2seer): `get_entities_of_class` takes 4 argument(s) in the port (`base_class: crate::net::minecraft::world::level::entity::entity_type_test::EntityClass, except: Option<i32>, bb: &AABB, selector: &dyn Fn(&(dyn Entity + Send + Sync)) -> bool`), Java passes 3
-        // rust: let mut creepers: Vec<Creeper> = world.get_entities_of_class(std::any::TypeId::of::<Creeper>(), Some(player.base.base.base.base.get_bounding_box().inflate(50.0)), &crate::unresolved::EntitySelector::ENTITY_STILL_ALIVE);
-        let mut creepers: Vec<Creeper> = todo!("fabric2seer: the initialiser of `creepers` (TODO above)");
+        use mcrust::net::minecraft::world::level::entity_getter::EntityGetter as _;
+        // (the port's class filter has no Creeper.class: the base class Entity plus `instanceof Creeper`)
+        let creepers: Vec<mcrust::net::minecraft::world::level::entity_getter::SharedEntity> = world.get_entities_of_class(
+            mcrust::net::minecraft::world::level::entity::entity_type_test::EntityClass::Entity,
+            // the player is the caller's (it is held): the sweep skips it - it is no Creeper anyway
+            Some(player.base.base.base.base.get_id()),
+            &player.base.base.base.base.get_bounding_box().inflate(50.0),
+            &|entity| entity.as_any().is_some_and(|any| any.is::<Creeper>()) && mcrust::net::minecraft::world::entity::entity_selector::entity_still_alive(entity),
+        );
         if creepers.is_empty() {
             return None;
         }
         for ce in creepers.iter() {
-            let mut creeper_pos: Vec3 = ce.base.base.base.base.base.position();
+            let mut creeper_pos: Vec3 = mcrust::mcrust::modding::game::lock_entity(&**ce, "skyblocker CreeperBeams.findCreeperBase").base().position();
             let mut potential_base: BlockPos = BlockPos::containing(creeper_pos.x, (BASE_Y) as f64, creeper_pos.z);
             if CreeperBeams::is_target(world, &potential_base) {
                 return Some(potential_base.clone());

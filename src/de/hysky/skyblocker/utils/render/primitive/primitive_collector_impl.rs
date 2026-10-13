@@ -227,7 +227,7 @@ impl PrimitiveCollectorImpl {
     }
 
     /// java: @SuppressWarnings("unchecked") public void dispatchSubmits(LevelRenderState levelState, SubmitNodeCollector submitNodeCollector)
-    pub fn dispatch_submits(__this: &compat::Shared<Self>, level_state: &LevelRenderState, submit_node_collector: &dyn SubmitNodeCollector) {
+    pub fn dispatch_submits(__this: &compat::Shared<Self>, level_state: &LevelRenderState, submit_node_collector: &mut dyn SubmitNodeCollector) {
         if !(compat::read(__this, |__t| __t.frozen)) {
             panic!("IllegalStateException: {}", "Cannot dispatch submits until the collection phase has ended!");
         }
@@ -727,11 +727,11 @@ impl<S: Clone + 'static> VanillaSubmittable<S> {
 /// A `VanillaSubmittable<?>` of the collector's list: its renderer handed its own state (the record's type parameter
 /// erased, as Java's wildcard list holds it).
 pub trait ErasedVanillaSubmittable {
-    fn submit(&self, level_state: &LevelRenderState, submit_node_collector: &dyn SubmitNodeCollector);
+    fn submit(&self, level_state: &LevelRenderState, submit_node_collector: &mut dyn SubmitNodeCollector);
 }
 
 impl<S: Clone + 'static> ErasedVanillaSubmittable for VanillaSubmittable<S> {
-    fn submit(&self, level_state: &LevelRenderState, submit_node_collector: &dyn SubmitNodeCollector) {
+    fn submit(&self, level_state: &LevelRenderState, submit_node_collector: &mut dyn SubmitNodeCollector) {
         compat::read(&self.renderer, |renderer| renderer.submit_vanilla(&self.state, level_state, submit_node_collector));
     }
 }

@@ -6,6 +6,7 @@ use crate::de::hysky::skyblocker::skyblock::entity::mob_glow_adder::MobGlowAdder
 use crate::de::hysky::skyblocker::skyblock::entity::mob_glow_adder::MobGlowAdderBase;
 use crate::de::hysky::skyblocker::utils::utils::Utils;
 use mcrust::net::minecraft::world::entity::entity::Entity;
+use mcrust::net::minecraft::network::chat::component::Component as _;
 use mcrust::net::minecraft::world::entity::player::player::Player;
 
 /// java: @SuppressWarnings("unused") private static final RiftGlowAdder INSTANCE = new RiftGlowAdder();
@@ -76,9 +77,11 @@ impl MobGlowAdder for RiftGlowAdder {
 impl RiftGlowAdder {
     /// java: @Override public int computeColour(Entity entity)
     pub fn compute_colour_impl(__this: &compat::Shared<Self>, entity: &dyn Entity) -> i32 {
-        // TODO(fabric2seer): instanceof an interface (`Player`): Rust cannot test for a trait at run time
-        //   java: return entity instanceof Player p && SkyblockerConfigManager.get().otherLocations.rift.blobbercystGlow && p.getName().getString().equals("Blobbercyst ") ? TextColor.GREEN.getValue() : NO_GLOW;
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        // java: return entity instanceof Player p && ..rift.blobbercystGlow && p.getName().getString().equals("Blobbercyst ") ? TextColor.GREEN.getValue() : NO_GLOW;
+        if entity.as_living_entity().is_some_and(|__l| __l.as_player().is_some()) && crate::de::hysky::skyblocker::config::skyblocker_config_manager::SkyblockerConfigManager::get().other_locations.rift.blobbercyst_glow && compat::component_of(entity.get_name()).get_string() == "Blobbercyst " {
+            return mcrust::net::minecraft::network::chat::text_color::TextColor::GREEN.get_value();
+        }
+        return *crate::de::hysky::skyblocker::skyblock::entity::mob_glow::NO_GLOW;
     }
 
     /// RiftGlowAdder.computeColour as the dispatch of MobGlowAdder.computeColour

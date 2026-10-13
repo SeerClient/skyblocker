@@ -1,6 +1,7 @@
 //! Ported from de.hysky.skyblocker.skyblock.item.custom.CustomArmorAnimatedDyes by fabric2seer.
 
 #[allow(unused_imports)]
+use mcrust::net::minecraft::world::entity::living_entity::LivingEntity as _;
 use crate::prelude::*;
 use crate::de::hysky::skyblocker::config::skyblocker_config_manager::SkyblockerConfigManager;
 use crate::de::hysky::skyblocker::events::skyblock_events;
@@ -74,7 +75,7 @@ impl CustomArmorAnimatedDyes {
     pub fn customize_animated_dye(source: &crate::unresolved::FabricClientCommandSource, mut color1: i32, mut color2: i32, mut duration: f32, mut cycle_back: bool, mut delay: f32) -> i32 {
         // TODO(fabric2seer): `.getPlayer(..)` on a FabricClientCommandSource
         //   java: ItemStack heldItem = source.getPlayer().getMainHandItem();
-        let mut held_item: mcrust::net::minecraft::world::item::item_stack::ItemStack = todo!("fabric2seer: the initialiser of `heldItem` (TODO above)");
+        let mut held_item: mcrust::net::minecraft::world::item::item_stack::ItemStack = mcrust::mcrust::modding::game::with_player(|player| player.get_main_hand_item().clone()).unwrap_or_else(mcrust::net::minecraft::world::item::item_stack::empty);
         if Utils::is_on_skyblock() && true /* java: held_item != null: never null here */ && !held_item.is_empty() {
             if held_item.is_in_tag(&mcrust::net::minecraft::tags::item_tags::cauldron_can_remove_dye()) {
                 let mut item_uuid: String = held_item.get_uuid();

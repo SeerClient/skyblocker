@@ -72,10 +72,8 @@ fn skyblocker_char_typed(ci: &mut CallbackInfo<'_>) {
     if codepoint == ' ' && crate::de::hysky::skyblocker::utils::utils::Utils::is_on_skyblock()
         && crate::de::hysky::skyblocker::config::skyblocker_config_manager::SkyblockerConfigManager::get().helpers.bazaar.enable_bazaar_max
         && is_input_sign(this) && this.messages[(3) as usize] == "to order" {
-        let line = this.line as usize;
-        if let Some(sign_field) = this.sign_field.as_mut() {
-            crate::de::hysky::skyblocker::skyblock::bazaar::bazaar_max::INSTANCE.get().expand_max(sign_field, &this.messages[line]);
-        }
+        // java: BazaarMax.INSTANCE.expandMax(signField, messages[line]); - the helper's getter / setter are the screen's
+        crate::de::hysky::skyblocker::skyblock::bazaar::bazaar_max::INSTANCE.get().expand_max_on(this);
     }
 }
 

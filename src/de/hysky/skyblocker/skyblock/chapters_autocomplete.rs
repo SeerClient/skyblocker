@@ -2,6 +2,7 @@
 
 #[allow(unused_imports)]
 use crate::prelude::*;
+use crate::de::hysky::skyblocker::utils::command::command_utils::no_op;
 use crate::entry::skyblocker_mod;
 use mcrust::com::mojang::brigadier::builder::argument_builder::ArgumentBuilder as _;
 use mcrust::com::mojang::brigadier::arguments::string_argument_type::StringArgumentType;
@@ -107,8 +108,3 @@ impl ChaptersData {
 /// `CommandNode` (its `NodeKind::Literal`), the type `ClientboundCommandsPacketMixin` hands back.
 pub type ClientCommandNode = Arc<CommandNode<FabricClientCommandSource>>;
 
-/// `CommandUtils.noOp` (`_ -> -1`). The nodes are built on the executor's thread and `command_utils::NO_OP` is a
-/// render-thread cell (`compat::MainThread`), so the command is made here, the same body.
-fn no_op() -> Command<FabricClientCommandSource> {
-    Arc::new(|_: &CommandContext<FabricClientCommandSource>| Ok(-1))
-}

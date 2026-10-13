@@ -353,7 +353,7 @@ impl WaterboardOneFlow {
             // TODO(fabric2seer): the condition: field `BLOCK` of a value of unknown type
             //   java: SkyblockerConfigManager.get().dungeons.puzzleSolvers.waterboardOneFlow &&
             //   java: 					solution != null && blockHitResult.getType() == HitResult.Type.BLOCK
-            if todo!("fabric2seer: the condition (TODO above)") {
+            if SkyblockerConfigManager::get().dungeons.puzzle_solvers.waterboard_one_flow && compat::read(__this, |__t| __t.solution.is_some()) && block_hit_result.get_type() == mcrust::net::minecraft::world::phys::hit_result::Type::Block {
                 let mut lever_type: Option<LeverType> = LeverType::from_pos(&({ let __r = &compat::read(__this, |__t| __t.room.clone()).unwrap(); let __f = compat::dispatch(__r, |__t| __t.actual_to_relative()); __f(__r, &block_hit_result.get_block_pos()) }));
                 if let Some(lever_type) = &lever_type {
                     let mut times: Vec<f64> = __this.lock().borrow().solution.as_ref().unwrap().get(lever_type).cloned().unwrap();
@@ -468,8 +468,9 @@ impl WaterboardOneFlow {
             { let __v = true; compat::write(__this, |__t| __t.finished = __v); }
             if compat::read(__this, |__t| __t.timer_enabled) {
                 let mut elapsed: f64 = (((compat::read(__this, |__t| __t.current_time_millis)).wrapping_sub(compat::read(__this, |__t| __t.water_start_millis)) as f64) / 1000.0);
-                // TODO(fabric2seer): `fmt` takes 1 argument(s) in the port (`f: &mut std::fmt::Formatter<'_>`), Java passes 0
-                // rust: script_host::send_feedback(&(constants::PREFIX.get_mut())().append_str("Puzzle solved in ").append((component::literal(&format!("{:.2}", elapsed))).with_style_format(ChatFormatting::Green)).append_str(&ChatFormatting::Reset.fmt()).append_str(" seconds.").to_string());
+                // java: player.sendSystemMessage(Constants.PREFIX.get().append("Puzzle solved in ").append(Component.literal(String.format("%.2f", elapsed)).withStyle(GREEN)).append(RESET.toString()).append(" seconds."));
+                // rust: port gap (GAPS_batchD #17) - a mod's system message is its text form (`script_host::send_feedback`)
+                { use mcrust::net::minecraft::network::chat::component::Component as _; script_host::send_feedback(&(constants::PREFIX.get())().append_str("Puzzle solved in ").append((component::literal(&compat::string_format("%.2f", &[elapsed.into()]))).with_style_format(ChatFormatting::Green)).append_str(&ChatFormatting::Reset.to_string()).append_str(" seconds.").get_string()); }
             }
         }
         if compat::read(__this, |__t| __t.water_start_millis) > (0 as i64) {
@@ -479,8 +480,9 @@ impl WaterboardOneFlow {
                 if !mark.reached && { let (__q0,) = (&blocks::blocks().get("WATER"),); __this.lock().borrow().world.as_ref().unwrap().get_block_state_typed(&mark.pos).is_block(__q0) } {
                     compat::write(__this, |__t| __t.marks[__mark_index].reached = true);
                     let mut elapsed: f64 = (((compat::read(__this, |__t| __t.current_time_millis)).wrapping_sub(compat::read(__this, |__t| __t.water_start_millis)) as f64) / 1000.0);
-                    // TODO(fabric2seer): `fmt` takes 1 argument(s) in the port (`f: &mut std::fmt::Formatter<'_>`), Java passes 0
-                    // rust: script_host::send_feedback(&(constants::PREFIX.get_mut())().append_str(&format!("Mark {} reached in ", mark.index)).append((component::literal(&format!("{:.2}", elapsed))).with_style_format(ChatFormatting::Green)).append_str(&ChatFormatting::Reset.fmt()).append_str(" seconds.").to_string());
+                    // java: player.sendSystemMessage(Constants.PREFIX.get().append(String.format("Mark %d reached in ", mark.index)).append(..).append(RESET.toString()).append(" seconds."));
+                    // rust: port gap (GAPS_batchD #17) - a mod's system message is its text form (`script_host::send_feedback`)
+                    { use mcrust::net::minecraft::network::chat::component::Component as _; script_host::send_feedback(&(constants::PREFIX.get())().append_str(&format!("Mark {} reached in ", mark.index)).append((component::literal(&compat::string_format("%.2f", &[elapsed.into()]))).with_style_format(ChatFormatting::Green)).append_str(&ChatFormatting::Reset.to_string()).append_str(" seconds.").get_string()); }
                 }
             }
         }
@@ -512,7 +514,12 @@ impl WaterboardOneFlow {
                 //   java: 								.<ObjectDoublePair<LeverType>>comparingDouble(p -> p.rightDouble() + (p.left() == LeverType.WATER ? 0.001 : 0.0))
                 //   java: 								.thenComparingInt(p -> p.left().ordinal())
                 //   java: 						).toList();
-                let mut sorted_times: Vec<(LeverType, f64)> = todo!("fabric2seer: the initialiser of `sortedTimes` (TODO above)");
+                let mut sorted_times: Vec<(LeverType, f64)> = compat::read(__this, |__t| __t.solution.as_ref().unwrap().iter().flat_map(|(key, value)| value.iter().map(move |time| (*key, *time))).collect());
+                // Sort by next use time, then by lever type (List.sort / Stream.sorted are stable)
+                sorted_times.sort_by(|a, b| {
+                    let key = |p: &(LeverType, f64)| p.1 + (if p.0 == LeverType::Water { 0.001 } else { 0.0 });
+                    key(a).total_cmp(&key(b)).then_with(|| a.0.ordinal().cmp(&b.0.ordinal()))
+                });
                 let mut next_lever: Option<LeverType> = (if sorted_times.is_empty() { None } else { Some(sorted_times[0].0) });
                 let mut next_next_lever: Option<LeverType> = (if (sorted_times.len() as i32) < 2 { None } else { Some(sorted_times[(1) as usize].0) });
                 if let Some(next_lever) = &next_lever {

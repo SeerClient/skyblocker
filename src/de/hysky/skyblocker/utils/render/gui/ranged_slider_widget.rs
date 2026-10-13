@@ -3,17 +3,34 @@
 #[allow(unused_imports)]
 use crate::prelude::*;
 use crate::de::hysky::skyblocker::utils::formatters;
+use mcrust::com::mojang::blaze3d::platform::cursor::cursor_type::CursorType;
+use mcrust::com::mojang::blaze3d::platform::cursor::cursor_types::CursorTypes;
 use mcrust::java::text::decimal_format::DecimalFormat;
+use mcrust::mcrust::modding::widgets::WidgetRenderContext;
+use mcrust::net::minecraft::client::gui::components::abstract_container_widget::AbstractContainerWidget;
+use mcrust::net::minecraft::client::gui::components::abstract_slider_button;
+use mcrust::net::minecraft::client::gui::components::abstract_slider_button::SliderState;
 use mcrust::net::minecraft::client::gui::components::abstract_widget::AbstractWidget;
+use mcrust::net::minecraft::client::gui::narration::narration_element_output::NarrationElementOutput;
+use mcrust::net::minecraft::client::input::key_event::KeyEvent;
 use mcrust::net::minecraft::client::input::mouse_button_event::MouseButtonEvent;
 use mcrust::net::minecraft::network::chat::component;
+use mcrust::net::minecraft::network::chat::formatted_text::FormattedText;
 use mcrust::net::minecraft::network::chat::mutable_component::MutableComponent;
 use mcrust::net::minecraft::network::chat::component::Component as _;
 
 /// java: public class RangedSliderWidget extends AbstractSliderButton
+///
+/// A mod `AbstractSliderButton` subclass: the object keeps `AbstractWidget`'s box (`base`), `AbstractSliderButton`'s
+/// `value` / `canChangeValue` / `dragging` (`state`) and its message, and is handed to the game as
+/// `compat::object_widget` (`RangedSliderWidget::widget`); it is drawn with the game's own slider look.
 pub struct RangedSliderWidget {
-    /// java: extends net.minecraft.client.gui.components.AbstractSliderButton
-    pub base: AbstractWidget,
+    /// java: extends AbstractSliderButton - AbstractWidget's fields (x, y, width, height, active, visible)
+    pub base: AbstractContainerWidget,
+    /// AbstractSliderButton's `value`, `canChangeValue`, `dragging`
+    pub state: SliderState,
+    /// AbstractWidget's `message`
+    pub message: FormattedText,
     /// java: private final double min;
     pub min: f64,
     /// java: private final double max;
@@ -24,35 +41,37 @@ pub struct RangedSliderWidget {
     pub callback: Arc<dyn Fn(f64)>,
     /// java: private final double step;
     pub step: f64,
-}
-
-impl std::ops::Deref for RangedSliderWidget {
-    type Target = AbstractWidget;
-    fn deref(&self) -> &Self::Target {
-        &self.base
-    }
-}
-
-impl std::ops::DerefMut for RangedSliderWidget {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.base
-    }
+    /// the game's slider look (`AbstractSliderButton.extractWidgetRenderState`)
+    look: compat::SliderLook,
 }
 
 impl RangedSliderWidget {
     /// java: public RangedSliderWidget(int x, int y, int width, int height, double defaultValue, double min, double max, double step, Double2ObjectFunction<Component> formatter, DoubleConsumer callback)
-    pub fn new(mut x: i32, mut y: i32, mut width: i32, mut height: i32, mut default_value: f64, mut min: f64, mut max: f64, mut step: f64, mut formatter: Arc<dyn Fn(f64) -> MutableComponent>, mut callback: Arc<dyn Fn(f64)>) -> Self {
-        let __init_min = min;
-        let __init_max = max;
-        let __init_step = step;
-        let __init_formatter = formatter;
-        let __init_callback = callback;
-        // TODO(fabric2seer): `new` takes 1 argument(s) in the port (`initial_value: f64`), Java passes 6
-        //   java: super(x, y, width, height, Component.empty(), 0);
-        let mut this: Self = todo!("constructor");
-        // TODO(fabric2seer): `SliderState::set_value` ports `setValue`, but the port's `AbstractWidget` holds no `SliderState` (no Deref, no `base` field) to call it on
-        // rust: this.set_value(this.value_to_progress(default_value));
-        this
+    pub fn new(x: i32, y: i32, width: i32, height: i32, default_value: f64, min: f64, max: f64, step: f64, formatter: Arc<dyn Fn(f64) -> MutableComponent>, callback: Arc<dyn Fn(f64)>) -> compat::Shared<Self> {
+        // java: super(x, y, width, height, Component.empty(), 0);
+        let mut this = Self {
+            base: AbstractContainerWidget::new(x, y, width, height, FormattedText::Empty),
+            state: SliderState::new(0.0),
+            message: FormattedText::Empty,
+            min,
+            max,
+            formatter,
+            callback,
+            step,
+            look: compat::SliderLook::new(),
+        };
+        // java: setValue(valueToProgress(defaultValue));
+        let progress = this.value_to_progress(default_value);
+        this.set_value(progress);
+        compat::shared(this)
+    }
+
+    /// `addRenderableWidget(slider)` / a layout's `addChild(slider)`: the game's widget over this object.
+    pub fn widget(this: compat::Shared<Self>) -> AbstractWidget {
+        let message: FormattedText = compat::read(&this, |__t| __t.message.clone());
+        let mut widget = compat::object_widget(this, message.get_string());
+        widget.set_message_text(message);
+        widget
     }
 
     /// java: public static Builder builder()
@@ -61,17 +80,17 @@ impl RangedSliderWidget {
     }
 
     /// java: private double roundToNearestStep(double value)
-    pub fn round_to_nearest_step(&self, mut value: f64) -> f64 {
+    pub fn round_to_nearest_step(&self, value: f64) -> f64 {
         return (if self.step <= (0 as f64) { value } else { ((compat::java_round_f64((value / self.step)) as f64) * self.step) });
     }
 
     /// java: private double progressToValue(double progress)
-    pub fn progress_to_value(&self, mut progress: f64) -> f64 {
+    pub fn progress_to_value(&self, progress: f64) -> f64 {
         return ((progress * (self.max - self.min)) + self.min);
     }
 
     /// java: private double valueToProgress(double value)
-    pub fn value_to_progress(&self, mut value: f64) -> f64 {
+    pub fn value_to_progress(&self, value: f64) -> f64 {
         return ((value - self.min) / (self.max - self.min)).clamp((0 as f64), (1 as f64));
     }
 
@@ -79,14 +98,12 @@ impl RangedSliderWidget {
     pub fn update_message(&mut self) {
         // java: setMessage(this.formatter.apply(getValue()));
         let __message = (self.formatter)(self.get_value());
-        self.base.set_message_text(mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(__message));
+        self.message = FormattedText::from(__message);
     }
 
     /// java: public double getValue()
     pub fn get_value(&self) -> f64 {
-        // TODO(fabric2seer): `AbstractSliderButton.value` has no Rust field in the port (searched net.minecraft.client.gui.components.AbstractSliderButton and its supertypes)
-        // rust: return self.round_to_nearest_step(self.progress_to_value(self.value));
-        return todo!("fabric2seer: see the TODO above");
+        return self.round_to_nearest_step(self.progress_to_value(self.state.value));
     }
 
     /// java: @Override protected void applyValue()
@@ -95,18 +112,91 @@ impl RangedSliderWidget {
         (self.callback)(self.get_value());
     }
 
-    /// java: @Override public void onRelease(MouseButtonEvent click)
-    pub fn on_release(&self, click: &MouseButtonEvent) {
-        // TODO(fabric2seer): `on_release` takes 0 argument(s) in the port (``), Java passes 1
-        // TODO(fabric2seer): `SliderState::on_release` ports `onRelease`, but the port's `AbstractWidget` holds no `SliderState` (no Deref, no `base` field) to call it on
-        // rust: self.base.on_release(click.clone());
-        // TODO(fabric2seer): `AbstractSliderButton.value` has no Rust field in the port (searched net.minecraft.client.gui.components.AbstractSliderButton and its supertypes)
-        // rust: self.value = self.value_to_progress(self.get_value());
+    /// AbstractSliderButton.setValue(double):132-140 - clamped; `applyValue()` when it changed; `updateMessage()`.
+    pub fn set_value(&mut self, new_value: f64) {
+        if self.state.set_value(new_value) {
+            self.apply_value();
+        }
+        self.update_message();
     }
 
+    /// AbstractSliderButton.setValueFromMouse:128-130.
+    fn set_value_from_mouse(&mut self, event: &MouseButtonEvent) {
+        let value = abstract_slider_button::value_from_mouse(event.x(), self.base.get_x(), self.base.get_width());
+        self.set_value(value);
+    }
 }
 
-// NOTE(fabric2seer): applyValue, onRelease, updateMessage override(s) of AbstractSliderButton - the port dispatches its own calls, so these run only where the mod calls them; hook the port's method to make the game call them
+impl compat::ObjectWidget for RangedSliderWidget {
+    fn object_box(&mut self) -> &mut AbstractContainerWidget {
+        &mut self.base
+    }
+
+    fn object_box_ref(&self) -> &AbstractContainerWidget {
+        &self.base
+    }
+
+    /// AbstractSliderButton.extractWidgetRenderState - the track, the handle and the message
+    fn extract_widget_render_state(&mut self, widget: &AbstractWidget, context: &mut WidgetRenderContext<'_>, mouse_x: i32, mouse_y: i32, _a: f32) {
+        self.look.draw(widget, &self.message, &self.state, context, mouse_x, mouse_y);
+    }
+
+    /// AbstractSliderButton.updateWidgetNarration:49-63
+    fn update_widget_narration(&mut self, widget: &AbstractWidget, output: &mut dyn NarrationElementOutput) {
+        abstract_slider_button::update_widget_narration(output, &self.message.get_string(), self.base.is_active(), widget.is_focused(), self.state.can_change_value);
+    }
+
+    /// AbstractSliderButton.onClick:89-93 - `dragging = active; setValueFromMouse(event)`
+    fn on_click(&mut self, _widget: &mut AbstractWidget, event: &MouseButtonEvent, _double_click: bool) {
+        self.state.dragging = self.base.is_active();
+        self.set_value_from_mouse(event);
+    }
+
+    /// AbstractSliderButton.onDrag:143-146 - `setValueFromMouse(event)`
+    fn on_drag(&mut self, _widget: &mut AbstractWidget, event: &MouseButtonEvent, _dx: f64, _dy: f64) {
+        self.set_value_from_mouse(event);
+    }
+
+    /// java: @Override public void onRelease(MouseButtonEvent click)
+    fn on_release(&mut self, _widget: &mut AbstractWidget, _event: &MouseButtonEvent) {
+        // java: super.onRelease(click); - `dragging = false; super.playDownSound(..)`
+        // rust: port gap (GAPS_batchH #1) - the release click sound is `SoundManager.play`, which a mod cannot reach
+        self.state.on_release();
+        // java: this.value = valueToProgress(getValue());
+        self.state.value = self.value_to_progress(self.get_value());
+    }
+
+    /// AbstractSliderButton.keyPressed:109-126
+    fn key_pressed(&mut self, _widget: &mut AbstractWidget, event: &KeyEvent) -> bool {
+        if event.is_selection() {
+            self.state.toggle_armed();
+            return true;
+        }
+        if self.state.can_change_value && (event.is_left() || event.is_right()) {
+            let value = self.state.value + abstract_slider_button::key_step(self.base.get_width(), event.is_left());
+            self.set_value(value);
+            return true;
+        }
+        false
+    }
+
+    /// AbstractSliderButton.setFocused:95-107 - `canChangeValue` follows the input that focused it
+    fn set_focused(&mut self, widget: &mut AbstractWidget, focused: bool) {
+        let last_input_type = compat::minecraft().last_input_type;
+        widget.set_focused(focused, last_input_type);
+        self.state.set_focused(focused, last_input_type);
+    }
+
+    /// AbstractSliderButton.playDownSound - empty (the click is the release's)
+    fn play_down_sound(&self) -> Option<&'static mcrust::net::minecraft::sounds::sound_event::SoundEvent> {
+        None
+    }
+
+    /// AbstractSliderButton.handleCursor - RESIZE_EW while dragging
+    fn handle_cursor(&self, widget: &AbstractWidget, cursors: &CursorTypes) -> Option<CursorType> {
+        abstract_slider_button::cursor_for(cursors, widget.is_hovered(), self.base.is_active(), self.state.dragging)
+    }
+}
 
 /// java: public static class Builder
 ///
@@ -223,7 +313,7 @@ impl Builder {
     }
 
     /// java: public RangedSliderWidget build()
-    pub fn build(&self) -> RangedSliderWidget {
+    pub fn build(&self) -> compat::Shared<RangedSliderWidget> {
         return RangedSliderWidget::new(self.x, self.y, self.width, self.height, self.value, self.min, self.max, self.step, self.formatter.clone(), self.callback.clone());
     }
 

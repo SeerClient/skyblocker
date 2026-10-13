@@ -117,17 +117,19 @@ impl MushroomDesertGlowAdder {
             return *mob_glow_adder::NO_GLOW;
         }
         let mut name: String = MobGlow::get_armor_stand_name(entity);
-        // TODO(fabric2seer): a pattern switch expression
-        //   java: return switch (entity) {
-        //   java: 			case Cow _ when isPeltAnimal(name, "Cow") -> getGlowColor(name);
-        //   java: 			case Pig _ when isPeltAnimal(name, "Pig") -> getGlowColor(name);
-        //   java: 			case Sheep _ when isPeltAnimal(name, "Sheep") -> getGlowColor(name);
-        //   java: 			case Rabbit _ when isPeltAnimal(name, "Rabbit") -> getGlowColor(name);
-        //   java: 			case Chicken _ when isPeltAnimal(name, "Chicken") -> getGlowColor(name);
-        //   java: 			case Horse _ when isPeltAnimal(name, "Horse") -> getGlowColor(name);
-        //   java: 			default -> NO_GLOW;
-        //   java: 		};
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        // java: return switch (entity) { case Cow _ when isPeltAnimal(name, "Cow") -> getGlowColor(name); .. Pig, Sheep, Rabbit, Chicken, Horse ..; default -> NO_GLOW; };
+        let any = entity.as_any().unwrap_or(&() as &dyn std::any::Any);
+        let animal: Option<&str> = if any.is::<mcrust::net::minecraft::world::entity::animal::cow::cow::Cow>() { Some("Cow") }
+            else if any.is::<mcrust::net::minecraft::world::entity::animal::pig::pig::Pig>() { Some("Pig") }
+            else if any.is::<mcrust::net::minecraft::world::entity::animal::sheep::sheep::Sheep>() { Some("Sheep") }
+            else if any.is::<mcrust::net::minecraft::world::entity::animal::rabbit::rabbit::Rabbit>() { Some("Rabbit") }
+            else if any.is::<mcrust::net::minecraft::world::entity::animal::chicken::chicken::Chicken>() { Some("Chicken") }
+            else if any.is::<mcrust::net::minecraft::world::entity::animal::equine::horse::Horse>() { Some("Horse") }
+            else { None };
+        if let Some(animal) = animal && MushroomDesertGlowAdder::is_pelt_animal(&name, animal) {
+            return MushroomDesertGlowAdder::get_glow_color(__this, &name);
+        }
+        return *mob_glow_adder::NO_GLOW;
     }
 
     /// MushroomDesertGlowAdder.computeColour as the dispatch of MobGlowAdder.computeColour

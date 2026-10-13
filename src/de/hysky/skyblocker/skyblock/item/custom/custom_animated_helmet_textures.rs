@@ -32,7 +32,11 @@ pub static ANIMATED_HEAD_FRAME_CODEC: compat::MainThread<CodecRef<ResolvableProf
 //   java: 				FRAME_CODEC.listOf().validate(AnimatedHead::validateFrames).fieldOf("textures").forGetter(AnimatedHead::frames)
 //   java: 				).apply(instance, AnimatedHead::new));
 /// java: private static final Codec<AnimatedHead> CODEC = RecordCodecBuilder.create(instance -> instance.group( Codec.INT.xmap(i -> Math.max(i, 1), Function.identity()).fieldOf("ticks").forGetter(AnimatedHead:
-pub static ANIMATED_HEAD_CODEC: compat::MainThread<CodecRef<AnimatedHead>> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `CODEC` - see the TODO above"));
+pub static ANIMATED_HEAD_CODEC: compat::MainThread<CodecRef<AnimatedHead>> = compat::MainThread::new(|| record_codec_builder::create(record_codec_builder::apply2(
+    record_codec_builder::of(|o: &AnimatedHead| o.tick_threshold(), codec::field_of(codec::xmap(mcrust::com::mojang::serialization::codec::int_codec(), |i: i32| i.max(1), |i: &i32| *i), "ticks")),
+    record_codec_builder::of(|o: &AnimatedHead| o.frames(), codec::field_of(codec::validate(codec::list(ANIMATED_HEAD_FRAME_CODEC.get().clone()), |frames: Vec<ResolvableProfile>| AnimatedHead::validate_frames(&frames)), "textures")),
+    move |__a0, __a1| AnimatedHead::new(__a0.clone(), __a1.clone()),
+)));
 /// java: private static final Codec<Map<String, AnimatedHead>> MAP_CODEC = Codec.unboundedMap(Codec.STRING, CODEC);
 /// (the port's `unboundedMap` codec answers the entries as ordered pairs)
 pub static ANIMATED_HEAD_MAP_CODEC: compat::MainThread<CodecRef<Vec<(String, AnimatedHead)>>> = compat::MainThread::new(|| codec::unbounded_map(mcrust::com::mojang::serialization::codec::string_codec(), ANIMATED_HEAD_CODEC.get_mut().clone()));
@@ -60,14 +64,14 @@ impl CustomAnimatedHelmetTextures {
     /// java: private static void loadAnimatedHeads()
     pub fn load_animated_heads() {
         {
-            // TODO(fabric2seer): `.stream(..)` on a NEURepoFile
-            //   java: InputStream stream = NEURepoManager.file(..).stream(..);
-            let mut stream: crate::unresolved::InputStream = todo!("fabric2seer: the initialiser of `stream` (TODO above)");
-            // java: try {..} catch (Exception e) - an exception here is a panic, caught by `catch_unwind`
+            // java: try (InputStream stream = NEURepoManager.file("constants/animatedskulls.json").stream()) {..} catch (Exception e)
+            // - the resource is opened inside the try, so a missing file (null) is caught too; an exception is a panic,
+            // caught by `catch_unwind`
             let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                // TODO(fabric2seer): `.readAllBytes(..)` on a InputStream
+                let stream = NEURepoManager::file("constants/animatedskulls.json").expect("java.lang.NullPointerException: NEURepoManager.file(\"constants/animatedskulls.json\")");
                 //   java: String data = new String(stream.readAllBytes());
-                let mut data: String = todo!("fabric2seer: the initialiser of `data` (TODO above)");
+                // (the NEU repo library is a port gap - GAPS_M #10 - so the file reads empty and the parse below fails)
+                let mut data: String = compat::neu_repo_file_read_all(&stream);
                 let mut animated_heads: std::collections::HashMap<String, AnimatedHead> = (ANIMATED_HEAD_MAP_CODEC.get_mut().parse(&mcrust::com::mojang::serialization::json_ops::JsonOps::instance(), &compat::json_to_port(&(compat::json::get_as_json_object(&(serde_json::from_str::<serde_json::Value>(&data).expect("JsonSyntaxException")))).get("skins").cloned().unwrap()))).get_or_throw().unwrap().into_iter().collect();
                 mcrust::mcrust::modding::game::execute(move || {
                     ANIMATED_HEADS.get_mut().clear();
@@ -90,7 +94,7 @@ impl CustomAnimatedHelmetTextures {
     pub fn format_name(id: &str) -> String {
         // TODO(fabric2seer): static call WordUtils.capitalizeFully(..)
         //   java: return WordUtils.capitalizeFully(id.replace('_', ' '));
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        compat::capitalize_fully(&id.replace('_', " "))
     }
 
     /// java: public static @Nullable ResolvableProfile animateHeadTexture(String id)
@@ -154,16 +158,13 @@ impl AnimatedHead {
 
     /// java: private static String toString(ResolvableProfile profile)
     pub fn to_string(profile: &ResolvableProfile) -> String {
-        // TODO(fabric2seer): `.value(..)` on a V
         //   java: return profile.partialProfile().id() + ":" + profile.partialProfile().properties().get("textures").iterator().next().value();
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        format!("{}:{}", profile.partial_profile().id(), profile.partial_profile().properties().get("textures").into_iter().next().expect("java.util.NoSuchElementException").value())
     }
 
     /// java: private static DataResult<List<ResolvableProfile>> validateFrames(List<ResolvableProfile> frames)
     pub fn validate_frames(frames: &Vec<ResolvableProfile>) -> DataResult<Vec<ResolvableProfile>> {
-        // TODO(fabric2seer): a lambda for a parameter the port does not type as a closure (`Supplier<String>`)
-        // rust: return (if !frames.is_empty() { DataResult::success(frames.clone()) } else { DataResult::error(|| "Expected at least a single frame for an animated head but there was none!".to_string()) });
-        return todo!("fabric2seer: see the TODO above");
+        return (if !frames.is_empty() { DataResult::success(frames.clone()) } else { DataResult::error(Arc::new(|| "Expected at least a single frame for an animated head but there was none!".to_string())) });
     }
 
 }
