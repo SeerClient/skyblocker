@@ -23,7 +23,7 @@ use mcrust::net::minecraft::network::chat::component::Component as _;
 //   java: private static final WidgetSprites BUTTON = new WidgetSprites(Identifier.withDefaultNamespace("widget/button"),
 //   java: 			Identifier.withDefaultNamespace("widget/button_disabled"), Identifier.withDefaultNamespace("widget/button_highlighted"));
 /// java: private static final WidgetSprites BUTTON = new WidgetSprites(Identifier.withDefaultNamespace("widget/button"), Identifier.withDefaultNamespace("widget/button_disabled"), Identifier.withDefaultNamespa
-pub static BUTTON: compat::MainThread<WidgetSprites> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `BUTTON` - see the TODO above"));
+pub static BUTTON: compat::MainThread<WidgetSprites> = compat::MainThread::new(|| WidgetSprites::with_disabled(Identifier::with_default_namespace("widget/button"), Identifier::with_default_namespace("widget/button_disabled"), Identifier::with_default_namespace("widget/button_highlighted")));
 
 /// java: public class CyclingTextureWidget<T extends Enum<T> & Supplier<Identifier>> extends AbstractWidget
 #[derive(Clone)]

@@ -15,7 +15,7 @@ use mcrust::org::joml::vector2i::Vector2i;
 // TODO(fabric2seer): static `MapColor.Brightness` has no Rust counterpart in the port's MapColor file
 //   java: public static final byte BLACK_COLOR = MapColor.COLOR_BLACK.getPackedId(MapColor.Brightness.LOWEST);
 /// java: public static final byte BLACK_COLOR = MapColor.COLOR_BLACK.getPackedId(MapColor.Brightness.LOWEST);
-pub static BLACK_COLOR: LazyLock<i8> = LazyLock::new(|| todo!("fabric2seer: the initialiser of `BLACK_COLOR` - see the TODO above"));
+pub static BLACK_COLOR: LazyLock<i8> = LazyLock::new(|| mcrust::net::minecraft::world::level::material::map_color::COLOR_BLACK.get_packed_id(mcrust::net::minecraft::world::level::material::map_color::Brightness::Lowest));
 /// java: public static final byte RED_COLOR = 18;
 pub const RED_COLOR: i8 = (18) as i8;
 /// java: public static final byte WHITE_COLOR = 34;

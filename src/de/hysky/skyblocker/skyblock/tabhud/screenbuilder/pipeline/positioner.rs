@@ -11,7 +11,7 @@ use mcrust::com::mojang::serialization::codec::CodecRef;
 // TODO(fabric2seer): `from_enum` takes 2 argument(s) in the port (`values: Vec<E>, serialized_name: impl Fn(&E) -> String + Send + Sync + Copy + 'static`), Java passes 1
 //   java: public static final Codec<Positioner> CODEC = StringRepresentable.fromEnum(Positioner::values);
 /// java: public static final Codec<Positioner> CODEC = StringRepresentable.fromEnum(Positioner::values);
-pub static CODEC: compat::MainThread<CodecRef<Positioner>> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `CODEC` - see the TODO above"));
+pub static CODEC: compat::MainThread<CodecRef<Positioner>> = compat::MainThread::new(|| mcrust::net::minecraft::util::string_representable::from_enum(Positioner::values(), |e: &Positioner| e.get_serialized_name()));
 
 /// java: public enum Positioner implements StringRepresentable
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]

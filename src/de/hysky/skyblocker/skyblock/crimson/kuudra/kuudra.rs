@@ -98,7 +98,7 @@ impl Kuudra {
                 let mut found_string: String = compat::regex::replace_all(&matcher.group(1).unwrap(), "\\D", "");
                 // TODO(fabric2seer): the condition: static call NumberUtils.isCreatable(..)
                 //   java: !NumberUtils.isCreatable(foundString)
-                if todo!("fabric2seer: the condition (TODO above)") {
+                if !compat::number_utils_is_creatable(&found_string) {
                     continue;
                 }
                 let mut amount: i32 = found_string.parse::<i32>().expect("NumberFormatException");

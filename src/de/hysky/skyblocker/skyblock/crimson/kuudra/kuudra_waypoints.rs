@@ -48,7 +48,7 @@ pub static PEARL_WAYPOINTS: compat::MainThread<Vec<compat::Shared<dyn Waypoint>>
 //   java: 			waypoint -> waypoint.pos)
 //   java: 			.listOf();
 /// java: private static final Function<float[], Codec<List<Waypoint>>> CODEC = cc -> PosUtils.ALT_BLOCK_POS_CODEC.xmap( pos -> new Waypoint(pos, () -> Waypoint.Type.HIGHLIGHT, cc, false), waypoint -> waypoint.
-pub static CODEC: compat::MainThread<Arc<dyn Fn(Vec<f32>) -> CodecRef<Vec<compat::Shared<dyn Waypoint>>>>> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `CODEC` - see the TODO above"));
+pub static CODEC: compat::MainThread<Arc<dyn Fn(Vec<f32>) -> CodecRef<Vec<compat::Shared<dyn Waypoint>>>>> = compat::MainThread::new(|| Arc::new(move |cc: Vec<f32>| mcrust::com::mojang::serialization::codec::list(mcrust::com::mojang::serialization::codec::xmap(pos_utils::ALT_BLOCK_POS_CODEC.get_mut().clone(), move |pos: BlockPos| WaypointBase::new6(pos, Arc::new(move || Type::Highlight), cc.clone(), false) as compat::Shared<dyn Waypoint>, |waypoint: &compat::Shared<dyn Waypoint>| compat::read(waypoint, |t| t.waypoint_base().pos.clone().unwrap())))) as Arc<dyn Fn(Vec<f32>) -> CodecRef<Vec<compat::Shared<dyn Waypoint>>>>);
 /// java: private static ObjectArrayList<Waypoint> supplyWaypoints = ObjectArrayList.of();
 pub static SUPPLY_WAYPOINTS: compat::MainThread<Vec<compat::Shared<dyn Waypoint>>> = compat::MainThread::new(|| vec![]);
 /// java: private static ObjectArrayList<Waypoint> ballistaBuildWaypoints = ObjectArrayList.of();

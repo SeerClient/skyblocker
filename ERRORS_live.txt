@@ -1,7 +1,0 @@
-src\de\hysky\skyblocker\skyblock\item\custom\custom_armor_animated_dyes.rs:77:148: error[E0599]: no method named `get_main_hand_item` found for mutable reference `&mut LocalPlayer` in the current scope
-src\de\hysky\skyblocker\skyblock\item\custom\custom_armor_dye_colors.rs:50:148: error[E0599]: no method named `get_main_hand_item` found for mutable reference `&mut LocalPlayer` in the current scope
-src\de\hysky\skyblocker\skyblock\item\custom\custom_armor_trims.rs:111:148: error[E0599]: no method named `get_main_hand_item` found for mutable reference `&mut LocalPlayer` in the current scope
-src\de\hysky\skyblocker\skyblock\item\custom\custom_item_names.rs:63:149: error[E0599]: no method named `get_main_hand_item` found for mutable reference `&mut LocalPlayer` in the current scope
-src\de\hysky\skyblocker\skyblock\item\custom\custom_item_names.rs:83:100: error[E0599]: no method named `get_main_hand_item` found for mutable reference `&mut LocalPlayer` in the current scope
-src\de\hysky\skyblocker\skyblock\inventory_search.rs:216:106: error[E0502]: cannot borrow `this.normal_text` as immutable because it is also borrowed as mutable: immutable borrow occurs here
-src\de\hysky\skyblocker\skyblock\inventory_search.rs:276:28: error[E0505]: cannot move out of `__init_text_renderer` because it is borrowed: move out of `__init_text_renderer` occurs here

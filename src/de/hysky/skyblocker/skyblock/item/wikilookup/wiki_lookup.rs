@@ -14,7 +14,7 @@ pub static CHARACTER_ENCODER: LazyLock<std::collections::HashMap<String, String>
 //   java: 			.map(entryToReplace -> (Function<String, String>) s -> s.replace(entryToReplace.getKey(), entryToReplace.getValue()))
 //   java: 			.reduce(Function.identity(), Function::andThen);
 /// java: Function<String, String> REPLACING_FUNCTION = CHARACTER_ENCODER.entrySet().stream() .map(entryToReplace -> (Function<String, String>) s -> s.replace(entryToReplace.getKey(), entryToReplace.getValue())
-pub static REPLACING_FUNCTION: compat::MainThread<Arc<dyn Fn(String) -> String>> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `REPLACING_FUNCTION` - see the TODO above"));
+pub static REPLACING_FUNCTION: compat::MainThread<Arc<dyn Fn(String) -> String>> = compat::MainThread::new(|| { let __fs: Vec<Arc<dyn Fn(String) -> String>> = CHARACTER_ENCODER.iter().map(|(k, v)| { let (k, v) = (k.clone(), v.clone()); Arc::new(move |s: String| s.replace(&k, &v)) as Arc<dyn Fn(String) -> String> }).collect(); Arc::new(move |s: String| __fs.iter().fold(s, |acc, f| f(acc))) as Arc<dyn Fn(String) -> String> });
 
 /// java: public interface WikiLookup
 pub trait WikiLookup: compat::DynAny {

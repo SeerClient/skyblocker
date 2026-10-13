@@ -105,7 +105,7 @@ impl PowderWidget {
     pub fn parse_amount(__this: &compat::Shared<Self>, matcher: &compat::regex::Matcher) -> i32 {
         // TODO(fabric2seer): static call NumberUtils.toInt(..)
         //   java: return NumberUtils.toInt(matcher.group(1).replace(",", ""));
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        compat::number_utils_to_int(&matcher.group(1).unwrap().replace(",", ""), 0)
     }
 
     /// java: private MutableComponent getAppendix(int diff, ChatFormatting formatting)

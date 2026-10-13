@@ -42,18 +42,18 @@ pub static SKILL_LOGO: compat::MainThread<std::collections::HashMap<String, comp
 //   java: 			Object2IntMap.entry("Social", 25)
 //   java: 	);
 /// java: private static final Object2IntMap<String> SKILL_CAP = Object2IntMap.ofEntries( Object2IntMap.entry("Combat", 60), Object2IntMap.entry("Farming", 60), Object2IntMap.entry("Mining", 60), Object2IntMap.
-pub static SKILL_CAP: LazyLock<std::collections::HashMap<String, i32>> = LazyLock::new(|| todo!("fabric2seer: the initialiser of `SKILL_CAP` - see the TODO above"));
+pub static SKILL_CAP: LazyLock<std::collections::HashMap<String, i32>> = LazyLock::new(|| [("Combat", 60), ("Farming", 60), ("Mining", 60), ("Foraging", 50), ("Fishing", 50), ("Enchanting", 60), ("Alchemy", 50), ("Taming", 60), ("Carpentry", 50), ("Catacombs", 50), ("Runecraft", 25), ("Social", 25)].into_iter().map(|(k, v)| (k.to_string(), v)).collect());
 // TODO(fabric2seer): static call Object2IntMap.ofEntries(..)
 //   java: private static final Object2IntMap<String> SOFT_SKILL_CAP = Object2IntMap.ofEntries(
 //   java: 			Object2IntMap.entry("Taming", 50),
 //   java: 			Object2IntMap.entry("Farming", 50)
 //   java: 	);
 /// java: private static final Object2IntMap<String> SOFT_SKILL_CAP = Object2IntMap.ofEntries( Object2IntMap.entry("Taming", 50), Object2IntMap.entry("Farming", 50) );
-pub static SOFT_SKILL_CAP: LazyLock<std::collections::HashMap<String, i32>> = LazyLock::new(|| todo!("fabric2seer: the initialiser of `SOFT_SKILL_CAP` - see the TODO above"));
+pub static SOFT_SKILL_CAP: LazyLock<std::collections::HashMap<String, i32>> = LazyLock::new(|| [("Taming", 50), ("Farming", 50)].into_iter().map(|(k, v)| (k.to_string(), v)).collect());
 // TODO(fabric2seer): static call Object2IntMaps.singleton(..)
 //   java: private static final Object2IntMap<String> INFINITE = Object2IntMaps.singleton("Catacombs", 0);
 /// java: private static final Object2IntMap<String> INFINITE = Object2IntMaps.singleton("Catacombs", 0);
-pub static INFINITE: LazyLock<std::collections::HashMap<String, i32>> = LazyLock::new(|| todo!("fabric2seer: the initialiser of `INFINITE` - see the TODO above"));
+pub static INFINITE: LazyLock<std::collections::HashMap<String, i32>> = LazyLock::new(|| std::collections::HashMap::from([("Catacombs".to_string(), 0)]));
 
 /// java: public class SkillWidget
 #[derive(Clone)]

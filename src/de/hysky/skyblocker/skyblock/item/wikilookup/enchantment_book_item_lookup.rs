@@ -64,10 +64,10 @@ impl EnchantmentBookItemLookup {
         //   java: String firstEnchantment = Iterables.getFirst(enchantments.keySet(), null)
         //   java: 				.replace("ultimate_", "") // Stripped out ultimate prefix
         //   java: 				.replace("_", " ").trim();
-        let mut first_enchantment: String = todo!("fabric2seer: the initialiser of `firstEnchantment` (TODO above)");
+        let mut first_enchantment: String = enchantments.key_set().into_iter().next().expect("NullPointerException: Iterables.getFirst(..)").to_string().replace("ultimate_", "").replace("_", " ").trim().to_string();
         // TODO(fabric2seer): static call WordUtils.capitalizeFully(..)
         //   java: String enchantment = REPLACING_FUNCTION.apply(WordUtils.capitalizeFully(firstEnchantment + " enchantment"));
-        let mut enchantment: String = todo!("fabric2seer: the initialiser of `enchantment` (TODO above)");
+        let mut enchantment: String = (wiki_lookup::REPLACING_FUNCTION.get())(compat::capitalize_fully(&format!("{} enchantment", first_enchantment)));
         WikiLookupManager::open_wiki_link_name(&enchantment, player);
     }
 

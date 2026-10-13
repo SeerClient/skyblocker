@@ -153,7 +153,7 @@ impl VisitorHelper {
         }
         // TODO(fabric2seer): `get_item` takes 1 argument(s) in the port (`containers: &'a Containers<'_>`), Java passes 0
         // rust: let visitor_head = handler.get_slot(13).get_item();
-        let mut visitor_head: mcrust::net::minecraft::world::item::item_stack::ItemStack = todo!("fabric2seer: the initialiser of `visitorHead` (TODO above)");
+        let mut visitor_head: mcrust::net::minecraft::world::item::item_stack::ItemStack = compat::slot_item(handler.get_slot(13));
         if visitor_head.is_empty() || !(visitor_head.has(mcrust::net::minecraft::core::component::data_components::lore())) || ItemUtils::get_lore_line_if(&visitor_head, Arc::new(move |t| t.contains("Times Visited"))).is_none() {
             return;
         }
@@ -173,7 +173,7 @@ impl VisitorHelper {
     pub fn extract_required_items(handler: &AbstractContainerMenu, visitor: &mut Visitor) {
         // TODO(fabric2seer): `get_item` takes 1 argument(s) in the port (`containers: &'a Containers<'_>`), Java passes 0
         // rust: let accept_button = handler.get_slot(29).get_item();
-        let mut accept_button: mcrust::net::minecraft::world::item::item_stack::ItemStack = todo!("fabric2seer: the initialiser of `acceptButton` (TODO above)");
+        let mut accept_button: mcrust::net::minecraft::world::item::item_stack::ItemStack = compat::slot_item(handler.get_slot(29));
         if accept_button.is_empty() || ItemUtils::get_lore_line_if(&accept_button, Arc::new(move |t| t.contains("Items Required"))).is_none() {
             return;
         }

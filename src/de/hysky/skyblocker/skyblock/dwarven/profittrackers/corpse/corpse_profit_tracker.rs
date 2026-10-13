@@ -271,7 +271,7 @@ impl CorpseProfitTracker {
         let mut item_name: String = matcher.group(1).unwrap();
         // TODO(fabric2seer): static call NumberUtils.toInt(..)
         //   java: int amount = NumberUtils.toInt(matcher.group(2).replace(",", ""), 1);
-        let mut amount: i32 = todo!("fabric2seer: the initialiser of `amount` (TODO above)");
+        let mut amount: i32 = compat::number_utils_to_int(&matcher.group(2).unwrap().replace(",", ""), 1);
         if matcher.use_pattern(&abstract_profit_tracker::HOTM_XP_PATTERN).matches() {
             return true;
         }

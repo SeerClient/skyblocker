@@ -8,7 +8,7 @@ use crate::de::hysky::skyblocker::utils::flexible_item_stack::FlexibleItemStack;
 // TODO(fabric2seer): static call EnumSet.complementOf(..)
 //   java: public static final Set<Skill> CONVENTIONAL_SKILLS = Set.copyOf(EnumSet.complementOf(EnumSet.of(CATACOMBS, RUNECRAFTING, SOCIAL)));
 /// java: public static final Set<Skill> CONVENTIONAL_SKILLS = Set.copyOf(EnumSet.complementOf(EnumSet.of(CATACOMBS, RUNECRAFTING, SOCIAL)));
-pub static CONVENTIONAL_SKILLS: LazyLock<std::collections::HashSet<Skill>> = LazyLock::new(|| todo!("fabric2seer: the initialiser of `CONVENTIONAL_SKILLS` - see the TODO above"));
+pub static CONVENTIONAL_SKILLS: LazyLock<std::collections::HashSet<Skill>> = LazyLock::new(|| Skill::values().into_iter().filter(|s| !matches!(s, Skill::Catacombs | Skill::Runecrafting | Skill::Social)).collect());
 
 /// java: public enum Skill
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]

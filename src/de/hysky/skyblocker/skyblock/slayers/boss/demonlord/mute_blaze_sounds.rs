@@ -20,7 +20,7 @@ use mcrust::net::minecraft::sounds::sound_event::SoundEvent;
 //   java: 			SoundEvents.LIGHTNING_BOLT_IMPACT.location()
 //   java: 	);
 /// java: private static final ObjectSet<Identifier> MUTED_SOUNDS = ObjectSet.of( SoundEvents.BLAZE_BURN.location(), SoundEvents.BLAZE_AMBIENT.location(), SoundEvents.BLAZE_HURT.location(), SoundEvents.GHAST_SH
-pub static MUTED_SOUNDS: compat::MainThread<std::collections::HashSet<Identifier>> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `MUTED_SOUNDS` - see the TODO above"));
+pub static MUTED_SOUNDS: compat::MainThread<std::collections::HashSet<Identifier>> = compat::MainThread::new(|| { use mcrust::net::minecraft::sounds::sound_events as se; [se::blaze_burn(), se::blaze_ambient(), se::blaze_hurt(), se::ghast_shoot(), se::fire_ambient(), se::lava_pop(), se::lightning_bolt_thunder(), se::lightning_bolt_impact()].into_iter().map(|e| e.location().clone()).collect() });
 
 /// java: @SuppressWarnings("unused") public class MuteBlazeSounds
 #[derive(Clone)]

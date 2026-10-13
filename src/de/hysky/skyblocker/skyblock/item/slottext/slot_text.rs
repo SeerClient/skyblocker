@@ -75,28 +75,28 @@ impl SlotText {
     pub fn top_left_list(text: &MutableComponent) -> Vec<SlotText> {
         // TODO(fabric2seer): static call ObjectLists.singleton(..)
         //   java: return ObjectLists.singleton(topLeft(text));
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        vec![SlotText::top_left(text)]
     }
 
     /// java: public static List<SlotText> topRightList(Component text)
     pub fn top_right_list(text: &MutableComponent) -> Vec<SlotText> {
         // TODO(fabric2seer): static call ObjectLists.singleton(..)
         //   java: return ObjectLists.singleton(topRight(text));
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        vec![SlotText::top_right(text)]
     }
 
     /// java: public static List<SlotText> bottomLeftList(Component text)
     pub fn bottom_left_list(text: &MutableComponent) -> Vec<SlotText> {
         // TODO(fabric2seer): static call ObjectLists.singleton(..)
         //   java: return ObjectLists.singleton(bottomLeft(text));
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        vec![SlotText::bottom_left(text)]
     }
 
     /// java: public static List<SlotText> bottomRightList(Component text)
     pub fn bottom_right_list(text: &MutableComponent) -> Vec<SlotText> {
         // TODO(fabric2seer): static call ObjectLists.singleton(..)
         //   java: return ObjectLists.singleton(bottomRight(text));
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        vec![SlotText::bottom_right(text)]
     }
 
 }

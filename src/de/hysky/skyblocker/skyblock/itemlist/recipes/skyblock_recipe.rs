@@ -22,7 +22,7 @@ use mcrust::net::minecraft::world::item::items;
 // TODO(fabric2seer): static `NumberFormat.getInstance` has no Rust counterpart in the port
 //   java: NumberFormat NUMBER_FORMAT = NumberFormat.getInstance(Locale.US);
 /// java: NumberFormat NUMBER_FORMAT = NumberFormat.getInstance(Locale.US);
-pub static NUMBER_FORMAT: compat::MainThread<DecimalFormat> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `NUMBER_FORMAT` - see the TODO above"));
+pub static NUMBER_FORMAT: compat::MainThread<DecimalFormat> = compat::MainThread::new(|| DecimalFormat::new("#,##0.###", mcrust::java::text::decimal_format_symbols::get_instance(Locale::Us)));
 
 /// java: public interface SkyblockRecipe
 pub trait SkyblockRecipe: compat::DynAny {

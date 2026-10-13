@@ -14,7 +14,7 @@ use mcrust::net::minecraft::world::entity::item_owner::ItemOwner as _;
 // TODO(fabric2seer): `new` takes 2 argument(s) in the port (`pattern: &str, symbols: DecimalFormatSymbols`), Java passes 1
 //   java: private static final DecimalFormat FORMATTER = new DecimalFormat("0.00");
 /// java: private static final DecimalFormat FORMATTER = new DecimalFormat("0.00");
-pub static FORMATTER: compat::MainThread<DecimalFormat> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `FORMATTER` - see the TODO above"));
+pub static FORMATTER: compat::MainThread<DecimalFormat> = compat::MainThread::new(|| DecimalFormat::new("0.00", mcrust::java::text::decimal_format_symbols::get_instance(mcrust::java::text::decimal_format_symbols::Locale::Us)));
 /// java: private static final int BLOCK_LIFE_TIME = 6550;
 pub const BLOCK_LIFE_TIME: i32 = 6550;
 /// java: private static final List<BlockPos> blockOrder = new ArrayList<>();

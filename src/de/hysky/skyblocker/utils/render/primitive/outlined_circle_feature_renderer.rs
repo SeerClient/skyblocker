@@ -71,10 +71,10 @@ impl PrimitiveFeatureRenderer<crate::de::hysky::skyblocker::utils::render::primi
                 for i in 0..state.segments() {
                     // TODO(fabric2seer): static field Math.TAU
                     //   java: double angle1 = Math.TAU * i / state.segments();
-                    let mut angle1: f64 = todo!("fabric2seer: the initialiser of `angle1` (TODO above)");
+                    let mut angle1: f64 = std::f64::consts::TAU * (i as f64) / (state.segments() as f64);
                     // TODO(fabric2seer): static field Math.TAU
                     //   java: double angle2 = Math.TAU * (i + 1) / state.segments();
-                    let mut angle2: f64 = todo!("fabric2seer: the initialiser of `angle2` (TODO above)");
+                    let mut angle2: f64 = std::f64::consts::TAU * ((i + 1) as f64) / (state.segments() as f64);
                     let mut x1_inner: f32 = (((angle1.cos()) as f32) * inner_radius);
                     let mut z1_inner: f32 = (((angle1.sin()) as f32) * inner_radius);
                     let mut x1_outer: f32 = (((angle1.cos()) as f32) * outer_radius);

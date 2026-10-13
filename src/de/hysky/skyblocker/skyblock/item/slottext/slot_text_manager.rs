@@ -62,7 +62,7 @@ pub static CURRENT_SCREEN_ADDERS: compat::MainThread<Vec<compat::Shared<dyn Slot
 // TODO(fabric2seer): Fabric API `KeyMappingHelper.registerKeyMapping` has no SeerClient equivalent
 //   java: public static final KeyMapping KEY_MAPPING = KeyMappingHelper.registerKeyMapping(new KeyMapping("key.skyblocker.slottext", InputConstants.KEY_LALT, SkyblockerMod.KEYBINDING_CATEGORY));
 /// java: public static final KeyMapping KEY_MAPPING = KeyMappingHelper.registerKeyMapping(new KeyMapping("key.skyblocker.slottext", InputConstants.KEY_LALT, SkyblockerMod.KEYBINDING_CATEGORY));
-pub static KEY_MAPPING: compat::MainThread<mcrust::net::minecraft::client::key_mapping::KeyMapping> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `KEY_MAPPING` - see the TODO above"));
+pub static KEY_MAPPING: compat::MainThread<mcrust::net::minecraft::client::key_mapping::KeyMapping> = compat::MainThread::new(|| key_binding_helper::register_key_binding(mcrust::net::minecraft::client::key_mapping::KeyMapping::new("key.skyblocker.slottext", 342 /* InputConstants.KEY_LALT */, *crate::entry::skyblocker_mod::KEYBINDING_CATEGORY.get())));
 /// java: private static boolean keyHeld = false;
 pub static KEY_HELD: LazyLock<Mutex<bool>> = LazyLock::new(|| Mutex::new(false));
 

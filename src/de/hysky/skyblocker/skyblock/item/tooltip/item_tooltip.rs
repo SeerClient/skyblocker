@@ -74,7 +74,7 @@ impl ItemTooltip {
             }
             // TODO(fabric2seer): the condition: ++/-- inside an expression
             //   java: ++minute % 60 == 0
-            if todo!("fabric2seer: the condition (TODO above)") {
+            if { let __m = compat::get_state(&MINUTE) + 1; compat::set_state(&MINUTE, __m); __m % 60 == 0 } {
                 compat::set_state(&SENT_NULL_WARNING, false);
             }
             // CompletableFuture.allOf(Stream.of(NPC, BAZAAR, LOWEST_BINS, ONE_DAY_AVERAGE, THREE_DAY_AVERAGE, MOTES, MUSEUM,

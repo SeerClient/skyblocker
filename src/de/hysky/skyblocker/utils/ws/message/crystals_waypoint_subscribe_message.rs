@@ -19,7 +19,7 @@ pub const MAX_LOBBY_LIFETIME: i64 = ((26) as i64) as i64;
 // TODO(fabric2seer): `.toMillis(..)` on a Duration
 //   java: private static final long MILLIS_PER_MINECRAFT_DAY = Duration.ofMinutes(20).toMillis();
 /// java: private static final long MILLIS_PER_MINECRAFT_DAY = Duration.ofMinutes(20).toMillis();
-pub static MILLIS_PER_MINECRAFT_DAY: LazyLock<i64> = LazyLock::new(|| todo!("fabric2seer: the initialiser of `MILLIS_PER_MINECRAFT_DAY` - see the TODO above"));
+pub static MILLIS_PER_MINECRAFT_DAY: LazyLock<i64> = LazyLock::new(|| 20i64 * 60 * 1000);
 /// java: private static final long MILLIS_TO_SECONDS = 1000;
 pub const MILLIS_TO_SECONDS: i64 = ((1000) as i64) as i64;
 

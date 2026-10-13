@@ -325,7 +325,7 @@ impl Calendar {
             { let __v = maybe_month; compat::write(__this, |__t| __t.month = __v); }
             // TODO(fabric2seer): static call NumberUtils.toInt(..)
             //   java: int maybeYear = NumberUtils.toInt(matcher.group("year"));
-            let mut maybe_year: i32 = todo!("fabric2seer: the initialiser of `maybeYear` (TODO above)");
+            let mut maybe_year: i32 = compat::number_utils_to_int(matcher.group_named("year").as_deref().unwrap_or(""), 0);
             if maybe_year == 0 {
                 return false;
             }

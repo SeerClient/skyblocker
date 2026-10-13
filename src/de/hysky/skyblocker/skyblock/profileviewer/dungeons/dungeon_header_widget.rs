@@ -16,7 +16,7 @@ pub static TEXT_RENDERER: compat::MainThread<Font> = compat::MainThread::new(|| 
 // TODO(fabric2seer): `new` takes 2 argument(s) in the port (`pattern: &str, symbols: DecimalFormatSymbols`), Java passes 1
 //   java: private static final DecimalFormat DF = new DecimalFormat("#.##");
 /// java: private static final DecimalFormat DF = new DecimalFormat("#.##");
-pub static DF: compat::MainThread<DecimalFormat> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `DF` - see the TODO above"));
+pub static DF: compat::MainThread<DecimalFormat> = compat::MainThread::new(|| DecimalFormat::new("#.##", mcrust::java::text::decimal_format_symbols::get_instance(Locale::Us)));
 /// java: private static final Identifier TEXTURE = SkyblockerMod.id("textures/gui/profile_viewer/dungeons_header.png");
 pub static TEXTURE: compat::MainThread<Identifier> = compat::MainThread::new(|| crate::entry::skyblocker_mod::id("textures/gui/profile_viewer/dungeons_header.png"));
 

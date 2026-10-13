@@ -80,7 +80,7 @@ impl EliteLeaderboards {
         match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             // TODO(fabric2seer): `Http.sendGetRequest` is not a static method of Http
             //   java: String response = Http.sendGetRequest("https://api.eliteskyblock.com/leaderboards");
-            let mut response: String = todo!("fabric2seer: the initialiser of `response` (TODO above)");
+            let mut response: String = crate::de::hysky::skyblocker::utils::http::Http::send_get_request("https://api.eliteskyblock.com/leaderboards");
             let mut leaderboards_object: serde_json::Map<String, serde_json::Value> = compat::json::get_as_json_object_of(&(compat::json::get_as_json_object(&(serde_json::from_str::<serde_json::Value>(&response).expect("JsonSyntaxException")))), "leaderboards");
             let mut leaderboards: std::collections::HashMap<String, LeaderboardInfo> = (LEADERBOARD_INFO_MAP_CODEC.get().parse(&mcrust::com::mojang::serialization::json_ops::JsonOps::instance(), &compat::json_to_port(&serde_json::Value::Object(leaderboards_object)))).get_or_throw().unwrap_or_else(|e| panic!("IllegalStateException: {e}"));
             return Some(leaderboards);
@@ -124,7 +124,7 @@ impl EliteLeaderboards {
             let mut url: String = format!("https://api.eliteskyblock.com/leaderboards/{}/{}", key.uuid(), key.profile_id());
             // TODO(fabric2seer): `Http.sendGetRequest` is not a static method of Http
             //   java: String response = Http.sendGetRequest(url);
-            let mut response: String = todo!("fabric2seer: the initialiser of `response` (TODO above)");
+            let mut response: String = crate::de::hysky::skyblocker::utils::http::Http::send_get_request(&url);
             let mut data: serde_json::Map<String, serde_json::Value> = compat::json::get_as_json_object_of(&(compat::json::get_as_json_object(&(serde_json::from_str::<serde_json::Value>(&response).expect("JsonSyntaxException")))), "ranks");
             let mut positions: std::collections::HashMap<String, i32> = std::collections::HashMap::new();
             for entry in data.iter().map(|(k, v)| (k.clone(), v.clone())) {

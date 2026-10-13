@@ -74,8 +74,8 @@ impl WaypointsShareScreen {
 
     /// java: private void showErrorToast()
     pub fn show_error_toast(__this: &compat::Shared<Self>) {
-        // TODO(fabric2seer): `add_or_update` takes 5 argument(s) in the port (`toast_manager: &mut ToastManager, font: &FontSet, id: SystemToastId, title: &FormattedText, message: Option<&FormattedText>`), Java passes 4
-        // rust: system_toast::add_or_update(&mut compat::minecraft().gui.toast_manager(), waypoints::WAYPOINTS_TOAST_TYPE.get_mut(), component::translatable("skyblocker.waypoints.importError"), &mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::translatable("skyblocker.waypoints.importErrorText")));
+        // java: SystemToast.addOrUpdate(client.getToastManager(), Waypoints.WAYPOINTS_TOAST_TYPE, Component.translatable("skyblocker.waypoints.importError"), Component.translatable("skyblocker.waypoints.importErrorText"));
+        { let minecraft = compat::minecraft(); system_toast::add_or_update(&mut minecraft.gui.toast_manager().borrow_mut(), &minecraft.font, *waypoints::WAYPOINTS_TOAST_TYPE.get(), &mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::translatable("skyblocker.waypoints.importError")), Some(&mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::translatable("skyblocker.waypoints.importErrorText")))); }
     }
 
     /// java: @SuppressWarnings("DataFlowIssue") @Override public void onClose()

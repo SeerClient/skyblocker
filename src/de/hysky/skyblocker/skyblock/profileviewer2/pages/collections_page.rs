@@ -112,7 +112,7 @@ impl CollectionsPage {
         }
         // TODO(fabric2seer): static call WordUtils.capitalizeFully(..)
         //   java: String title = WordUtils.capitalizeFully(collectionCategory) + " Collections";
-        let mut title: String = todo!("fabric2seer: the initialiser of `title` (TODO above)");
+        let mut title: String = format!("{} Collections", compat::capitalize_fully(&collection_category));
         self.add_section_headings(&mut collections_layout, &title, total_collections, unlocked, maxed);
         collections_layout.add_child(LayoutElement::Grid(collections_grid_layout.clone()));
         return LayoutElement::Grid(collections_layout.wrapped);
@@ -163,7 +163,7 @@ impl CollectionsPage {
         }
         // TODO(fabric2seer): static call WordUtils.capitalizeFully(..)
         //   java: String title = WordUtils.capitalizeFully(category) + " Minions";
-        let mut title: String = todo!("fabric2seer: the initialiser of `title` (TODO above)");
+        let mut title: String = format!("{} Minions", compat::capitalize_fully(&category));
         self.add_section_headings(&mut minions_layout, &title, total_minions, unlocked, maxed);
         minions_layout.add_child(LayoutElement::Grid(minions_grid_layout.clone()));
         return LayoutElement::Grid(minions_layout.wrapped);

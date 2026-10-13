@@ -381,7 +381,7 @@ impl TunerSolver {
         //   java: !SkyblockerConfigManager.get().foraging.moongladeMarsh.enableTunerSolver
         //   java: 				|| pitchSolved || !Utils.isInForagingIsland() || !isInMenu
         //   java: 				|| !packet.getSound().value().location().equals(SoundEvents.NOTE_BLOCK_BASS.value().location())
-        if todo!("fabric2seer: the condition (TODO above)") {
+        if !SkyblockerConfigManager::get().foraging.moonglade_marsh.enable_tuner_solver || compat::read(__this, |__t| __t.pitch_solved) || !Utils::is_in_foraging_island() || !compat::read(__this, |__t| __t.is_in_menu) || mcrust::net::minecraft::sounds::sound_events::holder_value(packet.get_sound()).map(|__e| __e.location().clone()) != Some(mcrust::net::minecraft::sounds::sound_events::note_block_bass().location().clone()) {
             return;
         }
         let mut packet_pitch: f32 = packet.get_pitch();

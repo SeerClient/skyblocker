@@ -38,7 +38,7 @@ pub static SLAYER_PERSONAL_BEST_CODEC: compat::MainThread<CodecRef<SlayerPersona
 //   java: 				Codec.unboundedMap(SlayerTier.CODEC, CODEC).xmap(Object2ObjectOpenHashMap::new, Function.identity())
 //   java: 		).xmap(Object2ObjectOpenHashMap::new, Function.identity());
 /// java: private static final Codec<Object2ObjectOpenHashMap<SlayerType, Object2ObjectOpenHashMap<SlayerTier, SlayerPersonalBest>>> SERIALIZATION_CODEC = Codec.unboundedMap(SlayerType.CODEC, Codec.unboundedMap
-pub static SLAYER_PERSONAL_BEST_SERIALIZATION_CODEC: compat::MainThread<CodecRef<std::collections::HashMap<SlayerType, std::collections::HashMap<SlayerTier, SlayerPersonalBest>>>> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `SERIALIZATION_CODEC` - see the TODO above"));
+pub static SLAYER_PERSONAL_BEST_SERIALIZATION_CODEC: compat::MainThread<CodecRef<std::collections::HashMap<SlayerType, std::collections::HashMap<SlayerTier, SlayerPersonalBest>>>> = compat::MainThread::new(|| { use mcrust::com::mojang::serialization::codec as c; use crate::de::hysky::skyblocker::skyblock::slayers::{slayer_type, slayer_tier}; let __inner: CodecRef<std::collections::HashMap<SlayerTier, SlayerPersonalBest>> = c::xmap(c::unbounded_map(slayer_tier::CODEC.get_mut().clone(), SLAYER_PERSONAL_BEST_CODEC.get_mut().clone()), |entries: Vec<(SlayerTier, SlayerPersonalBest)>| entries.into_iter().collect::<std::collections::HashMap<SlayerTier, SlayerPersonalBest>>(), |map: &std::collections::HashMap<SlayerTier, SlayerPersonalBest>| map.iter().map(|(k, v)| (k.clone(), v.clone())).collect::<Vec<_>>()); c::xmap(c::unbounded_map(slayer_type::CODEC.get_mut().clone(), __inner), |entries: Vec<(SlayerType, std::collections::HashMap<SlayerTier, SlayerPersonalBest>)>| entries.into_iter().collect::<std::collections::HashMap<SlayerType, std::collections::HashMap<SlayerTier, SlayerPersonalBest>>>(), |map: &std::collections::HashMap<SlayerType, std::collections::HashMap<SlayerTier, SlayerPersonalBest>>| map.iter().map(|(k, v)| (k.clone(), v.clone())).collect::<Vec<_>>()) });
 
 /// java: public class SlayerTimer
 #[derive(Clone)]
@@ -120,7 +120,7 @@ impl SlayerTimer {
         let mut current_pb_mills: i64 = SlayerTimer::get_personal_best(compat::read(slayer_quest.as_ref().unwrap(), |__t| __t.slayer_type), compat::read(slayer_quest.as_ref().unwrap(), |__t| __t.slayer_tier));
         // TODO(fabric2seer): static call Duration.between(..)
         //   java: long newPBMills = Duration.between(slayerQuest.bossSpawnTime, bossDeathTime).toMillis();
-        let mut new_pb_mills: i64 = todo!("fabric2seer: the initialiser of `newPBMills` (TODO above)");
+        let mut new_pb_mills: i64 = { let __start = compat::read(slayer_quest.as_ref().unwrap(), |__t| __t.boss_spawn_time.clone()).expect("NullPointerException: slayerQuest.bossSpawnTime"); match boss_death_time.duration_since(__start) { Ok(d) => d.as_millis() as i64, Err(e) => -(e.duration().as_millis() as i64) } };
         let mut current_pb: String = SlayerTimer::format_time(current_pb_mills);
         let mut new_pb: String = SlayerTimer::format_time(new_pb_mills);
         debug_assert!(mcrust::mcrust::modding::game::with_player(|_| ()).is_some());

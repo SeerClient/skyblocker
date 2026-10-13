@@ -80,7 +80,7 @@ impl SweepDetailsListener {
         let mut penalty_amount: f32;
         // TODO(fabric2seer): the condition: static call NumberUtils.isCreatable(..)
         //   java: NumberUtils.isCreatable(..)
-        if todo!("fabric2seer: the condition (TODO above)") {
+        if compat::number_utils_is_creatable(raw_penalty_amount) {
             penalty_amount = raw_penalty_amount.trim().parse::<f32>().expect("NumberFormatException");
             compat::set_state(&LAST_SWEEP, (compat::get_state(&LAST_SWEEP) * ((1 as f32) - ((-penalty_amount) / 100.0f32))));
         } else {
@@ -126,7 +126,7 @@ impl SweepDetailsListener {
             let mut raw_max_sweep: String = sweep_details.group(1).unwrap().replace(",", "");
             // TODO(fabric2seer): the condition: static call NumberUtils.isCreatable(..)
             //   java: NumberUtils.isCreatable(..)
-            if todo!("fabric2seer: the condition (TODO above)") {
+            if compat::number_utils_is_creatable(&raw_max_sweep) {
                 compat::set_state(&MAX_SWEEP, raw_max_sweep.trim().parse::<f32>().expect("NumberFormatException"));
             } else {
                 compat::set_state(&MAX_SWEEP, ((-1) as f32) as f32);

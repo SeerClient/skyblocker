@@ -120,7 +120,7 @@ impl PetLevelAdder {
         let mut level: String = matcher.group(1).unwrap();
         // TODO(fabric2seer): the condition: static call NumberUtils.isDigits(..)
         //   java: !NumberUtils.isDigits(level) || "100".equals(level) && (!name.contains("Dragon") || name.contains("Ender Dragon")) || "200".equals(level)
-        if todo!("fabric2seer: the condition (TODO above)") {
+        if !(!level.is_empty() && level.chars().all(char::is_numeric)) || (level == "100" && (!name.contains("Dragon") || name.contains("Ender Dragon"))) || level == "200" {
             return vec![];
         }
         return SlotText::top_left_list(&component::literal(&level).with_color(slot_text::CREAM));

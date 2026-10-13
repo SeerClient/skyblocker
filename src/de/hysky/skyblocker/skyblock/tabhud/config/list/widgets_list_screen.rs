@@ -52,7 +52,7 @@ pub static OVERRIDE_WIDGETS_SCREEN: LazyLock<Mutex<bool>> = LazyLock::new(|| Mut
 // TODO(fabric2seer): the port's `new` ports this Java method with other parameters ( for Java's display_time)
 //   java: public static final SystemToast.SystemToastId SYSTEM_TOAST_ID = new SystemToast.SystemToastId(1_000);
 /// java: public static final SystemToast.SystemToastId SYSTEM_TOAST_ID = new SystemToast.SystemToastId(1_000);
-pub static SYSTEM_TOAST_ID: compat::MainThread<SystemToastId> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `SYSTEM_TOAST_ID` - see the TODO above"));
+pub static SYSTEM_TOAST_ID: compat::MainThread<SystemToastId> = compat::MainThread::new(|| SystemToastId::with_display_time(1_000));
 /// java: private static final int PADDING = 8;
 pub const PADDING: i32 = 8;
 

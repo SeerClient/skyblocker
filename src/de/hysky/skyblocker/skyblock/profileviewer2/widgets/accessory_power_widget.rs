@@ -82,7 +82,7 @@ impl AccessoryPowerWidget {
         //   java: Component powerText = Component.empty()
         //   java: 				.append(Component.literal("Power: ").withStyle(ChatFormatting.GREEN))
         //   java: 				.append(WordUtils.capitalizeFully(info.member().accessoryBagStorage.selectedPower));
-        let mut power_text: MutableComponent = todo!("fabric2seer: the initialiser of `powerText` (TODO above)");
+        let mut power_text: MutableComponent = component::empty().append(component::literal("Power: ").with_style_format(ChatFormatting::Green)).append_str(&compat::capitalize_fully(&info.member().lock().borrow().accessory_bag_storage.selected_power));
         lines.push(power_text.clone());
         lines.push(component::empty());
         lines.push(component::literal("Power Stats").with_style_format(ChatFormatting::Bold));

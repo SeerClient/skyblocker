@@ -45,7 +45,7 @@ impl CollectionTiers {
         //   java: 				.map(Map.Entry::getValue)
         //   java: 				.mapToLong(member -> member.collection.getOrDefault(collection, 0L))
         //   java: 				.sum();
-        let mut collected: i64 = todo!("fabric2seer: the initialiser of `collected` (TODO above)");
+        let mut collected: i64 = { let __members: Vec<compat::Shared<crate::de::hysky::skyblocker::skyblock::profileviewer2::model::profile_member::ProfileMember>> = profile.lock().borrow().members.values().cloned().collect(); __members.iter().fold(0i64, |sum, m| sum.wrapping_add(m.lock().borrow().collection.get(collection).cloned().unwrap_or(0))) };
         return CollectionTiers::get_max_unlocked_tier_string_long(collection, collected);
     }
 
@@ -86,7 +86,7 @@ impl CollectionTiers {
         //   java: 				.map(Map.Entry::getValue)
         //   java: 				.mapToLong(profileMember -> profileMember.collection.getOrDefault(collection, 0L))
         //   java: 				.sum();
-        let mut coop: i64 = todo!("fabric2seer: the initialiser of `coop` (TODO above)");
+        let mut coop: i64 = { let __members: Vec<compat::Shared<crate::de::hysky::skyblocker::skyblock::profileviewer2::model::profile_member::ProfileMember>> = profile.lock().borrow().members.iter().filter(|(k, _)| *k != member).map(|(_, v)| v.clone()).collect(); __members.iter().fold(0i64, |sum, m| sum.wrapping_add(m.lock().borrow().collection.get(collection).cloned().unwrap_or(0))) };
         let mut total: i64 = personal.wrapping_add(coop);
         let mut tier: i32 = CollectionTiers::get_max_unlocked_tier_string_long(collection, total);
         return Report::new(personal, coop, total, tier);
@@ -98,7 +98,7 @@ impl CollectionTiers {
         match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             // TODO(fabric2seer): `Http.sendGetRequest` is not a static method of Http
             //   java: String response = Http.sendGetRequest("https://api.hypixel.net/v2/resources/skyblock/collections");
-            let mut response: String = todo!("fabric2seer: the initialiser of `response` (TODO above)");
+            let mut response: String = crate::de::hysky::skyblocker::utils::http::Http::send_get_request("https://api.hypixel.net/v2/resources/skyblock/collections");
             return Some(serde_json::from_str::<serde_json::Value>(&response).expect("JsonSyntaxException"));
         })) {
             Ok(__v) => return __v,

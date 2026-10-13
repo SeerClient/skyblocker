@@ -69,14 +69,14 @@ impl ControlTestHelper {
         if mcrust::mcrust::modding::game::with_player(|_| ()).is_some() && CORRECT_WITHER_SKELETON.get_mut().is_some() && PING_OFFSET.get_mut().is_some() && LAST_PING_OFFSET.get_mut().is_some() {
             // TODO(fabric2seer): `DeltaTracker.getGameTimeDeltaPartialTick` has no Rust method in the port (looked for `get_game_time_delta_partial_tick` in DeltaTracker and its supertypes)
             // rust: let mut tick_delta: f32 = RenderHelper::get_tick_counter().get_game_time_delta_partial_tick(false);
-            let mut tick_delta: f32 = todo!("fabric2seer: the initialiser of `tickDelta` (TODO above)");
+            let mut tick_delta: f32 = RenderHelper::get_tick_counter().get_game_time_delta_partial_tick(false);
             let mut update_percent: f64 = ((((compat::millis()).wrapping_sub(compat::get_state(&LAST_UPDATE))) as f64) / (150 as f64));
             let mut aim_pos: Vec3 = CORRECT_WITHER_SKELETON.get_mut().as_ref().unwrap().base.base.base.base.base.get_eye_position_partial(tick_delta).add_vec(&PING_OFFSET.get_mut().as_ref().unwrap().scale(update_percent)).add_vec(&LAST_PING_OFFSET.get_mut().as_ref().unwrap().scale(((1 as f64) - update_percent)));
             let mut target_box: AABB = AABB::of_corners(&aim_pos.add(-0.5, -0.5, -0.5), &aim_pos.add(0.5, 0.5, 0.5));
             let mut player_looking_at_box: bool = target_box.clip(&mcrust::mcrust::modding::game::with_player(|player| player.base.base.base.base.get_eye_position_partial(tick_delta)).unwrap(), &mcrust::mcrust::modding::game::with_player(|player| player.base.base.base.base.get_eye_position_partial(tick_delta).add_vec(&player.base.base.base.base.get_view_vector(tick_delta).scale((30) as f64))).unwrap()).is_some();
             // TODO(fabric2seer): `.getColorComponents(..)` on a value of unknown type
             //   java: float[] boxColor = playerLookingAtBox ? Color.GREEN.getColorComponents(new float[]{0, 0, 0}) : Color.LIGHT_GRAY.getColorComponents(new float[]{0, 0, 0});
-            let mut box_color: Vec<f32> = todo!("fabric2seer: the initialiser of `boxColor` (TODO above)");
+            let mut box_color: Vec<f32> = if player_looking_at_box { vec![0.0f32, 1.0, 0.0] /* Color.GREEN */ } else { vec![192.0f32 / 255.0, 192.0 / 255.0, 192.0 / 255.0] /* Color.LIGHT_GRAY */ };
             ({ let __f = compat::dispatch(collector, |__t| __t.submit_outlined_box_aabb_float_float_boolean()); __f(collector, &target_box, &box_color, ((3) as f32) as f32, true) });
         }
     }

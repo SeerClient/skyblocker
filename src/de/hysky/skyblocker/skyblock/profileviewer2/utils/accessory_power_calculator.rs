@@ -67,7 +67,7 @@ impl AccessoryPowerCalculator {
         match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             // TODO(fabric2seer): `Http.sendGetRequest` is not a static method of Http
             //   java: String response = Http.sendGetRequest("https://api.azureaaron.net/skyblock/magicalpowers");
-            let mut response: String = todo!("fabric2seer: the initialiser of `response` (TODO above)");
+            let mut response: String = crate::de::hysky::skyblocker::utils::http::Http::send_get_request("https://api.azureaaron.net/skyblock/magicalpowers");
             return (POWER_MAP_CODEC.get_mut().parse(&mcrust::com::mojang::serialization::json_ops::JsonOps::instance(), &compat::json_to_port(&serde_json::from_str::<serde_json::Value>(&response).expect("JsonSyntaxException")))).get_or_throw().unwrap();
         })) {
             Ok(__v) => return __v,

@@ -121,7 +121,7 @@ impl SkyblockLevelAdder {
         let mut level_text: String = (siblings[(2) as usize]).get_string();
         // TODO(fabric2seer): the condition: static call NumberUtils.isDigits(..)
         //   java: !NumberUtils.isDigits(levelText)
-        if todo!("fabric2seer: the condition (TODO above)") {
+        if !(!level_text.is_empty() && level_text.chars().all(char::is_numeric)) {
             return vec![];
         }
         return SlotText::bottom_left_list(&component::literal(&level_text).with_color(slot_text::CREAM));

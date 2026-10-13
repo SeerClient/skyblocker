@@ -150,7 +150,7 @@ impl Dungeoneering {
                 if let Some(arabic) = &arabic {
                     // TODO(fabric2seer): the condition: static call NumberUtils.isDigits(..)
                     //   java: !NumberUtils.isDigits(arabic)
-                    if todo!("fabric2seer: the condition (TODO above)") {
+                    if !(!arabic.is_empty() && arabic.chars().all(char::is_numeric)) {
                         return vec![];
                     }
                     level = arabic.to_string();
@@ -268,7 +268,7 @@ impl DungeonClasses {
                 let mut level: String = CatacombsLevelAdder::get_bracketed_level_from_name(stack).unwrap();
                 // TODO(fabric2seer): the condition: static call NumberUtils.isDigits(..)
                 //   java: !NumberUtils.isDigits(level)
-                if todo!("fabric2seer: the condition (TODO above)") {
+                if !(!level.is_empty() && level.chars().all(char::is_numeric)) {
                     return vec![];
                 }
                 return SlotText::bottom_left_list(&component::literal(&level).with_color(slot_text::CREAM));
@@ -379,7 +379,7 @@ impl ReadyUp {
                 let mut level: String = CatacombsLevelAdder::get_bracketed_level_from_name(stack).unwrap();
                 // TODO(fabric2seer): the condition: static call NumberUtils.isDigits(..)
                 //   java: !NumberUtils.isDigits(level)
-                if todo!("fabric2seer: the condition (TODO above)") {
+                if !(!level.is_empty() && level.chars().all(char::is_numeric)) {
                     return vec![];
                 }
                 return SlotText::bottom_left_list(&component::literal(&level).with_color(slot_text::CREAM));

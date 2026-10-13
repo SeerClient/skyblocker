@@ -26,7 +26,7 @@ use mcrust::net::minecraft::sounds::sound_event::SoundEvent;
 //   java: 			SoundEvents.SKELETON_STEP.location()
 //   java: 	);
 /// java: private static final ObjectSet<Identifier> MUTED_SOUNDS = ObjectSet.of( SoundEvents.SPIDER_AMBIENT.location(), SoundEvents.SPIDER_DEATH.location(), SoundEvents.SPIDER_HURT.location(), SoundEvents.SPID
-pub static MUTED_SOUNDS: compat::MainThread<std::collections::HashSet<Identifier>> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `MUTED_SOUNDS` - see the TODO above"));
+pub static MUTED_SOUNDS: compat::MainThread<std::collections::HashSet<Identifier>> = compat::MainThread::new(|| { use mcrust::net::minecraft::sounds::sound_events as se; [se::spider_ambient(), se::spider_death(), se::spider_hurt(), se::spider_step(), se::bat_hurt(), se::silverfish_hurt(), se::silverfish_death(), se::silverfish_ambient(), se::skeleton_ambient(), se::skeleton_death(), se::skeleton_hurt(), se::skeleton_step()].into_iter().map(|e| e.location().clone()).collect() });
 
 /// java: public class MuteSpiderSounds
 #[derive(Clone)]
