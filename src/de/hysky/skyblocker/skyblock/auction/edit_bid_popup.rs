@@ -176,7 +176,8 @@ impl EditBidPopup {
         compat::write(__this, |__t| {
             let layout = std::mem::replace(&mut __t.layout, LinearLayout::vertical());
             __t.layout = layout.spacing(8);
-            __t.layout.default_cell_setting().align_horizontally_center();
+            // (the port's `LayoutSettings` setters answer a new value: written back to the cell defaults)
+            { let __s = __t.layout.default_cell_setting(); *__s = (*__s).align_horizontally_center(); }
         });
         let __this_w1 = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
         { let __v = Some((EnterConfirmTextFieldWidget::new(compat::font(), 120, 15, component::empty(), Arc::new(move || { let Some(__this_1) = __this_w1.get().upgrade() else { return Default::default(); }; { EditBidPopup::done((&__this_1), None::<&AbstractWidget> /* java: null */); } })) as compat::Shared<dyn FilteredEditBox>)); compat::write(__this, |__t| __t.text_field_widget = __v); }

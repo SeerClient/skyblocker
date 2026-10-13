@@ -72,10 +72,14 @@ impl ChatRulesConfigListWidget {
         compat::write(__this, |__t| { let __l = &mut __t.base; __l.clear_entries() });
         let __entry = (LabelsEntry::new() as compat::Shared<dyn AbstractChatRuleEntry>);
         compat::write(__this, |__t| { let __l = &mut __t.base; (__l.add_entry(Box::new(compat::EntryAdapter::new(__entry))) as i32) });
-        // TODO(fabric2seer): `.size(..)` on a T
         //   java: for (int i = 0; i < ChatRulesHandler.CHAT_RULE_LIST.getData().size(); i++) {
         //   java: 			addEntry(new ChatRuleEntry(i));
         //   java: 		}
+        let size: i32 = chat_rules_handler::CHAT_RULE_LIST.get().lock().borrow().get_data().len() as i32;
+        for i in 0..size {
+            let __entry = (ChatRuleEntry::new(std::sync::Arc::downgrade(__this), i) as compat::Shared<dyn AbstractChatRuleEntry>);
+            compat::write(__this, |__t| { let __l = &mut __t.base; (__l.add_entry(Box::new(compat::EntryAdapter::new(__entry))) as i32) });
+        }
     }
 
     /// java: @Override public int getRowWidth()
@@ -94,8 +98,15 @@ impl ChatRulesConfigListWidget {
         // java: int newIndex = Math.max(children().indexOf(getSelected()), 0); - `indexOf(null)` is -1; the rows keep identity equality
         let __selected: Option<compat::Shared<dyn AbstractChatRuleEntry>> = compat::write(__this, |__t| { let __l = &mut __t.base; __l.get_selected().and_then(|__i| compat::entry_at::<dyn AbstractChatRuleEntry>(__l, __i)) });
         let mut new_index: i32 = ((compat::write(__this, |__t| { let __l = &mut __t.base; compat::list_entries::<dyn AbstractChatRuleEntry>(__l) })).iter().position(|e| __selected.as_ref().is_some_and(|s| std::sync::Arc::ptr_eq(e, s))).map_or(-1, |i| i as i32)).max(0);
-        // TODO(fabric2seer): `.add(..)` on a T
         //   java: ChatRulesHandler.CHAT_RULE_LIST.getData().add(newIndex, new ChatRule());
+        // (`getData()` is the list object itself: the port's `get_data` answers a copy of the handles, so the list is
+        // changed and handed back)
+        {
+            let list = chat_rules_handler::CHAT_RULE_LIST.get().clone();
+            let mut data = list.lock().borrow().get_data();
+            data.insert(new_index as usize, ChatRule::new());
+            list.lock().borrow_mut().set_data(data);
+        }
         ChatRulesConfigListWidget::update_entries(__this);
         if new_index.wrapping_add(1) >= ((compat::write(__this, |__t| { let __l = &mut __t.base; compat::list_entries::<dyn AbstractChatRuleEntry>(__l) })).len() as i32) {
             return;
@@ -245,7 +256,12 @@ impl compat::RowHalf for dyn AbstractChatRuleEntry {
 impl ModListEntry for compat::EntryAdapter<dyn AbstractChatRuleEntry> {
     /// java: @Override public void extractContent(GuiGraphicsExtractor graphics, int mouseX, int mouseY, boolean hovered, float a)
     fn extract_content(&mut self, list: &mut ModSelectionList, index: usize, context: &mut WidgetRenderContext<'_>, mouse_x: i32, mouse_y: i32, hovered: bool, a: f32) {
-        self.lend(Some(list.list.entry(index)), |__h| { if let Some(__c) = compat::try_view::<ChatRuleEntry, _>(__h) { return ChatRuleEntry::extract_content(&*__c, &context.graphics, mouse_x, mouse_y, hovered, a); } if let Some(__c) = compat::try_view::<LabelsEntry, _>(__h) { return LabelsEntry::extract_content(&*__c, &mut context.graphics, mouse_x, mouse_y, hovered, a); }  });
+        // the list places its rows (`AbstractSelectionList.repositionEntries` -> `entry.setX / setY`): the port's list
+        // keeps the row's box and hands it here, so a row's `setX` / `setY` overrides run with it before it draws
+        let (row_x, row_y) = { let __e = list.list.entry(index); (__e.get_x(), __e.get_y()) };
+        let row_width: i32 = list.list.get_width();
+        let (row_left, row_right) = (list.list.get_row_left(), list.list.get_row_right());
+        self.lend(Some(list.list.entry(index)), |__h| { if let Some(__c) = compat::try_view::<ChatRuleEntry, _>(__h) { ChatRuleEntry::set_x(&*__c, row_x); ChatRuleEntry::set_y(&*__c, row_y); return ChatRuleEntry::extract_content(&*__c, &context.graphics, mouse_x, mouse_y, hovered, a); } if let Some(__c) = compat::try_view::<LabelsEntry, _>(__h) { return LabelsEntry::extract_content(&*__c, &mut context.graphics, mouse_x, mouse_y, hovered, a, row_width, row_left, row_right); }  });
         // the row's widgets (Java's `child.extractRenderState(..)` over `children()`)
         context.extract_widgets(&mut self.row, mouse_x, mouse_y);
     }
@@ -256,7 +272,16 @@ impl ModListEntry for compat::EntryAdapter<dyn AbstractChatRuleEntry> {
 
     /// java: @Override public boolean mouseClicked(MouseButtonEvent click, boolean doubled)
     fn mouse_clicked(&mut self, list: &mut ModSelectionList, index: usize, event: &MouseButtonEvent, double_click: bool) -> bool {
-        self.lend(Some(list.list.entry(index)), |__h| { if let Some(__c) = compat::try_view::<ChatRuleEntry, _>(__h) { return ChatRuleEntry::mouse_clicked(&*__c, event, double_click); } false })
+        let clicked: Option<bool> = self.lend(Some(list.list.entry(index)), |__h| { if let Some(__c) = compat::try_view::<ChatRuleEntry, _>(__h) { return Some(ChatRuleEntry::mouse_clicked(&*__c, event, double_click)); } None });
+        match clicked {
+            // `ChatRuleEntry.mouseClicked`'s `setSelected(this)`, on the list the game hands the row
+            Some(answer) => {
+                list.set_selected(Some(index));
+                answer
+            }
+            // `LabelsEntry` keeps `ContainerObjectSelectionList.Entry.mouseClicked` - its children (none)
+            None => compat::children_mouse_clicked(&mut self.row, event),
+        }
     }
 
 }
@@ -303,16 +328,19 @@ impl LabelsEntry {
     }
 
     /// java: @Override public void extractContent(GuiGraphicsExtractor graphics, int mouseX, int mouseY, boolean hovered, float a)
-    pub fn extract_content(__this: &compat::Shared<Self>, graphics: &mut GuiGraphicsExtractor, mut mouse_x: i32, mut mouse_y: i32, mut hovered: bool, mut a: f32) {
-        // TODO(fabric2seer): unknown name `minecraft`
+    ///
+    /// `list_width`, `row_left`, `row_right` are `ChatRulesConfigListWidget.this.getWidth()` / `getRowLeft()` /
+    /// `getRowRight()` (the row adapter is handed the list).
+    pub fn extract_content(__this: &compat::Shared<Self>, graphics: &mut GuiGraphicsExtractor, mut mouse_x: i32, mut mouse_y: i32, mut hovered: bool, mut a: f32, list_width: i32, row_left: i32, row_right: i32) {
+        let y: i32 = compat::read(__this, |__t| __t.base.base.get_y());
         //   java: graphics.centeredText(minecraft.font, Component.translatable("skyblocker.config.chat.chatRules.screen.ruleName"), ChatRulesConfigListWidget.this.getWidth() / 2 - 100, this.getY() + 5, CommonColors.WHITE);
-        // TODO(fabric2seer): unknown name `minecraft`
+        mcrust::net::minecraft::client::gui::gui_graphics_extractor::centered_text(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), &mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::translatable("skyblocker.config.chat.chatRules.screen.ruleName")), (list_width / 2).wrapping_sub(100), y.wrapping_add(5), mcrust::net::minecraft::util::common_colors::WHITE);
         //   java: graphics.centeredText(minecraft.font, Component.translatable("skyblocker.config.chat.chatRules.screen.ruleEnabled"), ChatRulesConfigListWidget.this.getWidth() / 2 - 10, this.getY() + 5, CommonColors.WHITE);
-        // TODO(fabric2seer): unknown name `minecraft`
+        mcrust::net::minecraft::client::gui::gui_graphics_extractor::centered_text(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), &mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::translatable("skyblocker.config.chat.chatRules.screen.ruleEnabled")), (list_width / 2).wrapping_sub(10), y.wrapping_add(5), mcrust::net::minecraft::util::common_colors::WHITE);
         //   java: graphics.centeredText(minecraft.font, Component.translatable("skyblocker.config.chat.chatRules.screen.modify"), ChatRulesConfigListWidget.this.getWidth() / 2 + 77, this.getY() + 5, CommonColors.WHITE);
-        // TODO(fabric2seer): `Entry.getRowLeft` has no Rust method in the port (looked for `get_row_left` in ContainerObjectSelectionList and JavaSrc)
-        // TODO(fabric2seer): `Entry.getRowRight` has no Rust method in the port (looked for `get_row_right` in ContainerObjectSelectionList and JavaSrc)
-        // rust: graphics.fill(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), __this.lock().borrow().get_row_left(), (__this.lock().borrow().get_y()).wrapping_add(15), __this.lock().borrow().get_row_right(), (__this.lock().borrow().get_y()).wrapping_add(16), mcrust::net::minecraft::util::common_colors::LIGHT_GRAY);
+        mcrust::net::minecraft::client::gui::gui_graphics_extractor::centered_text(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), &mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::translatable("skyblocker.config.chat.chatRules.screen.modify")), (list_width / 2).wrapping_add(77), y.wrapping_add(5), mcrust::net::minecraft::util::common_colors::WHITE);
+        //   java: graphics.fill(getRowLeft(), getY() + 15, getRowRight(), getY() + 16, CommonColors.LIGHT_GRAY);
+        graphics.fill(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), row_left, y.wrapping_add(15), row_right, y.wrapping_add(16), mcrust::net::minecraft::util::common_colors::LIGHT_GRAY);
     }
 
 }
@@ -346,7 +374,9 @@ impl compat::RowHalf for LabelsEntry {
 impl ModListEntry for compat::EntryAdapter<LabelsEntry> {
     /// java: @Override public void extractContent(GuiGraphicsExtractor graphics, int mouseX, int mouseY, boolean hovered, float a)
     fn extract_content(&mut self, list: &mut ModSelectionList, index: usize, context: &mut WidgetRenderContext<'_>, mouse_x: i32, mouse_y: i32, hovered: bool, a: f32) {
-        self.lend(Some(list.list.entry(index)), |__h| LabelsEntry::extract_content(__h, &mut context.graphics, mouse_x, mouse_y, hovered, a));
+        let list_width: i32 = list.list.get_width();
+        let (row_left, row_right) = (list.list.get_row_left(), list.list.get_row_right());
+        self.lend(Some(list.list.entry(index)), |__h| LabelsEntry::extract_content(__h, &mut context.graphics, mouse_x, mouse_y, hovered, a, list_width, row_left, row_right));
         // the row's widgets (Java's `child.extractRenderState(..)` over `children()`)
         context.extract_widgets(&mut self.row, mouse_x, mouse_y);
     }
@@ -367,10 +397,12 @@ pub struct ChatRuleEntry {
     pub chat_rule: compat::Shared<ChatRule>,
     /// java: private final StringWidget nameWidget;
     pub name_widget: Option<compat::WidgetRef>,
-    /// java: private final List<? extends GuiEventListener> children;
-    pub children: Vec<AbstractWidget>,
+    /// java: private final List<? extends GuiEventListener> children; - the three layout widgets, in the row's widget list
+    pub children: Vec<compat::WidgetRef>,
     /// java: private final LinearLayout layout;
     pub layout: Option<LinearLayout>,
+    /// `ChatRulesConfigListWidget.this` (an inner class)
+    pub outer: compat::WeakShared<ChatRulesConfigListWidget>,
     /// the object's own shared handle: Java's `this` handed to other objects
     pub self_ref: compat::WeakShared<Self>,
 }
@@ -390,31 +422,36 @@ impl std::ops::DerefMut for ChatRuleEntry {
 
 impl ChatRuleEntry {
     /// java: private ChatRuleEntry(int chatRuleIndex)
-    pub fn new(mut chat_rule_index: i32) -> compat::Shared<Self> {
+    pub fn new(outer: compat::WeakShared<ChatRulesConfigListWidget>, mut chat_rule_index: i32) -> compat::Shared<Self> {
         let __init_chat_rule_index = chat_rule_index;
-        // TODO(fabric2seer): `.get(..)` on a T
         //   java: this.chatRule = ChatRulesHandler.CHAT_RULE_LIST.getData().get(chatRuleIndex);
+        let chat_rule: compat::Shared<ChatRule> = chat_rules_handler::CHAT_RULE_LIST.get().lock().borrow().get_data()[chat_rule_index as usize].clone();
+        let __init_outer = outer.clone();
         let (_, __this) = AbstractChatRuleEntryBase::new_in(move |__base| {
             let __h = compat::shared(Self {
                 base: __base,
                 self_ref: std::sync::Weak::new(),
                 chat_rule_index: __init_chat_rule_index,
-                chat_rule: todo!("fabric2seer: the field value (TODO above)"),
+                chat_rule,
                 name_widget: None,
                 children: Default::default(),
                 layout: None,
+                outer: __init_outer,
             });
             compat::write(&__h, |__t| __t.self_ref = std::sync::Arc::downgrade(&__h));
             ((__h.clone() as compat::Shared<dyn AbstractChatRuleEntry>), __h)
         });
-        // TODO(fabric2seer): unknown name `minecraft`
+        let chat_rule: compat::Shared<ChatRule> = compat::read(&__this, |__t| __t.chat_rule.clone());
         //   java: nameWidget = new StringWidget(Component.literal(chatRule.getName()), minecraft.font);
-        // TODO(fabric2seer): field `SCROLLING` of a value of unknown type
         //   java: nameWidget.setMaxWidth(110, StringWidget.TextOverflow.SCROLLING);
-        // TODO(fabric2seer): field `HORIZONTAL` of a value of unknown type
+        let mut name_widget: AbstractWidget = compat::string_widget(0, 0, -1, mcrust::net::minecraft::client::gui::font::LINE_HEIGHT, component::literal(&ChatRule::get_name(&chat_rule)));
+        name_widget.set_max_width(110, mcrust::net::minecraft::client::gui::components::string_widget::TextOverflow::Scrolling);
+        let __name_index = compat::write(&__this, |__t| __t.base.__row.add_renderable_widget(name_widget));
+        compat::write(&__this, |__t| __t.name_widget = Some(compat::WidgetRef::Screen(__name_index)));
         //   java: layout = new LinearLayout(0, 0, LinearLayout.Orientation.HORIZONTAL);
-        __this.lock().borrow_mut().layout.as_mut().unwrap().default_cell_setting().padding_right(10).padding_top(3);
-        // TODO(fabric2seer): unknown name `minecraft`
+        //   java: layout.defaultCellSetting().paddingRight(10).paddingTop(3);
+        let mut layout: LinearLayout = LinearLayout::new(0, 0, mcrust::net::minecraft::client::gui::layouts::linear_layout::Orientation::Horizontal);
+        { let __s = layout.default_cell_setting(); *__s = __s.clone().padding_right(10).padding_top(3); }
         //   java: Checkbox enabledCheck = layout.addChild(Checkbox.builder(Component.empty(), minecraft.font)
         //   java: 					.selected(chatRule.getEnabled())
         //   java: 					.onValueChange((_, value) -> {
@@ -422,16 +459,50 @@ impl ChatRuleEntry {
         //   java: 						chatRule.setEnabled(value);
         //   java: 					})
         //   java: 					.build(), s -> s.padding(16, 4, 23, 0));
-        let mut enabled_check: AbstractWidget = todo!("fabric2seer: the initialiser of `enabledCheck` (TODO above)");
-        // TODO(fabric2seer): unknown name `minecraft`
+        let __outer = compat::RenderThread::new(outer.clone());
+        let __rule = compat::RenderThread::new(chat_rule.clone());
+        let enabled_check: AbstractWidget = compat::checkbox(mcrust::net::minecraft::network::chat::formatted_text::FormattedText::Empty, 0, 0, None, ChatRule::get_enabled(&chat_rule), move |value: bool| {
+            if let Some(outer) = __outer.get().upgrade() {
+                compat::write(&outer, |__t| __t.has_changed = true);
+            }
+            ChatRule::set_enabled(__rule.get(), value);
+        });
+        let (__ew, __eh) = (enabled_check.get_width(), enabled_check.get_height());
+        let __enabled_index = compat::write(&__this, |__t| __t.base.__row.add_renderable_widget(enabled_check));
+        layout.add_child_adjusted(LayoutElement::widget(__enabled_index, __ew, __eh), &mut |s| { *s = s.clone().padding_ltrb(16, 4, 23, 0); });
         //   java: Button openConfigButton = layout.addChild(Button.builder(Component.translatable("skyblocker.config.chat.chatRules.screen.editRule"), _ -> minecraft.gui.setScreen(new ChatRuleConfigScreen(screen, chatRuleIndex))).size(50, 20).tooltip(Tooltip.create(Component.translatable("skyblocker.config.chat.chatRules.screen.editRule.@Tooltip"))).build());
-        let mut open_config_button: AbstractWidget = todo!("fabric2seer: the initialiser of `openConfigButton` (TODO above)");
-        // TODO(fabric2seer): unknown name `minecraft`
+        // (`new ChatRuleConfigScreen(screen, ..)` holds the rules screen as its parent: the game keeps it)
+        let open_config_button: AbstractWidget = mcrust::net::minecraft::client::gui::components::button::builder(component::translatable("skyblocker.config.chat.chatRules.screen.editRule").get_string(), mcrust::net::minecraft::client::gui::components::abstract_widget::OnPress::Lambda(mcrust::net::minecraft::client::gui::components::abstract_widget::PressLambda::new(move |_screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, _index: usize| {
+            mcrust::mcrust::modding::game::set_screen_keeping_parent(Box::new(compat::ScreenAdapter::new(crate::de::hysky::skyblocker::skyblock::chat::chat_rule_config_screen::ChatRuleConfigScreen::new(__init_chat_rule_index))));
+        }))).size(50, 20).tooltip_text(Some((mcrust::net::minecraft::client::gui::components::tooltip::Tooltip::create((component::translatable("skyblocker.config.chat.chatRules.screen.editRule.@Tooltip")).get_string())).message.clone())).build();
+        let (__ow, __oh) = (open_config_button.get_width(), open_config_button.get_height());
+        let __open_index = compat::write(&__this, |__t| __t.base.__row.add_renderable_widget(open_config_button));
+        layout.add_child(LayoutElement::widget(__open_index, __ow, __oh));
         //   java: Button deleteButton = layout.addChild(Button.builder(Component.translatable("selectServer.delete"), _ ->
         //   java: 				minecraft.gui.setScreen(new ConfirmScreen(this::deleteEntry, Component.translatable("skyblocker.config.chat.chatRules.screen.deleteQuestion"), Component.translatable("skyblocker.config.chat.chatRules.screen.deleteWarning", chatRule.getName()), Component.translatable("selectServer.deleteButton"), CommonComponents.GUI_CANCEL))
         //   java: 			).size(50, 20).build());
-        let mut delete_button: AbstractWidget = todo!("fabric2seer: the initialiser of `deleteButton` (TODO above)");
-        { let __v = vec![enabled_check.clone(), open_config_button.clone(), delete_button.clone()]; compat::write(&__this, |__t| __t.children = __v); }
+        let __this_w = compat::RenderThread::new(std::sync::Arc::downgrade(&__this));
+        let delete_button: AbstractWidget = mcrust::net::minecraft::client::gui::components::button::builder(component::translatable("selectServer.delete").get_string(), mcrust::net::minecraft::client::gui::components::abstract_widget::OnPress::Lambda(mcrust::net::minecraft::client::gui::components::abstract_widget::PressLambda::new(move |_screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, _index: usize| {
+            let Some(__entry) = __this_w.get().upgrade() else { return; };
+            let rule_name: String = compat::read(&__entry, |__t| ChatRule::get_name(&__t.chat_rule));
+            let __entry_w = compat::RenderThread::new(std::sync::Arc::downgrade(&__entry));
+            mcrust::mcrust::modding::game::set_screen_keeping_parent(Box::new(compat::ConfirmScreen::new(
+                move |confirmed_action: bool| {
+                    let Some(__entry) = __entry_w.get().upgrade() else { return; };
+                    ChatRuleEntry::delete_entry(&__entry, confirmed_action);
+                },
+                component::translatable("skyblocker.config.chat.chatRules.screen.deleteQuestion"),
+                component::translatable_args("skyblocker.config.chat.chatRules.screen.deleteWarning", vec![mcrust::net::minecraft::network::chat::formatted_text::FormattedText::of(rule_name)]),
+                component::translatable("selectServer.deleteButton"),
+                mcrust::net::minecraft::network::chat::common_components::gui_cancel(),
+            )));
+        }))).size(50, 20).build();
+        let (__dw, __dh) = (delete_button.get_width(), delete_button.get_height());
+        let __delete_index = compat::write(&__this, |__t| __t.base.__row.add_renderable_widget(delete_button));
+        layout.add_child(LayoutElement::widget(__delete_index, __dw, __dh));
+        compat::write(&__this, |__t| __t.layout = Some(layout));
+        //   java: children = List.of(enabledCheck, openConfigButton, deleteButton);
+        { let __v = vec![compat::WidgetRef::Screen(__enabled_index), compat::WidgetRef::Screen(__open_index), compat::WidgetRef::Screen(__delete_index)]; compat::write(&__this, |__t| __t.children = __v); }
         __this
     }
 
@@ -455,42 +526,55 @@ impl ChatRuleEntry {
 
     /// java: @Override public boolean mouseClicked(MouseButtonEvent click, boolean doubled)
     pub fn mouse_clicked(__this: &compat::Shared<Self>, click: &MouseButtonEvent, mut doubled: bool) -> bool {
-        // TODO(fabric2seer): `mouse_clicked` takes 4 argument(s) in the port (`_button: i32, _x: f64, _y: f64, _double_click: bool`), Java passes 2
-        // TODO(fabric2seer): `mouse_clicked` is a method of the port's trait `GuiEventListener`, which the port's `Entry` does not implement
-        // rust: { let (__q0, __q1,) = (click.clone(), doubled,); __this.lock().borrow_mut().base.mouse_clicked(__q0, __q1) };
-        // TODO(fabric2seer): `Entry.setSelected` has no Rust method in the port (looked for `set_selected` in ContainerObjectSelectionList and JavaSrc)
-        // rust: let __h0 = __this;
-        // rust: __this.lock().borrow().set_selected(__h0);
+        //   java: super.mouseClicked(click, doubled); - `ContainerEventHandler.mouseClicked` over `children()` (the row's
+        //   widgets, lent to this call)
+        compat::write(__this, |__t| compat::children_mouse_clicked(&mut __t.base.__row, click));
+        //   java: setSelected(this); - the list's, made by the row adapter with the list it is handed (see
+        //   `ModListEntry::mouse_clicked` below)
         return true;
     }
 
     /// java: private void deleteEntry(boolean confirmedAction)
     pub fn delete_entry(__this: &compat::Shared<Self>, mut confirmed_action: bool) {
+        let outer = compat::read(__this, |__t| __t.outer.upgrade());
         if confirmed_action {
-            // TODO(fabric2seer): `.remove(..)` on a T
             //   java: ChatRulesHandler.CHAT_RULE_LIST.getData().remove(chatRuleIndex);
-            // TODO(fabric2seer): `removeEntry(..)` is a method of the enclosing instance (ChatRulesConfigListWidget.this) - an inner class has no outer reference in Rust
+            {
+                let list = chat_rules_handler::CHAT_RULE_LIST.get().clone();
+                let mut data = list.lock().borrow().get_data();
+                data.remove(compat::read(__this, |__t| __t.chat_rule_index) as usize);
+                list.lock().borrow_mut().set_data(data);
+            }
             //   java: removeEntry(this);
+            // rust: port gap - the confirm screen's callback runs while the game holds the list (the rules screen is
+            // not up), so the list object's own half is the one changed here, not the live list (GAPS_K)
+            if let Some(outer) = &outer {
+                let __self: compat::Shared<dyn AbstractChatRuleEntry> = __this.clone();
+                ChatRulesConfigListWidget::remove_entry(outer, &__self);
+            }
         }
-        // TODO(fabric2seer): unknown name `minecraft`
-        //   java: minecraft.gui.setScreen(screen);
-        // TODO(fabric2seer): `updateEntries(..)` is a method of the enclosing instance (ChatRulesConfigListWidget.this) - an inner class has no outer reference in Rust
+        //   java: minecraft.gui.setScreen(screen); - the rules screen, which the confirm screen holds as its parent
+        mcrust::mcrust::modding::game::set_screen_to_parent();
         //   java: updateEntries();
+        if let Some(outer) = &outer {
+            ChatRulesConfigListWidget::update_entries(outer);
+        }
     }
 
     /// java: @Override public void extractContent(GuiGraphicsExtractor graphics, int mouseX, int mouseY, boolean hovered, float a)
     pub fn extract_content(__this: &compat::Shared<Self>, graphics: &GuiGraphicsExtractor, mut mouse_x: i32, mut mouse_y: i32, mut hovered: bool, mut a: f32) {
-        // TODO(fabric2seer): `extract_render_state` is a method of the port's trait `Renderable`, which the port's `AbstractWidget` does not implement
-        // rust: let __wa1 = graphics.clone();
-        // rust: let __wa2 = mouse_x;
-        // rust: let __wa3 = mouse_y;
-        // rust: let __wa4 = a;
-        // rust: compat::write(__this, |__t| { let __s = &mut *__t; let __r = __s.name_widget.as_mut().unwrap(); __s.base.__widgets.with(&mut __s.base.__row, __r, |__w| __w.extract_render_state(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), __wa2, __wa3, __wa4)) });
+        //   java: nameWidget.extractRenderState(graphics, mouseX, mouseY, a);
+        //   java: layout.visitWidgets(child -> child.extractRenderState(graphics, mouseX, mouseY, a));
+        // (both are in the row's widget list, which the row adapter draws after this call: they are marked renderable)
+        let __name = compat::read(__this, |__t| __t.name_widget.clone());
+        if let Some(compat::WidgetRef::Screen(__i)) = __name {
+            compat::write(__this, |__t| __t.base.__row.mark_renderable(__i));
+        }
         { let mut __vw = Vec::new(); LayoutElement::Grid(__this.lock().borrow().layout.as_ref().unwrap().wrapped.clone()).visit_widgets(&mut __vw); for (__i, _, _) in __vw { compat::write(__this, |__t| __t.base.__row.mark_renderable(__i)); } };
     }
 
     /// java: @Override public List<? extends GuiEventListener> children()
-    pub fn children(__this: &compat::Shared<Self>) -> Vec<AbstractWidget> {
+    pub fn children(__this: &compat::Shared<Self>) -> Vec<compat::WidgetRef> {
         return compat::read(__this, |__t| __t.children.clone());
     }
 
@@ -523,9 +607,10 @@ impl AbstractChatRuleEntry for ChatRuleEntry {
 impl ChatRuleEntry {
     /// java: @Override public boolean hasChanged()
     pub fn has_changed_impl(__this: &compat::Shared<Self>) -> bool {
-        // TODO(fabric2seer): `.get(..)` on a T
         //   java: return chatRule.getEnabled() != ChatRulesHandler.CHAT_RULE_LIST.getData().get(chatRuleIndex).getEnabled();
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        let chat_rule = compat::read(__this, |__t| __t.chat_rule.clone());
+        let listed: compat::Shared<ChatRule> = chat_rules_handler::CHAT_RULE_LIST.get().lock().borrow().get_data()[compat::read(__this, |__t| __t.chat_rule_index) as usize].clone();
+        return ChatRule::get_enabled(&chat_rule) != ChatRule::get_enabled(&listed);
     }
 
     /// ChatRuleEntry.hasChanged as the dispatch of AbstractChatRuleEntry.hasChanged

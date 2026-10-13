@@ -30,14 +30,13 @@ use mcrust::net::minecraft::network::chat::component::Component as _;
 pub static TEXTURE: compat::MainThread<compat::Shared<dyn FallbackedTexture<Identifier>>> = compat::MainThread::new(|| fallbacked_texture::of_texture(&crate::entry::skyblocker_mod::id("textures/gui/container/skyblock_crafting_table.png"), &Identifier::with_default_namespace("textures/gui/container/crafting_table.png")));
 /// java: private static final FallbackedTexture<Identifier> MIRRORVERSE_TEXTURE = FallbackedTexture.ofTexture( SkyblockerMod.id("textures/gui/container/skyblock_crafting_table_mirroverse.png"), Identifier.with
 pub static MIRRORVERSE_TEXTURE: compat::MainThread<compat::Shared<dyn FallbackedTexture<Identifier>>> = compat::MainThread::new(|| fallbacked_texture::of_texture(&crate::entry::skyblocker_mod::id("textures/gui/container/skyblock_crafting_table_mirroverse.png"), &Identifier::with_default_namespace("textures/gui/container/crafting_table.png")));
-// TODO(fabric2seer): the port's `new` ports this Java method with other parameters (enabled, disabled, enabled_focused, disabled_focused for Java's enabled, disabled, focused)
 //   java: protected static final WidgetSprites MORE_CRAFTS_TEXTURES = new WidgetSprites(
 //   java: 			SkyblockerMod.id("quick_craft/more_button"),
 //   java: 			SkyblockerMod.id("quick_craft/more_button_disabled"),
 //   java: 			SkyblockerMod.id("quick_craft/more_button_highlighted")
 //   java: 	);
 /// java: protected static final WidgetSprites MORE_CRAFTS_TEXTURES = new WidgetSprites( SkyblockerMod.id("quick_craft/more_button"), SkyblockerMod.id("quick_craft/more_button_disabled"), SkyblockerMod.id("quic
-pub static MORE_CRAFTS_TEXTURES: compat::MainThread<WidgetSprites> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `MORE_CRAFTS_TEXTURES` - see the TODO above"));
+pub static MORE_CRAFTS_TEXTURES: compat::MainThread<WidgetSprites> = compat::MainThread::new(|| WidgetSprites::with_disabled(crate::entry::skyblocker_mod::id("quick_craft/more_button"), crate::entry::skyblocker_mod::id("quick_craft/more_button_disabled"), crate::entry::skyblocker_mod::id("quick_craft/more_button_highlighted")));
 /// java: protected static final Identifier QUICK_CRAFT = SkyblockerMod.id("textures/gui/sprites/quick_craft/quick_craft_overlay.png");
 pub static QUICK_CRAFT: compat::MainThread<Identifier> = compat::MainThread::new(|| crate::entry::skyblocker_mod::id("textures/gui/sprites/quick_craft/quick_craft_overlay.png"));
 
@@ -51,6 +50,9 @@ pub struct SkyblockCraftingTableScreen {
     pub narrow: bool,
     /// java: private ImageButton moreCraftsButton;
     pub more_crafts_button: Option<AbstractWidget>,
+    /// java: `AbstractContainerScreen.menu` - the screen's handler (the port's container screen holds no menu of its
+    /// own: the mod's object is kept here)
+    pub menu: compat::Shared<SkyblockCraftingTableScreenHandler>,
 }
 
 impl std::ops::Deref for SkyblockCraftingTableScreen {
@@ -78,6 +80,7 @@ impl SkyblockCraftingTableScreen {
             recipe_book: SkyblockRecipeBookComponent::new(mcrust::net::minecraft::world::inventory::abstract_container_menu::AbstractContainerMenu::new(__container_id)),
             narrow: false,
             more_crafts_button: None,
+            menu: handler.clone(),
         });
         __this
     }
@@ -109,16 +112,21 @@ impl SkyblockCraftingTableScreen {
         // rust: { let (__q0, __q1,) = ((__r0).wrapping_add(152), (__r1).wrapping_add(63),); (&__this_4).lock().borrow_mut().more_crafts_button.as_mut().unwrap().set_position(__q0, __q1) };
         // rust: }
         // rust: } })),); __this.lock().borrow_mut().screen.add_renderable_widget(__q0) };
-        // TODO(fabric2seer): `AbstractContainerScreen.menu` has no Rust field in the port (searched net.minecraft.client.gui.screens.inventory.AbstractContainerScreen and its supertypes)
-        // TODO(fabric2seer): the condition: field `mirrorverse` of a T
-        //   java: !menu.mirrorverse
-        if todo!("fabric2seer: the condition (TODO above)") {
-            // TODO(fabric2seer): field `slots` of a T
-            //   java: moreCraftsButton = new ImageButton(this.leftPos + 152, topPos + 63, 16, 16, MORE_CRAFTS_TEXTURES,
-            //   java: 					_ -> this.slotClicked(menu.slots.get(26), menu.slots.get(26).index, 0, ContainerInput.PICKUP));
-            // TODO(fabric2seer): `ImageButton.setTooltipDelay` has no Rust method in the port (looked for `set_tooltip_delay` in ImageButton and its supertypes)
-            // rust: let __h0 = &std::time::Duration::from_millis((250) as u64);
-            // rust: __this.lock().borrow().more_crafts_button.as_ref().unwrap().set_tooltip_delay(__h0);
+        // java: if (!menu.mirrorverse)
+        let __menu = compat::read(__this, |__t| __t.menu.clone());
+        let (__mirrorverse, __container_id) = compat::read(&__menu, |__m| (__m.mirrorverse, __m.base.container_id));
+        if !__mirrorverse {
+            // java: moreCraftsButton = new ImageButton(this.leftPos + 152, topPos + 63, 16, 16, MORE_CRAFTS_TEXTURES,
+            //         _ -> this.slotClicked(menu.slots.get(26), menu.slots.get(26).index, 0, ContainerInput.PICKUP));
+            // (`slotClicked`'s base is `gameMode.handleContainerInput(menu.containerId, slot.index, ..)`; the recipe
+            // book's half of this override is a port gap, see `slot_clicked`)
+            let (__x, __y) = compat::read(__this, |__t| (__t.left_pos.wrapping_add(152), __t.top_pos.wrapping_add(63)));
+            let __button = AbstractWidget::new(__x, __y, 16, 16, mcrust::net::minecraft::client::gui::components::image_button::DEFAULT_MESSAGE.to_string(), mcrust::net::minecraft::client::gui::components::abstract_widget::WidgetKind::ImageButton(MORE_CRAFTS_TEXTURES.get().clone()), OnPress::Lambda(PressLambda::new(move |_: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, _: usize| {
+                compat::handle_container_input(__container_id, 26, 0, mcrust::net::minecraft::world::inventory::container_input::ContainerInput::Pickup);
+            })));
+            compat::write(__this, |__t| __t.more_crafts_button = Some(__button));
+            // java: moreCraftsButton.setTooltipDelay(Duration.ofMillis(250));
+            compat::write(__this, |__t| __t.more_crafts_button.as_mut().unwrap().set_tooltip_delay(250));
             { let (__q0,) = (Tooltip::create(component::literal("More Crafts").get_string()),); __this.lock().borrow_mut().more_crafts_button.as_mut().unwrap().set_tooltip(__q0) };
             let __r0 = compat::read(__this, |__t| __t.more_crafts_button.clone());
             { let (__q0,) = (__r0.unwrap(),); __this.lock().borrow_mut().screen.add_renderable_widget(__q0) };
@@ -139,9 +147,8 @@ impl SkyblockCraftingTableScreen {
         if compat::read(__this, |__t| __t.more_crafts_button.clone()).is_none() {
             return;
         }
-        // TODO(fabric2seer): field `slots` of a T
-        //   java: ItemStack stack = menu.slots.get(26).getItem();
-        let mut stack: mcrust::net::minecraft::world::item::item_stack::ItemStack = todo!("fabric2seer: the initialiser of `stack` (TODO above)");
+        // java: ItemStack stack = menu.slots.get(26).getItem(); - the open menu's slot
+        let mut stack: mcrust::net::minecraft::world::item::item_stack::ItemStack = compat::with_open_menu(|menu, containers| menu.slots[26].get_item(containers).duplicate()).unwrap_or_else(mcrust::net::minecraft::world::item::item_stack::empty);
         __this.lock().borrow_mut().more_crafts_button.as_mut().unwrap().active = (stack.is_empty() || stack.is_item(&items::items().get("player_head")));
     }
 
@@ -167,9 +174,8 @@ impl SkyblockCraftingTableScreen {
 
     /// java: @Override protected void extractSlot(GuiGraphicsExtractor graphics, Slot slot, int mouseX, int mouseY)
     pub fn extract_slot(__this: &compat::Shared<Self>, graphics: &GuiGraphicsExtractor, slot: &Slot, mut mouse_x: i32, mut mouse_y: i32) {
-        // TODO(fabric2seer): `get_item` takes 1 argument(s) in the port (`containers: &'a Containers<'_>`), Java passes 0
-        // rust: let stack = slot.get_item();
-        let mut stack: mcrust::net::minecraft::world::item::item_stack::ItemStack = todo!("fabric2seer: the initialiser of `stack` (TODO above)");
+        // java: ItemStack stack = slot.getItem();
+        let mut stack: mcrust::net::minecraft::world::item::item_stack::ItemStack = compat::slot_item(slot);
         if slot.index == 23 && stack.is_item(&items::items().get("barrier")) {
             return;
         }
@@ -184,12 +190,13 @@ impl SkyblockCraftingTableScreen {
         compat::call_super();
         let mut i: i32 = compat::read(__this, |__t| __t.left_pos);
         let mut j: i32 = ((compat::read(__this, |__t| __t.screen.height)).wrapping_sub(compat::read(__this, |__t| __t.image_height))).wrapping_div(2);
-        // TODO(fabric2seer): field `mirrorverse` of a T
-        //   java: graphics.blit(RenderPipelines.GUI_TEXTURED, menu.mirrorverse ? MIRRORVERSE_TEXTURE.get() : TEXTURE.get(), i, j, 0, 0, this.imageWidth, this.imageHeight, 256, 256);
-        // TODO(fabric2seer): `AbstractContainerScreen.menu` has no Rust field in the port (searched net.minecraft.client.gui.screens.inventory.AbstractContainerScreen and its supertypes)
-        // TODO(fabric2seer): the condition: field `mirrorverse` of a T
-        //   java: TEXTURE.isUsingFallback() && !menu.mirrorverse
-        if todo!("fabric2seer: the condition (TODO above)") {
+        // java: graphics.blit(RenderPipelines.GUI_TEXTURED, menu.mirrorverse ? MIRRORVERSE_TEXTURE.get() : TEXTURE.get(), i, j, 0, 0, this.imageWidth, this.imageHeight, 256, 256);
+        let __mirrorverse: bool = { let __menu = compat::read(__this, |__t| __t.menu.clone()); compat::read(&__menu, |__m| __m.mirrorverse) };
+        let __texture: Identifier = compat::read(if __mirrorverse { MIRRORVERSE_TEXTURE.get() } else { TEXTURE.get() }, |__t| __t.get());
+        let (__iw, __ih) = compat::read(__this, |__t| (__t.image_width, __t.image_height));
+        gui_graphics_extractor::blit_identifier(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), mcrust::net::minecraft::client::renderer::render_pipelines::gui_textured(), &__texture, i, j, 0.0f32, 0.0f32, __iw, __ih, 256, 256);
+        // java: TEXTURE.isUsingFallback() && !menu.mirrorverse
+        if compat::read(TEXTURE.get(), |__t| __t.is_using_fallback()) && !__mirrorverse {
             gui_graphics_extractor::blit_identifier(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), mcrust::net::minecraft::client::renderer::render_pipelines::gui_textured(), QUICK_CRAFT.get_mut(), i.wrapping_add(143), j.wrapping_sub(3), ((0) as f32) as f32, ((0) as f32) as f32, 37, 90, 37, 90);
         }
     }

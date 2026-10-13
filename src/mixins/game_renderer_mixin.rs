@@ -44,5 +44,7 @@ pub fn register() {
     // TODO(fabric2seer): not registered - no Rust counterpart: hook_coverage.py: NO RUST - the port has no Rust body for this Java method, so a hook there has nothing to land on - the registration is left commented out (it would never fire, and `seer check` refuses an unhooked target)
     // report(hook::register_injector(`net.minecraft.client.renderer.GameRenderer#close`, InjectOptions::at(At::Tail).kind(InjectorKind::Inject).priority(1000), Arc::new(skyblocker_on_game_renderer_close)));
     report(hook::register_injector("net.minecraft.client.renderer.GameRenderer#nightVisionScale", InjectOptions::at(At::Return).kind(InjectorKind::ModifyReturnValue).priority(1000), Arc::new(on_get_night_vision_strength)));
-    // TODO(fabric2seer): @Inject skyblocker$onRenderGui: nothing to register - @At("CONSTANT") is not expressible: SeerClient hooks fire at a method's HEAD, RETURN and TAIL, and at a hooked CALLEE inside another hooked method (`within`); field access, `new`, constants and jumps are not hook points
+    // java: @At(CONSTANT "gui") in render - the `profiler.push("gui")` right before `this.guiRenderer.render()`
+    // (GameRenderer:446-447, its only caller); the port runs that call from the client loop, so it is GuiRenderer#render's HEAD.
+    report(hook::register_injector("net.minecraft.client.gui.render.GuiRenderer#render", InjectOptions::at(At::Head).kind(InjectorKind::Inject).priority(1000), Arc::new(skyblocker_on_render_gui)));
 }

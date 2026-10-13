@@ -184,7 +184,8 @@ impl ChatRuleConfigScreen {
         let mut __content_container = compat::WidgetRef::value(ContainerWidgetAdapter::widget(ContentContainer::new()));
         let (__i, __ww, __wh) = compat::write(__this, |__t| { let __s = &mut *__t; __s.__widgets.add_to_layout(&mut __s.base, &mut __content_container) });
         { let (__q0,) = (LayoutElement::widget(__i, __ww, __wh),); __this.lock().borrow_mut().layout.as_mut().unwrap().add_to_contents(__q0) };
-        __this.lock().borrow_mut().content.default_cell_setting().align_vertically_middle().align_horizontally_center().padding_top(GRID_SPACING);
+        // (the port's `LayoutSettings` setters answer a new value: written back to the cell defaults)
+        { let __s = __this.lock().borrow_mut().content.default_cell_setting(); *__s = (*__s).align_vertically_middle().align_horizontally_center().padding_top(GRID_SPACING); }
         let mut aligned_left: LayoutSettings = __this.lock().borrow().content.new_cell_settings().align_horizontally_left();
         let mut content_adder: RowHelper = __this.lock().borrow().content.create_row_helper(3);
         // TODO(fabric2seer): the port's `add_child_width` ports this Java method with other parameters (grid, child, column_width for Java's widget, column_width)

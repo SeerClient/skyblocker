@@ -95,7 +95,8 @@ impl EditBarColorPopup {
         compat::write(__this, |__t| {
             let layout = std::mem::replace(&mut __t.layout, LinearLayout::vertical());
             __t.layout = layout.spacing(8);
-            __t.layout.default_cell_setting().align_horizontally_center();
+            // (the port's `LayoutSettings` setters answer a new value: written back to the cell defaults)
+            { let __s = __t.layout.default_cell_setting(); *__s = (*__s).align_horizontally_center(); }
         });
         { let (__q0,) = ({ let __w = compat::string_widget(0, 0, -1, 9, { let (__q0,) = (&mcrust::net::minecraft::network::chat::style::Style::EMPTY.with_bold(Some(true)),); compat::IntoComponent::into_component(compat::read(__this, |__t| __t.title.clone())).with_style(__q0) }); let (__ww, __wh) = (__w.get_width(), __w.get_height()); LayoutElement::widget(compat::write(__this, |__t| __t.add_widget(__w)), __ww, __wh) },); __this.lock().borrow_mut().layout.add_child(__q0) };
         // java: LinearLayout colorLayout = layout.addChild(LinearLayout.horizontal().spacing(4)); - the port's layouts are

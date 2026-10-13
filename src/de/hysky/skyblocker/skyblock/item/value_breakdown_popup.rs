@@ -30,14 +30,13 @@ use mcrust::net::minecraft::network::chat::mutable_component::MutableComponent;
 use mcrust::net::minecraft::world::inventory::slot::Slot;
 use mcrust::net::minecraft::network::chat::component::Component as _;
 
-// TODO(fabric2seer): Fabric API `KeyMappingHelper.registerKeyMapping` has no SeerClient equivalent
 //   java: public static final KeyMapping KEY_BINDING = KeyMappingHelper.registerKeyMapping(new KeyMapping(
 //   java: 			"key.skyblocker.valueBreadownPopup",
 //   java: 			InputConstants.KEY_I,
 //   java: 			SkyblockerMod.KEYBINDING_CATEGORY
 //   java: 	));
 /// java: public static final KeyMapping KEY_BINDING = KeyMappingHelper.registerKeyMapping(new KeyMapping( "key.skyblocker.valueBreadownPopup", InputConstants.KEY_I, SkyblockerMod.KEYBINDING_CATEGORY ));
-pub static KEY_BINDING: compat::MainThread<mcrust::net::minecraft::client::key_mapping::KeyMapping> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `KEY_BINDING` - see the TODO above"));
+pub static KEY_BINDING: compat::MainThread<mcrust::net::minecraft::client::key_mapping::KeyMapping> = compat::MainThread::new(|| key_binding_helper::register_key_binding(mcrust::net::minecraft::client::key_mapping::KeyMapping::new("key.skyblocker.valueBreadownPopup", 73 /* InputConstants.KEY_I */, *crate::entry::skyblocker_mod::KEYBINDING_CATEGORY.get())));
 /// java: private static final Function<String, Component> EMPTY = _ -> Component.empty();
 pub static EMPTY: compat::MainThread<Arc<dyn Fn(String) -> MutableComponent>> = compat::MainThread::new(|| Arc::new(move |_| component::empty()));
 /// java: private static final Function<String, Component> ITEM_NAME = s -> { NEUItem neuItem = NEURepoManager.getItemByNeuId(s); if (neuItem == null) return Component.literal(s); return TextTransformer.fromLeg
@@ -262,6 +261,8 @@ impl ValueBreakdownPopup {
     /// listener is registered once and asks what the per-screen registration encoded: that the open screen is a
     /// container screen (registered from its `AFTER_INIT` while on Skyblock).
     pub fn init_class() {
+        // the class's static initialiser runs when `initClass` first touches the class: the key mapping registers then
+        let _ = KEY_BINDING.get();
         screen_keyboard_events::AFTER_KEY_PRESS.register(Arc::new(|action: i32, key_event: &KeyEvent| {
             // ScreenEvents.AFTER_INIT: if (!Utils.isOnSkyblock()) return; if (screen instanceof AbstractContainerScreen<?>)
             if !(Utils::is_on_skyblock()) || !compat::container_screen_open() {

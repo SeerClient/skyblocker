@@ -75,7 +75,8 @@ impl ChatRulesConfigScreen {
         //   java: LinearLayout footerLayout = layout.addToFooter(new LinearLayout(0, 0, LinearLayout.Orientation.HORIZONTAL));
         // (the port's layout holds its children by value: the footer joins it once it is filled, below)
         let mut footer_layout: LinearLayout = LinearLayout::new(0, 0, mcrust::net::minecraft::client::gui::layouts::linear_layout::Orientation::Horizontal);
-        footer_layout.default_cell_setting().padding_horizontal(5).padding_vertical(2);
+        // (the port's `LayoutSettings` setters answer a new value: written back to the cell defaults)
+        { let __s = footer_layout.default_cell_setting(); *__s = __s.clone().padding_horizontal(5).padding_vertical(2); }
         let __this_1 = compat::RenderThread::new(__this.clone());
         footer_layout.add_child({ let __w = (button::builder(mcrust::net::minecraft::network::chat::common_components::gui_cancel().get_string(), OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| { compat::lend_screen(__this_1.get(), __screen, || { let mut __pidx = compat::WidgetRef::Screen(__index); {
             ChatRulesConfigScreen::on_close(__this_1.get());

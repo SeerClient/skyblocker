@@ -129,7 +129,8 @@ impl AuctionViewScreen {
         compat::write(__this, |__t| {
             let layout = std::mem::replace(&mut __t.vertical_layout, LinearLayout::vertical());
             __t.vertical_layout = layout.spacing(2);
-            __t.vertical_layout.default_cell_setting().align_horizontally_center();
+            // (the port's `LayoutSettings` setters answer a new value: written back to the cell defaults)
+            { let __s = __t.vertical_layout.default_cell_setting(); *__s = (*__s).align_horizontally_center(); }
         });
         // TODO(fabric2seer): field `SCROLLING` of a value of unknown type
         //   java: priceTextWidget = new StringWidget(isBinAuction ? Component.translatable("skyblocker.fancyAuctionHouse.price") : Component.translatable("skyblocker.fancyAuctionHouse.newBid"), font).setMaxWidth(imageWidth - 10, StringWidget.TextOverflow.SCROLLING);

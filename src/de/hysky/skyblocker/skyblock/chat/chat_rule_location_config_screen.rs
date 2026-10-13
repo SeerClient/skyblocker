@@ -76,7 +76,8 @@ impl ChatRuleLocationConfigScreen {
         //   java: ItemTickList<Location> itemTickList = addRenderableWidget(new ItemTickList<>(minecraft, width, height - 107, 43, 24, enabledLocations, EnumSet.complementOf(EnumSet.of(Location.UNKNOWN)), true).init());
         let mut item_tick_list: compat::Shared<ItemTickList<Location>> = todo!("fabric2seer: the initialiser of `itemTickList` (TODO above)");
         let mut grid_widget: GridLayout = GridLayout::new_default();
-        grid_widget.default_cell_setting().padding_horizontal(5).padding_vertical(2);
+        // (the port's `LayoutSettings` setters answer a new value: written back to the cell defaults)
+        { let __s = grid_widget.default_cell_setting(); *__s = (*__s).padding_horizontal(5).padding_vertical(2); }
         let mut adder: RowHelper = grid_widget.create_row_helper(2);
         // TODO(fabric2seer): the port's `add_child` ports this Java method with other parameters (grid, child for Java's widget)
         // TODO(fabric2seer): `add_child` takes 2 argument(s) in the port (`grid: &mut GridLayout, child: LayoutElement`), Java passes 1

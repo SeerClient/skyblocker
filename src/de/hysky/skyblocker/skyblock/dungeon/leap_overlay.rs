@@ -176,7 +176,8 @@ impl LeapOverlay {
         let mut layout: LinearLayout = LinearLayout::vertical();
         // java: layout.spacing(32).defaultCellSetting().alignHorizontallyCenter(); - `spacing` answers `this`
         layout = layout.spacing(32);
-        layout.default_cell_setting().align_horizontally_center();
+        // (the port's `LayoutSettings` setters answer a new value: written back to the cell defaults)
+        { let __s = layout.default_cell_setting(); *__s = (*__s).align_horizontally_center(); }
         if LeapOverlay::should_show_map() {
             layout.add_child({ let __w = compat::WidgetAdapter::widget(MapWidget::new(std::sync::Arc::downgrade(__this), 0, 0)); let (__ww, __wh) = (__w.get_width(), __w.get_height()); LayoutElement::widget(compat::write(__this, |__t| __t.add_widget(__w)), __ww, __wh) });
         }

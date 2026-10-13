@@ -22,9 +22,8 @@ fn init(this: &mut mcrust::net::minecraft::client::gui::screens::inventory::abst
             }
         }
         this.left_pos = inventory_x;
-        // TODO(batchD): cross-package - `MuseumManager::new` takes the `Screen` BY VALUE where Java's constructor keeps
-        // a reference to this screen (it adds its widgets to it); the open screen's `Screen` cannot be moved out of it.
         //   java: new MuseumManager(this, this.leftPos, this.topPos, this.imageWidth);
+        crate::de::hysky::skyblocker::skyblock::museum::museum_manager::MuseumManager::new(&mut this.screen, this.left_pos, this.top_pos, this.image_width);
     }
 }
 

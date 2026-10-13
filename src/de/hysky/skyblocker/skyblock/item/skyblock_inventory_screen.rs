@@ -212,10 +212,9 @@ impl SkyblockInventoryScreen {
 
     /// java: @Override public void added()
     pub fn added(__this: &compat::Shared<Self>) {
-        // TODO(fabric2seer): field `slots` of a T
-        //   java: Slot slot = menu.slots.get(45);
-        let mut slot: Slot = todo!("fabric2seer: the initialiser of `slot` (TODO above)");
-        slot.x = slot.x.wrapping_add(21);
+        // java: Slot slot = menu.slots.get(45); slot.x += 21; - the screen's menu is the player's open (inventory) menu, and
+        // the write is to that menu's slot object
+        mcrust::mcrust::modding::game::with_abstract_container_menu(|menu| { let slot = &mut menu.slots[45]; slot.x = slot.x.wrapping_add(21); });
     }
 
     /// java: @Override public boolean mouseClicked(MouseButtonEvent click, boolean doubled)
@@ -227,9 +226,11 @@ impl SkyblockInventoryScreen {
                 return true;
             }
         }
+        // java: return super.mouseClicked(click, doubled); - a container screen override answering false hands the event to
+        // the base body (`ModContainerScreen.mouse_clicked`'s convention)
         // TODO(fabric2seer): `mouse_clicked` takes 10 argument(s) in the port (`host: &mut acs::PlayerContainerHost<'_>, button: i32, x: f64, y: f64, double_click: bool, shift_down: bool, cloning: bool, is_spectator: bool, gfx: &crate::net::minecraft::client::minecraft::Minecraft, handle_place_recipe: &mut dyn FnMut(i3 ..`), Java passes 2
         // rust: return __this.lock().borrow_mut().base.mouse_clicked(&mut click, doubled);
-        return todo!("fabric2seer: see the TODO above");
+        return false;
     }
 
     /// java: @Override protected void extractSlots(GuiGraphicsExtractor graphics, int mouseX, int mouseY)
@@ -239,7 +240,8 @@ impl SkyblockInventoryScreen {
         for equipment_slot in compat::read(__this, |__t| __t.equipment_slots.clone()).into_iter().flatten() {
             // TODO(fabric2seer): `is_hovering` takes 1 argument(s) in the port (`super_says_hovering: bool`), Java passes 6
             // rust: let mut hovered: bool = (compat::read(__this, |__t| __t.container.hovered_slot.clone()).is_none() && { let (__q0, __q1, __q2, __q3, __q4, __q5,) = (equipment_slot.x, equipment_slot.y, 16, 16, (mouse_x) as f64, (mouse_y) as f64,); __this.lock().borrow().is_hovering(__q0, __q1, __q2, __q3, __q4, __q5) });
-            let mut hovered: bool = todo!("fabric2seer: the initialiser of `hovered` (TODO above)");
+            // java: boolean hovered = this.hoveredSlot == null && this.isHovering(equipmentSlot.x, equipmentSlot.y, 16, 16, mouseX, mouseY);
+            let mut hovered: bool = compat::read(__this, |__t| __t.container.hovered_slot.is_none() && __t.container.is_hovering_box(equipment_slot.x, equipment_slot.y, 16, 16, mouse_x as f64, mouse_y as f64));
             if hovered {
                 // TODO(fabric2seer): static call AbstractContainerScreenAccessor.getSLOT_HIGHLIGHT_BACK_SPRITE(..)
                 //   java: graphics.blitSprite(RenderPipelines.GUI_TEXTURED, AbstractContainerScreenAccessor.getSLOT_HIGHLIGHT_BACK_SPRITE(), equipmentSlot.x - 4, equipmentSlot.y - 4, 24, 24);
@@ -258,10 +260,8 @@ impl SkyblockInventoryScreen {
         // TODO(fabric2seer): `extract_tooltip` takes 4 argument(s) in the port (`state: &AbstractContainerScreen, menu: &AbstractContainerMenu, containers: &Containers<'_>, carried: &crate::net::minecraft::world::item::item_stack::ItemStack`), Java passes 3
         // rust: abstract_container_screen::extract_tooltip(graphics, &x, &y);
         { let __v = None; compat::write(__this, |__t| __t.hovered_item = __v); }
-        // TODO(fabric2seer): `InventoryScreen.menu` has no Rust field in the port (searched net.minecraft.client.gui.screens.inventory.InventoryScreen and its supertypes)
-        // TODO(fabric2seer): the condition: `.getCarried(..)` on a T
-        //   java: !menu.getCarried().isEmpty()
-        if todo!("fabric2seer: the condition (TODO above)") {
+        // java: !menu.getCarried().isEmpty() - the screen's menu is the player's open one
+        if compat::with_open_menu(|menu, _| !menu.get_carried().is_empty()).unwrap_or(false) {
             return;
         }
         for equipment_slot in compat::read(__this, |__t| __t.equipment_slots.clone()).into_iter().flatten() {
@@ -278,10 +278,8 @@ impl SkyblockInventoryScreen {
     pub fn removed(__this: &compat::Shared<Self>) {
         // TODO(fabric2seer): `removed` takes 1 argument(s) in the port (`menu: &mut AbstractContainerMenu`), Java passes 0
         // rust: __this.lock().borrow_mut().base.container.removed();
-        // TODO(fabric2seer): field `slots` of a T
-        //   java: Slot slot = menu.slots.get(45);
-        let mut slot: Slot = todo!("fabric2seer: the initialiser of `slot` (TODO above)");
-        slot.x = slot.x.wrapping_sub(21);
+        // java: Slot slot = menu.slots.get(45); slot.x -= 21;
+        mcrust::mcrust::modding::game::with_abstract_container_menu(|menu| { let slot = &mut menu.slots[45]; slot.x = slot.x.wrapping_sub(21); });
     }
 
     /// java: @Override public void extractBackground(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a)
@@ -294,10 +292,9 @@ impl SkyblockInventoryScreen {
         for i in 0..3i32 {
             gui_graphics_extractor::blit_sprite_identifier(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), mcrust::net::minecraft::client::renderer::render_pipelines::gui_textured(), SLOT_TEXTURE.get_mut(), (compat::read(__this, |__t| __t.container.left_pos)).wrapping_add(76), ((compat::read(__this, |__t| __t.container.top_pos)).wrapping_add(7)).wrapping_add(i.wrapping_mul(18)), 18, 18);
         }
-        // TODO(fabric2seer): field `slots` of a T
-        //   java: Slot slot = menu.slots.get(45);
-        let mut slot: Slot = todo!("fabric2seer: the initialiser of `slot` (TODO above)");
-        gui_graphics_extractor::blit_sprite_identifier(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), mcrust::net::minecraft::client::renderer::render_pipelines::gui_textured(), SLOT_TEXTURE.get_mut(), ((compat::read(__this, |__t| __t.container.left_pos)).wrapping_add(slot.x)).wrapping_sub(1), ((compat::read(__this, |__t| __t.container.top_pos)).wrapping_add(slot.y)).wrapping_sub(1), 18, 18);
+        // java: Slot slot = menu.slots.get(45); - only its position is read
+        let (__slot_x, __slot_y): (i32, i32) = compat::with_open_menu(|menu, _| (menu.slots[45].x, menu.slots[45].y)).unwrap_or((0, 0));
+        gui_graphics_extractor::blit_sprite_identifier(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), mcrust::net::minecraft::client::renderer::render_pipelines::gui_textured(), SLOT_TEXTURE.get_mut(), ((compat::read(__this, |__t| __t.container.left_pos)).wrapping_add(__slot_x)).wrapping_sub(1), ((compat::read(__this, |__t| __t.container.top_pos)).wrapping_add(__slot_y)).wrapping_sub(1), 18, 18);
     }
 
     /// java: @Override public boolean keyPressed(KeyEvent input)
@@ -318,7 +315,9 @@ impl SkyblockInventoryScreen {
         }
         // TODO(fabric2seer): `key_pressed` takes 6 argument(s) in the port (`event: crate::net::minecraft::client::input::key_event::KeyEvent, matches_chat_key: bool, is_spectator: bool, gfx: &crate::net::minecraft::client::minecraft::Minecraft, clipboard: &mut dyn crate::net::minecraft::client::gui::components::edi ..`), Java passes 1
         // rust: return { let (__q0,) = (input.clone(),); __this.lock().borrow_mut().base.key_pressed(__q0) };
-        return todo!("fabric2seer: see the TODO above");
+        // java: return super.keyPressed(input); - answering false hands the key to the base body (the
+        // `ModContainerScreen.key_pressed` convention)
+        return false;
     }
 
 }
