@@ -86,11 +86,10 @@ impl PetInfo {
 
     /// java: public int level()
     pub fn level(&self) -> i32 {
-        // TODO(fabric2seer): `new PetInfo(..)`
         //   java: var convertedPetInfo = new net.azureaaron.networth.item.PetInfo(this.type(), this.exp(), this.tier().name(), 0, Optional.empty(), Optional.empty());
-        // TODO(fabric2seer): static call PetCalculator.calculatePetLevel(..)
+        let converted_pet_info = crate::net::azureaaron::networth::item::pet_info::PetInfo::new(self.r#type(), self.exp(), self.tier().name().to_string(), 0, None, None);
         //   java: return PetCalculator.calculatePetLevel(convertedPetInfo).leftInt();
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        return crate::net::azureaaron::networth::pet_calculator::PetCalculator::calculate_pet_level(&converted_pet_info).0;
     }
 
     /// java: public boolean isEmpty()

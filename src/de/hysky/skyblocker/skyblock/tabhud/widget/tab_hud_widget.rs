@@ -246,13 +246,13 @@ impl dyn TabHudWidget {
 
     /// java: public List<Component> createErrorMessage()
     pub fn create_error_message_body(__this: &compat::Shared<dyn TabHudWidget>) -> Vec<MutableComponent> {
-        // TODO(fabric2seer): `Options.keyPlayerList` has no Rust field in the port (searched net.minecraft.client.Options and its supertypes)
-        // TODO(fabric2seer): `get_translated_key_message` takes 2 argument(s) in the port (`name: &str, key_name: &dyn Fn(i32, i32) -> Option<String>`), Java passes 0
-        // rust: let mut tab_key: MutableComponent = compat::component_of(key_mapping::get_translated_key_message()).copy().with_style_format(ChatFormatting::Yellow);
-        let mut tab_key: MutableComponent = todo!("fabric2seer: the initialiser of `tabKey` (TODO above)");
-        // TODO(fabric2seer): `get_translated_key_message` takes 2 argument(s) in the port (`name: &str, key_name: &dyn Fn(i32, i32) -> Option<String>`), Java passes 0
-        // rust: return vec![component::translatable_args("skyblocker.hud.missingTabWidget[0]", vec![mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from((component::literal(&compat::read(__this, |__t| __t.tab_hud_widget_base().hypixel_widget_name.clone()))).with_style_format(ChatFormatting::Yellow))]), component::translatable("skyblocker.hud.missingTabWidget[1]"), component::translatable("skyblocker.hud.missingTabWidget[2]"), component::translatable("skyblocker.hud.missingTabWidget[3]"), component::translatable_args("skyblocker.hud.missingTabWidget[4]", vec![mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(tab_key.clone()), mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(tab_key.clone()), mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(compat::component_of(key_mapping::get_translated_key_message()).copy().with_style_format(ChatFormatting::Yellow))])];
-        return todo!("fabric2seer: see the TODO above");
+        //   java: Component tabKey = Minecraft.getInstance().options.keyPlayerList.getTranslatedKeyMessage().copy().withStyle(ChatFormatting.YELLOW);
+        // (the port's key mappings are looked up by name: `options.keyPlayerList` is "key.playerlist", `TabHud.defaultTgl`
+        // is "key.skyblocker.defaultTgl")
+        let __key_names = |key: i32, _scancode: i32| compat::minecraft().key_names.get(&key).cloned();
+        let mut tab_key: MutableComponent = compat::component_of(key_mapping::get_translated_key_message("key.playerlist", &__key_names)).with_style_format(ChatFormatting::Yellow);
+        let __default_tgl: MutableComponent = compat::component_of(key_mapping::get_translated_key_message("key.skyblocker.defaultTgl", &__key_names)).with_style_format(ChatFormatting::Yellow);
+        return vec![component::translatable_args("skyblocker.hud.missingTabWidget[0]", vec![mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from((component::literal(&compat::read(__this, |__t| __t.tab_hud_widget_base().hypixel_widget_name.clone()))).with_style_format(ChatFormatting::Yellow))]), component::translatable("skyblocker.hud.missingTabWidget[1]"), component::translatable("skyblocker.hud.missingTabWidget[2]"), component::translatable("skyblocker.hud.missingTabWidget[3]"), component::translatable_args("skyblocker.hud.missingTabWidget[4]", vec![mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(tab_key.clone()), mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(tab_key.clone()), mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(__default_tgl)])];
     }
 
 }

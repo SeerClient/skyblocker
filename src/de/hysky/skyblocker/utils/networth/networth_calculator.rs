@@ -19,12 +19,12 @@ impl NetworthCalculator {
     }
 
     /// java: public static NetworthResult getItemNetworth(ItemStack stack)
-    pub fn get_item_networth(stack: &mcrust::net::minecraft::world::item::item_stack::ItemStack) -> crate::unresolved::NetworthResult {
+    pub fn get_item_networth(stack: &mcrust::net::minecraft::world::item::item_stack::ItemStack) -> crate::net::azureaaron::networth::networth_result::NetworthResult {
         return NetworthCalculator::get_item_networth_2(stack, stack.get_count());
     }
 
     /// java: public static NetworthResult getItemNetworth(ItemStack stack, int count)
-    pub fn get_item_networth_2(stack: &mcrust::net::minecraft::world::item::item_stack::ItemStack, mut count: i32) -> crate::unresolved::NetworthResult {
+    pub fn get_item_networth_2(stack: &mcrust::net::minecraft::world::item::item_stack::ItemStack, mut count: i32) -> crate::net::azureaaron::networth::networth_result::NetworthResult {
         // java: try {..} catch (Exception _) - an exception here is a panic, caught by `catch_unwind`; the body's `return` is the closure's value
         match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             let mut item_id: String = stack.get_skyblock_id();
@@ -35,16 +35,16 @@ impl NetworthCalculator {
             let custom_data_dynamic: Dynamic = Dynamic::new_with(mcrust::net::minecraft::nbt::nbt_ops::NbtOps::instance(), Some(mcrust::com::mojang::serialization::obj(custom_data.clone())));
             //   java: SkyblockItemStack skyblockItemStack = SkyblockItemStack.of(itemId, count, customDataDynamic, SkyblockItemMetadataRetriever.of(customData, itemId));
             //   java: return ItemCalculator.calculate(skyblockItemStack, NetworthDataSuppliers::getPrice, NetworthDataSuppliers.getSkyblockItemData());
-            // rust: port gap - the networth library (`net.azureaaron.networth`: `SkyblockItemStack`, `ItemCalculator`,
-            // `NetworthResult`) is `crate::unresolved` placeholders with no calculator behind them (GAPS_M #18): the
-            // answer is the placeholder result.
+            // rust: port gap - the networth library's `SkyblockItemStack` / `ItemCalculator` are not ported yet
+            // (`crate::net::azureaaron::networth` has `Calculation`, `NetworthResult` and the constants - GAPS_Q #1):
+            // the answer is the library's `NetworthResult.EMPTY`, a price of 0, which every caller reads as "no value".
             let _ = (item_id, count, custom_data_dynamic);
-            crate::unresolved::NetworthResult
+            crate::net::azureaaron::networth::networth_result::NetworthResult::empty()
         })) {
             Ok(__v) => return __v,
             Err(_) => {
                 //   java: return new NetworthResult(0, 0, List.of());
-                return crate::unresolved::NetworthResult;
+                return crate::net::azureaaron::networth::networth_result::NetworthResult::new(0.0, 0.0, Vec::new());
             }
         }
     }

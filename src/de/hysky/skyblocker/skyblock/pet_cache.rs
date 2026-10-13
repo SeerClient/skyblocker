@@ -135,11 +135,9 @@ impl PetCache {
             let mut rarity: SkyblockItemRarity = SkyblockItemRarity::from_color(color);
             if rarity != SkyblockItemRarity::Unknown {
                 //   java: int petOffset = PetConstants.RARITY_OFFSETS.getOrDefault(rarity.name(), 0);
-                // rust: port gap - `net.azureaaron.networth.utils.PetConstants` (the networth library is not ported,
-                // GAPS_batchB L2): its two tables are not in the crate
-                let mut pet_offset: i32 = todo!("rust: port gap - PetConstants.RARITY_OFFSETS (azureaaron networth)");
+                let mut pet_offset: i32 = *crate::net::azureaaron::networth::utils::pet_constants::RARITY_OFFSETS.get(rarity.name()).unwrap_or(&0);
                 //   java: IntList petLevels = new IntArrayList(PetConstants.PET_LEVELS.subList(petOffset, petOffset + level - 1));
-                let mut pet_levels: Vec<i32> = todo!("rust: port gap - PetConstants.PET_LEVELS (azureaaron networth) [{}..{}]", pet_offset, pet_offset + level - 1);
+                let mut pet_levels: Vec<i32> = crate::net::azureaaron::networth::utils::pet_constants::PET_LEVELS[pet_offset as usize..(pet_offset + level - 1) as usize].to_vec();
                 //   java: double exp = petLevels.intStream().sum();
                 let mut exp: f64 = pet_levels.iter().fold(0i32, |sum, l| sum.wrapping_add(*l)) as f64;
                 let mut stack: mcrust::net::minecraft::world::item::item_stack::ItemStack = ItemRepository::get_items_stream().filter(|s| compat::component_of(FlexibleItemStack::get_stack_or_throw(s).get_hover_name()).get_string().contains(&format!("] {}", name))).next().map(|__a0| FlexibleItemStack::get_stack_or_throw(&__a0)).unwrap_or(mcrust::net::minecraft::world::item::item_stack::empty());

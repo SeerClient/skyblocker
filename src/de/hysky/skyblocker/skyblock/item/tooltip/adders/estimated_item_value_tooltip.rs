@@ -116,20 +116,18 @@ impl EstimatedItemValueTooltip {
 
     /// java: @Override public void addToTooltip(@Nullable Slot focusedSlot, ItemStack stack, List<Component> lines)
     pub fn add_to_tooltip_impl(__this: &compat::Shared<Self>, mut focused_slot: Option<Slot>, stack: &mcrust::net::minecraft::world::item::item_stack::ItemStack, lines: &mut Vec<MutableComponent>) {
-        // TODO(fabric2seer): the condition: `.containsKey(..)` on a T
         //   java: TooltipInfoType.BAZAAR.getData() != null && TooltipInfoType.BAZAAR.getData().containsKey(stack.getSkyblockApiId())
-        if todo!("fabric2seer: the condition (TODO above)") {
+        if tooltip_info_type::BAZAAR.get_mut().lock().borrow().get_data().is_some_and(|__d| __d.contains_key(&stack.get_skyblock_api_id())) {
             return;
         }
         let mut count: i32 = (ItemUtils::get_item_count_in_sack(stack, &stack.skyblocker_get_lore_strings()).unwrap_or(ItemUtils::get_item_count_in_stash_component(&lines[0]).unwrap_or(stack.get_count()))).max(1);
-        let mut result: crate::unresolved::NetworthResult = NetworthCalculator::get_item_networth_2(stack, count);
-        // TODO(fabric2seer): the condition: `.price(..)` on a NetworthResult
+        let mut result: crate::net::azureaaron::networth::networth_result::NetworthResult = NetworthCalculator::get_item_networth_2(stack, count);
         //   java: result.price() > 0
-        if todo!("fabric2seer: the condition (TODO above)") {
-            // TODO(fabric2seer): `.price(..)` on a NetworthResult
+        if result.price() > 0.0 {
             //   java: lines.add(GridComponent.of(
             //   java: 					Component.literal("Est. Item Value:").withStyle(ChatFormatting.GOLD),
             //   java: 					ItemTooltip.getCoinsMessage(result.price(), count, true)));
+            lines.push(crate::de::hysky::skyblocker::utils::render::text::grid_component::GridComponent::of(&vec![component::literal("Est. Item Value:").with_style_format(ChatFormatting::Gold), crate::de::hysky::skyblocker::skyblock::item::tooltip::item_tooltip::ItemTooltip::get_coins_message_3(result.price(), count, true)]));
         }
     }
 

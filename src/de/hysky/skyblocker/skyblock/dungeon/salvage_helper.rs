@@ -53,10 +53,9 @@ impl SalvageHelper {
 
     /// java: private boolean isPriceWithinRange(ItemStack stack)
     pub fn is_price_within_range(__this: &compat::Shared<Self>, stack: &mcrust::net::minecraft::world::item::item_stack::ItemStack) -> bool {
-        let mut result: crate::unresolved::NetworthResult = NetworthCalculator::get_item_networth(stack);
-        // TODO(fabric2seer): `.price(..)` on a NetworthResult
+        let mut result: crate::net::azureaaron::networth::networth_result::NetworthResult = NetworthCalculator::get_item_networth(stack);
         //   java: return result.price() > 0 && result.price() < 100_000;
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        return result.price() > 0.0 && result.price() < 100_000.0;
     }
 
     /// java: private boolean wasDonatedToMuseum(ItemStack stack)

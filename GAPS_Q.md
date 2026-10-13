@@ -1,0 +1,8 @@
+# GAPS - batch Q (networth library + burn-down)
+
+| # | Java member / mechanism | What the port has | What is needed | Sites |
+|---|---|---|---|---|
+| 1 | `net.azureaaron.networth.ItemCalculator.calculate`, `SkyblockItemStack`, `ItemMetadata`/`ItemMetadataRetriever`, `data.SkyblockItemData` (+ `MAP_CODEC`), `ModifierValues`, `PrestigeConstants`, `PetCalculator.calculate`, `MiscCalculators`, the rest of `ItemConstants` (~1,300 Java lines) | `src/net/azureaaron/networth/` now has `Calculation` (+`Type`), `NetworthResult`, `item::PetInfo`, `PetCalculator::calculate_pet_level`, `utils::PetConstants` (all), `utils::ItemConstants::REFORGES` | port the calculator itself (source: github.com/AzureAaron/networth-calculator 1.0.5, cloned at scratchpad `nw/repo`) | `utils/networth/networth_calculator.rs` `get_item_networth_2` answers `NetworthResult.EMPTY` (price 0: tooltip/salvage/chest value show nothing, never panic) |
+| 2 | `NEUItem.getLore()` / `getDisplayName()` (NEU repo library) | placeholder (GAPS_P #4) | the library | `value_breakdown_popup.rs` FORMATTERS ENCHANTMENT/SKIN formatters fall back to the id, as ITEM_NAME already did |
+| 3 | `Calculation.LIST_CODEC` | not ported | a Codec for `Calculation` | `utils/item_utils.rs` `dump_held_item_networth_calculations_command` (debug command, still `todo!`, not registered) |
+| 4 | `GridTooltipComponent.extractText` | `todo!` kept: no `ClientTooltipComponent` impl dispatches to it (the mixin only sets the manager), and the port's `RenderingTextCollector` is the scan half only | a `ClientTooltipComponent` adapter drawing via `draw_formatted_text` | `utils/render/text/grid_tooltip_component.rs` - not reached |
