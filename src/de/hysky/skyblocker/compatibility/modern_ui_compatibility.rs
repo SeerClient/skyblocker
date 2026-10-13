@@ -31,40 +31,33 @@ impl ModernUICompatibility {
         if !(*MODERNUI_ENABLED) {
             return false;
         }
-        // TODO(fabric2seer): static call MethodHandles.publicLookup(..)
         //   java: MethodHandles.Lookup lookup = MethodHandles.publicLookup();
-        let mut lookup: crate::unresolved::Lookup = todo!("fabric2seer: the initialiser of `lookup` (TODO above)");
-        let mut clazz: crate::unresolved::Class;
-        // java: try {..} catch (ClassNotFoundException e) - an exception here is a panic, caught by `catch_unwind`
-        let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            // TODO(fabric2seer): static call Class.forName(..)
-            //   java: clazz = Class.forName("icyllis.modernui.mc.ModernUIMod");
-        }));
-        if let Err(e) = __result {
-            logger().error(&format!("[Skyblocker ModernUI Compat] Could not find icyllis.modernui.mc.ModernUIMod"));
-            return true;
+        let lookup: crate::unresolved::Lookup = public_lookup();
+        // java: try { clazz = Class.forName("icyllis.modernui.mc.ModernUIMod"); } catch (ClassNotFoundException e) - a panic, caught by `catch_unwind`
+        let clazz: crate::unresolved::Class = match std::panic::catch_unwind(|| class_for_name("icyllis.modernui.mc.ModernUIMod")) {
+            Ok(clazz) => clazz,
+            Err(e) => {
+                logger().error(&format!("[Skyblocker ModernUI Compat] Could not find icyllis.modernui.mc.ModernUIMod {}", compat::panic_message(&e)));
+                return true;
+            }
+        };
+        // java: try {..} catch (NoSuchMethodException | IllegalAccessException e) {..} catch (Throwable e) {..}
+        //   java: MethodHandle methodHandle = lookup.findStatic(clazz, "isTextEngineEnabled", MethodType.methodType(boolean.class));
+        let method_handle: crate::unresolved::MethodHandle = match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| find_method(&lookup, &clazz, "isTextEngineEnabled"))) {
+            Ok(handle) => handle,
+            Err(e) => {
+                logger().error(&format!("[Skyblocker ModernUI Compat] Could not find isTextEngineEnabled method {}", compat::panic_message(&e)));
+                return true;
+            }
+        };
+        //   java: return Boolean.TRUE.equals(methodHandle.invoke());
+        match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| invoke(&method_handle))) {
+            Ok(answer) => answer.downcast_ref::<bool>().copied() == Some(true),
+            Err(e) => {
+                logger().error(&format!("[Skyblocker ModernUI Compat] Could not invoke isTextEngineEnabled {}", compat::panic_message(&e)));
+                true
+            }
         }
-        // java: try {..} catch (NoSuchMethodException | IllegalAccessException e) catch (Throwable e) - the body runs inline: a Rust body does not throw checked exceptions (a panic in it propagates)
-        {
-            // TODO(fabric2seer): not translated (expected ';' at 'methodHandle' (offset 1095))
-            //   java: MethodHandle methodHandle = lookup.findStatic(
-            //   java: 					clazz,
-            //   java: 					"isTextEngineEnabled",
-            //   java: 					MethodType.methodType(boolean.class));
-            // TODO(fabric2seer): unknown name `methodHandle`
-            //   java: return Boolean.TRUE.equals(methodHandle.invoke());
-        }
-        // TODO(fabric2seer): the `catch (NoSuchMethodException | IllegalAccessException e)` block is not reached in Rust - the try body returns, breaks or continues, so it cannot run inside `catch_unwind`
-        //   java: {
-        //   java: 			LOGGER.error("[Skyblocker ModernUI Compat] Could not find isTextEngineEnabled method", e);
-        //   java: 			return true;
-        //   java: 		}
-        // TODO(fabric2seer): the `catch (Throwable e)` block is not reached in Rust - the try body returns, breaks or continues, so it cannot run inside `catch_unwind`
-        //   java: {
-        //   java: 			LOGGER.error("[Skyblocker ModernUI Compat] Could not invoke isTextEngineEnabled", e);
-        //   java: 			return true;
-        //   java: 		}
-        todo!("fabric2seer: the value of this function is in a TODO above")
     }
 
     /// java: public static boolean extractOutlinedText(GuiGraphicsExtractor context, FormattedCharSequence text, FormattedCharSequence outlineText, int x, int y, int color, int outlineColor)
@@ -131,4 +124,29 @@ fn sequence_text(seq: &dyn FormattedCharSequence) -> mcrust::net::minecraft::net
         true
     });
     FormattedText::composite(runs.into_iter().map(|(style, text)| FormattedText::of_styled(text, style)).collect())
+}
+
+/// `Class.forName(name)` - another mod's JVM class.
+///
+/// rust: port gap - SeerClient runs no JVM: there are no Java mod classes to load or reflect on (`Class.forName`,
+/// `MethodHandles.Lookup.findStatic/findVirtual`, `Field.get`, `MethodHandle.invoke`), so the lookup fails as
+/// `ClassNotFoundException` does in Java for an absent class (GAPS_batchF, GAPS_M #11). Every caller only gets here
+/// after `FabricLoader.isModLoaded(..)` answered true for a SeerClient mod of that id.
+fn class_for_name(name: &str) -> crate::unresolved::Class {
+    panic!("ClassNotFoundException: {name}");
+}
+
+/// `MethodHandles.publicLookup()` - see `class_for_name` (the lookup exists; nothing can be found through it).
+fn public_lookup() -> crate::unresolved::Lookup {
+    crate::unresolved::Lookup
+}
+
+/// `lookup.findStatic(clazz, name, type)` / `findVirtual(..)` - see `class_for_name`.
+fn find_method(_lookup: &crate::unresolved::Lookup, _clazz: &crate::unresolved::Class, name: &str) -> crate::unresolved::MethodHandle {
+    panic!("NoSuchMethodException: {name}");
+}
+
+/// `methodHandle.invoke(..)` - see `class_for_name` (no handle can have been found).
+fn invoke(_handle: &crate::unresolved::MethodHandle) -> compat::Object {
+    panic!("WrongMethodTypeException: no JVM method behind the handle");
 }

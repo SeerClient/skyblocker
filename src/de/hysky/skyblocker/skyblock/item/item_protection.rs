@@ -175,9 +175,8 @@ impl ItemProtection {
     /// java: public static boolean isNpcSellMenu(AbstractContainerMenu menu)
     pub fn is_npc_sell_menu(menu: &AbstractContainerMenu) -> bool {
         for slot in menu.slots.iter() {
-            // TODO(fabric2seer): `get_item` takes 1 argument(s) in the port (`containers: &'a Containers<'_>`), Java passes 0
-            // rust: let stack = slot.get_item();
-            let mut stack: mcrust::net::minecraft::world::item::item_stack::ItemStack = todo!("fabric2seer: the initialiser of `stack` (TODO above)");
+            // java: ItemStack stack = slot.getItem(); - the menu is the player's open one (its containers are the open menu's)
+            let mut stack: mcrust::net::minecraft::world::item::item_stack::ItemStack = compat::slot_item(slot);
             if stack.is_empty() {
                 continue;
             }
@@ -194,12 +193,11 @@ impl ItemProtection {
 
     /// java: public static boolean isNpcSellButton(Slot slot)
     pub fn is_npc_sell_button(slot: &Slot) -> bool {
-        // TODO(fabric2seer): `get_item` takes 1 argument(s) in the port (`containers: &'a Containers<'_>`), Java passes 0
-        // rust: let mut name: String = compat::component_of(slot.get_item().get_hover_name()).get_string();
-        let mut name: String = todo!("fabric2seer: the initialiser of `name` (TODO above)");
-        // TODO(fabric2seer): `get_item` takes 1 argument(s) in the port (`containers: &'a Containers<'_>`), Java passes 0
-        // rust: return (name == "Sell Item" || name == "Sell Inventory" || ItemUtils::get_lore_line_if(slot.get_item(), Arc::new(move |text| text.contains("buyback"))).is_some());
-        return todo!("fabric2seer: see the TODO above");
+        // java: String name = slot.getItem().getHoverName().getString();
+        let stack: mcrust::net::minecraft::world::item::item_stack::ItemStack = compat::slot_item(slot);
+        let mut name: String = compat::component_of(stack.get_hover_name()).get_string();
+        // java: return name.equals("Sell Item") || name.equals("Sell Inventory") || ItemUtils.getLoreLineIf(slot.getItem(), text -> text.contains("buyback")) != null;
+        return name == "Sell Item" || name == "Sell Inventory" || ItemUtils::get_lore_line_if(&stack, Arc::new(move |text| text.contains("buyback"))).is_some();
     }
 
     /// java: private static InteractionResult onEntityInteract(Player playerEntity, Level world, InteractionHand hand, Entity entity, @Nullable EntityHitResult entityHitResult)

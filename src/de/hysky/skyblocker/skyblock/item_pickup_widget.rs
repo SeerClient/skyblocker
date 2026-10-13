@@ -203,9 +203,9 @@ impl ItemPickupWidget {
         }
         new_stack = new_stack.copy();
         if count_diff > 0 {
-            ItemPickupWidget::update_count(__this, &mut compat::read(__this, |__t| __t.added_count.clone()), &new_stack, count_diff);
+            compat::write(__this, |__t| ItemPickupWidget::update_count(__this, &mut __t.added_count, &new_stack, count_diff));
         } else if count_diff < 0 {
-            ItemPickupWidget::update_count(__this, &mut compat::read(__this, |__t| __t.removed_count.clone()), &new_stack, count_diff);
+            compat::write(__this, |__t| ItemPickupWidget::update_count(__this, &mut __t.removed_count, &new_stack, count_diff));
         }
     }
 
@@ -213,14 +213,15 @@ impl ItemPickupWidget {
     pub fn update_count(__this: &compat::Shared<Self>, map: &mut std::collections::HashMap<String, ChangeData>, stack: &mcrust::net::minecraft::world::item::item_stack::ItemStack, mut count: i32) {
         let mut neu_id: String = stack.get_neu_name();
         if neu_id.is_empty() {
-            // TODO(fabric2seer): `Component.toString` has no Rust method in the port (looked for `to_string` in Component and JavaSrc)
-            // rust: neu_id = compat::component_of(stack.get_hover_name()).to_string();
+            //   java: neuId = stack.getHoverName().toString();
+            neu_id = compat::component_of(stack.get_hover_name()).to_string();
         }
-        // TODO(fabric2seer): Map.compute(..)
         //   java: map.compute(neuId, (_, existing) -> {
         //   java: 			int existingCount = existing == null ? 0 : existing.amount;
         //   java: 			return new ChangeData(stack, existingCount + count, System.currentTimeMillis());
         //   java: 		});
+        let existing_count: i32 = map.get(&neu_id).map_or(0, |existing| existing.amount);
+        map.insert(neu_id, ChangeData::new(stack.duplicate(), existing_count.wrapping_add(count), compat::millis()));
     }
 
 }

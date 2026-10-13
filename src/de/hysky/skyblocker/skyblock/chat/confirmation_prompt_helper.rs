@@ -84,17 +84,25 @@ impl ConfirmationPromptHelper {
     /// java: private static boolean onMessage(Component message, boolean overlay)
     pub fn on_message(message: &MutableComponent, mut overlay: bool) -> bool {
         if Utils::is_on_skyblock() && !overlay && SkyblockerConfigManager::get().chat.confirmation_prompt_helper && ConfirmationPromptHelper::contains_confirmation_phrase(message) {
-            // TODO(fabric2seer): a lambda for a parameter the port does not type as a closure (`net.minecraft.network.chat.FormattedText.StyledContentConsumer<T>`)
-            // rust: let mut confirmation_command: Option<String> = message.visit_styled(|style, as_string| {
-            // rust: let mut event: ClickEvent = style.get_click_event().unwrap();
-            // rust: as_string = compat::trim(&(compat::regex::replace_all(&as_string, "\\s+", " ")));
-            // rust: // TODO(fabric2seer): not translated (expected ')' at '(' (offset 4257))
-            // rust: //   java: if (CONFIRMATION_PHRASES_FORMATTING.contains(asString) && event instanceof ClickEvent.RunCommand(String command) && (command.startsWith("/chatprompt") || command.startsWith("/selectnpcoption"))) {
-            // rust: //   java: 					return Optional.of(command);
-            // rust: //   java: 				}
-            // rust: return None;
-            // rust: }, &mcrust::net::minecraft::network::chat::style::Style::EMPTY);
-            let mut confirmation_command: Option<String> = todo!("fabric2seer: the initialiser of `confirmationCommand` (TODO above)");
+            //   java: Optional<String> confirmationCommand = message.visit((style, asString) -> {
+            //   java: 	ClickEvent event = style.getClickEvent();
+            //   java: 	asString = asString.replaceAll("\\s+", " ").trim();
+            //   java: 	if (CONFIRMATION_PHRASES_FORMATTING.contains(asString) && event instanceof ClickEvent.RunCommand(String command) && (command.startsWith("/chatprompt") || command.startsWith("/selectnpcoption"))) {
+            //   java: 		return Optional.of(command);
+            //   java: 	}
+            //   java: 	return Optional.empty();
+            //   java: }, Style.EMPTY);
+            // (the port's consumer answers whether to go on: the first `Optional.of` is kept and stops the walk)
+            let mut confirmation_command: Option<String> = None;
+            message.visit_styled(&mut |style: &mcrust::net::minecraft::network::chat::style::Style, as_string: &str| {
+                let event: Option<&ClickEvent> = style.get_click_event();
+                let as_string: String = compat::trim(&(compat::regex::replace_all(as_string, "\\s+", " ")));
+                if CONFIRMATION_PHRASES_FORMATTING.contains(&as_string) && let Some(ClickEvent::RunCommand { command }) = event && (command.starts_with("/chatprompt") || command.starts_with("/selectnpcoption")) {
+                    confirmation_command = Some(command.clone());
+                    return false;
+                }
+                true
+            }, &mcrust::net::minecraft::network::chat::style::Style::EMPTY);
             if confirmation_command.is_some() {
                 compat::set_state(&COMMAND, Some(confirmation_command.clone().unwrap()));
                 compat::set_state(&COMMAND_FOUND_AT, compat::millis());

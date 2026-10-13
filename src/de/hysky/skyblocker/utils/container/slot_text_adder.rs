@@ -104,7 +104,8 @@ impl ConfigInformation {
 
     /// java: public Option<Boolean> getOption(SkyblockerConfig config)
     pub fn get_option(&self, config: &SkyblockerConfig) -> crate::unresolved::Option {
-        // TODO(fabric2seer): static call Option.createBuilder(..)
+        // rust: blocked (GAPS_J #12) - YACL's `Option.createBuilder()`: the config types (`config/`) are being replaced by
+        // the generated Dandelion / YACL merge, which this batch must not touch; written once those types exist.
         //   java: return Option.<Boolean>createBuilder()
         //   java: 					.name(name)
         //   java: 					.description(description != null ? description : new Component[0])
@@ -118,14 +119,14 @@ impl ConfigInformation {
 
     /// java: @Override public boolean equals(Object obj)
     pub fn equals(&self, obj: &compat::Object) -> bool {
-        // TODO(fabric2seer): instanceof with a pattern binding outside an `if` condition
-        //   java: return obj instanceof ConfigInformation other && Objects.equals(id, other.id);
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        // java: return obj instanceof ConfigInformation other && Objects.equals(id, other.id);
+        return obj.downcast_ref::<ConfigInformation>().is_some_and(|other| self.id == other.id);
     }
 
     /// java: @Override public int hashCode()
     pub fn hash_code(&self) -> i32 {
-        return compat::hash_code(&self.id);
+        // java: return Objects.hashCode(id); - `String.hashCode`
+        return compat::string_hash_code(&self.id);
     }
 
 }

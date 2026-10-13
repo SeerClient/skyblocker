@@ -5,10 +5,19 @@ use crate::prelude::*;
 use mcrust::net::minecraft::chat_formatting::ChatFormatting;
 use mcrust::net::minecraft::network::chat::mutable_component::MutableComponent;
 
-// TODO(fabric2seer): static call StringUtils.capitalize(..)
-//   java: public static final Function<ChatFormatting, Component> FORMATTING_FORMATTER = formatting -> Component.literal(StringUtils.capitalize(formatting.name().replaceAll("_", " ")));
 /// java: public static final Function<ChatFormatting, Component> FORMATTING_FORMATTER = formatting -> Component.literal(StringUtils.capitalize(formatting.name().replaceAll("_", " ")));
-pub static FORMATTING_FORMATTER: compat::MainThread<Arc<dyn Fn(ChatFormatting) -> MutableComponent>> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `FORMATTING_FORMATTER` - see the TODO above"));
+pub static FORMATTING_FORMATTER: compat::MainThread<Arc<dyn Fn(ChatFormatting) -> MutableComponent>> = compat::MainThread::new(|| {
+    Arc::new(|formatting: ChatFormatting| -> MutableComponent {
+        // StringUtils.capitalize: the first character title-cased, the rest as it is
+        let name: String = compat::chat_formatting_name(formatting).replace("_", " ");
+        let mut chars = name.chars();
+        let capitalized: String = match chars.next() {
+            Some(first) => first.to_uppercase().collect::<String>() + chars.as_str(),
+            None => name,
+        };
+        mcrust::net::minecraft::network::chat::component::literal(&capitalized)
+    })
+});
 
 /// java: public class ConfigUtils
 #[derive(Clone)]

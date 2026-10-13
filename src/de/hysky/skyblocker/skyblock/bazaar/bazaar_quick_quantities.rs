@@ -55,7 +55,7 @@ impl BazaarQuickQuantities {
             }
         }.replace(",", "");
         // java: if (clipboard.length() <= 5 && NumberUtils.isCreatable(clipboard))
-        if compat::str_len(&clipboard) <= 5 && is_creatable(&clipboard) {
+        if compat::str_len(&clipboard) <= 5 && compat::number_utils_is_creatable(&clipboard) {
             let mut text: MutableComponent = component::literal(&clipboard);
             // java: text.withStyle(style -> style.withColor(ChatFormatting.AQUA)); - `MutableComponent.withStyle` restyles
             // `text` itself (and answers it): assigned back
@@ -85,26 +85,3 @@ impl BazaarQuickQuantities {
 
 }
 
-/// Apache commons-lang `NumberUtils.isCreatable(str)` for the strings a clipboard can hold here (at most five
-/// characters): a decimal with an optional sign, fraction and exponent and one trailing type qualifier
-/// (`f F d D l L`), or a `0x`/`0X`/`#` hexadecimal; never blank, never a leading or trailing space.
-fn is_creatable(s: &str) -> bool {
-    if s.is_empty() || s.trim() != s {
-        return false;
-    }
-    let unsigned = s.strip_prefix('-').or_else(|| s.strip_prefix('+')).unwrap_or(s);
-    if let Some(hex) = unsigned.strip_prefix("0x").or_else(|| unsigned.strip_prefix("0X")).or_else(|| unsigned.strip_prefix('#')) {
-        return !hex.is_empty() && hex.chars().all(|c| c.is_ascii_hexdigit());
-    }
-    let (body, qualifier) = match unsigned.chars().last() {
-        Some(c) if "fFdDlL".contains(c) => (&unsigned[..unsigned.len() - 1], Some(c)),
-        _ => (unsigned, None),
-    };
-    if body.is_empty() || !body.chars().next().is_some_and(|c| c.is_ascii_digit() || c == '.') {
-        return false;
-    }
-    if matches!(qualifier, Some('l') | Some('L')) {
-        return body.chars().all(|c| c.is_ascii_digit());
-    }
-    body.parse::<f64>().is_ok() && body.chars().all(|c| c.is_ascii_digit() || c == '.' || c == 'e' || c == 'E' || c == '-' || c == '+')
-}

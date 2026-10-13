@@ -34,7 +34,7 @@ use mcrust::net::minecraft::network::chat::component::Component as _;
 //   java: 	).apply(instance, NamedWaypoint::new));
 /// java: public static final Codec<NamedWaypoint> CODEC = RecordCodecBuilder.create(instance -> instance.group( BlockPos.CODEC.fieldOf("pos").forGetter(waypoint -> waypoint.pos), ComponentSerialization.CODEC.f
 pub static CODEC: compat::MainThread<CodecRef<compat::Shared<dyn NamedWaypoint>>> = compat::MainThread::new(|| {
-    // rust: `RecordCodecBuilder` builds a record of `Send + Sync` values and a waypoint handle is not one: the record is
+    // port shape: `RecordCodecBuilder` builds a record of `Send + Sync` values and a waypoint handle is not one: the record is
     // over the five getters' values, `xmap`ped to the waypoint - `apply(instance, NamedWaypoint::new)` on decode, the
     // `forGetter`s on encode
     type Fields = (BlockPos, MutableComponent, Vec<f32>, f32, bool);
@@ -81,7 +81,7 @@ pub static CODEC: compat::MainThread<CodecRef<compat::Shared<dyn NamedWaypoint>>
 //   java: 	).apply(instance, NamedWaypoint::fromSkytils));
 /// java: public static final Codec<NamedWaypoint> SKYTILS_CODEC = RecordCodecBuilder.create(instance -> instance.group( Codec.INT.fieldOf("x").forGetter(waypoint -> waypoint.pos.getX()), Codec.INT.fieldOf("y")
 pub static SKYTILS_CODEC: compat::MainThread<CodecRef<compat::Shared<dyn NamedWaypoint>>> = compat::MainThread::new(|| {
-    // rust: the record is over the getters' values, `xmap`ped to the waypoint (see `CODEC`)
+    // port shape: the record is over the getters' values, `xmap`ped to the waypoint (see `CODEC`)
     type Fields = (i32, i32, i32, String, i32, bool);
     let record: CodecRef<Fields> = record_codec_builder::create(record_codec_builder::apply6(
         // Codec.INT.fieldOf("x").forGetter(waypoint -> waypoint.pos.getX()) (and y, z)
@@ -126,7 +126,7 @@ pub static SKYTILS_CODEC: compat::MainThread<CodecRef<compat::Shared<dyn NamedWa
 //   java: 	).apply(instance, NamedWaypoint::fromColeweight));
 /// java: static final Codec<NamedWaypoint> COLEWEIGHT_CODEC = RecordCodecBuilder.create(instance -> instance.group( Codec.INT.fieldOf("x").forGetter(waypoint -> waypoint.pos.getX()), Codec.INT.fieldOf("y").for
 pub static COLEWEIGHT_CODEC: compat::MainThread<CodecRef<compat::Shared<dyn NamedWaypoint>>> = compat::MainThread::new(|| {
-    // rust: the record is over the getters' values, `xmap`ped to the waypoint (see `CODEC`)
+    // port shape: the record is over the getters' values, `xmap`ped to the waypoint (see `CODEC`)
     type Fields = (i32, i32, i32, Option<f64>, Option<f64>, Option<f64>, Option<ColeweightOptions>);
     let record: CodecRef<Fields> = record_codec_builder::create(record_codec_builder::apply7(
         record_codec_builder::of(|o: &Fields| o.0, codec::field_of(codec::int_codec(), "x")),
@@ -158,7 +158,7 @@ pub static COLEWEIGHT_CODEC: compat::MainThread<CodecRef<compat::Shared<dyn Name
 //   java: 	).apply(instance, (pos, _) -> new OrderedNamedWaypoint(pos, "", new float[]{0, 1, 0})));
 /// java: static final Codec<NamedWaypoint> SKYBLOCKER_LEGACY_ORDERED_CODEC = RecordCodecBuilder.create(instance -> instance.group( BlockPos.CODEC.fieldOf("pos").forGetter(waypoint -> waypoint.pos), Codec.float
 pub static SKYBLOCKER_LEGACY_ORDERED_CODEC: compat::MainThread<CodecRef<compat::Shared<dyn NamedWaypoint>>> = compat::MainThread::new(|| {
-    // rust: the record is over the getters' values, `xmap`ped to the waypoint (see `CODEC`)
+    // port shape: the record is over the getters' values, `xmap`ped to the waypoint (see `CODEC`)
     type Fields = (BlockPos, Vec<f32>);
     let record: CodecRef<Fields> = record_codec_builder::create(record_codec_builder::apply2(
         // BlockPos.CODEC.fieldOf("pos").forGetter(waypoint -> waypoint.pos)

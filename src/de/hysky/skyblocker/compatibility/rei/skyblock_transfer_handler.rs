@@ -33,34 +33,29 @@ impl SkyblockTransferHandler {
 
     /// java: @Override public ApplicabilityResult checkApplicable(Context context)
     pub fn check_applicable(&self, context: &crate::unresolved::Context) -> crate::unresolved::ApplicabilityResult {
-        // TODO(fabric2seer): `.getDisplay(..)` on a Context
         //   java: CategoryIdentifier<?> identifier = context.getDisplay().getCategoryIdentifier();
-        let mut identifier: crate::unresolved::CategoryIdentifier = todo!("fabric2seer: the initialiser of `identifier` (TODO above)");
-        // TODO(fabric2seer): the condition: static call CategoryIdentifier.of(..)
-        //   java: identifier != CategoryIdentifier.of(SkyblockCraftingRecipe.ID) && identifier != CategoryIdentifier.of(SkyblockInfoCategory.IDENTIFIER)
-        if todo!("fabric2seer: the condition (TODO above)") {
-            // TODO(fabric2seer): static call ApplicabilityResult.createNotApplicable(..)
+        let identifier: Option<String> = rei_display_category(context);
+        //   java: if (identifier != CategoryIdentifier.of(SkyblockCraftingRecipe.ID) && identifier != CategoryIdentifier.of(SkyblockInfoCategory.IDENTIFIER))
+        let crafting: String = crate::de::hysky::skyblocker::skyblock::itemlist::recipes::skyblock_crafting_recipe::ID.get().to_string();
+        let info: String = crate::de::hysky::skyblocker::compatibility::rei::info::skyblock_info_category::IDENTIFIER.get().to_string();
+        if identifier.as_deref() != Some(crafting.as_str()) && identifier.as_deref() != Some(info.as_str()) {
             //   java: return ApplicabilityResult.createNotApplicable();
+            return rei_applicability_result();
         }
-        // TODO(fabric2seer): `.getDisplay(..)` on a Context
         //   java: EntryIngredient ingredient = context.getDisplay().getOutputEntries().getFirst();
-        let mut ingredient: crate::unresolved::EntryIngredient = todo!("fabric2seer: the initialiser of `ingredient` (TODO above)");
-        // TODO(fabric2seer): `.getFirst(..)` on a EntryIngredient
         //   java: EntryStack<?> entryStack = ingredient.getFirst();
-        let mut entry_stack: crate::unresolved::EntryStack = todo!("fabric2seer: the initialiser of `entryStack` (TODO above)");
-        // TODO(fabric2seer): `.getValue(..)` on a EntryStack
-        //   java: if (!(entryStack.getValue() instanceof ItemStack itemStack))
-        //   java: 			return ApplicabilityResult.createNotApplicable();
-        // TODO(fabric2seer): unknown name `itemStack`
+        //   java: if (!(entryStack.getValue() instanceof ItemStack itemStack)) return ApplicabilityResult.createNotApplicable();
+        let Some(item_stack) = rei_display_output_item(context) else {
+            return rei_applicability_result();
+        };
         //   java: String neuId = itemStack.getNeuName();
-        let mut neu_id: String = todo!("fabric2seer: the initialiser of `neuId` (TODO above)");
+        let neu_id: String = item_stack.get_neu_name();
         if !(NEURepoManager::get_recipes().contains_key(&neu_id)) || !NEURepoManager::get_recipes().get(&neu_id).unwrap().iter().any(|recipe| (recipe as &dyn std::any::Any).is::<crate::unresolved::NEUCraftingRecipe>()) {
-            // TODO(fabric2seer): static call ApplicabilityResult.createApplicableWithError(..)
             //   java: return ApplicabilityResult.createApplicableWithError(Component.translatable("skyblocker.rei.transfer.noRecipe"));
+            return rei_applicability_result();
         }
-        // TODO(fabric2seer): static call ApplicabilityResult.createApplicable(..)
         //   java: return ApplicabilityResult.createApplicable();
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        return rei_applicability_result();
     }
 
     /// java: private boolean hasFailed(String skyblockId)
@@ -87,34 +82,62 @@ impl SkyblockTransferHandler {
 
     /// java: @Override public Result handle(Context context)
     pub fn handle(&mut self, context: &crate::unresolved::Context) -> crate::unresolved::Result {
-        // TODO(fabric2seer): `.getDisplay(..)` on a Context
         //   java: EntryIngredient ingredient = context.getDisplay().getOutputEntries().getFirst();
-        let mut ingredient: crate::unresolved::EntryIngredient = todo!("fabric2seer: the initialiser of `ingredient` (TODO above)");
-        // TODO(fabric2seer): `.getFirst(..)` on a EntryIngredient
         //   java: EntryStack<?> entryStack = ingredient.getFirst();
-        let mut entry_stack: crate::unresolved::EntryStack = todo!("fabric2seer: the initialiser of `entryStack` (TODO above)");
-        // TODO(fabric2seer): `.getValue(..)` on a EntryStack
         //   java: if (!(entryStack.getValue() instanceof ItemStack itemStack)) return Result.createNotApplicable();
-        // TODO(fabric2seer): unknown name `itemStack`
+        let Some(item_stack) = rei_display_output_item(context) else {
+            return rei_result();
+        };
         //   java: String skyblockId = itemStack.getSkyblockId();
-        let mut skyblock_id: String = todo!("fabric2seer: the initialiser of `skyblockId` (TODO above)");
+        let skyblock_id: String = item_stack.get_skyblock_id();
         if self.has_failed(&skyblock_id) {
-            // TODO(fabric2seer): static call Result.createFailed(..)
             //   java: return Result.createFailed(Component.translatable("skyblocker.rei.transfer.failed"));
+            return rei_result();
         }
-        // TODO(fabric2seer): the condition: `.isActuallyCrafting(..)` on a Context
-        //   java: !context.isActuallyCrafting()
-        if todo!("fabric2seer: the condition (TODO above)") {
-            // TODO(fabric2seer): static call Result.createSuccessful(..)
-            //   java: return Result.createSuccessful();
+        //   java: if (!context.isActuallyCrafting()) return Result.createSuccessful();
+        if !rei_is_actually_crafting(context) {
+            return rei_result();
         }
         MessageScheduler::send_message_after_cooldown(message_scheduler::INSTANCE.get_mut(), &format!("/viewrecipe {}", skyblock_id), false);
         // rust: port gap - `Scheduler.INSTANCE.schedule(() -> checkScreen(skyblockId), 5)`: the handler is REI's object (the REI
         // library is the `crate::unresolved` placeholders, GAPS_batchG) and the port holds no shared handle to it for the task
         let _ = &skyblock_id;
-        // TODO(fabric2seer): static call Result.createSuccessful(..)
         //   java: return Result.createSuccessful();
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        return rei_result();
     }
 
+}
+
+// The REI accessors this handler reads.
+//
+// rust: port gap - REI (`me.shedaniel.rei`) is a Java mod; its API types are `crate::unresolved` placeholders and no REI
+// runs to hand a `Context` (GAPS_batchG, GAPS_M #12). A placeholder context has no display: no category, no output
+// entry, not crafting; a placeholder result stands for each `create*()` answer.
+
+/// `context.getDisplay().getCategoryIdentifier()` as its identifier's string.
+fn rei_display_category(context: &crate::unresolved::Context) -> Option<String> {
+    let _ = context;
+    None
+}
+
+/// `context.getDisplay().getOutputEntries().getFirst().getFirst().getValue()` when it is an `ItemStack`.
+fn rei_display_output_item(context: &crate::unresolved::Context) -> Option<mcrust::net::minecraft::world::item::item_stack::ItemStack> {
+    let _ = context;
+    None
+}
+
+/// `context.isActuallyCrafting()`.
+fn rei_is_actually_crafting(context: &crate::unresolved::Context) -> bool {
+    let _ = context;
+    false
+}
+
+/// `ApplicabilityResult.create*()`.
+fn rei_applicability_result() -> crate::unresolved::ApplicabilityResult {
+    crate::unresolved::ApplicabilityResult
+}
+
+/// `Result.create*()`.
+fn rei_result() -> crate::unresolved::Result {
+    crate::unresolved::Result
 }

@@ -8,10 +8,9 @@ use mcrust::java::util::base64;
 
 /// java: private static final Set<String> MANUAL_CACHES = Set.of( HeadTextures.ADAPTIVE_BELT_HEALER, HeadTextures.ADAPTIVE_BELT_MAGE, HeadTextures.ADAPTIVE_BELT_BERSERK, HeadTextures.ADAPTIVE_BELT_ARCHER, Head
 pub static MANUAL_CACHES: LazyLock<std::collections::HashSet<String>> = LazyLock::new(|| std::collections::HashSet::from([head_textures::ADAPTIVE_BELT_HEALER.to_string(), head_textures::ADAPTIVE_BELT_MAGE.to_string(), head_textures::ADAPTIVE_BELT_BERSERK.to_string(), head_textures::ADAPTIVE_BELT_ARCHER.to_string(), head_textures::ADAPTIVE_BELT_TANK.to_string()]));
-// TODO(fabric2seer): static call IntSets.emptySet(..)
 //   java: private static IntSet CACHE = IntSets.emptySet();
 /// java: private static IntSet CACHE = IntSets.emptySet();
-pub static CACHE: LazyLock<Mutex<std::collections::HashSet<i32>>> = LazyLock::new(|| Mutex::new(todo!("fabric2seer: the initialiser of `CACHE` - see the TODO above")));
+pub static CACHE: LazyLock<Mutex<std::collections::HashSet<i32>>> = LazyLock::new(|| Mutex::new(std::collections::HashSet::new()));
 
 /// java: public class PlayerHeadHashCache
 #[derive(Clone)]
@@ -70,11 +69,9 @@ impl PlayerHeadHashCache {
         }
         // java: try {..} catch (Exception e) - an exception here is a panic, caught by `catch_unwind`; the body's `return` is the closure's value
         match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            // TODO(fabric2seer): `new URI(..)`: the port has no `URI::new`
-            // TODO(fabric2seer): `URI.getPath` has no Rust method in the port (looked for `get_path` in URI and JavaSrc)
-            // TODO(fabric2seer): static `FilenameUtils.getBaseName` has no Rust counterpart in the port
-            // rust: return FilenameUtils::get_base_name(Uri::new(url.to_string()).get_path());
-            return todo!("fabric2seer: see the TODO above");
+            // java: return FilenameUtils.getBaseName(new URI(url).getPath()); - a null path (an opaque URI) is a null name
+            let path: Option<String> = compat::uri_get_path(url).unwrap_or_else(|e| panic!("URISyntaxException: {e}"));
+            return path.map(|path| compat::filename_get_base_name(&path)).unwrap_or_default();
         })) {
             Ok(__v) => return __v,
             Err(e) => {

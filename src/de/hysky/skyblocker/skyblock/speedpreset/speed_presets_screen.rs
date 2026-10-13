@@ -53,13 +53,13 @@ impl std::ops::DerefMut for SpeedPresetsScreen {
 impl SpeedPresetsScreen {
     /// java: public SpeedPresetsScreen(Screen parent)
     pub fn new(mut parent: mcrust::net::minecraft::client::gui::screens::screen::Screen) -> compat::Shared<Self> {
-        // TODO(fabric2seer): the mod keeps the game's `Screen` (Java holds a reference to the live object); the port's `Screen` is not a value to copy and the port lends the mod no handle to it
-        //   java: this.parent = parent;
+        // java: this.parent = parent; - the game holds the parent screen (`set_screen_keeping_parent`) and returns to it
+        // through `set_screen_to_parent`; the value handed in is kept as the field
         let __this = compat::shared(Self {
             base: mcrust::net::minecraft::client::gui::screens::screen::Screen::new(component::translatable("skyblocker.config.general.speedPresets.config").get_string()),
             self_ref: std::sync::Weak::new(),
             __widgets: Default::default(),
-            parent: todo!("fabric2seer: the field value (TODO above)"),
+            parent,
             layout: None,
             list: None,
         });
@@ -73,8 +73,10 @@ impl SpeedPresetsScreen {
             { let __v = (Some(SpeedPresetListWidget::new(0, 0, 24))).map(|__o| compat::WidgetRef::value(compat::attach_list(__o))); compat::write(__this, |__t| { let __s = &mut *__t; __s.list = __v; }); }
         }
         let mut layout: HeaderAndFooterLayout = HeaderAndFooterLayout::new(0, 0);
-        // TODO(fabric2seer): `HeaderAndFooterLayout.addTitleHeader` has no Rust method in the port (looked for `add_title_header` in HeaderAndFooterLayout and its supertypes)
-        // rust: layout.add_title_header(&compat::read(__this, |__t| __t.title.clone()), &compat::font());
+        // java: layout.addTitleHeader(this.title, this.font); - its body (HeaderAndFooterLayout:125-127) is
+        // `headerFrame.addChild(new StringWidget(component, font))`: the port's caller adds the widget (see the port's
+        // header_and_footer_layout.rs)
+        { let __title = component::literal(&compat::read(__this, |__t| __t.get_title().to_string())); let __w = compat::string_widget(0, 0, -1, 9, __title); let (__ww, __wh) = (__w.get_width(), __w.get_height()); let __q0 = LayoutElement::widget(compat::write(__this, |__t| __t.add_widget(__w)), __ww, __wh); layout.add_to_header(__q0) };
         let __wa1 = layout.get_width();
         compat::write(__this, |__t| { let __s = &mut *__t; let __r = __s.list.as_mut().unwrap(); __s.__widgets.with(&mut __s.base, __r, |__w| __w.set_width(__wa1)) });
         let __wa2 = layout.get_content_height();
@@ -98,16 +100,22 @@ impl SpeedPresetsScreen {
     /// java: @Override public void onClose()
     pub fn on_close(__this: &compat::Shared<Self>) {
         if compat::write(__this, |__t| { let __s = &mut *__t; match __s.list.as_mut() { Some(__r) => Some(__s.__widgets.with(&mut __s.base, __r, |__w| compat::list_object::<SpeedPresetListWidget>(__w).expect("a mod list reached from inside its own method"))), None => None } }).is_some() && compat::write(__this, |__t| { let __s = &mut *__t; let __r = __s.list.as_mut().unwrap(); __s.__widgets.with(&mut __s.base, __r, |__w| __w.mod_widget().and_then(|__ms| __ms.with::<mcrust::mcrust::modding::widgets::ModSelectionList, _>(|__l| { let __h = &__l.class::<compat::ListClass<SpeedPresetListWidget>>().map(|__c| __c.object().clone()).expect("a mod list without its class"); compat::lend_list(__h, __l, || SpeedPresetListWidget::has_been_changed(__h)) })).expect("a mod list reached from inside its own method")) }) {
-            // TODO(fabric2seer): `new ConfirmScreen(..)`: the port has no `ConfirmScreen::new`
-            // TODO(fabric2seer): `set_screen` takes 14 argument(s) in the port (`gfx: &mut Minecraft, screen: &mut GuiScreen, screen_extra: &mut ScreenExtra, screen_stack: &mut Vec<HeldScreen>, screen_kind_before_pause: &mut Option<ScreenKind>, screen_is_open: &mut bool, level_screen_closed: &mut bool, frames_on_this_sc ..`), Java passes 1
-            // rust: let __this_w1 = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
-            // rust: gui::set_screen(&mut ConfirmScreen::new(Arc::new(move |confirmed_action| { let Some(__this_1) = __this_w1.get().upgrade() else { return Default::default(); }; {
-            // rust: if confirmed_action {
-            // rust: mcrust::mcrust::modding::game::set_screen_to_parent();
-            // rust: } else {
-            // rust: mcrust::mcrust::modding::game::set_screen(Box::new(compat::ScreenAdapter::new(((&__this_1)).clone())));
-            // rust: }
-            // rust: } }), component::translatable("text.skyblocker.quit_config"), component::translatable("text.skyblocker.quit_config_sure"), component::translatable("text.skyblocker.quit_discard").with_style_format(ChatFormatting::Red), mcrust::net::minecraft::network::chat::common_components::gui_cancel()));
+            // java: client.setScreen(new ConfirmScreen(confirmedAction -> client.setScreen(confirmedAction ? parent : this),
+            //         Component.translatable("text.skyblocker.quit_config"), Component.translatable("text.skyblocker.quit_config_sure"),
+            //         Component.translatable("text.skyblocker.quit_discard").withStyle(ChatFormatting.RED), CommonComponents.GUI_CANCEL));
+            // The confirm screen holds this screen as its parent: `this` is one step back, `parent` two.
+            mcrust::mcrust::modding::game::set_screen_keeping_parent(Box::new(compat::ConfirmScreen::new(
+                |confirmed_action: bool| {
+                    mcrust::mcrust::modding::game::set_screen_to_parent();
+                    if confirmed_action {
+                        mcrust::mcrust::modding::game::set_screen_to_parent();
+                    }
+                },
+                component::translatable("text.skyblocker.quit_config"),
+                component::translatable("text.skyblocker.quit_config_sure"),
+                component::translatable("text.skyblocker.quit_discard").with_style_format(mcrust::net::minecraft::chat_formatting::ChatFormatting::Red),
+                mcrust::net::minecraft::network::chat::common_components::gui_cancel(),
+            )));
             return;
         }
         mcrust::mcrust::modding::game::set_screen_to_parent();

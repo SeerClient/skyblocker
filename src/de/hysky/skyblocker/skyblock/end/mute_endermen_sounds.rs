@@ -8,7 +8,6 @@ use crate::de::hysky::skyblocker::utils::utils::Utils;
 use mcrust::net::minecraft::resources::identifier::Identifier;
 use mcrust::net::minecraft::sounds::sound_event::SoundEvent;
 
-// TODO(fabric2seer): static call ObjectSet.of(..)
 //   java: private static final ObjectSet<Identifier> MUTED_SOUNDS = ObjectSet.of(
 //   java: 			SoundEvents.ENDERMAN_AMBIENT.location(),
 //   java: 			SoundEvents.ENDERMAN_DEATH.location(),
@@ -17,7 +16,16 @@ use mcrust::net::minecraft::sounds::sound_event::SoundEvent;
 //   java: 			SoundEvents.ENDERMAN_STARE.location()
 //   java: 	);
 /// java: private static final ObjectSet<Identifier> MUTED_SOUNDS = ObjectSet.of( SoundEvents.ENDERMAN_AMBIENT.location(), SoundEvents.ENDERMAN_DEATH.location(), SoundEvents.ENDERMAN_HURT.location(), SoundEvent
-pub static MUTED_SOUNDS: compat::MainThread<std::collections::HashSet<Identifier>> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `MUTED_SOUNDS` - see the TODO above"));
+pub static MUTED_SOUNDS: compat::MainThread<std::collections::HashSet<Identifier>> = compat::MainThread::new(|| {
+    use mcrust::net::minecraft::sounds::sound_events;
+    std::collections::HashSet::from([
+        sound_events::enderman_ambient().location().clone(),
+        sound_events::enderman_death().location().clone(),
+        sound_events::enderman_hurt().location().clone(),
+        sound_events::enderman_scream().location().clone(),
+        sound_events::enderman_stare().location().clone(),
+    ])
+});
 
 /// java: public class MuteEndermenSounds
 #[derive(Clone)]

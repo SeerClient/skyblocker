@@ -20,11 +20,14 @@ pub const HYPIXEL_RESOURCE_PACKS_API: &str = "https://api.hypixel.net/v2/resourc
 /// java: private static final String SKYBLOCK_RESOURCE_PACK_ID = "SkyBlock";
 pub const SKYBLOCK_RESOURCE_PACK_ID: &str = "SkyBlock";
 /// java: private static final Codec<HypixelPack> CODEC = RecordCodecBuilder.create(instance -> instance.group( Codec.STRING.fieldOf("id").forGetter(HypixelPack::id), Codec.LONG.fieldOf("lastUpdated").forGetter
-pub static HYPIXEL_PACK_CODEC: compat::MainThread<CodecRef<HypixelPack>> = compat::MainThread::new(|| record_codec_builder::create(record_codec_builder::apply4(record_codec_builder::of(|o: &HypixelPack| o.id(), codec::field_of(mcrust::com::mojang::serialization::codec::string_codec(), "id")), record_codec_builder::of(|o: &HypixelPack| o.last_updated(), codec::field_of(mcrust::com::mojang::serialization::codec::long_codec(), "lastUpdated")), record_codec_builder::of(|o: &HypixelPack| o.deploy_id(), codec::field_of(mcrust::com::mojang::serialization::codec::string_codec(), "deployId")), record_codec_builder::of(|o: &HypixelPack| o.versions(), codec::field_of(codec::list(HYPIXEL_PACK_VERSION_CODEC.get_mut().clone()), "versions")), move |__a0, __a1, __a2, __a3| HypixelPack::new(__a0.clone(), __a1.clone(), __a2.clone(), __a3.clone()))));
+/// (read on the executor's thread by `downloadResourcePackInternal`: a codec is `Send + Sync`, so a `LazyLock`)
+pub static HYPIXEL_PACK_CODEC: LazyLock<CodecRef<HypixelPack>> = LazyLock::new(|| record_codec_builder::create(record_codec_builder::apply4(record_codec_builder::of(|o: &HypixelPack| o.id(), codec::field_of(mcrust::com::mojang::serialization::codec::string_codec(), "id")), record_codec_builder::of(|o: &HypixelPack| o.last_updated(), codec::field_of(mcrust::com::mojang::serialization::codec::long_codec(), "lastUpdated")), record_codec_builder::of(|o: &HypixelPack| o.deploy_id(), codec::field_of(mcrust::com::mojang::serialization::codec::string_codec(), "deployId")), record_codec_builder::of(|o: &HypixelPack| o.versions(), codec::field_of(codec::list(HYPIXEL_PACK_VERSION_CODEC.clone()), "versions")), move |__a0, __a1, __a2, __a3| HypixelPack::new(__a0.clone(), __a1.clone(), __a2.clone(), __a3.clone()))));
 /// java: private static final Codec<List<HypixelPack>> LIST_CODEC = CODEC.listOf();
-pub static HYPIXEL_PACK_LIST_CODEC: compat::MainThread<CodecRef<Vec<HypixelPack>>> = compat::MainThread::new(|| codec::list(HYPIXEL_PACK_CODEC.get_mut().clone()));
+/// (a `LazyLock`, see `HYPIXEL_PACK_CODEC`)
+pub static HYPIXEL_PACK_LIST_CODEC: LazyLock<CodecRef<Vec<HypixelPack>>> = LazyLock::new(|| codec::list(HYPIXEL_PACK_CODEC.clone()));
 /// java: private static final Codec<HypixelPackVersion> CODEC = RecordCodecBuilder.create(instance -> instance.group( Codec.INT.fieldOf("packFormat").forGetter(HypixelPackVersion::packFormat), Codec.STRING.fie
-pub static HYPIXEL_PACK_VERSION_CODEC: compat::MainThread<CodecRef<HypixelPackVersion>> = compat::MainThread::new(|| record_codec_builder::create(record_codec_builder::apply3(record_codec_builder::of(|o: &HypixelPackVersion| o.pack_format(), codec::field_of(mcrust::com::mojang::serialization::codec::int_codec(), "packFormat")), record_codec_builder::of(|o: &HypixelPackVersion| o.hash(), codec::field_of(mcrust::com::mojang::serialization::codec::string_codec(), "hash")), record_codec_builder::of(|o: &HypixelPackVersion| o.url(), codec::field_of(mcrust::com::mojang::serialization::codec::string_codec(), "url")), move |__a0, __a1, __a2| HypixelPackVersion::new(__a0.clone(), __a1.clone(), __a2.clone()))));
+/// (a `LazyLock`, see `HYPIXEL_PACK_CODEC`)
+pub static HYPIXEL_PACK_VERSION_CODEC: LazyLock<CodecRef<HypixelPackVersion>> = LazyLock::new(|| record_codec_builder::create(record_codec_builder::apply3(record_codec_builder::of(|o: &HypixelPackVersion| o.pack_format(), codec::field_of(mcrust::com::mojang::serialization::codec::int_codec(), "packFormat")), record_codec_builder::of(|o: &HypixelPackVersion| o.hash(), codec::field_of(mcrust::com::mojang::serialization::codec::string_codec(), "hash")), record_codec_builder::of(|o: &HypixelPackVersion| o.url(), codec::field_of(mcrust::com::mojang::serialization::codec::string_codec(), "url")), move |__a0, __a1, __a2| HypixelPackVersion::new(__a0.clone(), __a1.clone(), __a2.clone()))));
 
 /// java: public class SkyBlockResourcePackDownloader
 #[derive(Clone)]
@@ -52,73 +55,103 @@ impl SkyBlockResourcePackDownloader {
 
     /// java: private static boolean downloadResourcePackInternal()
     pub fn download_resource_pack_internal() -> bool {
-        // java: try {..} catch (Exception e) - the body runs inline: a Rust body does not throw checked exceptions (a panic in it propagates)
-        {
-            // TODO(fabric2seer): `Minecraft.getResourcePackDirectory` has no Rust method in the port (looked for `get_resource_pack_directory` in Minecraft and its supertypes)
-            // rust: let mut resource_pack_destination: std::path::PathBuf = compat::minecraft().get_resource_pack_directory().join("Hypixel SkyBlock");
-            let mut resource_pack_destination: std::path::PathBuf = todo!("fabric2seer: the initialiser of `resourcePackDestination` (TODO above)");
-            // TODO(fabric2seer): `Http.sendGetRequest` is not a static method of Http
+        // java: try {..} catch (Exception e) - an exception here is a panic, caught by `catch_unwind`; the body's `return`
+        // is the closure's value
+        let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| -> bool {
+            //   java: Path resourcePackDestination = CLIENT.getResourcePackDirectory().resolve("Hypixel SkyBlock");
+            // (`Minecraft.resourcePackDirectory` is `GameConfig.location.resourcePackDirectory`, `<gameDir>/resourcepacks`)
+            let mut resource_pack_destination: std::path::PathBuf = mcrust::mcrust::modding::config::game_dir().join("resourcepacks").join("Hypixel SkyBlock");
             //   java: String packsResponse = Http.sendGetRequest(HYPIXEL_RESOURCE_PACKS_API);
-            let mut packs_response: String = todo!("fabric2seer: the initialiser of `packsResponse` (TODO above)");
-            let mut packs: Vec<HypixelPack> = (HYPIXEL_PACK_LIST_CODEC.get_mut().parse(&mcrust::com::mojang::serialization::json_ops::JsonOps::instance(), &compat::json_to_port(&(compat::json::get_as_json_object(&(serde_json::from_str::<serde_json::Value>(&packs_response).expect("JsonSyntaxException")))).get("packs").cloned().unwrap()))).get_or_throw().unwrap();
+            let mut packs_response: String = crate::de::hysky::skyblocker::utils::http::Http::send_get_request(HYPIXEL_RESOURCE_PACKS_API);
+            let mut packs: Vec<HypixelPack> = (HYPIXEL_PACK_LIST_CODEC.parse(&mcrust::com::mojang::serialization::json_ops::JsonOps::instance(), &compat::json_to_port(&(compat::json::get_as_json_object(&(serde_json::from_str::<serde_json::Value>(&packs_response).expect("JsonSyntaxException")))).get("packs").cloned().unwrap()))).get_or_throw().unwrap();
             let mut skyblock_resource_pack: HypixelPack = packs.iter().cloned().filter(|pack| (pack.id() == SKYBLOCK_RESOURCE_PACK_ID)).next().unwrap();
-            // TODO(fabric2seer): Files.getLastModifiedTime
             //   java: boolean shouldUpdatePack = !Files.exists(resourcePackDestination) || skyblockResourcePack.lastUpdated() > Files.getLastModifiedTime(resourcePackDestination).toMillis();
-            let mut should_update_pack: bool = todo!("fabric2seer: the initialiser of `shouldUpdatePack` (TODO above)");
+            let mut should_update_pack: bool = !resource_pack_destination.exists() || skyblock_resource_pack.last_updated() > {
+                let modified = std::fs::metadata(&resource_pack_destination).and_then(|m| m.modified()).unwrap_or_else(|e| panic!("IOException: {e}"));
+                modified.duration_since(std::time::UNIX_EPOCH).map(|d| d.as_millis() as i64).unwrap_or_else(|e| -(e.duration().as_millis() as i64))
+            };
             let mut pack_url: Option<String> = skyblock_resource_pack.versions().into_iter().filter(|version| (version.pack_format() == *CURRENT_RESOURCE_PACK_VERSION)).map(|__a0| __a0.url()).next();
             if should_update_pack && pack_url.is_some() {
                 FileUtils::recursive_delete(&resource_pack_destination);
-                // TODO(fabric2seer): `Http.downloadContent` is not a static method of Http
                 //   java: InputStream packInputStream = Http.downloadContent(packUrl.get());
-                let mut pack_input_stream: crate::unresolved::InputStream = todo!("fabric2seer: the initialiser of `packInputStream` (TODO above)");
+                let mut pack_input_stream: Vec<u8> = crate::de::hysky::skyblocker::utils::http::Http::download_content(pack_url.as_deref().unwrap());
                 SkyBlockResourcePackDownloader::extract_resource_pack(&resource_pack_destination, &pack_input_stream);
-                // TODO(fabric2seer): static call FileTime.fromMillis(..)
                 //   java: Files.setLastModifiedTime(resourcePackDestination, FileTime.fromMillis(skyblockResourcePack.lastUpdated()));
+                set_last_modified_time(&resource_pack_destination, skyblock_resource_pack.last_updated());
                 logger().info("[Skyblocker Resource Pack Downloader] Successfully downloaded the SkyBlock pack!");
                 return true;
             } else if pack_url.is_none() {
                 logger().warn(&format!("[Skyblocker Resource Pack Downloader] Could not find a version of the SkyBlock pack for format {}.", *CURRENT_RESOURCE_PACK_VERSION));
             }
+            false
+        }));
+        match __result {
+            Ok(true) => return true,
+            Ok(false) => {}
+            Err(e) => {
+                logger().error(&format!("[Skyblocker Resource Pack Downloader] Could not download the SkyBlock pack. {}", compat::panic_message(&e)));
+            }
         }
-        // TODO(fabric2seer): the `catch (Exception e)` block is not reached in Rust - the try body returns, breaks or continues, so it cannot run inside `catch_unwind`
-        //   java: {
-        //   java: 			LOGGER.error("[Skyblocker Resource Pack Downloader] Could not download the SkyBlock pack.", e);
-        //   java: 		}
         return false;
     }
 
     /// java: private static void extractResourcePack(Path packDirectory, InputStream packInputStream) throws Exception
-    pub fn extract_resource_pack(pack_directory: &std::path::PathBuf, pack_input_stream: &crate::unresolved::InputStream) {
-        {
-            // TODO(fabric2seer): `new ZipInputStream(..)`
-            //   java: ZipInputStream zipInputStream = new ZipInputStream(packInputStream);
-            let mut zip_input_stream: crate::unresolved::ZipInputStream = todo!("fabric2seer: the initialiser of `zipInputStream` (TODO above)");
-            let mut entry: crate::unresolved::ZipEntry;
-            // TODO(fabric2seer): the condition: `.getNextEntry(..)` on a ZipInputStream
-            //   java: (entry = zipInputStream.getNextEntry()) != null
-            while todo!("fabric2seer: the condition (TODO above)") {
-                // TODO(fabric2seer): `.getName(..)` on a ZipEntry
-                //   java: Path outputPath = packDirectory.resolve(entry.getName()).normalize();
-                let mut output_path: std::path::PathBuf = todo!("fabric2seer: the initialiser of `outputPath` (TODO above)");
-                if !(output_path.starts_with(pack_directory)) {
-                    // TODO(fabric2seer): `.getName(..)` on a ZipEntry
-                    //   java: throw new IllegalStateException("Malicious ZIP entry detected: " + entry.getName());
-                }
-                // TODO(fabric2seer): the condition: `.isDirectory(..)` on a ZipEntry
-                //   java: entry.isDirectory(..)
-                if todo!("fabric2seer: the condition (TODO above)") {
-                    std::fs::create_dir_all(&output_path).expect("IOException");
-                } else {
-                    std::fs::create_dir_all(&output_path.parent().map(|x| x.to_path_buf()).unwrap()).expect("IOException");
-                    // TODO(fabric2seer): static field StandardCopyOption.REPLACE_EXISTING
-                    //   java: Files.copy(zipInputStream, outputPath, StandardCopyOption.REPLACE_EXISTING);
-                }
-                // TODO(fabric2seer): `.closeEntry(..)` on a ZipInputStream
-                //   java: zipInputStream.closeEntry();
+    ///
+    /// `packInputStream` is the downloaded archive's bytes: `new ZipInputStream(packInputStream)` walks its entries in
+    /// archive order, as `lwjgl::inflate::zip_entries` answers them (an exception is a panic).
+    pub fn extract_resource_pack(pack_directory: &std::path::PathBuf, pack_input_stream: &[u8]) {
+        //   java: ZipInputStream zipInputStream = new ZipInputStream(packInputStream);
+        //   java: while ((entry = zipInputStream.getNextEntry()) != null) {
+        for (entry_name, entry_bytes) in mcrust::lwjgl::inflate::zip_entries(pack_input_stream) {
+            //   java: Path outputPath = packDirectory.resolve(entry.getName()).normalize();
+            let mut output_path: std::path::PathBuf = normalize(&pack_directory.join(&entry_name));
+            if !(output_path.starts_with(pack_directory)) {
+                panic!("IllegalStateException: Malicious ZIP entry detected: {}", entry_name);
             }
+            //   java: if (entry.isDirectory()) - `ZipEntry.isDirectory`: the name ends with '/'
+            if entry_name.ends_with('/') {
+                std::fs::create_dir_all(&output_path).expect("IOException");
+            } else {
+                std::fs::create_dir_all(&output_path.parent().map(|x| x.to_path_buf()).unwrap()).expect("IOException");
+                //   java: Files.copy(zipInputStream, outputPath, StandardCopyOption.REPLACE_EXISTING);
+                std::fs::write(&output_path, &entry_bytes).expect("IOException");
+            }
+            //   java: zipInputStream.closeEntry();
         }
     }
 
+}
+
+/// `Path.normalize()`: `.` dropped and `..` folded into its parent (lexically, as Java's).
+fn normalize(path: &std::path::Path) -> std::path::PathBuf {
+    let mut out = std::path::PathBuf::new();
+    for component in path.components() {
+        match component {
+            std::path::Component::CurDir => {}
+            std::path::Component::ParentDir => {
+                if !out.pop() {
+                    out.push("..");
+                }
+            }
+            other => out.push(other.as_os_str()),
+        }
+    }
+    out
+}
+
+/// `Files.setLastModifiedTime(path, FileTime.fromMillis(millis))` (the path is the pack's directory).
+fn set_last_modified_time(path: &std::path::Path, millis: i64) {
+    let time = if millis >= 0 { std::time::UNIX_EPOCH + std::time::Duration::from_millis(millis as u64) } else { std::time::UNIX_EPOCH - std::time::Duration::from_millis(millis.unsigned_abs()) };
+    let mut options = std::fs::OpenOptions::new();
+    options.write(true);
+    #[cfg(windows)]
+    {
+        use std::os::windows::fs::OpenOptionsExt;
+        // FILE_FLAG_BACKUP_SEMANTICS: what opening a directory needs on Windows
+        options.custom_flags(0x0200_0000);
+    }
+    let file = options.open(path).unwrap_or_else(|e| panic!("IOException: {e}"));
+    file.set_modified(time).unwrap_or_else(|e| panic!("IOException: {e}"));
 }
 
 /// java: private record HypixelPack(String id, long lastUpdated, String deployId, List<HypixelPackVersion> versions)

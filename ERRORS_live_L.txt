@@ -1,0 +1,3 @@
+src/de/hysky/skyblocker/utils/item_utils.rs:727:42: error[E0425]: cannot find function `compound` in module `compound_tag`: not found in `compound_tag`
+src/de/hysky/skyblocker/utils/flexible_item_stack.rs:392:1: error[E0119]: conflicting implementations of trait `TypedInstance` for type `FlexibleItemStack`: conflicting implementation for `FlexibleItemStack`
+src/de/hysky/skyblocker/utils/flexible_item_stack.rs:385:1: error[E0119]: conflicting implementations of trait `ItemInstance` for type `FlexibleItemStack`: conflicting implementation for `FlexibleItemStack`

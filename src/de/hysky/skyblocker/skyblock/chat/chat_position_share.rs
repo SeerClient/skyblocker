@@ -91,9 +91,10 @@ impl ChatPositionShare {
                         let mut x: String = matcher.group_named("x").unwrap();
                         let mut y: String = matcher.group_named("y").unwrap();
                         let mut z: String = matcher.group_named("z").unwrap();
-                        // TODO(fabric2seer): Matcher.namedGroups
                         //   java: String area = matcher.namedGroups().containsKey("area") ? matcher.group("area") : "";
-                        let mut area: String = todo!("fabric2seer: the initialiser of `area` (TODO above)");
+                        // (`group_named` answers `None` for a name the pattern does not have; every pattern here that has
+                        // `area` matches it unconditionally)
+                        let mut area: String = matcher.group_named("area").unwrap_or_default();
                         ChatPositionShare::request_waypoint(&x, &y, &z, &area);
                     }));
                     if let Err(e) = __result {

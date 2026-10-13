@@ -107,19 +107,26 @@ impl CatPicture {
         if RENDER_POSITION.get_mut().is_some() && RENDER_POSITION.get_mut().as_ref().unwrap().subtract_vec(&eye_position).normalize().dot(&look_angle) > 0.0 {
             return;
         }
-        // TODO(fabric2seer): `.nextDouble(..)` on a Random
         //   java: Vec3 randomVector = new Vec3(RANDOM.nextDouble(-1, 1), RANDOM.nextDouble(-0.2, 0.2), RANDOM.nextDouble(-1, 1));
-        let mut random_vector: Vec3 = todo!("fabric2seer: the initialiser of `randomVector` (TODO above)");
+        let random_x = next_double_between(RANDOM.get_mut(), -1.0, 1.0);
+        let random_y = next_double_between(RANDOM.get_mut(), -0.2, 0.2);
+        let random_z = next_double_between(RANDOM.get_mut(), -1.0, 1.0);
+        let mut random_vector: Vec3 = Vec3::new(random_x, random_y, random_z);
         if look_angle.dot(&random_vector) > -0.1 {
             random_vector = random_vector.scale((-1) as f64);
         }
-        // TODO(fabric2seer): field `COLLIDER` of a value of unknown type
         //   java: BlockHitResult result = level.clip(new ClipContext(eyePosition, eyePosition.add(randomVector.scale(15)), ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, player));
-        let mut result: BlockHitResult = todo!("fabric2seer: the initialiser of `result` (TODO above)");
-        // TODO(fabric2seer): static `HitResult.Type` has no Rust counterpart in the port's HitResult file
-        // TODO(fabric2seer): the condition: field `MISS` of a value of unknown type
-        //   java: result.getType() == HitResult.Type.MISS || result.getDirection().getAxis() == Direction.Axis.Y
-        if todo!("fabric2seer: the condition (TODO above)") {
+        // (`new ClipContext(.., entity)` is `this(.., CollisionContext.of(entity))`)
+        let level_ref: &ClientLevel = level.as_deref().unwrap();
+        let to: Vec3 = eye_position.add_vec(&random_vector.scale((15) as f64));
+        let Some(mut result) = mcrust::mcrust::modding::game::with_player(|player| {
+            let collision_context = mcrust::net::minecraft::world::phys::shapes::collision_context::of(&*player, level_ref);
+            mcrust::net::minecraft::world::level::block_getter::BlockGetter::clip(level_ref, &ClipContext::new(eye_position.clone(), to.clone(), mcrust::net::minecraft::world::level::clip_context::Block::Collider, mcrust::net::minecraft::world::level::clip_context::Fluid::None, &*collision_context))
+        }) else {
+            return;
+        };
+        //   java: if (result.getType() == HitResult.Type.MISS || result.getDirection().getAxis() == Direction.Axis.Y) return;
+        if result.get_type() == mcrust::net::minecraft::world::phys::hit_result::Type::Miss || result.get_direction().get_axis() == mcrust::net::minecraft::core::direction::Axis::Y {
             return;
         }
         if !(level.as_ref().unwrap().get_block_state_typed(&result.get_block_pos()).base.is_solid_render()) {
@@ -149,15 +156,38 @@ impl CatPicture {
         item_frame_state.frame_model.borrow().submit_with_z_offset(&mut matrices, submit_node_collector, mcrust::net::minecraft::util::light_coords_util::FULL_BRIGHT, mcrust::net::minecraft::client::renderer::texture::overlay_texture::NO_OVERLAY, mcrust::net::minecraft::client::renderer::entity::state::entity_render_state::NO_OUTLINE);
         matrices.translate_d((1) as f64, (1) as f64, (0) as f64);
         matrices.mul_pose_quat(&mcrust::com::mojang::math::axis::ZP.rotation_degrees(180.0f32));
-        // TODO(fabric2seer): a lambda for a parameter the port does not type as a closure (`net.minecraft.client.renderer.SubmitNodeCollector.CustomGeometryRenderer`)
-        // rust: submit_node_collector.submit_custom_geometry(&matrices, render_types::text(TEXTURE.get_mut()), |matrices_entry, buffer| {
-        // rust: let mut z: f32 = ((1.0f32 - ((1 as f32) / 16.0f32)) - ((1 as f32) / 2048.0f32));
-        // rust: { buffer.add_vertex_pose(&matrices_entry, 0.0f32, (1) as f32, z); buffer.set_color(mcrust::net::minecraft::util::common_colors::WHITE); buffer.set_uv(0.0f32, 1.0f32); buffer.set_light(mcrust::net::minecraft::util::light_coords_util::FULL_BRIGHT); &mut buffer };
-        // rust: { buffer.add_vertex_pose(&matrices_entry, (1) as f32, (1) as f32, z); buffer.set_color(mcrust::net::minecraft::util::common_colors::WHITE); buffer.set_uv(1.0f32, 1.0f32); buffer.set_light(mcrust::net::minecraft::util::light_coords_util::FULL_BRIGHT); &mut buffer };
-        // rust: { buffer.add_vertex_pose(&matrices_entry, (1) as f32, 0.0f32, z); buffer.set_color(mcrust::net::minecraft::util::common_colors::WHITE); buffer.set_uv(1.0f32, 0.0f32); buffer.set_light(mcrust::net::minecraft::util::light_coords_util::FULL_BRIGHT); &mut buffer };
-        // rust: { buffer.add_vertex_pose(&matrices_entry, 0.0f32, 0.0f32, z); buffer.set_color(mcrust::net::minecraft::util::common_colors::WHITE); buffer.set_uv(0.0f32, 0.0f32); buffer.set_light(mcrust::net::minecraft::util::light_coords_util::FULL_BRIGHT); &mut buffer };
-        // rust: });
+        //   java: submitNodeCollector.submitCustomGeometry(matrices, RenderTypes.text(TEXTURE), (matricesEntry, buffer) -> { .. });
+        submit_node_collector.submit_custom_geometry(&matrices, render_types::text(TEXTURE.get()), std::rc::Rc::new(CatGeometry));
         matrices.pop_pose();
     }
 
+}
+
+/// The `CustomGeometryRenderer` lambda of `extractRenderState` (it captures nothing).
+struct CatGeometry;
+
+impl mcrust::net::minecraft::client::renderer::submit_node_collector::CustomGeometryRenderer for CatGeometry {
+    fn render(&self, matrices_entry: &mcrust::com::mojang::blaze3d::vertex::pose_stack::Pose, buffer: &mut dyn mcrust::com::mojang::blaze3d::vertex::vertex_consumer::VertexConsumer) {
+        //   java: float z = 1 - 1 / 16f - 1 / 2048f;
+        let mut z: f32 = ((1.0f32 - ((1 as f32) / 16.0f32)) - ((1 as f32) / 2048.0f32));
+        //   java: buffer.addVertex(matricesEntry, 0, 1, z).setColor(CommonColors.WHITE).setUv(0, 1).setLight(LightCoordsUtil.FULL_BRIGHT); (x4)
+        for (x, y, u, v) in [(0.0f32, 1.0f32, 0.0f32, 1.0f32), (1.0, 1.0, 1.0, 1.0), (1.0, 0.0, 1.0, 0.0), (0.0, 0.0, 0.0, 0.0)] {
+            buffer.add_vertex_pose(matrices_entry, x, y, z);
+            buffer.set_color(mcrust::net::minecraft::util::common_colors::WHITE);
+            buffer.set_uv(u, v);
+            buffer.set_light(mcrust::net::minecraft::util::light_coords_util::FULL_BRIGHT);
+        }
+    }
+}
+
+/// `RandomGenerator.nextDouble(origin, bound)` (`java.util.Random`): `origin + (bound - origin) * nextDouble()`,
+/// pulled below `bound` when rounding reaches it (`RandomSupport.boundedNextDouble`).
+fn next_double_between(random: &mut compat::Random, origin: f64, bound: f64) -> f64 {
+    let mut r = random.next_double();
+    r = r * (bound - origin) + origin;
+    if r >= bound {
+        // `Math.nextDown(bound)`
+        r = if bound > 0.0 { f64::from_bits(bound.to_bits() - 1) } else if bound < 0.0 { f64::from_bits(bound.to_bits() + 1) } else { -f64::from_bits(1) };
+    }
+    r
 }

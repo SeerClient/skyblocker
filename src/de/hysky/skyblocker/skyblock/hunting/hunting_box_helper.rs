@@ -160,12 +160,11 @@ impl HuntingBoxHelper {
             if owned.is_none() || syphon.is_none() {
                 continue;
             }
-            // TODO(fabric2seer): static call NumberUtils.toInt(..)
+            // `NumberUtils.toInt(str, -1)`: `Integer.parseInt(str)` (no trimming), the default for null or a bad number
             //   java: int ownedCount = NumberUtils.toInt(owned, -1);
-            let mut owned_count: i32 = todo!("fabric2seer: the initialiser of `ownedCount` (TODO above)");
-            // TODO(fabric2seer): static call NumberUtils.toInt(..)
+            let mut owned_count: i32 = owned.as_deref().and_then(|__s| __s.parse::<i32>().ok()).unwrap_or(-1);
             //   java: int syphonCount = NumberUtils.toInt(syphon, -1);
-            let mut syphon_count: i32 = todo!("fabric2seer: the initialiser of `syphonCount` (TODO above)");
+            let mut syphon_count: i32 = syphon.as_deref().and_then(|__s| __s.parse::<i32>().ok()).unwrap_or(-1);
             if owned_count < 0 || syphon_count < 0 {
                 logger().warn(&format!("Invalid owned or syphon count in Hunting Box: owned={}, syphon={}.", compat::opt_str(&owned), compat::opt_str(&syphon)));
                 continue;

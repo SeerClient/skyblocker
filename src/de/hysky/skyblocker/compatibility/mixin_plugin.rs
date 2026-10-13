@@ -29,14 +29,20 @@ impl MixinPlugin {
 
     /// java: @Override public boolean shouldApplyMixin(String targetClassName, String mixinClassName)
     pub fn should_apply_mixin(&self, target_class_name: &str, mixin_class_name: &str) -> bool {
-        // TODO(fabric2seer): a pattern switch expression
         //   java: return switch (mixinClassName) {
         //   java: 			case String s when s.endsWith("ScrollTrackerMixin") -> ADAPTIVE_TOOLTIPS_LOADED;
         //   java: 			case String s when s.endsWith("GlCommandEncoderMixin") -> SystemUtils.IS_OS_MAC && "aarch64".equalsIgnoreCase(SystemUtils.OS_ARCH);
-        //   java:
         //   java: 			default -> true;
         //   java: 		};
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        // (`SystemUtils.IS_OS_MAC` / `OS_ARCH` are the JVM's `os.name` / `os.arch`; the process's own target here.)
+        let _ = target_class_name;
+        if mixin_class_name.ends_with("ScrollTrackerMixin") {
+            return *ADAPTIVE_TOOLTIPS_LOADED;
+        }
+        if mixin_class_name.ends_with("GlCommandEncoderMixin") {
+            return std::env::consts::OS == "macos" && compat::equals_ignore_case("aarch64", std::env::consts::ARCH);
+        }
+        return true;
     }
 
     /// java: @Override public void acceptTargets(Set<String> myTargets, Set<String> otherTargets)

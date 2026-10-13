@@ -24,9 +24,10 @@ impl SkyblockerFocusedStackProvider {
             // for `pass()`
             return crate::unresolved::CompoundEventResult;
         };
-        // TODO(fabric2seer): static call CompoundEventResult.interruptTrue(..)
         //   java: return CompoundEventResult.interruptTrue(EntryStacks.of(focusedItem));
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        // (the placeholder value stands for `interruptTrue(..)` too - see `pass()` above)
+        let _ = &mut focused_item;
+        return crate::unresolved::CompoundEventResult;
     }
 
 }

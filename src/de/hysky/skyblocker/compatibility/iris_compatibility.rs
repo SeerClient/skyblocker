@@ -53,95 +53,100 @@ impl IrisCompatibility {
     pub fn assign_pipeline(pipeline: &RenderPipeline, iris_program_name: &str) {
         // java: try {..} catch (IllegalStateException _) catch (Throwable e) - an exception here is a panic, caught by `catch_unwind`
         let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            GET_IRIS_API.get_mut();
-            REGISTER_PIPELINE.get_mut();
-            GET_IRIS_PROGRAM.get_mut();
-            // TODO(fabric2seer): `.invoke(..)` on a MethodHandle
             //   java: REGISTER_PIPELINE.invoke(GET_IRIS_API.invoke(), pipeline, GET_IRIS_PROGRAM.invoke(irisProgramName));
+            let _ = (pipeline, iris_program_name);
+            invoke(GET_IRIS_API.get());
+            invoke(GET_IRIS_PROGRAM.get());
+            invoke(REGISTER_PIPELINE.get());
         }));
-        if let Err(_) = __result {
+        if let Err(e) = __result {
+            let message = compat::panic_message(&e);
+            // java: catch (IllegalStateException _) {} - Iris' "pipeline already assigned"; any other Throwable is logged
+            if !message.starts_with("IllegalStateException") {
+                logger().error(&format!("[Skyblocker Iris Compatibility] Failed to assign pipeline {} to {}. {}", pipeline.get_location(), iris_program_name, message));
+            }
         }
-        // TODO(fabric2seer): the second `catch (Throwable e)` clause (merged into the first)
-        //   java: {
-        //   java: 			LOGGER.error("[Skyblocker Iris Compatibility] Failed to assign pipeline {} to {}.", pipeline.getLocation(), irisProgramName, e);
-        //   java: 		}
     }
 
     /// java: private static MethodHandle getIrisApiHandle()
     pub fn get_iris_api_handle() -> Option<crate::unresolved::MethodHandle> {
         // java: try {..} catch (Exception _) - an exception here is a panic, caught by `catch_unwind`; the body's `return` is the closure's value
         match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            // TODO(fabric2seer): static call Class.forName(..)
-            //   java: Class<?> irisApiClass = Class.forName(IRIS_API_CLASS);
-            let mut iris_api_class: crate::unresolved::Class = todo!("fabric2seer: the initialiser of `irisApiClass` (TODO above)");
-            // TODO(fabric2seer): static call MethodHandles.publicLookup(..)
-            //   java: MethodHandles.Lookup lookup = MethodHandles.publicLookup();
-            let mut lookup: crate::unresolved::Lookup = todo!("fabric2seer: the initialiser of `lookup` (TODO above)");
-            // TODO(fabric2seer): static call MethodType.methodType(..)
+            let iris_api_class: crate::unresolved::Class = class_for_name(IRIS_API_CLASS);
+            let lookup: crate::unresolved::Lookup = public_lookup();
             //   java: MethodType type = MethodType.methodType(irisApiClass);
-            let mut r#type: crate::unresolved::MethodType = todo!("fabric2seer: the initialiser of `type` (TODO above)");
-            // TODO(fabric2seer): `.findStatic(..)` on a Lookup
             //   java: return lookup.findStatic(irisApiClass, "getInstance", type);
+            Some(find_method(&lookup, &iris_api_class, "getInstance"))
         })) {
             Ok(__v) => return __v,
             Err(_) => {
                 return None;
             }
         }
-        todo!("fabric2seer: the value of this function is in a TODO above")
     }
 
     /// java: private static MethodHandle getRegisterPipelineHandle()
     pub fn get_register_pipeline_handle() -> Option<crate::unresolved::MethodHandle> {
         // java: try {..} catch (Exception _) - an exception here is a panic, caught by `catch_unwind`; the body's `return` is the closure's value
         match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            // TODO(fabric2seer): static call Class.forName(..)
             //   java: Class<?> irisApiClass = Class.forName(IRIS_API_CLASS);
-            let mut iris_api_class: crate::unresolved::Class = todo!("fabric2seer: the initialiser of `irisApiClass` (TODO above)");
-            // TODO(fabric2seer): static call Class.forName(..)
+            let iris_api_class: crate::unresolved::Class = class_for_name(IRIS_API_CLASS);
             //   java: Class<?> irisProgramClass = Class.forName(IRIS_PROGRAM_CLASS);
-            let mut iris_program_class: crate::unresolved::Class = todo!("fabric2seer: the initialiser of `irisProgramClass` (TODO above)");
-            // TODO(fabric2seer): static call MethodHandles.publicLookup(..)
-            //   java: MethodHandles.Lookup lookup = MethodHandles.publicLookup();
-            let mut lookup: crate::unresolved::Lookup = todo!("fabric2seer: the initialiser of `lookup` (TODO above)");
-            // TODO(fabric2seer): not translated (expected ';' at 'type' (offset 3758))
+            let _iris_program_class: crate::unresolved::Class = class_for_name(IRIS_PROGRAM_CLASS);
+            let lookup: crate::unresolved::Lookup = public_lookup();
             //   java: MethodType type = MethodType.methodType(void.class, RenderPipeline.class, irisProgramClass);
-            // TODO(fabric2seer): `.findVirtual(..)` on a Lookup
             //   java: return lookup.findVirtual(irisApiClass, "assignPipeline", type);
+            Some(find_method(&lookup, &iris_api_class, "assignPipeline"))
         })) {
             Ok(__v) => return __v,
             Err(_) => {
                 return None;
             }
         }
-        todo!("fabric2seer: the value of this function is in a TODO above")
     }
 
     /// java: private static MethodHandle getIrisProgramHandle()
     pub fn get_iris_program_handle() -> Option<crate::unresolved::MethodHandle> {
         // java: try {..} catch (Exception _) - an exception here is a panic, caught by `catch_unwind`; the body's `return` is the closure's value
         match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            // TODO(fabric2seer): static call Class.forName(..)
             //   java: Class<?> irisProgramClass = Class.forName(IRIS_PROGRAM_CLASS);
-            let mut iris_program_class: crate::unresolved::Class = todo!("fabric2seer: the initialiser of `irisProgramClass` (TODO above)");
-            // TODO(fabric2seer): static call MethodHandles.publicLookup(..)
-            //   java: MethodHandles.Lookup lookup = MethodHandles.publicLookup();
-            let mut lookup: crate::unresolved::Lookup = todo!("fabric2seer: the initialiser of `lookup` (TODO above)");
-            // TODO(fabric2seer): static call MethodType.methodType(..)
+            let iris_program_class: crate::unresolved::Class = class_for_name(IRIS_PROGRAM_CLASS);
+            let lookup: crate::unresolved::Lookup = public_lookup();
             //   java: MethodType type = MethodType.methodType(Enum.class, Class.class, String.class);
-            let mut r#type: crate::unresolved::MethodType = todo!("fabric2seer: the initialiser of `type` (TODO above)");
-            // TODO(fabric2seer): `.findStatic(..)` on a Lookup
             //   java: MethodHandle enumValueOf = lookup.findStatic(Enum.class, "valueOf", type);
-            let mut enum_value_of: crate::unresolved::MethodHandle = todo!("fabric2seer: the initialiser of `enumValueOf` (TODO above)");
-            // TODO(fabric2seer): static call MethodHandles.insertArguments(..)
             //   java: return MethodHandles.insertArguments(enumValueOf, 0, irisProgramClass);
+            Some(find_method(&lookup, &iris_program_class, "valueOf"))
         })) {
             Ok(__v) => return __v,
             Err(_) => {
                 return None;
             }
         }
-        todo!("fabric2seer: the value of this function is in a TODO above")
     }
 
+}
+
+/// `Class.forName(name)` - another mod's JVM class.
+///
+/// rust: port gap - SeerClient runs no JVM: there are no Java mod classes to load or reflect on (`Class.forName`,
+/// `MethodHandles.Lookup.findStatic/findVirtual`, `Field.get`, `MethodHandle.invoke`), so the lookup fails as
+/// `ClassNotFoundException` does in Java for an absent class (GAPS_batchF, GAPS_M #11). Every caller only gets here
+/// after `FabricLoader.isModLoaded(..)` answered true for a SeerClient mod of that id.
+fn class_for_name(name: &str) -> crate::unresolved::Class {
+    panic!("ClassNotFoundException: {name}");
+}
+
+/// `MethodHandles.publicLookup()` - see `class_for_name` (the lookup exists; nothing can be found through it).
+fn public_lookup() -> crate::unresolved::Lookup {
+    crate::unresolved::Lookup
+}
+
+/// `lookup.findStatic(clazz, name, type)` / `findVirtual(..)` - see `class_for_name`.
+fn find_method(_lookup: &crate::unresolved::Lookup, _clazz: &crate::unresolved::Class, name: &str) -> crate::unresolved::MethodHandle {
+    panic!("NoSuchMethodException: {name}");
+}
+
+/// `methodHandle.invoke(..)` - see `class_for_name` (no handle can have been found).
+fn invoke(_handle: &crate::unresolved::MethodHandle) -> compat::Object {
+    panic!("WrongMethodTypeException: no JVM method behind the handle");
 }

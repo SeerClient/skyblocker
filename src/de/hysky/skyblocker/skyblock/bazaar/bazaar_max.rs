@@ -70,26 +70,46 @@ impl BazaarMax {
     }
 
     /// java: public void expandMax(TextFieldHelper signField, String currentLine)
-    pub fn expand_max(&self, sign_field: &mut TextFieldHelper, current_line: &str) {
-        if self.last_seen_max < 0 {
+    ///
+    /// The port's `TextFieldHelper` holds no getter / setter of the line (Java's `() -> messages[line]` /
+    /// `this::setMessage`) and no validator: it is handed the line and answers the new one. So the edit is made on the
+    /// sign screen that owns the three - `expand_max_on` - and this form (the helper alone) answers the new line for
+    /// the caller to `setMessage`.
+    pub fn expand_max(&self, sign_field: &mut TextFieldHelper, current_line: &str) -> Option<String> {
+        self.expand_max_with(sign_field, current_line, |_| true)
+    }
+
+    /// `expandMax(screen.signField, currentLine)` on the sign screen: the helper's setter is the screen's `setMessage`
+    /// and its validator `font.width(s) <= sign.getMaxTextLineWidth()` (AbstractSignEditScreen:62-68).
+    pub fn expand_max_on(&self, screen: &mut mcrust::net::minecraft::client::gui::screens::inventory::abstract_sign_edit_screen::AbstractSignEditScreen) {
+        let current_line: String = screen.current_message().to_string();
+        let max_width: i32 = screen.max_text_line_width;
+        let font = compat::font();
+        let Some(sign_field) = screen.sign_field.as_mut() else {
             return;
+        };
+        if let Some(updated) = self.expand_max_with(sign_field, &current_line, |s| font.width(s) <= max_width) {
+            screen.set_message(updated);
         }
-        match current_line {
-            "max " => {
-                // TODO(fabric2seer): `remove_chars_from_cursor` takes 2 argument(s) in the port (`message: &str, count: i32`), Java passes 1
-                // rust: sign_field.remove_chars_from_cursor(&-4.to_string());
-            }
-            "m " | "x " => {
-                // TODO(fabric2seer): `remove_chars_from_cursor` takes 2 argument(s) in the port (`message: &str, count: i32`), Java passes 1
-                // rust: sign_field.remove_chars_from_cursor(&-2.to_string());
-            }
+    }
+
+    /// The body of `expandMax`: the line after the two helper calls (`None` when it was not changed).
+    fn expand_max_with(&self, sign_field: &mut TextFieldHelper, current_line: &str, validator: impl Fn(&str) -> bool) -> Option<String> {
+        if self.last_seen_max < 0 {
+            return None;
+        }
+        // java: signField.removeCharsFromCursor(-4) / (-2) - the helper's getter reads the line, its setter writes it back
+        let removed: Option<String> = match current_line {
+            "max " => sign_field.remove_chars_from_cursor(current_line, -4),
+            "m " | "x " => sign_field.remove_chars_from_cursor(current_line, -2),
             _ => {
-                return;
+                return None;
             }
-        }
-        // TODO(fabric2seer): the port's `insert_text_at_cursor` ports this Java method with other parameters (message, text, validator for Java's text)
-        // TODO(fabric2seer): `insert_text_at_cursor` takes 3 argument(s) in the port (`message: &str, text: &str, validator: impl Fn(&str) -> bool`), Java passes 1
-        // rust: sign_field.insert_text_at_cursor(&self.last_seen_max.to_string());
+        };
+        let line: String = removed.unwrap_or_else(|| current_line.to_string());
+        // java: signField.insertText(String.valueOf(lastSeenMax));
+        let inserted: Option<String> = sign_field.insert_text_at_cursor(&line, &self.last_seen_max.to_string(), validator);
+        Some(inserted.unwrap_or(line))
     }
 
     /// java: public boolean isEnabled()

@@ -139,21 +139,19 @@ impl EndStatsBestiaryUpdater {
                 continue;
             };
             let mut kills_str: String = matcher.group(1).unwrap().replace(",", "");
-            // TODO(fabric2seer): the condition: static call NumberUtils.isCreatable(..)
-            //   java: !NumberUtils.isCreatable(killsStr)
-            if todo!("fabric2seer: the condition (TODO above)") {
+            // java: !NumberUtils.isCreatable(killsStr)
+            if !compat::number_utils_is_creatable(&kills_str) {
                 continue;
             }
-            // TODO(fabric2seer): static call NumberUtils.toInt(..)
-            //   java: int kills = NumberUtils.toInt(killsStr);
-            let mut kills: i32 = todo!("fabric2seer: the initialiser of `kills` (TODO above)");
+            // java: int kills = NumberUtils.toInt(killsStr);
+            let mut kills: i32 = compat::number_utils_to_int(&kills_str, 0);
             let mut stats = ProfiledData::compute_if_absent(the_end::PROFILES_STATS.get_mut(), the_end::END_STATS_EMPTY.get_mut().clone());
             if entry.0 == ALL_ZEALOTS_INDEX {
-                // TODO(fabric2seer): `.zealotsSinceLastEye(..)` on a T
-                //   java: TheEnd.PROFILES_STATS.put(new TheEnd.EndStats(kills, stats.zealotsSinceLastEye(), stats.eyes()));
+                // java: TheEnd.PROFILES_STATS.put(new TheEnd.EndStats(kills, stats.zealotsSinceLastEye(), stats.eyes()));
+                crate::de::hysky::skyblocker::utils::data::profiled_data::ProfiledData::put(the_end::PROFILES_STATS.get(), the_end::EndStats::new(kills, stats.zealots_since_last_eye, stats.eyes));
             } else if entry.0 == SPECIAL_ZEALOT_INDEX {
-                // TODO(fabric2seer): `.totalZealotKills(..)` on a T
-                //   java: TheEnd.PROFILES_STATS.put(new TheEnd.EndStats(stats.totalZealotKills(), stats.zealotsSinceLastEye(), kills));
+                // java: TheEnd.PROFILES_STATS.put(new TheEnd.EndStats(stats.totalZealotKills(), stats.zealotsSinceLastEye(), kills));
+                crate::de::hysky::skyblocker::utils::data::profiled_data::ProfiledData::put(the_end::PROFILES_STATS.get(), the_end::EndStats::new(stats.total_zealot_kills, stats.zealots_since_last_eye, kills));
             }
             ({ let __r = &EndHudWidget::get_instance(); let __f = compat::dispatch(__r, |__t| __t.update()); __f(&compat::view(__r, |a| a as compat::Shared<dyn ElementBasedWidget>)) });
         }

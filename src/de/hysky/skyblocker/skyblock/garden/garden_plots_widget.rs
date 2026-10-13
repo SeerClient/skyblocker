@@ -221,8 +221,9 @@ impl GardenPlotsWidget {
                 continue;
             };
             if hovered {
-                // TODO(fabric2seer): the condition: Fabric API `ClientTags.isInLocal` has no SeerClient equivalent
-                //   java: ClientTags.isInLocal(..)
+                // java: if (ClientTags.isInLocal(ConventionalItemTags.GLASS_PANES, item.getItem().builtInRegistryHolder().key())) {
+                // rust: port gap (GAPS_J #8) - Fabric API's `ClientTags.isInLocal` reads the `c:glass_panes` conventional
+                // tag from Fabric's bundled data files; the port loads neither the API nor the `c:` tag set
                 if todo!("fabric2seer: the condition (TODO above)") {
                     graphics.item(&item, slot_x.wrapping_add(1), slot_y.wrapping_add(1));
                 } else {

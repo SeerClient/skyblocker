@@ -16,10 +16,9 @@ use mcrust::net::minecraft::world::entity::living_entity::LivingEntity as _;
 
 /// java: private static final AABB AREA = AABB.encapsulatingFullBlocks(new BlockPos(-69, 65, 25), new BlockPos(-87, 84, 52));
 pub static AREA: compat::MainThread<AABB> = compat::MainThread::new(|| AABB::encapsulating_full_blocks(&BlockPos::new(-69, 65, 25), &BlockPos::new(-87, 84, 52)));
-// TODO(fabric2seer): `.getRGB(..)` on a value of unknown type
 //   java: private static final int YELLOW = Color.YELLOW.getRGB();
 /// java: private static final int YELLOW = Color.YELLOW.getRGB();
-pub static YELLOW: LazyLock<i32> = LazyLock::new(|| todo!("fabric2seer: the initialiser of `YELLOW` - see the TODO above"));
+pub static YELLOW: LazyLock<i32> = LazyLock::new(|| mcrust::java::awt::color::yellow().get_rgb());
 
 /// java: public class CatchAFish
 #[derive(Clone)]

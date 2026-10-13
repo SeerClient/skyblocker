@@ -58,9 +58,8 @@ impl WsStateManager {
 
     /// java: public static void subscribeServer(Service service, Optional<Message<? extends Message<?>>> message)
     pub fn subscribe_server(mut service: Service, message: Option<&dyn AnyMessage>) {
-        // TODO(fabric2seer): the condition: static field Environment.PRODUCTION
-        //   java: Utils.getEnvironment() != Environment.PRODUCTION
-        if todo!("fabric2seer: the condition (TODO above)") {
+        //   java: if (Utils.getEnvironment() != Environment.PRODUCTION) return;
+        if *Utils::get_environment() != crate::unresolved::Environment::Production {
             return;
         }
         compat::lock(&SUBSCRIBED_SERVER_SERVICES).insert(service);
@@ -70,9 +69,8 @@ impl WsStateManager {
 
     /// java: public static void subscribeIsland(Service service, Optional<Message<? extends Message<?>>> message)
     pub fn subscribe_island(mut service: Service, message: Option<&dyn AnyMessage>) {
-        // TODO(fabric2seer): the condition: static field Environment.PRODUCTION
-        //   java: Utils.getEnvironment() != Environment.PRODUCTION
-        if todo!("fabric2seer: the condition (TODO above)") {
+        //   java: if (Utils.getEnvironment() != Environment.PRODUCTION) return;
+        if *Utils::get_environment() != crate::unresolved::Environment::Production {
             return;
         }
         compat::lock(&SUBSCRIBED_ISLAND_SERVICES).insert(service);

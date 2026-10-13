@@ -86,9 +86,12 @@ impl QuickNav {
     /// java: private static QuickNavButton parseButton(QuickNavigationConfig.QuickNavItem buttonInfo, String screenTitle, int id) throws CommandSyntaxException
     pub fn parse_button(button_info: &compat::Shared<QuickNavItem>, screen_title: &str, mut id: i32) -> compat::Shared<dyn QuickNavButton> {
         let mut item_data: Option<ItemData> = compat::read(button_info, |__t| __t.item_data.clone());
-        // TODO(fabric2seer): `fmt` takes 1 argument(s) in the port (`f: &mut std::fmt::Formatter<'_>`), Java passes 0
-        // rust: let mut stack: mcrust::net::minecraft::world::item::item_stack::ItemStack = (if item_data.is_some() && item_data.as_ref().unwrap().item.is_some() && true /* java: item_data.as_ref().unwrap().components != null: never null here */ { ItemStackComponentizationFixer::from_components_string(&item_data.as_ref().unwrap().item.as_ref().unwrap().fmt(), (item_data.as_ref().unwrap().count).clamp(1, 99), &item_data.as_ref().unwrap().components) } else { mcrust::net::minecraft::world::item::item_stack::ItemStack::of_one(items::items().get("barrier")) });
-        let mut stack: mcrust::net::minecraft::world::item::item_stack::ItemStack = todo!("fabric2seer: the initialiser of `stack` (TODO above)");
+        // java: ItemStack stack = itemData != null && itemData.item != null && itemData.components != null ? ItemStackComponentizationFixer.fromComponentsString(itemData.item.toString(), Math.clamp(itemData.count, 1, 99), itemData.components) : new ItemStack(Items.BARRIER);
+        // (`Item.toString()` is the port's `Display` - the registered name; the config's `components` is a non-null `String`)
+        let mut stack: mcrust::net::minecraft::world::item::item_stack::ItemStack = match item_data.as_ref().and_then(|data| data.item.as_ref().map(|item| (data, item))) {
+            Some((data, item)) => ItemStackComponentizationFixer::from_components_string(&item.to_string(), data.count.clamp(1, 99), &data.components),
+            None => mcrust::net::minecraft::world::item::item_stack::ItemStack::of_one(items::items().get("barrier")),
+        };
         let mut ui_title_matches: bool = false;
         // java: try {..} catch (PatternSyntaxException e) - an exception here is a panic, caught by `catch_unwind`
         let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {

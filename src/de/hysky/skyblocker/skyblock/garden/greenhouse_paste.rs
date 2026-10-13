@@ -75,35 +75,90 @@ impl GreenhousePaste {
 
     /// java: @Init public static void init()
     pub fn init() {
-        // TODO(fabric2seer): no SeerClient event yet: hook RETURN of Minecraft's constructor (`net.minecraft.client.Minecraft#<init>`: exists)
-        //   java: ClientLifecycleEvents.CLIENT_STARTED.register(_ -> PRESETS_DATA.init());
+        // java: ClientLifecycleEvents.CLIENT_STARTED.register(_ -> PRESETS_DATA.init()); - RETURN of `Minecraft`'s
+        // constructor (as `WidgetManager.init` hooks it)
+        let _ = hook::inject("net.minecraft.client.Minecraft#<init>", At::Return, |_: &mut CallbackInfo<'_>| {
+            let __r = PRESETS_DATA.get();
+            let _ = __r.lock().borrow_mut().init();
+        })
+        .map_err(|e| logger().error(&format!("[Skyblocker] Failed to hook the client start: {:?}", e)));
         client_command_registration_callback::EVENT.register(Arc::new(
             |dispatcher: &mut client_command_registration_callback::ClientCommandDispatcher| {
-                // TODO(fabric2seer): a command builder outside dispatcher.register(..)
-                //   java: LiteralArgumentBuilder<FabricClientCommandSource> greenhouseCommands = literal("greenhouse")
-                //   java: 					.then(literal("paste").executes(_ -> runGreenhousePaste()).then(
-                //   java: 							argument("preset", StringArgumentType.greedyString())
-                //   java: 									.suggests((_, builder) -> SharedSuggestionProvider.suggest(PRESETS_DATA.getData().keySet(), builder))
-                //   java: 									.executes(context -> runGreenhousePaste(StringArgumentType.getString(context, "preset")))
-                //   java: 					))
-                //   java: 					.then(literal("endPaste").executes(_ -> runGreenhousePasteRemove()))
-                //   java: 					.then(literal("presets").executes(Scheduler.queueOpenScreenCommand(GreenhousePresetsScreen::new)))
-                //   java: 					.then(literal("rotate")
-                //   java: 							.then(literal("right").executes(_ -> runRotateRight()))
-                //   java: 							.then(literal("left").executes(_ -> runRotateLeft())))
-                //   java: 					.then(literal("mirror").executes(_ -> runMirror()));
-                let mut greenhouse_commands: LiteralArgumentBuilder<crate::unresolved::FabricClientCommandSource> = todo!("fabric2seer: the initialiser of `greenhouseCommands` (TODO above)");
-                if crate::de::hysky::skyblocker::debug::debug::Debug::debug_enabled() {
-                    // TODO(fabric2seer): a command builder outside dispatcher.register(..)
-                    //   java: greenhouseCommands.then(literal("debug").executes(_ -> {
-                    //   java: 					debugPrintGreenhouses();
-                    //   java: 					return Command.SINGLE_SUCCESS;
-                    //   java: 				}));
+                // java: LiteralArgumentBuilder<FabricClientCommandSource> greenhouseCommands = literal("greenhouse")
+                // java: 		.then(literal("paste").executes(_ -> runGreenhousePaste()).then(
+                // java: 				argument("preset", StringArgumentType.greedyString())
+                // java: 						.suggests((_, builder) -> SharedSuggestionProvider.suggest(PRESETS_DATA.getData().keySet(), builder))
+                // java: 						.executes(context -> runGreenhousePaste(StringArgumentType.getString(context, "preset")))
+                // java: 		))
+                // java: 		.then(literal("endPaste").executes(_ -> runGreenhousePasteRemove()))
+                // java: 		.then(literal("presets").executes(Scheduler.queueOpenScreenCommand(GreenhousePresetsScreen::new)))
+                // java: 		.then(literal("rotate")
+                // java: 				.then(literal("right").executes(_ -> runRotateRight()))
+                // java: 				.then(literal("left").executes(_ -> runRotateLeft())))
+                // java: 		.then(literal("mirror").executes(_ -> runMirror()));
+                use mcrust::com::mojang::brigadier::arguments::string_argument_type::StringArgumentType;
+                use mcrust::com::mojang::brigadier::builder::argument_builder::ArgumentBuilder as _;
+                use mcrust::com::mojang::brigadier::context::command_context::CommandContext;
+                use mcrust::com::mojang::brigadier::suggestion::suggestions_builder::SuggestionsBuilder;
+                type Source = client_command_registration_callback::FabricClientCommandSource;
+                let mut greenhouse_commands: LiteralArgumentBuilder<Source> = client_command_registration_callback::literal("greenhouse");
+                {
+                    let mut paste = client_command_registration_callback::literal("paste");
+                    paste.executes(Arc::new(|_: &CommandContext<Source>| Ok(GreenhousePaste::run_greenhouse_paste())));
+                    let mut preset = client_command_registration_callback::argument("preset", Arc::new(StringArgumentType::greedy_string()));
+                    let suggestions: mcrust::com::mojang::brigadier::suggestion::suggestion_provider::SuggestionProvider<Source> = Arc::new(|_: &CommandContext<Source>, builder: &mut SuggestionsBuilder| {
+                        // java: PRESETS_DATA.getData().keySet()
+                        let names: Vec<String> = { let __r = PRESETS_DATA.get(); let __g = __r.lock(); let __b = __g.borrow(); __b.get_data().keys().cloned().collect() };
+                        Ok(mcrust::net::minecraft::commands::shared_suggestion_provider::suggest(&names, builder))
+                    });
+                    preset.suggests(Some(suggestions));
+                    preset.executes(Arc::new(|context: &CommandContext<Source>| Ok(GreenhousePaste::run_greenhouse_paste_1(&StringArgumentType::get_string(context, "preset")))));
+                    paste.then(&preset);
+                    greenhouse_commands.then(&paste);
                 }
-                // TODO(fabric2seer): a command tree this tool cannot read (arguments, redirects, requires) - SeerClient commands receive the words after the name in `ctx.args`
-                //   java: dispatcher.register(literal(SkyblockerMod.NAMESPACE)
-                //   java: 					.then(literal("garden")
-                //   java: 							.then(greenhouseCommands)));
+                {
+                    let mut end_paste = client_command_registration_callback::literal("endPaste");
+                    end_paste.executes(Arc::new(|_: &CommandContext<Source>| Ok(GreenhousePaste::run_greenhouse_paste_remove())));
+                    greenhouse_commands.then(&end_paste);
+                }
+                {
+                    // java: Scheduler.queueOpenScreenCommand(GreenhousePresetsScreen::new) - the no-argument constructor
+                    let mut presets = client_command_registration_callback::literal("presets");
+                    presets.executes(crate::de::hysky::skyblocker::utils::scheduler::scheduler::SchedulerBase::queue_open_screen_command(Arc::new(|| {
+                        Box::new(compat::ScreenAdapter::new(crate::de::hysky::skyblocker::config::screens::greenhouse::greenhouse_presets_screen::GreenhousePresetsScreen::new_0())) as Box<dyn mcrust::mcrust::modding::screens::ModScreen>
+                    })));
+                    greenhouse_commands.then(&presets);
+                }
+                {
+                    let mut rotate = client_command_registration_callback::literal("rotate");
+                    let mut right = client_command_registration_callback::literal("right");
+                    right.executes(Arc::new(|_: &CommandContext<Source>| Ok(GreenhousePaste::run_rotate_right())));
+                    let mut left = client_command_registration_callback::literal("left");
+                    left.executes(Arc::new(|_: &CommandContext<Source>| Ok(GreenhousePaste::run_rotate_left())));
+                    rotate.then(&right);
+                    rotate.then(&left);
+                    greenhouse_commands.then(&rotate);
+                }
+                {
+                    let mut mirror = client_command_registration_callback::literal("mirror");
+                    mirror.executes(Arc::new(|_: &CommandContext<Source>| Ok(GreenhousePaste::run_mirror())));
+                    greenhouse_commands.then(&mirror);
+                }
+                if crate::de::hysky::skyblocker::debug::debug::Debug::debug_enabled() {
+                    // java: greenhouseCommands.then(literal("debug").executes(_ -> { debugPrintGreenhouses(); return Command.SINGLE_SUCCESS; }));
+                    let mut debug = client_command_registration_callback::literal("debug");
+                    debug.executes(Arc::new(|_: &CommandContext<Source>| {
+                        GreenhousePaste::debug_print_greenhouses();
+                        Ok(1)
+                    }));
+                    greenhouse_commands.then(&debug);
+                }
+                // java: dispatcher.register(literal(SkyblockerMod.NAMESPACE).then(literal("garden").then(greenhouseCommands)));
+                let mut garden = client_command_registration_callback::literal("garden");
+                garden.then(&greenhouse_commands);
+                let mut root = client_command_registration_callback::literal(crate::entry::skyblocker_mod::NAMESPACE);
+                root.then(&garden);
+                dispatcher.dispatcher().register(&root);
             },
         ));
         level_render_extraction_callback::EVENT.register(Arc::new(move |collector| {
@@ -220,9 +275,15 @@ impl GreenhousePaste {
 
     /// java: public static void loadFromClipboard()
     pub fn load_from_clipboard() {
-        // TODO(fabric2seer): `get_clipboard` takes 1 argument(s) in the port (`clipboard: &mut dyn ClipboardAccess`), Java passes 0
-        // rust: let mut clipboard: String = compat::minecraft().keyboard_handler.get_clipboard();
-        let mut clipboard: String = todo!("fabric2seer: the initialiser of `clipboard` (TODO above)");
+        // java: String clipboard = CLIENT.keyboardHandler.getClipboard();
+        // (the port's `getClipboard` takes the clipboard it reads: GLFW's once the window is up)
+        let mut clipboard: String = {
+            let mut __memory = mcrust::net::minecraft::client::gui::components::edit_box::MemoryClipboard::default();
+            match mcrust::net::minecraft::client::minecraft::GlfwClipboard::published() {
+                Some(mut __glfw) => compat::minecraft().keyboard_handler.get_clipboard(&mut __glfw),
+                None => compat::minecraft().keyboard_handler.get_clipboard(&mut __memory),
+            }
+        };
         GreenhousePaste::load_from_link(&clipboard);
     }
 
@@ -304,12 +365,11 @@ impl GreenhousePaste {
 
     /// java: private static boolean importSkyShardsGreenhouse(String encoded)
     pub fn import_sky_shards_greenhouse(encoded: &str) -> bool {
-        // TODO(fabric2seer): `SkyShardsLayout.decode` is not a static method of SkyShardsLayout
-        //   java: int[][] layout = SkyShardsLayout.decode(encoded);
-        let mut layout: Vec<Vec<i32>> = todo!("fabric2seer: the initialiser of `layout` (TODO above)");
-        if false /* java: layout == null: never null here */ {
+        // java: int[][] layout = SkyShardsLayout.decode(encoded);
+        // java: if (layout == null) return false;
+        let Some(mut layout) = crate::de::hysky::skyblocker::skyblock::garden::sky_shards_layout::SkyShardsLayout::decode(encoded) else {
             return false;
-        }
+        };
         compat::set_state(&TARGET_GREENHOUSE, layout.clone());
         return true;
     }
@@ -579,18 +639,19 @@ impl GreenhousePaste {
                     let Some(mut profile) = stack.get(mcrust::net::minecraft::core::component::data_components::profile()) else {
                         continue;
                     };
-                    // TODO(fabric2seer): field `PLAYER` of a value of unknown type
-                    //   java: SkullModelBase model = SkullBlockRenderer.createModel(
-                    //   java: 							CLIENT.getEntityModels(),
-                    //   java: 							SkullBlock.Types.PLAYER
-                    //   java: 					);
-                    let mut model: SkullModelBase = todo!("fabric2seer: the initialiser of `model` (TODO above)");
-                    if false /* java: model == null: never null here */ {
+                    // java: SkullModelBase model = SkullBlockRenderer.createModel(CLIENT.getEntityModels(), SkullBlock.Types.PLAYER);
+                    // java: if (model == null) continue;
+                    // (`Minecraft.getEntityModels()` is the game's `EntityModelSet.vanilla()`, as its own screens read it)
+                    let Some(mut model) = mcrust::net::minecraft::client::renderer::blockentity::skull_block_renderer::create_model_owned(mcrust::net::minecraft::client::model::geom::entity_model_set::vanilla(), mcrust::net::minecraft::world::level::block::skull_block::Types::Player) else {
                         continue;
-                    }
-                    // TODO(fabric2seer): `Minecraft.playerSkinRenderCache` has no Rust method in the port (looked for `player_skin_render_cache` in Minecraft and its supertypes)
-                    // rust: let mut render_type: RenderType = compat::minecraft().player_skin_render_cache().get_or_default(&profile).render_type();
-                    let mut render_type: RenderType = todo!("fabric2seer: the initialiser of `renderType` (TODO above)");
+                    };
+                    // java: RenderType renderType = CLIENT.playerSkinRenderCache().getOrDefault(profile).renderType();
+                    // (`Minecraft.playerSkinRenderCache()` is `game_renderer.player_skin_render_cache`; the component is the
+                    // erased `ResolvableProfile`)
+                    let Some(profile) = mcrust::com::mojang::serialization::cast::<mcrust::net::minecraft::world::item::component::resolvable_profile::ResolvableProfile>(&profile).cloned() else {
+                        continue;
+                    };
+                    let mut render_type: std::rc::Rc<RenderType> = compat::minecraft().game_renderer.player_skin_render_cache.as_ref().expect("Minecraft.playerSkinRenderCache()").get_or_default(&profile).render_type();
                     // collector.submitVanilla(null, (_, worldState, submitNodeCollector) -> {..}): the lambda is
                     // `SkullPreviewRenderer`; `submitVanilla` is generic, so it is reached on the one implementation
                     let renderer: compat::Shared<dyn VanillaRenderer<Option<()>>> = compat::shared(SkullPreviewRenderer { pos: pos.clone(), model: std::cell::RefCell::new(model), render_type }) as compat::Shared<dyn VanillaRenderer<Option<()>>>;
@@ -726,7 +787,7 @@ impl std::fmt::Display for LayoutSite {
 struct SkullPreviewRenderer {
     pos: BlockPos,
     model: std::cell::RefCell<SkullModelBase>,
-    render_type: RenderType,
+    render_type: std::rc::Rc<RenderType>,
 }
 
 impl VanillaRenderer<Option<()>> for SkullPreviewRenderer {
@@ -742,7 +803,10 @@ impl VanillaRenderer<Option<()>> for SkullPreviewRenderer {
         let mut skull_state: State = State::new();
         skull_state.animation_pos = 0.0f32;
         self.model.borrow_mut().setup_anim(skull_state.clone());
-        // TODO(fabric2seer): `.submitModel(..)` on a value of unknown type
+        // rust: port gap (GAPS_J #10) - `submitNodeCollector.submitModel(..)` is `&mut self` in the port
+        // (`OrderedSubmitNodeCollector::submit_model`), and `VanillaRenderer.submitVanilla` (the unowned
+        // `utils/render/primitive/vanilla_renderer.rs`) hands the collector as `&dyn SubmitNodeCollector`; the model would
+        // also have to be the shared `Rc<RefCell<dyn AnimatedModel>>` (`skull_block_renderer::create_model`).
         //   java: submitNodeCollector.submitModel(
         //   java: 										model,
         //   java: 										skullState,

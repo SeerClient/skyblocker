@@ -19,14 +19,13 @@ use crate::de::hysky::skyblocker::injected::skyblocker_stack::SkyblockerStack as
 use crate::de::hysky::skyblocker::skyblock::item::tooltip::info::data_tooltip_info_type::DataTooltipInfoType as _;
 use mcrust::net::minecraft::network::chat::component::Component as _;
 
-// TODO(fabric2seer): Fabric API `KeyMappingHelper.registerKeyMapping` has no SeerClient equivalent
 //   java: public static final KeyMapping ITEM_PRICE_LOOKUP = KeyMappingHelper.registerKeyMapping(new KeyMapping(
 //   java: 			"key.skyblocker.itemPriceLookup",
 //   java: 			InputConstants.KEY_F6,
 //   java: 			SkyblockerMod.KEYBINDING_CATEGORY
 //   java: 	));
 /// java: public static final KeyMapping ITEM_PRICE_LOOKUP = KeyMappingHelper.registerKeyMapping(new KeyMapping( "key.skyblocker.itemPriceLookup", InputConstants.KEY_F6, SkyblockerMod.KEYBINDING_CATEGORY ));
-pub static ITEM_PRICE_LOOKUP: compat::MainThread<mcrust::net::minecraft::client::key_mapping::KeyMapping> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `ITEM_PRICE_LOOKUP` - see the TODO above"));
+pub static ITEM_PRICE_LOOKUP: compat::MainThread<mcrust::net::minecraft::client::key_mapping::KeyMapping> = compat::MainThread::new(|| key_binding_helper::register_key_binding(mcrust::net::minecraft::client::key_mapping::KeyMapping::new("key.skyblocker.itemPriceLookup", 295 /* InputConstants.KEY_F6 */, *crate::entry::skyblocker_mod::KEYBINDING_CATEGORY.get())));
 
 /// java: public class ItemPrice
 #[derive(Clone)]
@@ -42,6 +41,8 @@ impl ItemPrice {
 
     /// java: @SuppressWarnings("UnstableApiUsage") //For the Javadoc reference. @Init public static void init()
     pub fn init() {
+        // the class's static initialiser runs when `init` first touches the class: the key mapping registers then
+        let _ = ITEM_PRICE_LOOKUP.get();
         client_command_registration_callback::EVENT.register(Arc::new(
             |dispatcher: &mut client_command_registration_callback::ClientCommandDispatcher| {
                 // TODO(fabric2seer): a command tree this tool cannot read (arguments, redirects, requires) - SeerClient commands receive the words after the name in `ctx.args`
@@ -56,9 +57,8 @@ impl ItemPrice {
 
     /// java: public static void itemPriceLookup(LocalPlayer player, Slot slot)
     pub fn item_price_lookup(player: &LocalPlayer, slot: &Slot) {
-        // TODO(fabric2seer): `get_item` takes 1 argument(s) in the port (`containers: &'a Containers<'_>`), Java passes 0
-        // rust: let stack = slot.get_item();
-        let mut stack: mcrust::net::minecraft::world::item::item_stack::ItemStack = todo!("fabric2seer: the initialiser of `stack` (TODO above)");
+        // java: ItemStack stack = slot.getItem();
+        let mut stack: mcrust::net::minecraft::world::item::item_stack::ItemStack = compat::slot_item(slot);
         ItemPrice::item_price_lookup_local_player_item_stack(player, &stack);
     }
 

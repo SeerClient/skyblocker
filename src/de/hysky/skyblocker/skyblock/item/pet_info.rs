@@ -95,9 +95,8 @@ impl PetInfo {
 
     /// java: public boolean isEmpty()
     pub fn is_empty(&self) -> bool {
-        // TODO(fabric2seer): call to `equals(..)` (not a method of this class)
-        //   java: return this.equals(EMPTY);
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        // java: return this.equals(EMPTY); - the record's field-by-field equality
+        return *self == *EMPTY;
     }
 
 }

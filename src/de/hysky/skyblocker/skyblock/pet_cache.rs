@@ -78,9 +78,8 @@ impl PetCache {
     /// java: public static void handlePetEquip(Slot slot, int slotId)
     pub fn handle_pet_equip(slot: &Slot, mut slot_id: i32) {
         if slot_id >= 0 && slot_id <= 53 {
-            // TODO(fabric2seer): `get_item` takes 1 argument(s) in the port (`containers: &'a Containers<'_>`), Java passes 0
-            // rust: let stack = slot.get_item();
-            let mut stack: mcrust::net::minecraft::world::item::item_stack::ItemStack = todo!("fabric2seer: the initialiser of `stack` (TODO above)");
+            //   java: ItemStack stack = slot.getItem();
+            let mut stack: mcrust::net::minecraft::world::item::item_stack::ItemStack = compat::slot_item(slot);
             if !stack.is_empty() {
                 PetCache::parse_pet(&stack, true);
             }
@@ -117,38 +116,32 @@ impl PetCache {
             let mut name: String = matcher.group_named("name").unwrap();
             let mut ordered: Seq = text.get_visual_order_text();
             let mut name_index: i32 = compat::index_of(&stringified, &name);
-            // TODO(fabric2seer): `new MutableInt(..)`
             //   java: MutableInt codePointIndex = new MutableInt(0);
-            let mut code_point_index: crate::unresolved::MutableInt = todo!("fabric2seer: the initialiser of `codePointIndex` (TODO above)");
-            // TODO(fabric2seer): `new MutableInt(..)`
+            let mut code_point_index: i32 = 0;
             //   java: MutableInt color = new MutableInt(-1);
-            let mut color: crate::unresolved::MutableInt = todo!("fabric2seer: the initialiser of `color` (TODO above)");
-            // TODO(fabric2seer): a lambda for a parameter the port does not type as a closure (`net.minecraft.util.FormattedCharSink`)
-            // rust: ordered.accept(|_, style, _| {
-            // rust: // TODO(fabric2seer): the condition: `.intValue(..)` on a MutableInt
-            // rust: //   java: codePointIndex.intValue() == nameIndex
-            // rust: if todo!("fabric2seer: the condition (TODO above)") {
-            // rust: // TODO(fabric2seer): `.setValue(..)` on a MutableInt
-            // rust: //   java: color.setValue(style.getColor().getValue());
-            // rust: return false;
-            // rust: }
-            // rust: // TODO(fabric2seer): `.getAndIncrement(..)` on a MutableInt
-            // rust: //   java: codePointIndex.getAndIncrement();
-            // rust: return true;
-            // rust: });
-            // TODO(fabric2seer): `.intValue(..)` on a MutableInt
+            let mut color: i32 = -1;
+            //   java: ordered.accept((_, style, _) -> {
+            //   java: 	if (codePointIndex.intValue() == nameIndex) { color.setValue(style.getColor().getValue()); return false; }
+            //   java: 	codePointIndex.getAndIncrement(); return true; });
+            ordered.accept(&mut |_: i32, style: &mcrust::net::minecraft::network::chat::style::Style, _: u32| -> bool {
+                if code_point_index == name_index {
+                    color = style.get_color().expect("NullPointerException: style.getColor()").get_value();
+                    return false;
+                }
+                code_point_index += 1;
+                return true;
+            });
             //   java: SkyblockItemRarity rarity = SkyblockItemRarity.fromColor(color.intValue());
-            let mut rarity: SkyblockItemRarity = todo!("fabric2seer: the initialiser of `rarity` (TODO above)");
+            let mut rarity: SkyblockItemRarity = SkyblockItemRarity::from_color(color);
             if rarity != SkyblockItemRarity::Unknown {
-                // TODO(fabric2seer): static field PetConstants.RARITY_OFFSETS
                 //   java: int petOffset = PetConstants.RARITY_OFFSETS.getOrDefault(rarity.name(), 0);
-                let mut pet_offset: i32 = todo!("fabric2seer: the initialiser of `petOffset` (TODO above)");
-                // TODO(fabric2seer): static field PetConstants.PET_LEVELS
+                // rust: port gap - `net.azureaaron.networth.utils.PetConstants` (the networth library is not ported,
+                // GAPS_batchB L2): its two tables are not in the crate
+                let mut pet_offset: i32 = todo!("rust: port gap - PetConstants.RARITY_OFFSETS (azureaaron networth)");
                 //   java: IntList petLevels = new IntArrayList(PetConstants.PET_LEVELS.subList(petOffset, petOffset + level - 1));
-                let mut pet_levels: Vec<i32> = todo!("fabric2seer: the initialiser of `petLevels` (TODO above)");
-                // TODO(fabric2seer): List.intStream(..)
+                let mut pet_levels: Vec<i32> = todo!("rust: port gap - PetConstants.PET_LEVELS (azureaaron networth) [{}..{}]", pet_offset, pet_offset + level - 1);
                 //   java: double exp = petLevels.intStream().sum();
-                let mut exp: f64 = todo!("fabric2seer: the initialiser of `exp` (TODO above)");
+                let mut exp: f64 = pet_levels.iter().fold(0i32, |sum, l| sum.wrapping_add(*l)) as f64;
                 let mut stack: mcrust::net::minecraft::world::item::item_stack::ItemStack = ItemRepository::get_items_stream().filter(|s| compat::component_of(FlexibleItemStack::get_stack_or_throw(s).get_hover_name()).get_string().contains(&format!("] {}", name))).next().map(|__a0| FlexibleItemStack::get_stack_or_throw(&__a0)).unwrap_or(mcrust::net::minecraft::world::item::item_stack::empty());
                 if !stack.is_empty() {
                     let mut copied: mcrust::net::minecraft::world::item::item_stack::ItemStack = stack.copy();

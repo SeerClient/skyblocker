@@ -22,33 +22,38 @@ fn modify_command_suggestions(v: ClientCommandNode) -> ClientCommandNode {
     if crate::de::hysky::skyblocker::utils::utils::Utils::is_on_hypixel()
         && let mcrust::com::mojang::brigadier::tree::command_node::NodeKind::Literal(literal_command_node) = original.kind()
     {
-        // TODO(batchD): cross-package - every replacement node below is a static of another package typed
-        // `Option<LiteralCommandNode>` (the literal's name only, no children or suggestions) or a
-        // `CommandNode<FabricClientCommandSource>`; Java hands back the mod's whole `CommandNode`, which here must be
-        // a `ClientCommandNode` (`Arc<CommandNode<Arc<ClientSuggestionProvider>>>`). Until those statics carry that
-        // type, each case answers `original` (Java's `default`).
-        //   java: return switch (literalCommandNode.getLiteral()) {
-        //   java: 				case String s when s.equals("setmaxspeed") -> SpeedPresets.getCommandNode();
-        //   java: 				case String s when s.equals("warp") && WarpAutocomplete.commandNode != null -> WarpAutocomplete.commandNode;
-        //   java: 				case String s when s.equals("getfromsacks") && SackItemAutocomplete.longCommandNode != null -> SackItemAutocomplete.longCommandNode;
-        //   java: 				case String s when s.equals("gfs") && SackItemAutocomplete.shortCommandNode != null -> SackItemAutocomplete.shortCommandNode;
-        //   java: 				case String s when s.equals("viewstash") -> ViewstashAutocomplete.getCommandNode();
-        //   java: 				case String s when s.equals("joininstance") && JoinInstanceAutocomplete.joinInstanceCommand != null -> JoinInstanceAutocomplete.joinInstanceCommand;
-        //   java: 				case String s when s.equals("joindungeon") && JoinInstanceAutocomplete.dungeonCommand != null -> JoinInstanceAutocomplete.dungeonCommand;
-        //   java: 				case String s when s.equals("joinkuudra") && JoinInstanceAutocomplete.kuudraCommand != null -> JoinInstanceAutocomplete.kuudraCommand;
-        //   java: 				case String s when s.equals("rngmeter") && RngMeterAutocomplete.longCommand != null -> RngMeterAutocomplete.longCommand;
-        //   java: 				case String s when s.equals("rng") && RngMeterAutocomplete.shortCommand != null -> RngMeterAutocomplete.shortCommand;
-        //   java: 				case String s when s.equals("call") && CallAutocomplete.commandNode != null -> CallAutocomplete.commandNode;
-        //   java: 				case String s when s.equals("ahs") && AuctionBazaarAutocomplete.ahsNode != null -> AuctionBazaarAutocomplete.ahsNode;
-        //   java: 				case String s when s.equals("ahsearch") && AuctionBazaarAutocomplete.ahsearchNode != null -> AuctionBazaarAutocomplete.ahsearchNode;
-        //   java: 				case String s when s.equals("bz") && AuctionBazaarAutocomplete.bzNode != null -> AuctionBazaarAutocomplete.bzNode;
-        //   java: 				case String s when s.equals("bazaar") && AuctionBazaarAutocomplete.bazaarNode != null -> AuctionBazaarAutocomplete.bazaarNode;
-        //   java: 				case String s when s.equals("chapter") && ChaptersAutocomplete.singularCommandNode != null -> ChaptersAutocomplete.singularCommandNode;
-        //   java: 				case String s when s.equals("chapters") && ChaptersAutocomplete.pluralCommandNode != null -> ChaptersAutocomplete.pluralCommandNode;
-        //   java: 				default -> original;
-        //   java: 			};
-        let _literal: &str = literal_command_node.get_literal();
-        return original;
+        //   java: return switch (literalCommandNode.getLiteral()) { .. default -> original; };
+        use crate::de::hysky::skyblocker::skyblock as sb;
+        let literal: String = literal_command_node.get_literal().to_string();
+        let replacement: Option<ClientCommandNode> = match literal.as_str() {
+            //   java: case String s when s.equals("setmaxspeed") -> SpeedPresets.getCommandNode();
+            // rust: cross-package - `SpeedPresets::get_command_node` (skyblock/speedpreset/speed_presets.rs:46) still answers a
+            // `CommandNode<crate::unresolved::FabricClientCommandSource>`, not this `ClientCommandNode`; the case
+            // answers `original` until it does.
+            "setmaxspeed" => None,
+            "warp" => compat::get_state(&sb::warp_autocomplete::COMMAND_NODE),
+            "getfromsacks" => compat::get_state(&sb::sack_item_autocomplete::LONG_COMMAND_NODE),
+            "gfs" => compat::get_state(&sb::sack_item_autocomplete::SHORT_COMMAND_NODE),
+            "viewstash" => Some(sb::viewstash_autocomplete::ViewstashAutocomplete::get_command_node()),
+            "joininstance" => compat::get_state(&sb::join_instance_autocomplete::JOIN_INSTANCE_COMMAND),
+            "joindungeon" => compat::get_state(&sb::join_instance_autocomplete::DUNGEON_COMMAND),
+            "joinkuudra" => compat::get_state(&sb::join_instance_autocomplete::KUUDRA_COMMAND),
+            "rngmeter" => compat::get_state(&sb::rng_meter_autocomplete::LONG_COMMAND),
+            "rng" => compat::get_state(&sb::rng_meter_autocomplete::SHORT_COMMAND),
+            //   java: case String s when s.equals("call") && CallAutocomplete.commandNode != null -> CallAutocomplete.commandNode;
+            // (the same cross-package wait: `CallAutocomplete::COMMAND_NODE` is still an `Option<LiteralCommandNode>`
+            // (skyblock/call_autocomplete.rs:10), not a `ClientCommandNode`)
+            "call" => None,
+            "ahs" => compat::get_state(&sb::auction_bazaar_autocomplete::AHS_NODE),
+            "ahsearch" => compat::get_state(&sb::auction_bazaar_autocomplete::AHSEARCH_NODE),
+            "bz" => compat::get_state(&sb::auction_bazaar_autocomplete::BZ_NODE),
+            "bazaar" => compat::get_state(&sb::auction_bazaar_autocomplete::BAZAAR_NODE),
+            "chapter" => compat::get_state(&sb::chapters_autocomplete::SINGULAR_COMMAND_NODE),
+            "chapters" => compat::get_state(&sb::chapters_autocomplete::PLURAL_COMMAND_NODE),
+            _ => None,
+        };
+        // `case .. && X != null -> X; default -> original`
+        return replacement.unwrap_or(original);
     }
     return original;
 }

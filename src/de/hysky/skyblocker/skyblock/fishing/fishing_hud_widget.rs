@@ -281,14 +281,25 @@ impl FishingHudWidget {
         collector.yes_no_button(&component::translatable("skyblocker.config.helpers.fishing.hud.enableSeaCreatureCounter"), Arc::new(move |b| { let Some(__this_1) = __this_w1.get().upgrade() else { return Default::default(); }; { { let __v = b; compat::write((&__this_1), |__t| __t.show_creature_counter = __v); } } }), compat::read(__this, |__t| __t.show_creature_counter), Some(component::translatable("skyblocker.config.helpers.fishing.hud.enableSeaCreatureCounter.@Tooltip")));
         let __this_w2 = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
         collector.yes_no_button(&component::translatable("skyblocker.config.helpers.fishing.enableFishingTimer"), Arc::new(move |b| { let Some(__this_2) = __this_w2.get().upgrade() else { return Default::default(); }; { { let __v = b; compat::write((&__this_2), |__t| __t.show_fishing_timer = __v); } } }), compat::read(__this, |__t| __t.show_fishing_timer), Some(component::translatable("skyblocker.config.helpers.fishing.enableFishingTimer.@Tooltip")));
-        // TODO(fabric2seer): the port's `builder` ports this Java method with other parameters (default_value for Java's value_stringifier, default_value)
-        // TODO(fabric2seer): `builder` takes 1 argument(s) in the port (`default_value: String`), Java passes 2
-        // TODO(fabric2seer): a lambda for a parameter the port does not type as a closure (`Function<T, net.minecraft.network.chat.Component>`)
-        // TODO(fabric2seer): a lambda for a parameter the port does not type as a closure (`net.minecraft.client.OptionInstance.TooltipSupplier<T>`)
-        // TODO(fabric2seer): the port's `create` ports this Java method with other parameters (name, generic_value_format, value_change_listener for Java's x, y, width, height, name, value_change_listener)
-        // TODO(fabric2seer): `create` takes 3 argument(s) in the port (`name: String, generic_value_format: String, value_change_listener: OnValueChange`), Java passes 6
-        // TODO(fabric2seer): a lambda for a parameter the port does not type as a closure (`net.minecraft.client.gui.components.CycleButton.OnValueChange<T>`)
-        // rust: collector.add_widget((cycle_button::builder(|d| component::literal(&compat::jstring(&d)), SkyblockerConfigManager::get().helpers.fishing.fishing_hook_display)).with_tooltip(|_| Tooltip::create((component::translatable("skyblocker.config.helpers.fishing.fishingHookDisplay.@Tooltip")).get_string())).with_values(FishingHookDisplay::values()).create(0, 0, 150, 20, component::translatable("skyblocker.config.helpers.fishing.fishingHookDisplay"), |_, value| { SkyblockerConfigManager::update_only(Arc::new(move |config| { config.helpers.fishing.fishing_hook_display = value.clone(); })); }).unwrap());
+        // java: collector.addWidget(CycleButton.builder(d -> Component.literal(d.toString()), SkyblockerConfigManager.get().helpers.fishing.fishingHookDisplay)
+        //         .withTooltip(_ -> Tooltip.create(Component.translatable("skyblocker.config.helpers.fishing.fishingHookDisplay.@Tooltip")))
+        //         .withValues(FishingHookDisplay.values())
+        //         .create(Component.translatable("skyblocker.config.helpers.fishing.fishingHookDisplay"),
+        //                 (_, value) -> SkyblockerConfigManager.updateOnly(config -> config.helpers.fishing.fishingHookDisplay = value)));
+        // (`create(name, ..)` is CycleButton's 150x20 at (0, 0))
+        // (the port's cycle button holds each value's LABEL and answers the chosen INDEX, which maps back to the value)
+        {
+            let values: Vec<FishingHookDisplay> = FishingHookDisplay::values();
+            let builder: cycle_button::Builder = cycle_button::builder(component::literal(&compat::jstring(&SkyblockerConfigManager::get().helpers.fishing.fishing_hook_display)).get_string())
+                .with_tooltip(cycle_button::TooltipSupplier::Constant(mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::translatable("skyblocker.config.helpers.fishing.fishingHookDisplay.@Tooltip"))))
+                .with_values(values.iter().map(|d| component::literal(&compat::jstring(d)).get_string()).collect());
+            collector.add_widget(compat::cycle_button_widget(0, 0, 150, 20, &component::translatable("skyblocker.config.helpers.fishing.fishingHookDisplay"), builder, move |index: usize| {
+                let value = values[index];
+                SkyblockerConfigManager::update_only(Arc::new(move |config: &mut crate::de::hysky::skyblocker::config::skyblocker_config::SkyblockerConfig| {
+                    config.helpers.fishing.fishing_hook_display = value;
+                }));
+            }));
+        }
         if collector.editing_for() == Location::Hub {
             let __this_w3 = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
             collector.yes_no_button(&component::translatable("skyblocker.config.helpers.fishing.hud.onlyShowHudInBarn"), Arc::new(move |b| { let Some(__this_3) = __this_w3.get().upgrade() else { return Default::default(); }; { { let __v = b; compat::write((&__this_3), |__t| __t.only_show_hud_in_barn = __v); } } }), compat::read(__this, |__t| __t.only_show_hud_in_barn), Some(component::translatable("skyblocker.config.helpers.fishing.hud.onlyShowHudInBarn.@Tooltip")));

@@ -167,9 +167,9 @@ impl ConfigType {
 
     /// java: public String getBackupFileName()
     pub fn get_backup_file_name(&self) -> String {
-        // TODO(fabric2seer): static call LocalDateTime.now(..)
-        //   java: return baseName + "_" + FORMATTER.format(LocalDateTime.now()) + "." + extension;
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        // java: return baseName + "_" + FORMATTER.format(LocalDateTime.now()) + "." + extension;
+        // (`LocalDateTime.now()` is the system zone's wall clock: the port's formatter reads a `ZonedDateTime` at that zone)
+        return format!("{}_{}.{}", self.fields().base_name, FORMATTER.get().format(mcrust::java::time::zoned_date_time::ZonedDateTime::now()), self.fields().extension);
     }
 
 }
@@ -196,10 +196,9 @@ impl ConfigTypeFields {
         };
         this.path = path.clone();
         let mut file_name: String = std::path::PathBuf::from(path.file_name().unwrap_or_default()).to_string_lossy().to_string();
-        // TODO(fabric2seer): static `FilenameUtils.getBaseName` has no Rust counterpart in the port
-        // rust: this.base_name = FilenameUtils::get_base_name(file_name.clone());
-        // TODO(fabric2seer): static `FilenameUtils.getExtension` has no Rust counterpart in the port
-        // rust: this.extension = FilenameUtils::get_extension(file_name.clone());
+        // java: this.baseName = FilenameUtils.getBaseName(fileName); this.extension = FilenameUtils.getExtension(fileName);
+        this.base_name = compat::filename_get_base_name(&file_name);
+        this.extension = compat::filename_get_extension(&file_name);
         this
     }
 

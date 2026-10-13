@@ -30,14 +30,20 @@ use mcrust::net::minecraft::world::item::items;
 pub static TITLE: compat::MainThread<MutableComponent> = compat::MainThread::new(|| component::literal("The End").with_style_formats(&[ChatFormatting::LightPurple, ChatFormatting::Bold]));
 /// java: private static @Nullable EndHudWidget instance = null;
 pub static INSTANCE: compat::MainThread<Option<compat::Shared<EndHudWidget>>> = compat::MainThread::new(|| None);
-// TODO(fabric2seer): `.set(..)` on a T
 //   java: private static final FlexibleItemStack ENDERMAN_HEAD = Util.make(new FlexibleItemStack(Items.PLAYER_HEAD), stack -> stack.set(DataComponents.PROFILE, ResolvableProfile.createUnresolved("MHF_Enderman")));
 /// java: private static final FlexibleItemStack ENDERMAN_HEAD = Util.make(new FlexibleItemStack(Items.PLAYER_HEAD), stack -> stack.set(DataComponents.PROFILE, ResolvableProfile.createUnresolved("MHF_Enderman")
-pub static ENDERMAN_HEAD: compat::MainThread<compat::Shared<FlexibleItemStack>> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `ENDERMAN_HEAD` - see the TODO above"));
-// TODO(fabric2seer): `.set(..)` on a T
+pub static ENDERMAN_HEAD: compat::MainThread<compat::Shared<FlexibleItemStack>> = compat::MainThread::new(|| {
+    let stack = FlexibleItemStack::new2(items::items().get("player_head"));
+    FlexibleItemStack::set(&stack, mcrust::net::minecraft::core::component::data_components::profile().clone(), mcrust::net::minecraft::world::item::component::resolvable_profile::ResolvableProfile::create_unresolved_name("MHF_Enderman").unwrap_or_else(|e| panic!("IllegalArgumentException: {e}")));
+    stack
+});
 //   java: private static final FlexibleItemStack POPPY = Util.make(new FlexibleItemStack(Items.POPPY), stack -> stack.set(DataComponents.ENCHANTMENT_GLINT_OVERRIDE, true));
 /// java: private static final FlexibleItemStack POPPY = Util.make(new FlexibleItemStack(Items.POPPY), stack -> stack.set(DataComponents.ENCHANTMENT_GLINT_OVERRIDE, true));
-pub static POPPY: compat::MainThread<compat::Shared<FlexibleItemStack>> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `POPPY` - see the TODO above"));
+pub static POPPY: compat::MainThread<compat::Shared<FlexibleItemStack>> = compat::MainThread::new(|| {
+    let stack = FlexibleItemStack::new2(items::items().get("poppy"));
+    FlexibleItemStack::set(&stack, mcrust::net::minecraft::core::component::data_components::enchantment_glint_override().clone(), true);
+    stack
+});
 
 /// java: @RegisterWidget public class EndHudWidget extends ElementBasedWidget
 #[derive(Clone)]

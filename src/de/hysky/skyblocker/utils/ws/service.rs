@@ -5,10 +5,9 @@ use crate::prelude::*;
 use mcrust::com::mojang::serialization::codec::Codec;
 use mcrust::com::mojang::serialization::codec::CodecRef;
 
-// TODO(fabric2seer): `from_values` takes 2 argument(s) in the port (`values: Vec<E>, serialized_name: impl Fn(&E) -> String + Send + Sync + Copy + 'static`), Java passes 1
 //   java: public static final Codec<Service> CODEC = StringRepresentable.fromValues(Service::values);
 /// java: public static final Codec<Service> CODEC = StringRepresentable.fromValues(Service::values);
-pub static CODEC: compat::MainThread<CodecRef<Service>> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `CODEC` - see the TODO above"));
+pub static CODEC: compat::MainThread<CodecRef<Service>> = compat::MainThread::new(|| mcrust::net::minecraft::util::string_representable::from_values(Service::values(), |service: &Service| service.get_serialized_name()));
 
 /// java: public enum Service implements StringRepresentable
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -52,9 +51,8 @@ impl Service {
 
     /// java: @Override public String getSerializedName()
     pub fn get_serialized_name(&self) -> String {
-        // TODO(fabric2seer): call to `name(..)` (not a method of this class)
         //   java: return name();
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        return self.name().to_string();
     }
 
 }

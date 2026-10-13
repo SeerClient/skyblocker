@@ -284,14 +284,20 @@ impl OverlayScreen {
 
     /// java: @Override public void extractBackground(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a)
     pub fn extract_background(__this: &compat::Shared<Self>, graphics: &GuiGraphicsExtractor, mut mouse_x: i32, mut mouse_y: i32, mut a: f32) {
-        // TODO(fabric2seer): `Screen.extractBackground` has no Rust method in the port (looked for `extract_background` in Screen and its supertypes)
-        // rust: __this.lock().borrow_mut().base.extract_background(graphics, mouse_x, mouse_y, a);
+        //   java: super.extractBackground(graphics, mouseX, mouseY, a);
+        // rust: port gap - `Screen.extractBackground` has no Rust body a mod can call, and `ModScreen` has no
+        // `extract_background` override to call it from (the game draws a mod screen's background itself; DIVERGENCES
+        // chunk 371, GAPS_M #17): this override is not reached.
+        let _ = (graphics, mouse_x, mouse_y, a);
         let mut max_height: i32 = ROW_HEIGHT.wrapping_mul((1i32.wrapping_add(__this.lock().borrow().suggestion_buttons.len() as i32)).wrapping_add(__this.lock().borrow().history_buttons.len() as i32));
         if (__this.lock().borrow().history_buttons.len() as i32) > 0 {
             max_height = max_height.wrapping_add((((ROW_HEIGHT as f64) * 0.75)) as i32);
         }
-        // TODO(fabric2seer): `get` is not a method of FallbackedTexture
         //   java: graphics.blitSprite(RenderPipelines.GUI_TEXTURED, BACKGROUND_TEXTURE.get(), searchField.getX() - 8, searchField.getY() - 8, (int) (this.width * 0.4) + 16, maxHeight + 16);
+        let (__x, __y) = OverlayScreen::with_search_field(__this, |__w| (__w.get_x(), __w.get_y()));
+        let __width: i32 = compat::read(__this, |__t| __t.base.width);
+        let __texture: Identifier = compat::read(BACKGROUND_TEXTURE.get(), |__t| __t.get());
+        gui_graphics_extractor::blit_sprite_identifier(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), mcrust::net::minecraft::client::renderer::render_pipelines::gui_textured(), &__texture, __x.wrapping_sub(8), __y.wrapping_sub(8), ((((__width as f64) * 0.4)) as i32).wrapping_add(16), max_height.wrapping_add(16));
     }
 
     /// java: @Override public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a)
@@ -326,17 +332,16 @@ impl OverlayScreen {
         if id.is_empty() {
             return;
         }
-        // TODO(fabric2seer): `Screen.getItemStack` has no Rust method in the port (looked for `get_item_stack` in Screen and JavaSrc)
-        // rust: let mut flexible: Option<compat::Shared<FlexibleItemStack>> = Some(__this.lock().borrow().get_item_stack(id));
-        let mut flexible: compat::Shared<FlexibleItemStack> = todo!("fabric2seer: the initialiser of `flexible` (TODO above)");
-        if false /* java: flexible == null: never null here */ {
+        //   java: FlexibleItemStack flexible = getItemStack(id); (`import static ItemRepository.getItemStack`)
+        let Some(flexible) = crate::de::hysky::skyblocker::skyblock::itemlist::item_repository::ItemRepository::get_item_stack(id) else {
             return;
-        }
+        };
         let mut item: mcrust::net::minecraft::world::item::item_stack::ItemStack = FlexibleItemStack::get_stack_or_throw(&flexible);
         graphics.item(&item, button.get_x().wrapping_add(render_offset), button.get_y().wrapping_add(render_offset));
         if button.is_mouse_over((mouse_x) as f64, (mouse_y) as f64) {
-            // TODO(fabric2seer): `GuiGraphicsExtractor.setTooltipForNextFrame` has no Rust method in the port (looked for `set_tooltip_for_next_frame` in GuiGraphicsExtractor and its supertypes)
-            // rust: graphics.set_tooltip_for_next_frame(&compat::font(), &item, mouse_x, mouse_y);
+            //   java: graphics.setTooltipForNextFrame(this.font, item, mouseX, mouseY);
+            // rust: port gap - the frame's deferred-tooltip slot is the game's; a mod's draw cannot set an item tooltip
+            // for the next frame (GAPS_M #15).
         }
     }
 

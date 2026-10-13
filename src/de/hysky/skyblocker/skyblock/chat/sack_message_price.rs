@@ -117,7 +117,6 @@ impl SackMessagePrice {
 
     /// java: private static @Nullable String getNeuId(String itemName)
     pub fn get_neu_id(item_name: &str) -> Option<String> {
-        // TODO(fabric2seer): `.getSkyblockItemId(..)` on a NEUItem
         //   java: return NEURepoManager.getItemByName(itemName)
         //   java: 				.stream()
         //   java: 				.filter(Objects::nonNull)
@@ -127,7 +126,15 @@ impl SackMessagePrice {
         //   java: 					LOGGER.warn("Failed to find the NEU item ID for item: {}", itemName);
         //   java: 					return null; // This won't be used to calculate the price
         //   java: 				});
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        match crate::de::hysky::skyblocker::utils::neu_repo_manager::NEURepoManager::get_item_by_name(item_name).into_iter().flatten().next() {
+            // rust: port gap - `NEUItem.getSkyblockItemId` (the NEU repo parser is a `crate::unresolved` placeholder,
+            // GAPS_batchB L1; the repo never loads, so no item is found and this arm is not reached)
+            Some(_item) => todo!("rust: port gap - NEUItem.getSkyblockItemId"),
+            None => {
+                logger().warn(&format!("Failed to find the NEU item ID for item: {}", item_name));
+                return None; // This won't be used to calculate the price
+            }
+        }
     }
 
     /// java: private static ObjectArrayList<List<Component>> getHoverEventSiblings(Component text)

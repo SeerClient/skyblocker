@@ -137,9 +137,9 @@ impl SweepOverlay {
         } else if Utils::is_in_hub() {
             return (state.is_block(&blocks::blocks().get("OAK_LOG")) || state.is_block(&blocks::blocks().get("OAK_WOOD")));
         }
-        // TODO(fabric2seer): `BlockState.is` has no Rust method in the port (looked for `is` in BlockState and its supertypes)
-        // rust: return state.is(&mcrust::net::minecraft::tags::block_tags::logs());
-        return todo!("fabric2seer: see the TODO above");
+        // java: return state.is(BlockTags.LOGS); - `TypedInstance.is(TagKey)`
+        use mcrust::net::minecraft::core::typed_instance::TypedInstance as _;
+        return state.is_tag(&mcrust::net::minecraft::tags::block_tags::logs());
     }
 
     /// java: private static boolean isFigLog(BlockState state)
@@ -162,9 +162,9 @@ impl SweepOverlay {
         if Utils::is_in_torrhus_canyon() {
             let mut birch_logs: TagKey = mcrust::net::minecraft::tags::block_item_tags::birch_logs().block();
             let mut mangrove_logs: TagKey = mcrust::net::minecraft::tags::block_item_tags::mangrove_logs().block();
-            // TODO(fabric2seer): `BlockState.is` has no Rust method in the port (looked for `is` in BlockState and its supertypes)
-            // rust: return (source.is(&birch_logs) && destination.is(&birch_logs) || source.is(&mangrove_logs) && destination.is(&mangrove_logs));
-            return todo!("fabric2seer: see the TODO above");
+            // java: return source.is(birchLogs) && destination.is(birchLogs) || source.is(mangroveLogs) && destination.is(mangroveLogs);
+            use mcrust::net::minecraft::core::typed_instance::TypedInstance as _;
+            return (source.is_tag(&birch_logs) && destination.is_tag(&birch_logs)) || (source.is_tag(&mangrove_logs) && destination.is_tag(&mangrove_logs));
         }
         return true;
     }

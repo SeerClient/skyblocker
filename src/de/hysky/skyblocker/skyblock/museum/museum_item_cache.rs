@@ -396,6 +396,9 @@ impl MuseumItemCache {
         if MUSEUM_DONATIONS.get_mut().is_empty() {
             return;
         }
+        // (only `source != null` is read of the source - the feedback goes through the port's command feedback)
+        let has_source: bool = source.is_some();
+        drop(source);
         CompletableFuture::<()>::run_async(move || {
             // java: try (ApiResponse response = Http.sendHypixelRequest("skyblock/museum", "?profile=" + profileId)) {
             // java: 	if (response.ok()) {
@@ -448,7 +451,7 @@ impl MuseumItemCache {
                             }
                             ProfiledData::put_3(MUSEUM_ITEM_CACHE.get_mut(), &uuid, profile_id.clone(), ProfileMuseumData::new(compat::millis(), item_ids.clone(), CURRENT_DATA_VERSION));
                             MUSEUM_ITEM_CACHE.get_mut().lock().borrow().save();
-                            if source.is_some() {
+                            if has_source {
                                 // java: source.sendFeedback(Constants.PREFIX.get().append(Component.translatable("skyblocker.museum.resyncSuccess")));
                                 mcrust::mcrust::modding::script_host::send_feedback(&(constants::PREFIX.get_mut())().append(component::translatable("skyblocker.museum.resyncSuccess")).get_string());
                             }
@@ -457,7 +460,7 @@ impl MuseumItemCache {
                         Ok(Ok(None)) => {
                             // If the player's Museum API is disabled
                             MuseumItemCache::put_empty(uuid.clone(), profile_id.clone());
-                            if source.is_some() {
+                            if has_source {
                                 // java: source.sendFeedback(Constants.PREFIX.get().append(Component.translatable("skyblocker.museum.resyncFailure", Component.translatable("skyblocker.museum.resyncFailure.apiDisabled")))
                                 // java: 		.withStyle(style -> style.withHoverEvent(new HoverEvent.ShowText(Component.translatable("skyblocker.museum.resyncFailure.apiDisabled.@Tooltip")))));
                                 // rust: port gap (GAPS_batchD #17) - the feedback is text-only: the hover event is dropped
@@ -469,7 +472,7 @@ impl MuseumItemCache {
                         Ok(Err(response)) => {
                             // If the request returns a non 200 status code
                             MuseumItemCache::put_empty(uuid.clone(), profile_id.clone());
-                            if source.is_some() {
+                            if has_source {
                                 mcrust::mcrust::modding::script_host::send_feedback(&(constants::PREFIX.get_mut())().append(component::translatable_args("skyblocker.museum.resyncFailure", vec![mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::translatable("skyblocker.museum.resyncFailure.unknownError"))])).get_string());
                             }
                             // java: LOGGER.error(ERROR_LOG_TEMPLATE + " because a non 200 status code was encountered! Response: {}", profileId, response);
@@ -484,7 +487,7 @@ impl MuseumItemCache {
                 if let Err(e) = __result {
                     // java: catch (Exception e) - If an exception was somehow thrown
                     MuseumItemCache::put_empty(uuid.clone(), profile_id.clone());
-                    if source.is_some() {
+                    if has_source {
                         mcrust::mcrust::modding::script_host::send_feedback(&(constants::PREFIX.get_mut())().append(component::translatable_args("skyblocker.museum.resyncFailure", vec![mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::translatable("skyblocker.museum.resyncFailure.unknownError"))])).get_string());
                     }
                     // java: LOGGER.error(ERROR_LOG_TEMPLATE, profileId, e);

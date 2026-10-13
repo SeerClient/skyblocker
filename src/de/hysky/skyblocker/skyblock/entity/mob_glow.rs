@@ -13,10 +13,13 @@ use mcrust::net::minecraft::world::phys::aabb::AABB;
 use mcrust::net::minecraft::network::chat::component::Component as _;
 use mcrust::net::minecraft::world::level::entity_getter::EntityGetter as _;
 
-// TODO(fabric2seer): static field GlowConstants.NO_GLOW
-//   java: public static final int NO_GLOW = GlowConstants.NO_GLOW;
+/// java: `net.azureaaron.renderchest.api.GlowConstants` (Render Chest 1.0.3, bundled by Skyblocker): `NO_GLOW =
+/// EntityRenderState.NO_OUTLINE` - leave the entity's glow alone.
+const GLOW_CONSTANTS_NO_GLOW: i32 = mcrust::net::minecraft::client::renderer::entity::state::entity_render_state::NO_OUTLINE;
+/// java: `GlowConstants.REMOVE_GLOW = Integer.MAX_VALUE` - strip any glow, custom or vanilla.
+const GLOW_CONSTANTS_REMOVE_GLOW: i32 = i32::MAX;
 /// java: public static final int NO_GLOW = GlowConstants.NO_GLOW;
-pub static NO_GLOW: LazyLock<i32> = LazyLock::new(|| todo!("fabric2seer: the initialiser of `NO_GLOW` - see the TODO above"));
+pub static NO_GLOW: LazyLock<i32> = LazyLock::new(|| GLOW_CONSTANTS_NO_GLOW);
 /// java: private static final List<MobGlowAdder> ADDERS = new ArrayList<>();
 pub static ADDERS: compat::MainThread<Vec<compat::Shared<dyn MobGlowAdder>>> = compat::MainThread::new(|| Vec::new());
 /// java: private static final Object2IntMap<Entity> CACHE = new Object2IntOpenHashMap<>();
@@ -40,8 +43,10 @@ impl MobGlow {
     pub fn init() {
         // TODO(fabric2seer): no SeerClient event yet: hook RETURN of ClientLevel#tick (`net.minecraft.client.multiplayer.ClientLevel#tick`: ported but not hooked)
         //   java: ClientTickEvents.END_LEVEL_TICK.register(_ -> clearCache());
-        // TODO(fabric2seer): static field CustomGlowCallback.EVENT
-        //   java: CustomGlowCallback.EVENT.register(MobGlow::applyCustomGlow);
+        // java: CustomGlowCallback.EVENT.register(MobGlow::applyCustomGlow);
+        // rust: port gap (GAPS_J #11) - `CustomGlowCallback` is the bundled Render Chest library (net.azureaaron.renderchest:
+        // its own outline pipelines and shaders, nine mixins into the entity/item feature renderers and the level
+        // renderer). With no port of it `applyCustomGlow` has no caller and no mob glows.
     }
 
     /// java: private static int applyCustomGlow(Entity entity, EntityRenderState state)
@@ -52,12 +57,11 @@ impl MobGlow {
         if allow_glow && custom_glow {
             return argb::opaque(MobGlow::get_mob_glow(entity));
         } else if !allow_glow {
-            // TODO(fabric2seer): static field GlowConstants.REMOVE_GLOW
-            //   java: return GlowConstants.REMOVE_GLOW;
+            // java: return GlowConstants.REMOVE_GLOW;
+            return GLOW_CONSTANTS_REMOVE_GLOW;
         }
-        // TODO(fabric2seer): static field GlowConstants.NO_GLOW
-        //   java: return GlowConstants.NO_GLOW;
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        // java: return GlowConstants.NO_GLOW;
+        return GLOW_CONSTANTS_NO_GLOW;
     }
 
     /// java: protected static void registerGlowAdder(MobGlowAdder adder)

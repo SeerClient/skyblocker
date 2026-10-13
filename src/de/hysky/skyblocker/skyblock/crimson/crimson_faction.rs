@@ -5,10 +5,8 @@ use crate::prelude::*;
 use mcrust::com::mojang::serialization::codec::Codec;
 use mcrust::com::mojang::serialization::codec::CodecRef;
 
-// TODO(fabric2seer): `from_values` takes 2 argument(s) in the port (`values: Vec<E>, serialized_name: impl Fn(&E) -> String + Send + Sync + Copy + 'static`), Java passes 1
-//   java: public static final Codec<CrimsonFaction> CODEC = StringRepresentable.fromValues(CrimsonFaction::values);
 /// java: public static final Codec<CrimsonFaction> CODEC = StringRepresentable.fromValues(CrimsonFaction::values);
-pub static CODEC: compat::MainThread<CodecRef<CrimsonFaction>> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `CODEC` - see the TODO above"));
+pub static CODEC: compat::MainThread<CodecRef<CrimsonFaction>> = compat::MainThread::new(|| mcrust::net::minecraft::util::string_representable::from_values(CrimsonFaction::values(), |faction: &CrimsonFaction| faction.get_serialized_name()));
 
 /// java: public enum CrimsonFaction implements StringRepresentable
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -49,9 +47,8 @@ impl CrimsonFaction {
 
     /// java: @Override public String getSerializedName()
     pub fn get_serialized_name(&self) -> String {
-        // TODO(fabric2seer): call to `name(..)` (not a method of this class)
         //   java: return this.name();
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        return self.name().to_string();
     }
 
 }

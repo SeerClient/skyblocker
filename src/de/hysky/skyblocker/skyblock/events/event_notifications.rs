@@ -43,7 +43,6 @@ pub static FALLBACK_ICON: compat::MainThread<compat::Shared<FlexibleItemStack>> 
 pub static CURRENT_TIME: LazyLock<Mutex<i64>> = LazyLock::new(|| Mutex::new((compat::millis()).wrapping_div(1000 as i64)));
 /// java: private static final Map<String, LinkedList<SkyblockEvent>> events = new ConcurrentHashMap<>();
 pub static EVENTS: compat::MainThread<std::collections::HashMap<String, Vec<SkyblockEvent>>> = compat::MainThread::new(|| std::collections::HashMap::new());
-// TODO(fabric2seer): `PrimitiveCodec.listOf` has no Rust method in the port (looked for `list_of` in PrimitiveCodec and its supertypes)
 //   java: private static final Codec<SkyblockEvent> CODEC = RecordCodecBuilder.create(instance -> instance.group(
 //   java: 				Codec.LONG.fieldOf("timestamp").forGetter(SkyblockEvent::start),
 //   java: 				Codec.INT.fieldOf("duration").forGetter(SkyblockEvent::duration),
@@ -53,16 +52,33 @@ pub static EVENTS: compat::MainThread<std::collections::HashMap<String, Vec<Skyb
 //   java: 				Codec.STRING.fieldOf("location").forGetter(SkyblockEvent::warpCommand)
 //   java: 		).apply(instance, SkyblockEvent::new));
 /// java: private static final Codec<SkyblockEvent> CODEC = RecordCodecBuilder.create(instance -> instance.group( Codec.LONG.fieldOf("timestamp").forGetter(SkyblockEvent::start), Codec.INT.fieldOf("duration").f
-pub static SKYBLOCK_EVENT_CODEC: compat::MainThread<CodecRef<SkyblockEvent>> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `CODEC` - see the TODO above"));
+pub static SKYBLOCK_EVENT_CODEC: compat::MainThread<CodecRef<SkyblockEvent>> = compat::MainThread::new(|| record_codec_builder::create(record_codec_builder::apply5(
+    // Codec.LONG.fieldOf("timestamp").forGetter(SkyblockEvent::start)
+    record_codec_builder::of(|o: &SkyblockEvent| o.start(), codec::field_of(codec::long_codec(), "timestamp")),
+    // Codec.INT.fieldOf("duration").forGetter(SkyblockEvent::duration)
+    record_codec_builder::of(|o: &SkyblockEvent| o.duration(), codec::field_of(codec::int_codec(), "duration")),
+    // Codec.STRING.fieldOf("event").forGetter(SkyblockEvent::event)
+    record_codec_builder::of(|o: &SkyblockEvent| o.event(), codec::field_of(codec::string_codec(), "event")),
+    // Codec.either(Codec.STRING.listOf(), JerryPerks.CODEC).fieldOf("extras").forGetter(SkyblockEvent::extras)
+    record_codec_builder::of(|o: &SkyblockEvent| o.extras(), codec::field_of(codec::either(codec::list(codec::string_codec()), JERRY_PERKS_CODEC.get().clone()), "extras")),
+    // Codec.STRING.fieldOf("location").forGetter(SkyblockEvent::warpCommand)
+    record_codec_builder::of(|o: &SkyblockEvent| o.warp_command(), codec::field_of(codec::string_codec(), "location")),
+    |start, duration, event, extras, warp_command| SkyblockEvent::new(start, duration, event, extras, warp_command),
+)));
 /// java: public static final Codec<List<SkyblockEvent>> LIST_CODEC = CODEC.listOf();
 pub static SKYBLOCK_EVENT_LIST_CODEC: compat::MainThread<CodecRef<Vec<SkyblockEvent>>> = compat::MainThread::new(|| codec::list(SKYBLOCK_EVENT_CODEC.get_mut().clone()));
-// TODO(fabric2seer): `PrimitiveCodec.listOf` has no Rust method in the port (looked for `list_of` in PrimitiveCodec and its supertypes)
 //   java: public static final Codec<JerryPerks> CODEC = RecordCodecBuilder.create(instance -> instance.group(
 //   java: 				Codec.STRING.fieldOf("name").forGetter(JerryPerks::mayorName),
 //   java: 				Codec.STRING.listOf().fieldOf("perks").forGetter(JerryPerks::perks)
 //   java: 		).apply(instance, JerryPerks::new));
 /// java: public static final Codec<JerryPerks> CODEC = RecordCodecBuilder.create(instance -> instance.group( Codec.STRING.fieldOf("name").forGetter(JerryPerks::mayorName), Codec.STRING.listOf().fieldOf("perks"
-pub static JERRY_PERKS_CODEC: compat::MainThread<CodecRef<JerryPerks>> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `CODEC` - see the TODO above"));
+pub static JERRY_PERKS_CODEC: compat::MainThread<CodecRef<JerryPerks>> = compat::MainThread::new(|| record_codec_builder::create(record_codec_builder::apply2(
+    // Codec.STRING.fieldOf("name").forGetter(JerryPerks::mayorName)
+    record_codec_builder::of(|o: &JerryPerks| o.mayor_name(), codec::field_of(codec::string_codec(), "name")),
+    // Codec.STRING.listOf().fieldOf("perks").forGetter(JerryPerks::perks)
+    record_codec_builder::of(|o: &JerryPerks| o.perks(), codec::field_of(codec::list(codec::string_codec()), "perks")),
+    |mayor_name, perks| JerryPerks::new(mayor_name, perks),
+)));
 
 /// java: public class EventNotifications
 #[derive(Clone)]
@@ -83,8 +99,7 @@ impl EventNotifications {
     }
 
     /// java: public static LiteralArgumentBuilder<FabricClientCommandSource> debugToasts()
-    pub fn debug_toasts() -> LiteralArgumentBuilder<crate::unresolved::FabricClientCommandSource> {
-        // TODO(fabric2seer): a command builder outside dispatcher.register(..)
+    pub fn debug_toasts() -> LiteralArgumentBuilder<mcrust::mcrust::modding::events::client_command_registration_callback::FabricClientCommandSource> {
         //   java: return ClientCommands.literal("toasts").then(
         //   java: 				ClientCommands.argument("time", IntegerArgumentType.integer(0)).then(
         //   java: 						ClientCommands.argument("duration", IntegerArgumentType.integer(0)).then(
@@ -115,7 +130,28 @@ impl EventNotifications {
         //   java: 						)
         //   java: 				)
         //   java: 		);
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        use mcrust::com::mojang::brigadier::builder::argument_builder::ArgumentBuilder as _;
+        use mcrust::com::mojang::brigadier::arguments::integer_argument_type::IntegerArgumentType;
+        use mcrust::com::mojang::brigadier::arguments::bool_argument_type::BoolArgumentType;
+        type Source = mcrust::mcrust::modding::events::client_command_registration_callback::FabricClientCommandSource;
+        let mut jacob = client_command_registration_callback::argument("jacob", Arc::new(BoolArgumentType::bool()));
+        jacob.executes(Arc::new(|context: &mcrust::com::mojang::brigadier::context::command_context::CommandContext<Source>| {
+            let mut time: i64 = (compat::millis() / 1000).wrapping_add(IntegerArgumentType::get_integer(context, "time") as i64);
+            let mut duration: i32 = IntegerArgumentType::get_integer(context, "duration");
+            if BoolArgumentType::get_bool(context, "jacob") {
+                compat::minecraft().gui.toast_manager().borrow_mut().add_toast(Box::new(EventToastAdapter(JacobEventToast::new(time, time.wrapping_add(duration as i64), "Jacob's farming contest".to_string(), vec!["Cactus".to_string(), "Cocoa Beans".to_string(), "Pumpkin".to_string()]) as compat::Shared<dyn EventToast>)));
+            } else {
+                compat::minecraft().gui.toast_manager().borrow_mut().add_toast(Box::new(EventToastAdapter(EventToastBase::new(time, time.wrapping_add(duration as i64), "Jacob's or something idk".to_string(), FALLBACK_ICON.get().clone()) as compat::Shared<dyn EventToast>)));
+            }
+            Ok(0)
+        }));
+        let mut duration = client_command_registration_callback::argument("duration", Arc::new(IntegerArgumentType::integer_min(0)));
+        duration.then(&jacob);
+        let mut time = client_command_registration_callback::argument("time", Arc::new(IntegerArgumentType::integer_min(0)));
+        time.then(&duration);
+        let mut toasts = client_command_registration_callback::literal("toasts");
+        toasts.then(&time);
+        return toasts;
     }
 
     /// java: public static Map<String, LinkedList<SkyblockEvent>> getEvents()
@@ -223,7 +259,9 @@ impl EventNotifications {
                 }
                 let mut sound_event: Option<SoundEvent> = SkyblockerConfigManager::get().event_notifications.reminder_sound.get_sound_event();
                 if let Some(sound_event) = &sound_event {
-                    // TODO(fabric2seer): `play` takes 4 argument(s) in the port (`_al: &OpenAl, library: &mut Library, options: &OptionsData, instance: Box<dyn SoundInstance>`), Java passes 1
+                    //   java: instance.getSoundManager().play(SimpleSoundInstance.forUI(soundEvent, 1f, 1f));
+                    // rust: port gap - `SoundManager.play(SoundInstance)` needs the audio device and library, locals of the
+                    // port's frame loop (GAPS_batchH #1)
                     // rust: instance.get_sound_manager().play(&SimpleSoundInstance::for_ui_with_volume(sound_event, 1.0f32, 1.0f32));
                 }
                 break;

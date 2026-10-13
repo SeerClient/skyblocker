@@ -68,15 +68,13 @@ impl ChatRulesConfigScreen {
     /// java: @Override protected void init()
     pub fn init(__this: &compat::Shared<Self>) {
         { let __v = Some(HeaderAndFooterLayout::new(0, 0)); compat::write(__this, |__t| __t.layout = __v); }
-        // TODO(fabric2seer): `HeaderAndFooterLayout.addTitleHeader` has no Rust method in the port (looked for `add_title_header` in HeaderAndFooterLayout and its supertypes)
-        // rust: let __h0 = &compat::read(__this, |__t| __t.title.clone());
-        // rust: let __h1 = &compat::font();
-        // rust: __this.lock().borrow().layout.as_ref().unwrap().add_title_header(__h0, __h1);
+        //   java: layout.addTitleHeader(title, font); - `addToHeader(new StringWidget(title, font))`
+        { let __title = component::literal(&compat::read(__this, |__t| __t.get_title().to_string())); let __w = compat::string_widget(0, 0, -1, 9, __title); let (__ww, __wh) = (__w.get_width(), __w.get_height()); let __q0 = LayoutElement::widget(compat::write(__this, |__t| __t.add_widget(__w)), __ww, __wh); __this.lock().borrow_mut().layout.as_mut().unwrap().add_to_header(__q0) };
         { let __v = (Some(ChatRulesConfigListWidget::new(compat::minecraft(), __this.clone(), compat::read(__this, |__t| __t.width), __this.lock().borrow().layout.as_ref().unwrap().get_content_height(), __this.lock().borrow().layout.as_ref().unwrap().get_header_height()))).map(|__o| compat::WidgetRef::value(compat::attach_list(__o))); compat::write(__this, |__t| { let __s = &mut *__t; __s.chat_rules_config_list_widget = __v; }); }
         { let (__q0,) = ({ let (__i, __ww, __wh) = compat::write(__this, |__t| { let __s = &mut *__t; let __r = __s.chat_rules_config_list_widget.as_mut().unwrap(); __s.__widgets.add_to_layout(&mut __s.base, __r) }); LayoutElement::widget(__i, __ww, __wh) },); __this.lock().borrow_mut().layout.as_mut().unwrap().add_to_contents(__q0) };
-        // TODO(fabric2seer): field `HORIZONTAL` of a value of unknown type
         //   java: LinearLayout footerLayout = layout.addToFooter(new LinearLayout(0, 0, LinearLayout.Orientation.HORIZONTAL));
-        let mut footer_layout: LinearLayout = todo!("fabric2seer: the initialiser of `footerLayout` (TODO above)");
+        // (the port's layout holds its children by value: the footer joins it once it is filled, below)
+        let mut footer_layout: LinearLayout = LinearLayout::new(0, 0, mcrust::net::minecraft::client::gui::layouts::linear_layout::Orientation::Horizontal);
         footer_layout.default_cell_setting().padding_horizontal(5).padding_vertical(2);
         let __this_1 = compat::RenderThread::new(__this.clone());
         footer_layout.add_child({ let __w = (button::builder(mcrust::net::minecraft::network::chat::common_components::gui_cancel().get_string(), OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| { compat::lend_screen(__this_1.get(), __screen, || { let mut __pidx = compat::WidgetRef::Screen(__index); {
@@ -89,6 +87,7 @@ impl ChatRulesConfigScreen {
             compat::write(__this_3.get(), |__t| { let __s = &mut *__t; let __r = __s.chat_rules_config_list_widget.as_mut().unwrap(); __s.__widgets.with(&mut __s.base, __r, |__w| __w.mod_widget().and_then(|__ms| __ms.with::<mcrust::mcrust::modding::widgets::ModSelectionList, _>(|__l| { let __h = &__l.class::<compat::ListClass<ChatRulesConfigListWidget>>().map(|__c| __c.object().clone()).expect("a mod list without its class"); compat::lend_list(__h, __l, || ChatRulesConfigListWidget::save_rules(__h)) })).expect("a mod list reached from inside its own method")) });
             ChatRulesConfigScreen::on_close(__this_3.get());
         } }) })))).build(); let (__ww, __wh) = (__w.get_width(), __w.get_height()); LayoutElement::widget(compat::write(__this, |__t| __t.add_widget(__w)), __ww, __wh) });
+        __this.lock().borrow_mut().layout.as_mut().unwrap().add_to_footer(LayoutElement::Grid(footer_layout.wrapped));
         let __r0 = compat::read(__this, |__t| (__t.width, __t.height));
         { let (__sw, __sh) = __r0; __this.lock().borrow_mut().layout.as_mut().unwrap().screen_width = __sw; __this.lock().borrow_mut().layout.as_mut().unwrap().screen_height = __sh; __this.lock().borrow_mut().layout.as_mut().unwrap().arrange_elements(); let __vw = __this.lock().borrow().layout.as_ref().unwrap().visit_widgets(); for (__i, __x, __y) in __vw { compat::write(__this, |__t| __t.widget_mut(__i).set_position(__x, __y)); } };
         { let __vw = __this.lock().borrow().layout.as_ref().unwrap().visit_widgets(); for (__i, _, _) in __vw { compat::write(__this, |__t| __t.mark_renderable(__i)); } };
@@ -111,16 +110,22 @@ impl ChatRulesConfigScreen {
             mcrust::mcrust::modding::game::set_screen_to_parent();
             return;
         }
-        // TODO(fabric2seer): `new ConfirmScreen(..)`: the port has no `ConfirmScreen::new`
-        // TODO(fabric2seer): `set_screen` takes 14 argument(s) in the port (`gfx: &mut Minecraft, screen: &mut GuiScreen, screen_extra: &mut ScreenExtra, screen_stack: &mut Vec<HeldScreen>, screen_kind_before_pause: &mut Option<ScreenKind>, screen_is_open: &mut bool, level_screen_closed: &mut bool, frames_on_this_sc ..`), Java passes 1
-        // rust: let __this_w1 = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
-        // rust: gui::set_screen(&mut ConfirmScreen::new(Arc::new(move |confirmed_action| { let Some(__this_1) = __this_w1.get().upgrade() else { return Default::default(); }; {
-        // rust: if confirmed_action {
-        // rust: mcrust::mcrust::modding::game::set_screen_to_parent();
-        // rust: } else {
-        // rust: mcrust::mcrust::modding::game::set_screen(Box::new(compat::ScreenAdapter::new(((&__this_1)).clone())));
-        // rust: }
-        // rust: } }), component::translatable("text.skyblocker.quit_config"), component::translatable("text.skyblocker.quit_config_sure"), component::translatable("text.skyblocker.quit_discard"), mcrust::net::minecraft::network::chat::common_components::gui_cancel()));
+        //   java: client.setScreen(new ConfirmScreen(confirmedAction -> client.setScreen(confirmedAction ? parent : this),
+        //   java: 		Component.translatable("text.skyblocker.quit_config"), Component.translatable("text.skyblocker.quit_config_sure"),
+        //   java: 		Component.translatable("text.skyblocker.quit_discard"), CommonComponents.GUI_CANCEL));
+        // The confirm screen holds this screen as its parent: `this` is one step back, `parent` two.
+        mcrust::mcrust::modding::game::set_screen_keeping_parent(Box::new(compat::ConfirmScreen::new(
+            |confirmed_action: bool| {
+                mcrust::mcrust::modding::game::set_screen_to_parent();
+                if confirmed_action {
+                    mcrust::mcrust::modding::game::set_screen_to_parent();
+                }
+            },
+            component::translatable("text.skyblocker.quit_config"),
+            component::translatable("text.skyblocker.quit_config_sure"),
+            component::translatable("text.skyblocker.quit_discard"),
+            mcrust::net::minecraft::network::chat::common_components::gui_cancel(),
+        )));
     }
 
 }

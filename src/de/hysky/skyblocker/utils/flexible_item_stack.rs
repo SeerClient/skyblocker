@@ -381,20 +381,6 @@ impl DataComponentGetter for FlexibleItemStack {
     }
 }
 
-/// java: `FlexibleItemStack implements ItemInstance`: `count()`.
-impl mcrust::net::minecraft::world::item::item_instance::ItemInstance for FlexibleItemStack {
-    fn count(&self) -> i32 {
-        self.count
-    }
-}
-
-/// java: `ItemInstance extends TypedInstance<Item>`: `typeHolder()`.
-impl mcrust::net::minecraft::core::typed_instance::TypedInstance for FlexibleItemStack {
-    fn type_holder(&self) -> Holder {
-        self.item.clone().unwrap()
-    }
-}
-
 /// java: private record FallbackComponentGetter() implements DataComponentGetter
 #[derive(Clone, Debug, PartialEq)]
 pub struct FallbackComponentGetter {}

@@ -39,9 +39,8 @@ impl ConfigPatchLoader {
         return Some((CompletableFuture::supply_async(move || Ok((|| {
             // java: try {..} catch (Exception e) - an exception here is a panic, caught by `catch_unwind`; the body's `return` is the closure's value
             match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                // TODO(fabric2seer): `Http.sendGetRequest` is not a static method of Http
-                //   java: String response = Http.sendGetRequest("https://api.azureaaron.net/skyblocker/configpatches");
-                let mut response: String = todo!("fabric2seer: the initialiser of `response` (TODO above)");
+                // java: String response = Http.sendGetRequest("https://api.azureaaron.net/skyblocker/configpatches");
+                let mut response: String = crate::de::hysky::skyblocker::utils::http::Http::send_get_request("https://api.azureaaron.net/skyblocker/configpatches");
                 return serde_json::from_str::<serde_json::Value>(&response).expect("JsonSyntaxException");
             })) {
                 Ok(__v) => return __v,
@@ -57,6 +56,8 @@ impl ConfigPatchLoader {
             //   java: 					.setPartial(List.of())
             //   java: 					.resultOrPartial(error -> LOGGER.error(LogUtils.FATAL_MARKER, "[Skyblocker Config Patch Loader] Failed to parse config patches! Error: {}", error))
             //   java: 					.get();
+            // rust: port gap - `ConfigPatch` is Dandelion's (the config library the config merge replaces): its
+            // PATCH_LIST_CODEC is not in the crate (GAPS_L.md)
             let mut patches: Vec<crate::unresolved::ConfigPatch> = todo!("fabric2seer: the initialiser of `patches` (TODO above)");
             logger().info("[Skyblocker Config Patch Loader] Successfully loaded config patches.");
             SkyblockerConfigManager::set_patches(&patches);

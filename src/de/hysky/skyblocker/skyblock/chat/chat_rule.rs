@@ -19,17 +19,20 @@ use mcrust::net::minecraft::network::chat::component;
 use mcrust::net::minecraft::sounds::sound_event::SoundEvent;
 use mcrust::net::minecraft::world::item::items;
 
-// TODO(fabric2seer): `.map(..)` on a A
 //   java: @VisibleForTesting
 //   java: 	static final Codec<EnumSet<Location>> LOCATION_FIXING_CODEC = Codec.either(Location.SET_CODEC, Codec.STRING).xmap(
 //   java: 			either -> either.map(Function.identity(), ChatRule::encodeString),
 //   java: 			Either::left
 //   java: 	);
 /// java: @VisibleForTesting static final Codec<EnumSet<Location>> LOCATION_FIXING_CODEC = Codec.either(Location.SET_CODEC, Codec.STRING).xmap( either -> either.map(Function.identity(), ChatRule::encodeString),
-pub static LOCATION_FIXING_CODEC: compat::MainThread<CodecRef<std::collections::HashSet<Location>>> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `LOCATION_FIXING_CODEC` - see the TODO above"));
+pub static LOCATION_FIXING_CODEC: compat::MainThread<CodecRef<std::collections::HashSet<Location>>> = compat::MainThread::new(|| codec::xmap(
+    codec::either(location::SET_CODEC.get().clone(), codec::string_codec()),
+    |either: mcrust::com::mojang::datafixers::util::either::Either<std::collections::HashSet<Location>, String>| either.map(|set| set, |string| ChatRule::encode_string(&string)),
+    |set: &std::collections::HashSet<Location>| mcrust::com::mojang::datafixers::util::either::Either::left(set.clone()),
+));
 /// java: private static final UnaryOperator<Optional<String>> REMOVE_BLANK = opt -> opt.flatMap(s -> s.isBlank() ? Optional.empty() : Optional.of(s));
-pub static REMOVE_BLANK: compat::MainThread<Arc<dyn Fn(Option<String>) -> Option<String>>> = compat::MainThread::new(|| Arc::new(move |opt| opt.clone().and_then(|s| (if compat::is_blank(&s) { None } else { Some(s.clone()) }))));
-// TODO(fabric2seer): `.orElse(..)` on a value of unknown type
+/// (read inside `CODEC`'s `xmap`, whose functions are `Send + Sync`: a thread-safe cell)
+pub static REMOVE_BLANK: LazyLock<Arc<dyn Fn(Option<String>) -> Option<String> + Send + Sync>> = LazyLock::new(|| Arc::new(move |opt| opt.clone().and_then(|s| (if compat::is_blank(&s) { None } else { Some(s.clone()) }))));
 //   java: private static final Codec<ChatRule> CODEC = RecordCodecBuilder.create(instance -> instance.group(
 //   java: 			Codec.STRING.fieldOf("name").forGetter(ChatRule::getName),
 //   java: 			Codec.BOOL.fieldOf("enabled").forGetter(ChatRule::getEnabled),
@@ -50,24 +53,129 @@ pub static REMOVE_BLANK: compat::MainThread<Arc<dyn Fn(Option<String>) -> Option
 //   java: 			new ChatRule(name, enabled, isPartialMatch, isRegex, isIgnoreCase, includeFormatting, filter, validLocations, hideMessage, chatMessage.orElse(null), actionBarMessage.orElse(null), announcementMessage.orElse(null), toastMessage.orElse(null), customSound.orElse(null))
 //   java: 	));
 /// java: private static final Codec<ChatRule> CODEC = RecordCodecBuilder.create(instance -> instance.group( Codec.STRING.fieldOf("name").forGetter(ChatRule::getName), Codec.BOOL.fieldOf("enabled").forGetter(Ch
-pub static CODEC: compat::MainThread<CodecRef<compat::Shared<ChatRule>>> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `CODEC` - see the TODO above"));
+pub static CODEC: compat::MainThread<CodecRef<compat::Shared<ChatRule>>> = compat::MainThread::new(|| {
+    // port shape: `RecordCodecBuilder` builds a record of `Send + Sync` values and a rule handle is not one, so the record
+    // is over the getters' values (the two message objects carried in render-thread cells) and `xmap`ped to the rule -
+    // `apply(instance, (..) -> new ChatRule(..))` on decode, the `forGetter`s on encode
+    type Fields = (
+        String,
+        bool,
+        bool,
+        bool,
+        bool,
+        bool,
+        String,
+        std::collections::HashSet<Location>,
+        bool,
+        Option<String>,
+        Option<String>,
+        compat::RenderThread<Option<compat::Shared<AnnouncementMessage>>>,
+        compat::RenderThread<Option<compat::Shared<ToastMessage>>>,
+        Option<SoundEvent>,
+    );
+    let record: CodecRef<Fields> = record_codec_builder::create(record_codec_builder::apply14(
+        // Codec.STRING.fieldOf("name").forGetter(ChatRule::getName)
+        record_codec_builder::of(|o: &Fields| o.0.clone(), codec::field_of(codec::string_codec(), "name")),
+        // Codec.BOOL.fieldOf("enabled").forGetter(ChatRule::getEnabled)
+        record_codec_builder::of(|o: &Fields| o.1, codec::field_of(codec::bool_codec(), "enabled")),
+        // Codec.BOOL.fieldOf("partialMatch").forGetter(ChatRule::getPartialMatch)
+        record_codec_builder::of(|o: &Fields| o.2, codec::field_of(codec::bool_codec(), "partialMatch")),
+        // Codec.BOOL.fieldOf("regex").forGetter(ChatRule::getRegex)
+        record_codec_builder::of(|o: &Fields| o.3, codec::field_of(codec::bool_codec(), "regex")),
+        // Codec.BOOL.fieldOf("ignoreCase").forGetter(ChatRule::getIgnoreCase)
+        record_codec_builder::of(|o: &Fields| o.4, codec::field_of(codec::bool_codec(), "ignoreCase")),
+        // Codec.BOOL.optionalFieldOf("includeFormatting", false).forGetter(ChatRule::getIncludeFormatting)
+        record_codec_builder::of(|o: &Fields| o.5, codec::optional_field_of(codec::bool_codec(), "includeFormatting", false)),
+        // Codec.STRING.fieldOf("filter").forGetter(ChatRule::getFilter)
+        record_codec_builder::of(|o: &Fields| o.6.clone(), codec::field_of(codec::string_codec(), "filter")),
+        // LOCATION_FIXING_CODEC.fieldOf("locations").forGetter(ChatRule::getValidLocations)
+        record_codec_builder::of(|o: &Fields| o.7.clone(), codec::field_of(LOCATION_FIXING_CODEC.get().clone(), "locations")),
+        // Codec.BOOL.fieldOf("hideOriginalMessage").forGetter(ChatRule::getHideMessage)
+        record_codec_builder::of(|o: &Fields| o.8, codec::field_of(codec::bool_codec(), "hideOriginalMessage")),
+        // Codec.STRING.optionalFieldOf("chatMessage").xmap(REMOVE_BLANK, REMOVE_BLANK).forGetter(ChatRule::getChatMessageOptional)
+        record_codec_builder::of(|o: &Fields| o.9.clone(), map_codec::xmap(codec::optional_field_of_opt(codec::string_codec(), "chatMessage"), |o: Option<String>| (**REMOVE_BLANK)(o), |o: &Option<String>| (**REMOVE_BLANK)(o.clone()))),
+        // Codec.STRING.optionalFieldOf("actionbarMessage").xmap(REMOVE_BLANK, REMOVE_BLANK).forGetter(ChatRule::getActionBarMessageOptional)
+        record_codec_builder::of(|o: &Fields| o.10.clone(), map_codec::xmap(codec::optional_field_of_opt(codec::string_codec(), "actionbarMessage"), |o: Option<String>| (**REMOVE_BLANK)(o), |o: &Option<String>| (**REMOVE_BLANK)(o.clone()))),
+        // AnnouncementMessage.CODEC.optionalFieldOf("announcementMessage").forGetter(ChatRule::getAnnouncementMessageOptional)
+        record_codec_builder::of(|o: &Fields| o.11.clone(), map_codec::xmap(codec::optional_field_of_opt(ANNOUNCEMENT_MESSAGE_CODEC.get().clone(), "announcementMessage"), |o: Option<compat::Shared<AnnouncementMessage>>| compat::RenderThread::new(o), |o: &compat::RenderThread<Option<compat::Shared<AnnouncementMessage>>>| o.get().clone())),
+        // ToastMessage.CODEC.optionalFieldOf("toastMessage").forGetter(ChatRule::getToastMessageOptional)
+        record_codec_builder::of(|o: &Fields| o.12.clone(), map_codec::xmap(codec::optional_field_of_opt(TOAST_MESSAGE_CODEC.get().clone(), "toastMessage"), |o: Option<compat::Shared<ToastMessage>>| compat::RenderThread::new(o), |o: &compat::RenderThread<Option<compat::Shared<ToastMessage>>>| o.get().clone())),
+        // SoundEvent.DIRECT_CODEC.optionalFieldOf("customSound").forGetter(ChatRule::getCustomSoundOptional)
+        record_codec_builder::of(|o: &Fields| o.13.clone(), codec::optional_field_of_opt(mcrust::net::minecraft::sounds::sound_event::direct_codec(), "customSound")),
+        |a0, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13| (a0, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13),
+    ));
+    codec::xmap(
+        record,
+        // (name, enabled, ..) -> new ChatRule(name, enabled, .., chatMessage.orElse(null), actionBarMessage.orElse(null), announcementMessage.orElse(null), toastMessage.orElse(null), customSound.orElse(null))
+        |(name, enabled, is_partial_match, is_regex, is_ignore_case, include_formatting, filter, valid_locations, hide_message, chat_message, action_bar_message, announcement_message, toast_message, custom_sound): Fields| {
+            ChatRule::new_14(name, enabled, is_partial_match, is_regex, is_ignore_case, include_formatting, filter, valid_locations, hide_message, chat_message, action_bar_message, announcement_message.get().clone(), toast_message.get().clone(), custom_sound)
+        },
+        |rule: &compat::Shared<ChatRule>| (
+            ChatRule::get_name(rule),
+            ChatRule::get_enabled(rule),
+            compat::read(rule, |t| t.is_partial_match),
+            compat::read(rule, |t| t.is_regex),
+            compat::read(rule, |t| t.is_ignore_case),
+            compat::read(rule, |t| t.include_formatting),
+            ChatRule::get_filter(rule),
+            ChatRule::get_valid_locations(rule),
+            ChatRule::get_hide_message(rule),
+            ChatRule::get_chat_message_optional(rule),
+            ChatRule::get_action_bar_message_optional(rule),
+            compat::RenderThread::new(ChatRule::get_announcement_message_optional(rule)),
+            compat::RenderThread::new(ChatRule::get_toast_message_optional(rule)),
+            ChatRule::get_custom_sound_optional(rule),
+        ),
+    )
+});
 /// java: public static final Codec<List<ChatRule>> LIST_CODEC = CODEC.listOf();
 pub static LIST_CODEC: compat::MainThread<CodecRef<Vec<compat::Shared<ChatRule>>>> = compat::MainThread::new(|| codec::list(CODEC.get_mut().clone()));
-// TODO(fabric2seer): field `icon` of a value of unknown type
 //   java: static final Codec<ToastMessage> CODEC = RecordCodecBuilder.create(instance -> instance.group(
 //   java: 				FlexibleItemStack.CODEC.optionalFieldOf("icon").forGetter(o -> o.icon),
 //   java: 				Codec.STRING.fieldOf("message").forGetter(o -> o.message),
 //   java: 				Codec.LONG.fieldOf("displayDuration").forGetter(o -> o.displayDuration)
 //   java: 		).apply(instance, ToastMessage::new));
 /// java: static final Codec<ToastMessage> CODEC = RecordCodecBuilder.create(instance -> instance.group( FlexibleItemStack.CODEC.optionalFieldOf("icon").forGetter(o -> o.icon), Codec.STRING.fieldOf("message").f
-pub static TOAST_MESSAGE_CODEC: compat::MainThread<CodecRef<compat::Shared<ToastMessage>>> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `CODEC` - see the TODO above"));
-// TODO(fabric2seer): field `message` of a value of unknown type
+pub static TOAST_MESSAGE_CODEC: compat::MainThread<CodecRef<compat::Shared<ToastMessage>>> = compat::MainThread::new(|| {
+    // port shape: the record is over the fields' values (the icon handle in a render-thread cell), `xmap`ped to the
+    // message (see `CODEC`)
+    type Fields = (compat::RenderThread<Option<compat::Shared<FlexibleItemStack>>>, String, i64);
+    let record: CodecRef<Fields> = record_codec_builder::create(record_codec_builder::apply3(
+        // FlexibleItemStack.CODEC.optionalFieldOf("icon").forGetter(o -> o.icon)
+        record_codec_builder::of(|o: &Fields| o.0.clone(), map_codec::xmap(codec::optional_field_of_opt(flexible_item_stack::CODEC.get().clone(), "icon"), |o: Option<compat::Shared<FlexibleItemStack>>| compat::RenderThread::new(o), |o: &compat::RenderThread<Option<compat::Shared<FlexibleItemStack>>>| o.get().clone())),
+        // Codec.STRING.fieldOf("message").forGetter(o -> o.message)
+        record_codec_builder::of(|o: &Fields| o.1.clone(), codec::field_of(codec::string_codec(), "message")),
+        // Codec.LONG.fieldOf("displayDuration").forGetter(o -> o.displayDuration)
+        record_codec_builder::of(|o: &Fields| o.2, codec::field_of(codec::long_codec(), "displayDuration")),
+        |icon, message, display_duration| (icon, message, display_duration),
+    ));
+    codec::xmap(
+        record,
+        |(icon, message, display_duration): Fields| ToastMessage::new(icon.get().clone(), message, display_duration),
+        |toast: &compat::Shared<ToastMessage>| compat::read(toast, |t| (compat::RenderThread::new(t.icon.clone()), t.message.clone(), t.display_duration)),
+    )
+});
 //   java: static final Codec<AnnouncementMessage> CODEC = RecordCodecBuilder.create(instance -> instance.group(
 //   java: 				Codec.STRING.fieldOf("message").forGetter(o -> o.message),
 //   java: 				Codec.LONG.fieldOf("displayDuration").forGetter(o -> o.displayDuration)
 //   java: 		).apply(instance, AnnouncementMessage::new));
 /// java: static final Codec<AnnouncementMessage> CODEC = RecordCodecBuilder.create(instance -> instance.group( Codec.STRING.fieldOf("message").forGetter(o -> o.message), Codec.LONG.fieldOf("displayDuration").f
-pub static ANNOUNCEMENT_MESSAGE_CODEC: compat::MainThread<CodecRef<compat::Shared<AnnouncementMessage>>> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `CODEC` - see the TODO above"));
+pub static ANNOUNCEMENT_MESSAGE_CODEC: compat::MainThread<CodecRef<compat::Shared<AnnouncementMessage>>> = compat::MainThread::new(|| {
+    // port shape: the record is over the fields' values, `xmap`ped to the message (see `CODEC`)
+    type Fields = (String, i64);
+    let record: CodecRef<Fields> = record_codec_builder::create(record_codec_builder::apply2(
+        // Codec.STRING.fieldOf("message").forGetter(o -> o.message)
+        record_codec_builder::of(|o: &Fields| o.0.clone(), codec::field_of(codec::string_codec(), "message")),
+        // Codec.LONG.fieldOf("displayDuration").forGetter(o -> o.displayDuration)
+        record_codec_builder::of(|o: &Fields| o.1, codec::field_of(codec::long_codec(), "displayDuration")),
+        |message, display_duration| (message, display_duration),
+    ));
+    codec::xmap(
+        record,
+        |(message, display_duration): Fields| AnnouncementMessage::new(message, display_duration),
+        |announcement: &compat::Shared<AnnouncementMessage>| compat::read(announcement, |t| (t.message.clone(), t.display_duration)),
+    )
+});
 
 /// java: public class ChatRule
 #[derive(Clone)]
@@ -189,7 +297,6 @@ impl ChatRule {
             return std::collections::HashSet::<_>::new();
         }
         if string.contains("!") {
-            // TODO(fabric2seer): static call EnumSet.complementOf(..)
             //   java: return EnumSet.complementOf(
             //   java: 				Arrays.stream(string.split(", ?"))
             //   java: 						.filter(s1 -> s1.startsWith("!")) // Filter out the non-negated locations because the negation of any element in the list already implies those non-negated locations being valid.
@@ -197,12 +304,13 @@ impl ChatRule {
             //   java: 						.map(Location::fromFriendlyName)
             //   java: 						.collect(CollectionUtils.enumSetCollector(Location.class))
             //   java: 		);
+            let negated: std::collections::HashSet<Location> = compat::regex::split(string, ", ?").iter().filter(|s1| s1.starts_with("!")).map(|s| compat::substring(s, 1)).map(|s| Location::from_friendly_name(&s)).collect();
+            return Location::values().into_iter().filter(|location| !negated.contains(location)).collect();
         }
-        // TODO(fabric2seer): collect(..) with a collector that is not `Collectors.*`
         //   java: return Arrays.stream(string.split(", ?"))
         //   java: 				.map(Location::fromFriendlyName)
         //   java: 				.collect(CollectionUtils.enumSetCollector(Location.class));
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        return compat::regex::split(string, ", ?").iter().map(|s| Location::from_friendly_name(s)).collect();
     }
 
     /// java: protected String getName()

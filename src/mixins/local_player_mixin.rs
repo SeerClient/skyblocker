@@ -77,21 +77,22 @@ fn skyblocker_redirect_edit_sign_screen(ci: &mut CallbackInfo<'_>) {
         if !is_input_sign {
             return;
         }
-        // TODO(batchD): cross-package - `SearchOverManager::update_sign` takes a `SignBlockEntity` BY VALUE (see
-        // above); without it the overlay cannot write the sign back, so the overlay is not opened over the vanilla
-        // editor in any of the three cases.
-        if config.enable_auction_house && title.contains("Auction") || config.enable_ironman_auction_house && title.contains("Cosmetics") {
-            //   java: SearchOverManager.updateSign(sign, front, SearchOverManager.SearchLocation.AUCTION);
-            //   java: minecraft.gui.setScreen(new OverlayScreen());
-            //   java: ci.cancel();
+        let location = if config.enable_auction_house && title.contains("Auction") || config.enable_ironman_auction_house && title.contains("Cosmetics") {
+            Some(crate::de::hysky::skyblocker::skyblock::searchoverlay::search_over_manager::SearchLocation::Auction)
         } else if config.enable_bazaar && title.contains("Bazaar") {
-            //   java: SearchOverManager.updateSign(sign, front, SearchOverManager.SearchLocation.BAZAAR);
-            //   java: minecraft.gui.setScreen(new OverlayScreen());
-            //   java: ci.cancel();
+            Some(crate::de::hysky::skyblocker::skyblock::searchoverlay::search_over_manager::SearchLocation::Bazaar)
         } else if config.enable_museum && title.contains("Museum") {
-            //   java: SearchOverManager.updateSign(sign, front, SearchOverManager.SearchLocation.MUSEUM);
+            Some(crate::de::hysky::skyblocker::skyblock::searchoverlay::search_over_manager::SearchLocation::Museum)
+        } else {
+            None
+        };
+        if let Some(location) = location {
+            //   java: SearchOverManager.updateSign(sign, front, location);
+            crate::de::hysky::skyblocker::skyblock::searchoverlay::search_over_manager::SearchOverManager::update_sign(sign.clone(), front, location);
             //   java: minecraft.gui.setScreen(new OverlayScreen());
+            mcrust::mcrust::modding::game::set_screen(Box::new(compat::ScreenAdapter::new(crate::de::hysky::skyblocker::skyblock::searchoverlay::overlay_screen::OverlayScreen::new())));
             //   java: ci.cancel();
+            cancel(ci, gfx);
         }
     }
 }

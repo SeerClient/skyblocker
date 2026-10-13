@@ -19,6 +19,9 @@ use mcrust::net::minecraft::world::inventory::slot::Slot;
 use mcrust::net::minecraft::client::gui::screens::inventory::abstract_container_screen::ContainerScreenHost as _;
 use mcrust::net::minecraft::network::chat::component::Component as _;
 
+/// Whether the screen `AFTER_INIT` last saw is a container screen this adder matches and is enabled for (Fabric's
+/// per-screen listener registration, see `init`).
+pub static SCREEN_ACCEPTED: LazyLock<Mutex<bool>> = LazyLock::new(|| Mutex::new(false));
 /// java: public static final WardrobeKeybinds INSTANCE = new WardrobeKeybinds();
 pub static INSTANCE: compat::MainThread<compat::Shared<WardrobeKeybinds>> = compat::MainThread::new(|| WardrobeKeybinds::new());
 
@@ -56,24 +59,38 @@ impl WardrobeKeybinds {
 
     /// java: @Init public static void init()
     pub fn init() {
+        // Fabric registers the two input listeners on the screen instance (`ScreenKeyboardEvents.allowKeyPress(screen)`),
+        // so they live as long as that screen; the port's input events are global, so they are registered once and
+        // answer for the screen `AFTER_INIT` last accepted (`SCREEN_ACCEPTED`, reset by every screen's init).
         screen_events::AFTER_INIT.register(Arc::new(|screen: &mut Screen, width: i32, height: i32| {
-            // TODO(fabric2seer): an `instanceof` pattern under `||` / `!`
             //   java: if (!(screen instanceof AbstractContainerScreen<?> containerScreen) || !INSTANCE.test(containerScreen) || !INSTANCE.isEnabled() || client.gameMode == null) return;
-            screen_keyboard_events::ALLOW_KEY_PRESS.register(Arc::new(|action: i32, key_event: &KeyEvent| {
-                // TODO(fabric2seer): `client`: Fabric passes the Minecraft here; this SeerClient callback does not (take it from ClientTickEvents or a hook)
-                //   java: return allowInput(client, containerScreen, keybinding -> keybinding.matches(keyInput));
-                true
-            }));
-            screen_mouse_events::ALLOW_MOUSE_CLICK.register(Arc::new(|screen: &mut Screen, (mouse_x, mouse_y): (i32, i32), pressed: bool| {
-                // TODO(fabric2seer): `client`: Fabric passes the Minecraft here; this SeerClient callback does not (take it from ClientTickEvents or a hook)
-                //   java: return allowInput(client, containerScreen, keybinding -> keybinding.matchesMouse(click));
-                true
-            }));
+            let is_container_screen = matches!(compat::minecraft().gui.screen_kind, mcrust::net::minecraft::client::gui::gui::ScreenKind::Container);
+            let accepted = is_container_screen && {
+                let __r = &compat::view(INSTANCE.get(), |a| a as compat::Shared<dyn ContainerMatcher>);
+                let __test = compat::dispatch(__r, |__t| __t.test());
+                let __enabled = compat::dispatch(__r, |__t| __t.is_enabled());
+                __test(__r, screen) && __enabled(__r)
+            };
+            compat::set_state(&SCREEN_ACCEPTED, accepted);
         }));
+        //   java: ScreenKeyboardEvents.allowKeyPress(containerScreen).register((_, keyInput) -> allowInput(client, containerScreen, keybinding -> keybinding.matches(keyInput)));
+        screen_keyboard_events::ALLOW_KEY_PRESS.register(Arc::new(|action: i32, key_event: &KeyEvent| {
+            if action == 0 || !compat::get_state(&SCREEN_ACCEPTED) {
+                return true;
+            }
+            let key_event = *key_event;
+            WardrobeKeybinds::allow_input(Arc::new(move |keybinding: mcrust::net::minecraft::client::key_mapping::KeyMapping| key_mapping::matches(keybinding.get_name(), &key_event)))
+        }));
+        //   java: ScreenMouseEvents.allowMouseClick(containerScreen).register((_, click) -> allowInput(client, containerScreen, keybinding -> keybinding.matchesMouse(click)));
+        // rust: port gap - `screen_mouse_events::ALLOW_MOUSE_CLICK` is not handed the button (`MouseButtonEvent`), so
+        // `keybinding.matchesMouse(click)` cannot be asked: a loadout bound to a mouse button does nothing (GAPS_K)
     }
 
     /// java: private static boolean allowInput(Minecraft minecraft, AbstractContainerScreen<?> containerScreen, Predicate<KeyMapping> predicate)
-    pub fn allow_input(minecraft: &mut mcrust::net::minecraft::client::minecraft::Minecraft, container_screen: &AbstractContainerScreen, predicate: Arc<dyn Fn(mcrust::net::minecraft::client::key_mapping::KeyMapping) -> bool>) -> bool {
+    ///
+    /// (`minecraft` is `compat::minecraft()`, and `containerScreen.getMenu()` is the player's open menu, which the screen
+    /// was opened over)
+    pub fn allow_input(predicate: Arc<dyn Fn(mcrust::net::minecraft::client::key_mapping::KeyMapping) -> bool>) -> bool {
         if false /* java: minecraft.game_mode == null: never null here */ || mcrust::mcrust::modding::game::with_player(|_| ()).is_none() {
             return true;
         }
@@ -93,14 +110,15 @@ impl WardrobeKeybinds {
             return true;
         }
         i = i.wrapping_add(9i32.wrapping_mul(4));
-        // TODO(fabric2seer): `getSlot` on a Object
         //   java: ItemStack itemStack = containerScreen.getMenu().getSlot(i).getItem();
-        let mut item_stack: mcrust::net::minecraft::world::item::item_stack::ItemStack = todo!("fabric2seer: the initialiser of `itemStack` (TODO above)");
+        let Some((container_id, mut item_stack)) = compat::with_open_menu(|menu, containers| (menu.container_id, menu.slots[i as usize].get_item(containers).duplicate())) else {
+            return true;
+        };
         if !(item_stack.is_item(mcrust::net::minecraft::world::item::items::dye().gray())) && !(item_stack.is_item(mcrust::net::minecraft::world::item::items::dye().lime())) {
             return true;
         }
-        // TODO(fabric2seer): field `containerId` of a Object
         //   java: minecraft.gameMode.handleContainerInput(containerScreen.getMenu().containerId, i, ContainerUtils.getContainerClickButton(InputConstants.MOUSE_BUTTON_LEFT), ContainerInput.PICKUP, minecraft.player);
+        handle_container_input(container_id, i, crate::de::hysky::skyblocker::utils::container_utils::ContainerUtils::get_container_click_button(0), mcrust::net::minecraft::world::inventory::container_input::ContainerInput::Pickup);
         return false;
     }
 
@@ -176,9 +194,10 @@ impl WardrobeKeybinds {
             return vec![];
         }
         let mut loadout_index: i32 = (slot_id.wrapping_sub(35)).wrapping_sub(1);
-        // TODO(fabric2seer): `get_translated_key_message` takes 2 argument(s) in the port (`name: &str, key_name: &dyn Fn(i32, i32) -> Option<String>`), Java passes 0
-        // rust: return SlotText::bottom_left_list(&compat::component_of(key_mapping::get_translated_key_message()).plain_copy().with_color(slot_text::MID_BLUE));
-        return todo!("fabric2seer: see the TODO above");
+        //   java: return SlotText.bottomLeftList(LoadoutKeybinds.LOADOUT_KEY_MAPPINGS[loadoutIndex].getTranslatedKeyMessage().plainCopy().withColor(SlotText.MID_BLUE));
+        let name: &'static str = loadout_keybinds::LOADOUT_KEY_MAPPINGS.get()[loadout_index as usize].get_name();
+        let message = key_mapping::get_translated_key_message(name, &|key: i32, _scancode: i32| compat::minecraft().key_names.get(&key).cloned());
+        return SlotText::bottom_left_list(&compat::component_of(message).plain_copy().with_color(slot_text::MID_BLUE));
     }
 
     /// WardrobeKeybinds.getText as the dispatch of SlotTextAdder.getText
@@ -186,4 +205,22 @@ impl WardrobeKeybinds {
         Self::get_text_impl(&compat::view_as::<Self, _, Self>(__this, |a| a), __p0, __p1, __p2)
     }
 
+}
+
+/// `minecraft.gameMode.handleContainerInput(containerId, slotId, buttonNum, containerInput, minecraft.player)`: the
+/// port's `handleContainerInput:443-481` over the player (its `:445-447` check of the container id is made here - the
+/// port's body is handed the open menu's own id), then `:480`'s send.
+fn handle_container_input(container_id: i32, slot_id: i32, button_num: i32, container_input: mcrust::net::minecraft::world::inventory::container_input::ContainerInput) {
+    use mcrust::net::minecraft::client::multiplayer::multi_player_game_mode;
+    use mcrust::net::minecraft::world::entity::player::player::Player as _;
+    let packet = mcrust::mcrust::modding::game::with_player(|player| {
+        let open_container_id = player.player().container_menu_container_id();
+        if container_id != open_container_id {
+            logger().warn(&format!("Ignoring click in mismatching container. Click in {}, player has {}.", container_id, open_container_id));
+            return None;
+        }
+        multi_player_game_mode::handle_container_input_on_player(&mut compat::minecraft().game_mode, player, slot_id, button_num, container_input)
+    })
+    .flatten();
+    multi_player_game_mode::send_container_click(packet, container_input, slot_id, button_num);
 }

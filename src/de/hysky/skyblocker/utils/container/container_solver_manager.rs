@@ -178,9 +178,19 @@ impl ContainerSolverManager {
     /// java: public static Int2ObjectMap<ItemStack> slotMap(List<Slot> slots)
     pub fn slot_map(slots: &Vec<Slot>) -> std::collections::HashMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack> {
         let mut slot_map: std::collections::HashMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack> = std::collections::HashMap::new();
-        for i in 0..(slots.len() as i32) {
-            // TODO(fabric2seer): `get_item` takes 1 argument(s) in the port (`containers: &'a Containers<'_>`), Java passes 0
-            // rust: slot_map.insert(i, (slots[(i) as usize]).get_item().clone());
+        // java: for (int i = 0; i < slots.size(); i++) slotMap.put(i, slots.get(i).getItem());
+        // (the port's `Slot::get_item` reads through the open menu's containers: one lend for the whole loop; `duplicate`
+        // keeps the stack's identity, as `compat::slot_item`. Where the menu cannot be lent - no player, or this thread
+        // holds it - every slot reads EMPTY, as `compat::slot_item` answers)
+        let __filled = compat::with_open_menu(|_, containers| {
+            for i in 0..(slots.len() as i32) {
+                slot_map.insert(i, slots[(i) as usize].get_item(containers).duplicate());
+            }
+        });
+        if __filled.is_none() {
+            for i in 0..(slots.len() as i32) {
+                slot_map.insert(i, mcrust::net::minecraft::world::item::item_stack::empty());
+            }
         }
         return slot_map;
     }

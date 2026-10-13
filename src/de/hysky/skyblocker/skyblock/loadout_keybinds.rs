@@ -18,56 +18,47 @@ use mcrust::net::minecraft::world::inventory::slot::Slot;
 use mcrust::net::minecraft::client::gui::screens::inventory::abstract_container_screen::ContainerScreenHost as _;
 use mcrust::net::minecraft::network::chat::component::Component as _;
 
+/// Whether the screen `AFTER_INIT` last saw is a container screen this adder matches and is enabled for (Fabric's
+/// per-screen listener registration, see `init`).
+pub static SCREEN_ACCEPTED: LazyLock<Mutex<bool>> = LazyLock::new(|| Mutex::new(false));
 /// java: public static final LoadoutKeybinds INSTANCE = new LoadoutKeybinds();
 pub static INSTANCE: compat::MainThread<compat::Shared<LoadoutKeybinds>> = compat::MainThread::new(|| LoadoutKeybinds::new());
-// TODO(fabric2seer): Fabric API `KeyMappingHelper.registerKeyMapping` has no SeerClient equivalent
 //   java: public static final KeyMapping LOADOUT_1 = KeyMappingHelper.registerKeyMapping(new KeyMapping("key.skyblocker.loadout.01", InputConstants.KEY_1, SkyblockerMod.KEYBINDING_CATEGORY));
 /// java: public static final KeyMapping LOADOUT_1 = KeyMappingHelper.registerKeyMapping(new KeyMapping("key.skyblocker.loadout.01", InputConstants.KEY_1, SkyblockerMod.KEYBINDING_CATEGORY));
-pub static LOADOUT_1: compat::MainThread<mcrust::net::minecraft::client::key_mapping::KeyMapping> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `LOADOUT_1` - see the TODO above"));
-// TODO(fabric2seer): Fabric API `KeyMappingHelper.registerKeyMapping` has no SeerClient equivalent
+pub static LOADOUT_1: compat::MainThread<mcrust::net::minecraft::client::key_mapping::KeyMapping> = compat::MainThread::new(|| key_binding_helper::register_key_binding(KeyMapping::new("key.skyblocker.loadout.01", 49 /* InputConstants.KEY_1 */, *crate::entry::skyblocker_mod::KEYBINDING_CATEGORY.get())));
 //   java: public static final KeyMapping LOADOUT_2 = KeyMappingHelper.registerKeyMapping(new KeyMapping("key.skyblocker.loadout.02", InputConstants.KEY_2, SkyblockerMod.KEYBINDING_CATEGORY));
 /// java: public static final KeyMapping LOADOUT_2 = KeyMappingHelper.registerKeyMapping(new KeyMapping("key.skyblocker.loadout.02", InputConstants.KEY_2, SkyblockerMod.KEYBINDING_CATEGORY));
-pub static LOADOUT_2: compat::MainThread<mcrust::net::minecraft::client::key_mapping::KeyMapping> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `LOADOUT_2` - see the TODO above"));
-// TODO(fabric2seer): Fabric API `KeyMappingHelper.registerKeyMapping` has no SeerClient equivalent
+pub static LOADOUT_2: compat::MainThread<mcrust::net::minecraft::client::key_mapping::KeyMapping> = compat::MainThread::new(|| key_binding_helper::register_key_binding(KeyMapping::new("key.skyblocker.loadout.02", 50 /* InputConstants.KEY_2 */, *crate::entry::skyblocker_mod::KEYBINDING_CATEGORY.get())));
 //   java: public static final KeyMapping LOADOUT_3 = KeyMappingHelper.registerKeyMapping(new KeyMapping("key.skyblocker.loadout.03", InputConstants.KEY_3, SkyblockerMod.KEYBINDING_CATEGORY));
 /// java: public static final KeyMapping LOADOUT_3 = KeyMappingHelper.registerKeyMapping(new KeyMapping("key.skyblocker.loadout.03", InputConstants.KEY_3, SkyblockerMod.KEYBINDING_CATEGORY));
-pub static LOADOUT_3: compat::MainThread<mcrust::net::minecraft::client::key_mapping::KeyMapping> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `LOADOUT_3` - see the TODO above"));
-// TODO(fabric2seer): Fabric API `KeyMappingHelper.registerKeyMapping` has no SeerClient equivalent
+pub static LOADOUT_3: compat::MainThread<mcrust::net::minecraft::client::key_mapping::KeyMapping> = compat::MainThread::new(|| key_binding_helper::register_key_binding(KeyMapping::new("key.skyblocker.loadout.03", 51 /* InputConstants.KEY_3 */, *crate::entry::skyblocker_mod::KEYBINDING_CATEGORY.get())));
 //   java: public static final KeyMapping LOADOUT_4 = KeyMappingHelper.registerKeyMapping(new KeyMapping("key.skyblocker.loadout.04", InputConstants.KEY_4, SkyblockerMod.KEYBINDING_CATEGORY));
 /// java: public static final KeyMapping LOADOUT_4 = KeyMappingHelper.registerKeyMapping(new KeyMapping("key.skyblocker.loadout.04", InputConstants.KEY_4, SkyblockerMod.KEYBINDING_CATEGORY));
-pub static LOADOUT_4: compat::MainThread<mcrust::net::minecraft::client::key_mapping::KeyMapping> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `LOADOUT_4` - see the TODO above"));
-// TODO(fabric2seer): Fabric API `KeyMappingHelper.registerKeyMapping` has no SeerClient equivalent
+pub static LOADOUT_4: compat::MainThread<mcrust::net::minecraft::client::key_mapping::KeyMapping> = compat::MainThread::new(|| key_binding_helper::register_key_binding(KeyMapping::new("key.skyblocker.loadout.04", 52 /* InputConstants.KEY_4 */, *crate::entry::skyblocker_mod::KEYBINDING_CATEGORY.get())));
 //   java: public static final KeyMapping LOADOUT_5 = KeyMappingHelper.registerKeyMapping(new KeyMapping("key.skyblocker.loadout.05", InputConstants.KEY_5, SkyblockerMod.KEYBINDING_CATEGORY));
 /// java: public static final KeyMapping LOADOUT_5 = KeyMappingHelper.registerKeyMapping(new KeyMapping("key.skyblocker.loadout.05", InputConstants.KEY_5, SkyblockerMod.KEYBINDING_CATEGORY));
-pub static LOADOUT_5: compat::MainThread<mcrust::net::minecraft::client::key_mapping::KeyMapping> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `LOADOUT_5` - see the TODO above"));
-// TODO(fabric2seer): Fabric API `KeyMappingHelper.registerKeyMapping` has no SeerClient equivalent
+pub static LOADOUT_5: compat::MainThread<mcrust::net::minecraft::client::key_mapping::KeyMapping> = compat::MainThread::new(|| key_binding_helper::register_key_binding(KeyMapping::new("key.skyblocker.loadout.05", 53 /* InputConstants.KEY_5 */, *crate::entry::skyblocker_mod::KEYBINDING_CATEGORY.get())));
 //   java: public static final KeyMapping LOADOUT_6 = KeyMappingHelper.registerKeyMapping(new KeyMapping("key.skyblocker.loadout.06", InputConstants.KEY_6, SkyblockerMod.KEYBINDING_CATEGORY));
 /// java: public static final KeyMapping LOADOUT_6 = KeyMappingHelper.registerKeyMapping(new KeyMapping("key.skyblocker.loadout.06", InputConstants.KEY_6, SkyblockerMod.KEYBINDING_CATEGORY));
-pub static LOADOUT_6: compat::MainThread<mcrust::net::minecraft::client::key_mapping::KeyMapping> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `LOADOUT_6` - see the TODO above"));
-// TODO(fabric2seer): Fabric API `KeyMappingHelper.registerKeyMapping` has no SeerClient equivalent
+pub static LOADOUT_6: compat::MainThread<mcrust::net::minecraft::client::key_mapping::KeyMapping> = compat::MainThread::new(|| key_binding_helper::register_key_binding(KeyMapping::new("key.skyblocker.loadout.06", 54 /* InputConstants.KEY_6 */, *crate::entry::skyblocker_mod::KEYBINDING_CATEGORY.get())));
 //   java: public static final KeyMapping LOADOUT_7 = KeyMappingHelper.registerKeyMapping(new KeyMapping("key.skyblocker.loadout.07", InputConstants.KEY_7, SkyblockerMod.KEYBINDING_CATEGORY));
 /// java: public static final KeyMapping LOADOUT_7 = KeyMappingHelper.registerKeyMapping(new KeyMapping("key.skyblocker.loadout.07", InputConstants.KEY_7, SkyblockerMod.KEYBINDING_CATEGORY));
-pub static LOADOUT_7: compat::MainThread<mcrust::net::minecraft::client::key_mapping::KeyMapping> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `LOADOUT_7` - see the TODO above"));
-// TODO(fabric2seer): Fabric API `KeyMappingHelper.registerKeyMapping` has no SeerClient equivalent
+pub static LOADOUT_7: compat::MainThread<mcrust::net::minecraft::client::key_mapping::KeyMapping> = compat::MainThread::new(|| key_binding_helper::register_key_binding(KeyMapping::new("key.skyblocker.loadout.07", 55 /* InputConstants.KEY_7 */, *crate::entry::skyblocker_mod::KEYBINDING_CATEGORY.get())));
 //   java: public static final KeyMapping LOADOUT_8 = KeyMappingHelper.registerKeyMapping(new KeyMapping("key.skyblocker.loadout.08", InputConstants.KEY_8, SkyblockerMod.KEYBINDING_CATEGORY));
 /// java: public static final KeyMapping LOADOUT_8 = KeyMappingHelper.registerKeyMapping(new KeyMapping("key.skyblocker.loadout.08", InputConstants.KEY_8, SkyblockerMod.KEYBINDING_CATEGORY));
-pub static LOADOUT_8: compat::MainThread<mcrust::net::minecraft::client::key_mapping::KeyMapping> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `LOADOUT_8` - see the TODO above"));
-// TODO(fabric2seer): Fabric API `KeyMappingHelper.registerKeyMapping` has no SeerClient equivalent
+pub static LOADOUT_8: compat::MainThread<mcrust::net::minecraft::client::key_mapping::KeyMapping> = compat::MainThread::new(|| key_binding_helper::register_key_binding(KeyMapping::new("key.skyblocker.loadout.08", 56 /* InputConstants.KEY_8 */, *crate::entry::skyblocker_mod::KEYBINDING_CATEGORY.get())));
 //   java: public static final KeyMapping LOADOUT_9 = KeyMappingHelper.registerKeyMapping(new KeyMapping("key.skyblocker.loadout.09", InputConstants.KEY_9, SkyblockerMod.KEYBINDING_CATEGORY));
 /// java: public static final KeyMapping LOADOUT_9 = KeyMappingHelper.registerKeyMapping(new KeyMapping("key.skyblocker.loadout.09", InputConstants.KEY_9, SkyblockerMod.KEYBINDING_CATEGORY));
-pub static LOADOUT_9: compat::MainThread<mcrust::net::minecraft::client::key_mapping::KeyMapping> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `LOADOUT_9` - see the TODO above"));
-// TODO(fabric2seer): Fabric API `KeyMappingHelper.registerKeyMapping` has no SeerClient equivalent
+pub static LOADOUT_9: compat::MainThread<mcrust::net::minecraft::client::key_mapping::KeyMapping> = compat::MainThread::new(|| key_binding_helper::register_key_binding(KeyMapping::new("key.skyblocker.loadout.09", 57 /* InputConstants.KEY_9 */, *crate::entry::skyblocker_mod::KEYBINDING_CATEGORY.get())));
 //   java: public static final KeyMapping LOADOUT_10 = KeyMappingHelper.registerKeyMapping(new KeyMapping("key.skyblocker.loadout.10", InputConstants.KEY_0, SkyblockerMod.KEYBINDING_CATEGORY));
 /// java: public static final KeyMapping LOADOUT_10 = KeyMappingHelper.registerKeyMapping(new KeyMapping("key.skyblocker.loadout.10", InputConstants.KEY_0, SkyblockerMod.KEYBINDING_CATEGORY));
-pub static LOADOUT_10: compat::MainThread<mcrust::net::minecraft::client::key_mapping::KeyMapping> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `LOADOUT_10` - see the TODO above"));
-// TODO(fabric2seer): Fabric API `KeyMappingHelper.registerKeyMapping` has no SeerClient equivalent
+pub static LOADOUT_10: compat::MainThread<mcrust::net::minecraft::client::key_mapping::KeyMapping> = compat::MainThread::new(|| key_binding_helper::register_key_binding(KeyMapping::new("key.skyblocker.loadout.10", 48 /* InputConstants.KEY_0 */, *crate::entry::skyblocker_mod::KEYBINDING_CATEGORY.get())));
 //   java: public static final KeyMapping LOADOUT_11 = KeyMappingHelper.registerKeyMapping(new KeyMapping("key.skyblocker.loadout.11", InputConstants.KEY_MINUS, SkyblockerMod.KEYBINDING_CATEGORY));
 /// java: public static final KeyMapping LOADOUT_11 = KeyMappingHelper.registerKeyMapping(new KeyMapping("key.skyblocker.loadout.11", InputConstants.KEY_MINUS, SkyblockerMod.KEYBINDING_CATEGORY));
-pub static LOADOUT_11: compat::MainThread<mcrust::net::minecraft::client::key_mapping::KeyMapping> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `LOADOUT_11` - see the TODO above"));
-// TODO(fabric2seer): Fabric API `KeyMappingHelper.registerKeyMapping` has no SeerClient equivalent
+pub static LOADOUT_11: compat::MainThread<mcrust::net::minecraft::client::key_mapping::KeyMapping> = compat::MainThread::new(|| key_binding_helper::register_key_binding(KeyMapping::new("key.skyblocker.loadout.11", 45 /* InputConstants.KEY_MINUS */, *crate::entry::skyblocker_mod::KEYBINDING_CATEGORY.get())));
 //   java: public static final KeyMapping LOADOUT_12 = KeyMappingHelper.registerKeyMapping(new KeyMapping("key.skyblocker.loadout.12", InputConstants.KEY_EQUALS, SkyblockerMod.KEYBINDING_CATEGORY));
 /// java: public static final KeyMapping LOADOUT_12 = KeyMappingHelper.registerKeyMapping(new KeyMapping("key.skyblocker.loadout.12", InputConstants.KEY_EQUALS, SkyblockerMod.KEYBINDING_CATEGORY));
-pub static LOADOUT_12: compat::MainThread<mcrust::net::minecraft::client::key_mapping::KeyMapping> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `LOADOUT_12` - see the TODO above"));
+pub static LOADOUT_12: compat::MainThread<mcrust::net::minecraft::client::key_mapping::KeyMapping> = compat::MainThread::new(|| key_binding_helper::register_key_binding(KeyMapping::new("key.skyblocker.loadout.12", 61 /* InputConstants.KEY_EQUALS */, *crate::entry::skyblocker_mod::KEYBINDING_CATEGORY.get())));
 /// java: protected static final KeyMapping[] LOADOUT_KEY_MAPPINGS = { LOADOUT_1, LOADOUT_2, LOADOUT_3, LOADOUT_4, LOADOUT_5, LOADOUT_6, LOADOUT_7, LOADOUT_8, LOADOUT_9, LOADOUT_10, LOADOUT_11, LOADOUT_12 };
 pub static LOADOUT_KEY_MAPPINGS: compat::MainThread<Vec<mcrust::net::minecraft::client::key_mapping::KeyMapping>> = compat::MainThread::new(|| vec![LOADOUT_1.get_mut().clone(), LOADOUT_2.get_mut().clone(), LOADOUT_3.get_mut().clone(), LOADOUT_4.get_mut().clone(), LOADOUT_5.get_mut().clone(), LOADOUT_6.get_mut().clone(), LOADOUT_7.get_mut().clone(), LOADOUT_8.get_mut().clone(), LOADOUT_9.get_mut().clone(), LOADOUT_10.get_mut().clone(), LOADOUT_11.get_mut().clone(), LOADOUT_12.get_mut().clone()]);
 
@@ -105,24 +96,40 @@ impl LoadoutKeybinds {
 
     /// java: @Init public static void init()
     pub fn init() {
+        // the class's static initialiser runs before its first static method: the twelve `registerKeyMapping` calls
+        let _ = LOADOUT_KEY_MAPPINGS.get();
+        // Fabric registers the two input listeners on the screen instance (`ScreenKeyboardEvents.allowKeyPress(screen)`),
+        // so they live as long as that screen; the port's input events are global, so they are registered once and
+        // answer for the screen `AFTER_INIT` last accepted (`SCREEN_ACCEPTED`, reset by every screen's init).
         screen_events::AFTER_INIT.register(Arc::new(|screen: &mut Screen, width: i32, height: i32| {
-            // TODO(fabric2seer): an `instanceof` pattern under `||` / `!`
             //   java: if (!(screen instanceof AbstractContainerScreen<?> handledScreen) || !INSTANCE.test(handledScreen) || !INSTANCE.isEnabled() || client.gameMode == null) return;
-            screen_keyboard_events::ALLOW_KEY_PRESS.register(Arc::new(|action: i32, key_event: &KeyEvent| {
-                // TODO(fabric2seer): `client`: Fabric passes the Minecraft here; this SeerClient callback does not (take it from ClientTickEvents or a hook)
-                //   java: return allowInput(client, handledScreen, keybinding -> keybinding.matches(keyInput));
-                true
-            }));
-            screen_mouse_events::ALLOW_MOUSE_CLICK.register(Arc::new(|screen: &mut Screen, (mouse_x, mouse_y): (i32, i32), pressed: bool| {
-                // TODO(fabric2seer): `client`: Fabric passes the Minecraft here; this SeerClient callback does not (take it from ClientTickEvents or a hook)
-                //   java: return allowInput(client, handledScreen, keybinding -> keybinding.matchesMouse(click));
-                true
-            }));
+            let is_container_screen = matches!(compat::minecraft().gui.screen_kind, mcrust::net::minecraft::client::gui::gui::ScreenKind::Container);
+            let accepted = is_container_screen && {
+                let __r = &compat::view(INSTANCE.get(), |a| a as compat::Shared<dyn ContainerMatcher>);
+                let __test = compat::dispatch(__r, |__t| __t.test());
+                let __enabled = compat::dispatch(__r, |__t| __t.is_enabled());
+                __test(__r, screen) && __enabled(__r)
+            };
+            compat::set_state(&SCREEN_ACCEPTED, accepted);
         }));
+        //   java: ScreenKeyboardEvents.allowKeyPress(handledScreen).register((_, keyInput) -> allowInput(client, handledScreen, keybinding -> keybinding.matches(keyInput)));
+        screen_keyboard_events::ALLOW_KEY_PRESS.register(Arc::new(|action: i32, key_event: &KeyEvent| {
+            if action == 0 || !compat::get_state(&SCREEN_ACCEPTED) {
+                return true;
+            }
+            let key_event = *key_event;
+            LoadoutKeybinds::allow_input(Arc::new(move |keybinding: mcrust::net::minecraft::client::key_mapping::KeyMapping| key_mapping::matches(keybinding.get_name(), &key_event)))
+        }));
+        //   java: ScreenMouseEvents.allowMouseClick(handledScreen).register((_, click) -> allowInput(client, handledScreen, keybinding -> keybinding.matchesMouse(click)));
+        // rust: port gap - `screen_mouse_events::ALLOW_MOUSE_CLICK` is not handed the button (`MouseButtonEvent`), so
+        // `keybinding.matchesMouse(click)` cannot be asked: a loadout bound to a mouse button does nothing (GAPS_K)
     }
 
     /// java: private static boolean allowInput(Minecraft minecraft, AbstractContainerScreen<?> containerScreen, Predicate<KeyMapping> predicate)
-    pub fn allow_input(minecraft: &mut mcrust::net::minecraft::client::minecraft::Minecraft, container_screen: &AbstractContainerScreen, predicate: Arc<dyn Fn(mcrust::net::minecraft::client::key_mapping::KeyMapping) -> bool>) -> bool {
+    ///
+    /// (`minecraft` is `compat::minecraft()`, and `containerScreen.getMenu()` is the player's open menu, which the screen
+    /// was opened over)
+    pub fn allow_input(predicate: Arc<dyn Fn(mcrust::net::minecraft::client::key_mapping::KeyMapping) -> bool>) -> bool {
         if false /* java: minecraft.game_mode == null: never null here */ || mcrust::mcrust::modding::game::with_player(|_| ()).is_none() {
             return true;
         }
@@ -142,14 +149,15 @@ impl LoadoutKeybinds {
             return true;
         }
         let mut slot_index: i32 = LoadoutKeybinds::loadout_index_to_slot_id(loadout_index);
-        // TODO(fabric2seer): `getSlot` on a Object
         //   java: ItemStack stack = containerScreen.getMenu().getSlot(slotIndex).getItem();
-        let mut stack: mcrust::net::minecraft::world::item::item_stack::ItemStack = todo!("fabric2seer: the initialiser of `stack` (TODO above)");
+        let Some((container_id, mut stack)) = compat::with_open_menu(|menu, containers| (menu.container_id, menu.slots[slot_index as usize].get_item(containers).duplicate())) else {
+            return true;
+        };
         if LoadoutKeybinds::is_item_invalid(&stack) {
             return true;
         }
-        // TODO(fabric2seer): field `containerId` of a Object
         //   java: minecraft.gameMode.handleContainerInput(containerScreen.getMenu().containerId, slotIndex, ContainerUtils.getContainerClickButton(InputConstants.MOUSE_BUTTON_LEFT), ContainerInput.PICKUP, minecraft.player);
+        handle_container_input(container_id, slot_index, crate::de::hysky::skyblocker::utils::container_utils::ContainerUtils::get_container_click_button(0), mcrust::net::minecraft::world::inventory::container_input::ContainerInput::Pickup);
         return false;
     }
 
@@ -267,9 +275,10 @@ impl LoadoutKeybinds {
         if loadout_index == -1 || LoadoutKeybinds::is_item_invalid(stack) {
             return vec![];
         }
-        // TODO(fabric2seer): `get_translated_key_message` takes 2 argument(s) in the port (`name: &str, key_name: &dyn Fn(i32, i32) -> Option<String>`), Java passes 0
-        // rust: return SlotText::bottom_left_list(&compat::component_of(key_mapping::get_translated_key_message()).plain_copy().with_color(slot_text::MID_BLUE));
-        return todo!("fabric2seer: see the TODO above");
+        //   java: return SlotText.bottomLeftList(LOADOUT_KEY_MAPPINGS[loadoutIndex].getTranslatedKeyMessage().plainCopy().withColor(SlotText.MID_BLUE));
+        let name: &'static str = LOADOUT_KEY_MAPPINGS.get()[loadout_index as usize].get_name();
+        let message = key_mapping::get_translated_key_message(name, &|key: i32, _scancode: i32| compat::minecraft().key_names.get(&key).cloned());
+        return SlotText::bottom_left_list(&compat::component_of(message).plain_copy().with_color(slot_text::MID_BLUE));
     }
 
     /// LoadoutKeybinds.getText as the dispatch of SlotTextAdder.getText
@@ -277,4 +286,22 @@ impl LoadoutKeybinds {
         Self::get_text_impl(&compat::view_as::<Self, _, Self>(__this, |a| a), __p0, __p1, __p2)
     }
 
+}
+
+/// `minecraft.gameMode.handleContainerInput(containerId, slotId, buttonNum, containerInput, minecraft.player)`: the
+/// port's `handleContainerInput:443-481` over the player (its `:445-447` check of the container id is made here - the
+/// port's body is handed the open menu's own id), then `:480`'s send.
+fn handle_container_input(container_id: i32, slot_id: i32, button_num: i32, container_input: mcrust::net::minecraft::world::inventory::container_input::ContainerInput) {
+    use mcrust::net::minecraft::client::multiplayer::multi_player_game_mode;
+    use mcrust::net::minecraft::world::entity::player::player::Player as _;
+    let packet = mcrust::mcrust::modding::game::with_player(|player| {
+        let open_container_id = player.player().container_menu_container_id();
+        if container_id != open_container_id {
+            logger().warn(&format!("Ignoring click in mismatching container. Click in {}, player has {}.", container_id, open_container_id));
+            return None;
+        }
+        multi_player_game_mode::handle_container_input_on_player(&mut compat::minecraft().game_mode, player, slot_id, button_num, container_input)
+    })
+    .flatten();
+    multi_player_game_mode::send_container_click(packet, container_input, slot_id, button_num);
 }

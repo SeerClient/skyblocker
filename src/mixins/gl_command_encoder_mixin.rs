@@ -40,6 +40,10 @@ fn skyblocker_replace_buffer_data(ci: &CallbackInfo<'_>) -> bool {
 
 /// Mixins apply before the game runs: the `preLaunch` entrypoint calls this.
 pub fn register() {
+    // `MixinPlugin.shouldApplyMixin` (the mod's `IMixinConfigPlugin`) decides whether this mixin is applied at all.
+    if !crate::de::hysky::skyblocker::compatibility::mixin_plugin::MixinPlugin::new().should_apply_mixin("com.mojang.blaze3d.opengl.GlCommandEncoder", "de.hysky.skyblocker.mixins.GlCommandEncoderMixin") {
+        return;
+    }
     report(hook::register_injector("com.mojang.blaze3d.opengl.GlCommandEncoder#writeToBuffer", InjectOptions::at(At::Head).kind(InjectorKind::Inject).priority(1000), Arc::new(record_slice)));
     report(hook::call_site("com.mojang.blaze3d.opengl.GlCommandEncoder#writeToBuffer", "com.mojang.blaze3d.opengl.DirectStateAccess#bufferSubData").priority(1000).wrap_with_condition(skyblocker_replace_buffer_data));
 }

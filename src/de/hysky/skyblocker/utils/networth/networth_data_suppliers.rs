@@ -4,10 +4,8 @@
 use crate::prelude::*;
 use crate::de::hysky::skyblocker::utils::item_utils::ItemUtils;
 
-// TODO(fabric2seer): static call Object2ObjectMaps.emptyMap(..)
-//   java: private static Object2ObjectMap<String, SkyblockItemData> itemData = Object2ObjectMaps.emptyMap();
 /// java: private static Object2ObjectMap<String, SkyblockItemData> itemData = Object2ObjectMaps.emptyMap();
-pub static ITEM_DATA: compat::MainThread<std::collections::HashMap<String, crate::unresolved::SkyblockItemData>> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `itemData` - see the TODO above"));
+pub static ITEM_DATA: compat::MainThread<std::collections::HashMap<String, crate::unresolved::SkyblockItemData>> = compat::MainThread::new(|| std::collections::HashMap::new());
 
 /// java: public class NetworthDataSuppliers
 #[derive(Clone)]

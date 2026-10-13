@@ -121,9 +121,12 @@ impl AttributeLevelHelper {
             return vec![];
         };
         let mut item_name: String = custom_name.get_string();
-        // TODO(fabric2seer): static call StringUtils.substringAfterLast(..)
         //   java: String levelText = StringUtils.substringAfterLast(itemName, " ");
-        let mut level_text: String = todo!("fabric2seer: the initialiser of `levelText` (TODO above)");
+        // (commons-lang: the text after the last separator; "" when there is none or it ends the string)
+        let mut level_text: String = match item_name.rfind(' ') {
+            Some(__i) => item_name[__i + ' '.len_utf8()..].to_string(),
+            None => String::new(),
+        };
         if level_text.is_empty() || !(RomanNumerals::is_valid_roman_numeral(Some(level_text.clone()))) {
             return vec![];
         }

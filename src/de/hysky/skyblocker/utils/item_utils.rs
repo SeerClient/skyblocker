@@ -724,7 +724,7 @@ impl ItemUtils {
         let mut stack: compat::Shared<FlexibleItemStack> = FlexibleItemStack::copy(ico::POISONOUS_POTATO.get_mut());
         FlexibleItemStack::set(&stack, mcrust::net::minecraft::core::component::data_components::item_name().clone(), component::literal(item_id));
         // java: stack.set(DataComponents.CUSTOM_DATA, CustomData.of(Util.make(new CompoundTag(), c -> c.putString(ID, itemId))));
-        let mut tag: Tag = compound_tag::compound();
+        let mut tag: Tag = Tag::compound();
         tag.put_string(ID, item_id);
         FlexibleItemStack::set(&stack, mcrust::net::minecraft::core::component::data_components::custom_data().clone(), mcrust::net::minecraft::world::item::component::custom_data::CustomData::of(&tag));
         return stack;

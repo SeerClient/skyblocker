@@ -33,13 +33,14 @@ impl Attributes {
             return;
         };
         {
-            // TODO(fabric2seer): `.stream(..)` on a NEURepoFile
-            //   java: InputStream stream = file.stream(..);
-            let mut stream: crate::unresolved::InputStream = todo!("fabric2seer: the initialiser of `stream` (TODO above)");
+            //   java: InputStream stream = file.stream(); (try-with-resources)
             // java: try {..} catch (Exception ex) - an exception here is a panic, caught by `catch_unwind`
             let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                // TODO(fabric2seer): `.readAllBytes(..)` on a InputStream
+                use mcrust::com::mojang::serialization::decoder::Decoder as _;
                 //   java: attributes = AttributesFile.CODEC.parse(JsonOps.INSTANCE, JsonParser.parseString(new String(stream.readAllBytes()))).getOrThrow().attributes();
+                let content: String = neu_repo_file_read_all(&file);
+                let parsed: attributes_file::AttributesFile = attributes_file::CODEC.get().parse(&mcrust::com::mojang::serialization::json_ops::JsonOps::instance(), &compat::json_to_port(&serde_json::from_str::<serde_json::Value>(&content).expect("JsonSyntaxException"))).get_or_throw().unwrap_or_else(|e| panic!("{e}"));
+                compat::set_state(&ATTRIBUTES, parsed.attributes());
                 logger().info("[Skyblocker Attributes] Successfully loaded attributes!");
             }));
             if let Err(ex) = __result {
@@ -53,9 +54,9 @@ impl Attributes {
         if !(stack.has(mcrust::net::minecraft::core::component::data_components::custom_name())) {
             return None;
         }
-        // TODO(fabric2seer): `.getString(..)` on a value of unknown type
         //   java: String name = stack.get(DataComponents.CUSTOM_NAME).getString();
-        let mut name: String = todo!("fabric2seer: the initialiser of `name` (TODO above)");
+        use mcrust::net::minecraft::core::component::data_component_getter::DataComponentGetter as _;
+        let mut name: String = stack.get(mcrust::net::minecraft::core::component::data_components::custom_name()).and_then(|o| mcrust::com::mojang::serialization::cast::<mcrust::net::minecraft::network::chat::formatted_text::FormattedText>(&o).map(|text| text.get_string())).expect("NullPointerException: CUSTOM_NAME");
         return Attributes::get_attribute_from_item_name_string(name.clone());
     }
 
@@ -84,4 +85,13 @@ impl Attributes {
         return None;
     }
 
+}
+
+/// `new String(file.stream().readAllBytes())`.
+///
+/// rust: port gap - the NEU repo library (`io.github.moulberry.repo`) is a `crate::unresolved` placeholder with no
+/// file behind it (`NEURepoManager.file(..)` answers none; GAPS_L, GAPS_M #10): a placeholder file has no content.
+fn neu_repo_file_read_all(file: &crate::unresolved::NEURepoFile) -> String {
+    let _ = file;
+    String::new()
 }

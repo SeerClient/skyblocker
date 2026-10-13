@@ -77,9 +77,9 @@ impl dyn ContainerSolver {
             return slot.index < row_count.wrapping_mul(9);
         }
         debug_assert!(mcrust::mcrust::modding::game::with_player(|_| ()).is_some());
-        // TODO(fabric2seer): the mod keeps the game's `Inventory` (Java holds a reference to the live object); the port's `Inventory` is not a value to copy and the port lends the mod no handle to it
-        // rust: return !std::ptr::eq(&slot.container, &mcrust::mcrust::modding::game::with_player(|player| player.base.base.get_inventory().clone()).unwrap());
-        return todo!("fabric2seer: see the TODO above");
+        // java: return slot.container != CLIENT.player.getInventory();
+        // (a slot names its container by kind in the port - batch F pattern 7)
+        return slot.container != mcrust::net::minecraft::world::inventory::slot::SlotContainer::Inventory;
     }
 
     /// java: default boolean onClickSlot(int slot, ItemStack stack, int screenId, int button)

@@ -80,7 +80,10 @@ pub struct SkyblockerScreen {
     /// java: private HeaderAndFooterLayout layout = new HeaderAndFooterLayout(this, 64, 100);
     pub layout: Option<HeaderAndFooterLayout>,
     /// java: private MultiLineTextWidget tip = new MultiLineTextWidget(Component.empty(), this.font);
-    pub tip: Option<MultiLineTextWidget>,
+    /// (the widget lives in the screen's list: its index there, set by `init`)
+    pub tip: Option<usize>,
+    /// the widgets `init` put in `layout`, in the order it added them (`arrange` rebuilds the layout from them)
+    pub layout_indices: Vec<usize>,
     /// the object's own shared handle: Java's `this` handed to other objects
     pub self_ref: compat::WeakShared<Self>,
     /// the screen's widgets as this object last saw them (see `compat::WidgetCache`)
@@ -125,12 +128,12 @@ impl SkyblockerScreen {
             __widgets: Default::default(),
             layout: None,
             tip: None,
+            layout_indices: Vec::new(),
         });
         compat::write(&__this, |__t| __t.self_ref = std::sync::Arc::downgrade(&__this));
         { let __v = Some(HeaderAndFooterLayout::with_heights(0, 0, 64, 100)); compat::write(&__this, |__t| __t.layout = __v); }
-        // TODO(fabric2seer): the port's `new` ports this Java method with other parameters (x, y, message for Java's message)
-        // TODO(fabric2seer): `new` takes 3 argument(s) in the port (`x: i32, y: i32, message: FormattedText`), Java passes 2
-        // rust: { let __v = Some(MultiLineTextWidget::new(component::empty(), compat::font())); compat::write(&__this, |__t| __t.tip = __v); }
+        // java: tip = new MultiLineTextWidget(Component.empty(), this.font) - replaced by `init` before anything reads it;
+        // the widget is made (and put in the screen's list) there
         __this
     }
 
@@ -147,108 +150,167 @@ impl SkyblockerScreen {
 
     /// java: @Override protected void init()
     pub fn init(__this: &compat::Shared<Self>) {
-        { let __v = Some(HeaderAndFooterLayout::with_heights(0, 0, (if compat::read(__this, |__t| __t.height) < 320 { 48 } else { 64 }), (if compat::read(__this, |__t| __t.height) < 320 { 64 } else { 100 }))); compat::write(__this, |__t| __t.layout = __v); }
+        // Slightly larger footer than header to move body content higher
+        // because the body content is positioned at footer height + 30 for some reason
+        // 320 is default height at gui scale 3
+        // java: this.layout = new HeaderAndFooterLayout(this, ..) - built from the widgets below in `build_layout`
         // java: this.layout.addToHeader(new IconTextWidget(this.getTitle(), this.font, ICON));
         let __title: MutableComponent = component::literal(&compat::read(__this, |__t| __t.get_title().to_string()));
         let mut __icon_widget = compat::WidgetRef::value(compat::WidgetAdapter::widget(compat::shared(IconTextWidget::new(__title, compat::font(), ICON.get().clone().unwrap()))));
-        let (__i, __ww, __wh) = compat::write(__this, |__t| { let __s = &mut *__t; __s.__widgets.add_to_layout(&mut __s.base, &mut __icon_widget) });
-        __this.lock().borrow_mut().layout.as_mut().unwrap().add_to_header(LayoutElement::widget(__i, __ww, __wh));
-        // TODO(fabric2seer): `.spacing(..)` on a value of unknown type
-        //   java: GridLayout gridWidget = this.layout.addToContents(new GridLayout()).spacing(SPACING);
-        let mut grid_widget: GridLayout = todo!("fabric2seer: the initialiser of `gridWidget` (TODO above)");
-        if compat::read(__this, |__t| __t.height) < 360 {
-            grid_widget = { grid_widget.row_spacing(4); &mut grid_widget }.clone();
+        let (icon_index, _, _) = compat::write(__this, |__t| { let __s = &mut *__t; __s.__widgets.add_to_layout(&mut __s.base, &mut __icon_widget) });
+        let mut indices: Vec<usize> = vec![icon_index];
+
+        // java: adder.addChild(Button.builder(CONFIGURATION_TEXT, _ -> this.openConfig()).width(BUTTON_WIDTH).build(), 2);
+        let __this_w = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
+        indices.push(SkyblockerScreen::add_button(__this, CONFIGURATION_TEXT.get().get_string(), BUTTON_WIDTH, OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| {
+            let Some(__this_1) = __this_w.get().upgrade() else { return; };
+            compat::lend_screen(&__this_1, __screen, || SkyblockerScreen::open_config(&__this_1));
+        }))));
+        // java: adder.addChild(Button.builder(LOGS_FOLDER_TEXT, _ -> LogsFolderFinder.openLogsFolder()).width(HALF_BUTTON_WIDTH).build());
+        indices.push(SkyblockerScreen::add_button(__this, LOGS_FOLDER_TEXT.get().get_string(), *HALF_BUTTON_WIDTH, OnPress::Lambda(PressLambda::new(|_: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, _: usize| {
+            LogsFolderFinder::open_logs_folder();
+        }))));
+        // java: adder.addChild(Button.builder(X_TEXT, ConfirmLinkScreen.confirmLink(this, url)).width(HALF_BUTTON_WIDTH).build());
+        for (text, url) in [
+            (&REPORT_BUGS_TEXT, "https://github.com/SkyblockerMod/Skyblocker/issues"),
+            (&SOURCE_TEXT, "https://github.com/SkyblockerMod/Skyblocker"),
+            (&TRANSLATE_TEXT, "https://translate.hysky.de/"),
+            (&WEBSITE_TEXT, "https://hysky.de/"),
+            (&DISCORD_TEXT, "https://discord.gg/aNNJHQykck"),
+            (&MODRINTH_TEXT, "https://modrinth.com/mod/skyblocker-liap"),
+            (&CURSEFORGE_TEXT, "https://www.curseforge.com/minecraft/mc-mods/skyblocker"),
+            (&SUPPORT_US_TEXT, "https://hysky.de/skyblocker/team"),
+        ] {
+            indices.push(SkyblockerScreen::add_button(__this, text.get().get_string(), *HALF_BUTTON_WIDTH, compat::confirm_link(url)));
         }
-        grid_widget.default_cell_setting().align_horizontally_center();
-        let mut adder: RowHelper = grid_widget.create_row_helper(2);
-        // TODO(fabric2seer): the port's `add_child_width` ports this Java method with other parameters (grid, child, column_width for Java's widget, column_width)
-        // TODO(fabric2seer): `add_child_width` takes 3 argument(s) in the port (`grid: &mut GridLayout, child: LayoutElement, column_width: i32`), Java passes 2
-        // rust: let __this_1 = compat::RenderThread::new(__this.clone());
-        // rust: adder.add_child_width(&mut (button::builder(CONFIGURATION_TEXT.get_mut().get_string(), OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| { compat::lend_screen(__this_1.get(), __screen, || { let mut __pidx = compat::WidgetRef::Screen(__index); { SkyblockerScreen::open_config(__this_1.get()); } }) })))).width(BUTTON_WIDTH).build(), 2).unwrap();
-        // TODO(fabric2seer): the port's `add_child` ports this Java method with other parameters (grid, child for Java's widget)
-        // TODO(fabric2seer): `add_child` takes 2 argument(s) in the port (`grid: &mut GridLayout, child: LayoutElement`), Java passes 1
-        // rust: adder.add_child(&mut (button::builder(LOGS_FOLDER_TEXT.get_mut().get_string(), OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| { LogsFolderFinder::open_logs_folder(); })))).width(*HALF_BUTTON_WIDTH).build()).unwrap();
-        // TODO(fabric2seer): static `ConfirmLinkScreen.confirmLink` has no Rust counterpart in the port
-        // TODO(fabric2seer): the port's `add_child` ports this Java method with other parameters (grid, child for Java's widget)
-        // TODO(fabric2seer): `add_child` takes 2 argument(s) in the port (`grid: &mut GridLayout, child: LayoutElement`), Java passes 1
-        // rust: adder.add_child(&mut (button::builder(REPORT_BUGS_TEXT.get_mut().get_string(), ConfirmLinkScreen::confirm_link(__this.clone(), "https://github.com/SkyblockerMod/Skyblocker/issues".to_string()))).width(*HALF_BUTTON_WIDTH).build()).unwrap();
-        // TODO(fabric2seer): static `ConfirmLinkScreen.confirmLink` has no Rust counterpart in the port
-        // TODO(fabric2seer): the port's `add_child` ports this Java method with other parameters (grid, child for Java's widget)
-        // TODO(fabric2seer): `add_child` takes 2 argument(s) in the port (`grid: &mut GridLayout, child: LayoutElement`), Java passes 1
-        // rust: adder.add_child(&mut (button::builder(SOURCE_TEXT.get_mut().get_string(), ConfirmLinkScreen::confirm_link(__this.clone(), "https://github.com/SkyblockerMod/Skyblocker".to_string()))).width(*HALF_BUTTON_WIDTH).build()).unwrap();
-        // TODO(fabric2seer): static `ConfirmLinkScreen.confirmLink` has no Rust counterpart in the port
-        // TODO(fabric2seer): the port's `add_child` ports this Java method with other parameters (grid, child for Java's widget)
-        // TODO(fabric2seer): `add_child` takes 2 argument(s) in the port (`grid: &mut GridLayout, child: LayoutElement`), Java passes 1
-        // rust: adder.add_child(&mut (button::builder(TRANSLATE_TEXT.get_mut().get_string(), ConfirmLinkScreen::confirm_link(__this.clone(), "https://translate.hysky.de/".to_string()))).width(*HALF_BUTTON_WIDTH).build()).unwrap();
-        // TODO(fabric2seer): static `ConfirmLinkScreen.confirmLink` has no Rust counterpart in the port
-        // TODO(fabric2seer): the port's `add_child` ports this Java method with other parameters (grid, child for Java's widget)
-        // TODO(fabric2seer): `add_child` takes 2 argument(s) in the port (`grid: &mut GridLayout, child: LayoutElement`), Java passes 1
-        // rust: adder.add_child(&mut (button::builder(WEBSITE_TEXT.get_mut().get_string(), ConfirmLinkScreen::confirm_link(__this.clone(), "https://hysky.de/".to_string()))).width(*HALF_BUTTON_WIDTH).build()).unwrap();
-        // TODO(fabric2seer): static `ConfirmLinkScreen.confirmLink` has no Rust counterpart in the port
-        // TODO(fabric2seer): the port's `add_child` ports this Java method with other parameters (grid, child for Java's widget)
-        // TODO(fabric2seer): `add_child` takes 2 argument(s) in the port (`grid: &mut GridLayout, child: LayoutElement`), Java passes 1
-        // rust: adder.add_child(&mut (button::builder(DISCORD_TEXT.get_mut().get_string(), ConfirmLinkScreen::confirm_link(__this.clone(), "https://discord.gg/aNNJHQykck".to_string()))).width(*HALF_BUTTON_WIDTH).build()).unwrap();
-        // TODO(fabric2seer): static `ConfirmLinkScreen.confirmLink` has no Rust counterpart in the port
-        // TODO(fabric2seer): the port's `add_child` ports this Java method with other parameters (grid, child for Java's widget)
-        // TODO(fabric2seer): `add_child` takes 2 argument(s) in the port (`grid: &mut GridLayout, child: LayoutElement`), Java passes 1
-        // rust: adder.add_child(&mut (button::builder(MODRINTH_TEXT.get_mut().get_string(), ConfirmLinkScreen::confirm_link(__this.clone(), "https://modrinth.com/mod/skyblocker-liap".to_string()))).width(*HALF_BUTTON_WIDTH).build()).unwrap();
-        // TODO(fabric2seer): static `ConfirmLinkScreen.confirmLink` has no Rust counterpart in the port
-        // TODO(fabric2seer): the port's `add_child` ports this Java method with other parameters (grid, child for Java's widget)
-        // TODO(fabric2seer): `add_child` takes 2 argument(s) in the port (`grid: &mut GridLayout, child: LayoutElement`), Java passes 1
-        // rust: adder.add_child(&mut (button::builder(CURSEFORGE_TEXT.get_mut().get_string(), ConfirmLinkScreen::confirm_link(__this.clone(), "https://www.curseforge.com/minecraft/mc-mods/skyblocker".to_string()))).width(*HALF_BUTTON_WIDTH).build()).unwrap();
-        // TODO(fabric2seer): static `ConfirmLinkScreen.confirmLink` has no Rust counterpart in the port
-        // TODO(fabric2seer): the port's `add_child` ports this Java method with other parameters (grid, child for Java's widget)
-        // TODO(fabric2seer): `add_child` takes 2 argument(s) in the port (`grid: &mut GridLayout, child: LayoutElement`), Java passes 1
-        // rust: adder.add_child(&mut (button::builder(SUPPORT_US_TEXT.get_mut().get_string(), ConfirmLinkScreen::confirm_link(__this.clone(), "https://hysky.de/skyblocker/team".to_string()))).width(*HALF_BUTTON_WIDTH).build()).unwrap();
-        // TODO(fabric2seer): the port's `add_child` ports this Java method with other parameters (grid, child for Java's widget)
-        // TODO(fabric2seer): `add_child` takes 2 argument(s) in the port (`grid: &mut GridLayout, child: LayoutElement`), Java passes 1
-        // rust: adder.add_child(&mut (button::builder(CREDITS_TEXT.get_mut().get_string(), OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| { mcrust::mcrust::modding::game::set_screen_keeping_parent(Box::new(compat::ScreenAdapter::new(SkyblockerCreditsScreen::new(None)))); })))).width(*HALF_BUTTON_WIDTH).build()).unwrap();
-        // TODO(fabric2seer): `on_close_for_interrupt` takes 12 argument(s) in the port (`gfx: &mut crate::net::minecraft::client::minecraft::Minecraft, screen: &mut Screen, screen_extra: &mut crate::net::minecraft::client::gui::gui::ScreenExtra, options_data: &mut crate::net::minecraft::client::options::OptionsData, open_sign_e ..`), Java passes 0
-        // TODO(fabric2seer): the port's `add_child_width` ports this Java method with other parameters (grid, child, column_width for Java's widget, column_width)
-        // TODO(fabric2seer): `add_child_width` takes 3 argument(s) in the port (`grid: &mut GridLayout, child: LayoutElement, column_width: i32`), Java passes 2
-        // rust: adder.add_child_width(&mut (button::builder(mcrust::net::minecraft::network::chat::common_components::gui_done().get_string(), OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| { screen::on_close_for_interrupt(); })))).width(BUTTON_WIDTH).build(), 2).unwrap();
-        // TODO(fabric2seer): `.columnSpacing(..)` on a value of unknown type
-        //   java: GridLayout footerGridWidget = this.layout.addToFooter(new GridLayout()).columnSpacing(SPACING).rowSpacing(0);
-        let mut footer_grid_widget: GridLayout = todo!("fabric2seer: the initialiser of `footerGridWidget` (TODO above)");
-        footer_grid_widget.default_cell_setting().align_horizontally_center();
-        let mut footer_adder: RowHelper = footer_grid_widget.create_row_helper(2);
-        // TODO(fabric2seer): an assignment used as a value
-        //   java: footerAdder.addChild(tip = new MultiLineTextWidget(Tips.nextTip(), this.font).setCentered(true).setMaxWidth((int) (this.width * 0.8)), 2);
-        // TODO(fabric2seer): the port's `add_child` ports this Java method with other parameters (grid, child for Java's widget)
-        // TODO(fabric2seer): `add_child` takes 2 argument(s) in the port (`grid: &mut GridLayout, child: LayoutElement`), Java passes 1
-        // rust: let __this_2 = compat::RenderThread::new(__this.clone());
-        // rust: footer_adder.add_child(&mut (button::builder(component::translatable("skyblocker.tips.previous").get_string(), OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| { compat::lend_screen(__this_2.get(), __screen, || { let mut __pidx = compat::WidgetRef::Screen(__index); {
-        // rust: // TODO(fabric2seer): `AbstractWidget::set_message_text` ports `setMessage`, but the port's `MultiLineTextWidget` holds no `AbstractWidget` (no Deref, no `base` field) to call it on
-        // rust: // rust: { let (__q0,) = (mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(Tips::previous_tip()),); __this_2.get().lock().borrow_mut().tip.as_mut().unwrap().set_message_text(__q0) };
-        // rust: let __r0 = compat::read(__this_2.get(), |__t| (__t.width, __t.height));
-        // rust: { let (__sw, __sh) = __r0; __this_2.get().lock().borrow_mut().layout.as_mut().unwrap().screen_width = __sw; __this_2.get().lock().borrow_mut().layout.as_mut().unwrap().screen_height = __sh; __this_2.get().lock().borrow_mut().layout.as_mut().unwrap().arrange_elements(); let __vw = __this_2.get().lock().borrow().layout.as_ref().unwrap().visit_widgets(); for (__i, __x, __y) in __vw { compat::write(__this_2.get(), |__t| __t.widget_mut(__i).set_position(__x, __y)); } };
-        // rust: } }) })))).width(*HALF_BUTTON_WIDTH).build()).unwrap();
-        // TODO(fabric2seer): the port's `add_child` ports this Java method with other parameters (grid, child for Java's widget)
-        // TODO(fabric2seer): `add_child` takes 2 argument(s) in the port (`grid: &mut GridLayout, child: LayoutElement`), Java passes 1
-        // rust: let __this_3 = compat::RenderThread::new(__this.clone());
-        // rust: footer_adder.add_child(&mut (button::builder(component::translatable("skyblocker.tips.next").get_string(), OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| { compat::lend_screen(__this_3.get(), __screen, || { let mut __pidx = compat::WidgetRef::Screen(__index); {
-        // rust: // TODO(fabric2seer): `AbstractWidget::set_message_text` ports `setMessage`, but the port's `MultiLineTextWidget` holds no `AbstractWidget` (no Deref, no `base` field) to call it on
-        // rust: // rust: { let (__q0,) = (mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(Tips::next_tip()),); __this_3.get().lock().borrow_mut().tip.as_mut().unwrap().set_message_text(__q0) };
-        // rust: let __r0 = compat::read(__this_3.get(), |__t| (__t.width, __t.height));
-        // rust: { let (__sw, __sh) = __r0; __this_3.get().lock().borrow_mut().layout.as_mut().unwrap().screen_width = __sw; __this_3.get().lock().borrow_mut().layout.as_mut().unwrap().screen_height = __sh; __this_3.get().lock().borrow_mut().layout.as_mut().unwrap().arrange_elements(); let __vw = __this_3.get().lock().borrow().layout.as_ref().unwrap().visit_widgets(); for (__i, __x, __y) in __vw { compat::write(__this_3.get(), |__t| __t.widget_mut(__i).set_position(__x, __y)); } };
-        // rust: } }) })))).width(*HALF_BUTTON_WIDTH).build()).unwrap();
-        let __r0 = compat::read(__this, |__t| (__t.width, __t.height));
-        { let (__sw, __sh) = __r0; __this.lock().borrow_mut().layout.as_mut().unwrap().screen_width = __sw; __this.lock().borrow_mut().layout.as_mut().unwrap().screen_height = __sh; __this.lock().borrow_mut().layout.as_mut().unwrap().arrange_elements(); let __vw = __this.lock().borrow().layout.as_ref().unwrap().visit_widgets(); for (__i, __x, __y) in __vw { compat::write(__this, |__t| __t.widget_mut(__i).set_position(__x, __y)); } };
+        // java: adder.addChild(Button.builder(CREDITS_TEXT, _ -> this.minecraft.gui.setScreen(new SkyblockerCreditsScreen(this))).width(HALF_BUTTON_WIDTH).build());
+        indices.push(SkyblockerScreen::add_button(__this, CREDITS_TEXT.get().get_string(), *HALF_BUTTON_WIDTH, OnPress::Lambda(PressLambda::new(|_: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, _: usize| {
+            mcrust::mcrust::modding::game::set_screen_keeping_parent(Box::new(compat::ScreenAdapter::new(SkyblockerCreditsScreen::new(None))));
+        }))));
+        // java: adder.addChild(Button.builder(CommonComponents.GUI_DONE, _ -> this.onClose()).width(BUTTON_WIDTH).build(), 2);
+        // (`Screen.onClose:195-197` - `setScreen(null)`)
+        indices.push(SkyblockerScreen::add_button(__this, mcrust::net::minecraft::network::chat::common_components::gui_done().get_string(), BUTTON_WIDTH, OnPress::Lambda(PressLambda::new(|_: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, _: usize| {
+            mcrust::mcrust::modding::game::set_screen_null();
+        }))));
+
+        // java: footerAdder.addChild(tip = new MultiLineTextWidget(Tips.nextTip(), this.font).setCentered(true).setMaxWidth((int) (this.width * 0.8)), 2);
+        let width: i32 = compat::read(__this, |__t| __t.width);
+        let tip = MultiLineTextWidget::new(0, 0, mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(Tips::next_tip())).set_centered(true).set_max_width(((width as f64) * 0.8) as i32);
+        let tip_index: usize = compat::write(__this, |__t| __t.add_widget(SkyblockerScreen::tip_widget(tip)));
+        compat::write(__this, |__t| __t.tip = Some(tip_index));
+        indices.push(tip_index);
+        // java: footerAdder.addChild(Button.builder(Component.translatable("skyblocker.tips.previous"), _ -> { tip.setMessage(Tips.previousTip()); layout.arrangeElements(); }).width(HALF_BUTTON_WIDTH).build());
+        let __this_w = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
+        indices.push(SkyblockerScreen::add_button(__this, component::translatable("skyblocker.tips.previous").get_string(), *HALF_BUTTON_WIDTH, OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| {
+            let Some(__this_1) = __this_w.get().upgrade() else { return; };
+            compat::lend_screen(&__this_1, __screen, || SkyblockerScreen::set_tip(&__this_1, Tips::previous_tip()));
+        }))));
+        // java: footerAdder.addChild(Button.builder(Component.translatable("skyblocker.tips.next"), _ -> { tip.setMessage(Tips.nextTip()); layout.arrangeElements(); }).width(HALF_BUTTON_WIDTH).build());
+        let __this_w = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
+        indices.push(SkyblockerScreen::add_button(__this, component::translatable("skyblocker.tips.next").get_string(), *HALF_BUTTON_WIDTH, OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| {
+            let Some(__this_1) = __this_w.get().upgrade() else { return; };
+            compat::lend_screen(&__this_1, __screen, || SkyblockerScreen::set_tip(&__this_1, Tips::next_tip()));
+        }))));
+        compat::write(__this, |__t| __t.layout_indices = indices);
+
+        // java: this.layout.arrangeElements(); this.layout.visitWidgets(this::addRenderableWidget);
+        SkyblockerScreen::arrange(__this);
         { let __vw = __this.lock().borrow().layout.as_ref().unwrap().visit_widgets(); for (__i, _, _) in __vw { compat::write(__this, |__t| __t.mark_renderable(__i)); } };
+    }
+
+    /// `Button.builder(text, onPress).width(width).build()` added to the screen; its index.
+    fn add_button(__this: &compat::Shared<Self>, text: String, width: i32, on_press: OnPress) -> usize {
+        let __w = button::builder(text, on_press).width(width).build();
+        compat::write(__this, |__t| __t.add_widget(__w))
+    }
+
+    /// The game's widget for a plain `MultiLineTextWidget` (`WidgetKind::PlainMultiLineText`), sized as the text lays
+    /// out in `this.font`.
+    fn tip_widget(tip: MultiLineTextWidget) -> AbstractWidget {
+        let splitter = compat::minecraft().font.splitter();
+        let (w, h) = (tip.get_width(&splitter), tip.get_height(&splitter));
+        let message = tip.message.clone();
+        let mut widget = AbstractWidget::new(0, 0, w, h, message.get_string(), mcrust::net::minecraft::client::gui::components::abstract_widget::WidgetKind::PlainMultiLineText(Box::new(tip)), OnPress::Inert);
+        widget.set_message_text(message);
+        widget.active = false;
+        widget
+    }
+
+    /// `tip.setMessage(text); layout.arrangeElements();` - the two tip buttons. A `MultiLineTextWidget`'s size follows
+    /// its text, so the widget is re-measured before the layout is arranged.
+    fn set_tip(__this: &compat::Shared<Self>, text: MutableComponent) {
+        let Some(tip_index) = compat::read(__this, |__t| __t.tip) else { return; };
+        let message = mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(text);
+        let splitter = compat::minecraft().font.splitter();
+        compat::write(__this, |__t| {
+            let widget = __t.widget_mut(tip_index);
+            if let mcrust::net::minecraft::client::gui::components::abstract_widget::WidgetKind::PlainMultiLineText(m) = &mut widget.kind {
+                m.message = message.clone();
+                let (w, h) = (m.get_width(&splitter), m.get_height(&splitter));
+                widget.width = w;
+                widget.height = h;
+            }
+            widget.set_message_text(message);
+        });
+        SkyblockerScreen::arrange(__this);
+    }
+
+    /// The `HeaderAndFooterLayout` of `init` over the widgets it added (`layout_indices`), built from their live
+    /// sizes (the port's layout leaf keeps the size it was given, and the tip changes size), then arranged and the
+    /// positions handed back to the widgets: `layout.arrangeElements()`.
+    fn arrange(__this: &compat::Shared<Self>) {
+        let (screen_width, screen_height, indices) = compat::read(__this, |__t| (__t.width, __t.height, __t.layout_indices.clone()));
+        if indices.len() != 16 {
+            return;
+        }
+        let leaf = |i: usize| -> LayoutElement { let (w, h) = compat::read(__this, |__t| (__t.widget(i).get_width(), __t.widget(i).get_height())); LayoutElement::widget(i, w, h) };
+        // java: new HeaderAndFooterLayout(this, this.height < 320 ? 48 : 64, this.height < 320 ? 64 : 100)
+        let mut layout = HeaderAndFooterLayout::with_heights(screen_width, screen_height, if screen_height < 320 { 48 } else { 64 }, if screen_height < 320 { 64 } else { 100 });
+        layout.add_to_header(leaf(indices[0]));
+        // java: GridLayout gridWidget = this.layout.addToContents(new GridLayout()).spacing(SPACING);
+        let mut grid_widget: GridLayout = GridLayout::new_default();
+        grid_widget.spacing(SPACING);
+        if screen_height < 360 {
+            grid_widget.row_spacing(4);
+        }
+        { let __s = grid_widget.default_cell_setting(); *__s = __s.copy().align_horizontally_center(); }
+        let mut adder: RowHelper = grid_widget.create_row_helper(2);
+        adder.add_child_width(&mut grid_widget, leaf(indices[1]), 2).unwrap();
+        for i in 2..12 {
+            adder.add_child(&mut grid_widget, leaf(indices[i])).unwrap();
+        }
+        adder.add_child_width(&mut grid_widget, leaf(indices[12]), 2).unwrap();
+        layout.add_to_contents(LayoutElement::Grid(grid_widget));
+        // java: GridLayout footerGridWidget = this.layout.addToFooter(new GridLayout()).columnSpacing(SPACING).rowSpacing(0);
+        let mut footer_grid_widget: GridLayout = GridLayout::new_default();
+        footer_grid_widget.column_spacing(SPACING);
+        footer_grid_widget.row_spacing(0);
+        { let __s = footer_grid_widget.default_cell_setting(); *__s = __s.copy().align_horizontally_center(); }
+        let mut footer_adder: RowHelper = footer_grid_widget.create_row_helper(2);
+        footer_adder.add_child_width(&mut footer_grid_widget, leaf(indices[13]), 2).unwrap();
+        footer_adder.add_child(&mut footer_grid_widget, leaf(indices[14])).unwrap();
+        footer_adder.add_child(&mut footer_grid_widget, leaf(indices[15])).unwrap();
+        layout.add_to_footer(LayoutElement::Grid(footer_grid_widget));
+        layout.arrange_elements();
+        let placed = layout.visit_widgets();
+        compat::write(__this, |__t| __t.layout = Some(layout));
+        for (__i, __x, __y) in placed {
+            compat::write(__this, |__t| __t.widget_mut(__i).set_position(__x, __y));
+        }
     }
 
     /// java: @Override protected void repositionElements()
     pub fn reposition_elements(__this: &compat::Shared<Self>) {
-        // TODO(fabric2seer): `reposition_elements` takes 1 argument(s) in the port (`build: impl FnOnce(&mut Screen)`), Java passes 0
-        // rust: __this.lock().borrow_mut().base.reposition_elements();
-        let __r0 = compat::read(__this, |__t| (__t.width, __t.height));
-        { let (__sw, __sh) = __r0; __this.lock().borrow_mut().layout.as_mut().unwrap().screen_width = __sw; __this.lock().borrow_mut().layout.as_mut().unwrap().screen_height = __sh; __this.lock().borrow_mut().layout.as_mut().unwrap().arrange_elements(); let __vw = __this.lock().borrow().layout.as_ref().unwrap().visit_widgets(); for (__i, __x, __y) in __vw { compat::write(__this, |__t| __t.widget_mut(__i).set_position(__x, __y)); } };
+        // java: super.repositionElements(); - the game repositions the screen it lends (`ModScreen::reposition_elements`
+        // is called in its place); then `this.layout.arrangeElements()`
+        SkyblockerScreen::arrange(__this);
     }
 
     /// java: private void openConfig()
     pub fn open_config(__this: &compat::Shared<Self>) {
-        // TODO(fabric2seer): `set_screen` takes 14 argument(s) in the port (`gfx: &mut Minecraft, screen: &mut GuiScreen, screen_extra: &mut ScreenExtra, screen_stack: &mut Vec<HeldScreen>, screen_kind_before_pause: &mut Option<ScreenKind>, screen_is_open: &mut bool, level_screen_closed: &mut bool, frames_on_this_sc ..`), Java passes 1
-        // rust: gui::set_screen(&mut SkyblockerConfigManager::create_gui(Some(__this.clone())));
+        // java: this.minecraft.gui.setScreen(SkyblockerConfigManager.createGUI(this));
+        // rust: port gap - the config GUI is the YACL / Dandelion screen the config merge replaces
+        // (`SkyblockerConfigManager.createGUI` answers the port's `Screen` husk, which a mod cannot open)
     }
 
     /// java: @Override public void extractRenderState(GuiGraphicsExtractor context, int mouseX, int mouseY, float delta)

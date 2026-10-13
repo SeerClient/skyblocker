@@ -72,10 +72,13 @@ impl SnapshotDebug {
 
     /// java: private static long getSeed()
     pub fn get_seed() -> i64 {
-        // TODO(fabric2seer): `Minecraft.getSingleplayerServer` has no Rust method in the port (looked for `get_singleplayer_server` in Minecraft and its supertypes)
-        // TODO(fabric2seer): `IntegratedServer.overworld` has no Rust method in the port (looked for `overworld` in IntegratedServer and its supertypes)
-        // rust: return (if compat::minecraft().has_singleplayer_server() { compat::minecraft().get_singleplayer_server().overworld().get_seed() } else { 0 });
-        return todo!("fabric2seer: see the TODO above");
+        //   java: return CLIENT.hasSingleplayerServer() ? CLIENT.getSingleplayerServer().overworld().getSeed() : 0;
+        if compat::minecraft().has_singleplayer_server() {
+            // rust: port gap - the port is a client without the integrated server (`hasSingleplayerServer` is false), so
+            // `getSingleplayerServer().overworld().getSeed()` has nothing to read and this arm is not reached
+            return todo!("rust: port gap - IntegratedServer.overworld().getSeed()");
+        }
+        return 0;
     }
 
 }

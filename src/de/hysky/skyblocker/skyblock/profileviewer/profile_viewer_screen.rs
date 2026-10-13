@@ -159,9 +159,10 @@ impl ProfileViewerScreen {
                 // java: 					.executes(Scheduler.queueOpenScreenCommand(() -> new ProfileViewerScreen(Minecraft.getInstance().getUser().getName())));
                 let mut literal_argument_builder: LiteralArgumentBuilder<client_command_registration_callback::FabricClientCommandSource> = client_command_registration_callback::literal("pv");
                 let mut username_argument = client_command_registration_callback::argument("username", Arc::new(StringArgumentType::string()));
-                username_argument.suggests(Some(Arc::new(|source: &CommandContext<client_command_registration_callback::FabricClientCommandSource>, builder: &mut SuggestionsBuilder| {
+                let suggestions: mcrust::com::mojang::brigadier::suggestion::suggestion_provider::SuggestionProvider<client_command_registration_callback::FabricClientCommandSource> = Arc::new(|source: &CommandContext<client_command_registration_callback::FabricClientCommandSource>, builder: &mut SuggestionsBuilder| {
                     Ok(shared_suggestion_provider::suggest(&ProfileViewerScreen::get_player_suggestions(source.get_source()), builder))
-                })));
+                });
+                username_argument.suggests(Some(suggestions));
                 username_argument.executes(SchedulerBase::queue_open_screen_factory_command(Arc::new(|context: &CommandContext<client_command_registration_callback::FabricClientCommandSource>| {
                     Box::new(compat::ScreenAdapter::new(ProfileViewerScreen::new(StringArgumentType::get_string(context, "username")))) as Box<dyn ModScreen>
                 })));
@@ -460,69 +461,77 @@ impl ProfileViewerScreen {
         let player_future: compat::LocalFuture<()> = compat::LocalFuture::new();
         {
             let __name_3 = username.clone();
-            let __cache = compat::minecraft().game_renderer.player_skin_render_cache.clone();
             let __this_3 = compat::RenderThread::new(__this.clone());
             let __done_3 = compat::RenderThread::new(player_future.clone());
             let __render_thread = render_thread.clone();
             let _ = CompletableFuture::<()>::run_async(move || {
-                // on the worker: the request, the parse, the skin lookup and its `join()`
+                // on the worker: the request and the parse (`fromStringLenient` throws on a bad id)
                 let mut uuid_not_found: bool = false;
-                let outcome: Result<Option<mcrust::com::mojang::authlib::game_profile::GameProfile>, String> = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                let parsed: Result<Uuid, String> = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                     let mut stringified_uuid: String = ApiUtils::name2_uuid(&__name_3);
                     if stringified_uuid.is_empty() {
                         uuid_not_found = true;
                     }
-                    // java: UUID uuid = UndashedUuid.fromStringLenient(stringifiedUuid); - throws on a bad id
-                    let mut uuid: Uuid = undashed_uuid::from_string_lenient(&stringified_uuid).expect("IllegalArgumentException: Invalid UUID string");
-                    // java: ...lookup(ResolvableProfile.createUnresolved(uuid)).thenAccept(entry -> ..entry.get()..).exceptionally(_ -> ..).join()
-                    // (`entry.get()` on an empty Optional throws, which the exceptionally arm catches, as a failed lookup does)
-                    let cache = __cache.as_ref().expect("Minecraft.playerSkinRenderCache()");
-                    let profile = ResolvableProfile::create_unresolved_id(uuid).expect("ResolvableProfile.createUnresolved");
-                    match cache.lookup(&profile).join_blocking() {
-                        Ok(Some(entry)) => Some(entry.game_profile().clone()),
-                        _ => None,
-                    }
+                    undashed_uuid::from_string_lenient(&stringified_uuid).expect("IllegalArgumentException: Invalid UUID string")
                 })).map_err(|e| compat::panic_message(&e));
-                // the writes, on the render thread
+                let __render_thread_2 = __render_thread.clone();
+                // the rest on the render thread, where the screen's fields and the skin cache live
                 (__render_thread)(Box::new(move || {
-                    let (__this_3, __done_3) = (__this_3.get(), __done_3.get());
+                    let (__this_3_ref, __done_3_ref) = (__this_3.get(), __done_3.get());
                     if uuid_not_found {
                         // "Player not found" doesn't fit on the screen lol
-                        { let __v = Some("User not found".to_string()); compat::write(__this_3, |__t| __t.player_name = __v); }
-                        { let __v = "Player UUID not found".to_string(); compat::write(__this_3, |__t| __t.error_message = __v); }
-                        { let __v = true; compat::write(__this_3, |__t| __t.profile_not_found = __v); }
+                        { let __v = Some("User not found".to_string()); compat::write(__this_3_ref, |__t| __t.player_name = __v); }
+                        { let __v = "Player UUID not found".to_string(); compat::write(__this_3_ref, |__t| __t.error_message = __v); }
+                        { let __v = true; compat::write(__this_3_ref, |__t| __t.profile_not_found = __v); }
                     }
-                    match outcome {
-                        Ok(Some(game_profile)) => {
-                            // java: this.playerName = entry.get().gameProfile().name();
-                            { let __v = Some(game_profile.name().to_string()); compat::write(__this_3, |__t| __t.player_name = __v); }
-                            // java: entity = new RemotePlayer(Minecraft.getInstance().level, entry.get().gameProfile()) {..};
-                            // rust: port gap (GAPS_batchB #9) - the anonymous subclass's overrides (`getSkin` from a fresh
-                            // `PlayerInfo`, `isModelPartShown` hiding the CAPE, `isInvisibleTo` true) have no home: the port's
-                            // entity classes take no mod subclass, so a plain `RemotePlayer` stands in (as `ArmorTab`'s).
-                            // Its dimensions are the player's (`Player.STANDING_DIMENSIONS`, `EntityType.PLAYER`).
-                            let mut entity = RemotePlayer::new(mcrust::net::minecraft::world::entity::entity_dimensions::scalable(0.6, 1.8), &game_profile);
-                            {
-                                use mcrust::net::minecraft::world::entity::entity::Entity as _;
-                                // java: entity.setCustomNameVisible(false);
-                                entity.base_mut().set_custom_name_visible(false);
-                                // java: entity.setId(EntityUtils.PLACEHOLDER_ID);
-                                entity.base_mut().set_id(entity_utils::PLACEHOLDER_ID);
-                            }
-                            compat::write(__this_3, |__t| __t.entity = Some(entity));
-                            __done_3.complete(());
-                        }
-                        Ok(None) => {
-                            // java: .exceptionally(_ -> { .. })
-                            { let __v = Some("User not found".to_string()); compat::write(__this_3, |__t| __t.player_name = __v); }
-                            { let __v = "Player skin not found".to_string(); compat::write(__this_3, |__t| __t.error_message = __v); }
-                            { let __v = true; compat::write(__this_3, |__t| __t.profile_not_found = __v); }
-                            __done_3.complete(());
-                        }
+                    let uuid: Uuid = match parsed {
+                        Ok(uuid) => uuid,
                         Err(exception) => {
-                            __done_3.complete_exceptionally(exception);
+                            __done_3_ref.complete_exceptionally(exception);
+                            return;
                         }
-                    }
+                    };
+                    // java: Minecraft.getInstance().playerSkinRenderCache().lookup(ResolvableProfile.createUnresolved(uuid)).thenAccept(..).exceptionally(..).join();
+                    // (the worker's `join()` waits for this lookup; its stages write the screen, so they run here)
+                    let lookup = compat::minecraft().game_renderer.player_skin_render_cache.as_ref().zip(ResolvableProfile::create_unresolved_id(uuid).ok()).map(|(cache, profile)| cache.lookup(&profile));
+                    let Some(lookup) = lookup else {
+                        __done_3_ref.complete_exceptionally("Minecraft.playerSkinRenderCache()".to_string());
+                        return;
+                    };
+                    let __this_4 = compat::RenderThread::new(__this_3_ref.clone());
+                    let __done_4 = compat::RenderThread::new(__done_3_ref.clone());
+                    let _ = lookup.when_complete_async(move |outcome| {
+                        let (__this_4, __done_4) = (__this_4.get(), __done_4.get());
+                        // `entry.get()` on an empty Optional throws, which the exceptionally arm catches, as a failed lookup does
+                        match outcome {
+                            Ok(Some(entry)) => {
+                                let game_profile = entry.game_profile().clone();
+                                // java: this.playerName = entry.get().gameProfile().name();
+                                { let __v = Some(game_profile.name().to_string()); compat::write(__this_4, |__t| __t.player_name = __v); }
+                                // java: entity = new RemotePlayer(Minecraft.getInstance().level, entry.get().gameProfile()) {..};
+                                // rust: port gap (GAPS_batchB #9) - the anonymous subclass's overrides (`getSkin` from a fresh
+                                // `PlayerInfo`, `isModelPartShown` hiding the CAPE, `isInvisibleTo` true) have no home: the port's
+                                // entity classes take no mod subclass, so a plain `RemotePlayer` stands in (as `ArmorTab`'s).
+                                // Its dimensions are the player's (`EntityType.PLAYER`, 0.6 x 1.8).
+                                let mut entity = RemotePlayer::new(mcrust::net::minecraft::world::entity::entity_dimensions::scalable(0.6, 1.8), &game_profile);
+                                {
+                                    use mcrust::net::minecraft::world::entity::entity::Entity as _;
+                                    // java: entity.setCustomNameVisible(false);
+                                    entity.base_mut().set_custom_name_visible(false);
+                                    // java: entity.setId(EntityUtils.PLACEHOLDER_ID);
+                                    entity.base_mut().set_id(entity_utils::PLACEHOLDER_ID);
+                                }
+                                compat::write(__this_4, |__t| __t.entity = Some(entity));
+                            }
+                            _ => {
+                                // java: .exceptionally(_ -> { this.playerName = "User not found"; this.errorMessage = "Player skin not found"; this.profileNotFound = true; return null; })
+                                { let __v = Some("User not found".to_string()); compat::write(__this_4, |__t| __t.player_name = __v); }
+                                { let __v = "Player skin not found".to_string(); compat::write(__this_4, |__t| __t.error_message = __v); }
+                                { let __v = true; compat::write(__this_4, |__t| __t.profile_not_found = __v); }
+                            }
+                        }
+                        __done_4.complete(());
+                    }, __render_thread_2);
                 }));
             }, compat::executor);
         }

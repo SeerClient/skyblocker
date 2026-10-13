@@ -68,11 +68,14 @@ impl QuickNavConfirmationButton {
     /// java: @Override public void playDownSound(SoundManager soundManager)
     pub fn play_down_sound(__this: &compat::Shared<Self>, sound_manager: &mut SoundManager) {
         if QuickNavConfirmationButton::is_double_click(__this) {
-            // TODO(fabric2seer): `AbstractWidget.playDownSound` has no Rust method in the port (looked for `play_down_sound` in AbstractWidget and its supertypes)
+            // java: super.playDownSound(soundManager);
+            // rust: port gap (GAPS_batchH #1) - the base click sound is the same `SoundManager.play` (no `AbstractWidget`
+            // method in the port; the game plays it from its own press path):
             // rust: __this.lock().borrow_mut().base.play_down_sound(sound_manager);
             return;
         }
-        // TODO(fabric2seer): `play` takes 4 argument(s) in the port (`_al: &OpenAl, library: &mut Library, options: &OptionsData, instance: Box<dyn SoundInstance>`), Java passes 1
+        // rust: port gap (GAPS_batchH #1) - `SoundManager.play(instance)` needs the OpenAL device and library, which are
+        // locals of the port's frame loop (`LocalSoundContext`), not reachable from a widget's sound callback:
         // rust: sound_manager.play(&SimpleSoundInstance::for_ui(mcrust::net::minecraft::sounds::sound_events::note_block_chime(), 1.0f32));
     }
 

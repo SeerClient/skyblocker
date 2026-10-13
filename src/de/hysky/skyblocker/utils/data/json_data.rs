@@ -15,10 +15,8 @@ use mcrust::net::minecraft::client::gui::components::toasts::system_toast::Syste
 use mcrust::net::minecraft::client::minecraft;
 use mcrust::net::minecraft::network::chat::component;
 
-// TODO(fabric2seer): the port's `new` ports this Java method with other parameters ( for Java's display_time)
-//   java: public static final SystemToast.SystemToastId ERROR_TOAST_ID = new SystemToast.SystemToastId(10_000L);
 /// java: public static final SystemToast.SystemToastId ERROR_TOAST_ID = new SystemToast.SystemToastId(10_000L);
-pub static ERROR_TOAST_ID: compat::MainThread<SystemToastId> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `ERROR_TOAST_ID` - see the TODO above"));
+pub static ERROR_TOAST_ID: compat::MainThread<SystemToastId> = compat::MainThread::new(|| SystemToastId::with_display_time(10_000));
 
 /// java: public class JsonData<T>
 pub struct JsonDataBase<T> {

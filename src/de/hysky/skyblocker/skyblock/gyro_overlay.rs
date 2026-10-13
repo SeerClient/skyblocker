@@ -56,15 +56,15 @@ impl GyroOverlay {
         if !(held_item == "GYROKINETIC_WAND") {
             return;
         }
-        // TODO(fabric2seer): `DeltaTracker.getGameTimeDeltaPartialTick` has no Rust method in the port (looked for `get_game_time_delta_partial_tick` in DeltaTracker and its supertypes)
-        // TODO(fabric2seer): `pick` takes 4 argument(s) in the port (`level: &dyn crate::net::minecraft::world::level::block_getter::BlockGetter, range: f64, a: f32, with_liquids: bool`), Java passes 3
-        // rust: let mut hit: HitResult = compat::minecraft().get_camera_entity().unwrap().pick(&MAX_REACH, compat::minecraft().get_delta_tracker().get_game_time_delta_partial_tick(false), false);
-        let mut hit: HitResult = todo!("fabric2seer: the initialiser of `hit` (TODO above)");
-        // TODO(fabric2seer): `AnyHitResult::get_type` ports `getType`, but the port's `HitResult` holds no `AnyHitResult` (no Deref, no `base` field) to call it on
-        // TODO(fabric2seer): static `HitResult.Type` has no Rust counterpart in the port's HitResult file
-        // TODO(fabric2seer): the condition: field `MISS` of a value of unknown type
-        //   java: hit.getType() == HitResult.Type.MISS
-        if todo!("fabric2seer: the condition (TODO above)") {
+        //   java: HitResult hit = CLIENT.getCameraEntity().pick(MAX_REACH, CLIENT.getDeltaTracker().getGameTimeDeltaPartialTick(false), false);
+        // (the port's `Entity.pick` is handed the level it clips against - `this.level()` in Java)
+        let partial_tick: f32 = compat::minecraft().get_delta_tracker().get_game_time_delta_partial_tick(false);
+        let level = mcrust::mcrust::modding::game::level().unwrap();
+        let Some(mut hit) = mcrust::mcrust::modding::game::with_entity(compat::minecraft().get_camera_entity().unwrap(), |camera_entity| mcrust::net::minecraft::world::entity::entity::pick(&*camera_entity, &*level, (MAX_REACH) as f64, partial_tick, false)) else {
+            return;
+        };
+        //   java: if (hit.getType() == HitResult.Type.MISS) return;
+        if hit.get_type() == mcrust::net::minecraft::world::phys::hit_result::Type::Miss {
             return;
         }
         match SkyblockerConfigManager::get().ui_and_visuals.gyro_overlay.gyro_overlay_mode {
@@ -85,9 +85,8 @@ impl GyroOverlay {
 
     /// java: public static void configCallback(Color colorObj)
     pub fn config_callback(color_obj: &Color) {
-        // TODO(fabric2seer): `.getRGBComponents(..)` on a Color
         //   java: float[] colorComponents = colorObj.getRGBComponents(null);
-        let mut color_components: Vec<f32> = todo!("fabric2seer: the initialiser of `colorComponents` (TODO above)");
+        let mut color_components: Vec<f32> = color_obj.get_rgb_components(None).to_vec();
         compat::set_state(&COLOR, argb::color_from_float(color_components[(3) as usize], color_components[(0) as usize], color_components[(1) as usize], color_components[(2) as usize]));
     }
 
@@ -149,16 +148,14 @@ impl Mode {
 
     /// java: @Override public String getSerializedName()
     pub fn get_serialized_name(&self) -> String {
-        // TODO(fabric2seer): call to `name(..)` (not a method of this class)
         //   java: return name().toLowerCase(Locale.ENGLISH);
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        return self.name().to_lowercase();
     }
 
     /// java: @Override public String toString()
     pub fn to_string(&self) -> String {
-        // TODO(fabric2seer): `get` takes 2 argument(s) in the port (`id: &str, args: &[String]`), Java passes 1
-        // rust: return i18n::get(&self.fields().key);
-        return todo!("fabric2seer: see the TODO above");
+        //   java: return I18n.get(key);
+        return i18n::get(&self.fields().key, &[]);
     }
 
 }

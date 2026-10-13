@@ -54,11 +54,12 @@ impl DyeSpecialEffects {
 
     /// java: private static ItemStack findDyeStack(String dyeName)
     pub fn find_dye_stack(dye_name: &str) -> mcrust::net::minecraft::world::item::item_stack::ItemStack {
-        // TODO(fabric2seer): `getOrDefault` is not a method of FlexibleItemStack
         //   java: Optional<FlexibleItemStack> dye = ItemRepository.getItemsStream()
         //   java: 				.filter(stack -> stack.getOrDefault(DataComponents.CUSTOM_NAME, Component.empty()).getString().equals(dyeName))
         //   java: 				.findFirst();
-        let mut dye: Option<compat::Shared<FlexibleItemStack>> = todo!("fabric2seer: the initialiser of `dye` (TODO above)");
+        // (`getOrDefault(CUSTOM_NAME, Component.empty())`: the erased component read back as the `FormattedText` it is)
+        let mut dye: Option<compat::Shared<FlexibleItemStack>> = crate::de::hysky::skyblocker::skyblock::itemlist::item_repository::ItemRepository::get_items_stream()
+            .find(|stack| FlexibleItemStack::get::<mcrust::net::minecraft::network::chat::formatted_text::FormattedText>(stack, mcrust::net::minecraft::core::component::data_components::custom_name()).map(|name| name.get_string()).unwrap_or_default() == dye_name);
         return dye.clone().and_then(|__a0| FlexibleItemStack::get_stack(&__a0)).unwrap_or(mcrust::net::minecraft::world::item::item_stack::empty());
     }
 

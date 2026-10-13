@@ -177,19 +177,16 @@ impl ChestValue {
                     }
                 }
                 if name.contains("Open Reward Chest") {
-                    // TODO(fabric2seer): static `ChatFormatting.stripFormatting` has no Rust counterpart in the port
                     match chest_type {
                         RewardChestType::Dungeon => {
-                            // TODO(fabric2seer): static `ChatFormatting.stripFormatting` has no Rust counterpart in the port
-                            // rust: let mut matcher: Option<compat::regex::Matcher> = Some(RegexListUtils::match_in_list_list_function_pattern(&stack.skyblocker_get_lore_strings(), Arc::new(move |__a0| ChatFormatting::strip_formatting(__a0.clone())), &DUNGEON_CHEST_COIN_COST_PATTERN));
-                            let mut matcher: compat::regex::Matcher = todo!("fabric2seer: the initialiser of `matcher` (TODO above)");
-                            if false /* java: matcher == null: never null here */ {
+                            //   java: Matcher matcher = RegexListUtils.matchInList(stack.skyblocker$getLoreStrings(), ChatFormatting::stripFormatting, DUNGEON_CHEST_COIN_COST_PATTERN);
+                            //   java: if (matcher == null) continue;
+                            let Some(mut matcher) = RegexListUtils::match_in_list_list_function_pattern(&stack.skyblocker_get_lore_strings(), Arc::new(move |__a0: String| chat_formatting::strip_formatting(&__a0)), &DUNGEON_CHEST_COIN_COST_PATTERN) else {
                                 continue;
-                            }
+                            };
                             let mut found_string: String = compat::regex::replace_all(&matcher.group(1).unwrap(), "\\D", "");
-                            // TODO(fabric2seer): the condition: static call NumberUtils.isCreatable(..)
-                            //   java: !NumberUtils.isCreatable(foundString)
-                            if todo!("fabric2seer: the condition (TODO above)") {
+                            //   java: if (!NumberUtils.isCreatable(foundString)) continue;
+                            if !is_creatable(&found_string) {
                                 continue;
                             }
                             profit = (profit - (found_string.parse::<i32>().expect("NumberFormatException") as f64));
@@ -200,16 +197,17 @@ impl ChestValue {
                             };
                             let mut key_cost: (f64, bool) = ChestValue::compute_kuudra_key_price(&key);
                             profit = (profit - key_cost.0);
-                            // TODO(fabric2seer): Map.Entry.rightBoolean
                             //   java: hasIncompleteData |= !keyCost.rightBoolean();
+                            has_incomplete_data |= !key_cost.1;
                         }
                         _ => {}
                     }
                     continue;
                 }
                 if name.contains("Reroll Chest") {
-                    // TODO(fabric2seer): static call StringUtils.isBlank(..)
                     //   java: usedKismet = !StringUtils.isBlank(ItemUtils.getLoreLineContains(stack, "You already rerolled a chest!"));
+                    // (commons-lang `isBlank`: null, or only `Character.isWhitespace` characters)
+                    used_kismet = ItemUtils::get_lore_line_contains(&stack, "You already rerolled a chest!").is_some_and(|line| !line.chars().all(compat::is_java_whitespace));
                 }
             }
             if SkyblockerConfigManager::get().dungeons.dungeon_chest_profit.include_kismet && used_kismet {
@@ -310,7 +308,7 @@ impl ChestValue {
                     let mut source: String = (compat::regex::split(&coins_line, ":"))[(1) as usize].clone();
                     // java: try { value += NumberFormat.getNumberInstance(java.util.Locale.US).parse(source.trim()).doubleValue(); }
                     //   catch (ParseException _) { LOGGER.warn("[Skyblocker] Failed to parse `{}`", source); }
-                    match number_instance_us_parse(&compat::trim(&source)) {
+                    match compat::number_instance_us_parse(&compat::trim(&source)) {
                         Some(parsed) => value += parsed,
                         None => logger().warn(&format!("[Skyblocker] Failed to parse `{}`", source)),
                     }
@@ -400,8 +398,9 @@ impl ChestValue {
         let mut max_chest_value_width: i32 = ((inner_width.wrapping_div(2)).wrapping_sub(2)).max(inner_width.wrapping_sub(compat::font().width_of_cached(&mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(title.clone()))));
         let mut chest_value_width: i32 = (compat::font().width_of_cached(&mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(chest_value.clone()))).min(max_chest_value_width);
         let mut chest_value_widget: ChestValueTextWidget = ChestValueTextWidget::new(chest_value_width, mcrust::net::minecraft::client::gui::font::LINE_HEIGHT, chest_value.clone(), compat::font());
-        // TODO(fabric2seer): `width` takes 2 argument(s) in the port (`max_width: i32, text_width: i32`), Java passes 0
-        // rust: chest_value_widget.set_position(((x.wrapping_add(inner_width)).wrapping_sub(string_widget::width())).wrapping_add(4), y.wrapping_add(6));
+        //   java: chestValueWidget.setPosition(x + innerWidth - chestValueWidget.getWidth() + 4, y + 6);
+        let chest_value_widget_width: i32 = chest_value_widget.get_width();
+        chest_value_widget.set_position(((x.wrapping_add(inner_width)).wrapping_sub(chest_value_widget_width)).wrapping_add(4), y.wrapping_add(6));
         // TODO(fabric2seer): Fabric API `Screens.getWidgets` has no SeerClient equivalent
         //   java: Screens.getWidgets(genericContainerScreen).add(chestValueWidget);
         let mut chest_title_widget: ChestValueTextWidget = ChestValueTextWidget::new((inner_width.wrapping_sub(chest_value_width)).wrapping_sub(2), mcrust::net::minecraft::client::gui::font::LINE_HEIGHT, title.copy().with_style(&mcrust::net::minecraft::network::chat::style::Style::EMPTY.with_color(0x404040)), compat::font());
@@ -466,8 +465,9 @@ impl ChestValueTextWidget {
         let mut this = Self {
             base: compat::string_widget(0, 0, width, height, message.copy().with_style(&mcrust::net::minecraft::network::chat::style::Style::EMPTY.with_shadow_color(0))),
         };
-        // TODO(fabric2seer): `width` takes 2 argument(s) in the port (`max_width: i32, text_width: i32`), Java passes 0
-        // rust: this.set_max_width(string_widget::width(), TextOverflow::Scrolling);
+        //   java: setMaxWidth(getWidth(), TextOverflow.SCROLLING);
+        let width = this.get_width();
+        this.set_max_width(width, TextOverflow::Scrolling);
         this
     }
 
@@ -572,78 +572,82 @@ impl std::fmt::Display for RewardChestType {
     }
 }
 
-/// java: `NumberFormat.getNumberInstance(Locale.US).parse(text).doubleValue()` - `DecimalFormat("#,##0.###")`'s
-/// `parse(String)`: the longest prefix of `text` that is a number - an optional `-`, digits with `,` grouping
-/// separators (a trailing `,` is not taken), at most one `.` (no `,` after it), and an `E` exponent; `NaN` and the
-/// infinity sign as the symbols. `None` is the `ParseException` (nothing at the start parsed).
-/// rust: port gap - `DecimalFormat.parse` / `NumberFormat.getNumberInstance` (java/text has `new` + `format`); the
-/// JDK body is reproduced here for this one caller (GAPS_batchI.md)
-fn number_instance_us_parse(text: &str) -> Option<f64> {
-    let chars: Vec<char> = text.chars().collect();
-    if text.starts_with("NaN") {
-        return Some(f64::NAN);
+
+/// commons-lang3 `NumberUtils.isCreatable(str)`, statement for statement (private: batch K helper; the same body as
+/// `dungeon/croesus_profit.rs`).
+fn is_creatable(str: &str) -> bool {
+    if str.is_empty() {
+        return false;
     }
-    let mut i: usize = 0;
-    let negative = chars.first() == Some(&'-');
-    if negative {
-        i = 1;
-    }
-    if chars.get(i) == Some(&'∞') {
-        return Some(if negative { f64::NEG_INFINITY } else { f64::INFINITY });
-    }
-    let mut number = String::new();
-    let mut saw_digit = false;
-    let mut saw_decimal = false;
-    let mut exponent: i32 = 0;
-    while i < chars.len() {
-        let c = chars[i];
-        if let Some(digit) = c.to_digit(10) {
-            number.push(char::from_digit(digit, 10).unwrap_or('0'));
-            saw_digit = true;
-            i += 1;
-        } else if c == '.' {
-            if saw_decimal {
-                break;
+    let chars: Vec<char> = str.chars().collect();
+    let mut sz = chars.len();
+    let mut has_exp = false;
+    let mut has_dec_point = false;
+    let mut allow_signs = false;
+    let mut found_digit = false;
+    let start = if chars[0] == '-' || chars[0] == '+' { 1 } else { 0 };
+    if sz > start + 1 && chars[start] == '0' && !str.contains('.') {
+        if chars[start + 1] == 'x' || chars[start + 1] == 'X' {
+            let i = start + 2;
+            if i == sz {
+                return false;
             }
-            saw_decimal = true;
-            number.push('.');
-            i += 1;
-        } else if c == ',' {
-            // a grouping separator: skipped (and not taken at all when no digit follows - nothing reads the position)
-            if saw_decimal {
-                break;
-            }
-            i += 1;
-        } else if c == 'E' && saw_digit {
-            // `subparse` of the exponent: an optional `-`, then digits; without digits the `E` is not taken
-            let mut j = i + 1;
-            let exponent_negative = chars.get(j) == Some(&'-');
-            if exponent_negative {
-                j += 1;
-            }
-            let start = j;
-            while j < chars.len() && chars[j].is_ascii_digit() {
-                j += 1;
-            }
-            if j == start {
-                break;
-            }
-            let digits: String = chars[start..j].iter().collect();
-            exponent = digits.parse::<i32>().unwrap_or(i32::MAX);
-            if exponent_negative {
-                exponent = -exponent;
-            }
-            break;
-        } else {
-            break;
+            return chars[i..].iter().all(|c| c.is_ascii_hexdigit());
+        }
+        if chars[start + 1].is_numeric() {
+            return chars[start + 1..].iter().all(|c| ('0'..='7').contains(c));
         }
     }
-    if !saw_digit {
-        return None;
+    sz -= 1;
+    let mut i = start;
+    while i < sz || (i < sz + 1 && allow_signs && !found_digit) {
+        let c = chars[i];
+        if c.is_ascii_digit() {
+            found_digit = true;
+            allow_signs = false;
+        } else if c == '.' {
+            if has_dec_point || has_exp {
+                return false;
+            }
+            has_dec_point = true;
+        } else if c == 'e' || c == 'E' {
+            if has_exp || !found_digit {
+                return false;
+            }
+            has_exp = true;
+            allow_signs = true;
+        } else if c == '+' || c == '-' {
+            if !allow_signs {
+                return false;
+            }
+            allow_signs = false;
+            found_digit = false;
+        } else {
+            return false;
+        }
+        i += 1;
     }
-    let mut parsed: f64 = number.parse::<f64>().ok()?;
-    if exponent != 0 {
-        parsed *= 10f64.powi(exponent);
+    if i < chars.len() {
+        let c = chars[i];
+        if c.is_ascii_digit() {
+            return true;
+        }
+        if c == 'e' || c == 'E' {
+            return false;
+        }
+        if c == '.' {
+            if has_dec_point || has_exp {
+                return false;
+            }
+            return found_digit;
+        }
+        if !allow_signs && (c == 'd' || c == 'D' || c == 'f' || c == 'F') {
+            return found_digit;
+        }
+        if c == 'l' || c == 'L' {
+            return found_digit && !has_exp && !has_dec_point;
+        }
+        return false;
     }
-    Some(if negative { -parsed } else { parsed })
+    !allow_signs && found_digit
 }

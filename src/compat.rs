@@ -3708,6 +3708,22 @@ pub fn key_display_name(
     }
 }
 
+/// `ConfirmLinkScreen.confirmLink(parent, url)` - the `Button.OnPress` `button -> confirmLinkNow(parent, url)`, with
+/// the screen that is up as the parent (every mod caller passes `this`). See `confirm_link_now`.
+pub fn confirm_link(url: &str) -> mcrust::net::minecraft::client::gui::components::abstract_widget::OnPress {
+    use mcrust::net::minecraft::client::gui::components::abstract_widget::{OnPress, PressLambda};
+    let url = url.to_string();
+    OnPress::Lambda(PressLambda::new(move |_screen, _index| confirm_link_now(&url)))
+}
+
+/// `ConfirmLinkScreen.confirmLinkNow(parent, url)` (trusted): `minecraft.gui.setScreen(new ConfirmLinkScreen(open ->
+/// { if (open) Util.getPlatform().openUri(url); minecraft.gui.setScreen(parent); }, url, true))`. The game's own
+/// screen, parked where `Screen.clickUrlAction` parks it (`Minecraft.pending_confirm_link`): the client loop pushes it
+/// over the screen that is up, and its answer returns to that screen.
+pub fn confirm_link_now(url: &str) {
+    minecraft().pending_confirm_link = Some((url.to_string(), true));
+}
+
 /// `new ConfirmScreen(callback, title, message, yesButton, noButton)` opened by a mod: the game's `ConfirmScreen`
 /// layout (`confirm_screen::init_components` - the title, the message, the YES / NO row) as a mod screen whose two
 /// buttons and Escape answer the mod's `callback` (`BooleanConsumer`), as Java's do. The callback is held on the
@@ -4849,4 +4865,211 @@ mod moved_helpers {
             out
         }
     }
+}
+
+/// commons-lang3 `NumberUtils.isCreatable(String)`: whether `str` is a valid Java number literal (`createNumber`
+/// accepts it) - an optional sign, hex (`0x`), octal (leading `0`), decimal with a point and an exponent, and a
+/// trailing type qualifier (`d D f F l L`).
+pub fn number_utils_is_creatable(str: &str) -> bool {
+    if str.is_empty() {
+        return false;
+    }
+    let chars: Vec<char> = str.chars().collect();
+    let mut sz = chars.len();
+    let mut has_exp = false;
+    let mut has_dec_point = false;
+    let mut allow_signs = false;
+    let mut found_digit = false;
+    let start = if chars[0] == '-' || chars[0] == '+' { 1 } else { 0 };
+    if sz > start + 1 && chars[start] == '0' && !str.contains('.') {
+        if chars[start + 1] == 'x' || chars[start + 1] == 'X' {
+            let i = start + 2;
+            if i == sz {
+                return false;
+            }
+            return chars[i..].iter().all(|c| c.is_ascii_hexdigit());
+        }
+        if chars[start + 1].is_ascii_digit() {
+            return chars[start + 1..].iter().all(|c| ('0'..='7').contains(c));
+        }
+    }
+    sz -= 1;
+    let mut i = start;
+    while i < sz || (i < sz + 1 && allow_signs && !found_digit) {
+        let c = chars[i];
+        if c.is_ascii_digit() {
+            found_digit = true;
+            allow_signs = false;
+        } else if c == '.' {
+            if has_dec_point || has_exp {
+                return false;
+            }
+            has_dec_point = true;
+        } else if c == 'e' || c == 'E' {
+            if has_exp || !found_digit {
+                return false;
+            }
+            has_exp = true;
+            allow_signs = true;
+        } else if c == '+' || c == '-' {
+            if !allow_signs {
+                return false;
+            }
+            allow_signs = false;
+            found_digit = false;
+        } else {
+            return false;
+        }
+        i += 1;
+    }
+    if i < chars.len() {
+        let c = chars[i];
+        if c.is_ascii_digit() {
+            return true;
+        }
+        if c == 'e' || c == 'E' {
+            return false;
+        }
+        if c == '.' {
+            if has_dec_point || has_exp {
+                return false;
+            }
+            return found_digit;
+        }
+        if !allow_signs && (c == 'd' || c == 'D' || c == 'f' || c == 'F') {
+            return found_digit;
+        }
+        if c == 'l' || c == 'L' {
+            return found_digit && !has_exp && !has_dec_point;
+        }
+        return false;
+    }
+    !allow_signs && found_digit
+}
+
+/// commons-lang3 `NumberUtils.toInt(String str, int defaultValue)` - `Integer.parseInt` (no trimming), the default on a
+/// `NumberFormatException`. `toInt(str)` is `toInt(str, 0)`.
+pub fn number_utils_to_int(str: &str, default_value: i32) -> i32 {
+    str.parse::<i32>().unwrap_or(default_value)
+}
+
+/// `new URI(text).getPath()`: the decoded path of a hierarchical URI (what follows the scheme and the `//authority`, up
+/// to `?` or `#`), `None` for an opaque one (`mailto:x`) as Java's `null`; `Err` is the constructor's
+/// `URISyntaxException`. The port's `java.net.URI` keeps the text and the scheme only.
+pub fn uri_get_path(text: &str) -> Result<Option<String>, String> {
+    let uri = mcrust::java::net::uri::Uri::create(text).map_err(|e| e.to_string())?;
+    let mut rest: &str = match uri.scheme() {
+        Some(scheme) => &text[scheme.len() + 1..],
+        None => text,
+    };
+    if uri.scheme().is_some() && !rest.starts_with('/') {
+        return Ok(None);
+    }
+    if let Some(i) = rest.find('#') {
+        rest = &rest[..i];
+    }
+    if let Some(i) = rest.find('?') {
+        rest = &rest[..i];
+    }
+    if let Some(after) = rest.strip_prefix("//") {
+        rest = match after.find('/') {
+            Some(i) => &after[i..],
+            None => "",
+        };
+    }
+    // the path's `%XX` escapes, decoded as UTF-8 (`URI.decode`)
+    let bytes = rest.as_bytes();
+    let mut out: Vec<u8> = Vec::with_capacity(bytes.len());
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] == b'%' && i + 2 < bytes.len() {
+            if let Ok(b) = u8::from_str_radix(&rest[i + 1..i + 3], 16) {
+                out.push(b);
+                i += 3;
+                continue;
+            }
+        }
+        out.push(bytes[i]);
+        i += 1;
+    }
+    Ok(Some(String::from_utf8_lossy(&out).into_owned()))
+}
+
+/// commons-io `FilenameUtils.getName(fileName)`: what follows the last `/` or `\`.
+pub fn filename_get_name(file_name: &str) -> String {
+    match file_name.rfind(['/', '\\']) {
+        Some(i) => file_name[i + 1..].to_string(),
+        None => file_name.to_string(),
+    }
+}
+
+/// commons-io `FilenameUtils.getExtension(fileName)`: what follows the last `.` of the name (`""` without one).
+pub fn filename_get_extension(file_name: &str) -> String {
+    let name = filename_get_name(file_name);
+    match name.rfind('.') {
+        Some(i) => name[i + 1..].to_string(),
+        None => String::new(),
+    }
+}
+
+/// commons-io `FilenameUtils.getBaseName(fileName)`: the name without its directories and its extension.
+pub fn filename_get_base_name(file_name: &str) -> String {
+    let name = filename_get_name(file_name);
+    match name.rfind('.') {
+        Some(i) => name[..i].to_string(),
+        None => name,
+    }
+}
+
+/// `ChatFormatting.name()` - the Java enum constant's name (`DARK_RED`); the port's enum has no `name()`.
+pub fn chat_formatting_name(formatting: mcrust::net::minecraft::chat_formatting::ChatFormatting) -> &'static str {
+    use mcrust::net::minecraft::chat_formatting::ChatFormatting;
+    match formatting {
+        ChatFormatting::Black => "BLACK",
+        ChatFormatting::DarkBlue => "DARK_BLUE",
+        ChatFormatting::DarkGreen => "DARK_GREEN",
+        ChatFormatting::DarkAqua => "DARK_AQUA",
+        ChatFormatting::DarkRed => "DARK_RED",
+        ChatFormatting::DarkPurple => "DARK_PURPLE",
+        ChatFormatting::Gold => "GOLD",
+        ChatFormatting::Gray => "GRAY",
+        ChatFormatting::DarkGray => "DARK_GRAY",
+        ChatFormatting::Blue => "BLUE",
+        ChatFormatting::Green => "GREEN",
+        ChatFormatting::Aqua => "AQUA",
+        ChatFormatting::Red => "RED",
+        ChatFormatting::LightPurple => "LIGHT_PURPLE",
+        ChatFormatting::Yellow => "YELLOW",
+        ChatFormatting::White => "WHITE",
+        ChatFormatting::Obfuscated => "OBFUSCATED",
+        ChatFormatting::Bold => "BOLD",
+        ChatFormatting::Strikethrough => "STRIKETHROUGH",
+        ChatFormatting::Underline => "UNDERLINE",
+        ChatFormatting::Italic => "ITALIC",
+        ChatFormatting::Reset => "RESET",
+    }
+}
+
+/// `minecraft.gameMode.handleContainerInput(containerId, slotId, buttonNum, containerInput, minecraft.player)`: the
+/// port's `handleContainerInput:443-481` over the player (its `:445-447` check of the container id is made here - the
+/// port's body is handed the open menu's own id), then `:480`'s send. (The same body four files keep as a private
+/// copy: `leap_overlay`, `loadout_keybinds`, `radial_menu_screen`, `wardrobe_keybinds`.)
+pub fn handle_container_input(
+    container_id: i32,
+    slot_id: i32,
+    button_num: i32,
+    container_input: mcrust::net::minecraft::world::inventory::container_input::ContainerInput,
+) {
+    use mcrust::net::minecraft::client::multiplayer::multi_player_game_mode;
+    use mcrust::net::minecraft::world::entity::player::player::Player as _;
+    let packet = mcrust::mcrust::modding::game::with_player(|player| {
+        let open_container_id = player.player().container_menu_container_id();
+        if container_id != open_container_id {
+            crate::prelude::logger().warn(&format!("Ignoring click in mismatching container. Click in {}, player has {}.", container_id, open_container_id));
+            return None;
+        }
+        multi_player_game_mode::handle_container_input_on_player(&mut minecraft().game_mode, player, slot_id, button_num, container_input)
+    })
+    .flatten();
+    multi_player_game_mode::send_container_click(packet, container_input, slot_id, button_num);
 }

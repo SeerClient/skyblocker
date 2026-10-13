@@ -40,7 +40,9 @@ pub struct ConfigBackupScreen {
     /// java: private SettingsListWidget detailsWidget;
     pub details_widget: Option<compat::WidgetRef>,
     /// java: private Set<String> changedPaths = Collections.emptySet();
-    pub changed_paths: std::collections::HashSet<String>,
+    /// (the inner classes `SettingsListWidget` / `StringEntry` read and write this field of their enclosing screen: they
+    /// hold the same cell, and Java's `changedPaths = x` replaces its contents)
+    pub changed_paths: std::sync::Arc<std::sync::Mutex<std::collections::HashSet<String>>>,
     /// the object's own shared handle: Java's `this` handed to other objects
     pub self_ref: compat::WeakShared<Self>,
     /// the screen's widgets as this object last saw them (see `compat::WidgetCache`)
@@ -71,7 +73,7 @@ impl ConfigBackupScreen {
             parent: __init_parent,
             list_widget: None,
             details_widget: None,
-            changed_paths: Default::default(),
+            changed_paths: std::sync::Arc::new(std::sync::Mutex::new(std::collections::HashSet::new())),
         });
         compat::write(&__this, |__t| __t.self_ref = std::sync::Arc::downgrade(&__this));
         __this
@@ -94,7 +96,7 @@ impl ConfigBackupScreen {
         compat::write(__this, |__t| { let __s = &mut *__t; let __r = __s.list_widget.as_mut().unwrap(); __s.__widgets.with(&mut __s.base, __r, |__w| __w.mod_widget().and_then(|__ms| __ms.with::<mcrust::mcrust::modding::widgets::ModSelectionList, _>(|__l| __l.list.refresh_scroll_amount())).expect("a mod list reached from inside its own method")) });
         compat::write(__this, |__t| { let __s = &mut *__t; let __r = __s.list_widget.as_mut().unwrap(); __s.__widgets.add(&mut __s.base, __r, true) });
         if compat::write(__this, |__t| { let __s = &mut *__t; match __s.details_widget.as_mut() { Some(__r) => Some(__s.__widgets.with(&mut __s.base, __r, |__w| compat::list_object::<SettingsListWidget>(__w).expect("a mod list reached from inside its own method"))), None => None } }).is_none() {
-            { let __v = (Some(SettingsListWidget::new(compat::minecraft(), details_width, list_height, 32, 10))).map(|__o| compat::WidgetRef::value(compat::attach_list(__o))); compat::write(__this, |__t| { let __s = &mut *__t; __s.details_widget = __v; }); }
+            { let __v = (Some(SettingsListWidget::new(compat::minecraft(), details_width, list_height, 32, 10, compat::read(__this, |__t| __t.changed_paths.clone())))).map(|__o| compat::WidgetRef::value(compat::attach_list(__o))); compat::write(__this, |__t| { let __s = &mut *__t; __s.details_widget = __v; }); }
             let __wa3 = compat::write(__this, |__t| { let __s = &mut *__t; let __r = __s.list_widget.as_mut().unwrap(); __s.__widgets.with(&mut __s.base, __r, |__w| __w.mod_widget().and_then(|__ms| __ms.with::<mcrust::mcrust::modding::widgets::ModSelectionList, _>(|__l| { let __h = &__l.class::<compat::ListClass<BackupListWidget>>().map(|__c| __c.object().clone()).expect("a mod list without its class"); compat::lend_list(__h, __l, || BackupListWidget::get_selected_path(__h)) })).expect("a mod list reached from inside its own method")) });
             compat::write(__this, |__t| { let __s = &mut *__t; let __r = __s.details_widget.as_mut().unwrap(); __s.__widgets.with(&mut __s.base, __r, |__w| __w.mod_widget().and_then(|__ms| __ms.with::<mcrust::mcrust::modding::widgets::ModSelectionList, _>(|__l| { let __h = &__l.class::<compat::ListClass<SettingsListWidget>>().map(|__c| __c.object().clone()).expect("a mod list without its class"); compat::lend_list(__h, __l, || SettingsListWidget::update_entries(__h, __wa3.clone())) })).expect("a mod list reached from inside its own method")) });
         } else {
@@ -110,35 +112,48 @@ impl ConfigBackupScreen {
         let mut restore_btn: AbstractWidget = (button::builder(component::translatable("skyblocker.config.general.backup.restore").get_string(), OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| { let Some(__this_2) = __this_w2.get().upgrade() else { return Default::default(); }; compat::lend_screen(&__this_2, __screen, || { let mut __pidx = compat::WidgetRef::Screen(__index); {
             let mut selected: Option<std::path::PathBuf> = compat::write((&__this_2), |__t| { let __s = &mut *__t; let __r = __s.list_widget.as_mut().unwrap(); __s.__widgets.with(&mut __s.base, __r, |__w| __w.mod_widget().and_then(|__ms| __ms.with::<mcrust::mcrust::modding::widgets::ModSelectionList, _>(|__l| { let __h = &__l.class::<compat::ListClass<BackupListWidget>>().map(|__c| __c.object().clone()).expect("a mod list without its class"); compat::lend_list(__h, __l, || BackupListWidget::get_selected_path(__h)) })).expect("a mod list reached from inside its own method")) });
             if let Some(selected) = &selected {
-                // TODO(fabric2seer): static `Component.translatableEscape` has no Rust counterpart in the port
-                // TODO(fabric2seer): `new ConfirmScreen(..)`: the port has no `ConfirmScreen::new`
-                // TODO(fabric2seer): `set_screen` takes 14 argument(s) in the port (`gfx: &mut Minecraft, screen: &mut GuiScreen, screen_extra: &mut ScreenExtra, screen_stack: &mut Vec<HeldScreen>, screen_kind_before_pause: &mut Option<ScreenKind>, screen_is_open: &mut bool, level_screen_closed: &mut bool, frames_on_this_sc ..`), Java passes 1
-                // rust: let __this_w1 = compat::RenderThread::new(std::sync::Arc::downgrade((&__this_2)));
-                // rust: gui::set_screen(&mut ConfirmScreen::new(Arc::new(move |confirm| { let Some(__this_1) = __this_w1.get().upgrade() else { return Default::default(); }; {
-                // rust: if confirm {
-                // rust: // java: try {..} catch (IOException e) - an exception here is a panic, caught by `catch_unwind`
-                // rust: let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                // rust: ConfigBackupManager::restore_backup(selected);
-                // rust: }));
-                // rust: if let Err(e) = __result {
-                // rust: logger().error(&format!("[Skyblocker] Failed to restore backup {}", std::path::PathBuf::from(selected.file_name().unwrap_or_default()).to_string_lossy().to_string()));
-                // rust: // TODO(fabric2seer): field `PERIODIC_NOTIFICATION` of a value of unknown type
-                // rust: //   java: minecraft.gui.toastManager().addToast(new SystemToast(SystemToast.SystemToastId.PERIODIC_NOTIFICATION,
-                // rust: //   java: 									Component.translatable("skyblocker.config.general.backup.restore.error"),
-                // rust: //   java: 									null
-                // rust: //   java: 							));
-                // rust: return;
-                // rust: }
-                // rust: if compat::read((&__this_1), |__t| __t.parent.clone()).is_some() {
-                // rust: // TODO(fabric2seer): `set_screen` takes 14 argument(s) in the port (`gfx: &mut Minecraft, screen: &mut GuiScreen, screen_extra: &mut ScreenExtra, screen_stack: &mut Vec<HeldScreen>, screen_kind_before_pause: &mut Option<ScreenKind>, screen_is_open: &mut bool, level_screen_closed: &mut bool, frames_on_this_sc ..`), Java passes 1
-                // rust: // rust: gui::set_screen(&mut SkyblockerConfigManager::create_gui(compat::read((&__this_1), |__t| __t.parent.clone())));
-                // rust: } else {
-                // rust: mcrust::mcrust::modding::game::set_screen_null();
-                // rust: }
-                // rust: } else {
-                // rust: mcrust::mcrust::modding::game::set_screen(Box::new(compat::ScreenAdapter::new(((&__this_1)).clone())));
-                // rust: }
-                // rust: } }), component::translatable("skyblocker.config.general.backup.confirm.title"), Component::translatable_escape("skyblocker.config.general.backup.confirm.text".to_string(), std::path::PathBuf::from(selected.file_name().unwrap_or_default()).to_string_lossy().to_string()), mcrust::net::minecraft::network::chat::common_components::gui_yes(), mcrust::net::minecraft::network::chat::common_components::gui_no()));
+                // java: minecraft.setScreen(new ConfirmScreen(confirm -> {..}, Component.translatable("skyblocker.config.general.backup.confirm.title"),
+                //         Component.translatableEscape("skyblocker.config.general.backup.confirm.text", selected.getFileName().toString()),
+                //         CommonComponents.GUI_YES, CommonComponents.GUI_NO));
+                // The confirm screen holds this one as its parent: `setScreen(this)` is the step back to it.
+                let selected: std::path::PathBuf = selected.clone();
+                let file_name: String = std::path::PathBuf::from(selected.file_name().unwrap_or_default()).to_string_lossy().to_string();
+                let has_parent: bool = compat::read(&__this_2, |__t| __t.parent.is_some());
+                mcrust::mcrust::modding::game::set_screen_keeping_parent(Box::new(compat::ConfirmScreen::new(
+                    move |confirm: bool| {
+                        if confirm {
+                            // java: try { ConfigBackupManager.restoreBackup(selected); } catch (IOException e) {..; return; }
+                            let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                                ConfigBackupManager::restore_backup(&selected);
+                            }));
+                            if let Err(e) = __result {
+                                logger().error(&format!("[Skyblocker] Failed to restore backup {} {}", std::path::PathBuf::from(selected.file_name().unwrap_or_default()).to_string_lossy(), compat::panic_message(&e)));
+                                // java: minecraft.gui.toastManager().addToast(new SystemToast(SystemToast.SystemToastId.PERIODIC_NOTIFICATION,
+                                //         Component.translatable("skyblocker.config.general.backup.restore.error"), null));
+                                let minecraft = compat::minecraft();
+                                let title = mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::translatable("skyblocker.config.general.backup.restore.error"));
+                                mcrust::net::minecraft::client::gui::components::toasts::system_toast::add(&mut minecraft.gui.toast_manager().borrow_mut(), &minecraft.font, mcrust::net::minecraft::client::gui::components::toasts::system_toast::SystemToastId::PeriodicNotification, &title, None);
+                                return;
+                            }
+                            if has_parent {
+                                // java: minecraft.setScreen(SkyblockerConfigManager.createGUI(parent));
+                                // rust: port gap - the config GUI is the YACL / Dandelion screen the config merge replaces: the
+                                // screen goes back to the parent this one was opened over (GAPS_L.md)
+                                mcrust::mcrust::modding::game::set_screen_to_parent();
+                                mcrust::mcrust::modding::game::set_screen_to_parent();
+                            } else {
+                                mcrust::mcrust::modding::game::set_screen_null();
+                            }
+                        } else {
+                            // java: minecraft.setScreen(this);
+                            mcrust::mcrust::modding::game::set_screen_to_parent();
+                        }
+                    },
+                    component::translatable("skyblocker.config.general.backup.confirm.title"),
+                    component::translatable_escape("skyblocker.config.general.backup.confirm.text", vec![mcrust::net::minecraft::network::chat::formatted_text::FormattedText::of(file_name)]),
+                    mcrust::net::minecraft::network::chat::common_components::gui_yes(),
+                    mcrust::net::minecraft::network::chat::common_components::gui_no(),
+                )));
             }
         } }) })))).size(90, 20).pos(((compat::read(__this, |__t| __t.width)).wrapping_div(2)).wrapping_sub(95), (compat::read(__this, |__t| __t.height)).wrapping_sub(28)).build();
         { let (__q0,) = (restore_btn.clone(),); __this.lock().borrow_mut().add_renderable_widget(__q0) };
@@ -337,11 +352,13 @@ impl BackupEntry {
 
     /// java: @Override public void extractContent(GuiGraphicsExtractor context, int mouseX, int mouseY, boolean hovered, float deltaTicks)
     pub fn extract_content(__this: &compat::Shared<Self>, context: &GuiGraphicsExtractor, mut mouse_x: i32, mut mouse_y: i32, mut hovered: bool, mut delta_ticks: f32) {
-        // TODO(fabric2seer): unknown name `font`
-        //   java: context.centeredText(font, path.getFileName().toString(), this.getContentXMiddle(), this.getY() + 7, 0xFFFFFFFF);
+        // java: context.centeredText(font, path.getFileName().toString(), this.getContentXMiddle(), this.getY() + 7, 0xFFFFFFFF);
+        let (__name, __x, __y) = compat::read(__this, |__t| (std::path::PathBuf::from(__t.path.file_name().unwrap_or_default()).to_string_lossy().to_string(), __t.base.get_content_x_middle(), __t.base.get_y()));
+        mcrust::net::minecraft::client::gui::gui_graphics_extractor::centered_text_string(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), &__name, __x, __y + 7, 0xFFFFFFFFu32 as i32);
         if { let (__q0, __q1,) = ((mouse_x) as f64, (mouse_y) as f64,); __this.lock().borrow().is_mouse_over(__q0, __q1) } {
-            // TODO(fabric2seer): static `CursorTypes.POINTING_HAND` has no Rust counterpart in the port's CursorTypes file
-            // TODO(fabric2seer): `GuiGraphicsExtractor.requestCursor` has no Rust method in the port (looked for `request_cursor` in GuiGraphicsExtractor and its supertypes)
+            // java: context.requestCursor(CursorTypes.POINTING_HAND);
+            // rust: port gap - a mod list ROW cannot ask for a cursor: `ModListEntry` has no `handle_cursor`, and the
+            // list answers only its scrollbar's (GAPS_L.md)
             // rust: context.request_cursor(&CursorTypes::POINTING_HAND);
         }
     }
@@ -379,6 +396,8 @@ impl ModListEntry for compat::EntryAdapter<BackupEntry> {
 pub struct SettingsListWidget {
     /// java: extends net.minecraft.client.gui.components.ContainerObjectSelectionList
     pub base: ModSelectionList,
+    /// `ConfigBackupScreen.this.changedPaths` - the enclosing screen's field (an inner class)
+    pub changed_paths: std::sync::Arc<std::sync::Mutex<std::collections::HashSet<String>>>,
 }
 
 impl std::ops::Deref for SettingsListWidget {
@@ -396,9 +415,10 @@ impl std::ops::DerefMut for SettingsListWidget {
 
 impl SettingsListWidget {
     /// java: SettingsListWidget(Minecraft client, int width, int height, int y, int itemHeight)
-    pub fn new(client: &mut mcrust::net::minecraft::client::minecraft::Minecraft, mut width: i32, mut height: i32, mut y: i32, mut item_height: i32) -> compat::Shared<Self> {
+    pub fn new(client: &mut mcrust::net::minecraft::client::minecraft::Minecraft, mut width: i32, mut height: i32, mut y: i32, mut item_height: i32, changed_paths: std::sync::Arc<std::sync::Mutex<std::collections::HashSet<String>>>) -> compat::Shared<Self> {
         let __this = compat::shared(Self {
             base: mcrust::mcrust::modding::widgets::ModSelectionList::new(mcrust::mcrust::modding::widgets::ListKind::Container, width, height, y, item_height),
+            changed_paths,
         });
         __this
     }
@@ -406,27 +426,25 @@ impl SettingsListWidget {
     /// java: void updateEntries(@Nullable Path path)
     pub fn update_entries(__this: &compat::Shared<Self>, mut path: Option<std::path::PathBuf>) {
         compat::write(__this, |__t| { let __l = &mut __t.base; __l.clear_entries() });
-        // TODO(fabric2seer): `changedPaths` is a field of the enclosing instance (ConfigBackupScreen.this) - an inner class has no outer reference in Rust
-        //   java: changedPaths = Collections.emptySet();
+        // java: changedPaths = Collections.emptySet();
+        compat::read(__this, |__t| __t.changed_paths.lock().unwrap_or_else(|p| p.into_inner()).clear());
         let Some(mut path) = path.clone() else {
             return;
         };
         // java: try {..} catch (IOException e) - an exception here is a panic, caught by `catch_unwind`
         let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            // TODO(fabric2seer): static call JsonParser.parseReader(..)
-            //   java: JsonElement backupJson = JsonParser.parseReader(Files.newBufferedReader(path));
-            let mut backup_json: serde_json::Value = todo!("fabric2seer: the initialiser of `backupJson` (TODO above)");
-            // TODO(fabric2seer): static call JsonParser.parseReader(..)
-            //   java: JsonElement currentJson = JsonParser.parseReader(Files.newBufferedReader(SkyblockerConfigManager.getConfigPath()));
-            let mut current_json: serde_json::Value = todo!("fabric2seer: the initialiser of `currentJson` (TODO above)");
+            // java: JsonElement backupJson = JsonParser.parseReader(Files.newBufferedReader(path));
+            let mut backup_json: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(&path).expect("IOException")).unwrap_or_else(|e| panic!("JsonSyntaxException: {e}"));
+            // java: JsonElement currentJson = JsonParser.parseReader(Files.newBufferedReader(SkyblockerConfigManager.getConfigPath()));
+            let mut current_json: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(crate::de::hysky::skyblocker::config::skyblocker_config_manager::SkyblockerConfigManager::get_config_path()).expect("IOException")).unwrap_or_else(|e| panic!("JsonSyntaxException: {e}"));
             let mut diffs: std::collections::HashSet<String> = std::collections::HashSet::new();
-            SettingsListWidget::find_diffs(__this, "".to_string(), &backup_json, &current_json, &mut diffs);
-            // TODO(fabric2seer): `changedPaths` is a field of the enclosing instance (ConfigBackupScreen.this) - an inner class has no outer reference in Rust
-            //   java: changedPaths = diffs;
+            SettingsListWidget::find_diffs(__this, "".to_string(), &backup_json, Some(&current_json), &mut diffs);
+            // java: changedPaths = diffs;
+            compat::read(__this, |__t| *__t.changed_paths.lock().unwrap_or_else(|p| p.into_inner()) = diffs.clone());
             let mut lines: Vec<JsonLine> = Vec::new();
             SettingsListWidget::format_json(__this, None, &backup_json, "", 0, true, &mut lines);
             for l in lines.iter() {
-                let __entry = StringEntry::new(l.text.clone(), l.path.clone());
+                let __entry = StringEntry::new(l.text.clone(), l.path.clone(), compat::read(__this, |__t| __t.changed_paths.clone()));
                 compat::write(__this, |__t| { let __l = &mut __t.base; (__l.add_entry(Box::new(compat::EntryAdapter::new(__entry))) as i32) });
             }
         }));
@@ -441,23 +459,26 @@ impl SettingsListWidget {
     }
 
     /// java: private void findDiffs(String pathPrefix, JsonElement backup, JsonElement current, Set<String> diffs)
-    pub fn find_diffs(__this: &compat::Shared<Self>, mut path_prefix: String, backup: &serde_json::Value, current: &serde_json::Value, diffs: &mut std::collections::HashSet<String>) {
-        if false /* java: backup == null: never null here */ {
-            return;
-        }
-        // TODO(fabric2seer): the condition: JsonElement.equals
-        //   java: !backup.equals(current)
-        if todo!("fabric2seer: the condition (TODO above)") {
-            if compat::json::is_object(&backup) && true /* java: current != null: never null here */ && compat::json::is_object(&current) {
+    pub fn find_diffs(__this: &compat::Shared<Self>, mut path_prefix: String, backup: &serde_json::Value, current: Option<&serde_json::Value>, diffs: &mut std::collections::HashSet<String>) {
+        // (`backup == null` cannot happen: every caller hands an element; `current` is Java's nullable `JsonElement` - a
+        // missing key or index - which no JSON value equals)
+        // java: if (!backup.equals(current)) - JsonElement equality is structural
+        if current != Some(backup) {
+            if backup.is_object() && current.is_some_and(|c| c.is_object()) {
+                let current = current.unwrap();
                 for entry in compat::json::get_as_json_object(&backup).iter().map(|(k, v)| (k.clone(), v.clone())) {
                     let mut next: String = (if path_prefix.is_empty() { entry.0.clone() } else { format!("{}.{}", path_prefix, entry.0) });
-                    SettingsListWidget::find_diffs(__this, next.clone(), &entry.1, &compat::json::get_as_json_object(&current).get(&entry.0).cloned().unwrap(), diffs);
+                    // java: current.getAsJsonObject().get(entry.getKey()) - null for a key the current config lacks
+                    SettingsListWidget::find_diffs(__this, next.clone(), &entry.1, current.get(&entry.0), diffs);
                 }
-            } else if compat::json::is_array(&backup) && true /* java: current != null: never null here */ && compat::json::is_array(&current) {
-                for i in 0..(compat::json::get_as_json_array(&backup).len() as i32) {
+            } else if backup.is_array() && current.is_some_and(|c| c.is_array()) {
+                let backup_array = backup.as_array().unwrap();
+                let current_array = current.unwrap().as_array().unwrap();
+                for i in 0..backup_array.len() {
                     let mut next: String = format!("{}[{}]", path_prefix, i);
-                    let mut curr: serde_json::Value = (if i < (compat::json::get_as_json_array(&current).len() as i32) { Some(compat::json::get_as_json_array(&current)[(i) as usize].clone()) } else { None }).unwrap();
-                    SettingsListWidget::find_diffs(__this, next.clone(), &compat::json::get_as_json_array(&backup)[(i) as usize], &curr, diffs);
+                    // java: JsonElement curr = i < current.getAsJsonArray().size() ? current.getAsJsonArray().get(i) : null;
+                    let curr: Option<&serde_json::Value> = current_array.get(i);
+                    SettingsListWidget::find_diffs(__this, next.clone(), &backup_array[i], curr, diffs);
                 }
             } else {
                 diffs.insert(path_prefix.clone());
@@ -496,7 +517,9 @@ impl SettingsListWidget {
 
     /// java: @Override protected void extractScrollbar(GuiGraphicsExtractor context, int mouseX, int mouseY)
     pub fn extract_scrollbar(__this: &compat::Shared<Self>, context: &mut GuiGraphicsExtractor, mut mouse_x: i32, mut mouse_y: i32) {
-        // TODO(fabric2seer): `ContainerObjectSelectionList.extractScrollbar` has no Rust method in the port (looked for `extract_scrollbar` in ContainerObjectSelectionList and its supertypes)
+        // java: super.extractScrollbar(context, mouseX, mouseY);
+        // rust: port gap - the game draws a mod list's scrollbar itself and `ModList` has no `extractScrollbar` slot, so
+        // neither this override nor its `super` call is dispatched from the game's frame (GAPS_L.md)
         // rust: __this.lock().borrow_mut().base.list.extract_scrollbar(context, mouse_x, mouse_y);
         if __this.lock().borrow().scrollable() {
             let mut scroll_bar_x: i32 = __this.lock().borrow().scroll_bar_x();
@@ -505,9 +528,9 @@ impl SettingsListWidget {
             let mut scrollbar_thumb_height: i32 = __this.lock().borrow().scroller_height();
             for i in 0..((compat::write(__this, |__t| { let __l = &mut __t.base; compat::list_entries::<StringEntry>(__l) })).len() as i32) {
                 let mut entry: compat::Shared<StringEntry> = (compat::write(__this, |__t| { let __l = &mut __t.base; compat::list_entries::<StringEntry>(__l) }))[(i) as usize].clone();
-                // TODO(fabric2seer): the condition: `changedPaths` is a field of the enclosing instance (ConfigBackupScreen.this) - an inner class has no outer reference in Rust
-                //   java: entry.path != null && changedPaths.contains(entry.path)
-                if todo!("fabric2seer: the condition (TODO above)") {
+                // java: entry.path != null && changedPaths.contains(entry.path)
+                let __path: Option<String> = compat::read(&entry, |__t| __t.path.clone());
+                if __path.as_ref().is_some_and(|p| compat::read(__this, |__t| __t.changed_paths.lock().unwrap_or_else(|e| e.into_inner()).contains(p))) {
                     let mut entry_y: i32 = (4i32.wrapping_add(i.wrapping_mul(compat::read(__this, |__t| __t.default_entry_height)))).wrapping_add(__this.lock().borrow().get_y());
                     let mut bar_y: i32 = (((entry_y.wrapping_mul(((compat::read(__this, |__t| __t.height)).wrapping_sub(scrollbar_thumb_height)).wrapping_sub(2))).wrapping_div(total_height.wrapping_sub(compat::read(__this, |__t| __t.default_entry_height)))).wrapping_add(list_widget_y)).wrapping_add(scrollbar_thumb_height.wrapping_div(2));
                     context.fill(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), scroll_bar_x, bar_y, scroll_bar_x.wrapping_add(6), bar_y.wrapping_add(2), 0xFFFFFF55u32 as i32);
@@ -571,6 +594,8 @@ pub struct StringEntry {
     pub text: String,
     /// java: private final @Nullable String path;
     pub path: Option<String>,
+    /// `ConfigBackupScreen.this.changedPaths` - the enclosing screen's field (an inner class)
+    pub changed_paths: std::sync::Arc<std::sync::Mutex<std::collections::HashSet<String>>>,
     /// the row's widgets (`children()`): lent to the object by its `compat::EntryAdapter`
     pub __row: mcrust::net::minecraft::client::gui::screens::screen::Screen,
     /// the screen's widgets as this object last saw them (see `compat::WidgetCache`)
@@ -592,7 +617,7 @@ impl std::ops::DerefMut for StringEntry {
 
 impl StringEntry {
     /// java: StringEntry(String text, @Nullable String path)
-    pub fn new(mut text: String, mut path: Option<String>) -> compat::Shared<Self> {
+    pub fn new(mut text: String, mut path: Option<String>, changed_paths: std::sync::Arc<std::sync::Mutex<std::collections::HashSet<String>>>) -> compat::Shared<Self> {
         let __init_text = text.clone();
         let __init_path = path.clone();
         let __this = compat::shared(Self {
@@ -601,6 +626,7 @@ impl StringEntry {
             __row: mcrust::net::minecraft::client::gui::screens::screen::Screen::new(String::new()),
             text: __init_text,
             path: __init_path,
+            changed_paths,
         });
         __this
     }
@@ -618,13 +644,13 @@ impl StringEntry {
     /// java: @Override public void extractContent(GuiGraphicsExtractor graphics, int mouseX, int mouseY, boolean hovered, float deltaTicks)
     pub fn extract_content(__this: &compat::Shared<Self>, graphics: &GuiGraphicsExtractor, mut mouse_x: i32, mut mouse_y: i32, mut hovered: bool, mut delta_ticks: f32) {
         let mut color: i32 = 0xFFFFFFFFu32 as i32;
-        // TODO(fabric2seer): the condition: `changedPaths` is a field of the enclosing instance (ConfigBackupScreen.this) - an inner class has no outer reference in Rust
-        //   java: path != null && changedPaths.contains(path)
-        if todo!("fabric2seer: the condition (TODO above)") {
+        // java: path != null && changedPaths.contains(path)
+        if compat::read(__this, |__t| __t.path.as_ref().is_some_and(|p| __t.changed_paths.lock().unwrap_or_else(|e| e.into_inner()).contains(p))) {
             color = 0xFFFFFF55u32 as i32;
         }
-        // TODO(fabric2seer): unknown name `font`
-        //   java: graphics.text(font, text, this.getX() + 2, this.getY() + 2, color, false);
+        // java: graphics.text(font, text, this.getX() + 2, this.getY() + 2, color, false);
+        let (__text, __x, __y) = compat::read(__this, |__t| (__t.text.clone(), __t.base.get_x(), __t.base.get_y()));
+        mcrust::net::minecraft::client::gui::gui_graphics_extractor::draw_formatted_text_no_shadow(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), __x + 2, __y + 2, &mcrust::net::minecraft::network::chat::formatted_text::FormattedText::of(__text), color);
     }
 
 }

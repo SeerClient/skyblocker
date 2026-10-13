@@ -179,10 +179,9 @@ impl SkyblockerCreditsScreen {
 
     /// java: @Override public void tick()
     pub fn tick(__this: &compat::Shared<Self>) {
-        // TODO(fabric2seer): `tick` takes 3 argument(s) in the port (`ctx: &mut MusicContext<'_>, music_volume: f32, level_loading_screen: bool`), Java passes 0
-        // rust: compat::minecraft().get_music_manager().tick();
-        // TODO(fabric2seer): `tick` takes 4 argument(s) in the port (`_al: &OpenAl, library: &mut Library, options: &OptionsData, paused: bool`), Java passes 1
-        // rust: compat::minecraft().get_sound_manager().tick(&false);
+        // java: Minecraft.getInstance().getMusicManager().tick(); Minecraft.getInstance().getSoundManager().tick(false);
+        // rust: port gap - the music and sound managers tick inside the game's frame loop with state a mod is not lent
+        // (`MusicContext`, the OpenAL library, the options): a mod screen cannot tick them (GAPS_L.md)
         let mut max_scroll: f32 = (((((compat::read(__this, |__t| __t.total_scroll_length)).wrapping_add(compat::read(__this, |__t| __t.height))).wrapping_add(compat::read(__this, |__t| __t.height))).wrapping_add(24)) as f32) as f32;
         if compat::read(__this, |__t| __t.scroll) > max_scroll {
             SkyblockerCreditsScreen::on_close(__this);
@@ -222,11 +221,8 @@ impl SkyblockerCreditsScreen {
     pub fn init(__this: &compat::Shared<Self>) {
         if __this.lock().borrow().lines.is_empty() {
             let mut credits: Credits = SkyblockerCreditsScreen::read_credits_file(__this);
-            // TODO(fabric2seer): `ModMetadata.getContributors` (the loader's ModMetadata)
-            //   java: List<String> contributors = SkyblockerMod.SKYBLOCKER_MOD.getMetadata().getContributors().stream()
-            //   java: 					.map(Person::getName)
-            //   java: 					.toList();
-            let mut contributors: Vec<String> = todo!("fabric2seer: the initialiser of `contributors` (TODO above)");
+            // java: List<String> contributors = SkyblockerMod.SKYBLOCKER_MOD.getMetadata().getContributors().stream().map(Person::getName).toList();
+            let mut contributors: Vec<String> = skyblocker_mod::SKYBLOCKER_MOD.get().metadata.contributors.iter().map(|person| person.name.clone()).collect();
             SkyblockerCreditsScreen::add_credits_line(__this, SECTION_HEADING.get_mut().clone(), true, false);
             SkyblockerCreditsScreen::add_credits_line(__this, component::literal("Authors").with_style_format(ChatFormatting::Yellow), true, true);
             SkyblockerCreditsScreen::add_credits_line(__this, SECTION_HEADING.get_mut().clone(), true, false);
@@ -389,9 +385,10 @@ impl SkyblockerCreditsScreen {
     /// java: @Override protected void extractMenuBackground(GuiGraphicsExtractor graphics, int x, int y, int width, int height)
     pub fn extract_menu_background(__this: &compat::Shared<Self>, graphics: &GuiGraphicsExtractor, mut x: i32, mut y: i32, mut width: i32, mut height: i32) {
         let mut v: f32 = (compat::read(__this, |__t| __t.scroll) * 0.5f32);
-        // TODO(fabric2seer): static `Screen.MENU_BACKGROUND` has no Rust counterpart in the port's Screen file
-        // TODO(fabric2seer): static `Screen.extractMenuBackgroundTexture` has no Rust counterpart in the port
-        // rust: Screen::extract_menu_background_texture(graphics.clone(), mcrust::net::minecraft::client::gui::screens::screen::Screen::MENU_BACKGROUND.clone(), 0, 0, 0.0f32, v, width, height);
+        // java: Screen.extractMenuBackgroundTexture(graphics, Screen.MENU_BACKGROUND, 0, 0, 0.0F, v, width, height);
+        // (`MENU_BACKGROUND` is the texture the game holds as `Minecraft.tex_menu_background`)
+        let minecraft = compat::minecraft();
+        gui_graphics_extractor::extract_menu_background_texture(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*minecraft, &minecraft.tex_menu_background, 0, 0, 0.0f32, v, width, height);
     }
 
     /// java: @Override public void onClose()
@@ -401,9 +398,8 @@ impl SkyblockerCreditsScreen {
 
     /// java: @Override public void removed()
     pub fn removed(__this: &compat::Shared<Self>) {
-        // TODO(fabric2seer): the port's `stop_playing_music` ports this Java method with other parameters (ctx, music for Java's music)
-        // TODO(fabric2seer): `stop_playing_music` takes 2 argument(s) in the port (`ctx: &mut MusicContext<'_>, music: &Music`), Java passes 1
-        // rust: compat::minecraft().get_music_manager().stop_playing_music(SKYBLOCKER_CREDITS_MUSIC.get_mut());
+        // java: Minecraft.getInstance().getMusicManager().stopPlayingMusic(SKYBLOCKER_CREDITS_MUSIC);
+        // rust: port gap - `stopPlayingMusic` needs the frame loop's `MusicContext`, which a mod is not lent (GAPS_L.md)
     }
 
     /// java: @Override public Music getBackgroundMusic()
@@ -564,8 +560,11 @@ impl Author {
     /// java: public Component asText()
     pub fn as_text(&self) -> MutableComponent {
         let mut profile: ResolvableProfile = ResolvableProfile::create_unresolved_id(self.uuid.clone()).unwrap();
-        // TODO(fabric2seer): `Minecraft.playerSkinRenderCache` has no Rust method in the port (looked for `player_skin_render_cache` in Minecraft and its supertypes)
-        // rust: compat::minecraft().player_skin_render_cache().lookup(&profile);
+        // java: Minecraft.getInstance().playerSkinRenderCache().lookup(profile); - starts the skin fetch (the port keeps the
+        // cache on the game renderer, set once the renderer is built)
+        if let Some(cache) = compat::minecraft().game_renderer.player_skin_render_cache.as_ref() {
+            let _ = cache.lookup(&profile);
+        }
         return (component::empty().append(component::object(Arc::new(PlayerSprite::new(profile, true))))).append((component::literal(&format!(" {}", self.name))).with_color(self.colour));
     }
 

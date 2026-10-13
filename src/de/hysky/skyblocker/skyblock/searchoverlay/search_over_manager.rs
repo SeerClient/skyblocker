@@ -28,7 +28,9 @@ use mcrust::net::minecraft::util::thread::task_scheduler::TaskScheduler as _;
 /// java: private static final String PET_NAME_START = "[Lvl {LVL}] ";
 pub const PET_NAME_START: &str = "[Lvl {LVL}] ";
 /// java: private static @Nullable SignBlockEntity sign = null;
-pub static SIGN: compat::MainThread<Option<SignBlockEntity>> = compat::MainThread::new(|| None);
+///
+/// The level's own block entity (the same object Java keeps), as the open-sign-editor arm hands it on.
+pub static SIGN: compat::MainThread<Option<std::sync::Arc<dyn mcrust::net::minecraft::world::level::block::entity::block_entity::BlockEntityObj>>> = compat::MainThread::new(|| None);
 /// java: private static boolean signFront = true;
 pub static SIGN_FRONT: LazyLock<Mutex<bool>> = LazyLock::new(|| Mutex::new(true));
 /// java: private static boolean isCommand;
@@ -188,9 +190,9 @@ impl SearchOverManager {
         if !item_name.is_empty() {
             SearchOverManager::update_search(item_name.to_string());
         }
-        // TODO(fabric2seer): a lambda for a parameter the port does not type as a closure (`R`)
-        // TODO(fabric2seer): `schedule` is a method of the port's trait `TaskScheduler`, which the port's `Minecraft` does not implement
-        // rust: compat::minecraft().schedule(|| mcrust::mcrust::modding::game::set_screen(Box::new(compat::ScreenAdapter::new(OverlayScreen::new()))));
+        //   java: CLIENT.schedule(() -> CLIENT.gui.setScreen(new OverlayScreen()));
+        // (`Minecraft.schedule` queues the task for the client loop: the port's `minecraft::execute`)
+        mcrust::net::minecraft::client::minecraft::execute(Box::new(|_minecraft| mcrust::mcrust::modding::game::set_screen(Box::new(compat::ScreenAdapter::new(OverlayScreen::new())))));
         return 1;
     }
 
@@ -220,9 +222,8 @@ impl SearchOverManager {
                     let Some(mut neu_item) = NEURepoManager::get_item_by_neu_id(&neu_id) else {
                         continue;
                     };
-                    // TODO(fabric2seer): `.getLore(..)` on a NEUItem
                     //   java: String name = ChatFormatting.stripFormatting(EnchantedBookUtils.getEnchantNameFromLore(neuItem.getLore()));
-                    let mut name: String = todo!("fabric2seer: the initialiser of `name` (TODO above)");
+                    let mut name: String = mcrust::net::minecraft::chat_formatting::strip_formatting(&crate::de::hysky::skyblocker::utils::enchanted_book_utils::EnchantedBookUtils::get_enchant_name_from_lore(&neu_item_lore(&neu_item)));
                     bazaar_items.insert(name.clone());
                     names_to_neu_id.insert(name.clone(), neu_id.clone());
                     continue;
@@ -232,9 +233,8 @@ impl SearchOverManager {
                 }
                 let mut neu_item: Option<crate::unresolved::NEUItem> = NEURepoManager::get_item_by_neu_id(&id);
                 if let Some(neu_item) = &neu_item {
-                    // TODO(fabric2seer): `.getDisplayName(..)` on a NEUItem
                     //   java: String name = ChatFormatting.stripFormatting(neuItem.getDisplayName());
-                    let mut name: String = todo!("fabric2seer: the initialiser of `name` (TODO above)");
+                    let mut name: String = mcrust::net::minecraft::chat_formatting::strip_formatting(&neu_item_display_name(neu_item));
                     bazaar_items.insert(name.clone());
                     names_to_neu_id.insert(name.clone(), id.clone());
                 }
@@ -245,39 +245,39 @@ impl SearchOverManager {
         }
         // java: try {..} catch (Exception e) - an exception here is a panic, caught by `catch_unwind`
         let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            // TODO(fabric2seer): `.getEssenceCost(..)` on a NEUConstants
             //   java: Set<@NEUId String> essenceCosts = NEURepoManager.getConstants().getEssenceCost().getCosts().keySet();
-            let mut essence_costs: std::collections::HashSet<String> = todo!("fabric2seer: the initialiser of `essenceCosts` (TODO above)");
+            let essence_costs: std::collections::HashSet<String> = neu_constants_essence_cost_ids();
             if tooltip_info_type::THREE_DAY_AVERAGE.get_mut().lock().borrow().get_data().is_none() {
                 tooltip_info_type::THREE_DAY_AVERAGE.get_mut().lock().borrow_mut().run();
             }
-            // TODO(fabric2seer): `.object2DoubleEntrySet(..)` on a T
             //   java: for (Object2DoubleMap.Entry<String> entry : TooltipInfoType.THREE_DAY_AVERAGE.getData().object2DoubleEntrySet()) {
-            //   java: 				String id = entry.getKey();
-            //   java: 				id = ItemUtils.getNeuIdFromApiId(id);
-            //   java: 				//look up in NEU repo.
-            //   java: 				String[] parts = id.split("[+-]");
-            //   java: 				id = parts[0];
-            //   java: 				NEUItem neuItem = NEURepoManager.getItemByNeuId(id);
-            //   java: 				if (neuItem != null) {
-            //   java: 					String name = ChatFormatting.stripFormatting(neuItem.getDisplayName());
-            //   java: 					//add names that are pets to the list of pets to work with the lvl 100 button
-            //   java: 					if (name != null && name.startsWith(PET_NAME_START)) {
-            //   java: 						name = name.replace(PET_NAME_START, "");
-            //   java: 						String petName = name.toLowerCase(Locale.ENGLISH);
-            //   java: 						auctionPets.add(petName);
-            //   java: 						if (parts.length >= 2 && parts[1].equals("200")) {
-            //   java: 							level200Pets.add(petName);
-            //   java: 						}
-            //   java: 					}
-            //   java: 					//if it has essence cost add to starable items
-            //   java: 					if (name != null && essenceCosts.contains(neuItem.getSkyblockItemId())) {
-            //   java: 						starableItems.add(name.toLowerCase(Locale.ENGLISH));
-            //   java: 					}
-            //   java: 					auctionItems.add(name);
-            //   java: 					namesToNeuId.put(name, id);
-            //   java: 				}
-            //   java: 			}
+            let three_day_average: std::collections::HashMap<String, f64> = tooltip_info_type::THREE_DAY_AVERAGE.get_mut().lock().borrow().get_data().expect("NullPointerException: THREE_DAY_AVERAGE.getData()");
+            for (key, _) in three_day_average.iter() {
+                let mut id: String = key.clone();
+                id = crate::de::hysky::skyblocker::utils::item_utils::ItemUtils::get_neu_id_from_api_id(&id);
+                //look up in NEU repo.
+                let parts: Vec<String> = compat::regex::split(&id, "[+-]");
+                id = parts[0].clone();
+                let neu_item: Option<crate::unresolved::NEUItem> = NEURepoManager::get_item_by_neu_id(&id);
+                if let Some(neu_item) = &neu_item {
+                    let mut name: String = mcrust::net::minecraft::chat_formatting::strip_formatting(&neu_item_display_name(neu_item));
+                    //add names that are pets to the list of pets to work with the lvl 100 button
+                    if name.starts_with(PET_NAME_START) {
+                        name = name.replace(PET_NAME_START, "");
+                        let pet_name: String = name.to_lowercase();
+                        auction_pets.insert(pet_name.clone());
+                        if parts.len() >= 2 && parts[1] == "200" {
+                            level200_pets.insert(pet_name.clone());
+                        }
+                    }
+                    //if it has essence cost add to starable items
+                    if essence_costs.contains(&neu_item_skyblock_item_id(neu_item)) {
+                        starable_items.insert(name.to_lowercase());
+                    }
+                    auction_items.insert(name.clone());
+                    names_to_neu_id.insert(name.clone(), id.clone());
+                }
+            }
         }));
         if let Err(e) = __result {
             logger().error(&format!("[Skyblocker] Failed to load auction house item list! "));
@@ -301,14 +301,14 @@ impl SearchOverManager {
     }
 
     /// java: public static void updateSign(SignBlockEntity sign, boolean front, SearchLocation location)
-    pub fn update_sign(mut sign: SignBlockEntity, mut front: bool, mut location: SearchLocation) {
+    pub fn update_sign(sign: std::sync::Arc<dyn mcrust::net::minecraft::world::level::block::entity::block_entity::BlockEntityObj>, mut front: bool, mut location: SearchLocation) {
         compat::set_state(&SIGN_FRONT, front);
-        // TODO(fabric2seer): the mod keeps the game's `SignBlockEntity` (Java holds a reference to the live object); the port's `SignBlockEntity` is not a value to copy and the port lends the mod no handle to it
-        // rust: *SIGN.get_mut() = Some(sign.clone());
+        //   java: SearchOverManager.sign = sign; - the same object
+        *SIGN.get_mut() = Some(sign);
         compat::set_state(&IS_COMMAND, false);
         compat::set_state(&LOCATION, location);
         if SkyblockerConfigManager::get().ui_and_visuals.search_overlay.keep_previous_searches {
-            let mut messages: Vec<MutableComponent> = SIGN.get_mut().as_ref().unwrap().get_text(compat::get_state(&SIGN_FRONT)).get_messages(compat::minecraft().is_text_filtering_enabled()).iter().cloned().map(compat::component_of).collect::<Vec<_>>();
+            let mut messages: Vec<MutableComponent> = SIGN.get_mut().as_ref().unwrap().as_sign().expect("ClassCastException: SignBlockEntity").get_text(compat::get_state(&SIGN_FRONT)).get_messages(compat::minecraft().is_text_filtering_enabled()).iter().cloned().map(compat::component_of).collect::<Vec<_>>();
             compat::set_state(&SEARCH, (messages[(0) as usize]).get_string());
             if !(((messages[(1) as usize]).get_string()).is_empty()) {
                 if !(compat::lock(&SEARCH).ends_with(" ")) {
@@ -579,9 +579,14 @@ impl SearchOverManager {
     pub fn push_sign() {
         let mut split: (String, String) = SearchOverManager::split_string(&compat::get_state(&SEARCH));
         if mcrust::mcrust::modding::game::with_player(|_| ()).is_some() && SIGN.get_mut().is_some() {
-            let mut messages: Vec<MutableComponent> = SIGN.get_mut().as_ref().unwrap().get_text(compat::get_state(&SIGN_FRONT)).get_messages(compat::minecraft().is_text_filtering_enabled()).iter().cloned().map(compat::component_of).collect::<Vec<_>>();
-            // TODO(fabric2seer): `ClientPacketListener.send` has no Rust method in the port (looked for `send` in ClientPacketListener and its supertypes)
-            // rust: mcrust::mcrust::modding::game::with_player(|player| { player.connection.as_ref().unwrap().send(&ServerboundSignUpdatePacket::new(SIGN.get_mut().as_ref().unwrap().get_block_pos(), compat::get_state(&SIGN_FRONT), split.0.clone(), split.1.clone(), (messages[(2) as usize]).get_string(), (messages[(3) as usize]).get_string())); });
+            let mut messages: Vec<MutableComponent> = SIGN.get_mut().as_ref().unwrap().as_sign().expect("ClassCastException: SignBlockEntity").get_text(compat::get_state(&SIGN_FRONT)).get_messages(compat::minecraft().is_text_filtering_enabled()).iter().cloned().map(compat::component_of).collect::<Vec<_>>();
+            //   java: CLIENT.player.connection.send(new ServerboundSignUpdatePacket(sign.getBlockPos(), signFront, split.left(), split.right(), messages[2].getString(), messages[3].getString()));
+            // (`connection.send` from the client thread: the play connection's own hand-off, `client_advancements::send`)
+            let __pos = SIGN.get_mut().as_ref().unwrap().as_sign().expect("ClassCastException: SignBlockEntity").get_block_pos();
+            let __packet = mcrust::net::minecraft::network::protocol::game::serverbound_sign_update_packet::ServerboundSignUpdatePacket::new(__pos, compat::get_state(&SIGN_FRONT), split.0.clone(), split.1.clone(), (messages[(2) as usize]).get_string(), (messages[(3) as usize]).get_string());
+            if let Some(__sinks) = mcrust::net::minecraft::client::multiplayer::client_packet_listener::published_play_sinks() {
+                mcrust::net::minecraft::client::multiplayer::client_advancements::send(&__sinks.connection, __packet);
+            }
         }
     }
 
@@ -648,4 +653,33 @@ impl std::fmt::Display for SearchLocation {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(self.name())
     }
+}
+
+// The NEU repo library's item / constants accessors this class reads.
+//
+// rust: port gap - the NEU repo library (`io.github.moulberry.repo`) is `crate::unresolved` placeholders: a `NEUItem`
+// carries no data and `NEURepoManager.getItemByNeuId` answers none (GAPS_L, GAPS_J #5, GAPS_M #10).
+
+/// `neuItem.getLore()`.
+fn neu_item_lore(item: &crate::unresolved::NEUItem) -> Vec<String> {
+    let _ = item;
+    Vec::new()
+}
+
+/// `neuItem.getDisplayName()`.
+fn neu_item_display_name(item: &crate::unresolved::NEUItem) -> String {
+    let _ = item;
+    String::new()
+}
+
+/// `neuItem.getSkyblockItemId()`.
+fn neu_item_skyblock_item_id(item: &crate::unresolved::NEUItem) -> String {
+    let _ = item;
+    String::new()
+}
+
+/// `NEURepoManager.getConstants().getEssenceCost().getCosts().keySet()`.
+fn neu_constants_essence_cost_ids() -> std::collections::HashSet<String> {
+    let _ = NEURepoManager::get_constants();
+    std::collections::HashSet::new()
 }

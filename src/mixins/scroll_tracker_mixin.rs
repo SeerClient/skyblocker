@@ -23,5 +23,9 @@ fn skyblocker_include_grid_tooltip_components(ci: &mut CallbackInfo<'_>) {
 
 /// Mixins apply before the game runs: the `preLaunch` entrypoint calls this.
 pub fn register() {
+    // `MixinPlugin.shouldApplyMixin` (the mod's `IMixinConfigPlugin`) decides whether this mixin is applied at all.
+    if !crate::de::hysky::skyblocker::compatibility::mixin_plugin::MixinPlugin::new().should_apply_mixin("dev.isxander.adaptivetooltips.helpers.ScrollTracker", "de.hysky.skyblocker.mixins.adaptivetooltips.ScrollTrackerMixin") {
+        return;
+    }
     // TODO(fabric2seer): @ModifyExpressionValue skyblocker$includeGridTooltipComponents: nothing to register - @ModifyExpressionValue at @At("CONSTANT"): only a CALL (@At("INVOKE")) has a call-site injector (`hook::call_site`); a local, a field, a constant or `new` has no injection point
 }

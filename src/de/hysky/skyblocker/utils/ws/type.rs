@@ -5,10 +5,9 @@ use crate::prelude::*;
 use mcrust::com::mojang::serialization::codec::Codec;
 use mcrust::com::mojang::serialization::codec::CodecRef;
 
-// TODO(fabric2seer): `from_values` takes 2 argument(s) in the port (`values: Vec<E>, serialized_name: impl Fn(&E) -> String + Send + Sync + Copy + 'static`), Java passes 1
 //   java: public static final Codec<Type> CODEC = StringRepresentable.fromValues(Type::values);
 /// java: public static final Codec<Type> CODEC = StringRepresentable.fromValues(Type::values);
-pub static CODEC: compat::MainThread<CodecRef<Type>> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `CODEC` - see the TODO above"));
+pub static CODEC: compat::MainThread<CodecRef<Type>> = compat::MainThread::new(|| mcrust::net::minecraft::util::string_representable::from_values(Type::values(), |r#type: &Type| r#type.get_serialized_name()));
 
 /// java: public enum Type implements StringRepresentable
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]

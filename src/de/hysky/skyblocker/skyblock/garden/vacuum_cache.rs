@@ -30,15 +30,17 @@ impl VacuumCache {
     pub fn init() {
         CACHED_VINYL.get_mut().lock().borrow_mut().load();
         screen_events::BEFORE_INIT.register(Arc::new(|screen: &mut Screen, width: i32, height: i32| {
-            // TODO(fabric2seer): an `instanceof` pattern under `||` / `!`
-            //   java: if (!Utils.isOnSkyblock() || !(screen instanceof ContainerScreen containerScreen)) {
-            //   java: 				return;
-            //   java: 			}
-            // TODO(fabric2seer): the condition: unknown name `containerScreen`
-            //   java: !containerScreen.getTitle().getString().equals("Stereo Harmony")
-            if todo!("fabric2seer: the condition (TODO above)") {
+            // java: if (!Utils.isOnSkyblock() || !(screen instanceof ContainerScreen containerScreen)) { return; }
+            // (`instanceof ContainerScreen`: the open screen's kind - batch G pattern 2)
+            if !Utils::is_on_skyblock() || !matches!(compat::minecraft().gui.screen_kind, mcrust::net::minecraft::client::gui::gui::ScreenKind::Container) {
                 return;
             }
+            // java: if (!containerScreen.getTitle().getString().equals("Stereo Harmony")) { return; }
+            if screen.get_title().to_string() != "Stereo Harmony" {
+                return;
+            }
+            // rust: port gap (GAPS_batchG #2) - `ScreenEvents.remove(screen)`: no per-screen remove event, so
+            // `update(containerScreen)` is never called
             // TODO(fabric2seer): ScreenEvents.remove(..).register: no SeerClient equivalent yet
             //   java: ScreenEvents.remove(screen).register(_ -> VacuumCache.update(containerScreen));
         }));
@@ -46,7 +48,9 @@ impl VacuumCache {
 
     /// java: private static void update(ContainerScreen containerScreen)
     pub fn update(container_screen: &ContainerScreen) {
-        // TODO(fabric2seer): field `slots` of a value of unknown type
+        // rust: port gap (GAPS_batchG #2) - `containerScreen.getMenu().slots` of the vanilla screen OBJECT: by the time
+        // Java's remove event fires the player's `containerMenu` is already the inventory again, so only the screen's
+        // own menu reference has these slots, and the port lends a listener no vanilla screen object. No caller (above).
         //   java: for (Slot slot : containerScreen.getMenu().slots) {
         //   java: 			ItemStack stack = slot.getItem();
         //   java:

@@ -160,8 +160,11 @@ impl ReorderHelper {
                 matcher = ItemUtils::get_lore_line_if_contains_match(stack, &BUY_PATTERN);
             }
             if let Some(matcher) = &matcher {
-                // TODO(fabric2seer): `set_clipboard` takes 2 argument(s) in the port (`clipboard: &mut dyn ClipboardAccess, value: &str`), Java passes 1
-                // rust: compat::minecraft().keyboard_handler.set_clipboard(&mut matcher.group(1).unwrap().replace(",", ""));
+                // java: client.keyboardHandler.setClipboard(matcher.group(1).replace(",", ""));
+                let value: String = matcher.group(1).unwrap().replace(",", "");
+                if let Some(mut clipboard) = mcrust::net::minecraft::client::minecraft::GlfwClipboard::published() {
+                    compat::minecraft().keyboard_handler.set_clipboard(&mut clipboard, &value);
+                }
                 return false;
             }
         }

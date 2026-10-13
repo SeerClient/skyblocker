@@ -11,10 +11,10 @@ use crate::entry::skyblocker_mod;
 use mcrust::java::text::decimal_format::DecimalFormat;
 use mcrust::java::util::concurrent::completable_future::CompletableFuture;
 
-// TODO(fabric2seer): `new` takes 2 argument(s) in the port (`pattern: &str, symbols: DecimalFormatSymbols`), Java passes 1
-//   java: public static final DecimalFormat DECIMAL_FORMAT = new DecimalFormat("###,###.##");
 /// java: public static final DecimalFormat DECIMAL_FORMAT = new DecimalFormat("###,###.##");
-pub static DECIMAL_FORMAT: compat::MainThread<DecimalFormat> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `DECIMAL_FORMAT` - see the TODO above"));
+pub static DECIMAL_FORMAT: compat::MainThread<DecimalFormat> = compat::MainThread::new(|| DecimalFormat::new("###,###.##", mcrust::java::text::decimal_format_symbols::get_instance(mcrust::java::text::decimal_format_symbols::Locale::Us)));
+// (`new DecimalFormat(pattern)` takes the default locale's symbols; the port models no default locale and the mod's
+// other formatters use US - the same CLDR grouping and decimal symbols as ROOT)
 /// java: public static CompletableFuture<Void> updateTask;
 pub static UPDATE_TASK: compat::MainThread<Option<mcrust::java::util::concurrent::completable_future::CompletableFuture<()>>> = compat::MainThread::new(|| None);
 /// java: public static long startTimeStamp;
@@ -88,17 +88,14 @@ impl DiscordRPCManager {
 
     /// java: public static RichPresence buildPresence()
     pub fn build_presence() -> crate::unresolved::RichPresence {
-        // TODO(fabric2seer): `new RichPresence(..)`
         //   java: RichPresence presence = new RichPresence();
-        let mut presence: crate::unresolved::RichPresence = todo!("fabric2seer: the initialiser of `presence` (TODO above)");
-        // TODO(fabric2seer): `.setLargeImage(..)` on a RichPresence
         //   java: presence.setLargeImage("skyblocker-default", null);
-        // TODO(fabric2seer): `.setStart(..)` on a RichPresence
         //   java: presence.setStart(startTimeStamp);
-        // TODO(fabric2seer): `.setDetails(..)` on a RichPresence
         //   java: presence.setDetails(SkyblockerConfigManager.get().misc.richPresence.customMessage);
-        // TODO(fabric2seer): `.setState(..)` on a RichPresence
         //   java: presence.setState(getInfo());
+        // rust: port gap - the Discord IPC library (`meteordevelopment.discordipc`) is a `crate::unresolved` placeholder
+        // (`RichPresence` has no fields to set, and no IPC client sends it; GAPS_M #19): the presence is the placeholder.
+        let presence: crate::unresolved::RichPresence = crate::unresolved::RichPresence;
         return presence;
     }
 

@@ -35,17 +35,22 @@ use crate::de::hysky::skyblocker::skyblock::slayers::features::slayer_miniboss_s
 use crate::de::hysky::skyblocker::utils::chat::chat_filter_result::ChatFilterResult;
 use mcrust::net::minecraft::network::chat::mutable_component::MutableComponent;
 
-// TODO(fabric2seer): Fabric API `EventFactory.createArrayBacked` has no SeerClient equivalent
-//   java: Event<ChatMessageListener> EVENT = EventFactory.createArrayBacked(ChatMessageListener.class,
-//   java: 			listeners -> (message, asString) -> {
-//   java: 				for (ChatMessageListener listener : listeners) {
-//   java: 					ChatFilterResult result = listener.onMessage(message, asString);
-//   java: 					if (result != ChatFilterResult.PASS) return result;
-//   java: 				}
-//   java: 				return ChatFilterResult.PASS;
-//   java: 			});
-/// java: Event<ChatMessageListener> EVENT = EventFactory.createArrayBacked(ChatMessageListener.class, listeners -> (message, asString) -> { for (ChatMessageListener listener : listeners) { ChatFilterResult res
-pub static EVENT: compat::MainThread<crate::unresolved::Event> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `EVENT` - see the TODO above"));
+/// java: Event<ChatMessageListener> EVENT = EventFactory.createArrayBacked(ChatMessageListener.class, listeners -> (message, asString) -> { for (ChatMessageListener listener : listeners) { ChatFilterResult result = listener.onMessage(message, asString); if (result != ChatFilterResult.PASS) return result; } return ChatFilterResult.PASS; });
+///
+/// Fabric's `Event` is the API's `events::Event` (listeners by phase, then registration); the array-backed invoker is
+/// `invoker` below. The listeners are the mod's render-thread objects, so the event lives in a render-thread cell.
+pub static EVENT: compat::MainThread<mcrust::mcrust::modding::events::Event<dyn Fn(&MutableComponent, &str) -> ChatFilterResult>> = compat::MainThread::new(|| mcrust::mcrust::modding::events::Event::new());
+
+/// `EVENT.invoker().onMessage(message, asString)`: the first listener's answer that is not `PASS`, else `PASS`.
+pub fn invoker(message: &MutableComponent, as_string: &str) -> ChatFilterResult {
+    for listener in EVENT.get().listeners() {
+        let result: ChatFilterResult = listener(message, as_string);
+        if result != ChatFilterResult::Pass {
+            return result;
+        }
+    }
+    return ChatFilterResult::Pass;
+}
 
 /// java: @FunctionalInterface public interface ChatMessageListener
 pub trait ChatMessageListener: compat::DynAny {
@@ -58,10 +63,17 @@ pub trait ChatMessageListener: compat::DynAny {
 /// java: @SuppressWarnings("incomplete-switch") @Init static void init()
 pub fn init() {
     let mut listeners: Vec<compat::Shared<dyn ChatMessageListener>> = vec![(Fetchur::new() as compat::Shared<dyn ChatMessageListener>), (Puzzler::new() as compat::Shared<dyn ChatMessageListener>), (FossilMuncher::new() as compat::Shared<dyn ChatMessageListener>), (Reparty::new() as compat::Shared<dyn ChatMessageListener>), (TreasureHunter::new() as compat::Shared<dyn ChatMessageListener>), (HungryHiker::new() as compat::Shared<dyn ChatMessageListener>), (SweepDetailsListener::new() as compat::Shared<dyn ChatMessageListener>), (CallTrevor::new() as compat::Shared<dyn ChatMessageListener>), (CallMismyla::new() as compat::Shared<dyn ChatMessageListener>), (RedialOnBadSignal::new() as compat::Shared<dyn ChatMessageListener>), (AbilityFilter::new() as compat::Shared<dyn ChatMessageListener>), (AdFilter::new() as compat::Shared<dyn ChatMessageListener>), (AoteFilter::new() as compat::Shared<dyn ChatMessageListener>), (ComboFilter::new() as compat::Shared<dyn ChatMessageListener>), (CritterCaptureFilter::new() as compat::Shared<dyn ChatMessageListener>), (HealFilter::new() as compat::Shared<dyn ChatMessageListener>), (ImplosionFilter::new() as compat::Shared<dyn ChatMessageListener>), (SpiritSceptreFilter::new() as compat::Shared<dyn ChatMessageListener>), (MoltenWaveFilter::new() as compat::Shared<dyn ChatMessageListener>), (RareCropFilter::new() as compat::Shared<dyn ChatMessageListener>), (TeleportPadFilter::new() as compat::Shared<dyn ChatMessageListener>), (AutopetFilter::new() as compat::Shared<dyn ChatMessageListener>), (ShowOffFilter::new() as compat::Shared<dyn ChatMessageListener>), (SkyMallFilter::new() as compat::Shared<dyn ChatMessageListener>), (LotteryFilter::new() as compat::Shared<dyn ChatMessageListener>), (MimicFilter::new() as compat::Shared<dyn ChatMessageListener>), (DeathFilter::new() as compat::Shared<dyn ChatMessageListener>), (DungeonBreakerFilter::new() as compat::Shared<dyn ChatMessageListener>), (SlayerMinibossSpawnFilter::new() as compat::Shared<dyn ChatMessageListener>), (HellionShieldFilter::new() as compat::Shared<dyn ChatMessageListener>)];
+    // Register all listeners to EVENT
     for listener in listeners.iter() {
-        // TODO(fabric2seer): `.register(..)` on a Event
         //   java: EVENT.register(listener);
+        let listener = listener.clone();
+        EVENT.get().register(Arc::new(move |message: &MutableComponent, as_string: &str| { let __f = compat::dispatch(&listener, |__t| __t.on_message()); __f(&listener, message, as_string) }));
     }
+    // Register EVENT to ClientReceiveMessageEvents.ALLOW_GAME from fabric api
+    // rust: port gap - `ClientReceiveMessageEvents.ALLOW_GAME` has no SeerClient event, and the port's game-message
+    // apply (`client_packet_listener::apply_system_chat`) is not a hooked function (GAPS_batchG L2, GAPS_M #16): the
+    // listener below (`allow_game`) is the registered lambda's body, not registered.
+    let _ = allow_game;
     // TODO(fabric2seer): ClientReceiveMessageEvents.ALLOW_GAME.register: no SeerClient equivalent yet
     //   java: ClientReceiveMessageEvents.ALLOW_GAME.register((message, overlay) -> {
     //   java: 			if (!Utils.isOnSkyblock()) {
@@ -96,4 +108,37 @@ pub fn init() {
     //   java: 			}
     //   java: 			return true;
     //   java: 		});
+}
+
+/// The `ClientReceiveMessageEvents.ALLOW_GAME` listener `init` registers: `false` drops the game message.
+pub fn allow_game(message: &MutableComponent, overlay: bool) -> bool {
+    use mcrust::net::minecraft::network::chat::component::Component as _;
+    if !crate::de::hysky::skyblocker::utils::utils::Utils::is_on_skyblock() {
+        return true;
+    }
+    //   java: ChatFilterResult result = EVENT.invoker().onMessage(message, ChatFormatting.stripFormatting(message.getString()));
+    let result: ChatFilterResult = invoker(message, &mcrust::net::minecraft::chat_formatting::strip_formatting(&message.get_string()));
+    match result {
+        ChatFilterResult::ActionBar => {
+            if overlay {
+                return true;
+            }
+            //   java: LocalPlayer player = Minecraft.getInstance().player; if (player != null) { player.sendOverlayMessage(message); return false; }
+            // `LocalPlayer.sendOverlayMessage` is `minecraft.gui.hud.setOverlayMessage(message, false)`.
+            if mcrust::mcrust::modding::game::with_player(|_| ()).is_some() {
+                mcrust::net::minecraft::client::gui::hud::set_overlay_message(&mut compat::minecraft().gui.hud, mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(message.clone()), false);
+                return false;
+            }
+        }
+        ChatFilterResult::Toast => {
+            //   java: Minecraft.getInstance().gui.toastManager().addToast(new BasicToast(message, (long) (SkyblockerConfigManager.get().chat.toastDisplayDuration * 1000L), null));
+            compat::minecraft().gui.toast_manager().borrow_mut().add_toast(Box::new(crate::de::hysky::skyblocker::utils::render::gui::basic_toast::BasicToast::new_3(message.clone(), (crate::de::hysky::skyblocker::config::skyblocker_config_manager::SkyblockerConfigManager::get().chat.toast_display_duration * 1000.0f32) as i64, None)));
+            return false;
+        }
+        ChatFilterResult::Filter => {
+            return false;
+        }
+        ChatFilterResult::Pass => {}
+    }
+    return true;
 }

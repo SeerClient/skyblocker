@@ -76,8 +76,9 @@ impl ItemCooldowns {
                 ItemCooldowns::handle_item_cooldown_2(&used_item_id, 1000);
             }
             GRAPPLING_HOOK_ID => {
-                // TODO(fabric2seer): `Player.fishing` has no Rust field in the port (searched net.minecraft.world.entity.player.Player and its supertypes)
-                // rust: ItemCooldowns::handle_item_cooldown(GRAPPLING_HOOK_ID.to_string(), 2000, (true /* java: player.fishing != null: never null here */ && !(ItemCooldowns::is_wearing_bat_armor(player))));
+                // java: handleItemCooldown(GRAPPLING_HOOK_ID, 2000, player.fishing != null && !isWearingBatArmor(player));
+                // (`Player.fishing` is the hook's entity id in the port)
+                ItemCooldowns::handle_item_cooldown(GRAPPLING_HOOK_ID.to_string(), 2000, player.player().fishing.is_some() && !ItemCooldowns::is_wearing_bat_armor(player));
             }
             ROGUE_SWORD_ID | SPIRIT_LEAP_ID | LIVID_DAGGER_ID => {
                 ItemCooldowns::handle_item_cooldown_2(&used_item_id, 5000);

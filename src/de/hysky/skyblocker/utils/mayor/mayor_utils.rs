@@ -30,9 +30,11 @@ pub static MAYOR_TICK_SCHEDULED: LazyLock<Mutex<bool>> = LazyLock::new(|| Mutex:
 /// java: private static int mayorTickRetryAttempts = 0;
 pub static MAYOR_TICK_RETRY_ATTEMPTS: LazyLock<Mutex<i32>> = LazyLock::new(|| Mutex::new(0));
 /// java: private static final Codec<PerkOverride> CODEC = RecordCodecBuilder.create(instance -> instance.group( Codec.STRING.fieldOf("perk").forGetter(PerkOverride::perk), Codec.LONG.fieldOf("from").forGetter(
-pub static PERK_OVERRIDE_CODEC: compat::MainThread<CodecRef<PerkOverride>> = compat::MainThread::new(|| record_codec_builder::create(record_codec_builder::apply3(record_codec_builder::of(|o: &PerkOverride| o.perk(), codec::field_of(mcrust::com::mojang::serialization::codec::string_codec(), "perk")), record_codec_builder::of(|o: &PerkOverride| o.from(), codec::field_of(mcrust::com::mojang::serialization::codec::long_codec(), "from")), record_codec_builder::of(|o: &PerkOverride| o.to(), codec::field_of(mcrust::com::mojang::serialization::codec::long_codec(), "to")), move |__a0, __a1, __a2| PerkOverride::new(__a0.clone(), __a1.clone(), __a2.clone()))));
+/// (read on the executor's thread by `loadMayorPerkOverrides`: a codec is `Send + Sync`, so a `LazyLock`)
+pub static PERK_OVERRIDE_CODEC: LazyLock<CodecRef<PerkOverride>> = LazyLock::new(|| record_codec_builder::create(record_codec_builder::apply3(record_codec_builder::of(|o: &PerkOverride| o.perk(), codec::field_of(mcrust::com::mojang::serialization::codec::string_codec(), "perk")), record_codec_builder::of(|o: &PerkOverride| o.from(), codec::field_of(mcrust::com::mojang::serialization::codec::long_codec(), "from")), record_codec_builder::of(|o: &PerkOverride| o.to(), codec::field_of(mcrust::com::mojang::serialization::codec::long_codec(), "to")), move |__a0, __a1, __a2| PerkOverride::new(__a0.clone(), __a1.clone(), __a2.clone()))));
 /// java: private static final Codec<List<PerkOverride>> LIST_CODEC = CODEC.listOf();
-pub static PERK_OVERRIDE_LIST_CODEC: compat::MainThread<CodecRef<Vec<PerkOverride>>> = compat::MainThread::new(|| codec::list(PERK_OVERRIDE_CODEC.get_mut().clone()));
+/// (read on the executor's thread: a `LazyLock`, see `PERK_OVERRIDE_CODEC`)
+pub static PERK_OVERRIDE_LIST_CODEC: LazyLock<CodecRef<Vec<PerkOverride>>> = LazyLock::new(|| codec::list(PERK_OVERRIDE_CODEC.clone()));
 
 /// java: public class MayorUtils
 #[derive(Clone)]
@@ -167,10 +169,9 @@ impl MayorUtils {
         return (CompletableFuture::supply_async(move || Ok((|| {
             // java: try {..} catch (Exception e) - an exception here is a panic, caught by `catch_unwind`; the body's `return` is the closure's value
             match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                // TODO(fabric2seer): `Http.sendGetRequest` is not a static method of Http
                 //   java: String response = Http.sendGetRequest("https://hysky.de/api/mayorperkoverrides");
-                let mut response: String = todo!("fabric2seer: the initialiser of `response` (TODO above)");
-                compat::set_state(&MAYOR_PERK_OVERRIDES, (PERK_OVERRIDE_LIST_CODEC.get_mut().parse(&mcrust::com::mojang::serialization::json_ops::JsonOps::instance(), &compat::json_to_port(&serde_json::from_str::<serde_json::Value>(&response).expect("JsonSyntaxException")))).get_or_throw().unwrap());
+                let mut response: String = crate::de::hysky::skyblocker::utils::http::Http::send_get_request("https://hysky.de/api/mayorperkoverrides");
+                compat::set_state(&MAYOR_PERK_OVERRIDES, (PERK_OVERRIDE_LIST_CODEC.parse(&mcrust::com::mojang::serialization::json_ops::JsonOps::instance(), &compat::json_to_port(&serde_json::from_str::<serde_json::Value>(&response).expect("JsonSyntaxException")))).get_or_throw().unwrap());
                 logger().info(&format!("[Skyblocker] Loaded {} mayor perk overrides.", (compat::lock(&MAYOR_PERK_OVERRIDES).len() as i32)));
                 return true;
             })) {

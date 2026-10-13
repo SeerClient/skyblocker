@@ -26,14 +26,13 @@ use mcrust::net::minecraft::network::chat::component::Component as _;
 
 /// java: private static @Nullable AbstractContainerScreen<?> openedHandledScreen = null;
 pub static OPENED_HANDLED_SCREEN: compat::MainThread<Option<AbstractContainerScreen>> = compat::MainThread::new(|| None);
-// TODO(fabric2seer): `new` takes 0 argument(s) in the port (``), Java passes 1
-//   java: private static final BitSet slots = new BitSet(90);
 /// java: private static final BitSet slots = new BitSet(90);
-pub static SLOTS: compat::MainThread<BitSet> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `slots` - see the TODO above"));
-// TODO(fabric2seer): `new` takes 0 argument(s) in the port (``), Java passes 1
-//   java: private static final BitSet computedSlots = new BitSet(90);
+pub static SLOTS: compat::MainThread<BitSet> = compat::MainThread::new(|| BitSet::with_nbits(90));
 /// java: private static final BitSet computedSlots = new BitSet(90);
-pub static COMPUTED_SLOTS: compat::MainThread<BitSet> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `computedSlots` - see the TODO above"));
+pub static COMPUTED_SLOTS: compat::MainThread<BitSet> = compat::MainThread::new(|| BitSet::with_nbits(90));
+/// Whether the screen `AFTER_INIT` last saw passed `init`'s checks: Fabric registers the key listener on that screen
+/// (`ScreenKeyboardEvents.allowKeyPress(handledScreen)`), the port's key event is global (see `init`).
+pub static SCREEN_ACCEPTED: LazyLock<Mutex<bool>> = LazyLock::new(|| Mutex::new(false));
 /// java: private static String search = "";
 pub static SEARCH: LazyLock<Mutex<String>> = LazyLock::new(|| Mutex::new("".to_string()));
 
@@ -51,26 +50,37 @@ impl InventorySearch {
 
     /// java: @Init public static void init()
     pub fn init() {
+        // Fabric registers the key listener on the screen instance (`ScreenKeyboardEvents.allowKeyPress(handledScreen)`),
+        // so it lives as long as that screen; the port's key event is global, so it is registered once and answers for
+        // the screen `AFTER_INIT` last accepted (`SCREEN_ACCEPTED`, reset by every screen's init).
         screen_events::AFTER_INIT.register(Arc::new(|screen: &mut Screen, width: i32, height: i32| {
+            compat::set_state(&SCREEN_ACCEPTED, false);
             let inventory_search_config = &SkyblockerConfigManager::get().ui_and_visuals.inventory_search;
-            // TODO(fabric2seer): an `instanceof` pattern under `||` / `!`
             //   java: if (!inventorySearchConfig.enabled.isEnabled() || !(screen instanceof AbstractContainerScreen<?> handledScreen) || CatharsisCompatibility.isGuiElementHidden("skyblocker:inventorySearch")) return;
+            if !inventory_search_config.enabled.is_enabled() || !compat::container_screen_open() || crate::entry::catharsis_compatibility::is_gui_element_hidden("skyblocker:inventorySearch") {
+                return;
+            }
             *OPENED_HANDLED_SCREEN.get_mut() = None;
             if inventory_search_config.clickable_text {
                 // TODO(fabric2seer): Fabric API `Screens.getWidgets` has no SeerClient equivalent
                 //   java: Screens.getWidgets(handledScreen).add(new SearchTextWidget(handledScreen));
             }
-            screen_keyboard_events::ALLOW_KEY_PRESS.register(Arc::new(|action: i32, key_event: &KeyEvent| {
-                // TODO(fabric2seer): the condition: `.key(..)` on a value of unknown type
-                //   java: input.key() == (inventorySearchConfig.ctrlK ? InputConstants.KEY_K : InputConstants.KEY_F) && input.hasControlDownWithQuirk()
-                if todo!("fabric2seer: the condition (TODO above)") {
-                    // TODO(fabric2seer): unknown name `handledScreen`
-                    //   java: InventorySearch.showSearchBar(handledScreen);
-                    return false;
-                }
+            compat::set_state(&SCREEN_ACCEPTED, true);
+        }));
+        //   java: ScreenKeyboardEvents.allowKeyPress(handledScreen).register((_, input) -> { .. });
+        screen_keyboard_events::ALLOW_KEY_PRESS.register(Arc::new(|action: i32, key_event: &KeyEvent| {
+            if action == 0 || !compat::get_state(&SCREEN_ACCEPTED) {
                 return true;
-                true
-            }));
+            }
+            let inventory_search_config = &SkyblockerConfigManager::get().ui_and_visuals.inventory_search;
+            //   java: if (input.key() == (inventorySearchConfig.ctrlK ? InputConstants.KEY_K : InputConstants.KEY_F) && input.hasControlDownWithQuirk()) {
+            if key_event.key() == (if inventory_search_config.ctrl_k { 75 /* KEY_K */ } else { 70 /* KEY_F */ }) && key_event.has_control_down_with_quirk() {
+                //   java: InventorySearch.showSearchBar(handledScreen);
+                // rust: port gap - the open container screen is not handed to the listener and a mod cannot add a widget to
+                // the game's own container screen (`Screens.getWidgets`), so the search bar is not shown (GAPS_K)
+                return false;
+            }
+            return true;
         }));
     }
 
@@ -148,8 +158,8 @@ impl InventorySearch {
 
     /// java: public static void refreshSlot(int slotId)
     pub fn refresh_slot(mut slot_id: i32) {
-        // TODO(fabric2seer): `clear` takes 0 argument(s) in the port (``), Java passes 1
-        // rust: COMPUTED_SLOTS.get_mut().clear(slot_id);
+        //   java: computedSlots.clear(slotId);
+        COMPUTED_SLOTS.get_mut().clear_bit(slot_id as usize);
     }
 
 }

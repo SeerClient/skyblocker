@@ -179,9 +179,8 @@ impl BazaarHelper {
         if column == 0 || column == 8 {
             return vec![];
         }
-        // TODO(fabric2seer): `get_item` takes 1 argument(s) in the port (`containers: &'a Containers<'_>`), Java passes 0
-        // rust: let item = slot.get_item();
-        let mut item: mcrust::net::minecraft::world::item::item_stack::ItemStack = todo!("fabric2seer: the initialiser of `item` (TODO above)");
+        // java: ItemStack item = slot.getItem();
+        let mut item: mcrust::net::minecraft::world::item::item_stack::ItemStack = compat::slot_item(&slot);
         if item.is_empty() {
             return vec![];
         }
@@ -190,9 +189,8 @@ impl BazaarHelper {
         if let Some(matcher) = &matcher {
             let mut lore: Vec<String> = item.skyblocker_get_lore_strings();
             if !lore.is_empty() && lore[lore.len() - 1] == "Click to claim!" {
-                // TODO(fabric2seer): static call NumberUtils.toInt(..)
-                //   java: int filled = NumberUtils.toInt(matcher.group(1));
-                let mut filled: i32 = todo!("fabric2seer: the initialiser of `filled` (TODO above)");
+                // java: int filled = NumberUtils.toInt(matcher.group(1));
+                let mut filled: i32 = compat::number_utils_to_int(&matcher.group(1).unwrap_or_default(), 0);
                 return SlotText::top_left_list(&BazaarHelper::get_filled_icon(filled));
             }
         }

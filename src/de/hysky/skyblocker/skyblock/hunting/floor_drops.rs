@@ -113,18 +113,12 @@ impl FloorDrops {
         if !(FloorDrops::should_process()) {
             return;
         }
-        let mut iterator = FOREST_NODES.get_mut().iter().map(|(k, v)| (k.clone(), v.clone()));
-        // TODO(fabric2seer): the condition: Iterator.hasNext - use a `for` loop / `while let Some(x) = it.next()`
-        //   java: iterator.hasNext(..)
-        while todo!("fabric2seer: the condition (TODO above)") {
-            let mut entry: (BlockPos, compat::Shared<ForestNode>) = iterator.next().unwrap();
-            let mut forest_node: compat::Shared<ForestNode> = entry.1.clone();
-            ForestNode::update_waypoint(&forest_node);
-            if !({ let __f = compat::dispatch(&forest_node, |__t| __t.should_render()); __f(&compat::view(&forest_node, |a| a as compat::Shared<dyn Waypoint>)) }) {
-                // TODO(fabric2seer): Stream.remove
-                //   java: iterator.remove();
-            }
-        }
+        //   java: Iterator<Map.Entry<BlockPos, ForestNode>> iterator = forestNodes.entrySet().iterator(); while (iterator.hasNext()) {..}
+        // (`iterator.remove()` of the entries whose node stops rendering: `retain`, over the live map)
+        FOREST_NODES.get_mut().retain(|_, forest_node| {
+            ForestNode::update_waypoint(forest_node);
+            { let __f = compat::dispatch(forest_node, |__t| __t.should_render()); __f(&compat::view(forest_node, |a| a as compat::Shared<dyn Waypoint>)) }
+        });
     }
 
     /// java: private static void extractRendering(PrimitiveCollector collector)
@@ -141,7 +135,7 @@ impl FloorDrops {
 
     /// java: private static boolean shouldProcess()
     pub fn should_process() -> bool {
-        return (SkyblockerConfigManager::get().hunting.floor_drops.highlight_floor_drops && Utils::is_in_galatea() || Utils::is_in_torrhus_canyon() || Utils::is_in_safari());
+        return (SkyblockerConfigManager::get().hunting.floor_drops.highlight_floor_drops && (Utils::is_in_galatea() || Utils::is_in_torrhus_canyon() || Utils::is_in_safari()));
     }
 
     /// java: private static void reset()
@@ -177,15 +171,15 @@ impl ForestNode {
     /// java: private ForestNode(BlockPos pos)
     pub fn new(mut pos: BlockPos) -> compat::Shared<Self> {
         let __init_last_confirmed = compat::millis();
-        // TODO(fabric2seer): `.getRGB(..)` on a Color
-        //   java: super(pos,
-        //   java: 					() -> Type.HIGHLIGHT,
-        //   java: 					ColorUtils.getFloatComponents(SkyblockerConfigManager.get().hunting.floorDrops.floorDropHighlightColor.getRGB()),
-        //   java: 					DEFAULT_HIGHLIGHT_ALPHA,
-        //   java: 					DEFAULT_LINE_WIDTH,
-        //   java: 					false
-        //   java: 			);
-        let __this: compat::Shared<Self> = todo!("constructor");
+        //   java: super(pos, () -> Type.HIGHLIGHT, ColorUtils.getFloatComponents(SkyblockerConfigManager.get().hunting.floorDrops.floorDropHighlightColor.getRGB()), DEFAULT_HIGHLIGHT_ALPHA, DEFAULT_LINE_WIDTH, false);
+        let __color_components: Vec<f32> = crate::de::hysky::skyblocker::utils::color_utils::ColorUtils::get_float_components(SkyblockerConfigManager::get().hunting.floor_drops.floor_drop_highlight_color.get_rgb());
+        let (_, __this) = WaypointBase::new_6_in(pos, Arc::new(|| Type::Highlight), __color_components, crate::de::hysky::skyblocker::utils::waypoint::waypoint::DEFAULT_HIGHLIGHT_ALPHA, crate::de::hysky::skyblocker::utils::waypoint::waypoint::DEFAULT_LINE_WIDTH, false, move |__base| {
+            let __h = compat::shared(Self {
+                base: __base,
+                last_confirmed: __init_last_confirmed,
+            });
+            ((__h.clone() as compat::Shared<dyn Waypoint>), __h)
+        });
         __this
     }
 

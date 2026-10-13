@@ -184,16 +184,19 @@ impl SuperpairsSolver {
     /// java: @Override protected void tick(AbstractContainerScreen<?> screen)
     pub fn tick_impl(__this: &compat::Shared<Self>, screen: &AbstractContainerScreen) {
         if ({ let __f = compat::dispatch(__this, |__t| __t.get_state()); __f(&compat::view(__this, |a| a as compat::Shared<dyn ExperimentSolver>)) }) == State::Show && (({ let __f = compat::dispatch(__this, |__t| __t.get_slots()); __f(&compat::view(__this, |a| a as compat::Shared<dyn ExperimentSolver>)) })).get(&compat::read(__this, |__t| __t.superpairs_prev_clicked_slot)).cloned().is_none() {
-            // TODO(fabric2seer): `getSlot` on a Object
             //   java: ItemStack itemStack = screen.getMenu().getSlot(superpairsPrevClickedSlot).getItem();
-            let mut item_stack: mcrust::net::minecraft::world::item::item_stack::ItemStack = todo!("fabric2seer: the initialiser of `itemStack` (TODO above)");
+            // (`screen.getMenu()` is the player's open menu; its slots read their stacks through the menu's containers)
+            let __index: i32 = compat::read(__this, |__t| __t.superpairs_prev_clicked_slot);
+            let _ = screen;
+            let mut item_stack: mcrust::net::minecraft::world::item::item_stack::ItemStack = compat::with_open_menu(|__menu, __containers| __menu.get_slot(__index).get_item(__containers).duplicate()).unwrap_or_else(mcrust::net::minecraft::world::item::item_stack::empty);
             if !(item_stack.is_item(mcrust::net::minecraft::world::item::items::stained_glass().cyan()) || item_stack.is_item(mcrust::net::minecraft::world::item::items::stained_glass_pane().black()) || item_stack.is_item(&items::items().get("air"))) {
                 if let Some(entry) = (({ let __f = compat::dispatch(__this, |__t| __t.get_slots()); __f(&compat::view(__this, |a| a as compat::Shared<dyn ExperimentSolver>)) })).iter().map(|(k, v)| (k.clone(), v.clone())).filter(|entry| item_stack::matches(&entry.1, &item_stack)).next() {
                     __this.lock().borrow_mut().superpairs_duplicated_slots.insert(entry.0);
                     let __h0 = compat::read(__this, |__t| __t.superpairs_prev_clicked_slot);
                     __this.lock().borrow_mut().superpairs_duplicated_slots.insert(__h0);
                 }
-                (({ let __f = compat::dispatch(__this, |__t| __t.get_slots()); __f(&compat::view(__this, |a| a as compat::Shared<dyn ExperimentSolver>)) })).insert(compat::read(__this, |__t| __t.superpairs_prev_clicked_slot), item_stack.clone());
+                // java: getSlots().put(..) - `getSlots()` answers the solver's own map (the port's getter answers a copy)
+                { let __k = compat::read(__this, |__t| __t.superpairs_prev_clicked_slot); let __v = item_stack.clone(); compat::write(__this, |__t| __t.experiment_solver_base_mut().slots.insert(__k, __v)); }
                 { let __v = item_stack.clone(); compat::write(__this, |__t| __t.superpairs_current_slot = __v); }
             }
         }

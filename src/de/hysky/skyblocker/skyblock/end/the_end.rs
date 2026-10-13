@@ -166,15 +166,20 @@ impl TheEnd {
 
     /// java: public static void onEntityDeath(Entity entity)
     pub fn on_entity_death(entity: &dyn Entity) {
-        // TODO(fabric2seer): an `instanceof` pattern under `||` / `!`
-        //   java: if (!(entity instanceof EnderMan enderman) || !isZealot(enderman)) return;
-        // TODO(fabric2seer): the condition: unknown name `enderman`
-        //   java: HIT_ZEALOTS.contains(..)
-        if todo!("fabric2seer: the condition (TODO above)") {
+        // java: if (!(entity instanceof EnderMan enderman) || !isZealot(enderman)) return;
+        let Some(enderman) = entity.as_any().and_then(|any| any.downcast_ref::<EnderMan>()) else {
+            return;
+        };
+        if !TheEnd::is_zealot(enderman) {
+            return;
+        }
+        let enderman_uuid: Uuid = compat::uuid_of(enderman.base().get_uuid());
+        // java: if (HIT_ZEALOTS.contains(enderman.getUUID()))
+        if HIT_ZEALOTS.get().contains(&enderman_uuid) {
             let mut stats: EndStats = ProfiledData::compute_if_absent(PROFILES_STATS.get_mut(), END_STATS_EMPTY.get_mut().clone());
             ProfiledData::put(PROFILES_STATS.get_mut(), EndStats::new(stats.total_zealot_kills().wrapping_add(1), stats.zealots_since_last_eye().wrapping_add(1), stats.eyes()));
-            // TODO(fabric2seer): unknown name `enderman`
-            //   java: HIT_ZEALOTS.remove(enderman.getUUID());
+            // java: HIT_ZEALOTS.remove(enderman.getUUID());
+            HIT_ZEALOTS.get_mut().remove(&enderman_uuid);
             ({ let __r = &EndHudWidget::get_instance(); let __f = compat::dispatch(__r, |__t| __t.update()); __f(&compat::view(__r, |a| a as compat::Shared<dyn ElementBasedWidget>)) });
         }
     }
@@ -191,12 +196,21 @@ impl TheEnd {
             return true;
         }
         debug_assert!(mcrust::mcrust::modding::game::level().is_some());
-        // TODO(fabric2seer): `.getName(..)` on a T
         //   java: List<ArmorStand> entities = CLIENT.level.getEntitiesOfClass(
         //   java: 				ArmorStand.class,
         //   java: 				enderman.getDimensions(enderman.getPose()).makeBoundingBox(enderman.position()).inflate(1),
         //   java: 				armorStandEntity -> armorStandEntity.getName().getString().toLowerCase(Locale.ENGLISH).contains("zealot"));
-        let mut entities: Vec<ArmorStand> = todo!("fabric2seer: the initialiser of `entities` (TODO above)");
+        // (the port's class filter has no ArmorStand.class: the base class Entity plus `instanceof ArmorStand`)
+        use mcrust::net::minecraft::world::level::entity_getter::EntityGetter as _;
+        let level = mcrust::mcrust::modding::game::level().unwrap();
+        let search_box = enderman.get_dimensions(enderman.base().get_pose()).make_bounding_box_vec(&enderman.base().position()).inflate(1.0);
+        let mut entities: Vec<mcrust::net::minecraft::world::level::entity_getter::SharedEntity> = level.get_entities_of_class(
+            mcrust::net::minecraft::world::level::entity::entity_type_test::EntityClass::Entity,
+            // the enderman is the caller's (it may be held): the sweep skips it - it is no ArmorStand anyway
+            Some(enderman.base().get_id()),
+            &search_box,
+            &|entity| entity.as_any().and_then(|any| any.downcast_ref::<ArmorStand>()).is_some_and(|armor_stand_entity| compat::component_of(armor_stand_entity.get_name()).get_string().to_lowercase().contains("zealot")),
+        );
         return !entities.is_empty();
     }
 

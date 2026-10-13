@@ -303,9 +303,9 @@ impl ChronomatronSolver {
         if ({ let __f = compat::dispatch(__this, |__t| __t.get_state()); __f(&compat::view(__this, |a| a as compat::Shared<dyn ExperimentSolver>)) }) == State::Show {
             let mut item: Arc<Item> = __this.lock().borrow().chronomatron_slots[(compat::read(__this, |__t| __t.chronomatron_current_ordinal)) as usize].clone();
             if stack.is_item(&item) || /* java: item == TERRACOTTA_TO_GLASS.get(stack.getItem()) */ terracotta_to_glass(&stack.get_item()).is_some_and(|__g| Arc::ptr_eq(&__g, &item)) {
-                // TODO(fabric2seer): the condition: ++/-- inside an expression
                 //   java: ++chronomatronCurrentOrdinal >= chronomatronSlots.size()
-                if todo!("fabric2seer: the condition (TODO above)") {
+                let __ordinal: i32 = compat::write(__this, |__t| { __t.chronomatron_current_ordinal = __t.chronomatron_current_ordinal.wrapping_add(1); __t.chronomatron_current_ordinal });
+                if __ordinal >= compat::read(__this, |__t| __t.chronomatron_slots.len() as i32) {
                     ({ let __f = compat::dispatch(__this, |__t| __t.set_state()); __f(&compat::view(__this, |a| a as compat::Shared<dyn ExperimentSolver>), State::End) });
                 }
             } else {

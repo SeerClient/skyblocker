@@ -33,7 +33,7 @@ pub static DEFAULT_TYPE: LazyLock<Type> = LazyLock::new(|| Type::Waypoint);
 //   java: 	).apply(instance, WaypointGroup::new));
 /// java: public static final Codec<WaypointGroup> CODEC = RecordCodecBuilder.create(instance -> instance.group( Codec.STRING.fieldOf("name").forGetter(WaypointGroup::name), Codec.STRING.fieldOf("island").xmap(
 pub static CODEC: compat::MainThread<CodecRef<compat::Shared<WaypointGroup>>> = compat::MainThread::new(|| {
-    // rust: `RecordCodecBuilder` builds a record of `Send + Sync` values; a waypoint handle is not one, so the record is
+    // port shape: `RecordCodecBuilder` builds a record of `Send + Sync` values; a waypoint handle is not one, so the record is
     // over the getters' values (the waypoint list carried in a render-thread cell, where Java reads and writes it) and
     // `xmap`ped to the group - `apply(instance, WaypointGroup::new)` on decode, the `forGetter`s on encode
     type Fields = (String, Location, compat::RenderThread<Vec<compat::Shared<dyn NamedWaypoint>>>, bool, bool, Type);
@@ -65,7 +65,7 @@ pub static CODEC: compat::MainThread<CodecRef<compat::Shared<WaypointGroup>>> = 
 //   java: 	).apply(instance, WaypointGroup::new));
 /// java: public static final Codec<WaypointGroup> SKYTILS_CODEC = RecordCodecBuilder.create(instance -> instance.group( Codec.STRING.fieldOf("name").forGetter(WaypointGroup::name), Codec.STRING.fieldOf("island
 pub static SKYTILS_CODEC: compat::MainThread<CodecRef<compat::Shared<WaypointGroup>>> = compat::MainThread::new(|| {
-    // rust: the record is over the getters' values, `xmap`ped to the group (see `CODEC`)
+    // port shape: the record is over the getters' values, `xmap`ped to the group (see `CODEC`)
     type Fields = (String, Location, compat::RenderThread<Vec<compat::Shared<dyn NamedWaypoint>>>);
     let record: CodecRef<Fields> = record_codec_builder::create(record_codec_builder::apply3(
         record_codec_builder::of(|o: &Fields| o.0.clone(), codec::field_of(codec::string_codec(), "name")),
@@ -100,7 +100,7 @@ pub static COLEWEIGHT_CODEC: compat::MainThread<CodecRef<compat::Shared<Waypoint
 //   java: 	}));
 /// java: public static final Codec<WaypointGroup> SKYBLOCKER_LEGACY_ORDERED_CODEC = RecordCodecBuilder.create(instance -> instance.group( Codec.STRING.fieldOf("name").forGetter(WaypointGroup::name), Codec.BOOL
 pub static SKYBLOCKER_LEGACY_ORDERED_CODEC: compat::MainThread<CodecRef<compat::Shared<WaypointGroup>>> = compat::MainThread::new(|| {
-    // rust: the record is over the getters' values, `xmap`ped to the group (see `CODEC`)
+    // port shape: the record is over the getters' values, `xmap`ped to the group (see `CODEC`)
     type Fields = (String, bool, compat::RenderThread<Vec<compat::Shared<dyn NamedWaypoint>>>);
     let record: CodecRef<Fields> = record_codec_builder::create(record_codec_builder::apply3(
         // Codec.STRING.fieldOf("name").forGetter(WaypointGroup::name)

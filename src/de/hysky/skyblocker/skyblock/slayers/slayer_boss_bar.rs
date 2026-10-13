@@ -73,18 +73,19 @@ impl SlayerBossBar {
             if health > compat::get_state(&BOSS_MAX_HEALTH) {
                 compat::set_state(&BOSS_MAX_HEALTH, health);
             }
-            // TODO(fabric2seer): `set_progress` takes 2 argument(s) in the port (`progress: f32, now_ms: i64`), Java passes 1
-            // rust: BOSS_BAR.get_mut().as_mut().unwrap().set_progress((if compat::get_state(&BOSS_MAX_HEALTH) < 1 { 1.0f32 } else { (((health) as f32) / (compat::get_state(&BOSS_MAX_HEALTH) as f32)) }));
-            // TODO(fabric2seer): field `PINK` of a value of unknown type
-            //   java: bossBar.setColor(BossEvent.BossBarColor.PINK);
+            // java: bossBar.setProgress(bossMaxHealth < 1 ? 1f : (float) health / bossMaxHealth); - `LerpingBossEvent.setProgress`
+            // starts its lerp at `Util.getMillis()`
+            { let __progress = if compat::get_state(&BOSS_MAX_HEALTH) < 1 { 1.0f32 } else { (health as f32) / (compat::get_state(&BOSS_MAX_HEALTH) as f32) }; BOSS_BAR.get_mut().as_mut().unwrap().set_progress(__progress, mcrust::net::minecraft::util::util::get_millis()); }
+            // java: bossBar.setColor(BossEvent.BossBarColor.PINK);
+            BOSS_BAR.get_mut().as_mut().unwrap().base.set_color(mcrust::net::minecraft::world::boss_event::BossBarColor::Pink);
             BOSS_BAR.get_mut().as_mut().unwrap().base.set_name(mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(name.clone()));
-            // TODO(fabric2seer): field `NOTCHED_10` of a value of unknown type
-            //   java: bossBar.setOverlay(BossEvent.BossBarOverlay.NOTCHED_10);
+            // java: bossBar.setOverlay(BossEvent.BossBarOverlay.NOTCHED_10);
+            BOSS_BAR.get_mut().as_mut().unwrap().base.set_overlay(mcrust::net::minecraft::world::boss_event::BossBarOverlay::Notched10);
         } else {
-            // TODO(fabric2seer): field `RED` of a value of unknown type
-            //   java: bossBar.setColor(BossEvent.BossBarColor.RED);
-            // TODO(fabric2seer): field `PROGRESS` of a value of unknown type
-            //   java: bossBar.setOverlay(BossEvent.BossBarOverlay.PROGRESS);
+            // java: bossBar.setColor(BossEvent.BossBarColor.RED);
+            BOSS_BAR.get_mut().as_mut().unwrap().base.set_color(mcrust::net::minecraft::world::boss_event::BossBarColor::Red);
+            // java: bossBar.setOverlay(BossEvent.BossBarOverlay.PROGRESS);
+            BOSS_BAR.get_mut().as_mut().unwrap().base.set_overlay(mcrust::net::minecraft::world::boss_event::BossBarOverlay::Progress);
             BOSS_BAR.get_mut().as_mut().unwrap().base.set_name(mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(name.clone()));
         }
         return BOSS_BAR.get_mut().clone().unwrap();

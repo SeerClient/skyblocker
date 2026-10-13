@@ -336,15 +336,27 @@ impl FarmingHudWidget {
         collector.yes_no_button_3(&component::translatable("skyblocker.config.farming.farmingHud.angle"), Arc::new(move |b| { let Some(__this_5) = __this_w5.get().upgrade() else { return Default::default(); }; { { let __v = b; compat::write((&__this_5), |__t| __t.show_angle = __v); } } }), compat::read(__this, |__t| __t.show_angle));
         let __this_w6 = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
         collector.yes_no_button_3(&component::translatable("skyblocker.config.farming.farmingHud.includeSeedsPrice"), Arc::new(move |b| { let Some(__this_6) = __this_w6.get().upgrade() else { return Default::default(); }; { { let __v = b; compat::write((&__this_6), |__t| __t.include_seeds_price = __v); } } }), compat::read(__this, |__t| __t.include_seeds_price));
-        // TODO(fabric2seer): the port's `builder` ports this Java method with other parameters (default_value for Java's value_stringifier, default_value)
-        // TODO(fabric2seer): `builder` takes 1 argument(s) in the port (`default_value: String`), Java passes 2
-        // TODO(fabric2seer): a lambda for a parameter the port does not type as a closure (`Function<T, net.minecraft.network.chat.Component>`)
-        // TODO(fabric2seer): a lambda for a parameter the port does not type as a closure (`net.minecraft.client.OptionInstance.TooltipSupplier<T>`)
-        // TODO(fabric2seer): the port's `create` ports this Java method with other parameters (name, generic_value_format, value_change_listener for Java's x, y, width, height, name, value_change_listener)
-        // TODO(fabric2seer): `create` takes 3 argument(s) in the port (`name: String, generic_value_format: String, value_change_listener: OnValueChange`), Java passes 6
-        // TODO(fabric2seer): a lambda for a parameter the port does not type as a closure (`net.minecraft.client.gui.components.CycleButton.OnValueChange<T>`)
-        // rust: let __this_w7 = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
-        // rust: collector.add_widget((cycle_button::builder(|d| component::literal(&compat::jstring(&d)), compat::read(__this, |__t| __t.price_type))).with_tooltip(|_| Tooltip::create((component::translatable("skyblocker.config.farming.farmingHud.type.@Tooltip")).get_string())).with_values(Type::values()).create(0, 0, 150, 20, component::translatable("skyblocker.config.farming.farmingHud.type"), |_, value| { let Some(__this_7) = __this_w7.get().upgrade() else { return Default::default(); }; { { let __v = value.clone(); compat::write((&__this_7), |__t| __t.price_type = __v); } } }).unwrap());
+        // java: collector.addWidget(CycleButton.builder(d -> Component.literal(d.toString()), priceType)
+        // java: 		.withTooltip(_ -> Tooltip.create(Component.translatable("skyblocker.config.farming.farmingHud.type.@Tooltip")))
+        // java: 		.withValues(FarmingConfig.Type.values())
+        // java: 		.create(Component.translatable("skyblocker.config.farming.farmingHud.type"), (_, value) -> priceType = value)
+        // java: );
+        // (the port's cycle button holds each value's display LABEL - `d.toString()` - and answers the chosen INDEX, which
+        // maps back to the value, as `OptionWidgetCollector.EnumButtonBuilder.build` does; `create(name, ..)` is
+        // CycleButton's 150x20 at (0, 0))
+        {
+            use mcrust::net::minecraft::client::gui::components::cycle_button;
+            let values: Vec<Type> = Type::values();
+            let builder: cycle_button::Builder = cycle_button::builder(component::literal(&compat::jstring(&compat::read(__this, |__t| __t.price_type))).get_string())
+                .with_tooltip(cycle_button::TooltipSupplier::Constant(mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::translatable("skyblocker.config.farming.farmingHud.type.@Tooltip"))))
+                .with_values(values.iter().map(|d| component::literal(&compat::jstring(d)).get_string()).collect());
+            let __this_w7 = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
+            collector.add_widget(compat::cycle_button_widget(0, 0, 150, 20, &component::translatable("skyblocker.config.farming.farmingHud.type"), builder, move |index: usize| {
+                let Some(__this_7) = __this_w7.get().upgrade() else { return; };
+                let __v = values[index];
+                compat::write(&__this_7, |__t| __t.price_type = __v);
+            }));
+        }
     }
 
     /// FarmingHudWidget.getOptionWidgets as the dispatch of HudWidget.getOptionWidgets

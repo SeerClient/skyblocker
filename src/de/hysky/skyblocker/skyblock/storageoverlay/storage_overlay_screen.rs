@@ -141,9 +141,9 @@ impl StorageOverlayScreen {
 
     /// java: public static @Nullable Vector2dc getPreviousMousePosition()
     pub fn get_previous_mouse_position() -> Option<crate::unresolved::Vector2dc> {
-        let mut screen_position: crate::unresolved::Vector2dc = PREVIOUS_MOUSE_POSITION.get_mut().clone().unwrap();
+        let screen_position: Option<crate::unresolved::Vector2dc> = *PREVIOUS_MOUSE_POSITION.get();
         *PREVIOUS_MOUSE_POSITION.get_mut() = None;
-        return Some(screen_position);
+        return screen_position;
     }
 
     /// java: @Init public static void setup()
@@ -216,11 +216,11 @@ impl StorageOverlayScreen {
         if mcrust::mcrust::modding::game::with_player(|_| ()).is_none() {
             return;
         }
-        // TODO(fabric2seer): `Minecraft.player` held as a value: the port lends the player only inside `game::with_player(|player| ..)` (a mod must never lock it)
         //   java: CLIENT.player.containerMenu = defaultHandler;
-        // TODO(fabric2seer): the mod keeps the game's `Inventory` (Java holds a reference to the live object); the port's `Inventory` is not a value to copy and the port lends the mod no handle to it
-        // TODO(fabric2seer): `set_screen` takes 14 argument(s) in the port (`gfx: &mut Minecraft, screen: &mut GuiScreen, screen_extra: &mut ScreenExtra, screen_stack: &mut Vec<HeldScreen>, screen_kind_before_pause: &mut Option<ScreenKind>, screen_is_open: &mut bool, level_screen_closed: &mut bool, frames_on_this_sc ..`), Java passes 1
-        // rust: gui::set_screen(&mut ContainerScreen::new(compat::read(__this, |__t| __t.default_handler.clone()).unwrap(), mcrust::mcrust::modding::game::with_player(|player| player.base.base.get_inventory().clone()).unwrap(), __this.lock().borrow().name.as_ref().unwrap().get_string()));
+        //   java: CLIENT.gui.setScreen(new ContainerScreen(defaultHandler, CLIENT.player.getInventory(), name));
+        // rust: port gap - a mod cannot detach its `ModMenu` from the open menu (`containerMenu = defaultHandler`) nor
+        // open the vanilla `ContainerScreen` over that menu in place of its own container screen (`container_screens`
+        // offers the swap only from `fromPacket`) (GAPS_M #13). Old form: gui::set_screen(&mut ContainerScreen::new(compat::read(__this, |__t| __t.default_handler.clone()).unwrap(), mcrust::mcrust::modding::game::with_player(|player| player.base.base.get_inventory().clone()).unwrap(), __this.lock().borrow().name.as_ref().unwrap().get_string()));
     }
 
     /// java: private void home(Button button)
@@ -257,9 +257,11 @@ impl StorageOverlayScreen {
 
     /// java: private int getWidth()
     pub fn get_width(__this: &compat::Shared<Self>) -> i32 {
-        let __o1 = compat::read(__this, |__t| __t.grid.clone()).unwrap();
-        let __o2 = compat::read(__this, |__t| __t.grid.clone()).unwrap();
-        return (if compat::read(__this, |__t| __t.grid.clone()).is_some() { (compat::write(&__o2, |__t| __t.get_width())).wrapping_add(16) } else { StorageOverlayScreen::get_max_width(__this) });
+        // (the grid is read only when it is there - Java's `grid != null ?`)
+        return match compat::read(__this, |__t| __t.grid.clone()) {
+            Some(__grid) => (compat::write(&__grid, |__t| __t.get_width())).wrapping_add(16),
+            None => StorageOverlayScreen::get_max_width(__this),
+        };
     }
 
     /// java: private int getHeight()
@@ -279,8 +281,14 @@ impl StorageOverlayScreen {
 
     /// java: @Override protected void repositionElements()
     pub fn reposition_elements(__this: &compat::Shared<Self>) {
-        // TODO(fabric2seer): `reposition_elements` takes 1 argument(s) in the port (`build: impl FnOnce(&mut Screen)`), Java passes 0
-        // rust: __this.lock().borrow_mut().base.screen.reposition_elements();
+        //   java: super.repositionElements(); - `Screen.repositionElements` is `rebuildWidgets()`: the widgets cleared, then
+        //   the virtual `init()` (this class's, whose `super.init()` is `AbstractContainerScreen.init:80-81`'s centring)
+        compat::write(__this, |__t| {
+            __t.base.screen.reposition_elements(|_| {});
+            __t.base.left_pos = mcrust::net::minecraft::client::gui::screens::inventory::abstract_container_screen::left_pos(__t.base.screen.width, __t.base.image_width);
+            __t.base.top_pos = mcrust::net::minecraft::client::gui::screens::inventory::abstract_container_screen::top_pos(__t.base.screen.height, __t.base.image_height);
+        });
+        StorageOverlayScreen::init(__this);
         { let __v = (compat::read(__this, |__t| __t.screen.height)).wrapping_div(10); compat::write(__this, |__t| __t.top_pos = __v); }
         if compat::read(__this, |__t| __t.grid.clone()).is_some() {
             ({ let __r = &compat::read(__this, |__t| __t.grid.clone()).unwrap(); let __f = compat::dispatch(__r, |__t| __t.set_y()); __f(&compat::view(__r, |a| a as compat::Shared<dyn SearchableGridWidget>), (compat::read(__this, |__t| __t.top_pos)).wrapping_add(8)) });
@@ -304,38 +312,50 @@ impl StorageOverlayScreen {
         let mut storages_per_row: i32 = SkyblockerConfigManager::get().ui_and_visuals.storage_overlay.storages_per_row;
         storages_per_row = (if storages_per_row > 0 { storages_per_row } else { i32::MAX });
         let mut internal_cols: i32 = SkyblockerConfigManager::get().ui_and_visuals.storage_overlay.backpack_width;
-        { let __v = Some(BackpackGridWidget::new((StorageOverlayScreen::get_min_left_pos(__this)).wrapping_add(8), (compat::read(__this, |__t| __t.top_pos)).wrapping_add(8), (StorageOverlayScreen::get_max_width(__this)).wrapping_sub(16), (StorageOverlayScreen::get_height(__this)).wrapping_sub(16), storages_per_row, internal_cols, true)); compat::write(__this, |__t| __t.grid = __v); }
+        { let __v = Some(BackpackGridWidget::new(std::sync::Arc::downgrade(__this), (StorageOverlayScreen::get_min_left_pos(__this)).wrapping_add(8), (compat::read(__this, |__t| __t.top_pos)).wrapping_add(8), (StorageOverlayScreen::get_max_width(__this)).wrapping_sub(16), (StorageOverlayScreen::get_height(__this)).wrapping_sub(16), storages_per_row, internal_cols, true)); compat::write(__this, |__t| __t.grid = __v); }
         ({ let __r = &compat::read(__this, |__t| __t.grid.clone()).unwrap(); let __f = compat::dispatch(__r, |__t| __t.set_search()); __f(&compat::view(__r, |a| a as compat::Shared<dyn SearchableGridWidget>), &compat::get_state(&SAVED_SEARCH)) });
         ({ let __r = &compat::read(__this, |__t| __t.grid.clone()).unwrap(); let __f = compat::dispatch(__r, |__t| __t.set_scroll_amount()); __f(&compat::view(__r, |a| a as compat::Shared<dyn SearchableGridWidget>), compat::get_state(&SAVED_SCROLL)) });
         let __r0 = compat::read(__this, |__t| __t.grid.clone());
         { let (__q0,) = (ContainerWidgetAdapter::widget(__r0.unwrap()),); __this.lock().borrow_mut().screen.add_renderable_widget(__q0) };
-        // TODO(fabric2seer): field `VERTICAL` of a value of unknown type
+        //extra control buttons out the way
         //   java: LinearLayout extraButtons = new LinearLayout(width - 90, height - 84, LinearLayout.Orientation.VERTICAL);
-        let mut extra_buttons: LinearLayout = todo!("fabric2seer: the initialiser of `extraButtons` (TODO above)");
-        extra_buttons.spacing(5);
-        // TODO(fabric2seer): a widget put in a layout outside a mod screen's own methods: the port's layouts hold a widget by its index in the screen's widget list
-        // rust: let __this_w1 = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
-        // rust: extra_buttons.add_child((button::builder(component::translatable("skyblocker.config.uiAndVisuals.storageOverlay.farmingToolkitButton").get_string(), OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| { let Some(__this_1) = __this_w1.get().upgrade() else { return Default::default(); }; { StorageOverlayScreen::toolkit((&__this_1), (__screen.widget_mut(__index))); } })))).size(80, 16).build());
-        // TODO(fabric2seer): a widget put in a layout outside a mod screen's own methods: the port's layouts hold a widget by its index in the screen's widget list
-        // rust: let __this_w2 = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
-        // rust: extra_buttons.add_child((button::builder(component::translatable("skyblocker.config.uiAndVisuals.storageOverlay.huntingToolkitButton").get_string(), OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| { let Some(__this_2) = __this_w2.get().upgrade() else { return Default::default(); }; { StorageOverlayScreen::hunting_toolkit((&__this_2), (__screen.widget_mut(__index))); } })))).size(80, 16).build());
-        // TODO(fabric2seer): a widget put in a layout outside a mod screen's own methods: the port's layouts hold a widget by its index in the screen's widget list
-        // rust: let __this_w3 = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
-        // rust: extra_buttons.add_child((button::builder(component::translatable("skyblocker.config.uiAndVisuals.storageOverlay.homeButton").get_string(), OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| { let Some(__this_3) = __this_w3.get().upgrade() else { return Default::default(); }; { StorageOverlayScreen::home((&__this_3), (__screen.widget_mut(__index))); } })))).size(80, 16).build());
-        // TODO(fabric2seer): a widget put in a layout outside a mod screen's own methods: the port's layouts hold a widget by its index in the screen's widget list
-        // rust: let __this_w4 = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
-        // rust: extra_buttons.add_child((button::builder(component::translatable("skyblocker.config.uiAndVisuals.storageOverlay.hideButton").get_string(), OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| { let Some(__this_4) = __this_w4.get().upgrade() else { return Default::default(); }; { StorageOverlayScreen::hide((&__this_4), (__screen.widget_mut(__index))); } })))).size(80, 16).build());
+        let (__width, __height) = compat::read(__this, |__t| (__t.screen.width, __t.screen.height));
+        let mut extra_buttons: LinearLayout = LinearLayout::new(__width.wrapping_sub(90), __height.wrapping_sub(84), mcrust::net::minecraft::client::gui::layouts::linear_layout::Orientation::Vertical);
+        extra_buttons = extra_buttons.spacing(5);
+        // The port's layouts hold a widget by its index in the screen's widget list, so each button is added to the
+        // screen as it is built (Java's closing `extraButtons.visitWidgets(this::addRenderableWidget)`) and laid out by
+        // that index; the arranged positions are written back to the widgets after `arrangeElements()`.
+        let __buttons: [(&str, fn(&compat::Shared<StorageOverlayScreen>, &AbstractWidget)); 4] = [
+            //add toolkit button
+            ("skyblocker.config.uiAndVisuals.storageOverlay.farmingToolkitButton", StorageOverlayScreen::toolkit),
+            //add hunting toolkit button
+            ("skyblocker.config.uiAndVisuals.storageOverlay.huntingToolkitButton", StorageOverlayScreen::hunting_toolkit),
+            //add button to go home
+            ("skyblocker.config.uiAndVisuals.storageOverlay.homeButton", StorageOverlayScreen::home),
+            //add button to temperately disable menu
+            ("skyblocker.config.uiAndVisuals.storageOverlay.hideButton", StorageOverlayScreen::hide),
+        ];
+        for (__key, __action) in __buttons {
+            let __this_w = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
+            let __button: AbstractWidget = button::builder(component::translatable(__key).get_string(), OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| { let Some(__this_1) = __this_w.get().upgrade() else { return; }; __action(&__this_1, __screen.widget_mut(__index)); }))).size(80, 16).build();
+            let __index: usize = compat::write(__this, |__t| __t.screen.add_renderable_widget(__button));
+            extra_buttons.add_child(LayoutElement::widget(__index, 80, 16));
+        }
         extra_buttons.arrange_elements();
-        // TODO(fabric2seer): a lambda for a parameter the port does not type as a closure (`Consumer<net.minecraft.client.gui.components.AbstractWidget>`)
-        // rust: let __this_w5 = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
-        // rust: layout::visit_widgets(|__a0| { let Some(__this_5) = __this_w5.get().upgrade() else { return Default::default(); }; { { let (__q0,) = (__a0.clone(),); (&__this_5).lock().borrow_mut().screen.add_renderable_widget(__q0) }; } });
+        let mut __vw: Vec<(usize, i32, i32)> = Vec::new();
+        LayoutElement::Grid(extra_buttons.wrapped).visit_widgets(&mut __vw);
+        for (__i, __x, __y) in __vw {
+            compat::write(__this, |__t| __t.screen.widget_mut(__i).set_position(__x, __y));
+        }
     }
 
     /// java: @Override public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a)
     pub fn extract_render_state(__this: &compat::Shared<Self>, graphics: &GuiGraphicsExtractor, mut mouse_x: i32, mut mouse_y: i32, mut a: f32) {
         ();
-        // TODO(fabric2seer): `AbstractContainerScreen.extractTooltip` has no Rust method in the port (looked for `extract_tooltip` in AbstractContainerScreen and its supertypes)
-        // rust: __this.lock().borrow().extract_tooltip(graphics, mouse_x, mouse_y);
+        //   java: this.extractTooltip(graphics, mouseX, mouseY);
+        // `super.extractRenderState` (`AbstractContainerScreen.extractRenderState:94`) already ran `extractTooltip` for this
+        // frame - the base pass runs it before this override - and a second call sets the same next-frame tooltip again.
+        let _ = (graphics, mouse_x, mouse_y, a);
     }
 
     /// java: @Override public void onClose()
@@ -352,8 +372,10 @@ impl StorageOverlayScreen {
         } else {
             compat::set_state(&SAVED_INDEX, -1);
         }
-        // TODO(fabric2seer): `on_close` takes 2 argument(s) in the port (`menu: &AbstractContainerMenu, containers: &mut Containers<'_>`), Java passes 0
-        // rust: __this.lock().borrow_mut().base.on_close();
+        //   java: super.onClose();
+        // rust: port gap - `AbstractContainerScreen.onClose` (`:582-586`, the bundle-hover reset then the container close) is
+        // the game's own close of the screen, which a `ModContainerScreen` has no override of (`on_close` is not one of
+        // its methods): the game runs it when it closes the screen, and this override is not reached (GAPS_M #14).
     }
 
     /// java: @Override protected void extractSlot(GuiGraphicsExtractor graphics, Slot slot, int mouseX, int mouseY)
@@ -374,12 +396,10 @@ impl StorageOverlayScreen {
 
     /// java: @Override protected boolean hasClickedOutside(double mouseX, double mouseY, int xo, int yo)
     pub fn has_clicked_outside(__this: &compat::Shared<Self>, mut mouse_x: f64, mut mouse_y: f64, mut xo: i32, mut yo: i32) -> bool {
-        // TODO(fabric2seer): `has_clicked_outside` takes 2 argument(s) in the port (`mx: f64, my: f64`), Java passes 4
-        // rust: let __r0 = compat::read(__this, |__t| __t.screen.width);
-        // rust: let __r1 = compat::read(__this, |__t| __t.top_pos);
-        // rust: let __r2 = compat::read(__this, |__t| __t.top_pos);
-        // rust: return (__this.lock().borrow_mut().base.has_clicked_outside(mouse_x, mouse_y, xo, yo) && mouse_x < (StorageOverlayScreen::get_left_pos(__this) as f64) || mouse_x > ((StorageOverlayScreen::get_left_pos(__this)).wrapping_add(__r0) as f64) || mouse_y < (__r1 as f64) || mouse_y > ((__r2).wrapping_add(StorageOverlayScreen::get_height(__this)) as f64));
-        return todo!("fabric2seer: see the TODO above");
+        //   java: return super.hasClickedOutside(mouseX, mouseY, xo, yo) && (mouseX < getLeftPos() || mouseX > getLeftPos() + width || mouseY < this.topPos || mouseY > this.topPos + getHeight());
+        let (__image_width, __image_height, __width, __top_pos) = compat::read(__this, |__t| (__t.image_width, __t.image_height, __t.screen.width, __t.top_pos));
+        let __left_pos: i32 = StorageOverlayScreen::get_left_pos(__this);
+        return mcrust::net::minecraft::client::gui::screens::inventory::abstract_container_screen::has_clicked_outside(mouse_x, mouse_y, xo, yo, __image_width, __image_height) && (mouse_x < (__left_pos as f64) || mouse_x > (__left_pos.wrapping_add(__width) as f64) || mouse_y < (__top_pos as f64) || mouse_y > (__top_pos.wrapping_add(StorageOverlayScreen::get_height(__this)) as f64));
     }
 
     /// java: @Override public boolean mouseScrolled(double x, double y, double scrollX, double scrollY)
@@ -388,9 +408,10 @@ impl StorageOverlayScreen {
         if compat::read(__this, |__t| __t.hovered_slot.clone()).is_some() && compat::with_open_menu(|__menu, __containers| __menu.slots.get(compat::read(__this, |__t| __t.hovered_slot).unwrap() as usize).is_some_and(|__slot| __slot.has_item(__containers))).unwrap_or(false) {
             return false;
         }
-        // TODO(fabric2seer): Optional.mouseScrolled
         //   java: return this.getChildAt(x, y).filter(child -> child.mouseScrolled(x, y, scrollX, scrollY)).isPresent();
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        // (`Screen::mouse_scrolled_mod_widget` is that statement for the screen's mod widgets - the grid; its buttons do
+        // not scroll)
+        return compat::write(__this, |__t| __t.base.screen.mouse_scrolled_mod_widget(x, y, scroll_x, scroll_y));
     }
 
     /// java: @Override public boolean keyPressed(KeyEvent event)
@@ -410,16 +431,20 @@ impl StorageOverlayScreen {
     pub fn removed(__this: &compat::Shared<Self>) {
         ();
         if compat::read(__this, |__t| __t.save_mouse_position) {
-            // TODO(fabric2seer): `new Vector2d(..)`
             //   java: previousMousePosition = new Vector2d(minecraft.mouseHandler.xpos(), minecraft.mouseHandler.ypos());
+            let __mouse_handler = &compat::minecraft().mouse_handler;
+            *PREVIOUS_MOUSE_POSITION.get_mut() = Some(crate::unresolved::Vector2d::new(__mouse_handler.xpos(), __mouse_handler.ypos()));
         }
     }
 
     /// java: @Override public void extractBackground(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a)
     pub fn extract_background(__this: &compat::Shared<Self>, graphics: &GuiGraphicsExtractor, mut mouse_x: i32, mut mouse_y: i32, mut a: f32) {
         compat::call_super();
-        // TODO(fabric2seer): `get` is not a method of FallbackedTexture
+        //render background
         //   java: graphics.blitSprite(RenderPipelines.GUI_TEXTURED, BACKGROUND.get(), getLeftPos(), this.topPos, getWidth(), getHeight());
+        let __texture: Identifier = compat::read(BACKGROUND.get(), |__t| __t.get());
+        gui_graphics_extractor::blit_sprite_identifier(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), mcrust::net::minecraft::client::renderer::render_pipelines::gui_textured(), &__texture, StorageOverlayScreen::get_left_pos(__this), compat::read(__this, |__t| __t.top_pos), StorageOverlayScreen::get_width(__this), StorageOverlayScreen::get_height(__this));
+        //render inventory
         gui_graphics_extractor::blit_identifier(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), mcrust::net::minecraft::client::renderer::render_pipelines::gui_textured(), TEXTURE.get_mut(), compat::read(__this, |__t| __t.left_pos), ((compat::read(__this, |__t| __t.top_pos)).wrapping_add(StorageOverlayScreen::get_height(__this))).wrapping_sub(3), ((0) as f32) as f32, ((132) as f32) as f32, 175, 90, 256, 256);
     }
 
@@ -485,6 +510,8 @@ pub struct BackpackGridWidget {
     pub open_backpack: Option<compat::Shared<BackpackWidget>>,
     /// java: @Nullable private final Button reloadButton;
     pub reload_button: Option<AbstractWidget>,
+    /// `StorageOverlayScreen.this` - the enclosing instance of this inner class
+    pub outer: compat::WeakShared<StorageOverlayScreen>,
 }
 
 impl std::ops::Deref for BackpackGridWidget {
@@ -502,16 +529,25 @@ impl std::ops::DerefMut for BackpackGridWidget {
 
 impl BackpackGridWidget {
     /// java: private BackpackGridWidget(int x, int y, int width, int height, int maxStoragesPerRow, int internalCols, boolean packed)
-    pub fn new(mut x: i32, mut y: i32, mut width: i32, mut height: i32, mut max_storages_per_row: i32, mut internal_cols: i32, mut packed: bool) -> compat::Shared<Self> {
+    /// (`outer` is `StorageOverlayScreen.this`, the enclosing instance)
+    pub fn new(outer: compat::WeakShared<StorageOverlayScreen>, mut x: i32, mut y: i32, mut width: i32, mut height: i32, mut max_storages_per_row: i32, mut internal_cols: i32, mut packed: bool) -> compat::Shared<Self> {
+        // cut down number of columns if it will not fit on to the current gui size
         let mut expected_width: i32 = (internal_cols.wrapping_mul(SLOT_SIZE)).wrapping_add(EDGE_PADDING.wrapping_mul(2));
-        // TODO(fabric2seer): super(..) with 0 argument(s)
-        //   java:
-        let __this: compat::Shared<Self> = todo!("constructor");
         while expected_width > width.wrapping_sub(mcrust::net::minecraft::client::gui::components::abstract_scroll_area::SCROLLBAR_WIDTH) {
             expected_width = (({ internal_cols -= 1; internal_cols }).wrapping_mul(SLOT_SIZE)).wrapping_add(EDGE_PADDING.wrapping_mul(2));
         }
-        // TODO(fabric2seer): super statement
         //   java: super(x, y, width, height, Component.literal("BackPack grid"), expectedWidth, maxStoragesPerRow, packed, true);
+        let __outer = outer.clone();
+        let (_, __this) = SearchableGridWidgetBase::new_in(x, y, width, height, component::literal("BackPack grid"), expected_width, max_storages_per_row, packed, true, move |__base| {
+            let __h = compat::shared(Self {
+                base: __base,
+                backpack_widgets: Vec::new(),
+                open_backpack: None,
+                reload_button: None,
+                outer: __outer,
+            });
+            ((__h.clone() as compat::Shared<dyn SearchableGridWidget>), __h)
+        });
         let mut storage_loaded: bool = false;
         // java: BackpackPreview.@Nullable Storage[] storages = BackpackPreview.getStorages(); - the ELEMENTS are nullable
         let mut storages: Vec<Option<compat::Shared<Storage>>> = BackpackPreview::get_storages();
@@ -520,7 +556,7 @@ impl BackpackGridWidget {
             let mut open: bool = (compat::get_state(&OPEN_STORAGE) == i);
             if let Some(storage) = &storage {
                 storage_loaded = true;
-                let mut widget: compat::Shared<BackpackWidget> = BackpackWidget::new(internal_cols, i, storage.clone(), open);
+                let mut widget: compat::Shared<BackpackWidget> = BackpackWidget::new(outer.clone(), internal_cols, i, storage.clone(), open);
                 if open {
                     { let __v = Some(widget.clone()); compat::write(&__this, |__t| __t.open_backpack = __v); }
                 }
@@ -544,9 +580,10 @@ impl BackpackGridWidget {
 
     /// java: @Override public boolean isMouseOver(double mouseX, double mouseY)
     pub fn is_mouse_over(__this: &compat::Shared<Self>, mut mouse_x: f64, mut mouse_y: f64) -> bool {
-        // TODO(fabric2seer): the condition: unknown name `hoveredSlot`
+        //let the mouse go though gui if the user is interacting with open backpack
         //   java: hoveredSlot != null && getGridRectangle().containsPoint((int) mouseX, (int) mouseY)
-        if todo!("fabric2seer: the condition (TODO above)") {
+        let __hovered_slot: bool = compat::read(__this, |__t| __t.outer.upgrade()).is_some_and(|__outer| compat::read(&__outer, |__o| __o.hovered_slot.is_some()));
+        if __hovered_slot && ({ let __v = compat::view(__this, |a| a as compat::Shared<dyn SearchableGridWidget>); let __f = compat::dispatch(&__v, |__t| __t.get_grid_rectangle()); __f(&__v) }).contains_point(mouse_x as i32, mouse_y as i32) {
             return false;
         }
         return __this.lock().borrow_mut().base.is_mouse_over(mouse_x, mouse_y);
@@ -606,8 +643,10 @@ impl BackpackGridWidget {
         // java: if (openBackpack != null && (openBackpack.getBottom() < getY() + HEADER_H || openBackpack.getY() >= getBottom()))
         let __open = compat::read(__this, |__t| __t.open_backpack.clone());
         if let Some(__o) = &__open && (compat::write(__o, |__t| __t.get_bottom()) < (__this.lock().borrow().get_y()).wrapping_add(HEADER_H) || compat::write(__o, |__t| __t.get_y()) >= __this.lock().borrow().get_bottom()) {
-            // TODO(fabric2seer): `handler` is a field of the enclosing instance (StorageOverlayScreen.this) - an inner class has no outer reference in Rust
             //   java: handler.moveBackpackSlots(0, -1000, 9);
+            if let Some(__handler) = outer_handler(&compat::read(__this, |__t| __t.outer.clone())) {
+                StorageOverlayScreenHandler::move_backpack_slots(&__handler, 0, -1000, 9);
+            }
         }
     }
 
@@ -637,6 +676,8 @@ pub struct BackpackWidget {
     pub open: bool,
     /// java: private final BitSet matchedSlots = new BitSet();
     pub matched_slots: BitSet,
+    /// `StorageOverlayScreen.this` - the enclosing instance of this inner class
+    pub outer: compat::WeakShared<StorageOverlayScreen>,
 }
 
 impl std::ops::Deref for BackpackWidget {
@@ -654,47 +695,55 @@ impl std::ops::DerefMut for BackpackWidget {
 
 impl BackpackWidget {
     /// java: private BackpackWidget(int columns, int index, BackpackPreview.Storage storage, Boolean open)
-    pub fn new(mut columns: i32, mut index: i32, mut storage: compat::Shared<Storage>, mut open: bool) -> compat::Shared<Self> {
-        // TODO(fabric2seer): Math.ceilDiv
+    /// (`outer` is `StorageOverlayScreen.this`, the enclosing instance)
+    pub fn new(outer: compat::WeakShared<StorageOverlayScreen>, mut columns: i32, mut index: i32, mut storage: compat::Shared<Storage>, mut open: bool) -> compat::Shared<Self> {
         //   java: int rows = Math.ceilDiv(storage.size() - 9, columns);
-        let mut rows: i32 = todo!("fabric2seer: the initialiser of `rows` (TODO above)");
-        // TODO(fabric2seer): `new` takes 7 argument(s) in the port (`x: i32, y: i32, width: i32, height: i32, message: String, kind: WidgetKind, on_press: OnPress`), Java passes 0
-        //   java:
-        let __this: compat::Shared<Self> = todo!("constructor");
+        let mut rows: i32 = ceil_div(Storage::size(&storage).wrapping_sub(9), columns);
+        // if the storage is open use the handler to work out size
         if open {
-            // TODO(fabric2seer): `handler` is a field of the enclosing instance (StorageOverlayScreen.this) - an inner class has no outer reference in Rust
             //   java: rows = Math.ceilDiv(handler.getContainer().getContainerSize() - 9, columns);
+            if let Some(__size) = outer_container_size(&outer) {
+                rows = ceil_div(__size.wrapping_sub(9), columns);
+            }
         }
-        // TODO(fabric2seer): super statement
         //   java: super(0, 0, columns * SLOT_SIZE + EDGE_PADDING * 2, rows * SLOT_SIZE + HEADER_H + EDGE_PADDING, Component.literal("Backpack preview"));
-        { let __v = rows; compat::write(&__this, |__t| __t.rows = __v); }
-        { let __v = columns; compat::write(&__this, |__t| __t.columns = __v); }
-        { let __v = StorageOverlayScreen::get_storage_name(index); compat::write(&__this, |__t| __t.label = __v); }
-        { let __v = index; compat::write(&__this, |__t| __t.index = __v); }
-        { let __v = Some(storage.clone()); compat::write(&__this, |__t| __t.storage = __v); }
-        { let __v = open; compat::write(&__this, |__t| __t.open = __v); }
+        let __this = compat::shared(Self {
+            base: AbstractWidget::new(0, 0, (columns.wrapping_mul(SLOT_SIZE)).wrapping_add(EDGE_PADDING.wrapping_mul(2)), ((rows.wrapping_mul(SLOT_SIZE)).wrapping_add(HEADER_H)).wrapping_add(EDGE_PADDING), component::literal("Backpack preview").get_string(), mcrust::net::minecraft::client::gui::components::abstract_widget::WidgetKind::PlainText, OnPress::Inert),
+            rows,
+            columns,
+            label: StorageOverlayScreen::get_storage_name(index),
+            index,
+            storage: Some(storage.clone()),
+            open,
+            matched_slots: BitSet::new(),
+            outer,
+        });
         __this
     }
 
     /// java: private int size()
     pub fn size(__this: &compat::Shared<Self>) -> i32 {
         if compat::read(__this, |__t| __t.open) {
-            // TODO(fabric2seer): `handler` is a field of the enclosing instance (StorageOverlayScreen.this) - an inner class has no outer reference in Rust
             //   java: return handler.getContainer().getContainerSize();
+            // (the open storage's menu, read while it is still the open one; `0` - no slots - once it is gone)
+            return outer_container_size(&compat::read(__this, |__t| __t.outer.clone())).unwrap_or(0);
         } else {
             return Storage::size(&compat::read(__this, |__t| __t.storage.clone()).unwrap());
         }
-        todo!("fabric2seer: the value of this function is in a TODO above")
     }
 
     /// java: public boolean matches(String filter)
     pub fn matches(__this: &compat::Shared<Self>, filter: &str) -> bool {
         __this.lock().borrow_mut().matched_slots.clear();
         let mut filter_lower_case: String = filter.to_lowercase();
+        let __open: bool = compat::read(__this, |__t| __t.open);
+        let __outer = compat::read(__this, |__t| __t.outer.clone());
+        let __storage = compat::read(__this, |__t| __t.storage.clone()).unwrap();
+        //matches if any item in backpack contains the filter word
         for i in 9..BackpackWidget::size(__this) {
-            // TODO(fabric2seer): `handler` is a field of the enclosing instance (StorageOverlayScreen.this) - an inner class has no outer reference in Rust
             //   java: ItemStack currentStack = open ? handler.getContainer().getItem(i) : storage.getStack(i);
-            let mut current_stack: mcrust::net::minecraft::world::item::item_stack::ItemStack = todo!("fabric2seer: the initialiser of `currentStack` (TODO above)");
+            let current_stack: mcrust::net::minecraft::world::item::item_stack::ItemStack = if __open { outer_container_item(&__outer, i) } else { Storage::get_stack(&__storage, i) };
+            let filter_lower_case = filter_lower_case.clone();
             if compat::component_of(current_stack.get_display_name()).get_string().to_lowercase().contains(&filter_lower_case) || ItemUtils::get_lore_line_if(&current_stack, Arc::new(move |s| s.to_lowercase().contains(&filter_lower_case))).is_some() {
                 { let (__q0,) = ((i) as usize,); __this.lock().borrow_mut().matched_slots.set(__q0) };
             }
@@ -753,11 +802,17 @@ impl BackpackWidget {
                     graphics.item(&current_stack, item_x, item_y);
                     graphics.item_decorations(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), &current_stack, item_x, item_y);
                     SlotTextManager::extract_slot_text_7(graphics, &text_renderer, None, &current_stack, i, item_x, item_y);
-                    // TODO(fabric2seer): the condition: unknown name `topPos`
+                    //draw tooltip if hovered
                     //   java: graphics.containsPointInScissor(mouseX, mouseY) && mouseX > itemX && mouseX <= itemX + SLOT_SIZE && mouseY > itemY && mouseY <= itemY + SLOT_SIZE && mouseY > topPos && mouseY < topPos + StorageOverlayScreen.this.getHeight()
-                    if todo!("fabric2seer: the condition (TODO above)") {
-                        // TODO(fabric2seer): `GuiGraphicsExtractor.setTooltipForNextFrame` has no Rust method in the port (looked for `set_tooltip_for_next_frame` in GuiGraphicsExtractor and its supertypes)
-                        // rust: graphics.set_tooltip_for_next_frame(&compat::font(), &current_stack, mouse_x, mouse_y);
+                    let __outer = compat::read(__this, |__t| __t.outer.upgrade());
+                    let (__top_pos, __outer_height) = match &__outer {
+                        Some(__o) => (compat::read(__o, |__t| __t.top_pos), StorageOverlayScreen::get_height(__o)),
+                        None => (0, 0),
+                    };
+                    if __outer.is_some() && gui_graphics_extractor::contains_point_in_scissor(mouse_x, mouse_y) && mouse_x > item_x && mouse_x <= item_x.wrapping_add(SLOT_SIZE) && mouse_y > item_y && mouse_y <= item_y.wrapping_add(SLOT_SIZE) && mouse_y > __top_pos && mouse_y < __top_pos.wrapping_add(__outer_height) {
+                        //   java: graphics.setTooltipForNextFrame(CLIENT.font, currentStack, mouseX, mouseY);
+                        // rust: port gap - the frame's deferred-tooltip slot (`setTooltipForNextFrame(Font, ItemStack, x, y)`) is
+                        // the game's (`Option<DeferredTooltip>` in the screen pass); a mod's draw has no way to set it (GAPS_M #15).
                     }
                 }
                 if !({ let (__q0,) = ((i) as usize,); __this.lock().borrow().matched_slots.get(__q0) }) {
@@ -765,8 +820,15 @@ impl BackpackWidget {
                 }
             }
         } else {
-            // TODO(fabric2seer): `handler` is a field of the enclosing instance (StorageOverlayScreen.this) - an inner class has no outer reference in Rust
+            //move slots to fit this open backpack
             //   java: handler.moveBackpackSlots(getX() - leftPos + 8, getY() - topPos + SLOT_SIZE, columns);
+            if let Some(__outer) = compat::read(__this, |__t| __t.outer.upgrade()) {
+                let (__left_pos, __top_pos, __handler) = compat::read(&__outer, |__t| (__t.left_pos, __t.top_pos, __t.handler.clone()));
+                let (__x, __y) = compat::read(__this, |__t| (__t.get_x(), __t.get_y()));
+                if let Some(__handler) = __handler {
+                    StorageOverlayScreenHandler::move_backpack_slots(&__handler, (__x.wrapping_sub(__left_pos)).wrapping_add(8), (__y.wrapping_sub(__top_pos)).wrapping_add(SLOT_SIZE), columns);
+                }
+            }
         }
     }
 
@@ -774,8 +836,12 @@ impl BackpackWidget {
     pub fn extract_widget_render_state(__this: &compat::Shared<Self>, graphics: &mut GuiGraphicsExtractor, mut mouse_x: i32, mut mouse_y: i32, mut a: f32) {
         BackpackWidget::render_custom_backpack(__this, graphics, mouse_x, mouse_y, __this.lock().borrow().get_x(), __this.lock().borrow().get_y(), compat::read(__this, |__t| __t.rows), compat::read(__this, |__t| __t.columns), &compat::read(__this, |__t| __t.label.clone()), &compat::read(__this, |__t| __t.storage.clone()).unwrap());
         if compat::read(__this, |__t| __t.open) {
-            // TODO(fabric2seer): `getWidth(..)` is a method of the enclosing instance (StorageOverlayScreen.this) - an inner class has no outer reference in Rust
+            //outline open
             //   java: graphics.outline(getX(), getY(), getWidth(), getHeight(), Color.yellow.getRGB());
+            // (`getWidth()` / `getHeight()` here are this widget's own - `AbstractWidget`'s, which the inner class inherits and
+            // which shadow the enclosing screen's private ones; `Color.yellow` is 0xFFFFFF00)
+            let (__x, __y, __w, __h) = compat::read(__this, |__t| (__t.get_x(), __t.get_y(), __t.get_width(), __t.get_height()));
+            gui_graphics_extractor::outline(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), __x, __y, __w, __h, 0xFFFFFF00u32 as i32);
         }
         if __this.lock().borrow().is_hovered() && !(compat::read(__this, |__t| __t.open)) {
             graphics.fill(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), __this.lock().borrow().get_x(), __this.lock().borrow().get_y(), __this.lock().borrow().get_right(), __this.lock().borrow().get_bottom(), argb::white_f32(0.1f32));
@@ -784,11 +850,13 @@ impl BackpackWidget {
 
     /// java: @Override public void onClick(MouseButtonEvent event, boolean doubleClick)
     pub fn on_click(__this: &compat::Shared<Self>, event: &MouseButtonEvent, mut double_click: bool) {
-        // TODO(fabric2seer): `AbstractWidget.onClick` has no Rust method in the port (looked for `on_click` in AbstractWidget and its supertypes)
-        // rust: __this.lock().borrow_mut().base.on_click(event, double_click);
+        //   java: super.onClick(event, doubleClick); - `AbstractWidget.onClick` is an empty body
+        let _ = (event, double_click);
         if !(compat::read(__this, |__t| __t.open)) {
-            // TODO(fabric2seer): `switchOpenStorage(..)` is a method of the enclosing instance (StorageOverlayScreen.this) - an inner class has no outer reference in Rust
             //   java: switchOpenStorage(index);
+            if let Some(__outer) = compat::read(__this, |__t| __t.outer.upgrade()) {
+                StorageOverlayScreen::switch_open_storage(&__outer, compat::read(__this, |__t| __t.index));
+            }
         }
     }
 
@@ -854,4 +922,32 @@ impl ModWidget for ContainerWidgetAdapter<BackpackGridWidget> {
     fn container_widget_mut(&mut self) -> Option<&mut mcrust::net::minecraft::client::gui::components::abstract_container_widget::AbstractContainerWidget> {
         Some(self.part_mut())
     }
+}
+
+/// `Math.ceilDiv(x, y)`: the quotient rounded towards positive infinity (`-floorDiv(-x, y)`).
+fn ceil_div(x: i32, y: i32) -> i32 {
+    compat::floor_div_i32(x.wrapping_neg(), y).wrapping_neg()
+}
+
+/// `StorageOverlayScreen.this.handler` of an inner object.
+fn outer_handler(outer: &compat::WeakShared<StorageOverlayScreen>) -> Option<compat::Shared<StorageOverlayScreenHandler>> {
+    compat::read(&outer.upgrade()?, |__t| __t.handler.clone())
+}
+
+/// `handler.getContainer()` is the `ChestMenu`'s container the handler was built over - the screen's `defaultHandler`
+/// (the server's menu, read while it is still the open one).
+fn outer_container_size(outer: &compat::WeakShared<StorageOverlayScreen>) -> Option<i32> {
+    use mcrust::net::minecraft::world::container::Container as _;
+    let menu: compat::LiveChestMenu = compat::read(&outer.upgrade()?, |__t| __t.default_handler)?;
+    menu.with(|chest| chest.get_container().get_container_size())
+}
+
+/// `handler.getContainer().getItem(i)` (see `outer_container_size`); EMPTY once the menu is gone.
+fn outer_container_item(outer: &compat::WeakShared<StorageOverlayScreen>, i: i32) -> mcrust::net::minecraft::world::item::item_stack::ItemStack {
+    use mcrust::net::minecraft::world::container::Container as _;
+    outer
+        .upgrade()
+        .and_then(|outer| compat::read(&outer, |__t| __t.default_handler))
+        .and_then(|menu| menu.with(|chest| chest.get_container().get_item(i).duplicate()))
+        .unwrap_or_else(mcrust::net::minecraft::world::item::item_stack::empty)
 }

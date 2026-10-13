@@ -113,12 +113,21 @@ impl SpeedPresetListWidget {
         let __entry = (entry.clone() as compat::Shared<dyn AbstractEntry>);
         compat::write(__this, |__t| { let __l = &mut __t.base; (__l.add_entry(Box::new(compat::EntryAdapter::new(__entry))) as i32) });
         ({ let __f = compat::dispatch(&entry, |__t| __t.update_position()); __f(&compat::view(&entry, |a| a as compat::Shared<dyn AbstractEntry>)) });
-        // TODO(fabric2seer): `ContainerObjectSelectionList.centerScrollOn` has no Rust method in the port (looked for `center_scroll_on` in ContainerObjectSelectionList and its supertypes)
-        // rust: __this.lock().borrow().center_scroll_on(&entry);
         let __entry = Some((entry.clone() as compat::Shared<dyn AbstractEntry>));
+        // java: this.centerScrollOn(entry);
+        compat::write(__this, |__t| { let __l = &mut __t.base; if let Some(__i) = __entry.as_ref().and_then(|__e| compat::entry_index::<dyn AbstractEntry>(__l, __e)) { __l.list.center_scroll_on(__i); } });
         compat::write(__this, |__t| { let __l = &mut __t.base; { let __i = __entry.as_ref().and_then(|__e| compat::entry_index::<dyn AbstractEntry>(__l, __e)); __l.set_selected(__i); } });
-        // TODO(fabric2seer): `set_focused_clears_selection` takes 2 argument(s) in the port (`changed: bool, focused: Option<usize>`), Java passes 1
-        // rust: container_object_selection_list::set_focused_clears_selection(entry.clone());
+        // java: this.setFocused(entry); - ContainerObjectSelectionList.setFocused:76-83: `super.setFocused(entry)`, then the
+        // selection is cleared only when the focus changed to null
+        compat::write(__this, |__t| {
+            let __l = &mut __t.base;
+            let __i = __entry.as_ref().and_then(|__e| compat::entry_index::<dyn AbstractEntry>(__l, __e));
+            let __changed = __l.list.get_focused() != __i;
+            __l.list.set_focused(__i, false);
+            if mcrust::net::minecraft::client::gui::components::container_object_selection_list::set_focused_clears_selection(__changed, __i) {
+                __l.set_selected(None);
+            }
+        });
     }
 
     /// java: public void save()
@@ -216,15 +225,17 @@ impl dyn AbstractEntry {
 
     /// java: @Override public void extractContent(GuiGraphicsExtractor graphics, int mouseX, int mouseY, boolean hovered, float deltaTicks)
     pub fn extract_content_body(__this: &compat::Shared<dyn AbstractEntry>, graphics: &GuiGraphicsExtractor, mut mouse_x: i32, mut mouse_y: i32, mut hovered: bool, mut delta_ticks: f32) {
-        // TODO(fabric2seer): `Entry.children` has no Rust method in the port (looked for `children` in ContainerObjectSelectionList and its supertypes)
-        // rust: for child in __this.lock().borrow().abstract_entry_base().children() {
-        // rust: if let Some(widget) = child.as_any().downcast_ref::<LayoutElement>() {
-        // rust: widget.set_y(__this.lock().borrow().abstract_entry_base().get_y());
-        // rust: }
-        // rust: // TODO(fabric2seer): instanceof an interface (`Renderable`): Rust cannot test for a trait at run time
-        // rust: //   java: if (child instanceof Renderable drawable)
-        // rust: //   java: 					drawable.extractRenderState(graphics, mouseX, mouseY, deltaTicks);
-        // rust: }
+        // java: for (var child : children()) { if (child instanceof LayoutElement widget) widget.setY(getY());
+        //         if (child instanceof Renderable drawable) drawable.extractRenderState(graphics, mouseX, mouseY, deltaTicks); }
+        // The row's widgets are the row screen the adapter lends the game (`children()`), which draws each of them after
+        // this call: the loop's draw half is the game's; its `setY` half is here.
+        compat::write(__this, |__t| {
+            let __base = __t.abstract_entry_base_mut();
+            let __y = __base.base.get_y();
+            for __widget in __base.__row.children_mut() {
+                __widget.set_y(__y);
+            }
+        });
     }
 
 }
@@ -507,9 +518,9 @@ impl AbstractEntry for SpeedPresetEntry {
 impl SpeedPresetEntry {
     /// java: @Override protected void updatePosition()
     pub fn update_position_impl(__this: &compat::Shared<Self>) {
-        // TODO(fabric2seer): `Entry.getRowLeft` has no Rust method in the port (looked for `get_row_left` in ContainerObjectSelectionList and JavaSrc)
-        // TODO(fabric2seer): `LayoutElement::set_position` ports `setPosition`, but the port's `LinearLayout` holds no `LayoutElement` (no Deref, no `base` field) to call it on
-        // rust: { let (__q0, __q1,) = (__this.lock().borrow().get_row_left(), __this.lock().borrow().get_y(),); __this.lock().borrow_mut().layout.set_position(__q0, __q1) };
+        // java: layout.setPosition(getRowLeft(), getY()); - `getRowLeft()` is the enclosing list's (an inner class), which
+        // is the x the list gives each of its rows (`Entry.getX()`); `setPosition` is `setX` then `setY`
+        { let (__q0, __q1) = compat::read(__this, |__t| (__t.base.base.get_x(), __t.base.base.get_y())); compat::write(__this, |__t| { __t.layout.set_x(__q0); __t.layout.set_y(__q1); }) };
         { __this.lock().borrow_mut().layout.arrange_elements(); let mut __vw = Vec::new(); LayoutElement::Grid(__this.lock().borrow().layout.wrapped.clone()).visit_widgets(&mut __vw); for (__i, __x, __y) in __vw { compat::write(__this, |__t| __t.base.__row.widget_mut(__i).set_position(__x, __y)); } };
     }
 

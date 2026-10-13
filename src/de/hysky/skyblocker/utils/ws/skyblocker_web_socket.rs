@@ -10,7 +10,6 @@ use mcrust::java::util::concurrent::completable_future::CompletableFuture;
 
 /// java: private static final String WS_URL = "wss://ws.hysky.de";
 pub const WS_URL: &str = "wss://ws.hysky.de";
-// TODO(fabric2seer): static `HttpClient.newBuilder` has no Rust counterpart in the port
 //   java: private static final HttpClient HTTP_CLIENT = HttpClient.newBuilder()
 //   java: 			.connectTimeout(Duration.ofSeconds(10))
 //   java: 			.followRedirects(Redirect.NORMAL)
@@ -18,13 +17,18 @@ pub const WS_URL: &str = "wss://ws.hysky.de";
 //   java: 			.version(Version.HTTP_2)
 //   java: 			.build();
 /// java: private static final HttpClient HTTP_CLIENT = HttpClient.newBuilder() .connectTimeout(Duration.ofSeconds(10)) .followRedirects(Redirect.NORMAL) .executor(SkyblockerMod.VIRTUAL_THREAD_EXECUTOR) .versio
-pub static HTTP_CLIENT: compat::MainThread<crate::unresolved::HttpClient> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `HTTP_CLIENT` - see the TODO above"));
-// TODO(fabric2seer): Executors.newSingleThreadExecutor: use std::thread / the port's executors
+///
+/// rust: port gap - `java.net.http.HttpClient` / `WebSocket` (the port's `java/net/http` is a blocking WinHTTP client
+/// with no WebSocket, GAPS_K): the static holds the placeholder object; no socket is ever built, so `socket` stays null.
+pub static HTTP_CLIENT: compat::MainThread<crate::unresolved::HttpClient> = compat::MainThread::new(|| crate::unresolved::HttpClient);
 //   java: private static final ExecutorService MESSAGE_SEND_QUEUE = Executors.newSingleThreadExecutor(Thread.ofVirtual()
 //   java: 			.name("Skyblocker WebSocket Message Send Queue")
 //   java: 			.factory());
 /// java: private static final ExecutorService MESSAGE_SEND_QUEUE = Executors.newSingleThreadExecutor(Thread.ofVirtual() .name("Skyblocker WebSocket Message Send Queue") .factory());
-pub static MESSAGE_SEND_QUEUE: compat::MainThread<crate::unresolved::ExecutorService> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `MESSAGE_SEND_QUEUE` - see the TODO above"));
+///
+/// rust: port gap - the queue only ever runs `socket.sendText` / `sendClose` on a WebSocket the port cannot build (see
+/// `HTTP_CLIENT`): the static holds the placeholder object.
+pub static MESSAGE_SEND_QUEUE: compat::MainThread<crate::unresolved::ExecutorService> = compat::MainThread::new(|| crate::unresolved::ExecutorService);
 /// java: private static volatile @Nullable WebSocket socket;
 pub static SOCKET: compat::MainThread<Option<crate::unresolved::WebSocket>> = compat::MainThread::new(|| None);
 
@@ -94,9 +98,12 @@ impl SkyblockerWebSocket {
 
     /// java: private static boolean isConnectionOpen()
     pub fn is_connection_open() -> bool {
-        // TODO(fabric2seer): `.isInputClosed(..)` on a WebSocket
         //   java: return socket != null && !socket.isInputClosed() && !socket.isOutputClosed();
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        match SOCKET.get() {
+            None => false,
+            // rust: port gap - `WebSocket.isInputClosed` / `isOutputClosed` (see `HTTP_CLIENT`; `socket` is never set)
+            Some(_socket) => todo!("rust: port gap - java.net.http.WebSocket (GAPS_K)"),
+        }
     }
 
     /// java: static void send(String message)
@@ -104,8 +111,9 @@ impl SkyblockerWebSocket {
         if SkyblockerWebSocket::is_connection_open() {
             SkyblockerWebSocket::send_internal(message);
         } else {
-            // TODO(fabric2seer): `CompletableFuture.thenRun` has no Rust method in the port (looked for `then_run` in CompletableFuture and JavaSrc)
-            // rust: SkyblockerWebSocket::setup_socket().then_run(&Arc::new(move || SkyblockerWebSocket::send_internal(message)));
+            //   java: setupSocket().thenRun(() -> sendInternal(message));
+            let message: String = message.to_string();
+            SkyblockerWebSocket::setup_socket().then_run(move || SkyblockerWebSocket::send_internal(&message));
         }
     }
 
