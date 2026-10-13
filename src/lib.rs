@@ -9,6 +9,7 @@ pub mod mixins;
 pub mod entry;
 pub mod de;
 pub mod unresolved;
+pub mod net;
 
 use mcrust::mcrust::modding::entrypoint::{ClientModInitializer, ModInitializer, PreLaunchEntrypoint};
 
@@ -19,6 +20,8 @@ pub struct Mixins;
 impl PreLaunchEntrypoint for Mixins {
     fn on_pre_launch(&self) {
         compat::register_hooks(); // the hooks the compat layer reads the game through
+        // the hm-api library's mixins (its Hypixel Mod API channels) - Fabric applies a dependency's mixins with the mod's
+        net::azureaaron::hmapi::hm_api::HMApi::register_mixins();
         mixins::abstract_container_menu_mixin::register();
         mixins::abstract_container_screen_mixin::register();
         mixins::abstract_sign_edit_screen_mixin::register();
@@ -113,6 +116,8 @@ pub struct Client;
 impl ClientModInitializer for Client {
     fn on_initialize_client(&self) {
         compat::install(); // Minecraft.getInstance() for the translated classes
+        // hm-api's ClientModInitializer: a dependency of Skyblocker, so Fabric initializes it first
+        net::azureaaron::hmapi::hm_api::HMApi::on_initialize_client();
         entry::skyblocker_mod::on_initialize_client();
     }
 }

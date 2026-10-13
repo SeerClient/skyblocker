@@ -243,14 +243,14 @@ impl SkyblockInventoryScreen {
             // java: boolean hovered = this.hoveredSlot == null && this.isHovering(equipmentSlot.x, equipmentSlot.y, 16, 16, mouseX, mouseY);
             let mut hovered: bool = compat::read(__this, |__t| __t.container.hovered_slot.is_none() && __t.container.is_hovering_box(equipment_slot.x, equipment_slot.y, 16, 16, mouse_x as f64, mouse_y as f64));
             if hovered {
-                // TODO(fabric2seer): static call AbstractContainerScreenAccessor.getSLOT_HIGHLIGHT_BACK_SPRITE(..)
-                //   java: graphics.blitSprite(RenderPipelines.GUI_TEXTURED, AbstractContainerScreenAccessor.getSLOT_HIGHLIGHT_BACK_SPRITE(), equipmentSlot.x - 4, equipmentSlot.y - 4, 24, 24);
+                // java: graphics.blitSprite(RenderPipelines.GUI_TEXTURED, AbstractContainerScreenAccessor.getSLOT_HIGHLIGHT_BACK_SPRITE(), equipmentSlot.x - 4, equipmentSlot.y - 4, 24, 24);
+                gui_graphics_extractor::blit_sprite_identifier(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), mcrust::net::minecraft::client::renderer::render_pipelines::gui_textured(), &mcrust::net::minecraft::client::gui::screens::inventory::abstract_container_screen::slot_highlight_back_sprite(), equipment_slot.x - 4, equipment_slot.y - 4, 24, 24);
             }
             // TODO(fabric2seer): `extract_slot` takes 11 argument(s) in the port (`gl: &crate::lwjgl::opengl::Gl, gfx: &crate::net::minecraft::client::minecraft::Minecraft, state: &mut AbstractContainerScreen, menu: &AbstractContainerMenu, containers: &mut Containers<'_>, index: i32, resolver: Option< &crate::net::minecra ..`), Java passes 4
             // rust: abstract_container_screen::extract_slot(graphics, &equipment_slot, &mut mouse_x, &mouse_y);
             if hovered {
-                // TODO(fabric2seer): static call AbstractContainerScreenAccessor.getSLOT_HIGHLIGHT_FRONT_SPRITE(..)
-                //   java: graphics.blitSprite(RenderPipelines.GUI_TEXTURED, AbstractContainerScreenAccessor.getSLOT_HIGHLIGHT_FRONT_SPRITE(), equipmentSlot.x - 4, equipmentSlot.y - 4, 24, 24);
+                // java: graphics.blitSprite(RenderPipelines.GUI_TEXTURED, AbstractContainerScreenAccessor.getSLOT_HIGHLIGHT_FRONT_SPRITE(), equipmentSlot.x - 4, equipmentSlot.y - 4, 24, 24);
+                gui_graphics_extractor::blit_sprite_identifier(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), mcrust::net::minecraft::client::renderer::render_pipelines::gui_textured(), &mcrust::net::minecraft::client::gui::screens::inventory::abstract_container_screen::slot_highlight_front_sprite(), equipment_slot.x - 4, equipment_slot.y - 4, 24, 24);
             }
         }
     }

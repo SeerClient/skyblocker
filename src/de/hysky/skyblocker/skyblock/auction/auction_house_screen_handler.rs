@@ -92,8 +92,10 @@ impl AuctionHouseScreenHandler {
 
     /// java: @Override public void setItem(int slot, int revision, ItemStack stack)
     pub fn set_item(__this: &compat::Shared<Self>, mut slot: i32, mut revision: i32, stack: &mcrust::net::minecraft::world::item::item_stack::ItemStack) {
-        // TODO(fabric2seer): `set_item` takes 4 argument(s) in the port (`inventory: &mut Inventory, slot: i32, state_id: i32, item_stack: ItemStack`), Java passes 3
-        // rust: { let (__q0, __q1, __q2,) = (&mut slot, revision, stack.clone(),); __this.lock().borrow_mut().base.set_item(__q0, __q1, __q2) };
+        //   java: super.setItem(slot, revision, stack);
+        // The override's whole body is the super call: `MenuOverrides` keeps the menu's own `setItem` for this class, so
+        // the game's body runs (this function, which nothing reaches, is the override's place).
+        let _ = (__this, slot, revision, stack);
     }
 
 }

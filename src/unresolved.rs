@@ -184,8 +184,8 @@ pub struct HttpHeaders;
 pub struct HttpResponse;
 /// TODO(fabric2seer): java net.fabricmc.fabric.api.client.rendering.v1.hud.HudElement
 pub struct HudElement;
-/// TODO(fabric2seer): java net.azureaaron.hmapi.network.packet.s2c.HypixelS2CPacket
-pub struct HypixelS2CPacket;
+/// java net.azureaaron.hmapi.network.packet.s2c.HypixelS2CPacket - the hm-api library is ported (`crate::net::azureaaron::hmapi`)
+pub use crate::net::azureaaron::hmapi::network::packet::s2c::hypixel_s2c_packet::HypixelS2CPacket;
 /// TODO(fabric2seer): java mezz.jei.api.gui.ingredient.ICraftingGridHelper
 pub struct ICraftingGridHelper;
 /// TODO(fabric2seer): java mezz.jei.api.gui.drawable.IDrawableStatic

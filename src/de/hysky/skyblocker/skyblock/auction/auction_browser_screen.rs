@@ -54,14 +54,12 @@ pub static SCROLLER_TEXTURE: compat::MainThread<Identifier> = compat::MainThread
 pub static UP_ARROW_TEX: compat::MainThread<Identifier> = compat::MainThread::new(|| crate::entry::skyblocker_mod::id("up_arrow_even"));
 /// java: private static final Identifier down_arrow_tex = SkyblockerMod.id("down_arrow_even");
 pub static DOWN_ARROW_TEX: compat::MainThread<Identifier> = compat::MainThread::new(|| crate::entry::skyblocker_mod::id("down_arrow_even"));
-// TODO(fabric2seer): `Minecraft.getAtlasManager` has no Rust method in the port (looked for `get_atlas_manager` in Minecraft and its supertypes)
 //   java: public static final Supplier<TextureAtlasSprite> UP_ARROW = () -> Minecraft.getInstance().getAtlasManager().getAtlasOrThrow(AtlasIds.GUI).getSprite(up_arrow_tex);
 /// java: public static final Supplier<TextureAtlasSprite> UP_ARROW = () -> Minecraft.getInstance().getAtlasManager().getAtlasOrThrow(AtlasIds.GUI).getSprite(up_arrow_tex);
-pub static UP_ARROW: compat::MainThread<Arc<dyn Fn() -> TextureAtlasSprite>> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `UP_ARROW` - see the TODO above"));
-// TODO(fabric2seer): `Minecraft.getAtlasManager` has no Rust method in the port (looked for `get_atlas_manager` in Minecraft and its supertypes)
+pub static UP_ARROW: compat::MainThread<Arc<dyn Fn() -> TextureAtlasSprite>> = compat::MainThread::new(|| Arc::new(|| compat::minecraft().get_atlas_manager().expect("Minecraft.getAtlasManager() before the atlases loaded").get_atlas_or_throw(&mcrust::net::minecraft::data::atlas_ids::gui()).get_sprite(UP_ARROW_TEX.get()).clone()));
 //   java: public static final Supplier<TextureAtlasSprite> DOWN_ARROW = () -> Minecraft.getInstance().getAtlasManager().getAtlasOrThrow(AtlasIds.GUI).getSprite(down_arrow_tex);
 /// java: public static final Supplier<TextureAtlasSprite> DOWN_ARROW = () -> Minecraft.getInstance().getAtlasManager().getAtlasOrThrow(AtlasIds.GUI).getSprite(down_arrow_tex);
-pub static DOWN_ARROW: compat::MainThread<Arc<dyn Fn() -> TextureAtlasSprite>> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `DOWN_ARROW` - see the TODO above"));
+pub static DOWN_ARROW: compat::MainThread<Arc<dyn Fn() -> TextureAtlasSprite>> = compat::MainThread::new(|| Arc::new(|| compat::minecraft().get_atlas_manager().expect("Minecraft.getAtlasManager() before the atlases loaded").get_atlas_or_throw(&mcrust::net::minecraft::data::atlas_ids::gui()).get_sprite(DOWN_ARROW_TEX.get()).clone()));
 /// java: public static final int RESET_BUTTON_SLOT = 47;
 pub const RESET_BUTTON_SLOT: i32 = 47;
 /// java: public static final int SEARCH_BUTTON_SLOT = 48;
@@ -93,6 +91,8 @@ pub struct AuctionBrowserScreen {
     pub rarity_widget: Option<compat::Shared<RarityWidget>>,
     /// java: private Button resetFiltersButton;
     pub reset_filters_button: Option<AbstractWidget>,
+    /// java: `AbstractContainerScreen.menu` - the handler this screen was built over
+    pub menu: compat::Shared<AuctionHouseScreenHandler>,
     /// java: private final List<CategoryTabWidget> categoryTabWidgets = new ArrayList<>(6);
     pub category_tab_widgets: Vec<compat::Shared<CategoryTabWidget>>,
     /// java: private String search = "";
@@ -133,6 +133,7 @@ impl AuctionBrowserScreen {
             auction_type_widget: None,
             rarity_widget: None,
             reset_filters_button: None,
+            menu: handler.clone(),
             category_tab_widgets: Vec::with_capacity((6) as usize),
             search: "".to_string(),
             current_page: 0,
@@ -183,9 +184,9 @@ impl AuctionBrowserScreen {
         let __r0 = compat::read(__this, |__t| __t.reset_filters_button.clone());
         { let (__q0,) = (__r0.unwrap(),); __this.lock().borrow_mut().screen.add_renderable_widget(__q0) };
         { let (__q0,) = (Tooltip::create(component::literal("Reset Filters").get_string()),); __this.lock().borrow_mut().reset_filters_button.as_mut().unwrap().set_tooltip(__q0) };
-        // TODO(fabric2seer): `Button.setTooltipDelay` has no Rust method in the port (looked for `set_tooltip_delay` in Button and its supertypes)
-        // rust: let __h0 = &std::time::Duration::from_millis((500) as u64);
-        // rust: __this.lock().borrow().reset_filters_button.as_ref().unwrap().set_tooltip_delay(__h0);
+        //   java: resetFiltersButton.setTooltipDelay(Duration.ofMillis(500));
+        // (the field holds the widget the screen was handed a copy of above: set on the field, as the converter keeps it)
+        __this.lock().borrow_mut().reset_filters_button.as_mut().unwrap().set_tooltip_delay(500);
         let __this_w5 = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
         { let (__q0,) = (({ let (__q0, __q1,) = ((compat::read(__this, |__t| __t.left_pos)).wrapping_add(98), (compat::read(__this, |__t| __t.top_pos)).wrapping_add(4),); (Builder::new((component::literal("<")).get_string(), OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| { let Some(__this_5) = __this_w5.get().upgrade() else { return Default::default(); }; { (&__this_5).lock().borrow_mut().click_slot_1(BACK_BUTTON_SLOT); } })))).pos(__q0, __q1) }).size(12, 12).build(),); __this.lock().borrow_mut().screen.add_renderable_widget(__q0) };
         if __this.lock().borrow().category_tab_widgets.is_empty() {
@@ -194,7 +195,8 @@ impl AuctionBrowserScreen {
                 let mut category_tab_widget: compat::Shared<CategoryTabWidget> = CategoryTabWidget::new(mcrust::net::minecraft::world::item::item_stack::ItemStack::of_one(items::items().get("sponge")), Arc::new(move |__a0: i32, __a1: i32| { let Some(__this_6) = __this_w6.get().upgrade() else { return; }; (&__this_6).lock().borrow_mut().click_slot(__a0, __a1) }), i);
                 let __h0 = category_tab_widget.clone();
                 __this.lock().borrow_mut().category_tab_widgets.push(__h0);
-                { let (__q0,) = (compat::WidgetAdapter::widget(category_tab_widget.clone()),); __this.lock().borrow_mut().screen.add_widget(__q0) };
+                // (renderable: see `extract_render_state`)
+                { let (__q0,) = (compat::WidgetAdapter::widget(category_tab_widget.clone()),); __this.lock().borrow_mut().screen.add_renderable_widget(__q0) };
                 let __wa1 = (compat::read(__this, |__t| __t.left_pos)).wrapping_sub(30);
                 let __wa2 = ((compat::read(__this, |__t| __t.top_pos)).wrapping_add(3)).wrapping_add(i.wrapping_mul(28));
                 let __o7 = category_tab_widget.clone();
@@ -207,15 +209,16 @@ impl AuctionBrowserScreen {
                 let __wa4 = ((compat::read(__this, |__t| __t.top_pos)).wrapping_add(3)).wrapping_add(i.wrapping_mul(28));
                 let __o8 = category_tab_widget.clone();
                 compat::write(&__o8, |__t| __t.set_position(__wa3, __wa4));
-                { let (__q0,) = (compat::WidgetAdapter::widget(category_tab_widget.clone()),); __this.lock().borrow_mut().screen.add_widget(__q0) };
+                // (renderable: see `extract_render_state`)
+                { let (__q0,) = (compat::WidgetAdapter::widget(category_tab_widget.clone()),); __this.lock().borrow_mut().screen.add_renderable_widget(__q0) };
             }
         }
     }
 
     /// java: private void onResetPressed(Button buttonWidget)
     pub fn on_reset_pressed(__this: &compat::Shared<Self>, button_widget: &mut AbstractWidget) {
-        // TODO(fabric2seer): `set_focused` takes 2 argument(s) in the port (`focused: bool, last_input_type: InputType`), Java passes 1
-        // rust: button_widget.set_focused(false);
+        //   java: buttonWidget.setFocused(false);
+        button_widget.set_focused(false, mcrust::net::minecraft::client::input_type::InputType::None);
         __this.lock().borrow_mut().click_slot(RESET_BUTTON_SLOT, 0);
     }
 
@@ -228,15 +231,10 @@ impl AuctionBrowserScreen {
     /// java: @Override public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a)
     pub fn extract_render_state(__this: &compat::Shared<Self>, graphics: &GuiGraphicsExtractor, mut mouse_x: i32, mut mouse_y: i32, mut a: f32) {
         ();
-        for category_tab_widget in compat::read(__this, |__t| __t.category_tab_widgets.clone()) {
-            // TODO(fabric2seer): `extract_render_state` is a method of the port's trait `Renderable`, which the port's `AbstractWidget` does not implement
-            // rust: let __wa1 = graphics.clone();
-            // rust: let __wa2 = mouse_x;
-            // rust: let __wa3 = mouse_y;
-            // rust: let __wa4 = a;
-            // rust: let __o1 = category_tab_widget.clone();
-            // rust: compat::write(&__o1, |__t| __t.extract_render_state(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), __wa2, __wa3, __wa4));
-        }
+        //   java: for (CategoryTabWidget categoryTabWidget : categoryTabWidgets) categoryTabWidget.extractRenderState(graphics, mouseX, mouseY, a);
+        // rust: port gap - a mod screen cannot draw one of its widgets from its own `extractRenderState` (the widget's draw
+        // is the game's, over the screen's list); the tabs are drawn by the screen with its widgets instead (`init` adds
+        // them renderable), i.e. under the container's slots rather than over them (GAPS_K)
         if compat::read(__this, |__t| __t.is_waiting_for_server) {
             let mut waiting: String = "Waiting for server...".to_string();
             gui_graphics_extractor::text_string_with_drop_shadow(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), Some(&waiting), ((compat::read(__this, |__t| __t.screen.width)).wrapping_sub(compat::font().width(&waiting))).wrapping_sub(5), ((compat::read(__this, |__t| __t.screen.height)).wrapping_sub(mcrust::net::minecraft::client::gui::font::LINE_HEIGHT)).wrapping_sub(2), mcrust::net::minecraft::util::common_colors::WHITE, true);
@@ -267,8 +265,9 @@ impl AuctionBrowserScreen {
             gui_graphics_extractor::blit_sprite_identifier(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), mcrust::net::minecraft::client::renderer::render_pipelines::gui_textured(), SCROLLER_TEXTURE.get_mut(), 156, ((((18 as f32) + ((((((compat::read(__this, |__t| __t.current_page)).min(compat::read(__this, |__t| __t.total_pages))).wrapping_sub(1)) as f32) / ((compat::read(__this, |__t| __t.total_pages)).wrapping_sub(1) as f32)) * (37 as f32)))) as i32), 12, 15);
         }
         gui_graphics_extractor::pop_pose(__pose_1);
-        // TODO(fabric2seer): `AbstractContainerScreen.extractTooltip` has no Rust method in the port (looked for `extract_tooltip` in AbstractContainerScreen and its supertypes)
-        // rust: __this.lock().borrow().extract_tooltip(graphics, mouse_x, mouse_y);
+        //   java: this.extractTooltip(graphics, mouseX, mouseY);
+        // (`super.extractRenderState` - the game's `AbstractContainerScreen.extractRenderState:94` - has already run
+        // `extractTooltip`, and `setTooltipForNextFrame` keeps the tooltip already set: the second call changes nothing)
     }
 
     /// java: @Override protected void extractSlot(GuiGraphicsExtractor graphics, Slot slot, int mouseX, int mouseY)
@@ -282,10 +281,8 @@ impl AuctionBrowserScreen {
 
     /// java: @Override protected void slotClicked(Slot slot, int slotId, int button, ContainerInput actionType)
     pub fn slot_clicked(__this: &compat::Shared<Self>, slot: &Slot, mut slot_id: i32, mut button: i32, action_type: &ContainerInput) {
-        // TODO(fabric2seer): `AbstractContainerScreen.menu` has no Rust field in the port (searched net.minecraft.client.gui.screens.inventory.AbstractContainerScreen and its supertypes)
-        // TODO(fabric2seer): the condition: `.getRowCount(..)` on a T
-        //   java: slotId >= menu.getRowCount() * 9
-        if todo!("fabric2seer: the condition (TODO above)") {
+        //   java: if (slotId >= menu.getRowCount() * 9) return; - `menu` is the handler this screen was built over
+        if slot_id >= compat::read(&compat::read(__this, |__t| __t.menu.clone()), |__h| __h.get_row_count()).wrapping_mul(9) {
             return;
         }
         compat::call_super();
@@ -415,10 +412,10 @@ impl AbstractCustomHypixelGUI<compat::Shared<crate::de::hysky::skyblocker::skybl
                 RarityWidget::set_text(self.rarity_widget.as_ref().unwrap(), tooltip[(1) as usize..((tooltip.len() as i32).wrapping_sub(3)) as usize].to_vec(), split.clone());
             }
             RESET_BUTTON_SLOT => {
-                // TODO(fabric2seer): `get_item` takes 1 argument(s) in the port (`containers: &'a Containers<'_>`), Java passes 0
-                // rust: let __wa1 = slot_id;
-                // rust: let __o1 = handler.clone();
-                // rust: self.reset_filters_button.as_mut().unwrap().active = (compat::write(&__o1, |__t| (__t.get_slot(__wa1)).clone())).get_item().is_item(&items::items().get("anvil"));
+                //   java: resetFiltersButton.active = handler.getSlot(slotId).getItem().is(Items.ANVIL);
+                // (the slot's item is the `stack` this slot-change callback carries; the field is the screen's copy of
+                // the button, see `init`)
+                self.reset_filters_button.as_mut().unwrap().active = stack.is_item(&items::items().get("anvil"));
             }
             SEARCH_BUTTON_SLOT => {
                 let mut tooltip_search: Vec<String> = stack.skyblocker_get_lore_strings();
@@ -479,9 +476,8 @@ impl AbstractCustomHypixelGUI<compat::Shared<crate::de::hysky::skyblocker::skybl
                                         break 'continue_4;
                                     }
                                     let mut coins: String = compat::trim(&(((split[(1) as usize]).replace(",", "")).replace("coins", "")));
-                                    // TODO(fabric2seer): static call NumberUtils.toLong(..)
-                                    //   java: long parsed = NumberUtils.toLong(coins, Long.MAX_VALUE);
-                                    let mut parsed: i64 = todo!("fabric2seer: the initialiser of `parsed` (TODO above)");
+                                    //   java: long parsed = NumberUtils.toLong(coins, Long.MAX_VALUE); - `Long.parseLong`, the default on failure
+                                    let mut parsed: i64 = coins.parse::<i64>().unwrap_or(i64::MAX);
                                     let mut price: f64 = data.as_ref().unwrap().get(&stack.get_neu_name()).copied().unwrap_or_default();
                                     self.is_slot_highlighted.insert(slot_id, (price > (parsed as f64)));
                                 }

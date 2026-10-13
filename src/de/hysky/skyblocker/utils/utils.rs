@@ -280,14 +280,13 @@ impl Utils {
         client_play_connection_events::DISCONNECT.register(Arc::new(|listener: &mut ClientPacketListener| {
             Utils::on_disconnect();
         }));
-        // TODO(fabric2seer): static call HypixelNetworking.registerToEvents(..)
-        //   java: HypixelNetworking.registerToEvents(Util.make(new Object2IntOpenHashMap<>(), map -> map.put(LocationUpdateS2CPacket.ID, 1)));
-        // TODO(fabric2seer): static field HypixelPacketEvents.HELLO
-        //   java: HypixelPacketEvents.HELLO.register(Utils::onPacket);
-        // TODO(fabric2seer): static field HypixelPacketEvents.LOCATION_UPDATE
-        //   java: HypixelPacketEvents.LOCATION_UPDATE.register(Utils::onPacket);
-        // TODO(fabric2seer): static field HypixelPacketEvents.PLAYER_INFO
-        //   java: HypixelPacketEvents.PLAYER_INFO.register(Utils::onPacket);
+        // java: HypixelNetworking.registerToEvents(Util.make(new Object2IntOpenHashMap<>(), map -> map.put(LocationUpdateS2CPacket.ID, 1)));
+        crate::net::azureaaron::hmapi::network::hypixel_networking::HypixelNetworking::register_to_events(&[(crate::net::azureaaron::hmapi::network::packet::v1::s2c::location_update_s2c_packet::LocationUpdateS2CPacket::ID, 1)]);
+        // java: HypixelPacketEvents.HELLO.register(Utils::onPacket); (and LOCATION_UPDATE, PLAYER_INFO)
+        use crate::net::azureaaron::hmapi::events::hypixel_packet_events;
+        hypixel_packet_events::HELLO.get_mut().register(Arc::new(Utils::on_packet));
+        hypixel_packet_events::LOCATION_UPDATE.get_mut().register(Arc::new(Utils::on_packet));
+        hypixel_packet_events::PLAYER_INFO.get_mut().register(Arc::new(Utils::on_packet));
     }
 
     /// java: public static void update()
@@ -517,58 +516,56 @@ impl Utils {
 
     /// java: private static void onPacket(HypixelS2CPacket packet)
     pub fn on_packet(packet: &crate::unresolved::HypixelS2CPacket) {
-        // TODO(fabric2seer): not translated (record patterns are not translated)
-        //   java: switch (packet) {
-        //   java: 			case HelloS2CPacket(var serverEnvironment) -> {
-        //   java: 				environment = serverEnvironment;
-        //   java:
-        //   java: 				//Request the player's rank information
-        //   java: 				HypixelNetworking.sendPlayerInfoC2SPacket(1);
-        //   java: 			}
-        //   java:
-        //   java: 			case LocationUpdateS2CPacket(var serverName, var serverType, _, var mode, var mapName) -> {
-        //   java: 				Utils.server = serverName;
-        //   java: 				String previousServerType = Utils.gameType;
-        //   java: 				Utils.gameType = serverType.orElse("");
-        //   java: 				Utils.locationRaw = mode.orElse("");
-        //   java: 				Utils.location = Location.from(locationRaw);
-        //   java: 				Utils.map = mapName.orElse("");
-        //   java:
-        //   java: 				SkyblockEvents.LOCATION_CHANGE.invoker().onSkyblockLocationChange(location);
-        //   java:
-        //   java: 				if (Utils.gameType.equals("SKYBLOCK")) {
-        //   java: 					isOnSkyblock = true;
-        //   java: 					tickProfileId();
-        //   java:
-        //   java: 					if (!previousServerType.equals("SKYBLOCK")) SkyblockEvents.JOIN.invoker().onSkyblockJoin();
-        //   java: 				} else if (previousServerType.equals("SKYBLOCK")) {
-        //   java: 					isOnSkyblock = false;
-        //   java: 					SkyblockEvents.LEAVE.invoker().onSkyblockLeave();
-        //   java: 				}
-        //   java: 			}
-        //   java:
-        //   java: 			case ErrorS2CPacket(var id, var error) when id.equals(LocationUpdateS2CPacket.ID) -> {
-        //   java: 				server = "";
-        //   java: 				gameType = "";
-        //   java: 				locationRaw = "";
-        //   java: 				location = Location.UNKNOWN;
-        //   java: 				map = "";
-        //   java:
-        //   java: 				LocalPlayer player = Minecraft.getInstance().player;
-        //   java:
-        //   java: 				if (player != null) {
-        //   java: 					player.sendSystemMessage(Constants.PREFIX.get().append(Component.translatable("skyblocker.utils.locationUpdateError").withStyle(ChatFormatting.RED)));
-        //   java: 				}
-        //   java:
-        //   java: 				LOGGER.error("[Skyblocker] Failed to update your current location! Some features of the mod may not work correctly :( - Error: {}", error);
-        //   java: 			}
-        //   java:
-        //   java: 			case PlayerInfoS2CPacket(var playerRank, var packageRank, var monthlyPackageRank, _) -> {
-        //   java: 				rank = RankType.getEffectiveRank(playerRank, packageRank, monthlyPackageRank);
-        //   java: 			}
-        //   java:
-        //   java: 			default -> {} //Do Nothing
-        //   java: 		}
+        use crate::net::azureaaron::hmapi::network::packet::s2c::hypixel_s2c_packet::HypixelS2CPacket;
+        use crate::net::azureaaron::hmapi::network::packet::v1::s2c::location_update_s2c_packet::LocationUpdateS2CPacket;
+        match packet {
+            HypixelS2CPacket::Hello(hello) => {
+                *ENVIRONMENT.get_mut() = hello.environment;
+                //Request the player's rank information
+                let _ = crate::net::azureaaron::hmapi::network::hypixel_networking::HypixelNetworking::send_player_info_c2s_packet(1);
+            }
+            HypixelS2CPacket::LocationUpdate(location_update) => {
+                compat::set_state(&SERVER, location_update.server_name.clone());
+                let previous_server_type: String = compat::get_state(&GAME_TYPE);
+                compat::set_state(&GAME_TYPE, location_update.server_type.clone().unwrap_or_default());
+                compat::set_state(&LOCATION_RAW, location_update.mode.clone().unwrap_or_default());
+                compat::set_state(&LOCATION, Location::from(&compat::get_state(&LOCATION_RAW)));
+                compat::set_state(&MAP, location_update.map.clone().unwrap_or_default());
+
+                (skyblock_events::location_change_invoker())(compat::get_state(&LOCATION));
+
+                if compat::get_state(&GAME_TYPE) == "SKYBLOCK" {
+                    compat::set_state(&IS_ON_SKYBLOCK, true);
+                    Utils::tick_profile_id();
+
+                    if previous_server_type != "SKYBLOCK" {
+                        (skyblock_events::join_invoker())();
+                    }
+                } else if previous_server_type == "SKYBLOCK" {
+                    compat::set_state(&IS_ON_SKYBLOCK, false);
+                    (skyblock_events::leave_invoker())();
+                }
+            }
+            HypixelS2CPacket::Error(error) if error.id == LocationUpdateS2CPacket::ID => {
+                compat::set_state(&SERVER, "".to_string());
+                compat::set_state(&GAME_TYPE, "".to_string());
+                compat::set_state(&LOCATION_RAW, "".to_string());
+                compat::set_state(&LOCATION, Location::Unknown);
+                compat::set_state(&MAP, "".to_string());
+
+                if mcrust::mcrust::modding::game::with_player(|_| ()).is_some() {
+                    // java: player.sendSystemMessage(Constants.PREFIX.get().append(Component.translatable("skyblocker.utils.locationUpdateError").withStyle(ChatFormatting.RED)));
+                    let message = (crate::de::hysky::skyblocker::utils::constants::PREFIX.get())().append(component::translatable("skyblocker.utils.locationUpdateError").with_style_format(mcrust::net::minecraft::chat_formatting::ChatFormatting::Red));
+                    script_host::send_feedback(&message.get_string());
+                }
+
+                logger().error(&format!("[Skyblocker] Failed to update your current location! Some features of the mod may not work correctly :( - Error: {:?}", error.reason));
+            }
+            HypixelS2CPacket::PlayerInfo(player_info) => {
+                *RANK.get_mut() = crate::unresolved::RankType::get_effective_rank(player_info.player_rank, player_info.package_rank, player_info.monthly_package_rank);
+            }
+            _ => {} //Do Nothing
+        }
     }
 
     /// java: private static void tickProfileId()
