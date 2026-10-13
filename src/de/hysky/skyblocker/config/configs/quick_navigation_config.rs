@@ -1,6 +1,7 @@
 //! Ported from de.hysky.skyblocker.config.configs.QuickNavigationConfig by fabric2seer.
 
 #[allow(unused_imports)]
+use mcrust::net::minecraft::core::registry::Registry as _;
 use crate::prelude::*;
 use mcrust::net::minecraft::world::item::item::Item;
 use mcrust::net::minecraft::world::item::items;
@@ -152,4 +153,246 @@ impl ItemData {
         this
     }
 
+}
+
+// Generated Gson forms for src/de/hysky/skyblocker/config/configs/quick_navigation_config.rs (fabric2seer round 24): APPEND to that file.
+// Needs `serde_json` in Cargo.toml and the `compat` of this round (dandelion::compat::GsonValue, ClassOf, ...).
+
+/// QuickNavigationConfig's Gson form (`Gson.toJson` / `fromJson` by reflection in Java; generated here)
+impl QuickNavigationConfig {
+    /// `gson.toJson(this)`: the fields in Gson's order (declaration order), nulls written
+    pub fn __gson_write(&self) -> dandelion::compat::GsonValue {
+        dandelion::compat::GsonValue::Obj(vec![
+            ("enableQuickNav".to_string(), dandelion::compat::GsonValue::Bool(*(&self.enable_quick_nav))),
+            ("button1".to_string(), compat::read((&self.button1), |__t| __t.__gson_write())),
+            ("button2".to_string(), compat::read((&self.button2), |__t| __t.__gson_write())),
+            ("button3".to_string(), compat::read((&self.button3), |__t| __t.__gson_write())),
+            ("button4".to_string(), compat::read((&self.button4), |__t| __t.__gson_write())),
+            ("button5".to_string(), compat::read((&self.button5), |__t| __t.__gson_write())),
+            ("button6".to_string(), compat::read((&self.button6), |__t| __t.__gson_write())),
+            ("button7".to_string(), compat::read((&self.button7), |__t| __t.__gson_write())),
+            ("button8".to_string(), compat::read((&self.button8), |__t| __t.__gson_write())),
+            ("button9".to_string(), compat::read((&self.button9), |__t| __t.__gson_write())),
+            ("button10".to_string(), compat::read((&self.button10), |__t| __t.__gson_write())),
+            ("button11".to_string(), compat::read((&self.button11), |__t| __t.__gson_write())),
+            ("button12".to_string(), compat::read((&self.button12), |__t| __t.__gson_write())),
+            ("button13".to_string(), compat::read((&self.button13), |__t| __t.__gson_write())),
+            ("button14".to_string(), compat::read((&self.button14), |__t| __t.__gson_write())),
+        ])
+    }
+
+    /// `gson.fromJson(json, X.class)`: a new object from the no-argument constructor, then every key
+    /// present set; unknown keys are ignored
+    pub fn __gson_read(__v: &serde_json::Value) -> Option<QuickNavigationConfig> {
+        let __o = __v.as_object()?;
+        let mut __this = QuickNavigationConfig::new();
+        if let Some(__v) = __o.get("enableQuickNav") {
+            if let Some(__x) = dandelion::compat::gson_bool(__v) { __this.enable_quick_nav = __x; }
+        }
+        if let Some(__v) = __o.get("button1") {
+            if let Some(__x) = QuickNavItem::__gson_read(__v) { __this.button1 = __x; }
+        }
+        if let Some(__v) = __o.get("button2") {
+            if let Some(__x) = QuickNavItem::__gson_read(__v) { __this.button2 = __x; }
+        }
+        if let Some(__v) = __o.get("button3") {
+            if let Some(__x) = QuickNavItem::__gson_read(__v) { __this.button3 = __x; }
+        }
+        if let Some(__v) = __o.get("button4") {
+            if let Some(__x) = QuickNavItem::__gson_read(__v) { __this.button4 = __x; }
+        }
+        if let Some(__v) = __o.get("button5") {
+            if let Some(__x) = QuickNavItem::__gson_read(__v) { __this.button5 = __x; }
+        }
+        if let Some(__v) = __o.get("button6") {
+            if let Some(__x) = QuickNavItem::__gson_read(__v) { __this.button6 = __x; }
+        }
+        if let Some(__v) = __o.get("button7") {
+            if let Some(__x) = QuickNavItem::__gson_read(__v) { __this.button7 = __x; }
+        }
+        if let Some(__v) = __o.get("button8") {
+            if let Some(__x) = QuickNavItem::__gson_read(__v) { __this.button8 = __x; }
+        }
+        if let Some(__v) = __o.get("button9") {
+            if let Some(__x) = QuickNavItem::__gson_read(__v) { __this.button9 = __x; }
+        }
+        if let Some(__v) = __o.get("button10") {
+            if let Some(__x) = QuickNavItem::__gson_read(__v) { __this.button10 = __x; }
+        }
+        if let Some(__v) = __o.get("button11") {
+            if let Some(__x) = QuickNavItem::__gson_read(__v) { __this.button11 = __x; }
+        }
+        if let Some(__v) = __o.get("button12") {
+            if let Some(__x) = QuickNavItem::__gson_read(__v) { __this.button12 = __x; }
+        }
+        if let Some(__v) = __o.get("button13") {
+            if let Some(__x) = QuickNavItem::__gson_read(__v) { __this.button13 = __x; }
+        }
+        if let Some(__v) = __o.get("button14") {
+            if let Some(__x) = QuickNavItem::__gson_read(__v) { __this.button14 = __x; }
+        }
+        Some(__this)
+    }
+
+    /// Dandelion's ConfigPatcher: the field at a dotted path (`getDeclaredField` per segment) set to a
+    /// boolean or an enum constant; false where Java's reflective walk fails
+    pub fn __gson_patch(&mut self, __path: &[&str], __value: &dandelion::compat::PatchValue) -> bool {
+        match __path {
+            [__name] => match *__name {
+                "enableQuickNav" => if let dandelion::compat::PatchValue::Bool(__b) = __value { self.enable_quick_nav = *__b; true } else { false },
+                _ => false,
+            },
+            [__first, __rest @ ..] => match *__first {
+                "button1" => compat::write(&self.button1, |__t| __t.__gson_patch(__rest, __value)),
+                "button2" => compat::write(&self.button2, |__t| __t.__gson_patch(__rest, __value)),
+                "button3" => compat::write(&self.button3, |__t| __t.__gson_patch(__rest, __value)),
+                "button4" => compat::write(&self.button4, |__t| __t.__gson_patch(__rest, __value)),
+                "button5" => compat::write(&self.button5, |__t| __t.__gson_patch(__rest, __value)),
+                "button6" => compat::write(&self.button6, |__t| __t.__gson_patch(__rest, __value)),
+                "button7" => compat::write(&self.button7, |__t| __t.__gson_patch(__rest, __value)),
+                "button8" => compat::write(&self.button8, |__t| __t.__gson_patch(__rest, __value)),
+                "button9" => compat::write(&self.button9, |__t| __t.__gson_patch(__rest, __value)),
+                "button10" => compat::write(&self.button10, |__t| __t.__gson_patch(__rest, __value)),
+                "button11" => compat::write(&self.button11, |__t| __t.__gson_patch(__rest, __value)),
+                "button12" => compat::write(&self.button12, |__t| __t.__gson_patch(__rest, __value)),
+                "button13" => compat::write(&self.button13, |__t| __t.__gson_patch(__rest, __value)),
+                "button14" => compat::write(&self.button14, |__t| __t.__gson_patch(__rest, __value)),
+                _ => false,
+            },
+            [] => false,
+        }
+    }
+
+    /// `QuickNavigationConfig.class` as reflection sees it
+    pub fn __class_of() -> dandelion::compat::ClassOf<QuickNavigationConfig> {
+        dandelion::compat::ClassOf {
+            name: "de.hysky.skyblocker.config.configs.QuickNavigationConfig",
+            new: QuickNavigationConfig::new,
+            to_gson: |__x| __x.__gson_write(),
+            read_gson: QuickNavigationConfig::__gson_read,
+            patch: |__x, __p, __v| __x.__gson_patch(__p, __v),
+            is_enum: false,
+            enum_constants: Vec::new,
+        }
+    }
+}
+
+/// QuickNavItem's Gson form (`Gson.toJson` / `fromJson` by reflection in Java; generated here)
+impl QuickNavItem {
+    /// `gson.toJson(this)`: the fields in Gson's order (declaration order), nulls written
+    pub fn __gson_write(&self) -> dandelion::compat::GsonValue {
+        dandelion::compat::GsonValue::Obj(vec![
+            ("render".to_string(), dandelion::compat::GsonValue::Bool(*(&self.render))),
+            ("doubleClick".to_string(), dandelion::compat::GsonValue::Bool(*(&self.double_click))),
+            ("itemData".to_string(), match &self.item_data { Some(__f) => (__f).__gson_write(), None => dandelion::compat::GsonValue::Null }),
+            ("uiTitle".to_string(), dandelion::compat::GsonValue::str(&(&self.ui_title))),
+            ("tooltip".to_string(), dandelion::compat::GsonValue::str(&(&self.tooltip))),
+            ("clickEvent".to_string(), dandelion::compat::GsonValue::str(&(&self.click_event))),
+        ])
+    }
+
+    /// `gson.fromJson(json, X.class)`: a new object from the no-argument constructor, then every key
+    /// present set; unknown keys are ignored
+    pub fn __gson_read(__v: &serde_json::Value) -> Option<compat::Shared<QuickNavItem>> {
+        let __o = __v.as_object()?;
+        let __h = QuickNavItem::new();
+        compat::write(&__h, |__this| {
+            if let Some(__v) = __o.get("render") {
+                if let Some(__x) = dandelion::compat::gson_bool(__v) { __this.render = __x; }
+            }
+            if let Some(__v) = __o.get("doubleClick") {
+                if let Some(__x) = dandelion::compat::gson_bool(__v) { __this.double_click = __x; }
+            }
+            if let Some(__v) = __o.get("itemData") {
+                if __v.is_null() { __this.item_data = None; }
+                else if let Some(__x) = ItemData::__gson_read(__v) { __this.item_data = Some(__x); }
+            }
+            if let Some(__v) = __o.get("uiTitle") {
+                if let Some(__x) = dandelion::compat::gson_string(__v) { __this.ui_title = __x; }
+            }
+            if let Some(__v) = __o.get("tooltip") {
+                if let Some(__x) = dandelion::compat::gson_string(__v) { __this.tooltip = __x; }
+            }
+            if let Some(__v) = __o.get("clickEvent") {
+                if let Some(__x) = dandelion::compat::gson_string(__v) { __this.click_event = __x; }
+            }
+        });
+        Some(__h)
+    }
+
+    /// Dandelion's ConfigPatcher: the field at a dotted path (`getDeclaredField` per segment) set to a
+    /// boolean or an enum constant; false where Java's reflective walk fails
+    pub fn __gson_patch(&mut self, __path: &[&str], __value: &dandelion::compat::PatchValue) -> bool {
+        match __path {
+            [__name] => match *__name {
+                "render" => if let dandelion::compat::PatchValue::Bool(__b) = __value { self.render = *__b; true } else { false },
+                "doubleClick" => if let dandelion::compat::PatchValue::Bool(__b) = __value { self.double_click = *__b; true } else { false },
+                _ => false,
+            },
+            [__first, __rest @ ..] => match *__first {
+                _ => false,
+            },
+            [] => false,
+        }
+    }
+
+    /// `QuickNavItem.class` as reflection sees it
+    pub fn __class_of() -> dandelion::compat::ClassOf<compat::Shared<QuickNavItem>> {
+        dandelion::compat::ClassOf {
+            name: "de.hysky.skyblocker.config.configs.QuickNavigationConfig$QuickNavItem",
+            new: QuickNavItem::new,
+            to_gson: |__h| compat::read(__h, |__t| __t.__gson_write()),
+            read_gson: QuickNavItem::__gson_read,
+            patch: |__h, __p, __v| compat::write(__h, |__t| __t.__gson_patch(__p, __v)),
+            is_enum: false,
+            enum_constants: Vec::new,
+        }
+    }
+}
+
+/// ItemData's Gson form (`Gson.toJson` / `fromJson` by reflection in Java; generated here)
+impl ItemData {
+    /// `gson.toJson(this)`: the fields in Gson's order (declaration order), nulls written
+    pub fn __gson_write(&self) -> dandelion::compat::GsonValue {
+        dandelion::compat::GsonValue::Obj(vec![
+            ("item".to_string(), match &self.item { Some(__f) => dandelion::compat::GsonValue::Str(mcrust::net::minecraft::core::registries::built_in_registries::item().get_key(&(__f).erased_obj()).map(|__id| __id.to_string()).unwrap_or_default()), None => dandelion::compat::GsonValue::Null }),
+            ("count".to_string(), dandelion::compat::GsonValue::int(*(&self.count) as i64)),
+            ("components".to_string(), dandelion::compat::GsonValue::str(&(&self.components))),
+        ])
+    }
+
+    /// `gson.fromJson(json, X.class)`: a new object from the no-argument constructor, then every key
+    /// present set; unknown keys are ignored
+    pub fn __gson_read(__v: &serde_json::Value) -> Option<ItemData> {
+        let __o = __v.as_object()?;
+        // TODO(fabric2seer): no no-argument constructor - Gson builds the object with every field at zero/null (Unsafe)
+        None
+    }
+
+    /// Dandelion's ConfigPatcher: the field at a dotted path (`getDeclaredField` per segment) set to a
+    /// boolean or an enum constant; false where Java's reflective walk fails
+    pub fn __gson_patch(&mut self, __path: &[&str], __value: &dandelion::compat::PatchValue) -> bool {
+        match __path {
+            [__name] => match *__name {
+                _ => false,
+            },
+            [__first, __rest @ ..] => match *__first {
+                _ => false,
+            },
+            [] => false,
+        }
+    }
+
+    /// `ItemData.class` as reflection sees it
+    pub fn __class_of() -> dandelion::compat::ClassOf<ItemData> {
+        dandelion::compat::ClassOf {
+            name: "de.hysky.skyblocker.config.configs.QuickNavigationConfig$ItemData",
+            new: || panic!("InstantiationException: no no-argument constructor"),
+            to_gson: |__x| __x.__gson_write(),
+            read_gson: ItemData::__gson_read,
+            patch: |__x, __p, __v| __x.__gson_patch(__p, __v),
+            is_enum: false,
+            enum_constants: Vec::new,
+        }
+    }
 }

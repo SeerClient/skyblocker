@@ -309,8 +309,9 @@ impl SkyblockerScreen {
     /// java: private void openConfig()
     pub fn open_config(__this: &compat::Shared<Self>) {
         // java: this.minecraft.gui.setScreen(SkyblockerConfigManager.createGUI(this));
-        // rust: port gap - the config GUI is the YACL / Dandelion screen the config merge replaces
-        // (`SkyblockerConfigManager.createGUI` answers the port's `Screen` husk, which a mod cannot open)
+        // (`this` is the screen that is up: the config screen keeps it as its parent)
+        let _ = __this;
+        crate::de::hysky::skyblocker::config::skyblocker_config_manager::SkyblockerConfigManager::create_gui(Some(dandelion::compat::ScreenRef::Current)).set();
     }
 
     /// java: @Override public void extractRenderState(GuiGraphicsExtractor context, int mouseX, int mouseY, float delta)

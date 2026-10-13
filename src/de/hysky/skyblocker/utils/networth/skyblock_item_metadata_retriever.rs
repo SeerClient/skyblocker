@@ -57,3 +57,11 @@ impl SkyblockItemMetadataRetriever {
     }
 
 }
+
+/// java: record SkyblockItemMetadataRetriever(..) implements ItemMetadataRetriever
+impl crate::net::azureaaron::networth::item::item_metadata_retriever::ItemMetadataRetriever for SkyblockItemMetadataRetriever {
+    /// java: the record accessor `cakeBagCakeYears()`, which is the interface method
+    fn cake_bag_cake_years(&self) -> Vec<i32> {
+        self.cake_bag_cake_years.clone()
+    }
+}

@@ -1,8 +1,40 @@
-//! Ported from de.hysky.skyblocker.config.categories.GeneralCategory by fabric2seer.
+//! Ported from de.hysky.skyblocker.config.categories.GeneralCategory.
+//!
+//! The category is built on Dandelion (`dandelion` crate, rendered through YACL). Java hands `create` the two
+//! `SkyblockerConfig` objects; here they are the manager's shared instances (`compat::Shared`), and every option's
+//! binding reads / writes its field through them, borrowing per statement.
 
 #[allow(unused_imports)]
 use crate::prelude::*;
+use crate::de::hysky::skyblocker::config::categories::{ChatFormattingEnum, KeyMappingNullable as _};
+use crate::de::hysky::skyblocker::config::common_tags;
+use crate::de::hysky::skyblocker::config::config_utils::ConfigUtils;
 use crate::de::hysky::skyblocker::config::skyblocker_config::SkyblockerConfig;
+use crate::entry::skyblocker_mod;
+use dandelion::net::azureaaron::dandelion::api::button_option::{self, Builder as _};
+use dandelion::net::azureaaron::dandelion::api::config_category::{self, Builder as _, ConfigCategory};
+use dandelion::net::azureaaron::dandelion::api::config_type::ConfigType;
+use dandelion::net::azureaaron::dandelion::api::controllers::boolean_controller::{self, Builder as _};
+use dandelion::net::azureaaron::dandelion::api::controllers::colour_controller::{self, Builder as _};
+use dandelion::net::azureaaron::dandelion::api::controllers::controller::Builder as _;
+use dandelion::net::azureaaron::dandelion::api::controllers::enum_controller::Builder as _;
+use dandelion::net::azureaaron::dandelion::api::controllers::float_controller;
+use dandelion::net::azureaaron::dandelion::api::controllers::integer_controller;
+use dandelion::net::azureaaron::dandelion::api::controllers::item_controller;
+use dandelion::net::azureaaron::dandelion::api::controllers::number_controller::Builder as _;
+use dandelion::net::azureaaron::dandelion::api::controllers::string_controller;
+use dandelion::net::azureaaron::dandelion::api::key_mapping_option::{self, Builder as _};
+use dandelion::net::azureaaron::dandelion::api::label_option::{self, Builder as _};
+use dandelion::net::azureaaron::dandelion::api::list_option::{self, Builder as _};
+use dandelion::net::azureaaron::dandelion::api::option::{self, AnyOption, Builder as _};
+use dandelion::net::azureaaron::dandelion::api::option_adder::OptionAdder as _;
+use dandelion::net::azureaaron::dandelion::api::option_group::{self, Builder as _, OptionGroup};
+use dandelion::net::azureaaron::dandelion::api::option_listener::UpdateType;
+use mcrust::java::awt::color::Color;
+use mcrust::net::minecraft::network::chat::component;
+use mcrust::net::minecraft::network::chat::formatted_text::FormattedText;
+use mcrust::net::minecraft::network::chat::mutable_component::MutableComponent;
+use mcrust::net::minecraft::world::item::item::Item;
 
 /// java: public class GeneralCategory
 #[derive(Clone)]
@@ -11,512 +43,385 @@ pub struct GeneralCategory {}
 impl GeneralCategory {
     /// java: the implicit no-argument constructor
     pub fn new() -> Self {
-        let mut this = Self {
-        };
-        this
+        Self {}
     }
 
     /// java: public static ConfigCategory create(SkyblockerConfig defaults, SkyblockerConfig config)
-    pub fn create(defaults: &SkyblockerConfig, config: &SkyblockerConfig) -> crate::unresolved::ConfigCategory {
-        // TODO(fabric2seer): static call ConfigCategory.createBuilder(..)
-        //   java: return ConfigCategory.createBuilder()
-        //   java: 				.id(SkyblockerMod.id("config/general"))
-        //   java: 				.name(Component.translatable("skyblocker.config.general"))
-        //   java:
-        //   java: 				//Skyblocker Screen
-        //   java: 				.option(ButtonOption.createBuilder()
-        //   java: 						.name(Component.translatable("skyblocker.skyblockerScreen"))
-        //   java: 						.prompt(Component.translatable("text.skyblocker.open"))
-        //   java: 						.action(_ -> Minecraft.getInstance().gui.setScreen(new SkyblockerScreen()))
-        //   java: 						.build())
-        //   java:
-        //   java: 				// Disable All
-        //   java: 				.option(ButtonOption.createBuilder()
-        //   java: 						.name(Component.translatable("skyblocker.disableAll.popup.title"))
-        //   java: 						.description(Component.translatable("skyblocker.disableAll.popup.description"))
-        //   java: 						.prompt(Component.translatable("text.skyblocker.open"))
-        //   java: 						.action(screen -> new DisableAllPopup().open(screen))
-        //   java: 						.build())
-        //   java:
-        //   java: 				//Ungrouped Options
-        //   java: 				.option(Option.<Boolean>createBuilder()
-        //   java: 						.name(Component.translatable("skyblocker.config.general.enableTips"))
-        //   java: 						.binding(defaults.general.enableTips,
-        //   java: 								() -> config.general.enableTips,
-        //   java: 								newValue -> config.general.enableTips = newValue)
-        //   java: 						.controller(ConfigUtils.createBooleanController())
-        //   java: 						.build())
-        //   java: 				.option(Option.<Boolean>createBuilder()
-        //   java: 						.name(Component.translatable("skyblocker.config.general.updateNotifications"))
-        //   java: 						.description(Component.translatable("skyblocker.config.general.updateNotifications.@Tooltip"))
-        //   java: 						.binding(UpdateNotifications.Config.DEFAULT.enabled(),
-        //   java: 								() -> UpdateNotifications.getConfig().enabled(),
-        //   java: 								newValue -> UpdateNotifications.setConfig(updateNotificationsConfig -> updateNotificationsConfig.withEnabled(newValue)))
-        //   java: 						.controller(ConfigUtils.createBooleanController())
-        //   java: 						.build())
-        //   java: 				.option(Option.<UpdateNotifications.Channel>createBuilder()
-        //   java: 						.name(Component.translatable("skyblocker.config.general.updateNotifications.updateChannel"))
-        //   java: 						.description(Component.translatable("skyblocker.config.general.updateNotifications.updateChannel.@Tooltip"))
-        //   java: 						.binding(UpdateNotifications.Config.DEFAULT.channel(),
-        //   java: 								() -> UpdateNotifications.getConfig().channel(),
-        //   java: 								newValue -> UpdateNotifications.setConfig(updateNotificationsConfig -> updateNotificationsConfig.withChannel(newValue)))
-        //   java: 						.controller(ConfigUtils.createEnumController())
-        //   java: 						.build())
-        //   java: 				.option(Option.<Boolean>createBuilder()
-        //   java: 						.name(Component.translatable("skyblocker.config.general.acceptReparty"))
-        //   java: 						.binding(defaults.general.acceptReparty,
-        //   java: 								() -> config.general.acceptReparty,
-        //   java: 								newValue -> config.general.acceptReparty = newValue)
-        //   java: 						.controller(ConfigUtils.createBooleanController())
-        //   java: 						.build())
-        //   java: 				//Config Backups
-        //   java: 				.group(OptionGroup.createBuilder()
-        //   java: 						.name(Component.translatable("skyblocker.config.general.backup"))
-        //   java: 						.collapsed(true)
-        //   java: 						.option(ButtonOption.createBuilder()
-        //   java: 								.name(Component.translatable("skyblocker.config.general.backup.manage"))
-        //   java: 								.prompt(Component.translatable("text.skyblocker.open"))
-        //   java: 								.action(screen -> Minecraft.getInstance().gui.setScreen(new ConfigBackupScreen(screen)))
-        //   java: 								.build())
-        //   java: 						.build())
-        //   java: 				// Speed Presets
-        //   java: 				.group(OptionGroup.createBuilder()
-        //   java: 						.name(Component.translatable("skyblocker.config.general.speedPresets"))
-        //   java: 						.collapsed(true)
-        //   java: 						.option(Option.<Boolean>createBuilder()
-        //   java: 								.name(Component.translatable("skyblocker.config.general.speedPresets.enableSpeedPresets"))
-        //   java: 								.binding(defaults.general.speedPresets.enableSpeedPresets,
-        //   java: 										() -> config.general.speedPresets.enableSpeedPresets,
-        //   java: 										newValue -> config.general.speedPresets.enableSpeedPresets = newValue)
-        //   java: 								.controller(ConfigUtils.createBooleanController())
-        //   java: 								.build())
-        //   java: 						.option(ButtonOption.createBuilder()
-        //   java: 								.name(Component.translatable("skyblocker.config.general.speedPresets.config"))
-        //   java: 								.prompt(Component.translatable("text.skyblocker.open"))
-        //   java: 								.action(screen -> Minecraft.getInstance().gui.setScreen(new SpeedPresetsScreen(screen)))
-        //   java: 								.build())
-        //   java: 						.build())
-        //   java:
-        //   java: 				//Shortcuts
-        //   java: 				.group(OptionGroup.createBuilder()
-        //   java: 						.name(Component.translatable("skyblocker.config.general.shortcuts"))
-        //   java: 						.collapsed(true)
-        //   java: 						.option(Option.<Boolean>createBuilder()
-        //   java: 								.name(Component.translatable("skyblocker.config.general.shortcuts.enableShortcuts"))
-        //   java: 								.description(Component.translatable("skyblocker.config.general.shortcuts.enableShortcuts.@Tooltip"))
-        //   java: 								.binding(defaults.general.shortcuts.enableShortcuts,
-        //   java: 										() -> config.general.shortcuts.enableShortcuts,
-        //   java: 										newValue -> config.general.shortcuts.enableShortcuts = newValue)
-        //   java: 								.controller(ConfigUtils.createBooleanController())
-        //   java: 								.build())
-        //   java: 						.option(Option.<Boolean>createBuilder()
-        //   java: 								.name(Component.translatable("skyblocker.config.general.shortcuts.enableCommandShortcuts"))
-        //   java: 								.description(Component.translatable("skyblocker.config.general.shortcuts.enableCommandShortcuts.@Tooltip"))
-        //   java: 								.binding(defaults.general.shortcuts.enableCommandShortcuts,
-        //   java: 										() -> config.general.shortcuts.enableCommandShortcuts,
-        //   java: 										newValue -> config.general.shortcuts.enableCommandShortcuts = newValue)
-        //   java: 								.controller(ConfigUtils.createBooleanController())
-        //   java: 								.build())
-        //   java: 						.option(Option.<Boolean>createBuilder()
-        //   java: 								.name(Component.translatable("skyblocker.config.general.shortcuts.enableCommandArgShortcuts"))
-        //   java: 								.description(Component.translatable("skyblocker.config.general.shortcuts.enableCommandArgShortcuts.@Tooltip"))
-        //   java: 								.binding(defaults.general.shortcuts.enableCommandArgShortcuts,
-        //   java: 										() -> config.general.shortcuts.enableCommandArgShortcuts,
-        //   java: 										newValue -> config.general.shortcuts.enableCommandArgShortcuts = newValue)
-        //   java: 								.controller(ConfigUtils.createBooleanController())
-        //   java: 								.build())
-        //   java: 						.option(Option.<Boolean>createBuilder()
-        //   java: 								.name(Component.translatable("skyblocker.config.general.shortcuts.enableKeyBindingShortcuts"))
-        //   java: 								.description(Component.translatable("skyblocker.config.general.shortcuts.enableKeyBindingShortcuts.@Tooltip"))
-        //   java: 								.binding(defaults.general.shortcuts.enableKeyBindingShortcuts,
-        //   java: 										() -> config.general.shortcuts.enableKeyBindingShortcuts,
-        //   java: 										newValue -> config.general.shortcuts.enableKeyBindingShortcuts = newValue)
-        //   java: 								.controller(ConfigUtils.createBooleanController())
-        //   java: 								.build())
-        //   java: 						.option(ButtonOption.createBuilder()
-        //   java: 								.name(Component.translatable("skyblocker.config.general.shortcuts.config"))
-        //   java: 								.prompt(Component.translatable("text.skyblocker.open"))
-        //   java: 								.action(screen -> Minecraft.getInstance().gui.setScreen(new ShortcutsConfigScreen(screen)))
-        //   java: 								.build())
-        //   java: 						.build())
-        //   java:
-        //   java: 				//Quiver Warning
-        //   java: 				.group(OptionGroup.createBuilder()
-        //   java: 						.name(Component.translatable("skyblocker.config.general.quiverWarning"))
-        //   java: 						.collapsed(true)
-        //   java: 						.option(Option.<Boolean>createBuilder()
-        //   java: 								.name(Component.translatable("skyblocker.config.general.quiverWarning.enableQuiverWarning"))
-        //   java: 								.binding(defaults.general.quiverWarning.enableQuiverWarning,
-        //   java: 										() -> config.general.quiverWarning.enableQuiverWarning,
-        //   java: 										newValue -> config.general.quiverWarning.enableQuiverWarning = newValue)
-        //   java: 								.controller(ConfigUtils.createBooleanController())
-        //   java: 								.build())
-        //   java: 						.option(Option.<Boolean>createBuilder()
-        //   java: 								.name(Component.translatable("skyblocker.config.general.quiverWarning.enableQuiverWarningInDungeons"))
-        //   java: 								.binding(defaults.general.quiverWarning.enableQuiverWarningInDungeons,
-        //   java: 										() -> config.general.quiverWarning.enableQuiverWarningInDungeons,
-        //   java: 										newValue -> config.general.quiverWarning.enableQuiverWarningInDungeons = newValue)
-        //   java: 								.controller(ConfigUtils.createBooleanController())
-        //   java: 								.build())
-        //   java: 						.option(Option.<Boolean>createBuilder()
-        //   java: 								.name(Component.translatable("skyblocker.config.general.quiverWarning.enableQuiverWarningAfterDungeon"))
-        //   java: 								.binding(defaults.general.quiverWarning.enableQuiverWarningAfterDungeon,
-        //   java: 										() -> config.general.quiverWarning.enableQuiverWarningAfterDungeon,
-        //   java: 										newValue -> config.general.quiverWarning.enableQuiverWarningAfterDungeon = newValue)
-        //   java: 								.controller(ConfigUtils.createBooleanController())
-        //   java: 								.build())
-        //   java: 						.build())
-        //   java:
-        //   java: 				//Item List
-        //   java: 				.group(OptionGroup.createBuilder()
-        //   java: 						.name(Component.translatable("skyblocker.config.general.itemList"))
-        //   java: 						.collapsed(true)
-        //   java: 						.option(Option.<Boolean>createBuilder()
-        //   java: 								.name(Component.translatable("skyblocker.config.general.itemList.enableRecipeBook"))
-        //   java: 								.description(Component.translatable("skyblocker.config.general.itemList.enableRecipeBook.@Tooltip"))
-        //   java: 								.tags(CommonTags.ADDED_IN_6_3_0)
-        //   java: 								.binding(defaults.general.itemList.enableRecipeBook,
-        //   java: 										() -> config.general.itemList.enableRecipeBook,
-        //   java: 										newValue -> config.general.itemList.enableRecipeBook = newValue)
-        //   java: 								.controller(ConfigUtils.createBooleanController())
-        //   java: 								.build())
-        //   java: 						.option(Option.<Boolean>createBuilder()
-        //   java: 								.name(Component.translatable("skyblocker.config.general.itemList.enableItemList"))
-        //   java: 								.description(Component.translatable("skyblocker.config.general.itemList.enableItemList.@Tooltip"))
-        //   java: 								.binding(defaults.general.itemList.enableItemList,
-        //   java: 										() -> config.general.itemList.enableItemList,
-        //   java: 										newValue -> config.general.itemList.enableItemList = newValue)
-        //   java: 								.controller(ConfigUtils.createBooleanController())
-        //   java: 								.build())
-        //   java: 						.option(Option.<Boolean>createBuilder()
-        //   java: 								.name(Component.translatable("skyblocker.config.general.itemList.enableCollapsibleEntries"))
-        //   java: 								.description(Component.translatable("skyblocker.config.general.itemList.enableCollapsibleEntries.@Tooltip"))
-        //   java: 								.binding(defaults.general.itemList.enableCollapsibleEntries,
-        //   java: 										() -> config.general.itemList.enableCollapsibleEntries,
-        //   java: 										newValue -> config.general.itemList.enableCollapsibleEntries = newValue)
-        //   java: 								.controller(ConfigUtils.createBooleanController())
-        //   java: 								.build())
-        //   java: 						.build())
-        //   java:
-        //   java: 				//Item Tooltip
-        //   java: 				.group(OptionGroup.createBuilder()
-        //   java: 						.name(Component.translatable("skyblocker.config.general.itemTooltip"))
-        //   java: 						.collapsed(true)
-        //   java: 						.option(Option.<Boolean>createBuilder()
-        //   java: 								.name(Component.translatable("skyblocker.config.general.itemTooltip.enableNPCPrice"))
-        //   java: 								.description(Component.translatable("skyblocker.config.general.itemTooltip.enablePrice.@Tooltip"))
-        //   java: 								.binding(defaults.general.itemTooltip.enableNPCPrice,
-        //   java: 										() -> config.general.itemTooltip.enableNPCPrice,
-        //   java: 										newValue -> config.general.itemTooltip.enableNPCPrice = newValue)
-        //   java: 								.controller(ConfigUtils.createBooleanController())
-        //   java: 								.build())
-        //   java: 						.option(Option.<Boolean>createBuilder()
-        //   java: 								.name(Component.translatable("skyblocker.config.general.itemTooltip.enableMotesPrice"))
-        //   java: 								.description(Component.translatable("skyblocker.config.general.itemTooltip.enableMotesPrice.@Tooltip"))
-        //   java: 								.binding(defaults.general.itemTooltip.enableMotesPrice,
-        //   java: 										() -> config.general.itemTooltip.enableMotesPrice,
-        //   java: 										newValue -> config.general.itemTooltip.enableMotesPrice = newValue)
-        //   java: 								.controller(ConfigUtils.createBooleanController())
-        //   java: 								.build())
-        //   java: 						.option(Option.<Boolean>createBuilder()
-        //   java: 								.name(Component.translatable("skyblocker.config.general.itemTooltip.enableAvgBIN"))
-        //   java: 								.description(Component.translatable("skyblocker.config.general.itemTooltip.enablePrice.@Tooltip"))
-        //   java: 								.binding(defaults.general.itemTooltip.enableAvgBIN,
-        //   java: 										() -> config.general.itemTooltip.enableAvgBIN,
-        //   java: 										newValue -> config.general.itemTooltip.enableAvgBIN = newValue)
-        //   java: 								.controller(ConfigUtils.createBooleanController())
-        //   java: 								.build())
-        //   java: 						.option(Option.<GeneralConfig.Average>createBuilder()
-        //   java: 								.name(Component.translatable("skyblocker.config.general.itemTooltip.avg"))
-        //   java: 								.description(Component.translatable("skyblocker.config.general.itemTooltip.avg.@Tooltip"))
-        //   java: 								.binding(defaults.general.itemTooltip.avg,
-        //   java: 										() -> config.general.itemTooltip.avg,
-        //   java: 										newValue -> config.general.itemTooltip.avg = newValue)
-        //   java: 								.controller(ConfigUtils.createEnumController())
-        //   java: 								.build())
-        //   java: 						.option(Option.<Boolean>createBuilder()
-        //   java: 								.name(Component.translatable("skyblocker.config.general.itemTooltip.enableLowestBIN"))
-        //   java: 								.description(Component.translatable("skyblocker.config.general.itemTooltip.enablePrice.@Tooltip"))
-        //   java: 								.binding(defaults.general.itemTooltip.enableLowestBIN,
-        //   java: 										() -> config.general.itemTooltip.enableLowestBIN,
-        //   java: 										newValue -> config.general.itemTooltip.enableLowestBIN = newValue)
-        //   java: 								.controller(ConfigUtils.createBooleanController())
-        //   java: 								.build())
-        //   java: 						.option(Option.<Boolean>createBuilder()
-        //   java: 								.name(Component.translatable("skyblocker.config.general.itemTooltip.enableBazaarPrice"))
-        //   java: 								.description(Component.translatable("skyblocker.config.general.itemTooltip.enablePrice.@Tooltip"))
-        //   java: 								.binding(defaults.general.itemTooltip.enableBazaarPrice,
-        //   java: 										() -> config.general.itemTooltip.enableBazaarPrice,
-        //   java: 										newValue -> config.general.itemTooltip.enableBazaarPrice = newValue)
-        //   java: 								.controller(ConfigUtils.createBooleanController())
-        //   java: 								.build())
-        //   java: 						.option(Option.<GeneralConfig.Craft>createBuilder()
-        //   java: 								.name(Component.translatable("skyblocker.config.general.itemTooltip.craft"))
-        //   java: 								.description(Component.translatable("skyblocker.config.general.itemTooltip.craft.@Tooltip"))
-        //   java: 								.binding(defaults.general.itemTooltip.enableCraftingCost,
-        //   java: 										() -> config.general.itemTooltip.enableCraftingCost,
-        //   java: 										newValue -> config.general.itemTooltip.enableCraftingCost = newValue)
-        //   java: 								.listener((_, updateType) -> {
-        //   java: 									if (updateType == UpdateType.VALUE_CHANGE) CraftPriceTooltip.clearCache();
-        //   java: 								})
-        //   java: 								.controller(ConfigUtils.createEnumController())
-        //   java: 								.build())
-        //   java: 						.option(Option.<Boolean>createBuilder()
-        //   java: 								.name(Component.translatable("skyblocker.config.general.itemTooltip.enableObtainedDate"))
-        //   java: 								.binding(defaults.general.itemTooltip.enableObtainedDate,
-        //   java: 										() -> config.general.itemTooltip.enableObtainedDate,
-        //   java: 										newValue -> config.general.itemTooltip.enableObtainedDate = newValue)
-        //   java: 								.controller(ConfigUtils.createBooleanController())
-        //   java: 								.build())
-        //   java: 						.option(Option.<Boolean>createBuilder()
-        //   java: 								.name(Component.translatable("skyblocker.config.general.itemTooltip.enableMuseumInfo"))
-        //   java: 								.description(Component.translatable("skyblocker.config.general.itemTooltip.enableMuseumInfo.@Tooltip"))
-        //   java: 								.binding(defaults.general.itemTooltip.enableMuseumInfo,
-        //   java: 										() -> config.general.itemTooltip.enableMuseumInfo,
-        //   java: 										newValue -> config.general.itemTooltip.enableMuseumInfo = newValue)
-        //   java: 								.controller(ConfigUtils.createBooleanController())
-        //   java: 								.build())
-        //   java: 						.option(Option.<Boolean>createBuilder()
-        //   java: 								.name(Component.translatable("skyblocker.config.general.itemTooltip.enableExoticTooltip"))
-        //   java: 								.description(Component.translatable("skyblocker.config.general.itemTooltip.enableExoticTooltip.@Tooltip"))
-        //   java: 								.binding(defaults.general.itemTooltip.enableExoticTooltip,
-        //   java: 										() -> config.general.itemTooltip.enableExoticTooltip,
-        //   java: 										newValue -> config.general.itemTooltip.enableExoticTooltip = newValue)
-        //   java: 								.controller(ConfigUtils.createBooleanController())
-        //   java: 								.build())
-        //   java: 						.option(Option.<Boolean>createBuilder()
-        //   java: 								.name(Component.translatable("skyblocker.config.general.itemTooltip.enableAccessoriesHelper"))
-        //   java: 								.description(Component.translatable("skyblocker.config.general.itemTooltip.enableAccessoriesHelper.@Tooltip[0]"),
-        //   java: 										Component.literal("\n\n✔ Collected").withColor(AccessoryTooltip.COLLECTED_COLOUR),
-        //   java: 										Component.translatable("skyblocker.config.general.itemTooltip.enableAccessoriesHelper.@Tooltip[1]"),
-        //   java: 										Component.literal("\n✦ Upgrade").withColor(AccessoryTooltip.UPGRADE_COLOUR),
-        //   java: 										Component.translatable("skyblocker.config.general.itemTooltip.enableAccessoriesHelper.@Tooltip[2]"),
-        //   java: 										Component.literal("\n↑ Upgradable").withColor(AccessoryTooltip.UPGRADABLE_COLOUR),
-        //   java: 										Component.translatable("skyblocker.config.general.itemTooltip.enableAccessoriesHelper.@Tooltip[3]"),
-        //   java: 										Component.literal("\n↓ Downgrade").withColor(AccessoryTooltip.DOWNGRADE_COLOUR),
-        //   java: 										Component.translatable("skyblocker.config.general.itemTooltip.enableAccessoriesHelper.@Tooltip[4]"),
-        //   java: 										Component.literal("\n✖ Missing").withColor(AccessoryTooltip.MISSING_COLOUR),
-        //   java: 										Component.translatable("skyblocker.config.general.itemTooltip.enableAccessoriesHelper.@Tooltip[5]"))
-        //   java: 								.binding(defaults.general.itemTooltip.enableAccessoriesHelper,
-        //   java: 										() -> config.general.itemTooltip.enableAccessoriesHelper,
-        //   java: 										newValue -> config.general.itemTooltip.enableAccessoriesHelper = newValue)
-        //   java: 								.controller(ConfigUtils.createBooleanController())
-        //   java: 								.build())
-        //   java: 						.option(Option.<Boolean>createBuilder()
-        //   java: 								.name(Component.translatable("skyblocker.config.general.itemTooltip.dungeonQuality"))
-        //   java: 								.description(Component.translatable("skyblocker.config.general.itemTooltip.dungeonQuality.@Tooltip"))
-        //   java: 								.binding(defaults.general.itemTooltip.dungeonQuality,
-        //   java: 										() -> config.general.itemTooltip.dungeonQuality,
-        //   java: 										newValue -> config.general.itemTooltip.dungeonQuality = newValue)
-        //   java: 								.controller(ConfigUtils.createBooleanController())
-        //   java: 								.build())
-        //   java: 						.option(Option.<Boolean>createBuilder()
-        //   java: 								.name(Component.translatable("skyblocker.config.general.itemTooltip.showEssenceCost"))
-        //   java: 								.binding(defaults.general.itemTooltip.showEssenceCost,
-        //   java: 										() -> config.general.itemTooltip.showEssenceCost,
-        //   java: 										newValue -> config.general.itemTooltip.showEssenceCost = newValue)
-        //   java: 								.controller(ConfigUtils.createBooleanController())
-        //   java: 								.build())
-        //   java: 						.option(Option.<Boolean>createBuilder()
-        //   java: 								.name(Component.translatable("skyblocker.config.general.itemTooltip.enableEstimatedItemValue"))
-        //   java: 								.description(Component.translatable("skyblocker.config.general.itemTooltip.enableEstimatedItemValue.@Tooltip"))
-        //   java: 								.binding(defaults.general.itemTooltip.enableEstimatedItemValue,
-        //   java: 										() -> config.general.itemTooltip.enableEstimatedItemValue,
-        //   java: 										newValue -> config.general.itemTooltip.enableEstimatedItemValue = newValue)
-        //   java: 								.controller(ConfigUtils.createBooleanController())
-        //   java: 								.build())
-        //   java: 						.option(Option.<Boolean>createBuilder()
-        //   java: 								.name(Component.translatable("skyblocker.config.general.itemTooltip.enableStackingEnchantProgress"))
-        //   java: 								.description(Component.translatable("skyblocker.config.general.itemTooltip.enableStackingEnchantProgress.@Tooltip"))
-        //   java: 								.binding(defaults.general.itemTooltip.enableStackingEnchantProgress,
-        //   java: 										() -> config.general.itemTooltip.enableStackingEnchantProgress,
-        //   java: 										newValue -> config.general.itemTooltip.enableStackingEnchantProgress = newValue)
-        //   java: 								.controller(ConfigUtils.createBooleanController())
-        //   java: 								.build())
-        //   java: 						.option(Option.<Boolean>createBuilder()
-        //   java: 								.name(Component.translatable("skyblocker.config.general.itemTooltip.enableEvolvingItemProgress"))
-        //   java: 								.description(Component.translatable("skyblocker.config.general.itemTooltip.enableEvolvingItemProgress.@Tooltip"))
-        //   java: 								.tags(CommonTags.ADDED_IN_6_0_0)
-        //   java: 								.binding(defaults.general.itemTooltip.enableEvolvingItemProgress,
-        //   java: 										() -> config.general.itemTooltip.enableEvolvingItemProgress,
-        //   java: 										newValue -> config.general.itemTooltip.enableEvolvingItemProgress = newValue)
-        //   java: 								.controller(ConfigUtils.createBooleanController())
-        //   java: 								.build())
-        //   java: 						.option(Option.<Boolean>createBuilder()
-        //   java: 								.name(Component.translatable("skyblocker.config.general.itemTooltip.enableGeorgePrice"))
-        //   java: 								.tags(CommonTags.ADDED_IN_6_4_0)
-        //   java: 								.binding(defaults.general.itemTooltip.enableGeorgePrice,
-        //   java: 										() -> config.general.itemTooltip.enableGeorgePrice,
-        //   java: 										newValue -> config.general.itemTooltip.enableGeorgePrice = newValue)
-        //   java: 								.controller(ConfigUtils.createBooleanController())
-        //   java: 								.build())
-        //   java: 						.build())
-        //   java:
-        //   java: 				//Item Info Display
-        //   java: 				.group(OptionGroup.createBuilder()
-        //   java: 						.name(Component.translatable("skyblocker.config.general.itemInfoDisplay"))
-        //   java: 						.collapsed(true)
-        //   java: 						.option(Option.<GeneralConfig.ItemBackgroundStyle>createBuilder()
-        //   java: 								.name(Component.translatable("skyblocker.config.general.itemInfoDisplay.itemBackgroundStyle"))
-        //   java: 								.description(Component.translatable("skyblocker.config.general.itemInfoDisplay.itemBackgroundStyle.@Tooltip"))
-        //   java: 								.binding(defaults.general.itemInfoDisplay.itemBackgroundStyle,
-        //   java: 										() -> config.general.itemInfoDisplay.itemBackgroundStyle,
-        //   java: 										newValue -> config.general.itemInfoDisplay.itemBackgroundStyle = newValue)
-        //   java: 								.controller(ConfigUtils.createEnumController())
-        //   java: 								.build())
-        //   java: 						.option(Option.<Float>createBuilder()
-        //   java: 								.name(Component.translatable("skyblocker.config.general.itemInfoDisplay.itemBackgroundOpacity"))
-        //   java: 								.binding(defaults.general.itemInfoDisplay.itemBackgroundOpacity,
-        //   java: 										() -> config.general.itemInfoDisplay.itemBackgroundOpacity,
-        //   java: 										newValue -> config.general.itemInfoDisplay.itemBackgroundOpacity = newValue)
-        //   java: 								.controller(FloatController.createBuilder().range(0f, 1f).slider(0.05f).build())
-        //   java: 								.build())
-        //   java: 						.option(Option.<Boolean>createBuilder()
-        //   java: 								.name(Component.translatable("skyblocker.config.general.itemInfoDisplay.itemRarityBackgrounds"))
-        //   java: 								.description(Component.translatable("skyblocker.config.general.itemInfoDisplay.itemRarityBackgrounds.@Tooltip"))
-        //   java: 								.binding(defaults.general.itemInfoDisplay.itemRarityBackgrounds,
-        //   java: 										() -> config.general.itemInfoDisplay.itemRarityBackgrounds,
-        //   java: 										newValue -> config.general.itemInfoDisplay.itemRarityBackgrounds = newValue)
-        //   java: 								.controller(ConfigUtils.createBooleanController())
-        //   java: 								.build())
-        //   java: 						.option(Option.<Boolean>createBuilder()
-        //   java: 								.name(Component.translatable("skyblocker.config.general.itemInfoDisplay.itemRarityBackgroundsLegacyColors"))
-        //   java: 								.description(Component.translatable("skyblocker.config.general.itemInfoDisplay.itemRarityBackgroundsLegacyColors.@Tooltip"))
-        //   java: 								.tags(CommonTags.ADDED_IN_6_8_0)
-        //   java: 								.binding(defaults.general.itemInfoDisplay.itemRarityBackgroundsLegacyColors,
-        //   java: 										() -> config.general.itemInfoDisplay.itemRarityBackgroundsLegacyColors,
-        //   java: 										newValue -> config.general.itemInfoDisplay.itemRarityBackgroundsLegacyColors = newValue)
-        //   java: 								.controller(ConfigUtils.createBooleanController())
-        //   java: 								.build())
-        //   java: 						.option(Option.<Boolean>createBuilder()
-        //   java: 								.name(Component.translatable("skyblocker.config.general.itemInfoDisplay.jacobMedalBackgrounds"))
-        //   java: 								.description(Component.translatable("skyblocker.config.general.itemInfoDisplay.jacobMedalBackgrounds.@Tooltip"))
-        //   java: 								.binding(defaults.general.itemInfoDisplay.jacobMedalBackgrounds,
-        //   java: 										() -> config.general.itemInfoDisplay.jacobMedalBackgrounds,
-        //   java: 										newValue -> config.general.itemInfoDisplay.jacobMedalBackgrounds = newValue)
-        //   java: 								.controller(ConfigUtils.createBooleanController())
-        //   java: 								.build())
-        //   java: 						.option(Option.<Boolean>createBuilder()
-        //   java: 								.name(Component.translatable("skyblocker.config.general.itemInfoDisplay.legacyAttributeBackgrounds"))
-        //   java: 								.description(Component.translatable("skyblocker.config.general.itemInfoDisplay.legacyAttributeBackgrounds.@Tooltip"))
-        //   java: 								.binding(defaults.general.itemInfoDisplay.legacyAttributeBackgrounds,
-        //   java: 										() -> config.general.itemInfoDisplay.legacyAttributeBackgrounds,
-        //   java: 										newValue -> config.general.itemInfoDisplay.legacyAttributeBackgrounds = newValue)
-        //   java: 								.controller(ConfigUtils.createBooleanController())
-        //   java: 								.build())
-        //   java: 						.build())
-        //   java:
-        //   java: 				//Item Protection
-        //   java: 				.group(OptionGroup.createBuilder()
-        //   java: 						.name(Component.translatable("skyblocker.config.general.itemProtection"))
-        //   java: 						.collapsed(true)
-        //   java: 						.option(KeyMappingOption.createBuilder()
-        //   java: 								.name(Component.translatable("key.skyblocker.hotbarSlotLock"))
-        //   java: 								.tags(CommonTags.KEY_MAPPING)
-        //   java: 								.keyMapping(HotbarSlotLock.hotbarSlotLock)
-        //   java: 								.build())
-        //   java: 						.option(Option.<GeneralConfig.SlotLockStyle>createBuilder()
-        //   java: 								.name(Component.translatable("skyblocker.config.general.itemProtection.slotLockStyle"))
-        //   java: 								.description(Component.translatable("skyblocker.config.general.itemProtection.slotLockStyle.@Tooltip"))
-        //   java: 								.binding(defaults.general.itemProtection.slotLockStyle,
-        //   java: 										() -> config.general.itemProtection.slotLockStyle,
-        //   java: 										newValue -> config.general.itemProtection.slotLockStyle = newValue)
-        //   java: 								.controller(ConfigUtils.createEnumController())
-        //   java: 								.build())
-        //   java: 						.option(Option.<Boolean>createBuilder()
-        //   java: 								.name(Component.translatable("skyblocker.config.general.itemProtection.protectValuableConsumables"))
-        //   java: 								.description(Component.translatable("skyblocker.config.general.itemProtection.protectValuableConsumables.@Tooltip"))
-        //   java: 								.binding(defaults.general.itemProtection.protectValuableConsumables,
-        //   java: 										() -> config.general.itemProtection.protectValuableConsumables,
-        //   java: 										newValue -> config.general.itemProtection.protectValuableConsumables = newValue)
-        //   java: 								.controller(ConfigUtils.createBooleanController())
-        //   java: 								.build())
-        //   java: 						.option(KeyMappingOption.createBuilder()
-        //   java: 								.name(Component.translatable("key.skyblocker.itemProtection"))
-        //   java: 								.tags(CommonTags.KEY_MAPPING)
-        //   java: 								.keyMapping(ItemProtection.itemProtection)
-        //   java: 								.build())
-        //   java: 						.option(Option.<Boolean>createBuilder()
-        //   java: 								.name(Component.translatable("skyblocker.config.general.itemProtection.displayChatNotification"))
-        //   java: 								.description(Component.translatable("skyblocker.config.general.itemProtection.displayChatNotification.@Tooltip"))
-        //   java: 								.binding(defaults.general.itemProtection.displayChatNotification,
-        //   java: 										() -> config.general.itemProtection.displayChatNotification,
-        //   java: 										newValue -> config.general.itemProtection.displayChatNotification = newValue)
-        //   java: 								.controller(ConfigUtils.createBooleanController())
-        //   java: 								.build())
-        //   java: 						.build())
-        //   java:
-        //   java: 				//Wiki Lookup
-        //   java: 				.group(OptionGroup.createBuilder()
-        //   java: 						.name(Component.translatable("skyblocker.config.general.wikiLookup"))
-        //   java: 						.collapsed(true)
-        //   java: 						.option(Option.<Boolean>createBuilder()
-        //   java: 								.name(Component.translatable("skyblocker.config.general.wikiLookup.enableWikiLookup"))
-        //   java: 								.description(Component.translatable("skyblocker.config.general.wikiLookup.enableWikiLookup.@Tooltip",
-        //   java: 										WikiLookupManager.independentWikiLookup.getTranslatedKeyMessage()))
-        //   java: 								.binding(defaults.general.wikiLookup.enableWikiLookup,
-        //   java: 										() -> config.general.wikiLookup.enableWikiLookup,
-        //   java: 										newValue -> config.general.wikiLookup.enableWikiLookup = newValue)
-        //   java: 								.controller(ConfigUtils.createBooleanController())
-        //   java: 								.build())
-        //   java: 						.option(KeyMappingOption.createBuilder()
-        //   java: 								.name(Component.translatable("key.skyblocker.wikiLookup.independent"))
-        //   java: 								.tags(CommonTags.KEY_MAPPING)
-        //   java: 								.keyMapping(WikiLookupManager.independentWikiLookup)
-        //   java: 								.build())
-        //   java: 						.build())
-        //   java:
-        //   java: 				//Special Effects
-        //   java: 				.group(OptionGroup.createBuilder()
-        //   java: 						.name(Component.translatable("skyblocker.config.general.specialEffects"))
-        //   java: 						.collapsed(true)
-        //   java: 						.option(Option.<Boolean>createBuilder()
-        //   java: 								.name(Component.translatable("skyblocker.config.general.specialEffects.rareDungeonDropEffects"))
-        //   java: 								.description(Component.translatable("skyblocker.config.general.specialEffects.rareDungeonDropEffects.@Tooltip"))
-        //   java: 								.binding(defaults.general.specialEffects.rareDungeonDropEffects,
-        //   java: 										() -> config.general.specialEffects.rareDungeonDropEffects,
-        //   java: 										newValue -> config.general.specialEffects.rareDungeonDropEffects = newValue)
-        //   java: 								.controller(ConfigUtils.createBooleanController())
-        //   java: 								.build())
-        //   java: 						.option(Option.<Boolean>createBuilder()
-        //   java: 								.name(Component.translatable("skyblocker.config.general.specialEffects.rareDropEffects"))
-        //   java: 								.description(Component.translatable("skyblocker.config.general.specialEffects.rareDropEffects.@Tooltip"))
-        //   java: 								.tags(CommonTags.ADDED_IN_5_11_0)
-        //   java: 								.binding(defaults.general.specialEffects.rareDropEffects,
-        //   java: 										() -> config.general.specialEffects.rareDropEffects,
-        //   java: 										newValue -> config.general.specialEffects.rareDropEffects = newValue)
-        //   java: 								.controller(ConfigUtils.createBooleanController())
-        //   java: 								.build())
-        //   java: 						.option(Option.<Boolean>createBuilder()
-        //   java: 								.name(Component.translatable("skyblocker.config.general.specialEffects.rareDyeDropEffects"))
-        //   java: 								.description(Component.translatable("skyblocker.config.general.specialEffects.rareDyeDropEffects.@Tooltip"))
-        //   java: 								.binding(defaults.general.specialEffects.rareDyeDropEffects,
-        //   java: 										() -> config.general.specialEffects.rareDyeDropEffects,
-        //   java: 										newValue -> config.general.specialEffects.rareDyeDropEffects = newValue)
-        //   java: 								.controller(ConfigUtils.createBooleanController())
-        //   java: 								.build())
-        //   java: 						.option(Option.<Boolean>createBuilder()
-        //   java: 								.name(Component.translatable("skyblocker.config.general.specialEffects.trophyDropEffects"))
-        //   java: 								.description(Component.translatable("skyblocker.config.general.specialEffects.trophyDropEffects.@Tooltip"))
-        //   java: 								.tags(CommonTags.ADDED_IN_6_5_1)
-        //   java: 								.binding(defaults.general.specialEffects.trophyDropEffects,
-        //   java: 										() -> config.general.specialEffects.trophyDropEffects,
-        //   java: 										newValue -> config.general.specialEffects.trophyDropEffects = newValue)
-        //   java: 								.controller(ConfigUtils.createBooleanController())
-        //   java: 								.build())
-        //   java: 						.option(Option.<Boolean>createBuilder()
-        //   java: 								.name(Component.translatable("skyblocker.config.general.specialEffects.displayItemName"))
-        //   java: 								.description(Component.translatable("skyblocker.config.general.specialEffects.displayItemName.@Tooltip"))
-        //   java: 								.tags(CommonTags.ADDED_IN_6_7_0)
-        //   java: 								.binding(defaults.general.specialEffects.displayItemName,
-        //   java: 										() -> config.general.specialEffects.displayItemName,
-        //   java: 										newValue -> config.general.specialEffects.displayItemName = newValue)
-        //   java: 								.controller(ConfigUtils.createBooleanController())
-        //   java: 								.build())
-        //   java: 						.build())
-        //   java:
-        //   java: 				.build();
-        todo!("fabric2seer: the value of this function is in a TODO above")
+    pub fn create(defaults: &compat::Shared<SkyblockerConfig>, config: &compat::Shared<SkyblockerConfig>) -> Arc<dyn ConfigCategory> {
+        let defaults: compat::Shared<SkyblockerConfig> = defaults.clone();
+        let config: compat::Shared<SkyblockerConfig> = config.clone();
+        return config_category::create_builder()
+            .id(skyblocker_mod::id("config/general"))
+            .name(component::translatable("skyblocker.config.general"))
+            .option(button_option::create_builder()
+                .name(component::translatable("skyblocker.skyblockerScreen"))
+                .prompt(component::translatable("text.skyblocker.open"))
+                .action(|_| mcrust::mcrust::modding::game::set_screen(Box::new(compat::ScreenAdapter::new(crate::de::hysky::skyblocker::skyblocker_screen::SkyblockerScreen::new()))))
+                .build())
+            .option(button_option::create_builder()
+                .name(component::translatable("skyblocker.disableAll.popup.title"))
+                .description(vec![component::translatable("skyblocker.disableAll.popup.description")])
+                .prompt(component::translatable("text.skyblocker.open"))
+                .action(|_screen| crate::de::hysky::skyblocker::disable_all_popup::DisableAllPopup::new().open(&mcrust::net::minecraft::client::gui::screens::screen::Screen::new(String::new())))
+                .build())
+            .option(option::create_builder::<bool>()
+                .name(component::translatable("skyblocker.config.general.enableTips"))
+                .binding(compat::read(&defaults, |c| c.general.enable_tips.clone()), { let config = config.clone(); move || compat::read(&config, |c| c.general.enable_tips.clone()) }, { let config = config.clone(); move |new_value: bool| compat::write(&config, |c| c.general.enable_tips = new_value) })
+                .controller(ConfigUtils::create_boolean_controller())
+                .build())
+            .option(option::create_builder::<bool>()
+                .name(component::translatable("skyblocker.config.general.updateNotifications"))
+                .description(vec![component::translatable("skyblocker.config.general.updateNotifications.@Tooltip")])
+                .binding(crate::de::hysky::skyblocker::update_notifications::CONFIG_DEFAULT.get().enabled(), || crate::de::hysky::skyblocker::update_notifications::UpdateNotifications::get_config().enabled(), |new_value: bool| crate::de::hysky::skyblocker::update_notifications::UpdateNotifications::set_config(Arc::new(move |update_notifications_config: crate::de::hysky::skyblocker::update_notifications::Config| update_notifications_config.with_enabled(new_value))))
+                .controller(ConfigUtils::create_boolean_controller())
+                .build())
+            .option(option::create_builder::<crate::de::hysky::skyblocker::update_notifications::Channel>()
+                .name(component::translatable("skyblocker.config.general.updateNotifications.updateChannel"))
+                .description(vec![component::translatable("skyblocker.config.general.updateNotifications.updateChannel.@Tooltip")])
+                .binding(crate::de::hysky::skyblocker::update_notifications::CONFIG_DEFAULT.get().channel(), || crate::de::hysky::skyblocker::update_notifications::UpdateNotifications::get_config().channel(), |new_value: crate::de::hysky::skyblocker::update_notifications::Channel| crate::de::hysky::skyblocker::update_notifications::UpdateNotifications::set_config(Arc::new(move |update_notifications_config: crate::de::hysky::skyblocker::update_notifications::Config| update_notifications_config.with_channel(new_value))))
+                .controller(ConfigUtils::create_enum_controller::<crate::de::hysky::skyblocker::update_notifications::Channel>())
+                .build())
+            .option(option::create_builder::<bool>()
+                .name(component::translatable("skyblocker.config.general.acceptReparty"))
+                .binding(compat::read(&defaults, |c| c.general.accept_reparty.clone()), { let config = config.clone(); move || compat::read(&config, |c| c.general.accept_reparty.clone()) }, { let config = config.clone(); move |new_value: bool| compat::write(&config, |c| c.general.accept_reparty = new_value) })
+                .controller(ConfigUtils::create_boolean_controller())
+                .build())
+            .group(option_group::create_builder()
+                .name(component::translatable("skyblocker.config.general.backup"))
+                .collapsed(true)
+                .option(button_option::create_builder()
+                    .name(component::translatable("skyblocker.config.general.backup.manage"))
+                    .prompt(component::translatable("text.skyblocker.open"))
+                    .action(|_screen| mcrust::mcrust::modding::game::set_screen_keeping_parent(Box::new(compat::ScreenAdapter::new(crate::de::hysky::skyblocker::config::backup::config_backup_screen::ConfigBackupScreen::new(None)))))
+                    .build())
+                .build())
+            .group(option_group::create_builder()
+                .name(component::translatable("skyblocker.config.general.speedPresets"))
+                .collapsed(true)
+                .option(option::create_builder::<bool>()
+                    .name(component::translatable("skyblocker.config.general.speedPresets.enableSpeedPresets"))
+                    .binding(compat::read(&defaults, |c| c.general.speed_presets.enable_speed_presets.clone()), { let config = config.clone(); move || compat::read(&config, |c| c.general.speed_presets.enable_speed_presets.clone()) }, { let config = config.clone(); move |new_value: bool| compat::write(&config, |c| c.general.speed_presets.enable_speed_presets = new_value) })
+                    .controller(ConfigUtils::create_boolean_controller())
+                    .build())
+                .option(button_option::create_builder()
+                    .name(component::translatable("skyblocker.config.general.speedPresets.config"))
+                    .prompt(component::translatable("text.skyblocker.open"))
+                    .action(|_screen| mcrust::mcrust::modding::game::set_screen_keeping_parent(Box::new(compat::ScreenAdapter::new(crate::de::hysky::skyblocker::skyblock::speedpreset::speed_presets_screen::SpeedPresetsScreen::new(mcrust::net::minecraft::client::gui::screens::screen::Screen::new(String::new()))))))
+                    .build())
+                .build())
+            .group(option_group::create_builder()
+                .name(component::translatable("skyblocker.config.general.shortcuts"))
+                .collapsed(true)
+                .option(option::create_builder::<bool>()
+                    .name(component::translatable("skyblocker.config.general.shortcuts.enableShortcuts"))
+                    .description(vec![component::translatable("skyblocker.config.general.shortcuts.enableShortcuts.@Tooltip")])
+                    .binding(compat::read(&defaults, |c| c.general.shortcuts.enable_shortcuts.clone()), { let config = config.clone(); move || compat::read(&config, |c| c.general.shortcuts.enable_shortcuts.clone()) }, { let config = config.clone(); move |new_value: bool| compat::write(&config, |c| c.general.shortcuts.enable_shortcuts = new_value) })
+                    .controller(ConfigUtils::create_boolean_controller())
+                    .build())
+                .option(option::create_builder::<bool>()
+                    .name(component::translatable("skyblocker.config.general.shortcuts.enableCommandShortcuts"))
+                    .description(vec![component::translatable("skyblocker.config.general.shortcuts.enableCommandShortcuts.@Tooltip")])
+                    .binding(compat::read(&defaults, |c| c.general.shortcuts.enable_command_shortcuts.clone()), { let config = config.clone(); move || compat::read(&config, |c| c.general.shortcuts.enable_command_shortcuts.clone()) }, { let config = config.clone(); move |new_value: bool| compat::write(&config, |c| c.general.shortcuts.enable_command_shortcuts = new_value) })
+                    .controller(ConfigUtils::create_boolean_controller())
+                    .build())
+                .option(option::create_builder::<bool>()
+                    .name(component::translatable("skyblocker.config.general.shortcuts.enableCommandArgShortcuts"))
+                    .description(vec![component::translatable("skyblocker.config.general.shortcuts.enableCommandArgShortcuts.@Tooltip")])
+                    .binding(compat::read(&defaults, |c| c.general.shortcuts.enable_command_arg_shortcuts.clone()), { let config = config.clone(); move || compat::read(&config, |c| c.general.shortcuts.enable_command_arg_shortcuts.clone()) }, { let config = config.clone(); move |new_value: bool| compat::write(&config, |c| c.general.shortcuts.enable_command_arg_shortcuts = new_value) })
+                    .controller(ConfigUtils::create_boolean_controller())
+                    .build())
+                .option(option::create_builder::<bool>()
+                    .name(component::translatable("skyblocker.config.general.shortcuts.enableKeyBindingShortcuts"))
+                    .description(vec![component::translatable("skyblocker.config.general.shortcuts.enableKeyBindingShortcuts.@Tooltip")])
+                    .binding(compat::read(&defaults, |c| c.general.shortcuts.enable_key_binding_shortcuts.clone()), { let config = config.clone(); move || compat::read(&config, |c| c.general.shortcuts.enable_key_binding_shortcuts.clone()) }, { let config = config.clone(); move |new_value: bool| compat::write(&config, |c| c.general.shortcuts.enable_key_binding_shortcuts = new_value) })
+                    .controller(ConfigUtils::create_boolean_controller())
+                    .build())
+                .option(button_option::create_builder()
+                    .name(component::translatable("skyblocker.config.general.shortcuts.config"))
+                    .prompt(component::translatable("text.skyblocker.open"))
+                    .action(|_screen| mcrust::mcrust::modding::game::set_screen_keeping_parent(Box::new(compat::ScreenAdapter::new(crate::de::hysky::skyblocker::skyblock::shortcut::shortcuts_config_screen::ShortcutsConfigScreen::new_1(None)))))
+                    .build())
+                .build())
+            .group(option_group::create_builder()
+                .name(component::translatable("skyblocker.config.general.quiverWarning"))
+                .collapsed(true)
+                .option(option::create_builder::<bool>()
+                    .name(component::translatable("skyblocker.config.general.quiverWarning.enableQuiverWarning"))
+                    .binding(compat::read(&defaults, |c| c.general.quiver_warning.enable_quiver_warning.clone()), { let config = config.clone(); move || compat::read(&config, |c| c.general.quiver_warning.enable_quiver_warning.clone()) }, { let config = config.clone(); move |new_value: bool| compat::write(&config, |c| c.general.quiver_warning.enable_quiver_warning = new_value) })
+                    .controller(ConfigUtils::create_boolean_controller())
+                    .build())
+                .option(option::create_builder::<bool>()
+                    .name(component::translatable("skyblocker.config.general.quiverWarning.enableQuiverWarningInDungeons"))
+                    .binding(compat::read(&defaults, |c| c.general.quiver_warning.enable_quiver_warning_in_dungeons.clone()), { let config = config.clone(); move || compat::read(&config, |c| c.general.quiver_warning.enable_quiver_warning_in_dungeons.clone()) }, { let config = config.clone(); move |new_value: bool| compat::write(&config, |c| c.general.quiver_warning.enable_quiver_warning_in_dungeons = new_value) })
+                    .controller(ConfigUtils::create_boolean_controller())
+                    .build())
+                .option(option::create_builder::<bool>()
+                    .name(component::translatable("skyblocker.config.general.quiverWarning.enableQuiverWarningAfterDungeon"))
+                    .binding(compat::read(&defaults, |c| c.general.quiver_warning.enable_quiver_warning_after_dungeon.clone()), { let config = config.clone(); move || compat::read(&config, |c| c.general.quiver_warning.enable_quiver_warning_after_dungeon.clone()) }, { let config = config.clone(); move |new_value: bool| compat::write(&config, |c| c.general.quiver_warning.enable_quiver_warning_after_dungeon = new_value) })
+                    .controller(ConfigUtils::create_boolean_controller())
+                    .build())
+                .build())
+            .group(option_group::create_builder()
+                .name(component::translatable("skyblocker.config.general.itemList"))
+                .collapsed(true)
+                .option(option::create_builder::<bool>()
+                    .name(component::translatable("skyblocker.config.general.itemList.enableRecipeBook"))
+                    .description(vec![component::translatable("skyblocker.config.general.itemList.enableRecipeBook.@Tooltip")])
+                    .tags(vec![common_tags::ADDED_IN_6_3_0.get().clone()])
+                    .binding(compat::read(&defaults, |c| c.general.item_list.enable_recipe_book.clone()), { let config = config.clone(); move || compat::read(&config, |c| c.general.item_list.enable_recipe_book.clone()) }, { let config = config.clone(); move |new_value: bool| compat::write(&config, |c| c.general.item_list.enable_recipe_book = new_value) })
+                    .controller(ConfigUtils::create_boolean_controller())
+                    .build())
+                .option(option::create_builder::<bool>()
+                    .name(component::translatable("skyblocker.config.general.itemList.enableItemList"))
+                    .description(vec![component::translatable("skyblocker.config.general.itemList.enableItemList.@Tooltip")])
+                    .binding(compat::read(&defaults, |c| c.general.item_list.enable_item_list.clone()), { let config = config.clone(); move || compat::read(&config, |c| c.general.item_list.enable_item_list.clone()) }, { let config = config.clone(); move |new_value: bool| compat::write(&config, |c| c.general.item_list.enable_item_list = new_value) })
+                    .controller(ConfigUtils::create_boolean_controller())
+                    .build())
+                .option(option::create_builder::<bool>()
+                    .name(component::translatable("skyblocker.config.general.itemList.enableCollapsibleEntries"))
+                    .description(vec![component::translatable("skyblocker.config.general.itemList.enableCollapsibleEntries.@Tooltip")])
+                    .binding(compat::read(&defaults, |c| c.general.item_list.enable_collapsible_entries.clone()), { let config = config.clone(); move || compat::read(&config, |c| c.general.item_list.enable_collapsible_entries.clone()) }, { let config = config.clone(); move |new_value: bool| compat::write(&config, |c| c.general.item_list.enable_collapsible_entries = new_value) })
+                    .controller(ConfigUtils::create_boolean_controller())
+                    .build())
+                .build())
+            .group(option_group::create_builder()
+                .name(component::translatable("skyblocker.config.general.itemTooltip"))
+                .collapsed(true)
+                .option(option::create_builder::<bool>()
+                    .name(component::translatable("skyblocker.config.general.itemTooltip.enableNPCPrice"))
+                    .description(vec![component::translatable("skyblocker.config.general.itemTooltip.enablePrice.@Tooltip")])
+                    .binding(compat::read(&defaults, |c| compat::read(&c.general.item_tooltip, |c| c.enable_npc_price.clone())), { let config = config.clone(); move || compat::read(&config, |c| compat::read(&c.general.item_tooltip, |c| c.enable_npc_price.clone())) }, { let config = config.clone(); move |new_value: bool| compat::read(&config, |c| compat::write(&c.general.item_tooltip, |c| c.enable_npc_price = new_value)) })
+                    .controller(ConfigUtils::create_boolean_controller())
+                    .build())
+                .option(option::create_builder::<bool>()
+                    .name(component::translatable("skyblocker.config.general.itemTooltip.enableMotesPrice"))
+                    .description(vec![component::translatable("skyblocker.config.general.itemTooltip.enableMotesPrice.@Tooltip")])
+                    .binding(compat::read(&defaults, |c| compat::read(&c.general.item_tooltip, |c| c.enable_motes_price.clone())), { let config = config.clone(); move || compat::read(&config, |c| compat::read(&c.general.item_tooltip, |c| c.enable_motes_price.clone())) }, { let config = config.clone(); move |new_value: bool| compat::read(&config, |c| compat::write(&c.general.item_tooltip, |c| c.enable_motes_price = new_value)) })
+                    .controller(ConfigUtils::create_boolean_controller())
+                    .build())
+                .option(option::create_builder::<bool>()
+                    .name(component::translatable("skyblocker.config.general.itemTooltip.enableAvgBIN"))
+                    .description(vec![component::translatable("skyblocker.config.general.itemTooltip.enablePrice.@Tooltip")])
+                    .binding(compat::read(&defaults, |c| compat::read(&c.general.item_tooltip, |c| c.enable_avg_bin.clone())), { let config = config.clone(); move || compat::read(&config, |c| compat::read(&c.general.item_tooltip, |c| c.enable_avg_bin.clone())) }, { let config = config.clone(); move |new_value: bool| compat::read(&config, |c| compat::write(&c.general.item_tooltip, |c| c.enable_avg_bin = new_value)) })
+                    .controller(ConfigUtils::create_boolean_controller())
+                    .build())
+                .option(option::create_builder::<crate::de::hysky::skyblocker::config::configs::general_config::Average>()
+                    .name(component::translatable("skyblocker.config.general.itemTooltip.avg"))
+                    .description(vec![component::translatable("skyblocker.config.general.itemTooltip.avg.@Tooltip")])
+                    .binding(compat::read(&defaults, |c| compat::read(&c.general.item_tooltip, |c| c.avg.clone())), { let config = config.clone(); move || compat::read(&config, |c| compat::read(&c.general.item_tooltip, |c| c.avg.clone())) }, { let config = config.clone(); move |new_value: crate::de::hysky::skyblocker::config::configs::general_config::Average| compat::read(&config, |c| compat::write(&c.general.item_tooltip, |c| c.avg = new_value)) })
+                    .controller(ConfigUtils::create_enum_controller::<crate::de::hysky::skyblocker::config::configs::general_config::Average>())
+                    .build())
+                .option(option::create_builder::<bool>()
+                    .name(component::translatable("skyblocker.config.general.itemTooltip.enableLowestBIN"))
+                    .description(vec![component::translatable("skyblocker.config.general.itemTooltip.enablePrice.@Tooltip")])
+                    .binding(compat::read(&defaults, |c| compat::read(&c.general.item_tooltip, |c| c.enable_lowest_bin.clone())), { let config = config.clone(); move || compat::read(&config, |c| compat::read(&c.general.item_tooltip, |c| c.enable_lowest_bin.clone())) }, { let config = config.clone(); move |new_value: bool| compat::read(&config, |c| compat::write(&c.general.item_tooltip, |c| c.enable_lowest_bin = new_value)) })
+                    .controller(ConfigUtils::create_boolean_controller())
+                    .build())
+                .option(option::create_builder::<bool>()
+                    .name(component::translatable("skyblocker.config.general.itemTooltip.enableBazaarPrice"))
+                    .description(vec![component::translatable("skyblocker.config.general.itemTooltip.enablePrice.@Tooltip")])
+                    .binding(compat::read(&defaults, |c| compat::read(&c.general.item_tooltip, |c| c.enable_bazaar_price.clone())), { let config = config.clone(); move || compat::read(&config, |c| compat::read(&c.general.item_tooltip, |c| c.enable_bazaar_price.clone())) }, { let config = config.clone(); move |new_value: bool| compat::read(&config, |c| compat::write(&c.general.item_tooltip, |c| c.enable_bazaar_price = new_value)) })
+                    .controller(ConfigUtils::create_boolean_controller())
+                    .build())
+                .option(option::create_builder::<crate::de::hysky::skyblocker::config::configs::general_config::Craft>()
+                    .name(component::translatable("skyblocker.config.general.itemTooltip.craft"))
+                    .description(vec![component::translatable("skyblocker.config.general.itemTooltip.craft.@Tooltip")])
+                    .binding(compat::read(&defaults, |c| compat::read(&c.general.item_tooltip, |c| c.enable_crafting_cost.clone())), { let config = config.clone(); move || compat::read(&config, |c| compat::read(&c.general.item_tooltip, |c| c.enable_crafting_cost.clone())) }, { let config = config.clone(); move |new_value: crate::de::hysky::skyblocker::config::configs::general_config::Craft| compat::read(&config, |c| compat::write(&c.general.item_tooltip, |c| c.enable_crafting_cost = new_value)) })
+                    .listener(Arc::new(|_: &dyn option::Option<crate::de::hysky::skyblocker::config::configs::general_config::Craft>, update_type: UpdateType| { if update_type == UpdateType::ValueChange { crate::de::hysky::skyblocker::skyblock::item::tooltip::adders::craft_price_tooltip::CraftPriceTooltip::clear_cache(); } }))
+                    .controller(ConfigUtils::create_enum_controller::<crate::de::hysky::skyblocker::config::configs::general_config::Craft>())
+                    .build())
+                .option(option::create_builder::<bool>()
+                    .name(component::translatable("skyblocker.config.general.itemTooltip.enableObtainedDate"))
+                    .binding(compat::read(&defaults, |c| compat::read(&c.general.item_tooltip, |c| c.enable_obtained_date.clone())), { let config = config.clone(); move || compat::read(&config, |c| compat::read(&c.general.item_tooltip, |c| c.enable_obtained_date.clone())) }, { let config = config.clone(); move |new_value: bool| compat::read(&config, |c| compat::write(&c.general.item_tooltip, |c| c.enable_obtained_date = new_value)) })
+                    .controller(ConfigUtils::create_boolean_controller())
+                    .build())
+                .option(option::create_builder::<bool>()
+                    .name(component::translatable("skyblocker.config.general.itemTooltip.enableMuseumInfo"))
+                    .description(vec![component::translatable("skyblocker.config.general.itemTooltip.enableMuseumInfo.@Tooltip")])
+                    .binding(compat::read(&defaults, |c| compat::read(&c.general.item_tooltip, |c| c.enable_museum_info.clone())), { let config = config.clone(); move || compat::read(&config, |c| compat::read(&c.general.item_tooltip, |c| c.enable_museum_info.clone())) }, { let config = config.clone(); move |new_value: bool| compat::read(&config, |c| compat::write(&c.general.item_tooltip, |c| c.enable_museum_info = new_value)) })
+                    .controller(ConfigUtils::create_boolean_controller())
+                    .build())
+                .option(option::create_builder::<bool>()
+                    .name(component::translatable("skyblocker.config.general.itemTooltip.enableExoticTooltip"))
+                    .description(vec![component::translatable("skyblocker.config.general.itemTooltip.enableExoticTooltip.@Tooltip")])
+                    .binding(compat::read(&defaults, |c| compat::read(&c.general.item_tooltip, |c| c.enable_exotic_tooltip.clone())), { let config = config.clone(); move || compat::read(&config, |c| compat::read(&c.general.item_tooltip, |c| c.enable_exotic_tooltip.clone())) }, { let config = config.clone(); move |new_value: bool| compat::read(&config, |c| compat::write(&c.general.item_tooltip, |c| c.enable_exotic_tooltip = new_value)) })
+                    .controller(ConfigUtils::create_boolean_controller())
+                    .build())
+                .option(option::create_builder::<bool>()
+                    .name(component::translatable("skyblocker.config.general.itemTooltip.enableAccessoriesHelper"))
+                    .description(vec![component::translatable("skyblocker.config.general.itemTooltip.enableAccessoriesHelper.@Tooltip[0]"), component::literal("\n\n✔ Collected")
+                        .with_color(*crate::de::hysky::skyblocker::skyblock::item::tooltip::adders::accessory_tooltip::COLLECTED_COLOUR), component::translatable("skyblocker.config.general.itemTooltip.enableAccessoriesHelper.@Tooltip[1]"), component::literal("\n✦ Upgrade")
+                        .with_color(crate::de::hysky::skyblocker::skyblock::item::tooltip::adders::accessory_tooltip::UPGRADE_COLOUR), component::translatable("skyblocker.config.general.itemTooltip.enableAccessoriesHelper.@Tooltip[2]"), component::literal("\n↑ Upgradable")
+                        .with_color(crate::de::hysky::skyblocker::skyblock::item::tooltip::adders::accessory_tooltip::UPGRADABLE_COLOUR), component::translatable("skyblocker.config.general.itemTooltip.enableAccessoriesHelper.@Tooltip[3]"), component::literal("\n↓ Downgrade")
+                        .with_color(*crate::de::hysky::skyblocker::skyblock::item::tooltip::adders::accessory_tooltip::DOWNGRADE_COLOUR), component::translatable("skyblocker.config.general.itemTooltip.enableAccessoriesHelper.@Tooltip[4]"), component::literal("\n✖ Missing")
+                        .with_color(*crate::de::hysky::skyblocker::skyblock::item::tooltip::adders::accessory_tooltip::MISSING_COLOUR), component::translatable("skyblocker.config.general.itemTooltip.enableAccessoriesHelper.@Tooltip[5]")])
+                    .binding(compat::read(&defaults, |c| compat::read(&c.general.item_tooltip, |c| c.enable_accessories_helper.clone())), { let config = config.clone(); move || compat::read(&config, |c| compat::read(&c.general.item_tooltip, |c| c.enable_accessories_helper.clone())) }, { let config = config.clone(); move |new_value: bool| compat::read(&config, |c| compat::write(&c.general.item_tooltip, |c| c.enable_accessories_helper = new_value)) })
+                    .controller(ConfigUtils::create_boolean_controller())
+                    .build())
+                .option(option::create_builder::<bool>()
+                    .name(component::translatable("skyblocker.config.general.itemTooltip.dungeonQuality"))
+                    .description(vec![component::translatable("skyblocker.config.general.itemTooltip.dungeonQuality.@Tooltip")])
+                    .binding(compat::read(&defaults, |c| compat::read(&c.general.item_tooltip, |c| c.dungeon_quality.clone())), { let config = config.clone(); move || compat::read(&config, |c| compat::read(&c.general.item_tooltip, |c| c.dungeon_quality.clone())) }, { let config = config.clone(); move |new_value: bool| compat::read(&config, |c| compat::write(&c.general.item_tooltip, |c| c.dungeon_quality = new_value)) })
+                    .controller(ConfigUtils::create_boolean_controller())
+                    .build())
+                .option(option::create_builder::<bool>()
+                    .name(component::translatable("skyblocker.config.general.itemTooltip.showEssenceCost"))
+                    .binding(compat::read(&defaults, |c| compat::read(&c.general.item_tooltip, |c| c.show_essence_cost.clone())), { let config = config.clone(); move || compat::read(&config, |c| compat::read(&c.general.item_tooltip, |c| c.show_essence_cost.clone())) }, { let config = config.clone(); move |new_value: bool| compat::read(&config, |c| compat::write(&c.general.item_tooltip, |c| c.show_essence_cost = new_value)) })
+                    .controller(ConfigUtils::create_boolean_controller())
+                    .build())
+                .option(option::create_builder::<bool>()
+                    .name(component::translatable("skyblocker.config.general.itemTooltip.enableEstimatedItemValue"))
+                    .description(vec![component::translatable("skyblocker.config.general.itemTooltip.enableEstimatedItemValue.@Tooltip")])
+                    .binding(compat::read(&defaults, |c| compat::read(&c.general.item_tooltip, |c| c.enable_estimated_item_value.clone())), { let config = config.clone(); move || compat::read(&config, |c| compat::read(&c.general.item_tooltip, |c| c.enable_estimated_item_value.clone())) }, { let config = config.clone(); move |new_value: bool| compat::read(&config, |c| compat::write(&c.general.item_tooltip, |c| c.enable_estimated_item_value = new_value)) })
+                    .controller(ConfigUtils::create_boolean_controller())
+                    .build())
+                .option(option::create_builder::<bool>()
+                    .name(component::translatable("skyblocker.config.general.itemTooltip.enableStackingEnchantProgress"))
+                    .description(vec![component::translatable("skyblocker.config.general.itemTooltip.enableStackingEnchantProgress.@Tooltip")])
+                    .binding(compat::read(&defaults, |c| compat::read(&c.general.item_tooltip, |c| c.enable_stacking_enchant_progress.clone())), { let config = config.clone(); move || compat::read(&config, |c| compat::read(&c.general.item_tooltip, |c| c.enable_stacking_enchant_progress.clone())) }, { let config = config.clone(); move |new_value: bool| compat::read(&config, |c| compat::write(&c.general.item_tooltip, |c| c.enable_stacking_enchant_progress = new_value)) })
+                    .controller(ConfigUtils::create_boolean_controller())
+                    .build())
+                .option(option::create_builder::<bool>()
+                    .name(component::translatable("skyblocker.config.general.itemTooltip.enableEvolvingItemProgress"))
+                    .description(vec![component::translatable("skyblocker.config.general.itemTooltip.enableEvolvingItemProgress.@Tooltip")])
+                    .tags(vec![common_tags::ADDED_IN_6_0_0.get().clone()])
+                    .binding(compat::read(&defaults, |c| compat::read(&c.general.item_tooltip, |c| c.enable_evolving_item_progress.clone())), { let config = config.clone(); move || compat::read(&config, |c| compat::read(&c.general.item_tooltip, |c| c.enable_evolving_item_progress.clone())) }, { let config = config.clone(); move |new_value: bool| compat::read(&config, |c| compat::write(&c.general.item_tooltip, |c| c.enable_evolving_item_progress = new_value)) })
+                    .controller(ConfigUtils::create_boolean_controller())
+                    .build())
+                .option(option::create_builder::<bool>()
+                    .name(component::translatable("skyblocker.config.general.itemTooltip.enableGeorgePrice"))
+                    .tags(vec![common_tags::ADDED_IN_6_4_0.get().clone()])
+                    .binding(compat::read(&defaults, |c| compat::read(&c.general.item_tooltip, |c| c.enable_george_price.clone())), { let config = config.clone(); move || compat::read(&config, |c| compat::read(&c.general.item_tooltip, |c| c.enable_george_price.clone())) }, { let config = config.clone(); move |new_value: bool| compat::read(&config, |c| compat::write(&c.general.item_tooltip, |c| c.enable_george_price = new_value)) })
+                    .controller(ConfigUtils::create_boolean_controller())
+                    .build())
+                .build())
+            .group(option_group::create_builder()
+                .name(component::translatable("skyblocker.config.general.itemInfoDisplay"))
+                .collapsed(true)
+                .option(option::create_builder::<crate::de::hysky::skyblocker::config::configs::general_config::ItemBackgroundStyle>()
+                    .name(component::translatable("skyblocker.config.general.itemInfoDisplay.itemBackgroundStyle"))
+                    .description(vec![component::translatable("skyblocker.config.general.itemInfoDisplay.itemBackgroundStyle.@Tooltip")])
+                    .binding(compat::read(&defaults, |c| c.general.item_info_display.item_background_style.clone()), { let config = config.clone(); move || compat::read(&config, |c| c.general.item_info_display.item_background_style.clone()) }, { let config = config.clone(); move |new_value: crate::de::hysky::skyblocker::config::configs::general_config::ItemBackgroundStyle| compat::write(&config, |c| c.general.item_info_display.item_background_style = new_value) })
+                    .controller(ConfigUtils::create_enum_controller::<crate::de::hysky::skyblocker::config::configs::general_config::ItemBackgroundStyle>())
+                    .build())
+                .option(option::create_builder::<f32>()
+                    .name(component::translatable("skyblocker.config.general.itemInfoDisplay.itemBackgroundOpacity"))
+                    .binding(compat::read(&defaults, |c| c.general.item_info_display.item_background_opacity.clone()), { let config = config.clone(); move || compat::read(&config, |c| c.general.item_info_display.item_background_opacity.clone()) }, { let config = config.clone(); move |new_value: f32| compat::write(&config, |c| c.general.item_info_display.item_background_opacity = new_value) })
+                    .controller(float_controller::create_builder()
+                        .range(0.0f32, 1.0f32)
+                        .slider(0.05f32)
+                        .build())
+                    .build())
+                .option(option::create_builder::<bool>()
+                    .name(component::translatable("skyblocker.config.general.itemInfoDisplay.itemRarityBackgrounds"))
+                    .description(vec![component::translatable("skyblocker.config.general.itemInfoDisplay.itemRarityBackgrounds.@Tooltip")])
+                    .binding(compat::read(&defaults, |c| c.general.item_info_display.item_rarity_backgrounds.clone()), { let config = config.clone(); move || compat::read(&config, |c| c.general.item_info_display.item_rarity_backgrounds.clone()) }, { let config = config.clone(); move |new_value: bool| compat::write(&config, |c| c.general.item_info_display.item_rarity_backgrounds = new_value) })
+                    .controller(ConfigUtils::create_boolean_controller())
+                    .build())
+                .option(option::create_builder::<bool>()
+                    .name(component::translatable("skyblocker.config.general.itemInfoDisplay.itemRarityBackgroundsLegacyColors"))
+                    .description(vec![component::translatable("skyblocker.config.general.itemInfoDisplay.itemRarityBackgroundsLegacyColors.@Tooltip")])
+                    .tags(vec![common_tags::ADDED_IN_6_8_0.get().clone()])
+                    .binding(compat::read(&defaults, |c| c.general.item_info_display.item_rarity_backgrounds_legacy_colors.clone()), { let config = config.clone(); move || compat::read(&config, |c| c.general.item_info_display.item_rarity_backgrounds_legacy_colors.clone()) }, { let config = config.clone(); move |new_value: bool| compat::write(&config, |c| c.general.item_info_display.item_rarity_backgrounds_legacy_colors = new_value) })
+                    .controller(ConfigUtils::create_boolean_controller())
+                    .build())
+                .option(option::create_builder::<bool>()
+                    .name(component::translatable("skyblocker.config.general.itemInfoDisplay.jacobMedalBackgrounds"))
+                    .description(vec![component::translatable("skyblocker.config.general.itemInfoDisplay.jacobMedalBackgrounds.@Tooltip")])
+                    .binding(compat::read(&defaults, |c| c.general.item_info_display.jacob_medal_backgrounds.clone()), { let config = config.clone(); move || compat::read(&config, |c| c.general.item_info_display.jacob_medal_backgrounds.clone()) }, { let config = config.clone(); move |new_value: bool| compat::write(&config, |c| c.general.item_info_display.jacob_medal_backgrounds = new_value) })
+                    .controller(ConfigUtils::create_boolean_controller())
+                    .build())
+                .option(option::create_builder::<bool>()
+                    .name(component::translatable("skyblocker.config.general.itemInfoDisplay.legacyAttributeBackgrounds"))
+                    .description(vec![component::translatable("skyblocker.config.general.itemInfoDisplay.legacyAttributeBackgrounds.@Tooltip")])
+                    .binding(compat::read(&defaults, |c| c.general.item_info_display.legacy_attribute_backgrounds.clone()), { let config = config.clone(); move || compat::read(&config, |c| c.general.item_info_display.legacy_attribute_backgrounds.clone()) }, { let config = config.clone(); move |new_value: bool| compat::write(&config, |c| c.general.item_info_display.legacy_attribute_backgrounds = new_value) })
+                    .controller(ConfigUtils::create_boolean_controller())
+                    .build())
+                .build())
+            .group(option_group::create_builder()
+                .name(component::translatable("skyblocker.config.general.itemProtection"))
+                .collapsed(true)
+                .option(key_mapping_option::create_builder()
+                    .name(component::translatable("key.skyblocker.hotbarSlotLock"))
+                    .tags([common_tags::KEY_MAPPING.get().clone()].concat())
+                    .key_mapping_nullable(crate::de::hysky::skyblocker::skyblock::item::hotbar_slot_lock::HOTBAR_SLOT_LOCK.get().clone())
+                    .build())
+                .option(option::create_builder::<crate::de::hysky::skyblocker::config::configs::general_config::SlotLockStyle>()
+                    .name(component::translatable("skyblocker.config.general.itemProtection.slotLockStyle"))
+                    .description(vec![component::translatable("skyblocker.config.general.itemProtection.slotLockStyle.@Tooltip")])
+                    .binding(compat::read(&defaults, |c| c.general.item_protection.slot_lock_style.clone()), { let config = config.clone(); move || compat::read(&config, |c| c.general.item_protection.slot_lock_style.clone()) }, { let config = config.clone(); move |new_value: crate::de::hysky::skyblocker::config::configs::general_config::SlotLockStyle| compat::write(&config, |c| c.general.item_protection.slot_lock_style = new_value) })
+                    .controller(ConfigUtils::create_enum_controller::<crate::de::hysky::skyblocker::config::configs::general_config::SlotLockStyle>())
+                    .build())
+                .option(option::create_builder::<bool>()
+                    .name(component::translatable("skyblocker.config.general.itemProtection.protectValuableConsumables"))
+                    .description(vec![component::translatable("skyblocker.config.general.itemProtection.protectValuableConsumables.@Tooltip")])
+                    .binding(compat::read(&defaults, |c| c.general.item_protection.protect_valuable_consumables.clone()), { let config = config.clone(); move || compat::read(&config, |c| c.general.item_protection.protect_valuable_consumables.clone()) }, { let config = config.clone(); move |new_value: bool| compat::write(&config, |c| c.general.item_protection.protect_valuable_consumables = new_value) })
+                    .controller(ConfigUtils::create_boolean_controller())
+                    .build())
+                .option(key_mapping_option::create_builder()
+                    .name(component::translatable("key.skyblocker.itemProtection"))
+                    .tags([common_tags::KEY_MAPPING.get().clone()].concat())
+                    .key_mapping_nullable(crate::de::hysky::skyblocker::skyblock::item::item_protection::ITEM_PROTECTION.get().clone())
+                    .build())
+                .option(option::create_builder::<bool>()
+                    .name(component::translatable("skyblocker.config.general.itemProtection.displayChatNotification"))
+                    .description(vec![component::translatable("skyblocker.config.general.itemProtection.displayChatNotification.@Tooltip")])
+                    .binding(compat::read(&defaults, |c| c.general.item_protection.display_chat_notification.clone()), { let config = config.clone(); move || compat::read(&config, |c| c.general.item_protection.display_chat_notification.clone()) }, { let config = config.clone(); move |new_value: bool| compat::write(&config, |c| c.general.item_protection.display_chat_notification = new_value) })
+                    .controller(ConfigUtils::create_boolean_controller())
+                    .build())
+                .build())
+            .group(option_group::create_builder()
+                .name(component::translatable("skyblocker.config.general.wikiLookup"))
+                .collapsed(true)
+                .option(option::create_builder::<bool>()
+                    .name(component::translatable("skyblocker.config.general.wikiLookup.enableWikiLookup"))
+                    .description(vec![component::translatable_args("skyblocker.config.general.wikiLookup.enableWikiLookup.@Tooltip", vec![FormattedText::from(mcrust::net::minecraft::client::key_mapping::get_translated_key_message(crate::de::hysky::skyblocker::skyblock::item::wikilookup::wiki_lookup_manager::INDEPENDENT_WIKI_LOOKUP.get().as_ref().map(|k| k.get_name()).unwrap_or("key.skyblocker.wikiLookup.independent"), &|key: i32, _scancode: i32| compat::minecraft().key_names.get(&key).cloned()))])])
+                    .binding(compat::read(&defaults, |c| c.general.wiki_lookup.enable_wiki_lookup.clone()), { let config = config.clone(); move || compat::read(&config, |c| c.general.wiki_lookup.enable_wiki_lookup.clone()) }, { let config = config.clone(); move |new_value: bool| compat::write(&config, |c| c.general.wiki_lookup.enable_wiki_lookup = new_value) })
+                    .controller(ConfigUtils::create_boolean_controller())
+                    .build())
+                .option(key_mapping_option::create_builder()
+                    .name(component::translatable("key.skyblocker.wikiLookup.independent"))
+                    .tags([common_tags::KEY_MAPPING.get().clone()].concat())
+                    .key_mapping_nullable(crate::de::hysky::skyblocker::skyblock::item::wikilookup::wiki_lookup_manager::INDEPENDENT_WIKI_LOOKUP.get().clone())
+                    .build())
+                .build())
+            .group(option_group::create_builder()
+                .name(component::translatable("skyblocker.config.general.specialEffects"))
+                .collapsed(true)
+                .option(option::create_builder::<bool>()
+                    .name(component::translatable("skyblocker.config.general.specialEffects.rareDungeonDropEffects"))
+                    .description(vec![component::translatable("skyblocker.config.general.specialEffects.rareDungeonDropEffects.@Tooltip")])
+                    .binding(compat::read(&defaults, |c| c.general.special_effects.rare_dungeon_drop_effects.clone()), { let config = config.clone(); move || compat::read(&config, |c| c.general.special_effects.rare_dungeon_drop_effects.clone()) }, { let config = config.clone(); move |new_value: bool| compat::write(&config, |c| c.general.special_effects.rare_dungeon_drop_effects = new_value) })
+                    .controller(ConfigUtils::create_boolean_controller())
+                    .build())
+                .option(option::create_builder::<bool>()
+                    .name(component::translatable("skyblocker.config.general.specialEffects.rareDropEffects"))
+                    .description(vec![component::translatable("skyblocker.config.general.specialEffects.rareDropEffects.@Tooltip")])
+                    .tags(vec![common_tags::ADDED_IN_5_11_0.get().clone()])
+                    .binding(compat::read(&defaults, |c| c.general.special_effects.rare_drop_effects.clone()), { let config = config.clone(); move || compat::read(&config, |c| c.general.special_effects.rare_drop_effects.clone()) }, { let config = config.clone(); move |new_value: bool| compat::write(&config, |c| c.general.special_effects.rare_drop_effects = new_value) })
+                    .controller(ConfigUtils::create_boolean_controller())
+                    .build())
+                .option(option::create_builder::<bool>()
+                    .name(component::translatable("skyblocker.config.general.specialEffects.rareDyeDropEffects"))
+                    .description(vec![component::translatable("skyblocker.config.general.specialEffects.rareDyeDropEffects.@Tooltip")])
+                    .binding(compat::read(&defaults, |c| c.general.special_effects.rare_dye_drop_effects.clone()), { let config = config.clone(); move || compat::read(&config, |c| c.general.special_effects.rare_dye_drop_effects.clone()) }, { let config = config.clone(); move |new_value: bool| compat::write(&config, |c| c.general.special_effects.rare_dye_drop_effects = new_value) })
+                    .controller(ConfigUtils::create_boolean_controller())
+                    .build())
+                .option(option::create_builder::<bool>()
+                    .name(component::translatable("skyblocker.config.general.specialEffects.trophyDropEffects"))
+                    .description(vec![component::translatable("skyblocker.config.general.specialEffects.trophyDropEffects.@Tooltip")])
+                    .tags(vec![common_tags::ADDED_IN_6_5_1.get().clone()])
+                    .binding(compat::read(&defaults, |c| c.general.special_effects.trophy_drop_effects.clone()), { let config = config.clone(); move || compat::read(&config, |c| c.general.special_effects.trophy_drop_effects.clone()) }, { let config = config.clone(); move |new_value: bool| compat::write(&config, |c| c.general.special_effects.trophy_drop_effects = new_value) })
+                    .controller(ConfigUtils::create_boolean_controller())
+                    .build())
+                .option(option::create_builder::<bool>()
+                    .name(component::translatable("skyblocker.config.general.specialEffects.displayItemName"))
+                    .description(vec![component::translatable("skyblocker.config.general.specialEffects.displayItemName.@Tooltip")])
+                    .tags(vec![common_tags::ADDED_IN_6_7_0.get().clone()])
+                    .binding(compat::read(&defaults, |c| c.general.special_effects.display_item_name.clone()), { let config = config.clone(); move || compat::read(&config, |c| c.general.special_effects.display_item_name.clone()) }, { let config = config.clone(); move |new_value: bool| compat::write(&config, |c| c.general.special_effects.display_item_name = new_value) })
+                    .controller(ConfigUtils::create_boolean_controller())
+                    .build())
+                .build())
+            .build();
     }
-
 }

@@ -33,13 +33,11 @@ impl NetworthCalculator {
             let custom_data: Tag = stack.get(mcrust::net::minecraft::core::component::data_components::custom_data()).and_then(|o| mcrust::com::mojang::serialization::cast::<mcrust::net::minecraft::world::item::component::custom_data::CustomData>(&o).map(|data| data.copy_tag())).unwrap_or_else(|| mcrust::net::minecraft::world::item::component::custom_data::empty().copy_tag());
             //   java: Dynamic<?> customDataDynamic = new Dynamic<>(NbtOps.INSTANCE, customData);
             let custom_data_dynamic: Dynamic = Dynamic::new_with(mcrust::net::minecraft::nbt::nbt_ops::NbtOps::instance(), Some(mcrust::com::mojang::serialization::obj(custom_data.clone())));
-            //   java: SkyblockItemStack skyblockItemStack = SkyblockItemStack.of(itemId, count, customDataDynamic, SkyblockItemMetadataRetriever.of(customData, itemId));
-            //   java: return ItemCalculator.calculate(skyblockItemStack, NetworthDataSuppliers::getPrice, NetworthDataSuppliers.getSkyblockItemData());
-            // rust: port gap - the networth library's `SkyblockItemStack` / `ItemCalculator` are not ported yet
-            // (`crate::net::azureaaron::networth` has `Calculation`, `NetworthResult` and the constants - GAPS_Q #1):
-            // the answer is the library's `NetworthResult.EMPTY`, a price of 0, which every caller reads as "no value".
-            let _ = (item_id, count, custom_data_dynamic);
-            crate::net::azureaaron::networth::networth_result::NetworthResult::empty()
+            // java: SkyblockItemStack skyblockItemStack = SkyblockItemStack.of(itemId, count, customDataDynamic, SkyblockItemMetadataRetriever.of(customData, itemId));
+            let skyblock_item_stack: crate::net::azureaaron::networth::item::skyblock_item_stack::SkyblockItemStack = crate::net::azureaaron::networth::item::skyblock_item_stack::SkyblockItemStack::of(&item_id, count, &custom_data_dynamic, &super::skyblock_item_metadata_retriever::SkyblockItemMetadataRetriever::of(&custom_data, &item_id));
+
+            // java: return ItemCalculator.calculate(skyblockItemStack, NetworthDataSuppliers::getPrice, NetworthDataSuppliers.getSkyblockItemData());
+            return crate::net::azureaaron::networth::item_calculator::ItemCalculator::calculate(&skyblock_item_stack, &|id: &str| super::networth_data_suppliers::NetworthDataSuppliers::get_price(id), &super::networth_data_suppliers::NetworthDataSuppliers::get_skyblock_item_data());
         })) {
             Ok(__v) => return __v,
             Err(_) => {

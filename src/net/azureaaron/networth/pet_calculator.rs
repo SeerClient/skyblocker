@@ -1,15 +1,98 @@
 //! java: public class PetCalculator (net.azureaaron.networth)
-//!
-//! Only `calculatePetLevel` is ported; `calculate` (the pet's price) needs `ModifierValues` and the price supplier
-//! and is reached only through `ItemCalculator`, which is not ported yet (GAPS_Q #1).
 
+use super::calculation::{Calculation, Type};
+use super::data::modifier_values::ModifierValues;
 use super::item::pet_info::PetInfo;
+use super::networth_result::NetworthResult;
 use super::utils::pet_constants;
 
 /// java: public class PetCalculator
 pub struct PetCalculator;
 
 impl PetCalculator {
+    /// java: public static NetworthResult calculate(PetInfo info, ToDoubleFunction<String> prices, ModifierValues modifiers)
+    ///
+    /// Only call this when you want to calculate the value of a pet when its not in item form.
+    pub fn calculate(info: &PetInfo, prices: &dyn Fn(&str) -> f64, modifiers: &ModifierValues) -> NetworthResult {
+        if *info == PetInfo::empty() {
+            return NetworthResult::empty();
+        }
+
+        let lvl1: f64 = prices(&format!("LVL_1_{}_{}", info.tier(), info.r#type()));
+        let lvl100: f64 = prices(&format!("LVL_100_{}_{}", info.tier(), info.r#type()));
+        let lvl200: f64 = prices(&format!("LVL_200_{}_{}", info.tier(), info.r#type()));
+
+        if lvl1 == 0.0 || (lvl100 == 0.0 && info.r#type() != "GOLDEN_DRAGON") {
+            return NetworthResult::empty();
+        }
+
+        let mut calculations: Vec<Calculation> = Vec::new();
+        let level_info: (i32, i32) = PetCalculator::calculate_pet_level(info);
+        let level: i32 = level_info.0;
+        let max_xp: i32 = level_info.1;
+
+        let mut price: f64 = if lvl200 != 0.0 { lvl200 } else { lvl100 };
+
+        //Base calculations
+        if level < 100 && max_xp != 0 {
+            let base_formula: f64 = (lvl100 - lvl1) / max_xp as f64;
+
+            price = base_formula * info.xp() + lvl1;
+        }
+
+        if level > 100 && level < 200 {
+            //Trim 1st digit off number
+            let incremental_level: i32 = level % 10f64.powi((level as f64).log10() as i32) as i32;
+
+            if incremental_level != 1 {
+                let base_formula: f64 = (lvl200 - lvl100) / 100.0;
+
+                price = base_formula * incremental_level as f64 + lvl100;
+            }
+        }
+
+        let base: f64 = price;
+
+        //Pet Skins
+        if let Some(skin) = info.skin() {
+            let calculation = Calculation::of(
+                Type::Skin,
+                skin.clone(),
+                prices(&format!("PET_SKIN_{skin}")) * modifiers.regular().get_double("skins"),
+            );
+
+            price += calculation.price();
+            calculations.push(calculation);
+        }
+
+        //Held Item
+        if let Some(held_item) = info.held_item() {
+            let calculation = Calculation::of(
+                Type::PetItem,
+                held_item.clone(),
+                prices(held_item) * modifiers.regular().get_double("petItem"),
+            );
+
+            price += calculation.price();
+            calculations.push(calculation);
+        }
+
+        //Pet Candy Price Reduction
+        let max_pet_xp_from_candy: i32 = info.candies().wrapping_mul(1_000_000);
+        let xp_without_candy: f64 = info.xp() - max_pet_xp_from_candy as f64;
+
+        if info.candies() > 0
+            && !pet_constants::BLOCKED_CANDY_REDUCTION_PETS.contains(info.r#type())
+            && xp_without_candy < max_xp as f64
+        {
+            let reduced_value: f64 = price * modifiers.regular().get_double("petCandy");
+
+            price = reduced_value.max(price - if level == 100 { 5_000_000.0 } else { 2_500_000.0 });
+        }
+
+        NetworthResult::of(price, base, calculations)
+    }
+
     /// java: public static IntIntPair calculatePetLevel(PetInfo info) - (left = level, right = max xp)
     pub fn calculate_pet_level(info: &PetInfo) -> (i32, i32) {
         //Legendary pets can't be tier boosted so we don't need to do any bounds checks

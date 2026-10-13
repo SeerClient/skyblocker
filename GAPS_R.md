@@ -1,0 +1,12 @@
+# GAPS - batch R (networth-calculator library, rest of it)
+
+Closes GAPS_Q #1 (ItemCalculator and everything it needs) and GAPS_Q #3 (`Calculation.LIST_CODEC`).
+
+| # | Java member / mechanism | What the port has | What is needed | Sites |
+|---|---|---|---|---|
+| 1 | fastutil `Object2IntOpenHashMap` / `Object2ObjectOpenHashMap` iteration order (`Cosmetics.runes`, `DynamicItemMetadata.enchantments`/`attributes`/`gemstones`), `Set.of` order (`PrestigeConstants.PRESTIGES` values) | `Vec<(K, V)>` in the order `Codec.unboundedMap` decodes (the port's NBT compound order); `HashSet` for `Set.of` | fastutil's open-addressing hash order (and Java's `String.hashCode`) if the exact order matters | `item_calculator.rs`: which rune is "first" when an item carries more than one rune (RUNE/UNIQUE_RUNE id, applied rune); which gemstone key `findFirst` picks when two keys share a slot prefix; the ORDER of `calculations` (sums are the same) |
+| 2 | `prices.applyAsDouble(null)` (`ItemConstants.REFORGES.get(reforge)` misses) | `prices("")` | nothing for Skyblocker: `ItemUtils.getItemPrice:427` answers `null` and `""` identically (empty -> 0) | `item_calculator.rs` Reforges |
+| 3 | fastutil `Object2DoubleMap<String>` (`ModifierValues.regular/enchantments`, `defaultReturnValue`) | a two-member stand-in struct `Object2DoubleMap` in `data/modifier_values.rs` (`get_double`, `get_or_default`, `put`, `default_return_value`, `contains_key`) | fastutil is not ported | `ModifierValues` only |
+| 4 | A Java exception inside `getItemNetworth` is silent (`catch (Exception _)`) | a panic caught by `catch_unwind`; the game's panic hook (`throwable::install_panic_hook`) still PRINTS each one | a silent catch (e.g. `catch_unwind` with the hook suppressed for the call) - not this batch's file | the case the Java TODO names: a MYTHIC pet with `PET_ITEM_TIER_BOOST` makes `PetCalculator.calculatePetLevel` index `PET_RARITIES[6]`; hovered, the tooltip recomputes each frame -> one blocking stderr line per frame (CLAUDE.md "println is a blocking write") |
+| 5 | `ItemUtils.dumpHeldItemCommand()` | still the converter's `todo!` typed over `crate::unresolved::FabricClientCommandSource` | `ItemStack.CODEC` into JSON with a registry context | `debug/debug.rs` registers `dumpHeldItemNetworthCalcs` now; `dumpHeldItem` still not registered |
+| 6 | `Debug` hovered-item key with Shift (`Held Item NW Calcs`) | `focusedSlot` is `None` (GAPS_batchB #2) | the hovered slot of the open container screen | `debug/debug.rs:~150` |

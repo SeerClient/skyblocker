@@ -71,8 +71,7 @@ impl DisableAllPopup {
                 // java: popupScreen.onClose(); - `PopupScreen.onClose` sets the screen back to its background screen
                 mcrust::mcrust::modding::game::set_screen_to_parent();
                 // java: minecraft.gui.setScreen(SkyblockerConfigManager.createGUI(null));
-                // rust: port gap - the config GUI is the YACL / Dandelion screen the config merge replaces
-                // (`SkyblockerConfigManager.createGUI` answers the port's `Screen` husk, which a mod cannot open)
+                crate::de::hysky::skyblocker::config::skyblocker_config_manager::SkyblockerConfigManager::create_gui(None).set();
                 // java: SystemToast.add(minecraft.gui.toastManager(), TOAST_ID, Component.translatable("skyblocker.disableAll.toast.title"), Component.translatable("skyblocker.disableAll.success").withStyle(ChatFormatting.RED));
                 DisableAllPopup::add_toast("skyblocker.disableAll.success");
             }));

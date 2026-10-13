@@ -139,13 +139,28 @@ impl ItemUtils {
     }
 
     /// java: public static LiteralArgumentBuilder<FabricClientCommandSource> dumpHeldItemNetworthCalculationsCommand()
-    pub fn dump_held_item_networth_calculations_command() -> LiteralArgumentBuilder<crate::unresolved::FabricClientCommandSource> {
-        // TODO(fabric2seer): a command builder outside dispatcher.register(..)
+    pub fn dump_held_item_networth_calculations_command() -> LiteralArgumentBuilder<mcrust::mcrust::modding::events::client_command_registration_callback::FabricClientCommandSource> {
         //   java: return literal("dumpHeldItemNetworthCalcs").executes(context -> {
         //   java: 			context.getSource().sendFeedback(Component.literal("[Skyblocker Debug] Held Item NW Calcs: " + SkyblockerMod.GSON_COMPACT.toJson(Calculation.LIST_CODEC.encodeStart(JsonOps.INSTANCE, NetworthCalculator.getItemNetworth(context.getSource().getPlayer().getMainHandItem()).calculations()).getOrThrow())));
         //   java: 			return Command.SINGLE_SUCCESS;
         //   java: 		});
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        use mcrust::com::mojang::brigadier::builder::argument_builder::ArgumentBuilder as _;
+        use mcrust::com::mojang::serialization::encoder::Encoder as _;
+        use mcrust::mcrust::modding::events::client_command_registration_callback;
+        let mut node = client_command_registration_callback::literal("dumpHeldItemNetworthCalcs");
+        node.executes(std::sync::Arc::new(|_: &mcrust::com::mojang::brigadier::context::command_context::CommandContext<client_command_registration_callback::FabricClientCommandSource>| {
+            // java: context.getSource().getPlayer().getMainHandItem() - a copy taken under the player lock, released before the calculation
+            let stack: Option<mcrust::net::minecraft::world::item::item_stack::ItemStack> = mcrust::mcrust::modding::game::with_player(|player| player.get_main_hand_item().clone());
+            let Some(stack) = stack else { return Ok(1) };
+            let calculations: Vec<crate::net::azureaaron::networth::calculation::Calculation> = crate::de::hysky::skyblocker::utils::networth::networth_calculator::NetworthCalculator::get_item_networth(&stack).calculations().clone();
+            // java: .getOrThrow() - IllegalStateException; the list always encodes
+            let encoded = crate::net::azureaaron::networth::calculation::LIST_CODEC.encode_start(&mcrust::com::mojang::serialization::json_ops::JsonOps::instance(), &calculations).get_or_throw().unwrap_or_else(|e| panic!("IllegalStateException: {e}"));
+            // `GSON_COMPACT.toJson(..)`: no whitespace, as serde's compact writer.
+            let json: String = serde_json::to_string(&compat::json_from_port(&encoded)).unwrap();
+            client_command_registration_callback::send_feedback(&format!("[Skyblocker Debug] Held Item NW Calcs: {}", json));
+            Ok(1)
+        }));
+        return node;
     }
 
     /// java: public static CompoundTag getCustomData(DataComponentGetter stack)

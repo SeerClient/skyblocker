@@ -55,7 +55,7 @@ pub trait RadialMenu: compat::DynAny {
     }
 
     /// java: public Option<Boolean> getOption(SkyblockerConfig config) (dispatch: the body for this class)
-    fn get_option(&self) -> fn(&compat::Shared<dyn RadialMenu>, &SkyblockerConfig) -> crate::unresolved::Option {
+    fn get_option(&self) -> fn(&compat::Shared<dyn RadialMenu>, &compat::Shared<SkyblockerConfig>) -> Arc<dyn dandelion::net::azureaaron::dandelion::api::option::Option<bool>> {
         <dyn RadialMenu>::get_option_body
     }
 
@@ -68,16 +68,29 @@ impl dyn RadialMenu {
     }
 
     /// java: public Option<Boolean> getOption(SkyblockerConfig config)
-    pub fn get_option_body(__this: &compat::Shared<dyn RadialMenu>, config: &SkyblockerConfig) -> crate::unresolved::Option {
-        // TODO(fabric2seer): static call Option.createBuilder(..)
-        //   java: return Option.<Boolean>createBuilder()
-        //   java: 				.name(Component.translatable("skyblocker.config.uiAndVisuals.radialMenu." + getConfigId()))
-        //   java: 				.binding(false,
-        //   java: 						() -> config.uiAndVisuals.radialMenu.enabledMenus.getOrDefault(getConfigId(), false),
-        //   java: 						newValue -> config.uiAndVisuals.radialMenu.enabledMenus.put(getConfigId(), newValue.booleanValue()))
-        //   java: 				.controller(ConfigUtils.createBooleanController())
-        //   java: 				.build();
-        todo!("fabric2seer: the value of this function is in a TODO above")
+    pub fn get_option_body(__this: &compat::Shared<dyn RadialMenu>, config: &compat::Shared<SkyblockerConfig>) -> Arc<dyn dandelion::net::azureaaron::dandelion::api::option::Option<bool>> {
+        use dandelion::net::azureaaron::dandelion::api::option::{self, Builder as _};
+        // java: return Option.<Boolean>createBuilder()
+        //       .name(Component.translatable("skyblocker.config.uiAndVisuals.radialMenu." + getConfigId()))
+        //       .binding(false,
+        //               () -> config.uiAndVisuals.radialMenu.enabledMenus.getOrDefault(getConfigId(), false),
+        //               newValue -> config.uiAndVisuals.radialMenu.enabledMenus.put(getConfigId(), newValue.booleanValue()))
+        //       .controller(ConfigUtils.createBooleanController())
+        //       .build();
+        let config_id: String = { let __f = compat::dispatch(__this, |__t| __t.get_config_id()); __f(__this) };
+        let (get_id, get_config) = (config_id.clone(), config.clone());
+        let (set_id, set_config) = (config_id.clone(), config.clone());
+        return option::create_builder::<bool>()
+            .name(mcrust::net::minecraft::network::chat::component::translatable(&format!("skyblocker.config.uiAndVisuals.radialMenu.{}", config_id)))
+            .binding(
+                false,
+                move || compat::read(&get_config, |c| c.ui_and_visuals.radial_menu.enabled_menus.get(&get_id).cloned().unwrap_or(false)),
+                move |new_value: bool| compat::write(&set_config, |c| {
+                    c.ui_and_visuals.radial_menu.enabled_menus.insert(set_id.clone(), new_value);
+                }),
+            )
+            .controller(crate::de::hysky::skyblocker::config::config_utils::ConfigUtils::create_boolean_controller())
+            .build();
     }
 
 }

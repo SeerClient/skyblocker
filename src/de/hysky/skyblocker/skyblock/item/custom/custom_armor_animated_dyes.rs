@@ -283,3 +283,101 @@ impl AnimatedDye {
     }
 
 }
+
+// Generated Gson forms for src/de/hysky/skyblocker/skyblock/item/custom/custom_armor_animated_dyes.rs (fabric2seer round 24): APPEND to that file.
+// Needs `serde_json` in Cargo.toml and the `compat` of this round (dandelion::compat::GsonValue, ClassOf, ...).
+
+/// Keyframe's Gson form (`Gson.toJson` / `fromJson` by reflection in Java; generated here)
+impl Keyframe {
+    /// `gson.toJson(this)`: the fields in Gson's order (declaration order), nulls written
+    pub fn __gson_write(&self) -> dandelion::compat::GsonValue {
+        dandelion::compat::GsonValue::Obj(vec![
+            ("color".to_string(), dandelion::compat::GsonValue::int(*(&self.color) as i64)),
+            ("time".to_string(), dandelion::compat::GsonValue::float(*(&self.time))),
+        ])
+    }
+
+    /// `gson.fromJson(json, X.class)`: a new object from the no-argument constructor, then every key
+    /// present set; unknown keys are ignored
+    pub fn __gson_read(__v: &serde_json::Value) -> Option<Keyframe> {
+        let __o = __v.as_object()?;
+        // TODO(fabric2seer): no no-argument constructor - Gson builds the object with every field at zero/null (Unsafe)
+        None
+    }
+
+    /// Dandelion's ConfigPatcher: the field at a dotted path (`getDeclaredField` per segment) set to a
+    /// boolean or an enum constant; false where Java's reflective walk fails
+    pub fn __gson_patch(&mut self, __path: &[&str], __value: &dandelion::compat::PatchValue) -> bool {
+        match __path {
+            [__name] => match *__name {
+                _ => false,
+            },
+            [__first, __rest @ ..] => match *__first {
+                _ => false,
+            },
+            [] => false,
+        }
+    }
+
+    /// `Keyframe.class` as reflection sees it
+    pub fn __class_of() -> dandelion::compat::ClassOf<Keyframe> {
+        dandelion::compat::ClassOf {
+            name: "de.hysky.skyblocker.skyblock.item.custom.CustomArmorAnimatedDyes$Keyframe",
+            new: || panic!("InstantiationException: no no-argument constructor"),
+            to_gson: |__x| __x.__gson_write(),
+            read_gson: Keyframe::__gson_read,
+            patch: |__x, __p, __v| __x.__gson_patch(__p, __v),
+            is_enum: false,
+            enum_constants: Vec::new,
+        }
+    }
+}
+
+/// AnimatedDye's Gson form (`Gson.toJson` / `fromJson` by reflection in Java; generated here)
+impl AnimatedDye {
+    /// `gson.toJson(this)`: the fields in Gson's order (declaration order), nulls written
+    pub fn __gson_write(&self) -> dandelion::compat::GsonValue {
+        dandelion::compat::GsonValue::Obj(vec![
+            ("keyframes".to_string(), dandelion::compat::GsonValue::Arr(((&self.keyframes)).iter().map(|__x0| (__x0).__gson_write()).collect())),
+            ("cycleBack".to_string(), dandelion::compat::GsonValue::Bool(*(&self.cycle_back))),
+            ("delay".to_string(), dandelion::compat::GsonValue::float(*(&self.delay))),
+            ("duration".to_string(), dandelion::compat::GsonValue::float(*(&self.duration))),
+        ])
+    }
+
+    /// `gson.fromJson(json, X.class)`: a new object from the no-argument constructor, then every key
+    /// present set; unknown keys are ignored
+    pub fn __gson_read(__v: &serde_json::Value) -> Option<AnimatedDye> {
+        let __o = __v.as_object()?;
+        // TODO(fabric2seer): no no-argument constructor - Gson builds the object with every field at zero/null (Unsafe)
+        None
+    }
+
+    /// Dandelion's ConfigPatcher: the field at a dotted path (`getDeclaredField` per segment) set to a
+    /// boolean or an enum constant; false where Java's reflective walk fails
+    pub fn __gson_patch(&mut self, __path: &[&str], __value: &dandelion::compat::PatchValue) -> bool {
+        match __path {
+            [__name] => match *__name {
+                "cycleBack" => if let dandelion::compat::PatchValue::Bool(__b) = __value { self.cycle_back = *__b; true } else { false },
+                _ => false,
+            },
+            [__first, __rest @ ..] => match *__first {
+                _ => false,
+            },
+            [] => false,
+        }
+    }
+
+    /// `AnimatedDye.class` as reflection sees it
+    pub fn __class_of() -> dandelion::compat::ClassOf<AnimatedDye> {
+        dandelion::compat::ClassOf {
+            name: "de.hysky.skyblocker.skyblock.item.custom.CustomArmorAnimatedDyes$AnimatedDye",
+            new: || panic!("InstantiationException: no no-argument constructor"),
+            to_gson: |__x| __x.__gson_write(),
+            read_gson: AnimatedDye::__gson_read,
+            patch: |__x, __p, __v| __x.__gson_patch(__p, __v),
+            is_enum: false,
+            enum_constants: Vec::new,
+        }
+    }
+}

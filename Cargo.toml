@@ -19,6 +19,7 @@ fancy-regex = "0.14"
 indexmap = "2"
 parking_lot = "0.12"
 serde_json = { version = "1", features = ["preserve_order"] }
+dandelion = { path = "C:/Users/y64/Desktop/McRust/mods-src/dandelion" }
 
 # Its own workspace root, so it never joins the game's package.
 [workspace]

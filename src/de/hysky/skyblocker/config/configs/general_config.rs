@@ -645,3 +645,821 @@ impl Hitbox {
     }
 
 }
+
+// Generated Gson forms for src/de/hysky/skyblocker/config/configs/general_config.rs (fabric2seer round 24): APPEND to that file.
+// Needs `serde_json` in Cargo.toml and the `compat` of this round (dandelion::compat::GsonValue, ClassOf, ...).
+
+/// GeneralConfig's Gson form (`Gson.toJson` / `fromJson` by reflection in Java; generated here)
+impl GeneralConfig {
+    /// `gson.toJson(this)`: the fields in Gson's order (declaration order), nulls written
+    pub fn __gson_write(&self) -> dandelion::compat::GsonValue {
+        dandelion::compat::GsonValue::Obj(vec![
+            ("enableTips".to_string(), dandelion::compat::GsonValue::Bool(*(&self.enable_tips))),
+            ("acceptReparty".to_string(), dandelion::compat::GsonValue::Bool(*(&self.accept_reparty))),
+            ("speedPresets".to_string(), ((&self.speed_presets)).__gson_write()),
+            ("shortcuts".to_string(), ((&self.shortcuts)).__gson_write()),
+            ("quiverWarning".to_string(), ((&self.quiver_warning)).__gson_write()),
+            ("itemList".to_string(), ((&self.item_list)).__gson_write()),
+            ("itemTooltip".to_string(), compat::read((&self.item_tooltip), |__t| __t.__gson_write())),
+            ("itemInfoDisplay".to_string(), ((&self.item_info_display)).__gson_write()),
+            ("itemProtection".to_string(), ((&self.item_protection)).__gson_write()),
+            ("wikiLookup".to_string(), ((&self.wiki_lookup)).__gson_write()),
+            ("specialEffects".to_string(), ((&self.special_effects)).__gson_write()),
+            ("lockedSlots".to_string(), dandelion::compat::GsonValue::Arr(((&self.locked_slots)).iter().map(|__x0| dandelion::compat::GsonValue::int(*__x0 as i64)).collect())),
+            ("protectedItems".to_string(), dandelion::compat::GsonValue::sorted_arr(((&self.protected_items)).iter().map(|__x0| dandelion::compat::GsonValue::str(&__x0)).collect())),
+            ("customItemNames".to_string(), dandelion::compat::GsonValue::sorted_obj(((&self.custom_item_names)).iter().map(|(__k0, __x0)| (__k0.clone(), dandelion::compat::gson_by_codec(&mcrust::net::minecraft::network::chat::component_serialization::component_codec(), __x0))).collect())),
+            ("customDyeColors".to_string(), dandelion::compat::GsonValue::sorted_obj(((&self.custom_dye_colors)).iter().map(|(__k0, __x0)| (__k0.clone(), dandelion::compat::GsonValue::int(*__x0 as i64))).collect())),
+            ("customArmorTrims".to_string(), dandelion::compat::GsonValue::sorted_obj(((&self.custom_armor_trims)).iter().map(|(__k0, __x0)| (__k0.clone(), (__x0).__gson_write())).collect())),
+            ("customAnimatedDyes".to_string(), dandelion::compat::GsonValue::sorted_obj(((&self.custom_animated_dyes)).iter().map(|(__k0, __x0)| (__k0.clone(), (__x0).__gson_write())).collect())),
+            ("customHelmetTextures".to_string(), dandelion::compat::GsonValue::sorted_obj(((&self.custom_helmet_textures)).iter().map(|(__k0, __x0)| (__k0.clone(), dandelion::compat::GsonValue::str(&__x0))).collect())),
+            ("customGlint".to_string(), dandelion::compat::GsonValue::sorted_obj(((&self.custom_glint)).iter().map(|(__k0, __x0)| (__k0.clone(), dandelion::compat::GsonValue::Bool(*__x0))).collect())),
+            ("customItemModel".to_string(), dandelion::compat::GsonValue::sorted_obj(((&self.custom_item_model)).iter().map(|(__k0, __x0)| (__k0.clone(), dandelion::compat::GsonValue::Str((__x0).to_string()))).collect())),
+            ("customArmorModel".to_string(), dandelion::compat::GsonValue::sorted_obj(((&self.custom_armor_model)).iter().map(|(__k0, __x0)| (__k0.clone(), dandelion::compat::GsonValue::Str((__x0).to_string()))).collect())),
+            ("customAnimatedHelmetTextures".to_string(), dandelion::compat::GsonValue::sorted_obj(((&self.custom_animated_helmet_textures)).iter().map(|(__k0, __x0)| (__k0.clone(), dandelion::compat::GsonValue::str(&__x0))).collect())),
+        ])
+    }
+
+    /// `gson.fromJson(json, X.class)`: a new object from the no-argument constructor, then every key
+    /// present set; unknown keys are ignored
+    pub fn __gson_read(__v: &serde_json::Value) -> Option<GeneralConfig> {
+        let __o = __v.as_object()?;
+        let mut __this = GeneralConfig::new();
+        if let Some(__v) = __o.get("enableTips") {
+            if let Some(__x) = dandelion::compat::gson_bool(__v) { __this.enable_tips = __x; }
+        }
+        if let Some(__v) = __o.get("acceptReparty") {
+            if let Some(__x) = dandelion::compat::gson_bool(__v) { __this.accept_reparty = __x; }
+        }
+        if let Some(__v) = __o.get("speedPresets") {
+            if let Some(__x) = SpeedPresets::__gson_read(__v) { __this.speed_presets = __x; }
+        }
+        if let Some(__v) = __o.get("shortcuts") {
+            if let Some(__x) = Shortcuts::__gson_read(__v) { __this.shortcuts = __x; }
+        }
+        if let Some(__v) = __o.get("quiverWarning") {
+            if let Some(__x) = QuiverWarning::__gson_read(__v) { __this.quiver_warning = __x; }
+        }
+        if let Some(__v) = __o.get("itemList") {
+            if let Some(__x) = ItemList::__gson_read(__v) { __this.item_list = __x; }
+        }
+        if let Some(__v) = __o.get("itemTooltip") {
+            if let Some(__x) = ItemTooltip::__gson_read(__v) { __this.item_tooltip = __x; }
+        }
+        if let Some(__v) = __o.get("itemInfoDisplay") {
+            if let Some(__x) = ItemInfoDisplay::__gson_read(__v) { __this.item_info_display = __x; }
+        }
+        if let Some(__v) = __o.get("itemProtection") {
+            if let Some(__x) = ItemProtection::__gson_read(__v) { __this.item_protection = __x; }
+        }
+        if let Some(__v) = __o.get("wikiLookup") {
+            if let Some(__x) = WikiLookup::__gson_read(__v) { __this.wiki_lookup = __x; }
+        }
+        if let Some(__v) = __o.get("specialEffects") {
+            if let Some(__x) = SpecialEffects::__gson_read(__v) { __this.special_effects = __x; }
+        }
+        if let Some(__v) = __o.get("lockedSlots") {
+            if let Some(__x) = (__v).as_array().map(|__a| __a.iter().filter_map(|__y0| dandelion::compat::gson_i64(__y0).map(|__n| __n as i32)).collect()) { __this.locked_slots = __x; }
+        }
+        if let Some(__v) = __o.get("protectedItems") {
+            if let Some(__x) = (__v).as_array().map(|__a| __a.iter().filter_map(|__y0| dandelion::compat::gson_string(__y0)).collect()) { __this.protected_items = __x; }
+        }
+        if let Some(__v) = __o.get("customItemNames") {
+            if let Some(__x) = (__v).as_object().map(|__o| __o.iter().filter_map(|(__k0, __y0)| Some((Some(__k0.clone())?, dandelion::compat::gson_parse_codec(&mcrust::net::minecraft::network::chat::component_serialization::component_codec(), __y0)?))).collect()) { __this.custom_item_names = __x; }
+        }
+        if let Some(__v) = __o.get("customDyeColors") {
+            if let Some(__x) = (__v).as_object().map(|__o| __o.iter().filter_map(|(__k0, __y0)| Some((Some(__k0.clone())?, dandelion::compat::gson_i64(__y0).map(|__n| __n as i32)?))).collect()) { __this.custom_dye_colors = __x; }
+        }
+        if let Some(__v) = __o.get("customArmorTrims") {
+            if let Some(__x) = (__v).as_object().map(|__o| __o.iter().filter_map(|(__k0, __y0)| Some((Some(__k0.clone())?, ArmorTrimId::__gson_read(__y0)?))).collect()) { __this.custom_armor_trims = __x; }
+        }
+        if let Some(__v) = __o.get("customAnimatedDyes") {
+            if let Some(__x) = (__v).as_object().map(|__o| __o.iter().filter_map(|(__k0, __y0)| Some((Some(__k0.clone())?, AnimatedDye::__gson_read(__y0)?))).collect()) { __this.custom_animated_dyes = __x; }
+        }
+        if let Some(__v) = __o.get("customHelmetTextures") {
+            if let Some(__x) = (__v).as_object().map(|__o| __o.iter().filter_map(|(__k0, __y0)| Some((Some(__k0.clone())?, dandelion::compat::gson_string(__y0)?))).collect()) { __this.custom_helmet_textures = __x; }
+        }
+        if let Some(__v) = __o.get("customGlint") {
+            if let Some(__x) = (__v).as_object().map(|__o| __o.iter().filter_map(|(__k0, __y0)| Some((Some(__k0.clone())?, dandelion::compat::gson_bool(__y0)?))).collect()) { __this.custom_glint = __x; }
+        }
+        if let Some(__v) = __o.get("customItemModel") {
+            if let Some(__x) = (__v).as_object().map(|__o| __o.iter().filter_map(|(__k0, __y0)| Some((Some(__k0.clone())?, dandelion::compat::gson_string(__y0).and_then(|__s| Identifier::try_parse(&__s))?))).collect()) { __this.custom_item_model = __x; }
+        }
+        if let Some(__v) = __o.get("customArmorModel") {
+            if let Some(__x) = (__v).as_object().map(|__o| __o.iter().filter_map(|(__k0, __y0)| Some((Some(__k0.clone())?, dandelion::compat::gson_string(__y0).and_then(|__s| Identifier::try_parse(&__s))?))).collect()) { __this.custom_armor_model = __x; }
+        }
+        if let Some(__v) = __o.get("customAnimatedHelmetTextures") {
+            if let Some(__x) = (__v).as_object().map(|__o| __o.iter().filter_map(|(__k0, __y0)| Some((Some(__k0.clone())?, dandelion::compat::gson_string(__y0)?))).collect()) { __this.custom_animated_helmet_textures = __x; }
+        }
+        Some(__this)
+    }
+
+    /// Dandelion's ConfigPatcher: the field at a dotted path (`getDeclaredField` per segment) set to a
+    /// boolean or an enum constant; false where Java's reflective walk fails
+    pub fn __gson_patch(&mut self, __path: &[&str], __value: &dandelion::compat::PatchValue) -> bool {
+        match __path {
+            [__name] => match *__name {
+                "enableTips" => if let dandelion::compat::PatchValue::Bool(__b) = __value { self.enable_tips = *__b; true } else { false },
+                "acceptReparty" => if let dandelion::compat::PatchValue::Bool(__b) = __value { self.accept_reparty = *__b; true } else { false },
+                _ => false,
+            },
+            [__first, __rest @ ..] => match *__first {
+                "speedPresets" => self.speed_presets.__gson_patch(__rest, __value),
+                "shortcuts" => self.shortcuts.__gson_patch(__rest, __value),
+                "quiverWarning" => self.quiver_warning.__gson_patch(__rest, __value),
+                "itemList" => self.item_list.__gson_patch(__rest, __value),
+                "itemTooltip" => compat::write(&self.item_tooltip, |__t| __t.__gson_patch(__rest, __value)),
+                "itemInfoDisplay" => self.item_info_display.__gson_patch(__rest, __value),
+                "itemProtection" => self.item_protection.__gson_patch(__rest, __value),
+                "wikiLookup" => self.wiki_lookup.__gson_patch(__rest, __value),
+                "specialEffects" => self.special_effects.__gson_patch(__rest, __value),
+                _ => false,
+            },
+            [] => false,
+        }
+    }
+
+    /// `GeneralConfig.class` as reflection sees it
+    pub fn __class_of() -> dandelion::compat::ClassOf<GeneralConfig> {
+        dandelion::compat::ClassOf {
+            name: "de.hysky.skyblocker.config.configs.GeneralConfig",
+            new: GeneralConfig::new,
+            to_gson: |__x| __x.__gson_write(),
+            read_gson: GeneralConfig::__gson_read,
+            patch: |__x, __p, __v| __x.__gson_patch(__p, __v),
+            is_enum: false,
+            enum_constants: Vec::new,
+        }
+    }
+}
+
+/// SpeedPresets's Gson form (`Gson.toJson` / `fromJson` by reflection in Java; generated here)
+impl SpeedPresets {
+    /// `gson.toJson(this)`: the fields in Gson's order (declaration order), nulls written
+    pub fn __gson_write(&self) -> dandelion::compat::GsonValue {
+        dandelion::compat::GsonValue::Obj(vec![
+            ("enableSpeedPresets".to_string(), dandelion::compat::GsonValue::Bool(*(&self.enable_speed_presets))),
+        ])
+    }
+
+    /// `gson.fromJson(json, X.class)`: a new object from the no-argument constructor, then every key
+    /// present set; unknown keys are ignored
+    pub fn __gson_read(__v: &serde_json::Value) -> Option<SpeedPresets> {
+        let __o = __v.as_object()?;
+        let mut __this = SpeedPresets::new();
+        if let Some(__v) = __o.get("enableSpeedPresets") {
+            if let Some(__x) = dandelion::compat::gson_bool(__v) { __this.enable_speed_presets = __x; }
+        }
+        Some(__this)
+    }
+
+    /// Dandelion's ConfigPatcher: the field at a dotted path (`getDeclaredField` per segment) set to a
+    /// boolean or an enum constant; false where Java's reflective walk fails
+    pub fn __gson_patch(&mut self, __path: &[&str], __value: &dandelion::compat::PatchValue) -> bool {
+        match __path {
+            [__name] => match *__name {
+                "enableSpeedPresets" => if let dandelion::compat::PatchValue::Bool(__b) = __value { self.enable_speed_presets = *__b; true } else { false },
+                _ => false,
+            },
+            [__first, __rest @ ..] => match *__first {
+                _ => false,
+            },
+            [] => false,
+        }
+    }
+
+    /// `SpeedPresets.class` as reflection sees it
+    pub fn __class_of() -> dandelion::compat::ClassOf<SpeedPresets> {
+        dandelion::compat::ClassOf {
+            name: "de.hysky.skyblocker.config.configs.GeneralConfig$SpeedPresets",
+            new: SpeedPresets::new,
+            to_gson: |__x| __x.__gson_write(),
+            read_gson: SpeedPresets::__gson_read,
+            patch: |__x, __p, __v| __x.__gson_patch(__p, __v),
+            is_enum: false,
+            enum_constants: Vec::new,
+        }
+    }
+}
+
+/// Shortcuts's Gson form (`Gson.toJson` / `fromJson` by reflection in Java; generated here)
+impl Shortcuts {
+    /// `gson.toJson(this)`: the fields in Gson's order (declaration order), nulls written
+    pub fn __gson_write(&self) -> dandelion::compat::GsonValue {
+        dandelion::compat::GsonValue::Obj(vec![
+            ("enableShortcuts".to_string(), dandelion::compat::GsonValue::Bool(*(&self.enable_shortcuts))),
+            ("enableCommandShortcuts".to_string(), dandelion::compat::GsonValue::Bool(*(&self.enable_command_shortcuts))),
+            ("enableCommandArgShortcuts".to_string(), dandelion::compat::GsonValue::Bool(*(&self.enable_command_arg_shortcuts))),
+            ("enableKeyBindingShortcuts".to_string(), dandelion::compat::GsonValue::Bool(*(&self.enable_key_binding_shortcuts))),
+        ])
+    }
+
+    /// `gson.fromJson(json, X.class)`: a new object from the no-argument constructor, then every key
+    /// present set; unknown keys are ignored
+    pub fn __gson_read(__v: &serde_json::Value) -> Option<Shortcuts> {
+        let __o = __v.as_object()?;
+        let mut __this = Shortcuts::new();
+        if let Some(__v) = __o.get("enableShortcuts") {
+            if let Some(__x) = dandelion::compat::gson_bool(__v) { __this.enable_shortcuts = __x; }
+        }
+        if let Some(__v) = __o.get("enableCommandShortcuts") {
+            if let Some(__x) = dandelion::compat::gson_bool(__v) { __this.enable_command_shortcuts = __x; }
+        }
+        if let Some(__v) = __o.get("enableCommandArgShortcuts") {
+            if let Some(__x) = dandelion::compat::gson_bool(__v) { __this.enable_command_arg_shortcuts = __x; }
+        }
+        if let Some(__v) = __o.get("enableKeyBindingShortcuts") {
+            if let Some(__x) = dandelion::compat::gson_bool(__v) { __this.enable_key_binding_shortcuts = __x; }
+        }
+        Some(__this)
+    }
+
+    /// Dandelion's ConfigPatcher: the field at a dotted path (`getDeclaredField` per segment) set to a
+    /// boolean or an enum constant; false where Java's reflective walk fails
+    pub fn __gson_patch(&mut self, __path: &[&str], __value: &dandelion::compat::PatchValue) -> bool {
+        match __path {
+            [__name] => match *__name {
+                "enableShortcuts" => if let dandelion::compat::PatchValue::Bool(__b) = __value { self.enable_shortcuts = *__b; true } else { false },
+                "enableCommandShortcuts" => if let dandelion::compat::PatchValue::Bool(__b) = __value { self.enable_command_shortcuts = *__b; true } else { false },
+                "enableCommandArgShortcuts" => if let dandelion::compat::PatchValue::Bool(__b) = __value { self.enable_command_arg_shortcuts = *__b; true } else { false },
+                "enableKeyBindingShortcuts" => if let dandelion::compat::PatchValue::Bool(__b) = __value { self.enable_key_binding_shortcuts = *__b; true } else { false },
+                _ => false,
+            },
+            [__first, __rest @ ..] => match *__first {
+                _ => false,
+            },
+            [] => false,
+        }
+    }
+
+    /// `Shortcuts.class` as reflection sees it
+    pub fn __class_of() -> dandelion::compat::ClassOf<Shortcuts> {
+        dandelion::compat::ClassOf {
+            name: "de.hysky.skyblocker.config.configs.GeneralConfig$Shortcuts",
+            new: Shortcuts::new,
+            to_gson: |__x| __x.__gson_write(),
+            read_gson: Shortcuts::__gson_read,
+            patch: |__x, __p, __v| __x.__gson_patch(__p, __v),
+            is_enum: false,
+            enum_constants: Vec::new,
+        }
+    }
+}
+
+/// QuiverWarning's Gson form (`Gson.toJson` / `fromJson` by reflection in Java; generated here)
+impl QuiverWarning {
+    /// `gson.toJson(this)`: the fields in Gson's order (declaration order), nulls written
+    pub fn __gson_write(&self) -> dandelion::compat::GsonValue {
+        dandelion::compat::GsonValue::Obj(vec![
+            ("enableQuiverWarning".to_string(), dandelion::compat::GsonValue::Bool(*(&self.enable_quiver_warning))),
+            ("enableQuiverWarningInDungeons".to_string(), dandelion::compat::GsonValue::Bool(*(&self.enable_quiver_warning_in_dungeons))),
+            ("enableQuiverWarningAfterDungeon".to_string(), dandelion::compat::GsonValue::Bool(*(&self.enable_quiver_warning_after_dungeon))),
+        ])
+    }
+
+    /// `gson.fromJson(json, X.class)`: a new object from the no-argument constructor, then every key
+    /// present set; unknown keys are ignored
+    pub fn __gson_read(__v: &serde_json::Value) -> Option<QuiverWarning> {
+        let __o = __v.as_object()?;
+        let mut __this = QuiverWarning::new();
+        if let Some(__v) = __o.get("enableQuiverWarning") {
+            if let Some(__x) = dandelion::compat::gson_bool(__v) { __this.enable_quiver_warning = __x; }
+        }
+        if let Some(__v) = __o.get("enableQuiverWarningInDungeons") {
+            if let Some(__x) = dandelion::compat::gson_bool(__v) { __this.enable_quiver_warning_in_dungeons = __x; }
+        }
+        if let Some(__v) = __o.get("enableQuiverWarningAfterDungeon") {
+            if let Some(__x) = dandelion::compat::gson_bool(__v) { __this.enable_quiver_warning_after_dungeon = __x; }
+        }
+        Some(__this)
+    }
+
+    /// Dandelion's ConfigPatcher: the field at a dotted path (`getDeclaredField` per segment) set to a
+    /// boolean or an enum constant; false where Java's reflective walk fails
+    pub fn __gson_patch(&mut self, __path: &[&str], __value: &dandelion::compat::PatchValue) -> bool {
+        match __path {
+            [__name] => match *__name {
+                "enableQuiverWarning" => if let dandelion::compat::PatchValue::Bool(__b) = __value { self.enable_quiver_warning = *__b; true } else { false },
+                "enableQuiverWarningInDungeons" => if let dandelion::compat::PatchValue::Bool(__b) = __value { self.enable_quiver_warning_in_dungeons = *__b; true } else { false },
+                "enableQuiverWarningAfterDungeon" => if let dandelion::compat::PatchValue::Bool(__b) = __value { self.enable_quiver_warning_after_dungeon = *__b; true } else { false },
+                _ => false,
+            },
+            [__first, __rest @ ..] => match *__first {
+                _ => false,
+            },
+            [] => false,
+        }
+    }
+
+    /// `QuiverWarning.class` as reflection sees it
+    pub fn __class_of() -> dandelion::compat::ClassOf<QuiverWarning> {
+        dandelion::compat::ClassOf {
+            name: "de.hysky.skyblocker.config.configs.GeneralConfig$QuiverWarning",
+            new: QuiverWarning::new,
+            to_gson: |__x| __x.__gson_write(),
+            read_gson: QuiverWarning::__gson_read,
+            patch: |__x, __p, __v| __x.__gson_patch(__p, __v),
+            is_enum: false,
+            enum_constants: Vec::new,
+        }
+    }
+}
+
+/// ItemList's Gson form (`Gson.toJson` / `fromJson` by reflection in Java; generated here)
+impl ItemList {
+    /// `gson.toJson(this)`: the fields in Gson's order (declaration order), nulls written
+    pub fn __gson_write(&self) -> dandelion::compat::GsonValue {
+        dandelion::compat::GsonValue::Obj(vec![
+            ("enableRecipeBook".to_string(), dandelion::compat::GsonValue::Bool(*(&self.enable_recipe_book))),
+            ("enableItemList".to_string(), dandelion::compat::GsonValue::Bool(*(&self.enable_item_list))),
+            ("enableCollapsibleEntries".to_string(), dandelion::compat::GsonValue::Bool(*(&self.enable_collapsible_entries))),
+        ])
+    }
+
+    /// `gson.fromJson(json, X.class)`: a new object from the no-argument constructor, then every key
+    /// present set; unknown keys are ignored
+    pub fn __gson_read(__v: &serde_json::Value) -> Option<ItemList> {
+        let __o = __v.as_object()?;
+        let mut __this = ItemList::new();
+        if let Some(__v) = __o.get("enableRecipeBook") {
+            if let Some(__x) = dandelion::compat::gson_bool(__v) { __this.enable_recipe_book = __x; }
+        }
+        if let Some(__v) = __o.get("enableItemList") {
+            if let Some(__x) = dandelion::compat::gson_bool(__v) { __this.enable_item_list = __x; }
+        }
+        if let Some(__v) = __o.get("enableCollapsibleEntries") {
+            if let Some(__x) = dandelion::compat::gson_bool(__v) { __this.enable_collapsible_entries = __x; }
+        }
+        Some(__this)
+    }
+
+    /// Dandelion's ConfigPatcher: the field at a dotted path (`getDeclaredField` per segment) set to a
+    /// boolean or an enum constant; false where Java's reflective walk fails
+    pub fn __gson_patch(&mut self, __path: &[&str], __value: &dandelion::compat::PatchValue) -> bool {
+        match __path {
+            [__name] => match *__name {
+                "enableRecipeBook" => if let dandelion::compat::PatchValue::Bool(__b) = __value { self.enable_recipe_book = *__b; true } else { false },
+                "enableItemList" => if let dandelion::compat::PatchValue::Bool(__b) = __value { self.enable_item_list = *__b; true } else { false },
+                "enableCollapsibleEntries" => if let dandelion::compat::PatchValue::Bool(__b) = __value { self.enable_collapsible_entries = *__b; true } else { false },
+                _ => false,
+            },
+            [__first, __rest @ ..] => match *__first {
+                _ => false,
+            },
+            [] => false,
+        }
+    }
+
+    /// `ItemList.class` as reflection sees it
+    pub fn __class_of() -> dandelion::compat::ClassOf<ItemList> {
+        dandelion::compat::ClassOf {
+            name: "de.hysky.skyblocker.config.configs.GeneralConfig$ItemList",
+            new: ItemList::new,
+            to_gson: |__x| __x.__gson_write(),
+            read_gson: ItemList::__gson_read,
+            patch: |__x, __p, __v| __x.__gson_patch(__p, __v),
+            is_enum: false,
+            enum_constants: Vec::new,
+        }
+    }
+}
+
+/// ItemTooltip's Gson form (`Gson.toJson` / `fromJson` by reflection in Java; generated here)
+impl ItemTooltip {
+    /// `gson.toJson(this)`: the fields in Gson's order (declaration order), nulls written
+    pub fn __gson_write(&self) -> dandelion::compat::GsonValue {
+        dandelion::compat::GsonValue::Obj(vec![
+            ("enableNPCPrice".to_string(), dandelion::compat::GsonValue::Bool(*(&self.enable_npc_price))),
+            ("enableGeorgePrice".to_string(), dandelion::compat::GsonValue::Bool(*(&self.enable_george_price))),
+            ("enableMotesPrice".to_string(), dandelion::compat::GsonValue::Bool(*(&self.enable_motes_price))),
+            ("enableAvgBIN".to_string(), dandelion::compat::GsonValue::Bool(*(&self.enable_avg_bin))),
+            ("avg".to_string(), dandelion::compat::GsonValue::str(((&self.avg)).name())),
+            ("enableLowestBIN".to_string(), dandelion::compat::GsonValue::Bool(*(&self.enable_lowest_bin))),
+            ("enableBazaarPrice".to_string(), dandelion::compat::GsonValue::Bool(*(&self.enable_bazaar_price))),
+            ("enableCraftingCost".to_string(), dandelion::compat::GsonValue::str(((&self.enable_crafting_cost)).name())),
+            ("enableObtainedDate".to_string(), dandelion::compat::GsonValue::Bool(*(&self.enable_obtained_date))),
+            ("enableMuseumInfo".to_string(), dandelion::compat::GsonValue::Bool(*(&self.enable_museum_info))),
+            ("enableExoticTooltip".to_string(), dandelion::compat::GsonValue::Bool(*(&self.enable_exotic_tooltip))),
+            ("enableAccessoriesHelper".to_string(), dandelion::compat::GsonValue::Bool(*(&self.enable_accessories_helper))),
+            ("dungeonQuality".to_string(), dandelion::compat::GsonValue::Bool(*(&self.dungeon_quality))),
+            ("showEssenceCost".to_string(), dandelion::compat::GsonValue::Bool(*(&self.show_essence_cost))),
+            ("enableEstimatedItemValue".to_string(), dandelion::compat::GsonValue::Bool(*(&self.enable_estimated_item_value))),
+            ("enableStackingEnchantProgress".to_string(), dandelion::compat::GsonValue::Bool(*(&self.enable_stacking_enchant_progress))),
+            ("enableEvolvingItemProgress".to_string(), dandelion::compat::GsonValue::Bool(*(&self.enable_evolving_item_progress))),
+        ])
+    }
+
+    /// `gson.fromJson(json, X.class)`: a new object from the no-argument constructor, then every key
+    /// present set; unknown keys are ignored
+    pub fn __gson_read(__v: &serde_json::Value) -> Option<compat::Shared<ItemTooltip>> {
+        let __o = __v.as_object()?;
+        let __h = ItemTooltip::new();
+        compat::write(&__h, |__this| {
+            if let Some(__v) = __o.get("enableNPCPrice") {
+                if let Some(__x) = dandelion::compat::gson_bool(__v) { __this.enable_npc_price = __x; }
+            }
+            if let Some(__v) = __o.get("enableGeorgePrice") {
+                if let Some(__x) = dandelion::compat::gson_bool(__v) { __this.enable_george_price = __x; }
+            }
+            if let Some(__v) = __o.get("enableMotesPrice") {
+                if let Some(__x) = dandelion::compat::gson_bool(__v) { __this.enable_motes_price = __x; }
+            }
+            if let Some(__v) = __o.get("enableAvgBIN") {
+                if let Some(__x) = dandelion::compat::gson_bool(__v) { __this.enable_avg_bin = __x; }
+            }
+            if let Some(__v) = __o.get("avg") {
+                if let Some(__x) = (__v).as_str().and_then(|__s| Average::values().into_iter().find(|__c| __c.name() == __s)) { __this.avg = __x; }
+            }
+            if let Some(__v) = __o.get("enableLowestBIN") {
+                if let Some(__x) = dandelion::compat::gson_bool(__v) { __this.enable_lowest_bin = __x; }
+            }
+            if let Some(__v) = __o.get("enableBazaarPrice") {
+                if let Some(__x) = dandelion::compat::gson_bool(__v) { __this.enable_bazaar_price = __x; }
+            }
+            if let Some(__v) = __o.get("enableCraftingCost") {
+                if let Some(__x) = (__v).as_str().and_then(|__s| Craft::values().into_iter().find(|__c| __c.name() == __s)) { __this.enable_crafting_cost = __x; }
+            }
+            if let Some(__v) = __o.get("enableObtainedDate") {
+                if let Some(__x) = dandelion::compat::gson_bool(__v) { __this.enable_obtained_date = __x; }
+            }
+            if let Some(__v) = __o.get("enableMuseumInfo") {
+                if let Some(__x) = dandelion::compat::gson_bool(__v) { __this.enable_museum_info = __x; }
+            }
+            if let Some(__v) = __o.get("enableExoticTooltip") {
+                if let Some(__x) = dandelion::compat::gson_bool(__v) { __this.enable_exotic_tooltip = __x; }
+            }
+            if let Some(__v) = __o.get("enableAccessoriesHelper") {
+                if let Some(__x) = dandelion::compat::gson_bool(__v) { __this.enable_accessories_helper = __x; }
+            }
+            if let Some(__v) = __o.get("dungeonQuality") {
+                if let Some(__x) = dandelion::compat::gson_bool(__v) { __this.dungeon_quality = __x; }
+            }
+            if let Some(__v) = __o.get("showEssenceCost") {
+                if let Some(__x) = dandelion::compat::gson_bool(__v) { __this.show_essence_cost = __x; }
+            }
+            if let Some(__v) = __o.get("enableEstimatedItemValue") {
+                if let Some(__x) = dandelion::compat::gson_bool(__v) { __this.enable_estimated_item_value = __x; }
+            }
+            if let Some(__v) = __o.get("enableStackingEnchantProgress") {
+                if let Some(__x) = dandelion::compat::gson_bool(__v) { __this.enable_stacking_enchant_progress = __x; }
+            }
+            if let Some(__v) = __o.get("enableEvolvingItemProgress") {
+                if let Some(__x) = dandelion::compat::gson_bool(__v) { __this.enable_evolving_item_progress = __x; }
+            }
+        });
+        Some(__h)
+    }
+
+    /// Dandelion's ConfigPatcher: the field at a dotted path (`getDeclaredField` per segment) set to a
+    /// boolean or an enum constant; false where Java's reflective walk fails
+    pub fn __gson_patch(&mut self, __path: &[&str], __value: &dandelion::compat::PatchValue) -> bool {
+        match __path {
+            [__name] => match *__name {
+                "enableNPCPrice" => if let dandelion::compat::PatchValue::Bool(__b) = __value { self.enable_npc_price = *__b; true } else { false },
+                "enableGeorgePrice" => if let dandelion::compat::PatchValue::Bool(__b) = __value { self.enable_george_price = *__b; true } else { false },
+                "enableMotesPrice" => if let dandelion::compat::PatchValue::Bool(__b) = __value { self.enable_motes_price = *__b; true } else { false },
+                "enableAvgBIN" => if let dandelion::compat::PatchValue::Bool(__b) = __value { self.enable_avg_bin = *__b; true } else { false },
+                "avg" => if let dandelion::compat::PatchValue::Enum(__s) = __value { match Average::values().into_iter().find(|__c| __c.name() == __s.as_str()) { Some(__c) => { self.avg = __c; true } None => false } } else { false },
+                "enableLowestBIN" => if let dandelion::compat::PatchValue::Bool(__b) = __value { self.enable_lowest_bin = *__b; true } else { false },
+                "enableBazaarPrice" => if let dandelion::compat::PatchValue::Bool(__b) = __value { self.enable_bazaar_price = *__b; true } else { false },
+                "enableCraftingCost" => if let dandelion::compat::PatchValue::Enum(__s) = __value { match Craft::values().into_iter().find(|__c| __c.name() == __s.as_str()) { Some(__c) => { self.enable_crafting_cost = __c; true } None => false } } else { false },
+                "enableObtainedDate" => if let dandelion::compat::PatchValue::Bool(__b) = __value { self.enable_obtained_date = *__b; true } else { false },
+                "enableMuseumInfo" => if let dandelion::compat::PatchValue::Bool(__b) = __value { self.enable_museum_info = *__b; true } else { false },
+                "enableExoticTooltip" => if let dandelion::compat::PatchValue::Bool(__b) = __value { self.enable_exotic_tooltip = *__b; true } else { false },
+                "enableAccessoriesHelper" => if let dandelion::compat::PatchValue::Bool(__b) = __value { self.enable_accessories_helper = *__b; true } else { false },
+                "dungeonQuality" => if let dandelion::compat::PatchValue::Bool(__b) = __value { self.dungeon_quality = *__b; true } else { false },
+                "showEssenceCost" => if let dandelion::compat::PatchValue::Bool(__b) = __value { self.show_essence_cost = *__b; true } else { false },
+                "enableEstimatedItemValue" => if let dandelion::compat::PatchValue::Bool(__b) = __value { self.enable_estimated_item_value = *__b; true } else { false },
+                "enableStackingEnchantProgress" => if let dandelion::compat::PatchValue::Bool(__b) = __value { self.enable_stacking_enchant_progress = *__b; true } else { false },
+                "enableEvolvingItemProgress" => if let dandelion::compat::PatchValue::Bool(__b) = __value { self.enable_evolving_item_progress = *__b; true } else { false },
+                _ => false,
+            },
+            [__first, __rest @ ..] => match *__first {
+                _ => false,
+            },
+            [] => false,
+        }
+    }
+
+    /// `ItemTooltip.class` as reflection sees it
+    pub fn __class_of() -> dandelion::compat::ClassOf<compat::Shared<ItemTooltip>> {
+        dandelion::compat::ClassOf {
+            name: "de.hysky.skyblocker.config.configs.GeneralConfig$ItemTooltip",
+            new: ItemTooltip::new,
+            to_gson: |__h| compat::read(__h, |__t| __t.__gson_write()),
+            read_gson: ItemTooltip::__gson_read,
+            patch: |__h, __p, __v| compat::write(__h, |__t| __t.__gson_patch(__p, __v)),
+            is_enum: false,
+            enum_constants: Vec::new,
+        }
+    }
+}
+
+/// Average's Gson form (`Gson.toJson` / `fromJson` by reflection in Java; generated here)
+impl Average {
+    pub fn __class_of() -> dandelion::compat::ClassOf<Average> {
+        dandelion::compat::ClassOf {
+            name: "de.hysky.skyblocker.config.configs.GeneralConfig$Average",
+            new: || panic!("InstantiationException: an enum has no constructor to call"),
+            to_gson: |__e| dandelion::compat::GsonValue::str(__e.name()),
+            read_gson: |__v| __v.as_str().and_then(|__s| Average::values().into_iter().find(|__c| __c.name() == __s)),
+            patch: |_, _, _| false,
+            is_enum: true,
+            enum_constants: || Average::values().into_iter().map(|__c| __c.name().to_string()).collect(),
+        }
+    }
+}
+
+/// Craft's Gson form (`Gson.toJson` / `fromJson` by reflection in Java; generated here)
+impl Craft {
+    pub fn __class_of() -> dandelion::compat::ClassOf<Craft> {
+        dandelion::compat::ClassOf {
+            name: "de.hysky.skyblocker.config.configs.GeneralConfig$Craft",
+            new: || panic!("InstantiationException: an enum has no constructor to call"),
+            to_gson: |__e| dandelion::compat::GsonValue::str(__e.name()),
+            read_gson: |__v| __v.as_str().and_then(|__s| Craft::values().into_iter().find(|__c| __c.name() == __s)),
+            patch: |_, _, _| false,
+            is_enum: true,
+            enum_constants: || Craft::values().into_iter().map(|__c| __c.name().to_string()).collect(),
+        }
+    }
+}
+
+/// ItemInfoDisplay's Gson form (`Gson.toJson` / `fromJson` by reflection in Java; generated here)
+impl ItemInfoDisplay {
+    /// `gson.toJson(this)`: the fields in Gson's order (declaration order), nulls written
+    pub fn __gson_write(&self) -> dandelion::compat::GsonValue {
+        dandelion::compat::GsonValue::Obj(vec![
+            ("itemBackgroundStyle".to_string(), dandelion::compat::GsonValue::str(((&self.item_background_style)).name())),
+            ("itemBackgroundOpacity".to_string(), dandelion::compat::GsonValue::float(*(&self.item_background_opacity))),
+            ("itemRarityBackgrounds".to_string(), dandelion::compat::GsonValue::Bool(*(&self.item_rarity_backgrounds))),
+            ("itemRarityBackgroundsLegacyColors".to_string(), dandelion::compat::GsonValue::Bool(*(&self.item_rarity_backgrounds_legacy_colors))),
+            ("jacobMedalBackgrounds".to_string(), dandelion::compat::GsonValue::Bool(*(&self.jacob_medal_backgrounds))),
+            ("legacyAttributeBackgrounds".to_string(), dandelion::compat::GsonValue::Bool(*(&self.legacy_attribute_backgrounds))),
+        ])
+    }
+
+    /// `gson.fromJson(json, X.class)`: a new object from the no-argument constructor, then every key
+    /// present set; unknown keys are ignored
+    pub fn __gson_read(__v: &serde_json::Value) -> Option<ItemInfoDisplay> {
+        let __o = __v.as_object()?;
+        let mut __this = ItemInfoDisplay::new();
+        if let Some(__v) = __o.get("itemBackgroundStyle") {
+            if let Some(__x) = (__v).as_str().and_then(|__s| ItemBackgroundStyle::values().into_iter().find(|__c| __c.name() == __s)) { __this.item_background_style = __x; }
+        }
+        if let Some(__v) = __o.get("itemBackgroundOpacity") {
+            if let Some(__x) = dandelion::compat::gson_f64(__v).map(|__n| __n as f32) { __this.item_background_opacity = __x; }
+        }
+        if let Some(__v) = __o.get("itemRarityBackgrounds") {
+            if let Some(__x) = dandelion::compat::gson_bool(__v) { __this.item_rarity_backgrounds = __x; }
+        }
+        if let Some(__v) = __o.get("itemRarityBackgroundsLegacyColors") {
+            if let Some(__x) = dandelion::compat::gson_bool(__v) { __this.item_rarity_backgrounds_legacy_colors = __x; }
+        }
+        if let Some(__v) = __o.get("jacobMedalBackgrounds") {
+            if let Some(__x) = dandelion::compat::gson_bool(__v) { __this.jacob_medal_backgrounds = __x; }
+        }
+        if let Some(__v) = __o.get("legacyAttributeBackgrounds") {
+            if let Some(__x) = dandelion::compat::gson_bool(__v) { __this.legacy_attribute_backgrounds = __x; }
+        }
+        Some(__this)
+    }
+
+    /// Dandelion's ConfigPatcher: the field at a dotted path (`getDeclaredField` per segment) set to a
+    /// boolean or an enum constant; false where Java's reflective walk fails
+    pub fn __gson_patch(&mut self, __path: &[&str], __value: &dandelion::compat::PatchValue) -> bool {
+        match __path {
+            [__name] => match *__name {
+                "itemBackgroundStyle" => if let dandelion::compat::PatchValue::Enum(__s) = __value { match ItemBackgroundStyle::values().into_iter().find(|__c| __c.name() == __s.as_str()) { Some(__c) => { self.item_background_style = __c; true } None => false } } else { false },
+                "itemRarityBackgrounds" => if let dandelion::compat::PatchValue::Bool(__b) = __value { self.item_rarity_backgrounds = *__b; true } else { false },
+                "itemRarityBackgroundsLegacyColors" => if let dandelion::compat::PatchValue::Bool(__b) = __value { self.item_rarity_backgrounds_legacy_colors = *__b; true } else { false },
+                "jacobMedalBackgrounds" => if let dandelion::compat::PatchValue::Bool(__b) = __value { self.jacob_medal_backgrounds = *__b; true } else { false },
+                "legacyAttributeBackgrounds" => if let dandelion::compat::PatchValue::Bool(__b) = __value { self.legacy_attribute_backgrounds = *__b; true } else { false },
+                _ => false,
+            },
+            [__first, __rest @ ..] => match *__first {
+                _ => false,
+            },
+            [] => false,
+        }
+    }
+
+    /// `ItemInfoDisplay.class` as reflection sees it
+    pub fn __class_of() -> dandelion::compat::ClassOf<ItemInfoDisplay> {
+        dandelion::compat::ClassOf {
+            name: "de.hysky.skyblocker.config.configs.GeneralConfig$ItemInfoDisplay",
+            new: ItemInfoDisplay::new,
+            to_gson: |__x| __x.__gson_write(),
+            read_gson: ItemInfoDisplay::__gson_read,
+            patch: |__x, __p, __v| __x.__gson_patch(__p, __v),
+            is_enum: false,
+            enum_constants: Vec::new,
+        }
+    }
+}
+
+/// ItemBackgroundStyle's Gson form (`Gson.toJson` / `fromJson` by reflection in Java; generated here)
+impl ItemBackgroundStyle {
+    pub fn __class_of() -> dandelion::compat::ClassOf<ItemBackgroundStyle> {
+        dandelion::compat::ClassOf {
+            name: "de.hysky.skyblocker.config.configs.GeneralConfig$ItemBackgroundStyle",
+            new: || panic!("InstantiationException: an enum has no constructor to call"),
+            to_gson: |__e| dandelion::compat::GsonValue::str(__e.name()),
+            read_gson: |__v| __v.as_str().and_then(|__s| ItemBackgroundStyle::values().into_iter().find(|__c| __c.name() == __s)),
+            patch: |_, _, _| false,
+            is_enum: true,
+            enum_constants: || ItemBackgroundStyle::values().into_iter().map(|__c| __c.name().to_string()).collect(),
+        }
+    }
+}
+
+/// ItemProtection's Gson form (`Gson.toJson` / `fromJson` by reflection in Java; generated here)
+impl ItemProtection {
+    /// `gson.toJson(this)`: the fields in Gson's order (declaration order), nulls written
+    pub fn __gson_write(&self) -> dandelion::compat::GsonValue {
+        dandelion::compat::GsonValue::Obj(vec![
+            ("slotLockStyle".to_string(), dandelion::compat::GsonValue::str(((&self.slot_lock_style)).name())),
+            ("displayChatNotification".to_string(), dandelion::compat::GsonValue::Bool(*(&self.display_chat_notification))),
+            ("protectValuableConsumables".to_string(), dandelion::compat::GsonValue::Bool(*(&self.protect_valuable_consumables))),
+        ])
+    }
+
+    /// `gson.fromJson(json, X.class)`: a new object from the no-argument constructor, then every key
+    /// present set; unknown keys are ignored
+    pub fn __gson_read(__v: &serde_json::Value) -> Option<ItemProtection> {
+        let __o = __v.as_object()?;
+        let mut __this = ItemProtection::new();
+        if let Some(__v) = __o.get("slotLockStyle") {
+            if let Some(__x) = (__v).as_str().and_then(|__s| SlotLockStyle::values().into_iter().find(|__c| __c.name() == __s)) { __this.slot_lock_style = __x; }
+        }
+        if let Some(__v) = __o.get("displayChatNotification") {
+            if let Some(__x) = dandelion::compat::gson_bool(__v) { __this.display_chat_notification = __x; }
+        }
+        if let Some(__v) = __o.get("protectValuableConsumables") {
+            if let Some(__x) = dandelion::compat::gson_bool(__v) { __this.protect_valuable_consumables = __x; }
+        }
+        Some(__this)
+    }
+
+    /// Dandelion's ConfigPatcher: the field at a dotted path (`getDeclaredField` per segment) set to a
+    /// boolean or an enum constant; false where Java's reflective walk fails
+    pub fn __gson_patch(&mut self, __path: &[&str], __value: &dandelion::compat::PatchValue) -> bool {
+        match __path {
+            [__name] => match *__name {
+                "slotLockStyle" => if let dandelion::compat::PatchValue::Enum(__s) = __value { match SlotLockStyle::values().into_iter().find(|__c| __c.name() == __s.as_str()) { Some(__c) => { self.slot_lock_style = __c; true } None => false } } else { false },
+                "displayChatNotification" => if let dandelion::compat::PatchValue::Bool(__b) = __value { self.display_chat_notification = *__b; true } else { false },
+                "protectValuableConsumables" => if let dandelion::compat::PatchValue::Bool(__b) = __value { self.protect_valuable_consumables = *__b; true } else { false },
+                _ => false,
+            },
+            [__first, __rest @ ..] => match *__first {
+                _ => false,
+            },
+            [] => false,
+        }
+    }
+
+    /// `ItemProtection.class` as reflection sees it
+    pub fn __class_of() -> dandelion::compat::ClassOf<ItemProtection> {
+        dandelion::compat::ClassOf {
+            name: "de.hysky.skyblocker.config.configs.GeneralConfig$ItemProtection",
+            new: ItemProtection::new,
+            to_gson: |__x| __x.__gson_write(),
+            read_gson: ItemProtection::__gson_read,
+            patch: |__x, __p, __v| __x.__gson_patch(__p, __v),
+            is_enum: false,
+            enum_constants: Vec::new,
+        }
+    }
+}
+
+/// SlotLockStyle's Gson form (`Gson.toJson` / `fromJson` by reflection in Java; generated here)
+impl SlotLockStyle {
+    pub fn __class_of() -> dandelion::compat::ClassOf<SlotLockStyle> {
+        dandelion::compat::ClassOf {
+            name: "de.hysky.skyblocker.config.configs.GeneralConfig$SlotLockStyle",
+            new: || panic!("InstantiationException: an enum has no constructor to call"),
+            to_gson: |__e| dandelion::compat::GsonValue::str(__e.name()),
+            read_gson: |__v| __v.as_str().and_then(|__s| SlotLockStyle::values().into_iter().find(|__c| __c.name() == __s)),
+            patch: |_, _, _| false,
+            is_enum: true,
+            enum_constants: || SlotLockStyle::values().into_iter().map(|__c| __c.name().to_string()).collect(),
+        }
+    }
+}
+
+/// WikiLookup's Gson form (`Gson.toJson` / `fromJson` by reflection in Java; generated here)
+impl WikiLookup {
+    /// `gson.toJson(this)`: the fields in Gson's order (declaration order), nulls written
+    pub fn __gson_write(&self) -> dandelion::compat::GsonValue {
+        dandelion::compat::GsonValue::Obj(vec![
+            ("enableWikiLookup".to_string(), dandelion::compat::GsonValue::Bool(*(&self.enable_wiki_lookup))),
+        ])
+    }
+
+    /// `gson.fromJson(json, X.class)`: a new object from the no-argument constructor, then every key
+    /// present set; unknown keys are ignored
+    pub fn __gson_read(__v: &serde_json::Value) -> Option<WikiLookup> {
+        let __o = __v.as_object()?;
+        let mut __this = WikiLookup::new();
+        if let Some(__v) = __o.get("enableWikiLookup") {
+            if let Some(__x) = dandelion::compat::gson_bool(__v) { __this.enable_wiki_lookup = __x; }
+        }
+        Some(__this)
+    }
+
+    /// Dandelion's ConfigPatcher: the field at a dotted path (`getDeclaredField` per segment) set to a
+    /// boolean or an enum constant; false where Java's reflective walk fails
+    pub fn __gson_patch(&mut self, __path: &[&str], __value: &dandelion::compat::PatchValue) -> bool {
+        match __path {
+            [__name] => match *__name {
+                "enableWikiLookup" => if let dandelion::compat::PatchValue::Bool(__b) = __value { self.enable_wiki_lookup = *__b; true } else { false },
+                _ => false,
+            },
+            [__first, __rest @ ..] => match *__first {
+                _ => false,
+            },
+            [] => false,
+        }
+    }
+
+    /// `WikiLookup.class` as reflection sees it
+    pub fn __class_of() -> dandelion::compat::ClassOf<WikiLookup> {
+        dandelion::compat::ClassOf {
+            name: "de.hysky.skyblocker.config.configs.GeneralConfig$WikiLookup",
+            new: WikiLookup::new,
+            to_gson: |__x| __x.__gson_write(),
+            read_gson: WikiLookup::__gson_read,
+            patch: |__x, __p, __v| __x.__gson_patch(__p, __v),
+            is_enum: false,
+            enum_constants: Vec::new,
+        }
+    }
+}
+
+/// SpecialEffects's Gson form (`Gson.toJson` / `fromJson` by reflection in Java; generated here)
+impl SpecialEffects {
+    /// `gson.toJson(this)`: the fields in Gson's order (declaration order), nulls written
+    pub fn __gson_write(&self) -> dandelion::compat::GsonValue {
+        dandelion::compat::GsonValue::Obj(vec![
+            ("rareDungeonDropEffects".to_string(), dandelion::compat::GsonValue::Bool(*(&self.rare_dungeon_drop_effects))),
+            ("rareDropEffects".to_string(), dandelion::compat::GsonValue::Bool(*(&self.rare_drop_effects))),
+            ("rareDyeDropEffects".to_string(), dandelion::compat::GsonValue::Bool(*(&self.rare_dye_drop_effects))),
+            ("trophyDropEffects".to_string(), dandelion::compat::GsonValue::Bool(*(&self.trophy_drop_effects))),
+            ("displayItemName".to_string(), dandelion::compat::GsonValue::Bool(*(&self.display_item_name))),
+        ])
+    }
+
+    /// `gson.fromJson(json, X.class)`: a new object from the no-argument constructor, then every key
+    /// present set; unknown keys are ignored
+    pub fn __gson_read(__v: &serde_json::Value) -> Option<SpecialEffects> {
+        let __o = __v.as_object()?;
+        let mut __this = SpecialEffects::new();
+        if let Some(__v) = __o.get("rareDungeonDropEffects") {
+            if let Some(__x) = dandelion::compat::gson_bool(__v) { __this.rare_dungeon_drop_effects = __x; }
+        }
+        if let Some(__v) = __o.get("rareDropEffects") {
+            if let Some(__x) = dandelion::compat::gson_bool(__v) { __this.rare_drop_effects = __x; }
+        }
+        if let Some(__v) = __o.get("rareDyeDropEffects") {
+            if let Some(__x) = dandelion::compat::gson_bool(__v) { __this.rare_dye_drop_effects = __x; }
+        }
+        if let Some(__v) = __o.get("trophyDropEffects") {
+            if let Some(__x) = dandelion::compat::gson_bool(__v) { __this.trophy_drop_effects = __x; }
+        }
+        if let Some(__v) = __o.get("displayItemName") {
+            if let Some(__x) = dandelion::compat::gson_bool(__v) { __this.display_item_name = __x; }
+        }
+        Some(__this)
+    }
+
+    /// Dandelion's ConfigPatcher: the field at a dotted path (`getDeclaredField` per segment) set to a
+    /// boolean or an enum constant; false where Java's reflective walk fails
+    pub fn __gson_patch(&mut self, __path: &[&str], __value: &dandelion::compat::PatchValue) -> bool {
+        match __path {
+            [__name] => match *__name {
+                "rareDungeonDropEffects" => if let dandelion::compat::PatchValue::Bool(__b) = __value { self.rare_dungeon_drop_effects = *__b; true } else { false },
+                "rareDropEffects" => if let dandelion::compat::PatchValue::Bool(__b) = __value { self.rare_drop_effects = *__b; true } else { false },
+                "rareDyeDropEffects" => if let dandelion::compat::PatchValue::Bool(__b) = __value { self.rare_dye_drop_effects = *__b; true } else { false },
+                "trophyDropEffects" => if let dandelion::compat::PatchValue::Bool(__b) = __value { self.trophy_drop_effects = *__b; true } else { false },
+                "displayItemName" => if let dandelion::compat::PatchValue::Bool(__b) = __value { self.display_item_name = *__b; true } else { false },
+                _ => false,
+            },
+            [__first, __rest @ ..] => match *__first {
+                _ => false,
+            },
+            [] => false,
+        }
+    }
+
+    /// `SpecialEffects.class` as reflection sees it
+    pub fn __class_of() -> dandelion::compat::ClassOf<SpecialEffects> {
+        dandelion::compat::ClassOf {
+            name: "de.hysky.skyblocker.config.configs.GeneralConfig$SpecialEffects",
+            new: SpecialEffects::new,
+            to_gson: |__x| __x.__gson_write(),
+            read_gson: SpecialEffects::__gson_read,
+            patch: |__x, __p, __v| __x.__gson_patch(__p, __v),
+            is_enum: false,
+            enum_constants: Vec::new,
+        }
+    }
+}

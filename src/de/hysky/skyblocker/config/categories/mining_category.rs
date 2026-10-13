@@ -1,8 +1,40 @@
-//! Ported from de.hysky.skyblocker.config.categories.MiningCategory by fabric2seer.
+//! Ported from de.hysky.skyblocker.config.categories.MiningCategory.
+//!
+//! The category is built on Dandelion (`dandelion` crate, rendered through YACL). Java hands `create` the two
+//! `SkyblockerConfig` objects; here they are the manager's shared instances (`compat::Shared`), and every option's
+//! binding reads / writes its field through them, borrowing per statement.
 
 #[allow(unused_imports)]
 use crate::prelude::*;
+use crate::de::hysky::skyblocker::config::categories::{ChatFormattingEnum, KeyMappingNullable as _};
+use crate::de::hysky::skyblocker::config::common_tags;
+use crate::de::hysky::skyblocker::config::config_utils::ConfigUtils;
 use crate::de::hysky::skyblocker::config::skyblocker_config::SkyblockerConfig;
+use crate::entry::skyblocker_mod;
+use dandelion::net::azureaaron::dandelion::api::button_option::{self, Builder as _};
+use dandelion::net::azureaaron::dandelion::api::config_category::{self, Builder as _, ConfigCategory};
+use dandelion::net::azureaaron::dandelion::api::config_type::ConfigType;
+use dandelion::net::azureaaron::dandelion::api::controllers::boolean_controller::{self, Builder as _};
+use dandelion::net::azureaaron::dandelion::api::controllers::colour_controller::{self, Builder as _};
+use dandelion::net::azureaaron::dandelion::api::controllers::controller::Builder as _;
+use dandelion::net::azureaaron::dandelion::api::controllers::enum_controller::Builder as _;
+use dandelion::net::azureaaron::dandelion::api::controllers::float_controller;
+use dandelion::net::azureaaron::dandelion::api::controllers::integer_controller;
+use dandelion::net::azureaaron::dandelion::api::controllers::item_controller;
+use dandelion::net::azureaaron::dandelion::api::controllers::number_controller::Builder as _;
+use dandelion::net::azureaaron::dandelion::api::controllers::string_controller;
+use dandelion::net::azureaaron::dandelion::api::key_mapping_option::{self, Builder as _};
+use dandelion::net::azureaaron::dandelion::api::label_option::{self, Builder as _};
+use dandelion::net::azureaaron::dandelion::api::list_option::{self, Builder as _};
+use dandelion::net::azureaaron::dandelion::api::option::{self, AnyOption, Builder as _};
+use dandelion::net::azureaaron::dandelion::api::option_adder::OptionAdder as _;
+use dandelion::net::azureaaron::dandelion::api::option_group::{self, Builder as _, OptionGroup};
+use dandelion::net::azureaaron::dandelion::api::option_listener::UpdateType;
+use mcrust::java::awt::color::Color;
+use mcrust::net::minecraft::network::chat::component;
+use mcrust::net::minecraft::network::chat::formatted_text::FormattedText;
+use mcrust::net::minecraft::network::chat::mutable_component::MutableComponent;
+use mcrust::net::minecraft::world::item::item::Item;
 
 /// java: public class MiningCategory
 #[derive(Clone)]
@@ -11,395 +43,296 @@ pub struct MiningCategory {}
 impl MiningCategory {
     /// java: the implicit no-argument constructor
     pub fn new() -> Self {
-        let mut this = Self {
-        };
-        this
+        Self {}
     }
 
     /// java: public static ConfigCategory create(SkyblockerConfig defaults, SkyblockerConfig config)
-    pub fn create(defaults: &SkyblockerConfig, config: &SkyblockerConfig) -> crate::unresolved::ConfigCategory {
-        // TODO(fabric2seer): static call ConfigCategory.createBuilder(..)
-        //   java: return ConfigCategory.createBuilder()
-        //   java: 				.id(SkyblockerMod.id("config/mining"))
-        //   java: 				.name(Component.translatable("skyblocker.config.mining"))
-        //   java:
-        //   java: 				//Uncategorized Options
-        //   java: 				.option(Option.<Boolean>createBuilder()
-        //   java: 						.name(Component.translatable("skyblocker.config.mining.enableDrillFuel"))
-        //   java: 						.description(Component.translatable("skyblocker.config.mining.enableDrillFuel.@Tooltip"))
-        //   java: 						.binding(defaults.mining.enableDrillFuel,
-        //   java: 								() -> config.mining.enableDrillFuel,
-        //   java: 								newValue -> config.mining.enableDrillFuel = newValue)
-        //   java: 						.controller(ConfigUtils.createBooleanController())
-        //   java: 						.build())
-        //   java:
-        //   java: 				.option(Option.<Boolean>createBuilder()
-        //   java: 						.name(Component.translatable("skyblocker.config.mining.commissionHighlight"))
-        //   java: 						.binding(defaults.mining.commissionHighlight,
-        //   java: 								() -> config.mining.commissionHighlight,
-        //   java: 								newValue -> config.mining.commissionHighlight = newValue)
-        //   java: 						.controller(ConfigUtils.createBooleanController())
-        //   java: 						.build())
-        //   java:
-        //   java: 				.option(Option.<Boolean>createBuilder()
-        //   java: 						.name(Component.translatable("skyblocker.config.mining.callMismyla"))
-        //   java: 						.description(Component.translatable("skyblocker.config.mining.callMismyla.@Tooltip"))
-        //   java: 						.binding(defaults.mining.callMismyla,
-        //   java: 								() -> config.mining.callMismyla,
-        //   java: 								newValue -> config.mining.callMismyla = newValue)
-        //   java: 						.controller(ConfigUtils.createBooleanController())
-        //   java: 						.build())
-        //   java:
-        //   java: 				.option(Option.<Boolean>createBuilder()
-        //   java: 						.name(Component.translatable("skyblocker.config.mining.redialOnBadSignal"))
-        //   java: 						.description(Component.translatable("skyblocker.config.mining.redialOnBadSignal.@Tooltip"))
-        //   java: 						.binding(defaults.mining.redialOnBadSignal,
-        //   java: 								() -> config.mining.redialOnBadSignal,
-        //   java: 								newValue -> config.mining.redialOnBadSignal = newValue)
-        //   java: 						.controller(ConfigUtils.createBooleanController())
-        //   java: 						.build())
-        //   java: 				.option(ButtonOption.createBuilder()
-        //   java: 						.name(Component.translatable("skyblocker.config.mining.dwarvenHud.screen"))
-        //   java: 						.description(Component.translatable("skyblocker.config.hud.movedMessage"))
-        //   java: 						.prompt(Component.translatable("text.skyblocker.open"))
-        //   java: 						.action(screen -> Minecraft.getInstance().gui.setScreen(new WidgetsConfigurationScreen(Location.DWARVEN_MINES, screen)))
-        //   java: 						.build())
-        //   java:
-        //   java: 				//Pickobulus Helper
-        //   java: 				.group(OptionGroup.createBuilder()
-        //   java: 						.name(Component.translatable("skyblocker.config.mining.pickobulusHelper"))
-        //   java: 						.tags(CommonTags.ADDED_IN_5_11_0)
-        //   java: 						.option(Option.<Boolean>createBuilder()
-        //   java: 								.name(Component.translatable("skyblocker.config.mining.pickobulusHelper.enable"))
-        //   java: 								.description(Component.translatable("skyblocker.config.mining.pickobulusHelper.enable.@Tooltip"))
-        //   java: 								.tags(CommonTags.ADDED_IN_5_10_0)
-        //   java: 								.binding(defaults.mining.pickobulusHelper.enablePickobulusHelper,
-        //   java: 										() -> config.mining.pickobulusHelper.enablePickobulusHelper,
-        //   java: 										newValue -> config.mining.pickobulusHelper.enablePickobulusHelper = newValue)
-        //   java: 								.controller(ConfigUtils.createBooleanController())
-        //   java: 								.build())
-        //   java: 						.option(ButtonOption.createBuilder()
-        //   java: 								.name(Component.translatable("skyblocker.config.mining.pickobulusHelper.enableHud"))
-        //   java: 								.description(Component.translatable("skyblocker.config.hud.movedMessage"))
-        //   java: 								.prompt(Component.translatable("text.skyblocker.open"))
-        //   java: 								.tags(CommonTags.ADDED_IN_5_11_0)
-        //   java: 								.action(screen -> Minecraft.getInstance().gui.setScreen(new WidgetsConfigurationScreen(Location.DWARVEN_MINES, screen)))
-        //   java: 								.build())
-        //   java: 						.option(Option.<Boolean>createBuilder()
-        //   java: 								.name(Component.translatable("skyblocker.config.mining.pickobulusHelper.hideOnCooldown"))
-        //   java: 								.description(Component.translatable("skyblocker.config.mining.pickobulusHelper.hideOnCooldown.@Tooltip"))
-        //   java: 								.tags(CommonTags.ADDED_IN_5_11_0)
-        //   java: 								.binding(defaults.mining.pickobulusHelper.hideHudOnCooldown,
-        //   java: 										() -> config.mining.pickobulusHelper.hideHudOnCooldown,
-        //   java: 										newValue -> config.mining.pickobulusHelper.hideHudOnCooldown = newValue)
-        //   java: 								.controller(ConfigUtils.createBooleanController())
-        //   java: 								.build())
-        //   java: 						.build())
-        //   java:
-        //   java: 				//Dwarven Mines
-        //   java: 				.group(OptionGroup.createBuilder()
-        //   java: 						.name(Component.translatable("skyblocker.config.mining.dwarvenMines"))
-        //   java: 						.option(Option.<Boolean>createBuilder()
-        //   java: 								.name(Component.translatable("skyblocker.config.mining.dwarvenMines.solveFetchur"))
-        //   java: 								.binding(defaults.mining.dwarvenMines.solveFetchur,
-        //   java: 										() -> config.mining.dwarvenMines.solveFetchur,
-        //   java: 										newValue -> config.mining.dwarvenMines.solveFetchur = newValue)
-        //   java: 								.controller(ConfigUtils.createBooleanController())
-        //   java: 								.build())
-        //   java: 						.option(Option.<Boolean>createBuilder()
-        //   java: 								.name(Component.translatable("skyblocker.config.mining.dwarvenMines.solvePuzzler"))
-        //   java: 								.binding(defaults.mining.dwarvenMines.solvePuzzler,
-        //   java: 										() -> config.mining.dwarvenMines.solvePuzzler,
-        //   java: 										newValue -> config.mining.dwarvenMines.solvePuzzler = newValue)
-        //   java: 								.controller(ConfigUtils.createBooleanController())
-        //   java: 								.build())
-        //   java: 						.option(Option.<Boolean>createBuilder()
-        //   java: 								.name(Component.translatable("skyblocker.config.mining.dwarvenMines.enableCarpetHighlight"))
-        //   java: 								.description(Component.translatable("skyblocker.config.mining.dwarvenMines.enableCarpetHighlight.@Tooltip"))
-        //   java: 								.binding(defaults.mining.dwarvenMines.enableCarpetHighlighter,
-        //   java: 										() -> config.mining.dwarvenMines.enableCarpetHighlighter,
-        //   java: 									newValue -> config.mining.dwarvenMines.enableCarpetHighlighter = newValue)
-        //   java: 								.controller(ConfigUtils.createBooleanController())
-        //   java: 								.build())
-        //   java: 						.option(Option.<Color>createBuilder()
-        //   java: 								.name(Component.translatable("skyblocker.config.mining.dwarvenMines.carpetHighlightColor"))
-        //   java: 								.description(Component.translatable("skyblocker.config.mining.dwarvenMines.carpetHighlightColor.@Tooltip"))
-        //   java: 								.binding(defaults.mining.dwarvenMines.carpetHighlightColor,
-        //   java: 										() -> config.mining.dwarvenMines.carpetHighlightColor,
-        //   java: 										newValue -> {
-        //   java: 											config.mining.dwarvenMines.carpetHighlightColor = newValue;
-        //   java: 											CarpetHighlighter.INSTANCE.configCallback(newValue);
-        //   java: 										})
-        //   java: 								.controller(ConfigUtils.createColourController(true))
-        //   java: 								.build())
-        //   java: 						.build())
-        //   java:
-        //   java: 				//Crystal Hollows
-        //   java: 				.group(OptionGroup.createBuilder()
-        //   java: 						.name(Component.translatable("skyblocker.config.mining.crystalHollows"))
-        //   java: 						.option(Option.<Boolean>createBuilder()
-        //   java: 								.name(Component.translatable("skyblocker.config.mining.crystalHollows.metalDetectorHelper"))
-        //   java: 								.description(Component.translatable("skyblocker.config.mining.crystalHollows.metalDetectorHelper.@Tooltip"))
-        //   java: 								.binding(defaults.mining.crystalHollows.metalDetectorHelper,
-        //   java: 										() -> config.mining.crystalHollows.metalDetectorHelper,
-        //   java: 										newValue -> config.mining.crystalHollows.metalDetectorHelper = newValue)
-        //   java: 								.controller(ConfigUtils.createBooleanController())
-        //   java: 								.build())
-        //   java: 						.option(Option.<Boolean>createBuilder()
-        //   java: 								.name(Component.translatable("skyblocker.config.mining.crystalHollows.nucleusWaypoints"))
-        //   java: 								.description(Component.translatable("skyblocker.config.mining.crystalHollows.nucleusWaypoints.@Tooltip"))
-        //   java: 								.binding(defaults.mining.crystalHollows.nucleusWaypoints,
-        //   java: 										() -> config.mining.crystalHollows.nucleusWaypoints,
-        //   java: 										newValue -> config.mining.crystalHollows.nucleusWaypoints = newValue)
-        //   java: 								.controller(ConfigUtils.createBooleanController())
-        //   java: 								.build())
-        //   java: 						.option(Option.<Boolean>createBuilder()
-        //   java: 								.name(Component.translatable("skyblocker.config.mining.crystalHollows.chestHighlighter"))
-        //   java: 								.description(Component.translatable("skyblocker.config.mining.crystalHollows.chestHighlighter.@Tooltip"))
-        //   java: 								.binding(defaults.mining.crystalHollows.chestHighlighter,
-        //   java: 										() -> config.mining.crystalHollows.chestHighlighter,
-        //   java: 										newValue -> config.mining.crystalHollows.chestHighlighter = newValue)
-        //   java: 								.controller(ConfigUtils.createBooleanController())
-        //   java: 								.build())
-        //   java: 						.option(Option.<Color>createBuilder()
-        //   java: 								.name(Component.translatable("skyblocker.config.mining.crystalHollows.chestHighlighter.color"))
-        //   java: 								.description(Component.translatable("skyblocker.config.mining.crystalHollows.chestHighlighter.color.@Tooltip"))
-        //   java: 								.binding(defaults.mining.crystalHollows.chestHighlightColor,
-        //   java: 										() -> config.mining.crystalHollows.chestHighlightColor,
-        //   java: 										newValue -> config.mining.crystalHollows.chestHighlightColor = newValue)
-        //   java: 								.controller(ConfigUtils.createColourController(true))
-        //   java: 								.build())
-        //   java: 						.option(ButtonOption.createBuilder()
-        //   java: 								.name(Component.translatable("skyblocker.config.mining.crystalHollows.enablePowderTracker"))
-        //   java: 								.description(Component.translatable("skyblocker.config.mining.crystalHollows.enablePowderTracker.@Tooltip"), Component.translatable("skyblocker.config.hud.movedMessage"))
-        //   java: 								.action(screen -> Minecraft.getInstance().gui.setScreen(new WidgetsConfigurationScreen(Location.CRYSTAL_HOLLOWS, screen)))
-        //   java: 								.prompt(Component.translatable("text.skyblocker.open"))
-        //   java: 								.build())
-        //   java: 						.option(ButtonOption.createBuilder()
-        //   java: 								.name(Component.translatable("skyblocker.config.mining.crystalHollows.powderTrackerFilter"))
-        //   java: 								.description(Component.translatable("skyblocker.config.mining.crystalHollows.powderTrackerFilter.@Tooltip"))
-        //   java: 								.prompt(Component.translatable("text.skyblocker.open"))
-        //   java: 								.action(screen -> Minecraft.getInstance().gui.setScreen(new PowderFilterConfigScreen(screen, new ObjectImmutableList<>(PowderMiningTracker.getName2IdMap().keySet()))))
-        //   java: 								.build())
-        //   java: 						.build())
-        //   java:
-        //   java: 				//Crystal Hollows Map
-        //   java: 				.group(OptionGroup.createBuilder()
-        //   java: 						.name(Component.translatable("skyblocker.config.mining.crystalsHud"))
-        //   java: 						.collapsed(false)
-        //   java: 						.option(ButtonOption.createBuilder()
-        //   java: 								.name(Component.translatable("skyblocker.config.mining.crystalsHud.screen"))
-        //   java: 								.description(Component.translatable("skyblocker.config.hud.movedMessage"))
-        //   java: 								.prompt(Component.translatable("text.skyblocker.open"))
-        //   java: 								.action(screen -> Minecraft.getInstance().gui.setScreen(new WidgetsConfigurationScreen(Location.CRYSTAL_HOLLOWS, screen)))
-        //   java: 								.build())
-        //   java: 						.option(Option.<Float>createBuilder()
-        //   java: 								.name(Component.translatable("skyblocker.config.mining.crystalsHud.mapScaling"))
-        //   java: 								.binding(defaults.mining.crystalsHud.mapScaling,
-        //   java: 										() -> config.mining.crystalsHud.mapScaling,
-        //   java: 										newValue -> config.mining.crystalsHud.mapScaling = newValue)
-        //   java: 								.controller(FloatController.createBuilder().build())
-        //   java: 								.build())
-        //   java: 						.option(Option.<Boolean>createBuilder()
-        //   java: 								.name(Component.translatable("skyblocker.config.mining.crystalsHud.showLocations"))
-        //   java: 								.description(Component.translatable("skyblocker.config.mining.crystalsHud.showLocations.@Tooltip"))
-        //   java: 								.binding(defaults.mining.crystalsHud.showLocations,
-        //   java: 										() -> config.mining.crystalsHud.showLocations,
-        //   java: 										newValue -> config.mining.crystalsHud.showLocations = newValue)
-        //   java: 								.controller(ConfigUtils.createBooleanController())
-        //   java: 								.build())
-        //   java: 						.option(Option.<Integer>createBuilder()
-        //   java: 								.name(Component.translatable("skyblocker.config.mining.crystalsHud.showLocations.locationSize"))
-        //   java: 								.description(Component.translatable("skyblocker.config.mining.crystalsHud.showLocations.locationSize.@Tooltip"))
-        //   java: 								.binding(defaults.mining.crystalsHud.locationSize,
-        //   java: 										() -> config.mining.crystalsHud.locationSize,
-        //   java: 										newValue -> config.mining.crystalsHud.locationSize = newValue)
-        //   java: 								.controller(IntegerController.createBuilder().range(4, 12).slider(2).build())
-        //   java: 								.build())
-        //   java: 						.build())
-        //   java:
-        //   java: 				//Crystal Hollows waypoints
-        //   java: 				.group(OptionGroup.createBuilder()
-        //   java: 						.name(Component.translatable("skyblocker.config.mining.crystalsWaypoints"))
-        //   java: 						.collapsed(false)
-        //   java: 						.option(Option.<Boolean>createBuilder()
-        //   java: 								.name(Component.translatable("skyblocker.config.mining.crystalsWaypoints.enabled"))
-        //   java: 								.description(Component.translatable("skyblocker.config.mining.crystalsWaypoints.enabled.@Tooltip"))
-        //   java: 								.binding(defaults.mining.crystalsWaypoints.enabled,
-        //   java: 										() -> config.mining.crystalsWaypoints.enabled,
-        //   java: 										newValue -> config.mining.crystalsWaypoints.enabled = newValue)
-        //   java: 								.controller(ConfigUtils.createBooleanController())
-        //   java: 								.build())
-        //   java: 						.option(Option.<Boolean>createBuilder()
-        //   java: 								.name(Component.translatable("skyblocker.config.mining.crystalsWaypoints.findInChat"))
-        //   java: 								.description(Component.translatable("skyblocker.config.mining.crystalsWaypoints.findInChat.@Tooltip"))
-        //   java: 								.binding(defaults.mining.crystalsWaypoints.findInChat,
-        //   java: 										() -> config.mining.crystalsWaypoints.findInChat,
-        //   java: 										newValue -> config.mining.crystalsWaypoints.findInChat = newValue)
-        //   java: 								.controller(ConfigUtils.createBooleanController())
-        //   java: 								.build())
-        //   java: 						.option(Option.<Boolean>createBuilder()
-        //   java: 								.name(Component.translatable("skyblocker.config.mining.crystalsWaypoints.wishingCompassSolver"))
-        //   java: 								.description(Component.translatable("skyblocker.config.mining.crystalsWaypoints.wishingCompassSolver.@Tooltip"))
-        //   java: 								.binding(defaults.mining.crystalsWaypoints.wishingCompassSolver,
-        //   java: 										() -> config.mining.crystalsWaypoints.wishingCompassSolver,
-        //   java: 										newValue -> config.mining.crystalsWaypoints.wishingCompassSolver = newValue)
-        //   java: 								.controller(ConfigUtils.createBooleanController())
-        //   java: 								.build())
-        //   java: 						.option(Option.<Boolean>createBuilder()
-        //   java: 								.name(Component.translatable("skyblocker.config.mining.crystalsWaypoints.shareFairyGrotto"))
-        //   java: 								.description(Component.translatable("skyblocker.config.mining.crystalsWaypoints.shareFairyGrotto.@Tooltip"))
-        //   java: 								.binding(defaults.mining.crystalsWaypoints.shareFairyGrotto,
-        //   java: 										() -> config.mining.crystalsWaypoints.shareFairyGrotto,
-        //   java: 										newValue -> config.mining.crystalsWaypoints.shareFairyGrotto = newValue)
-        //   java: 								.controller(ConfigUtils.createBooleanController())
-        //   java: 								.build())
-        //   java: 						.build())
-        //   java:
-        //   java: 				//commission waypoints
-        //   java: 				.group(OptionGroup.createBuilder()
-        //   java: 						.name(Component.translatable("skyblocker.config.mining.commissionWaypoints"))
-        //   java: 						.collapsed(false)
-        //   java: 						.option(Option.<MiningConfig.CommissionWaypointMode>createBuilder()
-        //   java: 								.name(Component.translatable("skyblocker.config.mining.commissionWaypoints.mode"))
-        //   java: 								.description(Component.translatable("skyblocker.config.mining.commissionWaypoints.mode.@Tooltip[0]"),
-        //   java: 										Component.translatable("skyblocker.config.mining.commissionWaypoints.mode.@Tooltip[1]"),
-        //   java: 										Component.translatable("skyblocker.config.mining.commissionWaypoints.mode.@Tooltip[2]"),
-        //   java: 										Component.translatable("skyblocker.config.mining.commissionWaypoints.mode.@Tooltip[3]"),
-        //   java: 										Component.translatable("skyblocker.config.mining.commissionWaypoints.mode.@Tooltip[4]"))
-        //   java: 								.binding(defaults.mining.commissionWaypoints.mode,
-        //   java: 										() -> config.mining.commissionWaypoints.mode,
-        //   java: 										newValue -> config.mining.commissionWaypoints.mode = newValue)
-        //   java: 								.controller(ConfigUtils.createEnumController())
-        //   java: 								.build())
-        //   java: 						.option(Option.<Boolean>createBuilder()
-        //   java: 								.name(Component.translatable("skyblocker.config.mining.commissionWaypoints.useColor"))
-        //   java: 								.description(Component.translatable("skyblocker.config.mining.commissionWaypoints.useColor.@Tooltip"))
-        //   java: 								.binding(defaults.mining.commissionWaypoints.useColor,
-        //   java: 										() -> config.mining.commissionWaypoints.useColor,
-        //   java: 										newValue -> config.mining.commissionWaypoints.useColor = newValue)
-        //   java: 								.controller(ConfigUtils.createBooleanController())
-        //   java: 								.build())
-        //   java: 						.option(Option.<Boolean>createBuilder()
-        //   java: 								.name(Component.translatable("skyblocker.config.mining.commissionWaypoints.showBaseCamp"))
-        //   java: 								.description(Component.translatable("skyblocker.config.mining.commissionWaypoints.showBaseCamp.@Tooltip"))
-        //   java: 								.binding(defaults.mining.commissionWaypoints.showBaseCamp,
-        //   java: 										() -> config.mining.commissionWaypoints.showBaseCamp,
-        //   java: 										newValue -> config.mining.commissionWaypoints.showBaseCamp = newValue)
-        //   java: 								.controller(ConfigUtils.createBooleanController())
-        //   java: 								.build())
-        //   java: 						.option(Option.<Boolean>createBuilder()
-        //   java: 								.name(Component.translatable("skyblocker.config.mining.commissionWaypoints.showEmissary"))
-        //   java: 								.description(Component.translatable("skyblocker.config.mining.commissionWaypoints.showEmissary.@Tooltip"))
-        //   java: 								.binding(defaults.mining.commissionWaypoints.showEmissary,
-        //   java: 										() -> config.mining.commissionWaypoints.showEmissary,
-        //   java: 										newValue -> config.mining.commissionWaypoints.showEmissary = newValue)
-        //   java: 								.controller(ConfigUtils.createBooleanController())
-        //   java: 								.build())
-        //   java: 						.option(Option.<Boolean>createBuilder()
-        //   java: 								.name(Component.translatable("skyblocker.config.mining.commissionWaypoints.hideEmissaryOnPigeon"))
-        //   java: 								.description(Component.translatable("skyblocker.config.mining.commissionWaypoints.hideEmissaryOnPigeon.@Tooltip"))
-        //   java: 								.binding(defaults.mining.commissionWaypoints.hideEmissaryOnPigeon,
-        //   java: 										() -> config.mining.commissionWaypoints.hideEmissaryOnPigeon,
-        //   java: 										newValue -> config.mining.commissionWaypoints.hideEmissaryOnPigeon = newValue)
-        //   java: 								.controller(ConfigUtils.createBooleanController())
-        //   java: 								.build())
-        //   java: 						.build())
-        //   java:
-        //   java: 				//Glacite Tunnels
-        //   java: 				.group(OptionGroup.createBuilder()
-        //   java: 						.name(Component.translatable("skyblocker.config.mining.glacite"))
-        //   java: 						.collapsed(false)
-        //   java: 						.option(Option.<Boolean>createBuilder()
-        //   java: 								.name(Component.translatable("skyblocker.config.mining.glacite.coldOverlay"))
-        //   java: 								.description(Component.translatable("skyblocker.config.mining.glacite.coldOverlay.@Tooltip"))
-        //   java: 								.binding(defaults.mining.glacite.coldOverlay,
-        //   java: 										() -> config.mining.glacite.coldOverlay,
-        //   java: 										newValue -> config.mining.glacite.coldOverlay = newValue)
-        //   java: 								.controller(ConfigUtils.createBooleanController())
-        //   java: 								.build())
-        //   java: 						.option(Option.<Boolean>createBuilder()
-        //   java: 								.name(Component.translatable("skyblocker.config.mining.glacite.fossilSolver"))
-        //   java: 								.description(Component.translatable("skyblocker.config.mining.glacite.fossilSolver.@Tooltip"))
-        //   java: 								.binding(defaults.mining.glacite.fossilSolver,
-        //   java: 												() -> config.mining.glacite.fossilSolver,
-        //   java: 												newValue -> config.mining.glacite.fossilSolver = newValue)
-        //   java: 								.controller(ConfigUtils.createBooleanController())
-        //   java: 								.build())
-        //   java: 						.option(Option.<Boolean>createBuilder()
-        //   java: 								.name(Component.translatable("skyblocker.config.mining.glacite.solveFossilMuncher"))
-        //   java: 								.tags(CommonTags.ADDED_IN_6_6_0)
-        //   java: 								.binding(defaults.mining.glacite.solveFossilMuncher,
-        //   java: 										() -> config.mining.glacite.solveFossilMuncher,
-        //   java: 										newValue -> config.mining.glacite.solveFossilMuncher = newValue)
-        //   java: 								.controller(ConfigUtils.createBooleanController())
-        //   java: 								.build())
-        //   java: 						.option(Option.<Boolean>createBuilder()
-        //   java: 								.name(Component.translatable("skyblocker.config.mining.glacite.enableCorpseFinder"))
-        //   java: 								.description(Component.translatable("skyblocker.config.mining.glacite.enableCorpseFinder.@Tooltip"))
-        //   java: 								.binding(defaults.mining.glacite.enableCorpseFinder,
-        //   java: 										() -> config.mining.glacite.enableCorpseFinder,
-        //   java: 										newValue -> config.mining.glacite.enableCorpseFinder = newValue)
-        //   java: 								.controller(ConfigUtils.createBooleanController())
-        //   java: 								.build())
-        //   java: 						.option(Option.<Boolean>createBuilder()
-        //   java: 								.name(Component.translatable("skyblocker.config.mining.glacite.enableParsingChatCorpseFinder"))
-        //   java: 								.description(Component.translatable("skyblocker.config.mining.glacite.enableParsingChatCorpseFinder.@Tooltip"))
-        //   java: 								.binding(defaults.mining.glacite.enableParsingChatCorpseFinder,
-        //   java: 										() -> config.mining.glacite.enableParsingChatCorpseFinder,
-        //   java: 										newValue -> config.mining.glacite.enableParsingChatCorpseFinder = newValue)
-        //   java: 								.controller(ConfigUtils.createBooleanController())
-        //   java: 								.build())
-        //   java: 						.option(Option.<Boolean>createBuilder()
-        //   java: 								.name(Component.translatable("skyblocker.config.mining.glacite.autoShareCorpses"))
-        //   java: 								.description(Component.translatable("skyblocker.config.mining.glacite.autoShareCorpses.@Tooltip"))
-        //   java: 								.binding(defaults.mining.glacite.autoShareCorpses,
-        //   java: 										() -> config.mining.glacite.autoShareCorpses,
-        //   java: 										newValue -> config.mining.glacite.autoShareCorpses = newValue)
-        //   java: 								.controller(ConfigUtils.createBooleanController())
-        //   java: 								.build())
-        //   java: 						.option(Option.<Boolean>createBuilder()
-        //   java: 								.name(Component.translatable("skyblocker.config.mining.glacite.enableCorpseProfitTracker"))
-        //   java: 								.description(Component.translatable("skyblocker.config.mining.glacite.enableCorpseProfitTracker.@Tooltip"))
-        //   java: 								.binding(defaults.mining.glacite.enableCorpseProfitTracker,
-        //   java: 										() -> config.mining.glacite.enableCorpseProfitTracker,
-        //   java: 										newValue -> config.mining.glacite.enableCorpseProfitTracker = newValue)
-        //   java: 								.controller(ConfigUtils.createBooleanController())
-        //   java: 								.build())
-        //   java: 						.option(Option.<Boolean>createBuilder()
-        //   java: 								.name(Component.translatable("skyblocker.config.mining.glacite.forceEnglishCorpseProfitTracker"))
-        //   java: 								.description(Component.translatable("skyblocker.config.mining.glacite.forceEnglishCorpseProfitTracker.@Tooltip"))
-        //   java: 								.tags(CommonTags.ADDED_IN_5_9_0)
-        //   java: 								.binding(defaults.mining.glacite.forceEnglishCorpseProfitTracker,
-        //   java: 										() -> config.mining.glacite.forceEnglishCorpseProfitTracker,
-        //   java: 										newValue -> config.mining.glacite.forceEnglishCorpseProfitTracker = newValue)
-        //   java: 								.controller(ConfigUtils.createBooleanController())
-        //   java: 								.build())
-        //   java: 						.build())
-        //   java: 				//Block break prediction
-        //   java: 				.group(OptionGroup.createBuilder()
-        //   java: 						.name(Component.translatable("skyblocker.config.mining.blockBreakPrediction"))
-        //   java: 						.option(Option.<Boolean>createBuilder()
-        //   java: 								.name(Component.translatable("skyblocker.config.mining.blockBreakPrediction.enabled"))
-        //   java: 								.tags(CommonTags.ADDED_IN_6_0_0)
-        //   java: 								.binding(defaults.mining.blockBreakPrediction.enabled,
-        //   java: 										() -> config.mining.blockBreakPrediction.enabled,
-        //   java: 										newValue -> config.mining.blockBreakPrediction.enabled = newValue)
-        //   java: 								.controller(ConfigUtils.createBooleanController())
-        //   java: 								.build())
-        //   java: 						.option(Option.<Boolean>createBuilder()
-        //   java: 								.name(Component.translatable("skyblocker.config.mining.blockBreakPrediction.playSound"))
-        //   java: 								.description(Component.translatable("skyblocker.config.mining.blockBreakPrediction.playSound.@Tooltip"))
-        //   java: 								.tags(CommonTags.ADDED_IN_6_0_0)
-        //   java: 								.binding(defaults.mining.blockBreakPrediction.playSound,
-        //   java: 										() -> config.mining.blockBreakPrediction.playSound,
-        //   java: 										newValue -> config.mining.blockBreakPrediction.playSound = newValue)
-        //   java: 								.controller(ConfigUtils.createBooleanController())
-        //   java: 								.build())
-        //   java:
-        //   java: 						.build())
-        //   java: 				.build();
-        todo!("fabric2seer: the value of this function is in a TODO above")
+    pub fn create(defaults: &compat::Shared<SkyblockerConfig>, config: &compat::Shared<SkyblockerConfig>) -> Arc<dyn ConfigCategory> {
+        let defaults: compat::Shared<SkyblockerConfig> = defaults.clone();
+        let config: compat::Shared<SkyblockerConfig> = config.clone();
+        return config_category::create_builder()
+            .id(skyblocker_mod::id("config/mining"))
+            .name(component::translatable("skyblocker.config.mining"))
+            .option(option::create_builder::<bool>()
+                .name(component::translatable("skyblocker.config.mining.enableDrillFuel"))
+                .description(vec![component::translatable("skyblocker.config.mining.enableDrillFuel.@Tooltip")])
+                .binding(compat::read(&defaults, |c| c.mining.enable_drill_fuel.clone()), { let config = config.clone(); move || compat::read(&config, |c| c.mining.enable_drill_fuel.clone()) }, { let config = config.clone(); move |new_value: bool| compat::write(&config, |c| c.mining.enable_drill_fuel = new_value) })
+                .controller(ConfigUtils::create_boolean_controller())
+                .build())
+            .option(option::create_builder::<bool>()
+                .name(component::translatable("skyblocker.config.mining.commissionHighlight"))
+                .binding(compat::read(&defaults, |c| c.mining.commission_highlight.clone()), { let config = config.clone(); move || compat::read(&config, |c| c.mining.commission_highlight.clone()) }, { let config = config.clone(); move |new_value: bool| compat::write(&config, |c| c.mining.commission_highlight = new_value) })
+                .controller(ConfigUtils::create_boolean_controller())
+                .build())
+            .option(option::create_builder::<bool>()
+                .name(component::translatable("skyblocker.config.mining.callMismyla"))
+                .description(vec![component::translatable("skyblocker.config.mining.callMismyla.@Tooltip")])
+                .binding(compat::read(&defaults, |c| c.mining.call_mismyla.clone()), { let config = config.clone(); move || compat::read(&config, |c| c.mining.call_mismyla.clone()) }, { let config = config.clone(); move |new_value: bool| compat::write(&config, |c| c.mining.call_mismyla = new_value) })
+                .controller(ConfigUtils::create_boolean_controller())
+                .build())
+            .option(option::create_builder::<bool>()
+                .name(component::translatable("skyblocker.config.mining.redialOnBadSignal"))
+                .description(vec![component::translatable("skyblocker.config.mining.redialOnBadSignal.@Tooltip")])
+                .binding(compat::read(&defaults, |c| c.mining.redial_on_bad_signal.clone()), { let config = config.clone(); move || compat::read(&config, |c| c.mining.redial_on_bad_signal.clone()) }, { let config = config.clone(); move |new_value: bool| compat::write(&config, |c| c.mining.redial_on_bad_signal = new_value) })
+                .controller(ConfigUtils::create_boolean_controller())
+                .build())
+            .option(button_option::create_builder()
+                .name(component::translatable("skyblocker.config.mining.dwarvenHud.screen"))
+                .description(vec![component::translatable("skyblocker.config.hud.movedMessage")])
+                .prompt(component::translatable("text.skyblocker.open"))
+                .action(|_screen| mcrust::mcrust::modding::game::set_screen_keeping_parent(Box::new(compat::ScreenAdapter::new(crate::de::hysky::skyblocker::skyblock::tabhud::config::widgets_configuration_screen::WidgetsConfigurationScreen::new_2(crate::de::hysky::skyblocker::utils::location::Location::DwarvenMines, None)))))
+                .build())
+            .group(option_group::create_builder()
+                .name(component::translatable("skyblocker.config.mining.pickobulusHelper"))
+                .tags(vec![common_tags::ADDED_IN_5_11_0.get().clone()])
+                .option(option::create_builder::<bool>()
+                    .name(component::translatable("skyblocker.config.mining.pickobulusHelper.enable"))
+                    .description(vec![component::translatable("skyblocker.config.mining.pickobulusHelper.enable.@Tooltip")])
+                    .tags(vec![common_tags::ADDED_IN_5_10_0.get().clone()])
+                    .binding(compat::read(&defaults, |c| c.mining.pickobulus_helper.enable_pickobulus_helper.clone()), { let config = config.clone(); move || compat::read(&config, |c| c.mining.pickobulus_helper.enable_pickobulus_helper.clone()) }, { let config = config.clone(); move |new_value: bool| compat::write(&config, |c| c.mining.pickobulus_helper.enable_pickobulus_helper = new_value) })
+                    .controller(ConfigUtils::create_boolean_controller())
+                    .build())
+                .option(button_option::create_builder()
+                    .name(component::translatable("skyblocker.config.mining.pickobulusHelper.enableHud"))
+                    .description(vec![component::translatable("skyblocker.config.hud.movedMessage")])
+                    .prompt(component::translatable("text.skyblocker.open"))
+                    .tags(vec![common_tags::ADDED_IN_5_11_0.get().clone()])
+                    .action(|_screen| mcrust::mcrust::modding::game::set_screen_keeping_parent(Box::new(compat::ScreenAdapter::new(crate::de::hysky::skyblocker::skyblock::tabhud::config::widgets_configuration_screen::WidgetsConfigurationScreen::new_2(crate::de::hysky::skyblocker::utils::location::Location::DwarvenMines, None)))))
+                    .build())
+                .option(option::create_builder::<bool>()
+                    .name(component::translatable("skyblocker.config.mining.pickobulusHelper.hideOnCooldown"))
+                    .description(vec![component::translatable("skyblocker.config.mining.pickobulusHelper.hideOnCooldown.@Tooltip")])
+                    .tags(vec![common_tags::ADDED_IN_5_11_0.get().clone()])
+                    .binding(compat::read(&defaults, |c| c.mining.pickobulus_helper.hide_hud_on_cooldown.clone()), { let config = config.clone(); move || compat::read(&config, |c| c.mining.pickobulus_helper.hide_hud_on_cooldown.clone()) }, { let config = config.clone(); move |new_value: bool| compat::write(&config, |c| c.mining.pickobulus_helper.hide_hud_on_cooldown = new_value) })
+                    .controller(ConfigUtils::create_boolean_controller())
+                    .build())
+                .build())
+            .group(option_group::create_builder()
+                .name(component::translatable("skyblocker.config.mining.dwarvenMines"))
+                .option(option::create_builder::<bool>()
+                    .name(component::translatable("skyblocker.config.mining.dwarvenMines.solveFetchur"))
+                    .binding(compat::read(&defaults, |c| c.mining.dwarven_mines.solve_fetchur.clone()), { let config = config.clone(); move || compat::read(&config, |c| c.mining.dwarven_mines.solve_fetchur.clone()) }, { let config = config.clone(); move |new_value: bool| compat::write(&config, |c| c.mining.dwarven_mines.solve_fetchur = new_value) })
+                    .controller(ConfigUtils::create_boolean_controller())
+                    .build())
+                .option(option::create_builder::<bool>()
+                    .name(component::translatable("skyblocker.config.mining.dwarvenMines.solvePuzzler"))
+                    .binding(compat::read(&defaults, |c| c.mining.dwarven_mines.solve_puzzler.clone()), { let config = config.clone(); move || compat::read(&config, |c| c.mining.dwarven_mines.solve_puzzler.clone()) }, { let config = config.clone(); move |new_value: bool| compat::write(&config, |c| c.mining.dwarven_mines.solve_puzzler = new_value) })
+                    .controller(ConfigUtils::create_boolean_controller())
+                    .build())
+                .option(option::create_builder::<bool>()
+                    .name(component::translatable("skyblocker.config.mining.dwarvenMines.enableCarpetHighlight"))
+                    .description(vec![component::translatable("skyblocker.config.mining.dwarvenMines.enableCarpetHighlight.@Tooltip")])
+                    .binding(compat::read(&defaults, |c| c.mining.dwarven_mines.enable_carpet_highlighter.clone()), { let config = config.clone(); move || compat::read(&config, |c| c.mining.dwarven_mines.enable_carpet_highlighter.clone()) }, { let config = config.clone(); move |new_value: bool| compat::write(&config, |c| c.mining.dwarven_mines.enable_carpet_highlighter = new_value) })
+                    .controller(ConfigUtils::create_boolean_controller())
+                    .build())
+                .option(option::create_builder::<Color>()
+                    .name(component::translatable("skyblocker.config.mining.dwarvenMines.carpetHighlightColor"))
+                    .description(vec![component::translatable("skyblocker.config.mining.dwarvenMines.carpetHighlightColor.@Tooltip")])
+                    .binding(compat::read(&defaults, |c| c.mining.dwarven_mines.carpet_highlight_color.clone()), { let config = config.clone(); move || compat::read(&config, |c| c.mining.dwarven_mines.carpet_highlight_color.clone()) }, { let config = config.clone(); move |new_value: Color| { compat::write(&config, |c| c.mining.dwarven_mines.carpet_highlight_color = new_value.clone()); crate::de::hysky::skyblocker::skyblock::dwarven::carpet_highlighter::CarpetHighlighter::config_callback(&crate::de::hysky::skyblocker::skyblock::dwarven::carpet_highlighter::INSTANCE, &new_value); } })
+                    .controller(ConfigUtils::create_colour_controller(true))
+                    .build())
+                .build())
+            .group(option_group::create_builder()
+                .name(component::translatable("skyblocker.config.mining.crystalHollows"))
+                .option(option::create_builder::<bool>()
+                    .name(component::translatable("skyblocker.config.mining.crystalHollows.metalDetectorHelper"))
+                    .description(vec![component::translatable("skyblocker.config.mining.crystalHollows.metalDetectorHelper.@Tooltip")])
+                    .binding(compat::read(&defaults, |c| c.mining.crystal_hollows.metal_detector_helper.clone()), { let config = config.clone(); move || compat::read(&config, |c| c.mining.crystal_hollows.metal_detector_helper.clone()) }, { let config = config.clone(); move |new_value: bool| compat::write(&config, |c| c.mining.crystal_hollows.metal_detector_helper = new_value) })
+                    .controller(ConfigUtils::create_boolean_controller())
+                    .build())
+                .option(option::create_builder::<bool>()
+                    .name(component::translatable("skyblocker.config.mining.crystalHollows.nucleusWaypoints"))
+                    .description(vec![component::translatable("skyblocker.config.mining.crystalHollows.nucleusWaypoints.@Tooltip")])
+                    .binding(compat::read(&defaults, |c| c.mining.crystal_hollows.nucleus_waypoints.clone()), { let config = config.clone(); move || compat::read(&config, |c| c.mining.crystal_hollows.nucleus_waypoints.clone()) }, { let config = config.clone(); move |new_value: bool| compat::write(&config, |c| c.mining.crystal_hollows.nucleus_waypoints = new_value) })
+                    .controller(ConfigUtils::create_boolean_controller())
+                    .build())
+                .option(option::create_builder::<bool>()
+                    .name(component::translatable("skyblocker.config.mining.crystalHollows.chestHighlighter"))
+                    .description(vec![component::translatable("skyblocker.config.mining.crystalHollows.chestHighlighter.@Tooltip")])
+                    .binding(compat::read(&defaults, |c| c.mining.crystal_hollows.chest_highlighter.clone()), { let config = config.clone(); move || compat::read(&config, |c| c.mining.crystal_hollows.chest_highlighter.clone()) }, { let config = config.clone(); move |new_value: bool| compat::write(&config, |c| c.mining.crystal_hollows.chest_highlighter = new_value) })
+                    .controller(ConfigUtils::create_boolean_controller())
+                    .build())
+                .option(option::create_builder::<Color>()
+                    .name(component::translatable("skyblocker.config.mining.crystalHollows.chestHighlighter.color"))
+                    .description(vec![component::translatable("skyblocker.config.mining.crystalHollows.chestHighlighter.color.@Tooltip")])
+                    .binding(compat::read(&defaults, |c| c.mining.crystal_hollows.chest_highlight_color.clone()), { let config = config.clone(); move || compat::read(&config, |c| c.mining.crystal_hollows.chest_highlight_color.clone()) }, { let config = config.clone(); move |new_value: Color| compat::write(&config, |c| c.mining.crystal_hollows.chest_highlight_color = new_value) })
+                    .controller(ConfigUtils::create_colour_controller(true))
+                    .build())
+                .option(button_option::create_builder()
+                    .name(component::translatable("skyblocker.config.mining.crystalHollows.enablePowderTracker"))
+                    .description(vec![component::translatable("skyblocker.config.mining.crystalHollows.enablePowderTracker.@Tooltip"), component::translatable("skyblocker.config.hud.movedMessage")])
+                    .action(|_screen| mcrust::mcrust::modding::game::set_screen_keeping_parent(Box::new(compat::ScreenAdapter::new(crate::de::hysky::skyblocker::skyblock::tabhud::config::widgets_configuration_screen::WidgetsConfigurationScreen::new_2(crate::de::hysky::skyblocker::utils::location::Location::CrystalHollows, None)))))
+                    .prompt(component::translatable("text.skyblocker.open"))
+                    .build())
+                .option(button_option::create_builder()
+                    .name(component::translatable("skyblocker.config.mining.crystalHollows.powderTrackerFilter"))
+                    .description(vec![component::translatable("skyblocker.config.mining.crystalHollows.powderTrackerFilter.@Tooltip")])
+                    .prompt(component::translatable("text.skyblocker.open"))
+                    .action(|_screen| mcrust::mcrust::modding::game::set_screen_keeping_parent(Box::new(compat::ScreenAdapter::new(crate::de::hysky::skyblocker::config::screens::powdertracker::powder_filter_config_screen::PowderFilterConfigScreen::new(crate::de::hysky::skyblocker::skyblock::dwarven::profittrackers::powder_mining_tracker::PowderMiningTracker::get_name2_id_map().keys().cloned().collect::<Vec<String>>())))))
+                    .build())
+                .build())
+            .group(option_group::create_builder()
+                .name(component::translatable("skyblocker.config.mining.crystalsHud"))
+                .collapsed(false)
+                .option(button_option::create_builder()
+                    .name(component::translatable("skyblocker.config.mining.crystalsHud.screen"))
+                    .description(vec![component::translatable("skyblocker.config.hud.movedMessage")])
+                    .prompt(component::translatable("text.skyblocker.open"))
+                    .action(|_screen| mcrust::mcrust::modding::game::set_screen_keeping_parent(Box::new(compat::ScreenAdapter::new(crate::de::hysky::skyblocker::skyblock::tabhud::config::widgets_configuration_screen::WidgetsConfigurationScreen::new_2(crate::de::hysky::skyblocker::utils::location::Location::CrystalHollows, None)))))
+                    .build())
+                .option(option::create_builder::<f32>()
+                    .name(component::translatable("skyblocker.config.mining.crystalsHud.mapScaling"))
+                    .binding(compat::read(&defaults, |c| c.mining.crystals_hud.map_scaling.clone()), { let config = config.clone(); move || compat::read(&config, |c| c.mining.crystals_hud.map_scaling.clone()) }, { let config = config.clone(); move |new_value: f32| compat::write(&config, |c| c.mining.crystals_hud.map_scaling = new_value) })
+                    .controller(float_controller::create_builder()
+                        .build())
+                    .build())
+                .option(option::create_builder::<bool>()
+                    .name(component::translatable("skyblocker.config.mining.crystalsHud.showLocations"))
+                    .description(vec![component::translatable("skyblocker.config.mining.crystalsHud.showLocations.@Tooltip")])
+                    .binding(compat::read(&defaults, |c| c.mining.crystals_hud.show_locations.clone()), { let config = config.clone(); move || compat::read(&config, |c| c.mining.crystals_hud.show_locations.clone()) }, { let config = config.clone(); move |new_value: bool| compat::write(&config, |c| c.mining.crystals_hud.show_locations = new_value) })
+                    .controller(ConfigUtils::create_boolean_controller())
+                    .build())
+                .option(option::create_builder::<i32>()
+                    .name(component::translatable("skyblocker.config.mining.crystalsHud.showLocations.locationSize"))
+                    .description(vec![component::translatable("skyblocker.config.mining.crystalsHud.showLocations.locationSize.@Tooltip")])
+                    .binding(compat::read(&defaults, |c| c.mining.crystals_hud.location_size.clone()), { let config = config.clone(); move || compat::read(&config, |c| c.mining.crystals_hud.location_size.clone()) }, { let config = config.clone(); move |new_value: i32| compat::write(&config, |c| c.mining.crystals_hud.location_size = new_value) })
+                    .controller(integer_controller::create_builder()
+                        .range(4, 12)
+                        .slider(2)
+                        .build())
+                    .build())
+                .build())
+            .group(option_group::create_builder()
+                .name(component::translatable("skyblocker.config.mining.crystalsWaypoints"))
+                .collapsed(false)
+                .option(option::create_builder::<bool>()
+                    .name(component::translatable("skyblocker.config.mining.crystalsWaypoints.enabled"))
+                    .description(vec![component::translatable("skyblocker.config.mining.crystalsWaypoints.enabled.@Tooltip")])
+                    .binding(compat::read(&defaults, |c| c.mining.crystals_waypoints.enabled.clone()), { let config = config.clone(); move || compat::read(&config, |c| c.mining.crystals_waypoints.enabled.clone()) }, { let config = config.clone(); move |new_value: bool| compat::write(&config, |c| c.mining.crystals_waypoints.enabled = new_value) })
+                    .controller(ConfigUtils::create_boolean_controller())
+                    .build())
+                .option(option::create_builder::<bool>()
+                    .name(component::translatable("skyblocker.config.mining.crystalsWaypoints.findInChat"))
+                    .description(vec![component::translatable("skyblocker.config.mining.crystalsWaypoints.findInChat.@Tooltip")])
+                    .binding(compat::read(&defaults, |c| c.mining.crystals_waypoints.find_in_chat.clone()), { let config = config.clone(); move || compat::read(&config, |c| c.mining.crystals_waypoints.find_in_chat.clone()) }, { let config = config.clone(); move |new_value: bool| compat::write(&config, |c| c.mining.crystals_waypoints.find_in_chat = new_value) })
+                    .controller(ConfigUtils::create_boolean_controller())
+                    .build())
+                .option(option::create_builder::<bool>()
+                    .name(component::translatable("skyblocker.config.mining.crystalsWaypoints.wishingCompassSolver"))
+                    .description(vec![component::translatable("skyblocker.config.mining.crystalsWaypoints.wishingCompassSolver.@Tooltip")])
+                    .binding(compat::read(&defaults, |c| c.mining.crystals_waypoints.wishing_compass_solver.clone()), { let config = config.clone(); move || compat::read(&config, |c| c.mining.crystals_waypoints.wishing_compass_solver.clone()) }, { let config = config.clone(); move |new_value: bool| compat::write(&config, |c| c.mining.crystals_waypoints.wishing_compass_solver = new_value) })
+                    .controller(ConfigUtils::create_boolean_controller())
+                    .build())
+                .option(option::create_builder::<bool>()
+                    .name(component::translatable("skyblocker.config.mining.crystalsWaypoints.shareFairyGrotto"))
+                    .description(vec![component::translatable("skyblocker.config.mining.crystalsWaypoints.shareFairyGrotto.@Tooltip")])
+                    .binding(compat::read(&defaults, |c| c.mining.crystals_waypoints.share_fairy_grotto.clone()), { let config = config.clone(); move || compat::read(&config, |c| c.mining.crystals_waypoints.share_fairy_grotto.clone()) }, { let config = config.clone(); move |new_value: bool| compat::write(&config, |c| c.mining.crystals_waypoints.share_fairy_grotto = new_value) })
+                    .controller(ConfigUtils::create_boolean_controller())
+                    .build())
+                .build())
+            .group(option_group::create_builder()
+                .name(component::translatable("skyblocker.config.mining.commissionWaypoints"))
+                .collapsed(false)
+                .option(option::create_builder::<crate::de::hysky::skyblocker::config::configs::mining_config::CommissionWaypointMode>()
+                    .name(component::translatable("skyblocker.config.mining.commissionWaypoints.mode"))
+                    .description(vec![component::translatable("skyblocker.config.mining.commissionWaypoints.mode.@Tooltip[0]"), component::translatable("skyblocker.config.mining.commissionWaypoints.mode.@Tooltip[1]"), component::translatable("skyblocker.config.mining.commissionWaypoints.mode.@Tooltip[2]"), component::translatable("skyblocker.config.mining.commissionWaypoints.mode.@Tooltip[3]"), component::translatable("skyblocker.config.mining.commissionWaypoints.mode.@Tooltip[4]")])
+                    .binding(compat::read(&defaults, |c| c.mining.commission_waypoints.mode.clone()), { let config = config.clone(); move || compat::read(&config, |c| c.mining.commission_waypoints.mode.clone()) }, { let config = config.clone(); move |new_value: crate::de::hysky::skyblocker::config::configs::mining_config::CommissionWaypointMode| compat::write(&config, |c| c.mining.commission_waypoints.mode = new_value) })
+                    .controller(ConfigUtils::create_enum_controller::<crate::de::hysky::skyblocker::config::configs::mining_config::CommissionWaypointMode>())
+                    .build())
+                .option(option::create_builder::<bool>()
+                    .name(component::translatable("skyblocker.config.mining.commissionWaypoints.useColor"))
+                    .description(vec![component::translatable("skyblocker.config.mining.commissionWaypoints.useColor.@Tooltip")])
+                    .binding(compat::read(&defaults, |c| c.mining.commission_waypoints.use_color.clone()), { let config = config.clone(); move || compat::read(&config, |c| c.mining.commission_waypoints.use_color.clone()) }, { let config = config.clone(); move |new_value: bool| compat::write(&config, |c| c.mining.commission_waypoints.use_color = new_value) })
+                    .controller(ConfigUtils::create_boolean_controller())
+                    .build())
+                .option(option::create_builder::<bool>()
+                    .name(component::translatable("skyblocker.config.mining.commissionWaypoints.showBaseCamp"))
+                    .description(vec![component::translatable("skyblocker.config.mining.commissionWaypoints.showBaseCamp.@Tooltip")])
+                    .binding(compat::read(&defaults, |c| c.mining.commission_waypoints.show_base_camp.clone()), { let config = config.clone(); move || compat::read(&config, |c| c.mining.commission_waypoints.show_base_camp.clone()) }, { let config = config.clone(); move |new_value: bool| compat::write(&config, |c| c.mining.commission_waypoints.show_base_camp = new_value) })
+                    .controller(ConfigUtils::create_boolean_controller())
+                    .build())
+                .option(option::create_builder::<bool>()
+                    .name(component::translatable("skyblocker.config.mining.commissionWaypoints.showEmissary"))
+                    .description(vec![component::translatable("skyblocker.config.mining.commissionWaypoints.showEmissary.@Tooltip")])
+                    .binding(compat::read(&defaults, |c| c.mining.commission_waypoints.show_emissary.clone()), { let config = config.clone(); move || compat::read(&config, |c| c.mining.commission_waypoints.show_emissary.clone()) }, { let config = config.clone(); move |new_value: bool| compat::write(&config, |c| c.mining.commission_waypoints.show_emissary = new_value) })
+                    .controller(ConfigUtils::create_boolean_controller())
+                    .build())
+                .option(option::create_builder::<bool>()
+                    .name(component::translatable("skyblocker.config.mining.commissionWaypoints.hideEmissaryOnPigeon"))
+                    .description(vec![component::translatable("skyblocker.config.mining.commissionWaypoints.hideEmissaryOnPigeon.@Tooltip")])
+                    .binding(compat::read(&defaults, |c| c.mining.commission_waypoints.hide_emissary_on_pigeon.clone()), { let config = config.clone(); move || compat::read(&config, |c| c.mining.commission_waypoints.hide_emissary_on_pigeon.clone()) }, { let config = config.clone(); move |new_value: bool| compat::write(&config, |c| c.mining.commission_waypoints.hide_emissary_on_pigeon = new_value) })
+                    .controller(ConfigUtils::create_boolean_controller())
+                    .build())
+                .build())
+            .group(option_group::create_builder()
+                .name(component::translatable("skyblocker.config.mining.glacite"))
+                .collapsed(false)
+                .option(option::create_builder::<bool>()
+                    .name(component::translatable("skyblocker.config.mining.glacite.coldOverlay"))
+                    .description(vec![component::translatable("skyblocker.config.mining.glacite.coldOverlay.@Tooltip")])
+                    .binding(compat::read(&defaults, |c| c.mining.glacite.cold_overlay.clone()), { let config = config.clone(); move || compat::read(&config, |c| c.mining.glacite.cold_overlay.clone()) }, { let config = config.clone(); move |new_value: bool| compat::write(&config, |c| c.mining.glacite.cold_overlay = new_value) })
+                    .controller(ConfigUtils::create_boolean_controller())
+                    .build())
+                .option(option::create_builder::<bool>()
+                    .name(component::translatable("skyblocker.config.mining.glacite.fossilSolver"))
+                    .description(vec![component::translatable("skyblocker.config.mining.glacite.fossilSolver.@Tooltip")])
+                    .binding(compat::read(&defaults, |c| c.mining.glacite.fossil_solver.clone()), { let config = config.clone(); move || compat::read(&config, |c| c.mining.glacite.fossil_solver.clone()) }, { let config = config.clone(); move |new_value: bool| compat::write(&config, |c| c.mining.glacite.fossil_solver = new_value) })
+                    .controller(ConfigUtils::create_boolean_controller())
+                    .build())
+                .option(option::create_builder::<bool>()
+                    .name(component::translatable("skyblocker.config.mining.glacite.solveFossilMuncher"))
+                    .tags(vec![common_tags::ADDED_IN_6_6_0.get().clone()])
+                    .binding(compat::read(&defaults, |c| c.mining.glacite.solve_fossil_muncher.clone()), { let config = config.clone(); move || compat::read(&config, |c| c.mining.glacite.solve_fossil_muncher.clone()) }, { let config = config.clone(); move |new_value: bool| compat::write(&config, |c| c.mining.glacite.solve_fossil_muncher = new_value) })
+                    .controller(ConfigUtils::create_boolean_controller())
+                    .build())
+                .option(option::create_builder::<bool>()
+                    .name(component::translatable("skyblocker.config.mining.glacite.enableCorpseFinder"))
+                    .description(vec![component::translatable("skyblocker.config.mining.glacite.enableCorpseFinder.@Tooltip")])
+                    .binding(compat::read(&defaults, |c| c.mining.glacite.enable_corpse_finder.clone()), { let config = config.clone(); move || compat::read(&config, |c| c.mining.glacite.enable_corpse_finder.clone()) }, { let config = config.clone(); move |new_value: bool| compat::write(&config, |c| c.mining.glacite.enable_corpse_finder = new_value) })
+                    .controller(ConfigUtils::create_boolean_controller())
+                    .build())
+                .option(option::create_builder::<bool>()
+                    .name(component::translatable("skyblocker.config.mining.glacite.enableParsingChatCorpseFinder"))
+                    .description(vec![component::translatable("skyblocker.config.mining.glacite.enableParsingChatCorpseFinder.@Tooltip")])
+                    .binding(compat::read(&defaults, |c| c.mining.glacite.enable_parsing_chat_corpse_finder.clone()), { let config = config.clone(); move || compat::read(&config, |c| c.mining.glacite.enable_parsing_chat_corpse_finder.clone()) }, { let config = config.clone(); move |new_value: bool| compat::write(&config, |c| c.mining.glacite.enable_parsing_chat_corpse_finder = new_value) })
+                    .controller(ConfigUtils::create_boolean_controller())
+                    .build())
+                .option(option::create_builder::<bool>()
+                    .name(component::translatable("skyblocker.config.mining.glacite.autoShareCorpses"))
+                    .description(vec![component::translatable("skyblocker.config.mining.glacite.autoShareCorpses.@Tooltip")])
+                    .binding(compat::read(&defaults, |c| c.mining.glacite.auto_share_corpses.clone()), { let config = config.clone(); move || compat::read(&config, |c| c.mining.glacite.auto_share_corpses.clone()) }, { let config = config.clone(); move |new_value: bool| compat::write(&config, |c| c.mining.glacite.auto_share_corpses = new_value) })
+                    .controller(ConfigUtils::create_boolean_controller())
+                    .build())
+                .option(option::create_builder::<bool>()
+                    .name(component::translatable("skyblocker.config.mining.glacite.enableCorpseProfitTracker"))
+                    .description(vec![component::translatable("skyblocker.config.mining.glacite.enableCorpseProfitTracker.@Tooltip")])
+                    .binding(compat::read(&defaults, |c| c.mining.glacite.enable_corpse_profit_tracker.clone()), { let config = config.clone(); move || compat::read(&config, |c| c.mining.glacite.enable_corpse_profit_tracker.clone()) }, { let config = config.clone(); move |new_value: bool| compat::write(&config, |c| c.mining.glacite.enable_corpse_profit_tracker = new_value) })
+                    .controller(ConfigUtils::create_boolean_controller())
+                    .build())
+                .option(option::create_builder::<bool>()
+                    .name(component::translatable("skyblocker.config.mining.glacite.forceEnglishCorpseProfitTracker"))
+                    .description(vec![component::translatable("skyblocker.config.mining.glacite.forceEnglishCorpseProfitTracker.@Tooltip")])
+                    .tags(vec![common_tags::ADDED_IN_5_9_0.get().clone()])
+                    .binding(compat::read(&defaults, |c| c.mining.glacite.force_english_corpse_profit_tracker.clone()), { let config = config.clone(); move || compat::read(&config, |c| c.mining.glacite.force_english_corpse_profit_tracker.clone()) }, { let config = config.clone(); move |new_value: bool| compat::write(&config, |c| c.mining.glacite.force_english_corpse_profit_tracker = new_value) })
+                    .controller(ConfigUtils::create_boolean_controller())
+                    .build())
+                .build())
+            .group(option_group::create_builder()
+                .name(component::translatable("skyblocker.config.mining.blockBreakPrediction"))
+                .option(option::create_builder::<bool>()
+                    .name(component::translatable("skyblocker.config.mining.blockBreakPrediction.enabled"))
+                    .tags(vec![common_tags::ADDED_IN_6_0_0.get().clone()])
+                    .binding(compat::read(&defaults, |c| c.mining.block_break_prediction.enabled.clone()), { let config = config.clone(); move || compat::read(&config, |c| c.mining.block_break_prediction.enabled.clone()) }, { let config = config.clone(); move |new_value: bool| compat::write(&config, |c| c.mining.block_break_prediction.enabled = new_value) })
+                    .controller(ConfigUtils::create_boolean_controller())
+                    .build())
+                .option(option::create_builder::<bool>()
+                    .name(component::translatable("skyblocker.config.mining.blockBreakPrediction.playSound"))
+                    .description(vec![component::translatable("skyblocker.config.mining.blockBreakPrediction.playSound.@Tooltip")])
+                    .tags(vec![common_tags::ADDED_IN_6_0_0.get().clone()])
+                    .binding(compat::read(&defaults, |c| c.mining.block_break_prediction.play_sound.clone()), { let config = config.clone(); move || compat::read(&config, |c| c.mining.block_break_prediction.play_sound.clone()) }, { let config = config.clone(); move |new_value: bool| compat::write(&config, |c| c.mining.block_break_prediction.play_sound = new_value) })
+                    .controller(ConfigUtils::create_boolean_controller())
+                    .build())
+                .build())
+            .build();
     }
-
 }

@@ -5,8 +5,11 @@ use crate::prelude::*;
 
 use crate::de::hysky::skyblocker::config::skyblocker_config_manager::SkyblockerConfigManager;
 
+/// ModMenu's `ConfigScreenFactory<?>`: `S create(Screen parent)`. The screens are Dandelion's / YACL's
+/// (`compat::ScreenRef`: the parent handed in, the config screen answered).
+pub type ConfigScreenFactory = Arc<dyn Fn(dandelion::compat::ScreenRef) -> dandelion::compat::ScreenRef>;
 
-pub fn get_mod_config_screen_factory() -> crate::unresolved::ConfigScreenFactory {
+pub fn get_mod_config_screen_factory() -> ConfigScreenFactory {
     // java: return SkyblockerConfigManager::createGUI;
-    return Arc::new(move |__a0: mcrust::net::minecraft::client::gui::screens::screen::Screen| SkyblockerConfigManager::create_gui(Some(__a0)));
+    return Arc::new(move |parent: dandelion::compat::ScreenRef| SkyblockerConfigManager::create_gui(Some(parent)));
 }

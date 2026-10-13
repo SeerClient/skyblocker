@@ -137,10 +137,10 @@ impl ConfigBackupScreen {
                             }
                             if has_parent {
                                 // java: minecraft.setScreen(SkyblockerConfigManager.createGUI(parent));
-                                // rust: port gap - the config GUI is the YACL / Dandelion screen the config merge replaces: the
-                                // screen goes back to the parent this one was opened over (GAPS_L.md)
+                                // The parent this screen holds comes back up, and a new config screen opens over it with
+                                // it as its parent (the reloaded config is what the new screen shows).
                                 mcrust::mcrust::modding::game::set_screen_to_parent();
-                                mcrust::mcrust::modding::game::set_screen_to_parent();
+                                crate::de::hysky::skyblocker::config::skyblocker_config_manager::SkyblockerConfigManager::create_gui(Some(dandelion::compat::ScreenRef::Current)).set();
                             } else {
                                 mcrust::mcrust::modding::game::set_screen_null();
                             }

@@ -51,14 +51,19 @@ impl ConfigPatchLoader {
                 }
             }
         })()), compat::executor)).then_apply_async(|json| {
-            // TODO(fabric2seer): static field ConfigPatch.PATCH_LIST_CODEC
-            //   java: List<ConfigPatch> patches = ConfigPatch.PATCH_LIST_CODEC.parse(JsonOps.INSTANCE, json)
-            //   java: 					.setPartial(List.of())
-            //   java: 					.resultOrPartial(error -> LOGGER.error(LogUtils.FATAL_MARKER, "[Skyblocker Config Patch Loader] Failed to parse config patches! Error: {}", error))
-            //   java: 					.get();
-            // rust: port gap - `ConfigPatch` is Dandelion's (the config library the config merge replaces): its
-            // PATCH_LIST_CODEC is not in the crate (GAPS_L.md)
-            let mut patches: Vec<crate::unresolved::ConfigPatch> = todo!("fabric2seer: the initialiser of `patches` (TODO above)");
+            // java: List<ConfigPatch> patches = ConfigPatch.PATCH_LIST_CODEC.parse(JsonOps.INSTANCE, json)
+            //       .setPartial(List.of())
+            //       .resultOrPartial(error -> LOGGER.error(LogUtils.FATAL_MARKER, "[Skyblocker Config Patch Loader] Failed to parse config patches! Error: {}", error))
+            //       .get();
+            let patches: Vec<Arc<dyn dandelion::net::azureaaron::dandelion::api::patching::config_patch::ConfigPatch>> = {
+                use mcrust::com::mojang::serialization::decoder::Decoder as _;
+                let codec = dandelion::net::azureaaron::dandelion::api::patching::config_patch::PATCH_LIST_CODEC.get().clone();
+                codec
+                    .parse(&mcrust::com::mojang::serialization::json_ops::JsonOps::instance(), &dandelion::compat::json_to_port(&json))
+                    .set_partial(Vec::new())
+                    .result_or_partial_with(|error| logger().error(&format!("[Skyblocker Config Patch Loader] Failed to parse config patches! Error: {}", error)))
+                    .unwrap_or_default()
+            };
             logger().info("[Skyblocker Config Patch Loader] Successfully loaded config patches.");
             SkyblockerConfigManager::set_patches(&patches);
             return true;

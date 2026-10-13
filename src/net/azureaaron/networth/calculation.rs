@@ -1,6 +1,53 @@
 //! java: public record Calculation(Type type, String id, double price, int count) (net.azureaaron.networth)
 //!
-//! `LIST_CODEC` is not ported: nothing in Skyblocker reads it.
+//! Used to describe a calculation made for the networth of an an object. There is a `LIST_CODEC` provided for
+//! serializing a list of this to some other format such as JSON.
+
+use std::sync::LazyLock;
+
+use mcrust::com::mojang::serialization::codec::{self, CodecRef};
+use mcrust::com::mojang::serialization::codecs::record_codec_builder;
+use mcrust::com::mojang::serialization::data_result::{self, DataResult};
+
+/// java: private static final Codec<Calculation> CODEC
+static CODEC: LazyLock<CodecRef<Calculation>> = LazyLock::new(|| {
+    record_codec_builder::create(record_codec_builder::apply4(
+        record_codec_builder::of(
+            |o: &Calculation| o.r#type,
+            codec::field_of(
+                // java: Codec.STRING.comapFlatMap(name -> { try { success(Type.valueOf(name)) } catch (IllegalArgumentException) { error } }, Type::name)
+                codec::comap_flat_map(
+                    codec::string_codec(),
+                    |name: String| match Type::value_of(&name) {
+                        Some(r#type) => DataResult::success(r#type),
+                        None => DataResult::error(data_result::message(format!(
+                            "Unknown calculation type: {name}"
+                        ))),
+                    },
+                    |r#type: &Type| r#type.name().to_string(),
+                ),
+                "type",
+            ),
+        ),
+        record_codec_builder::of(
+            |o: &Calculation| o.id.clone(),
+            codec::field_of(codec::string_codec(), "id"),
+        ),
+        record_codec_builder::of(
+            |o: &Calculation| o.price,
+            codec::field_of(codec::double_codec(), "price"),
+        ),
+        record_codec_builder::of(
+            |o: &Calculation| o.count,
+            codec::field_of(codec::int_codec(), "count"),
+        ),
+        Calculation::new,
+    ))
+});
+
+/// java: public static final Codec<List<Calculation>> LIST_CODEC = CODEC.listOf();
+pub static LIST_CODEC: LazyLock<CodecRef<Vec<Calculation>>> =
+    LazyLock::new(|| codec::list(CODEC.clone()));
 
 /// java: public record Calculation(Type type, String id, double price, int count)
 #[derive(Clone, Debug, PartialEq)]

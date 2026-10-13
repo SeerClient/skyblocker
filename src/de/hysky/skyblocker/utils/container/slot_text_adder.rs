@@ -103,18 +103,30 @@ impl ConfigInformation {
     }
 
     /// java: public Option<Boolean> getOption(SkyblockerConfig config)
-    pub fn get_option(&self, config: &SkyblockerConfig) -> crate::unresolved::Option {
-        // rust: blocked (GAPS_J #12) - YACL's `Option.createBuilder()`: the config types (`config/`) are being replaced by
-        // the generated Dandelion / YACL merge, which this batch must not touch; written once those types exist.
-        //   java: return Option.<Boolean>createBuilder()
-        //   java: 					.name(name)
-        //   java: 					.description(description != null ? description : new Component[0])
-        //   java: 					.binding(true,
-        //   java: 							() -> config.uiAndVisuals.slotText.textEnabled.getOrDefault(id, true),
-        //   java: 							newValue -> config.uiAndVisuals.slotText.textEnabled.put(id, newValue.booleanValue()))
-        //   java: 					.controller(ConfigUtils.createBooleanController())
-        //   java: 					.build();
-        todo!("fabric2seer: the value of this function is in a TODO above")
+    pub fn get_option(&self, config: &compat::Shared<SkyblockerConfig>) -> Arc<dyn dandelion::net::azureaaron::dandelion::api::option::Option<bool>> {
+        use dandelion::net::azureaaron::dandelion::api::option::{self, Builder as _};
+        // java: return Option.<Boolean>createBuilder()
+        //       .name(name)
+        //       .description(description != null ? description : new Component[0])
+        //       .binding(true,
+        //               () -> config.uiAndVisuals.slotText.textEnabled.getOrDefault(id, true),
+        //               newValue -> config.uiAndVisuals.slotText.textEnabled.put(id, newValue.booleanValue()))
+        //       .controller(ConfigUtils.createBooleanController())
+        //       .build();
+        let (get_id, get_config) = (self.id.clone(), config.clone());
+        let (set_id, set_config) = (self.id.clone(), config.clone());
+        return option::create_builder::<bool>()
+            .name(self.name.clone())
+            .description(self.description.clone().unwrap_or_default())
+            .binding(
+                true,
+                move || compat::read(&get_config, |c| c.ui_and_visuals.slot_text.text_enabled.get(&get_id).cloned().unwrap_or(true)),
+                move |new_value: bool| compat::write(&set_config, |c| {
+                    c.ui_and_visuals.slot_text.text_enabled.insert(set_id.clone(), new_value);
+                }),
+            )
+            .controller(crate::de::hysky::skyblocker::config::config_utils::ConfigUtils::create_boolean_controller())
+            .build();
     }
 
     /// java: @Override public boolean equals(Object obj)

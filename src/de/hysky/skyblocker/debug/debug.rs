@@ -79,9 +79,9 @@ impl Debug {
                 //   java: 		.then(auditMixins()).then(prefixTest()).then(apiId()).then(neuName())));
                 let mut debug = client_command_registration_callback::literal("debug");
                 debug.then(&Debug::dump_players_command());
-                // rust: cross-package - `ItemUtils.dumpHeldItemCommand()` / `dumpHeldItemNetworthCalculationsCommand()`
-                // (utils/item_utils.rs) are still the converter's placeholders typed over `crate::unresolved`; they join
-                // the tree once they answer the real builder (GAPS_K)
+                // rust: cross-package - `ItemUtils.dumpHeldItemCommand()` (utils/item_utils.rs) is still the converter's
+                // placeholder typed over `crate::unresolved`; it joins the tree once it answers the real builder (GAPS_K)
+                debug.then(&item_utils::ItemUtils::dump_held_item_networth_calculations_command());
                 debug.then(&Debug::toggle_showing_invisible_armor_stands());
                 debug.then(&Debug::dump_armor_stand_head_textures());
                 debug.then(&Debug::toggle_web_socket_debug());

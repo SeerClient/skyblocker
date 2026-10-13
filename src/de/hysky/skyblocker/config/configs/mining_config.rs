@@ -450,3 +450,655 @@ impl std::fmt::Display for DwarvenHudStyle {
         write!(f, "{}", DwarvenHudStyle::to_string(self))
     }
 }
+
+// Generated Gson forms for src/de/hysky/skyblocker/config/configs/mining_config.rs (fabric2seer round 24): APPEND to that file.
+// Needs `serde_json` in Cargo.toml and the `compat` of this round (dandelion::compat::GsonValue, ClassOf, ...).
+
+/// MiningConfig's Gson form (`Gson.toJson` / `fromJson` by reflection in Java; generated here)
+impl MiningConfig {
+    /// `gson.toJson(this)`: the fields in Gson's order (declaration order), nulls written
+    pub fn __gson_write(&self) -> dandelion::compat::GsonValue {
+        dandelion::compat::GsonValue::Obj(vec![
+            ("enableDrillFuel".to_string(), dandelion::compat::GsonValue::Bool(*(&self.enable_drill_fuel))),
+            ("commissionHighlight".to_string(), dandelion::compat::GsonValue::Bool(*(&self.commission_highlight))),
+            ("callMismyla".to_string(), dandelion::compat::GsonValue::Bool(*(&self.call_mismyla))),
+            ("redialOnBadSignal".to_string(), dandelion::compat::GsonValue::Bool(*(&self.redial_on_bad_signal))),
+            ("pickobulusHelper".to_string(), ((&self.pickobulus_helper)).__gson_write()),
+            ("dwarvenMines".to_string(), ((&self.dwarven_mines)).__gson_write()),
+            ("crystalHollows".to_string(), ((&self.crystal_hollows)).__gson_write()),
+            ("crystalsHud".to_string(), ((&self.crystals_hud)).__gson_write()),
+            ("crystalsWaypoints".to_string(), ((&self.crystals_waypoints)).__gson_write()),
+            ("commissionWaypoints".to_string(), ((&self.commission_waypoints)).__gson_write()),
+            ("glacite".to_string(), ((&self.glacite)).__gson_write()),
+            ("blockBreakPrediction".to_string(), ((&self.block_break_prediction)).__gson_write()),
+        ])
+    }
+
+    /// `gson.fromJson(json, X.class)`: a new object from the no-argument constructor, then every key
+    /// present set; unknown keys are ignored
+    pub fn __gson_read(__v: &serde_json::Value) -> Option<MiningConfig> {
+        let __o = __v.as_object()?;
+        let mut __this = MiningConfig::new();
+        if let Some(__v) = __o.get("enableDrillFuel") {
+            if let Some(__x) = dandelion::compat::gson_bool(__v) { __this.enable_drill_fuel = __x; }
+        }
+        if let Some(__v) = __o.get("commissionHighlight") {
+            if let Some(__x) = dandelion::compat::gson_bool(__v) { __this.commission_highlight = __x; }
+        }
+        if let Some(__v) = __o.get("callMismyla") {
+            if let Some(__x) = dandelion::compat::gson_bool(__v) { __this.call_mismyla = __x; }
+        }
+        if let Some(__v) = __o.get("redialOnBadSignal") {
+            if let Some(__x) = dandelion::compat::gson_bool(__v) { __this.redial_on_bad_signal = __x; }
+        }
+        if let Some(__v) = __o.get("pickobulusHelper") {
+            if let Some(__x) = PickobulusHelper::__gson_read(__v) { __this.pickobulus_helper = __x; }
+        }
+        if let Some(__v) = __o.get("dwarvenMines") {
+            if let Some(__x) = DwarvenMines::__gson_read(__v) { __this.dwarven_mines = __x; }
+        }
+        if let Some(__v) = __o.get("crystalHollows") {
+            if let Some(__x) = CrystalHollows::__gson_read(__v) { __this.crystal_hollows = __x; }
+        }
+        if let Some(__v) = __o.get("crystalsHud") {
+            if let Some(__x) = CrystalsHud::__gson_read(__v) { __this.crystals_hud = __x; }
+        }
+        if let Some(__v) = __o.get("crystalsWaypoints") {
+            if let Some(__x) = CrystalsWaypoints::__gson_read(__v) { __this.crystals_waypoints = __x; }
+        }
+        if let Some(__v) = __o.get("commissionWaypoints") {
+            if let Some(__x) = CommissionWaypoints::__gson_read(__v) { __this.commission_waypoints = __x; }
+        }
+        if let Some(__v) = __o.get("glacite") {
+            if let Some(__x) = Glacite::__gson_read(__v) { __this.glacite = __x; }
+        }
+        if let Some(__v) = __o.get("blockBreakPrediction") {
+            if let Some(__x) = BlockBreakPrediction::__gson_read(__v) { __this.block_break_prediction = __x; }
+        }
+        Some(__this)
+    }
+
+    /// Dandelion's ConfigPatcher: the field at a dotted path (`getDeclaredField` per segment) set to a
+    /// boolean or an enum constant; false where Java's reflective walk fails
+    pub fn __gson_patch(&mut self, __path: &[&str], __value: &dandelion::compat::PatchValue) -> bool {
+        match __path {
+            [__name] => match *__name {
+                "enableDrillFuel" => if let dandelion::compat::PatchValue::Bool(__b) = __value { self.enable_drill_fuel = *__b; true } else { false },
+                "commissionHighlight" => if let dandelion::compat::PatchValue::Bool(__b) = __value { self.commission_highlight = *__b; true } else { false },
+                "callMismyla" => if let dandelion::compat::PatchValue::Bool(__b) = __value { self.call_mismyla = *__b; true } else { false },
+                "redialOnBadSignal" => if let dandelion::compat::PatchValue::Bool(__b) = __value { self.redial_on_bad_signal = *__b; true } else { false },
+                _ => false,
+            },
+            [__first, __rest @ ..] => match *__first {
+                "pickobulusHelper" => self.pickobulus_helper.__gson_patch(__rest, __value),
+                "dwarvenMines" => self.dwarven_mines.__gson_patch(__rest, __value),
+                "crystalHollows" => self.crystal_hollows.__gson_patch(__rest, __value),
+                "crystalsHud" => self.crystals_hud.__gson_patch(__rest, __value),
+                "crystalsWaypoints" => self.crystals_waypoints.__gson_patch(__rest, __value),
+                "commissionWaypoints" => self.commission_waypoints.__gson_patch(__rest, __value),
+                "glacite" => self.glacite.__gson_patch(__rest, __value),
+                "blockBreakPrediction" => self.block_break_prediction.__gson_patch(__rest, __value),
+                _ => false,
+            },
+            [] => false,
+        }
+    }
+
+    /// `MiningConfig.class` as reflection sees it
+    pub fn __class_of() -> dandelion::compat::ClassOf<MiningConfig> {
+        dandelion::compat::ClassOf {
+            name: "de.hysky.skyblocker.config.configs.MiningConfig",
+            new: MiningConfig::new,
+            to_gson: |__x| __x.__gson_write(),
+            read_gson: MiningConfig::__gson_read,
+            patch: |__x, __p, __v| __x.__gson_patch(__p, __v),
+            is_enum: false,
+            enum_constants: Vec::new,
+        }
+    }
+}
+
+/// PickobulusHelper's Gson form (`Gson.toJson` / `fromJson` by reflection in Java; generated here)
+impl PickobulusHelper {
+    /// `gson.toJson(this)`: the fields in Gson's order (declaration order), nulls written
+    pub fn __gson_write(&self) -> dandelion::compat::GsonValue {
+        dandelion::compat::GsonValue::Obj(vec![
+            ("enablePickobulusHelper".to_string(), dandelion::compat::GsonValue::Bool(*(&self.enable_pickobulus_helper))),
+            ("hideHudOnCooldown".to_string(), dandelion::compat::GsonValue::Bool(*(&self.hide_hud_on_cooldown))),
+        ])
+    }
+
+    /// `gson.fromJson(json, X.class)`: a new object from the no-argument constructor, then every key
+    /// present set; unknown keys are ignored
+    pub fn __gson_read(__v: &serde_json::Value) -> Option<PickobulusHelper> {
+        let __o = __v.as_object()?;
+        let mut __this = PickobulusHelper::new();
+        if let Some(__v) = __o.get("enablePickobulusHelper") {
+            if let Some(__x) = dandelion::compat::gson_bool(__v) { __this.enable_pickobulus_helper = __x; }
+        }
+        if let Some(__v) = __o.get("hideHudOnCooldown") {
+            if let Some(__x) = dandelion::compat::gson_bool(__v) { __this.hide_hud_on_cooldown = __x; }
+        }
+        Some(__this)
+    }
+
+    /// Dandelion's ConfigPatcher: the field at a dotted path (`getDeclaredField` per segment) set to a
+    /// boolean or an enum constant; false where Java's reflective walk fails
+    pub fn __gson_patch(&mut self, __path: &[&str], __value: &dandelion::compat::PatchValue) -> bool {
+        match __path {
+            [__name] => match *__name {
+                "enablePickobulusHelper" => if let dandelion::compat::PatchValue::Bool(__b) = __value { self.enable_pickobulus_helper = *__b; true } else { false },
+                "hideHudOnCooldown" => if let dandelion::compat::PatchValue::Bool(__b) = __value { self.hide_hud_on_cooldown = *__b; true } else { false },
+                _ => false,
+            },
+            [__first, __rest @ ..] => match *__first {
+                _ => false,
+            },
+            [] => false,
+        }
+    }
+
+    /// `PickobulusHelper.class` as reflection sees it
+    pub fn __class_of() -> dandelion::compat::ClassOf<PickobulusHelper> {
+        dandelion::compat::ClassOf {
+            name: "de.hysky.skyblocker.config.configs.MiningConfig$PickobulusHelper",
+            new: PickobulusHelper::new,
+            to_gson: |__x| __x.__gson_write(),
+            read_gson: PickobulusHelper::__gson_read,
+            patch: |__x, __p, __v| __x.__gson_patch(__p, __v),
+            is_enum: false,
+            enum_constants: Vec::new,
+        }
+    }
+}
+
+/// DwarvenMines's Gson form (`Gson.toJson` / `fromJson` by reflection in Java; generated here)
+impl DwarvenMines {
+    /// `gson.toJson(this)`: the fields in Gson's order (declaration order), nulls written
+    pub fn __gson_write(&self) -> dandelion::compat::GsonValue {
+        dandelion::compat::GsonValue::Obj(vec![
+            ("solveFetchur".to_string(), dandelion::compat::GsonValue::Bool(*(&self.solve_fetchur))),
+            ("solvePuzzler".to_string(), dandelion::compat::GsonValue::Bool(*(&self.solve_puzzler))),
+            ("enableCarpetHighlighter".to_string(), dandelion::compat::GsonValue::Bool(*(&self.enable_carpet_highlighter))),
+            ("carpetHighlightColor".to_string(), dandelion::compat::GsonValue::int(((&self.carpet_highlight_color)).get_rgb() as i64)),
+        ])
+    }
+
+    /// `gson.fromJson(json, X.class)`: a new object from the no-argument constructor, then every key
+    /// present set; unknown keys are ignored
+    pub fn __gson_read(__v: &serde_json::Value) -> Option<DwarvenMines> {
+        let __o = __v.as_object()?;
+        let mut __this = DwarvenMines::new();
+        if let Some(__v) = __o.get("solveFetchur") {
+            if let Some(__x) = dandelion::compat::gson_bool(__v) { __this.solve_fetchur = __x; }
+        }
+        if let Some(__v) = __o.get("solvePuzzler") {
+            if let Some(__x) = dandelion::compat::gson_bool(__v) { __this.solve_puzzler = __x; }
+        }
+        if let Some(__v) = __o.get("enableCarpetHighlighter") {
+            if let Some(__x) = dandelion::compat::gson_bool(__v) { __this.enable_carpet_highlighter = __x; }
+        }
+        if let Some(__v) = __o.get("carpetHighlightColor") {
+            if let Some(__x) = dandelion::compat::gson_i64(__v).map(|__n| Color::from_rgba(__n as i32, true)) { __this.carpet_highlight_color = __x; }
+        }
+        Some(__this)
+    }
+
+    /// Dandelion's ConfigPatcher: the field at a dotted path (`getDeclaredField` per segment) set to a
+    /// boolean or an enum constant; false where Java's reflective walk fails
+    pub fn __gson_patch(&mut self, __path: &[&str], __value: &dandelion::compat::PatchValue) -> bool {
+        match __path {
+            [__name] => match *__name {
+                "solveFetchur" => if let dandelion::compat::PatchValue::Bool(__b) = __value { self.solve_fetchur = *__b; true } else { false },
+                "solvePuzzler" => if let dandelion::compat::PatchValue::Bool(__b) = __value { self.solve_puzzler = *__b; true } else { false },
+                "enableCarpetHighlighter" => if let dandelion::compat::PatchValue::Bool(__b) = __value { self.enable_carpet_highlighter = *__b; true } else { false },
+                _ => false,
+            },
+            [__first, __rest @ ..] => match *__first {
+                _ => false,
+            },
+            [] => false,
+        }
+    }
+
+    /// `DwarvenMines.class` as reflection sees it
+    pub fn __class_of() -> dandelion::compat::ClassOf<DwarvenMines> {
+        dandelion::compat::ClassOf {
+            name: "de.hysky.skyblocker.config.configs.MiningConfig$DwarvenMines",
+            new: DwarvenMines::new,
+            to_gson: |__x| __x.__gson_write(),
+            read_gson: DwarvenMines::__gson_read,
+            patch: |__x, __p, __v| __x.__gson_patch(__p, __v),
+            is_enum: false,
+            enum_constants: Vec::new,
+        }
+    }
+}
+
+/// CrystalHollows's Gson form (`Gson.toJson` / `fromJson` by reflection in Java; generated here)
+impl CrystalHollows {
+    /// `gson.toJson(this)`: the fields in Gson's order (declaration order), nulls written
+    pub fn __gson_write(&self) -> dandelion::compat::GsonValue {
+        dandelion::compat::GsonValue::Obj(vec![
+            ("metalDetectorHelper".to_string(), dandelion::compat::GsonValue::Bool(*(&self.metal_detector_helper))),
+            ("nucleusWaypoints".to_string(), dandelion::compat::GsonValue::Bool(*(&self.nucleus_waypoints))),
+            ("chestHighlighter".to_string(), dandelion::compat::GsonValue::Bool(*(&self.chest_highlighter))),
+            ("chestHighlightColor".to_string(), dandelion::compat::GsonValue::int(((&self.chest_highlight_color)).get_rgb() as i64)),
+            ("countNaturalChestsInTracker".to_string(), dandelion::compat::GsonValue::Bool(*(&self.count_natural_chests_in_tracker))),
+            ("powderTrackerFilter".to_string(), dandelion::compat::GsonValue::Arr(((&self.powder_tracker_filter)).iter().map(|__x0| dandelion::compat::GsonValue::str(&__x0)).collect())),
+        ])
+    }
+
+    /// `gson.fromJson(json, X.class)`: a new object from the no-argument constructor, then every key
+    /// present set; unknown keys are ignored
+    pub fn __gson_read(__v: &serde_json::Value) -> Option<CrystalHollows> {
+        let __o = __v.as_object()?;
+        let mut __this = CrystalHollows::new();
+        if let Some(__v) = __o.get("metalDetectorHelper") {
+            if let Some(__x) = dandelion::compat::gson_bool(__v) { __this.metal_detector_helper = __x; }
+        }
+        if let Some(__v) = __o.get("nucleusWaypoints") {
+            if let Some(__x) = dandelion::compat::gson_bool(__v) { __this.nucleus_waypoints = __x; }
+        }
+        if let Some(__v) = __o.get("chestHighlighter") {
+            if let Some(__x) = dandelion::compat::gson_bool(__v) { __this.chest_highlighter = __x; }
+        }
+        if let Some(__v) = __o.get("chestHighlightColor") {
+            if let Some(__x) = dandelion::compat::gson_i64(__v).map(|__n| Color::from_rgba(__n as i32, true)) { __this.chest_highlight_color = __x; }
+        }
+        if let Some(__v) = __o.get("countNaturalChestsInTracker") {
+            if let Some(__x) = dandelion::compat::gson_bool(__v) { __this.count_natural_chests_in_tracker = __x; }
+        }
+        if let Some(__v) = __o.get("powderTrackerFilter") {
+            if let Some(__x) = (__v).as_array().map(|__a| __a.iter().filter_map(|__y0| dandelion::compat::gson_string(__y0)).collect()) { __this.powder_tracker_filter = __x; }
+        }
+        Some(__this)
+    }
+
+    /// Dandelion's ConfigPatcher: the field at a dotted path (`getDeclaredField` per segment) set to a
+    /// boolean or an enum constant; false where Java's reflective walk fails
+    pub fn __gson_patch(&mut self, __path: &[&str], __value: &dandelion::compat::PatchValue) -> bool {
+        match __path {
+            [__name] => match *__name {
+                "metalDetectorHelper" => if let dandelion::compat::PatchValue::Bool(__b) = __value { self.metal_detector_helper = *__b; true } else { false },
+                "nucleusWaypoints" => if let dandelion::compat::PatchValue::Bool(__b) = __value { self.nucleus_waypoints = *__b; true } else { false },
+                "chestHighlighter" => if let dandelion::compat::PatchValue::Bool(__b) = __value { self.chest_highlighter = *__b; true } else { false },
+                "countNaturalChestsInTracker" => if let dandelion::compat::PatchValue::Bool(__b) = __value { self.count_natural_chests_in_tracker = *__b; true } else { false },
+                _ => false,
+            },
+            [__first, __rest @ ..] => match *__first {
+                _ => false,
+            },
+            [] => false,
+        }
+    }
+
+    /// `CrystalHollows.class` as reflection sees it
+    pub fn __class_of() -> dandelion::compat::ClassOf<CrystalHollows> {
+        dandelion::compat::ClassOf {
+            name: "de.hysky.skyblocker.config.configs.MiningConfig$CrystalHollows",
+            new: CrystalHollows::new,
+            to_gson: |__x| __x.__gson_write(),
+            read_gson: CrystalHollows::__gson_read,
+            patch: |__x, __p, __v| __x.__gson_patch(__p, __v),
+            is_enum: false,
+            enum_constants: Vec::new,
+        }
+    }
+}
+
+/// CrystalsHud's Gson form (`Gson.toJson` / `fromJson` by reflection in Java; generated here)
+impl CrystalsHud {
+    /// `gson.toJson(this)`: the fields in Gson's order (declaration order), nulls written
+    pub fn __gson_write(&self) -> dandelion::compat::GsonValue {
+        dandelion::compat::GsonValue::Obj(vec![
+            ("enabled".to_string(), dandelion::compat::GsonValue::Bool(*(&self.enabled))),
+            ("showLocations".to_string(), dandelion::compat::GsonValue::Bool(*(&self.show_locations))),
+            ("locationSize".to_string(), dandelion::compat::GsonValue::int(*(&self.location_size) as i64)),
+            ("x".to_string(), dandelion::compat::GsonValue::int(*(&self.x) as i64)),
+            ("y".to_string(), dandelion::compat::GsonValue::int(*(&self.y) as i64)),
+            ("mapScaling".to_string(), dandelion::compat::GsonValue::float(*(&self.map_scaling))),
+        ])
+    }
+
+    /// `gson.fromJson(json, X.class)`: a new object from the no-argument constructor, then every key
+    /// present set; unknown keys are ignored
+    pub fn __gson_read(__v: &serde_json::Value) -> Option<CrystalsHud> {
+        let __o = __v.as_object()?;
+        let mut __this = CrystalsHud::new();
+        if let Some(__v) = __o.get("enabled") {
+            if let Some(__x) = dandelion::compat::gson_bool(__v) { __this.enabled = __x; }
+        }
+        if let Some(__v) = __o.get("showLocations") {
+            if let Some(__x) = dandelion::compat::gson_bool(__v) { __this.show_locations = __x; }
+        }
+        if let Some(__v) = __o.get("locationSize") {
+            if let Some(__x) = dandelion::compat::gson_i64(__v).map(|__n| __n as i32) { __this.location_size = __x; }
+        }
+        if let Some(__v) = __o.get("x") {
+            if let Some(__x) = dandelion::compat::gson_i64(__v).map(|__n| __n as i32) { __this.x = __x; }
+        }
+        if let Some(__v) = __o.get("y") {
+            if let Some(__x) = dandelion::compat::gson_i64(__v).map(|__n| __n as i32) { __this.y = __x; }
+        }
+        if let Some(__v) = __o.get("mapScaling") {
+            if let Some(__x) = dandelion::compat::gson_f64(__v).map(|__n| __n as f32) { __this.map_scaling = __x; }
+        }
+        Some(__this)
+    }
+
+    /// Dandelion's ConfigPatcher: the field at a dotted path (`getDeclaredField` per segment) set to a
+    /// boolean or an enum constant; false where Java's reflective walk fails
+    pub fn __gson_patch(&mut self, __path: &[&str], __value: &dandelion::compat::PatchValue) -> bool {
+        match __path {
+            [__name] => match *__name {
+                "enabled" => if let dandelion::compat::PatchValue::Bool(__b) = __value { self.enabled = *__b; true } else { false },
+                "showLocations" => if let dandelion::compat::PatchValue::Bool(__b) = __value { self.show_locations = *__b; true } else { false },
+                _ => false,
+            },
+            [__first, __rest @ ..] => match *__first {
+                _ => false,
+            },
+            [] => false,
+        }
+    }
+
+    /// `CrystalsHud.class` as reflection sees it
+    pub fn __class_of() -> dandelion::compat::ClassOf<CrystalsHud> {
+        dandelion::compat::ClassOf {
+            name: "de.hysky.skyblocker.config.configs.MiningConfig$CrystalsHud",
+            new: CrystalsHud::new,
+            to_gson: |__x| __x.__gson_write(),
+            read_gson: CrystalsHud::__gson_read,
+            patch: |__x, __p, __v| __x.__gson_patch(__p, __v),
+            is_enum: false,
+            enum_constants: Vec::new,
+        }
+    }
+}
+
+/// CrystalsWaypoints's Gson form (`Gson.toJson` / `fromJson` by reflection in Java; generated here)
+impl CrystalsWaypoints {
+    /// `gson.toJson(this)`: the fields in Gson's order (declaration order), nulls written
+    pub fn __gson_write(&self) -> dandelion::compat::GsonValue {
+        dandelion::compat::GsonValue::Obj(vec![
+            ("enabled".to_string(), dandelion::compat::GsonValue::Bool(*(&self.enabled))),
+            ("findInChat".to_string(), dandelion::compat::GsonValue::Bool(*(&self.find_in_chat))),
+            ("wishingCompassSolver".to_string(), dandelion::compat::GsonValue::Bool(*(&self.wishing_compass_solver))),
+            ("shareFairyGrotto".to_string(), dandelion::compat::GsonValue::Bool(*(&self.share_fairy_grotto))),
+        ])
+    }
+
+    /// `gson.fromJson(json, X.class)`: a new object from the no-argument constructor, then every key
+    /// present set; unknown keys are ignored
+    pub fn __gson_read(__v: &serde_json::Value) -> Option<CrystalsWaypoints> {
+        let __o = __v.as_object()?;
+        let mut __this = CrystalsWaypoints::new();
+        if let Some(__v) = __o.get("enabled") {
+            if let Some(__x) = dandelion::compat::gson_bool(__v) { __this.enabled = __x; }
+        }
+        if let Some(__v) = __o.get("findInChat") {
+            if let Some(__x) = dandelion::compat::gson_bool(__v) { __this.find_in_chat = __x; }
+        }
+        if let Some(__v) = __o.get("wishingCompassSolver") {
+            if let Some(__x) = dandelion::compat::gson_bool(__v) { __this.wishing_compass_solver = __x; }
+        }
+        if let Some(__v) = __o.get("shareFairyGrotto") {
+            if let Some(__x) = dandelion::compat::gson_bool(__v) { __this.share_fairy_grotto = __x; }
+        }
+        Some(__this)
+    }
+
+    /// Dandelion's ConfigPatcher: the field at a dotted path (`getDeclaredField` per segment) set to a
+    /// boolean or an enum constant; false where Java's reflective walk fails
+    pub fn __gson_patch(&mut self, __path: &[&str], __value: &dandelion::compat::PatchValue) -> bool {
+        match __path {
+            [__name] => match *__name {
+                "enabled" => if let dandelion::compat::PatchValue::Bool(__b) = __value { self.enabled = *__b; true } else { false },
+                "findInChat" => if let dandelion::compat::PatchValue::Bool(__b) = __value { self.find_in_chat = *__b; true } else { false },
+                "wishingCompassSolver" => if let dandelion::compat::PatchValue::Bool(__b) = __value { self.wishing_compass_solver = *__b; true } else { false },
+                "shareFairyGrotto" => if let dandelion::compat::PatchValue::Bool(__b) = __value { self.share_fairy_grotto = *__b; true } else { false },
+                _ => false,
+            },
+            [__first, __rest @ ..] => match *__first {
+                _ => false,
+            },
+            [] => false,
+        }
+    }
+
+    /// `CrystalsWaypoints.class` as reflection sees it
+    pub fn __class_of() -> dandelion::compat::ClassOf<CrystalsWaypoints> {
+        dandelion::compat::ClassOf {
+            name: "de.hysky.skyblocker.config.configs.MiningConfig$CrystalsWaypoints",
+            new: CrystalsWaypoints::new,
+            to_gson: |__x| __x.__gson_write(),
+            read_gson: CrystalsWaypoints::__gson_read,
+            patch: |__x, __p, __v| __x.__gson_patch(__p, __v),
+            is_enum: false,
+            enum_constants: Vec::new,
+        }
+    }
+}
+
+/// CommissionWaypoints's Gson form (`Gson.toJson` / `fromJson` by reflection in Java; generated here)
+impl CommissionWaypoints {
+    /// `gson.toJson(this)`: the fields in Gson's order (declaration order), nulls written
+    pub fn __gson_write(&self) -> dandelion::compat::GsonValue {
+        dandelion::compat::GsonValue::Obj(vec![
+            ("mode".to_string(), dandelion::compat::GsonValue::str(((&self.mode)).name())),
+            ("useColor".to_string(), dandelion::compat::GsonValue::Bool(*(&self.use_color))),
+            ("showBaseCamp".to_string(), dandelion::compat::GsonValue::Bool(*(&self.show_base_camp))),
+            ("showEmissary".to_string(), dandelion::compat::GsonValue::Bool(*(&self.show_emissary))),
+            ("hideEmissaryOnPigeon".to_string(), dandelion::compat::GsonValue::Bool(*(&self.hide_emissary_on_pigeon))),
+        ])
+    }
+
+    /// `gson.fromJson(json, X.class)`: a new object from the no-argument constructor, then every key
+    /// present set; unknown keys are ignored
+    pub fn __gson_read(__v: &serde_json::Value) -> Option<CommissionWaypoints> {
+        let __o = __v.as_object()?;
+        let mut __this = CommissionWaypoints::new();
+        if let Some(__v) = __o.get("mode") {
+            if let Some(__x) = (__v).as_str().and_then(|__s| CommissionWaypointMode::values().into_iter().find(|__c| __c.name() == __s)) { __this.mode = __x; }
+        }
+        if let Some(__v) = __o.get("useColor") {
+            if let Some(__x) = dandelion::compat::gson_bool(__v) { __this.use_color = __x; }
+        }
+        if let Some(__v) = __o.get("showBaseCamp") {
+            if let Some(__x) = dandelion::compat::gson_bool(__v) { __this.show_base_camp = __x; }
+        }
+        if let Some(__v) = __o.get("showEmissary") {
+            if let Some(__x) = dandelion::compat::gson_bool(__v) { __this.show_emissary = __x; }
+        }
+        if let Some(__v) = __o.get("hideEmissaryOnPigeon") {
+            if let Some(__x) = dandelion::compat::gson_bool(__v) { __this.hide_emissary_on_pigeon = __x; }
+        }
+        Some(__this)
+    }
+
+    /// Dandelion's ConfigPatcher: the field at a dotted path (`getDeclaredField` per segment) set to a
+    /// boolean or an enum constant; false where Java's reflective walk fails
+    pub fn __gson_patch(&mut self, __path: &[&str], __value: &dandelion::compat::PatchValue) -> bool {
+        match __path {
+            [__name] => match *__name {
+                "mode" => if let dandelion::compat::PatchValue::Enum(__s) = __value { match CommissionWaypointMode::values().into_iter().find(|__c| __c.name() == __s.as_str()) { Some(__c) => { self.mode = __c; true } None => false } } else { false },
+                "useColor" => if let dandelion::compat::PatchValue::Bool(__b) = __value { self.use_color = *__b; true } else { false },
+                "showBaseCamp" => if let dandelion::compat::PatchValue::Bool(__b) = __value { self.show_base_camp = *__b; true } else { false },
+                "showEmissary" => if let dandelion::compat::PatchValue::Bool(__b) = __value { self.show_emissary = *__b; true } else { false },
+                "hideEmissaryOnPigeon" => if let dandelion::compat::PatchValue::Bool(__b) = __value { self.hide_emissary_on_pigeon = *__b; true } else { false },
+                _ => false,
+            },
+            [__first, __rest @ ..] => match *__first {
+                _ => false,
+            },
+            [] => false,
+        }
+    }
+
+    /// `CommissionWaypoints.class` as reflection sees it
+    pub fn __class_of() -> dandelion::compat::ClassOf<CommissionWaypoints> {
+        dandelion::compat::ClassOf {
+            name: "de.hysky.skyblocker.config.configs.MiningConfig$CommissionWaypoints",
+            new: CommissionWaypoints::new,
+            to_gson: |__x| __x.__gson_write(),
+            read_gson: CommissionWaypoints::__gson_read,
+            patch: |__x, __p, __v| __x.__gson_patch(__p, __v),
+            is_enum: false,
+            enum_constants: Vec::new,
+        }
+    }
+}
+
+/// CommissionWaypointMode's Gson form (`Gson.toJson` / `fromJson` by reflection in Java; generated here)
+impl CommissionWaypointMode {
+    pub fn __class_of() -> dandelion::compat::ClassOf<CommissionWaypointMode> {
+        dandelion::compat::ClassOf {
+            name: "de.hysky.skyblocker.config.configs.MiningConfig$CommissionWaypointMode",
+            new: || panic!("InstantiationException: an enum has no constructor to call"),
+            to_gson: |__e| dandelion::compat::GsonValue::str(__e.name()),
+            read_gson: |__v| __v.as_str().and_then(|__s| CommissionWaypointMode::values().into_iter().find(|__c| __c.name() == __s)),
+            patch: |_, _, _| false,
+            is_enum: true,
+            enum_constants: || CommissionWaypointMode::values().into_iter().map(|__c| __c.name().to_string()).collect(),
+        }
+    }
+}
+
+/// Glacite's Gson form (`Gson.toJson` / `fromJson` by reflection in Java; generated here)
+impl Glacite {
+    /// `gson.toJson(this)`: the fields in Gson's order (declaration order), nulls written
+    pub fn __gson_write(&self) -> dandelion::compat::GsonValue {
+        dandelion::compat::GsonValue::Obj(vec![
+            ("coldOverlay".to_string(), dandelion::compat::GsonValue::Bool(*(&self.cold_overlay))),
+            ("fossilSolver".to_string(), dandelion::compat::GsonValue::Bool(*(&self.fossil_solver))),
+            ("solveFossilMuncher".to_string(), dandelion::compat::GsonValue::Bool(*(&self.solve_fossil_muncher))),
+            ("enableCorpseFinder".to_string(), dandelion::compat::GsonValue::Bool(*(&self.enable_corpse_finder))),
+            ("enableParsingChatCorpseFinder".to_string(), dandelion::compat::GsonValue::Bool(*(&self.enable_parsing_chat_corpse_finder))),
+            ("autoShareCorpses".to_string(), dandelion::compat::GsonValue::Bool(*(&self.auto_share_corpses))),
+            ("enableCorpseProfitTracker".to_string(), dandelion::compat::GsonValue::Bool(*(&self.enable_corpse_profit_tracker))),
+            ("forceEnglishCorpseProfitTracker".to_string(), dandelion::compat::GsonValue::Bool(*(&self.force_english_corpse_profit_tracker))),
+        ])
+    }
+
+    /// `gson.fromJson(json, X.class)`: a new object from the no-argument constructor, then every key
+    /// present set; unknown keys are ignored
+    pub fn __gson_read(__v: &serde_json::Value) -> Option<Glacite> {
+        let __o = __v.as_object()?;
+        let mut __this = Glacite::new();
+        if let Some(__v) = __o.get("coldOverlay") {
+            if let Some(__x) = dandelion::compat::gson_bool(__v) { __this.cold_overlay = __x; }
+        }
+        if let Some(__v) = __o.get("fossilSolver") {
+            if let Some(__x) = dandelion::compat::gson_bool(__v) { __this.fossil_solver = __x; }
+        }
+        if let Some(__v) = __o.get("solveFossilMuncher") {
+            if let Some(__x) = dandelion::compat::gson_bool(__v) { __this.solve_fossil_muncher = __x; }
+        }
+        if let Some(__v) = __o.get("enableCorpseFinder") {
+            if let Some(__x) = dandelion::compat::gson_bool(__v) { __this.enable_corpse_finder = __x; }
+        }
+        if let Some(__v) = __o.get("enableParsingChatCorpseFinder") {
+            if let Some(__x) = dandelion::compat::gson_bool(__v) { __this.enable_parsing_chat_corpse_finder = __x; }
+        }
+        if let Some(__v) = __o.get("autoShareCorpses") {
+            if let Some(__x) = dandelion::compat::gson_bool(__v) { __this.auto_share_corpses = __x; }
+        }
+        if let Some(__v) = __o.get("enableCorpseProfitTracker") {
+            if let Some(__x) = dandelion::compat::gson_bool(__v) { __this.enable_corpse_profit_tracker = __x; }
+        }
+        if let Some(__v) = __o.get("forceEnglishCorpseProfitTracker") {
+            if let Some(__x) = dandelion::compat::gson_bool(__v) { __this.force_english_corpse_profit_tracker = __x; }
+        }
+        Some(__this)
+    }
+
+    /// Dandelion's ConfigPatcher: the field at a dotted path (`getDeclaredField` per segment) set to a
+    /// boolean or an enum constant; false where Java's reflective walk fails
+    pub fn __gson_patch(&mut self, __path: &[&str], __value: &dandelion::compat::PatchValue) -> bool {
+        match __path {
+            [__name] => match *__name {
+                "coldOverlay" => if let dandelion::compat::PatchValue::Bool(__b) = __value { self.cold_overlay = *__b; true } else { false },
+                "fossilSolver" => if let dandelion::compat::PatchValue::Bool(__b) = __value { self.fossil_solver = *__b; true } else { false },
+                "solveFossilMuncher" => if let dandelion::compat::PatchValue::Bool(__b) = __value { self.solve_fossil_muncher = *__b; true } else { false },
+                "enableCorpseFinder" => if let dandelion::compat::PatchValue::Bool(__b) = __value { self.enable_corpse_finder = *__b; true } else { false },
+                "enableParsingChatCorpseFinder" => if let dandelion::compat::PatchValue::Bool(__b) = __value { self.enable_parsing_chat_corpse_finder = *__b; true } else { false },
+                "autoShareCorpses" => if let dandelion::compat::PatchValue::Bool(__b) = __value { self.auto_share_corpses = *__b; true } else { false },
+                "enableCorpseProfitTracker" => if let dandelion::compat::PatchValue::Bool(__b) = __value { self.enable_corpse_profit_tracker = *__b; true } else { false },
+                "forceEnglishCorpseProfitTracker" => if let dandelion::compat::PatchValue::Bool(__b) = __value { self.force_english_corpse_profit_tracker = *__b; true } else { false },
+                _ => false,
+            },
+            [__first, __rest @ ..] => match *__first {
+                _ => false,
+            },
+            [] => false,
+        }
+    }
+
+    /// `Glacite.class` as reflection sees it
+    pub fn __class_of() -> dandelion::compat::ClassOf<Glacite> {
+        dandelion::compat::ClassOf {
+            name: "de.hysky.skyblocker.config.configs.MiningConfig$Glacite",
+            new: Glacite::new,
+            to_gson: |__x| __x.__gson_write(),
+            read_gson: Glacite::__gson_read,
+            patch: |__x, __p, __v| __x.__gson_patch(__p, __v),
+            is_enum: false,
+            enum_constants: Vec::new,
+        }
+    }
+}
+
+/// BlockBreakPrediction's Gson form (`Gson.toJson` / `fromJson` by reflection in Java; generated here)
+impl BlockBreakPrediction {
+    /// `gson.toJson(this)`: the fields in Gson's order (declaration order), nulls written
+    pub fn __gson_write(&self) -> dandelion::compat::GsonValue {
+        dandelion::compat::GsonValue::Obj(vec![
+            ("enabled".to_string(), dandelion::compat::GsonValue::Bool(*(&self.enabled))),
+            ("playSound".to_string(), dandelion::compat::GsonValue::Bool(*(&self.play_sound))),
+        ])
+    }
+
+    /// `gson.fromJson(json, X.class)`: a new object from the no-argument constructor, then every key
+    /// present set; unknown keys are ignored
+    pub fn __gson_read(__v: &serde_json::Value) -> Option<BlockBreakPrediction> {
+        let __o = __v.as_object()?;
+        let mut __this = BlockBreakPrediction::new();
+        if let Some(__v) = __o.get("enabled") {
+            if let Some(__x) = dandelion::compat::gson_bool(__v) { __this.enabled = __x; }
+        }
+        if let Some(__v) = __o.get("playSound") {
+            if let Some(__x) = dandelion::compat::gson_bool(__v) { __this.play_sound = __x; }
+        }
+        Some(__this)
+    }
+
+    /// Dandelion's ConfigPatcher: the field at a dotted path (`getDeclaredField` per segment) set to a
+    /// boolean or an enum constant; false where Java's reflective walk fails
+    pub fn __gson_patch(&mut self, __path: &[&str], __value: &dandelion::compat::PatchValue) -> bool {
+        match __path {
+            [__name] => match *__name {
+                "enabled" => if let dandelion::compat::PatchValue::Bool(__b) = __value { self.enabled = *__b; true } else { false },
+                "playSound" => if let dandelion::compat::PatchValue::Bool(__b) = __value { self.play_sound = *__b; true } else { false },
+                _ => false,
+            },
+            [__first, __rest @ ..] => match *__first {
+                _ => false,
+            },
+            [] => false,
+        }
+    }
+
+    /// `BlockBreakPrediction.class` as reflection sees it
+    pub fn __class_of() -> dandelion::compat::ClassOf<BlockBreakPrediction> {
+        dandelion::compat::ClassOf {
+            name: "de.hysky.skyblocker.config.configs.MiningConfig$BlockBreakPrediction",
+            new: BlockBreakPrediction::new,
+            to_gson: |__x| __x.__gson_write(),
+            read_gson: BlockBreakPrediction::__gson_read,
+            patch: |__x, __p, __v| __x.__gson_patch(__p, __v),
+            is_enum: false,
+            enum_constants: Vec::new,
+        }
+    }
+}

@@ -1,1 +1,6 @@
-    Finished `dev` profile [unoptimized + debuginfo] target(s) in 19.98s
+src\de\hysky\skyblocker\config\configs\general_config.rs:672:164: error[E0599]: no method named `__gson_write` found for reference `&ArmorTrimId` in the current scope: method not found in `&ArmorTrimId`
+src\de\hysky\skyblocker\config\configs\general_config.rs:673:168: error[E0599]: no method named `__gson_write` found for reference `&AnimatedDye` in the current scope: method not found in `&AnimatedDye`
+src\de\hysky\skyblocker\config\configs\general_config.rs:733:137: error[E0599]: no associated item named `__gson_read` found for struct `ArmorTrimId` in the current scope: associated item not found in `ArmorTrimId`
+src\de\hysky\skyblocker\config\configs\general_config.rs:736:137: error[E0599]: no associated item named `__gson_read` found for struct `AnimatedDye` in the current scope: associated item not found in `AnimatedDye`
+src\de\hysky\skyblocker\config\configs\quick_navigation_config.rs:357:170: error[E0599]: no method named `get_key` found for reference `&'static std::sync::Arc<DefaultedMappedRegistry>` in the current scope
+error: could not compile `skyblocker` (lib) due to 5 previous errors; 329 warnings emitted

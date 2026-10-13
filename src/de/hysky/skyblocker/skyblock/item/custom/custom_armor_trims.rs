@@ -192,3 +192,52 @@ impl ArmorTrimId {
     }
 
 }
+
+// Generated Gson forms for src/de/hysky/skyblocker/skyblock/item/custom/custom_armor_trims.rs (fabric2seer round 24): APPEND to that file.
+// Needs `serde_json` in Cargo.toml and the `compat` of this round (dandelion::compat::GsonValue, ClassOf, ...).
+
+/// ArmorTrimId's Gson form (`Gson.toJson` / `fromJson` by reflection in Java; generated here)
+impl ArmorTrimId {
+    /// `gson.toJson(this)`: the fields in Gson's order (declaration order), nulls written
+    pub fn __gson_write(&self) -> dandelion::compat::GsonValue {
+        dandelion::compat::GsonValue::Obj(vec![
+            ("material".to_string(), dandelion::compat::GsonValue::Str(((&self.material)).to_string())),
+            ("pattern".to_string(), dandelion::compat::GsonValue::Str(((&self.pattern)).to_string())),
+        ])
+    }
+
+    /// `gson.fromJson(json, X.class)`: a new object from the no-argument constructor, then every key
+    /// present set; unknown keys are ignored
+    pub fn __gson_read(__v: &serde_json::Value) -> Option<ArmorTrimId> {
+        let __o = __v.as_object()?;
+        // TODO(fabric2seer): no no-argument constructor - Gson builds the object with every field at zero/null (Unsafe)
+        None
+    }
+
+    /// Dandelion's ConfigPatcher: the field at a dotted path (`getDeclaredField` per segment) set to a
+    /// boolean or an enum constant; false where Java's reflective walk fails
+    pub fn __gson_patch(&mut self, __path: &[&str], __value: &dandelion::compat::PatchValue) -> bool {
+        match __path {
+            [__name] => match *__name {
+                _ => false,
+            },
+            [__first, __rest @ ..] => match *__first {
+                _ => false,
+            },
+            [] => false,
+        }
+    }
+
+    /// `ArmorTrimId.class` as reflection sees it
+    pub fn __class_of() -> dandelion::compat::ClassOf<ArmorTrimId> {
+        dandelion::compat::ClassOf {
+            name: "de.hysky.skyblocker.skyblock.item.custom.CustomArmorTrims$ArmorTrimId",
+            new: || panic!("InstantiationException: no no-argument constructor"),
+            to_gson: |__x| __x.__gson_write(),
+            read_gson: ArmorTrimId::__gson_read,
+            patch: |__x, __p, __v| __x.__gson_patch(__p, __v),
+            is_enum: false,
+            enum_constants: Vec::new,
+        }
+    }
+}

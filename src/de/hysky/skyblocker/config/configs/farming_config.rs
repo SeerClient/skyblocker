@@ -5,10 +5,8 @@ use crate::prelude::*;
 use mcrust::com::mojang::serialization::codec::Codec;
 use mcrust::com::mojang::serialization::codec::CodecRef;
 
-// TODO(fabric2seer): `from_enum` takes 2 argument(s) in the port (`values: Vec<E>, serialized_name: impl Fn(&E) -> String + Send + Sync + Copy + 'static`), Java passes 1
-//   java: public static final Codec<Type> CODEC = StringRepresentable.fromEnum(Type::values);
 /// java: public static final Codec<Type> CODEC = StringRepresentable.fromEnum(Type::values);
-pub static TYPE_CODEC: compat::MainThread<CodecRef<Type>> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `CODEC` - see the TODO above"));
+pub static TYPE_CODEC: compat::MainThread<CodecRef<Type>> = compat::MainThread::new(|| mcrust::net::minecraft::util::string_representable::from_enum(Type::values(), |e: &Type| e.get_serialized_name()));
 
 /// java: public class FarmingConfig
 #[derive(Clone)]
@@ -251,5 +249,370 @@ impl Type {
 impl std::fmt::Display for Type {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", Type::to_string(self))
+    }
+}
+
+// Generated Gson forms for src/de/hysky/skyblocker/config/configs/farming_config.rs (fabric2seer round 24): APPEND to that file.
+// Needs `serde_json` in Cargo.toml and the `compat` of this round (dandelion::compat::GsonValue, ClassOf, ...).
+
+/// FarmingConfig's Gson form (`Gson.toJson` / `fromJson` by reflection in Java; generated here)
+impl FarmingConfig {
+    /// `gson.toJson(this)`: the fields in Gson's order (declaration order), nulls written
+    pub fn __gson_write(&self) -> dandelion::compat::GsonValue {
+        dandelion::compat::GsonValue::Obj(vec![
+            ("pestHighlighter".to_string(), ((&self.pest_highlighter)).__gson_write()),
+            ("mouseLock".to_string(), ((&self.mouse_lock)).__gson_write()),
+            ("plotsWidget".to_string(), ((&self.plots_widget)).__gson_write()),
+            ("visitorHelper".to_string(), ((&self.visitor_helper)).__gson_write()),
+            ("greenhouse".to_string(), ((&self.greenhouse)).__gson_write()),
+        ])
+    }
+
+    /// `gson.fromJson(json, X.class)`: a new object from the no-argument constructor, then every key
+    /// present set; unknown keys are ignored
+    pub fn __gson_read(__v: &serde_json::Value) -> Option<FarmingConfig> {
+        let __o = __v.as_object()?;
+        let mut __this = FarmingConfig::new();
+        if let Some(__v) = __o.get("pestHighlighter") {
+            if let Some(__x) = PestHighlighter::__gson_read(__v) { __this.pest_highlighter = __x; }
+        }
+        if let Some(__v) = __o.get("mouseLock") {
+            if let Some(__x) = MouseLock::__gson_read(__v) { __this.mouse_lock = __x; }
+        }
+        if let Some(__v) = __o.get("plotsWidget") {
+            if let Some(__x) = PlotsWidget::__gson_read(__v) { __this.plots_widget = __x; }
+        }
+        if let Some(__v) = __o.get("visitorHelper") {
+            if let Some(__x) = VisitorHelper::__gson_read(__v) { __this.visitor_helper = __x; }
+        }
+        if let Some(__v) = __o.get("greenhouse") {
+            if let Some(__x) = Greenhouse::__gson_read(__v) { __this.greenhouse = __x; }
+        }
+        Some(__this)
+    }
+
+    /// Dandelion's ConfigPatcher: the field at a dotted path (`getDeclaredField` per segment) set to a
+    /// boolean or an enum constant; false where Java's reflective walk fails
+    pub fn __gson_patch(&mut self, __path: &[&str], __value: &dandelion::compat::PatchValue) -> bool {
+        match __path {
+            [__name] => match *__name {
+                _ => false,
+            },
+            [__first, __rest @ ..] => match *__first {
+                "pestHighlighter" => self.pest_highlighter.__gson_patch(__rest, __value),
+                "mouseLock" => self.mouse_lock.__gson_patch(__rest, __value),
+                "plotsWidget" => self.plots_widget.__gson_patch(__rest, __value),
+                "visitorHelper" => self.visitor_helper.__gson_patch(__rest, __value),
+                "greenhouse" => self.greenhouse.__gson_patch(__rest, __value),
+                _ => false,
+            },
+            [] => false,
+        }
+    }
+
+    /// `FarmingConfig.class` as reflection sees it
+    pub fn __class_of() -> dandelion::compat::ClassOf<FarmingConfig> {
+        dandelion::compat::ClassOf {
+            name: "de.hysky.skyblocker.config.configs.FarmingConfig",
+            new: FarmingConfig::new,
+            to_gson: |__x| __x.__gson_write(),
+            read_gson: FarmingConfig::__gson_read,
+            patch: |__x, __p, __v| __x.__gson_patch(__p, __v),
+            is_enum: false,
+            enum_constants: Vec::new,
+        }
+    }
+}
+
+/// Greenhouse's Gson form (`Gson.toJson` / `fromJson` by reflection in Java; generated here)
+impl Greenhouse {
+    /// `gson.toJson(this)`: the fields in Gson's order (declaration order), nulls written
+    pub fn __gson_write(&self) -> dandelion::compat::GsonValue {
+        dandelion::compat::GsonValue::Obj(vec![
+            ("enabled".to_string(), dandelion::compat::GsonValue::Bool(*(&self.enabled))),
+            ("showMutationSlot".to_string(), dandelion::compat::GsonValue::Bool(*(&self.show_mutation_slot))),
+        ])
+    }
+
+    /// `gson.fromJson(json, X.class)`: a new object from the no-argument constructor, then every key
+    /// present set; unknown keys are ignored
+    pub fn __gson_read(__v: &serde_json::Value) -> Option<Greenhouse> {
+        let __o = __v.as_object()?;
+        let mut __this = Greenhouse::new();
+        if let Some(__v) = __o.get("enabled") {
+            if let Some(__x) = dandelion::compat::gson_bool(__v) { __this.enabled = __x; }
+        }
+        if let Some(__v) = __o.get("showMutationSlot") {
+            if let Some(__x) = dandelion::compat::gson_bool(__v) { __this.show_mutation_slot = __x; }
+        }
+        Some(__this)
+    }
+
+    /// Dandelion's ConfigPatcher: the field at a dotted path (`getDeclaredField` per segment) set to a
+    /// boolean or an enum constant; false where Java's reflective walk fails
+    pub fn __gson_patch(&mut self, __path: &[&str], __value: &dandelion::compat::PatchValue) -> bool {
+        match __path {
+            [__name] => match *__name {
+                "enabled" => if let dandelion::compat::PatchValue::Bool(__b) = __value { self.enabled = *__b; true } else { false },
+                "showMutationSlot" => if let dandelion::compat::PatchValue::Bool(__b) = __value { self.show_mutation_slot = *__b; true } else { false },
+                _ => false,
+            },
+            [__first, __rest @ ..] => match *__first {
+                _ => false,
+            },
+            [] => false,
+        }
+    }
+
+    /// `Greenhouse.class` as reflection sees it
+    pub fn __class_of() -> dandelion::compat::ClassOf<Greenhouse> {
+        dandelion::compat::ClassOf {
+            name: "de.hysky.skyblocker.config.configs.FarmingConfig$Greenhouse",
+            new: Greenhouse::new,
+            to_gson: |__x| __x.__gson_write(),
+            read_gson: Greenhouse::__gson_read,
+            patch: |__x, __p, __v| __x.__gson_patch(__p, __v),
+            is_enum: false,
+            enum_constants: Vec::new,
+        }
+    }
+}
+
+/// PestHighlighter's Gson form (`Gson.toJson` / `fromJson` by reflection in Java; generated here)
+impl PestHighlighter {
+    /// `gson.toJson(this)`: the fields in Gson's order (declaration order), nulls written
+    pub fn __gson_write(&self) -> dandelion::compat::GsonValue {
+        dandelion::compat::GsonValue::Obj(vec![
+            ("enabled".to_string(), dandelion::compat::GsonValue::Bool(*(&self.enabled))),
+            ("vinylHighlighter".to_string(), dandelion::compat::GsonValue::Bool(*(&self.vinyl_highlighter))),
+            ("contestHighlighter".to_string(), dandelion::compat::GsonValue::Bool(*(&self.contest_highlighter))),
+            ("enableStereoHarmonyHelperForContest".to_string(), dandelion::compat::GsonValue::Bool(*(&self.enable_stereo_harmony_helper_for_contest))),
+        ])
+    }
+
+    /// `gson.fromJson(json, X.class)`: a new object from the no-argument constructor, then every key
+    /// present set; unknown keys are ignored
+    pub fn __gson_read(__v: &serde_json::Value) -> Option<PestHighlighter> {
+        let __o = __v.as_object()?;
+        let mut __this = PestHighlighter::new();
+        if let Some(__v) = __o.get("enabled") {
+            if let Some(__x) = dandelion::compat::gson_bool(__v) { __this.enabled = __x; }
+        }
+        if let Some(__v) = __o.get("vinylHighlighter") {
+            if let Some(__x) = dandelion::compat::gson_bool(__v) { __this.vinyl_highlighter = __x; }
+        }
+        if let Some(__v) = __o.get("contestHighlighter") {
+            if let Some(__x) = dandelion::compat::gson_bool(__v) { __this.contest_highlighter = __x; }
+        }
+        if let Some(__v) = __o.get("enableStereoHarmonyHelperForContest") {
+            if let Some(__x) = dandelion::compat::gson_bool(__v) { __this.enable_stereo_harmony_helper_for_contest = __x; }
+        }
+        Some(__this)
+    }
+
+    /// Dandelion's ConfigPatcher: the field at a dotted path (`getDeclaredField` per segment) set to a
+    /// boolean or an enum constant; false where Java's reflective walk fails
+    pub fn __gson_patch(&mut self, __path: &[&str], __value: &dandelion::compat::PatchValue) -> bool {
+        match __path {
+            [__name] => match *__name {
+                "enabled" => if let dandelion::compat::PatchValue::Bool(__b) = __value { self.enabled = *__b; true } else { false },
+                "vinylHighlighter" => if let dandelion::compat::PatchValue::Bool(__b) = __value { self.vinyl_highlighter = *__b; true } else { false },
+                "contestHighlighter" => if let dandelion::compat::PatchValue::Bool(__b) = __value { self.contest_highlighter = *__b; true } else { false },
+                "enableStereoHarmonyHelperForContest" => if let dandelion::compat::PatchValue::Bool(__b) = __value { self.enable_stereo_harmony_helper_for_contest = *__b; true } else { false },
+                _ => false,
+            },
+            [__first, __rest @ ..] => match *__first {
+                _ => false,
+            },
+            [] => false,
+        }
+    }
+
+    /// `PestHighlighter.class` as reflection sees it
+    pub fn __class_of() -> dandelion::compat::ClassOf<PestHighlighter> {
+        dandelion::compat::ClassOf {
+            name: "de.hysky.skyblocker.config.configs.FarmingConfig$PestHighlighter",
+            new: PestHighlighter::new,
+            to_gson: |__x| __x.__gson_write(),
+            read_gson: PestHighlighter::__gson_read,
+            patch: |__x, __p, __v| __x.__gson_patch(__p, __v),
+            is_enum: false,
+            enum_constants: Vec::new,
+        }
+    }
+}
+
+/// MouseLock's Gson form (`Gson.toJson` / `fromJson` by reflection in Java; generated here)
+impl MouseLock {
+    /// `gson.toJson(this)`: the fields in Gson's order (declaration order), nulls written
+    pub fn __gson_write(&self) -> dandelion::compat::GsonValue {
+        dandelion::compat::GsonValue::Obj(vec![
+            ("lockMouseTool".to_string(), dandelion::compat::GsonValue::Bool(*(&self.lock_mouse_tool))),
+            ("lockMouseGroundOnly".to_string(), dandelion::compat::GsonValue::Bool(*(&self.lock_mouse_ground_only))),
+        ])
+    }
+
+    /// `gson.fromJson(json, X.class)`: a new object from the no-argument constructor, then every key
+    /// present set; unknown keys are ignored
+    pub fn __gson_read(__v: &serde_json::Value) -> Option<MouseLock> {
+        let __o = __v.as_object()?;
+        let mut __this = MouseLock::new();
+        if let Some(__v) = __o.get("lockMouseTool") {
+            if let Some(__x) = dandelion::compat::gson_bool(__v) { __this.lock_mouse_tool = __x; }
+        }
+        if let Some(__v) = __o.get("lockMouseGroundOnly") {
+            if let Some(__x) = dandelion::compat::gson_bool(__v) { __this.lock_mouse_ground_only = __x; }
+        }
+        Some(__this)
+    }
+
+    /// Dandelion's ConfigPatcher: the field at a dotted path (`getDeclaredField` per segment) set to a
+    /// boolean or an enum constant; false where Java's reflective walk fails
+    pub fn __gson_patch(&mut self, __path: &[&str], __value: &dandelion::compat::PatchValue) -> bool {
+        match __path {
+            [__name] => match *__name {
+                "lockMouseTool" => if let dandelion::compat::PatchValue::Bool(__b) = __value { self.lock_mouse_tool = *__b; true } else { false },
+                "lockMouseGroundOnly" => if let dandelion::compat::PatchValue::Bool(__b) = __value { self.lock_mouse_ground_only = *__b; true } else { false },
+                _ => false,
+            },
+            [__first, __rest @ ..] => match *__first {
+                _ => false,
+            },
+            [] => false,
+        }
+    }
+
+    /// `MouseLock.class` as reflection sees it
+    pub fn __class_of() -> dandelion::compat::ClassOf<MouseLock> {
+        dandelion::compat::ClassOf {
+            name: "de.hysky.skyblocker.config.configs.FarmingConfig$MouseLock",
+            new: MouseLock::new,
+            to_gson: |__x| __x.__gson_write(),
+            read_gson: MouseLock::__gson_read,
+            patch: |__x, __p, __v| __x.__gson_patch(__p, __v),
+            is_enum: false,
+            enum_constants: Vec::new,
+        }
+    }
+}
+
+/// PlotsWidget's Gson form (`Gson.toJson` / `fromJson` by reflection in Java; generated here)
+impl PlotsWidget {
+    /// `gson.toJson(this)`: the fields in Gson's order (declaration order), nulls written
+    pub fn __gson_write(&self) -> dandelion::compat::GsonValue {
+        dandelion::compat::GsonValue::Obj(vec![
+            ("enabled".to_string(), dandelion::compat::GsonValue::Bool(*(&self.enabled))),
+            ("closeScreenOnPlotClick".to_string(), dandelion::compat::GsonValue::Bool(*(&self.close_screen_on_plot_click))),
+            ("x".to_string(), dandelion::compat::GsonValue::int(*(&self.x) as i64)),
+            ("y".to_string(), dandelion::compat::GsonValue::int(*(&self.y) as i64)),
+        ])
+    }
+
+    /// `gson.fromJson(json, X.class)`: a new object from the no-argument constructor, then every key
+    /// present set; unknown keys are ignored
+    pub fn __gson_read(__v: &serde_json::Value) -> Option<PlotsWidget> {
+        let __o = __v.as_object()?;
+        let mut __this = PlotsWidget::new();
+        if let Some(__v) = __o.get("enabled") {
+            if let Some(__x) = dandelion::compat::gson_bool(__v) { __this.enabled = __x; }
+        }
+        if let Some(__v) = __o.get("closeScreenOnPlotClick") {
+            if let Some(__x) = dandelion::compat::gson_bool(__v) { __this.close_screen_on_plot_click = __x; }
+        }
+        if let Some(__v) = __o.get("x") {
+            if let Some(__x) = dandelion::compat::gson_i64(__v).map(|__n| __n as i32) { __this.x = __x; }
+        }
+        if let Some(__v) = __o.get("y") {
+            if let Some(__x) = dandelion::compat::gson_i64(__v).map(|__n| __n as i32) { __this.y = __x; }
+        }
+        Some(__this)
+    }
+
+    /// Dandelion's ConfigPatcher: the field at a dotted path (`getDeclaredField` per segment) set to a
+    /// boolean or an enum constant; false where Java's reflective walk fails
+    pub fn __gson_patch(&mut self, __path: &[&str], __value: &dandelion::compat::PatchValue) -> bool {
+        match __path {
+            [__name] => match *__name {
+                "enabled" => if let dandelion::compat::PatchValue::Bool(__b) = __value { self.enabled = *__b; true } else { false },
+                "closeScreenOnPlotClick" => if let dandelion::compat::PatchValue::Bool(__b) = __value { self.close_screen_on_plot_click = *__b; true } else { false },
+                _ => false,
+            },
+            [__first, __rest @ ..] => match *__first {
+                _ => false,
+            },
+            [] => false,
+        }
+    }
+
+    /// `PlotsWidget.class` as reflection sees it
+    pub fn __class_of() -> dandelion::compat::ClassOf<PlotsWidget> {
+        dandelion::compat::ClassOf {
+            name: "de.hysky.skyblocker.config.configs.FarmingConfig$PlotsWidget",
+            new: PlotsWidget::new,
+            to_gson: |__x| __x.__gson_write(),
+            read_gson: PlotsWidget::__gson_read,
+            patch: |__x, __p, __v| __x.__gson_patch(__p, __v),
+            is_enum: false,
+            enum_constants: Vec::new,
+        }
+    }
+}
+
+/// VisitorHelper's Gson form (`Gson.toJson` / `fromJson` by reflection in Java; generated here)
+impl VisitorHelper {
+    /// `gson.toJson(this)`: the fields in Gson's order (declaration order), nulls written
+    pub fn __gson_write(&self) -> dandelion::compat::GsonValue {
+        dandelion::compat::GsonValue::Obj(vec![
+            ("enabled".to_string(), dandelion::compat::GsonValue::Bool(*(&self.enabled))),
+            ("showInGardenOnly".to_string(), dandelion::compat::GsonValue::Bool(*(&self.show_in_garden_only))),
+            ("showInStacks".to_string(), dandelion::compat::GsonValue::Bool(*(&self.show_in_stacks))),
+        ])
+    }
+
+    /// `gson.fromJson(json, X.class)`: a new object from the no-argument constructor, then every key
+    /// present set; unknown keys are ignored
+    pub fn __gson_read(__v: &serde_json::Value) -> Option<VisitorHelper> {
+        let __o = __v.as_object()?;
+        let mut __this = VisitorHelper::new();
+        if let Some(__v) = __o.get("enabled") {
+            if let Some(__x) = dandelion::compat::gson_bool(__v) { __this.enabled = __x; }
+        }
+        if let Some(__v) = __o.get("showInGardenOnly") {
+            if let Some(__x) = dandelion::compat::gson_bool(__v) { __this.show_in_garden_only = __x; }
+        }
+        if let Some(__v) = __o.get("showInStacks") {
+            if let Some(__x) = dandelion::compat::gson_bool(__v) { __this.show_in_stacks = __x; }
+        }
+        Some(__this)
+    }
+
+    /// Dandelion's ConfigPatcher: the field at a dotted path (`getDeclaredField` per segment) set to a
+    /// boolean or an enum constant; false where Java's reflective walk fails
+    pub fn __gson_patch(&mut self, __path: &[&str], __value: &dandelion::compat::PatchValue) -> bool {
+        match __path {
+            [__name] => match *__name {
+                "enabled" => if let dandelion::compat::PatchValue::Bool(__b) = __value { self.enabled = *__b; true } else { false },
+                "showInGardenOnly" => if let dandelion::compat::PatchValue::Bool(__b) = __value { self.show_in_garden_only = *__b; true } else { false },
+                "showInStacks" => if let dandelion::compat::PatchValue::Bool(__b) = __value { self.show_in_stacks = *__b; true } else { false },
+                _ => false,
+            },
+            [__first, __rest @ ..] => match *__first {
+                _ => false,
+            },
+            [] => false,
+        }
+    }
+
+    /// `VisitorHelper.class` as reflection sees it
+    pub fn __class_of() -> dandelion::compat::ClassOf<VisitorHelper> {
+        dandelion::compat::ClassOf {
+            name: "de.hysky.skyblocker.config.configs.FarmingConfig$VisitorHelper",
+            new: VisitorHelper::new,
+            to_gson: |__x| __x.__gson_write(),
+            read_gson: VisitorHelper::__gson_read,
+            patch: |__x, __p, __v| __x.__gson_patch(__p, __v),
+            is_enum: false,
+            enum_constants: Vec::new,
+        }
     }
 }
