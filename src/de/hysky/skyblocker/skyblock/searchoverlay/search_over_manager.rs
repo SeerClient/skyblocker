@@ -376,7 +376,12 @@ impl SearchOverManager {
 
     /// java: protected static String getSuggestion(int index)
     pub fn get_suggestion(mut index: i32) -> String {
-        if (compat::lock(&SUGGESTIONS_ARRAY).len() as i32) > index && true /* java: compat::lock(&SUGGESTIONS_ARRAY)[(index) as usize] != null: never null here */ {
+        // one guard for the whole statement: two `compat::lock(&SUGGESTIONS_ARRAY)` temporaries in one
+        // expression both live to its end, and the second waits for the first (a self-deadlock)
+        #[allow(unused_mut)] let mut __guard_suggestions_array = compat::lock(&SUGGESTIONS_ARRAY);
+        let __cond = ((*__guard_suggestions_array).len() as i32) > index && true /* java: (*__guard_suggestions_array)[(index) as usize] != null: never null here */;
+        drop(__guard_suggestions_array);
+        if __cond {
             return compat::lock(&SUGGESTIONS_ARRAY)[(index) as usize].clone();
         } else {
             return "".to_string();

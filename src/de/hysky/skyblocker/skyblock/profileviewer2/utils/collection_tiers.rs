@@ -30,7 +30,7 @@ impl CollectionTiers {
         if !(*profile_viewer::ENABLED) {
             return;
         }
-        (CompletableFuture::supply_async(move || Ok((|| CollectionTiers::load_collections_data())()), compat::executor)).then_accept_async(|__a0| CollectionTiers::parse_collections_data(__a0.clone()), std::sync::Arc::new(|__t: Box<dyn FnOnce() + Send>| mcrust::mcrust::modding::game::execute(__t)));
+        (CompletableFuture::supply_async(move || Ok((|| CollectionTiers::load_collections_data())()), compat::executor)).then_accept_async(|__a0| CollectionTiers::parse_collections_data(__a0.clone()), std::sync::Arc::new(|__t: Box<dyn FnOnce() + Send>| crate::compat::execute(__t)));
     }
 
     /// java: public static boolean unlockedTier(ApiProfile profile, String collection, int tier)

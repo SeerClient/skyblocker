@@ -103,7 +103,7 @@ impl KuudraWaypoints {
                 KuudraWaypoints::get_waypoints(&reader)
             }))
             .map_err(|e| compat::panic_message(&e));
-            mcrust::mcrust::modding::game::execute(move || {
+            crate::compat::execute(move || {
                 let parsed: Vec<compat::Shared<dyn Waypoint>> = match waypoints.and_then(|waypoints| {
                     std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| (CODEC.get())(color_components.clone()).parse(&mcrust::com::mojang::serialization::json_ops::JsonOps::instance(), &compat::json_to_port(&waypoints)).get_or_throw().unwrap())).map_err(|e| compat::panic_message(&e))
                 }) {

@@ -67,7 +67,7 @@ impl ConfigPatchLoader {
             logger().info("[Skyblocker Config Patch Loader] Successfully loaded config patches.");
             SkyblockerConfigManager::set_patches(&patches);
             return true;
-        }, std::sync::Arc::new(|__t: Box<dyn FnOnce() + Send>| mcrust::mcrust::modding::game::execute(__t))).exceptionally(|e| {
+        }, std::sync::Arc::new(|__t: Box<dyn FnOnce() + Send>| crate::compat::execute(__t))).exceptionally(|e| {
             // TODO(fabric2seer): a log call with a non-literal format
             //   java: LOGGER.error(LogUtils.FATAL_MARKER, "[Skyblocker Config Patch Loader] Failed to load config patches!", e);
             return false;

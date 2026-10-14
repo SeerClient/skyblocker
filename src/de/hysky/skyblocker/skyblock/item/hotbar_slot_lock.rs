@@ -23,7 +23,8 @@ impl HotbarSlotLock {
 
     /// java: @Init public static void init()
     pub fn init() {
-        key_binding_helper::register_key_binding(KeyMapping::new("key.skyblocker.hotbarSlotLock", 72, Category::Misc));
+        // java: hotbar_slot_lock = KeyBindingHelper.registerKeyBinding(..) - the static must hold it (the config screen reads it)
+        *HOTBAR_SLOT_LOCK.get_mut() = Some(key_binding_helper::register_key_binding(KeyMapping::new("key.skyblocker.hotbarSlotLock", 72, Category::Misc)));
     }
 
     /// java: public static boolean isLocked(int slot)

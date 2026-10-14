@@ -84,13 +84,13 @@ impl SecretsTracker {
                             this_run.players_secret_data.insert(player_name.clone(), secrets_now.clone());
                         }
                         for entry in secrets_found.iter().map(|(k, v)| (k.clone(), v.clone())) {
-                            mcrust::mcrust::modding::game::execute(move || { SecretsTracker::send_result_message(&entry.0, &entry.1); });
+                            crate::compat::execute(move || { SecretsTracker::send_result_message(&entry.0, &entry.1); });
                         }
                         compat::set_state(&LAST_RUN_ENDED, compat::millis());
                         compat::set_state(&LAST_RUN, Some(this_run.clone()));
                         compat::set_state(&CURRENT_RUN, None);
                     } else {
-                        mcrust::mcrust::modding::game::execute(move || { SecretsTracker::send_failure_message(); });
+                        crate::compat::execute(move || { SecretsTracker::send_failure_message(); });
                     }
                 })(), compat::executor);
             }

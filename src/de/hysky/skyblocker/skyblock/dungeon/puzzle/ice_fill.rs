@@ -253,7 +253,7 @@ impl IceFill {
                     compat::write(&__this_1, |__t| __t.ice_fill_paths[(i) as usize] = path);
                 }
             }
-        }, |task: Box<dyn FnOnce() + Send>| mcrust::mcrust::modding::game::execute(task)));
+        }, |task: Box<dyn FnOnce() + Send>| crate::compat::execute(task)));
         compat::write(__this, |__t| __t.solve = __v);
     }
 

@@ -427,7 +427,7 @@ impl MuseumItemCache {
                     Err(response)
                 }
             })).map_err(|e| compat::panic_message(&e));
-            mcrust::mcrust::modding::game::execute(move || {
+            crate::compat::execute(move || {
                 let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                     match worker {
                         Ok(Ok(Some(donated_sets))) => {

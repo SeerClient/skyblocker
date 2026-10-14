@@ -124,7 +124,12 @@ impl StatusBarTracker {
             return;
         }
         compat::set_state(&TICKS, compat::get_state(&TICKS) + 1);
-        StatusBarTracker::update_health_2(compat::lock(&HEALTH).value, compat::lock(&HEALTH).max);
+        // one guard for the whole statement: two `compat::lock(&HEALTH)` temporaries in one
+        // expression both live to its end, and the second waits for the first (a self-deadlock)
+        #[allow(unused_mut)] let mut __guard_health = compat::lock(&HEALTH);
+        let (__value, __max) = ((*__guard_health).value, (*__guard_health).max);
+        drop(__guard_health); // released BEFORE the call: update_health_2 locks HEALTH itself
+        StatusBarTracker::update_health_2(__value, __max);
         StatusBarTracker::update_speed();
         StatusBarTracker::update_air();
         EstimatedResource::tick(&compat::get_state(&MANA));

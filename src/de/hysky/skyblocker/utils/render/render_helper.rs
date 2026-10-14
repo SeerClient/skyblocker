@@ -98,7 +98,7 @@ impl RenderHelper {
             (runnable)();
         } else {
             // java: Minecraft.getInstance().execute(runnable); - the runnable crosses to the render thread, so it is `Send`
-            mcrust::mcrust::modding::game::execute(move || (runnable)());
+            crate::compat::execute(move || (runnable)());
         }
     }
 

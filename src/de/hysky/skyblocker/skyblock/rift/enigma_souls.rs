@@ -75,7 +75,7 @@ impl EnigmaSouls {
                 Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
                 Err(e) => Err(e),
             };
-            mcrust::mcrust::modding::game::execute(move || {
+            crate::compat::execute(move || {
                 match waypoints_file {
                     Err(e) => logger().error(&format!("[Skyblocker] There was an error while loading enigma soul waypoints! {}", e)),
                     Ok(reader) => {

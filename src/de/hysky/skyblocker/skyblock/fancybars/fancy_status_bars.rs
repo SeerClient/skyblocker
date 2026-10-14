@@ -247,7 +247,7 @@ impl FancyStatusBars {
             if __result.is_err() {
                 logger().error("[Skyblocker] Failed reading status bars config");
             }
-        }, std::sync::Arc::new(|__t: Box<dyn FnOnce() + Send>| mcrust::mcrust::modding::game::execute(__t))).exceptionally(|throwable| {
+        }, std::sync::Arc::new(|__t: Box<dyn FnOnce() + Send>| crate::compat::execute(__t))).exceptionally(|throwable| {
             logger().error(&format!("[Skyblocker] Failed reading status bars config"));
             return Default::default(); // java: return null
         });

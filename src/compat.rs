@@ -672,6 +672,23 @@ pub fn string_widget(
 static MINECRAFT: std::sync::atomic::AtomicPtr<mcrust::net::minecraft::client::minecraft::Minecraft> =
     std::sync::atomic::AtomicPtr::new(std::ptr::null_mut());
 
+/// Work handed to the game thread before the game's `Minecraft` exists.
+static PENDING: std::sync::Mutex<Vec<Box<dyn FnOnce() + Send>>> = std::sync::Mutex::new(Vec::new());
+
+/// Java's `Minecraft.getInstance().execute(task)` / `runAsync(task, client)`.
+/// Java runs it at once on the client thread, where `getInstance()` already
+/// works inside the constructor; here the `Minecraft` only exists after the
+/// constructor, so a task submitted before the first tick (the mods'
+/// entrypoints run inside that constructor) waits for it instead of reaching
+/// `minecraft()` too early. After that it is `game::execute`.
+pub fn execute(task: impl FnOnce() + Send + 'static) {
+    if !minecraft_ready() {
+        PENDING.lock().unwrap_or_else(|p| p.into_inner()).push(Box::new(task));
+    } else {
+        mcrust::mcrust::modding::game::execute(task);
+    }
+}
+
 /// Records the game's `Minecraft` on every client tick, for `minecraft()`.
 /// The generated entrypoints call it first; it registers once.
 pub fn install() {
@@ -680,9 +697,21 @@ pub fn install() {
         mcrust::mcrust::modding::events::client_tick_events::START_CLIENT_TICK.register(std::sync::Arc::new(
             |mc: &mut mcrust::net::minecraft::client::minecraft::Minecraft| {
                 MINECRAFT.store(mc as *mut _, std::sync::atomic::Ordering::Release);
+                let queued = std::mem::take(&mut *PENDING.lock().unwrap_or_else(|p| p.into_inner()));
+                for task in queued {
+                    task();
+                }
             },
         ));
     });
+}
+
+/// Whether `minecraft()` can answer yet: the game publishes its `Minecraft`
+/// on the first client tick, after the constructor and the first screen's
+/// init (which Java runs with `getInstance()` already set).
+pub fn minecraft_ready() -> bool {
+    !MINECRAFT.load(std::sync::atomic::Ordering::Acquire).is_null()
+        || !mcrust::mcrust::modding::game::minecraft_instance().is_null()
 }
 
 /// `Minecraft.getInstance()`: the game's one Minecraft, as the tick events
@@ -692,9 +721,15 @@ pub fn install() {
 /// game; this is the same object the game is using, so do not hold the
 /// reference across a call that hands you the Minecraft again.
 pub fn minecraft() -> &'static mut mcrust::net::minecraft::client::minecraft::Minecraft {
-    let p = MINECRAFT.load(std::sync::atomic::Ordering::Acquire);
+    let mut p = MINECRAFT.load(std::sync::atomic::Ordering::Acquire);
     if p.is_null() {
-        panic!("Minecraft.getInstance() before the first client tick (fabric2seer compat::minecraft)");
+        // Before the first tick: the game's own `Minecraft.instance`, set where
+        // Java sets it (the constructor), so entrypoints and the first screens'
+        // callbacks see it too.
+        p = mcrust::mcrust::modding::game::minecraft_instance();
+    }
+    if p.is_null() {
+        panic!("Minecraft.getInstance() before the Minecraft exists (fabric2seer compat::minecraft)");
     }
     unsafe { &mut *p }
 }

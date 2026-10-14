@@ -23,7 +23,7 @@ impl SkyblockItemModels {
     /// java: @Init public static void init()
     pub fn init() {
         NEURepoManager::run_async_after_load(Arc::new(move || {
-            CompletableFuture::<()>::run_async(move || (|| { SkyblockItemModels::update_item_models(); })(), |__t: Box<dyn FnOnce() + Send>| mcrust::mcrust::modding::game::execute(__t));
+            CompletableFuture::<()>::run_async(move || (|| { SkyblockItemModels::update_item_models(); })(), |__t: Box<dyn FnOnce() + Send>| crate::compat::execute(__t));
         }));
     }
 

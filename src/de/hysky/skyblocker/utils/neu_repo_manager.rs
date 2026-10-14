@@ -204,7 +204,7 @@ impl NEURepoManager {
         };
         // java: Minecraft.getInstance().execute(() -> player.sendSystemMessage(Constants.PREFIX.get().append(text)));
         let text: MutableComponent = text.clone();
-        mcrust::mcrust::modding::game::execute(move || { script_host::send_feedback(&(constants::PREFIX.get_mut())().append(text.clone()).to_string()); });
+        crate::compat::execute(move || { script_host::send_feedback(&(constants::PREFIX.get_mut())().append(text.clone()).to_string()); });
     }
 
     /// java: public static CompletableFuture<Void> runAsyncAfterLoad(Runnable runnable)

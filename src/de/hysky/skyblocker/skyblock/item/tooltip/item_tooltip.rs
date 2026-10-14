@@ -96,7 +96,7 @@ impl ItemTooltip {
             mcrust::java::util::concurrent::completable_future::CompletableFuture::all_of(&downloads)
                 .then_run_async(
                     || (crate::de::hysky::skyblocker::events::item_price_update_event::on_price_update_invoker())(),
-                    std::sync::Arc::new(|__t: Box<dyn FnOnce() + Send>| mcrust::mcrust::modding::game::execute(__t)),
+                    std::sync::Arc::new(|__t: Box<dyn FnOnce() + Send>| crate::compat::execute(__t)),
                 )
                 .exceptionally(|e| {
                     logger().error(&format!("[Skyblocker] Encountered unknown error while downloading tooltip data: {}", e));

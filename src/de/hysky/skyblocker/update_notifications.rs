@@ -87,7 +87,7 @@ impl UpdateNotifications {
                 *LOADED.get_mut() = Some(CONFIG.get_mut().lock().borrow_mut().init());
             }
             // java: loaded.thenRunAsync(UpdateNotifications::tryCheckForNewVersion, Minecraft.getInstance());
-            LOADED.get_mut().as_ref().unwrap().then_run(|| mcrust::mcrust::modding::game::execute(UpdateNotifications::try_check_for_new_version));
+            LOADED.get_mut().as_ref().unwrap().then_run(|| crate::compat::execute(UpdateNotifications::try_check_for_new_version));
         }));
     }
 
@@ -114,7 +114,7 @@ impl UpdateNotifications {
                 let mut new_version: MrVersion = optimal_version.unwrap();
                 let mut download_link: String = format!("https://modrinth.com/mod/skyblocker-liap/version/{}", new_version.id());
                 let mut version_text: MutableComponent = component::literal(&new_version.name()).with_style_fn(|style| style.apply_format(ChatFormatting::Gray).with_underlined(Some(true)).with_click_event(Some(ClickEvent::new_open_url(Uri::create(&download_link).unwrap()))));
-                mcrust::mcrust::modding::game::execute(move || {
+                crate::compat::execute(move || {
                     if mcrust::mcrust::modding::game::with_player(|_| ()).is_none() {
                         return;
                     }

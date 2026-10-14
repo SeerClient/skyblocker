@@ -278,7 +278,7 @@ impl DungeonManager {
     /// java: @Init public static void init()
     pub fn init() {
         WAYPOINT_COLOR_DATA.get_mut().lock().borrow_mut().init();
-        (CompletableFuture::<()>::run_async(move || (|| { DungeonManager::load(); })(), |__t: Box<dyn FnOnce() + Send>| mcrust::mcrust::modding::game::execute(__t))).exceptionally(|e| {
+        (CompletableFuture::<()>::run_async(move || (|| { DungeonManager::load(); })(), |__t: Box<dyn FnOnce() + Send>| crate::compat::execute(__t))).exceptionally(|e| {
             logger().error(&format!("[Skyblocker Dungeon Secrets] Failed to load dungeon secrets"));
             return Default::default(); // java: return null
         });
@@ -385,7 +385,7 @@ impl DungeonManager {
                 Err(e) => {
                     logger().error(&format!("[Skyblocker Dungeon Secrets] Failed to load custom dungeon secret waypoints: {}", e));
                 }
-                Ok(text) => mcrust::mcrust::modding::game::execute(move || {
+                Ok(text) => crate::compat::execute(move || {
                     let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                         let json: serde_json::Value = serde_json::from_str(&text).expect("JsonParseException");
                         for (room, waypoints_json) in compat::json::get_as_json_object(&json) {
@@ -405,7 +405,7 @@ impl DungeonManager {
         // (the log reads the custom waypoint table, a render-thread object: it is logged through the game's executor)
         let rooms_loaded = CompletableFuture::<()>::all_of(&dungeon_futures)
             .then_apply(move |_| {
-                mcrust::mcrust::modding::game::execute(move || {
+                crate::compat::execute(move || {
                     let (dungeons, shapes, rooms) = {
                         let data = compat::lock(&ROOMS_DATA);
                         (data.len(), data.values().map(|m| m.len()).sum::<usize>(), data.values().flat_map(|m| m.values()).map(|m| m.len()).sum::<usize>())

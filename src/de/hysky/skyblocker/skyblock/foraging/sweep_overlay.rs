@@ -246,7 +246,11 @@ impl SweepOverlay {
         }
         let mut render_color: Vec<f32> = compat::get_state(&COLOR_COMPONENTS);
         if is_thrown {
-            render_color = vec![(compat::lock(&COLOR_COMPONENTS)[(0) as usize] * 0.7f32), (compat::lock(&COLOR_COMPONENTS)[(1) as usize] * 0.7f32), (compat::lock(&COLOR_COMPONENTS)[(2) as usize] * 0.7f32), compat::lock(&COLOR_COMPONENTS)[(3) as usize]];
+            // one guard for the whole statement: two `compat::lock(&COLOR_COMPONENTS)` temporaries in one
+            // expression both live to its end, and the second waits for the first (a self-deadlock)
+            #[allow(unused_mut)] let mut __guard_color_components = compat::lock(&COLOR_COMPONENTS);
+            render_color = vec![((*__guard_color_components)[(0) as usize] * 0.7f32), ((*__guard_color_components)[(1) as usize] * 0.7f32), ((*__guard_color_components)[(2) as usize] * 0.7f32), (*__guard_color_components)[(3) as usize]];
+            drop(__guard_color_components); // released before anything below locks it again
         }
         let mut visited: compat::Shared<BlockPosSet> = BlockPosSet::new();
         let mut queue: std::collections::VecDeque<BlockPos> = std::collections::VecDeque::new();

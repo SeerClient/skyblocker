@@ -248,7 +248,11 @@ impl DungeonScore {
     pub fn calculate_explore_score() -> i32 {
         let mut total_rooms: i32 = DungeonScore::get_total_rooms();
         let mut completed_room_score: i32 = (if total_rooms != 0 { ((((60.0 * ((DungeonScore::get_completed_rooms()).wrapping_add(DungeonScore::get_extra_completed_rooms()) as f64)) / (total_rooms as f64))) as i32) } else { 0 }).clamp(0, 60);
-        let mut secrets_score: i32 = (((((40 as f64) * (compat::lock(&FLOOR_REQUIREMENT).fields().percentage as f64).min(DungeonScore::get_secrets_percentage())) / (compat::lock(&FLOOR_REQUIREMENT).fields().percentage as f64))) as i32).clamp(0, 40);
+        // one guard for the whole statement: two `compat::lock(&FLOOR_REQUIREMENT)` temporaries in one
+        // expression both live to its end, and the second waits for the first (a self-deadlock)
+        #[allow(unused_mut)] let mut __guard_floor_requirement = compat::lock(&FLOOR_REQUIREMENT);
+        let mut secrets_score: i32 = (((((40 as f64) * ((*__guard_floor_requirement).fields().percentage as f64).min(DungeonScore::get_secrets_percentage())) / ((*__guard_floor_requirement).fields().percentage as f64))) as i32).clamp(0, 40);
+        drop(__guard_floor_requirement); // released before anything below locks it again
         return completed_room_score.wrapping_add(secrets_score);
     }
 
@@ -259,7 +263,11 @@ impl DungeonScore {
         if time_spent < compat::lock(&FLOOR_REQUIREMENT).fields().time_limit {
             return score;
         }
-        let mut time_past_requirement: f64 = ((((time_spent.wrapping_sub(compat::lock(&FLOOR_REQUIREMENT).fields().time_limit)) as f64) / (compat::lock(&FLOOR_REQUIREMENT).fields().time_limit as f64)) * (100 as f64));
+        // one guard for the whole statement: two `compat::lock(&FLOOR_REQUIREMENT)` temporaries in one
+        // expression both live to its end, and the second waits for the first (a self-deadlock)
+        #[allow(unused_mut)] let mut __guard_floor_requirement = compat::lock(&FLOOR_REQUIREMENT);
+        let mut time_past_requirement: f64 = ((((time_spent.wrapping_sub((*__guard_floor_requirement).fields().time_limit)) as f64) / ((*__guard_floor_requirement).fields().time_limit as f64)) * (100 as f64));
+        drop(__guard_floor_requirement); // released before anything below locks it again
         if time_past_requirement < (20 as f64) {
             return score.wrapping_sub(((time_past_requirement) as i32).wrapping_div(2));
         }

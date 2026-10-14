@@ -164,7 +164,7 @@ impl GardenPlots {
         // CompletableFuture.supplyAsync(.., VIRTUAL_THREAD_EXECUTOR).thenAcceptAsync(newPlots -> arraycopy, Minecraft.getInstance())
         compat::executor(Box::new(move || {
             let new_plots: Vec<Option<GardenPlot>> = GardenPlots::read_plots(&resolve);
-            mcrust::mcrust::modding::game::execute(move || {
+            crate::compat::execute(move || {
                 let length = new_plots.len().min(25);
                 GARDEN_PLOTS.get_mut()[..length].clone_from_slice(&new_plots[..length]);
             });

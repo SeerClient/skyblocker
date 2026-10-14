@@ -64,7 +64,7 @@ impl ItemRepository {
         let mut packet: ClientboundUpdateRecipesPacket = ClientboundUpdateRecipesPacket::new(std::collections::HashMap::new(), mcrust::net::minecraft::world::item::crafting::selectable_recipe::SingleInputSet::empty());
         // java: try {..} catch (Exception e) - an exception here is a panic, caught by `catch_unwind`
         let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            mcrust::mcrust::modding::game::execute(move || {
+            crate::compat::execute(move || {
                 // java: client.getConnection().handleUpdateRecipes(packet);
                 // rust: port gap - `minecraft::get_connection` answers the play listener's sinks, not the game's
                 // `ClientPacketListener`, so a mod cannot hand it a packet to handle (GAPS_batchF.md)

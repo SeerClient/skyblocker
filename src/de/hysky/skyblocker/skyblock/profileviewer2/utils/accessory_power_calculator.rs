@@ -57,7 +57,7 @@ impl AccessoryPowerCalculator {
         if *profile_viewer::ENABLED {
             // java: CompletableFuture.supplyAsync(AccessoryPowerCalculator::loadPowers, SkyblockerMod.VIRTUAL_THREAD_EXECUTOR)
             //           .thenAcceptAsync(data -> powers = data, Minecraft.getInstance());
-            (CompletableFuture::supply_async(move || Ok(AccessoryPowerCalculator::load_powers()), compat::executor)).then_accept_async(|data: &std::collections::HashMap<String, Power>| compat::set_state(&POWERS, data.clone()), std::sync::Arc::new(|__t: Box<dyn FnOnce() + Send>| mcrust::mcrust::modding::game::execute(__t)));
+            (CompletableFuture::supply_async(move || Ok(AccessoryPowerCalculator::load_powers()), compat::executor)).then_accept_async(|data: &std::collections::HashMap<String, Power>| compat::set_state(&POWERS, data.clone()), std::sync::Arc::new(|__t: Box<dyn FnOnce() + Send>| crate::compat::execute(__t)));
         }
     }
 

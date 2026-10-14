@@ -127,7 +127,7 @@ impl BackpackPreview {
             }, compat::executor).then_accept_async(move |storage: &Option<compat::Shared<Storage>>| {
                 // storages[index2] = storage
                 STORAGES.get_mut()[(index2) as usize] = storage.clone();
-            }, std::sync::Arc::new(|__t: Box<dyn FnOnce() + Send>| mcrust::mcrust::modding::game::execute(__t)));
+            }, std::sync::Arc::new(|__t: Box<dyn FnOnce() + Send>| crate::compat::execute(__t)));
         }
     }
 
@@ -169,7 +169,7 @@ impl BackpackPreview {
                 Ok(Err(e)) => logger().error(&format!("[Skyblocker] Failed to save backpack preview file: {} {}", std::path::PathBuf::from(storage_file.file_name().unwrap_or_default()).display(), e)),
                 Err(e) => logger().error(&format!("[Skyblocker] Failed to save backpack preview file: {} {}", std::path::PathBuf::from(storage_file.file_name().unwrap_or_default()).display(), compat::panic_message(&e))),
             }
-        })(), compat::executor)).then_run_async(move || Storage::mark_clean(__storage.get()), std::sync::Arc::new(|__t: Box<dyn FnOnce() + Send>| mcrust::mcrust::modding::game::execute(__t)));
+        })(), compat::executor)).then_run_async(move || Storage::mark_clean(__storage.get()), std::sync::Arc::new(|__t: Box<dyn FnOnce() + Send>| crate::compat::execute(__t)));
     }
 
     /// java: private static void updateStorage(AbstractContainerScreen<?> handledScreen)

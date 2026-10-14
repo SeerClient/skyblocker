@@ -55,7 +55,8 @@ impl ItemProtection {
 
     /// java: @Init public static void init()
     pub fn init() {
-        key_binding_helper::register_key_binding(KeyMapping::new("key.skyblocker.itemProtection", 86, Category::Misc));
+        // java: item_protection = KeyBindingHelper.registerKeyBinding(..) - the static must hold it (the config screen reads it)
+        *ITEM_PROTECTION.get_mut() = Some(key_binding_helper::register_key_binding(KeyMapping::new("key.skyblocker.itemProtection", 86, Category::Misc)));
         client_command_registration_callback::EVENT.register(Arc::new(
             |dispatcher: &mut client_command_registration_callback::ClientCommandDispatcher| {
                 dispatcher.register("skyblocker", |ctx| {

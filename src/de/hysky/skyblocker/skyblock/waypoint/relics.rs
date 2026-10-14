@@ -121,7 +121,7 @@ impl Relics {
                     logger().debug("[Skyblocker] Loaded found relics");
                 }
             }
-        }, |task| mcrust::mcrust::modding::game::execute(task)));
+        }, |task| crate::compat::execute(task)));
     }
 
     /// java: private static void saveFoundRelics(Minecraft client)

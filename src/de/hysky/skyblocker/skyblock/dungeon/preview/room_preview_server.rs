@@ -79,7 +79,7 @@ impl RoomPreviewServer {
         // rust: port gap - `ServerPlayer` is a server-side class: this port has no integrated server (MinecraftServer's
         // instance half / IntegratedServer are unported, RustSrc NEXT_STEPS 000rr), so no ServerPlayer ever joins. GAPS_batchB.md.
         // rust: if compat::uuid_of(player.get_uuid()) == compat::minecraft().get_user().get_profile_id() {
-        // rust:     mcrust::mcrust::modding::game::execute(move || { ({ let __r = scheduler::INSTANCE.get_mut(); let __f = compat::dispatch(__r, |__t| __t.schedule()); __f(__r, Arc::new(move || { RoomPreview::on_join(); }), 5) }); });
+        // rust:     crate::compat::execute(move || { ({ let __r = scheduler::INSTANCE.get_mut(); let __f = compat::dispatch(__r, |__t| __t.schedule()); __f(__r, Arc::new(move || { RoomPreview::on_join(); }), 5) }); });
         // rust:     for msg in ERROR_MESSAGES.get_mut().iter() {
         // rust:         script_host::send_feedback(&msg.to_string());
         // rust:     }

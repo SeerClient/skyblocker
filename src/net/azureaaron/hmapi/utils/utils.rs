@@ -14,6 +14,11 @@ pub struct Utils;
 impl Utils {
     /// java: public static boolean isOnHypixel()
     pub fn is_on_hypixel() -> bool {
+        // Java reaches this from mod init (`HypixelNetworking.registerToEvents`), where `getInstance()` exists but no
+        // server is set, so it answers false; the port builds its Minecraft after the entrypoints - same answer.
+        if !compat::minecraft_ready() {
+            return false;
+        }
         let client = compat::minecraft();
         let server_address: String = mcrust::net::minecraft::client::minecraft::get_current_server(client).map(|server| server.ip.to_lowercase()).unwrap_or_default();
         // client.player != null && client.player.connection != null && serverBrand() != null ? serverBrand() : ""

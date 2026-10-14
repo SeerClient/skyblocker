@@ -157,7 +157,7 @@ impl GoldorWaypointsManager {
                 serde_json::Value::Array(compat::json::get_as_json_array(&json))
             }))
             .map_err(|e| compat::panic_message(&e));
-            mcrust::mcrust::modding::game::execute(move || {
+            crate::compat::execute(move || {
                 let list: Vec<compat::Shared<GoldorWaypoint>> = match arr.and_then(|arr| {
                     std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| CODEC.get().parse(&mcrust::com::mojang::serialization::json_ops::JsonOps::instance(), &compat::json_to_port(&arr)).get_or_throw().unwrap())).map_err(|e| compat::panic_message(&e))
                 }) {

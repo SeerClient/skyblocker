@@ -161,7 +161,12 @@ impl CorpseProfitTracker {
     pub fn init() {
         // TODO(fabric2seer): ClientReceiveMessageEvents.ALLOW_GAME.register: no SeerClient equivalent yet
         //   java: ClientReceiveMessageEvents.ALLOW_GAME.register(INSTANCE::onChatMessage);
-        let all_rewards = compat::read(INSTANCE.get(), |__t| __t.all_rewards.clone()).unwrap();
+        // rust: port gap - the constructor's `allRewards` ProfiledData is not built yet (its codec's
+        // `xmap(ObjectArrayList::new, Function.identity())` above is a TODO), so the corpse tracker stays off
+        let Some(all_rewards) = compat::read(INSTANCE.get(), |__t| __t.all_rewards.clone()) else {
+            logger().warn("[Skyblocker Corpse Profit Tracker] reward storage is not ported yet; the tracker is disabled");
+            return;
+        };
         compat::write(&all_rewards, |__t| { __t.init(); });
         skyblock_events::PROFILE_CHANGE.register(Arc::new(move |__a0, __a1| { CorpseProfitTracker::on_profile_change(INSTANCE.get_mut(), &__a0, &__a1); }));
         client_command_registration_callback::EVENT.register(Arc::new(

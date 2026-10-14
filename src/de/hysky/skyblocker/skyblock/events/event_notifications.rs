@@ -171,7 +171,7 @@ impl EventNotifications {
                 }
             };
             // .thenAcceptAsync(response -> {..}, Minecraft.getInstance()).exceptionally(EventNotifications::itBorked)
-            mcrust::mcrust::modding::game::execute(move || {
+            crate::compat::execute(move || {
                 let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| EventNotifications::accept_events(response)));
                 if let Err(e) = result {
                     EventNotifications::it_borked(&Throwable::new(Some(compat::panic_message(&e))));

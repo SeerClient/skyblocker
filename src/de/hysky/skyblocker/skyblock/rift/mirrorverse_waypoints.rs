@@ -57,7 +57,7 @@ impl MirrorverseWaypoints {
         compat::executor(Box::new(move || {
             // try (BufferedReader reader = client.getResourceManager().openAsReader(WAYPOINTS_JSON)) {..} catch (IOException e) {..}
             let reader: Result<String, String> = manager.open_as_reader(&waypoints_json);
-            mcrust::mcrust::modding::game::execute(move || {
+            crate::compat::execute(move || {
                 let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                     let reader: String = reader.clone().unwrap_or_else(|e| panic!("IOException: {e}"));
                     // JsonArray sections = JsonParser.parseReader(reader).getAsJsonObject().get("sections").getAsJsonArray();

@@ -177,7 +177,7 @@ impl SkyblockInventoryScreen {
             // System.arraycopy(itemStacks, 8, EQUIPMENT_SAFARI, 0, Math.clamp(itemStacks.length - 8, 0, 4));
             let n = (item_stacks.len() - 8).clamp(0, 4);
             EQUIPMENT_SAFARI.get_mut()[..n].clone_from_slice(&item_stacks[8..8 + n]);
-        }, std::sync::Arc::new(|__t: Box<dyn FnOnce() + Send>| mcrust::mcrust::modding::game::execute(__t)));
+        }, std::sync::Arc::new(|__t: Box<dyn FnOnce() + Send>| crate::compat::execute(__t)));
     }
 
     /// java: @Init public static void initEquipment()

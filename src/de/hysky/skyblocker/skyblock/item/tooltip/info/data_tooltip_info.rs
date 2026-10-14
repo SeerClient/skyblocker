@@ -179,7 +179,7 @@ impl<T: Clone + Send + 'static> DataTooltipInfo<T> {
         let handle = compat::RenderThread::new(self.self_ref.clone());
         compat::executor(Box::new(move || {
             let fetched = DataTooltipInfo::<T>::fetch(&address, cacheable, hash, &codec);
-            mcrust::mcrust::modding::game::execute(move || {
+            crate::compat::execute(move || {
                 if let Some(this) = handle.get().upgrade() {
                     compat::write(&this, |t| t.apply(fetched));
                 }

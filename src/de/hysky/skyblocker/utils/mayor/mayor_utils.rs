@@ -187,7 +187,7 @@ impl MayorUtils {
                 (skyblock_events::mayor_change_invoker())();
             }
             return loaded;
-        }, std::sync::Arc::new(|__t: Box<dyn FnOnce() + Send>| mcrust::mcrust::modding::game::execute(__t)));
+        }, std::sync::Arc::new(|__t: Box<dyn FnOnce() + Send>| crate::compat::execute(__t)));
     }
 
 }

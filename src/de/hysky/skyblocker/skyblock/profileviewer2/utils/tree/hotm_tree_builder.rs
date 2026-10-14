@@ -282,7 +282,7 @@ impl HotmTreeBuilder {
                 let mut content: String = todo!("fabric2seer: the initialiser of `content` (TODO above)");
                 let mut layout: Layout = (LAYOUT_CODEC.get_mut().parse(&mcrust::com::mojang::serialization::json_ops::JsonOps::instance(), &compat::json_to_port(&serde_json::from_str::<serde_json::Value>(&content).expect("JsonSyntaxException")))).get_or_throw().unwrap();
                 let __this_1 = compat::RenderThread::new(__this.clone());
-                CompletableFuture::<()>::run_async(move || (|| { HotmTreeBuilder::update_layout(__this_1.get(), layout.clone()); })(), |__t: Box<dyn FnOnce() + Send>| mcrust::mcrust::modding::game::execute(__t));
+                CompletableFuture::<()>::run_async(move || (|| { HotmTreeBuilder::update_layout(__this_1.get(), layout.clone()); })(), |__t: Box<dyn FnOnce() + Send>| crate::compat::execute(__t));
             }));
             if let Err(e) = __result {
                 logger().error(&format!("[Skyblocker Profile Viewer] Failed to load HOTM layout."));

@@ -52,7 +52,7 @@ impl HypixelNetworkingImpl {
     /// java: public static <T extends HypixelS2CPacket> void handlePayload(T payload)
     pub fn handle_payload(payload: HypixelS2CPacket) {
         // java: CLIENT.execute(() -> { switch (payload) {..} });
-        mcrust::mcrust::modding::game::execute(move || match &payload {
+        crate::compat::execute(move || match &payload {
             HypixelS2CPacket::PartyInfo(_) => hypixel_packet_events::PARTY_INFO.get().invoke(&payload),
             HypixelS2CPacket::PlayerInfo(_) => hypixel_packet_events::PLAYER_INFO.get().invoke(&payload),
             HypixelS2CPacket::Hello(_) => {

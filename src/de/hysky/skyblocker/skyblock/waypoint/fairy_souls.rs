@@ -58,7 +58,7 @@ impl FairySouls {
         // the render thread's (not `Send`), so the task is handed to the game's own task queue (`game::execute`), which
         // runs it on that thread once the souls have loaded.
         let runnable = compat::RenderThread::new(runnable);
-        let executor: mcrust::java::util::concurrent::completable_future::Executor = Arc::new(|task| mcrust::mcrust::modding::game::execute(task));
+        let executor: mcrust::java::util::concurrent::completable_future::Executor = Arc::new(|task| crate::compat::execute(task));
         return FAIRY_SOULS_LOADED.get_mut().as_ref().unwrap().then_run_async(move || (runnable.get())(), executor);
     }
 

@@ -102,6 +102,12 @@ impl LoadoutKeybinds {
         // so they live as long as that screen; the port's input events are global, so they are registered once and
         // answer for the screen `AFTER_INIT` last accepted (`SCREEN_ACCEPTED`, reset by every screen's init).
         screen_events::AFTER_INIT.register(Arc::new(|screen: &mut Screen, width: i32, height: i32| {
+            // the first screens (loading, title) are initialised before the game publishes its Minecraft; none is a
+            // container screen, so Java's `instanceof AbstractContainerScreen` check rejects them anyway
+            if !compat::minecraft_ready() {
+                compat::set_state(&SCREEN_ACCEPTED, false);
+                return;
+            }
             //   java: if (!(screen instanceof AbstractContainerScreen<?> handledScreen) || !INSTANCE.test(handledScreen) || !INSTANCE.isEnabled() || client.gameMode == null) return;
             let is_container_screen = matches!(compat::minecraft().gui.screen_kind, mcrust::net::minecraft::client::gui::gui::ScreenKind::Container);
             let accepted = is_container_screen && {

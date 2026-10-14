@@ -363,7 +363,7 @@ impl ProfileViewerScreen {
     /// `then_combine_async`.
     pub fn fetch_player_data(__this: &compat::Shared<Self>, username: &str) -> compat::LocalFuture<()> {
         let username: String = username.to_string();
-        let render_thread: mcrust::java::util::concurrent::completable_future::Executor = Arc::new(|__t: Box<dyn FnOnce() + Send>| mcrust::mcrust::modding::game::execute(__t));
+        let render_thread: mcrust::java::util::concurrent::completable_future::Executor = Arc::new(|__t: Box<dyn FnOnce() + Send>| crate::compat::execute(__t));
 
         // java: CompletableFuture<Void> profileFuture = ProfileUtils.fetchFullProfile(username).thenAccept(profiles -> {
         // java: 	try {

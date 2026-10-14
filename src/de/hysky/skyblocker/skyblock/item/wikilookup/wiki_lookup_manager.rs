@@ -40,7 +40,8 @@ impl WikiLookupManager {
 
     /// java: @Init public static void init()
     pub fn init() {
-        key_binding_helper::register_key_binding(KeyMapping::new("key.skyblocker.wikiLookup.independent", 290, Category::Misc));
+        // java: independent_wiki_lookup = KeyBindingHelper.registerKeyBinding(..) - the static must hold it (the config screen reads it)
+        *INDEPENDENT_WIKI_LOOKUP.get_mut() = Some(key_binding_helper::register_key_binding(KeyMapping::new("key.skyblocker.wikiLookup.independent", 290, Category::Misc)));
     }
 
     /// java: public static String getKeysText()
@@ -99,7 +100,7 @@ impl WikiLookupManager {
         (CompletableFuture::<()>::run_async(move || (|| { util::open_uri(&__uri); })(), compat::executor)).exceptionally(move |e| {
             logger().error(&format!("[Skyblocker] Error while retrieving wiki article: {} {}", wiki_link, e));
             // player.sendSystemMessage(..) - on the render thread, where the port's chat and PREFIX live
-            mcrust::mcrust::modding::game::execute(|| {
+            crate::compat::execute(|| {
                 script_host::send_feedback(&(constants::PREFIX.get_mut())().append_str("Error while retrieving wiki article, see logs...").to_string());
             });
             return Default::default(); // java: return null

@@ -414,7 +414,11 @@ impl Utils {
                 Utils::update_purse();
                 SlayerManager::check_slayer_quest();
                 Utils::update_area();
-                compat::set_state(&IS_GUEST, (!(compat::lock(&STRING_SCOREBOARD).is_empty()) && compat::trim(&compat::lock(&STRING_SCOREBOARD)[0]).ends_with("GUEST")));
+                // one guard for the whole statement: two `compat::lock(&STRING_SCOREBOARD)` temporaries in one
+                // expression both live to its end, and the second waits for the first (a self-deadlock)
+                #[allow(unused_mut)] let mut __guard_string_scoreboard = compat::lock(&STRING_SCOREBOARD);
+                compat::set_state(&IS_GUEST, (!((*__guard_string_scoreboard).is_empty()) && compat::trim(&(*__guard_string_scoreboard)[0]).ends_with("GUEST")));
+                drop(__guard_string_scoreboard); // released before anything below locks it again
             }
         }
         // TODO(fabric2seer): the `catch (NullPointerException _)` block is not reached in Rust - the try body returns, breaks or continues, so it cannot run inside `catch_unwind`

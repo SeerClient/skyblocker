@@ -142,8 +142,20 @@ impl SkyblockerScreen {
         Self::clinit();
         client_command_registration_callback::EVENT.register(Arc::new(
             |dispatcher: &mut client_command_registration_callback::ClientCommandDispatcher| {
-                // TODO(fabric2seer): a command tree this tool cannot read (arguments, redirects, requires) - SeerClient commands receive the words after the name in `ctx.args`
-                //   java: dispatcher.register(..);
+                // java: dispatcher.register(ClientCommandManager.literal(SkyblockerMod.NAMESPACE)
+                //   .executes(Scheduler.queueOpenScreenCommand(SkyblockerScreen::new)));
+                // The screen is built inside the scheduled task, on the render thread, like `/skyblocker config`.
+                use mcrust::com::mojang::brigadier::builder::argument_builder::ArgumentBuilder as _;
+                use mcrust::com::mojang::brigadier::context::command_context::CommandContext;
+                type Source = client_command_registration_callback::FabricClientCommandSource;
+                let mut root = client_command_registration_callback::literal(crate::entry::skyblocker_mod::NAMESPACE);
+                root.executes(Arc::new(|_: &CommandContext<Source>| {
+                    mcrust::net::minecraft::client::minecraft::execute(Box::new(|_minecraft| {
+                        mcrust::mcrust::modding::game::set_screen(Box::new(compat::ScreenAdapter::new(SkyblockerScreen::new())));
+                    }));
+                    Ok(1)
+                }));
+                dispatcher.dispatcher().register(&root);
             },
         ));
     }

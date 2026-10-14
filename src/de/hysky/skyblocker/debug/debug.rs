@@ -68,8 +68,10 @@ impl Debug {
             return;
         }
         SnapshotDebug::init();
-        key_binding_helper::register_key_binding(KeyMapping::new("key.skyblocker.debug.dumpNearbyEntities", 73, Category::Misc));
-        key_binding_helper::register_key_binding(KeyMapping::new("key.skyblocker.debug.dumpHoveredItem", 85, Category::Misc));
+        // java: dump_nearby_entities_key = KeyBindingHelper.registerKeyBinding(..) - the static must hold it (the config screen reads it)
+        *DUMP_NEARBY_ENTITIES_KEY.get_mut() = Some(key_binding_helper::register_key_binding(KeyMapping::new("key.skyblocker.debug.dumpNearbyEntities", 73, Category::Misc)));
+        // java: dump_hovered_item_key = KeyBindingHelper.registerKeyBinding(..) - the static must hold it (the config screen reads it)
+        *DUMP_HOVERED_ITEM_KEY.get_mut() = Some(key_binding_helper::register_key_binding(KeyMapping::new("key.skyblocker.debug.dumpHoveredItem", 85, Category::Misc)));
         client_command_registration_callback::EVENT.register(Arc::new(
             |dispatcher: &mut client_command_registration_callback::ClientCommandDispatcher| {
                 //   java: dispatcher.register(literal(SkyblockerMod.NAMESPACE).then(literal("debug")

@@ -106,7 +106,7 @@ impl ItemPrice {
                     (item_price_update_event::on_price_update_invoker())();
                     script_host::send_feedback(&(constants::PREFIX.get_mut())().append(component::translatable("skyblocker.config.helpers.itemPrice.refreshedItemPrices")).to_string());
                 },
-                std::sync::Arc::new(|__t: Box<dyn FnOnce() + Send>| mcrust::mcrust::modding::game::execute(__t)),
+                std::sync::Arc::new(|__t: Box<dyn FnOnce() + Send>| crate::compat::execute(__t)),
             )
             .exceptionally(|e| {
                 logger().error(&format!("[Skyblocker Item Price] Failed to refresh item prices: {}", e));

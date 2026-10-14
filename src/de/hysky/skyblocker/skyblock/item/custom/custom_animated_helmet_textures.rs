@@ -73,7 +73,7 @@ impl CustomAnimatedHelmetTextures {
                 // (the NEU repo library is a port gap - GAPS_M #10 - so the file reads empty and the parse below fails)
                 let mut data: String = compat::neu_repo_file_read_all(&stream);
                 let mut animated_heads: std::collections::HashMap<String, AnimatedHead> = (ANIMATED_HEAD_MAP_CODEC.get_mut().parse(&mcrust::com::mojang::serialization::json_ops::JsonOps::instance(), &compat::json_to_port(&(compat::json::get_as_json_object(&(serde_json::from_str::<serde_json::Value>(&data).expect("JsonSyntaxException")))).get("skins").cloned().unwrap()))).get_or_throw().unwrap().into_iter().collect();
-                mcrust::mcrust::modding::game::execute(move || {
+                crate::compat::execute(move || {
                     ANIMATED_HEADS.get_mut().clear();
                     ANIMATED_HEADS.get_mut().extend(animated_heads.iter().map(|(k, v)| (k.clone(), v.clone())));
                     STATE_TRACKERS.get_mut().clear();

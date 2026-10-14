@@ -64,7 +64,7 @@ impl ConstantData {
             .then_accept_async(move |reader: &Result<String, String>| {
                 let data: Option<T> = ConstantData::parse_data(reader.clone(), &file_name, codec.get());
                 ConstantData::set_data(data, setter.get().clone());
-            }, std::sync::Arc::new(|__t: Box<dyn FnOnce() + Send>| mcrust::mcrust::modding::game::execute(__t)));
+            }, std::sync::Arc::new(|__t: Box<dyn FnOnce() + Send>| crate::compat::execute(__t)));
     }
 
     /// `loadData`'s `minecraft.getResourceManager().openAsReader(SkyblockerMod.id("constants/" + fileName))`.
