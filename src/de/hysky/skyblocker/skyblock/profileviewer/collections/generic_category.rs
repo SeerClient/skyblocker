@@ -155,7 +155,7 @@ impl GenericCategory {
         let __title = mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(category_title.clone());
         let __title_x = (root_x.wrapping_add(88)).wrapping_sub(TEXT_RENDERER.get_mut().width_of_cached(&__title).wrapping_div(2));
         gui_graphics_extractor::draw_formatted_text_with_drop_shadow(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), &__title, __title_x, root_y, mcrust::java::awt::color::dark_gray().get_rgb(), false);
-        for i in 0..(__this.lock().borrow().collections.len() as i32) {
+        for i in { 0..(__this.lock().borrow().collections.len() as i32) } {
             let mut x: i32 = (root_x.wrapping_add(2)).wrapping_add((i.wrapping_rem(COLUMNS)).wrapping_mul(COLUMN_GAP));
             let mut y: i32 = (root_y.wrapping_add(19)).wrapping_add((i.wrapping_div(COLUMNS)).wrapping_mul(ROW_GAP));
             gui_graphics_extractor::blit_identifier(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), mcrust::net::minecraft::client::renderer::render_pipelines::gui_textured(), BUTTON_TEXTURE.get_mut(), x.wrapping_sub(3), y.wrapping_sub(3), ((0) as f32) as f32, ((0) as f32) as f32, 22, 22, 22, 22);

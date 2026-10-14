@@ -135,7 +135,7 @@ impl InventoryPage {
     /// java: @Override public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta, int rootX, int rootY)
     pub fn extract_render_state_impl(__this: &compat::Shared<Self>, graphics: &mut GuiGraphicsExtractor, mut mouse_x: i32, mut mouse_y: i32, mut delta: f32, mut root_x: i32, mut root_y: i32) {
         let mut starting_y: i32 = root_y.wrapping_add((TOTAL_HEIGHT.wrapping_sub((__this.lock().borrow().inventory_select_buttons.len() as i32).wrapping_mul(21))).wrapping_div(2));
-        for i in 0..(__this.lock().borrow().inventory_select_buttons.len() as i32) {
+        for i in { 0..(__this.lock().borrow().inventory_select_buttons.len() as i32) } {
             let __wa1 = root_x;
             let __o1 = __this.lock().borrow().inventory_select_buttons[(i) as usize].clone();
             compat::write(&__o1, |__t| __t.set_x(__wa1));

@@ -260,7 +260,7 @@ impl IcePath {
             return;
         };
         let mut pos: MutableBlockPos = MutableBlockPos::new_origin();
-        for i in 0..(__this.lock().borrow().silverfish_path.len() as i32).wrapping_sub(1) {
+        for i in { 0..(__this.lock().borrow().silverfish_path.len() as i32).wrapping_sub(1) } {
             let mut start: Vec3 = vec3::at_center_of(&({ let __f = compat::dispatch(&room, |__t| __t.relative_to_actual()); __f(&room, &(pos.set(23i32.wrapping_sub((__this.lock().borrow().silverfish_path[(i) as usize]).y()), 67, 24i32.wrapping_sub((__this.lock().borrow().silverfish_path[(i) as usize]).x()))).immutable()) }));
             let mut end: Vec3 = vec3::at_center_of(&({ let __f = compat::dispatch(&room, |__t| __t.relative_to_actual()); __f(&room, &(pos.set(23i32.wrapping_sub((__this.lock().borrow().silverfish_path[(i.wrapping_add(1)) as usize]).y()), 67, 24i32.wrapping_sub((__this.lock().borrow().silverfish_path[(i.wrapping_add(1)) as usize]).x()))).immutable()) }));
             ({ let __f = compat::dispatch(collector, |__t| __t.submit_lines_from_points()); __f(collector, &vec![start.clone(), end.clone()], &RED_COLOR_COMPONENTS, 1.0f32, 5.0f32, true) });

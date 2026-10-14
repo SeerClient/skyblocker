@@ -326,7 +326,7 @@ impl WaterboardOneFlow {
 
     /// java: private void extractLeverText(PrimitiveCollector collector, LeverType nextLever)
     pub fn extract_lever_text(__this: &compat::Shared<Self>, collector: &compat::Shared<dyn PrimitiveCollector>, mut next_lever: LeverType) {
-        for lever_data in __this.lock().borrow().solution.as_ref().unwrap().iter().map(|(k, v)| (k.clone(), v.clone())) {
+        for lever_data in { __this.lock().borrow().solution.as_ref().unwrap().iter().map(|(k, v)| (k.clone(), v.clone())).collect::<Vec<_>>() } {
             let mut lever: LeverType = lever_data.0;
             for i in 0..(lever_data.1.len() as i32) {
                 let mut next_time: f64 = lever_data.1[(i) as usize];

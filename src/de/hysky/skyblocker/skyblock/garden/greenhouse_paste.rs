@@ -78,11 +78,13 @@ impl GreenhousePaste {
     pub fn init() {
         // java: ClientLifecycleEvents.CLIENT_STARTED.register(_ -> PRESETS_DATA.init()); - RETURN of `Minecraft`'s
         // constructor (as `WidgetManager.init` hooks it)
-        let _ = hook::inject("net.minecraft.client.Minecraft#<init>", At::Return, |_: &mut CallbackInfo<'_>| {
+        // rust: a RETURN injector registered from inside `Minecraft#<init>` (the client entrypoints run there) is not in
+        // that call's injector snapshot, so it never fired; `compat::execute` runs it before the first client tick, which
+        // is where Fabric fires CLIENT_STARTED (early in `Minecraft.run`).
+        compat::execute(|| {
             let __r = PRESETS_DATA.get();
             let _ = __r.lock().borrow_mut().init();
-        })
-        .map_err(|e| logger().error(&format!("[Skyblocker] Failed to hook the client start: {:?}", e)));
+        });
         client_command_registration_callback::EVENT.register(Arc::new(
             |dispatcher: &mut client_command_registration_callback::ClientCommandDispatcher| {
                 // java: LiteralArgumentBuilder<FabricClientCommandSource> greenhouseCommands = literal("greenhouse")

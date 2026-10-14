@@ -112,19 +112,23 @@ impl ContainerSolverManager {
     /// java: public static void onSetScreen(AbstractContainerScreen<?> screen)
     pub fn on_set_screen(screen: &AbstractContainerScreen) {
         let mut screen_name: String = screen.screen.get_title().to_string();
-        for solver in SOLVERS.get_mut().iter() {
+        let __solvers: Vec<compat::Shared<dyn ContainerSolver>> = SOLVERS.get().clone();
+        for solver in __solvers.iter() {
             if (Utils::is_on_skyblock() || !({ let __f = compat::dispatch(solver, |__t| __t.skyblock_only()); __f(&compat::view(solver, |a| a as compat::Shared<dyn ContainerMatcher>)) })) && { let __f = compat::dispatch(solver, |__t| __t.is_enabled()); __f(&compat::view(solver, |a| a as compat::Shared<dyn ContainerMatcher>)) } {
-                // TODO(fabric2seer): an `instanceof` pattern under `||` / `!`
-                //   java: if ((solver instanceof RegexContainerMatcher containerMatcher && containerMatcher.test(screenName)) || solver.test(screen)) {
-                //   java: 					// Checks if the solver should be processed for this screen type.
-                //   java: 					if (screen instanceof ContainerScreen || !solver.chestScreensOnly()) {
-                //   java: 						++screenId;
-                //   java: 						currentSolver = solver;
-                //   java: 						currentSolver.start(screen);
-                //   java: 						markHighlightsDirty();
-                //   java: 						return;
-                //   java: 					}
-                //   java: 				}
+                // java: if ((solver instanceof RegexContainerMatcher containerMatcher && containerMatcher.test(screenName)) || solver.test(screen))
+                // A RegexContainerMatcher's `test(Screen)` is `test(screen.getTitle().getString())` (RegexContainerMatcher.test_body),
+                // the same title as `screenName`, so the first operand adds nothing the second does not answer.
+                let _ = &screen_name;
+                if { let __f = compat::dispatch(solver, |__t| __t.test()); __f(&compat::view(solver, |a| a as compat::Shared<dyn ContainerMatcher>), &screen.screen) } {
+                    // java: if (screen instanceof ContainerScreen || !solver.chestScreensOnly())
+                    if compat::minecraft().gui.screen_kind == mcrust::net::minecraft::client::gui::gui::ScreenKind::Container || !({ let __f = compat::dispatch(solver, |__t| __t.chest_screens_only()); __f(solver) }) {
+                        { let mut __g = compat::lock(&SCREEN_ID); *__g = __g.wrapping_add(1); }
+                        *CURRENT_SOLVER.get_mut() = Some(solver.clone());
+                        ({ let __f = compat::dispatch(solver, |__t| __t.start()); __f(solver, screen) });
+                        ContainerSolverManager::mark_highlights_dirty();
+                        return;
+                    }
+                }
             }
         }
         ContainerSolverManager::clear_screen();

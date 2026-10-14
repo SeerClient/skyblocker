@@ -96,7 +96,7 @@ impl JacobEventToast {
             let mut k: i32 = ((!(mth::floor_f32((((start_time.wrapping_sub(3000 as i64) as f32) / 200.0f32).clamp(0.0f32, 1.0f32) * 255.0f32)))).wrapping_shl((24) as u32) | 0x4000000);
             let mut x: i32 = (30i32.wrapping_add(compat::read(__this, |__t| __t.crops_width))).wrapping_add(4);
             gui_graphics_extractor::draw_formatted_text_with_drop_shadow(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), &mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(CROPS.get_mut().clone()), 30, 7i32.wrapping_add((16i32.wrapping_sub(mcrust::net::minecraft::client::gui::font::LINE_HEIGHT)).wrapping_div(2)), mcrust::net::minecraft::util::common_colors::WHITE, false);
-            for i in 0..(__this.lock().borrow().crops.len() as i32) {
+            for i in { 0..(__this.lock().borrow().crops.len() as i32) } {
                 graphics.item(&FlexibleItemStack::get_stack_or_throw(&jacobs_contest_widget::FARM_DATA.get_mut().get(&__this.lock().borrow().crops[(i) as usize]).cloned().unwrap_or_else(|| ico::IRON_HOE.get_mut().clone())), x.wrapping_add(i.wrapping_mul(16i32.wrapping_add(8))), 7);
             }
             GuiHelper::nine_slice_colored(graphics, event_toast::TEXTURE.get_mut(), 0, 0, ({ let __f = compat::dispatch(__this, |__t| __t.width()); __f(&compat::view(__this, |a| a as compat::Shared<dyn EventToast>)) }), ({ let __f = compat::dispatch(__this, |__t| __t.height()); __f(&compat::view(__this, |a| a as compat::Shared<dyn EventToast>)) }), argb::color_from_float(((k.wrapping_shr((24) as u32) as f32) / 255.0f32), 1.0f32, 1.0f32, 1.0f32));

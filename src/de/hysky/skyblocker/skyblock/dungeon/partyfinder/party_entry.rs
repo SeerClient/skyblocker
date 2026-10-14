@@ -346,7 +346,7 @@ impl dyn PartyEntry {
         }
         // PlayerFaceExtractor.extractRenderState(graphics, partyLeaderSkin, ..): the port's takes the texture the id names
         { let __client = compat::minecraft(); let __skin = compat::read(__this, |__t| __t.party_entry_base().party_leader_skin.clone()); if let Some(__texture) = __client.game_renderer.texture_manager().get_texture_or_request(&__skin) { player_face_extractor::extract_render_state(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*__client, __texture, 6, 6, 8, true, false, -1); } }
-        for i in 0..(__this.lock().borrow().party_entry_base().party_members.len() as i32) {
+        for i in { 0..(__this.lock().borrow().party_entry_base().party_members.len() as i32) } {
             let mut party_member: Option<compat::Shared<Player>> = __this.lock().borrow().party_entry_base().party_members[(i) as usize].clone();
             let Some(mut party_member) = party_member.clone() else {
                 continue;

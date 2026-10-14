@@ -192,7 +192,8 @@ impl ItemPickupWidget {
         if slot == 8 {
             return;
         }
-        let mut old_stack: mcrust::net::minecraft::world::item::item_stack::ItemStack = mcrust::mcrust::modding::game::with_player(|player| player.base.base.get_inventory().get_non_equipment_items()[(slot) as usize].clone()).unwrap();
+        // `with_player` answers None while the player is held (Java's `CLIENT.player` was checked non-null above)
+        let Some(mut old_stack) = mcrust::mcrust::modding::game::with_player(|player| player.base.base.get_inventory().get_non_equipment_items()[(slot) as usize].clone()) else { return; };
         let mut count_diff: i32 = new_stack.get_count().wrapping_sub(old_stack.get_count());
         if std::ptr::addr_eq(std::sync::Arc::as_ptr(&new_stack.get_item()), std::sync::Arc::as_ptr(&items::items().get("air"))) {
             if std::ptr::addr_eq(std::sync::Arc::as_ptr(&old_stack.get_item()), std::sync::Arc::as_ptr(&items::items().get("air"))) {
@@ -327,7 +328,7 @@ impl ItemPickupWidget {
 
     /// java: @Override public void updateContent()
     pub fn update_content_impl(__this: &compat::Shared<Self>) {
-        for item in __this.lock().borrow().added_count.keys().cloned() {
+        for item in { __this.lock().borrow().added_count.keys().cloned().collect::<Vec<_>>() } {
             let mut entry: ChangeData = __this.lock().borrow().added_count.get(&item).cloned().unwrap();
             let Some(mut item_name) = ItemPickupWidget::check_next_item(__this, &entry) else {
                 __this.lock().borrow_mut().added_count.remove(&item);
@@ -338,7 +339,7 @@ impl ItemPickupWidget {
             }
             ({ let __f = compat::dispatch(__this, |__t| __t.add_simple_ico_text_flexible_item_stack_string_chat_formatting_string()); __f(&compat::view(__this, |a| a as compat::Shared<dyn ElementCollector>), Some(FlexibleItemStack::new4(entry.item.clone())), &item_name, &ChatFormatting::Green, &formatters::DIFF_NUMBERS.get_mut().format((entry.amount) as f64)) });
         }
-        for item in __this.lock().borrow().removed_count.keys().cloned() {
+        for item in { __this.lock().borrow().removed_count.keys().cloned().collect::<Vec<_>>() } {
             let mut entry: ChangeData = __this.lock().borrow().removed_count.get(&item).cloned().unwrap();
             let Some(mut item_name) = ItemPickupWidget::check_next_item(__this, &entry) else {
                 __this.lock().borrow_mut().removed_count.remove(&item);
@@ -351,7 +352,7 @@ impl ItemPickupWidget {
         }
         if compat::read(__this, |__t| __t.split_notifications) && !(__this.lock().borrow().added_sack_count.is_empty() && __this.lock().borrow().removed_sack_count.is_empty()) {
             { let (__a0,) = ((SeparatorElement::new(Some(component::null_to_empty(Some("Sacks")))) as compat::Shared<dyn Element>),); __this.lock().borrow_mut().add_element(__a0) };
-            for item in __this.lock().borrow().added_sack_count.keys().cloned() {
+            for item in { __this.lock().borrow().added_sack_count.keys().cloned().collect::<Vec<_>>() } {
                 let mut entry: ChangeData = __this.lock().borrow().added_sack_count.get(&item).cloned().unwrap();
                 let Some(mut item_name) = ItemPickupWidget::check_next_item(__this, &entry) else {
                     __this.lock().borrow_mut().added_sack_count.remove(&item);
@@ -359,7 +360,7 @@ impl ItemPickupWidget {
                 };
                 ({ let __f = compat::dispatch(__this, |__t| __t.add_simple_ico_text_flexible_item_stack_string_chat_formatting_string()); __f(&compat::view(__this, |a| a as compat::Shared<dyn ElementCollector>), Some(FlexibleItemStack::new4(entry.item.clone())), &item_name, &ChatFormatting::Green, &formatters::DIFF_NUMBERS.get_mut().format((entry.amount) as f64)) });
             }
-            for item in __this.lock().borrow().removed_sack_count.keys().cloned() {
+            for item in { __this.lock().borrow().removed_sack_count.keys().cloned().collect::<Vec<_>>() } {
                 let mut entry: ChangeData = __this.lock().borrow().removed_sack_count.get(&item).cloned().unwrap();
                 let Some(mut item_name) = ItemPickupWidget::check_next_item(__this, &entry) else {
                     __this.lock().borrow_mut().removed_sack_count.remove(&item);

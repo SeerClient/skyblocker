@@ -316,12 +316,13 @@ impl Utils {
 
     /// java: private static boolean isConnectedToHypixel(Minecraft client)
     pub fn is_connected_to_hypixel(client: &mut mcrust::net::minecraft::client::minecraft::Minecraft) -> bool {
-        let mut server_address: String = (if minecraft::get_current_server(client).is_some() { minecraft::get_current_server(client).unwrap().ip.to_lowercase() } else { "".to_string() });
+        // java: client.getCurrentServer() - `getConnection()`'s server data, through `compat::get_connection` (see there)
+        let mut server_address: String = compat::get_connection(client).and_then(|connection| connection.server_data.clone()).map(|server| server.ip.to_lowercase()).unwrap_or_else(|| "".to_string());
         // java: client.player != null && client.player.connection != null && client.player.connection.serverBrand() != null
         //   ? client.player.connection.serverBrand() : ""
         // The port publishes the connection's brand beside the play listener (`PlayListenerSinks.server_brand`);
         // `get_connection` answers None without a player, as Java's first two guards do.
-        let mut server_brand: String = minecraft::get_connection(client)
+        let mut server_brand: String = compat::get_connection(client)
             .and_then(|sinks| sinks.server_brand.lock().unwrap_or_else(|p| p.into_inner()).clone())
             .unwrap_or_else(|| "".to_string());
         return (!server_address.is_empty() && compat::equals_ignore_case(&server_address, &ALTERNATE_HYPIXEL_ADDRESS) || server_address.contains("hypixel.net") || server_address.contains("hypixel.io") || server_brand.contains("Hypixel BungeeCord"));
@@ -466,12 +467,12 @@ impl Utils {
 
     /// java: private static void updateFromPlayerList(Minecraft client)
     pub fn update_from_player_list(client: &mut mcrust::net::minecraft::client::minecraft::Minecraft) {
-        if minecraft::get_connection(client).is_none() {
+        if compat::get_connection(client).is_none() {
             return;
         }
         // java: client.getConnection().getOnlinePlayers() - the port keeps each PlayerInfo's tab list fields in the
         // connection's `tab_list_players` (refreshed every tick)
-        let online_players = minecraft::get_connection(client).unwrap().tab_list_players.lock().unwrap_or_else(|p| p.into_inner()).clone();
+        let online_players = compat::get_connection(client).unwrap().tab_list_players.lock().unwrap_or_else(|p| p.into_inner()).clone();
         for player_list_entry in online_players.iter() {
             if player_list_entry.tab_list_display_name.is_none() {
                 continue;

@@ -108,7 +108,7 @@ impl SkyblockCraftingRecipe {
     pub fn get_input_slots_impl(__this: &compat::Shared<Self>, mut width: i32, mut height: i32) -> Vec<RecipeSlot> {
         let mut start: ScreenPosition = ScreenPosition::new((width.wrapping_div(2)).wrapping_sub(58), (height.wrapping_div(2)).wrapping_sub(if ((({ let __f = compat::dispatch(__this, |__t| __t.get_extra_text()); __f(&compat::view(__this, |a| a as compat::Shared<dyn SkyblockRecipe>)) })).get_string()).is_empty() { 27 } else { 32 }));
         let mut to_return: Vec<RecipeSlot> = Vec::with_capacity((9) as usize);
-        for i in 0..(__this.lock().borrow().grid.len() as i32) {
+        for i in { 0..(__this.lock().borrow().grid.len() as i32) } {
             let mut x: i32 = i.wrapping_rem(3);
             let mut y: i32 = i.wrapping_div(3);
             to_return.push(RecipeSlot::new((start.x().wrapping_add(1)).wrapping_add(x.wrapping_mul(18)), (start.y().wrapping_add(1)).wrapping_add(y.wrapping_mul(18)), __this.lock().borrow().grid[(i) as usize].clone()));

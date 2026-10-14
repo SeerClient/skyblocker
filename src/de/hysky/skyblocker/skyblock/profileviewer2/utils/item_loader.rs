@@ -45,7 +45,7 @@ impl ItemLoader {
         let mut ender_chest: Vec<mcrust::net::minecraft::world::item::item_stack::ItemStack> = (if member.lock().borrow().inventories.ender_chest_contents.is_some() { ItemLoader::decode(&compat::read(member.lock().borrow().inventories.ender_chest_contents.as_ref().unwrap(), |__t| __t.data.clone())) } else { vec![] });
         let mut accessories: Vec<mcrust::net::minecraft::world::item::item_stack::ItemStack> = (if member.lock().borrow().inventories.bag_contents.talisman_bag.is_some() { ItemLoader::decode(&compat::read(member.lock().borrow().inventories.bag_contents.talisman_bag.as_ref().unwrap(), |__t| __t.data.clone())) } else { vec![] });
         let mut backpacks: std::collections::BTreeMap<i32, Backpack> = std::collections::BTreeMap::new();
-        for entry in member.lock().borrow().inventories.backpack_contents.iter().map(|(k, v)| (k.clone(), v.clone())) {
+        for entry in { member.lock().borrow().inventories.backpack_contents.iter().map(|(k, v)| (k.clone(), v.clone())).collect::<Vec<_>>() } {
             let mut icon: mcrust::net::minecraft::world::item::item_stack::ItemStack = mcrust::net::minecraft::world::item::item_stack::empty();
             let mut contents: Vec<mcrust::net::minecraft::world::item::item_stack::ItemStack> = ItemLoader::decode(&compat::read(&entry.1, |__t| __t.data.clone()));
             if member.lock().borrow().inventories.backpack_icons.contains_key(&entry.0) {

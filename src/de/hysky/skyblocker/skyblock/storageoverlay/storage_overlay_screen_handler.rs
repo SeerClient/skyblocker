@@ -68,7 +68,7 @@ impl StorageOverlayScreenHandler {
 
     /// java: public void shiftInventory(int shift)
     pub fn shift_inventory(__this: &compat::Shared<Self>, mut shift: i32) {
-        for i in (compat::read(__this, |__t| __t.rows)).wrapping_mul(9)..(__this.lock().borrow().slots.len() as i32) {
+        for i in { (compat::read(__this, |__t| __t.rows)).wrapping_mul(9)..(__this.lock().borrow().slots.len() as i32) } {
             let original_slot: Slot = compat::read(__this, |__t| __t.slots[(i) as usize].clone());
             let mut slot: Slot = Slot::new(original_slot.container, original_slot.get_container_slot(), original_slot.x, original_slot.y.wrapping_add(shift));
             slot.index = i;

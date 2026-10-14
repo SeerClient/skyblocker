@@ -63,7 +63,7 @@ impl GridTooltipComponent {
         // TODO(fabric2seer): `text_renderer` takes 2 argument(s) in the port (`mouse_x: f64, mouse_y: f64`), Java passes 0
         // rust: let mut text_renderer: Box<dyn ActiveTextCollector> = gui_graphics_extractor::text_renderer();
         let mut text_renderer: Box<dyn ActiveTextCollector> = todo!("fabric2seer: the initialiser of `textRenderer` (TODO above)");
-        for i in 0..(__this.lock().borrow().sequence.grid_contents().components().len() as i32) {
+        for i in { 0..(__this.lock().borrow().sequence.grid_contents().components().len() as i32) } {
             let column = &__this.lock().borrow().sequence.grid_contents().components()[(i) as usize];
             // TODO(fabric2seer): `ActiveTextCollector.accept` has no Rust method in the port (looked for `accept` in ActiveTextCollector and its supertypes)
             // rust: text_renderer.accept(x, y, column);

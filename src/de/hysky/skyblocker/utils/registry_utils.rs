@@ -50,7 +50,7 @@ impl RegistryUtils {
     /// connection keeps it in `PlayListenerSinks.registry_access` (`None` before the registry sync).
     fn connection_registry_access() -> Option<Arc<dyn Provider>> {
         let client = compat::minecraft();
-        let connection = minecraft::get_connection(client)?;
+        let connection = compat::get_connection(client)?;
         let registry_access = connection.registry_access.lock().unwrap_or_else(|p| p.into_inner()).clone()?;
         Some(Arc::new(registry_access) as Arc<dyn Provider>)
     }

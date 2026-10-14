@@ -196,7 +196,7 @@ impl dyn HudConfigScreen {
         if (config_positions.len() as i32) != (__this.lock().borrow().hud_config_screen_base().widgets.len() as i32) {
             panic!("IllegalStateException: {}", format!("The number of positions ({}) does not match the number of widgets ({})", (config_positions.len() as i32), (__this.lock().borrow().hud_config_screen_base().widgets.len() as i32)).to_string());
         }
-        for i in 0..(__this.lock().borrow().hud_config_screen_base().widgets.len() as i32) {
+        for i in { 0..(__this.lock().borrow().hud_config_screen_base().widgets.len() as i32) } {
             let mut widget: compat::Shared<dyn BasicWidget> = __this.lock().borrow().hud_config_screen_base().widgets[(i) as usize].clone();
             let config_pos = &config_positions[(i) as usize];
             ({ let __f = compat::dispatch(&widget, |__t| __t.set_x()); __f(&widget, config_pos.0) });

@@ -123,7 +123,7 @@ impl BazaarPriceTooltip {
             let mut count: i32 = (ItemUtils::get_item_count_in_sack(stack, &stack.skyblocker_get_lore_strings()).unwrap_or(ItemUtils::get_item_count_in_stash_component(&lines[0]).unwrap_or(ItemUtils::get_item_count_in_superpairs(stack).unwrap_or(ItemUtils::get_compost_count_in_composter(&stack.skyblocker_get_lore_strings()).unwrap_or(stack.get_count()))))).max(1);
             // TODO(fabric2seer): `.get(..)` on a T
             //   java: BazaarProduct product = TooltipInfoType.BAZAAR.getData().get(skyblockApiId);
-            let mut product: BazaarProduct = todo!("fabric2seer: the initialiser of `product` (TODO above)");
+            let mut product: BazaarProduct = tooltip_info_type::BAZAAR.get_mut().lock().borrow().get_data().expect("NullPointerException: TooltipInfoType.BAZAAR.getData()").get(&skyblock_api_id).cloned().expect("NullPointerException: BazaarProduct product");
             lines.push(GridComponent::of(&vec![component::literal("Bazaar Buy Price:").with_style_format(ChatFormatting::Gold), (if product.buy_price().is_none() { component::literal("No data").with_style_format(ChatFormatting::Red) } else { ItemTooltip::get_coins_message(product.buy_price().unwrap(), count) })]));
             lines.push(GridComponent::of(&vec![component::literal("Bazaar Sell Price:").with_style_format(ChatFormatting::Gold), (if product.sell_price().is_none() { component::literal("No data").with_style_format(ChatFormatting::Red) } else { ItemTooltip::get_coins_message(product.sell_price().unwrap(), count) })]));
         }

@@ -1,0 +1,10 @@
+src/de/hysky/skyblocker/skyblock/waypoint/
+src/de/hysky/skyblocker/skyblock/itemlist/
+src/de/hysky/skyblocker/utils/ws/
+src/de/hysky/skyblocker/skyblock/auction/
+src/de/hysky/skyblocker/skyblock/crimson/
+src/de/hysky/skyblocker/skyblock/fancybars/
+src/de/hysky/skyblocker/skyblock/shortcut/
+src/de/hysky/skyblocker/skyblock/foraging/
+src/de/hysky/skyblocker/config/screens/
+src/de/hysky/skyblocker/utils/chat/

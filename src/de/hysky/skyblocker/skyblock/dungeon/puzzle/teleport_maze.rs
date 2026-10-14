@@ -174,7 +174,7 @@ impl TeleportMaze {
             return;
         }
         let mut debug: bool = crate::de::hysky::skyblocker::debug::debug::Debug::debug_enabled();
-        for entry in __this.lock().borrow().pads.iter().map(|(k, v)| (k.clone(), v.clone())) {
+        for entry in { __this.lock().borrow().pads.iter().map(|(k, v)| (k.clone(), v.clone())).collect::<Vec<_>>() } {
             let mut color: Vec<f32> = (if debug { entry.1.fields().color_components.clone() } else { RED.clone() });
             ({ let __f = compat::dispatch(collector, |__t| __t.submit_filled_box()); __f(collector, &entry.0, &color, 0.5f32, debug) });
         }

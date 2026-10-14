@@ -57,7 +57,7 @@ impl ItemRepository {
     /// java: private static void handleRecipeSynchronization()
     pub fn handle_recipe_synchronization() {
         let client = compat::minecraft();
-        if mcrust::mcrust::modding::game::level().is_none() || minecraft::get_connection(client).is_none() {
+        if mcrust::mcrust::modding::game::level().is_none() || compat::get_connection(client).is_none() {
             return;
         }
         // java: ClientboundUpdateRecipesPacket packet = new ClientboundUpdateRecipesPacket(Map.of(), SelectableRecipe.SingleInputSet.empty());

@@ -226,7 +226,7 @@ impl ColorPickerWidget {
     pub fn extract_widget_render_state(__this: &compat::Shared<Self>, graphics: &mut GuiGraphicsExtractor, mut mouse_x: i32, mut mouse_y: i32, mut delta: f32) {
         let mut color: i32 = 0x80606060u32 as i32;
         graphics.fill(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), (__this.lock().borrow().h_rect.as_ref().unwrap().left()).wrapping_sub(1), (__this.lock().borrow().h_rect.as_ref().unwrap().top()).wrapping_sub(1), (__this.lock().borrow().h_rect.as_ref().unwrap().right()).wrapping_add(1), (__this.lock().borrow().h_rect.as_ref().unwrap().bottom()).wrapping_add(1), color);
-        for i in 0..(__this.lock().borrow().rainbow_colors.len() as i32) {
+        for i in { 0..(__this.lock().borrow().rainbow_colors.len() as i32) } {
             let mut start_color: i32 = __this.lock().borrow().rainbow_colors[(i) as usize];
             let mut end_color: i32 = __this.lock().borrow().rainbow_colors[((i.wrapping_add(1)).wrapping_rem(__this.lock().borrow().rainbow_colors.len() as i32)) as usize];
             let mut segment_length: f32 = (((__this.lock().borrow().h_rect.as_ref().unwrap().width()) as f32) / ((__this.lock().borrow().rainbow_colors.len() as i32) as f32));

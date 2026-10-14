@@ -126,9 +126,8 @@ impl GeorgePriceTooltip {
             ItemTooltip::null_warning();
             return;
         }
-        // TODO(fabric2seer): `.getOrDefault(..)` on a T
         //   java: double price = TooltipInfoType.GEORGE.getData().getOrDefault(stack.getNeuName(), -1.0);
-        let mut price: f64 = todo!("fabric2seer: the initialiser of `price` (TODO above)");
+        let mut price: f64 = tooltip_info_type::GEORGE.get_mut().lock().borrow().get_data().expect("NullPointerException: TooltipInfoType.GEORGE.getData()").get(&stack.get_neu_name()).copied().unwrap_or(-1.0);
         if price < (0 as f64) {
             return;
         }

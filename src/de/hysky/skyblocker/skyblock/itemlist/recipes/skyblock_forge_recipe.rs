@@ -136,7 +136,7 @@ impl SkyblockForgeRecipe {
         let mut radius: Vector2i = SkyblockForgeRecipe::get_grid_size(__this);
         let mut start_x: i32 = (((((center_x as f32) / 2.0f32) - (((radius.x as f32) / 2.0f32) * (18 as f32)))) as i32);
         let mut start_y: i32 = ((((center_y as f32) - (((radius.y as f32) / 2.0f32) * (18 as f32)))) as i32);
-        for i in 0..(__this.lock().borrow().inputs.len() as i32) {
+        for i in { 0..(__this.lock().borrow().inputs.len() as i32) } {
             let mut x: i32 = start_x.wrapping_add((i.wrapping_rem(radius.x)).wrapping_mul(18));
             let mut y: i32 = start_y.wrapping_add((i.wrapping_div(radius.x)).wrapping_mul(18));
             out.push(RecipeSlot::new(x, y, __this.lock().borrow().inputs[(i) as usize].clone()));

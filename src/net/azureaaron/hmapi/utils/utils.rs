@@ -20,9 +20,12 @@ impl Utils {
             return false;
         }
         let client = compat::minecraft();
-        let server_address: String = mcrust::net::minecraft::client::minecraft::get_current_server(client).map(|server| server.ip.to_lowercase()).unwrap_or_default();
+        // java: client.getCurrentServer() = Optionull.map(getConnection(), ClientPacketListener::getServerData); through
+        // `compat::get_connection`, which answers while the frame loop has lent the player out (the port's
+        // `minecraft::get_current_server` answered None there, so every C2S send from a packet listener threw)
+        let server_address: String = compat::get_connection(client).and_then(|connection| connection.server_data.clone()).map(|server| server.ip.to_lowercase()).unwrap_or_default();
         // client.player != null && client.player.connection != null && serverBrand() != null ? serverBrand() : ""
-        let server_brand: String = mcrust::net::minecraft::client::minecraft::get_connection(client)
+        let server_brand: String = compat::get_connection(client)
             .and_then(|sinks| sinks.server_brand.lock().unwrap_or_else(|p| p.into_inner()).clone())
             .unwrap_or_default();
         (!server_address.is_empty() && compat::equals_ignore_case(&hypixel_address_override(), &server_address)) || server_address.contains("hypixel.net") || server_address.contains("hypixel.io") || server_brand.contains("Hypixel BungeeCord")

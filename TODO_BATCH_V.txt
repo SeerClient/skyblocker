@@ -1,0 +1,11 @@
+src/de/hysky/skyblocker/skyblock/tabhud/
+src/de/hysky/skyblocker/skyblock/item/
+src/de/hysky/skyblocker/utils/
+src/de/hysky/skyblocker/utils/time/
+src/de/hysky/skyblocker/config/
+src/de/hysky/skyblocker/skyblock/chat/
+src/de/hysky/skyblocker/config/backup/
+src/de/hysky/skyblocker/skyblock/searchoverlay/
+src/de/hysky/skyblocker/skyblock/events/
+src/de/hysky/skyblocker/config/datafixer/
+src/de/hysky/skyblocker/skyblock/slayers/

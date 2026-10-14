@@ -106,10 +106,12 @@ impl MuseumItemCache {
         MuseumItemCache::load_museum_items();
         // java: ClientLifecycleEvents.CLIENT_STARTED.register(_ -> MUSEUM_ITEM_CACHE.load()); - RETURN of `Minecraft`'s
         // constructor (as `WidgetManager.init` hooks it)
-        let _ = hook::inject("net.minecraft.client.Minecraft#<init>", At::Return, |_: &mut CallbackInfo<'_>| {
+        // rust: a RETURN injector registered from inside `Minecraft#<init>` (the client entrypoints run there) is not in
+        // that call's injector snapshot, so it never fired; `compat::execute` runs it before the first client tick, which
+        // is where Fabric fires CLIENT_STARTED (early in `Minecraft.run`).
+        compat::execute(|| {
             let _ = MUSEUM_ITEM_CACHE.get_mut().lock().borrow_mut().load();
-        })
-        .map_err(|e| logger().error(&format!("[Skyblocker] Failed to hook the client start: {:?}", e)));
+        });
         // java: ClientCommandRegistrationCallback.EVENT.register(MuseumItemCache::registerCommands);
         client_command_registration_callback::EVENT.register(Arc::new(
             |dispatcher: &mut client_command_registration_callback::ClientCommandDispatcher| {

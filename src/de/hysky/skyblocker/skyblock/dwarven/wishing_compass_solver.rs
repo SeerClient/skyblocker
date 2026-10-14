@@ -138,7 +138,7 @@ impl WishingCompassSolver {
 
     /// java: private static Boolean isZoneComplete(Zone zone)
     pub fn is_zone_complete(mut zone: Zone) -> bool {
-        if minecraft::get_connection(compat::minecraft()).is_none() || mcrust::mcrust::modding::game::with_player(|_| ()).is_none() {
+        if compat::get_connection(compat::minecraft()).is_none() || mcrust::mcrust::modding::game::with_player(|_| ()).is_none() {
             return false;
         }
         if !PlayerListManager::get_player_string_list().into_iter().any(|entry| (entry == "Crystals:")) {

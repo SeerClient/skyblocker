@@ -155,7 +155,7 @@ impl CrystalsLocationsManager {
                             return true;
                         }
                     }
-                    if mcrust::mcrust::modding::game::with_player(|_| ()).is_none() || minecraft::get_connection(compat::minecraft()).is_none() {
+                    if mcrust::mcrust::modding::game::with_player(|_| ()).is_none() || compat::get_connection(compat::minecraft()).is_none() {
                         return true;
                     }
                     mcrust::mcrust::modding::game::with_player(|player| { script_host::send_feedback(&CrystalsLocationsManager::get_location_menu(&location, false).to_string()); });
@@ -286,7 +286,7 @@ impl CrystalsLocationsManager {
         let mut block_pos: BlockPos = ({ let __f = compat::dispatch(location, |__t| __t.to_absolute_block_pos()); __f(location, source) });
         if WAYPOINT_LOCATIONS.contains_key(place) {
             CrystalsLocationsManager::add_custom_waypoint(place.to_string(), &block_pos);
-            if mcrust::mcrust::modding::game::with_player(|_| ()).is_none() || minecraft::get_connection(compat::minecraft()).is_none() {
+            if mcrust::mcrust::modding::game::with_player(|_| ()).is_none() || compat::get_connection(compat::minecraft()).is_none() {
                 return 0;
             }
             mcrust::mcrust::modding::game::with_player(|player| { script_host::send_feedback(&CrystalsLocationsManager::get_set_location_message(place, &block_pos).to_string()); });
@@ -300,7 +300,7 @@ impl CrystalsLocationsManager {
             let mut pos: BlockPos = compat::read(&ACTIVE_WAYPOINTS.get_mut().get(place).cloned().unwrap(), |__t| __t.pos.clone()).unwrap();
             MessageScheduler::send_message_after_cooldown(message_scheduler::INSTANCE.get_mut(), &format!("{} {}: {}, {}, {}", (constants::PREFIX.get_mut())().get_string(), place, pos.get_x(), pos.get_y(), pos.get_z()), false);
         } else {
-            if mcrust::mcrust::modding::game::with_player(|_| ()).is_none() || minecraft::get_connection(compat::minecraft()).is_none() {
+            if mcrust::mcrust::modding::game::with_player(|_| ()).is_none() || compat::get_connection(compat::minecraft()).is_none() {
                 return 0;
             }
             mcrust::mcrust::modding::game::with_player(|player| { script_host::send_feedback(&(constants::PREFIX.get_mut())().append(component::translatable("skyblocker.config.mining.crystalsWaypoints.shareFail").with_style_format(ChatFormatting::Red)).to_string()); });
@@ -310,7 +310,7 @@ impl CrystalsLocationsManager {
 
     /// java: public static int removeWaypoint(String place)
     pub fn remove_waypoint(place: &str) -> i32 {
-        if mcrust::mcrust::modding::game::with_player(|_| ()).is_none() || minecraft::get_connection(compat::minecraft()).is_none() {
+        if mcrust::mcrust::modding::game::with_player(|_| ()).is_none() || compat::get_connection(compat::minecraft()).is_none() {
             return 0;
         }
         if ACTIVE_WAYPOINTS.get_mut().contains_key(place) {
@@ -405,7 +405,7 @@ impl CrystalsLocationsManager {
 
     /// java: private static void update()
     pub fn update() {
-        if mcrust::mcrust::modding::game::with_player(|_| ()).is_none() || minecraft::get_connection(compat::minecraft()).is_none() || !(SkyblockerConfigManager::get().mining.crystals_waypoints.enabled) || !(Utils::is_in_crystal_hollows()) {
+        if mcrust::mcrust::modding::game::with_player(|_| ()).is_none() || compat::get_connection(compat::minecraft()).is_none() || !(SkyblockerConfigManager::get().mining.crystals_waypoints.enabled) || !(Utils::is_in_crystal_hollows()) {
             return;
         }
         if compat::get_state(&UPDATED_TIME) && compat::get_state(&UPDATED_LOCATION) {

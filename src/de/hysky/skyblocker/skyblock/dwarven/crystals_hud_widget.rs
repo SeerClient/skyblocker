@@ -90,7 +90,7 @@ impl CrystalsHudWidget {
 
     /// java: public void update()
     pub fn update(__this: &compat::Shared<Self>) {
-        if mcrust::mcrust::modding::game::with_player(|_| ()).is_none() || minecraft::get_connection(compat::minecraft()).is_none() || !(SkyblockerConfigManager::get().mining.crystals_hud.enabled) {
+        if mcrust::mcrust::modding::game::with_player(|_| ()).is_none() || compat::get_connection(compat::minecraft()).is_none() || !(SkyblockerConfigManager::get().mining.crystals_hud.enabled) {
             return;
         }
         let mut scale: f32 = SkyblockerConfigManager::get().mining.crystals_hud.map_scaling;
@@ -144,7 +144,7 @@ impl CrystalsHudWidget {
                 graphics.fill(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), render_pos.x().wrapping_sub(location_size.wrapping_div(2)), render_pos.y().wrapping_sub(location_size.wrapping_div(2)), render_pos.x().wrapping_add(location_size.wrapping_div(2)), render_pos.y().wrapping_add(location_size.wrapping_div(2)), ({ let __f = compat::dispatch(&category, |__t| __t.get_color()); __f(&category) }));
             }
         }
-        if mcrust::mcrust::modding::game::with_player(|_| ()).is_none() || minecraft::get_connection(compat::minecraft()).is_none() {
+        if mcrust::mcrust::modding::game::with_player(|_| ()).is_none() || compat::get_connection(compat::minecraft()).is_none() {
             gui_graphics_extractor::pop_pose(__pose_1);
             return;
         }

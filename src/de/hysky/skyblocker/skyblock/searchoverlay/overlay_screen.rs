@@ -310,15 +310,21 @@ impl OverlayScreen {
             let (__hx, __hy) = OverlayScreen::with_button(__this, ButtonArray::History, 0, |__w| (__w.get_x(), __w.get_y()));
             gui_graphics_extractor::draw_formatted_char_sequence_with_drop_shadow(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), &mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::translatable("skyblocker.config.general.searchOverlay.historyLabel")), __hx.wrapping_add(render_offset), __hy.wrapping_sub(ROW_HEIGHT.wrapping_div(2)), 0xFFFFFFFFu32 as i32, true);
         }
-        for i in 0..(__this.lock().borrow().suggestion_buttons.len() as i32) {
+        // the length is read under a momentary borrow: a `for` keeps its iterator expression's temporaries for the whole loop
+        let __len = compat::read(__this, |__t| __t.suggestion_buttons.len() as i32);
+        for i in 0..__len {
             let __button = OverlayScreen::with_button(__this, ButtonArray::Suggestion, i, |__w| __w.clone());
             OverlayScreen::extract_item_and_tooltip(__this, graphics, mouse_x, mouse_y, &SearchOverManager::get_suggestion_id(i), &__button, render_offset);
         }
-        for i in 0..(__this.lock().borrow().history_buttons.len() as i32) {
+        // the length is read under a momentary borrow: a `for` keeps its iterator expression's temporaries for the whole loop
+        let __len = compat::read(__this, |__t| __t.history_buttons.len() as i32);
+        for i in 0..__len {
             let __button = OverlayScreen::with_button(__this, ButtonArray::History, i, |__w| __w.clone());
             OverlayScreen::extract_item_and_tooltip(__this, graphics, mouse_x, mouse_y, &SearchOverManager::get_history_id(i), &__button, render_offset);
         }
-        for __i in 0..(__this.lock().borrow().delete_buttons.len() as i32) {
+        // the length is read under a momentary borrow: a `for` keeps its iterator expression's temporaries for the whole loop
+        let __len = compat::read(__this, |__t| __t.delete_buttons.len() as i32);
+        for __i in 0..__len {
             let delete_button = OverlayScreen::with_button(__this, ButtonArray::Delete, __i, |__w| __w.clone());
             if !delete_button.visible {
                 break;

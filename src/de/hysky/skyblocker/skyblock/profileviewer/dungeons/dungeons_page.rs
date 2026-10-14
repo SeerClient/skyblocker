@@ -67,7 +67,7 @@ impl DungeonsPage {
         __this.lock().borrow().dungeon_floor_runs_widget.extract_render_state(graphics, mouse_x, mouse_y, __h0, __h1);
         let __h0 = root_x.wrapping_add(113);
         __this.lock().borrow().dungeon_misc_stats_widgets.extract_render_state(graphics, __h0, root_y);
-        for i in 0..(__this.lock().borrow().dungeon_class_widgets_list.len() as i32) {
+        for i in { 0..(__this.lock().borrow().dungeon_class_widgets_list.len() as i32) } {
             (__this.lock().borrow_mut().dungeon_class_widgets_list[(i) as usize]).extract_render_state(graphics, mouse_x, mouse_y, root_x, (root_y.wrapping_add(28)).wrapping_add(i.wrapping_mul(28)));
         }
     }

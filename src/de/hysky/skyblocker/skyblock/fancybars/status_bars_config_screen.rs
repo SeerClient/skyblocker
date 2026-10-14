@@ -158,7 +158,7 @@ impl StatusBarsConfigScreen {
             ({ let __r = &compat::read(__this, |__t| __t.cursor_bar.clone()).unwrap(); let __f = compat::dispatch(__r, |__t| __t.extract_cursor()); __f(__r, graphics, mouse_x.wrapping_add(__this.lock().borrow().cursor_offset.x()), mouse_y.wrapping_add(__this.lock().borrow().cursor_offset.y()), a) });
             let mut inserted: bool = false;
             let mut update_positions: bool = false;
-            'rect_loop: for screen_rect in __this.lock().borrow().rect_to_bar.keys().cloned() {
+            'rect_loop: for screen_rect in { __this.lock().borrow().rect_to_bar.keys().cloned().collect::<Vec<_>>() } {
                 for direction in DIRECTION_CHECK_ORDER.get_mut().iter().copied() {
                     let mut overlaps: bool = screen_rect.get_border(direction).step(direction).overlaps(mouse_rect.clone());
                     if overlaps {
@@ -312,7 +312,7 @@ impl StatusBarsConfigScreen {
                     }
                 }
             } else {
-                'rect_loop: for screen_rect in __this.lock().borrow().rect_to_bar.keys().cloned() {
+                'rect_loop: for screen_rect in { __this.lock().borrow().rect_to_bar.keys().cloned().collect::<Vec<_>>() } {
                     for direction in vec![ScreenDirection::Left, ScreenDirection::Right] {
                         let mut overlaps: bool = screen_rect.get_border(direction).step(direction).overlaps(mouse_rect.clone());
                         if overlaps && !({ let (__q0, __q1,) = ((mouse_x) as f64, (mouse_y) as f64,); __this.lock().borrow().edit_bar_widget.as_ref().unwrap().is_mouse_over(__q0, __q1) }) {
@@ -446,7 +446,7 @@ impl StatusBarsConfigScreen {
     /// java: private void updateScreenRects()
     pub fn update_screen_rects(__this: &compat::Shared<Self>) {
         __this.lock().borrow_mut().rect_to_bar.clear();
-        for status_bar1 in compat::read(__this, |__t| __t.bars.clone()).lock().borrow().status_bars.values().cloned() {
+        for status_bar1 in { compat::read(__this, |__t| __t.bars.clone()).lock().borrow().status_bars.values().cloned().collect::<Vec<_>>() } {
             if !(compat::read(&status_bar1, |__t| __t.status_bar_base().enabled)) {
                 continue;
             }

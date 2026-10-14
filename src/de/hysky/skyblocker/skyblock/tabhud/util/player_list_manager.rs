@@ -156,7 +156,7 @@ impl PlayerListManager {
         if !(Utils::is_on_skyblock()) {
             return;
         }
-        let network_handler = minecraft::get_connection(compat::minecraft());
+        let network_handler = compat::get_connection(compat::minecraft());
         if let Some(network_handler) = &network_handler {
             // java: playerList = networkHandler.getOnlinePlayers().stream().sorted(PlayerTabOverlayAccessor.getOrdering()).toList();
             *PLAYER_LIST.get_mut() = compat::online_player_infos(network_handler);

@@ -214,7 +214,7 @@ impl AuctionBrowserScreen {
                 compat::write(&__o7, |__t| __t.set_position(__wa1, __wa2));
             }
         } else {
-            for i in 0..(__this.lock().borrow().category_tab_widgets.len() as i32) {
+            for i in { 0..(__this.lock().borrow().category_tab_widgets.len() as i32) } {
                 let mut category_tab_widget: compat::Shared<CategoryTabWidget> = __this.lock().borrow().category_tab_widgets[(i) as usize].clone();
                 let __wa3 = (compat::read(__this, |__t| __t.left_pos)).wrapping_sub(30);
                 let __wa4 = ((compat::read(__this, |__t| __t.top_pos)).wrapping_add(3)).wrapping_add(i.wrapping_mul(28));

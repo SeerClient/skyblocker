@@ -69,9 +69,9 @@ impl MessageScheduler {
         }
         if message.starts_with("/") {
             // java: client.player.connection.sendCommand(message.substring(1)); - the player's connection is the client's
-            mcrust::net::minecraft::client::minecraft::get_connection(client).expect("client.player.connection").send_command(&compat::substring(&message, 1));
+            compat::get_connection(client).expect("client.player.connection").send_command(&compat::substring(&message, 1));
         } else {
-            mcrust::net::minecraft::client::minecraft::get_connection(client).expect("client.player.connection").send_chat(&message);
+            compat::get_connection(client).expect("client.player.connection").send_chat(&message);
         }
     }
 

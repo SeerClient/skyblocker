@@ -168,7 +168,10 @@ impl WidgetManager {
     pub fn init() {
         // java: ClientLifecycleEvents.CLIENT_STARTED.register(_ -> {..}); - RETURN of `Minecraft`'s constructor (the client
         // entrypoints run inside it, so this registers before it returns)
-        let _ = hook::inject("net.minecraft.client.Minecraft#<init>", At::Return, |_: &mut CallbackInfo<'_>| {
+        // rust: a RETURN injector registered from inside `Minecraft#<init>` (the client entrypoints run there) is not in
+        // that call's injector snapshot, so it never fired; `compat::execute` runs it before the first client tick, which
+        // is where Fabric fires CLIENT_STARTED (early in `Minecraft.run`).
+        compat::execute(|| {
             WidgetManager::instantiate_widgets();
             for i in 1..6 {
                 let widget = DungeonPlayerWidget::new(i);
@@ -176,8 +179,7 @@ impl WidgetManager {
             }
             WidgetManager::load_config();
             PlayerListManager::register_tab_listener(Arc::new(|| WidgetManager::on_player_list_update()));
-        })
-        .map_err(|e| logger().error(&format!("[Skyblocker] Failed to hook the client start: {:?}", e)));
+        });
         // java: ClientLifecycleEvents.CLIENT_STOPPING.register(_ -> saveConfig()); - HEAD of `Minecraft#stop`
         let _ = hook::inject("net.minecraft.client.Minecraft#stop", At::Head, |_: &mut CallbackInfo<'_>| {
             WidgetManager::save_config();

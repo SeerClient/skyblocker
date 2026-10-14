@@ -324,7 +324,7 @@ impl WidgetsListScreen {
             let mut start_x: i32 = ((compat::read(__this, |__t| __t.width)).wrapping_sub(total_width)).wrapping_div(2);
             let mut start_y: i32 = ((compat::read(__this, |__t| __t.height)).wrapping_sub(total_height)).wrapping_div(2);
             graphics.fill(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), start_x.wrapping_sub(5), start_y.wrapping_sub(5), (start_x.wrapping_add(total_width)).wrapping_add(5), (start_y.wrapping_add(total_height)).wrapping_add(5), 0xA0000000u32 as i32);
-            for i in 0..(__this.lock().borrow().preview_columns.len() as i32) {
+            for i in { 0..(__this.lock().borrow().preview_columns.len() as i32) } {
                 let mut col_x: i32 = start_x.wrapping_add(i.wrapping_mul(col_width.wrapping_add(column_spacing)));
                 graphics.fill(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), col_x, start_y, col_x.wrapping_add(col_width), start_y.wrapping_add(total_height), 0x20FFFFFF);
                 // (the screen's own list, read in place: nothing below reaches this screen)

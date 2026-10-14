@@ -249,7 +249,7 @@ impl DungeonSplitsWidget {
         if !(compat::read(__this, |__t| __t.running)) {
             return true;
         }
-        for i in 0..(__this.lock().borrow().splits.len() as i32) {
+        for i in { 0..(__this.lock().borrow().splits.len() as i32) } {
             let mut split: compat::Shared<Split> = __this.lock().borrow().splits[(i) as usize].clone();
             if !(compat::read(&split, |__t| __t.completed)) && split.lock().borrow().trigger.as_ref().unwrap().matcher(&stripped).matches() {
                 let mut time: i64 = (compat::millis()).wrapping_sub(compat::read(__this, |__t| __t.start_time));
@@ -461,7 +461,7 @@ impl DungeonSplitsWidget {
         let mut previous: i64 = 0;
         let mut showing_current: bool = false;
         let mut rows: Vec<Row> = Vec::new();
-        for idx in 0..(__this.lock().borrow().splits.len() as i32) {
+        for idx in { 0..(__this.lock().borrow().splits.len() as i32) } {
             let mut split: compat::Shared<Split> = __this.lock().borrow().splits[(idx) as usize].clone();
             let mut name: compat::Shared<dyn Element> = (PlainTextElement::new(Some((component::translatable(&compat::read(&split, |__t| __t.key.clone()))).with_color(SPLIT_COLORS[(idx.wrapping_rem(SPLIT_COLORS.len() as i32)) as usize]))) as compat::Shared<dyn Element>);
             let mut best_str: String = DungeonSplitsWidget::format_time(compat::read(&split, |__t| __t.best_time));

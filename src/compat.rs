@@ -5283,3 +5283,15 @@ pub fn adjust_layout_settings(
 ) {
     *settings = adjust(*settings);
 }
+
+/// `Minecraft.getConnection()` (`player == null ? null : player.connection`) for a mod. The port's
+/// `minecraft::get_connection` tests `gfx.player`, which the frame loop lends out (`Option::take`) for the whole of
+/// `Minecraft::tick` and the frame - exactly when a mod's tick/render listener asks - so it answered `None` while
+/// the player was there. The play sinks are published for the life of the play connection; the player exists
+/// while a level does (both are set by the login packet), and `with_player` answers for the rest.
+pub fn get_connection(client: &mcrust::net::minecraft::client::minecraft::Minecraft) -> Option<mcrust::net::minecraft::client::multiplayer::client_packet_listener::PlayListenerSinks> {
+    if client.player.is_none() && mcrust::mcrust::modding::game::level().is_none() && mcrust::mcrust::modding::game::with_player(|_| ()).is_none() {
+        return None;
+    }
+    mcrust::net::minecraft::client::multiplayer::client_packet_listener::published_play_sinks()
+}

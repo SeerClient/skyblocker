@@ -336,7 +336,7 @@ impl PartyFinderScreen {
                 gui_graphics_extractor::text_string_with_drop_shadow(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), Some(&compat::read(__this, |__t| __t.refresh_slot_id).to_string()), (compat::read(__this, |__t| __t.width)).wrapping_sub(25), 30, mcrust::net::minecraft::util::common_colors::WHITE, true);
                 gui_graphics_extractor::text_string_with_drop_shadow(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), Some(&compat::read(__this, |__t| __t.prev_page_slot_id).to_string()), (compat::read(__this, |__t| __t.width)).wrapping_sub(25), 40, mcrust::net::minecraft::util::common_colors::WHITE, true);
                 gui_graphics_extractor::text_string_with_drop_shadow(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), Some(&compat::read(__this, |__t| __t.next_page_slot_id).to_string()), (compat::read(__this, |__t| __t.width)).wrapping_sub(25), 50, mcrust::net::minecraft::util::common_colors::WHITE, true);
-                for i in 0..((__this.lock().borrow().handler.with(|__chest| __chest.menu.slots.clone()).unwrap()).len() as i32) {
+                for i in { 0..((__this.lock().borrow().handler.with(|__chest| __chest.menu.slots.clone()).unwrap()).len() as i32) } {
                     // TODO(fabric2seer): `get_item` takes 1 argument(s) in the port (`containers: &'a Containers<'_>`), Java passes 0
                     // rust: graphics.item(((__this.lock().borrow().handler.with(|__chest| __chest.menu.slots.clone()).unwrap())[(i) as usize]).get_item(), (i.wrapping_rem(9)).wrapping_mul(16), (i.wrapping_div(9)).wrapping_mul(16));
                 }
@@ -364,7 +364,7 @@ impl PartyFinderScreen {
         if compat::read(__this, |__t| __t.current_page.clone()).unwrap() != Page::Sign {
             mcrust::mcrust::modding::game::with_player(|player| { player.close_container(); });
         } else {
-            let mut network_handler: Option<mcrust::net::minecraft::client::multiplayer::client_packet_listener::PlayListenerSinks> = minecraft::get_connection(&*compat::minecraft());
+            let mut network_handler: Option<mcrust::net::minecraft::client::multiplayer::client_packet_listener::PlayListenerSinks> = compat::get_connection(&*compat::minecraft());
             if network_handler.is_some() && compat::read(__this, |__t| __t.sign.is_some()) {
                 let mut original_text: Vec<String> = ({ let (__q0,) = (compat::read(__this, |__t| __t.sign_front),); compat::read(__this, |__t| __t.sign.clone()).unwrap().as_sign().expect("ClassCastException: SignBlockEntity").get_text(__q0) }).get_messages(true).iter().cloned().map(|__a0| __a0.get_string()).collect::<Vec<_>>();
                 // TODO(fabric2seer): `ClientPacketListener.send` has no Rust method in the port (looked for `send` in ClientPacketListener and its supertypes)

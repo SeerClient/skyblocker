@@ -331,7 +331,7 @@ impl WaypointGroup {
         if mcrust::mcrust::modding::game::with_player(|_| ()).is_none() || !(compat::read(__this, |__t| __t.ordered)) || __this.lock().borrow().waypoints.is_empty() {
             return;
         }
-        for i in 0..(__this.lock().borrow().waypoints.len() as i32) {
+        for i in { 0..(__this.lock().borrow().waypoints.len() as i32) } {
             let mut waypoint: compat::Shared<dyn NamedWaypoint> = __this.lock().borrow().waypoints[(i) as usize].clone();
             let config = &SkyblockerConfigManager::get().ui_and_visuals.waypoints;
             let mut next_index: i32 = ((compat::read(__this, |__t| __t.current_index)).wrapping_add(1)).wrapping_rem(__this.lock().borrow().waypoints.len() as i32);
@@ -344,7 +344,7 @@ impl WaypointGroup {
         }
         let mut previous_index: i32 = (((compat::read(__this, |__t| __t.current_index)).wrapping_sub(1)).wrapping_add(__this.lock().borrow().waypoints.len() as i32)).wrapping_rem(__this.lock().borrow().waypoints.len() as i32);
         let mut next_index: i32 = ((compat::read(__this, |__t| __t.current_index)).wrapping_add(1)).wrapping_rem(__this.lock().borrow().waypoints.len() as i32);
-        for i in 0..(__this.lock().borrow().waypoints.len() as i32) {
+        for i in { 0..(__this.lock().borrow().waypoints.len() as i32) } {
             let mut waypoint: compat::Shared<dyn NamedWaypoint> = __this.lock().borrow().waypoints[(i) as usize].clone();
             // java: if (waypoint instanceof OrderedNamedWaypoint orderedNamedWaypoint)
             if compat::read(&waypoint, |__t| __t.dyn_any().is::<OrderedNamedWaypoint>()) {

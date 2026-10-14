@@ -137,7 +137,7 @@ impl SkillsPage {
     /// java: public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta, int rootX, int rootY)
     pub fn extract_render_state_impl(__this: &compat::Shared<Self>, graphics: &mut GuiGraphicsExtractor, mut mouse_x: i32, mut mouse_y: i32, mut delta: f32, mut root_x: i32, mut root_y: i32) {
         let mut column2: i32 = root_x.wrapping_add(113);
-        for i in 0..(__this.lock().borrow().skill_widgets.len() as i32) {
+        for i in { 0..(__this.lock().borrow().skill_widgets.len() as i32) } {
             let mut x: i32 = (if i < 6 { root_x } else { column2 });
             let mut y: i32 = root_y.wrapping_add((i.wrapping_rem(6)).wrapping_mul(ROW_GAP));
             gui_graphics_extractor::blit_identifier(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), mcrust::net::minecraft::client::renderer::render_pipelines::gui_textured(), TEXTURE.get_mut(), x, y, ((0) as f32) as f32, ((0) as f32) as f32, 109, 26, 109, 26);

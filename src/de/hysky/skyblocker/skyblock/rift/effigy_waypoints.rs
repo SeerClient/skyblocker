@@ -42,7 +42,9 @@ impl EffigyWaypoints {
         UNBROKEN_EFFIGIES.get_mut().clear();
         // java: try {..} catch (NullPointerException e) - an exception here is a panic, caught by `catch_unwind`
         let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            for i in 0..(compat::lock(&utils::STRING_SCOREBOARD).len() as i32) {
+            // the scoreboard lock is taken per statement: a `for` keeps its header's guard for the whole loop, and the body locks again
+            let __len = compat::lock(&utils::STRING_SCOREBOARD).len() as i32;
+            for i in 0..__len {
                 let mut line: String = compat::lock(&utils::STRING_SCOREBOARD)[(i) as usize].clone();
                 if line.contains("Effigies") {
                     let mut effigies_text: Vec<MutableComponent> = Vec::new();

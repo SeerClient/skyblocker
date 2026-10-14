@@ -1,0 +1,11 @@
+src/de/hysky/skyblocker/skyblock/profileviewer2/
+src/de/hysky/skyblocker/skyblock/profileviewer/
+src/de/hysky/skyblocker/compatibility/rei/
+src/de/hysky/skyblocker/compatibility/jei/
+src/de/hysky/skyblocker/
+src/de/hysky/skyblocker/skyblock/radial_menu/
+src/de/hysky/skyblocker/compatibility/emi/
+src/entry/
+src/de/hysky/skyblocker/utils/datafixer/
+src/de/hysky/skyblocker/skyblock/experiment/
+src/net/

@@ -122,9 +122,8 @@ impl NpcPriceTooltip {
             ItemTooltip::null_warning();
             return;
         }
-        // TODO(fabric2seer): `.getOrDefault(..)` on a T
         //   java: double price = TooltipInfoType.NPC.getData().getOrDefault(internalID, -1);
-        let mut price: f64 = todo!("fabric2seer: the initialiser of `price` (TODO above)");
+        let mut price: f64 = tooltip_info_type::NPC.get_mut().lock().borrow().get_data().expect("NullPointerException: TooltipInfoType.NPC.getData()").get(&internal_id).copied().unwrap_or(-1.0);
         if price < (0 as f64) {
             return;
         }

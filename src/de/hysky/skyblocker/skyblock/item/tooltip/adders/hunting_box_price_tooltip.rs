@@ -129,7 +129,7 @@ impl HuntingBoxPriceTooltip {
             let mut count: i32 = ItemUtils::get_item_count_in_hunting_box(stack).unwrap_or(1);
             // TODO(fabric2seer): `.get(..)` on a T
             //   java: BazaarProduct product = TooltipInfoType.BAZAAR.getData().get(attribute.apiId());
-            let mut product: BazaarProduct = todo!("fabric2seer: the initialiser of `product` (TODO above)");
+            let mut product: BazaarProduct = tooltip_info_type::BAZAAR.get_mut().lock().borrow().get_data().expect("NullPointerException: TooltipInfoType.BAZAAR.getData()").get(&attribute.as_ref().unwrap().api_id()).cloned().expect("NullPointerException: BazaarProduct product");
             let mut holding_shift: bool = GuiHelper::has_shift_down();
             let mut shard_text: String = (if count > 1 { "Shards" } else { "Shard" }).to_string();
             lines.push(GridComponent::of(&vec![(component::literal(&format!("{} Sell Price:", shard_text))).with_style_format(ChatFormatting::Gold), (if product.sell_price().is_none() { component::literal("No data").with_style_format(ChatFormatting::Red) } else { ItemTooltip::get_coins_message_3((product.sell_price().unwrap() * (count as f64)), (if holding_shift { count } else { 1 }), true) })]));

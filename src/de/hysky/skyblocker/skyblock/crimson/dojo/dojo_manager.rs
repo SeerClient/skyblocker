@@ -122,7 +122,7 @@ impl DojoManager {
 
     /// java: private static void getPing()
     pub fn get_ping() {
-        let mut network_handler: Option<mcrust::net::minecraft::client::multiplayer::client_packet_listener::PlayListenerSinks> = minecraft::get_connection(compat::minecraft());
+        let mut network_handler: Option<mcrust::net::minecraft::client::multiplayer::client_packet_listener::PlayListenerSinks> = compat::get_connection(compat::minecraft());
         if let Some(network_handler) = &network_handler {
             // networkHandler.send(packet) = `this.connection.send(packet)`, on the connection's event loop (as
             // `PingDebugMonitor.tick` sends the same packet)

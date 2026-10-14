@@ -137,7 +137,7 @@ pub trait PrimitiveFeatureRenderer<Submit: Clone + 'static> {
             let mut render_pass: RenderPass = todo!("fabric2seer: the initialiser of `renderPass` (TODO above)");
             render_system::bind_default_uniforms(&mut render_pass);
             render_pass.set_uniform("DynamicTransforms", dynamic_transforms.clone());
-            for i in 0..(group.lock().borrow().draws.len() as i32) {
+            for i in { 0..(group.lock().borrow().draws.len() as i32) } {
                 let primitive_draw = &group.lock().borrow().draw_primitives[(i) as usize];
                 // TODO(fabric2seer): `StagedVertexBuffer.getExecuteInfo` has no Rust method in the port (looked for `get_execute_info` in StagedVertexBuffer and its supertypes)
                 // rust: let mut info: Option<ExecuteInfo> = Some(context.staged_vertex_buffer().get_execute_info(&group.lock().borrow().draws[(i) as usize]));

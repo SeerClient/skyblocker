@@ -230,7 +230,7 @@ impl SkyblockRecipeResults {
             }
         } else {
             { let __v = None; compat::write(__this, |__t| __t.recipe_icon = __v); }
-            for i in 0..(__this.lock().borrow().result_buttons.len() as i32) {
+            for i in { 0..(__this.lock().borrow().result_buttons.len() as i32) } {
                 let mut index: i32 = ((compat::read(__this, |__t| __t.current_page)).wrapping_mul(__this.lock().borrow().result_buttons.len() as i32)).wrapping_add(i);
                 if index < (__this.lock().borrow().search_results.len() as i32) {
                     ({ let __r = &compat::read(__this, |__t| __t.result_buttons[(i) as usize].clone()); let __f = compat::dispatch(__r, |__t| __t.set_display_stack()); __f(__r, compat::read(__this, |__t| __t.search_results[(index) as usize].clone())) });
@@ -300,7 +300,7 @@ impl RecipeAreaDisplay for SkyblockRecipeResults {
 impl SkyblockRecipeResults {
     /// java: @Override public void initialize(Minecraft client, int parentLeft, int parentTop)
     pub fn initialize_impl(__this: &compat::Shared<Self>, client: &mut mcrust::net::minecraft::client::minecraft::Minecraft, mut parent_left: i32, mut parent_top: i32) {
-        for i in 0..(__this.lock().borrow().result_buttons.len() as i32) {
+        for i in { 0..(__this.lock().borrow().result_buttons.len() as i32) } {
             let __wa1 = (parent_left.wrapping_add(11)).wrapping_add(25i32.wrapping_mul(i.wrapping_rem(5)));
             let __wa2 = (parent_top.wrapping_add(31)).wrapping_add(25i32.wrapping_mul(i.wrapping_div(5)));
             let __o1 = __this.lock().borrow().result_buttons[(i) as usize].clone();

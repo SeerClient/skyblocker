@@ -350,7 +350,15 @@ impl Calendar {
         //   java: 					.with(SkyblockTimeField.YEAR, year)
         //   java: 					.with(SkyblockTimeField.MONTH_OF_YEAR, month.ordinal() + 1)
         //   java: 					.with(SkyblockTimeField.DAY_OF_MONTH, stack.count());
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        // SkyblockTimeField.adjustInto: temporal.plus(newValue - temporal.getLong(field), baseUnit). From the epoch each
+        // field reads 1, and each adjustment only moves its own field, so the three `with`s add (value - 1) base units:
+        // YEARS = 124 h, MONTHS = 20 * 31 min, DAYS = 20 min (SkyblockTimeUnit).
+        let (year, month) = compat::read(__this, |__t| (__t.year, __t.month));
+        let epoch: mcrust::java::time::instant::Instant = *skyblock_time::SKYBLOCK_EPOCH.get();
+        return Some(epoch
+            .plus_seconds((year as i64 - 1) * 124 * 3600)
+            .plus_seconds((month.ordinal() as i64) * 20 * 31 * 60)
+            .plus_seconds((stack.count() as i64 - 1) * 20 * 60));
     }
 
     /// Calendar.getStartTime as the dispatch of TimeProvider.getStartTime

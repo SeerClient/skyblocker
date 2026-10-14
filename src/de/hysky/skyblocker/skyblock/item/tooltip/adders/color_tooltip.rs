@@ -76,7 +76,6 @@ impl ColorTooltip {
         } else {
             return None;
         }
-        todo!("fabric2seer: the value of this function is in a TODO above")
     }
 
     /// java: private static boolean isException(String id, String hex)
@@ -93,7 +92,17 @@ impl ColorTooltip {
         //   java: 			case String it when it.contains("SPOOK") -> Constants.SPOOK.contains(hex);
         //   java: 			default -> false;
         //   java: 		};
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        let c = |l: &Vec<String>, v: &str| l.iter().any(|x| x == v);
+        let it = id;
+        return if it.starts_with("LEATHER") || it == "GHOST_BOOTS" || c(&constants::SEYMOUR_IDS, it) { true }
+        else if it.starts_with("RANCHER") { c(&constants::RANCHERS, hex) }
+        else if it.contains("ADAPTIVE_CHESTPLATE") { c(&constants::ADAPTIVE_CHEST, hex) }
+        else if it.contains("ADAPTIVE") { c(&constants::ADAPTIVE, hex) }
+        else if it.contains("REAPER") { c(&constants::REAPER, hex) }
+        else if it.contains("FAIRY") { c(&constants::FAIRY_HEXES, hex) }
+        else if it.contains("CRYSTAL") { c(&constants::CRYSTAL_HEXES, hex) }
+        else if it.contains("SPOOK") { c(&constants::SPOOK, hex) }
+        else { false };
     }
 
     /// java: private static DyeType checkDyeType(ItemStack stack, String hex)
@@ -107,7 +116,14 @@ impl ColorTooltip {
         //   java: 			case String it when Constants.GLITCHED.contains(it) && isGlitched(stack, hex) -> DyeType.GLITCHED;
         //   java: 			default -> DyeType.EXOTIC;
         //   java: 		};
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        let c = |l: &Vec<String>, v: &str| l.iter().any(|x| x == v);
+        let it = hex;
+        return if c(&constants::CRYSTAL_HEXES, it) { DyeType::Crystal }
+        else if c(&constants::FAIRY_HEXES, it) { DyeType::Fairy }
+        else if c(&constants::OG_FAIRY_HEXES, it) { DyeType::OgFairy }
+        else if c(&constants::SPOOK, it) && stack.get_skyblock_id().starts_with("FAIRY_") { DyeType::Spook }
+        else if c(&constants::GLITCHED, it) && ColorTooltip::is_glitched(stack, hex) { DyeType::Glitched }
+        else { DyeType::Exotic };
     }
 
     /// java: private static boolean intendedDyed(CompoundTag customData)
@@ -138,7 +154,15 @@ impl ColorTooltip {
         //   java:
         //   java: 			default -> false;
         //   java: 		};
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        let it = id;
+        let m: Option<&std::collections::HashMap<String, String>> = if it.contains("CHESTPLATE") { Some(&constants::WITHER_CHESTPLATE_HEXES) }
+            else if it.contains("LEGGINGS") { Some(&constants::WITHER_LEGGINGS_HEXES) }
+            else if it.contains("BOOTS") { Some(&constants::WITHER_BOOTS_HEXES) }
+            else { None };
+        return match m {
+            Some(m) => m.contains_key(hex) && m.values().any(|v| v == it) && m.get(hex).map(|v| v.as_str()) != Some(it),
+            None => false,
+        };
     }
 
 }
@@ -210,7 +234,7 @@ impl ColorTooltip {
         if tooltip_info_type::COLOR.get_mut().lock().borrow().has_or_null_warning(&internal_id) && stack.has(mcrust::net::minecraft::core::component::data_components::dyed_color()) {
             // TODO(fabric2seer): `.rgb(..)` on a value of unknown type
             //   java: int dyeColor = stack.get(DataComponents.DYED_COLOR).rgb() & 0x00FFFFFF;
-            let mut dye_color: i32 = todo!("fabric2seer: the initialiser of `dyeColor` (TODO above)");
+            let mut dye_color: i32 = stack.get(mcrust::net::minecraft::core::component::data_components::dyed_color()).and_then(|__value| mcrust::com::mojang::serialization::cast::<mcrust::net::minecraft::world::item::component::dyed_item_color::DyedItemColor>(&__value).copied()).expect("NullPointerException: stack.get(DataComponents.DYED_COLOR)").rgb() & 0x00FFFFFF;
             let mut color_hex: String = format!("{:06X}", dye_color);
             let mut expected_hex: Option<String> = ColorTooltip::get_expected_hex(&internal_id);
             let mut correct_line: bool = false;

@@ -350,7 +350,7 @@ impl SkyblockerCreditsScreen {
         gui_graphics_extractor::next_stratum();
         SkyblockerCreditsScreen::extract_logo(__this, graphics, compat::read(__this, |__t| __t.width), logo_y);
         let mut y_pos: i32 = logo_y.wrapping_add(100);
-        for i in 0..(__this.lock().borrow().lines.len() as i32) {
+        for i in { 0..(__this.lock().borrow().lines.len() as i32) } {
             if i == (__this.lock().borrow().lines.len() as i32).wrapping_sub(1) {
                 let mut diff: f32 = (((y_pos as f32) + y_offs) - ((((compat::read(__this, |__t| __t.height)) as f32) / (2 as f32)) - (6 as f32)));
                 if diff < 0.0f32 {

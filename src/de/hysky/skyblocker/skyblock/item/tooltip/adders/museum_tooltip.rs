@@ -120,7 +120,7 @@ impl MuseumTooltip {
         if tooltip_info_type::MUSEUM.get_mut().lock().borrow().has_or_null_warning(&internal_id) {
             // TODO(fabric2seer): `.get(..)` on a T
             //   java: String itemCategory = TooltipInfoType.MUSEUM.getData().get(internalID);
-            let mut item_category: String = todo!("fabric2seer: the initialiser of `itemCategory` (TODO above)");
+            let mut item_category: String = tooltip_info_type::MUSEUM.get_mut().lock().borrow().get_data().expect("NullPointerException: TooltipInfoType.MUSEUM.getData()").get(&internal_id).cloned().expect("NullPointerException: String itemCategory");
             if item_category == "Special" {
                 lines.push((component::literal(&format!("Museum: ({})", item_category))).with_style_format(ChatFormatting::LightPurple));
             } else {
