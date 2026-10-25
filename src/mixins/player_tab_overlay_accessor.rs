@@ -5,8 +5,10 @@
 use crate::prelude::*;
 
 /// @Accessor getOrdering -> net.minecraft.client.gui.components.PlayerTabOverlay.PLAYER_COMPARATOR
-// TODO(fabric2seer): `Comparator<PlayerInfo>` - return `&obj.player_comparator` with its Rust type
-// pub fn get_ordering(obj: &mcrust::net::minecraft::client::gui::components::player_tab_overlay::PlayerTabOverlay) -> &T { &obj.player_comparator }
+/// (the port's `PLAYER_COMPARATOR` compares the four keys it reads off each `PlayerInfo`)
+pub fn get_ordering() -> fn(&mcrust::net::minecraft::client::gui::components::player_tab_overlay::PlayerSortKey, &mcrust::net::minecraft::client::gui::components::player_tab_overlay::PlayerSortKey) -> std::cmp::Ordering {
+    mcrust::net::minecraft::client::gui::components::player_tab_overlay::compare_players
+}
 
 /// Mixins apply before the game runs: the `preLaunch` entrypoint calls this.
 pub fn register() {

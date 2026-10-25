@@ -23,8 +23,6 @@ pub const BOARD_MAX_Y: i32 = 81;
 pub const BOARD_Z: i32 = 26;
 /// java: public static final BlockPos WATER_ENTRANCE_POSITION = new BlockPos(15, 78, 26);
 pub static WATER_ENTRANCE_POSITION: compat::MainThread<BlockPos> = compat::MainThread::new(|| BlockPos::new(15, 78, 26));
-// TODO(fabric2seer): `from_enum` takes 2 argument(s) in the port (`values: Vec<E>, serialized_name: impl Fn(&E) -> String + Send + Sync + Copy + 'static`), Java passes 1
-//   java: private static final Codec<LeverType> CODEC = StringRepresentable.fromEnum(LeverType::values);
 /// java: private static final Codec<LeverType> CODEC = StringRepresentable.fromEnum(LeverType::values);
 pub static LEVER_TYPE_CODEC: compat::MainThread<CodecRef<LeverType>> = compat::MainThread::new(|| mcrust::net::minecraft::util::string_representable::from_enum(LeverType::values(), |e: &LeverType| e.get_serialized_name()));
 
@@ -140,8 +138,6 @@ impl LeverType {
 
     /// java: @Override public String getSerializedName()
     pub fn get_serialized_name(&self) -> String {
-        // TODO(fabric2seer): call to `name(..)` (not a method of this class)
-        //   java: return name().toLowerCase(Locale.ENGLISH);
         self.name().to_lowercase()
     }
 
@@ -197,8 +193,7 @@ impl std::ops::DerefMut for LeverTypeArgumentType {
 impl LeverTypeArgumentType {
     /// java: private LeverTypeArgumentType()
     pub fn new() -> Self {
-        // TODO(fabric2seer): `new` takes 3 argument(s) in the port (`values: Vec<T>, codec_name: fn(&T) -> String, convert_id: fn(&str) -> String`), Java passes 2
-        //   java: super(CODEC, LeverType::values); - the two-argument constructor is `this(codec, values, s -> s)`; the
+        // java: super(CODEC, LeverType::values); - the two-argument constructor is `this(codec, values, s -> s)`; the
         // port's is handed the names the codec writes (`CODEC`'s `getSerializedName`) and that identity.
         let mut this: Self = Self {
             base: StringRepresentableArgument::new(LeverType::values(), |value: &LeverType| value.get_serialized_name(), |id: &str| id.to_string()),

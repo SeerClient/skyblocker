@@ -46,12 +46,9 @@ impl SackItemAutocomplete {
             // java: try (InputStream stream = NEURepoManager.file("constants/sacks.json").stream()) {..} catch (Exception e) - an
             // exception here (a missing file is a null `file(..)`) is a panic, caught by `catch_unwind`
             let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                let file: crate::unresolved::NEURepoFile = NEURepoManager::file("constants/sacks.json").expect("NullPointerException: NEURepoManager.file(\"constants/sacks.json\")");
+                let file: crate::io::github::moulberry::repo::neu_repo_file::NEURepoFile = NEURepoManager::file("constants/sacks.json").expect("NullPointerException: NEURepoManager.file(\"constants/sacks.json\")");
                 //   java: JsonObject sacks = JsonParser.parseString(new String(stream.readAllBytes())).getAsJsonObject().getAsJsonObject("sacks");
-                // rust: port gap - `NEURepoFile.stream()` (the NEU repo library is a `crate::unresolved` placeholder, GAPS_L; the
-                // file above is never found, so this is not reached)
-                let _ = file;
-                let content: String = todo!("rust: port gap - NEURepoFile.stream() (GAPS_L)");
+                let content: String = compat::neu_repo_file_read_all(&file);
                 let mut sacks: serde_json::Map<String, serde_json::Value> = compat::json::get_as_json_object_of(&serde_json::from_str::<serde_json::Value>(&content).expect("JsonSyntaxException"), "sacks");
                 //   java: Set<String> sackItemIds = sacks.entrySet().stream()
                 //   java: 					.map(entry -> entry.getValue().getAsJsonObject())
@@ -67,12 +64,12 @@ impl SackItemAutocomplete {
                     .map(|element| compat::json::get_as_string(&element))
                     .collect();
                 let mut sack_items: std::collections::HashSet<String> = sack_item_ids.iter().cloned().map(|neu_id| {
-                    let mut stack: Option<crate::unresolved::NEUItem> = NEURepoManager::get_item_by_neu_id(&neu_id);
+                    let mut stack: Option<Arc<crate::io::github::moulberry::repo::data::neu_item::NEUItem>> = NEURepoManager::get_item_by_neu_id(&neu_id);
                     // java: return stack != null ? ChatFormatting.stripFormatting(stack.getDisplayName()) : neuId;
-                    // rust: port gap - `NEUItem.getDisplayName` (the NEU repo parser is a `crate::unresolved` placeholder,
-                    // GAPS_batchB L1): a found item's display name cannot be read, so its id stands in
-                    let _ = stack;
-                    return neu_id.clone();
+                    return match stack {
+                        Some(stack) => mcrust::net::minecraft::chat_formatting::strip_formatting(stack.get_display_name()),
+                        None => neu_id.clone(),
+                    };
                 }).map(|name| compat::trim(&BAD_CHARACTERS.matcher(&compat::jstring(&name)).replace_all(""))).collect::<std::collections::HashSet<_>>();
                 compat::set_state(&LONG_COMMAND_NODE, Some(SackItemAutocomplete::create_command_node("getfromsacks", &sack_items)));
                 compat::set_state(&SHORT_COMMAND_NODE, Some(SackItemAutocomplete::create_command_node("gfs", &sack_items)));

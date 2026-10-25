@@ -62,8 +62,26 @@ impl ArrowAlign {
         level_render_extraction_callback::EVENT.register(Arc::new(move |__a0| { ArrowAlign::extract_rendering(&__a0); }));
         client_command_registration_callback::EVENT.register(Arc::new(
             |dispatcher: &mut client_command_registration_callback::ClientCommandDispatcher| {
-                // TODO(fabric2seer): a command tree this tool cannot read (arguments, redirects, requires) - SeerClient commands receive the words after the name in `ctx.args`
-                //   java: dispatcher.register(..);
+                use mcrust::com::mojang::brigadier::builder::argument_builder::ArgumentBuilder as _;
+                use crate::prelude::client_command_registration_callback as ccr;
+                type Ctx = mcrust::com::mojang::brigadier::context::command_context::CommandContext<ccr::FabricClientCommandSource>;
+                fn prefixed(text: mcrust::net::minecraft::network::chat::mutable_component::MutableComponent) -> mcrust::net::minecraft::network::chat::mutable_component::MutableComponent {
+                    (crate::de::hysky::skyblocker::utils::constants::PREFIX.get())().append(text)
+                }
+                // java: dispatcher.register(literal(NAMESPACE).then(literal("dungeons").then(literal("device").then(literal("arrow-align")
+                // java:     .then(literal("solve").executes(_ -> { findSolution(); return Command.SINGLE_SUCCESS; }))))));
+                let _ = prefixed;
+                let mut solve = ccr::literal("solve");
+                solve.executes(Arc::new(|_: &Ctx| { ArrowAlign::find_solution(); Ok(1) }));
+                let mut __n0 = ccr::literal("arrow-align");
+                __n0.then(&solve);
+                let mut __n1 = ccr::literal("device");
+                __n1.then(&__n0);
+                let mut __n2 = ccr::literal("dungeons");
+                __n2.then(&__n1);
+                let mut __n3 = ccr::literal(crate::entry::skyblocker_mod::NAMESPACE);
+                __n3.then(&__n2);
+                dispatcher.dispatcher().register(&__n3);
             },
         ));
     }
@@ -75,14 +93,14 @@ impl ArrowAlign {
                 ArrowAlign::find_solution();
             }
             if !(compat::get_state(&NO_SOLUTION)) {
-                let mut frame_entities_list: Vec<ItemFrame> = ArrowAlign::get_frame_entities_list();
+                let mut frame_entities_list: Vec<ItemFrameView> = ArrowAlign::get_frame_entities_list();
                 for frame_entity in frame_entities_list.iter() {
-                    let mut now: i32 = frame_entity.get_rotation();
-                    let mut expect: i32 = compat::lock(&CURRENT_SOLUTION).as_ref().unwrap()[(ArrowAlign::get_solution_index(&frame_entity.base.block_position())) as usize];
+                    let mut now: i32 = frame_entity.rotation;
+                    let mut expect: i32 = compat::lock(&CURRENT_SOLUTION).as_ref().unwrap()[(ArrowAlign::get_solution_index(&frame_entity.block_pos)) as usize];
                     if expect >= 0 {
                         let mut remaining: i32 = ((expect.wrapping_add(8)).wrapping_sub(now)).wrapping_rem(8);
                         if remaining > 0 {
-                            ({ let __f = compat::dispatch(collector, |__t| __t.submit_text()); __f(collector, &component::literal(&remaining.to_string()).with_color(ColorUtils::interpolate(0xFF00FF00u32 as i32, 0xFFFF0000u32 as i32, ((remaining as f64) / 7.0))), &frame_entity.base.position().add(0.3, (0) as f64, (0) as f64), false) });
+                            ({ let __f = compat::dispatch(collector, |__t| __t.submit_text()); __f(collector, &component::literal(&remaining.to_string()).with_color(ColorUtils::interpolate(0xFF00FF00u32 as i32, 0xFFFF0000u32 as i32, ((remaining as f64) / 7.0))), &frame_entity.position.add(0.3, (0) as f64, (0) as f64), false) });
                         }
                     }
                 }
@@ -91,12 +109,27 @@ impl ArrowAlign {
     }
 
     /// java: private static List<ItemFrame> getFrameEntitiesList()
-    pub fn get_frame_entities_list() -> Vec<ItemFrame> {
-        // TODO(fabric2seer): the port's `get_entities_of_class` ports this Java method with other parameters (base_class, except, bb, selector for Java's base_class, bb, selector)
-        // TODO(fabric2seer): `get_entities_of_class` takes 4 argument(s) in the port (`base_class: crate::net::minecraft::world::level::entity::entity_type_test::EntityClass, except: Option<i32>, bb: &AABB, selector: &dyn Fn(&(dyn Entity + Send + Sync)) -> bool`), Java passes 3
-        // TODO(fabric2seer): a lambda for a parameter the port does not type as a closure (`Predicate<? super T>`)
-        // rust: return mcrust::mcrust::modding::game::level().unwrap().get_entities_of_class(std::any::TypeId::of::<ItemFrame>(), Some(FRAMES_AREA.get_mut().clone()), |_| true);
-        return todo!("fabric2seer: see the TODO above");
+    /// (each frame is read under its entity lock once and handed back as the fields the callers read)
+    pub fn get_frame_entities_list() -> Vec<ItemFrameView> {
+        // java: return CLIENT.level.getEntitiesOfClass(ItemFrame.class, FRAMES_AREA, _ -> true);
+        let Some(level) = mcrust::mcrust::modding::game::level() else {
+            return Vec::new();
+        };
+        let area = FRAMES_AREA.get_mut().clone();
+        let entities = level.get_entities_of_class(
+            mcrust::net::minecraft::world::level::entity::entity_type_test::EntityClass::Entity,
+            None,
+            &area,
+            &|entity| entity.as_any().is_some_and(|any| any.is::<ItemFrame>()),
+        );
+        let mut frames: Vec<ItemFrameView> = Vec::with_capacity(entities.len());
+        for entity in entities.iter() {
+            let guard = mcrust::mcrust::modding::game::lock_entity(&**entity, "arrow_align.rs:ArrowAlign.getFrameEntitiesList");
+            if let Some(frame) = guard.as_any().and_then(|any| any.downcast_ref::<ItemFrame>()) {
+                frames.push(ItemFrameView { rotation: frame.get_rotation(), block_pos: frame.base.block_position(), position: frame.base.position(), item: frame.get_item() });
+            }
+        }
+        frames
     }
 
     /// java: private static int getSolutionIndex(BlockPos pos)
@@ -106,25 +139,25 @@ impl ArrowAlign {
 
     /// java: private static void findSolution()
     pub fn find_solution() {
-        let mut frame_entities_list: Vec<ItemFrame> = ArrowAlign::get_frame_entities_list();
+        let mut frame_entities_list: Vec<ItemFrameView> = ArrowAlign::get_frame_entities_list();
         let mut solution: Option<Vec<i32>> = ALIGN_SOLUTIONS.iter().cloned().filter(|rotations| {
             for item_frame in frame_entities_list.iter() {
-                match rotations[(ArrowAlign::get_solution_index(&item_frame.base.block_position())) as usize] {
+                match rotations[(ArrowAlign::get_solution_index(&item_frame.block_pos)) as usize] {
                     ALIGN_X => {
                         return false;
                     }
                     ALIGN_S => {
-                        if !(item_frame.get_item().is_item(mcrust::net::minecraft::world::item::items::wool().lime())) {
+                        if !(item_frame.item.is_item(mcrust::net::minecraft::world::item::items::wool().lime())) {
                             return false;
                         }
                     }
                     ALIGN_E => {
-                        if !(item_frame.get_item().is_item(mcrust::net::minecraft::world::item::items::wool().red())) {
+                        if !(item_frame.item.is_item(mcrust::net::minecraft::world::item::items::wool().red())) {
                             return false;
                         }
                     }
                     _ => {
-                        if !(item_frame.get_item().is_item(&items::items().get("arrow"))) {
+                        if !(item_frame.item.is_item(&items::items().get("arrow"))) {
                             return false;
                         }
                     }
@@ -164,4 +197,13 @@ impl Align {
         this
     }
 
+}
+
+/// The fields of an `ItemFrame` this class reads (`getRotation()`, `blockPosition()`, `position()`, `getItem()`),
+/// taken under the entity's lock by `get_frame_entities_list`.
+pub struct ItemFrameView {
+    pub rotation: i32,
+    pub block_pos: BlockPos,
+    pub position: mcrust::net::minecraft::world::phys::vec3::Vec3,
+    pub item: mcrust::net::minecraft::world::item::item_stack::ItemStack,
 }

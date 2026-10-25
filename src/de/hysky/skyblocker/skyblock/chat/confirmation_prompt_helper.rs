@@ -19,6 +19,8 @@ pub static CONFIRMATION_PHRASES_FORMATTING: LazyLock<Vec<String>> = LazyLock::ne
 pub static COMMAND: LazyLock<Mutex<Option<String>>> = LazyLock::new(|| Mutex::new(None));
 /// java: private static long commandFoundAt;
 pub static COMMAND_FOUND_AT: LazyLock<Mutex<i64>> = LazyLock::new(|| Mutex::new(0));
+/// Whether the open chat screen's AFTER_INIT registered the `beforeMouseClick` listener (see `init`).
+static CHAT_SCREEN_REGISTERED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
 /// java: public class ConfirmationPromptHelper
 #[derive(Clone)]
@@ -34,11 +36,24 @@ impl ConfirmationPromptHelper {
 
     /// java: @Init public static void init()
     pub fn init() {
-        // TODO(fabric2seer): ClientReceiveMessageEvents.ALLOW_GAME.register: no SeerClient equivalent yet
         //   java: ClientReceiveMessageEvents.ALLOW_GAME.register(ConfirmationPromptHelper::onMessage);
+        compat::register_allow_game(|message, overlay| ConfirmationPromptHelper::on_message(message, overlay));
+        // `ScreenMouseEvents.beforeMouseClick(screen)` is a per-screen event in Fabric; the port's
+        // `screen_mouse_events::ALLOW_MOUSE_CLICK` is one global event (the HEAD of `MouseHandler#onButton`), so the
+        // listener is registered once and asks what the per-screen registration encoded: that the open screen is the
+        // chat screen whose AFTER_INIT registered it (`CHAT_SCREEN_REGISTERED`).
+        screen_mouse_events::ALLOW_MOUSE_CLICK.register(Arc::new(|_screen: &mut Screen, click: (i32, i32), pressed: bool| {
+            if !pressed || !CHAT_SCREEN_REGISTERED.load(std::sync::atomic::Ordering::Relaxed) || !matches!(compat::minecraft().gui.screen_kind, mcrust::net::minecraft::client::gui::gui::ScreenKind::Chat) {
+                return true;
+            }
+            ConfirmationPromptHelper::before_mouse_click(click);
+            true
+        }));
         screen_events::AFTER_INIT.register(Arc::new(|screen: &mut Screen, width: i32, height: i32| {
-            if Utils::is_on_skyblock() && matches!(compat::minecraft().gui.screen_kind, mcrust::net::minecraft::client::gui::gui::ScreenKind::Chat) && SkyblockerConfigManager::get().chat.confirmation_prompt_helper {
-                // TODO(fabric2seer): ScreenMouseEvents.beforeMouseClick(..).register: no SeerClient equivalent yet
+            //Don't check for the command being present in case the user opens the chat before the prompt is sent
+            let registered: bool = Utils::is_on_skyblock() && matches!(compat::minecraft().gui.screen_kind, mcrust::net::minecraft::client::gui::gui::ScreenKind::Chat) && SkyblockerConfigManager::get().chat.confirmation_prompt_helper;
+            CHAT_SCREEN_REGISTERED.store(registered, std::sync::atomic::Ordering::Relaxed);
+            if registered {
                 //   java: ScreenMouseEvents.beforeMouseClick(screen).register((_, click) -> {
                 //   java: 					if (hasCommand()) {
                 //   java: 						Minecraft client = Minecraft.getInstance();
@@ -63,6 +78,29 @@ impl ConfirmationPromptHelper {
             compat::set_state(&COMMAND, None);
             compat::set_state(&COMMAND_FOUND_AT, ((0) as i64) as i64);
         }));
+    }
+
+    /// The `ScreenMouseEvents.beforeMouseClick` listener `init` registers on a chat screen (`click` in GUI pixels).
+    fn before_mouse_click(click: (i32, i32)) {
+        if ConfirmationPromptHelper::has_command() {
+            // java: if (client.gui.screen() instanceof ChatScreen) {	// Ignore clicks on other interactive elements
+            if matches!(compat::minecraft().gui.screen_kind, mcrust::net::minecraft::client::gui::gui::ScreenKind::Chat) {
+                // java: ActiveTextCollector.ClickableStyleFinder clickHandler = new ActiveTextCollector.ClickableStyleFinder(screen.getFont(), (int) click.x(), (int) click.y()).includeInsertions(false);
+                // java: Style clickedStyle = clickHandler.result();
+                // (the finder is asked for its result without being handed any text, so it answers its initial null)
+                let click_handler = mcrust::net::minecraft::client::gui::active_text_collector::ClickableStyleFinder::new(click.0 as f64, click.1 as f64).include_insertions(false);
+                let clicked_style: Option<mcrust::net::minecraft::network::chat::style::Style> = click_handler.result().cloned();
+                // clicking on some prompts invalidates first prompt but not in all cases, so I decided not to nullify command
+                if clicked_style.as_ref().is_some_and(|style| style.get_click_event().is_some()) {
+                    return;
+                }
+            }
+            // java: MessageScheduler.INSTANCE.sendMessageAfterCooldown(command, true); command = null; commandFoundAt = 0;
+            let command: String = compat::get_state(&COMMAND).expect("hasCommand");
+            crate::de::hysky::skyblocker::utils::scheduler::message_scheduler::MessageScheduler::send_message_after_cooldown(crate::de::hysky::skyblocker::utils::scheduler::message_scheduler::INSTANCE.get_mut(), &command, true);
+            compat::set_state(&COMMAND, None);
+            compat::set_state(&COMMAND_FOUND_AT, 0);
+        }
     }
 
     /// java: private static boolean hasCommand()

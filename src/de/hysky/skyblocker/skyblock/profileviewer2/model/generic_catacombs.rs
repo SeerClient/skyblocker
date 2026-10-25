@@ -385,3 +385,292 @@ impl PerFloorDisambiguation for AggregateStat {
     }
 
 }
+
+impl GenericCatacombsBase {
+    /// Gson's reflective binding of the class's own fields (`ReflectiveTypeAdapterFactory`): each member the
+    /// JSON has is read over the field it names (`@SerializedName`, else the field's name) with the field's declared
+    /// type; an absent member (or a `null` one, or one Gson would reject) leaves the constructor's value.
+    pub fn read_json_fields(&mut self, json: &serde_json::Value) {
+        #[allow(unused_imports)]
+        use crate::io::github::moulberry::repo::neu_repository::gson;
+        if let Some(__v) = gson::member(json, "best_score") {
+            if let Some(__x) = Some(PersonalBest::from_json(__v)) {
+                self.best_score = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "fastest_time") {
+            if let Some(__x) = Some(PersonalBest::from_json(__v)) {
+                self.fastest_time = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "mobs_killed") {
+            if let Some(__x) = Some(AggregateStat::from_json(__v)) {
+                self.mobs_killed = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "most_mobs_killed") {
+            if let Some(__x) = Some(PersonalBest::from_json(__v)) {
+                self.mobs_killed_in_one_run = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "most_healing") {
+            if let Some(__x) = Some(PersonalBest::from_json(__v)) {
+                self.most_healing = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "tier_completions") {
+            if let Some(__x) = Some(AggregateStat::from_json(__v)) {
+                self.tier_completions = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "milestone_completions") {
+            if let Some(__x) = Some(AggregateStat::from_json(__v)) {
+                self.milestone_completions = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "fastest_time_s") {
+            if let Some(__x) = Some(PersonalBest::from_json(__v)) {
+                self.fastest_time_s = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "fastest_time_s_plus") {
+            if let Some(__x) = Some(PersonalBest::from_json(__v)) {
+                self.fastest_time_s_plus = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "most_damage_mage") {
+            if let Some(__x) = Some(PersonalBest::from_json(__v)) {
+                self.most_mage_damage = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "most_damage_archer") {
+            if let Some(__x) = Some(PersonalBest::from_json(__v)) {
+                self.most_damage_archer = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "most_damage_berserk") {
+            if let Some(__x) = Some(PersonalBest::from_json(__v)) {
+                self.most_damage_beserk = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "most_damage_tank") {
+            if let Some(__x) = Some(PersonalBest::from_json(__v)) {
+                self.most_damage_tank = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "most_damage_healer") {
+            if let Some(__x) = Some(PersonalBest::from_json(__v)) {
+                self.most_damage_healer = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "highest_tier_completed") {
+            if let Some(__x) = gson::as_i32(__v) {
+                self.highest_tier_completed = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "best_runs") {
+            if let Some(__x) = gson::map(__v, gson::string_key, |__e0| gson::list(__e0, |__e1| Some(BestRun::from_json(__e1)))) {
+                self.best_runs = __x;
+            }
+        }
+    }
+
+    /// `GSON.fromJson(json, GenericCatacombsBase.class)`: the no-argument constructor, then the fields.
+    pub fn from_json(json: &serde_json::Value) -> compat::Shared<Self> {
+        let __this = Self::new();
+        compat::write(&__this, |__t| __t.read_json_fields(json));
+        __this
+    }
+}
+
+impl BestRun {
+    /// Gson's reflective binding of the class's own fields (`ReflectiveTypeAdapterFactory`): each member the
+    /// JSON has is read over the field it names (`@SerializedName`, else the field's name) with the field's declared
+    /// type; an absent member (or a `null` one, or one Gson would reject) leaves the constructor's value.
+    pub fn read_json_fields(&mut self, json: &serde_json::Value) {
+        #[allow(unused_imports)]
+        use crate::io::github::moulberry::repo::neu_repository::gson;
+        if let Some(__v) = gson::member(json, "timestamp") {
+            if let Some(__x) = gson::as_i64(__v) {
+                self.timestamp = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "score_exploration") {
+            if let Some(__x) = gson::as_i32(__v) {
+                self.score_exploration = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "score_speed") {
+            if let Some(__x) = gson::as_i32(__v) {
+                self.score_speed = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "score_skill") {
+            if let Some(__x) = gson::as_i32(__v) {
+                self.score_skill = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "score_bonus") {
+            if let Some(__x) = gson::as_i32(__v) {
+                self.score_bonus = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "dungeon_class") {
+            if let Some(__x) = gson::as_string(__v) {
+                self.dungeon_class = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "teammates") {
+            if let Some(__x) = gson::list(__v, |__e0| crate::de::hysky::skyblocker::skyblock::profileviewer2::profile_viewer::json_uuid(__e0)) {
+                self.teammates = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "elapsed_time") {
+            if let Some(__x) = gson::as_i32(__v) {
+                self.elapsed_time = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "damage_dealt") {
+            if let Some(__x) = gson::as_f64(__v) {
+                self.damage_dealt = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "deaths") {
+            if let Some(__x) = gson::as_i32(__v) {
+                self.deaths = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "mobs_killed") {
+            if let Some(__x) = gson::as_i32(__v) {
+                self.mobs_killed = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "secrets_found") {
+            if let Some(__x) = gson::as_i32(__v) {
+                self.secrets_found = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "damage_mitigated") {
+            if let Some(__x) = gson::as_f64(__v) {
+                self.damage_mitigated = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "ally_healing") {
+            if let Some(__x) = gson::as_f64(__v) {
+                self.ally_healing = __x;
+            }
+        }
+    }
+
+    /// `GSON.fromJson(json, BestRun.class)`: the no-argument constructor, then the fields.
+    pub fn from_json(json: &serde_json::Value) -> Self {
+        let mut __this = Self::new();
+        __this.read_json_fields(json);
+        __this
+    }
+}
+
+impl PerFloorDisambiguationBase {
+    /// Gson's reflective binding of the class's own fields (`ReflectiveTypeAdapterFactory`): each member the
+    /// JSON has is read over the field it names (`@SerializedName`, else the field's name) with the field's declared
+    /// type; an absent member (or a `null` one, or one Gson would reject) leaves the constructor's value.
+    pub fn read_json_fields(&mut self, json: &serde_json::Value) {
+        #[allow(unused_imports)]
+        use crate::io::github::moulberry::repo::neu_repository::gson;
+        if let Some(__v) = gson::member(json, "0") {
+            if let Some(__x) = (gson::as_f64(__v)).map(Some) {
+                self.entrance = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "1") {
+            if let Some(__x) = (gson::as_f64(__v)).map(Some) {
+                self.one = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "2") {
+            if let Some(__x) = (gson::as_f64(__v)).map(Some) {
+                self.two = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "3") {
+            if let Some(__x) = (gson::as_f64(__v)).map(Some) {
+                self.three = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "4") {
+            if let Some(__x) = (gson::as_f64(__v)).map(Some) {
+                self.four = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "5") {
+            if let Some(__x) = (gson::as_f64(__v)).map(Some) {
+                self.five = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "6") {
+            if let Some(__x) = (gson::as_f64(__v)).map(Some) {
+                self.six = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "7") {
+            if let Some(__x) = (gson::as_f64(__v)).map(Some) {
+                self.seven = __x;
+            }
+        }
+    }
+
+    /// `GSON.fromJson(json, PerFloorDisambiguationBase.class)`: the no-argument constructor, then the fields.
+    pub fn from_json(json: &serde_json::Value) -> compat::Shared<Self> {
+        let __this = Self::new();
+        compat::write(&__this, |__t| __t.read_json_fields(json));
+        __this
+    }
+}
+
+impl PersonalBest {
+    /// Gson's reflective binding of the class's own fields (`ReflectiveTypeAdapterFactory`): each member the
+    /// JSON has is read over the field it names (`@SerializedName`, else the field's name) with the field's declared
+    /// type; an absent member (or a `null` one, or one Gson would reject) leaves the constructor's value.
+    pub fn read_json_fields(&mut self, json: &serde_json::Value) {
+        #[allow(unused_imports)]
+        use crate::io::github::moulberry::repo::neu_repository::gson;
+        // java: the fields `PerFloorDisambiguation` declares (`extends PerFloorDisambiguation`)
+        self.base.read_json_fields(json);
+        if let Some(__v) = gson::member(json, "best") {
+            if let Some(__x) = (gson::as_f64(__v)).map(Some) {
+                self.best = __x;
+            }
+        }
+    }
+
+    /// `GSON.fromJson(json, PersonalBest.class)`: the no-argument constructor, then the fields.
+    pub fn from_json(json: &serde_json::Value) -> compat::Shared<Self> {
+        let __this = Self::new();
+        compat::write(&__this, |__t| __t.read_json_fields(json));
+        __this
+    }
+}
+
+impl AggregateStat {
+    /// Gson's reflective binding of the class's own fields (`ReflectiveTypeAdapterFactory`): each member the
+    /// JSON has is read over the field it names (`@SerializedName`, else the field's name) with the field's declared
+    /// type; an absent member (or a `null` one, or one Gson would reject) leaves the constructor's value.
+    pub fn read_json_fields(&mut self, json: &serde_json::Value) {
+        #[allow(unused_imports)]
+        use crate::io::github::moulberry::repo::neu_repository::gson;
+        // java: the fields `PerFloorDisambiguation` declares (`extends PerFloorDisambiguation`)
+        self.base.read_json_fields(json);
+        if let Some(__v) = gson::member(json, "total") {
+            if let Some(__x) = gson::as_f64(__v) {
+                self.total = __x;
+            }
+        }
+    }
+
+    /// `GSON.fromJson(json, AggregateStat.class)`: the no-argument constructor, then the fields.
+    pub fn from_json(json: &serde_json::Value) -> compat::Shared<Self> {
+        let __this = Self::new();
+        compat::write(&__this, |__t| __t.read_json_fields(json));
+        __this
+    }
+}

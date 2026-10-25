@@ -47,25 +47,12 @@ pub const SPEEDUP_FACTOR: f32 = 5.0f32;
 pub const SPEEDUP_FACTOR_FAST: f32 = 15.0f32;
 /// java: private static final float UNMODIFIED_SCROLL_SPEED = 0.75f;
 pub const UNMODIFIED_SCROLL_SPEED: f32 = 0.75f32;
-// TODO(fabric2seer): `PrimitiveCodec.listOf` has no Rust method in the port (looked for `list_of` in PrimitiveCodec and its supertypes)
-//   java: private static final Codec<Credits> CODEC = RecordCodecBuilder.create(instance -> instance.group(
-//   java: 				Author.CODEC.listOf().fieldOf("authors").forGetter(Credits::authors),
-//   java: 				Codec.STRING.listOf().fieldOf("creativeTeam").forGetter(Credits::creativeTeam),
-//   java: 				Translation.CODEC.listOf().fieldOf("translations").forGetter(Credits::translations),
-//   java: 				Library.CODEC.listOf().fieldOf("libraries").forGetter(Credits::libraries)
-//   java: 				).apply(instance, Credits::new));
 /// java: private static final Codec<Credits> CODEC = RecordCodecBuilder.create(instance -> instance.group( Author.CODEC.listOf().fieldOf("authors").forGetter(Credits::authors), Codec.STRING.listOf().fieldOf("c
 pub static CREDITS_CODEC: compat::MainThread<CodecRef<Credits>> = compat::MainThread::new(|| record_codec_builder::create(record_codec_builder::apply4(record_codec_builder::of(|o: &Credits| o.authors(), codec::field_of(codec::list(AUTHOR_CODEC.get().clone()), "authors")), record_codec_builder::of(|o: &Credits| o.creative_team(), codec::field_of(codec::list(mcrust::com::mojang::serialization::codec::string_codec()), "creativeTeam")), record_codec_builder::of(|o: &Credits| o.translations(), codec::field_of(codec::list(TRANSLATION_CODEC.get().clone()), "translations")), record_codec_builder::of(|o: &Credits| o.libraries(), codec::field_of(codec::list(LIBRARY_CODEC.get().clone()), "libraries")), move |__a0, __a1, __a2, __a3| Credits::new(__a0.clone(), __a1.clone(), __a2.clone(), __a3.clone()))));
 /// java: private static final Credits EMPTY = new Credits(List.of(new Author("Error", UUID.fromString("647ffd4c-f99c-4b06-a8f8-66cf1a587e57"), CommonColors.RED)), List.of(), List.of(), List.of());
 pub static CREDITS_EMPTY: compat::MainThread<Credits> = compat::MainThread::new(|| Credits::new(vec![Author::new("Error".to_string(), Uuid::from_string("647ffd4c-f99c-4b06-a8f8-66cf1a587e57").unwrap(), mcrust::net::minecraft::util::common_colors::RED)], vec![], vec![], vec![]));
 /// java: private static final Codec<Author> CODEC = RecordCodecBuilder.create(instance -> instance.group( Codec.STRING.fieldOf("name").forGetter(Author::name), UUIDUtil.STRING_CODEC.fieldOf("uuid").forGetter(A
 pub static AUTHOR_CODEC: compat::MainThread<CodecRef<Author>> = compat::MainThread::new(|| record_codec_builder::create(record_codec_builder::apply3(record_codec_builder::of(|o: &Author| o.name(), codec::field_of(mcrust::com::mojang::serialization::codec::string_codec(), "name")), record_codec_builder::of(|o: &Author| o.uuid(), codec::field_of(mcrust::net::minecraft::core::uuid_util::string_codec(), "uuid")), record_codec_builder::of(|o: &Author| o.colour(), codec::optional_field_of(mcrust::net::minecraft::util::extra_codecs::string_rgb_color(), "colour", mcrust::net::minecraft::util::common_colors::WHITE)), move |__a0, __a1, __a2| Author::new(__a0.clone(), __a1.clone(), __a2.clone()))));
-// TODO(fabric2seer): `.compareToIgnoreCase(..)` on a E
-//   java: private static final Codec<Translation> CODEC = RecordCodecBuilder.create(instance -> instance.group(
-//   java: 				Codec.STRING.fieldOf("code").forGetter(Translation::code),
-//   java: 				Codec.STRING.fieldOf("name").forGetter(Translation::name),
-//   java: 				CodecUtils.sortedListCodec(Codec.STRING, String::compareToIgnoreCase).fieldOf("translators").forGetter(Translation::translators)
-//   java: 				).apply(instance, Translation::new));
 /// java: private static final Codec<Translation> CODEC = RecordCodecBuilder.create(instance -> instance.group( Codec.STRING.fieldOf("code").forGetter(Translation::code), Codec.STRING.fieldOf("name").forGetter(
 pub static TRANSLATION_CODEC: compat::MainThread<CodecRef<Translation>> = compat::MainThread::new(|| record_codec_builder::create(record_codec_builder::apply3(record_codec_builder::of(|o: &Translation| o.code(), codec::field_of(mcrust::com::mojang::serialization::codec::string_codec(), "code")), record_codec_builder::of(|o: &Translation| o.name(), codec::field_of(mcrust::com::mojang::serialization::codec::string_codec(), "name")), record_codec_builder::of(|o: &Translation| o.translators(), codec::field_of(crate::de::hysky::skyblocker::utils::codec_utils::CodecUtils::sorted_list_codec(&mcrust::com::mojang::serialization::codec::string_codec(), Arc::new(|a: &String, b: &String| compare_to_ignore_case(a, b))), "translators")), move |__a0, __a1, __a2| Translation::new(__a0.clone(), __a1.clone(), __a2.clone()))));
 
@@ -166,8 +153,14 @@ impl SkyblockerCreditsScreen {
     pub fn init_class() {
         client_command_registration_callback::EVENT.register(Arc::new(
             |dispatcher: &mut client_command_registration_callback::ClientCommandDispatcher| {
-                // TODO(fabric2seer): a command tree this tool cannot read (arguments, redirects, requires) - SeerClient commands receive the words after the name in `ctx.args`
-                //   java: dispatcher.register(..);
+                use mcrust::com::mojang::brigadier::builder::argument_builder::ArgumentBuilder as _;
+                // java: dispatcher.register(ClientCommands.literal(SkyblockerMod.NAMESPACE).then(ClientCommands.literal("credits")
+                //   .executes(Scheduler.queueOpenScreenCommand(() -> new SkyblockerCreditsScreen(null)))));
+                let mut credits = client_command_registration_callback::literal("credits");
+                credits.executes(crate::de::hysky::skyblocker::utils::scheduler::scheduler::SchedulerBase::queue_open_screen_command(Arc::new(|| Box::new(compat::ScreenAdapter::new(SkyblockerCreditsScreen::new(None))) as Box<dyn mcrust::mcrust::modding::screens::ModScreen>)));
+                let mut root = client_command_registration_callback::literal(crate::entry::skyblocker_mod::NAMESPACE);
+                root.then(&credits);
+                dispatcher.dispatcher().register(&root);
             },
         ));
     }
@@ -180,8 +173,8 @@ impl SkyblockerCreditsScreen {
     /// java: @Override public void tick()
     pub fn tick(__this: &compat::Shared<Self>) {
         // java: Minecraft.getInstance().getMusicManager().tick(); Minecraft.getInstance().getSoundManager().tick(false);
-        // rust: port gap - the music and sound managers tick inside the game's frame loop with state a mod is not lent
-        // (`MusicContext`, the OpenAL library, the options): a mod screen cannot tick them (GAPS_L.md)
+        mcrust::mcrust::modding::game::music_manager_tick();
+        mcrust::mcrust::modding::game::sound_manager_tick(false);
         let mut max_scroll: f32 = (((((compat::read(__this, |__t| __t.total_scroll_length)).wrapping_add(compat::read(__this, |__t| __t.height))).wrapping_add(compat::read(__this, |__t| __t.height))).wrapping_add(24)) as f32) as f32;
         if compat::read(__this, |__t| __t.scroll) > max_scroll {
             SkyblockerCreditsScreen::on_close(__this);
@@ -195,7 +188,7 @@ impl SkyblockerCreditsScreen {
         } else if key_event.key() == mcrust::com::mojang::blaze3d::platform::input_constants::KEY_LCONTROL || key_event.key() == mcrust::com::mojang::blaze3d::platform::input_constants::KEY_RCONTROL {
             let __h0 = key_event.key();
             __this.lock().borrow_mut().speedup_modifiers.insert(__h0);
-        } else if key_event.key() == 32 {
+        } else if key_event.key() == mcrust::com::mojang::blaze3d::platform::input_constants::KEY_SPACE {
             { let __v = true; compat::write(__this, |__t| __t.speedup_active = __v); }
         }
         { let __v = SkyblockerCreditsScreen::calculate_scroll_speed(__this); compat::write(__this, |__t| __t.scroll_speed = __v); }
@@ -207,7 +200,7 @@ impl SkyblockerCreditsScreen {
         if key_event.is_up() {
             { let __v = 1; compat::write(__this, |__t| __t.direction = __v); }
         }
-        if key_event.key() == 32 {
+        if key_event.key() == mcrust::com::mojang::blaze3d::platform::input_constants::KEY_SPACE {
             { let __v = false; compat::write(__this, |__t| __t.speedup_active = __v); }
         } else if key_event.key() == mcrust::com::mojang::blaze3d::platform::input_constants::KEY_LCONTROL || key_event.key() == mcrust::com::mojang::blaze3d::platform::input_constants::KEY_RCONTROL {
             let __h0 = &key_event.key();
@@ -399,7 +392,7 @@ impl SkyblockerCreditsScreen {
     /// java: @Override public void removed()
     pub fn removed(__this: &compat::Shared<Self>) {
         // java: Minecraft.getInstance().getMusicManager().stopPlayingMusic(SKYBLOCKER_CREDITS_MUSIC);
-        // rust: port gap - `stopPlayingMusic` needs the frame loop's `MusicContext`, which a mod is not lent (GAPS_L.md)
+        mcrust::mcrust::modding::game::stop_playing_music(SKYBLOCKER_CREDITS_MUSIC.get_mut());
     }
 
     /// java: @Override public Music getBackgroundMusic()

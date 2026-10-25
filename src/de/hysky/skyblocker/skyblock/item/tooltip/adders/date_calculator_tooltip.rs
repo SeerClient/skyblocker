@@ -323,7 +323,6 @@ impl Calendar {
                 return false;
             };
             { let __v = maybe_month; compat::write(__this, |__t| __t.month = __v); }
-            // TODO(fabric2seer): static call NumberUtils.toInt(..)
             //   java: int maybeYear = NumberUtils.toInt(matcher.group("year"));
             let mut maybe_year: i32 = compat::number_utils_to_int(matcher.group_named("year").as_deref().unwrap_or(""), 0);
             if maybe_year == 0 {
@@ -345,20 +344,17 @@ impl Calendar {
         if stack.count() > 31 {
             return None;
         }
-        // TODO(fabric2seer): `.with(..)` on a Instant
-        //   java: return SkyblockTime.SKYBLOCK_EPOCH
-        //   java: 					.with(SkyblockTimeField.YEAR, year)
-        //   java: 					.with(SkyblockTimeField.MONTH_OF_YEAR, month.ordinal() + 1)
-        //   java: 					.with(SkyblockTimeField.DAY_OF_MONTH, stack.count());
-        // SkyblockTimeField.adjustInto: temporal.plus(newValue - temporal.getLong(field), baseUnit). From the epoch each
-        // field reads 1, and each adjustment only moves its own field, so the three `with`s add (value - 1) base units:
-        // YEARS = 124 h, MONTHS = 20 * 31 min, DAYS = 20 min (SkyblockTimeUnit).
+        // java: return SkyblockTime.SKYBLOCK_EPOCH.with(SkyblockTimeField.YEAR, year).with(SkyblockTimeField.MONTH_OF_YEAR, month.ordinal() + 1)
+        //           .with(SkyblockTimeField.DAY_OF_MONTH, stack.count());
+        // (`Instant.with(TemporalField, long)` for a non-ChronoField is `field.adjustInto(this, newValue)`)
+        use crate::de::hysky::skyblocker::utils::time::skyblock_time_unit::Temporal as _;
+        use crate::de::hysky::skyblocker::utils::time::skyblock_time_field::SkyblockTimeField;
         let (year, month) = compat::read(__this, |__t| (__t.year, __t.month));
         let epoch: mcrust::java::time::instant::Instant = *skyblock_time::SKYBLOCK_EPOCH.get();
         return Some(epoch
-            .plus_seconds((year as i64 - 1) * 124 * 3600)
-            .plus_seconds((month.ordinal() as i64) * 20 * 31 * 60)
-            .plus_seconds((stack.count() as i64 - 1) * 20 * 60));
+            .with(SkyblockTimeField::Year, year as i64)
+            .with(SkyblockTimeField::MonthOfYear, (month.ordinal() + 1) as i64)
+            .with(SkyblockTimeField::DayOfMonth, stack.count() as i64));
     }
 
     /// Calendar.getStartTime as the dispatch of TimeProvider.getStartTime

@@ -6,7 +6,6 @@ use mcrust::com::google::common::cache::cache_loader::CacheLoader;
 use mcrust::com::google::common::cache::loading_cache::{CacheBuilder, LoadingCache};
 use mcrust::net::minecraft::client::user::User;
 
-// TODO(fabric2seer): static call CacheBuilder.newBuilder(..)
 //   java: private static final LoadingCache<String, String> NAME_2_UUID_CACHE = CacheBuilder.newBuilder()
 //   java: 			.expireAfterWrite(Duration.ofMinutes(20L))
 //   java: 			.build(new CacheLoader<>() {

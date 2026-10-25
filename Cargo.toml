@@ -20,6 +20,13 @@ indexmap = "2"
 parking_lot = "0.12"
 serde_json = { version = "1", features = ["preserve_order"] }
 dandelion = { path = "C:/Users/y64/Desktop/McRust/mods-src/dandelion" }
+# MoulConfig 4.7.2 (Java: shaded into Dandelion, Skyblocker's default config backend) - the library crate
+moulconfig = { path = "C:/Users/y64/Desktop/McRust/mods-src/moulconfig" }
+yacl = { path = "C:/Users/y64/Desktop/McRust/mods-src/yacl" }
+# utils/ws/SkyblockerWebSocket (java.net.http.WebSocket): a blocking RFC 6455 client over rustls (ring provider,
+# webpki roots) - batch W
+tungstenite = { version = "0.26", default-features = false, features = ["handshake", "rustls-tls-webpki-roots"] }
+rustls = { version = "0.23", default-features = false, features = ["std", "ring", "tls12", "logging"] }
 
 # Its own workspace root, so it never joins the game's package.
 [workspace]

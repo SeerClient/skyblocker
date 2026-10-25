@@ -70,44 +70,8 @@ pub fn init() {
         EVENT.get().register(Arc::new(move |message: &MutableComponent, as_string: &str| { let __f = compat::dispatch(&listener, |__t| __t.on_message()); __f(&listener, message, as_string) }));
     }
     // Register EVENT to ClientReceiveMessageEvents.ALLOW_GAME from fabric api
-    // rust: port gap - `ClientReceiveMessageEvents.ALLOW_GAME` has no SeerClient event, and the port's game-message
-    // apply (`client_packet_listener::apply_system_chat`) is not a hooked function (GAPS_batchG L2, GAPS_M #16): the
-    // listener below (`allow_game`) is the registered lambda's body, not registered.
-    let _ = allow_game;
-    // TODO(fabric2seer): ClientReceiveMessageEvents.ALLOW_GAME.register: no SeerClient equivalent yet
-    //   java: ClientReceiveMessageEvents.ALLOW_GAME.register((message, overlay) -> {
-    //   java: 			if (!Utils.isOnSkyblock()) {
-    //   java: 				return true;
-    //   java: 			}
-    //   java:
-    //   java: 			ChatFilterResult result = EVENT.invoker().onMessage(message, ChatFormatting.stripFormatting(message.getString()));
-    //   java:
-    //   java: 			switch (result) {
-    //   java: 				case ACTION_BAR -> {
-    //   java: 					if (overlay) {
-    //   java: 						return true;
-    //   java: 					}
-    //   java:
-    //   java: 					LocalPlayer player = Minecraft.getInstance().player;
-    //   java:
-    //   java: 					if (player != null) {
-    //   java: 						player.sendOverlayMessage(message);
-    //   java:
-    //   java: 						return false;
-    //   java: 					}
-    //   java: 				}
-    //   java:
-    //   java: 				case TOAST -> {
-    //   java: 					Minecraft.getInstance().gui.toastManager().addToast(new BasicToast(message, (long) (SkyblockerConfigManager.get().chat.toastDisplayDuration * 1000L), null));
-    //   java: 					return false;
-    //   java: 				}
-    //   java:
-    //   java: 				case FILTER -> {
-    //   java: 					return false;
-    //   java: 				}
-    //   java: 			}
-    //   java: 			return true;
-    //   java: 		});
+    //   java: ClientReceiveMessageEvents.ALLOW_GAME.register((message, overlay) -> { .. }); - the lambda's body is `allow_game`
+    compat::batch_w_allow_game_register(Arc::new(|message: &MutableComponent, overlay: bool| allow_game(message, overlay)));
 }
 
 /// The `ClientReceiveMessageEvents.ALLOW_GAME` listener `init` registers: `false` drops the game message.

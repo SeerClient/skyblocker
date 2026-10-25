@@ -41,8 +41,8 @@ impl GuardianHealth {
 
     /// java: @Init public static void init()
     pub fn init() {
-        // TODO(fabric2seer): ClientReceiveMessageEvents.ALLOW_GAME.register: no SeerClient equivalent yet
-        //   java: ClientReceiveMessageEvents.ALLOW_GAME.register(GuardianHealth::onChatMessage);
+        // java: ClientReceiveMessageEvents.ALLOW_GAME.register(GuardianHealth::onChatMessage);
+        compat::register_allow_game(|text, overlay| GuardianHealth::on_chat_message(text, overlay));
         client_play_connection_events::JOIN.register(Arc::new(|listener: &mut ClientPacketListener| {
             GuardianHealth::reset();
         }));

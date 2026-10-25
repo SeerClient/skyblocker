@@ -45,17 +45,15 @@ pub fn register_displays(display_registry: &crate::unresolved::DisplayRegistry) 
     if !(SkyblockerConfigManager::get().general.item_list.enable_item_list) {
         return;
     }
-    // TODO(fabric2seer): the condition: `.getGlobalDisplayGenerators(..)` on a DisplayRegistry
-    //   java: displayRegistry.getGlobalDisplayGenerators(..).stream(..).noneMatch(..)
-    if todo!("fabric2seer: the condition (TODO above)") {
-        // TODO(fabric2seer): `.registerGlobalDisplayGenerator(..)` on a DisplayRegistry
+    //   java: if (displayRegistry.getGlobalDisplayGenerators().stream().noneMatch(generator -> generator instanceof SkyblockRecipeDisplayGenerator))
+    if !rei_get_global_display_generators(display_registry).iter().any(|generator| generator.is::<crate::de::hysky::skyblocker::compatibility::rei::recipe::skyblock_recipe_display_generator::SkyblockRecipeDisplayGenerator>()) {
         //   java: displayRegistry.registerGlobalDisplayGenerator(new SkyblockRecipeDisplayGenerator());
+        rei_register_global_display_generator(display_registry, Box::new(crate::de::hysky::skyblocker::compatibility::rei::recipe::skyblock_recipe_display_generator::SkyblockRecipeDisplayGenerator::new()));
     }
-    // TODO(fabric2seer): the condition: `.getGlobalDisplayGenerators(..)` on a DisplayRegistry
-    //   java: displayRegistry.getGlobalDisplayGenerators(..).stream(..).noneMatch(..)
-    if todo!("fabric2seer: the condition (TODO above)") {
-        // TODO(fabric2seer): `.registerGlobalDisplayGenerator(..)` on a DisplayRegistry
+    //   java: if (displayRegistry.getGlobalDisplayGenerators().stream().noneMatch(generator -> generator instanceof SkyblockInfoDisplayGenerator))
+    if !rei_get_global_display_generators(display_registry).iter().any(|generator| generator.is::<crate::de::hysky::skyblocker::compatibility::rei::info::skyblock_info_display_generator::SkyblockInfoDisplayGenerator>()) {
         //   java: displayRegistry.registerGlobalDisplayGenerator(new SkyblockInfoDisplayGenerator());
+        rei_register_global_display_generator(display_registry, Box::new(crate::de::hysky::skyblocker::compatibility::rei::info::skyblock_info_display_generator::SkyblockInfoDisplayGenerator::new()));
     }
 }
 
@@ -152,9 +150,8 @@ pub fn register_exclusion_zones(zones: &crate::unresolved::ExclusionZones) {
 }
 
 pub fn rectangle_from_rectangle(rect2i: &Rect2i) -> crate::unresolved::Rectangle {
-    // TODO(fabric2seer): `new Rectangle(..)`
     //   java: return new Rectangle(rect2i.getX(), rect2i.getY(), rect2i.getWidth(), rect2i.getHeight());
-    todo!("fabric2seer: the value of this function is in a TODO above")
+    return rei_rectangle(rect2i.get_x(), rect2i.get_y(), rect2i.get_width(), rect2i.get_height());
 }
 
 pub fn register_transfer_handlers(registry: &crate::unresolved::TransferHandlerRegistry) {
@@ -170,4 +167,25 @@ pub fn register_transfer_handlers(registry: &crate::unresolved::TransferHandlerR
 
 pub fn get_priority() -> f64 {
     return ((-50) as f64) as f64;
+}
+
+// REI (`me.shedaniel.rei`) is a separate mod that SeerClient never loads, so REI never calls this plugin. Its API types
+// are the `crate::unresolved` names; the functions below are REI's side of the boundary (as in
+// `compatibility/rei/skyblock_transfer_handler.rs`).
+
+/// `displayRegistry.getGlobalDisplayGenerators()` - the generators registered so far (none: nothing registers one).
+fn rei_get_global_display_generators(display_registry: &crate::unresolved::DisplayRegistry) -> Vec<Box<dyn std::any::Any>> {
+    let _ = display_registry;
+    Vec::new()
+}
+
+/// `displayRegistry.registerGlobalDisplayGenerator(generator)`.
+fn rei_register_global_display_generator(display_registry: &crate::unresolved::DisplayRegistry, generator: Box<dyn std::any::Any>) {
+    let _ = (display_registry, generator);
+}
+
+/// `new me.shedaniel.math.Rectangle(x, y, width, height)`.
+fn rei_rectangle(x: i32, y: i32, width: i32, height: i32) -> crate::unresolved::Rectangle {
+    let _ = (x, y, width, height);
+    crate::unresolved::Rectangle
 }

@@ -78,8 +78,9 @@ impl Trivia {
             });
             ((__h.clone() as compat::Shared<dyn DungeonPuzzle>), __h)
         });
-        // TODO(fabric2seer): ClientReceiveMessageEvents.ALLOW_GAME.register: no SeerClient equivalent yet
-        //   java: ClientReceiveMessageEvents.ALLOW_GAME.register(this::onMessage);
+        // java: ClientReceiveMessageEvents.ALLOW_GAME.register(this::onMessage); - the listener holds this object
+        let __this_allow_game = compat::RenderThread::new(__this.clone());
+        compat::register_allow_game(move |text, overlay| Trivia::on_message(__this_allow_game.get(), text, overlay));
         __this
     }
 

@@ -128,6 +128,23 @@ impl<T: Clone + 'static> ProfiledData<T> {
         return ProfiledData::with_player_data(__this, uuid.clone(), |__map| __map.entry(profile_id.clone()).or_insert(__value).clone());
     }
 
+    /// `computeIfAbsent(valueSupplier)` as the LIVE value Java returns (a reference into the map), lent to `f` - what a
+    /// caller that mutates the answer (`profileData.computeIfAbsent(..).put(..)`) reaches.
+    pub fn compute_if_absent_with<R>(__this: &compat::Shared<Self>, value_supplier: Arc<dyn Fn() -> T>, f: impl FnOnce(&mut T) -> R) -> R {
+        let uuid: Uuid = Utils::get_uuid();
+        let profile_id: String = Utils::get_profile_id();
+        // the supplier runs with no borrow of this object held
+        let __present: bool = ProfiledData::with_player_data(__this, uuid.clone(), |__map| __map.contains_key(&profile_id));
+        let __value: Option<T> = if __present { None } else { Some((value_supplier)()) };
+        return ProfiledData::with_player_data(__this, uuid, |__map| {
+            let __entry = match __value {
+                Some(__v) => __map.entry(profile_id.clone()).or_insert(__v),
+                None => __map.get_mut(&profile_id).expect("present"),
+            };
+            f(__entry)
+        });
+    }
+
     /// java: public @Nullable T remove()
     pub fn remove(__this: &compat::Shared<Self>) -> Option<T> {
         return ProfiledData::remove_2(__this, &Utils::get_uuid(), &Utils::get_profile_id());

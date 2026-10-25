@@ -27,27 +27,52 @@ impl RoomPreview {
     pub fn init() {
         client_command_registration_callback::EVENT.register(Arc::new(
             |dispatcher: &mut client_command_registration_callback::ClientCommandDispatcher| {
-                // TODO(fabric2seer): a command tree this tool cannot read (arguments, redirects, requires) - SeerClient commands receive the words after the name in `ctx.args`
-                //   java: dispatcher.register(..);
+                //   java: dispatcher.register(ClientCommands.literal(NAMESPACE).then(ClientCommands.literal("dungeons").then(ClientCommands.literal("preview").then(ClientCommands.literal("loadRoom")
+                //   java:     .then(argument("type", StringArgumentType.string()).suggests(DungeonManager::suggestRoomTypes)
+                //   java:         .then(argument("room", StringArgumentType.string()).suggests((ctx, sB) -> DungeonManager.suggestRooms(ctx.getArgument("type", String.class), sB))
+                //   java:             .executes(RoomPreview::startPreview)))))));
+                use mcrust::com::mojang::brigadier::arguments::string_argument_type::StringArgumentType;
+                use mcrust::com::mojang::brigadier::builder::argument_builder::ArgumentBuilder as _;
+                use crate::prelude::client_command_registration_callback as ccr;
+                type Ctx = CommandContext<ccr::FabricClientCommandSource>;
+                let mut room = ccr::argument("room", Arc::new(StringArgumentType::string()));
+                room.suggests(Some(Arc::new(|ctx: &Ctx, builder: &mut mcrust::com::mojang::brigadier::suggestion::suggestions_builder::SuggestionsBuilder| {
+                    let room_type: String = ctx.get_argument::<String>("type").cloned().unwrap_or_default();
+                    Ok(DungeonManager::suggest_rooms(&room_type, builder))
+                })));
+                room.executes(Arc::new(|ctx: &Ctx| Ok(RoomPreview::start_preview(ctx))));
+                let mut room_type = ccr::argument("type", Arc::new(StringArgumentType::string()));
+                room_type.suggests(Some(Arc::new(|ctx: &Ctx, builder: &mut mcrust::com::mojang::brigadier::suggestion::suggestions_builder::SuggestionsBuilder| Ok(DungeonManager::suggest_room_types(ctx, builder)))));
+                room_type.then(&room);
+                let mut load_room = ccr::literal("loadRoom");
+                load_room.then(&room_type);
+                let mut preview = ccr::literal("preview");
+                preview.then(&load_room);
+                let mut dungeons = ccr::literal("dungeons");
+                dungeons.then(&preview);
+                let mut root = ccr::literal(crate::entry::skyblocker_mod::NAMESPACE);
+                root.then(&dungeons);
+                dispatcher.dispatcher().register(&root);
             },
         ));
     }
 
     /// java: private static int startPreview(CommandContext<FabricClientCommandSource> ctx)
-    pub fn start_preview(ctx: &CommandContext<crate::unresolved::FabricClientCommandSource>) -> i32 {
+    pub fn start_preview(ctx: &CommandContext<crate::prelude::client_command_registration_callback::FabricClientCommandSource>) -> i32 {
         if DungeonManager::get_room_block_data(ctx.get_argument::<String>("type").as_deref().unwrap(), ctx.get_argument::<String>("room").as_deref().unwrap()).is_none() {
-            // TODO(fabric2seer): `.sendFeedback(..)` on a FabricClientCommandSource
-            //   java: ctx.getSource().sendFeedback(Component.translatable("skyblocker.dungeons.roomPreview.invalidRoom").withStyle(ChatFormatting.RED));
+            // java: ctx.getSource().sendFeedback(Component.translatable("skyblocker.dungeons.roomPreview.invalidRoom").withStyle(ChatFormatting.RED));
+            compat::batch_w_send_feedback(&mcrust::net::minecraft::network::chat::component::translatable("skyblocker.dungeons.roomPreview.invalidRoom").with_style_format(mcrust::net::minecraft::chat_formatting::ChatFormatting::Red));
             return -1;
         }
-        // TODO(fabric2seer): static `ClientLevel.DEFAULT_QUIT_MESSAGE` has no Rust counterpart in the port's ClientLevel file
-        // TODO(fabric2seer): `disconnect_from_world` takes 12 argument(s) in the port (`gfx: &mut Minecraft, connection: &mut Option< Box<crate::net::minecraft::client::gui::screens::connect_screen::ConnectScreenState>, >, player: &mut Option< std::sync::Arc< std::sync::Mutex<crate::net::minecraft::client::player::local_player ..`), Java passes 1
-        // rust: minecraft::disconnect_from_world(&mut ClientLevel::DEFAULT_QUIT_MESSAGE);
+        // java: CLIENT.disconnectFromWorld(ClientLevel.DEFAULT_QUIT_MESSAGE); - `game::disconnect_from_world` parks it for the
+        // loop, with the game's own quit message (`multiplayer.status.quitting`, `ClientLevel.DEFAULT_QUIT_MESSAGE`)
+        mcrust::mcrust::modding::game::disconnect_from_world();
         // TODO(fabric2seer): `Minecraft.getSingleplayerServer` has no Rust method in the port (looked for `get_singleplayer_server` in Minecraft and its supertypes)
         if compat::minecraft().has_singleplayer_server() && true /* java: compat::minecraft().get_singleplayer_server() != null: never null here */ {
             // TODO(fabric2seer): `Minecraft.getSingleplayerServer` has no Rust method in the port (looked for `get_singleplayer_server` in Minecraft and its supertypes)
             // TODO(fabric2seer): `IntegratedServer.stopServer` has no Rust method in the port (looked for `stop_server` in IntegratedServer and its supertypes)
-            // rust: compat::minecraft().get_singleplayer_server().stop_server();
+            // java: CLIENT.getSingleplayerServer().stopServer();
+            // NEEDS-GAME-API: IntegratedServer::stop_server (no integrated server, NEXT_STEPS 000rr; `has_singleplayer_server` is always false)
         }
         RoomPreviewServer::create_server();
         RoomPreviewServer::load_room(ctx.get_argument::<String>("type").unwrap(), ctx.get_argument::<String>("room").unwrap().clone());

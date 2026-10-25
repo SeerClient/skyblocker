@@ -85,21 +85,32 @@ impl SweepOverlay {
         }
         let mut block_hit_result: Option<BlockHitResult> = None;
         let mut is_thrown: bool = false;
-        // TODO(fabric2seer): field `BLOCK` of a value of unknown type
-        //   java: if (isValidAxe && CLIENT.hitResult != null && CLIENT.hitResult.getType() == HitResult.Type.BLOCK
-        //   java: 				&& CLIENT.hitResult instanceof BlockHitResult hitResult) {
-        //   java: 			blockHitResult = hitResult;
-        //   java: 		} else if (isThrowableAxe && config.enableThrownAbilityOverlay && !ItemCooldowns.isOnCooldown(heldItem)) {
-        //   java: 			// Cast a ray up to 50 blocks for throwable axes
-        //   java: 			Vec3 start = CLIENT.player.getEyePosition(1.0f);
-        //   java: 			Vec3 look = CLIENT.player.getViewVector(1.0f);
-        //   java: 			double lookPitch = CLIENT.player.getXRot();
-        //   java: 			HitResult hitResult = thrownAxe(start, look, lookPitch, 50);
-        //   java: 			if (hitResult != null && hitResult.getType() == HitResult.Type.BLOCK && hitResult instanceof BlockHitResult rayHitResult) {
-        //   java: 				blockHitResult = rayHitResult;
-        //   java: 				isThrown = true;
-        //   java: 			}
-        //   java: 		}
+        // java: if (isValidAxe && CLIENT.hitResult != null && CLIENT.hitResult.getType() == HitResult.Type.BLOCK
+        //   && CLIENT.hitResult instanceof BlockHitResult hitResult) { blockHitResult = hitResult; }
+        let crosshair_block: Option<BlockHitResult> = match compat::minecraft().hit_result.as_ref() {
+            Some(mcrust::net::minecraft::world::phys::hit_result::AnyHitResult::Block(hit_result)) if hit_result.get_type() == mcrust::net::minecraft::world::phys::hit_result::Type::Block => Some(hit_result.clone()),
+            _ => None,
+        };
+        if is_valid_axe && crosshair_block.is_some() {
+            block_hit_result = crosshair_block;
+        } else if is_throwable_axe && config.enable_thrown_ability_overlay && !crate::de::hysky::skyblocker::skyblock::item::item_cooldowns::ItemCooldowns::is_on_cooldown(&held_item) {
+            // Cast a ray up to 50 blocks for throwable axes
+            // java: Vec3 start = CLIENT.player.getEyePosition(1.0f); Vec3 look = CLIENT.player.getViewVector(1.0f); double lookPitch = CLIENT.player.getXRot();
+            let (mut start, look, look_pitch) = mcrust::mcrust::modding::game::with_player(|player| {
+                let entity = &player.base.base.base.base;
+                (entity.get_eye_position_partial(1.0f32), entity.get_view_vector(1.0f32), entity.get_x_rot() as f64)
+            })
+            .unwrap();
+            // java: HitResult hitResult = thrownAxe(start, look, lookPitch, 50);
+            let hit_result: Option<BlockHitResult> = SweepOverlay::thrown_axe(&mut start, &look, look_pitch, 50);
+            // java: if (hitResult != null && hitResult.getType() == HitResult.Type.BLOCK && hitResult instanceof BlockHitResult rayHitResult)
+            if let Some(ray_hit_result) = hit_result
+                && ray_hit_result.get_type() == mcrust::net::minecraft::world::phys::hit_result::Type::Block
+            {
+                block_hit_result = Some(ray_hit_result);
+                is_thrown = true;
+            }
+        }
         if let Some(block_hit_result) = &block_hit_result {
             let mut state: Arc<BlockState> = mcrust::mcrust::modding::game::level().unwrap().get_block_state_typed(&block_hit_result.get_block_pos());
             if SweepOverlay::is_log(&state) {

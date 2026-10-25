@@ -44,3 +44,50 @@ impl ApiProfile {
     }
 
 }
+
+impl ApiProfile {
+    /// Gson's reflective binding of the class's own fields (`ReflectiveTypeAdapterFactory`): each member the
+    /// JSON has is read over the field it names (`@SerializedName`, else the field's name) with the field's declared
+    /// type; an absent member (or a `null` one, or one Gson would reject) leaves the constructor's value.
+    pub fn read_json_fields(&mut self, json: &serde_json::Value) {
+        #[allow(unused_imports)]
+        use crate::io::github::moulberry::repo::neu_repository::gson;
+        if let Some(__v) = gson::member(json, "profile_id") {
+            if let Some(__x) = crate::de::hysky::skyblocker::skyblock::profileviewer2::profile_viewer::json_uuid(__v) {
+                self.profile_id = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "communityUpgrades") {
+            if let Some(__x) = Some(CommunityUpgrades::from_json(__v)) {
+                self.community_upgrades = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "members") {
+            if let Some(__x) = gson::map(__v, crate::de::hysky::skyblocker::skyblock::profileviewer2::profile_viewer::json_uuid_key, |__e0| Some(ProfileMember::from_json(__e0))) {
+                self.members = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "banking") {
+            if let Some(__x) = Some(CoopBanking::from_json(__v)) {
+                self.banking = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "cute_name") {
+            if let Some(__x) = gson::as_string(__v) {
+                self.cute_name = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "selected") {
+            if let Some(__x) = gson::as_bool(__v) {
+                self.selected = __x;
+            }
+        }
+    }
+
+    /// `GSON.fromJson(json, ApiProfile.class)`: the no-argument constructor, then the fields.
+    pub fn from_json(json: &serde_json::Value) -> compat::Shared<Self> {
+        let __this = Self::new();
+        compat::write(&__this, |__t| __t.read_json_fields(json));
+        __this
+    }
+}

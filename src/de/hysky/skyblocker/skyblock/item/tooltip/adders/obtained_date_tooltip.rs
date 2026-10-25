@@ -73,10 +73,10 @@ impl ObtainedDateTooltip {
         //     catch (DateTimeParseException e) { LOGGER.error("[Skyblocker ObtainedDateTooltip] Failed to parse date: {}", value, e); }
         // }
         if let Some(Tag::String(value)) = custom_data.get("timestamp") {
-            // rust: port gap - `DateTimeFormatter.parse(CharSequence)` (and `withZone`) are not in the port's
-            //   `java.time.format.DateTimeFormatter`, which only formats (GAPS_batchB.md); the old string timestamp
-            //   falls through to `return null`, as a failed parse does.
-            let _ = value;
+            match parse_old_obtained_date(value) {
+                Ok(instant) => return Some(instant),
+                Err(e) => logger().error(&format!("[Skyblocker ObtainedDateTooltip] Failed to parse date: {} {}", value, e)),
+            }
         }
         return None;
     }
@@ -171,4 +171,61 @@ impl ObtainedDateTooltip {
         Self::add_to_tooltip_impl(&compat::view_as::<Self, _, Self>(__this, |a| a), __p0, __p1, __p2)
     }
 
+}
+
+/// `OLD_OBTAINED_DATE_FORMAT.parse(value)` - `DateTimeFormatter.ofPattern("M/d/yy h:m a").withZone(ZoneId.of("UTC"))
+/// .localizedBy(Locale.ENGLISH)`, resolved to an instant. The port's `DateTimeFormatter` only formats, so the pattern's
+/// parse is written out: `M`, `d`, `h`, `m` take one or two digits, `yy` two (the base year 2000), `a` is `AM`/`PM`
+/// (English, exact case: the formatter parses case-sensitively), all of it in UTC. `Err` is the
+/// `DateTimeParseException` message.
+fn parse_old_obtained_date(text: &str) -> Result<mcrust::java::time::instant::Instant, String> {
+    let fail = || format!("Text '{}' could not be parsed", text);
+    let (date, rest) = text.split_once(' ').ok_or_else(fail)?;
+    let (time, am_pm) = rest.split_once(' ').ok_or_else(fail)?;
+    let mut date_parts = date.split('/');
+    let num = |part: Option<&str>, min_len: usize, max_len: usize| -> Result<i64, String> {
+        let part = part.ok_or_else(fail)?;
+        if part.len() < min_len || part.len() > max_len || !part.bytes().all(|b| b.is_ascii_digit()) {
+            return Err(fail());
+        }
+        part.parse::<i64>().map_err(|_| fail())
+    };
+    let month = num(date_parts.next(), 1, 2)?;
+    let day = num(date_parts.next(), 1, 2)?;
+    let year = 2000 + num(date_parts.next(), 2, 2)?;
+    if date_parts.next().is_some() {
+        return Err(fail());
+    }
+    let mut time_parts = time.split(':');
+    let hour_of_am_pm = num(time_parts.next(), 1, 2)?;
+    let minute = num(time_parts.next(), 1, 2)?;
+    if time_parts.next().is_some() {
+        return Err(fail());
+    }
+    let pm = match am_pm {
+        "AM" => false,
+        "PM" => true,
+        _ => return Err(fail()),
+    };
+    if !(1..=12).contains(&month) || !(1..=12).contains(&hour_of_am_pm) || !(0..=59).contains(&minute) {
+        return Err(fail());
+    }
+    let days_in_month = match month {
+        2 => if (year % 4 == 0 && year % 100 != 0) || year % 400 == 0 { 29 } else { 28 },
+        4 | 6 | 9 | 11 => 30,
+        _ => 31,
+    };
+    if day < 1 || day > days_in_month {
+        return Err(fail());
+    }
+    // `clock-hour-of-am-pm` 12 is hour 0 of its half
+    let hour = (hour_of_am_pm % 12) + if pm { 12 } else { 0 };
+    // days from 1970-01-01 (`LocalDate.toEpochDay`)
+    let (y, m) = if month <= 2 { (year - 1, month + 9) } else { (year, month - 3) };
+    let era = y.div_euclid(400);
+    let yoe = y - era * 400;
+    let doy = (153 * m + 2) / 5 + day - 1;
+    let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+    let epoch_day = era * 146097 + doe - 719468;
+    Ok(mcrust::java::time::instant::Instant::of_epoch_milli(((epoch_day * 24 + hour) * 60 + minute) * 60_000))
 }

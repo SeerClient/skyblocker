@@ -6,22 +6,24 @@ use crate::prelude::*;
 
 /// @Inject skyblocker$beforeBlockUpdate
 ///   java: @Inject(method = "setServerVerifiedBlockState", at = @At(value = "INVOKE", target = "Lnet/minecraft/world/level/Level;setBlock(Lnet/minecraft/core/BlockPos;Lnet/minecraft/world/level/block/state/BlockState;II)Z"))
-/// target: net.minecraft.world.level.Level#setBlock(Lnet/minecraft/core/BlockPos;Lnet/minecraft/world/level/block/state/BlockState;II)Z  [no Rust counterpart]
+/// target: net.minecraft.world.level.Level#setBlock(Lnet/minecraft/core/BlockPos;Lnet/minecraft/world/level/block/state/BlockState;II)Z  [exists: ClientLevel::super_set_block]
 /// within: net.minecraft.client.multiplayer.ClientLevel#setServerVerifiedBlockState
-/// note: @Inject at INVOKE: a call-site injector (`hook::call_site`) - `ci` is the CALL's (its arguments; cancel() skips that call, not the rest of the method)
-/// note: no Rust counterpart: hook_coverage.py: NO RUST - the port has no Rust body for this Java method, so a hook there has nothing to land on - the registration is left commented out (it would never fire, and `seer check` refuses an unhooked target) - the @At target of a call site must be a hooked function (hook_table.rs)
 /// `@Share("old") LocalRef<BlockState> oldState` - one value per run of `setServerVerifiedBlockState`, shared by
 /// the two injectors (both on the render thread, one run at a time).
 static OLD_STATE: LazyLock<Mutex<Option<std::sync::Arc<mcrust::net::minecraft::world::level::block::state::block_state::BlockState>>>> = LazyLock::new(|| Mutex::new(None));
 
-/// rust: port gap - `Level.setBlock` is reached through the unhooked `ClientLevel::super_set_block` (GAPS_batchD),
-/// so the call site cannot be selected; this runs at the method's HEAD instead, where the block is the same one
-/// `:203`'s `setBlock` would replace (`:202` changes only the prediction handler). The state is therefore recorded
-/// also on the run whose `:202` answers true and skips the `setBlock`, where Java's `oldState` stays null.
+/// `ci` is the `setBlock` call's: its receiver is the level and argument 0 the position.
 fn skyblocker_before_block_update(ci: &mut CallbackInfo<'_>) {
     let Some(this) = compat::detach_ref(ci.this::<mcrust::net::minecraft::client::multiplayer::client_level::ClientLevel>()) else { return; };
     let Some(pos) = compat::detach_ref(ci.arg::<mcrust::net::minecraft::core::block_pos::BlockPos>(0)) else { return; };
+    // java: oldState.set(this.getBlockState(pos));
     compat::set_state(&OLD_STATE, Some(this.get_block_state_typed(pos)));
+}
+
+/// `@Share`'s `LocalRef` starts null on every run of the method: cleared at its HEAD, so a run whose `:202` skips the
+/// `setBlock` reports nothing.
+fn skyblocker_reset_old_state(_ci: &mut CallbackInfo<'_>) {
+    compat::set_state(&OLD_STATE, None);
 }
 
 /// @Inject skyblocker$afterBlockUpdate
@@ -77,8 +79,8 @@ fn on_add_entity(ci: &mut CallbackInfo<'_>) {
 
 /// Mixins apply before the game runs: the `preLaunch` entrypoint calls this.
 pub fn register() {
-    // java: @At(INVOKE Level.setBlock) - see `skyblocker_before_block_update` (HEAD of the method).
-    report(hook::register_injector("net.minecraft.client.multiplayer.ClientLevel#setServerVerifiedBlockState", InjectOptions::at(At::Head).kind(InjectorKind::Inject).priority(1000), Arc::new(skyblocker_before_block_update)));
+    report(hook::register_injector("net.minecraft.client.multiplayer.ClientLevel#setServerVerifiedBlockState", InjectOptions::at(At::Head).kind(InjectorKind::Inject).priority(1000), Arc::new(skyblocker_reset_old_state)));
+    report(hook::call_site("net.minecraft.client.multiplayer.ClientLevel#setServerVerifiedBlockState", "net.minecraft.world.level.Level#setBlock(Lnet/minecraft/core/BlockPos;Lnet/minecraft/world/level/block/state/BlockState;II)Z").priority(1000).inject(Shift::Before, skyblocker_before_block_update));
     report(hook::register_injector("net.minecraft.client.multiplayer.ClientLevel#setServerVerifiedBlockState", InjectOptions::at(At::Return).kind(InjectorKind::Inject).priority(1000), Arc::new(skyblocker_after_block_update)));
     report(hook::register_injector("net.minecraft.client.multiplayer.ClientLevel#playSeededSound(Lnet/minecraft/world/entity/Entity;Lnet/minecraft/world/entity/Entity;Lnet/minecraft/core/Holder;Lnet/minecraft/sounds/SoundSource;FFJ)V", InjectOptions::at(At::Head).kind(InjectorKind::Inject).priority(1000), Arc::new(skyblocker_allow_sounds_from_entity)));
     report(hook::register_injector("net.minecraft.client.multiplayer.ClientLevel#playSound", InjectOptions::at(At::Head).kind(InjectorKind::Inject).priority(1000), Arc::new(skyblocker_allow_sounds)));

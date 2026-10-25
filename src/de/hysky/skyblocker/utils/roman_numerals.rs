@@ -4,7 +4,6 @@
 use crate::prelude::*;
 use mcrust::java::text::decimal_format_symbols::Locale;
 
-// TODO(fabric2seer): static call Int2ObjectMaps.unmodifiable(..)
 //   java: private static final Int2ObjectMap<String> ROMAN_NUMERALS = Int2ObjectMaps.unmodifiable(new Int2ObjectLinkedOpenHashMap<>(
 //   java: 			new int[]{1000, 900, 500, 400, 100, 90, 50, 40, 10, 9, 5, 4, 1},
 //   java: 			new String[]{"M", "CM", "D", "CD", "C", "XC", "L", "XL", "X", "IX", "V", "IV", "I"}

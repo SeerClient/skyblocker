@@ -19,17 +19,17 @@ use mcrust::net::minecraft::network::chat::component;
 use mcrust::net::minecraft::network::chat::mutable_component::MutableComponent;
 
 /// java: public final class MiningPage implements ProfileViewerPage<LoadingInformation>
-#[derive(Clone)]
 pub struct MiningPage {
     /// java: private List<AbstractWidget> widgets = new ArrayList<>();
-    pub widgets: Vec<AbstractWidget>,
+    /// (held in a `Screen`, the port's holder of game widgets: see `ProfileViewerPageAny::widgets_mut`)
+    pub widgets: mcrust::net::minecraft::client::gui::screens::screen::Screen,
 }
 
 impl MiningPage {
     /// java: the implicit no-argument constructor
     pub fn new() -> Self {
         let mut this = Self {
-            widgets: Vec::new(),
+            widgets: mcrust::net::minecraft::client::gui::screens::screen::Screen::new(String::new()),
         };
         this
     }
@@ -58,7 +58,11 @@ impl ProfileViewerPageAny for MiningPage {
 
     /// java: @Override public List<AbstractWidget> getWidgets()
     fn get_widgets(&self) -> Vec<AbstractWidget> {
-        return self.widgets.clone();
+        return self.widgets.children().to_vec();
+    }
+
+    fn widgets_mut(&mut self) -> &mut mcrust::net::minecraft::client::gui::screens::screen::Screen {
+        &mut self.widgets
     }
 
 }
@@ -70,8 +74,8 @@ impl ProfileViewerPage<crate::de::hysky::skyblocker::skyblock::profileviewer2::l
         let mut page_layout: LinearLayout = LinearLayout::vertical();
         let mut hotm_tree: LayoutElement = ({ let __r = hotm_tree_builder::INSTANCE.get_mut(); let __f = compat::dispatch(__r, |__t| __t.build_layout()); __f(&compat::view(__r, |a| a as compat::Shared<dyn SkillTreeBuilder>), &member, member.lock().borrow().skill_tree.selected_skill_tree_slot.mining) });
         page_layout.add_child(hotm_tree);
-        // TODO(fabric2seer): a lambda for a parameter the port does not type as a closure (`Consumer<net.minecraft.client.gui.components.AbstractWidget>`)
-        // rust: layout::visit_widgets(|__a0| { self.widgets.push(__a0.clone()); });
+        // java: layout.visitWidgets(widgets::add); - every widget the layout holds was collected as it was put in it
+        // (`layout_widget`); `load` hands them to the page
         return LayoutElement::Grid(page_layout.wrapped);
     }
 
@@ -82,6 +86,10 @@ impl MiningPage {
     pub fn load_dyn(__this: &compat::Shared<dyn ProfileViewerPageAny>, info: &LoadingInformation) -> compat::LocalFuture<LayoutElement> {
         // java: return CompletableFuture.completedFuture(info).thenApplyAsync(this::buildWidgets, Minecraft.getInstance());
         let __h: compat::Shared<MiningPage> = compat::handle_as::<MiningPage, _>(__this);
-        return compat::LocalFuture::completed_future(info.clone()).then_apply_async(move |__a0| compat::read(&__h, |__t| __t.build_widgets(&__a0)));
+        return compat::LocalFuture::completed_future(info.clone()).then_apply_async(move |__a0| {
+            let (__layout, __widgets) = crate::de::hysky::skyblocker::skyblock::profileviewer2::pages::profile_viewer_page::collect_widgets(|| compat::read(&__h, |__t| __t.build_widgets(&__a0)));
+            compat::write(&__h, |__t| __t.widgets = __widgets);
+            __layout
+        });
     }
 }

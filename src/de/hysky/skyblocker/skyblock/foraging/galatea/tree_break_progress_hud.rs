@@ -58,8 +58,10 @@ impl TreeBreakProgressHud {
     fn clinit() {
         static ONCE: std::sync::Once = std::sync::Once::new();
         ONCE.call_once(|| {
-            // TODO(fabric2seer): no SeerClient event yet: hook HEAD of ClientLevel#removeEntity (`net.minecraft.client.multiplayer.ClientLevel#removeEntity`: exists)
-            //   java: ClientEntityEvents.ENTITY_UNLOAD.register((entity, _) -> armorstands.remove(entity.getId()));
+            // java: ClientEntityEvents.ENTITY_UNLOAD.register((entity, _) -> armorstands.remove(entity.getId()));
+            compat::batch_w_register_entity_unload(Arc::new(|entity: &dyn mcrust::net::minecraft::world::entity::entity::Entity, _level: &mcrust::net::minecraft::client::multiplayer::client_level::ClientLevel| {
+                ARMORSTANDS.get_mut().remove(&entity.base().get_id());
+            }));
         });
     }
 

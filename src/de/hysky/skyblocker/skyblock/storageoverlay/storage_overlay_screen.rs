@@ -12,6 +12,7 @@ use crate::de::hysky::skyblocker::skyblock::item::tooltip::backpack_preview::Bac
 use crate::de::hysky::skyblocker::skyblock::item::tooltip::backpack_preview::Storage;
 use crate::de::hysky::skyblocker::skyblock::storageoverlay::storage_overlay_screen_handler::StorageOverlayScreenHandler;
 use crate::de::hysky::skyblocker::utils::item_utils::ItemUtils;
+use crate::de::hysky::skyblocker::utils::utils::Utils;
 use crate::de::hysky::skyblocker::utils::render::gui::searchable_grid_widget::SearchableGridWidget;
 use crate::de::hysky::skyblocker::utils::render::gui::searchable_grid_widget::SearchableGridWidgetBase;
 use crate::de::hysky::skyblocker::utils::render::texture::fallbacked_texture;
@@ -103,6 +104,11 @@ pub struct StorageOverlayScreen {
     pub default_handler: Option<compat::LiveChestMenu>,
     /// java: private boolean saveMousePosition;
     pub save_mouse_position: bool,
+    /// java: `Screen.initialized` - the game re-runs `init` on a resize, which for a screen already initialised is
+    /// Java's `Screen.init(w, h):324-336` choosing `repositionElements()` (this class's override) over `init()`
+    pub initialized: bool,
+    /// where `this.addRenderableWidget(grid)` put the grid in the screen's widget list (the focus path's first step)
+    pub grid_widget_index: Option<usize>,
 }
 
 impl std::ops::Deref for StorageOverlayScreen {
@@ -122,13 +128,17 @@ impl StorageOverlayScreen {
     /// java: public StorageOverlayScreen(StorageOverlayScreenHandler handler, ChestMenu defaultHandler, Component name, Inventory inventory, int height)
     pub fn new(mut handler: compat::Shared<StorageOverlayScreenHandler>, mut default_handler: compat::LiveChestMenu, mut name: MutableComponent, inventory: compat::PlayerInventory, mut height: i32) -> compat::Shared<Self> {
         let __this = compat::shared(Self {
-            base: { let mut __s = AbstractContainerScreen::new((&name.get_string()).to_string(), String::new()); __s.image_width = 176; __s.image_height = height; __s },
+            // java: super(handler, inventory, name, 176, height); - `AbstractContainerScreen:64-76`, whose
+            // `inventoryLabelY = imageHeight - 94` is off THIS height
+            base: AbstractContainerScreen::with_size((&name.get_string()).to_string(), String::new(), 176, height),
             grid: None,
             old_height: 0,
             handler: None,
             name: None,
             default_handler: None,
             save_mouse_position: false,
+            initialized: false,
+            grid_widget_index: None,
         });
         { let __v = -1000; compat::write(&__this, |__t| __t.title_label_y = __v); }
         { let __v = (compat::read(&__this, |__t| __t.inventory_label_y)).wrapping_add(2); compat::write(&__this, |__t| __t.inventory_label_y = __v); }
@@ -148,23 +158,38 @@ impl StorageOverlayScreen {
 
     /// java: @Init public static void setup()
     pub fn setup() {
-        // TODO(fabric2seer): ClientReceiveMessageEvents.ALLOW_GAME.register: no SeerClient equivalent yet
-        //   java: ClientReceiveMessageEvents.ALLOW_GAME.register((message, overlay) -> {
-        //   java: 			if (Utils.isOnSkyblock() && !overlay && CHANGING_BACKPACK_PATTERN.matcher(message.getString()).find()) {
-        //   java: 				disableOnNextLoad = true;
-        //   java: 			}
-        //   java: 			return true;
-        //   java: 		});
-        // TODO(fabric2seer): ClientSendMessageEvents.MODIFY_COMMAND.register: no SeerClient equivalent yet
-        //   java: ClientSendMessageEvents.MODIFY_COMMAND.register(command -> {
-        //   java: 			if (!SkyblockerConfigManager.get().uiAndVisuals.storageOverlay.enabled || savedIndex < 0 || Minecraft.getInstance().gui.screen() instanceof StorageOverlayScreen || !command.equals("storage")) {
-        //   java: 				return command;
-        //   java: 			} else {
-        //   java: 				String c = getCommandForIndex(savedIndex);
-        //   java: 				savedIndex = -1;
-        //   java: 				return c.substring(1);
-        //   java: 			}
-        //   java: 		});
+        // java: ClientReceiveMessageEvents.ALLOW_GAME.register((message, overlay) -> {
+        // java: 	if (Utils.isOnSkyblock() && !overlay && CHANGING_BACKPACK_PATTERN.matcher(message.getString()).find()) {
+        // java: 		disableOnNextLoad = true;
+        // java: 	}
+        // java: 	return true;
+        // java: });
+        compat::register_allow_game(|message: &mcrust::net::minecraft::network::chat::mutable_component::MutableComponent, overlay: bool| {
+            if Utils::is_on_skyblock() && !overlay && CHANGING_BACKPACK_PATTERN.matcher(&message.get_string()).find() {
+                compat::set_state(&DISABLE_ON_NEXT_LOAD, true);
+            }
+            true
+        });
+        // java: ClientSendMessageEvents.MODIFY_COMMAND.register(command -> {
+        // java: 	if (!SkyblockerConfigManager.get().uiAndVisuals.storageOverlay.enabled || savedIndex < 0 || Minecraft.getInstance().gui.screen() instanceof StorageOverlayScreen || !command.equals("storage")) {
+        // java: 		return command;
+        // java: 	} else {
+        // java: 		String c = getCommandForIndex(savedIndex);
+        // java: 		savedIndex = -1;
+        // java: 		return c.substring(1);
+        // java: 	}
+        // java: });
+        compat::batch_s_register_modify_command(|command: &str| {
+            // (`gui.screen() instanceof StorageOverlayScreen`: the open container screen's attached object is this class)
+            let storage_overlay_open: bool = mcrust::mcrust::modding::container_screens::current_mod_container_screen::<compat::ContainerScreenAdapter<StorageOverlayScreen>, _>(|_| ()).is_some();
+            if !(SkyblockerConfigManager::get().ui_and_visuals.storage_overlay.enabled) || compat::get_state(&SAVED_INDEX) < 0 || storage_overlay_open || command != "storage" {
+                return command.to_string();
+            }
+            let c: String = StorageOverlayScreen::get_command_for_index(compat::get_state(&SAVED_INDEX));
+            compat::set_state(&SAVED_INDEX, -1);
+            // java: c.substring(1)
+            c.chars().skip(1).collect()
+        });
     }
 
     /// java: public static boolean enabled(String title)
@@ -218,9 +243,19 @@ impl StorageOverlayScreen {
         }
         //   java: CLIENT.player.containerMenu = defaultHandler;
         //   java: CLIENT.gui.setScreen(new ContainerScreen(defaultHandler, CLIENT.player.getInventory(), name));
-        // rust: port gap - a mod cannot detach its `ModMenu` from the open menu (`containerMenu = defaultHandler`) nor
-        // open the vanilla `ContainerScreen` over that menu in place of its own container screen (`container_screens`
-        // offers the swap only from `fromPacket`) (GAPS_M #13). Old form: gui::set_screen(&mut ContainerScreen::new(compat::read(__this, |__t| __t.default_handler.clone()).unwrap(), mcrust::mcrust::modding::game::with_player(|player| player.base.base.get_inventory().clone()).unwrap(), __this.lock().borrow().name.as_ref().unwrap().get_string()));
+        // java: CLIENT.player.containerMenu = defaultHandler; - the port keeps ONE menu: this overlay's
+        // `StorageOverlayScreenHandler` re-laid the server menu's own slots, so the default handler is that menu with the
+        // vanilla `ChestMenu` slots put back and no mod subclass on it
+        let _ = mcrust::mcrust::modding::game::with_container_menu(|menu| {
+            if let mcrust::net::minecraft::world::entity::player::player::ContainerMenu::Chest(chest) = menu {
+                let rows: i32 = chest.get_row_count();
+                let vanilla = mcrust::net::minecraft::world::inventory::chest_menu::ChestMenu::new(chest.get_type(), chest.menu.container_id, &mcrust::net::minecraft::world::entity::player::inventory::Inventory::new(), mcrust::net::minecraft::world::simple_container::SimpleContainer::new(rows.wrapping_mul(9)), rows);
+                chest.menu.slots = vanilla.menu.slots;
+                chest.menu.set_mod_menu(None);
+            }
+        });
+        // java: CLIENT.gui.setScreen(new ContainerScreen(defaultHandler, CLIENT.player.getInventory(), name));
+        mcrust::mcrust::modding::game::open_vanilla_menu_screen(compat::read(__this, |__t| __t.name.clone()).map(|n| n.get_string()).unwrap_or_default());
     }
 
     /// java: private void home(Button button)
@@ -282,21 +317,22 @@ impl StorageOverlayScreen {
     /// java: @Override protected void repositionElements()
     pub fn reposition_elements(__this: &compat::Shared<Self>) {
         //   java: super.repositionElements(); - `Screen.repositionElements` is `rebuildWidgets()`: the widgets cleared, then
-        //   the virtual `init()` (this class's, whose `super.init()` is `AbstractContainerScreen.init:80-81`'s centring)
-        compat::write(__this, |__t| {
-            __t.base.screen.reposition_elements(|_| {});
-            __t.base.left_pos = mcrust::net::minecraft::client::gui::screens::inventory::abstract_container_screen::left_pos(__t.base.screen.width, __t.base.image_width);
-            __t.base.top_pos = mcrust::net::minecraft::client::gui::screens::inventory::abstract_container_screen::top_pos(__t.base.screen.height, __t.base.image_height);
-        });
+        //   the virtual `init()` (this class's, whose `super.init()` is `AbstractContainerScreen.init:80-81`'s centring).
+        //   The game cleared the widgets and ran the base `init` before asking the object (`ModContainerScreen::init`),
+        //   and `lend_init` re-centred with this class's geometry: what is left of it is this class's `init()`.
         StorageOverlayScreen::init(__this);
         { let __v = (compat::read(__this, |__t| __t.screen.height)).wrapping_div(10); compat::write(__this, |__t| __t.top_pos = __v); }
         if compat::read(__this, |__t| __t.grid.clone()).is_some() {
             ({ let __r = &compat::read(__this, |__t| __t.grid.clone()).unwrap(); let __f = compat::dispatch(__r, |__t| __t.set_y()); __f(&compat::view(__r, |a| a as compat::Shared<dyn SearchableGridWidget>), (compat::read(__this, |__t| __t.top_pos)).wrapping_add(8)) });
         }
-        StorageOverlayScreenHandler::update_backpack_slots(&compat::read(__this, |__t| __t.handler.clone()).unwrap(), compat::read(__this, |__t| __t.screen.height));
+        // (`handler` is the menu object riding on the player's open menu: its `slots` are that menu's, lent to it for the
+        // call - `this.slots` in Java)
+        let __handler = compat::read(__this, |__t| __t.handler.clone()).unwrap();
+        let __height = compat::read(__this, |__t| __t.screen.height);
+        let _ = StorageOverlayScreenHandler::with_own_menu(&__handler, |__menu| compat::lend_menu(&__handler, __menu, || StorageOverlayScreenHandler::update_backpack_slots(&__handler, __height)));
         let mut change: i32 = (StorageOverlayScreen::get_height(__this)).wrapping_sub(compat::read(__this, |__t| __t.old_height));
         { let __v = StorageOverlayScreen::get_height(__this); compat::write(__this, |__t| __t.old_height = __v); }
-        StorageOverlayScreenHandler::shift_inventory(&compat::read(__this, |__t| __t.handler.clone()).unwrap(), change);
+        let _ = StorageOverlayScreenHandler::with_own_menu(&__handler, |__menu| compat::lend_menu(&__handler, __menu, || StorageOverlayScreenHandler::shift_inventory(&__handler, change)));
         { let __v = (compat::read(__this, |__t| __t.inventory_label_y)).wrapping_add(change); compat::write(__this, |__t| __t.inventory_label_y = __v); }
     }
 
@@ -308,6 +344,7 @@ impl StorageOverlayScreen {
 
     /// java: @Override protected void init()
     pub fn init(__this: &compat::Shared<Self>) {
+        StorageOverlayScreen::install_on_close();
         ();
         let mut storages_per_row: i32 = SkyblockerConfigManager::get().ui_and_visuals.storage_overlay.storages_per_row;
         storages_per_row = (if storages_per_row > 0 { storages_per_row } else { i32::MAX });
@@ -316,7 +353,7 @@ impl StorageOverlayScreen {
         ({ let __r = &compat::read(__this, |__t| __t.grid.clone()).unwrap(); let __f = compat::dispatch(__r, |__t| __t.set_search()); __f(&compat::view(__r, |a| a as compat::Shared<dyn SearchableGridWidget>), &compat::get_state(&SAVED_SEARCH)) });
         ({ let __r = &compat::read(__this, |__t| __t.grid.clone()).unwrap(); let __f = compat::dispatch(__r, |__t| __t.set_scroll_amount()); __f(&compat::view(__r, |a| a as compat::Shared<dyn SearchableGridWidget>), compat::get_state(&SAVED_SCROLL)) });
         let __r0 = compat::read(__this, |__t| __t.grid.clone());
-        { let (__q0,) = (ContainerWidgetAdapter::widget(__r0.unwrap()),); __this.lock().borrow_mut().screen.add_renderable_widget(__q0) };
+        { let (__q0,) = (ContainerWidgetAdapter::widget(__r0.unwrap()),); let __i = __this.lock().borrow_mut().screen.add_renderable_widget(__q0); compat::write(__this, |__t| __t.grid_widget_index = Some(__i)); };
         //extra control buttons out the way
         //   java: LinearLayout extraButtons = new LinearLayout(width - 90, height - 84, LinearLayout.Orientation.VERTICAL);
         let (__width, __height) = compat::read(__this, |__t| (__t.screen.width, __t.screen.height));
@@ -358,6 +395,24 @@ impl StorageOverlayScreen {
         let _ = (graphics, mouse_x, mouse_y, a);
     }
 
+    /// `onClose` is not one of `ModContainerScreen`'s methods: the override is dispatched from a HEAD injector on the
+    /// game's `AbstractContainerScreen#onClose` (whose body is then `super.onClose()`), when the open container screen's
+    /// attached object is this class.
+    fn install_on_close() {
+        static ONCE: std::sync::Once = std::sync::Once::new();
+        ONCE.call_once(|| {
+            let hooked = mcrust::mcrust::modding::hook::inject("net.minecraft.client.gui.screens.inventory.AbstractContainerScreen#onClose", mcrust::mcrust::modding::hook::At::Head, |_: &mut mcrust::mcrust::modding::hook::CallbackInfo<'_>| {
+                let overlay: Option<compat::Shared<StorageOverlayScreen>> = mcrust::mcrust::modding::container_screens::current_mod_container_screen::<compat::ContainerScreenAdapter<StorageOverlayScreen>, _>(|adapter| adapter.object().clone());
+                if let Some(overlay) = overlay {
+                    StorageOverlayScreen::on_close(&overlay);
+                }
+            });
+            if let Err(e) = hooked {
+                logger().error(&format!("[Skyblocker Storage Overlay] Failed to hook the container screen's close: {:?}", e));
+            }
+        });
+    }
+
     /// java: @Override public void onClose()
     pub fn on_close(__this: &compat::Shared<Self>) {
         compat::set_state(&SAVED_SCROLL, ((0) as f64) as f64);
@@ -373,9 +428,8 @@ impl StorageOverlayScreen {
             compat::set_state(&SAVED_INDEX, -1);
         }
         //   java: super.onClose();
-        // rust: port gap - `AbstractContainerScreen.onClose` (`:582-586`, the bundle-hover reset then the container close) is
-        // the game's own close of the screen, which a `ModContainerScreen` has no override of (`on_close` is not one of
-        // its methods): the game runs it when it closes the screen, and this override is not reached (GAPS_M #14).
+        // (the game's `AbstractContainerScreen.onClose:582-586` runs next: this body is its HEAD injector, see
+        // `install_on_close`)
     }
 
     /// java: @Override protected void extractSlot(GuiGraphicsExtractor graphics, Slot slot, int mouseX, int mouseY)
@@ -420,7 +474,17 @@ impl StorageOverlayScreen {
         //   if (this.minecraft.options.keyInventory.matches(event) && focusPath != null && focusPath.leafComponent() instanceof EditBox)
         // (the focus path's leaf among the screen's own widgets: the focused child, when it is an edit box; an edit box
         // inside the backpack grid is in the grid object's own widgets, which the screen's focus does not reach)
-        let __focused_edit_box: bool = compat::read(__this, |__t| __t.base.screen.get_focused().is_some_and(|__i| matches!(__t.base.screen.widget(__i).kind, mcrust::net::minecraft::client::gui::components::abstract_widget::WidgetKind::EditBox(_))));
+        // (the path's leaf: the screen's focused widget, or - when that is the grid - the grid's own focused child, its
+        // search field)
+        let (__focused, __grid_index, __grid) = compat::read(__this, |__t| (__t.base.screen.get_focused(), __t.grid_widget_index, __t.grid.clone()));
+        let __focused_edit_box: bool = match __focused {
+            None => false,
+            Some(__i) if Some(__i) == __grid_index => __grid.is_some_and(|__g| compat::read(&__g, |__t| {
+                let __children = &__t.base.children;
+                __children.get_focused().is_some_and(|__c| matches!(__children.widget(__c).kind, mcrust::net::minecraft::client::gui::components::abstract_widget::WidgetKind::EditBox(_)))
+            })),
+            Some(__i) => compat::read(__this, |__t| matches!(__t.base.screen.widget(__i).kind, mcrust::net::minecraft::client::gui::components::abstract_widget::WidgetKind::EditBox(_))),
+        };
         if key_mapping::matches("key.inventory", event) && __focused_edit_box {
             return true;
         }
@@ -460,13 +524,38 @@ impl compat::ContainerHalf for StorageOverlayScreen {
 /// StorageOverlayScreen as the game's container screen (`container_screens::register`'s answer)
 impl ModContainerScreen for compat::ContainerScreenAdapter<StorageOverlayScreen> {
     /// java: @Override protected void init()
+    ///
+    /// (`Screen.init(w, h):324-336`: the first time `init()`, after that `repositionElements()`; `lend_init` puts this
+    /// class's constructor geometry - `176 x height`, `titleLabelY = -1000`, `inventoryLabelY` - on the game's screen
+    /// and re-runs `AbstractContainerScreen.init:80-81`'s centring with it, which is `super.init()`)
     fn init(&mut self, screen: &mut AbstractContainerScreen) {
-        self.lend(screen, |__h| StorageOverlayScreen::init(__h))
+        self.lend_init(screen, |__h| {
+            if compat::write(__h, |__t| std::mem::replace(&mut __t.initialized, true)) {
+                StorageOverlayScreen::reposition_elements(__h);
+            } else {
+                StorageOverlayScreen::init(__h);
+            }
+        })
     }
 
     /// java: @Override public void extractBackground(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a)
     fn extract_background(&mut self, screen: &AbstractContainerScreen, context: &mut WidgetRenderContext<'_>, mouse_x: i32, mouse_y: i32, a: f32, super_extract_background: &mut dyn FnMut()) {
-        compat::with_super(super_extract_background, || self.lend_ref(screen, |__h| StorageOverlayScreen::extract_background(__h, &context.graphics, mouse_x, mouse_y, a)))
+        // `super.extractBackground` is `AbstractContainerScreen`'s (= `Screen`'s: the dimming) - this class extends it
+        // directly - not the vanilla chest screen's `generic_54` panel the game hands as `super_extract_background`
+        let _ = super_extract_background;
+        let __ctx: &WidgetRenderContext<'_> = &*context;
+        let mut __super = || mcrust::mcrust::modding::container_screens::extract_abstract_container_screen_background(__ctx);
+        compat::with_super(&mut __super, || self.lend_ref(screen, |__h| StorageOverlayScreen::extract_background(__h, &__ctx.graphics, mouse_x, mouse_y, a)))
+    }
+
+    /// java: @Override protected boolean hasClickedOutside(double mouseX, double mouseY, int xo, int yo)
+    fn has_clicked_outside(&mut self, screen: &AbstractContainerScreen, mx: f64, my: f64, xo: i32, yo: i32) -> Option<bool> {
+        Some(self.lend_ref(screen, |__h| StorageOverlayScreen::has_clicked_outside(__h, mx, my, xo, yo)))
+    }
+
+    /// java: @Override protected boolean isHovering(Slot slot, double xm, double ym)
+    fn is_hovering_slot(&mut self, screen: &AbstractContainerScreen, slot: &Slot, xm: f64, ym: f64) -> Option<bool> {
+        Some(self.lend_ref(screen, |__h| StorageOverlayScreen::is_hovering(__h, slot, xm, ym)))
     }
 
     /// java: @Override public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a)
@@ -498,7 +587,8 @@ impl ModContainerScreen for compat::ContainerScreenAdapter<StorageOverlayScreen>
 
 }
 
-// NOTE(fabric2seer): extractBackground, extractRenderState, extractSlot, hasClickedOutside, init, isHovering, keyPressed, mouseScrolled, onClose, removed, repositionElements override(s) of AbstractContainerScreen - the port dispatches its own calls, so these run only where the mod calls them; hook the port's method to make the game call them
+// (every override above is reached by the game: `onClose` through `install_on_close`'s injector, `repositionElements`
+// through `init` on a resize, the rest through `ModContainerScreen`)
 
 /// java: private class BackpackGridWidget extends SearchableGridWidget
 pub struct BackpackGridWidget {
@@ -618,6 +708,11 @@ impl SearchableGridWidget for BackpackGridWidget {
         BackpackGridWidget::extract_widget_render_state_dyn
     }
 
+    /// java: @Override protected double scrollRate() (dispatch: the body for this class)
+    fn scroll_rate(&self) -> fn(&compat::Shared<dyn SearchableGridWidget>) -> f64 {
+        BackpackGridWidget::scroll_rate_dyn
+    }
+
 }
 
 impl BackpackGridWidget {
@@ -648,6 +743,11 @@ impl BackpackGridWidget {
                 StorageOverlayScreenHandler::move_backpack_slots(&__handler, 0, -1000, 9);
             }
         }
+    }
+
+    /// BackpackGridWidget.scrollRate as the dispatch of SearchableGridWidget.scrollRate
+    pub fn scroll_rate_dyn(__this: &compat::Shared<dyn SearchableGridWidget>) -> f64 {
+        Self::scroll_rate(&compat::view_as::<Self, _, Self>(__this, |a| a))
     }
 
     /// BackpackGridWidget.extractWidgetRenderState as the dispatch of SearchableGridWidget.extractWidgetRenderState
@@ -796,7 +896,7 @@ impl BackpackWidget {
                 let mut item_y: i32 = (y.wrapping_add(((i.wrapping_sub(9)).wrapping_div(columns)).wrapping_mul(SLOT_SIZE))).wrapping_add(SLOT_SIZE);
                 if !current_stack.is_empty() {
                     ItemBackgroundManager::draw_backgrounds(&current_stack, graphics, item_x, item_y);
-                    if ItemProtection::is_item_protected(Some(current_stack.clone())) {
+                    if ItemProtection::is_item_protected_ref(Some(&current_stack)) {
                         ItemProtection::draw_slot_icon(graphics, item_x, item_y);
                     }
                     graphics.item(&current_stack, item_x, item_y);
@@ -811,8 +911,15 @@ impl BackpackWidget {
                     };
                     if __outer.is_some() && gui_graphics_extractor::contains_point_in_scissor(mouse_x, mouse_y) && mouse_x > item_x && mouse_x <= item_x.wrapping_add(SLOT_SIZE) && mouse_y > item_y && mouse_y <= item_y.wrapping_add(SLOT_SIZE) && mouse_y > __top_pos && mouse_y < __top_pos.wrapping_add(__outer_height) {
                         //   java: graphics.setTooltipForNextFrame(CLIENT.font, currentStack, mouseX, mouseY);
-                        // rust: port gap - the frame's deferred-tooltip slot (`setTooltipForNextFrame(Font, ItemStack, x, y)`) is
-                        // the game's (`Option<DeferredTooltip>` in the screen pass); a mod's draw has no way to set it (GAPS_M #15).
+                        // (`setTooltipForNextFrame(font, stack, x, y)` is `Screen.getTooltipFromItem(minecraft, stack)` parked in
+                        // the frame's deferred slot, `compat::batch_s_set_tooltip_for_next_frame`: lines only, default style)
+                        let level = mcrust::mcrust::modding::game::level();
+                        let flag = mcrust::net::minecraft::client::gui::screens::inventory::abstract_container_screen::tooltip_flag_from_options();
+                        let lines = mcrust::mcrust::modding::game::with_player(|player| {
+                            mcrust::net::minecraft::client::gui::screens::inventory::abstract_container_screen::get_tooltip_from_item(&current_stack, level.as_deref(), Some(&*player as &dyn mcrust::net::minecraft::world::entity::player::player::Player), flag)
+                        })
+                        .unwrap_or_else(|| mcrust::net::minecraft::client::gui::screens::inventory::abstract_container_screen::get_tooltip_from_item(&current_stack, level.as_deref(), None, flag));
+                        compat::batch_s_set_tooltip_for_next_frame(lines);
                     }
                 }
                 if !({ let (__q0,) = ((i) as usize,); __this.lock().borrow().matched_slots.get(__q0) }) {
@@ -952,6 +1059,17 @@ impl ModWidget for ContainerWidgetAdapter<BackpackGridWidget> {
 
     fn container_widget_mut(&mut self) -> Option<&mut mcrust::net::minecraft::client::gui::components::abstract_container_widget::AbstractContainerWidget> {
         Some(self.part_mut())
+    }
+
+    /// java: @Override public boolean isMouseOver(double mouseX, double mouseY) - `super.isMouseOver` is the game's
+    /// widget box (the live one), the guard is `BackpackGridWidget.isMouseOver`'s
+    fn is_mouse_over(&self, widget: &AbstractWidget, mouse_x: f64, mouse_y: f64) -> bool {
+        let __this = self.object();
+        let __hovered_slot: bool = compat::read(__this, |__t| __t.outer.upgrade()).is_some_and(|__outer| compat::read(&__outer, |__o| __o.hovered_slot.is_some()));
+        if __hovered_slot && ({ let __v = compat::view(__this, |a| a as compat::Shared<dyn SearchableGridWidget>); let __f = compat::dispatch(&__v, |__t| __t.get_grid_rectangle()); __f(&__v) }).contains_point(mouse_x as i32, mouse_y as i32) {
+            return false;
+        }
+        widget.is_mouse_over(mouse_x, mouse_y)
     }
 }
 

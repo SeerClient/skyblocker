@@ -60,46 +60,43 @@ impl ToggleButtonWidget {
     }
 
     /// java: @Override protected void extractContents(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float deltaTicks)
-    pub fn extract_contents(__this: &compat::Shared<Self>, graphics: &mut GuiGraphicsExtractor, mut mouse_x: i32, mut mouse_y: i32, mut delta_ticks: f32) {
-        let minecraft_client = compat::minecraft();
-        let mut y: i32 = (__this.lock().borrow().get_y()).wrapping_sub(1);
-        let mut y2: i32 = y.wrapping_add(__this.lock().borrow().get_height());
-        TopBarWidget::draw_button_border(graphics, __this.lock().borrow().get_x(), y, y2);
-        TopBarWidget::draw_button_border(graphics, __this.lock().borrow().get_right(), y, y2);
-        if __this.lock().borrow().is_hovered() {
-            graphics.fill(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), __this.lock().borrow().get_x(), y, (__this.lock().borrow().get_right()).wrapping_add(1), y2, argb::color_alpha_rgb(100, 0));
+    /// (`graphics` is the frame's widget render context, which the label's scrolling draw takes)
+    pub fn extract_contents(__this: &compat::Shared<Self>, graphics: &mut WidgetRenderContext<'_>, mut mouse_x: i32, mut mouse_y: i32, mut delta_ticks: f32) {
+        let (x, right, top, bottom, width, height, hovered, active, alpha, state) = compat::read(__this, |__t| (__t.get_x(), __t.get_right(), __t.get_y(), __t.get_bottom(), __t.get_width(), __t.get_height(), __t.is_hovered(), __t.active, __t.alpha, __t.state));
+        let __message = compat::read(__this, |__t| __t.get_message_component());
+        let mut y: i32 = top.wrapping_sub(1);
+        let mut y2: i32 = y.wrapping_add(height);
+        TopBarWidget::draw_button_border(&graphics.graphics, x, y, y2);
+        TopBarWidget::draw_button_border(&graphics.graphics, right, y, y2);
+        if hovered {
+            graphics.graphics.fill(graphics.gl, x, y, right.wrapping_add(1), y2, argb::color_alpha_rgb(100, 0));
         } else {
-            graphics.fill(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), __this.lock().borrow().get_x(), y, (__this.lock().borrow().get_right()).wrapping_add(1), y2, argb::color_alpha_rgb(50, 0));
+            graphics.graphics.fill(graphics.gl, x, y, right.wrapping_add(1), y2, argb::color_alpha_rgb(50, 0));
         }
-        let mut color: i32 = ((if compat::read(__this, |__t| __t.active) { 0xFFFFFFFFu32 as i32 } else { 0xFFA0A0A0u32 as i32 }) | (mth::ceil_f32((compat::read(__this, |__t| __t.alpha) * 255.0f32))).wrapping_shl((24) as u32));
-        let mut text_width: i32 = compat::font().width_of_cached(&mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(compat::component_of(__this.lock().borrow().get_message_component())));
+        let mut color: i32 = ((if active { 0xFFFFFFFFu32 as i32 } else { 0xFFA0A0A0u32 as i32 }) | (mth::ceil_f32(alpha * 255.0f32)).wrapping_shl(24));
+        let mut text_width: i32 = compat::font().width_of_cached(&__message);
         let mut start_x: i32;
         let mut end_x: i32;
         let mut square_x: i32;
         let mut padded_text_width: i32 = (text_width.wrapping_add(9)).wrapping_add(2);
-        if padded_text_width > (__this.lock().borrow().get_width()).wrapping_sub(6) {
-            square_x = ((__this.lock().borrow().get_right()).wrapping_sub(3)).wrapping_sub(9);
+        if padded_text_width > width.wrapping_sub(6) {
+            square_x = (right.wrapping_sub(3)).wrapping_sub(9);
             end_x = square_x.wrapping_sub(2);
-            start_x = (__this.lock().borrow().get_x()).wrapping_add(3);
+            start_x = x.wrapping_add(3);
         } else {
-            let mut center_x: i32 = (__this.lock().borrow().get_x()).wrapping_add((__this.lock().borrow().get_width()).wrapping_div(2));
+            let mut center_x: i32 = x.wrapping_add(width.wrapping_div(2));
             square_x = (center_x.wrapping_add(padded_text_width.wrapping_div(2))).wrapping_sub(9);
             start_x = center_x.wrapping_sub(padded_text_width.wrapping_div(2));
             end_x = square_x.wrapping_sub(2);
         }
-        // TODO(fabric2seer): field `NONE` of a value of unknown type
-        //   java: graphics.textRendererForWidget(this, GuiGraphicsExtractor.HoveredTextEffects.NONE).acceptScrollingWithDefaultCenter(
-        //   java: 				getMessage(),
-        //   java: 				startX,
-        //   java: 				endX,
-        //   java: 				getY(),
-        //   java: 				getBottom()
-        //   java: 		);
-        let mut square_y: i32 = (__this.lock().borrow().get_y()).wrapping_add(((__this.lock().borrow().get_height()).wrapping_sub(9)).wrapping_div(2));
-        GuiHelper::border(graphics, square_x, square_y, 9, 9, color);
-        if compat::read(__this, |__t| __t.state) {
-            graphics.fill(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), square_x.wrapping_add(2), square_y.wrapping_add(2), square_x.wrapping_add(7), square_y.wrapping_add(7), color);
+        // java: graphics.textRendererForWidget(this, GuiGraphicsExtractor.HoveredTextEffects.NONE).acceptScrollingWithDefaultCenter(getMessage(), startX, endX, getY(), getBottom());
+        compat::accept_scrolling_with_default_center(graphics, &__message, start_x, end_x, top, bottom);
+        let mut square_y: i32 = top.wrapping_add((height.wrapping_sub(9)).wrapping_div(2));
+        GuiHelper::border(&mut graphics.graphics, square_x, square_y, 9, 9, color);
+        if state {
+            graphics.graphics.fill(graphics.gl, square_x.wrapping_add(2), square_y.wrapping_add(2), square_x.wrapping_add(7), square_y.wrapping_add(7), color);
         }
+        let _ = (mouse_x, mouse_y, delta_ticks);
     }
 
     /// java: public void setState(boolean state)
@@ -133,9 +130,10 @@ impl compat::WidgetHalf for ToggleButtonWidget {
 
 /// ToggleButtonWidget as the game's widget: `compat::WidgetAdapter::widget(handle)` where Java hands it on
 impl ModWidget for compat::WidgetAdapter<ToggleButtonWidget> {
-    /// java: extractWidgetRenderState - not overridden here (the base class's body has no entry point in the port)
+    /// java: AbstractButton.extractWidgetRenderState
     fn extract_widget_render_state(&mut self, widget: &AbstractWidget, context: &mut WidgetRenderContext<'_>, mouse_x: i32, mouse_y: i32, a: f32) {
-        let _ = widget;
+        // `AbstractButton.extractWidgetRenderState` - `this.extractContents(..)`, this class's override
+        self.lend_ref(widget, |__h| ToggleButtonWidget::extract_contents(__h, context, mouse_x, mouse_y, a))
     }
 
     /// java: @Override protected void updateWidgetNarration(NarrationElementOutput builder)
@@ -150,4 +148,3 @@ impl ModWidget for compat::WidgetAdapter<ToggleButtonWidget> {
 
 }
 
-// NOTE(fabric2seer): extractContents, onPress, updateWidgetNarration override(s) of AbstractButton - the port dispatches its own calls, so these run only where the mod calls them; hook the port's method to make the game call them

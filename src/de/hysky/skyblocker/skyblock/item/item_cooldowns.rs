@@ -58,8 +58,8 @@ impl ItemCooldowns {
 
     /// java: @Init public static void init()
     pub fn init() {
-        // TODO(fabric2seer): UseItemCallback.EVENT.register: no SeerClient equivalent yet
         //   java: UseItemCallback.EVENT.register(ItemCooldowns::onItemInteract);
+        compat::register_use_item_callback(|player, world, hand| ItemCooldowns::on_item_interact(player, world, &hand));
     }
 
     /// java: private static InteractionResult onItemInteract(Player player, Level world, InteractionHand hand)
@@ -112,19 +112,26 @@ impl ItemCooldowns {
 
     /// java: public static boolean isOnCooldown(ItemStack itemStack)
     pub fn is_on_cooldown(item_stack: &mcrust::net::minecraft::world::item::item_stack::ItemStack) -> bool {
+        // PERF (port-only, same result): no cooldown tracked means `containsKey` is false for every id, so the
+        // stack's id (a String, per slot per frame through `itemCooldown`) is not read.
+        if compat::lock(&ITEM_COOLDOWNS).is_empty() {
+            return false;
+        }
         return ItemCooldowns::is_on_cooldown_string(&item_stack.get_skyblock_id());
     }
 
     /// java: private static boolean isOnCooldown(String itemId)
     pub fn is_on_cooldown_string(item_id: &str) -> bool {
-        if compat::lock(&ITEM_COOLDOWNS).contains_key(item_id) {
-            let mut cooldown_entry: CooldownEntry = compat::lock(&ITEM_COOLDOWNS).get(item_id).cloned().unwrap();
-            if cooldown_entry.is_on_cooldown() {
-                return true;
-            } else {
-                compat::lock(&ITEM_COOLDOWNS).remove(item_id);
+        // PERF (port-only, same result): one lock for the lookup and the expiry removal (it was three), and the
+        // entry read in place instead of cloned.
+        let mut item_cooldowns = compat::lock(&ITEM_COOLDOWNS);
+        match item_cooldowns.get(item_id).map(|cooldown_entry| cooldown_entry.is_on_cooldown()) {
+            Some(true) => return true,
+            Some(false) => {
+                item_cooldowns.remove(item_id);
                 return false;
             }
+            None => {}
         }
         return false;
     }

@@ -112,9 +112,15 @@ impl ItemLoader {
                     stacks.push(mcrust::net::minecraft::world::item::item_stack::empty());
                     continue;
                 }
-                // TODO(fabric2seer): `.set(..)` on a value of unknown type
-                //   java: ItemStack stack = LegacyItemStackFixer.fixLegacyStack(tag, ItemStack.CODEC, ItemStack.EMPTY, ItemStack::set);
-                let mut stack: mcrust::net::minecraft::world::item::item_stack::ItemStack = todo!("fabric2seer: the initialiser of `stack` (TODO above)");
+                // java: ItemStack stack = LegacyItemStackFixer.fixLegacyStack(tag, ItemStack.CODEC, ItemStack.EMPTY, ItemStack::set);
+                let mut stack: mcrust::net::minecraft::world::item::item_stack::ItemStack = crate::de::hysky::skyblocker::utils::datafixer::legacy_item_stack_fixer::LegacyItemStackFixer::fix_legacy_stack(
+                    &tag,
+                    &mcrust::net::minecraft::world::item::item_stack::codec(),
+                    &mcrust::net::minecraft::world::item::item_stack::empty(),
+                    &|s: &mut mcrust::net::minecraft::world::item::item_stack::ItemStack, r#type, value| {
+                        s.set(r#type, Some(value));
+                    },
+                );
                 if stack.is_empty() {
                     let mut name: String = format!("Error: {}", tag.get_compound_or_empty("tag").get_compound_or_empty("ExtraAttributes").get_string_or("id", ""));
                     let mut placeholder: mcrust::net::minecraft::world::item::item_stack::ItemStack = FlexibleItemStack::get_stack_or_throw(&ItemUtils::get_named_placeholder(&name));
@@ -123,8 +129,12 @@ impl ItemLoader {
                 }
                 if stack.has(mcrust::net::minecraft::core::component::data_components::custom_data()) {
                     let mut custom_data: Tag = ItemUtils::get_custom_data(&stack);
-                    // TODO(fabric2seer): `.putBoolean(..)` on a T
-                    //   java: customData.put("aaron-mod", Util.make(new CompoundTag(), comp -> comp.putBoolean("alwaysDisplaySkyblockInfo", true)));
+                    // java: customData.put("aaron-mod", Util.make(new CompoundTag(), comp -> comp.putBoolean("alwaysDisplaySkyblockInfo", true)));
+                    // (`getCustomData` is the stack's own tag in Java, mutated in place; the port's is a copy, set back)
+                    let mut aaron_mod: Tag = Tag::compound();
+                    aaron_mod.put_boolean("alwaysDisplaySkyblockInfo", true);
+                    custom_data.put("aaron-mod", aaron_mod);
+                    stack.set(mcrust::net::minecraft::core::component::data_components::custom_data().clone(), Some(mcrust::com::mojang::serialization::obj(mcrust::net::minecraft::world::item::component::custom_data::CustomData::of(&custom_data))));
                 }
                 stacks.push(stack.clone());
             }

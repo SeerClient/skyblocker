@@ -278,3 +278,299 @@ impl CrystalData {
     }
 
 }
+
+impl MiningCore {
+    /// Gson's reflective binding of the class's own fields (`ReflectiveTypeAdapterFactory`): each member the
+    /// JSON has is read over the field it names (`@SerializedName`, else the field's name) with the field's declared
+    /// type; an absent member (or a `null` one, or one Gson would reject) leaves the constructor's value.
+    pub fn read_json_fields(&mut self, json: &serde_json::Value) {
+        #[allow(unused_imports)]
+        use crate::io::github::moulberry::repo::neu_repository::gson;
+        if let Some(__v) = gson::member(json, "crystals") {
+            if let Some(__x) = Some(Crystals::from_json(__v)) {
+                self.crystals = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "powder_mithril") {
+            if let Some(__x) = gson::as_i64(__v) {
+                self.mithril_powder = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "powder_spent_mithril") {
+            if let Some(__x) = gson::as_i64(__v) {
+                self.mithril_powder_spent1 = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "powder_spent_non_refundable_mithril") {
+            if let Some(__x) = gson::as_i64(__v) {
+                self.mithril_powder_spent_non_refundable1 = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "powder_spent_mithril_2") {
+            if let Some(__x) = gson::as_i64(__v) {
+                self.mithril_powder_spent2 = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "powder_spent_non_refundable_mithril_2") {
+            if let Some(__x) = gson::as_i64(__v) {
+                self.mithril_powder_spent_non_refundable2 = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "powder_spent_mithril_3") {
+            if let Some(__x) = gson::as_i64(__v) {
+                self.mithril_powder_spent3 = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "powder_spent_non_refundable_mithril_3") {
+            if let Some(__x) = gson::as_i64(__v) {
+                self.mithril_powder_spent_non_refundable3 = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "powder_spent_mithril_4") {
+            if let Some(__x) = gson::as_i64(__v) {
+                self.mithril_powder_spent4 = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "powder_spent_non_refundable_mithril_4") {
+            if let Some(__x) = gson::as_i64(__v) {
+                self.mithril_powder_spent_non_refundable4 = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "powder_spent_mithril_5") {
+            if let Some(__x) = gson::as_i64(__v) {
+                self.mithril_powder_spent5 = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "powder_spent_non_refundable_mithril_5") {
+            if let Some(__x) = gson::as_i64(__v) {
+                self.mithril_powder_spent_non_refundable5 = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "powder_gemstone") {
+            if let Some(__x) = gson::as_i64(__v) {
+                self.gemstone_powder = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "powder_spent_gemstone") {
+            if let Some(__x) = gson::as_i64(__v) {
+                self.gemstone_powder_spent1 = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "powder_spent_non_refundable_gemstone") {
+            if let Some(__x) = gson::as_i64(__v) {
+                self.gemstone_powder_spent_non_refundable1 = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "powder_spent_gemstone_2") {
+            if let Some(__x) = gson::as_i64(__v) {
+                self.gemstone_powder_spent2 = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "powder_spent_non_refundable_gemstone_2") {
+            if let Some(__x) = gson::as_i64(__v) {
+                self.gemstone_powder_spent_non_refundable2 = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "powder_spent_gemstone_3") {
+            if let Some(__x) = gson::as_i64(__v) {
+                self.gemstone_powder_spent3 = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "powder_spent_non_refundable_gemstone_3") {
+            if let Some(__x) = gson::as_i64(__v) {
+                self.gemstone_powder_spent_non_refundable3 = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "powder_spent_gemstone_4") {
+            if let Some(__x) = gson::as_i64(__v) {
+                self.gemstone_powder_spent4 = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "powder_spent_non_refundable_gemstone_4") {
+            if let Some(__x) = gson::as_i64(__v) {
+                self.gemstone_powder_spent_non_refundable4 = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "powder_spent_gemstone_5") {
+            if let Some(__x) = gson::as_i64(__v) {
+                self.gemstone_powder_spent5 = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "powder_spent_non_refundable_gemstone_5") {
+            if let Some(__x) = gson::as_i64(__v) {
+                self.gemstone_powder_spent_non_refundable5 = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "powder_glacite") {
+            if let Some(__x) = gson::as_i64(__v) {
+                self.glacite_powder = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "powder_spent_glacite") {
+            if let Some(__x) = gson::as_i64(__v) {
+                self.glacite_powder_spent1 = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "powder_spent_non_refundable_glacite") {
+            if let Some(__x) = gson::as_i64(__v) {
+                self.glacite_powder_spent_non_refundable1 = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "powder_spent_glacite_2") {
+            if let Some(__x) = gson::as_i64(__v) {
+                self.glacite_powder_spent2 = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "powder_spent_non_refundable_glacite_2") {
+            if let Some(__x) = gson::as_i64(__v) {
+                self.glacite_powder_spent_non_refundable2 = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "powder_spent_glacite_3") {
+            if let Some(__x) = gson::as_i64(__v) {
+                self.glacite_powder_spent3 = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "powder_spent_non_refundable_glacite_3") {
+            if let Some(__x) = gson::as_i64(__v) {
+                self.glacite_powder_spent_non_refundable3 = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "powder_spent_glacite_4") {
+            if let Some(__x) = gson::as_i64(__v) {
+                self.glacite_powder_spent4 = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "powder_spent_non_refundable_glacite_4") {
+            if let Some(__x) = gson::as_i64(__v) {
+                self.glacite_powder_spent_non_refundable4 = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "powder_spent_glacite_5") {
+            if let Some(__x) = gson::as_i64(__v) {
+                self.glacite_powder_spent5 = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "powder_spent_non_refundable_glacite_5") {
+            if let Some(__x) = gson::as_i64(__v) {
+                self.glacite_powder_spent_non_refundable5 = __x;
+            }
+        }
+    }
+
+    /// `GSON.fromJson(json, MiningCore.class)`: the no-argument constructor, then the fields.
+    pub fn from_json(json: &serde_json::Value) -> Self {
+        let mut __this = Self::new();
+        __this.read_json_fields(json);
+        __this
+    }
+}
+
+impl Crystals {
+    /// Gson's reflective binding of the class's own fields (`ReflectiveTypeAdapterFactory`): each member the
+    /// JSON has is read over the field it names (`@SerializedName`, else the field's name) with the field's declared
+    /// type; an absent member (or a `null` one, or one Gson would reject) leaves the constructor's value.
+    pub fn read_json_fields(&mut self, json: &serde_json::Value) {
+        #[allow(unused_imports)]
+        use crate::io::github::moulberry::repo::neu_repository::gson;
+        if let Some(__v) = gson::member(json, "jade_crystal") {
+            if let Some(__x) = Some(CrystalData::from_json(__v)) {
+                self.jade_crystal = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "amber_crystal") {
+            if let Some(__x) = Some(CrystalData::from_json(__v)) {
+                self.amber_crystal = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "topaz_crystal") {
+            if let Some(__x) = Some(CrystalData::from_json(__v)) {
+                self.topaz_crystal = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "sapphire_crystal") {
+            if let Some(__x) = Some(CrystalData::from_json(__v)) {
+                self.sapphire_crystal = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "amethyst_crystal") {
+            if let Some(__x) = Some(CrystalData::from_json(__v)) {
+                self.amethyst_crystal = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "jasper_crystal") {
+            if let Some(__x) = Some(CrystalData::from_json(__v)) {
+                self.jasper_crystal = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "ruby_crystal") {
+            if let Some(__x) = Some(CrystalData::from_json(__v)) {
+                self.ruby_crystal = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "citrine_crystal") {
+            if let Some(__x) = Some(CrystalData::from_json(__v)) {
+                self.citrine_crystal = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "peridot_crystal") {
+            if let Some(__x) = Some(CrystalData::from_json(__v)) {
+                self.peridot_crystal = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "aquamarine_crystal") {
+            if let Some(__x) = Some(CrystalData::from_json(__v)) {
+                self.aquamarine_crystal = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "onyx_crystal") {
+            if let Some(__x) = Some(CrystalData::from_json(__v)) {
+                self.onyx_crystal = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "opal_crystal") {
+            if let Some(__x) = Some(CrystalData::from_json(__v)) {
+                self.opal_crystal = __x;
+            }
+        }
+    }
+
+    /// `GSON.fromJson(json, Crystals.class)`: the no-argument constructor, then the fields.
+    pub fn from_json(json: &serde_json::Value) -> Self {
+        let mut __this = Self::new();
+        __this.read_json_fields(json);
+        __this
+    }
+}
+
+impl CrystalData {
+    /// Gson's reflective binding of the class's own fields (`ReflectiveTypeAdapterFactory`): each member the
+    /// JSON has is read over the field it names (`@SerializedName`, else the field's name) with the field's declared
+    /// type; an absent member (or a `null` one, or one Gson would reject) leaves the constructor's value.
+    pub fn read_json_fields(&mut self, json: &serde_json::Value) {
+        #[allow(unused_imports)]
+        use crate::io::github::moulberry::repo::neu_repository::gson;
+        if let Some(__v) = gson::member(json, "state") {
+            if let Some(__x) = gson::as_string(__v) {
+                self.state = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "total_placed") {
+            if let Some(__x) = (gson::as_i32(__v)).map(Some) {
+                self.total_placed = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "total_found") {
+            if let Some(__x) = gson::as_i32(__v) {
+                self.total_found = __x;
+            }
+        }
+    }
+
+    /// `GSON.fromJson(json, CrystalData.class)`: the no-argument constructor, then the fields.
+    pub fn from_json(json: &serde_json::Value) -> compat::Shared<Self> {
+        let __this = Self::new();
+        compat::write(&__this, |__t| __t.read_json_fields(json));
+        __this
+    }
+}

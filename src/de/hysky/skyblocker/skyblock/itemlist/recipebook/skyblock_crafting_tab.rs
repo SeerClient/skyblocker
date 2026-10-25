@@ -23,7 +23,9 @@ pub static CRAFTING_TABLE: compat::MainThread<mcrust::net::minecraft::world::ite
 #[derive(Clone)]
 pub struct SkyblockCraftingTab {
     /// java: SkyblockRecipeBookComponent recipeBook
-    pub recipe_book: compat::Shared<SkyblockRecipeBookComponent>,
+    /// (the book owns this tab - `tabs` - so the tab's reference back is weak: Java's collector frees the pair, a strong
+    /// pair of `Arc`s would never be)
+    pub recipe_book: compat::WeakShared<SkyblockRecipeBookComponent>,
     /// java: ItemStack icon
     pub icon: mcrust::net::minecraft::world::item::item_stack::ItemStack,
     /// java: SkyblockRecipeResults results
@@ -32,13 +34,13 @@ pub struct SkyblockCraftingTab {
 
 impl SkyblockCraftingTab {
     /// java: the canonical record constructor
-    pub fn new(mut recipe_book: compat::Shared<SkyblockRecipeBookComponent>, mut icon: mcrust::net::minecraft::world::item::item_stack::ItemStack, mut results: compat::Shared<SkyblockRecipeResults>) -> Self {
-        Self { recipe_book, icon, results }
+    pub fn new(mut recipe_book: &compat::Shared<SkyblockRecipeBookComponent>, mut icon: mcrust::net::minecraft::world::item::item_stack::ItemStack, mut results: compat::Shared<SkyblockRecipeResults>) -> Self {
+        Self { recipe_book: std::sync::Arc::downgrade(recipe_book), icon, results }
     }
 
     /// java: the record accessor `recipeBook()`
     pub fn recipe_book(&self) -> compat::Shared<SkyblockRecipeBookComponent> {
-        self.recipe_book.clone()
+        self.recipe_book.upgrade().expect("SkyblockCraftingTab: its recipe book is gone")
     }
 
     /// java: the record accessor `icon()`
@@ -97,6 +99,8 @@ impl RecipeAreaDisplay for SkyblockCraftingTab {
 
 }
 
+/// (each dispatch runs on a copy of the record - its fields are final references - so no borrow of the tab is held
+/// while the call reaches back into the book, which may dispatch to this tab again: `filterOption`'s cycle listener)
 impl SkyblockCraftingTab {
     /// java: @Override public void initialize(Minecraft client, int parentLeft, int parentTop)
     pub fn initialize_impl(&mut self, client: &mut mcrust::net::minecraft::client::minecraft::Minecraft, mut parent_left: i32, mut parent_top: i32) {
@@ -105,24 +109,18 @@ impl SkyblockCraftingTab {
 
     /// SkyblockCraftingTab.initialize as the dispatch of RecipeAreaDisplay.initialize
     pub fn initialize_dyn(__this: &compat::Shared<dyn RecipeAreaDisplay>, __p0: &mut mcrust::net::minecraft::client::minecraft::Minecraft, __p1: i32, __p2: i32) {
-        compat::write_as::<Self, _, _>(__this, |__s| __s.initialize_impl(__p0, __p1, __p2))
+        compat::read_as::<Self, _, _>(__this, |__s| __s.clone()).initialize_impl(__p0, __p1, __p2)
     }
 
     /// java: @Override public void extractRenderState(GuiGraphicsExtractor graphics, int x, int y, int mouseX, int mouseY, float delta)
     pub fn extract_render_state_impl(&mut self, graphics: &GuiGraphicsExtractor, mut x: i32, mut y: i32, mut mouse_x: i32, mut mouse_y: i32, mut delta: f32) {
-        // TODO(fabric2seer): `RecipeBookComponent.searchBox` has no Rust field in the port (searched net.minecraft.client.gui.screens.recipebook.RecipeBookComponent and its supertypes)
-        debug_assert!(true /* java: compat::read(&self.recipe_book, |__t| __t.search_box.clone()) != null: never null here */);
+        // java: assert recipeBook.searchBox != null;
+        let recipe_book = self.recipe_book();
         if ItemRepository::files_imported() {
-            // TODO(fabric2seer): `RecipeBookComponent.searchBox` has no Rust field in the port (searched net.minecraft.client.gui.screens.recipebook.RecipeBookComponent and its supertypes)
-            // TODO(fabric2seer): `extract_render_state` is a method of the port's trait `Renderable`, which the port's `EditBox` does not implement
-            // rust: { let (__q0, __q1, __q2, __q3, __q4,) = (mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), mouse_x, mouse_y, delta,); self.recipe_book.lock().borrow_mut().search_box.extract_render_state(__q0, __q1, __q2, __q3, __q4) };
-            // TODO(fabric2seer): `extract_render_state` is a method of the port's trait `Renderable`, which the port's `AbstractWidget` does not implement
-            // rust: let __wa1 = graphics.clone();
-            // rust: let __wa2 = mouse_x;
-            // rust: let __wa3 = mouse_y;
-            // rust: let __wa4 = delta;
-            // rust: let __o1 = compat::read(&self.recipe_book, |__t| __t.filter_option.clone()).unwrap();
-            // rust: compat::write(&__o1, |__t| __t.extract_render_state(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), __wa2, __wa3, __wa4));
+            // java: recipeBook.searchBox.extractRenderState(graphics, mouseX, mouseY, delta);
+            SkyblockRecipeBookComponent::extract_search_box(&recipe_book, mouse_x, mouse_y);
+            // java: recipeBook.filterOption.extractRenderState(graphics, mouseX, mouseY, delta);
+            SkyblockRecipeBookComponent::extract_filter_option(&recipe_book, graphics, mouse_x, mouse_y, delta);
             ({ let __f = compat::dispatch(&self.results, |__t| __t.extract_render_state()); __f(&compat::view(&self.results, |a| a as compat::Shared<dyn RecipeAreaDisplay>), graphics, x, y, mouse_x, mouse_y, delta) });
         } else {
             gui_graphics_extractor::centered_text_string(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), "Loading...", x.wrapping_add((*skyblock_recipe_book_component::IMAGE_WIDTH).wrapping_div(2)), y.wrapping_add(68), 0xFFFFFFFFu32 as i32);
@@ -131,7 +129,7 @@ impl SkyblockCraftingTab {
 
     /// SkyblockCraftingTab.extractRenderState as the dispatch of RecipeAreaDisplay.extractRenderState
     pub fn extract_render_state_dyn(__this: &compat::Shared<dyn RecipeAreaDisplay>, __p0: &GuiGraphicsExtractor, __p1: i32, __p2: i32, __p3: i32, __p4: i32, __p5: f32) {
-        compat::write_as::<Self, _, _>(__this, |__s| __s.extract_render_state_impl(__p0, __p1, __p2, __p3, __p4, __p5))
+        compat::read_as::<Self, _, _>(__this, |__s| __s.clone()).extract_render_state_impl(__p0, __p1, __p2, __p3, __p4, __p5)
     }
 
     /// java: @Override public void extractTooltip(GuiGraphicsExtractor context, int x, int y)
@@ -143,7 +141,7 @@ impl SkyblockCraftingTab {
 
     /// SkyblockCraftingTab.extractTooltip as the dispatch of RecipeAreaDisplay.extractTooltip
     pub fn extract_tooltip_dyn(__this: &compat::Shared<dyn RecipeAreaDisplay>, __p0: &mut GuiGraphicsExtractor, __p1: i32, __p2: i32) {
-        compat::read_as::<Self, _, _>(__this, |__s| __s.extract_tooltip_impl(__p0, __p1, __p2))
+        compat::read_as::<Self, _, _>(__this, |__s| __s.clone()).extract_tooltip_impl(__p0, __p1, __p2)
     }
 
     /// java: @Override public boolean mouseClicked(MouseButtonEvent click, boolean doubled)
@@ -152,31 +150,23 @@ impl SkyblockCraftingTab {
             if { let __f = compat::dispatch(&self.results, |__t| __t.mouse_clicked()); __f(&compat::view(&self.results, |a| a as compat::Shared<dyn RecipeAreaDisplay>), click, doubled) } {
                 return true;
             } else {
-                // TODO(fabric2seer): `RecipeBookComponent.searchBox` has no Rust field in the port (searched net.minecraft.client.gui.screens.recipebook.RecipeBookComponent and its supertypes)
-                if true /* java: compat::read(&self.recipe_book, |__t| __t.search_box.clone()) != null: never null here */ {
-                    // java: boolean magnifyingGlassClicked = recipeBook.magnifierIconPlacement != null && recipeBook.magnifierIconPlacement.containsPoint(..);
-                    // rust: port gap - `RecipeBookComponent.magnifierIconPlacement` (protected) is private to the port's class, as
-                    // is `searchBox`; a mod subclass cannot read them (GAPS_batchF.md)
-                    let mut magnifying_glass_clicked: bool = false;
-                    // TODO(fabric2seer): `RecipeBookComponent.searchBox` has no Rust field in the port (searched net.minecraft.client.gui.screens.recipebook.RecipeBookComponent and its supertypes)
-                    // TODO(fabric2seer): `mouse_clicked` takes 3 argument(s) in the port (`button: i32, x: f64, y: f64`), Java passes 2
-                    // TODO(fabric2seer): `AbstractWidget::mouse_clicked` ports `mouseClicked`, but the port's `EditBox` holds no `AbstractWidget` (no Deref, no `base` field) to call it on
-                    /* java: || recipeBook.searchBox.mouseClicked(click, doubled) - rust: port gap (searchBox, as above) */ if magnifying_glass_clicked {
+                let recipe_book = self.recipe_book();
+                // java: if (recipeBook.searchBox != null)
+                if SkyblockRecipeBookComponent::has_search_box(&recipe_book) {
+                    // java: boolean magnifyingGlassClicked = recipeBook.magnifierIconPlacement != null
+                    //   && recipeBook.magnifierIconPlacement.containsPoint(Mth.floor(click.x()), Mth.floor(click.y()));
+                    let magnifying_glass_clicked: bool = compat::read(&recipe_book, |__t| __t.magnifier_icon_placement).is_some_and(|placement| placement.contains_point(mth::floor_f64(click.x()), mth::floor_f64(click.y())));
+                    // java: if (magnifyingGlassClicked || recipeBook.searchBox.mouseClicked(click, doubled))
+                    if magnifying_glass_clicked || SkyblockRecipeBookComponent::search_box_mouse_clicked(&recipe_book, click, doubled) {
                         SkyblockRecipeResults::close_recipe_view(&self.results);
-                        // TODO(fabric2seer): `RecipeBookComponent.searchBox` has no Rust field in the port (searched net.minecraft.client.gui.screens.recipebook.RecipeBookComponent and its supertypes)
-                        // TODO(fabric2seer): `set_focused_at` takes 2 argument(s) in the port (`focused: bool, millis: i64`), Java passes 1
-                        // rust: self.recipe_book.lock().borrow_mut().search_box.set_focused_at(true);
+                        // java: recipeBook.searchBox.setFocused(true);
+                        SkyblockRecipeBookComponent::set_search_box_focused(&recipe_book, true);
                         return true;
                     }
-                    // TODO(fabric2seer): `RecipeBookComponent.searchBox` has no Rust field in the port (searched net.minecraft.client.gui.screens.recipebook.RecipeBookComponent and its supertypes)
-                    // TODO(fabric2seer): `set_focused_at` takes 2 argument(s) in the port (`focused: bool, millis: i64`), Java passes 1
-                    // rust: self.recipe_book.lock().borrow_mut().search_box.set_focused_at(false);
-                    // TODO(fabric2seer): `mouse_clicked` takes 3 argument(s) in the port (`button: i32, x: f64, y: f64`), Java passes 2
-                    // rust: let __wa1 = click.clone();
-                    // rust: let __wa2 = doubled;
-                    // rust: let __o1 = compat::read(&self.recipe_book, |__t| __t.filter_option.clone()).unwrap();
-                    // rust: return compat::write(&__o1, |__t| __t.mouse_clicked(__wa1.clone(), __wa2).is_some());
-                    return todo!("fabric2seer: see the TODO above");
+                    // java: recipeBook.searchBox.setFocused(false);
+                    SkyblockRecipeBookComponent::set_search_box_focused(&recipe_book, false);
+                    // java: return recipeBook.filterOption.mouseClicked(click, doubled);
+                    return SkyblockRecipeBookComponent::filter_option_mouse_clicked(&recipe_book, click, doubled);
                 }
             }
         }
@@ -185,7 +175,7 @@ impl SkyblockCraftingTab {
 
     /// SkyblockCraftingTab.mouseClicked as the dispatch of RecipeAreaDisplay.mouseClicked
     pub fn mouse_clicked_dyn(__this: &compat::Shared<dyn RecipeAreaDisplay>, __p0: &MouseButtonEvent, __p1: bool) -> bool {
-        compat::write_as::<Self, _, _>(__this, |__s| __s.mouse_clicked_impl(__p0, __p1))
+        compat::read_as::<Self, _, _>(__this, |__s| __s.clone()).mouse_clicked_impl(__p0, __p1)
     }
 
     /// java: @Override public boolean keyPressed(double mouseX, double mouseY, KeyEvent input)
@@ -195,7 +185,7 @@ impl SkyblockCraftingTab {
 
     /// SkyblockCraftingTab.keyPressed as the dispatch of RecipeAreaDisplay.keyPressed
     pub fn key_pressed_dyn(__this: &compat::Shared<dyn RecipeAreaDisplay>, __p0: f64, __p1: f64, __p2: &mcrust::net::minecraft::client::input::key_event::KeyEvent) -> bool {
-        compat::read_as::<Self, _, _>(__this, |__s| __s.key_pressed_impl(__p0, __p1, __p2))
+        compat::read_as::<Self, _, _>(__this, |__s| __s.clone()).key_pressed_impl(__p0, __p1, __p2)
     }
 
     /// java: @Override public void updateSearchResults(String query, FilterOption filterOption, boolean refresh)
@@ -207,7 +197,7 @@ impl SkyblockCraftingTab {
 
     /// SkyblockCraftingTab.updateSearchResults as the dispatch of RecipeAreaDisplay.updateSearchResults
     pub fn update_search_results_3_dyn(__this: &compat::Shared<dyn RecipeAreaDisplay>, __p0: String, __p1: FilterOption, __p2: bool) {
-        compat::write_as::<Self, _, _>(__this, |__s| __s.update_search_results_3_impl(__p0, __p1, __p2))
+        compat::read_as::<Self, _, _>(__this, |__s| __s.clone()).update_search_results_3_impl(__p0, __p1, __p2)
     }
 
 }

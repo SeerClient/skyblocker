@@ -60,6 +60,9 @@ pub struct SkyblockCraftingTableScreen {
     /// java: `AbstractContainerScreen.menu` - the screen's handler (the port's container screen holds no menu of its
     /// own: the mod's object is kept here)
     pub menu: compat::Shared<SkyblockCraftingTableScreenHandler>,
+    /// `ContainerEventHandler.focused == this.recipeBook`: the recipe book is not a widget of the port's screen tree,
+    /// so `setFocused(recipeBook)` is kept here and `keyPressed` routes to it as `ContainerEventHandler.keyPressed` does
+    pub recipe_book_focused: bool,
 }
 
 impl std::ops::Deref for SkyblockCraftingTableScreen {
@@ -90,6 +93,7 @@ impl SkyblockCraftingTableScreen {
             recipe_book_button: None,
             recipe_book_toggle_requested: Default::default(),
             menu: handler.clone(),
+            recipe_book_focused: false,
         });
         __this
     }
@@ -138,8 +142,10 @@ impl SkyblockCraftingTableScreen {
         }
         debug_assert!(mcrust::mcrust::modding::game::with_player(|_| ()).is_some());
         // java: this.addWidget(this.recipeBook); this.setInitialFocus(this.recipeBook);
-        // rust: port gap - the port's `RecipeBookComponent` is not a widget of the screen's tree (it is drawn and clicked
-        //   by its screen's own bodies), so a mod's recipe book has no widget to add or focus (GAPS_batchE.md)
+        // The port's `RecipeBookComponent` is not a widget of the screen's tree: this screen's own overrides draw it,
+        // click it (`mouse_clicked`) and route keys to it (`key_pressed`) - `addWidget`'s three roles; the initial focus
+        // is the `recipe_book_focused` flag.
+        compat::write(__this, |__t| __t.recipe_book_focused = true);
         { let __v = 29; compat::write(__this, |__t| __t.title_label_x = __v); }
     }
 
@@ -152,7 +158,8 @@ impl SkyblockCraftingTableScreen {
             return;
         }
         let __book = compat::read(__this, |__t| __t.recipe_book.clone());
-        compat::write(&__book, |__t| __t.toggle_visibility(&*compat::minecraft()));
+        // java: recipeBook.toggleVisibility(); - the subclass's (its setVisible rebuilds its own visuals)
+        SkyblockRecipeBookComponent::toggle_visibility(&__book);
         let (__width, __image_width) = compat::read(__this, |__t| (__t.screen.width, __t.image_width));
         let __left = compat::write(&__book, |__t| __t.update_screen_position(__width, __image_width));
         compat::write(__this, |__t| __t.left_pos = __left);
@@ -171,9 +178,10 @@ impl SkyblockCraftingTableScreen {
     pub fn container_tick(__this: &compat::Shared<Self>) {
         SkyblockCraftingTableScreen::toggle_recipe_book(__this);
         ();
-        // TODO(fabric2seer): `tick` takes 2 argument(s) in the port (`times_inventory_changed: i32, gfx: &Minecraft`), Java passes 0
-        // rust: let __o1 = compat::read(__this, |__t| __t.recipe_book.clone());
-        // rust: compat::write(&__o1, |__t| __t.tick());
+        // java: this.recipeBook.tick(); - the Skyblock book's (`SkyblockRecipeBookComponent.tick`: visibility from the book
+        // data, and its own `updateCollections` when the inventory changed)
+        let __o1 = compat::read(__this, |__t| __t.recipe_book.clone());
+        SkyblockRecipeBookComponent::tick(&__o1);
         if compat::read(__this, |__t| __t.more_crafts_button.clone()).is_none() {
             return;
         }
@@ -195,13 +203,15 @@ impl SkyblockCraftingTableScreen {
         } else {
             ();
             SkyblockRecipeBookComponent::extract_render_state(&compat::read(__this, |__t| __t.recipe_book.clone()), graphics, mouse_x, mouse_y, a);
-            // TODO(fabric2seer): `extract_ghost_recipe` takes 6 argument(s) in the port (`gl: &crate::lwjgl::opengl::Gl, gfx: &crate::net::minecraft::client::minecraft::Minecraft, is_result_slot_big: bool, slot_position: &dyn Fn(usize) -> (i32, i32), resolver: Option< &crate::net::minecraft::client::renderer::item::item_model_re ..`), Java passes 2
-            // rust: let __wa1 = graphics.clone();
-            // rust: let __o3 = compat::read(__this, |__t| __t.recipe_book.clone());
-            // rust: compat::write(&__o3, |__t| __t.extract_ghost_recipe(&__wa1, &true));
+            // java: this.recipeBook.extractGhostRecipe(graphics, true);
+            // `GhostSlots` are filled only by `fillGhostRecipe`, which `SkyblockRecipeBookComponent` overrides as a no-op,
+            // so the list the port's call extracts into is always empty and draws nothing.
+            let __o3 = compat::read(__this, |__t| __t.recipe_book.clone());
+            let mut __ghosts: Vec<mcrust::net::minecraft::client::gui::hud::HotbarItem> = Vec::new();
+            compat::read(&__o3, |__t| __t.base.extract_ghost_recipe(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), true, &|__slot: usize| compat::with_open_menu(|menu, _| (menu.slots[__slot].x, menu.slots[__slot].y)).unwrap_or((0, 0)), None, &mut __ghosts));
         }
-        // TODO(fabric2seer): `AbstractContainerScreen.extractTooltip` has no Rust method in the port (looked for `extract_tooltip` in AbstractContainerScreen and its supertypes)
-        // rust: __this.lock().borrow().extract_tooltip(graphics, mouse_x, mouse_y);
+        // java: this.extractTooltip(graphics, mouseX, mouseY);
+        // (the host runs `super.extractRenderState` - contents, carried item, `extractTooltip` - before this override)
         SkyblockRecipeBookComponent::extract_tooltip(&compat::read(__this, |__t| __t.recipe_book.clone()), graphics, mouse_x, mouse_y, None);
     }
 
@@ -243,9 +253,8 @@ impl SkyblockCraftingTableScreen {
     /// java: @Override public boolean mouseClicked(MouseButtonEvent click, boolean doubled)
     pub fn mouse_clicked(__this: &compat::Shared<Self>, click: &MouseButtonEvent, mut doubled: bool) -> bool {
         if SkyblockRecipeBookComponent::mouse_clicked(&compat::read(__this, |__t| __t.recipe_book.clone()), click, doubled) {
-            // TODO(fabric2seer): `AbstractContainerScreen.setFocused` has no Rust method in the port (looked for `set_focused` in AbstractContainerScreen and its supertypes)
-            // rust: let __h0 = &compat::read(__this, |__t| __t.recipe_book.clone());
-            // rust: __this.lock().borrow().set_focused(__h0);
+            // java: this.setFocused(this.recipeBook);
+            compat::write(__this, |__t| __t.recipe_book_focused = true);
             return true;
         }
         let __o1 = compat::read(__this, |__t| __t.recipe_book.clone());
@@ -254,6 +263,33 @@ impl SkyblockCraftingTableScreen {
             return true;
         }
         return false;
+    }
+
+    /// java: `AbstractContainerScreen.keyPressed` -> `ContainerEventHandler.keyPressed`: the focused child gets the key
+    pub fn key_pressed(__this: &compat::Shared<Self>, input: &mcrust::net::minecraft::client::input::key_event::KeyEvent) -> bool {
+        if !compat::read(__this, |__t| __t.recipe_book_focused) {
+            return false;
+        }
+        let __book = compat::read(__this, |__t| __t.recipe_book.clone());
+        return SkyblockRecipeBookComponent::key_pressed(&__book, input);
+    }
+
+    /// java: `ContainerEventHandler.charTyped`: the focused child (the recipe book) gets the character
+    pub fn char_typed(__this: &compat::Shared<Self>, event: &mcrust::net::minecraft::client::input::character_event::CharacterEvent) -> bool {
+        if !compat::read(__this, |__t| __t.recipe_book_focused) {
+            return false;
+        }
+        let __book = compat::read(__this, |__t| __t.recipe_book.clone());
+        return SkyblockRecipeBookComponent::char_typed(&__book, event);
+    }
+
+    /// java: `ContainerEventHandler.keyReleased`: the focused child (the recipe book) gets the release
+    pub fn key_released(__this: &compat::Shared<Self>, input: &mcrust::net::minecraft::client::input::key_event::KeyEvent) -> bool {
+        if !compat::read(__this, |__t| __t.recipe_book_focused) {
+            return false;
+        }
+        let __book = compat::read(__this, |__t| __t.recipe_book.clone());
+        return SkyblockRecipeBookComponent::key_released(&__book, input);
     }
 
     /// java: @Override protected boolean hasClickedOutside(double mouseX, double mouseY, int left, int top)
@@ -265,10 +301,11 @@ impl SkyblockCraftingTableScreen {
     /// java: @Override protected void slotClicked(Slot slot, int slotId, int button, ContainerInput actionType)
     pub fn slot_clicked(__this: &compat::Shared<Self>, slot: &Slot, mut slot_id: i32, mut button: i32, action_type: &ContainerInput) {
         compat::call_super();
-        // TODO(fabric2seer): `RecipeBookComponent.slotClicked` has no Rust method in the port (looked for `slot_clicked` in RecipeBookComponent and its supertypes)
-        // rust: let __wa1 = slot.clone();
-        // rust: let __o1 = compat::read(__this, |__t| __t.recipe_book.clone());
-        // rust: compat::write(&__o1, |__t| __t.slot_clicked(&__wa1));
+        // java: this.recipeBook.slotClicked(slot); - `RecipeBookComponent.slotClicked:218-226` is
+        // `if (slot != null && this.isCraftingSlot(slot))`, the subclass's answer handed to the port's body
+        let __o1 = compat::read(__this, |__t| __t.recipe_book.clone());
+        let __is_crafting: bool = SkyblockRecipeBookComponent::is_crafting_slot(&__o1, slot);
+        compat::write(&__o1, |__t| __t.base.slot_clicked(__is_crafting));
     }
 
 }
@@ -283,13 +320,22 @@ impl compat::ContainerHalf for SkyblockCraftingTableScreen {
 /// SkyblockCraftingTableScreen as the game's container screen (`container_screens::register`'s answer)
 impl ModContainerScreen for compat::ContainerScreenAdapter<SkyblockCraftingTableScreen> {
     /// java: @Override protected void init()
+    ///
+    /// (this class extends `AbstractContainerScreen` DIRECTLY with its default `176 x 166`: `lend_init` puts that
+    /// geometry - and `inventoryLabelY = 72` - on the game's screen, which is the vanilla 9xN chest's, and re-runs
+    /// `super.init()`'s centring with it; `lend` left the chest's `imageHeight = 114 + rows * 18` on it)
     fn init(&mut self, screen: &mut AbstractContainerScreen) {
-        self.lend(screen, |__h| SkyblockCraftingTableScreen::init(__h))
+        self.lend_init(screen, |__h| SkyblockCraftingTableScreen::init(__h))
     }
 
     /// java: @Override public void extractBackground(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a)
     fn extract_background(&mut self, screen: &AbstractContainerScreen, context: &mut WidgetRenderContext<'_>, mouse_x: i32, mouse_y: i32, a: f32, super_extract_background: &mut dyn FnMut()) {
-        compat::with_super(super_extract_background, || self.lend_ref(screen, |__h| SkyblockCraftingTableScreen::extract_background(__h, &context.graphics, mouse_x, mouse_y, a)))
+        // `super.extractBackground` is `AbstractContainerScreen`'s (= `Screen`'s: the dimming) - this class extends it
+        // directly - not the vanilla chest screen's `generic_54` panel the game hands as `super_extract_background`
+        let _ = super_extract_background;
+        let __ctx: &WidgetRenderContext<'_> = &*context;
+        let mut __super = || mcrust::mcrust::modding::container_screens::extract_abstract_container_screen_background(__ctx);
+        compat::with_super(&mut __super, || self.lend_ref(screen, |__h| SkyblockCraftingTableScreen::extract_background(__h, &__ctx.graphics, mouse_x, mouse_y, a)))
     }
 
     /// java: @Override public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a)
@@ -300,6 +346,21 @@ impl ModContainerScreen for compat::ContainerScreenAdapter<SkyblockCraftingTable
     /// java: @Override public boolean mouseClicked(MouseButtonEvent click, boolean doubled)
     fn mouse_clicked(&mut self, screen: &mut AbstractContainerScreen, event: &MouseButtonEvent, double_click: bool) -> bool {
         self.lend(screen, |__h| SkyblockCraftingTableScreen::mouse_clicked(__h, event, double_click))
+    }
+
+    /// `ContainerEventHandler.keyPressed`: the focused recipe book
+    fn key_pressed(&mut self, screen: &mut AbstractContainerScreen, event: &mcrust::net::minecraft::client::input::key_event::KeyEvent) -> bool {
+        self.lend(screen, |__h| SkyblockCraftingTableScreen::key_pressed(__h, event))
+    }
+
+    /// `ContainerEventHandler.charTyped`: the focused recipe book
+    fn char_typed(&mut self, screen: &mut AbstractContainerScreen, event: &mcrust::net::minecraft::client::input::character_event::CharacterEvent) -> bool {
+        self.lend(screen, |__h| SkyblockCraftingTableScreen::char_typed(__h, event))
+    }
+
+    /// `ContainerEventHandler.keyReleased`: the focused recipe book
+    fn key_released(&mut self, screen: &mut AbstractContainerScreen, event: &mcrust::net::minecraft::client::input::key_event::KeyEvent) -> bool {
+        self.lend(screen, |__h| SkyblockCraftingTableScreen::key_released(__h, event))
     }
 
     /// java: @Override public void containerTick()

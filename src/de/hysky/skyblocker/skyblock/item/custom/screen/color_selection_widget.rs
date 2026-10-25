@@ -455,15 +455,16 @@ impl ColorSelectionWidget {
     /// java: private void onClickPickDye(Button button)
     fn on_click_pick_dye(&mut self) {
         // java: if (client.gui.screen() == null) return;
+        // (`Gui::screen` answers the open screen while the frame has it lent - it answered `None` inside every
+        // click before, which made "Pick dye" a no-op)
         if compat::minecraft().gui.screen().is_none() {
             return;
         }
         let solid = compat::RenderThread::new(self.self_ref.clone());
         let animated = compat::RenderThread::new(self.self_ref.clone());
         // java: client.gui.setScreen(new DyeSelectPopup(client.gui.screen(), this::setFromSolidDye, this::setFromAnimatedDye));
-        // rust: port gap (GAPS_batchA #19) - the popup base keeps its background as the game's `Screen` value and the
-        //   port lends no handle to the live one; the screen that is up is held by the game (`set_screen_keeping_parent`)
-        //   and an empty screen stands in for the base's field
+        // Port note: the popup's background screen is the one the game holds under it (`set_screen_keeping_parent`,
+        //   which the popup base draws and returns to); the base's `Screen` field gets an empty stand-in
         let popup = DyeSelectPopup::new(
             mcrust::net::minecraft::client::gui::screens::screen::Screen::new(String::new()),
             Arc::new(move |button: AbstractWidget, hex: i32| {

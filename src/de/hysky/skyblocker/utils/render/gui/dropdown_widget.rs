@@ -2,10 +2,11 @@
 
 #[allow(unused_imports)]
 use crate::prelude::*;
-use crate::de::hysky::skyblocker::skyblock::tabhud::config::custom_dropdown_widget::CustomEntry;
 use crate::de::hysky::skyblocker::utils::render::gui_helper::GuiHelper;
 use mcrust::com::mojang::blaze3d::platform::cursor::cursor_types::CursorTypes;
 use mcrust::mcrust::modding::widgets::ModListEntry;
+use mcrust::mcrust::modding::widgets::ModList;
+use mcrust::mcrust::modding::widgets::ModWidget as _;
 use mcrust::mcrust::modding::widgets::ModSelectionList;
 use mcrust::mcrust::modding::widgets::WidgetRenderContext;
 use mcrust::net::minecraft::client::gui::components::abstract_container_widget::AbstractContainerWidget;
@@ -21,6 +22,44 @@ use mcrust::net::minecraft::client::input::mouse_button_event::MouseButtonEvent;
 use mcrust::net::minecraft::network::chat::component;
 use mcrust::net::minecraft::network::chat::mutable_component::MutableComponent;
 use mcrust::net::minecraft::client::gui::components::renderable::Renderable as _;
+
+/// `DropdownWidget.this` as its inner class `Entry` reads it (`selected == this.entry`, `select(entry)`,
+/// `formatter.apply(entry)`, `entry.toString()`): the widget's share of its own state that a row reaches through
+/// its `Weak` handle (`EntryBase::outer`). A row's `select(entry)` runs inside the widget's own `mouseClicked`
+/// (the widget is borrowed for that call), so the row parks the entry here and `mouseClicked` applies it as soon
+/// as the child pass returns - nothing runs between the two in Java's nested call either.
+#[derive(Default)]
+pub struct DropdownLink {
+    /// `selected.toString()` (the element type is erased in the rows; Java's `==` on the shared element reference is
+    /// the element's identity, which for the enum constants every dropdown of this mod holds is its name)
+    pub selected_text: std::cell::RefCell<Option<String>>,
+    /// `select(entry)` asked by a row, waiting for the widget's `mouseClicked` to return to it
+    pub pending_select: std::cell::RefCell<Option<std::rc::Rc<dyn std::any::Any>>>,
+    /// `entry.toString()` for the erased `T`
+    pub to_text: std::cell::RefCell<Option<std::rc::Rc<dyn Fn(&dyn std::any::Any) -> String>>>,
+    /// `formatter.apply(entry)` for the erased `T` (`None`: not a `T`)
+    pub format: std::cell::RefCell<Option<std::rc::Rc<dyn Fn(&dyn std::any::Any) -> Option<MutableComponent>>>>,
+}
+
+impl DropdownLink {
+    /// `entry.toString()`
+    pub fn text_of(&self, entry: &dyn std::any::Any) -> String {
+        let f = self.to_text.borrow().clone();
+        f.map(|f| f(entry)).unwrap_or_default()
+    }
+
+    /// `selected == entry`
+    pub fn is_selected(&self, entry: &dyn std::any::Any) -> bool {
+        let text = self.text_of(entry);
+        self.selected_text.borrow().as_deref() == Some(text.as_str())
+    }
+
+    /// `formatter.apply(entry)`
+    pub fn format_entry(&self, entry: &dyn std::any::Any) -> Option<MutableComponent> {
+        let f = self.format.borrow().clone();
+        f.and_then(|f| f(entry))
+    }
+}
 
 /// java: public class DropdownWidget<T> extends AbstractContainerWidget
 #[derive(Clone)]
@@ -49,6 +88,8 @@ pub struct DropdownWidgetBase<T> {
     pub max_height: i32,
     /// java: protected Function<T, Component> formatter = t -> Component.literal(t.toString());
     pub formatter: Arc<dyn Fn(T) -> MutableComponent>,
+    /// what the rows read of `DropdownWidget.this` (see `DropdownLink`)
+    pub link: std::rc::Rc<DropdownLink>,
 }
 
 impl<T: 'static> std::ops::Deref for DropdownWidgetBase<T> {
@@ -78,6 +119,15 @@ impl<T: Clone + 'static> DropdownWidgetBase<T> {
     /// `init_dropdown` on ITSELF, so that `createDropdown()` / `createEntry(..)` dispatch to its overrides as Java's
     /// constructor does.
     pub fn new_base(mut x: i32, mut y: i32, mut width: i32, mut max_height: i32, mut entry_height: i32, mut entries: Vec<T>, select_callback: Arc<dyn Fn(T)>, mut selected: T, opened_callback: Arc<dyn Fn(bool)>) -> Self where T: std::fmt::Display {
+        // java: protected Function<T, Component> formatter = t -> Component.literal(t.toString());
+        let formatter: Arc<dyn Fn(T) -> MutableComponent> = Arc::new(|t: T| component::literal(&compat::jstring(&t)));
+        let link = std::rc::Rc::new(DropdownLink::default());
+        *link.to_text.borrow_mut() = Some(std::rc::Rc::new(|a: &dyn std::any::Any| a.downcast_ref::<T>().map(|t| compat::jstring(t)).unwrap_or_default()));
+        *link.selected_text.borrow_mut() = Some(compat::jstring(&selected));
+        {
+            let f = formatter.clone();
+            *link.format.borrow_mut() = Some(std::rc::Rc::new(move |a: &dyn std::any::Any| a.downcast_ref::<T>().map(|t| f(t.clone()))));
+        }
         Self {
             base: AbstractContainerWidget::new_with_scrollbar_settings(x, y, width, 0, mcrust::net::minecraft::network::chat::formatted_text::FormattedText::Empty, mcrust::net::minecraft::client::gui::components::abstract_scroll_area::ScrollbarSettings::default_settings(4.0)),
             entry_height,
@@ -90,8 +140,8 @@ impl<T: Clone + 'static> DropdownWidgetBase<T> {
             selected: Some(selected),
             open: false,
             max_height,
-            // java: protected Function<T, Component> formatter = t -> Component.literal(t.toString());
-            formatter: Arc::new(|t: T| component::literal(&compat::jstring(&t))),
+            formatter,
+            link,
         }
     }
 
@@ -119,6 +169,9 @@ pub trait DropdownWidget<T: Clone + 'static> {
         compat::write(&list, |__t| __t.dropdown_list_base_mut().set_rectangle(width.wrapping_sub(2), max_height.wrapping_sub(header_height), x.wrapping_add(1), y.wrapping_add(header_height)));
         for element in self.dropdown_widget_base().entries.clone().iter() {
             let entry = self.create_entry(element);
+            // the row's `DropdownWidget.this`
+            let outer = std::rc::Rc::downgrade(&self.dropdown_widget_base().link);
+            compat::write(&entry, |__t| __t.entry_base_mut().outer = outer);
             ({ let __f = compat::dispatch(&list, |__t| __t.add_entry()); __f(&list, &entry) });
         }
         self.set_height(header_height);
@@ -142,6 +195,9 @@ pub trait DropdownWidget<T: Clone + 'static> {
     /// java: public void setFormatter(Function<T, Component> formatter)
     fn set_formatter(&mut self, formatter: Arc<dyn Fn(T) -> MutableComponent>) {
         self.dropdown_widget_base_mut().formatter = formatter.clone();
+        // (the rows' view of the field)
+        let f = formatter.clone();
+        *self.dropdown_widget_base().link.format.borrow_mut() = Some(std::rc::Rc::new(move |a: &dyn std::any::Any| a.downcast_ref::<T>().map(|t| f(t.clone()))));
     }
 
     /// java: public void setMaxHeight(int maxHeight)
@@ -151,30 +207,24 @@ pub trait DropdownWidget<T: Clone + 'static> {
     }
 
     /// java: @Override public List<? extends GuiEventListener> children()
-    fn children(&self) -> Vec<Box<dyn GuiEventListener>> {
+    ///
+    /// (the one child is the list OBJECT, by reference - the handle every event of this class reaches it through)
+    fn children(&self) -> Vec<compat::Shared<dyn DropdownList>> {
         // java: return List.of(dropdownList);
-        // rust: port gap - the mod's `DropdownList` (a `ModSelectionList` behind a shared handle) is not a port
-        // `GuiEventListener`, and `children()` answers owned listeners, so it cannot lend the live list (GAPS_batchA.md)
-        let _ = self.dropdown_widget_base().dropdown_list.clone().unwrap();
-        todo!("rust: port gap - children() cannot lend the dropdown's live list")
+        return vec![self.dropdown_widget_base().dropdown_list.clone().unwrap()];
     }
 
     /// java: @Override protected void extractWidgetRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta)
     fn extract_widget_render_state(&mut self, graphics: &mut GuiGraphicsExtractor, mut mouse_x: i32, mut mouse_y: i32, mut delta: f32) where T: std::fmt::Display {
         // java: dropdownList.visible = open; - `ModSelectionList.visible` is the list's own field
         { let __v = self.dropdown_widget_base().open; compat::write(self.dropdown_widget_base().dropdown_list.as_ref().unwrap(), |__t| __t.dropdown_list_base_mut().base.visible = __v); }
-        // TODO(fabric2seer): `extract_render_state` is a method of the port's trait `Renderable`, which the port's `AbstractSelectionList` does not implement
-        // rust: let __wa1 = graphics.clone();
-        // rust: let __wa2 = mouse_x;
-        // rust: let __wa3 = mouse_y;
-        // rust: let __wa4 = delta;
-        // rust: let __o1 = self.dropdown_widget_base().dropdown_list.clone().unwrap();
-        // rust: compat::write(&__o1, |__t| __t.dropdown_list_base_mut().extract_render_state(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), __wa2, __wa3, __wa4));
+        // java: dropdownList.extractRenderState(graphics, mouseX, mouseY, delta);
+        let __list = self.dropdown_widget_base().dropdown_list.clone().unwrap();
+        <dyn DropdownList>::extract_render_state(&__list, graphics, mouse_x, mouse_y, delta);
         self.extract_header(graphics, mouse_x, mouse_y, delta);
         if self.dropdown_widget_base().is_mouse_over((mouse_x) as f64, (mouse_y) as f64) {
-            // TODO(fabric2seer): static `CursorTypes.POINTING_HAND` has no Rust counterpart in the port's CursorTypes file
-            // TODO(fabric2seer): `GuiGraphicsExtractor.requestCursor` has no Rust method in the port (looked for `request_cursor` in GuiGraphicsExtractor and its supertypes)
-            // rust: graphics.request_cursor(&CursorTypes::POINTING_HAND);
+            // java: graphics.requestCursor(CursorTypes.POINTING_HAND);
+            compat::batch_w_request_cursor(compat::BatchWCursor::PointingHand);
         }
     }
 
@@ -216,8 +266,27 @@ pub trait DropdownWidget<T: Clone + 'static> {
     /// (`selected != prevSelected` compares the two references; the port's entries are values, compared by `==`)
     fn select(&mut self, mut entry: T) where T: PartialEq {
         self.dropdown_widget_base_mut().selected = Some(entry.clone());
+        let __text = self.dropdown_widget_base().link.text_of(&entry);
+        *self.dropdown_widget_base().link.selected_text.borrow_mut() = Some(__text);
         self.set_open(false);
         if self.dropdown_widget_base().selected != self.dropdown_widget_base().prev_selected {
+            let __callback = self.dropdown_widget_base().select_callback.clone().unwrap();
+            (__callback)(entry);
+            let __selected = self.dropdown_widget_base().selected.clone();
+            self.dropdown_widget_base_mut().prev_selected = __selected;
+        }
+    }
+
+    /// java: protected void select(T entry), as a row asks it (`Entry.mouseClicked`: `select(entry)` with the row's own
+    /// element). `selected != prevSelected` is Java's reference comparison of two elements of `entries`, read through
+    /// the rows' erased view (`DropdownLink::text_of`), so no `T: PartialEq` is needed on the click path.
+    fn select_entry(&mut self, entry: T) {
+        let link = self.dropdown_widget_base().link.clone();
+        self.dropdown_widget_base_mut().selected = Some(entry.clone());
+        *link.selected_text.borrow_mut() = Some(link.text_of(&entry));
+        self.set_open(false);
+        let prev = self.dropdown_widget_base().prev_selected.as_ref().map(|p| link.text_of(p));
+        if prev.as_deref() != Some(link.text_of(&entry).as_str()) {
             let __callback = self.dropdown_widget_base().select_callback.clone().unwrap();
             (__callback)(entry);
             let __selected = self.dropdown_widget_base().selected.clone();
@@ -267,16 +336,30 @@ pub trait DropdownWidget<T: Clone + 'static> {
         }
         if (self.dropdown_widget_base().get_x() as f64) <= click.x() && click.x() < ((self.dropdown_widget_base().get_x()).wrapping_add(self.dropdown_widget_base().get_width()) as f64) && (self.dropdown_widget_base().get_y() as f64) <= click.y() && click.y() < ((self.dropdown_widget_base().get_y()).wrapping_add(self.dropdown_widget_base().header_height) as f64) {
             { let __s0 = !(self.dropdown_widget_base().open); self.set_open(__s0) };
-            // TODO(fabric2seer): `AbstractContainerWidget.playDownSound` has no Rust method in the port (looked for `play_down_sound` in AbstractContainerWidget and its supertypes)
-            // rust: self.dropdown_widget_base().play_down_sound(compat::minecraft().get_sound_manager());
+            // java: playDownSound(Minecraft.getInstance().getSoundManager());
+            compat::batch_w_play_down_sound();
             return true;
         }
-        // java: return super.mouseClicked(click, doubled);
-        // rust: port gap - the port's `AbstractContainerWidget.mouseClicked` takes the scrollbar pass
-        // (`ScrollArea.updateScrolling`) and the children pass (`ContainerEventHandler.mouseClicked`) from its caller;
-        // a mod container widget holds neither (GAPS_batchA.md)
-        let _ = (click, doubled);
-        return todo!("rust: port gap - AbstractContainerWidget.mouseClicked needs the game's scrollbar and children passes");
+        // java: return super.mouseClicked(click, doubled); - AbstractContainerWidget:62-66: the scrollbar pass
+        // (`updateScrolling`: contentHeight() == getHeight(), so no scrollbar is shown and none is armed) then
+        // ContainerEventHandler's children pass over `children()` = `List.of(dropdownList)`
+        let dropdown_list = self.dropdown_widget_base().dropdown_list.clone();
+        let __answer = self.dropdown_widget_base_mut().base.mouse_clicked(
+            || false,
+            || match &dropdown_list {
+                Some(list) => {
+                    let __f = compat::dispatch(list, |__t| __t.mouse_clicked());
+                    __f(list, click, doubled)
+                }
+                None => false,
+            },
+        ).0;
+        // a row's `select(entry)` (Entry.mouseClicked), made inside the child pass above
+        let __pending = self.dropdown_widget_base().link.pending_select.borrow_mut().take();
+        if let Some(__entry) = __pending.and_then(|e| e.downcast_ref::<T>().cloned()) {
+            self.select_entry(__entry);
+        }
+        return __answer;
     }
 
     /// java: @Override protected int contentHeight()
@@ -294,16 +377,21 @@ pub trait DropdownWidget<T: Clone + 'static> {
         if !(self.dropdown_widget_base().visible) {
             return false;
         }
-        // TODO(fabric2seer): `get_child_at` takes 3 argument(s) in the port (`children: &[(usize, ScreenRectangle)], x: f64, y: f64`), Java passes 2
-        // TODO(fabric2seer): the condition: Optional.mouseScrolled
-        //   java: this.getChildAt(..).filter(..).isPresent(..)
-        if todo!("fabric2seer: the condition (TODO above)") {
-            return true;
+        // java: if (this.getChildAt(mouseX, mouseY).filter(c -> c.mouseScrolled(mouseX, mouseY, horizontalAmount, verticalAmount)).isPresent()) return true;
+        // (the one child: `dropdownList`, found when the mouse is over it)
+        if let Some(list) = self.dropdown_widget_base().dropdown_list.clone() {
+            let over = list.lock().borrow().dropdown_list_base().base.list.is_mouse_over(mouse_x, mouse_y);
+            if over {
+                let __f = compat::dispatch(&list, |__t| __t.mouse_scrolled());
+                if __f(&list, mouse_x, mouse_y, horizontal_amount, vertical_amount) {
+                    return true;
+                }
+            }
         }
-        // TODO(fabric2seer): `mouse_scrolled` takes 2 argument(s) in the port (`content_height: i32, scroll_y: f64`), Java passes 4
-        // TODO(fabric2seer): `ScrollArea::mouse_scrolled` ports `mouseScrolled`, but the port's `AbstractContainerWidget` holds no `ScrollArea` (no Deref, no `base` field) to call it on
-        // rust: return self.dropdown_widget_base().mouse_scrolled(mouse_x, mouse_y, horizontal_amount, vertical_amount);
-        return todo!("fabric2seer: see the TODO above");
+        // java: return super.mouseScrolled(..); - AbstractScrollArea.mouseScrolled: visible (checked above), then
+        // `setScrollAmount(scrollAmount() - verticalAmount * scrollRate())` - `scrollRate()` is 0 here, so the amount is
+        // unchanged - and `true`
+        return true;
     }
 
 }
@@ -349,7 +437,11 @@ impl DropdownListBase {
         //   java: super(minecraftClient, 0, 0, 0, entryHeight); - `ContainerObjectSelectionList(minecraft, width, height, y, itemHeight)`
         let _ = minecraft_client;
         let this = Self { base: ModSelectionList::new(mcrust::mcrust::modding::widgets::ListKind::Container, 0, 0, 0, entry_height) };
-        __wrap(this)
+        let (__h, __r) = __wrap(this);
+        // the class's overrides of the list's own methods, asked by the port's list bodies
+        let __class = DropdownListClass { object: compat::RenderThread::new(std::sync::Arc::downgrade(&__h)) };
+        compat::write(&__h, |__t| __t.dropdown_list_base_mut().base.list.set_class(Some(mcrust::mcrust::modding::widgets::ModListClass(Arc::new(__class)))));
+        (__h, __r)
     }
 
     /// java: protected DropdownList(Minecraft minecraftClient)
@@ -470,9 +562,11 @@ impl dyn DropdownList {
         if !(__visible) {
             return false;
         }
-        // TODO(fabric2seer): `AbstractContainerWidget::mouse_clicked` ports `mouseClicked`, but the port's `AbstractSelectionList` holds no `AbstractContainerWidget` (no Deref, no `base` field) to call it on
-        // rust: return { let (__q0, __q1,) = (click.clone(), doubled,); __this.lock().borrow_mut().dropdown_list_base_mut().base.list.mouse_clicked(__q0, __q1) };
-        return todo!("fabric2seer: see the TODO above");
+        // java: return super.mouseClicked(click, doubled);
+        // (`ModSelectionList::mouse_clicked_base` is the list's `AbstractContainerWidget.mouseClicked`)
+        let __g = __this.lock();
+        let mut __t = __g.borrow_mut();
+        return __t.dropdown_list_base_mut().base.mouse_clicked_base(click, doubled);
     }
 
     /// java: @Override public boolean mouseReleased(MouseButtonEvent click)
@@ -483,10 +577,11 @@ impl dyn DropdownList {
         if !(__visible) {
             return false;
         }
-        // TODO(fabric2seer): `mouse_released` takes 3 argument(s) in the port (`_button: i32, _x: f64, _y: f64`), Java passes 1
-        // TODO(fabric2seer): `mouse_released` is a method of the port's trait `GuiEventListener`, which the port's `AbstractSelectionList` does not implement
-        // rust: return { let (__q0,) = (click.clone(),); __this.lock().borrow_mut().dropdown_list_base_mut().base.list.mouse_released(__q0) };
-        return todo!("fabric2seer: see the TODO above");
+        // java: return super.mouseReleased(click);
+        // (`ModSelectionList::mouse_released_base`)
+        let __g = __this.lock();
+        let mut __t = __g.borrow_mut();
+        return __t.dropdown_list_base_mut().base.mouse_released_base(click);
     }
 
     /// java: @Override public boolean mouseDragged(MouseButtonEvent click, double offsetX, double offsetY)
@@ -497,9 +592,11 @@ impl dyn DropdownList {
         if !(__visible) {
             return false;
         }
-        // TODO(fabric2seer): `mouse_dragged` takes 2 argument(s) in the port (`event_y: f64, dy: f64`), Java passes 3
-        // rust: return { let (__q0, __q1, __q2,) = (click.clone(), offset_x, offset_y,); __this.lock().borrow_mut().dropdown_list_base_mut().base.list.mouse_dragged(__q0, __q1, __q2) };
-        return todo!("fabric2seer: see the TODO above");
+        // java: return super.mouseDragged(click, offsetX, offsetY);
+        // (`ModSelectionList::mouse_dragged_base`)
+        let __g = __this.lock();
+        let mut __t = __g.borrow_mut();
+        return __t.dropdown_list_base_mut().base.mouse_dragged_base(click, offset_x, offset_y);
     }
 
     /// java: @Override public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount)
@@ -510,9 +607,12 @@ impl dyn DropdownList {
         if !(__visible) {
             return false;
         }
-        // TODO(fabric2seer): `mouse_scrolled` takes 1 argument(s) in the port (`scroll_y: f64`), Java passes 4
-        // rust: return __this.lock().borrow_mut().dropdown_list_base_mut().base.list.mouse_scrolled(mouse_x, mouse_y, horizontal_amount, vertical_amount);
-        return todo!("fabric2seer: see the TODO above");
+        // java: return super.mouseScrolled(mouseX, mouseY, horizontalAmount, verticalAmount);
+        // (`ModSelectionList::mouse_scrolled_base`)
+        let _ = (mouse_x, mouse_y, horizontal_amount);
+        let __g = __this.lock();
+        let mut __t = __g.borrow_mut();
+        return __t.dropdown_list_base_mut().base.mouse_scrolled_base(vertical_amount);
     }
 
     /// java: @Override protected void extractListSeparators(GuiGraphicsExtractor graphics)
@@ -546,6 +646,102 @@ impl DropdownList for DropdownListBase {
 
 }
 
+impl dyn DropdownList {
+    /// `dropdownList.extractRenderState(graphics, mouseX, mouseY, delta)` - `AbstractWidget.extractRenderState:56-62`:
+    /// `if (visible) extractWidgetRenderState(..)`, the list's `AbstractSelectionList.extractWidgetRenderState`. The
+    /// live list is taken out of the object for the draw (the object keeps a copy of its box, so the class's draw
+    /// overrides - asked by the draw through `DropdownListClass` - read `this.getX()` & co. off the object as Java's
+    /// do) and put back after it.
+    pub fn extract_render_state(__this: &compat::Shared<dyn DropdownList>, graphics: &mut GuiGraphicsExtractor, mouse_x: i32, mouse_y: i32, delta: f32) {
+        if !__this.lock().borrow().dropdown_list_base().base.visible {
+            return;
+        }
+        let mut __live = compat::write(__this, |__t| {
+            let __b = &mut __t.dropdown_list_base_mut().base;
+            let __kind = __b.kind;
+            let __live = std::mem::replace(__b, ModSelectionList::new(__kind, 0, 0, 0, 0));
+            let mut __view = __live.list.clone();
+            __view.set_class(None);
+            __b.list = __view;
+            __b.visible = __live.visible;
+            __b.active = __live.active;
+            __live
+        });
+        let (x, y, w, h) = (__live.list.x, __live.list.y, __live.list.width, __live.list.height);
+        // the list's `AbstractWidget` half (its box and `visible` / `active`, which the list body syncs in)
+        let mut __widget = mcrust::net::minecraft::client::gui::components::abstract_widget::AbstractWidget::new(x, y, w, h, String::new(), mcrust::net::minecraft::client::gui::components::abstract_widget::WidgetKind::Button, mcrust::net::minecraft::client::gui::components::abstract_widget::OnPress::Inert);
+        __widget.visible = __live.visible;
+        __widget.active = __live.active;
+        let __minecraft = &*compat::minecraft();
+        let mut __context = WidgetRenderContext::new(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), __minecraft);
+        // the caller's extractor is the one drawn into
+        std::mem::swap(&mut __context.graphics, graphics);
+        __live.extract_widget_render_state(&__widget, &mut __context, mouse_x, mouse_y, delta);
+        std::mem::swap(&mut __context.graphics, graphics);
+        compat::write(__this, |__t| __t.dropdown_list_base_mut().base = __live);
+    }
+}
+
+/// `DropdownList`'s overrides of the list's own methods, as the port's list bodies ask them (`widgets::ModList`).
+/// The geometry overrides (`getRowLeft`, `getRowWidth`, `scrollBarX`) are asked from inside the list's own calls -
+/// while the object is borrowed for a click - so they read the box the list hands them; the draw overrides are
+/// asked only by `extract_render_state`, which has taken the live list out of the object, and dispatch to the
+/// object's class (a subclass's `extractListBackground` runs, as Java's virtual call does).
+struct DropdownListClass {
+    object: compat::RenderThread<compat::WeakShared<dyn DropdownList>>,
+}
+
+impl ModList for DropdownListClass {
+    /// java: @Override public int getRowLeft() - `getX() + 2`
+    fn get_row_left(&self, list: &AbstractSelectionList, _super_answer: i32) -> i32 {
+        list.x.wrapping_add(2)
+    }
+
+    /// java: @Override public int getRowWidth() - `getWidth() - 5`
+    fn get_row_width(&self, list: &AbstractSelectionList, _super_answer: i32) -> i32 {
+        list.width.wrapping_sub(5)
+    }
+
+    /// java: @Override protected int scrollBarX() - `getRowLeft() + getRowWidth()`
+    fn scroll_bar_x(&self, list: &AbstractSelectionList, _super_answer: i32) -> i32 {
+        list.get_row_left().wrapping_add(list.get_row_width())
+    }
+
+    /// java: @Override protected void extractScrollbar(GuiGraphicsExtractor graphics, int mouseX, int mouseY)
+    fn extract_scrollbar(&self, list: &AbstractSelectionList, context: &mut WidgetRenderContext<'_>, mouse_x: i32, mouse_y: i32, super_extract_scrollbar: &mut dyn FnMut(&mut WidgetRenderContext<'_>)) {
+        let _ = (list, super_extract_scrollbar); // the override replaces the base's body
+        if let Some(__h) = self.object.get().upgrade() {
+            let __f = compat::dispatch(&__h, |__t| __t.extract_scrollbar());
+            __f(&__h, &mut context.graphics, mouse_x, mouse_y);
+        }
+    }
+
+    /// java: @Override protected void extractListSeparators(GuiGraphicsExtractor graphics)
+    fn extract_list_separators(&self, list: &AbstractSelectionList, context: &mut WidgetRenderContext<'_>, super_extract_list_separators: &mut dyn FnMut(&mut WidgetRenderContext<'_>)) {
+        let _ = (list, super_extract_list_separators); // the override replaces the base's body
+        if let Some(__h) = self.object.get().upgrade() {
+            let __f = compat::dispatch(&__h, |__t| __t.extract_list_separators());
+            __f(&__h, &context.graphics);
+        }
+    }
+
+    /// java: @Override protected void extractListBackground(GuiGraphicsExtractor graphics)
+    fn extract_list_background(&self, list: &AbstractSelectionList, context: &mut WidgetRenderContext<'_>, super_extract_list_background: &mut dyn FnMut(&mut WidgetRenderContext<'_>)) {
+        let _ = (list, super_extract_list_background); // the override replaces the base's body
+        if let Some(__h) = self.object.get().upgrade() {
+            let __f = compat::dispatch(&__h, |__t| __t.extract_list_background());
+            __f(&__h, &mut context.graphics);
+        }
+    }
+
+    /// java: @Override protected void enableScissor(GuiGraphicsExtractor graphics) -
+    /// `graphics.enableScissor(getX(), getY() + 1, getRight(), getBottom() - 1)`
+    fn enable_scissor(&self, list: &AbstractSelectionList, context: &mut WidgetRenderContext<'_>, super_enable_scissor: &mut dyn FnMut(&mut WidgetRenderContext<'_>)) {
+        let _ = super_enable_scissor; // the override replaces the base's body
+        context.graphics.enable_scissor(list.x, list.y.wrapping_add(1), list.get_right(), list.get_bottom().wrapping_sub(1));
+    }
+}
+
 /// java: protected class Entry extends ContainerObjectSelectionList.Entry<Entry>
 pub struct EntryBase {
     /// java: extends net.minecraft.client.gui.components.ContainerObjectSelectionList$Entry
@@ -557,6 +753,16 @@ pub struct EntryBase {
     pub __row: mcrust::net::minecraft::client::gui::screens::screen::Screen,
     /// the screen's widgets as this object last saw them (see `compat::WidgetCache`)
     pub __widgets: compat::WidgetCache,
+    /// `DropdownWidget.this` (the inner class's outer instance): its `selected`, `select(..)` and `formatter`, as
+    /// the widget shares them with its rows (`DropdownLink`); set by the widget's constructor when it adds the row
+    pub outer: std::rc::Weak<DropdownLink>,
+}
+
+impl EntryBase {
+    /// `formatter.apply(entry)` of the enclosing widget (`None` before the row is in a widget)
+    pub fn format_entry(&self) -> Option<MutableComponent> {
+        self.outer.upgrade().and_then(|o| o.format_entry(&*self.entry))
+    }
 }
 
 impl std::ops::Deref for EntryBase {
@@ -581,6 +787,7 @@ impl EntryBase {
             __widgets: Default::default(),
             __row: mcrust::net::minecraft::client::gui::screens::screen::Screen::new(String::new()),
             entry: __init_entry,
+            outer: std::rc::Weak::new(),
         };
         let (__h, __r) = __wrap(this);
         let __this = __h;
@@ -641,20 +848,31 @@ impl dyn Entry {
 
     /// java: @Override public void extractContent(GuiGraphicsExtractor graphics, int mouseX, int mouseY, boolean hovered, float deltaTicks)
     pub fn extract_content_body(__this: &compat::Shared<dyn Entry>, graphics: &GuiGraphicsExtractor, mut mouse_x: i32, mut mouse_y: i32, mut hovered: bool, mut delta_ticks: f32) {
-        // TODO(fabric2seer): field `NONE` of a value of unknown type
-        //   java: graphics.textRenderer(GuiGraphicsExtractor.HoveredTextEffects.NONE).acceptScrollingWithDefaultCenter(Component.literal(entry.toString()).withStyle(Style.EMPTY.withUnderlined(hovered)), this.getX() + 10, this.getX() + this.getWidth(), this.getY(), this.getY() + 11);
-        // TODO(fabric2seer): the condition: `selected` is a field of the enclosing instance (DropdownWidget.this) - an inner class has no outer reference in Rust
-        //   java: selected == this.entry
-        if todo!("fabric2seer: the condition (TODO above)") {
-            // TODO(fabric2seer): `client` is a field of the enclosing instance (DropdownWidget.this) - an inner class has no outer reference in Rust
-            //   java: graphics.text(client.font, "✔", this.getX() + 1, this.getY() + 2, 0xFFFFFFFF);
+        let _ = (graphics, mouse_x, mouse_y, delta_ticks);
+        let (entry, x, y, width, outer) = compat::read(__this, |__t| {
+            let __b = __t.entry_base();
+            (__b.entry.clone(), __b.get_x(), __b.get_y(), __b.get_width(), __b.outer.upgrade())
+        });
+        let text = outer.as_ref().map(|o| o.text_of(&*entry)).unwrap_or_default();
+        // java: graphics.textRenderer(GuiGraphicsExtractor.HoveredTextEffects.NONE).acceptScrollingWithDefaultCenter(Component.literal(entry.toString()).withStyle(Style.EMPTY.withUnderlined(hovered)), this.getX() + 10, this.getX() + this.getWidth(), this.getY(), this.getY() + 11);
+        let message = mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::literal(&text).with_style(&mcrust::net::minecraft::network::chat::style::Style::EMPTY.with_underlined(Some(hovered))));
+        accept_scrolling_with_default_center(&message, x.wrapping_add(10), x.wrapping_add(width), y, y.wrapping_add(11));
+        // java: if (selected == this.entry)
+        if outer.as_ref().is_some_and(|o| o.is_selected(&*entry)) {
+            // java: graphics.text(client.font, "✔", this.getX() + 1, this.getY() + 2, 0xFFFFFFFF);
+            gui_graphics_extractor::text_string(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), Some("✔"), x.wrapping_add(1), y.wrapping_add(2), 0xFFFFFFFFu32 as i32);
         }
     }
 
     /// java: @Override public boolean mouseClicked(MouseButtonEvent click, boolean doubled)
     pub fn mouse_clicked_body(__this: &compat::Shared<dyn Entry>, click: &MouseButtonEvent, mut doubled: bool) -> bool {
-        // TODO(fabric2seer): `select(..)` is a method of the enclosing instance (DropdownWidget.this) - an inner class has no outer reference in Rust
-        //   java: select(entry);
+        let _ = (click, doubled);
+        // java: select(entry); - the enclosing widget is mid-`mouseClicked`; it applies the selection when the child
+        // pass returns to it (`DropdownLink::pending_select`)
+        let (entry, outer) = compat::read(__this, |__t| (__t.entry_base().entry.clone(), __t.entry_base().outer.upgrade()));
+        if let Some(outer) = outer {
+            *outer.pending_select.borrow_mut() = Some(entry);
+        }
         return true;
     }
 
@@ -689,7 +907,10 @@ impl compat::RowHalf for dyn Entry {
 impl ModListEntry for compat::EntryAdapter<dyn Entry> {
     /// java: @Override public void extractContent(GuiGraphicsExtractor graphics, int mouseX, int mouseY, boolean hovered, float deltaTicks)
     fn extract_content(&mut self, list: &mut ModSelectionList, index: usize, context: &mut WidgetRenderContext<'_>, mouse_x: i32, mouse_y: i32, hovered: bool, a: f32) {
-        self.lend(Some(list.list.entry(index)), |__h| { if let Some(__c) = compat::try_view::<CustomEntry, _>(__h) { return ({ let __f = compat::dispatch(&*__c, |__t| __t.extract_content()); __f(&compat::view(&*__c, |a| a as compat::Shared<dyn Entry>), &context.graphics, mouse_x, mouse_y, hovered, a) }); }  });
+        self.lend(Some(list.list.entry(index)), |__h| {
+            let __f = compat::dispatch(__h, |__t| __t.extract_content());
+            __f(__h, &context.graphics, mouse_x, mouse_y, hovered, a)
+        });
         // the row's widgets (Java's `child.extractRenderState(..)` over `children()`)
         context.extract_widgets(&mut self.row, mouse_x, mouse_y);
     }
@@ -700,7 +921,20 @@ impl ModListEntry for compat::EntryAdapter<dyn Entry> {
 
     /// java: @Override public boolean mouseClicked(MouseButtonEvent click, boolean doubled)
     fn mouse_clicked(&mut self, list: &mut ModSelectionList, index: usize, event: &MouseButtonEvent, double_click: bool) -> bool {
-        self.lend(Some(list.list.entry(index)), |__h| { if let Some(__c) = compat::try_view::<CustomEntry, _>(__h) { return ({ let __f = compat::dispatch(&*__c, |__t| __t.mouse_clicked()); __f(&compat::view(&*__c, |a| a as compat::Shared<dyn Entry>), event, double_click) }); } false })
+        self.lend(Some(list.list.entry(index)), |__h| {
+            let __f = compat::dispatch(__h, |__t| __t.mouse_clicked());
+            __f(__h, event, double_click)
+        })
     }
 
+}
+
+/// `graphics.textRenderer(..).acceptScrollingWithDefaultCenter(message, left, right, top, bottom)` from a row draw that
+/// holds only the extractor: `compat::accept_scrolling_with_default_center`'s placement and clipped draw, off the
+/// frame's `Minecraft`.
+fn accept_scrolling_with_default_center(message: &mcrust::net::minecraft::network::chat::formatted_text::FormattedText, left: i32, right: i32, top: i32, bottom: i32) {
+    let minecraft = &*compat::minecraft();
+    let width = mcrust::net::minecraft::client::gui::font::width(minecraft.font.splitter().string_width_formatted(message));
+    let placement = mcrust::net::minecraft::client::gui::active_text_collector::accept_scrolling_with_default_center(left, right, top, bottom, width, mcrust::net::minecraft::util::util::get_millis());
+    gui_graphics_extractor::draw_clipped_formatted_text(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), minecraft, placement.x, placement.y, message, -1, &mcrust::net::minecraft::network::chat::style::Style::EMPTY, placement.scissor, None, minecraft.window.get_gui_scale(), minecraft.window.get_height());
 }

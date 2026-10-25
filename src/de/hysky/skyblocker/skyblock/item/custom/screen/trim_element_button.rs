@@ -1,5 +1,6 @@
 //! Ported from de.hysky.skyblocker.skyblock.item.custom.screen.TrimElementButton by fabric2seer.
 
+use std::sync::Arc;
 #[allow(unused_imports)]
 use crate::prelude::*;
 use crate::de::hysky::skyblocker::utils::item_utils;
@@ -39,6 +40,7 @@ use mcrust::net::minecraft::world::item::equipment::trim::trim_material::TrimMat
 use mcrust::net::minecraft::world::item::equipment::trim::trim_pattern::TrimPattern;
 use mcrust::net::minecraft::world::item::items;
 use mcrust::net::minecraft::core::holder_getter::HolderGetter as _;
+use mcrust::net::minecraft::core::holder_lookup::Provider as _;
 use mcrust::net::minecraft::core::registry::Registry as _;
 use mcrust::net::minecraft::network::chat::component::Component as _;
 
@@ -208,14 +210,28 @@ impl Pattern {
             return __this;
         };
         if PATTERN_EQUIPMENT_MODEL_DATA.get_mut().is_none() {
-            // TODO(fabric2seer): `Minecraft.getEntityModels` has no Rust method in the port (looked for `get_entity_models` in Minecraft and its supertypes)
-            // TODO(fabric2seer): static `ArmorModelSet.bake` has no Rust counterpart in the port
-            // rust: *PATTERN_EQUIPMENT_MODEL_DATA.get_mut() = Some(ArmorModelSet::bake(mcrust::net::minecraft::client::model::geom::model_layers::player_armor().clone(), compat::minecraft().get_entity_models(), Arc::new(move |model_part| PlayerModel::new(model_part.clone(), false))));
-            // TODO(fabric2seer): `Minecraft.getAtlasManager` has no Rust method in the port (looked for `get_atlas_manager` in Minecraft and its supertypes)
-            // rust: *PATTERN_EQUIPMENT_RENDERER.get_mut() = Some(EquipmentLayerRenderer::new(compat::minecraft().get_entity_render_dispatcher().equipment_assets, Some(compat::minecraft().get_atlas_manager().get_atlas_or_throw(&mcrust::net::minecraft::data::atlas_ids::armor_trims()))));
+            // java: equipmentModelData = ArmorModelSet.bake(ModelLayers.PLAYER_ARMOR, Minecraft.getInstance().getEntityModels(), part -> new PlayerModel(part, false));
+            // (`Minecraft.entityModels` is `EntityModelSet.vanilla()` in the port - `GameRenderer` bakes every renderer from
+            // it; the `PlayerModel` is held as its `HumanoidModel` half, Java's cast)
+            *PATTERN_EQUIPMENT_MODEL_DATA.get_mut() = Some(mcrust::net::minecraft::client::model::geom::model_layers::player_armor().bake(mcrust::net::minecraft::client::model::geom::entity_model_set::vanilla(), |model_part| PlayerModel::new(model_part, false).base));
+            // java: equipmentRenderer = new EquipmentLayerRenderer(Minecraft.getInstance().getEntityRenderDispatcher().equipmentAssets, Minecraft.getInstance().getAtlasManager().getAtlasOrThrow(AtlasIds.ARMOR_TRIMS));
+            // (the dispatcher's `equipmentAssets` is the one `GameRenderer.equipment_assets` it was built with)
+            {
+                let minecraft = compat::minecraft();
+                let equipment_assets = minecraft.game_renderer.equipment_assets.clone().unwrap_or_else(|| std::sync::Arc::new(mcrust::net::minecraft::client::resources::model::equipment_asset_manager::EquipmentAssetManager::new()));
+                // 26.3: `AtlasIds.ARMOR_TRIMS` is gone; `new EquipmentLayerRenderer(equipmentAssets, palettedTextures)`
+                // (EntityRendererProvider.java:61) builds trim textures through the `PalettedTextureManager`
+                // (`GameRenderer.paletted_textures`, the one the dispatcher's renderer is handed).
+                let paletted_textures = minecraft.game_renderer.paletted_textures.clone();
+                *PATTERN_EQUIPMENT_RENDERER.get_mut() = Some(EquipmentLayerRenderer::new(equipment_assets, paletted_textures));
+            }
         }
-        // TODO(fabric2seer): `Provider.lookupOrThrow` has no Rust method in the port (looked for `lookup_or_throw` in HolderLookup and its supertypes)
-        // rust: { let __v = Some(ArmorTrim::new(RegistryUtils::get_registry_wrapper_lookup().lookup_or_throw(&mcrust::net::minecraft::core::registries::registries::trim_material()).get_or_throw(&mcrust::net::minecraft::world::item::equipment::trim::trim_materials::quartz()).unwrap(), Holder::direct(pattern.clone().unwrap()))); compat::write(&__this, |__t| __t.trim = __v); }
+        // java: this.trim = new ArmorTrim(RegistryUtils.getRegistryWrapperLookup().lookupOrThrow(Registries.TRIM_MATERIAL).getOrThrow(TrimMaterials.QUARTZ), Holder.direct(pattern));
+        let __trim_material = RegistryUtils::get_registry_wrapper_lookup()
+            .lookup_registry_or_throw(&mcrust::net::minecraft::core::registries::registries::trim_material())
+            .and_then(|lookup| lookup.get_or_throw(&mcrust::net::minecraft::world::item::equipment::trim::trim_materials::quartz()))
+            .unwrap_or_else(|e| panic!("IllegalStateException: {e}"));
+        { let __v = Some(ArmorTrim::new(Holder::Reference(__trim_material), Holder::direct(mcrust::com::mojang::serialization::obj(pattern.clone().unwrap())))); compat::write(&__this, |__t| __t.trim = __v); }
         __this
     }
 
@@ -311,15 +327,13 @@ impl Pattern {
         }
         let mut slot: EquipmentSlot = *__this.lock().borrow().equippable_component.as_ref().unwrap().slot();
         // java: HumanoidModel<AvatarRenderState> model = (HumanoidModel<AvatarRenderState>) equipmentModelData.get(slot);
-        // rust: port gap - `equipmentModelData` is baked from `Minecraft.getEntityModels()`, which the port does not lend a
-        //   mod (see `Pattern::new`), so it stays null here and the trimmed piece cannot be drawn (GAPS_batchE.md)
         let mut __model_data = PATTERN_EQUIPMENT_MODEL_DATA.get_mut();
         let Some(__model_data) = __model_data.as_mut() else {
             return;
         };
         let model = __model_data.get_mut(slot);
         // java: AvatarRenderState state = new AvatarRenderState(); - the state the model is posed with (held by reference)
-        let state: std::rc::Rc<AvatarRenderState> = std::rc::Rc::new(AvatarRenderState::default());
+        let state: std::sync::Arc<AvatarRenderState> = std::sync::Arc::new(AvatarRenderState::default());
         // java: EquipmentClientInfo.LayerType layerType = slot == EquipmentSlot.LEGS ? EquipmentClientInfo.LayerType.HUMANOID_LEGGINGS : EquipmentClientInfo.LayerType.HUMANOID;
         let layer_type: LayerType = if slot == EquipmentSlot::Legs { LayerType::HumanoidLeggings } else { LayerType::Humanoid };
         let mut offset: f32 = Pattern::set_visible_and_get_offset(model, &slot);
@@ -401,15 +415,17 @@ impl Material {
             });
             ((__h.clone() as compat::Shared<dyn TrimElementButton>), __h)
         });
-        // TODO(fabric2seer): `.components(..)` on a T
-        //   java: stack = BuiltInRegistries.ITEM.stream()
-        //   java: 					.filter(item -> Optional.ofNullable(item.components().get(DataComponents.PROVIDES_TRIM_MATERIAL))
-        //   java: 							.map(provided -> provided.is(element))
-        //   java: 							.orElse(false)
-        //   java: 					)
-        //   java: 					.findAny()
-        //   java: 					.map(ItemStack::new)
-        //   java: 					.orElse(BARRIER);
+        // java: stack = BuiltInRegistries.ITEM.stream().filter(item -> Optional.ofNullable(item.components().get(DataComponents.PROVIDES_TRIM_MATERIAL)).map(provided -> provided.is(element)).orElse(false)).findAny().map(ItemStack::new).orElse(BARRIER);
+        let __stack = {
+            use mcrust::net::minecraft::core::component::data_component_map::DataComponentGetter as _;
+            mcrust::net::minecraft::world::item::items::items().in_order().iter()
+                .find(|item| item.components().get(mcrust::net::minecraft::core::component::data_components::provides_trim_material())
+                    .and_then(|provided| mcrust::com::mojang::serialization::cast::<mcrust::net::minecraft::core::holder::Holder>(&provided).map(|holder| holder.is_identifier(&element)))
+                    .unwrap_or(false))
+                .map(|item| mcrust::net::minecraft::world::item::item_stack::ItemStack::of_one(item.clone()))
+                .unwrap_or_else(|| BARRIER.get().clone())
+        };
+        compat::write(&__this, |__t| __t.stack = Some(__stack));
         __this
     }
 

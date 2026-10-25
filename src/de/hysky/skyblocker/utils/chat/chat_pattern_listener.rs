@@ -46,7 +46,7 @@ pub trait ChatPatternListener: ChatMessageListener {
 impl dyn ChatPatternListener {
     /// java: @Override public final ChatFilterResult onMessage(Component message, String asString)
     pub fn on_message_body(__this: &compat::Shared<dyn ChatPatternListener>, message: &MutableComponent, as_string: &str) -> ChatFilterResult {
-        let mut state: ChatFilterResult = ({ let __f = compat::dispatch(__this, |__t| __t.state()); __f(__this) }).unwrap();
+        let mut state: ChatFilterResult = ({ let __f = compat::dispatch(__this, |__t| __t.state()); __f(__this) }).unwrap_or(ChatFilterResult::Pass);
         if state == ChatFilterResult::Pass {
             return ChatFilterResult::Pass;
         }

@@ -1,8 +1,12 @@
 //! Ported from de.hysky.skyblocker.skyblock.waypoint.IndividualWaypoint by fabric2seer.
 
 #[allow(unused_imports)]
+use mcrust::com::mojang::brigadier::builder::argument_builder::ArgumentBuilder as _;
 use crate::prelude::*;
 use crate::de::hysky::skyblocker::utils::constants;
+use mcrust::com::mojang::brigadier::arguments::integer_argument_type::IntegerArgumentType;
+use mcrust::com::mojang::brigadier::arguments::string_argument_type::StringArgumentType;
+use mcrust::com::mojang::brigadier::context::command_context::CommandContext;
 use crate::de::hysky::skyblocker::utils::render::level_render_extraction_callback;
 use crate::de::hysky::skyblocker::utils::render::primitive::primitive_collector::PrimitiveCollector;
 use crate::de::hysky::skyblocker::utils::render::renderable::Renderable;
@@ -69,8 +73,35 @@ impl IndividualWaypoint {
         }));
         client_command_registration_callback::EVENT.register(Arc::new(
             |dispatcher: &mut client_command_registration_callback::ClientCommandDispatcher| {
-                // TODO(fabric2seer): a command tree this tool cannot read (arguments, redirects, requires) - SeerClient commands receive the words after the name in `ctx.args`
-                //   java: dispatcher.register(..);
+                // java: dispatcher.register(ClientCommands.literal(SkyblockerMod.NAMESPACE).then(ClientCommands.literal("waypoints")
+                //   .then(ClientCommands.literal("individual").then(ClientCommands.argument("x", IntegerArgumentType.integer(Integer.MIN_VALUE))
+                //     .then(ClientCommands.argument("y", IntegerArgumentType.integer(Integer.MIN_VALUE))
+                //       .then(ClientCommands.argument("z", IntegerArgumentType.integer(Integer.MIN_VALUE))
+                //         .then(ClientCommands.argument("area", StringArgumentType.greedyString()).executes(context -> setWaypoint(
+                //           context.getSource()::sendFeedback, getInteger(context, "x"), getInteger(context, "y"), getInteger(context, "z"), getString(context, "area"))))
+                //         .executes(context -> setWaypoint(context.getSource()::sendFeedback, getInteger(context, "x"), getInteger(context, "y"), getInteger(context, "z"), ""))))))));
+                type Source = client_command_registration_callback::FabricClientCommandSource;
+                let feedback = || -> Arc<dyn Fn(MutableComponent)> { Arc::new(|message: MutableComponent| compat::batch_w_send_feedback(&message)) };
+                let mut area = client_command_registration_callback::argument("area", Arc::new(StringArgumentType::greedy_string()));
+                area.executes(Arc::new(move |context: &CommandContext<Source>| {
+                    Ok(IndividualWaypoint::set_waypoint(feedback(), IntegerArgumentType::get_integer(context, "x"), IntegerArgumentType::get_integer(context, "y"), IntegerArgumentType::get_integer(context, "z"), StringArgumentType::get_string(context, "area")))
+                }));
+                let mut z = client_command_registration_callback::argument("z", Arc::new(IntegerArgumentType::integer_min(i32::MIN)));
+                z.then(&area);
+                z.executes(Arc::new(move |context: &CommandContext<Source>| {
+                    Ok(IndividualWaypoint::set_waypoint(feedback(), IntegerArgumentType::get_integer(context, "x"), IntegerArgumentType::get_integer(context, "y"), IntegerArgumentType::get_integer(context, "z"), String::new()))
+                }));
+                let mut y = client_command_registration_callback::argument("y", Arc::new(IntegerArgumentType::integer_min(i32::MIN)));
+                y.then(&z);
+                let mut x = client_command_registration_callback::argument("x", Arc::new(IntegerArgumentType::integer_min(i32::MIN)));
+                x.then(&y);
+                let mut individual = client_command_registration_callback::literal("individual");
+                individual.then(&x);
+                let mut waypoints = client_command_registration_callback::literal("waypoints");
+                waypoints.then(&individual);
+                let mut root = client_command_registration_callback::literal(crate::entry::skyblocker_mod::NAMESPACE);
+                root.then(&waypoints);
+                dispatcher.dispatcher().register(&root);
             },
         ));
     }
@@ -96,8 +127,9 @@ impl IndividualWaypoint {
         } else {
             waypoint_display = component::literal(&waypoint_name).with_style_format(ChatFormatting::Aqua);
         }
-        // TODO(fabric2seer): `.getRGB(..)` on a value of unknown type
         //   java: waypoint = new IndividualWaypoint(new BlockPos(x, y, z), waypointDisplay, ColorUtils.getFloatComponents(Color.GREEN.getRGB()));
+        let color_components = crate::de::hysky::skyblocker::utils::color_utils::ColorUtils::get_float_components(mcrust::java::awt::color::green().get_rgb());
+        *WAYPOINT.get_mut() = Some(IndividualWaypoint::new(BlockPos::new(x, y, z), waypoint_display, color_components));
     }
 
     /// java: private static void onTick(Minecraft client)

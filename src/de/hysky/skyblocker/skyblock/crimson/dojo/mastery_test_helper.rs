@@ -11,9 +11,8 @@ use mcrust::net::minecraft::world::level::block::state::block_state::BlockState;
 use mcrust::net::minecraft::world::phys::vec3;
 use mcrust::net::minecraft::world::entity::item_owner::ItemOwner as _;
 
-// TODO(fabric2seer): `new` takes 2 argument(s) in the port (`pattern: &str, symbols: DecimalFormatSymbols`), Java passes 1
-//   java: private static final DecimalFormat FORMATTER = new DecimalFormat("0.00");
-/// java: private static final DecimalFormat FORMATTER = new DecimalFormat("0.00");
+/// java: private static final DecimalFormat FORMATTER = new DecimalFormat("0.00"); (the one-argument constructor's symbols
+/// are the default locale's)
 pub static FORMATTER: compat::MainThread<DecimalFormat> = compat::MainThread::new(|| DecimalFormat::new("0.00", mcrust::java::text::decimal_format_symbols::get_instance(mcrust::java::text::decimal_format_symbols::Locale::Us)));
 /// java: private static final int BLOCK_LIFE_TIME = 6550;
 pub const BLOCK_LIFE_TIME: i32 = 6550;
@@ -52,20 +51,24 @@ impl MasteryTestHelper {
         }
         if state.is_air() {
             compat::remove_item(&mut *BLOCK_ORDER.get_mut(), &pos.clone());
-            // TODO(fabric2seer): Map.removeLong(..)
             //   java: endTimes.removeLong(pos);
+            END_TIMES.get_mut().remove(&pos);
         }
     }
 
     /// java: protected static void extractRendering(PrimitiveCollector collector)
     pub fn extract_rendering(collector: &compat::Shared<dyn PrimitiveCollector>) {
         if !(BLOCK_ORDER.get_mut().is_empty()) {
-            // TODO(fabric2seer): `.getColorComponents(..)` on a value of unknown type
             //   java: collector.submitLineFromCursor(Vec3.atCenterOf(blockOrder.getFirst()), Color.LIGHT_GRAY.getColorComponents(new float[]{0, 0, 0}), 1f, 2);
+            let first = vec3::at_center_of(&BLOCK_ORDER.get()[0]);
+            let light_gray: Vec<f32> = mcrust::java::awt::color::light_gray().get_rgb_color_components(None).to_vec();
+            ({ let __f = compat::dispatch(collector, |__t| __t.submit_line_from_cursor()); __f(collector, &first, &light_gray, 1.0f32, 2.0f32) });
         }
         if (BLOCK_ORDER.get_mut().len() as i32) >= 2 {
-            // TODO(fabric2seer): `.getColorComponents(..)` on a value of unknown type
             //   java: collector.submitLinesFromPoints(new Vec3[]{Vec3.atCenterOf(blockOrder.get(0)), Vec3.atCenterOf(blockOrder.get(1))}, Color.LIGHT_GRAY.getColorComponents(new float[]{0, 0, 0}), 1, 2, false);
+            let points = vec![vec3::at_center_of(&BLOCK_ORDER.get()[0]), vec3::at_center_of(&BLOCK_ORDER.get()[1])];
+            let light_gray: Vec<f32> = mcrust::java::awt::color::light_gray().get_rgb_color_components(None).to_vec();
+            ({ let __f = compat::dispatch(collector, |__t| __t.submit_lines_from_points()); __f(collector, &points, &light_gray, 1.0f32, 2.0f32, false) });
         }
         let mut current_time: i64 = compat::millis();
         for pos in BLOCK_ORDER.get_mut().iter() {

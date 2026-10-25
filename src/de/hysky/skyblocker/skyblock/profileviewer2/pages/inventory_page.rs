@@ -30,27 +30,33 @@ use mcrust::net::minecraft::network::chat::mutable_component::MutableComponent;
 pub const ACCESSORY_INFO_BOX_WIDTH: i32 = 118;
 
 /// java: public final class InventoryPage implements ProfileViewerPage<Pair<LoadingInformation, ProfileItemStorage>>
-#[derive(Clone)]
 pub struct InventoryPage {
-    /// java: private final List<AbstractWidget> widgets = new ArrayList<>();
-    pub widgets: Vec<AbstractWidget>,
+    /// java: private final List<AbstractWidget> widgets = new ArrayList<>(); (held in a `Screen`, the port's holder
+    /// of game widgets: see `ProfileViewerPageAny::widgets_mut`)
+    pub widgets: mcrust::net::minecraft::client::gui::screens::screen::Screen,
 }
 
 impl InventoryPage {
     /// java: the implicit no-argument constructor
     pub fn new() -> Self {
         let mut this = Self {
-            widgets: Vec::new(),
+            widgets: mcrust::net::minecraft::client::gui::screens::screen::Screen::new(String::new()),
         };
         this
     }
 
     /// java: private static void selectTab(int index, List<LayoutElement> tabContentLayouts)
-    pub fn select_tab(mut index: i32, tab_content_layouts: &Vec<LayoutElement>) {
+    ///
+    /// (`widgets` is the page's widget list the layouts' widget elements index - a press lambda's `screen`)
+    pub fn select_tab(mut index: i32, tab_content_layouts: &Vec<LayoutElement>, widgets: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen) {
         for i in 0..(tab_content_layouts.len() as i32) {
             let mut should_be_visible: bool = (i == index);
-            // TODO(fabric2seer): a lambda for a parameter the port does not type as a closure (`Consumer<net.minecraft.client.gui.components.AbstractWidget>`)
-            // rust: (tab_content_layouts[(i) as usize]).visit_widgets(|widget| { widget.visible = should_be_visible; });
+            // java: tabContentLayouts.get(i).visitWidgets(widget -> widget.visible = shouldBeVisible);
+            let mut __visited = Vec::new();
+            (tab_content_layouts[(i) as usize]).visit_widgets(&mut __visited);
+            for (__index, _, _) in __visited {
+                widgets.widget_mut(__index).visible = should_be_visible;
+            }
         }
     }
 
@@ -81,14 +87,11 @@ impl InventoryPage {
     /// java: private LayoutElement buildInventoryLayout(ProfileItemStorage itemStorage)
     pub fn build_inventory_layout(&self, item_storage: &ProfileItemStorage) -> LayoutElement {
         let mut layout: LinearLayout = LinearLayout::vertical();
-        // TODO(fabric2seer): a widget put in a layout outside a mod screen's own methods: the port's layouts hold a widget by its index in the screen's widget list
-        // rust: layout.add_child(InventoryWidget::new(component::literal("Inventory"), 4, 9, vec![item_storage.inventory()], true));
+        layout.add_child(crate::de::hysky::skyblocker::skyblock::profileviewer2::pages::profile_viewer_page::layout_widget(compat::WidgetAdapter::widget(InventoryWidget::new(component::literal("Inventory"), 4, 9, vec![item_storage.inventory()], true))));
         layout.add_child(SpacerElement::height(6).as_layout_element());
         let mut gear_layout: LinearLayout = LinearLayout::horizontal().spacing(4);
-        // TODO(fabric2seer): a widget put in a layout outside a mod screen's own methods: the port's layouts hold a widget by its index in the screen's widget list
-        // rust: gear_layout.add_child(InventoryWidget::new(component::literal("Armour"), 1, 4, vec![item_storage.armour()], false));
-        // TODO(fabric2seer): a widget put in a layout outside a mod screen's own methods: the port's layouts hold a widget by its index in the screen's widget list
-        // rust: gear_layout.add_child(InventoryWidget::new(component::literal("Equipment"), 1, 4, vec![item_storage.equipment()], false));
+        gear_layout.add_child(crate::de::hysky::skyblocker::skyblock::profileviewer2::pages::profile_viewer_page::layout_widget(compat::WidgetAdapter::widget(InventoryWidget::new(component::literal("Armour"), 1, 4, vec![item_storage.armour()], false))));
+        gear_layout.add_child(crate::de::hysky::skyblocker::skyblock::profileviewer2::pages::profile_viewer_page::layout_widget(compat::WidgetAdapter::widget(InventoryWidget::new(component::literal("Equipment"), 1, 4, vec![item_storage.equipment()], false))));
         layout.add_child_with(LayoutElement::Grid(gear_layout.clone().wrapped), layout.new_cell_settings().align_horizontally_center());
         return LayoutElement::Grid(layout.wrapped);
     }
@@ -101,11 +104,8 @@ impl InventoryPage {
 
     /// java: private LayoutElement buildBackpackLayout(ProfileItemStorage itemStorage)
     pub fn build_backpack_layout(&self, item_storage: &ProfileItemStorage) -> LayoutElement {
-        // TODO(fabric2seer): `Backpack.contents` is not a static method of Backpack
-        //   java: List<List<ItemStack>> pages = itemStorage.backpacks().values().stream()
-        //   java: 				.map(ProfileItemStorage.Backpack::contents)
-        //   java: 				.toList();
-        let mut pages: Vec<Vec<mcrust::net::minecraft::world::item::item_stack::ItemStack>> = todo!("fabric2seer: the initialiser of `pages` (TODO above)");
+        // java: List<List<ItemStack>> pages = itemStorage.backpacks().values().stream().map(ProfileItemStorage.Backpack::contents).toList();
+        let mut pages: Vec<Vec<mcrust::net::minecraft::world::item::item_stack::ItemStack>> = item_storage.backpacks().values().map(|backpack| backpack.contents()).collect();
         return self.build_paginated_inventory_layout(&component::literal("Backpack"), &pages);
     }
 
@@ -141,10 +141,9 @@ impl InventoryPage {
         let mut pages: Vec<Vec<mcrust::net::minecraft::world::item::item_stack::ItemStack>> = InventoryPage::divide_into_pages(&item_storage.bags().accessories(), 5i32.wrapping_mul(9));
         let mut accessories: LayoutElement = self.build_paginated_inventory_layout(&component::literal("Accessory Bag"), &pages);
         let mut accessories_stats: LinearLayout = LinearLayout::vertical().spacing(2);
-        // TODO(fabric2seer): a widget put in a layout outside a mod screen's own methods: the port's layouts hold a widget by its index in the screen's widget list
-        // rust: accessories_stats.add_child(AccessoryPowerWidget::new(ACCESSORY_INFO_BOX_WIDTH, info.clone(), item_storage.clone()));
-        // TODO(fabric2seer): a widget put in a layout outside a mod screen's own methods: the port's layouts hold a widget by its index in the screen's widget list
-        // rust: accessories_stats.add_child(TuningSlotWidget::new(ACCESSORY_INFO_BOX_WIDTH, info.member().lock().borrow().accessory_bag_storage.tuning.active_slot.clone()));
+        accessories_stats.add_child(crate::de::hysky::skyblocker::skyblock::profileviewer2::pages::profile_viewer_page::layout_widget(compat::WidgetAdapter::widget(AccessoryPowerWidget::new(ACCESSORY_INFO_BOX_WIDTH, info.clone(), item_storage.clone()))));
+        let __active_slot = compat::read(&info.member(), |__m| __m.accessory_bag_storage.tuning.active_slot.clone());
+        accessories_stats.add_child(crate::de::hysky::skyblocker::skyblock::profileviewer2::pages::profile_viewer_page::layout_widget(compat::WidgetAdapter::widget(TuningSlotWidget::new(ACCESSORY_INFO_BOX_WIDTH, __active_slot))));
         let mut accessories_section: LinearLayout = LinearLayout::horizontal();
         accessories_section.add_child(accessories);
         accessories_section.add_child(SpacerElement::width(4).as_layout_element());
@@ -161,8 +160,7 @@ impl InventoryPage {
     pub fn build_paginated_inventory_layout_3(&self, name: &MutableComponent, mut rows: i32, pages: &Vec<Vec<mcrust::net::minecraft::world::item::item_stack::ItemStack>>) -> LayoutElement {
         let mut layout: LinearLayout = LinearLayout::vertical();
         let mut inventory: compat::Shared<InventoryWidget> = InventoryWidget::new(name.clone(), rows, 9, pages.clone(), false);
-        // TODO(fabric2seer): a widget put in a layout outside a mod screen's own methods: the port's layouts hold a widget by its index in the screen's widget list
-        // rust: layout.add_child(inventory.clone());
+        layout.add_child(crate::de::hysky::skyblocker::skyblock::profileviewer2::pages::profile_viewer_page::layout_widget(compat::WidgetAdapter::widget(inventory.clone())));
         if (pages.len() as i32) > 1 {
             layout.add_child(SpacerElement::height(8).as_layout_element());
             let mut page_button_layout: LayoutElement = self.build_page_button_inventory_layout(&inventory);
@@ -173,34 +171,44 @@ impl InventoryPage {
 
     /// java: private LayoutElement buildPageButtonInventoryLayout(InventoryWidget inventory)
     pub fn build_page_button_inventory_layout(&self, inventory: &compat::Shared<InventoryWidget>) -> LayoutElement {
-        // (the lambdas and the layout share the one StringWidget object)
-        let mut page_text: compat::Shared<AbstractWidget> = compat::shared(compat::string_widget(0, 0, -1, 9, component::literal(&format!("Page {}/{}", InventoryWidget::get_page(inventory), InventoryWidget::get_max_pages(inventory)))));
-        let __w1 = compat::RenderThread::new((inventory.clone(), page_text.clone()));
+        let mut page_text: AbstractWidget = compat::string_widget(0, 0, -1, 9, component::literal(&InventoryPage::page_text(inventory)));
+        // the lambdas and the layout share the one StringWidget: the lambdas reach it in the page's widget list (their
+        // `screen`) at the index the layout gives it
+        let page_text_index: Arc<std::sync::atomic::AtomicUsize> = Arc::new(std::sync::atomic::AtomicUsize::new(usize::MAX));
+        let __w1 = compat::RenderThread::new(inventory.clone());
+        let __i1 = page_text_index.clone();
         let mut backwards: OnPress = OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| {
-            let (inventory, page_text) = __w1.get();
+            let inventory = __w1.get();
             InventoryWidget::backwards(inventory);
-            let __message = mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::literal(&format!("Page {}/{}", InventoryWidget::get_page(inventory), InventoryWidget::get_max_pages(inventory))));
-            compat::write(page_text, |__t| __t.set_message_text(__message));
+            let __message = mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::literal(&InventoryPage::page_text(inventory)));
+            __screen.widget_mut(__i1.load(std::sync::atomic::Ordering::Relaxed)).set_message_text(__message);
         }));
-        let __w2 = compat::RenderThread::new((inventory.clone(), page_text.clone()));
+        let __w2 = compat::RenderThread::new(inventory.clone());
+        let __i2 = page_text_index.clone();
         let mut forwards: OnPress = OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| {
-            let (inventory, page_text) = __w2.get();
+            let inventory = __w2.get();
             InventoryWidget::forwards(inventory);
-            let __message = mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::literal(&format!("Page {}/{}", InventoryWidget::get_page(inventory), InventoryWidget::get_max_pages(inventory))));
-            compat::write(page_text, |__t| __t.set_message_text(__message));
+            let __message = mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::literal(&InventoryPage::page_text(inventory)));
+            __screen.widget_mut(__i2.load(std::sync::atomic::Ordering::Relaxed)).set_message_text(__message);
         }));
-        return self.build_page_button_layout(&page_text, &backwards, &forwards);
+        return self.build_page_button_layout(page_text, &page_text_index, &backwards, &forwards);
+    }
+
+    /// `String.format(Locale.ENGLISH, "Page %d/%d", inventory.getPage(), inventory.getMaxPages())`
+    fn page_text(inventory: &compat::Shared<InventoryWidget>) -> String {
+        format!("Page {}/{}", InventoryWidget::get_page(inventory), InventoryWidget::get_max_pages(inventory))
     }
 
     /// java: private LayoutElement buildPageButtonLayout(StringWidget pageText, Button.OnPress backwards, Button.OnPress forwards)
-    pub fn build_page_button_layout(&self, page_text: &compat::Shared<AbstractWidget>, backwards: &OnPress, forwards: &OnPress) -> LayoutElement {
+    ///
+    /// (`page_text_index` is where the lambdas find `pageText`: set when the layout takes it)
+    pub fn build_page_button_layout(&self, page_text: AbstractWidget, page_text_index: &Arc<std::sync::atomic::AtomicUsize>, backwards: &OnPress, forwards: &OnPress) -> LayoutElement {
         let mut layout: LinearLayout = LinearLayout::horizontal().spacing(8);
-        // rust: port gap (GAPS_batchC #L3) - widget objects put in a layout outside a screen: the port's layouts hold a
-        // widget by its index in a screen's widget list
-        // rust: layout.add_child(PaginationWidget::new(false, backwards.clone()));
-        // rust: layout.add_child_with(page_text, layout.new_cell_settings().align_vertically_middle());
-        // rust: layout.add_child(PaginationWidget::new(true, forwards.clone()));
-        let _ = (page_text, backwards, forwards);
+        layout.add_child(crate::de::hysky::skyblocker::skyblock::profileviewer2::pages::profile_viewer_page::layout_widget(compat::WidgetAdapter::widget(PaginationWidget::new(false, backwards.clone()))));
+        let __page_text = crate::de::hysky::skyblocker::skyblock::profileviewer2::pages::profile_viewer_page::layout_widget(page_text);
+        page_text_index.store(crate::de::hysky::skyblocker::skyblock::profileviewer2::pages::profile_viewer_page::widget_index(&__page_text), std::sync::atomic::Ordering::Relaxed);
+        layout.add_child_with(__page_text, layout.new_cell_settings().align_vertically_middle());
+        layout.add_child(crate::de::hysky::skyblocker::skyblock::profileviewer2::pages::profile_viewer_page::layout_widget(compat::WidgetAdapter::widget(PaginationWidget::new(true, forwards.clone()))));
         return LayoutElement::Grid(layout.wrapped);
     }
 
@@ -228,7 +236,11 @@ impl ProfileViewerPageAny for InventoryPage {
 
     /// java: @Override public List<AbstractWidget> getWidgets()
     fn get_widgets(&self) -> Vec<AbstractWidget> {
-        return self.widgets.clone();
+        return self.widgets.children().to_vec();
+    }
+
+    fn widgets_mut(&mut self) -> &mut mcrust::net::minecraft::client::gui::screens::screen::Screen {
+        &mut self.widgets
     }
 
 }
@@ -240,13 +252,10 @@ impl ProfileViewerPage<(crate::de::hysky::skyblocker::skyblock::profileviewer2::
         let item_storage = &data.1;
         let mut page_layout: LinearLayout = LinearLayout::horizontal();
         let mut tab_content_layouts: Arc<Vec<LayoutElement>> = Arc::new(vec![self.build_inventory_layout(item_storage), self.build_ender_chest_layout(item_storage), self.build_backpack_layout(item_storage), self.build_generic_wardrobe_layout("Armour Sets", &item_storage.armour_sets()), self.build_generic_wardrobe_layout("Equipment Sets", &item_storage.equipment_sets()), self.build_pets_layout(item_storage), self.build_accessory_bag_layout(info, item_storage)]);
-        let mut tab_buttons: Vec<ButtonWidget> = vec![ButtonWidget::new(ico::CHEST.get_mut().clone(), { let __layouts = tab_content_layouts.clone(); OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| { InventoryPage::select_tab(0, &__layouts); })) }), ButtonWidget::new(ico::E_CHEST.get_mut().clone(), { let __layouts = tab_content_layouts.clone(); OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| { InventoryPage::select_tab(1, &__layouts); })) }), ButtonWidget::new(ico::JUMBO_BACKPACK.get_mut().clone(), { let __layouts = tab_content_layouts.clone(); OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| { InventoryPage::select_tab(2, &__layouts); })) }), ButtonWidget::new(ico::L_CHESTPLATE.get_mut().clone(), { let __layouts = tab_content_layouts.clone(); OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| { InventoryPage::select_tab(3, &__layouts); })) }), ButtonWidget::new(ico::BROWN_HARNESS.get_mut().clone(), { let __layouts = tab_content_layouts.clone(); OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| { InventoryPage::select_tab(4, &__layouts); })) }), ButtonWidget::new(ico::BONE.get_mut().clone(), { let __layouts = tab_content_layouts.clone(); OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| { InventoryPage::select_tab(5, &__layouts); })) }), ButtonWidget::new(ico::ACCESSORY_BAG.get_mut().clone(), { let __layouts = tab_content_layouts.clone(); OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| { InventoryPage::select_tab(6, &__layouts); })) })];
+        let mut tab_buttons: Vec<compat::Shared<ButtonWidget>> = vec![ButtonWidget::new(ico::CHEST.get_mut().clone(), { let __layouts = tab_content_layouts.clone(); OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| { InventoryPage::select_tab(0, &__layouts, __screen); })) }), ButtonWidget::new(ico::E_CHEST.get_mut().clone(), { let __layouts = tab_content_layouts.clone(); OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| { InventoryPage::select_tab(1, &__layouts, __screen); })) }), ButtonWidget::new(ico::JUMBO_BACKPACK.get_mut().clone(), { let __layouts = tab_content_layouts.clone(); OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| { InventoryPage::select_tab(2, &__layouts, __screen); })) }), ButtonWidget::new(ico::L_CHESTPLATE.get_mut().clone(), { let __layouts = tab_content_layouts.clone(); OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| { InventoryPage::select_tab(3, &__layouts, __screen); })) }), ButtonWidget::new(ico::BROWN_HARNESS.get_mut().clone(), { let __layouts = tab_content_layouts.clone(); OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| { InventoryPage::select_tab(4, &__layouts, __screen); })) }), ButtonWidget::new(ico::BONE.get_mut().clone(), { let __layouts = tab_content_layouts.clone(); OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| { InventoryPage::select_tab(5, &__layouts, __screen); })) }), ButtonWidget::new(ico::ACCESSORY_BAG.get_mut().clone(), { let __layouts = tab_content_layouts.clone(); OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| { InventoryPage::select_tab(6, &__layouts, __screen); })) })];
         let mut tab_layout: LinearLayout = LinearLayout::vertical().spacing(1);
         for button in tab_buttons.iter() {
-            // rust: port gap (GAPS_batchC #L3) - a widget object put in a layout outside a screen: the port's layouts
-            // hold a widget by its index in a screen's widget list
-            // rust: tab_layout.add_child(button.clone());
-            let _ = button;
+            tab_layout.add_child(crate::de::hysky::skyblocker::skyblock::profileviewer2::pages::profile_viewer_page::layout_widget(compat::WidgetAdapter::widget(button.clone())));
         }
         page_layout.add_child_with(LayoutElement::Grid(tab_layout.clone().wrapped), page_layout.new_cell_settings().align_vertically_middle());
         page_layout.add_child(SpacerElement::width(16).as_layout_element());
@@ -255,9 +264,10 @@ impl ProfileViewerPage<(crate::de::hysky::skyblocker::skyblock::profileviewer2::
             content_frame.add_child_with(layout, content_frame.new_child_layout_settings().align_horizontally_left());
         }
         page_layout.add_child(LayoutElement::Frame(content_frame.clone()));
-        // TODO(fabric2seer): a lambda for a parameter the port does not type as a closure (`Consumer<net.minecraft.client.gui.components.AbstractWidget>`)
-        // rust: layout::visit_widgets(|__a0| { self.widgets.push(__a0.clone()); });
-        InventoryPage::select_tab(0, &tab_content_layouts);
+        // java: pageLayout.visitWidgets(this.widgets::add); - every widget the layout holds was collected as it was put in
+        // it (`layout_widget`); `load` hands them to the page
+        // java: selectTab(0, tabContentLayouts);
+        crate::de::hysky::skyblocker::skyblock::profileviewer2::pages::profile_viewer_page::with_page_widgets(|__widgets| InventoryPage::select_tab(0, &tab_content_layouts, __widgets));
         return LayoutElement::Grid(page_layout.wrapped);
     }
 
@@ -271,6 +281,10 @@ impl InventoryPage {
         let __h: compat::Shared<InventoryPage> = compat::handle_as::<InventoryPage, _>(__this);
         return compat::LocalFuture::completed_future(info.clone())
             .then_combine_async(&info.item_storage(), |a, b| (a, b))
-            .then_apply_async(move |__a0| compat::read(&__h, |__t| __t.build_widgets(&__a0)));
+            .then_apply_async(move |__a0| {
+                let (__layout, __widgets) = crate::de::hysky::skyblocker::skyblock::profileviewer2::pages::profile_viewer_page::collect_widgets(|| compat::read(&__h, |__t| __t.build_widgets(&__a0)));
+                compat::write(&__h, |__t| __t.widgets = __widgets);
+                __layout
+            });
     }
 }

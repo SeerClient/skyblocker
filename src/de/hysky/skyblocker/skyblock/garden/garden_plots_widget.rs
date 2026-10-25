@@ -17,8 +17,8 @@ use mcrust::com::mojang::datafixers::util::either::Either;
 use mcrust::com::mojang::blaze3d::platform::cursor::cursor_types::CursorTypes;
 use mcrust::net::minecraft::chat_formatting::ChatFormatting;
 use mcrust::net::minecraft::client::gui::components::abstract_container_widget::AbstractContainerWidget;
-use mcrust::net::minecraft::client::gui::components::abstract_widget::OnPress;
-use mcrust::net::minecraft::client::gui::components::abstract_widget::PressLambda;
+use mcrust::net::minecraft::client::gui::components::abstract_widget::AbstractWidget;
+use mcrust::mcrust::modding::widgets::WidgetRenderContext;
 use mcrust::net::minecraft::client::gui::components::events::gui_event_listener::GuiEventListener;
 use mcrust::net::minecraft::client::gui::font::Font;
 use mcrust::net::minecraft::client::gui::gui_graphics_extractor;
@@ -45,7 +45,6 @@ pub const SPACING: i32 = 4;
 pub static SLOT_HIGHLIGHT_BACK_SPRITE: compat::MainThread<Identifier> = compat::MainThread::new(|| Identifier::with_default_namespace("container/slot_highlight_back"));
 /// java: private static final Identifier SLOT_HIGHLIGHT_FRONT_SPRITE = Identifier.withDefaultNamespace("container/slot_highlight_front");
 pub static SLOT_HIGHLIGHT_FRONT_SPRITE: compat::MainThread<Identifier> = compat::MainThread::new(|| Identifier::with_default_namespace("container/slot_highlight_front"));
-// TODO(fabric2seer): static call Int2IntMap.ofEntries(..)
 //   java: public static final Int2IntMap GARDEN_PLOT_TO_SLOT = Int2IntMap.ofEntries(
 //   java: 			Int2IntMap.entry(0, 12), // The Barn
 //   java: 			Int2IntMap.entry(1, 7),
@@ -157,9 +156,9 @@ impl GardenPlotsWidget {
         };
         this.update_plot_items();
         this.update_infested_from_tab();
-        let mut desk_button: ItemButtonWidget = ItemButtonWidget::new_5(this.get_x().wrapping_add(7), this.get_bottom().wrapping_sub(24), mcrust::net::minecraft::world::item::item_stack::ItemStack::of_one(items::items().get("book")), component::translatable("skyblocker.gardenPlots.openDesk"), OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| { MessageScheduler::send_message_after_cooldown(message_scheduler::INSTANCE.get_mut(), "/desk", true); })));
-        let mut spawn_button: ItemButtonWidget = ItemButtonWidget::new_5(((this.get_right().wrapping_sub(7)).wrapping_sub(40)).wrapping_sub(2), this.get_bottom().wrapping_sub(24), mcrust::net::minecraft::world::item::item_stack::ItemStack::of_one(items::items().get("ender_eye")), component::translatable("skyblocker.gardenPlots.spawn"), OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| { MessageScheduler::send_message_after_cooldown(message_scheduler::INSTANCE.get_mut(), "/warp garden", true); })));
-        let mut set_spawn_button: ItemButtonWidget = ItemButtonWidget::new_5((this.get_right().wrapping_sub(7)).wrapping_sub(20), this.get_bottom().wrapping_sub(24), mcrust::net::minecraft::world::item::item_stack::ItemStack::of_one((if compat::random() < 0.001 { mcrust::net::minecraft::world::item::items::bed().pink().clone() } else { mcrust::net::minecraft::world::item::items::bed().red().clone() })), component::translatable("skyblocker.gardenPlots.setSpawn"), OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| { MessageScheduler::send_message_after_cooldown(message_scheduler::INSTANCE.get_mut(), "/setspawn", true); })));
+        let mut desk_button: ItemButtonWidget = ItemButtonWidget::new_5(this.get_x().wrapping_add(7), this.get_bottom().wrapping_sub(24), mcrust::net::minecraft::world::item::item_stack::ItemStack::of_one(items::items().get("book")), component::translatable("skyblocker.gardenPlots.openDesk"), Arc::new(move |_button: &mut ItemButtonWidget| { MessageScheduler::send_message_after_cooldown(message_scheduler::INSTANCE.get_mut(), "/desk", true); }));
+        let mut spawn_button: ItemButtonWidget = ItemButtonWidget::new_5(((this.get_right().wrapping_sub(7)).wrapping_sub(40)).wrapping_sub(2), this.get_bottom().wrapping_sub(24), mcrust::net::minecraft::world::item::item_stack::ItemStack::of_one(items::items().get("ender_eye")), component::translatable("skyblocker.gardenPlots.spawn"), Arc::new(move |_button: &mut ItemButtonWidget| { MessageScheduler::send_message_after_cooldown(message_scheduler::INSTANCE.get_mut(), "/warp garden", true); }));
+        let mut set_spawn_button: ItemButtonWidget = ItemButtonWidget::new_5((this.get_right().wrapping_sub(7)).wrapping_sub(20), this.get_bottom().wrapping_sub(24), mcrust::net::minecraft::world::item::item_stack::ItemStack::of_one((if compat::random() < 0.001 { mcrust::net::minecraft::world::item::items::bed().pink().clone() } else { mcrust::net::minecraft::world::item::items::bed().red().clone() })), component::translatable("skyblocker.gardenPlots.setSpawn"), Arc::new(move |_button: &mut ItemButtonWidget| { MessageScheduler::send_message_after_cooldown(message_scheduler::INSTANCE.get_mut(), "/setspawn", true); }));
         this.widgets = vec![desk_button, spawn_button, set_spawn_button];
         this.set_position_from_config();
         this
@@ -193,84 +192,80 @@ impl GardenPlotsWidget {
     }
 
     /// java: @SuppressWarnings("deprecation") @Override protected void extractWidgetRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a)
-    pub fn extract_widget_render_state(&mut self, graphics: &mut GuiGraphicsExtractor, mut mouse_x: i32, mut mouse_y: i32, mut a: f32) {
+    pub fn extract_widget_render_state(&mut self, context: &mut WidgetRenderContext<'_>, mut mouse_x: i32, mut mouse_y: i32, mut a: f32) {
+        let (gl, client) = (context.gl, context.minecraft);
         let mut text_renderer: Font = compat::font();
+        // java: Matrix3x2fStack matrices = graphics.pose(); matrices.pushMatrix(); matrices.translate(getX(), getY());
         let __pose_1 = gui_graphics_extractor::push_pose();
         gui_graphics_extractor::pose_translate((self.get_x()) as f32, (self.get_y()) as f32);
-        gui_graphics_extractor::blit_identifier(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), mcrust::net::minecraft::client::renderer::render_pipelines::gui_textured(), BACKGROUND_TEXTURE.get_mut(), 0, 0, ((0) as f32) as f32, ((0) as f32) as f32, self.get_width(), self.get_height(), self.get_width(), self.get_height());
-        gui_graphics_extractor::draw_formatted_text_with_drop_shadow(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), &mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from((if self.editing_slot_icon < 0 { compat::component_of(self.get_message().clone()) } else { component::literal("Custom Icon") })), 8, 6, mcrust::net::minecraft::util::common_colors::DARK_GRAY, false);
+        gui_graphics_extractor::blit_identifier(gl, client, mcrust::net::minecraft::client::renderer::render_pipelines::gui_textured(), BACKGROUND_TEXTURE.get(), 0, 0, 0.0f32, 0.0f32, self.get_width(), self.get_height(), self.get_width(), self.get_height());
+        gui_graphics_extractor::draw_formatted_text_with_drop_shadow(gl, client, &FormattedText::from((if self.editing_slot_icon < 0 { compat::component_of(self.get_message().clone()) } else { component::literal("Custom Icon") })), 8, 6, mcrust::net::minecraft::util::common_colors::DARK_GRAY, false);
         self.hovered_slot = -1;
         let mut time_millis: i64 = compat::millis();
-        let mut stacks: Vec<Option<mcrust::net::minecraft::world::item::item_stack::ItemStack>> = (if self.editing_slot_icon >= 0 { Some(self.custom_icon_options_items.iter().cloned().map(Some).collect::<Vec<_>>()) } else { self.items.clone() }).unwrap();
+        // java: @Nullable ItemStack[] stacks = editingSlotIcon >= 0 ? customIconOptionsItems : items;
+        let mut stacks: Vec<Option<mcrust::net::minecraft::world::item::item_stack::ItemStack>> = (if self.editing_slot_icon >= 0 { Some(self.custom_icon_options_items.iter().cloned().map(Some).collect::<Vec<_>>()) } else { self.items.clone() }).expect("NullPointerException");
         for i in 0..(stacks.len() as i32) {
             let mut slot_x: i32 = 7i32.wrapping_add((i.wrapping_rem(5)).wrapping_mul(18));
             let mut slot_y: i32 = 17i32.wrapping_add((i.wrapping_div(5)).wrapping_mul(18));
             let mut hovered: bool = (slot_x.wrapping_add(self.get_x()) <= mouse_x && mouse_x < (slot_x.wrapping_add(self.get_x())).wrapping_add(18) && slot_y.wrapping_add(self.get_y()) <= mouse_y && mouse_y < (slot_y.wrapping_add(self.get_y())).wrapping_add(18));
             let mut infested: bool = self.infected_plots.iter().any(|e| *e == i);
             if hovered {
-                gui_graphics_extractor::blit_sprite_identifier(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), mcrust::net::minecraft::client::renderer::render_pipelines::gui_textured(), SLOT_HIGHLIGHT_BACK_SPRITE.get_mut(), slot_x.wrapping_sub(3), slot_y.wrapping_sub(3), 24, 24);
+                gui_graphics_extractor::blit_sprite_identifier(gl, client, mcrust::net::minecraft::client::renderer::render_pipelines::gui_textured(), SLOT_HIGHLIGHT_BACK_SPRITE.get(), slot_x.wrapping_sub(3), slot_y.wrapping_sub(3), 24, 24);
             }
-            let mut item: Option<mcrust::net::minecraft::world::item::item_stack::ItemStack> = stacks[(i) as usize].clone();
-            let Some(mut item) = item.clone() else {
+            let Some(mut item) = stacks[(i) as usize].clone() else {
+                // Still show hover highlight & pest outline in empty slots.
                 if hovered {
-                    gui_graphics_extractor::blit_sprite_identifier(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), mcrust::net::minecraft::client::renderer::render_pipelines::gui_textured(), SLOT_HIGHLIGHT_FRONT_SPRITE.get_mut(), slot_x.wrapping_sub(3), slot_y.wrapping_sub(3), 24, 24);
+                    gui_graphics_extractor::blit_sprite_identifier(gl, client, mcrust::net::minecraft::client::renderer::render_pipelines::gui_textured(), SLOT_HIGHLIGHT_FRONT_SPRITE.get(), slot_x.wrapping_sub(3), slot_y.wrapping_sub(3), 24, 24);
                 }
                 if infested && (time_millis & (512 as i64)) != (0 as i64) {
-                    GuiHelper::border(graphics, slot_x.wrapping_add(1), slot_y.wrapping_add(1), 16, 16, mcrust::net::minecraft::util::common_colors::RED);
+                    GuiHelper::border(&mut context.graphics, slot_x.wrapping_add(1), slot_y.wrapping_add(1), 16, 16, mcrust::net::minecraft::util::common_colors::RED);
                 }
                 continue;
             };
             if hovered {
                 // java: if (ClientTags.isInLocal(ConventionalItemTags.GLASS_PANES, item.getItem().builtInRegistryHolder().key())) {
-                // rust: port gap (GAPS_J #8) - Fabric API's `ClientTags.isInLocal` reads the `c:glass_panes` conventional
-                // tag from Fabric's bundled data files; the port loads neither the API nor the `c:` tag set
-                if todo!("fabric2seer: the condition (TODO above)") {
-                    graphics.item(&item, slot_x.wrapping_add(1), slot_y.wrapping_add(1));
+                if is_in_local_glass_panes(&item) {
+                    context.graphics.item(&item, slot_x.wrapping_add(1), slot_y.wrapping_add(1));
                 } else {
                     let __pose_2 = gui_graphics_extractor::push_pose();
                     gui_graphics_extractor::pose_translate((slot_x) as f32, (slot_y) as f32);
                     gui_graphics_extractor::pose_scale((1.125f32) as f32, (1.125f32) as f32);
-                    graphics.item(&item, 0, 0);
+                    context.graphics.item(&item, 0, 0);
                     gui_graphics_extractor::pop_pose(__pose_2);
                 }
-                gui_graphics_extractor::blit_sprite_identifier(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), mcrust::net::minecraft::client::renderer::render_pipelines::gui_textured(), SLOT_HIGHLIGHT_FRONT_SPRITE.get_mut(), slot_x.wrapping_sub(3), slot_y.wrapping_sub(3), 24, 24);
+                gui_graphics_extractor::blit_sprite_identifier(gl, client, mcrust::net::minecraft::client::renderer::render_pipelines::gui_textured(), SLOT_HIGHLIGHT_FRONT_SPRITE.get(), slot_x.wrapping_sub(3), slot_y.wrapping_sub(3), 24, 24);
                 self.hovered_slot = i;
             } else {
-                graphics.item(&item, slot_x.wrapping_add(1), slot_y.wrapping_add(1));
+                context.graphics.item(&item, slot_x.wrapping_add(1), slot_y.wrapping_add(1));
             }
             if self.editing_slot_icon >= 0 {
                 if hovered {
-                    // TODO(fabric2seer): the port's `set_component_tooltip_for_next_frame` ports this Java method with other parameters (tooltip_for_next_frame, lines for Java's lines, xo, yo)
-                    // TODO(fabric2seer): `set_component_tooltip_for_next_frame` takes 2 argument(s) in the port (`tooltip_for_next_frame: &mut Option<DeferredTooltip>, lines: Vec<crate::net::minecraft::network::chat::formatted_text::FormattedText>`), Java passes 4
-                    // rust: gui_graphics_extractor::set_component_tooltip_for_next_frame(&mut text_renderer, vec![compat::component_of(item.get_hover_name())], mouse_x, mouse_y);
+                    // java: graphics.setComponentTooltipForNextFrame(textRenderer, List.of(item.getHoverName()), mouseX, mouseY);
+                    compat::batch_s_set_tooltip_for_next_frame(vec![FormattedText::from(compat::component_of(item.get_hover_name()))]);
                 }
                 continue;
             }
             if infested && (time_millis & (512 as i64)) != (0 as i64) {
-                GuiHelper::border(graphics, slot_x.wrapping_add(1), slot_y.wrapping_add(1), 16, 16, mcrust::net::minecraft::util::common_colors::RED);
+                GuiHelper::border(&mut context.graphics, slot_x.wrapping_add(1), slot_y.wrapping_add(1), 16, 16, mcrust::net::minecraft::util::common_colors::RED);
             }
+            // tooltip
             if hovered {
-                let mut tooltip: Vec<MutableComponent> = (if infested { vec![component::translatable_args("skyblocker.gardenPlots.plot", vec![mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(compat::component_of(item.get_hover_name()))]), GROSS_PEST_TEXT.get_mut().clone(), component::empty(), TP_TEXT.get_mut().clone()] } else { (if i == 12 { vec![compat::component_of(item.get_hover_name()), component::empty(), TP_TEXT.get_mut().clone()] } else { vec![component::translatable_args("skyblocker.gardenPlots.plot", vec![mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(compat::component_of(item.get_hover_name()))]), component::empty(), TP_TEXT.get_mut().clone()] }) });
-                // TODO(fabric2seer): the port's `set_component_tooltip_for_next_frame` ports this Java method with other parameters (tooltip_for_next_frame, lines for Java's lines, xo, yo)
-                // TODO(fabric2seer): `set_component_tooltip_for_next_frame` takes 2 argument(s) in the port (`tooltip_for_next_frame: &mut Option<DeferredTooltip>, lines: Vec<crate::net::minecraft::network::chat::formatted_text::FormattedText>`), Java passes 4
-                // rust: gui_graphics_extractor::set_component_tooltip_for_next_frame(&mut text_renderer, tooltip.clone(), mouse_x, mouse_y);
+                let mut tooltip: Vec<MutableComponent> = (if infested { vec![component::translatable_args("skyblocker.gardenPlots.plot", vec![FormattedText::from(compat::component_of(item.get_hover_name()))]), GROSS_PEST_TEXT.get().clone(), component::empty(), TP_TEXT.get().clone()] } else { (if i == 12 { vec![compat::component_of(item.get_hover_name()), component::empty(), TP_TEXT.get().clone()] } else { vec![component::translatable_args("skyblocker.gardenPlots.plot", vec![FormattedText::from(compat::component_of(item.get_hover_name()))]), component::empty(), TP_TEXT.get().clone()] }) });
+                // java: graphics.setComponentTooltipForNextFrame(textRenderer, tooltip, mouseX, mouseY);
+                compat::batch_s_set_tooltip_for_next_frame(tooltip.into_iter().map(FormattedText::from).collect());
             }
         }
         gui_graphics_extractor::pop_pose(__pose_1);
-        for widget in self.widgets.iter() {
-            // TODO(fabric2seer): `extract_render_state` is a method of the port's trait `Renderable`, which the port's `AbstractWidget` does not implement
-            // rust: widget.extract_render_state(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), mouse_x, mouse_y, a);
+        // java: for (ItemButtonWidget widget : widgets) widget.extractRenderState(graphics, mouseX, mouseY, a);
+        for widget in self.widgets.iter_mut() {
+            widget.extract_render_state(context, mouse_x, mouse_y, a);
         }
         if time_millis.wrapping_sub(self.update_from_tab_time) > (3000 as i64) {
             self.update_from_tab_time = time_millis;
             self.update_infested_from_tab();
         }
         self.drag_area_hovered = (self.get_x().wrapping_add(4) < mouse_x && self.get_y().wrapping_add(4) < mouse_y && mouse_x < self.get_right().wrapping_sub(4) && mouse_y < self.get_y().wrapping_add(15));
-        if self.drag_area_hovered {
-            // TODO(fabric2seer): static `CursorTypes.RESIZE_ALL` has no Rust counterpart in the port's CursorTypes file
-            // TODO(fabric2seer): `GuiGraphicsExtractor.requestCursor` has no Rust method in the port (looked for `request_cursor` in GuiGraphicsExtractor and its supertypes)
-            // rust: graphics.request_cursor(&CursorTypes::RESIZE_ALL);
-        }
+        // java: if (dragAreaHovered) graphics.requestCursor(CursorTypes.RESIZE_ALL); - asked after the frame (`handle_cursor`)
     }
 
     /// java: private void updateInfestedFromTab()
@@ -305,10 +300,10 @@ impl GardenPlotsWidget {
 
     /// java: @Override public void onClick(MouseButtonEvent click, boolean doubled)
     pub fn on_click(&mut self, click: &MouseButtonEvent, mut doubled: bool) {
-        // TODO(fabric2seer): `AbstractContainerWidget.onClick` has no Rust method in the port (looked for `on_click` in AbstractContainerWidget and its supertypes)
-        // rust: self.base.on_click(click, doubled);
+        // java: super.onClick(click, doubled); - `AbstractWidget.onClick:100-101`, EMPTY (neither
+        // `AbstractScrollArea` nor `AbstractContainerWidget` overrides it)
         if self.drag_area_hovered {
-            if click.button() == 1 && minecraft::has_shift_down() {
+            if click.button() == 3 && minecraft::has_shift_down() {
                 { let __s0 = self.inventory_rectangle.right().wrapping_add(SPACING); let __s1 = self.inventory_rectangle.top(); self.set_position(__s0, __s1) };
                 self.save_position_to_config();
             } else {
@@ -327,7 +322,7 @@ impl GardenPlotsWidget {
             self.update_plot_items();
             return;
         }
-        if click.button() == 1 {
+        if click.button() == 3 {
             self.editing_slot_icon = self.hovered_slot;
             self.custom_icon_options_items = CUSTOM_ICON_OPTIONS.iter().map(|s| {
                 let Some(s) = s else {
@@ -341,9 +336,15 @@ impl GardenPlotsWidget {
             return;
         }
         if SkyblockerConfigManager::get().farming.plots_widget.close_screen_on_plot_click && compat::minecraft().gui.screen().is_some() {
-            // rust: port gap - `minecraft.gui.screen().onClose()` from a mod: no game API runs the open screen's own onClose (GAPS_batchG)
-            // TODO(fabric2seer): `on_close_for_interrupt` takes 12 argument(s) in the port (`gfx: &mut crate::net::minecraft::client::minecraft::Minecraft, screen: &mut Screen, screen_extra: &mut crate::net::minecraft::client::gui::gui::ScreenExtra, options_data: &mut crate::net::minecraft::client::options::OptionsData, open_sign_e ..`), Java passes 0
-            // rust: screen::on_close_for_interrupt();
+            // java: Minecraft.getInstance().gui.screen().onClose();
+            // The open screen is the `InventoryScreen` this widget sits on: `AbstractContainerScreen.onClose:580-588` is
+            // `minecraft.player.closeContainer()` then `Screen.onClose:195-197`'s `minecraft.setScreen(null)`. The click
+            // runs inside the screen's own mouse pass (the player may be held there), so the two statements run on the
+            // client thread right after it, in Java's order.
+            mcrust::mcrust::modding::game::execute(|| {
+                mcrust::mcrust::modding::game::with_player(|player| player.close_container());
+                mcrust::mcrust::modding::game::set_screen_null();
+            });
         }
         if self.hovered_slot == 12 {
             MessageScheduler::send_message_after_cooldown(message_scheduler::INSTANCE.get_mut(), "/plottp barn", true);
@@ -355,9 +356,8 @@ impl GardenPlotsWidget {
 
     /// java: @Override public void onRelease(MouseButtonEvent event)
     pub fn on_release(&mut self, event: &MouseButtonEvent) {
-        // TODO(fabric2seer): `on_release` takes 0 argument(s) in the port (``), Java passes 1
-        // TODO(fabric2seer): `ScrollArea::on_release` ports `onRelease`, but the port's `AbstractContainerWidget` holds no `ScrollArea` (no Deref, no `base` field) to call it on
-        // rust: self.base.on_release(event.clone());
+        // java: super.onRelease(event); - `AbstractScrollArea.onRelease:59-61`, `scrolling = false` (this widget never
+        // scrolls: `defaultSettings(0)` and `contentHeight() == getHeight()`)
         if self.dragging.is_none() {
             return;
         }
@@ -388,7 +388,7 @@ impl GardenPlotsWidget {
     pub fn is_valid_click_button(&self, input: &MouseButtonInfo) -> bool {
         // `super.isValidClickButton(input)` is AbstractWidget:137-139 (`AbstractContainerWidget` and `AbstractScrollArea`
         // do not override it): `input.button() == 0`
-        return ((input.button() == 0 || input.button() == 1) && (self.hovered_slot != -1 || self.drag_area_hovered));
+        return ((input.button() == 1 || input.button() == 3) && (self.hovered_slot != -1 || self.drag_area_hovered));
     }
 
     /// java: @Override protected void updateWidgetNarration(NarrationElementOutput builder)
@@ -436,18 +436,161 @@ impl GardenPlotsWidget {
             return true;
         }
         // super.mouseClicked: AbstractContainerWidget:62-66 - the scrollbar pass, then ContainerEventHandler's children pass
-        let widgets = &self.widgets;
+        let widgets = &mut self.widgets;
         return self.base.mouse_clicked(
             // AbstractScrollArea.updateScrolling: `defaultSettings(0)` and contentHeight() == getHeight(), so no
             // scrollbar is visible and the click never arms one
             || false,
             // ContainerEventHandler.mouseClicked: the first child that takes the click
-            // rust: port gap - running a child's `OnPress` needs the `Screen` it sits in, which a mod composite
-            // widget is not lent (GAPS_batchG); the child is found, its press is not run
-            || widgets.iter().any(|widget| widget.base.mouse_clicked(click.button(), click.x(), click.y()).is_some()),
+            || widgets.iter_mut().any(|widget| widget.mouse_clicked(click, doubled)),
         ).0;
     }
 
+    /// java: `setPosition(x, y)` - `LayoutElement.setPosition:23-26`: `setX(x); setY(y);`, this class's overrides (which
+    /// move the inner widgets too)
+    pub fn set_position(&mut self, x: i32, y: i32) {
+        GardenPlotsWidget::set_x(self, x);
+        GardenPlotsWidget::set_y(self, y);
+    }
+}
+
+impl compat::ObjectWidget for GardenPlotsWidget {
+    fn object_box(&mut self) -> &mut AbstractContainerWidget {
+        &mut self.base
+    }
+
+    fn object_box_ref(&self) -> &AbstractContainerWidget {
+        &self.base
+    }
+
+    /// java: @Override public void setX(int x)
+    fn set_x(&mut self, x: i32) {
+        GardenPlotsWidget::set_x(self, x);
+    }
+
+    /// java: @Override public void setY(int y)
+    fn set_y(&mut self, y: i32) {
+        GardenPlotsWidget::set_y(self, y);
+    }
+
+    /// java: @Override protected void extractWidgetRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a)
+    fn extract_widget_render_state(&mut self, _widget: &AbstractWidget, context: &mut WidgetRenderContext<'_>, mouse_x: i32, mouse_y: i32, a: f32) {
+        GardenPlotsWidget::extract_widget_render_state(self, context, mouse_x, mouse_y, a);
+    }
+
+    /// java: @Override protected void updateWidgetNarration(NarrationElementOutput builder) {}
+    fn update_widget_narration(&mut self, _widget: &AbstractWidget, _output: &mut dyn NarrationElementOutput) {}
+
+    /// java: @Override public void onClick(MouseButtonEvent click, boolean doubled)
+    fn on_click(&mut self, _widget: &mut AbstractWidget, event: &MouseButtonEvent, double_click: bool) {
+        GardenPlotsWidget::on_click(self, event, double_click);
+    }
+
+    /// java: @Override public void onRelease(MouseButtonEvent event)
+    fn on_release(&mut self, _widget: &mut AbstractWidget, event: &MouseButtonEvent) {
+        GardenPlotsWidget::on_release(self, event);
+    }
+
+    /// java: @Override protected void onDrag(MouseButtonEvent event, double dx, double dy)
+    fn on_drag(&mut self, _widget: &mut AbstractWidget, event: &MouseButtonEvent, dx: f64, dy: f64) {
+        GardenPlotsWidget::on_drag(self, event, dx, dy);
+    }
+
+    /// java: @Override public boolean mouseClicked(MouseButtonEvent click, boolean doubled)
+    fn mouse_clicked(&mut self, _widget: &mut AbstractWidget, event: &MouseButtonEvent, double_click: bool) -> bool {
+        GardenPlotsWidget::mouse_clicked(self, event, double_click)
+    }
+
+    /// java: AbstractContainerWidget.mouseReleased:67-71 - `super.mouseReleased(event)` (`AbstractWidget:127-135`:
+    /// `onRelease` for a valid button) then ContainerEventHandler's children pass (the `ItemButtonWidget`s: `Button` has no release work, see
+    /// `mouse_clicked`)
+    fn mouse_released(&mut self, _widget: &mut AbstractWidget, event: &MouseButtonEvent) -> bool {
+        if GardenPlotsWidget::is_valid_click_button(self, &event.button_info()) {
+            GardenPlotsWidget::on_release(self, event);
+        }
+        false
+    }
+
+    /// java: AbstractContainerWidget.mouseDragged:74-77 - `super.mouseDragged` (`AbstractScrollArea:39-57`, never
+    /// scrolling: `AbstractWidget:141-149`'s `onDrag` for a valid button) then the children pass (a `Button` does nothing on a drag)
+    fn mouse_dragged(&mut self, _widget: &mut AbstractWidget, event: &MouseButtonEvent, dx: f64, dy: f64) -> bool {
+        if GardenPlotsWidget::is_valid_click_button(self, &event.button_info()) {
+            GardenPlotsWidget::on_drag(self, event, dx, dy);
+        }
+        false
+    }
+
+    /// java: @Override protected boolean isValidClickButton(MouseButtonInfo input)
+    fn is_valid_click_button(&self, button_info: MouseButtonInfo) -> bool {
+        GardenPlotsWidget::is_valid_click_button(self, &button_info)
+    }
+
+    /// The class's `mouseClicked` override calls `onClick` directly: no `playDownSound` of its own.
+    fn play_down_sound(&self) -> Option<&'static mcrust::net::minecraft::sounds::sound_event::SoundEvent> {
+        None
+    }
+
+    /// java: `if (dragAreaHovered) graphics.requestCursor(CursorTypes.RESIZE_ALL);` in `extractWidgetRenderState`
+    fn handle_cursor(&self, _widget: &AbstractWidget, cursors: &CursorTypes) -> Option<mcrust::com::mojang::blaze3d::platform::cursor::cursor_type::CursorType> {
+        if self.drag_area_hovered { Some(cursors.resize_all) } else { None }
+    }
+}
+
+/// java: `GardenPlots.widget` - the widget object the inventory screen's list holds (`Screens.getWidgets(screen).add(widget)`),
+/// read by other objects between the game's calls
+#[derive(Clone)]
+pub struct GardenPlotsWidgetRef(pub compat::Shared<GardenPlotsWidget>);
+
+impl GardenPlotsWidgetRef {
+    pub fn get_x(&self) -> i32 {
+        compat::read(&self.0, |w| w.base.get_x())
+    }
+
+    pub fn get_y(&self) -> i32 {
+        compat::read(&self.0, |w| w.base.get_y())
+    }
+
+    pub fn get_width(&self) -> i32 {
+        compat::read(&self.0, |w| w.base.get_width())
+    }
+
+    pub fn get_height(&self) -> i32 {
+        compat::read(&self.0, |w| w.base.get_height())
+    }
+
+    /// java: public void setInventoryRectangle(ScreenRectangle inventoryRectangle)
+    pub fn set_inventory_rectangle(&self, inventory_rectangle: ScreenRectangle) {
+        compat::write(&self.0, |w| w.set_inventory_rectangle(inventory_rectangle));
+    }
+}
+
+/// java: `ClientTags.isInLocal(ConventionalItemTags.GLASS_PANES, item.getItem().builtInRegistryHolder().key())` - Fabric's
+/// client tag lookup of the `c:glass_panes` item tag in the tag files the installed mods bundle. Fabric API's
+/// `fabric-convention-tags-v2` (2.17.3) ships `data/c/tags/item/glass_panes.json`: the sixteen stained glass panes and
+/// `#c:glass_panes/colorless` (`required: false`), which is `minecraft:glass_pane`.
+fn is_in_local_glass_panes(item: &mcrust::net::minecraft::world::item::item_stack::ItemStack) -> bool {
+    const GLASS_PANES: [&str; 17] = [
+        "white_stained_glass_pane",
+        "orange_stained_glass_pane",
+        "magenta_stained_glass_pane",
+        "light_blue_stained_glass_pane",
+        "yellow_stained_glass_pane",
+        "lime_stained_glass_pane",
+        "pink_stained_glass_pane",
+        "gray_stained_glass_pane",
+        "light_gray_stained_glass_pane",
+        "cyan_stained_glass_pane",
+        "purple_stained_glass_pane",
+        "blue_stained_glass_pane",
+        "brown_stained_glass_pane",
+        "green_stained_glass_pane",
+        "black_stained_glass_pane",
+        "red_stained_glass_pane",
+        // #c:glass_panes/colorless
+        "glass_pane",
+    ];
+    let held = item.get_item();
+    GLASS_PANES.iter().any(|name| Arc::ptr_eq(&held, &items::items().get(name)))
 }
 
 // NOTE(fabric2seer): children, contentHeight, extractWidgetRenderState, isValidClickButton, mouseClicked, onClick, onDrag, onRelease, setX, setY, updateWidgetNarration override(s) of AbstractContainerWidget - the port dispatches its own calls, so these run only where the mod calls them; hook the port's method to make the game call them

@@ -43,7 +43,9 @@ pub struct WidgetsElementList {
     /// java: private final WidgetsListScreen parent;
     pub parent: compat::Shared<WidgetsListScreen>,
     /// java: private @Nullable Button backButton;
-    pub back_button: Option<AbstractWidget>,
+    /// (the button object, held in its own `Screen` list - the list this port's widget pass draws and asks; empty is
+    /// Java's `null`)
+    pub back_button: mcrust::net::minecraft::client::gui::screens::screen::Screen,
     /// java: private boolean rightUpArrowHovered = false;
     pub right_up_arrow_hovered: bool,
     /// java: private boolean rightDownArrowHovered = false;
@@ -78,7 +80,7 @@ impl WidgetsElementList {
             select_color: 0x761111FF,
             move_color: 0x76FF3333,
             parent: __init_parent,
-            back_button: None,
+            back_button: mcrust::net::minecraft::client::gui::screens::screen::Screen::new(String::new()),
             right_up_arrow_hovered: false,
             right_down_arrow_hovered: false,
             left_up_arrow_hovered: false,
@@ -97,8 +99,12 @@ impl WidgetsElementList {
             return None;
         }
         let mut entry: compat::Shared<dyn WidgetsListEntry> = (compat::write(__this, |__t| { let __l = &mut __t.base; compat::list_entries::<dyn WidgetsListEntry>(__l) }))[(compat::get_state(&EDITING_POSITION)) as usize].clone();
-        // TODO(fabric2seer): an `instanceof` pattern under `||` / `!`
-        //   java: if (!(entry instanceof WidgetSlotEntry widgetSlotEntry) || widgetSlotEntry.getState() != WidgetSlotEntry.State.ENABLED) return null;
+        // java: if (!(entry instanceof WidgetSlotEntry widgetSlotEntry) || widgetSlotEntry.getState() != WidgetSlotEntry.State.ENABLED) return null;
+        use crate::de::hysky::skyblocker::skyblock::tabhud::config::list::entries::slot::widget_slot_entry::{State, WidgetSlotEntry};
+        let __enabled: bool = compat::read(&entry, |__t| __t.as_any().downcast_ref::<WidgetSlotEntry>().is_some_and(|__w| __w.state == Some(State::Enabled)));
+        if !__enabled {
+            return None;
+        }
         return Some(entry);
     }
 
@@ -108,9 +114,10 @@ impl WidgetsElementList {
     }
 
     /// java: @Override public void extractWidgetRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta)
-    pub fn extract_widget_render_state(__this: &compat::Shared<Self>, graphics: &mut GuiGraphicsExtractor, mut mouse_x: i32, mut mouse_y: i32, mut delta: f32) {
-        // TODO(fabric2seer): `ContainerObjectSelectionList.extractWidgetRenderState` has no Rust method in the port (looked for `extract_widget_render_state` in ContainerObjectSelectionList and its supertypes)
-        // rust: __this.lock().borrow_mut().base.list.extract_widget_render_state(graphics, mouse_x, mouse_y, delta);
+    /// (the part after `super.extractWidgetRenderState(..)`, which the game's list body has drawn when this runs - see
+    /// `extract_list_items` below; `context` is the frame's widget render context)
+    pub fn extract_widget_render_state(__this: &compat::Shared<Self>, context: &mut WidgetRenderContext<'_>, mut mouse_x: i32, mut mouse_y: i32, mut delta: f32) {
+        let graphics: &mut GuiGraphicsExtractor = &mut context.graphics;
         // java: WidgetsListEntry hoveredEntry = getHovered(); - the list answers the row's index: its object is the entry
         let __hovered_index: Option<usize> = __this.lock().borrow().base.list.get_hovered();
         let mut hovered_entry: Option<compat::Shared<dyn WidgetsListEntry>> = __hovered_index.and_then(|__i| compat::read(__this, |__t| compat::entry_at::<dyn WidgetsListEntry>(&__t.base, __i)));
@@ -121,22 +128,22 @@ impl WidgetsElementList {
             let __o4 = hovered_entry.clone();
             ({ let __f = compat::dispatch(hovered_entry, |__t| __t.extract_tooltip()); __f(hovered_entry, graphics, compat::write(&__o1, |__t| __t.widgets_list_entry_base_mut().get_x()), compat::write(&__o2, |__t| __t.widgets_list_entry_base_mut().get_y()), compat::write(&__o3, |__t| __t.widgets_list_entry_base_mut().get_width()), compat::write(&__o4, |__t| __t.widgets_list_entry_base_mut().get_height()), mouse_x, mouse_y) });
         }
-        if compat::read(__this, |__t| __t.back_button.clone()).is_some() {
-            // TODO(fabric2seer): `extract_render_state` is a method of the port's trait `Renderable`, which the port's `AbstractWidget` does not implement
-            // rust: { let (__q0, __q1, __q2, __q3, __q4,) = (mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), mouse_x, mouse_y, delta,); __this.lock().borrow_mut().back_button.as_mut().unwrap().extract_render_state(__q0, __q1, __q2, __q3, __q4) };
+        // java: if (backButton != null) backButton.extractRenderState(graphics, mouseX, mouseY, delta);
+        if compat::read(__this, |__t| !__t.back_button.children().is_empty()) {
+            let mut __button = compat::write(__this, |__t| std::mem::replace(&mut __t.back_button, mcrust::net::minecraft::client::gui::screens::screen::Screen::new(String::new())));
+            context.extract_widgets(&mut __button, mouse_x, mouse_y);
+            compat::write(__this, |__t| __t.back_button = __button);
         }
         if !(compat::read(__this, |__t| __t.enable_editing)) || WidgetsElementList::get_selected(__this).is_none() {
             return;
         }
         if compat::read(__this, |__t| __t.right_up_arrow_hovered) || compat::read(__this, |__t| __t.right_down_arrow_hovered) {
-            // TODO(fabric2seer): the port's `set_tooltip_for_next_frame_text` ports this Java method with other parameters (tooltip_for_next_frame, text for Java's text, xo, yo)
-            // TODO(fabric2seer): `set_tooltip_for_next_frame_text` takes 2 argument(s) in the port (`tooltip_for_next_frame: &mut Option<DeferredTooltip>, text: crate::net::minecraft::network::chat::formatted_text::FormattedText`), Java passes 4
-            // rust: gui_graphics_extractor::set_tooltip_for_next_frame_text(&mut compat::font(), mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::literal("Move widget")), mouse_x, mouse_y);
+            // java: graphics.setTooltipForNextFrame(minecraft.font, Component.literal("Move widget"), mouseX, mouseY);
+            compat::batch_s_set_tooltip_for_next_frame(vec![mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::literal("Move widget"))]);
         }
         if compat::read(__this, |__t| __t.left_up_arrow_hovered) || compat::read(__this, |__t| __t.left_down_arrow_hovered) {
-            // TODO(fabric2seer): the port's `set_tooltip_for_next_frame_text` ports this Java method with other parameters (tooltip_for_next_frame, text for Java's text, xo, yo)
-            // TODO(fabric2seer): `set_tooltip_for_next_frame_text` takes 2 argument(s) in the port (`tooltip_for_next_frame: &mut Option<DeferredTooltip>, text: crate::net::minecraft::network::chat::formatted_text::FormattedText`), Java passes 4
-            // rust: gui_graphics_extractor::set_tooltip_for_next_frame_text(&mut compat::font(), mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::literal("Change selection")), mouse_x, mouse_y);
+            // java: graphics.setTooltipForNextFrame(minecraft.font, Component.literal("Change selection"), mouseX, mouseY);
+            compat::batch_s_set_tooltip_for_next_frame(vec![mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::literal("Change selection"))]);
         }
     }
 
@@ -197,52 +204,80 @@ impl WidgetsElementList {
 
     /// java: public void setBackButton(Button backButton)
     pub fn set_back_button(__this: &compat::Shared<Self>, mut back_button: AbstractWidget) {
-        { let __v = Some(back_button.clone()); compat::write(__this, |__t| __t.back_button = __v); }
+        compat::write(__this, |__t| {
+            __t.back_button.clear_widgets();
+            __t.back_button.add_renderable_widget(back_button);
+        });
     }
 
     /// java: public void updateList()
     pub fn update_list(__this: &compat::Shared<Self>) {
         let mut entries: Vec<(i32, compat::Shared<dyn WidgetsListSlotEntry>)> = WidgetsListScreen::get_entries(&compat::read(__this, |__t| __t.parent.clone())).into_iter().collect::<Vec<_>>();
         compat::write(__this, |__t| { let __l = &mut __t.base; __l.clear_entries() });
-        // TODO(fabric2seer): static field Int2ObjectMap.Entry
-        //   java: entries.stream()
-        //   java: 				.sorted(Comparator.comparingInt(Int2ObjectMap.Entry::getIntKey))
-        //   java: 				.map(Map.Entry::getValue)
-        //   java: 				.forEach(this::addEntry);
+        // java: entries.stream().sorted(Comparator.comparingInt(Int2ObjectMap.Entry::getIntKey)).map(Map.Entry::getValue).forEach(this::addEntry);
+        entries.sort_by_key(|(key, _)| *key);
+        for (_, entry) in entries {
+            let __entry: compat::Shared<dyn WidgetsListEntry> = compat::view(&entry, |a| a as compat::Shared<dyn WidgetsListEntry>).clone();
+            compat::write(__this, |__t| __t.base.add_entry(Box::new(compat::EntryAdapter::new(__entry))));
+        }
     }
 
     /// java: @Override public boolean mouseClicked(MouseButtonEvent click, boolean doubled)
     pub fn mouse_clicked(__this: &compat::Shared<Self>, click: &MouseButtonEvent, mut doubled: bool) -> bool {
+        match WidgetsElementList::mouse_clicked_before_super(__this, click, doubled) {
+            Some(answer) => answer,
+            // java: return super.mouseClicked(click, doubled);
+            None => WidgetsElementList::super_mouse_clicked(__this, click, doubled),
+        }
+    }
+
+    /// `mouseClicked`'s body up to its `return super.mouseClicked(click, doubled)` statements: the answer, or `None`
+    /// where the body returns `super`'s (which the caller runs over the live list)
+    pub fn mouse_clicked_before_super(__this: &compat::Shared<Self>, click: &MouseButtonEvent, mut doubled: bool) -> Option<bool> {
         // java: if (backButton != null && backButton.mouseClicked(click, doubled)) return true;
-        // rust: port gap (GAPS_batchC #L3) - the back button is this list's own widget value, not a screen's: the port's
-        // `mouse_clicked` answers the press it would run (its `OnPress`), which only a screen can run
-        if compat::read(__this, |__t| __t.back_button.is_some()) && __this.lock().borrow().back_button.as_ref().unwrap().mouse_clicked(click.button(), click.x(), click.y()).is_some() {
-            return true;
+        // (the button's own list runs its press; the list is taken out for it, as the press may reach this object)
+        if compat::read(__this, |__t| !__t.back_button.children().is_empty()) {
+            let mut __button = compat::write(__this, |__t| std::mem::replace(&mut __t.back_button, mcrust::net::minecraft::client::gui::screens::screen::Screen::new(String::new())));
+            let __pressed = __button.mouse_clicked(click.button(), click.x(), click.y()).is_some();
+            compat::write(__this, |__t| if __t.back_button.children().is_empty() { __t.back_button = __button; });
+            if __pressed {
+                return Some(true);
+            }
         }
         if !(compat::read(__this, |__t| __t.enable_editing)) || WidgetsElementList::get_selected(__this).is_none() {
-            // TODO(fabric2seer): `AbstractContainerWidget::mouse_clicked` ports `mouseClicked`, but the port's `AbstractSelectionList` holds no `AbstractContainerWidget` (no Deref, no `base` field) to call it on
-            // rust: return { let (__q0, __q1,) = (click.clone(), doubled,); __this.lock().borrow_mut().base.list.mouse_clicked(__q0, __q1) };
-            return todo!("fabric2seer: see the TODO above");
+            return None;
         }
+        let __parent = compat::read(__this, |__t| __t.parent.clone());
         if compat::read(__this, |__t| __t.right_up_arrow_hovered) {
-            WidgetsListScreen::shift_click_and_wait_for_server(&compat::read(__this, |__t| __t.parent.clone()), 13, 1);
-            return true;
+            WidgetsListScreen::shift_click_and_wait_for_server(&__parent, 13, 1);
+            return Some(true);
         }
         if compat::read(__this, |__t| __t.right_down_arrow_hovered) {
-            WidgetsListScreen::shift_click_and_wait_for_server(&compat::read(__this, |__t| __t.parent.clone()), 13, 0);
-            return true;
+            WidgetsListScreen::shift_click_and_wait_for_server(&__parent, 13, 0);
+            return Some(true);
         }
         if compat::read(__this, |__t| __t.left_up_arrow_hovered) {
-            WidgetsListScreen::click_and_wait_for_server(&compat::read(__this, |__t| __t.parent.clone()), 13, 1);
-            return true;
+            WidgetsListScreen::click_and_wait_for_server(&__parent, 13, 1);
+            return Some(true);
         }
         if compat::read(__this, |__t| __t.left_down_arrow_hovered) {
-            WidgetsListScreen::click_and_wait_for_server(&compat::read(__this, |__t| __t.parent.clone()), 13, 0);
-            return true;
+            WidgetsListScreen::click_and_wait_for_server(&__parent, 13, 0);
+            return Some(true);
         }
-        // TODO(fabric2seer): `AbstractContainerWidget::mouse_clicked` ports `mouseClicked`, but the port's `AbstractSelectionList` holds no `AbstractContainerWidget` (no Deref, no `base` field) to call it on
-        // rust: return { let (__q0, __q1,) = (click.clone(), doubled,); __this.lock().borrow_mut().base.list.mouse_clicked(__q0, __q1) };
-        return todo!("fabric2seer: see the TODO above");
+        None
+    }
+
+    /// `super.mouseClicked(click, doubled)` - `ContainerObjectSelectionList`'s body (`ModSelectionList::mouse_clicked_base`)
+    /// over this object's list. The list is taken out of the object for the call, so a row that reaches back into this
+    /// object meets no held borrow (it sees an empty stand-in list until the call returns).
+    pub fn super_mouse_clicked(__this: &compat::Shared<Self>, click: &MouseButtonEvent, doubled: bool) -> bool {
+        let mut __list: ModSelectionList = compat::write(__this, |__t| {
+            let __kind = __t.base.kind;
+            std::mem::replace(&mut __t.base, ModSelectionList::new(__kind, 0, 0, 0, 0))
+        });
+        let __answer: bool = __list.mouse_clicked_base(click, doubled);
+        compat::write(__this, |__t| __t.base = __list);
+        __answer
     }
 
 }
@@ -278,6 +313,23 @@ impl ModList for compat::ListClass<WidgetsElementList> {
         __entry.and_then(|__e| compat::row_index::<dyn WidgetsListEntry>(list, &__e))
     }
 
+    /// java: @Override public boolean mouseClicked(MouseButtonEvent click, boolean doubled)
+    fn mouse_clicked(&self, list: &mut ModSelectionList, event: &MouseButtonEvent, double_click: bool, super_mouse_clicked: &mut dyn FnMut(&mut ModSelectionList) -> bool) -> bool {
+        match self.ask(&list.list, false, |__h| WidgetsElementList::mouse_clicked_before_super(__h, event, double_click)) {
+            Some(answer) => answer,
+            None => super_mouse_clicked(list),
+        }
+    }
+
+    /// java: @Override public void extractWidgetRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) -
+    /// `super.extractWidgetRenderState(..)` and then this class's part. The game's list body asks this slot inside that
+    /// super body (after the background, before the scrollbar); the part after `super` sets deferred tooltips and
+    /// draws the back button, so it runs once the rows are drawn.
+    fn extract_list_items(&self, list: &mut ModSelectionList, context: &mut WidgetRenderContext<'_>, mouse_x: i32, mouse_y: i32, a: f32, super_extract_list_items: &mut dyn FnMut(&mut ModSelectionList, &mut WidgetRenderContext<'_>)) {
+        super_extract_list_items(list, context);
+        self.ask(&list.list, (), |__h| WidgetsElementList::extract_widget_render_state(__h, context, mouse_x, mouse_y, a))
+    }
+
     /// java: @Override protected void extractItem(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta, WidgetsListEntry entry)
     fn extract_item(&self, list: &mut ModSelectionList, row: usize, context: &mut WidgetRenderContext<'_>, mouse_x: i32, mouse_y: i32, a: f32, super_extract_item: &mut dyn FnMut(&mut ModSelectionList, &mut WidgetRenderContext<'_>)) {
         super_extract_item(list, context);
@@ -287,4 +339,3 @@ impl ModList for compat::ListClass<WidgetsElementList> {
 
 }
 
-// NOTE(fabric2seer): entriesCanBeSelected, extractItem, extractWidgetRenderState, getRowWidth, getSelected, mouseClicked, scrollBarX override(s) of ContainerObjectSelectionList - the port dispatches its own calls, so these run only where the mod calls them; hook the port's method to make the game call them

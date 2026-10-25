@@ -18,16 +18,16 @@ impl SkyblockInfoDisplayGenerator {
 
     /// java: @Override public Optional<List<SkyblockInfoDisplay>> getRecipeFor(EntryStack<?> entry)
     pub fn get_recipe_for(&self, entry: &crate::unresolved::EntryStack) -> Option<Vec<SkyblockInfoDisplay>> {
-        // TODO(fabric2seer): `.getValue(..)` on a EntryStack
-        //   java: if (!(entry.getValue() instanceof ItemStack entryStack)) return Optional.empty();
-        // TODO(fabric2seer): the condition: unknown name `entryStack`
-        //   java: entryStack.getSkyblockId(..).isEmpty(..)
-        if todo!("fabric2seer: the condition (TODO above)") {
+        // java: if (!(entry.getValue() instanceof ItemStack entryStack)) return Optional.empty();
+        let Some(mut entry_stack) = crate::de::hysky::skyblocker::compatibility::rei::rei_entry_stack_item(entry) else {
+            return None;
+        };
+        // java: if (entryStack.getSkyblockId().isEmpty()) return Optional.empty();
+        if entry_stack.get_skyblock_id().is_empty() {
             return None;
         }
-        // TODO(fabric2seer): unknown name `entryStack`
-        //   java: ItemStack stack = entryStack.copy();
-        let mut stack: mcrust::net::minecraft::world::item::item_stack::ItemStack = todo!("fabric2seer: the initialiser of `stack` (TODO above)");
+        // java: ItemStack stack = entryStack.copy();
+        let mut stack: mcrust::net::minecraft::world::item::item_stack::ItemStack = entry_stack.copy();
         stack.set_count(1);
         return Some(vec![SkyblockInfoDisplay::new(stack.clone())]);
     }

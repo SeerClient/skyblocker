@@ -41,14 +41,20 @@ impl RepoDyeColors {
             return;
         };
         {
-            // TODO(fabric2seer): `.stream(..)` on a NEURepoFile
-            //   java: InputStream stream = file.stream(..);
-            let mut stream: crate::unresolved::InputStream = todo!("fabric2seer: the initialiser of `stream` (TODO above)");
-            // java: try {..} catch (Exception ex) - an exception here is a panic, caught by `catch_unwind`
+            // java: try (InputStream stream = file.stream()) {..} catch (Exception ex) - the resource is opened inside the try;
+            // an exception is a panic, caught by `catch_unwind`
             let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                // TODO(fabric2seer): `.readAllBytes(..)` on a InputStream
+                use mcrust::com::mojang::serialization::decoder::Decoder as _;
                 //   java: Dyes dyes = Dyes.CODEC.parse(JsonOps.INSTANCE, JsonParser.parseString(new String(stream.readAllBytes()))).getOrThrow();
-                let mut dyes: Dyes = todo!("fabric2seer: the initialiser of `dyes` (TODO above)");
+                let content: String = compat::neu_repo_file_read_all(&file);
+                let mut dyes: Dyes = DYES_CODEC
+                    .get()
+                    .parse(
+                        &mcrust::com::mojang::serialization::json_ops::JsonOps::instance(),
+                        &compat::json_to_port(&serde_json::from_str::<serde_json::Value>(&content).expect("JsonSyntaxException")),
+                    )
+                    .get_or_throw()
+                    .unwrap_or_else(|e| panic!("{e}"));
                 compat::lock(&STATIC_DYES).extend(dyes.static_dyes.iter().map(|(k, v)| (k.clone(), v.clone())));
                 compat::lock(&ANIMATED_DYES).extend(dyes.animated_dyes.iter().map(|(k, v)| (k.clone(), v.clone())));
                 logger().info(&format!("[Skyblocker] Successfully loaded {} static dyes and {} animated dyes from repo.", (compat::lock(&STATIC_DYES).len() as i32), (compat::lock(&ANIMATED_DYES).len() as i32)));

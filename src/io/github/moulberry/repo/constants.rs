@@ -1,0 +1,16 @@
+//! package io.github.moulberry.repo.constants
+pub mod abiphone_contact;
+pub mod bazaar_stocks;
+pub mod bonuses;
+pub mod enchants;
+pub mod essence_costs;
+pub mod fairy_souls;
+pub mod islands;
+pub mod leveling;
+pub mod misc;
+pub mod parents;
+pub mod pet_leveling_behaviour_override;
+pub mod pet_leveling_data;
+pub mod pet_numbers;
+pub mod rank_data;
+pub mod resource_pack;

@@ -66,30 +66,26 @@ pub fn random() -> f64 {
 /// static again.
 pub struct MainThread<T> {
     init: fn() -> T,
-    value: std::cell::UnsafeCell<Option<T>>,
-    owner: std::sync::OnceLock<std::thread::ThreadId>,
+    value: std::sync::OnceLock<SyncCell<T>>,
 }
 
-// SAFETY: every access goes through `check`, which pins the cell to one thread.
+/// The slot inside a `MainThread`: Java statics are shared by every thread, so
+/// the cell is reachable from any of them (a Java data race is a data race here
+/// too; the generated code never holds the `&mut` across statements).
+struct SyncCell<T>(std::cell::UnsafeCell<T>);
+// SAFETY: see `MainThread` - a Java static is visible to every thread.
+unsafe impl<T> Sync for SyncCell<T> {}
+unsafe impl<T> Send for SyncCell<T> {}
+
+// SAFETY: a Java `static` is shared across threads; initialisation is
+// synchronised by the `OnceLock` (Java's class-init lock), later accesses are
+// exactly as racy as the Java field they port.
 unsafe impl<T> Sync for MainThread<T> {}
 unsafe impl<T> Send for MainThread<T> {}
 
 impl<T> MainThread<T> {
     pub const fn new(init: fn() -> T) -> MainThread<T> {
-        MainThread { init, value: std::cell::UnsafeCell::new(None), owner: std::sync::OnceLock::new() }
-    }
-
-    fn check(&self) {
-        let me = std::thread::current().id();
-        let owner = *self.owner.get_or_init(|| me);
-        if owner != me {
-            panic!(
-                "fabric2seer MainThread<{}>: a static first used on {:?} was reached from {:?} - Java only touches it on the render thread",
-                std::any::type_name::<T>(),
-                owner,
-                me
-            );
-        }
+        MainThread { init, value: std::sync::OnceLock::new() }
     }
 
     /// The value (created on first use).
@@ -100,14 +96,9 @@ impl<T> MainThread<T> {
     /// The value, mutably (a Java field write / mutating call).
     #[allow(clippy::mut_from_ref)]
     pub fn get_mut(&self) -> &mut T {
-        self.check();
-        // SAFETY: one thread (checked above); no reference outlives the statement that asked for it in the
-        // generated code.
-        let slot = unsafe { &mut *self.value.get() };
-        if slot.is_none() {
-            *slot = Some((self.init)());
-        }
-        slot.as_mut().unwrap()
+        let cell = self.value.get_or_init(|| SyncCell(std::cell::UnsafeCell::new((self.init)())));
+        // SAFETY: no reference outlives the statement that asked for it in the generated code.
+        unsafe { &mut *cell.0.get() }
     }
 
     /// `with(|v| ..)`: read through a closure.
@@ -596,7 +587,23 @@ pub fn executor(task: Box<dyn FnOnce() + Send>) {
 
 /// `Screen.font` / `Minecraft.font` as Java has it: a `Font` over the game's font set.
 pub fn font() -> mcrust::net::minecraft::client::gui::font::Font<'static> {
-    mcrust::net::minecraft::client::gui::font::Font { set: &minecraft().font }
+    // The game REPLACES its `Arc<FontSet>` on a resource reload, so a `Font`
+    // borrowing the field dangles once the old set is dropped (a static
+    // `Font` taken before the boot reload read freed memory). Keep one leaked
+    // clone per font set, so every `Font` handed out stays valid for ever.
+    use mcrust::net::minecraft::client::gui::font::font_set::FontSet;
+    static KEPT: std::sync::Mutex<Vec<&'static std::sync::Arc<FontSet>>> = std::sync::Mutex::new(Vec::new());
+    let current = &minecraft().font;
+    let mut kept = KEPT.lock().unwrap_or_else(|p| p.into_inner());
+    let set: &'static std::sync::Arc<FontSet> = match kept.iter().find(|k| std::sync::Arc::ptr_eq(k, current)) {
+        Some(k) => k,
+        None => {
+            let k: &'static std::sync::Arc<FontSet> = Box::leak(Box::new(std::sync::Arc::clone(current)));
+            kept.push(k);
+            k
+        }
+    };
+    mcrust::net::minecraft::client::gui::font::Font { set }
 }
 
 /// A Component the port hands back as the `FormattedText` it is (`Component extends FormattedText`):
@@ -776,11 +783,15 @@ pub mod regex {
     }
 
     /// `java.util.regex.Pattern`.
+    ///
+    /// PERF: Java's `Pattern` is an immutable shared object and `matcher(..)` only points at it; here `matcher`
+    /// keeps its own `Pattern`, so the compiled parts are SHARED (`Arc`) - a `clone()` is three reference-count
+    /// increments instead of copying two compiled `fancy_regex` programs and the source string per `matcher()`.
     #[derive(Clone, Debug)]
     pub struct Pattern {
-        source: String,
-        re: fancy_regex::Regex,
-        full: fancy_regex::Regex,
+        source: std::sync::Arc<str>,
+        re: std::sync::Arc<fancy_regex::Regex>,
+        full: std::sync::Arc<fancy_regex::Regex>,
         flags: i32,
     }
 
@@ -811,12 +822,36 @@ pub mod regex {
                 .unwrap_or_else(|e| panic!("PatternSyntaxException: {e} in {regex:?}"));
             let full = fancy_regex::Regex::new(&format!("^(?:{body})$"))
                 .unwrap_or_else(|e| panic!("PatternSyntaxException: {e} in {regex:?}"));
-            Pattern { source: regex.to_string(), re, full, flags }
+            Pattern { source: std::sync::Arc::from(regex), re: std::sync::Arc::new(re), full: std::sync::Arc::new(full), flags }
         }
 
         /// `Pattern.matches(regex, input)`.
         pub fn matches(regex: &str, input: &str) -> bool {
-            Pattern::compile(regex).full.is_match(input).unwrap_or(false)
+            // `Pattern.compile(regex).matcher(input).matches()`: only the whole-input form is used, so only it is
+            // built (it was two `fancy_regex` compiles a call), and the compiled form is kept per source string -
+            // a regex compile here costs far more than Java's, and `QuickNav.init` runs 14 of them per screen init.
+            thread_local! {
+                static FULL: std::cell::RefCell<std::collections::HashMap<String, Result<fancy_regex::Regex, String>>> = std::cell::RefCell::new(std::collections::HashMap::new());
+            }
+            // PERF: a hit neither allocates the key nor clones the compiled regex - the match runs in place.
+            let answer: Result<bool, String> = FULL.with(|cache| {
+                let mut cache = cache.borrow_mut();
+                if !cache.contains_key(regex) {
+                    if cache.len() > 256 {
+                        cache.clear();
+                    }
+                    let body = translate(regex);
+                    cache.insert(regex.to_string(), fancy_regex::Regex::new(&format!("^(?:{body})$")).map_err(|e| e.to_string()));
+                }
+                match cache.get(regex).expect("inserted above") {
+                    Ok(full) => Ok(full.is_match(input).unwrap_or(false)),
+                    Err(e) => Err(e.clone()),
+                }
+            });
+            match answer {
+                Ok(matched) => matched,
+                Err(e) => panic!("PatternSyntaxException: {e} in {regex:?}"),
+            }
         }
 
         /// `Pattern.quote(s)`.
@@ -880,22 +915,46 @@ pub mod regex {
 
     /// `String.split(regex)`.
     pub fn split(input: &str, regex: &str) -> Vec<String> {
-        split_with(&Pattern::compile(regex).re, input, 0)
+        split_with(&cached_re(regex), input, 0)
     }
 
     /// `String.split(regex, limit)`.
     pub fn split_limit(input: &str, regex: &str, limit: i32) -> Vec<String> {
-        split_with(&Pattern::compile(regex).re, input, limit)
+        split_with(&cached_re(regex), input, limit)
     }
 
     /// `String.replaceAll(regex, replacement)`.
     pub fn replace_all(input: &str, regex: &str, rep: &str) -> String {
-        Pattern::compile(regex).re.replace_all(input, java_replacement(rep).as_str()).into_owned()
+        cached_re(regex).replace_all(input, java_replacement(rep).as_str()).into_owned()
+    }
+
+    /// The `String.split` / `replaceAll` / `replaceFirst` regex, compiled once per source string (Java compiles one
+    /// per call, but cheaply; `Pattern::compile` here builds two `fancy_regex`es and those helpers run per frame in
+    /// HUD and tooltip code). A bad pattern panics as `Pattern.compile` throws.
+    ///
+    /// PERF: the cache hands out a shared handle (`Arc`), not a clone of the compiled `fancy_regex::Regex` - cloning
+    /// one copies its program and pattern string, an allocation per `split` / `replaceAll` call.
+    fn cached_re(regex: &str) -> std::sync::Arc<fancy_regex::Regex> {
+        thread_local! {
+            static RE: std::cell::RefCell<std::collections::HashMap<String, std::sync::Arc<fancy_regex::Regex>>> = std::cell::RefCell::new(std::collections::HashMap::new());
+        }
+        if let Some(re) = RE.with(|cache| cache.borrow().get(regex).cloned()) {
+            return re;
+        }
+        let re = Pattern::compile(regex).re;
+        RE.with(|cache| {
+            let mut cache = cache.borrow_mut();
+            if cache.len() > 256 {
+                cache.clear();
+            }
+            cache.insert(regex.to_string(), re.clone());
+        });
+        re
     }
 
     /// `String.replaceFirst(regex, replacement)`.
     pub fn replace_first(input: &str, regex: &str, rep: &str) -> String {
-        Pattern::compile(regex).re.replace(input, java_replacement(rep).as_str()).into_owned()
+        cached_re(regex).replace(input, java_replacement(rep).as_str()).into_owned()
     }
 
     /// One match (`MatchResult`): the groups as found.
@@ -1270,8 +1329,13 @@ pub type WeakShared<T: ?Sized> = std::sync::Weak<parking_lot::ReentrantMutex<std
 /// that may reach the same object again.
 pub fn read<T: ?Sized, R>(s: &Shared<T>, f: impl FnOnce(&T) -> R) -> R {
     let guard = s.lock();
-    let value = guard.borrow();
-    f(&value)
+    match guard.try_borrow() {
+        Ok(value) => f(&value),
+        // Java reads a field while a method on the same object (this thread,
+        // further up the stack) is writing it; the re-entrant lock is ours, so
+        // read the live value as Java would instead of panicking every frame.
+        Err(_) => f(unsafe { &*guard.as_ptr() }),
+    }
 }
 
 /// Writes the object behind a shared reference, the borrow lasting exactly as long as `f`.
@@ -2157,6 +2221,33 @@ impl<C: ContainerHalf + 'static> ContainerScreenAdapter<C> {
         f(&self.object)
     }
 
+    /// `init()` for a class that extends `AbstractContainerScreen` DIRECTLY and sets its own geometry in its
+    /// constructor (`super(handler, inventory, title, 176, imageHeight)`, `inventoryLabelY = ..`, `titleLabelX = ..`):
+    /// the game's screen is the VANILLA class's (a chest's `imageHeight = 114 + rows * 18`), so the constructor's
+    /// fields - which stay on the object's own half between calls - are put on it first, then
+    /// `AbstractContainerScreen.init:80-81`'s centring is run again with them (`super.init()`), then the override.
+    pub fn lend_init<R>(
+        &self,
+        screen: &mut mcrust::net::minecraft::client::gui::screens::inventory::abstract_container_screen::AbstractContainerScreen,
+        f: impl FnOnce(&Shared<C>) -> R,
+    ) -> R {
+        self.check();
+        let (image_width, image_height, title_label_x, title_label_y, inventory_label_x, inventory_label_y) = write(&self.object, |t| {
+            let half = t.container_half();
+            (half.image_width, half.image_height, half.title_label_x, half.title_label_y, half.inventory_label_x, half.inventory_label_y)
+        });
+        screen.image_width = image_width;
+        screen.image_height = image_height;
+        screen.title_label_x = title_label_x;
+        screen.title_label_y = title_label_y;
+        screen.inventory_label_x = inventory_label_x;
+        screen.inventory_label_y = inventory_label_y;
+        // java: AbstractContainerScreen.init:80-81
+        screen.left_pos = mcrust::net::minecraft::client::gui::screens::inventory::abstract_container_screen::left_pos(screen.screen.width, image_width);
+        screen.top_pos = mcrust::net::minecraft::client::gui::screens::inventory::abstract_container_screen::top_pos(screen.screen.height, image_height);
+        self.lend(screen, f)
+    }
+
     /// A method that only READS the game's screen (the extract passes): its geometry brought into the object.
     pub fn lend_ref<R>(
         &self,
@@ -2222,9 +2313,16 @@ pub struct ContainerResult {
     screen: Option<Box<dyn mcrust::mcrust::modding::container_screens::ModContainerScreen>>,
     plain: Option<Box<dyn mcrust::mcrust::modding::screens::ModScreen>>,
     menu: Option<Box<dyn mcrust::mcrust::modding::container_menus::ModMenu>>,
+    keep: bool,
 }
 
 impl ContainerResult {
+    /// `screen.changeHandler(handler); ci.cancel()` with the mod's screen already up: the open screen stays and
+    /// only the menu under it changes (`ModContainer::keep_screen`).
+    pub fn keep_screen(&mut self) {
+        self.keep = true;
+    }
+
     pub fn container_screen(&mut self, screen: Box<dyn mcrust::mcrust::modding::container_screens::ModContainerScreen>) {
         self.screen = Some(screen);
     }
@@ -2240,6 +2338,10 @@ impl ContainerResult {
     /// `ci.cancel()`: the answer.
     pub fn finish(&mut self) -> Option<mcrust::mcrust::modding::container_screens::ModContainer> {
         use mcrust::mcrust::modding::container_screens::ModContainer;
+        if self.keep {
+            self.keep = false;
+            return Some(ModContainer::keep_screen(self.menu.take()));
+        }
         if let Some(plain) = self.plain.take() {
             return Some(match self.menu.take() {
                 Some(m) => ModContainer::mod_screen_and_menu(plain, m),
@@ -2486,12 +2588,202 @@ pub fn identity_hash_code(stack: &mcrust::net::minecraft::world::item::item_stac
     stack.get_attached_or_create(&IDENTITY, || NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed))
 }
 
+// ===========================================================================
+// perf round 1 (P02-mods-runtime): A/B switches, hook stand-down gates and the
+// shared empty HUD element. Port-only machinery; no Java counterpart.
+// ===========================================================================
+
+/// OPTIMIZED BUT NOT FULLY VANILLA (perf round 1, P02-mods-runtime): an A/B
+/// switch read ONCE from the environment - `on()` is `NAME=1`, and turns the
+/// optimisation it guards back into the code it replaced. Never re-reads the
+/// environment (one relaxed load per call after the first).
+pub struct EnvSwitch {
+    name: &'static str,
+    /// 0 unread, 1 off, 2 on.
+    state: std::sync::atomic::AtomicU8,
+}
+
+impl EnvSwitch {
+    pub const fn new(name: &'static str) -> EnvSwitch {
+        EnvSwitch { name, state: std::sync::atomic::AtomicU8::new(0) }
+    }
+
+    pub fn on(&self) -> bool {
+        use std::sync::atomic::Ordering;
+        match self.state.load(Ordering::Relaxed) {
+            1 => false,
+            2 => true,
+            _ => {
+                let on = std::env::var_os(self.name).is_some_and(|v| v == "1");
+                self.state.store(if on { 2 } else { 1 }, Ordering::Relaxed);
+                on
+            }
+        }
+    }
+}
+
+/// The game's switch for every cached hook gate: `MCRUST_VANILLA_HOOK_GATES=1`
+/// makes a `HookStandDown` rescan the injector list on every call.
+pub static VANILLA_HOOK_GATES: EnvSwitch = EnvSwitch::new("MCRUST_VANILLA_HOOK_GATES");
+
+/// The owner the loader records for the injectors this mod registers (its
+/// `seer.mod.json` id: entrypoints run under `loader::with_current_mod`).
+pub const SKYBLOCKER_OWNER: &str = "skyblocker";
+
+/// OPTIMIZED BUT NOT FULLY VANILLA (perf round 1, P02-mods-runtime): the
+/// STAND-DOWN check a memo needs before it skips hooked game calls whose answer
+/// it remembers. `clear()` is `true` while NO non-Track injector targets any of
+/// `targets`; it is recomputed only when the injector list changes
+/// (`hook::injector_generation`), so a call costs two relaxed loads.
+///
+/// A target is `(class, method)`: a `class` ending in `.` is a package prefix,
+/// `method` `"*"` is any method, and an injector whose own method is `"*"`
+/// matches every method of its class. A selector with a descriptor matches
+/// whatever overload it names - conservatively, a stand-down. With
+/// `own_excluded`, injectors this mod registered itself do not count: the memo
+/// that uses such a gate says why each of its own is inert on its path.
+pub struct HookStandDown {
+    targets: &'static [(&'static str, &'static str)],
+    own_excluded: bool,
+    /// `generation << 1 | clear`; 0 = never computed (generations start at 1).
+    state: std::sync::atomic::AtomicU64,
+}
+
+impl HookStandDown {
+    pub const fn new(targets: &'static [(&'static str, &'static str)], own_excluded: bool) -> HookStandDown {
+        HookStandDown { targets, own_excluded, state: std::sync::atomic::AtomicU64::new(0) }
+    }
+
+    pub fn clear(&self) -> bool {
+        use mcrust::mcrust::modding::hook;
+        use std::sync::atomic::Ordering;
+        if !hook::hooks_live() {
+            // No injector exists at all.
+            return true;
+        }
+        if !VANILLA_HOOK_GATES.on() {
+            let state = self.state.load(Ordering::Relaxed);
+            if state != 0 && state >> 1 == hook::injector_generation() {
+                return state & 1 == 1;
+            }
+        }
+        // Reads injector fields only (`with_injectors`' contract: no hook API,
+        // no hooked game function, no guard call under the registry lock).
+        let (generation, clear) =
+            hook::with_injectors(|generation, injectors| (generation, !injectors.iter().any(|injector| self.blocks(injector))));
+        self.state.store(generation << 1 | clear as u64, Ordering::Relaxed);
+        clear
+    }
+
+    fn blocks(&self, injector: &mcrust::mcrust::modding::hook::Injector) -> bool {
+        self.matches(
+            injector.kind == mcrust::mcrust::modding::hook::InjectorKind::Track,
+            &injector.owner,
+            &injector.target.class,
+            &injector.target.method,
+        )
+    }
+
+    /// `blocks` over the four injector fields it reads.
+    fn matches(&self, track: bool, owner: &str, class: &str, method: &str) -> bool {
+        if track {
+            return false;
+        }
+        if self.own_excluded && owner == SKYBLOCKER_OWNER {
+            return false;
+        }
+        self.targets.iter().any(|(target_class, target_method)| {
+            let class_hit = if target_class.ends_with('.') { class.starts_with(target_class) } else { class == *target_class };
+            class_hit && (*target_method == "*" || method == "*" || method == *target_method)
+        })
+    }
+}
+
+#[cfg(test)]
+mod hook_stand_down_tests {
+    use super::{HookStandDown, SKYBLOCKER_OWNER};
+
+    /// Exact classes, package prefixes, method wildcards on either side, Track companions and the own-injector rule.
+    #[test]
+    fn the_stand_down_matches_what_it_names_and_nothing_else() {
+        static EXACT: HookStandDown = HookStandDown::new(&[("net.minecraft.world.entity.Entity", "getCustomName")], false);
+        static PACKAGE_OWN_EXCLUDED: HookStandDown = HookStandDown::new(&[("net.minecraft.network.chat.", "*")], true);
+        assert!(EXACT.matches(false, "othermod", "net.minecraft.world.entity.Entity", "getCustomName"));
+        assert!(EXACT.matches(false, "othermod", "net.minecraft.world.entity.Entity", "*"), "an injector on every method");
+        assert!(EXACT.matches(false, SKYBLOCKER_OWNER, "net.minecraft.world.entity.Entity", "getCustomName"), "own counts here");
+        assert!(!EXACT.matches(true, "othermod", "net.minecraft.world.entity.Entity", "getCustomName"), "a Track companion");
+        assert!(!EXACT.matches(false, "othermod", "net.minecraft.world.entity.Entity", "getName"));
+        assert!(!EXACT.matches(false, "othermod", "net.minecraft.world.entity.EntityType", "getCustomName"), "exact class only");
+        assert!(PACKAGE_OWN_EXCLUDED.matches(false, "othermod", "net.minecraft.network.chat.MutableComponent", "getString"));
+        assert!(PACKAGE_OWN_EXCLUDED.matches(false, "unknown", "net.minecraft.network.chat.contents.TranslatableContents", "visit"));
+        assert!(!PACKAGE_OWN_EXCLUDED.matches(false, SKYBLOCKER_OWNER, "net.minecraft.network.chat.MutableComponent", "getVisualOrderText"));
+        assert!(!PACKAGE_OWN_EXCLUDED.matches(false, "othermod", "net.minecraft.network.chatter.Thing", "x"), "a prefix ends at a package dot");
+        assert!(!PACKAGE_OWN_EXCLUDED.matches(false, "othermod", "net.minecraft.world.item.ItemStack", "getHoverName"));
+    }
+}
+
+/// Java's `(_, _) -> {}` - the empty `HudElement` a replacer returns to hide a
+/// vanilla element.
+///
+/// OPTIMIZED BUT NOT FULLY VANILLA (perf round 1, P02-mods-runtime): ONE shared
+/// element instead of an `Arc::new` per replacer call (the replacers run every
+/// frame, some twice). It is still not the registry's VANILLA element, so
+/// `vanilla_element_shown` answers the same, and it still draws nothing.
+/// `SKYBLOCKER_VANILLA_HUD_REPLACERS=1` builds a fresh one per call, as before.
+pub fn empty_hud_element() -> std::sync::Arc<mcrust::mcrust::modding::hud_element_registry::HudElement> {
+    use mcrust::mcrust::modding::events::hud_render_callback::HudRenderContext;
+    use mcrust::mcrust::modding::hud_element_registry::HudElement;
+    use std::sync::Arc;
+    static VANILLA: EnvSwitch = EnvSwitch::new("SKYBLOCKER_VANILLA_HUD_REPLACERS");
+    static EMPTY: std::sync::LazyLock<Arc<HudElement>> = std::sync::LazyLock::new(|| -> Arc<HudElement> { Arc::new(|_: &mut HudRenderContext<'_>| {}) });
+    if VANILLA.on() {
+        let empty: Arc<HudElement> = Arc::new(|_: &mut HudRenderContext<'_>| {});
+        return empty;
+    }
+    Arc::clone(&EMPTY)
+}
+
+/// Whether a container screen's `AbstractContainerScreen.init` is running now (the game's open sites initialise it
+/// before `setScreen` publishes its kind).
+pub fn container_screen_initialising() -> bool {
+    mcrust::net::minecraft::client::gui::screens::inventory::abstract_container_screen::is_initialising_container_screen()
+}
+
+/// `screen instanceof InventoryScreen` for the screen a `ScreenEvents.BEFORE_INIT` / `AFTER_INIT` listener is handed.
+/// `gui.screen_kind` alone cannot answer it: the game initialises a new screen BEFORE `setScreen` writes its kind, so a
+/// chest a SkyBlock menu item opens from the inventory is initialised while the kind still says `Inventory` (and the
+/// inventory opened from the world while it says the world). `InventoryScreen.init` marks itself; a re-init of the
+/// inventory already up (a resize) is the kind with no menu screen being built.
+pub fn is_inventory_screen_initialising() -> bool {
+    if mcrust::net::minecraft::client::gui::screens::inventory::inventory_screen::is_initialising_inventory_screen() {
+        return true;
+    }
+    mcrust::net::minecraft::client::gui::screens::menu_screens::building_chest_screen().is_none()
+        && minecraft().gui.screen_kind == mcrust::net::minecraft::client::gui::gui::ScreenKind::Inventory
+}
+
+/// `screen instanceof ContainerScreen` for the screen a `ScreenEvents.BEFORE_INIT` / `AFTER_INIT` listener is handed
+/// (see `is_inventory_screen_initialising`): the menu screen being built, else the kind of the screen already up.
+pub fn is_chest_screen_initialising() -> bool {
+    match mcrust::net::minecraft::client::gui::screens::menu_screens::building_chest_screen() {
+        Some(chest) => chest,
+        None => !mcrust::net::minecraft::client::gui::screens::inventory::inventory_screen::is_initialising_inventory_screen()
+            && minecraft().gui.screen_kind == mcrust::net::minecraft::client::gui::gui::ScreenKind::Container,
+    }
+}
+
 /// `Minecraft.getInstance().screen instanceof AbstractContainerScreen` from anywhere (a tooltip callback, a tick):
 /// the kind the game publishes once a frame (`gui::current_screen_kind`), which names every container screen
 /// (`InventoryScreen`, `ContainerScreen`, the furnaces, ..., `CreativeModeInventoryScreen` - all
 /// `AbstractContainerScreen`s; a mod's container screen rides on the vanilla one it replaced).
 pub fn container_screen_open() -> bool {
     use mcrust::net::minecraft::client::gui::gui::ScreenKind;
+    // During a container screen's own `Screen.init(w, h)` (its `ScreenEvents.BEFORE_INIT` / `AFTER_INIT`): the game
+    // builds and initialises it before `setScreen` writes the kind below, which then still names the PREVIOUS screen
+    // (the world, for the inventory key or a menu opened from it) - Java's `screen instanceof AbstractContainerScreen`.
+    if mcrust::net::minecraft::client::gui::screens::inventory::abstract_container_screen::is_initialising_container_screen() {
+        return true;
+    }
     // `gui.screen_kind` is the tag `setScreen` writes before the new screen's `init` (so `ScreenEvents.AFTER_INIT`
     // sees its own screen); before the first client tick only the published copy exists.
     let p = MINECRAFT.load(std::sync::atomic::Ordering::Acquire);
@@ -3008,7 +3300,13 @@ pub fn online_player_infos(
     use mcrust::net::minecraft::client::gui::components::player_tab_overlay::{compare_players, PlayerSortKey};
     use mcrust::net::minecraft::client::multiplayer::player_info::PlayerInfo;
     let mut keyed: Vec<(PlayerSortKey, Shared<PlayerInfo>)> = Vec::new();
-    {
+    // OPTIMIZED BUT NOT FULLY VANILLA (perf round 1, P02-mods-runtime): see
+    // `online_player_infos_indexed`. `SKYBLOCKER_VANILLA_PLAYER_INFOS=1` runs the
+    // quadratic body below, as before.
+    static VANILLA_PLAYER_INFOS: EnvSwitch = EnvSwitch::new("SKYBLOCKER_VANILLA_PLAYER_INFOS");
+    if !VANILLA_PLAYER_INFOS.on() {
+        online_player_infos_indexed(sinks, &mut keyed);
+    } else {
         let online = sinks.online_players.lock().unwrap_or_else(|p| p.into_inner());
         let listed = sinks.tab_list_players.lock().unwrap_or_else(|p| p.into_inner());
         ONLINE_PLAYER_INFOS.with(|cache| {
@@ -3057,6 +3355,100 @@ pub fn online_player_infos(
     }
     keyed.sort_by(|a, b| compare_players(&a.0, &b.0));
     keyed.into_iter().map(|(_, info)| info).collect()
+}
+
+/// `online_player_infos`' first block, OPTIMIZED BUT NOT FULLY VANILLA (perf
+/// round 1, P02-mods-runtime). The quadratic block - `cache.retain` asking
+/// `online.iter().any(..)` per cached player, and `listed.iter().find(..)` per
+/// online player, tens of thousands of UUID compares for ~200 entries every
+/// second tick while a hub roster churns - becomes one `HashSet` of the online
+/// ids and one `HashMap` of the listed rows (the FIRST row per id, which is the
+/// row `find` answered). The same `PlayerInfo` objects, kept and dropped by the
+/// same rule, pushed in `online`'s order with the same values, so the stable
+/// sort that follows gives the same order.
+///
+/// A setter whose value is already the field's is skipped (no `FormattedText`
+/// deep clone per row per update) - but only while no non-Track injector
+/// targets `PlayerInfo` (`PLAYER_INFO_SETTERS`): the setters and getters are
+/// hooked methods, and a skipped call or an extra read must be unobservable.
+/// Otherwise every setter runs as before.
+fn online_player_infos_indexed(
+    sinks: &mcrust::net::minecraft::client::multiplayer::client_packet_listener::PlayListenerSinks,
+    keyed: &mut Vec<(mcrust::net::minecraft::client::gui::components::player_tab_overlay::PlayerSortKey, Shared<mcrust::net::minecraft::client::multiplayer::player_info::PlayerInfo>)>,
+) {
+    use mcrust::java::util::uuid::Uuid;
+    use mcrust::net::minecraft::client::gui::components::player_tab_overlay::PlayerSortKey;
+    use mcrust::net::minecraft::client::multiplayer::client_packet_listener::TabListEntry;
+    use mcrust::net::minecraft::client::multiplayer::player_info::PlayerInfo;
+    static PLAYER_INFO_SETTERS: HookStandDown = HookStandDown::new(&[("net.minecraft.client.multiplayer.PlayerInfo", "*")], false);
+    let skip_equal_writes = PLAYER_INFO_SETTERS.clear();
+    let online = sinks.online_players.lock().unwrap_or_else(|p| p.into_inner());
+    let listed = sinks.tab_list_players.lock().unwrap_or_else(|p| p.into_inner());
+    let online_ids: std::collections::HashSet<Uuid> = online.iter().map(|e| e.profile.id()).collect();
+    let mut listed_by_id: std::collections::HashMap<Uuid, &TabListEntry> = std::collections::HashMap::with_capacity(listed.len());
+    for t in listed.iter() {
+        // `find` answers the first matching row.
+        listed_by_id.entry(t.profile_id).or_insert(t);
+    }
+    ONLINE_PLAYER_INFOS.with(|cache| {
+        let mut cache = cache.borrow_mut();
+        // Was: cache.retain(|id, _| online.iter().any(|e| e.profile.id() == *id));
+        cache.retain(|id, _| online_ids.contains(id));
+        for entry in online.iter() {
+            let id = entry.profile.id();
+            let info = cache
+                .entry(id)
+                .or_insert_with(|| shared(PlayerInfo::new(entry.profile.clone(), false)))
+                .clone();
+            // Was: let tab = listed.iter().find(|t| t.profile_id == id);
+            let tab: Option<&TabListEntry> = listed_by_id.get(&id).copied();
+            let (order, game_mode) = write(&info, |i| {
+                match tab {
+                    Some(t) if skip_equal_writes => {
+                        if i.get_tab_list_display_name() != t.tab_list_display_name.as_ref() {
+                            i.set_tab_list_display_name(t.tab_list_display_name.clone());
+                        }
+                        if i.get_tab_list_order() != t.tab_list_order {
+                            i.set_tab_list_order(t.tab_list_order);
+                        }
+                        if i.get_game_mode() != t.game_mode {
+                            i.set_game_mode(t.game_mode);
+                        }
+                        if i.get_latency() != t.latency {
+                            i.set_latency(t.latency);
+                        }
+                        if i.show_hat() != t.show_hat {
+                            i.set_show_hat(t.show_hat);
+                        }
+                    }
+                    Some(t) => {
+                        i.set_tab_list_display_name(t.tab_list_display_name.clone());
+                        i.set_tab_list_order(t.tab_list_order);
+                        i.set_game_mode(t.game_mode);
+                        i.set_latency(t.latency);
+                        i.set_show_hat(t.show_hat);
+                    }
+                    None if skip_equal_writes => {
+                        let game_mode = entry.skin.get_game_mode();
+                        if i.get_game_mode() != game_mode {
+                            i.set_game_mode(game_mode);
+                        }
+                    }
+                    None => i.set_game_mode(entry.skin.get_game_mode()),
+                }
+                (i.get_tab_list_order(), i.get_game_mode())
+            });
+            keyed.push((
+                PlayerSortKey {
+                    tab_list_order: order,
+                    game_mode,
+                    team_name: String::new(),
+                    profile_name: entry.profile.name().to_string(),
+                },
+                info,
+            ));
+        }
+    });
 }
 
 /// `java.util.Random` with Java's own sequence: the 48-bit linear congruential generator (`new Random(seed)`), for
@@ -3482,7 +3874,7 @@ pub fn direction_value(
 }
 
 thread_local! {
-    /// The panel of the last `AbstractContainerScreen` the game drew (`extractRenderState` HEAD, `register_hooks`):
+    /// The panel of the last `AbstractContainerScreen` the game drew (`extractContents` HEAD - the inventory screen never runs the base `extractRenderState`, `register_hooks`):
     /// `leftPos`, `topPos`, `imageWidth`, `imageHeight`, and whether it is a `ContainerScreen` (the chest screen).
     static CONTAINER_PANEL: std::cell::Cell<Option<(i32, i32, i32, i32, bool)>> = const { std::cell::Cell::new(None) };
 }
@@ -3493,7 +3885,7 @@ pub fn register_hooks() {
     // `AbstractContainerScreenAccessor.getX/getY/getImageWidth/getImageHeight` read by a widget the screen draws: the
     // screen object is the game's and is lent to the frame while it draws, so the panel is recorded as it starts.
     let result = hook::register_injector(
-        "net.minecraft.client.gui.screens.inventory.AbstractContainerScreen#extractRenderState",
+        "net.minecraft.client.gui.screens.inventory.AbstractContainerScreen#extractContents",
         InjectOptions::at(At::Head).kind(InjectorKind::Inject).priority(1000),
         std::sync::Arc::new(|ci: &mut mcrust::mcrust::modding::hook::CallbackInfo<'_>| {
             let Some(state) = ci.find_arg::<mcrust::net::minecraft::client::gui::screens::inventory::abstract_container_screen::AbstractContainerScreen>() else {
@@ -3691,7 +4083,7 @@ pub fn children_key_pressed(
     let font = font();
     with_edit_box(widget, |e| {
         let mut memory = mcrust::net::minecraft::client::gui::components::edit_box::MemoryClipboard::default();
-        match mcrust::net::minecraft::client::minecraft::GlfwClipboard::published() {
+        match mcrust::net::minecraft::client::minecraft::SdlClipboard::published() {
             Some(mut clipboard) => e.key_pressed(&font.splitter(), event.clone(), is_focused, active, &mut clipboard),
             None => e.key_pressed(&font.splitter(), event.clone(), is_focused, active, &mut memory),
         }
@@ -3727,7 +4119,7 @@ pub fn key_display_name(
     use mcrust::com::mojang::blaze3d::platform::input_constants::DisplayName;
     use mcrust::net::minecraft::network::chat::component;
     let p = MINECRAFT.load(std::sync::atomic::Ordering::Acquire);
-    let key_name = |k: i32, _scancode: i32| -> Option<String> {
+    let key_name = |k: i32| -> Option<String> {
         if p.is_null() {
             return None;
         }
@@ -4012,9 +4404,19 @@ pub trait ObjectWidget: 'static {
         false
     }
 
+    /// `GuiEventListener.preeditUpdated(@Nullable PreeditEvent):46-48` - `false`.
+    fn preedit_updated(
+        &mut self,
+        widget: &mut mcrust::net::minecraft::client::gui::components::abstract_widget::AbstractWidget,
+        event: Option<&mcrust::net::minecraft::client::input::preedit_event::PreeditEvent>,
+    ) -> bool {
+        let _ = (widget, event);
+        false
+    }
+
     /// `isValidClickButton:137-139`.
     fn is_valid_click_button(&self, button_info: mcrust::net::minecraft::client::input::mouse_button_info::MouseButtonInfo) -> bool {
-        button_info.button() == 0
+        button_info.button() == 1
     }
 
     /// `isMouseOver:161-164` - `isActive() && areCoordinatesInRectangle(..)`.
@@ -4228,6 +4630,14 @@ impl<C: ObjectWidget + ?Sized + 'static> mcrust::mcrust::modding::widgets::ModWi
         event: &mcrust::net::minecraft::client::input::character_event::CharacterEvent,
     ) -> bool {
         self.call(widget, |o, w| o.char_typed(w, event))
+    }
+
+    fn preedit_updated(
+        &mut self,
+        widget: &mut mcrust::net::minecraft::client::gui::components::abstract_widget::AbstractWidget,
+        event: Option<&mcrust::net::minecraft::client::input::preedit_event::PreeditEvent>,
+    ) -> bool {
+        self.call(widget, |o, w| o.preedit_updated(w, event))
     }
 
     fn is_valid_click_button(&self, button_info: mcrust::net::minecraft::client::input::mouse_button_info::MouseButtonInfo) -> bool {
@@ -4615,7 +5025,7 @@ mod moved_helpers {
     /// each key's values an `ArrayList` in insertion order. A key whose list is empty is not in the map (Guava drops
     /// it), which `equals` and `values` both see. Java holds the map by reference (`WaypointsScreen` and the
     /// `WaypointsShareScreen` it opens edit the same one), so every holder keeps a `compat::Shared` of it.
-    /// rust: belongs with `compat` (Guava's `Multimap` is unported - `crate::unresolved::Multimap`); kept here, the one
+    /// Placement: belongs with `compat` (Guava's `Multimap` is unported - `crate::unresolved::Multimap`); kept here, the one
     /// package that builds this map.
     #[derive(Default)]
     pub struct LocationMultimap {
@@ -4704,7 +5114,7 @@ mod moved_helpers {
     /// `parse(String)`: the longest prefix of `text` that is a number - an optional `-`, digits with `,` grouping
     /// separators (a trailing `,` is not taken), at most one `.` (no `,` after it), and an `E` exponent; `NaN` and the
     /// infinity sign as the symbols. `None` is the `ParseException` (nothing at the start parsed).
-    /// rust: port gap - `DecimalFormat.parse` / `NumberFormat.getNumberInstance` (java/text has `new` + `format`); the
+    /// Verified gap: `DecimalFormat.parse` / `NumberFormat.getNumberInstance` (java/text has `new` + `format`); the
     /// JDK body is reproduced here for this one caller (GAPS_batchI.md)
     pub fn number_instance_us_parse(text: &str) -> Option<f64> {
         let chars: Vec<char> = text.chars().collect();
@@ -4781,7 +5191,7 @@ mod moved_helpers {
     /// style.hashCode()) + siblings.hashCode()`) for the component a secret waypoint is named with,
     /// `Component.nullToEmpty(name)`: `LiteralContents(text)` (a record of one field: `text.hashCode()`), `Style.EMPTY`
     /// (`Objects.hash` of ten nulls: `31^10`) and no siblings (`List.hashCode()` of an empty list: `1`).
-    /// rust: port gap - any other component (a style, siblings, other contents) has no Java `int` in the port; such a
+    /// Verified gap: any other component (a style, siblings, other contents) has no Java `int` in the port; such a
     /// name hashes by the port's own value (consistent with `equals`, not the JVM's number)
     pub fn component_java_hash_code(name: &mcrust::net::minecraft::network::chat::mutable_component::MutableComponent) -> i32 {
         use mcrust::net::minecraft::network::chat::component::Component as _;
@@ -5166,11 +5576,22 @@ pub fn add_slot_listener(
     use mcrust::net::minecraft::world::entity::player::player::Player as _;
     let container_id = handler.menu.container_id;
     let mut menu = std::mem::replace(&mut handler.menu, mcrust::net::minecraft::world::inventory::abstract_container_menu::AbstractContainerMenu::new(container_id));
-    mcrust::mcrust::modding::game::with_player(|player| {
-        let (_, _, inventory) = player.player_mut().get_container_menu_and_inventory();
-        let mut containers = handler.containers_for(inventory);
-        menu.add_slot_listener(listener, &mut containers);
-    });
+    let mut listener = Some(listener);
+    // Inside `MenuScreens.fromPacket:106` (every factory caller) the open site holds the player, so `with_player`
+    // does not run its closure: the listener went nowhere and no `slotChanged` ever reached the screen (the Fancy
+    // Auction House's sponge tabs, "0/1" and "?" rarity). There the menu is the fresh one, and the listener goes on
+    // through `add_slot_listener_at_open`.
+    let player_free = mcrust::mcrust::modding::game::has_player() && !mcrust::mcrust::modding::game::player_held_here();
+    if player_free {
+        mcrust::mcrust::modding::game::with_player(|player| {
+            let (_, _, inventory) = player.player_mut().get_container_menu_and_inventory();
+            let mut containers = handler.containers_for(inventory);
+            menu.add_slot_listener(listener.take().unwrap(), &mut containers);
+        });
+    }
+    if let Some(listener) = listener.take() {
+        mcrust::mcrust::modding::container_menus::add_slot_listener_at_open(&mut menu, listener);
+    }
     handler.menu = menu;
 }
 
@@ -5230,28 +5651,22 @@ pub fn local_of<T: Clone + Send + 'static>(future: &mcrust::java::util::concurre
     local
 }
 
-/// `NEURepoFile.isFile()`.
-///
-/// rust: port gap - the NEU repo library (`io.github.moulberry.repo`) is a `crate::unresolved` placeholder with no file
-/// behind it, and `NEURepoManager.tree(..)` answers no files (GAPS_L, GAPS_M #10); a placeholder file is no regular file.
+/// `NEURepoFile.isFile()` (kept for its callers; it is `file.is_file()`).
 /// (Was a private copy in `block_break_prediction.rs`.)
-pub fn neu_repo_file_is_file(file: &crate::unresolved::NEURepoFile) -> bool {
-    let _ = file;
-    false
+pub fn neu_repo_file_is_file(file: &crate::io::github::moulberry::repo::neu_repo_file::NEURepoFile) -> bool {
+    file.is_file()
 }
 
-/// `new String(file.stream().readAllBytes())`.
-///
-/// rust: port gap - see `neu_repo_file_is_file` (GAPS_M #10): a placeholder file has no content. (Was a private copy in
+/// `new String(file.stream().readAllBytes())` - the stream's `NEURepositoryException` / `IOException` is a panic, as
+/// the Java throw is (every caller sits in a `catch (Exception e)` - `catch_unwind`). (Was a private copy in
 /// `block_break_prediction.rs` and `attributes.rs`.)
-pub fn neu_repo_file_read_all(file: &crate::unresolved::NEURepoFile) -> String {
-    let _ = file;
-    String::new()
+pub fn neu_repo_file_read_all(file: &crate::io::github::moulberry::repo::neu_repo_file::NEURepoFile) -> String {
+    file.read_to_string().unwrap_or_else(|e| panic!("{}", e))
 }
 
 /// `Class.forName(name)` - another mod's JVM class.
 ///
-/// rust: port gap - SeerClient runs no JVM: there are no Java mod classes to load or reflect on (`Class.forName`,
+/// Verified impossible: SeerClient runs no JVM: there are no Java mod classes to load or reflect on (`Class.forName`,
 /// `MethodHandles.Lookup.findStatic/findVirtual`, `Field.get`, `MethodHandle.invoke`), so the lookup fails as
 /// `ClassNotFoundException` does in Java for an absent class (GAPS_batchF, GAPS_M #11). Every caller only gets here
 /// after `FabricLoader.isModLoaded(..)` answered true for a SeerClient mod of that id. (Was a private copy in the
@@ -5290,8 +5705,1924 @@ pub fn adjust_layout_settings(
 /// the player was there. The play sinks are published for the life of the play connection; the player exists
 /// while a level does (both are set by the login packet), and `with_player` answers for the rest.
 pub fn get_connection(client: &mcrust::net::minecraft::client::minecraft::Minecraft) -> Option<mcrust::net::minecraft::client::multiplayer::client_packet_listener::PlayListenerSinks> {
-    if client.player.is_none() && mcrust::mcrust::modding::game::level().is_none() && mcrust::mcrust::modding::game::with_player(|_| ()).is_none() {
+    // (`has_player`, not `with_player(|_| ())`: a null check takes no lock - `with_player` waits up to 500 ms when the
+    // game holds the player unrecorded, and this is read per parsed item through `RegistryUtils`)
+    if client.player.is_none() && mcrust::mcrust::modding::game::level().is_none() && !mcrust::mcrust::modding::game::has_player() {
         return None;
     }
     mcrust::net::minecraft::client::multiplayer::client_packet_listener::published_play_sinks()
+}
+
+// ---- batch T helpers ----
+/// `widget instanceof C c` for a game widget made by `object_widget`: the mod object its `ObjectWidgetSlot` carries.
+pub fn batch_t_object_widget_object<C: ObjectWidget + 'static>(
+    slot: &mcrust::mcrust::modding::widgets::ModWidgetSlot,
+) -> Option<Shared<C>> {
+    slot.with::<ObjectWidgetSlot<C>, _>(|s| {
+        s.check();
+        s.object.clone()
+    })
+}
+
+// ---- batch V helpers ----
+
+/// Fabric API `UseItemCallback.EVENT.register(listener)`. Fabric's `MultiPlayerGameModeMixin.interactItem` is a
+/// cancellable HEAD injector on `MultiPlayerGameMode#useItem`: a spectator returns at once; otherwise the listener
+/// runs with `(player, player.level(), hand)` and a result other than `PASS` becomes the method's return value.
+/// The port's `use_item` answers `(InteractionResult, Option<ServerboundUseItemPacket>)` and its caller sends the
+/// packet; Fabric sends a use packet only for `SUCCESS` (its own `startPrediction`), which no Skyblocker listener
+/// answers (they answer `PASS` or `FAIL`), so the cancelled call answers no packet.
+pub fn register_use_item_callback(
+    listener: impl Fn(&dyn mcrust::net::minecraft::world::entity::player::player::Player, &mcrust::net::minecraft::world::level::level::Level, mcrust::net::minecraft::world::interaction_hand::InteractionHand) -> mcrust::net::minecraft::world::interaction_result::InteractionResult + Send + Sync + 'static,
+) {
+    use mcrust::mcrust::modding::hook::{self, At, CallbackInfo};
+    use mcrust::net::minecraft::world::interaction_result::InteractionResult;
+    let result = hook::inject("net.minecraft.client.multiplayer.MultiPlayerGameMode#useItem", At::Head, move |ci: &mut CallbackInfo<'_>| {
+        // java: if (this.localPlayerMode == GameType.SPECTATOR) return;
+        let spectator: bool = ci
+            .this::<mcrust::net::minecraft::client::multiplayer::multi_player_game_mode::MultiPlayerGameMode>()
+            .is_some_and(|game_mode| game_mode.get_player_mode() == mcrust::net::minecraft::world::level::game_type::GameType::Spectator);
+        if spectator {
+            return;
+        }
+        let Some(hand) = ci.find_arg::<mcrust::net::minecraft::world::interaction_hand::InteractionHand>().copied() else { return };
+        let Some(level) = ci.find_arg::<mcrust::net::minecraft::client::multiplayer::client_level::ClientLevel>() else { return };
+        let Some(player) = ci.find_arg::<mcrust::net::minecraft::world::entity::player::player::PlayerBase>() else { return };
+        // java: InteractionResult result = UseItemCallback.EVENT.invoker().interact(player, player.level(), hand);
+        let result: InteractionResult = listener(player, level, hand);
+        // java: if (result != InteractionResult.PASS) { .. info.setReturnValue(result); }
+        if result != InteractionResult::Pass {
+            ci.set_return_value::<(InteractionResult, Option<mcrust::net::minecraft::network::protocol::game::serverbound_use_item_packet::ServerboundUseItemPacket>)>((result, None));
+            ci.cancel();
+        }
+    });
+    if let Err(e) = result {
+        mcrust::mcrust::modding::log::warn_once("skyblocker-compat-use-item-callback", &e.to_string());
+    }
+}
+
+// ---- batch W helpers ----
+/// A `ClientReceiveMessageEvents.ALLOW_GAME` listener: `(message, overlay) -> allow`.
+pub type BatchWAllowGameListener = std::sync::Arc<dyn Fn(&mcrust::net::minecraft::network::chat::mutable_component::MutableComponent, bool) -> bool>;
+
+
+/// `ClientReceiveMessageEvents.ALLOW_GAME.register(listener)`. Fabric's event is an injector at the head of the
+/// client's game-message handling that drops the message when any listener answers `false` (the later listeners are
+/// not asked). Here it is a HEAD injector on `ClientPacketListener#handleSystemChat` (both the chat and the overlay
+/// form of a game message arrive there; `packet.overlay()` is Fabric's `overlay`), installed with the first listener.
+/// The packet handler runs once on the network thread (where it only re-schedules itself) and once on the client
+/// thread: the listeners run on the second, exactly where Java's do.
+pub fn batch_w_allow_game_register(listener: BatchWAllowGameListener) {
+    // The game's `client_receive_message_events::ALLOW_GAME` invokes its listeners on the client thread only (see
+    // that module), which is the only thread these render-thread listeners are built for.
+    struct RenderThreadListener(BatchWAllowGameListener);
+    unsafe impl Send for RenderThreadListener {}
+    unsafe impl Sync for RenderThreadListener {}
+    impl RenderThreadListener {
+        fn call(&self, message: &mcrust::net::minecraft::network::chat::mutable_component::MutableComponent, overlay: bool) -> bool {
+            (self.0)(message, overlay)
+        }
+    }
+    let wrapped = RenderThreadListener(listener);
+    mcrust::mcrust::modding::events::client_receive_message_events::ALLOW_GAME
+        .register(std::sync::Arc::new(move |message: &mcrust::net::minecraft::network::chat::mutable_component::MutableComponent, overlay: bool| wrapped.call(message, overlay)));
+}
+
+thread_local! {
+    /// UI sounds a mod widget's press asked for (`playDownSound`), waiting for the press's sound sink.
+    static BATCH_W_UI_SOUNDS: std::cell::RefCell<Vec<&'static mcrust::net::minecraft::sounds::sound_event::SoundEvent>> =
+        const { std::cell::RefCell::new(Vec::new()) };
+}
+
+/// java: `AbstractWidget.playDownSound(Minecraft.getInstance().getSoundManager())` from a mod object's own
+/// `mouseClicked` (a widget the mod draws and clicks itself, which the game's click sweep - the one that plays the
+/// game's widgets' click - never sees): `handler.play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F))`.
+/// The port's sound sink (`audio`) is a parameter of the frame's calls, not a field a mod can reach, so the sound is
+/// queued here and played through the game's own `play_ui_sound` at the RETURN of the frame's `Gui#update` - the
+/// call that plays the toasts' UI sounds the same way, once per frame - whether a mouse press or a key asked for it.
+pub fn batch_w_play_down_sound() {
+    batch_w_play_ui_sound(mcrust::net::minecraft::sounds::sound_events::ui_button_click());
+}
+
+/// `soundManager.play(SimpleSoundInstance.forUI(event, 1.0F))` from inside a mouse press (see `batch_w_play_down_sound`).
+pub fn batch_w_play_ui_sound(event: &'static mcrust::net::minecraft::sounds::sound_event::SoundEvent) {
+    BATCH_W_UI_SOUNDS.with(|q| q.borrow_mut().push(event));
+    static HOOKED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+    if HOOKED.swap(true, std::sync::atomic::Ordering::AcqRel) {
+        return;
+    }
+    type Audio = Option<(mcrust::lwjgl::openal::OpenAl, mcrust::com::mojang::blaze3d::audio::library::Library, mcrust::com::mojang::blaze3d::audio::library::DeviceList)>;
+    let result = mcrust::mcrust::modding::hook::inject(
+        "net.minecraft.client.gui.Gui#update",
+        mcrust::mcrust::modding::hook::At::Return,
+        |ci: &mut mcrust::mcrust::modding::hook::CallbackInfo<'_>| {
+            let sounds: Vec<&'static mcrust::net::minecraft::sounds::sound_event::SoundEvent> = BATCH_W_UI_SOUNDS.with(|q| std::mem::take(&mut *q.borrow_mut()));
+            if sounds.is_empty() {
+                return;
+            }
+            // the three arguments are taken one at a time (each borrows the callback info): the sink is moved out
+            // and put back, the options copied
+            let Some(options) = ci.arg_named::<mcrust::net::minecraft::client::options::OptionsData>("options_data").cloned() else {
+                return;
+            };
+            let Some(mut audio) = ci.arg_named_mut::<Audio>("audio").map(std::mem::take) else {
+                return;
+            };
+            if let Some(gfx) = ci.arg_named_mut::<mcrust::net::minecraft::client::minecraft::Minecraft>("gfx") {
+                for event in sounds {
+                    mcrust::net::minecraft::client::sounds::sound_engine::play_ui_sound(&mut audio, &mut gfx.sound_manager, &options, event);
+                }
+            }
+            if let Some(slot) = ci.arg_named_mut::<Audio>("audio") {
+                *slot = audio;
+            }
+        },
+    );
+    if let Err(e) = result {
+        mcrust::mcrust::modding::log::warn_once("skyblocker-compat-ui-sound", &format!("{e:?}"));
+    }
+}
+
+/// The cursors `GuiGraphicsExtractor.requestCursor` takes: `CursorType.DEFAULT` and the `CursorTypes` statics.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum BatchWCursor {
+    /// `CursorType.DEFAULT`
+    Default,
+    /// `CursorTypes.ARROW`
+    Arrow,
+    /// `CursorTypes.IBEAM`
+    Ibeam,
+    /// `CursorTypes.CROSSHAIR`
+    Crosshair,
+    /// `CursorTypes.POINTING_HAND`
+    PointingHand,
+    /// `CursorTypes.RESIZE_NS`
+    ResizeNs,
+    /// `CursorTypes.RESIZE_EW`
+    ResizeEw,
+    /// `CursorTypes.RESIZE_ALL`
+    ResizeAll,
+    /// `CursorTypes.NOT_ALLOWED`
+    NotAllowed,
+}
+
+thread_local! {
+    /// The frame's `CursorTypes` (the game creates them once; `Gui#extractRenderState` is handed them).
+    static BATCH_W_CURSOR_TYPES: std::cell::Cell<Option<mcrust::com::mojang::blaze3d::platform::cursor::cursor_types::CursorTypes>> =
+        const { std::cell::Cell::new(None) };
+    /// The cursor a mod's draw requested (`GuiGraphicsExtractor.pendingCursor`), waiting for `applyCursor`.
+    static BATCH_W_PENDING_CURSOR: std::cell::Cell<Option<BatchWCursor>> = const { std::cell::Cell::new(None) };
+}
+
+/// java: `graphics.requestCursor(cursor)` from a mod's draw (a screen's `extractRenderState`, a list row, a widget it
+/// draws itself). Java keeps the last request of the frame in `pendingCursor` and `applyCursor(window)` selects it
+/// after the frame. The port resolves the game's own requests per frame (`Window::resolve_requested_cursor`) and
+/// hands the winner to `GuiGraphicsExtractor#applyCursor`: a mod's request replaces that winner there - the mod draws
+/// after the widgets whose cursors the game resolves, as its `requestCursor` runs after theirs in Java - and is
+/// spent by that apply.
+pub fn batch_w_request_cursor(cursor: BatchWCursor) {
+    BATCH_W_PENDING_CURSOR.with(|c| c.set(Some(cursor)));
+    static HOOKED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+    if HOOKED.swap(true, std::sync::atomic::Ordering::AcqRel) {
+        return;
+    }
+    use mcrust::com::mojang::blaze3d::platform::cursor::cursor_type::CursorType;
+    use mcrust::com::mojang::blaze3d::platform::cursor::cursor_types::CursorTypes;
+    let result = mcrust::mcrust::modding::hook::inject(
+        "net.minecraft.client.gui.Gui#extractRenderState",
+        mcrust::mcrust::modding::hook::At::Head,
+        |ci: &mut mcrust::mcrust::modding::hook::CallbackInfo<'_>| {
+            if let Some(cursors) = ci.arg_named::<CursorTypes>("cursors") {
+                let cursors: CursorTypes = *cursors;
+                BATCH_W_CURSOR_TYPES.with(|c| c.set(Some(cursors)));
+            }
+        },
+    );
+    if let Err(e) = result {
+        mcrust::mcrust::modding::log::warn_once("skyblocker-compat-cursor-types", &format!("{e:?}"));
+    }
+    let result = mcrust::mcrust::modding::hook::inject(
+        "net.minecraft.client.gui.GuiGraphicsExtractor#applyCursor",
+        mcrust::mcrust::modding::hook::At::Head,
+        |ci: &mut mcrust::mcrust::modding::hook::CallbackInfo<'_>| {
+            let Some(requested) = BATCH_W_PENDING_CURSOR.with(|c| c.take()) else {
+                return;
+            };
+            let Some(cursors) = BATCH_W_CURSOR_TYPES.with(|c| c.get()) else {
+                return;
+            };
+            let cursor: CursorType = match requested {
+                BatchWCursor::Default => CursorType::DEFAULT,
+                BatchWCursor::Arrow => cursors.arrow,
+                BatchWCursor::Ibeam => cursors.ibeam,
+                BatchWCursor::Crosshair => cursors.crosshair,
+                BatchWCursor::PointingHand => cursors.pointing_hand,
+                BatchWCursor::ResizeNs => cursors.resize_ns,
+                BatchWCursor::ResizeEw => cursors.resize_ew,
+                BatchWCursor::ResizeAll => cursors.resize_all,
+                BatchWCursor::NotAllowed => cursors.not_allowed,
+            };
+            if let Some(pending) = ci.arg_named_mut::<CursorType>("pending_cursor") {
+                *pending = cursor;
+            }
+        },
+    );
+    if let Err(e) = result {
+        mcrust::mcrust::modding::log::warn_once("skyblocker-compat-apply-cursor", &format!("{e:?}"));
+    }
+}
+
+/// `FabricClientCommandSource.sendFeedback(Component message)` - Fabric's client command source:
+/// `minecraft.gui.getChat().addClientSystemMessage(message); minecraft.getNarrator().saySystemQueued(message);`. The
+/// port's `client_command_registration_callback::send_feedback` takes text only; this keeps the component (its style
+/// and its click / hover events).
+pub fn batch_w_send_feedback(message: &mcrust::net::minecraft::network::chat::mutable_component::MutableComponent) {
+    let client = minecraft();
+    let message = mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(message.clone());
+    let chat_focused = client.gui.screen_kind == mcrust::net::minecraft::client::gui::gui::ScreenKind::Chat;
+    let options = mcrust::net::minecraft::client::gui::components::chat_component::chat_options(&client.options.borrow(), chat_focused);
+    let ticks = client.gui.hud.tick_count;
+    let splitter = client.font.splitter();
+    client.gui.hud.chat.add_client_system_message(message.clone(), ticks, &splitter, options, chat_focused);
+    client.narrator.say_system_queued(&client.options.borrow(), &message);
+}
+
+thread_local! {
+    /// The player and level of the interaction being run (`Minecraft.startAttack` / `continueAttack` / `startUseItem`
+    /// hand them to `MultiPlayerGameMode`, whose methods Fabric's block callbacks hook): lent from the caller's HEAD to
+    /// its RETURN, as `register_attack_entity_callback` lends them.
+    static BATCH_W_INTERACTOR: std::cell::Cell<Option<(&'static mcrust::net::minecraft::client::player::local_player::LocalPlayer, &'static mcrust::net::minecraft::client::multiplayer::client_level::ClientLevel)>> = const { std::cell::Cell::new(None) };
+}
+
+/// The HEAD / RETURN injectors that lend `BATCH_W_INTERACTOR` (installed once).
+fn batch_w_install_interactor() {
+    static ONCE: std::sync::Once = std::sync::Once::new();
+    ONCE.call_once(|| {
+        use mcrust::mcrust::modding::hook::{self, At, CallbackInfo};
+        for target in ["net.minecraft.client.Minecraft#startAttack", "net.minecraft.client.Minecraft#continueAttack", "net.minecraft.client.Minecraft#startUseItem"] {
+            let head = hook::inject(target, At::Head, |ci: &mut CallbackInfo<'_>| {
+                let player = detach_ref(ci.find_arg::<mcrust::net::minecraft::client::player::local_player::LocalPlayer>());
+                let level = detach_ref(ci.find_arg::<std::sync::Arc<mcrust::net::minecraft::client::multiplayer::client_level::ClientLevel>>().map(|level| &**level));
+                BATCH_W_INTERACTOR.with(|a| a.set(player.zip(level)));
+            });
+            let tail = hook::inject(target, At::Return, |_: &mut CallbackInfo<'_>| {
+                BATCH_W_INTERACTOR.with(|a| a.set(None));
+            });
+            for result in [head, tail] {
+                if let Err(e) = result {
+                    mcrust::mcrust::modding::log::warn_once("skyblocker-compat-interactor", &format!("{e:?}"));
+                }
+            }
+        }
+    });
+}
+
+/// An `AttackBlockCallback` listener: `(player, level, hand, pos, direction) -> result`.
+pub type BatchWAttackBlockListener = std::sync::Arc<dyn Fn(&dyn mcrust::net::minecraft::world::entity::player::player::Player, &mcrust::net::minecraft::world::level::level::Level, mcrust::net::minecraft::world::interaction_hand::InteractionHand, &mcrust::net::minecraft::core::block_pos::BlockPos, mcrust::net::minecraft::core::direction::Direction) -> mcrust::net::minecraft::world::interaction_result::InteractionResult + Send + Sync>;
+
+static BATCH_W_ATTACK_BLOCK: std::sync::Mutex<Vec<BatchWAttackBlockListener>> = std::sync::Mutex::new(Vec::new());
+
+/// `AttackBlockCallback.EVENT.invoker()`: the listeners in order until one answers other than PASS (`None` outside
+/// an interaction the player and level are lent for).
+fn batch_w_attack_block(pos: &mcrust::net::minecraft::core::block_pos::BlockPos, direction: mcrust::net::minecraft::core::direction::Direction) -> Option<mcrust::net::minecraft::world::interaction_result::InteractionResult> {
+    use mcrust::net::minecraft::world::interaction_result::InteractionResult;
+    let (player, level) = BATCH_W_INTERACTOR.with(|a| a.get())?;
+    let listeners = BATCH_W_ATTACK_BLOCK.lock().unwrap_or_else(|p| p.into_inner()).clone();
+    for listener in listeners.iter() {
+        let result = listener(player, level, mcrust::net::minecraft::world::interaction_hand::InteractionHand::MainHand, pos, direction);
+        if result != InteractionResult::Pass {
+            return Some(result);
+        }
+    }
+    Some(InteractionResult::Pass)
+}
+
+/// Fabric API `AttackBlockCallback.EVENT.register(listener)`. Fabric's `MultiPlayerGameModeMixin`: a cancellable HEAD
+/// injector on `startDestroyBlock(pos, direction)` that runs the listeners with `(minecraft.player, minecraft.level,
+/// MAIN_HAND, pos, direction)`; a result other than PASS becomes the return value (`result == SUCCESS`) and, when it
+/// consumes the action, the server is told with a predicted `START_DESTROY_BLOCK` packet. In creative the same runs
+/// at the HEAD of `continueDestroyBlock` (return value only).
+pub fn batch_w_register_attack_block_callback(listener: BatchWAttackBlockListener) {
+    BATCH_W_ATTACK_BLOCK.lock().unwrap_or_else(|p| p.into_inner()).push(listener);
+    static ONCE: std::sync::Once = std::sync::Once::new();
+    ONCE.call_once(|| {
+        batch_w_install_interactor();
+        use mcrust::mcrust::modding::hook::{self, At, CallbackInfo};
+        use mcrust::net::minecraft::client::multiplayer::multi_player_game_mode::{DestroyOutcome, MultiPlayerGameMode};
+        use mcrust::net::minecraft::world::interaction_result::InteractionResult;
+        let start = hook::inject("net.minecraft.client.multiplayer.MultiPlayerGameMode#startDestroyBlock", At::Head, |ci: &mut CallbackInfo<'_>| {
+            let (Some(pos), Some(direction)) = (ci.find_arg::<mcrust::net::minecraft::core::block_pos::BlockPos>().copied(), ci.find_arg::<mcrust::net::minecraft::core::direction::Direction>().copied()) else { return };
+            let Some(result) = batch_w_attack_block(&pos, direction) else { return };
+            if result == InteractionResult::Pass {
+                return;
+            }
+            // java: info.setReturnValue(result == InteractionResult.SUCCESS);
+            let mut outcome = DestroyOutcome { handled: matches!(result, InteractionResult::Success { .. }), ..Default::default() };
+            // java: if (result.consumesAction()) this.startPrediction(minecraft.level, id -> new ServerboundPlayerActionPacket(
+            //   ServerboundPlayerActionPacket.Action.START_DESTROY_BLOCK, pos, direction, id));
+            if result.consumes_action() {
+                let player_pos = ci.arg_named::<mcrust::net::minecraft::world::phys::vec3::Vec3>("player_pos").copied();
+                let sequence = ci.arg_named::<std::sync::Mutex<mcrust::net::minecraft::client::multiplayer::prediction::block_state_prediction_handler::BlockStatePredictionHandler>>("prediction").map(|prediction| {
+                    let mut handler = prediction.lock().unwrap_or_else(|p| p.into_inner());
+                    handler.start_predicting();
+                    if let Some(player_pos) = player_pos {
+                        handler.set_predicting_player_position(player_pos);
+                    }
+                    let sequence = handler.current_sequence();
+                    handler.close();
+                    sequence
+                });
+                if let Some(sequence) = sequence {
+                    outcome.packets.push(mcrust::net::minecraft::network::protocol::game::serverbound_player_action_packet::ServerboundPlayerActionPacket::new(
+                        mcrust::net::minecraft::network::protocol::game::serverbound_player_action_packet::Action::StartDestroyBlock,
+                        pos,
+                        direction,
+                        sequence,
+                    ));
+                }
+            }
+            ci.set_return_value::<DestroyOutcome>(outcome);
+            ci.cancel();
+        });
+        let continue_destroy = hook::inject("net.minecraft.client.multiplayer.MultiPlayerGameMode#continueDestroyBlock", At::Head, |ci: &mut CallbackInfo<'_>| {
+            // java: if (localPlayerMode.isCreative()) { .. }
+            let creative = ci.this::<MultiPlayerGameMode>().is_some_and(|game_mode| mcrust::net::minecraft::world::level::game_type::is_creative(game_mode.get_player_mode()));
+            if !creative {
+                return;
+            }
+            let (Some(pos), Some(direction)) = (ci.find_arg::<mcrust::net::minecraft::core::block_pos::BlockPos>().copied(), ci.find_arg::<mcrust::net::minecraft::core::direction::Direction>().copied()) else { return };
+            let Some(result) = batch_w_attack_block(&pos, direction) else { return };
+            if result != InteractionResult::Pass {
+                // java: info.setReturnValue(result == InteractionResult.SUCCESS);
+                ci.set_return_value::<DestroyOutcome>(DestroyOutcome { handled: matches!(result, InteractionResult::Success { .. }), ..Default::default() });
+                ci.cancel();
+            }
+        });
+        for result in [start, continue_destroy] {
+            if let Err(e) = result {
+                mcrust::mcrust::modding::log::warn_once("skyblocker-compat-attack-block", &format!("{e:?}"));
+            }
+        }
+    });
+}
+
+/// A `UseBlockCallback` listener: `(player, level, hand, hitResult) -> result`.
+pub type BatchWUseBlockListener = std::sync::Arc<dyn Fn(&dyn mcrust::net::minecraft::world::entity::player::player::Player, &mcrust::net::minecraft::world::level::level::Level, mcrust::net::minecraft::world::interaction_hand::InteractionHand, &mcrust::net::minecraft::world::phys::block_hit_result::BlockHitResult) -> mcrust::net::minecraft::world::interaction_result::InteractionResult + Send + Sync>;
+
+static BATCH_W_USE_BLOCK: std::sync::Mutex<Vec<BatchWUseBlockListener>> = std::sync::Mutex::new(Vec::new());
+
+/// Fabric API `UseBlockCallback.EVENT.register(listener)`. Fabric's `MultiPlayerGameModeMixin.interactBlock`: a
+/// cancellable HEAD injector on `useItemOn(player, hand, hitResult)` (a spectator returns at once) that runs the
+/// listeners; a result other than PASS becomes the return value, and a SUCCESS is also sent to the server
+/// (`startPrediction(.., id -> new ServerboundUseItemOnPacket(hand, hitResult, id))`).
+pub fn batch_w_register_use_block_callback(listener: BatchWUseBlockListener) {
+    BATCH_W_USE_BLOCK.lock().unwrap_or_else(|p| p.into_inner()).push(listener);
+    static ONCE: std::sync::Once = std::sync::Once::new();
+    ONCE.call_once(|| {
+        batch_w_install_interactor();
+        use mcrust::mcrust::modding::hook::{self, At, CallbackInfo};
+        use mcrust::net::minecraft::client::multiplayer::multi_player_game_mode::MultiPlayerGameMode;
+        use mcrust::net::minecraft::world::interaction_result::InteractionResult;
+        let result = hook::inject("net.minecraft.client.multiplayer.MultiPlayerGameMode#useItemOn", At::Head, |ci: &mut CallbackInfo<'_>| {
+            // java: if (this.localPlayerMode == GameType.SPECTATOR) return;
+            let spectator = ci.this::<MultiPlayerGameMode>().is_some_and(|game_mode| game_mode.get_player_mode() == mcrust::net::minecraft::world::level::game_type::GameType::Spectator);
+            if spectator {
+                return;
+            }
+            let Some((player, level)) = BATCH_W_INTERACTOR.with(|a| a.get()) else { return };
+            let Some(hand) = ci.find_arg::<mcrust::net::minecraft::world::interaction_hand::InteractionHand>().copied() else { return };
+            let Some(hit_result) = ci.find_arg::<mcrust::net::minecraft::world::phys::block_hit_result::BlockHitResult>().cloned() else { return };
+            let listeners = BATCH_W_USE_BLOCK.lock().unwrap_or_else(|p| p.into_inner()).clone();
+            let mut result = InteractionResult::Pass;
+            for listener in listeners.iter() {
+                result = listener(player, level, hand, &hit_result);
+                if result != InteractionResult::Pass {
+                    break;
+                }
+            }
+            if result == InteractionResult::Pass {
+                return;
+            }
+            // java: if (result == InteractionResult.SUCCESS) startPrediction(.., id -> new ServerboundUseItemOnPacket(hand, hitResult, id));
+            let mut packet = None;
+            if matches!(result, InteractionResult::Success { .. }) {
+                let sequence = ci.arg_named::<std::sync::Mutex<mcrust::net::minecraft::client::multiplayer::prediction::block_state_prediction_handler::BlockStatePredictionHandler>>("prediction").map(|prediction| {
+                    let mut handler = prediction.lock().unwrap_or_else(|p| p.into_inner());
+                    handler.start_predicting();
+                    let sequence = handler.current_sequence();
+                    handler.close();
+                    sequence
+                });
+                if let Some(sequence) = sequence {
+                    packet = Some(mcrust::net::minecraft::network::protocol::game::serverbound_use_item_on_packet::ServerboundUseItemOnPacket::new(hand, hit_result.clone(), sequence));
+                }
+            }
+            // java: info.setReturnValue(result);
+            ci.set_return_value::<(InteractionResult, Option<mcrust::net::minecraft::network::protocol::game::serverbound_use_item_on_packet::ServerboundUseItemOnPacket>)>((result, packet));
+            ci.cancel();
+        });
+        if let Err(e) = result {
+            mcrust::mcrust::modding::log::warn_once("skyblocker-compat-use-block", &format!("{e:?}"));
+        }
+    });
+}
+
+/// Fabric's `VanillaHudElements` a mod replaces (`HudElementRegistry.replaceElement`): the vanilla HUD methods each
+/// one draws with.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum BatchWVanillaHudElement {
+    /// `VanillaHudElements.HEALTH_BAR` - `Hud.extractHearts`
+    HealthBar,
+    /// `VanillaHudElements.ARMOR_BAR` - `Hud.extractArmor`
+    ArmorBar,
+    /// `VanillaHudElements.FOOD_BAR` - `Hud.extractFood`
+    FoodBar,
+    /// `VanillaHudElements.AIR_BAR` - `Hud.extractAirBubbles`
+    AirBar,
+    /// `VanillaHudElements.MOUNT_HEALTH` - `Hud.extractVehicleHealth`
+    MountHealth,
+    /// `VanillaHudElements.EXPERIENCE_LEVEL` - `ContextualBar.extractExperienceLevel`
+    ExperienceLevel,
+    /// `VanillaHudElements.INFO_BAR` - the contextual info bar (`ExperienceBar` / `JumpableVehicleBar` / `LocatorBar`:
+    /// `extractBackground` and `extractRenderState`)
+    InfoBar,
+}
+
+impl BatchWVanillaHudElement {
+    fn targets(self) -> &'static [&'static str] {
+        match self {
+            BatchWVanillaHudElement::HealthBar => &["net.minecraft.client.gui.Hud#extractHearts"],
+            BatchWVanillaHudElement::ArmorBar => &["net.minecraft.client.gui.Hud#extractArmor"],
+            BatchWVanillaHudElement::FoodBar => &["net.minecraft.client.gui.Hud#extractFood"],
+            BatchWVanillaHudElement::AirBar => &["net.minecraft.client.gui.Hud#extractAirBubbles"],
+            BatchWVanillaHudElement::MountHealth => &["net.minecraft.client.gui.Hud#extractVehicleHealth"],
+            BatchWVanillaHudElement::ExperienceLevel => &["net.minecraft.client.gui.contextualbar.ContextualBar#extractExperienceLevel"],
+            BatchWVanillaHudElement::InfoBar => &[
+                "net.minecraft.client.gui.contextualbar.ExperienceBar#extractBackground",
+                "net.minecraft.client.gui.contextualbar.ExperienceBar#extractRenderState",
+                "net.minecraft.client.gui.contextualbar.JumpableVehicleBar#extractBackground",
+                "net.minecraft.client.gui.contextualbar.JumpableVehicleBar#extractRenderState",
+                "net.minecraft.client.gui.contextualbar.LocatorBar#extractBackground",
+                "net.minecraft.client.gui.contextualbar.LocatorBar#extractRenderState",
+            ],
+        }
+    }
+}
+
+/// What a replaced vanilla HUD element draws this frame (the element `replaceElement`'s function returned).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum BatchWHudReplacement {
+    /// the element it was handed (`return hudElement;`)
+    Vanilla,
+    /// nothing (`return (_, _) -> {};`)
+    Hidden,
+    /// the element it was handed, moved (`pose.pushMatrix(); pose.translate(x, y); hudElement.extractRenderState(..);
+    /// pose.popMatrix();`)
+    Translated(f32, f32),
+}
+
+/// A `replaceElement` function: asked each frame, as Fabric's registry asks it when it draws the element.
+pub type BatchWHudReplacer = std::sync::Arc<dyn Fn() -> BatchWHudReplacement + Send + Sync>;
+
+static BATCH_W_HUD_REPLACERS: MainThread<std::collections::HashMap<BatchWVanillaHudElement, Vec<BatchWHudReplacer>>> = MainThread::new(std::collections::HashMap::new);
+
+thread_local! {
+    /// The pose pushed at a translated element's HEAD, popped at its RETURN (one per element call, nested calls stack).
+    static BATCH_W_HUD_POSES: std::cell::RefCell<Vec<Option<mcrust::org::joml::matrix3x2f::Matrix3x2f>>> = const { std::cell::RefCell::new(Vec::new()) };
+}
+
+/// What the element's replacements make of it this frame. Fabric composes them: each later `replaceElement` wraps
+/// the element the earlier ones made, so one `Hidden` anywhere draws nothing and the translations add up.
+fn batch_w_hud_replacement(element: BatchWVanillaHudElement) -> BatchWHudReplacement {
+    let replacers: Vec<BatchWHudReplacer> = BATCH_W_HUD_REPLACERS.get().get(&element).cloned().unwrap_or_default();
+    let (mut x, mut y) = (0.0f32, 0.0f32);
+    let mut translated = false;
+    for replacer in replacers.iter() {
+        match replacer() {
+            BatchWHudReplacement::Vanilla => {}
+            BatchWHudReplacement::Hidden => return BatchWHudReplacement::Hidden,
+            BatchWHudReplacement::Translated(dx, dy) => {
+                translated = true;
+                x += dx;
+                y += dy;
+            }
+        }
+    }
+    if translated { BatchWHudReplacement::Translated(x, y) } else { BatchWHudReplacement::Vanilla }
+}
+
+/// Fabric API `HudElementRegistry.replaceElement(VanillaHudElements.X, hudElement -> ..)`: the replacement decides,
+/// each time the vanilla element would draw, whether it draws as it is, not at all, or moved. The vanilla element is
+/// the port's own method (`targets`): a HEAD injector cancels it when hidden, and a moved one draws between a pose
+/// push + translate at its HEAD and the pop at its RETURN.
+pub fn batch_w_replace_hud_element(element: BatchWVanillaHudElement, replacer: BatchWHudReplacer) {
+    let first = !BATCH_W_HUD_REPLACERS.get().contains_key(&element);
+    BATCH_W_HUD_REPLACERS.get_mut().entry(element).or_default().push(replacer);
+    if !first {
+        return;
+    }
+    for target in element.targets() {
+        let head = mcrust::mcrust::modding::hook::inject(target, mcrust::mcrust::modding::hook::At::Head, move |ci: &mut mcrust::mcrust::modding::hook::CallbackInfo<'_>| {
+            match batch_w_hud_replacement(element) {
+                // (a cancelled call runs no RETURN injector: nothing is pushed for it)
+                BatchWHudReplacement::Hidden => ci.cancel(),
+                BatchWHudReplacement::Vanilla => BATCH_W_HUD_POSES.with(|p| p.borrow_mut().push(None)),
+                BatchWHudReplacement::Translated(x, y) => {
+                    let saved = mcrust::net::minecraft::client::gui::gui_graphics_extractor::push_pose();
+                    mcrust::net::minecraft::client::gui::gui_graphics_extractor::pose_translate(x, y);
+                    BATCH_W_HUD_POSES.with(|p| p.borrow_mut().push(Some(saved)));
+                }
+            }
+        });
+        let tail = mcrust::mcrust::modding::hook::inject(target, mcrust::mcrust::modding::hook::At::Return, |_: &mut mcrust::mcrust::modding::hook::CallbackInfo<'_>| {
+            if let Some(Some(saved)) = BATCH_W_HUD_POSES.with(|p| p.borrow_mut().pop()) {
+                mcrust::net::minecraft::client::gui::gui_graphics_extractor::pop_pose(saved);
+            }
+        });
+        for result in [head, tail] {
+            if let Err(e) = result {
+                mcrust::mcrust::modding::log::warn_once("skyblocker-compat-hud-element", &format!("{e:?}"));
+            }
+        }
+    }
+}
+
+/// A `ClientSendMessageEvents.MODIFY_COMMAND` listener: the command (no leading slash) in, the command to send out.
+pub type BatchWModifyCommandListener = std::sync::Arc<dyn Fn(String) -> String + Send + Sync>;
+
+static BATCH_W_MODIFY_COMMAND: std::sync::Mutex<Vec<BatchWModifyCommandListener>> = std::sync::Mutex::new(Vec::new());
+
+thread_local! {
+    /// `sendCommand` is being re-run with the modified command (its HEAD does not modify it again)
+    static BATCH_W_RESENDING_COMMAND: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// Fabric API `ClientSendMessageEvents.MODIFY_COMMAND.register(listener)`: Fabric's message API rewrites the
+/// argument of `ClientPacketListener.sendCommand(String command)` at its HEAD (`@ModifyVariable(argsOnly = true)`),
+/// passing it through every listener in order. The port's `command` parameter is a borrowed `&str` a HEAD injector
+/// cannot replace, so a changed command cancels the call and the listener's own `sendCommand` body
+/// (`PlayListenerSinks::send_command`, the same body) runs with the new one - the call Java would have made.
+pub fn batch_w_register_modify_command(listener: BatchWModifyCommandListener) {
+    BATCH_W_MODIFY_COMMAND.lock().unwrap_or_else(|p| p.into_inner()).push(listener);
+    static ONCE: std::sync::Once = std::sync::Once::new();
+    ONCE.call_once(|| {
+        let result = mcrust::mcrust::modding::hook::inject(mcrust::mcrust::modding::events::client_command_registration_callback::SEND_COMMAND, mcrust::mcrust::modding::hook::At::Head, |ci: &mut mcrust::mcrust::modding::hook::CallbackInfo<'_>| {
+            if BATCH_W_RESENDING_COMMAND.with(|r| r.get()) {
+                return;
+            }
+            let Some(command) = ci.arg_named::<str>("command").map(str::to_string) else { return };
+            let listeners = BATCH_W_MODIFY_COMMAND.lock().unwrap_or_else(|p| p.into_inner()).clone();
+            // java: command = MODIFY_COMMAND.invoker().modifyCommand(command); - each listener's answer is the next one's input
+            let mut modified = command.clone();
+            for listener in listeners.iter() {
+                modified = listener(modified);
+            }
+            if modified == command {
+                return;
+            }
+            let Some(sinks) = mcrust::net::minecraft::client::multiplayer::client_packet_listener::published_play_sinks() else { return };
+            ci.cancel();
+            BATCH_W_RESENDING_COMMAND.with(|r| r.set(true));
+            sinks.send_command(&modified);
+            BATCH_W_RESENDING_COMMAND.with(|r| r.set(false));
+        });
+        if let Err(e) = result {
+            mcrust::mcrust::modding::log::warn_once("skyblocker-compat-modify-command", &format!("{e:?}"));
+        }
+    });
+}
+
+/// A `ClientChunkEvents.CHUNK_LOAD` / `CHUNK_UNLOAD` listener: `(level, chunk)`.
+pub type BatchWChunkListener = std::sync::Arc<dyn Fn(&mcrust::net::minecraft::client::multiplayer::client_level::ClientLevel, &mcrust::net::minecraft::world::level::chunk::level_chunk::LevelChunk) + Send + Sync>;
+
+static BATCH_W_CHUNK_LOAD: std::sync::Mutex<Vec<BatchWChunkListener>> = std::sync::Mutex::new(Vec::new());
+static BATCH_W_CHUNK_UNLOAD: std::sync::Mutex<Vec<BatchWChunkListener>> = std::sync::Mutex::new(Vec::new());
+
+/// Fabric API `ClientChunkEvents.CHUNK_LOAD.register(listener)`. Fabric fires it once a chunk packet has been read
+/// into the client's chunk cache (`ClientChunkCache.replaceWithPacketData`, TAIL) with `(this.level, chunk)`. The
+/// port's receive path finishes in `ClientLevel.onChunkLoaded(pos)` (the same packet's next statement, on the same
+/// thread): its RETURN hands the listeners the level and the chunk now at `pos`.
+pub fn batch_w_register_chunk_load(listener: BatchWChunkListener) {
+    BATCH_W_CHUNK_LOAD.lock().unwrap_or_else(|p| p.into_inner()).push(listener);
+    static ONCE: std::sync::Once = std::sync::Once::new();
+    ONCE.call_once(|| {
+        let result = mcrust::mcrust::modding::hook::inject("net.minecraft.client.multiplayer.ClientLevel#onChunkLoaded", mcrust::mcrust::modding::hook::At::Return, |ci: &mut mcrust::mcrust::modding::hook::CallbackInfo<'_>| {
+            let Some(pos) = ci.find_arg::<mcrust::net::minecraft::world::level::chunk_pos::ChunkPos>().copied() else { return };
+            let Some(level) = ci.this::<mcrust::net::minecraft::client::multiplayer::client_level::ClientLevel>() else { return };
+            let Some(chunk) = level.get_chunk(pos.x(), pos.z()) else { return };
+            let listeners = BATCH_W_CHUNK_LOAD.lock().unwrap_or_else(|p| p.into_inner()).clone();
+            for listener in listeners.iter() {
+                listener(level, &chunk);
+            }
+        });
+        if let Err(e) = result {
+            mcrust::mcrust::modding::log::warn_once("skyblocker-compat-chunk-load", &format!("{e:?}"));
+        }
+    });
+}
+
+/// Fabric API `ClientChunkEvents.CHUNK_UNLOAD.register(listener)`. Fabric fires it from `ClientChunkCache.drop(pos)`
+/// right before the cached chunk is removed, with `(this.level, chunk)`: here at the HEAD of `drop`, for the chunk
+/// the cache still holds at `pos`.
+pub fn batch_w_register_chunk_unload(listener: BatchWChunkListener) {
+    BATCH_W_CHUNK_UNLOAD.lock().unwrap_or_else(|p| p.into_inner()).push(listener);
+    static ONCE: std::sync::Once = std::sync::Once::new();
+    ONCE.call_once(|| {
+        let result = mcrust::mcrust::modding::hook::inject("net.minecraft.client.multiplayer.ClientChunkCache#drop", mcrust::mcrust::modding::hook::At::Head, |ci: &mut mcrust::mcrust::modding::hook::CallbackInfo<'_>| {
+            let Some(pos) = ci.find_arg::<mcrust::net::minecraft::world::level::chunk_pos::ChunkPos>().copied() else { return };
+            let Some(cache) = ci.this::<mcrust::net::minecraft::client::multiplayer::client_chunk_cache::ClientChunkCache>() else { return };
+            // (the chunk `drop` removes: the cache's own, not a loading stand-in)
+            let Some(chunk) = cache.get_chunk(pos.x(), pos.z(), false) else { return };
+            let Some(level) = mcrust::mcrust::modding::game::level() else { return };
+            let listeners = BATCH_W_CHUNK_UNLOAD.lock().unwrap_or_else(|p| p.into_inner()).clone();
+            for listener in listeners.iter() {
+                listener(&level, &chunk);
+            }
+        });
+        if let Err(e) = result {
+            mcrust::mcrust::modding::log::warn_once("skyblocker-compat-chunk-unload", &format!("{e:?}"));
+        }
+    });
+}
+
+/// A `ClientEntityEvents.ENTITY_LOAD` / `ENTITY_UNLOAD` listener: `(entity, level)`.
+pub type BatchWEntityListener = std::sync::Arc<dyn Fn(&dyn mcrust::net::minecraft::world::entity::entity::Entity, &mcrust::net::minecraft::client::multiplayer::client_level::ClientLevel) + Send + Sync>;
+
+static BATCH_W_ENTITY_LOAD: std::sync::Mutex<Vec<BatchWEntityListener>> = std::sync::Mutex::new(Vec::new());
+static BATCH_W_ENTITY_UNLOAD: std::sync::Mutex<Vec<BatchWEntityListener>> = std::sync::Mutex::new(Vec::new());
+
+/// The listeners over the entity a `ClientLevel$EntityCallbacks` method was handed (read through the game's tracked
+/// lock, which the callback itself has let go) and the client level.
+fn batch_w_entity_event(ci: &mcrust::mcrust::modding::hook::CallbackInfo<'_>, listeners: &std::sync::Mutex<Vec<BatchWEntityListener>>) {
+    let Some(entity) = hook_arg::<mcrust::net::minecraft::world::level::entity::uniquely_identifyable::Shared<mcrust::net::minecraft::client::multiplayer::client_level::StoredEntity>>(ci, 0) else { return };
+    let Some(level) = mcrust::mcrust::modding::game::level() else { return };
+    let listeners = listeners.lock().unwrap_or_else(|p| p.into_inner()).clone();
+    if listeners.is_empty() {
+        return;
+    }
+    with_entity_handle(entity, |entity| {
+        for listener in listeners.iter() {
+            listener(&*entity, &level);
+        }
+    });
+}
+
+/// Fabric API `ClientEntityEvents.ENTITY_LOAD.register(listener)`: Fabric fires it from
+/// `ClientLevel$EntityCallbacks.onTrackingStart` (TAIL) - the entity has joined the level's tracked entities - with
+/// `(entity, level)`.
+pub fn batch_w_register_entity_load(listener: BatchWEntityListener) {
+    BATCH_W_ENTITY_LOAD.lock().unwrap_or_else(|p| p.into_inner()).push(listener);
+    static ONCE: std::sync::Once = std::sync::Once::new();
+    ONCE.call_once(|| {
+        let result = mcrust::mcrust::modding::hook::inject("net.minecraft.client.multiplayer.ClientLevel$EntityCallbacks#onTrackingStart", mcrust::mcrust::modding::hook::At::Return, |ci: &mut mcrust::mcrust::modding::hook::CallbackInfo<'_>| {
+            batch_w_entity_event(ci, &BATCH_W_ENTITY_LOAD);
+        });
+        if let Err(e) = result {
+            mcrust::mcrust::modding::log::warn_once("skyblocker-compat-entity-load", &format!("{e:?}"));
+        }
+    });
+}
+
+/// Fabric API `ClientEntityEvents.ENTITY_UNLOAD.register(listener)`: Fabric fires it from
+/// `ClientLevel$EntityCallbacks.onTrackingEnd` (HEAD) - the entity is about to leave the level's tracked entities -
+/// with `(entity, level)`.
+pub fn batch_w_register_entity_unload(listener: BatchWEntityListener) {
+    BATCH_W_ENTITY_UNLOAD.lock().unwrap_or_else(|p| p.into_inner()).push(listener);
+    static ONCE: std::sync::Once = std::sync::Once::new();
+    ONCE.call_once(|| {
+        let result = mcrust::mcrust::modding::hook::inject("net.minecraft.client.multiplayer.ClientLevel$EntityCallbacks#onTrackingEnd", mcrust::mcrust::modding::hook::At::Head, |ci: &mut mcrust::mcrust::modding::hook::CallbackInfo<'_>| {
+            batch_w_entity_event(ci, &BATCH_W_ENTITY_UNLOAD);
+        });
+        if let Err(e) = result {
+            mcrust::mcrust::modding::log::warn_once("skyblocker-compat-entity-unload", &format!("{e:?}"));
+        }
+    });
+}
+
+/// `GuiGraphicsExtractor.setTooltipForNextFrame(font, stack, x, y)`: `Screen.getTooltipFromItem(minecraft, stack)`
+/// parked in the frame's deferred tooltip slot (`batch_s_set_tooltip_for_next_frame`: lines only - no tooltip image,
+/// the default style), drawn where the frame draws its deferred tooltip.
+pub fn batch_w_set_item_tooltip_for_next_frame(stack: &mcrust::net::minecraft::world::item::item_stack::ItemStack) {
+    use mcrust::net::minecraft::client::gui::screens::inventory::abstract_container_screen::{get_tooltip_from_item, tooltip_flag_from_options};
+    let level = mcrust::mcrust::modding::game::level();
+    let flag = tooltip_flag_from_options();
+    let lines = mcrust::mcrust::modding::game::with_player(|player| {
+        get_tooltip_from_item(stack, level.as_deref(), Some(&*player as &dyn mcrust::net::minecraft::world::entity::player::player::Player), flag)
+    })
+    .unwrap_or_else(|| get_tooltip_from_item(stack, level.as_deref(), None, flag));
+    batch_s_set_tooltip_for_next_frame(lines);
+}
+
+/// java: `graphics.tooltip(font, List<ClientTooltipComponent> components, x, y, DefaultTooltipPositioner.INSTANCE, null)`
+/// from a mod's draw: the component list (text and image components alike - the port's deferred slot holds
+/// `ClientTooltipComponent`s) parked in the frame's deferred tooltip slot through the game's own
+/// `setTooltipForNextFrameInternal` (an existing tooltip is kept), drawn at the mouse by the frame's deferred pass
+/// (see `batch_s_set_tooltip_for_next_frame`).
+pub fn batch_w_set_component_tooltip_for_next_frame(components: mcrust::net::minecraft::client::gui::gui_graphics_extractor::DeferredTooltip) {
+    batch_s_install_deferred_tooltip();
+    BATCH_S_DEFERRED_TOOLTIP.with(|slot| {
+        mcrust::net::minecraft::client::gui::gui_graphics_extractor::set_tooltip_for_next_frame_internal(&mut slot.borrow_mut(), components, false);
+    });
+}
+
+/// `FabricClientCommandSource.sendError(Component message)` - `sendFeedback(Component.empty().append(message)
+/// .withStyle(ChatFormatting.RED))`.
+pub fn batch_w_send_error(message: &mcrust::net::minecraft::network::chat::mutable_component::MutableComponent) {
+    let error = mcrust::net::minecraft::network::chat::component::empty().append(message.clone()).with_style_format(mcrust::net::minecraft::chat_formatting::ChatFormatting::Red);
+    batch_w_send_feedback(&error);
+}
+
+// ---- batch S helpers ----
+thread_local! {
+    /// The `GuiGraphicsExtractor.deferredTooltip` slot a mod widget's draw parks its tooltip in (render thread).
+    static BATCH_S_DEFERRED_TOOLTIP: std::cell::RefCell<Option<mcrust::net::minecraft::client::gui::gui_graphics_extractor::DeferredTooltip>> =
+        const { std::cell::RefCell::new(None) };
+}
+
+/// java: `graphics.setTooltipForNextFrame(font, List<FormattedCharSequence> lines, x, y[, style])` /
+/// `setComponentTooltipForNextFrame(font, List<Component> lines, x, y[, style])` from a mod widget's
+/// `extractWidgetRenderState`. Java parks the lines in the frame's one `deferredTooltip` slot
+/// (`setTooltipForNextFrameInternal:1195-1209`, the first one set wins) and `extractDeferredElements:1261-1280`
+/// draws it at the mouse after the screen. The port's slot is the `deferred_chat_tooltip` parameter of
+/// `Gui#extractRenderState`, which a mod widget's draw cannot reach: the lines are parked here, through the game's
+/// own `setTooltipForNextFrame` body, and handed into that slot (when it is still empty) at the HEAD of the next
+/// `Gui#extractRenderState`, which draws it at its end. The tooltip therefore shows one frame after the widget asked
+/// for it; its style is the default one (the port's deferred draw takes none).
+pub fn batch_s_set_tooltip_for_next_frame(lines: Vec<mcrust::net::minecraft::network::chat::formatted_text::FormattedText>) {
+    // Inside a screen override the game lends the frame's own slot: written THIS frame, as Java's extractor field.
+    let mut lines = Some(lines);
+    if mcrust::net::minecraft::client::gui::gui_graphics_extractor::frame_tooltip_slot(|slot| {
+        mcrust::net::minecraft::client::gui::gui_graphics_extractor::set_tooltip_for_next_frame_lines(slot, lines.take().unwrap_or_default());
+    }).is_some() {
+        return;
+    }
+    let lines = lines.take().unwrap_or_default();
+    batch_s_install_deferred_tooltip();
+    BATCH_S_DEFERRED_TOOLTIP.with(|slot| {
+        mcrust::net::minecraft::client::gui::gui_graphics_extractor::set_tooltip_for_next_frame_lines(&mut slot.borrow_mut(), lines);
+    });
+}
+
+/// As `batch_s_set_tooltip_for_next_frame`, with the call's `style` (`@Nullable Identifier`, e.g. an item's
+/// `DataComponents.TOOLTIP_STYLE`): parked beside the lines through the game's own style slot, so the deferred
+/// draw uses its `tooltip/<style>_background`/`_frame` sprites.
+pub fn batch_s_set_tooltip_for_next_frame_styled(
+    lines: Vec<mcrust::net::minecraft::network::chat::formatted_text::FormattedText>,
+    style: Option<mcrust::net::minecraft::resources::identifier::Identifier>,
+) {
+    use mcrust::net::minecraft::client::gui::gui_graphics_extractor as gge;
+    let mut parked = Some((lines, style));
+    if gge::frame_tooltip_slot(|slot| {
+        let (lines, style) = parked.take().unwrap_or_default();
+        let before = gge::deferred_tooltip_identity(slot);
+        gge::set_tooltip_for_next_frame_lines(slot, lines);
+        gge::record_deferred_tooltip_style(slot, before, style);
+    }).is_some() {
+        return;
+    }
+    let (lines, style) = parked.take().unwrap_or_default();
+    batch_s_install_deferred_tooltip();
+    BATCH_S_DEFERRED_TOOLTIP.with(|slot| {
+        let mut slot = slot.borrow_mut();
+        let before = gge::deferred_tooltip_identity(&slot);
+        gge::set_tooltip_for_next_frame_lines(&mut slot, lines);
+        gge::record_deferred_tooltip_style(&slot, before, style);
+    });
+}
+
+fn batch_s_install_deferred_tooltip() {
+    static HOOKED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+    if HOOKED.swap(true, std::sync::atomic::Ordering::AcqRel) {
+        return;
+    }
+    let result = mcrust::mcrust::modding::hook::inject(
+        "net.minecraft.client.gui.Gui#extractRenderState",
+        mcrust::mcrust::modding::hook::At::Head,
+        |ci: &mut mcrust::mcrust::modding::hook::CallbackInfo<'_>| {
+            let Some(parked) = BATCH_S_DEFERRED_TOOLTIP.with(|slot| slot.borrow_mut().take()) else {
+                return;
+            };
+            if let Some(slot) = ci.arg_named_mut::<Option<mcrust::net::minecraft::client::gui::gui_graphics_extractor::DeferredTooltip>>("deferred_chat_tooltip") {
+                mcrust::net::minecraft::client::gui::gui_graphics_extractor::set_tooltip_for_next_frame_internal(slot, parked, false);
+            }
+        },
+    );
+    if let Err(e) = result {
+        mcrust::mcrust::modding::log::warn_once("skyblocker-compat-deferred-tooltip", &format!("{e:?}"));
+    }
+}
+
+
+/// java: Fabric `ScreenEvents.remove(screen).register(..)` for a vanilla container screen, as the listener reads it:
+/// `screen.getMenu().slots` and each `slot.getItem()`. Fabric fires it as the screen is removed; the port removes a
+/// vanilla container screen through `AbstractContainerScreen.onClose` (`on_close_through_the_player`: `onClose`, then
+/// `removed` on the same menu), and the HEAD of `onClose` is the last point where the menu's slots and the containers
+/// they read (the player is held there) are lent. `listener` gets the menu's stacks in slot order; which screen it is
+/// for is the caller's per-screen state, set in its AFTER_INIT / BEFORE_INIT listener as Fabric's per-screen
+/// registration is. The listener runs with the player held: it must not ask `game::with_player`.
+pub fn batch_s_on_container_screen_remove(
+    listener: impl Fn(&[mcrust::net::minecraft::world::item::item_stack::ItemStack]) + Send + Sync + 'static,
+) {
+    let result = mcrust::mcrust::modding::hook::inject(
+        "net.minecraft.client.gui.screens.inventory.AbstractContainerScreen#onClose",
+        mcrust::mcrust::modding::hook::At::Head,
+        move |ci: &mut mcrust::mcrust::modding::hook::CallbackInfo<'_>| {
+            let Some(containers_index) = ci.arg_index("containers") else {
+                return;
+            };
+            let Some(containers) = hook_arg::<mcrust::net::minecraft::world::inventory::slot::Containers<'_>>(ci, containers_index) else {
+                return;
+            };
+            let Some(menu) = ci.arg_named::<mcrust::net::minecraft::world::inventory::abstract_container_menu::AbstractContainerMenu>("menu") else {
+                return;
+            };
+            let stacks: Vec<mcrust::net::minecraft::world::item::item_stack::ItemStack> =
+                menu.slots.iter().map(|slot| slot.get_item(containers).duplicate()).collect();
+            listener(&stacks);
+        },
+    );
+    if let Err(e) = result {
+        mcrust::mcrust::modding::log::warn_once("skyblocker-compat-container-screen-remove", &format!("{e:?}"));
+    }
+}
+
+thread_local! {
+    /// A command re-sent with its `MODIFY_COMMAND` answer: the listeners do not see it a second time.
+    static BATCH_S_RESENDING_COMMAND: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// Fabric API `ClientSendMessageEvents.MODIFY_COMMAND`'s listeners, in registration order.
+static BATCH_S_MODIFY_COMMAND: std::sync::Mutex<Vec<std::sync::Arc<dyn Fn(&str) -> String + Send + Sync>>> = std::sync::Mutex::new(Vec::new());
+
+/// Fabric API `ClientSendMessageEvents.MODIFY_COMMAND.register(listener)`: every listener's answer is handed to the
+/// next, and the last one is the command `ClientPacketListener.sendCommand` sends. Fabric rewrites the method's
+/// `command` argument at its HEAD; the port's argument is a `&str` into the caller's string, which an injector cannot
+/// point elsewhere, so a command the listeners changed is cancelled and the changed one sent through the same
+/// `sendCommand` as the client thread's next task (the call cannot re-enter `sendCommand` itself: its caller holds
+/// the signed-message encoder's lock for the call).
+pub fn batch_s_register_modify_command(listener: impl Fn(&str) -> String + Send + Sync + 'static) {
+    BATCH_S_MODIFY_COMMAND.lock().unwrap_or_else(|p| p.into_inner()).push(std::sync::Arc::new(listener));
+    static ONCE: std::sync::Once = std::sync::Once::new();
+    ONCE.call_once(|| {
+        let result = mcrust::mcrust::modding::hook::inject(
+            "net.minecraft.client.multiplayer.ClientPacketListener#sendCommand",
+            mcrust::mcrust::modding::hook::At::Head,
+            |ci: &mut mcrust::mcrust::modding::hook::CallbackInfo<'_>| {
+                if BATCH_S_RESENDING_COMMAND.with(|r| r.get()) {
+                    return;
+                }
+                let Some(command) = ci.arg_named::<str>("command").map(|c| c.to_string()) else {
+                    return;
+                };
+                // (the list is copied out: a listener may register another)
+                let listeners = BATCH_S_MODIFY_COMMAND.lock().unwrap_or_else(|p| p.into_inner()).clone();
+                let mut modified: String = command.clone();
+                for listener in listeners.iter() {
+                    modified = listener(&modified);
+                }
+                if modified == command {
+                    return;
+                }
+                ci.cancel();
+                execute(move || {
+                    let Some(connection) = get_connection(minecraft()) else {
+                        return;
+                    };
+                    BATCH_S_RESENDING_COMMAND.with(|r| r.set(true));
+                    connection.send_command(&modified);
+                    BATCH_S_RESENDING_COMMAND.with(|r| r.set(false));
+                });
+            },
+        );
+        if let Err(e) = result {
+            mcrust::mcrust::modding::log::warn_once("skyblocker-compat-modify-command", &format!("{e:?}"));
+        }
+    });
+}
+
+/// Fabric API `ClientPlayerBlockBreakEvents.AFTER`'s listeners (`batch_s_register_after_block_break`).
+static BATCH_S_AFTER_BLOCK_BREAK: std::sync::Mutex<Vec<std::sync::Arc<dyn Fn(&mcrust::net::minecraft::core::block_pos::BlockPos) + Send + Sync>>> = std::sync::Mutex::new(Vec::new());
+
+/// Fabric API `ClientPlayerBlockBreakEvents.AFTER.register((level, player, pos, state) -> ..)` for listeners that read
+/// the position: Fabric fires it inside `MultiPlayerGameMode.destroyBlock`, once the block was destroyed on the client
+/// (the method then answers `true`); here it is a RETURN injector on that method that runs the listeners when it
+/// answered `true`. The caller of `destroyBlock` holds the player (and the level borrow) for the call, which a listener
+/// may read (`game::with_player`), so the listeners run as the client thread's next task, in registration order.
+pub fn batch_s_register_after_block_break(listener: impl Fn(&mcrust::net::minecraft::core::block_pos::BlockPos) + Send + Sync + 'static) {
+    BATCH_S_AFTER_BLOCK_BREAK.lock().unwrap_or_else(|p| p.into_inner()).push(std::sync::Arc::new(listener));
+    static ONCE: std::sync::Once = std::sync::Once::new();
+    ONCE.call_once(|| {
+        let result = mcrust::mcrust::modding::hook::inject(
+            "net.minecraft.client.multiplayer.MultiPlayerGameMode#destroyBlock",
+            mcrust::mcrust::modding::hook::At::Return,
+            |ci: &mut mcrust::mcrust::modding::hook::CallbackInfo<'_>| {
+                if ci.return_value::<bool>().copied() != Some(true) {
+                    return;
+                }
+                let Some(pos) = ci.arg_named::<mcrust::net::minecraft::core::block_pos::BlockPos>("pos").cloned() else {
+                    return;
+                };
+                let listeners = BATCH_S_AFTER_BLOCK_BREAK.lock().unwrap_or_else(|p| p.into_inner()).clone();
+                execute(move || {
+                    for listener in listeners.iter() {
+                        listener(&pos);
+                    }
+                });
+            },
+        );
+        if let Err(e) = result {
+            mcrust::mcrust::modding::log::warn_once("skyblocker-compat-after-block-break", &format!("{e:?}"));
+        }
+    });
+}
+
+// ---- batch U helpers ----
+
+/// `PopupScreen::onClose` handed to a button's `Consumer<PopupScreen>` (`popupScreen.onClose()`): the popup's
+/// `onClose` runnable, then `minecraft.gui.setScreen(this.backgroundScreen)`.
+#[derive(Clone)]
+pub struct BatchUPopupScreenRef {
+    on_close: Option<std::rc::Rc<dyn Fn()>>,
+}
+
+impl BatchUPopupScreenRef {
+    /// java: PopupScreen.onClose:131-137
+    pub fn on_close(&self) {
+        if let Some(on_close) = &self.on_close {
+            on_close();
+        }
+        // `setScreen(this.backgroundScreen)` - the screen the popup was opened over (`set_screen_keeping_parent`), or
+        // `setScreen(null)` when it was opened with no background screen
+        mcrust::mcrust::modding::game::set_screen_to_parent();
+    }
+}
+
+/// One `PopupScreen.ButtonOption(Component message, Consumer<PopupScreen> action)`. The message is a supplier: a
+/// Java `Component` (a `CountdownComponent`) may read differently every time the button draws it.
+struct BatchUPopupButton {
+    message: std::rc::Rc<dyn Fn() -> mcrust::net::minecraft::network::chat::formatted_text::FormattedText>,
+    action: std::rc::Rc<dyn Fn(&BatchUPopupScreenRef)>,
+}
+
+/// java: `net.minecraft.client.gui.components.PopupScreen.Builder`, for a mod: `new PopupScreen.Builder(backgroundScreen,
+/// title).addMessage(..).addButton(message, action).onClose(..).build()`, then `minecraft.gui.setScreen(popup)` is
+/// `game::set_screen_keeping_parent(Box::new(popup))` (the screen it is opened over is its `backgroundScreen`).
+pub struct BatchUPopupScreenBuilder {
+    title: mcrust::net::minecraft::network::chat::formatted_text::FormattedText,
+    messages: Vec<mcrust::net::minecraft::network::chat::formatted_text::FormattedText>,
+    width: i32,
+    image: Option<mcrust::net::minecraft::resources::identifier::Identifier>,
+    buttons: Vec<BatchUPopupButton>,
+    on_close: Option<std::rc::Rc<dyn Fn()>>,
+}
+
+impl BatchUPopupScreenBuilder {
+    /// java: Builder(@Nullable Screen backgroundScreen, Component title)
+    pub fn new(title: impl IntoComponent) -> BatchUPopupScreenBuilder {
+        BatchUPopupScreenBuilder {
+            title: mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(title.into_component()),
+            messages: Vec::new(),
+            width: mcrust::net::minecraft::client::gui::components::popup_screen::POPUP_DEFAULT_WIDTH,
+            image: None,
+            buttons: Vec::new(),
+            on_close: None,
+        }
+    }
+
+    /// java: Builder.setWidth(int)
+    pub fn set_width(mut self, width: i32) -> BatchUPopupScreenBuilder {
+        self.width = width;
+        self
+    }
+
+    /// java: Builder.setImage(Identifier)
+    pub fn set_image(mut self, image: mcrust::net::minecraft::resources::identifier::Identifier) -> BatchUPopupScreenBuilder {
+        self.image = Some(image);
+        self
+    }
+
+    /// java: Builder.addMessage(Component)
+    pub fn add_message(mut self, message: impl IntoComponent) -> BatchUPopupScreenBuilder {
+        self.messages.push(mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(message.into_component()));
+        self
+    }
+
+    /// java: Builder.addButton(Component, Consumer<PopupScreen>)
+    pub fn add_button(self, message: impl IntoComponent, action: impl Fn(&BatchUPopupScreenRef) + 'static) -> BatchUPopupScreenBuilder {
+        let message = mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(message.into_component());
+        self.add_button_dynamic(move || message.clone(), action)
+    }
+
+    /// java: Builder.addButton(Component, Consumer<PopupScreen>) with a `Component` whose text is read at draw time
+    pub fn add_button_dynamic(
+        mut self,
+        message: impl Fn() -> mcrust::net::minecraft::network::chat::formatted_text::FormattedText + 'static,
+        action: impl Fn(&BatchUPopupScreenRef) + 'static,
+    ) -> BatchUPopupScreenBuilder {
+        self.buttons.push(BatchUPopupButton { message: std::rc::Rc::new(message), action: std::rc::Rc::new(action) });
+        self
+    }
+
+    /// java: Builder.onClose(Runnable)
+    pub fn on_close(mut self, on_close: impl Fn() + 'static) -> BatchUPopupScreenBuilder {
+        self.on_close = Some(std::rc::Rc::new(on_close));
+        self
+    }
+
+    /// java: Builder.build()
+    pub fn build(self) -> BatchUPopupScreen {
+        if self.buttons.is_empty() {
+            panic!("IllegalStateException: Popup must have at least one button");
+        }
+        BatchUPopupScreen {
+            popup: mcrust::net::minecraft::client::gui::components::popup_screen::Popup {
+                title: self.title,
+                messages: self.messages,
+                buttons: self
+                    .buttons
+                    .iter()
+                    .enumerate()
+                    .map(|(action, button)| mcrust::net::minecraft::client::gui::components::popup_screen::ButtonOption { message: (button.message)().get_string(), action })
+                    .collect(),
+                width: self.width,
+                image: self.image,
+            },
+            buttons: RenderThread::new(self.buttons),
+            on_close: RenderThread::new(self.on_close),
+            layout: None,
+            button_indices: Vec::new(),
+        }
+    }
+}
+
+/// java: `net.minecraft.client.gui.components.PopupScreen` opened by a mod - the game's popup layout
+/// (`popup_screen::layout`: the bold title, the image, the messages, the capped button row, centred) as a mod screen
+/// whose buttons run the mod's `Consumer<PopupScreen>` actions.
+pub struct BatchUPopupScreen {
+    popup: mcrust::net::minecraft::client::gui::components::popup_screen::Popup,
+    buttons: RenderThread<Vec<BatchUPopupButton>>,
+    on_close: RenderThread<Option<std::rc::Rc<dyn Fn()>>>,
+    layout: Option<mcrust::net::minecraft::client::gui::components::popup_screen::PopupLayout>,
+    button_indices: Vec<usize>,
+}
+
+// SAFETY: the mod's callbacks are reached only through `RenderThread::get`, which checks the thread.
+unsafe impl Send for BatchUPopupScreen {}
+
+impl BatchUPopupScreen {
+    fn screen_ref(&self) -> BatchUPopupScreenRef {
+        BatchUPopupScreenRef { on_close: self.on_close.get().clone() }
+    }
+
+    /// java: PopupScreen.repositionElements:95-102 - `layout.arrangeElements(); FrameLayout.centerInRectangle(..)`
+    fn arrange(&mut self, screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen) {
+        let font = font();
+        let layout = mcrust::net::minecraft::client::gui::components::popup_screen::layout(&self.popup, screen.width, screen.height, &font.splitter());
+        for (i, &index) in self.button_indices.iter().enumerate() {
+            if let Some(&(bx, by, bw, bh)) = layout.buttons.get(i) {
+                let widget = screen.widget_mut(index);
+                widget.set_position(bx, by);
+                widget.set_size(bw, bh);
+            }
+        }
+        self.layout = Some(layout);
+    }
+
+    /// The buttons' `Component` messages as they read now.
+    fn refresh_messages(&self, screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen) {
+        let buttons = self.buttons.get();
+        for (button, &index) in buttons.iter().zip(self.button_indices.iter()) {
+            screen.widget_mut(index).set_message_text((button.message)());
+        }
+    }
+}
+
+impl mcrust::mcrust::modding::screens::ModScreen for BatchUPopupScreen {
+    fn get_title(&self) -> String {
+        self.popup.title.get_string()
+    }
+
+    /// java: PopupScreen.getNarrationMessage:125-128
+    fn get_narration_message(&self) -> String {
+        self.popup.get_narration_message().get_string()
+    }
+
+    /// java: PopupScreen.init:62-79 - the button row's `Button.builder(message, b -> action.accept(this))`, added as
+    /// renderable widgets, then `repositionElements()`
+    fn init(&mut self, screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen) {
+        use mcrust::net::minecraft::client::gui::components::abstract_widget::{AbstractWidget, OnPress, PressLambda, WidgetKind};
+        self.button_indices.clear();
+        let button_width = self.popup.button_width();
+        for (i, option) in self.popup.buttons.iter().enumerate() {
+            let action = RenderThread::new(self.buttons.get()[i].action.clone());
+            let this_ref = RenderThread::new(self.screen_ref());
+            let widget = AbstractWidget::new(
+                0,
+                0,
+                button_width,
+                mcrust::net::minecraft::client::gui::components::popup_screen::BUTTON_HEIGHT,
+                option.message.clone(),
+                WidgetKind::Button,
+                OnPress::Lambda(PressLambda::new(move |_screen, _index| (action.get())(this_ref.get()))),
+            );
+            let index = screen.add_widget(widget);
+            screen.mark_renderable(index);
+            self.button_indices.push(index);
+        }
+        self.refresh_messages(screen);
+        self.arrange(screen);
+    }
+
+    /// java: PopupScreen.repositionElements:95-102
+    fn reposition_elements(&mut self, screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen) {
+        self.arrange(screen);
+    }
+
+    /// java: Screen.resize - `this.width = width; this.height = height; this.repositionElements()`
+    fn resize(&mut self, screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, width: i32, height: i32) {
+        screen.width = width;
+        screen.height = height;
+        self.arrange(screen);
+    }
+
+    /// The buttons draw their `Component` messages every frame in Java; the port's widget draws the text it was last
+    /// set, refreshed here every tick.
+    fn tick(&mut self, screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen) {
+        self.refresh_messages(screen);
+    }
+
+    /// java: PopupScreen.extractBackground:105-123 (the `popup/background` sprite around the layout) and the
+    /// renderables over it: the title and message `MultiLineTextWidget`s, the image, then the buttons. The port's
+    /// generic pass has drawn the screen background and the buttons before this runs, so the buttons are drawn again
+    /// over the sprite, as Java's renderables are.
+    /// (`backgroundScreen.extractBackground` / `extractRenderState` under the popup: the held parent screen is not
+    /// drawn under a mod screen - GAPS_N #1.)
+    fn extract_render_state(
+        &mut self,
+        screen: &mcrust::net::minecraft::client::gui::screens::screen::Screen,
+        context: &mut mcrust::mcrust::modding::screens::ScreenRenderContext<'_>,
+        _mouse_x: i32,
+        _mouse_y: i32,
+        _a: f32,
+    ) {
+        let Some(layout) = &self.layout else {
+            return;
+        };
+        let gl = context.gl;
+        let gfx: &mcrust::net::minecraft::client::minecraft::Minecraft = &*context.minecraft;
+        mcrust::net::minecraft::client::renderer::game_renderer::draw_popup_panel(gl, gfx, layout.background);
+        let splitter = gfx.font.splitter();
+        let mut draw_widget = |w: &mcrust::net::minecraft::client::gui::components::multi_line_text_widget::MultiLineTextWidget| {
+            w.visit_lines(&splitter, &mut |x, y, line| {
+                mcrust::net::minecraft::client::gui::gui_graphics_extractor::draw_styled_formatted_text(
+                    gl,
+                    gfx,
+                    x,
+                    y,
+                    line,
+                    mcrust::net::minecraft::util::argb::white_f32(1.0),
+                    &mcrust::net::minecraft::network::chat::style::Style::EMPTY,
+                );
+            });
+        };
+        draw_widget(&layout.title);
+        if let Some(image) = &layout.image {
+            image.extract_widget_render_state(gl, gfx);
+        }
+        for message in &layout.messages {
+            draw_widget(message);
+        }
+        mcrust::net::minecraft::client::gui::components::abstract_widget::draw_widget_list_with(
+            gl,
+            gfx,
+            screen,
+            &self.button_indices,
+            mcrust::net::minecraft::util::util::get_millis(),
+            gfx.window.get_gui_scale(),
+            gfx.window.get_height(),
+            None,
+            None,
+        );
+    }
+
+    /// java: PopupScreen.onClose:131-137
+    fn on_close(&mut self) {
+        self.screen_ref().on_close();
+    }
+}
+
+/// Fabric API `ClientReceiveMessageEvents.ALLOW_GAME.register(listener)`: the game's own
+/// `client_receive_message_events::ALLOW_GAME` (Fabric's `ChatListenerMixin` at HEAD of `handleSystemMessage` /
+/// `handleOverlay`).
+pub fn register_allow_game(listener: impl Fn(&mcrust::net::minecraft::network::chat::mutable_component::MutableComponent, bool) -> bool + Send + Sync + 'static) {
+    mcrust::mcrust::modding::events::client_receive_message_events::ALLOW_GAME.register(std::sync::Arc::new(listener));
+}
+
+/// Fabric API `ClientReceiveMessageEvents.MODIFY_GAME.register(listener)`: the game's own
+/// `client_receive_message_events::MODIFY_GAME`.
+pub fn register_modify_game(listener: impl Fn(&mcrust::net::minecraft::network::chat::mutable_component::MutableComponent, bool) -> mcrust::net::minecraft::network::chat::mutable_component::MutableComponent + Send + Sync + 'static) {
+    mcrust::mcrust::modding::events::client_receive_message_events::MODIFY_GAME.register(std::sync::Arc::new(listener));
+}
+
+// ---- legacyitemdfu helpers ----
+
+/// `com.google.gson.JsonParser.parseString(String)` (Gson 2.x), which `net.azureaaron.legacyitemdfu`'s `TextFixes` and
+/// `UnflattenTextComponentFix` call: `parseReader(new StringReader(json))` puts the `JsonReader` in LENIENT mode
+/// (`mcrust::lwjgl::json::parse_lenient`), and `Streams.parse` answers `JsonNull.INSTANCE` for an EMPTY document (one
+/// that is nothing but whitespace) instead of throwing. Any other failure is the `JsonSyntaxException` (a
+/// `JsonParseException`), here the `Err`.
+pub fn legacyitemdfu_json_parse_string(json: &str) -> Result<mcrust::lwjgl::json::Value, String> {
+    if json.bytes().all(|b| matches!(b, b' ' | b'\t' | b'\n' | b'\r')) {
+        return Ok(mcrust::lwjgl::json::Value::Null);
+    }
+    mcrust::lwjgl::json::parse_lenient(json)
+}
+
+/// UI sounds asked for outside a mouse press (`batch_v_play_ui_sound`), waiting for the next `SoundManager#tick`.
+static BATCH_V_UI_SOUNDS: std::sync::Mutex<Vec<(mcrust::net::minecraft::sounds::sound_event::SoundEvent, f32, f32)>> = std::sync::Mutex::new(Vec::new());
+
+/// java: `Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(soundEvent, pitch, volume))` from a
+/// tick or a scheduled task (no mouse press to ride, see `batch_w_play_ui_sound`). The port's sound manager plays
+/// with the audio device and library the client loop lends it; `SoundManager#tick` is lent them every client tick,
+/// so the sound is queued here and played at that call's RETURN - in the same tick the game's own sounds are.
+pub fn batch_v_play_ui_sound(event: &mcrust::net::minecraft::sounds::sound_event::SoundEvent, pitch: f32, volume: f32) {
+    BATCH_V_UI_SOUNDS.lock().unwrap_or_else(|p| p.into_inner()).push((event.clone(), pitch, volume));
+    static HOOKED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+    if HOOKED.swap(true, std::sync::atomic::Ordering::AcqRel) {
+        return;
+    }
+    let result = mcrust::mcrust::modding::hook::inject(
+        "net.minecraft.client.sounds.SoundManager#tick",
+        mcrust::mcrust::modding::hook::At::Return,
+        |ci: &mut mcrust::mcrust::modding::hook::CallbackInfo<'_>| {
+            let sounds = std::mem::take(&mut *BATCH_V_UI_SOUNDS.lock().unwrap_or_else(|p| p.into_inner()));
+            if sounds.is_empty() {
+                return;
+            }
+            // the manager, the device and the library are three parameters of the one call: each is taken on its own
+            let Some(options) = ci.find_arg::<mcrust::net::minecraft::client::options::OptionsData>().cloned() else { return };
+            let Some(al) = detach_ref(ci.find_arg::<mcrust::lwjgl::openal::OpenAl>()) else { return };
+            let Some(library) = detach(ci.find_arg_mut::<mcrust::com::mojang::blaze3d::audio::library::Library>()) else { return };
+            let Some(sound_manager) = detach(ci.this_mut::<mcrust::net::minecraft::client::sounds::sound_manager::SoundManager>()) else { return };
+            for (event, pitch, volume) in sounds {
+                let instance = mcrust::net::minecraft::client::resources::sounds::simple_sound_instance::SimpleSoundInstance::for_ui_with_volume(&event, pitch, volume);
+                let _ = sound_manager.play(al, library, &options, Box::new(instance));
+            }
+        },
+    );
+    if let Err(e) = result {
+        mcrust::mcrust::modding::log::warn_once("skyblocker-compat-tick-ui-sound", &format!("{e:?}"));
+    }
+}
+
+/// Fabric API `AttackEntityCallback.EVENT.register(listener)`: the game's own `attack_entity_callback` event, invoked
+/// at `Minecraft.startAttack`'s `gameMode.attack(..)` with `(player, player.level(), MAIN_HAND, target, null)`; a
+/// non-PASS answer cancels the whole attack (no `ServerboundAttackPacket`), as Fabric's mixin does.
+pub fn register_attack_entity_callback(
+    listener: impl Fn(&dyn mcrust::net::minecraft::world::entity::player::player::Player, &mcrust::net::minecraft::world::level::level::Level, mcrust::net::minecraft::world::interaction_hand::InteractionHand, &dyn mcrust::net::minecraft::world::entity::entity::Entity, Option<&mcrust::net::minecraft::world::phys::entity_hit_result::EntityHitResult>) -> mcrust::net::minecraft::world::interaction_result::InteractionResult + Send + Sync + 'static,
+) {
+    mcrust::mcrust::modding::events::attack_entity_callback::register(listener);
+}
+
+// ---- leftovers helpers ----
+
+/// Fabric `FeatureRendererRegistry.register(type, factory)`: the game's `FeatureRenderDispatcher` builds one renderer
+/// per registered type next to its own (`FeatureRenderDispatcher.<init>`), so a submit of that type finds it.
+/// The game's `modding::render::register_feature_renderer` is that registration.
+pub fn leftovers_register_feature_renderer(
+    type_: mcrust::net::minecraft::client::renderer::feature::feature_renderer_type::FeatureRendererType,
+    factory: fn() -> Box<dyn mcrust::net::minecraft::client::renderer::feature::feature_renderer::FeatureRenderer>,
+) {
+    mcrust::mcrust::modding::render::register_feature_renderer(type_, factory);
+}
+
+/// Fabric `LevelRenderContext.levelState()` and `submitNodeCollector()` at `LevelRenderEvents.COLLECT_SUBMITS` (and
+/// `LevelExtractionContext.levelState()`): the frame's `LevelRenderState` and the `SubmitNodeStorage` its features are
+/// submitted into, both fields of the `GameRenderer` `WorldRenderEvents.BEFORE_ENTITIES` lends.
+/// (`GameRenderer::level_render_state_and_submit_node_storage_mut` is the split borrow of the two.)
+pub fn leftovers_level_render_context(
+    game_renderer: &mut mcrust::net::minecraft::client::renderer::game_renderer::GameRenderer,
+) -> (
+    &mut mcrust::net::minecraft::client::renderer::state::level::level_render_state::LevelRenderState,
+    &mut mcrust::net::minecraft::client::renderer::submit_node_storage::SubmitNodeStorage,
+) {
+    game_renderer.level_render_state_and_submit_node_storage_mut()
+}
+
+/// Fabric `SubmitNodeCollector.submitCustom(SubmitRenderPhase phase, SubmitNode submit)` on the frame's collector
+/// (`SubmitNodeStorage`, order 0): the submit goes into that phase of the order-0 collection
+/// (`SubmitNodeStorage.order(0)` - `computeIfAbsent`).
+pub fn leftovers_submit_custom(
+    storage: &mut mcrust::net::minecraft::client::renderer::submit_node_storage::SubmitNodeStorage,
+    phase: mcrust::net::minecraft::client::renderer::submit_node_collection::PhaseId,
+    submit: std::sync::Arc<dyn mcrust::net::minecraft::client::renderer::feature::submit::submit_node::SubmitNode>,
+) {
+    storage
+        .get_submits_per_order_mut()
+        .entry(0)
+        .or_insert_with(mcrust::net::minecraft::client::renderer::submit_node_collection::SubmitNodeCollection::new)
+        .phase_mut(phase)
+        .submit(submit);
+}
+
+/// `Font.PreparedTextBuilder`'s public pen - Java's `drawer.x = ..; drawer.y = ..;` from a mod sink
+/// (`GuiOutlinedTextRenderState.prepareOutline`, a copy of `Font.prepare8xTextOutline`'s loop).
+/// (`PreparedTextBuilder::set_pen` writes the builder's pen.)
+pub fn leftovers_prepared_text_builder_move_pen(builder: &mut mcrust::net::minecraft::client::gui::font::PreparedTextBuilder, x: f32, y: f32) {
+    builder.set_pen(x, y);
+}
+
+/// `PreparedText.visit(glyphVisitor)` with the GUI's visitor (`GuiRenderer.prepareText`) for each record in order: every
+/// renderable resolved against the sheet it was baked into, as `GuiGraphicsExtractor`'s text draw does before its
+/// `addText` - the record a `GuiTextRenderState` carries.
+/// (`gui_graphics_extractor::resolve_built_text_into` is that resolve, appending.)
+pub fn leftovers_resolve_gui_text(
+    records: &[&mcrust::net::minecraft::client::gui::font::PreparedText],
+) -> mcrust::net::minecraft::client::renderer::state::gui::gui_text_render_state::PreparedText {
+    leftovers_resolve_gui_text_cacheable(records).0
+}
+
+/// PERF (port-only, same record): `leftovers_resolve_gui_text`, also answering whether the record is a pure
+/// function of what was fed to the builders (`resolve_built_text_into`'s flag, ANDed over the records) - i.e.
+/// whether a caller may keep it and hand it to a later frame's `GuiTextRenderState::new_shared` while
+/// `gui_graphics_extractor::gui_text_record_epoch` answers the same.
+pub fn leftovers_resolve_gui_text_cacheable(
+    records: &[&mcrust::net::minecraft::client::gui::font::PreparedText],
+) -> (mcrust::net::minecraft::client::renderer::state::gui::gui_text_render_state::PreparedText, bool) {
+    let mut resolved = mcrust::net::minecraft::client::renderer::state::gui::gui_text_render_state::PreparedText::new();
+    let mut cacheable = true;
+    for record in records {
+        cacheable &= mcrust::net::minecraft::client::gui::gui_graphics_extractor::resolve_built_text_into(
+            mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(),
+            &*minecraft(),
+            record,
+            &mut resolved,
+        );
+    }
+    (resolved, cacheable)
+}
+
+/// Fabric `PictureInPictureRendererRegistry.register(factory)`: a renderer for the picture-in-picture states of class
+/// `St` (`getRenderStateClass()`), drawn by the game's `GuiRenderer` next to its own five (`GameRenderer
+/// .prepareGuiPicturesInPicture`), with the renderer's `getTranslateY` / `renderToTexture` / `getTextureLabel`.
+///
+/// The game's `modding::render::register_picture_in_picture_renderer` is that registry, keyed on the state's `TypeId`.
+pub fn leftovers_register_picture_in_picture_renderer<St: 'static>(
+    texture_label: &'static str,
+    translate_y: fn(i32, i32) -> f32,
+    render_to_texture: fn(
+        &St,
+        &mut mcrust::com::mojang::blaze3d::vertex::pose_stack::PoseStack,
+        &mut dyn mcrust::net::minecraft::client::renderer::submit_node_collector::SubmitNodeCollector,
+        &mcrust::com::mojang::blaze3d::platform::lighting::Lighting,
+    ),
+) {
+    mcrust::mcrust::modding::render::register_picture_in_picture_renderer::<St>(texture_label, translate_y, render_to_texture);
+}
+
+// ---- sweep Z helpers ----
+
+/// `moe.nea.lisp` - NeaLisp (`moe.nea:nealisp`), the small Lisp the NEU repo's skill-tree layouts
+/// (`constants/hotmlayout.json`: the `prelude` and every perk's `cost` / `item` / `stat*` / `powder` / `onlyIf`
+/// program) are written in, which Skyblocker's profile viewer evaluates (`HotmTreeBuilder`, `SkillTreeBuilder`,
+/// `LispExtensions`). The library's sources are not on this machine (no jar, no checkout); this is the library's
+/// surface as Skyblocker calls it - `LispParser.parse`, `LispAst.Program` / `toSource`, `LispData` (`LispNil`,
+/// `Atom`, `LispString`, `LispNumber`, lists, executables), `StackFrame` (`fork`, `setValueLocal`), the
+/// `LispExecutionContext` (`setupStandardBindings`, `getRootStackFrame`, `genBindings`, `executeProgram`),
+/// `CoreBindings.isTruthy` and `AutoBinder.bindTo` - with the core bindings the layouts use (`defun`, `lambda`,
+/// `def`, `seq`, `if`, `true` / `false` / `nil`, `+ - * /`, `lt` / `gt` / `=`, `list.new` / `list.at`). An
+/// evaluation error is reported (logged) and answers `LispNil`, which the profile viewer renders as its
+/// `<lisp error - name>` text.
+pub mod nea_lisp {
+    use std::cell::RefCell;
+    use std::collections::HashMap;
+    use std::rc::Rc;
+
+    /// `LispAst.LispNode`
+    #[derive(Clone, Debug, PartialEq)]
+    pub enum LispNode {
+        /// `LispAst.Parenthesis` - `(a b c)`
+        Parenthesis(Vec<LispNode>),
+        /// `LispAst.Atom` - `:LABEL`
+        Atom(String),
+        /// `LispAst.Reference` - a symbol, resolved in the stack frame
+        Reference(String),
+        /// `LispAst.StringLiteral` - `"text"`
+        StringLiteral(String),
+        /// `LispAst.NumberLiteral`
+        NumberLiteral(f64),
+    }
+
+    impl LispNode {
+        /// `toSource()`
+        pub fn to_source(&self) -> String {
+            match self {
+                LispNode::Parenthesis(items) => format!("({})", items.iter().map(LispNode::to_source).collect::<Vec<_>>().join(" ")),
+                LispNode::Atom(label) => format!(":{label}"),
+                LispNode::Reference(label) => label.clone(),
+                LispNode::StringLiteral(string) => {
+                    let mut out = String::from("\"");
+                    for c in string.chars() {
+                        match c {
+                            '"' => out.push_str("\\\""),
+                            '\\' => out.push_str("\\\\"),
+                            '\n' => out.push_str("\\n"),
+                            '\t' => out.push_str("\\t"),
+                            c => out.push(c),
+                        }
+                    }
+                    out.push('"');
+                    out
+                }
+                LispNode::NumberLiteral(value) => crate::compat::fstr(*value),
+            }
+        }
+    }
+
+    /// `LispAst.Program` - the parsed file: its name and its top-level nodes
+    #[derive(Clone, Debug, PartialEq)]
+    pub struct Program {
+        pub file_name: String,
+        pub nodes: Vec<LispNode>,
+    }
+
+    impl Program {
+        /// `toSource()`
+        pub fn to_source(&self) -> String {
+            self.nodes.iter().map(LispNode::to_source).collect::<Vec<_>>().join("\n")
+        }
+    }
+
+    /// `LispParser`
+    pub struct LispParser;
+
+    impl LispParser {
+        /// `LispParser.Companion.parse(fileName, source)` - `Err` is the parser's exception message
+        pub fn parse(file_name: &str, source: &str) -> Result<Program, String> {
+            let chars: Vec<char> = source.chars().collect();
+            let mut pos = 0usize;
+            let mut nodes = Vec::new();
+            loop {
+                skip_blank(&chars, &mut pos);
+                if pos >= chars.len() {
+                    break;
+                }
+                nodes.push(parse_node(file_name, &chars, &mut pos)?);
+            }
+            Ok(Program { file_name: file_name.to_string(), nodes })
+        }
+    }
+
+    /// whitespace and `;` line comments
+    fn skip_blank(chars: &[char], pos: &mut usize) {
+        while *pos < chars.len() {
+            if chars[*pos].is_whitespace() {
+                *pos += 1;
+            } else if chars[*pos] == ';' {
+                while *pos < chars.len() && chars[*pos] != '\n' {
+                    *pos += 1;
+                }
+            } else {
+                break;
+            }
+        }
+    }
+
+    fn parse_node(file_name: &str, chars: &[char], pos: &mut usize) -> Result<LispNode, String> {
+        skip_blank(chars, pos);
+        if *pos >= chars.len() {
+            return Err(format!("{file_name}: unexpected end of file"));
+        }
+        match chars[*pos] {
+            '(' => {
+                *pos += 1;
+                let mut items = Vec::new();
+                loop {
+                    skip_blank(chars, pos);
+                    if *pos >= chars.len() {
+                        return Err(format!("{file_name}: unclosed parenthesis"));
+                    }
+                    if chars[*pos] == ')' {
+                        *pos += 1;
+                        return Ok(LispNode::Parenthesis(items));
+                    }
+                    items.push(parse_node(file_name, chars, pos)?);
+                }
+            }
+            ')' => Err(format!("{file_name}: unexpected ')' at {}", *pos)),
+            '"' => {
+                *pos += 1;
+                let mut string = String::new();
+                loop {
+                    if *pos >= chars.len() {
+                        return Err(format!("{file_name}: unclosed string literal"));
+                    }
+                    let c = chars[*pos];
+                    *pos += 1;
+                    match c {
+                        '"' => return Ok(LispNode::StringLiteral(string)),
+                        '\\' => {
+                            if *pos >= chars.len() {
+                                return Err(format!("{file_name}: unclosed string literal"));
+                            }
+                            let escaped = chars[*pos];
+                            *pos += 1;
+                            string.push(match escaped {
+                                'n' => '\n',
+                                't' => '\t',
+                                other => other,
+                            });
+                        }
+                        c => string.push(c),
+                    }
+                }
+            }
+            _ => {
+                let start = *pos;
+                while *pos < chars.len() && !chars[*pos].is_whitespace() && !matches!(chars[*pos], '(' | ')' | '"' | ';') {
+                    *pos += 1;
+                }
+                let token: String = chars[start..*pos].iter().collect();
+                if let Some(label) = token.strip_prefix(':') {
+                    return Ok(LispNode::Atom(label.to_string()));
+                }
+                let numeric = token.chars().any(|c| c.is_ascii_digit())
+                    && token.chars().enumerate().all(|(i, c)| c.is_ascii_digit() || c == '.' || (i == 0 && c == '-'));
+                if numeric && let Ok(value) = token.parse::<f64>() {
+                    return Ok(LispNode::NumberLiteral(value));
+                }
+                Ok(LispNode::Reference(token))
+            }
+        }
+    }
+
+    /// The body of a `LispData.JavaExecutable`: handed the context, the call site, the caller's frame and the
+    /// UNEVALUATED argument nodes (a special form reads them as they are, a function evaluates them).
+    pub type JavaExecutable = Rc<dyn Fn(&LispExecutionContext, &LispNode, &StackFrame, &[LispNode]) -> LispData>;
+
+    /// `LispData`
+    #[derive(Clone)]
+    pub enum LispData {
+        /// `LispData.LispNil.INSTANCE`
+        LispNil,
+        /// `LispData.Atom(label)`
+        Atom(String),
+        /// `LispData.LispString(string)`
+        LispString(String),
+        /// `LispData.LispNumber(value)`
+        LispNumber(f64),
+        /// `LispData.LispList(elements)`
+        LispList(Vec<LispData>),
+        /// `LispData.JavaExecutable(name)`
+        JavaExecutable(String, JavaExecutable),
+        /// `LispData.LispInterpretedCallable(declarationStackFrame, argNames, body, name)`
+        LispInterpretedCallable { declaration_stack_frame: StackFrame, arg_names: Vec<String>, body: Vec<LispNode>, name: String },
+    }
+
+    impl PartialEq for LispData {
+        fn eq(&self, other: &LispData) -> bool {
+            match (self, other) {
+                (LispData::LispNil, LispData::LispNil) => true,
+                (LispData::Atom(a), LispData::Atom(b)) => a == b,
+                (LispData::LispString(a), LispData::LispString(b)) => a == b,
+                (LispData::LispNumber(a), LispData::LispNumber(b)) => a == b,
+                (LispData::LispList(a), LispData::LispList(b)) => a == b,
+                (LispData::JavaExecutable(_, a), LispData::JavaExecutable(_, b)) => Rc::ptr_eq(a, b),
+                _ => false,
+            }
+        }
+    }
+
+    impl LispData {
+        /// `LispData.Atom.getLabel()`
+        pub fn as_atom_label(&self) -> Option<&str> {
+            match self {
+                LispData::Atom(label) => Some(label),
+                _ => None,
+            }
+        }
+
+        /// `LispData.LispString.getString()`
+        pub fn as_string(&self) -> Option<&str> {
+            match self {
+                LispData::LispString(string) => Some(string),
+                _ => None,
+            }
+        }
+
+        /// `LispData.LispNumber.getValue()`
+        pub fn as_number(&self) -> Option<f64> {
+            match self {
+                LispData::LispNumber(value) => Some(*value),
+                _ => None,
+            }
+        }
+
+        fn type_name(&self) -> &'static str {
+            match self {
+                LispData::LispNil => "nil",
+                LispData::Atom(_) => "atom",
+                LispData::LispString(_) => "string",
+                LispData::LispNumber(_) => "number",
+                LispData::LispList(_) => "list",
+                LispData::JavaExecutable(..) | LispData::LispInterpretedCallable { .. } => "function",
+            }
+        }
+
+        /// the boolean atoms `true` / `false`
+        pub fn boolean(value: bool) -> LispData {
+            LispData::Atom(if value { "true" } else { "false" }.to_string())
+        }
+    }
+
+    struct Frame {
+        parent: Option<StackFrame>,
+        values: HashMap<String, LispData>,
+    }
+
+    /// `StackFrame` - a scope: its own values over its parent's
+    #[derive(Clone)]
+    pub struct StackFrame(Rc<RefCell<Frame>>);
+
+    impl StackFrame {
+        pub fn new(parent: Option<StackFrame>) -> StackFrame {
+            StackFrame(Rc::new(RefCell::new(Frame { parent, values: HashMap::new() })))
+        }
+
+        /// `fork()` - a child scope
+        pub fn fork(&self) -> StackFrame {
+            StackFrame::new(Some(self.clone()))
+        }
+
+        /// `setValueLocal(label, value)`
+        pub fn set_value_local(&self, label: &str, value: LispData) -> LispData {
+            self.0.borrow_mut().values.insert(label.to_string(), value.clone());
+            value
+        }
+
+        /// `resolveReference(label)` - this scope, then its parents
+        pub fn resolve_reference(&self, label: &str) -> Option<LispData> {
+            let frame = self.0.borrow();
+            match frame.values.get(label) {
+                Some(value) => Some(value.clone()),
+                None => frame.parent.as_ref().and_then(|parent| parent.resolve_reference(label)),
+            }
+        }
+    }
+
+    /// `CoreBindings.INSTANCE.isTruthy(data)` - `true` / `false` for the two boolean atoms, `None` for anything else
+    pub fn is_truthy(data: &LispData) -> Option<bool> {
+        match data.as_atom_label() {
+            Some("true") => Some(true),
+            Some("false") => Some(false),
+            _ => None,
+        }
+    }
+
+    /// `LispExecutionContext`
+    pub struct LispExecutionContext {
+        root_stack_frame: StackFrame,
+    }
+
+    impl Default for LispExecutionContext {
+        fn default() -> Self {
+            LispExecutionContext::new()
+        }
+    }
+
+    impl LispExecutionContext {
+        /// `new LispExecutionContext()`
+        pub fn new() -> LispExecutionContext {
+            LispExecutionContext { root_stack_frame: StackFrame::new(None) }
+        }
+
+        /// `getRootStackFrame()`
+        pub fn get_root_stack_frame(&self) -> StackFrame {
+            self.root_stack_frame.clone()
+        }
+
+        /// `genBindings()` - a scope over the root
+        pub fn gen_bindings(&self) -> StackFrame {
+            self.root_stack_frame.fork()
+        }
+
+        /// `reportError(message, callsite)` - logged; the expression answers `LispNil`
+        pub fn report_error(&self, message: &str, callsite: &LispNode) -> LispData {
+            crate::prelude::logger().warn(&format!("[NeaLisp] {message} (at {})", callsite.to_source()));
+            LispData::LispNil
+        }
+
+        /// `executeProgram(stackFrame, program)` - every top-level node in turn; the last one's value
+        pub fn execute_program(&self, stack_frame: &StackFrame, program: &Program) -> LispData {
+            let mut last = LispData::LispNil;
+            for node in program.nodes.iter() {
+                last = self.execute_lisp(stack_frame, node);
+            }
+            last
+        }
+
+        /// `executeLisp(stackFrame, node)`
+        pub fn execute_lisp(&self, stack_frame: &StackFrame, node: &LispNode) -> LispData {
+            match node {
+                LispNode::Parenthesis(items) => {
+                    let Some(first) = items.first() else {
+                        return self.report_error("Cannot execute an empty parenthesis ()", node);
+                    };
+                    let function = self.execute_lisp(stack_frame, first);
+                    self.call(&function, node, stack_frame, &items[1..])
+                }
+                LispNode::Reference(label) => match stack_frame.resolve_reference(label) {
+                    Some(value) => value,
+                    None => self.report_error(&format!("Could not resolve variable {label}"), node),
+                },
+                LispNode::Atom(label) => LispData::Atom(label.clone()),
+                LispNode::StringLiteral(string) => LispData::LispString(string.clone()),
+                LispNode::NumberLiteral(value) => LispData::LispNumber(*value),
+            }
+        }
+
+        /// a call: `LispExecutable.execute(executionContext, callsite, stackFrame, args)`
+        pub fn call(&self, function: &LispData, callsite: &LispNode, stack_frame: &StackFrame, args: &[LispNode]) -> LispData {
+            match function {
+                LispData::JavaExecutable(_, body) => body(self, callsite, stack_frame, args),
+                LispData::LispInterpretedCallable { declaration_stack_frame, arg_names, body, name } => {
+                    let invocation = declaration_stack_frame.fork();
+                    if arg_names.len() != args.len() {
+                        return self.report_error(&format!("Expected {} arguments, got {} instead (calling {name})", arg_names.len(), args.len()), callsite);
+                    }
+                    for (arg_name, arg) in arg_names.iter().zip(args.iter()) {
+                        let value = self.execute_lisp(stack_frame, arg);
+                        invocation.set_value_local(arg_name, value);
+                    }
+                    let mut last = LispData::LispNil;
+                    for node in body.iter() {
+                        last = self.execute_lisp(&invocation, node);
+                    }
+                    last
+                }
+                other => self.report_error(&format!("Cannot evaluate expression of type {}", other.type_name()), callsite),
+            }
+        }
+
+        /// the arguments evaluated in the caller's frame (a function, as opposed to a special form)
+        pub fn evaluate_all(&self, stack_frame: &StackFrame, args: &[LispNode]) -> Vec<LispData> {
+            args.iter().map(|arg| self.execute_lisp(stack_frame, arg)).collect()
+        }
+
+        /// binds a special form (`JavaExecutable` handed its unevaluated arguments) into `frame`
+        pub fn bind_special_in(frame: &StackFrame, name: &str, body: impl Fn(&LispExecutionContext, &LispNode, &StackFrame, &[LispNode]) -> LispData + 'static) {
+            frame.set_value_local(name, LispData::JavaExecutable(name.to_string(), Rc::new(body)));
+        }
+
+        /// binds a function (its arguments are evaluated first) into `frame` - `AutoBinder.bindTo`'s shape
+        pub fn bind_function_in(frame: &StackFrame, name: &str, body: impl Fn(&LispExecutionContext, &LispNode, &[LispData]) -> LispData + 'static) {
+            LispExecutionContext::bind_special_in(frame, name, move |context, callsite, frame, args| {
+                let values = context.evaluate_all(frame, args);
+                body(context, callsite, &values)
+            });
+        }
+
+        /// `setupStandardBindings()` - `CoreBindings` (and the list bindings) into the root frame
+        pub fn setup_standard_bindings(&self) {
+            let root = self.root_stack_frame.clone();
+            root.set_value_local("nil", LispData::LispNil);
+            root.set_value_local("true", LispData::boolean(true));
+            root.set_value_local("false", LispData::boolean(false));
+            // (def name value)
+            LispExecutionContext::bind_special_in(&root, "def", |context, callsite, frame, args| {
+                let [LispNode::Reference(name), value] = args else {
+                    return context.report_error("def needs a name and a value", callsite);
+                };
+                let value = context.execute_lisp(frame, value);
+                frame.set_value_local(name, value)
+            });
+            // (lambda (args...) body...)
+            LispExecutionContext::bind_special_in(&root, "lambda", |context, callsite, frame, args| {
+                let Some(LispNode::Parenthesis(arg_names)) = args.first() else {
+                    return context.report_error("lambda needs an argument list", callsite);
+                };
+                let Some(arg_names) = arg_names.iter().map(|n| match n { LispNode::Reference(label) => Some(label.clone()), _ => None }).collect::<Option<Vec<String>>>() else {
+                    return context.report_error("lambda arguments must be names", callsite);
+                };
+                LispData::LispInterpretedCallable { declaration_stack_frame: frame.clone(), arg_names, body: args[1..].to_vec(), name: "<lambda>".to_string() }
+            });
+            // (defun name (args...) body...)
+            LispExecutionContext::bind_special_in(&root, "defun", |context, callsite, frame, args| {
+                let (Some(LispNode::Reference(name)), Some(LispNode::Parenthesis(arg_names))) = (args.first(), args.get(1)) else {
+                    return context.report_error("defun needs a name and an argument list", callsite);
+                };
+                let Some(arg_names) = arg_names.iter().map(|n| match n { LispNode::Reference(label) => Some(label.clone()), _ => None }).collect::<Option<Vec<String>>>() else {
+                    return context.report_error("defun arguments must be names", callsite);
+                };
+                let function = LispData::LispInterpretedCallable { declaration_stack_frame: frame.clone(), arg_names, body: args[2..].to_vec(), name: name.clone() };
+                frame.set_value_local(name, function)
+            });
+            // (seq expr...)
+            LispExecutionContext::bind_special_in(&root, "seq", |context, _callsite, frame, args| {
+                let mut last = LispData::LispNil;
+                for arg in args {
+                    last = context.execute_lisp(frame, arg);
+                }
+                last
+            });
+            // (if condition then [else])
+            LispExecutionContext::bind_special_in(&root, "if", |context, callsite, frame, args| {
+                if args.len() < 2 || args.len() > 3 {
+                    return context.report_error("if needs a condition, a then branch and an optional else branch", callsite);
+                }
+                let condition = context.execute_lisp(frame, &args[0]);
+                match is_truthy(&condition) {
+                    Some(true) => context.execute_lisp(frame, &args[1]),
+                    Some(false) => args.get(2).map(|branch| context.execute_lisp(frame, branch)).unwrap_or(LispData::LispNil),
+                    None => context.report_error("Expected a boolean as the if condition", callsite),
+                }
+            });
+            // (debuglog values...)
+            LispExecutionContext::bind_function_in(&root, "debuglog", |_context, _callsite, values| {
+                crate::prelude::logger().info(&format!("[NeaLisp] {}", values.iter().map(display).collect::<Vec<_>>().join(" ")));
+                LispData::LispNil
+            });
+            // arithmetic over numbers
+            fn numbers(context: &LispExecutionContext, callsite: &LispNode, values: &[LispData]) -> Option<Vec<f64>> {
+                let numbers: Option<Vec<f64>> = values.iter().map(LispData::as_number).collect();
+                if numbers.is_none() {
+                    context.report_error("Expected numbers", callsite);
+                }
+                numbers
+            }
+            LispExecutionContext::bind_function_in(&root, "+", |context, callsite, values| match numbers(context, callsite, values) {
+                Some(n) => LispData::LispNumber(n.iter().sum()),
+                None => LispData::LispNil,
+            });
+            LispExecutionContext::bind_function_in(&root, "*", |context, callsite, values| match numbers(context, callsite, values) {
+                Some(n) => LispData::LispNumber(n.iter().product()),
+                None => LispData::LispNil,
+            });
+            LispExecutionContext::bind_function_in(&root, "-", |context, callsite, values| match numbers(context, callsite, values) {
+                Some(n) if n.len() == 1 => LispData::LispNumber(-n[0]),
+                Some(n) if !n.is_empty() => LispData::LispNumber(n[1..].iter().fold(n[0], |a, b| a - b)),
+                Some(_) => context.report_error("- needs at least one number", callsite),
+                None => LispData::LispNil,
+            });
+            LispExecutionContext::bind_function_in(&root, "/", |context, callsite, values| match numbers(context, callsite, values) {
+                Some(n) if n.len() >= 2 => LispData::LispNumber(n[1..].iter().fold(n[0], |a, b| a / b)),
+                Some(_) => context.report_error("/ needs at least two numbers", callsite),
+                None => LispData::LispNil,
+            });
+            LispExecutionContext::bind_function_in(&root, "lt", |context, callsite, values| match numbers(context, callsite, values).as_deref() {
+                Some([a, b]) => LispData::boolean(a < b),
+                _ => context.report_error("lt needs two numbers", callsite),
+            });
+            LispExecutionContext::bind_function_in(&root, "gt", |context, callsite, values| match numbers(context, callsite, values).as_deref() {
+                Some([a, b]) => LispData::boolean(a > b),
+                _ => context.report_error("gt needs two numbers", callsite),
+            });
+            LispExecutionContext::bind_function_in(&root, "=", |context, callsite, values| match values {
+                [a, b] => LispData::boolean(a == b),
+                _ => context.report_error("= needs two values", callsite),
+            });
+            LispExecutionContext::bind_function_in(&root, "tostring", |_context, _callsite, values| LispData::LispString(values.iter().map(display).collect::<Vec<_>>().join(" ")));
+            // lists
+            LispExecutionContext::bind_function_in(&root, "list.new", |_context, _callsite, values| LispData::LispList(values.to_vec()));
+            LispExecutionContext::bind_function_in(&root, "list.at", |context, callsite, values| match values {
+                [LispData::LispList(elements), LispData::LispNumber(index)] if *index >= 0.0 && (*index as usize) < elements.len() => elements[*index as usize].clone(),
+                [LispData::LispList(elements), LispData::LispNumber(index)] => context.report_error(&format!("Index {index} out of bounds for a list of {}", elements.len()), callsite),
+                _ => context.report_error("list.at needs a list and an index", callsite),
+            });
+        }
+    }
+
+    /// a value as `debuglog` / `tostring` print it
+    pub fn display(data: &LispData) -> String {
+        match data {
+            LispData::LispNil => "nil".to_string(),
+            LispData::Atom(label) => format!(":{label}"),
+            LispData::LispString(string) => string.clone(),
+            LispData::LispNumber(value) => crate::compat::fstr(*value),
+            LispData::LispList(elements) => format!("[{}]", elements.iter().map(display).collect::<Vec<_>>().join(", ")),
+            LispData::JavaExecutable(name, _) => format!("<function {name}>"),
+            LispData::LispInterpretedCallable { name, .. } => format!("<function {name}>"),
+        }
+    }
+}
+
+/// A Java `static final TextRenderer textRenderer = client.textRenderer`: the
+/// game's font, resolved on every use (the game replaces its font set on a
+/// resource reload; Java's `Font` reads the current one through its manager).
+pub struct LiveFont;
+
+impl LiveFont {
+    pub fn get(&self) -> mcrust::net::minecraft::client::gui::font::Font<'static> {
+        font()
+    }
+
+    pub fn get_mut(&self) -> mcrust::net::minecraft::client::gui::font::Font<'static> {
+        font()
+    }
+}
+
+/// 26.3: `SignBlockEntity.getText` and `ServerboundSignUpdatePacket` take a `SignTextSlot` where 26.2 took `boolean front`.
+pub fn sign_slot(front: bool) -> mcrust::net::minecraft::world::level::block::entity::sign_text_slot::SignTextSlot {
+    use mcrust::net::minecraft::world::level::block::entity::sign_text_slot::SignTextSlot;
+    if front { SignTextSlot::Front } else { SignTextSlot::Back }
 }

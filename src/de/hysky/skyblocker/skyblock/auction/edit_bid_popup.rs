@@ -126,7 +126,7 @@ impl EditBidPopup {
         // java: Minecraft.getInstance().player.connection.send(new ServerboundSignUpdatePacket(signBlockEntity.getBlockPos(), signFront, string.replace("coins", ""), "", "", ""));
         let (sign, front) = compat::read(__this, |__t| (__t.sign_block_entity.clone(), __t.sign_front));
         let pos = sign.as_sign().expect("ClassCastException: SignBlockEntity").get_block_pos();
-        compat::send_packet(ServerboundSignUpdatePacket::new(pos, front, string.replace("coins", ""), "".to_string(), "".to_string(), "".to_string()));
+        compat::send_packet(ServerboundSignUpdatePacket::new(pos, vec![string.replace("coins", ""), "".to_string(), "".to_string(), "".to_string()], compat::sign_slot(front)));
         { let __v = true; compat::write(__this, |__t| __t.packet_sent = __v); }
     }
 
@@ -183,9 +183,17 @@ impl EditBidPopup {
         });
         // java: textFieldWidget = new EnterConfirmTextFieldWidget(font, 120, 15, Component.empty(), () -> done(null));
         // java: textFieldWidget.setFilter(this::isStringGood);
-        // rust: port gap (GAPS_N #2) - the game's `EditBox` has no `filter`, so the box does not refuse input when
-        // `isStringGood` answers false (the "Done" path still checks it)
-        let mut __text_field = compat::WidgetRef::value(compat::edit_box(0, 0, 120, 15, component::empty()));
+        // (`EditBox.filter` is tested on the box's would-be value by `setValue`, `insertText` and `deleteCharsToPos`, which
+        // apply the edit only when it passes. `isStringGood` ignores its argument - it measures `minimumBid` against the
+        // sign - so the filter is one answer for the popup's life: `true` lets every edit through, `false` refuses every
+        // edit and the box stays at its initial empty value. The port's `EditBox` has no filter slot; a box whose
+        // `maxLength` is 0 refuses exactly the same edits (`insertText:139` returns, `setValue` truncates to "", and
+        // there is nothing to delete), so that is the filter's `false`.)
+        let mut __text_field_widget = compat::edit_box(0, 0, 120, 15, component::empty());
+        if !EditBidPopup::is_string_good(__this, "") {
+            compat::with_edit_box(&mut __text_field_widget, |__e| __e.set_max_length(0));
+        }
+        let mut __text_field = compat::WidgetRef::value(__text_field_widget);
         { let (__q0,) = ({ let __w = compat::string_widget(0, 0, -1, 9, (component::literal("- Set Bid -")).with_style(&mcrust::net::minecraft::network::chat::style::Style::EMPTY.with_bold(Some(true)))); let (__ww, __wh) = (__w.get_width(), __w.get_height()); LayoutElement::widget(compat::write(__this, |__t| __t.add_widget(__w)), __ww, __wh) },); __this.lock().borrow_mut().layout.add_child(__q0) };
         // java: layout.addChild(textFieldWidget);
         let (__ti, __tw, __th) = compat::write(__this, |__t| { let __s = &mut __t.base; __s.__widgets.add_to_layout(&mut __s.base, &mut __text_field) });
@@ -284,6 +292,16 @@ impl compat::ScreenHalf for EditBidPopup {
 
 /// EditBidPopup as the game's screen: `game::set_screen(Box::new(compat::ScreenAdapter::new(..)))`
 impl ModScreen for compat::ScreenAdapter<EditBidPopup> {
+    /// java: AbstractPopupScreen.extractBackground overrides `Screen.extractBackground` without `super`
+    fn extract_background_calls_super(&self) -> bool {
+        false
+    }
+
+    /// java: @Override public void extractBackground(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a)
+    fn extract_background(&mut self, _screen: &mcrust::net::minecraft::client::gui::screens::screen::Screen, context: &mut mcrust::mcrust::modding::screens::ScreenRenderContext<'_>, mouse_x: i32, mouse_y: i32, a: f32) {
+        self.call(|__h| ({ let __f = compat::dispatch(__h, |__t| __t.extract_background()); __f(&compat::view(__h, |a| a as compat::Shared<dyn AbstractPopupScreen>), &mut context.graphics, mouse_x, mouse_y, a) }))
+    }
+
     fn get_title(&self) -> String {
         self.title()
     }

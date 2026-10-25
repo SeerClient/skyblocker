@@ -4,6 +4,8 @@
 use crate::prelude::*;
 use crate::de::hysky::skyblocker::skyblock::item::tooltip::info::tooltip_info_type;
 use crate::de::hysky::skyblocker::skyblock::item::tooltip::info::tooltip_info_type::TooltipInfoType;
+use crate::de::hysky::skyblocker::skyblock::item::tooltip::item_tooltip::ItemTooltip;
+use crate::de::hysky::skyblocker::utils::render::text::grid_component::GridComponent;
 use crate::de::hysky::skyblocker::skyblock::item::tooltip::simple_tooltip_adder::SimpleTooltipAdder;
 use crate::de::hysky::skyblocker::skyblock::item::tooltip::simple_tooltip_adder::SimpleTooltipAdderBase;
 use crate::de::hysky::skyblocker::utils::container::container_matcher::ContainerMatcher;
@@ -116,10 +118,11 @@ impl LBinTooltip {
     pub fn add_to_tooltip_impl(__this: &compat::Shared<Self>, mut focused_slot: Option<Slot>, stack: &mcrust::net::minecraft::world::item::item_stack::ItemStack, lines: &mut Vec<MutableComponent>) {
         let mut skyblock_api_id: String = stack.get_skyblock_api_id();
         if tooltip_info_type::LOWEST_BINS.get_mut().lock().borrow().has_or_null_warning(&skyblock_api_id) && !(tooltip_info_type::BAZAAR.get_mut().lock().borrow().has_or_null_warning(&skyblock_api_id)) {
-            // TODO(fabric2seer): `.getDouble(..)` on a T
-            //   java: lines.add(GridComponent.of(
-            //   java: 					Component.literal("Lowest BIN Price:").withStyle(ChatFormatting.GOLD),
-            //   java: 					ItemTooltip.getCoinsMessage(TooltipInfoType.LOWEST_BINS.getData().getDouble(skyblockApiId), stack.getCount())));
+            //   java: lines.add(GridComponent.of(Component.literal("Lowest BIN Price:").withStyle(ChatFormatting.GOLD),
+            //   java:     ItemTooltip.getCoinsMessage(TooltipInfoType.LOWEST_BINS.getData().getDouble(skyblockApiId), stack.getCount())));
+            // (`Object2DoubleMap.getDouble` of an absent key is the map's default return value, 0)
+            let price: f64 = tooltip_info_type::LOWEST_BINS.get_mut().lock().borrow().get_data().expect("NullPointerException: TooltipInfoType.LOWEST_BINS.getData()").get(&skyblock_api_id).copied().unwrap_or(0.0);
+            lines.push(GridComponent::of(&vec![component::literal("Lowest BIN Price:").with_style_format(ChatFormatting::Gold), ItemTooltip::get_coins_message(price, stack.get_count())]));
         }
     }
 

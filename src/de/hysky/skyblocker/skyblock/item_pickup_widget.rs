@@ -103,8 +103,9 @@ impl ItemPickupWidget {
             ((__h.clone() as compat::Shared<dyn ElementBasedWidget>), __h)
         });
         *INSTANCE.get_mut() = Some(__this.clone());
-        // TODO(fabric2seer): ClientReceiveMessageEvents.ALLOW_GAME.register: no SeerClient equivalent yet
-        //   java: ClientReceiveMessageEvents.ALLOW_GAME.register(instance::onChatMessage);
+        // java: ClientReceiveMessageEvents.ALLOW_GAME.register(instance::onChatMessage); - the listener holds this object
+        let __this_allow_game = compat::RenderThread::new(__this.clone());
+        compat::register_allow_game(move |text, overlay| ItemPickupWidget::on_chat_message(__this_allow_game.get(), text, overlay));
         let __this_j = compat::RenderThread::new(__this.clone());
         client_play_connection_events::JOIN.register(Arc::new(move |listener: &mut ClientPacketListener| {
             { let __v = true; compat::write(&(*__this_j.get()), |__t| __t.changing_lobby = __v); }
@@ -124,11 +125,12 @@ impl ItemPickupWidget {
         if NEURepoManager::is_loading() || !(ItemRepository::files_imported()) {
             return ItemUtils::get_named_placeholder(item_name);
         }
-        // rust: port gap - `NEUItem.getSkyblockItemId` (the NEU repo parser is a `crate::unresolved` placeholder,
-        // GAPS_batchB L1): the item found by name cannot be resolved to its id, so the placeholder is answered
-        let _item = NEURepoManager::get_item_by_name(item_name).into_iter().flatten().next();
-        return ItemUtils::get_named_placeholder(item_name);
-        // TODO(fabric2seer): `.getSkyblockItemId(..)` on a NEUItem
+        return NEURepoManager::get_item_by_name(item_name)
+            .into_iter()
+            .next()
+            .map(|item| item.get_skyblock_item_id().to_string())
+            .and_then(|neu_id| ItemRepository::get_item_stack(&neu_id))
+            .unwrap_or_else(|| ItemUtils::get_named_placeholder(item_name));
         //   java: return NEURepoManager.getItemByName(itemName)
         //   java: 				.stream()
         //   java: 				.filter(Objects::nonNull)
@@ -401,8 +403,9 @@ impl ItemPickupWidget {
         collector.yes_no_button(&component::translatable("skyblocker.config.uiAndVisuals.itemPickup.splitSack"), Arc::new(move |b| { let Some(__this_2) = __this_w2.get().upgrade() else { return Default::default(); }; { { let __v = b; compat::write((&__this_2), |__t| __t.split_notifications = __v); } } }), compat::read(__this, |__t| __t.split_notifications), Some(component::translatable("skyblocker.config.uiAndVisuals.itemPickup.splitSack.@Tooltip")));
         let __this_w3 = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
         collector.yes_no_button(&component::translatable("skyblocker.config.uiAndVisuals.itemPickup.showItemName"), Arc::new(move |b| { let Some(__this_3) = __this_w3.get().upgrade() else { return Default::default(); }; { { let __v = b; compat::write((&__this_3), |__t| __t.show_item_name = __v); } } }), compat::read(__this, |__t| __t.show_item_name), Some(component::translatable("skyblocker.config.uiAndVisuals.itemPickup.showItemName.@Tooltip")));
-        // TODO(fabric2seer): an assignment used as a value
-        //   java: collector.slider(Component.translatable("skyblocker.config.uiAndVisuals.itemPickup.lifeTime"), d -> lifetime = (float) d, lifetime, 0.3, 10).tooltip(Component.translatable("skyblocker.config.uiAndVisuals.itemPickup.lifeTime.@Tooltip"));
+        // java: collector.slider(Component.translatable("skyblocker.config.uiAndVisuals.itemPickup.lifeTime"), d -> lifetime = (float) d, lifetime, 0.3, 10).tooltip(Component.translatable("skyblocker.config.uiAndVisuals.itemPickup.lifeTime.@Tooltip"));
+        let __this_w4 = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
+        collector.slider(&component::translatable("skyblocker.config.uiAndVisuals.itemPickup.lifeTime"), Arc::new(move |d: f64| { if let Some(__this_4) = __this_w4.get().upgrade() { compat::write(&__this_4, |__t| __t.lifetime = d as f32); } }), compat::read(__this, |__t| __t.lifetime) as f64, 0.3, 10.0).tooltip(component::translatable("skyblocker.config.uiAndVisuals.itemPickup.lifeTime.@Tooltip"));
     }
 
     /// ItemPickupWidget.getOptionWidgets as the dispatch of HudWidget.getOptionWidgets

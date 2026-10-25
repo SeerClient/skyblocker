@@ -29,16 +29,14 @@ impl SkyblockRecipeDisplay {
 
     /// java: @Override public List<EntryIngredient> getInputEntries()
     pub fn get_input_entries(&self) -> Vec<crate::unresolved::EntryIngredient> {
-        // TODO(fabric2seer): `of` on a Object
-        //   java: return recipe.getInputs().stream().map(FlexibleItemStack::getStackOrThrow).map(EntryStacks::of).map(EntryIngredient::of).toList();
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        // java: return recipe.getInputs().stream().map(FlexibleItemStack::getStackOrThrow).map(EntryStacks::of).map(EntryIngredient::of).toList();
+        return { let __f = compat::dispatch(&self.recipe, |__t| __t.get_inputs()); __f(&self.recipe) }.iter().map(|s| FlexibleItemStack::get_stack_or_throw(s)).map(|s| crate::de::hysky::skyblocker::compatibility::rei::rei_entry_stacks_of(&s)).map(crate::de::hysky::skyblocker::compatibility::rei::rei_entry_ingredient_of).collect();
     }
 
     /// java: @Override public List<EntryIngredient> getOutputEntries()
     pub fn get_output_entries(&self) -> Vec<crate::unresolved::EntryIngredient> {
-        // TODO(fabric2seer): `of` on a Object
-        //   java: return recipe.getOutputs().stream().map(FlexibleItemStack::getStackOrThrow).map(EntryStacks::of).map(EntryIngredient::of).toList();
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        // java: return recipe.getOutputs().stream().map(FlexibleItemStack::getStackOrThrow).map(EntryStacks::of).map(EntryIngredient::of).toList();
+        return { let __f = compat::dispatch(&self.recipe, |__t| __t.get_outputs()); __f(&self.recipe) }.iter().map(|s| FlexibleItemStack::get_stack_or_throw(s)).map(|s| crate::de::hysky::skyblocker::compatibility::rei::rei_entry_stacks_of(&s)).map(crate::de::hysky::skyblocker::compatibility::rei::rei_entry_ingredient_of).collect();
     }
 
     /// java: public SkyblockRecipe getRecipe()
@@ -48,9 +46,8 @@ impl SkyblockRecipeDisplay {
 
     /// java: @Override public CategoryIdentifier<?> getCategoryIdentifier()
     pub fn get_category_identifier(&self) -> crate::unresolved::CategoryIdentifier {
-        // TODO(fabric2seer): static call CategoryIdentifier.of(..)
-        //   java: return CategoryIdentifier.of(category);
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        // java: return CategoryIdentifier.of(category);
+        return crate::de::hysky::skyblocker::compatibility::rei::rei_category_identifier_of(&self.category);
     }
 
     /// java: @Override public Optional<Identifier> getDisplayLocation()

@@ -26,7 +26,7 @@ use mcrust::net::minecraft::util::argb;
 use mcrust::net::minecraft::network::chat::component::Component as _;
 
 /// java: private static final Font txtRend = Minecraft.getInstance().font;
-pub static TXT_REND: compat::MainThread<Font> = compat::MainThread::new(|| compat::font());
+pub static TXT_REND: compat::LiveFont = compat::LiveFont;
 /// java: private static final List<Element> ERROR_ELEMENTS = List.of(new PlainTextElement(Component.literal("An error occurred! Please check logs.").withColor(0xFFFF0000)));
 pub static ERROR_ELEMENTS: compat::MainThread<Vec<compat::Shared<dyn Element>>> = compat::MainThread::new(|| vec![(PlainTextElement::new(Some((component::literal("An error occurred! Please check logs.")).with_color(0xFFFF0000u32 as i32))) as compat::Shared<dyn Element>)]);
 /// java: public static final int BORDER_SZE_N = txtRend.lineHeight + 2;

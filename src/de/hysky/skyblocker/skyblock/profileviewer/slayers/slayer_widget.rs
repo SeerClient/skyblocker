@@ -85,9 +85,8 @@ impl SlayerWidget {
             let mut tooltip_text: Vec<MutableComponent> = Vec::new();
             tooltip_text.push(component::literal(&self.slayer_name).with_style_format(ChatFormatting::Green));
             tooltip_text.push((component::literal(&format!("XP: {}", formatters::INTEGER_NUMBERS.get_mut().format((compat::read(&self.slayer_level, |__t| __t.xp)) as f64)))).with_style_format(ChatFormatting::Gold));
-            // TODO(fabric2seer): the port's `set_component_tooltip_for_next_frame` ports this Java method with other parameters (tooltip_for_next_frame, lines for Java's lines, xo, yo)
-            // TODO(fabric2seer): `set_component_tooltip_for_next_frame` takes 2 argument(s) in the port (`tooltip_for_next_frame: &mut Option<DeferredTooltip>, lines: Vec<crate::net::minecraft::network::chat::formatted_text::FormattedText>`), Java passes 4
-            // rust: gui_graphics_extractor::set_component_tooltip_for_next_frame(&mut font, tooltip_text.clone(), mouse_x, mouse_y);
+            // java: graphics.setComponentTooltipForNextFrame(textRenderer, tooltipText, mouseX, mouseY); - the frame's deferred tooltip (drawn at the mouse)
+            compat::batch_s_set_tooltip_for_next_frame(tooltip_text.iter().cloned().map(mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from).collect());
         }
     }
 
@@ -112,21 +111,21 @@ impl SlayerWidget {
 
     /// java: private String findTopTierKills()
     pub fn find_top_tier_kills(&self) -> String {
-        // java: try {..} catch (Exception _) - the body runs inline: a Rust body does not throw checked exceptions (a panic in it propagates)
-        {
-            {
-                let mut tier: i32 = 4;
-                while tier >= 0 {
-                    let mut key: String = format!("boss_kills_tier_{}", tier);
-                    if compat::json::has(&self.slayer_data.as_ref().unwrap(), &key) {
-                        return format!("§cT{} Kills: §r{}", tier.wrapping_add(1), compat::json::get_as_int(&self.slayer_data.as_ref().unwrap().get(&key).cloned().unwrap()));
-                    }
-                    tier -= 1;
+        // java: try { for (..) { if (slayerData.has(key)) return ..; } } catch (Exception _) {} return "No Data";
+        // (an exception here is a panic, caught by `catch_unwind`; the body's `return` is the closure's `Some`)
+        if let Ok(Some(__v)) = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| -> Option<String> {
+            let mut tier: i32 = 4;
+            while tier >= 0 {
+                let mut key: String = format!("boss_kills_tier_{}", tier);
+                if compat::json::has(&self.slayer_data.as_ref().unwrap(), &key) {
+                    return Some(format!("§cT{} Kills: §r{}", tier.wrapping_add(1), compat::json::get_as_int(&self.slayer_data.as_ref().unwrap().get(&key).cloned().unwrap())));
                 }
+                tier -= 1;
             }
+            None
+        })) {
+            return __v;
         }
-        // TODO(fabric2seer): the `catch (Exception _)` block is not reached in Rust - the try body returns, breaks or continues, so it cannot run inside `catch_unwind`
-        //   java: {}
         return "No Data".to_string();
     }
 

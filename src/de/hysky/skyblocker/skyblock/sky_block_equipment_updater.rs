@@ -85,7 +85,7 @@ pub trait SkyBlockEquipmentUpdater: SimpleContainerSolver {
     fn sky_block_equipment_updater_base_mut(&mut self) -> &mut SkyBlockEquipmentUpdaterBase;
 
     /// java: public ItemStack[] getEquipmentInColumn(Int2ObjectMap<ItemStack> slots, int column) (dispatch: the body for this class)
-    fn get_equipment_in_column(&self) -> fn(&compat::Shared<dyn SkyBlockEquipmentUpdater>, &std::collections::HashMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack>, i32) -> Vec<mcrust::net::minecraft::world::item::item_stack::ItemStack> {
+    fn get_equipment_in_column(&self) -> fn(&compat::Shared<dyn SkyBlockEquipmentUpdater>, &std::collections::BTreeMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack>, i32) -> Vec<mcrust::net::minecraft::world::item::item_stack::ItemStack> {
         <dyn SkyBlockEquipmentUpdater>::get_equipment_in_column_body
     }
 
@@ -93,7 +93,7 @@ pub trait SkyBlockEquipmentUpdater: SimpleContainerSolver {
 
 impl dyn SkyBlockEquipmentUpdater {
     /// java: public ItemStack[] getEquipmentInColumn(Int2ObjectMap<ItemStack> slots, int column)
-    pub fn get_equipment_in_column_body(__this: &compat::Shared<dyn SkyBlockEquipmentUpdater>, slots: &std::collections::HashMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack>, mut column: i32) -> Vec<mcrust::net::minecraft::world::item::item_stack::ItemStack> {
+    pub fn get_equipment_in_column_body(__this: &compat::Shared<dyn SkyBlockEquipmentUpdater>, slots: &std::collections::BTreeMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack>, mut column: i32) -> Vec<mcrust::net::minecraft::world::item::item_stack::ItemStack> {
         return slots.iter().map(|(k, v)| (k.clone(), v.clone())).filter(|entry| (entry.0.wrapping_rem(9) == column)).filter(|entry| !(entry.1.is_item(mcrust::net::minecraft::world::item::items::stained_glass_pane().black()))).map(|entry| {
             let mut name: String = compat::trim(&compat::component_of(entry.1.get_hover_name()).get_string()).to_lowercase();
             let mut is_empty: bool = (name.starts_with("empty") || name.starts_with("slot "));
@@ -105,18 +105,20 @@ impl dyn SkyBlockEquipmentUpdater {
     }
 
     /// java: @Override public List<ColorHighlight> getColors(Int2ObjectMap<ItemStack> slots)
-    pub fn get_colors_body(__this: &compat::Shared<dyn SkyBlockEquipmentUpdater>, slots: &mut std::collections::HashMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack>) -> Vec<ColorHighlight> {
+    pub fn get_colors_body(__this: &compat::Shared<dyn SkyBlockEquipmentUpdater>, slots: &mut std::collections::BTreeMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack>) -> Vec<ColorHighlight> {
         let mut equipment: Vec<mcrust::net::minecraft::world::item::item_stack::ItemStack> = ({ let __f = compat::dispatch(__this, |__t| __t.get_equipment_in_column()); __f(__this, slots, 1) });
         if (equipment.len() as i32) < 4 {
             return vec![];
         }
-        let mut destination: Vec<mcrust::net::minecraft::world::item::item_stack::ItemStack> = SkyblockInventoryScreen::get_current_equipment_set();
+        // java: ItemStack[] destination = SkyblockInventoryScreen.getCurrentEquipmentSet(); - the static ARRAY (a
+        // reference), so the copy lands in it
+        let destination: &mut Vec<mcrust::net::minecraft::world::item::item_stack::ItemStack> = SkyblockInventoryScreen::current_equipment_set().get_mut();
         destination[(0) as usize..((0) + (4)) as usize].clone_from_slice(&equipment[(0) as usize..((0) + (4)) as usize]);
         return vec![];
     }
 
     /// SkyBlockEquipmentUpdater.getColors as the dispatch of ContainerSolver.getColors for the concrete class `__C`
-    pub fn get_colors_from<__C: SkyBlockEquipmentUpdater + 'static>(__this: &compat::Shared<dyn ContainerSolver>, __p0: &mut std::collections::HashMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack>) -> Vec<ColorHighlight> {
+    pub fn get_colors_from<__C: SkyBlockEquipmentUpdater + 'static>(__this: &compat::Shared<dyn ContainerSolver>, __p0: &mut std::collections::BTreeMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack>) -> Vec<ColorHighlight> {
         <dyn SkyBlockEquipmentUpdater>::get_colors_body(&compat::view_as::<__C, _, _>(__this, |a| a as compat::Shared<dyn SkyBlockEquipmentUpdater>), __p0)
     }
 
@@ -186,7 +188,7 @@ impl ContainerMatcher for SkyBlockEquipmentUpdaterBase {
 
 impl ContainerSolver for SkyBlockEquipmentUpdaterBase {
     /// java: @Override public List<ColorHighlight> getColors(Int2ObjectMap<ItemStack> slots) (dispatch: the body for this class)
-    fn get_colors(&self) -> fn(&compat::Shared<dyn ContainerSolver>, &mut std::collections::HashMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack>) -> Vec<ColorHighlight> {
+    fn get_colors(&self) -> fn(&compat::Shared<dyn ContainerSolver>, &mut std::collections::BTreeMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack>) -> Vec<ColorHighlight> {
         <dyn SkyBlockEquipmentUpdater>::get_colors_from::<Self>
     }
 
@@ -292,7 +294,7 @@ impl ContainerMatcher for EquipmentWardrobe {
 
 impl ContainerSolver for EquipmentWardrobe {
     /// java: @Override public List<ColorHighlight> getColors(Int2ObjectMap<ItemStack> slots) (dispatch: the body for this class)
-    fn get_colors(&self) -> fn(&compat::Shared<dyn ContainerSolver>, &mut std::collections::HashMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack>) -> Vec<ColorHighlight> {
+    fn get_colors(&self) -> fn(&compat::Shared<dyn ContainerSolver>, &mut std::collections::BTreeMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack>) -> Vec<ColorHighlight> {
         EquipmentWardrobe::get_colors_dyn
     }
 
@@ -317,7 +319,7 @@ impl Resettable for EquipmentWardrobe {
 
 impl EquipmentWardrobe {
     /// java: @Override public List<ColorHighlight> getColors(Int2ObjectMap<ItemStack> slots)
-    pub fn get_colors_impl(__this: &compat::Shared<Self>, slots: &mut std::collections::HashMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack>) -> Vec<ColorHighlight> {
+    pub fn get_colors_impl(__this: &compat::Shared<Self>, slots: &mut std::collections::BTreeMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack>) -> Vec<ColorHighlight> {
         let mut selected_set: Option<i32> = slots.iter().map(|(k, v)| (k.clone(), v.clone())).filter(|entry| (entry.0 > 35 && entry.0 < 45)).filter(|entry| entry.1.is_item(mcrust::net::minecraft::world::item::items::dye().lime())).map(|entry| entry.0.wrapping_rem(9)).next();
         if selected_set.is_none() {
             return vec![];
@@ -331,7 +333,7 @@ impl EquipmentWardrobe {
     }
 
     /// EquipmentWardrobe.getColors as the dispatch of ContainerSolver.getColors
-    pub fn get_colors_dyn(__this: &compat::Shared<dyn ContainerSolver>, __p0: &mut std::collections::HashMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack>) -> Vec<ColorHighlight> {
+    pub fn get_colors_dyn(__this: &compat::Shared<dyn ContainerSolver>, __p0: &mut std::collections::BTreeMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack>) -> Vec<ColorHighlight> {
         Self::get_colors_impl(&compat::view_as::<Self, _, Self>(__this, |a| a), __p0)
     }
 

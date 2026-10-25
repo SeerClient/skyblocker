@@ -107,7 +107,14 @@ impl SlotTextAdder for PotionLevelAdder {
 impl PotionLevelAdder {
     /// java: @Override public List<SlotText> getText(@Nullable Slot slot, ItemStack stack, int slotId)
     pub fn get_text_impl(__this: &compat::Shared<Self>, mut slot: Option<Slot>, stack: &mcrust::net::minecraft::world::item::item_stack::ItemStack, mut slot_id: i32) -> Vec<SlotText> {
-        let mut custom_data: Tag = ItemUtils::get_custom_data(stack);
+        // PERF (port-only, same result): the custom data read in place (not deep-copied per slot per frame), and
+        // the hover name - read by the `&&` chain only after `contains("potion_level")` - built only for a stack
+        // that has a level; every other stack answers the empty list either way.
+        let __custom_data = ItemUtils::custom_data_component(stack);
+        let custom_data: &Tag = ItemUtils::custom_data_tag(&__custom_data);
+        if !custom_data.contains("potion_level") {
+            return vec![];
+        }
         let mut title: String = compat::component_of(stack.get_hover_name()).get_string();
         if custom_data.contains("potion_level") && !(title.contains("Healer")) && !(title.contains("Class Passives")) {
             let mut level: i32 = custom_data.get_int_or("potion_level", 0);

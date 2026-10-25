@@ -159,6 +159,12 @@ pub trait QuickNavButton: compat::DynAny {
         <dyn QuickNavButton>::update_coordinates_body
     }
 
+    /// java: `AbstractWidget.playDownSound(SoundManager)` (dispatch: the body for this class) - the event the press plays;
+    /// the screen's click sweep plays it, before `onClick`, as `AbstractWidget.mouseClicked:117` does
+    fn play_down_sound(&self) -> fn(&compat::Shared<dyn QuickNavButton>) -> Option<&'static mcrust::net::minecraft::sounds::sound_event::SoundEvent> {
+        <dyn QuickNavButton>::play_down_sound_body
+    }
+
     /// java: @Override public void onClick(MouseButtonEvent click, boolean doubled) (dispatch: the body for this class)
     fn on_click(&self) -> fn(&compat::Shared<dyn QuickNavButton>, &MouseButtonEvent, bool) {
         <dyn QuickNavButton>::on_click_body
@@ -187,6 +193,13 @@ pub trait QuickNavButton: compat::DynAny {
 }
 
 impl dyn QuickNavButton {
+    /// java: `AbstractWidget.playDownSound:166-168` - `soundManager.play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F))`,
+    /// inherited (the class does not override it)
+    pub fn play_down_sound_body(__this: &compat::Shared<dyn QuickNavButton>) -> Option<&'static mcrust::net::minecraft::sounds::sound_event::SoundEvent> {
+        let _ = __this;
+        Some(mcrust::net::minecraft::sounds::sound_events::ui_button_click())
+    }
+
     /// java: private boolean isTopTab()
     pub fn is_top_tab_body(__this: &compat::Shared<dyn QuickNavButton>) -> bool {
         return (compat::read(__this, |__t| __t.quick_nav_button_base().index) < 7);
@@ -341,6 +354,13 @@ impl mcrust::mcrust::modding::widgets::ModWidget for compat::WidgetAdapter<dyn Q
     /// java: @Override public void onClick(MouseButtonEvent click, boolean doubled)
     fn on_click(&mut self, widget: &mut AbstractWidget, event: &MouseButtonEvent, double_click: bool) {
         self.lend(widget, |__h| ({ let __f = compat::dispatch(__h, |__t| __t.on_click()); __f(__h, event, double_click) }))
+    }
+
+    /// java: `playDownSound(SoundManager)` - the object's class answers which event the press plays
+    fn play_down_sound(&self) -> Option<&'static mcrust::net::minecraft::sounds::sound_event::SoundEvent> {
+        let __h = self.object();
+        let __f = compat::dispatch(__h, |__t| __t.play_down_sound());
+        __f(__h)
     }
 
     /// java: `this.handleCursor(graphics)` at the end of `extractWidgetRenderState` - `AbstractWidget.handleCursor`'s body

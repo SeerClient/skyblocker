@@ -29,6 +29,28 @@ use mcrust::net::minecraft::resources::identifier::Identifier;
 pub static BAR_FILL: compat::MainThread<Identifier> = compat::MainThread::new(|| crate::entry::skyblocker_mod::id("bars/bar_fill"));
 /// java: private static final Identifier BAR_BACK = SkyblockerMod.id("bars/bar_back");
 pub static BAR_BACK: compat::MainThread<Identifier> = compat::MainThread::new(|| crate::entry::skyblocker_mod::id("bars/bar_back"));
+/// PERF (port-only, not a Java type): one bar's last drawn text - see `extract_text_body`. The component, its width
+/// and the resolved outline record are pure functions of the VALUE fields (the display string, the colour, the
+/// `/max` and ` + overflow` parts) and the font sets (`epoch`, `gui_graphics_extractor::gui_text_record_epoch`);
+/// the record also of the origin and the two colours (`placed`). The pose and scissor are applied per draw.
+struct StatusBarTextMemo {
+    value_text: String,
+    display_rgb: i32,
+    max_part: Option<i32>,
+    overflow_part: Option<(String, i32)>,
+    epoch: (u64, u64),
+    /// `Component.translationArg(text)` - the component `outlinedText` is handed.
+    text: MutableComponent,
+    text_width: i32,
+    /// (x, y, color, outlineColor, the record `GuiHelper::outlined_text_kept` answered)
+    placed: Option<(i32, i32, i32, i32, std::rc::Rc<mcrust::net::minecraft::client::renderer::state::gui::gui_text_render_state::PreparedText>)>,
+}
+
+thread_local! {
+    /// Render-thread state: (the bar object's address, its memo).
+    static STATUS_BAR_TEXT_MEMOS: std::cell::RefCell<Vec<(usize, Option<StatusBarTextMemo>)>> = const { std::cell::RefCell::new(Vec::new()) };
+}
+
 /// java: public static final int ICON_SIZE = 9;
 pub const ICON_SIZE: i32 = 9;
 /// java: private static final Identifier CLOCK_ICON = SkyblockerMod.id("bars/icons/rift_time");
@@ -452,29 +474,36 @@ impl dyn StatusBar {
 
     /// java: @SuppressWarnings("incomplete-switch") public void extractBar(GuiGraphicsExtractor graphics)
     pub fn extract_bar_body(__this: &compat::Shared<dyn StatusBar>, graphics: &GuiGraphicsExtractor) {
-        if compat::read(__this, |__t| __t.status_bar_base().render_width) <= 0 {
+        // PERF (port-only, same result): the four fields this body reads, taken under ONE borrow instead of one
+        // lock per read (a dozen a bar, every frame) - nothing the body calls before its last read writes them.
+        let (render_x, render_y, render_width, icon_position): (i32, i32, i32, IconPosition) = compat::read(__this, |__t| {
+            let __b = __t.status_bar_base();
+            (__b.render_x, __b.render_y, __b.render_width, __b.icon_position)
+        });
+        if render_width <= 0 {
             return;
         }
         let mut transparency: i32 = ({ let __f = compat::dispatch(__this, |__t| __t.transparency()); __f(__this, -1) });
-        match compat::read(__this, |__t| __t.status_bar_base().icon_position) {
+        match icon_position {
             IconPosition::Left => {
-                gui_graphics_extractor::blit_sprite_identifier_with_color(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), mcrust::net::minecraft::client::renderer::render_pipelines::gui_textured(), &({ let __f = compat::dispatch(__this, |__t| __t.get_icon()); __f(__this) }), compat::read(__this, |__t| __t.status_bar_base().render_x), compat::read(__this, |__t| __t.status_bar_base().render_y), ICON_SIZE, ICON_SIZE, transparency);
+                gui_graphics_extractor::blit_sprite_identifier_with_color(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), mcrust::net::minecraft::client::renderer::render_pipelines::gui_textured(), &({ let __f = compat::dispatch(__this, |__t| __t.get_icon()); __f(__this) }), render_x, render_y, ICON_SIZE, ICON_SIZE, transparency);
             }
             IconPosition::Right => {
-                gui_graphics_extractor::blit_sprite_identifier_with_color(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), mcrust::net::minecraft::client::renderer::render_pipelines::gui_textured(), &({ let __f = compat::dispatch(__this, |__t| __t.get_icon()); __f(__this) }), ((compat::read(__this, |__t| __t.status_bar_base().render_x)).wrapping_add(compat::read(__this, |__t| __t.status_bar_base().render_width))).wrapping_sub(ICON_SIZE), compat::read(__this, |__t| __t.status_bar_base().render_y), ICON_SIZE, ICON_SIZE, transparency);
+                gui_graphics_extractor::blit_sprite_identifier_with_color(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), mcrust::net::minecraft::client::renderer::render_pipelines::gui_textured(), &({ let __f = compat::dispatch(__this, |__t| __t.get_icon()); __f(__this) }), (render_x.wrapping_add(render_width)).wrapping_sub(ICON_SIZE), render_y, ICON_SIZE, ICON_SIZE, transparency);
             }
             _ => {}
         }
-        let mut bar_width: i32 = (if compat::read(__this, |__t| __t.status_bar_base().icon_position) == IconPosition::Off { compat::read(__this, |__t| __t.status_bar_base().render_width) } else { ((compat::read(__this, |__t| __t.status_bar_base().render_width)).wrapping_sub(ICON_SIZE)).wrapping_sub(1) });
-        let mut bar_x: i32 = (if compat::read(__this, |__t| __t.status_bar_base().icon_position) == IconPosition::Left { ((compat::read(__this, |__t| __t.status_bar_base().render_x)).wrapping_add(ICON_SIZE)).wrapping_add(1) } else { compat::read(__this, |__t| __t.status_bar_base().render_x) });
-        gui_graphics_extractor::blit_sprite_identifier_with_color(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), mcrust::net::minecraft::client::renderer::render_pipelines::gui_textured(), BAR_BACK.get_mut(), bar_x, (compat::read(__this, |__t| __t.status_bar_base().render_y)).wrapping_add(1), bar_width, 7, transparency);
+        let mut bar_width: i32 = (if icon_position == IconPosition::Off { render_width } else { (render_width.wrapping_sub(ICON_SIZE)).wrapping_sub(1) });
+        let mut bar_x: i32 = (if icon_position == IconPosition::Left { (render_x.wrapping_add(ICON_SIZE)).wrapping_add(1) } else { render_x });
+        gui_graphics_extractor::blit_sprite_identifier_with_color(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), mcrust::net::minecraft::client::renderer::render_pipelines::gui_textured(), BAR_BACK.get_mut(), bar_x, render_y.wrapping_add(1), bar_width, 7, transparency);
         ({ let __f = compat::dispatch(__this, |__t| __t.extract_bar_fill()); __f(__this, graphics, bar_x, bar_width) });
     }
 
     /// java: protected void extractBarFill(GuiGraphicsExtractor graphics, int barX, int barWidth)
     pub fn extract_bar_fill_body(__this: &compat::Shared<dyn StatusBar>, graphics: &GuiGraphicsExtractor, mut bar_x: i32, mut bar_width: i32) {
         // java: renderBarFill(graphics, barX, barWidth, fill, transparency(colors[0].getRGB()));
-        render_bar_fill_transparent(__this, graphics, bar_x, bar_width, compat::read(__this, |__t| __t.status_bar_base().fill), compat::read(__this, |__t| __t.status_bar_base().colors[0].get_rgb()));
+        let (__fill, __rgb0): (f32, i32) = compat::read(__this, |__t| (__t.status_bar_base().fill, __t.status_bar_base().colors[0].get_rgb()));
+        render_bar_fill_transparent(__this, graphics, bar_x, bar_width, __fill, __rgb0);
         if { let __f = compat::dispatch(__this, |__t| __t.has_overflow()); __f(__this) } && compat::read(__this, |__t| __t.status_bar_base().overflow_fill) > (0 as f32) {
             // java: renderBarFill(graphics, barX, barWidth, Math.min(overflowFill, 1), transparency(colors[1].getRGB()));
             render_bar_fill_transparent(__this, graphics, bar_x, bar_width, compat::read(__this, |__t| __t.status_bar_base().overflow_fill).min(1.0), compat::read(__this, |__t| __t.status_bar_base().colors[1].get_rgb()));
@@ -495,11 +524,16 @@ impl dyn StatusBar {
 
     /// java: public void updateValues(float fill, float overflowFill, int value, @Nullable Integer max, @Nullable Integer overflow)
     pub fn update_values_body(__this: &compat::Shared<dyn StatusBar>, mut fill: f32, mut overflow_fill: f32, mut value: i32, mut max: Option<i32>, mut overflow: Option<i32>) {
-        { let __v = Some(value); compat::write(__this, |__t| __t.status_bar_base_mut().value = __v); }
-        { let __v = fill.clamp((0 as f32), (1 as f32)); compat::write(__this, |__t| __t.status_bar_base_mut().fill = __v); }
-        { let __v = overflow_fill.clamp((0 as f32), (1 as f32)); compat::write(__this, |__t| __t.status_bar_base_mut().overflow_fill = __v); }
-        { let __v = max; compat::write(__this, |__t| __t.status_bar_base_mut().max = __v); }
-        { let __v = overflow; compat::write(__this, |__t| __t.status_bar_base_mut().overflow = __v); }
+        // PERF (port-only, same result): the five field stores under one borrow (they were five locks per bar per
+        // frame); nothing runs between them.
+        compat::write(__this, |__t| {
+            let __b = __t.status_bar_base_mut();
+            __b.value = Some(value);
+            __b.fill = fill.clamp((0 as f32), (1 as f32));
+            __b.overflow_fill = overflow_fill.clamp((0 as f32), (1 as f32));
+            __b.max = max;
+            __b.overflow = overflow;
+        });
     }
 
     /// java: public void updateWithResource(StatusBarTracker.Resource resource)
@@ -513,45 +547,111 @@ impl dyn StatusBar {
             return;
         }
         let mut text_renderer: Font = compat::font();
-        let mut bar_width: i32 = (if compat::read(__this, |__t| __t.status_bar_base().icon_position) == IconPosition::Off { compat::read(__this, |__t| __t.status_bar_base().render_width) } else { ((compat::read(__this, |__t| __t.status_bar_base().render_width)).wrapping_sub(ICON_SIZE)).wrapping_sub(1) });
-        let mut bar_x: i32 = (if compat::read(__this, |__t| __t.status_bar_base().icon_position) == IconPosition::Left { ((compat::read(__this, |__t| __t.status_bar_base().render_x)).wrapping_add(ICON_SIZE)).wrapping_add(2) } else { compat::read(__this, |__t| __t.status_bar_base().render_x) });
-        let mut string_value: String = (if compat::read(__this, |__t| __t.status_bar_base().value.clone()).is_none() { "???".to_string() } else { ((compat::read(__this, |__t| __t.status_bar_base().to_display.clone()).unwrap()))((if compat::read(__this, |__t| __t.status_bar_base().overflow.clone()).is_none() || compat::read(__this, |__t| __t.status_bar_base().show_overflow) { compat::read(__this, |__t| __t.status_bar_base().value.clone()).unwrap() } else { (compat::read(__this, |__t| __t.status_bar_base().value.clone()).unwrap()).wrapping_add(compat::read(__this, |__t| __t.status_bar_base().overflow.clone()).unwrap()) })) });
-        let mut display_color: Color = (if compat::read(__this, |__t| __t.status_bar_base().text_color.clone()).is_none() { Some(compat::read(__this, |__t| __t.status_bar_base().colors[(0) as usize].clone())) } else { compat::read(__this, |__t| __t.status_bar_base().text_color.clone()) }).unwrap();
-        // java: MutableComponent text = Component.literal(stringValue).withStyle(style -> style.withColor(displayColor.getRGB()));
-        let mut text: MutableComponent = component::literal(&string_value).with_style_fn(|style| style.with_color(display_color.get_rgb()));
-        if { let __f = compat::dispatch(__this, |__t| __t.has_max()); __f(__this) } && compat::read(__this, |__t| __t.status_bar_base().show_max) && compat::read(__this, |__t| __t.status_bar_base().max.clone()).is_some() {
-            // java: text.append("/").append(max.toString()) - appends in place
-            text = (text.append_str("/")).append_str(&compat::read(__this, |__t| __t.status_bar_base().max.clone()).unwrap().to_string());
-        }
-        if { let __f = compat::dispatch(__this, |__t| __t.has_overflow()); __f(__this) } && compat::read(__this, |__t| __t.status_bar_base().show_overflow) && compat::read(__this, |__t| __t.status_bar_base().overflow.clone()).is_some() {
-            // java: MutableComponent literal = Component.literal(" + ").withStyle(style -> style.withColor(colors[1].getRGB()));
+        // PERF (port-only, same result): the fields this body reads, taken under ONE borrow instead of one lock
+        // per read (~25 a bar, every frame). Nothing the body calls writes them: `toDisplay` reads the trackers,
+        // `hasMax`/`hasOverflow`/`transparency` read the bar. `displayColor` is `textColor`, else `colors[0]` -
+        // read only when `textColor` is null, as before; `colors[1]` stays read in its own branch.
+        let (icon_position, render_x, render_y, render_width, value, overflow, max, show_overflow, show_max, text_position, to_display, display_color): (IconPosition, i32, i32, i32, Option<i32>, Option<i32>, Option<i32>, bool, bool, TextPosition, Option<Arc<dyn Fn(i32) -> String>>, Color) = compat::read(__this, |__t| {
+            let __b = __t.status_bar_base();
+            let __display_color: Color = match &__b.text_color {
+                None => __b.colors[(0) as usize].clone(),
+                Some(text_color) => text_color.clone(),
+            };
+            (__b.icon_position, __b.render_x, __b.render_y, __b.render_width, __b.value, __b.overflow, __b.max, __b.show_overflow, __b.show_max, __b.text_position, __b.to_display.clone(), __display_color)
+        });
+        let mut bar_width: i32 = (if icon_position == IconPosition::Off { render_width } else { (render_width.wrapping_sub(ICON_SIZE)).wrapping_sub(1) });
+        let mut bar_x: i32 = (if icon_position == IconPosition::Left { (render_x.wrapping_add(ICON_SIZE)).wrapping_add(2) } else { render_x });
+        let mut string_value: String = (if value.is_none() { "???".to_string() } else { (to_display.clone().unwrap())((if overflow.is_none() || show_overflow { value.unwrap() } else { (value.unwrap()).wrapping_add(overflow.unwrap()) })) });
+        let mut display_color: Color = display_color;
+        // PERF (port-only, same draw): the text's VALUE - everything the component below is built from - read
+        // first, so a frame whose value matches the last one's reuses that frame's component, width and resolved
+        // outline record (`StatusBarTextMemo`) instead of building the component, measuring it, and running the
+        // outline's eight glyph passes and the text's one again. The reads are the ones Java makes, in its
+        // order: `hasMax()`, then `hasOverflow()`, `colors[1]` and `toDisplay(overflow)`.
+        let display_rgb: i32 = display_color.get_rgb();
+        let max_part: Option<i32> = if { let __f = compat::dispatch(__this, |__t| __t.has_max()); __f(__this) } && show_max && max.is_some() { max } else { None };
+        let overflow_part: Option<(String, i32)> = if { let __f = compat::dispatch(__this, |__t| __t.has_overflow()); __f(__this) } && show_overflow && overflow.is_some() {
             let overflow_color: i32 = compat::read(__this, |__t| __t.status_bar_base().colors[1].get_rgb());
-            let mut literal: MutableComponent = component::literal(" + ").with_style_fn(|style| style.with_color(overflow_color));
-            // java: literal.append(toDisplay.apply(overflow)); text.append(literal); - both append in place
-            literal = literal.append_str(&((compat::read(__this, |__t| __t.status_bar_base().to_display.clone()).unwrap()))(compat::read(__this, |__t| __t.status_bar_base().overflow.clone()).unwrap()));
-            text = text.append(literal.clone());
-        }
-        let mut text_width: i32 = text_renderer.width_of_cached(&mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(text.clone()));
-        let mut x: i32;
-        match compat::read(__this, |__t| __t.status_bar_base().text_position) {
-            TextPosition::Right => {
-                x = (bar_x.wrapping_add(bar_width)).wrapping_sub(text_width);
+            Some(((to_display.clone().unwrap())(overflow.unwrap()), overflow_color))
+        } else {
+            None
+        };
+        let memo_key: usize = std::sync::Arc::as_ptr(__this) as *const () as usize;
+        let keepable: bool = GuiHelper::outlined_text_keepable();
+        let epoch: (u64, u64) = gui_graphics_extractor::gui_text_record_epoch(&*compat::minecraft());
+        STATUS_BAR_TEXT_MEMOS.with(|__memos| {
+            let mut __memos = __memos.borrow_mut();
+            let __slot = match __memos.iter().position(|(key, _)| *key == memo_key) {
+                Some(i) => i,
+                None => {
+                    // (one entry per bar object; a stale address only ever misses - every field is compared)
+                    if __memos.len() >= 64 {
+                        __memos.clear();
+                    }
+                    __memos.push((memo_key, None));
+                    __memos.len() - 1
+                }
+            };
+            let memo: &mut Option<StatusBarTextMemo> = &mut __memos[__slot].1;
+            let same_text: bool = matches!(memo, Some(m) if m.epoch == epoch && m.display_rgb == display_rgb && m.max_part == max_part && m.overflow_part == overflow_part && m.value_text == string_value);
+            if !same_text {
+                // java: MutableComponent text = Component.literal(stringValue).withStyle(style -> style.withColor(displayColor.getRGB()));
+                let mut text: MutableComponent = component::literal(&string_value).with_style_fn(|style| style.with_color(display_rgb));
+                if let Some(max) = max_part {
+                    // java: text.append("/").append(max.toString()) - appends in place
+                    text = (text.append_str("/")).append_str(&max.to_string());
+                }
+                if let Some((overflow_text, overflow_color)) = overflow_part.as_ref() {
+                    // java: MutableComponent literal = Component.literal(" + ").withStyle(style -> style.withColor(colors[1].getRGB()));
+                    let overflow_color: i32 = *overflow_color;
+                    let mut literal: MutableComponent = component::literal(" + ").with_style_fn(|style| style.with_color(overflow_color));
+                    // java: literal.append(toDisplay.apply(overflow)); text.append(literal); - both append in place
+                    literal = literal.append_str(overflow_text);
+                    text = text.append(literal);
+                }
+                let text_width: i32 = text_renderer.width_of_cached(&mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(text.clone()));
+                *memo = Some(StatusBarTextMemo {
+                    value_text: std::mem::take(&mut string_value),
+                    display_rgb,
+                    max_part,
+                    overflow_part: overflow_part.clone(),
+                    epoch,
+                    text: component::translation_arg_message(&text),
+                    text_width,
+                    placed: None,
+                });
             }
-            TextPosition::Center => {
-                x = (compat::read(__this, |__t| __t.status_bar_base().render_x)).wrapping_add(((compat::read(__this, |__t| __t.status_bar_base().render_width)).wrapping_sub(text_width)).wrapping_div(2));
+            let memo: &mut StatusBarTextMemo = memo.as_mut().expect("filled above");
+            let mut text_width: i32 = memo.text_width;
+            let mut x: i32;
+            match text_position {
+                TextPosition::Right => {
+                    x = (bar_x.wrapping_add(bar_width)).wrapping_sub(text_width);
+                }
+                TextPosition::Center => {
+                    x = render_x.wrapping_add((render_width.wrapping_sub(text_width)).wrapping_div(2));
+                }
+                TextPosition::BarCenter => {
+                    x = bar_x.wrapping_add((bar_width.wrapping_sub(text_width)).wrapping_div(2));
+                }
+                _ => {
+                    x = bar_x;
+                }
             }
-            TextPosition::BarCenter => {
-                x = bar_x.wrapping_add((bar_width.wrapping_sub(text_width)).wrapping_div(2));
+            let mut y: i32 = render_y.wrapping_sub(3);
+            // java: int color = transparency(displayColor.getRGB());
+            let mut color: i32 = ({ let __f = compat::dispatch(__this, |__t| __t.transparency()); __f(__this, display_rgb) });
+            let mut outline_color: i32 = ({ let __f = compat::dispatch(__this, |__t| __t.transparency()); __f(__this, mcrust::net::minecraft::util::common_colors::BLACK) });
+            if keepable {
+                if let Some((_, _, _, _, prepared)) = memo.placed.as_ref().filter(|(px, py, pc, po, _)| *px == x && *py == y && *pc == color && *po == outline_color) {
+                    GuiHelper::add_kept_outlined_text(prepared);
+                    return;
+                }
+                memo.placed = GuiHelper::outlined_text_kept(graphics, &memo.text, x, y, color, outline_color).map(|prepared| (x, y, color, outline_color, prepared));
+            } else {
+                GuiHelper::outlined_text(graphics, &memo.text, x, y, color, outline_color);
             }
-            _ => {
-                x = bar_x;
-            }
-        }
-        let mut y: i32 = (compat::read(__this, |__t| __t.status_bar_base().render_y)).wrapping_sub(3);
-        // java: int color = transparency(displayColor.getRGB());
-        let mut color: i32 = ({ let __f = compat::dispatch(__this, |__t| __t.transparency()); __f(__this, display_color.get_rgb()) });
-        let mut outline_color: i32 = ({ let __f = compat::dispatch(__this, |__t| __t.transparency()); __f(__this, mcrust::net::minecraft::util::common_colors::BLACK) });
-        GuiHelper::outlined_text(graphics, &component::translation_arg_message(&text), x, y, color, outline_color);
+        });
     }
 
     /// java: public void extractCursor(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a)
@@ -1309,7 +1409,13 @@ fn render_bar_fill_transparent(this: &compat::Shared<dyn StatusBar>, graphics: &
 
 /// java: `getColors()[index].getRGB()` (the virtual `getColors`).
 fn colors_rgb(this: &compat::Shared<dyn StatusBar>, index: usize) -> i32 {
-    let colors = { let __f = compat::dispatch(this, |__t| __t.get_colors()); __f(this) };
+    let __f = compat::dispatch(this, |__t| __t.get_colors());
+    // PERF (port-only, same answer): when the class does not override `getColors()` (none does), its body is
+    // `return colors;` - read the one element under the borrow instead of cloning the array every frame.
+    if std::ptr::fn_addr_eq(__f, <dyn StatusBar>::get_colors_body as fn(&compat::Shared<dyn StatusBar>) -> Vec<Color>) {
+        return compat::read(this, |__t| __t.status_bar_base().colors[index].get_rgb());
+    }
+    let colors = __f(this);
     colors[index].get_rgb()
 }
 

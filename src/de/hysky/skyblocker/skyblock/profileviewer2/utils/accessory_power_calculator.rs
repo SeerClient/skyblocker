@@ -65,8 +65,6 @@ impl AccessoryPowerCalculator {
     pub fn load_powers() -> std::collections::HashMap<String, Power> {
         // java: try {..} catch (Exception e) - an exception here is a panic, caught by `catch_unwind`; the body's `return` is the closure's value
         match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            // TODO(fabric2seer): `Http.sendGetRequest` is not a static method of Http
-            //   java: String response = Http.sendGetRequest("https://api.azureaaron.net/skyblock/magicalpowers");
             let mut response: String = crate::de::hysky::skyblocker::utils::http::Http::send_get_request("https://api.azureaaron.net/skyblock/magicalpowers");
             return (POWER_MAP_CODEC.get_mut().parse(&mcrust::com::mojang::serialization::json_ops::JsonOps::instance(), &compat::json_to_port(&serde_json::from_str::<serde_json::Value>(&response).expect("JsonSyntaxException")))).get_or_throw().unwrap();
         })) {
@@ -103,12 +101,7 @@ impl AccessoryPowerCalculator {
                 let mut family_members: Vec<Accessory> = accessory_data.values().cloned().filter(|__a0| __a0.has_family()).filter(|__a0| data.as_ref().unwrap().has_same_family(__a0)).collect::<Vec<_>>();
                 let mut highest_tier: i32 = (family_members.iter().cloned().max_by(|a: &Accessory, b: &Accessory| { let key = |__a0: &Accessory| __a0.tier(); key(a).cmp(&key(b)) }).unwrap()).tier();
                 if data.as_ref().unwrap().tier() == highest_tier {
-                    // TODO(fabric2seer): not a lambda
-                    //   java: List<String> siblings = familyMembers.stream()
-                    //   java: 							.filter(Predicate.not(data::equals))
-                    //   java: 							.map(Accessory::id)
-                    //   java: 							.toList();
-                    let mut siblings: Vec<String> = todo!("fabric2seer: the initialiser of `siblings` (TODO above)");
+                    let siblings: Vec<String> = family_members.iter().filter(|member| Some(*member) != data.as_ref()).map(|member| member.id().to_string()).collect();
                     accessories_to_drop.extend(siblings.iter().cloned());
                 }
             }
@@ -129,10 +122,30 @@ impl AccessoryPowerCalculator {
             accessory_power = accessory_power.wrapping_add(hegemony.get_skyblock_rarity().get_mp());
         }
         if DEBUG_AP_CALCULATION {
-            // TODO(fabric2seer): static call IO.println(..)
-            //   java: IO.println(highestRarities.entrySet().stream().collect(Collectors.groupingBy(entry -> entry.getValue().getSkyblockRarity(), Collectors.mapping(Map.Entry::getKey, Collectors.toList()))));
-            // TODO(fabric2seer): static call IO.println(..)
-            //   java: IO.println(highestRarities.values().stream().map(ItemStack::getSkyblockRarity).collect(Collectors.groupingBy(Function.identity(), Collectors.counting())));
+            // java: IO.println(highestRarities.entrySet().stream().collect(Collectors.groupingBy(entry -> entry.getValue().getSkyblockRarity(), Collectors.mapping(Map.Entry::getKey, Collectors.toList()))));
+            {
+                let mut by_rarity: Vec<(String, Vec<String>)> = Vec::new();
+                for (id, stack) in highest_rarities.iter() {
+                    let rarity: String = stack.get_skyblock_rarity().name().to_string();
+                    match by_rarity.iter_mut().find(|(r, _)| *r == rarity) {
+                        Some((_, ids)) => ids.push(id.clone()),
+                        None => by_rarity.push((rarity, vec![id.clone()])),
+                    }
+                }
+                println!("{{{}}}", by_rarity.iter().map(|(r, ids)| format!("{}=[{}]", r, ids.join(", "))).collect::<Vec<_>>().join(", "));
+            }
+            // java: IO.println(highestRarities.values().stream().map(ItemStack::getSkyblockRarity).collect(Collectors.groupingBy(Function.identity(), Collectors.counting())));
+            {
+                let mut counts: Vec<(String, i64)> = Vec::new();
+                for stack in highest_rarities.values() {
+                    let rarity: String = stack.get_skyblock_rarity().name().to_string();
+                    match counts.iter_mut().find(|(r, _)| *r == rarity) {
+                        Some((_, n)) => *n += 1,
+                        None => counts.push((rarity, 1)),
+                    }
+                }
+                println!("{{{}}}", counts.iter().map(|(r, n)| format!("{}={}", r, n)).collect::<Vec<_>>().join(", "));
+            }
         }
         return accessory_power;
     }

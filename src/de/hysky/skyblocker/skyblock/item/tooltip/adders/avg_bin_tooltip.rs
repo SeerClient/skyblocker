@@ -2,6 +2,7 @@
 
 #[allow(unused_imports)]
 use crate::prelude::*;
+use crate::de::hysky::skyblocker::utils::render::text::grid_component::GridComponent;
 use crate::de::hysky::skyblocker::config::configs::general_config::Average;
 use crate::de::hysky::skyblocker::skyblock::item::tooltip::info::tooltip_info_type;
 use crate::de::hysky::skyblocker::skyblock::item::tooltip::info::tooltip_info_type::TooltipInfoType;
@@ -123,16 +124,16 @@ impl AvgBinTooltip {
             ItemTooltip::null_warning();
         } else {
             if (r#type == Average::OneDay || r#type == Average::Both) && tooltip_info_type::ONE_DAY_AVERAGE.get_mut().lock().borrow().has_or_null_warning(&skyblock_api_id) {
-                // TODO(fabric2seer): `.getDouble(..)` on a T
-                //   java: lines.add(GridComponent.of(
-                //   java: 						Component.literal("1 Day Avg. Price:").withStyle(ChatFormatting.GOLD),
-                //   java: 						ItemTooltip.getCoinsMessage(TooltipInfoType.ONE_DAY_AVERAGE.getData().getDouble(skyblockApiId), stack.getCount())));
+                //   java: lines.add(GridComponent.of(Component.literal("1 Day Avg. Price:").withStyle(ChatFormatting.GOLD),
+                //   java:     ItemTooltip.getCoinsMessage(TooltipInfoType.ONE_DAY_AVERAGE.getData().getDouble(skyblockApiId), stack.getCount())));
+                let price: f64 = tooltip_info_type::ONE_DAY_AVERAGE.get_mut().lock().borrow().get_data().expect("NullPointerException: TooltipInfoType.ONE_DAY_AVERAGE.getData()").get(&skyblock_api_id).copied().unwrap_or(0.0);
+                lines.push(GridComponent::of(&vec![component::literal("1 Day Avg. Price:").with_style_format(ChatFormatting::Gold), ItemTooltip::get_coins_message(price, stack.get_count())]));
             }
             if (r#type == Average::ThreeDay || r#type == Average::Both) && tooltip_info_type::THREE_DAY_AVERAGE.get_mut().lock().borrow().has_or_null_warning(&skyblock_api_id) {
-                // TODO(fabric2seer): `.getDouble(..)` on a T
-                //   java: lines.add(GridComponent.of(
-                //   java: 						Component.literal("3 Day Avg. Price:").withStyle(ChatFormatting.GOLD),
-                //   java: 						ItemTooltip.getCoinsMessage(TooltipInfoType.THREE_DAY_AVERAGE.getData().getDouble(skyblockApiId), stack.getCount())));
+                //   java: lines.add(GridComponent.of(Component.literal("3 Day Avg. Price:").withStyle(ChatFormatting.GOLD),
+                //   java:     ItemTooltip.getCoinsMessage(TooltipInfoType.THREE_DAY_AVERAGE.getData().getDouble(skyblockApiId), stack.getCount())));
+                let price: f64 = tooltip_info_type::THREE_DAY_AVERAGE.get_mut().lock().borrow().get_data().expect("NullPointerException: TooltipInfoType.THREE_DAY_AVERAGE.getData()").get(&skyblock_api_id).copied().unwrap_or(0.0);
+                lines.push(GridComponent::of(&vec![component::literal("3 Day Avg. Price:").with_style_format(ChatFormatting::Gold), ItemTooltip::get_coins_message(price, stack.get_count())]));
             }
         }
     }

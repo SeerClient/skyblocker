@@ -19,6 +19,7 @@ use mcrust::net::minecraft::client::player::local_player::LocalPlayer;
 use mcrust::net::minecraft::network::chat::component;
 use mcrust::net::minecraft::network::chat::mutable_component::MutableComponent;
 use mcrust::net::minecraft::resources::identifier::Identifier;
+use crate::de::hysky::skyblocker::compatibility::rei::{rei_category_identifier_of, rei_entry_ingredient_first, rei_entry_stack_item, rei_entry_stacks_of, rei_rectangle, rei_slot_widget, rei_widgets_create_recipe_base, rei_widgets_create_slot, rei_widgets_wrap_vanilla_widget};
 use crate::de::hysky::skyblocker::injected::skyblocker_stack::SkyblockerStack as _;
 use mcrust::net::minecraft::network::chat::component::Component as _;
 
@@ -28,10 +29,8 @@ pub const REI_SLOT_HEIGHT: i32 = 18;
 pub const OFFSET: i32 = 10;
 /// java: private static final int RED_ERROR_COLOR = 0xFFFF5555;
 pub const RED_ERROR_COLOR: i32 = 0xFFFF5555u32 as i32;
-// TODO(fabric2seer): static call EntryStacks.of(..)
-//   java: private static final EntryStack<ItemStack> ICON = EntryStacks.of(new ItemStack(Items.CHEST));
 /// java: private static final EntryStack<ItemStack> ICON = EntryStacks.of(new ItemStack(Items.CHEST));
-pub static ICON: compat::MainThread<crate::unresolved::EntryStack> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `ICON` - see the TODO above"));
+pub static ICON: compat::MainThread<crate::unresolved::EntryStack> = compat::MainThread::new(|| rei_entry_stacks_of(&mcrust::net::minecraft::world::item::item_stack::ItemStack::of(mcrust::net::minecraft::world::item::items::items().get("chest"), 1)));
 /// java: public static final Identifier IDENTIFIER = SkyblockerMod.id("skyblock_info");
 pub static IDENTIFIER: compat::MainThread<Identifier> = compat::MainThread::new(|| crate::entry::skyblocker_mod::id("skyblock_info"));
 
@@ -49,9 +48,8 @@ impl SkyblockInfoCategory {
 
     /// java: @Override public CategoryIdentifier<? extends SkyblockInfoDisplay> getCategoryIdentifier()
     pub fn get_category_identifier(&self) -> crate::unresolved::CategoryIdentifier {
-        // TODO(fabric2seer): static call CategoryIdentifier.of(..)
-        //   java: return CategoryIdentifier.of(IDENTIFIER);
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        // java: return CategoryIdentifier.of(IDENTIFIER);
+        return rei_category_identifier_of(IDENTIFIER.get());
     }
 
     /// java: @Override public Component getTitle()
@@ -67,7 +65,7 @@ impl SkyblockInfoCategory {
     }
 
     /// java: private Button getWikiLookupButton(Component text, ItemStack itemStack, LocalPlayer player)
-    pub fn get_wiki_lookup_button(&self, text: &MutableComponent, item_stack: &mcrust::net::minecraft::world::item::item_stack::ItemStack, player: &LocalPlayer) -> AbstractWidget {
+    pub fn get_wiki_lookup_button(&self, text: &MutableComponent, item_stack: &mcrust::net::minecraft::world::item::item_stack::ItemStack, player: Option<&LocalPlayer>) -> AbstractWidget {
         // the lambda captures the stack (the same object: `duplicate`) and `player` - `CLIENT.player`, reached when pressed
         let item_stack_ref = item_stack.duplicate();
         let mut btn: AbstractWidget = (button::builder(text.get_string(), OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| { mcrust::mcrust::modding::game::with_player(|player| { WikiLookupManager::open_wiki(&item_stack_ref, player); }); })))).build();
@@ -88,39 +86,56 @@ impl SkyblockInfoCategory {
     /// java: @Override public List<Widget> setupDisplay(SkyblockInfoDisplay display, Rectangle bounds)
     pub fn setup_display(&self, display: &SkyblockInfoDisplay, bounds: &crate::unresolved::Rectangle) -> Vec<crate::unresolved::Widget> {
         let mut widgets: Vec<crate::unresolved::Widget> = Vec::new();
-        // TODO(fabric2seer): `.getFirst(..)` on a EntryIngredient
-        //   java: EntryStack<?> entryStack = display.getInputEntries().getFirst().getFirst();
-        let mut entry_stack: crate::unresolved::EntryStack = todo!("fabric2seer: the initialiser of `entryStack` (TODO above)");
-        // TODO(fabric2seer): `.getValue(..)` on a EntryStack
-        //   java: if (!(entryStack.getValue() instanceof ItemStack itemStack)) return widgets;
-        // TODO(fabric2seer): static call Widgets.createRecipeBase(..)
-        //   java: widgets.add(Widgets.createRecipeBase(bounds));
-        // TODO(fabric2seer): static call Widgets.createSlot(..)
-        //   java: Slot slot = Widgets.createSlot(new Point(bounds.getCenterX() - 9 + 1, bounds.y + 1 + OFFSET / 2)).entry(entryStack);
-        let mut slot: crate::unresolved::Slot = todo!("fabric2seer: the initialiser of `slot` (TODO above)");
-        // rust: port gap - `widgets.add(slot)`: REI's `Slot extends Widget`, and the REI library is the `crate::unresolved`
-        // placeholders here, where `Slot` is no `Widget` (GAPS_batchG)
-        let _ = &slot;
+        // java: EntryStack<?> entryStack = display.getInputEntries().getFirst().getFirst();
+        let entry_stack: crate::unresolved::EntryStack = rei_entry_ingredient_first(&display.get_input_entries()[0]);
+        // java: if (!(entryStack.getValue() instanceof ItemStack itemStack)) return widgets;
+        let Some(item_stack) = rei_entry_stack_item(&entry_stack) else {
+            return widgets;
+        };
+        let bounds_geometry = rei_rectangle(bounds);
+        // java: widgets.add(Widgets.createRecipeBase(bounds));
+        widgets.push(rei_widgets_create_recipe_base(bounds));
+        // java: Slot slot = Widgets.createSlot(new Point(bounds.getCenterX() - 9 + 1, bounds.y + 1 + OFFSET / 2)).entry(entryStack);
+        let slot: crate::unresolved::Widget = rei_slot_widget(rei_widgets_create_slot(bounds_geometry.get_center_x() - 9 + 1, bounds_geometry.y + 1 + OFFSET / 2), None, None, entry_stack);
+        // java: widgets.add(slot);
+        widgets.push(slot);
+        // java: LocalPlayer player = Minecraft.getInstance().player; - read where the buttons use it
         let mut layout_widget: LinearLayout = LinearLayout::vertical();
-        // TODO(fabric2seer): field `x` of a Rectangle
-        //   java: layoutWidget.setPosition(bounds.x + OFFSET, bounds.y + OFFSET + REI_SLOT_HEIGHT);
-        // TODO(fabric2seer): a widget put in a layout outside a mod screen's own methods: the port's layouts hold a widget by its index in the screen's widget list
-        // rust: layout_widget.add_child((button::builder(component::translatable("key.skyblocker.itemPriceLookup").get_string(), OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| {
-        // rust: // TODO(fabric2seer): unknown name `itemStack`
-        // rust: //   java: ItemPrice.itemPriceLookup(player, itemStack);
-        // rust: ({ let __r = scheduler::INSTANCE.get_mut(); let __f = compat::dispatch(__r, |__t| __t.schedule()); __f(__r, Arc::new(move || {
-        // rust: if self.check_screen() {
-        // rust: return;
-        // rust: }
-        // rust: (__screen.widget_mut(__index)).set_message_text(mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::translatable("skyblocker.rei.skyblockInfo.failedToFind").with_color(RED_ERROR_COLOR)));
-        // rust: (__screen.widget_mut(__index)).active = false;
-        // rust: }), 10) });
-        // rust: })))).build());
-        // TODO(fabric2seer): unknown name `itemStack`
-        //   java: layoutWidget.addChild(getWikiLookupButton(Component.translatable("key.skyblocker.wikiLookup.independent"), itemStack, player));
-        // TODO(fabric2seer): static call Widgets.wrapVanillaWidget(..)
-        //   java: layoutWidget.visitWidgets(child -> widgets.add(Widgets.wrapVanillaWidget(child)));
+        // java: layoutWidget.setPosition(bounds.x + OFFSET, bounds.y + OFFSET + REI_SLOT_HEIGHT);
+        layout_widget.set_x(bounds_geometry.x + OFFSET);
+        layout_widget.set_y(bounds_geometry.y + OFFSET + REI_SLOT_HEIGHT);
+        // java: layoutWidget.addChild(Button.builder(Component.translatable("key.skyblocker.itemPriceLookup"), button -> {..}).build());
+        let price_item_stack = item_stack.duplicate();
+        let mut price_button: AbstractWidget = (button::builder(component::translatable("key.skyblocker.itemPriceLookup").get_string(), OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| {
+            // java: ItemPrice.itemPriceLookup(player, itemStack);
+            mcrust::mcrust::modding::game::with_player(|player| crate::de::hysky::skyblocker::skyblock::item::item_price::ItemPrice::item_price_lookup_local_player_item_stack(player, &price_item_stack));
+            // java: Scheduler.INSTANCE.schedule(() -> {..}, 10); - `button` is this widget of the screen that is up then
+            ({ let __r = scheduler::INSTANCE.get_mut(); let __f = compat::dispatch(__r, |__t| __t.schedule()); __f(__r, Arc::new(move || {
+                // java: if (checkScreen()) return;
+                if SkyblockInfoCategory::new().check_screen() {
+                    return;
+                }
+                // java: button.setMessage(Component.translatable("skyblocker.rei.skyblockInfo.failedToFind").withColor(RED_ERROR_COLOR)); button.active = false;
+                // NEEDS-GAME-API: a handle to a widget of a screen that is not a mod screen (REI's own screen), to write
+                // its message and `active` from a scheduled task
+            }), 10) });
+        })))).build();
+        // (the port's layouts hold a widget by an index: 0 is this button, 1 the wiki one)
+        layout_widget.add_child(LayoutElement::widget(0, price_button.get_width(), price_button.get_height()));
+        // java: layoutWidget.addChild(getWikiLookupButton(Component.translatable("key.skyblocker.wikiLookup.independent"), itemStack, player));
+        let mut wiki_button: AbstractWidget = mcrust::mcrust::modding::game::with_player(|player| self.get_wiki_lookup_button(&component::translatable("key.skyblocker.wikiLookup.independent"), &item_stack, Some(&*player))).unwrap_or_else(|| self.get_wiki_lookup_button(&component::translatable("key.skyblocker.wikiLookup.independent"), &item_stack, None));
+        layout_widget.add_child(LayoutElement::widget(1, wiki_button.get_width(), wiki_button.get_height()));
+        // java: layoutWidget.arrangeElements(); - after the wrap in Java, which keeps the same objects: the positions
+        // are written back to the two buttons before they are wrapped here
         layout_widget.arrange_elements();
+        layout_widget.visit_children(&mut |child| {
+            if let LayoutElement::Widget { index, x, y, .. } = child {
+                if *index == 0 { price_button.set_position(*x, *y); } else { wiki_button.set_position(*x, *y); }
+            }
+        });
+        // java: layoutWidget.visitWidgets(child -> widgets.add(Widgets.wrapVanillaWidget(child)));
+        widgets.push(rei_widgets_wrap_vanilla_widget(price_button));
+        widgets.push(rei_widgets_wrap_vanilla_widget(wiki_button));
         return widgets;
     }
 

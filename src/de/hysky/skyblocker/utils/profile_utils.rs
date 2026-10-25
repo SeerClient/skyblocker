@@ -8,7 +8,6 @@ use mcrust::com::google::common::cache::cache_loader::CacheLoader;
 use mcrust::com::google::common::cache::loading_cache::{CacheBuilder, LoadingCache};
 use mcrust::java::util::concurrent::completable_future::CompletableFuture;
 
-// TODO(fabric2seer): static call CacheBuilder.newBuilder(..)
 //   java: private static final LoadingCache<String, JsonObject> UUID_TO_PROFILES_CACHE = CacheBuilder.newBuilder()
 //   java: 			.expireAfterWrite(Duration.ofMinutes(5L))
 //   java: 			.build(new CacheLoader<>() {

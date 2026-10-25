@@ -105,10 +105,18 @@ pub trait AbstractBlockHighlighter: compat::DynAny {
 impl dyn AbstractBlockHighlighter {
     /// java: protected void init()
     pub fn init_body(__this: &compat::Shared<dyn AbstractBlockHighlighter>) {
-        // TODO(fabric2seer): ClientChunkEvents.CHUNK_LOAD.register: no SeerClient equivalent yet
-        //   java: ClientChunkEvents.CHUNK_LOAD.register(this::onChunkLoad);
-        // TODO(fabric2seer): ClientChunkEvents.CHUNK_UNLOAD.register: no SeerClient equivalent yet
-        //   java: ClientChunkEvents.CHUNK_UNLOAD.register(this::onChunkUnload);
+        // java: ClientChunkEvents.CHUNK_LOAD.register(this::onChunkLoad);
+        let __this_load = compat::RenderThread::new(__this.clone());
+        compat::batch_w_register_chunk_load(Arc::new(move |level: &ClientLevel, chunk: &LevelChunk| {
+            let __f = compat::dispatch(__this_load.get(), |__t| __t.on_chunk_load());
+            __f(__this_load.get(), level, chunk)
+        }));
+        // java: ClientChunkEvents.CHUNK_UNLOAD.register(this::onChunkUnload);
+        let __this_unload = compat::RenderThread::new(__this.clone());
+        compat::batch_w_register_chunk_unload(Arc::new(move |level: &ClientLevel, chunk: &LevelChunk| {
+            let __f = compat::dispatch(__this_unload.get(), |__t| __t.on_chunk_unload());
+            __f(__this_unload.get(), level, chunk)
+        }));
         let __this_1 = compat::RenderThread::new(__this.clone());
         level_render_extraction_callback::EVENT.register(Arc::new(move |__a0| { ({ let __f = compat::dispatch(__this_1.get(), |__t| __t.extract_rendering()); __f(__this_1.get(), &__a0) }); }));
         let __this_3 = compat::RenderThread::new(__this.clone());

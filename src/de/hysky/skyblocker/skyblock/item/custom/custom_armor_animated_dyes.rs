@@ -35,20 +35,10 @@ impl CustomArmorAnimatedDyes {
 
     /// java: @Init public static void init()
     pub fn init() {
+        // java: ClientCommandRegistrationCallback.EVENT.register(CustomArmorAnimatedDyes::registerCommands);
         client_command_registration_callback::EVENT.register(Arc::new(
             |dispatcher: &mut client_command_registration_callback::ClientCommandDispatcher| {
-                // TODO(fabric2seer): a command tree this tool cannot read (arguments, redirects, requires) - SeerClient commands receive the words after the name in `ctx.args`
-                //   java: dispatcher.register(literal(SkyblockerMod.NAMESPACE)
-                //   java: 				.then(literal("custom")
-                //   java: 						.then(literal("animatedDye")
-                //   java: 								.executes(context -> customizeAnimatedDye(context.getSource(), Integer.MIN_VALUE, Integer.MIN_VALUE, 0, false, 0))
-                //   java: 								.then(argument("hex1", ColorArgumentType.hex())
-                //   java: 										.then(argument("hex2", ColorArgumentType.hex())
-                //   java: 												.then(argument("duration", FloatArgumentType.floatArg(0.1f, 10f))
-                //   java: 														.then(argument("cycleBack", BoolArgumentType.bool())
-                //   java: 																.executes(context -> customizeAnimatedDye(context.getSource(), ColorArgumentType.getIntFromHex(context, "hex1"), ColorArgumentType.getIntFromHex(context, "hex2"), FloatArgumentType.getFloat(context, "duration"), BoolArgumentType.getBool(context, "cycleBack"), DEFAULT_DELAY))
-                //   java: 																.then(argument("delay", FloatArgumentType.floatArg(0))
-                //   java: 																		.executes(context -> customizeAnimatedDye(context.getSource(), ColorArgumentType.getIntFromHex(context, "hex1"), ColorArgumentType.getIntFromHex(context, "hex2"), FloatArgumentType.getFloat(context, "duration"), BoolArgumentType.getBool(context, "cycleBack"), FloatArgumentType.getFloat(context, "delay")))))))))));
+                CustomArmorAnimatedDyes::register_commands(dispatcher.dispatcher(), dispatcher.build_context());
             },
         ));
         level_render_extraction_callback::EVENT.register(Arc::new(move |_| { compat::set_state(&FRAMES, compat::get_state(&FRAMES) + 1); }));
@@ -56,25 +46,42 @@ impl CustomArmorAnimatedDyes {
     }
 
     /// java: private static void registerCommands(CommandDispatcher<FabricClientCommandSource> dispatcher, CommandBuildContext registryAccess)
-    pub fn register_commands(dispatcher: &CommandDispatcher<crate::unresolved::FabricClientCommandSource>, registry_access: &CommandBuildContext) {
-        // TODO(fabric2seer): a command builder outside dispatcher.register(..)
-        //   java: dispatcher.register(literal(SkyblockerMod.NAMESPACE)
-        //   java: 				.then(literal("custom")
-        //   java: 						.then(literal("animatedDye")
-        //   java: 								.executes(context -> customizeAnimatedDye(context.getSource(), Integer.MIN_VALUE, Integer.MIN_VALUE, 0, false, 0))
-        //   java: 								.then(argument("hex1", ColorArgumentType.hex())
-        //   java: 										.then(argument("hex2", ColorArgumentType.hex())
-        //   java: 												.then(argument("duration", FloatArgumentType.floatArg(0.1f, 10f))
-        //   java: 														.then(argument("cycleBack", BoolArgumentType.bool())
-        //   java: 																.executes(context -> customizeAnimatedDye(context.getSource(), ColorArgumentType.getIntFromHex(context, "hex1"), ColorArgumentType.getIntFromHex(context, "hex2"), FloatArgumentType.getFloat(context, "duration"), BoolArgumentType.getBool(context, "cycleBack"), DEFAULT_DELAY))
-        //   java: 																.then(argument("delay", FloatArgumentType.floatArg(0))
-        //   java: 																		.executes(context -> customizeAnimatedDye(context.getSource(), ColorArgumentType.getIntFromHex(context, "hex1"), ColorArgumentType.getIntFromHex(context, "hex2"), FloatArgumentType.getFloat(context, "duration"), BoolArgumentType.getBool(context, "cycleBack"), FloatArgumentType.getFloat(context, "delay")))))))))));
+    pub fn register_commands(dispatcher: &CommandDispatcher<crate::unresolved::FabricClientCommandSource>, registry_access: Option<&CommandBuildContext>) {
+        //   java: dispatcher.register(literal(NAMESPACE).then(literal("custom").then(literal("animatedDye")
+        //   java:     .executes(context -> customizeAnimatedDye(context.getSource(), Integer.MIN_VALUE, Integer.MIN_VALUE, 0, false, 0))
+        //   java:     .then(argument("hex1", ColorArgumentType.hex()).then(argument("hex2", ColorArgumentType.hex()).then(argument("duration", FloatArgumentType.floatArg(0.1f, 10f))
+        //   java:         .then(argument("cycleBack", BoolArgumentType.bool()).executes(.. DEFAULT_DELAY)
+        //   java:             .then(argument("delay", FloatArgumentType.floatArg(0)).executes(.. getFloat(context, "delay")))))))));
+        use mcrust::com::mojang::brigadier::builder::argument_builder::ArgumentBuilder as _;
+        use mcrust::com::mojang::brigadier::arguments::bool_argument_type::BoolArgumentType;
+        use mcrust::com::mojang::brigadier::arguments::float_argument_type::FloatArgumentType;
+        use crate::de::hysky::skyblocker::utils::command::argumenttypes::color::color_argument_type::ColorArgumentType;
+        type Ctx = mcrust::com::mojang::brigadier::context::command_context::CommandContext<crate::unresolved::FabricClientCommandSource>;
+        let _ = registry_access;
+        let mut delay = client_command_registration_callback::argument("delay", Arc::new(FloatArgumentType::float_arg_min(0.0)));
+        delay.executes(Arc::new(|context: &Ctx| Ok(CustomArmorAnimatedDyes::customize_animated_dye(context.get_source(), ColorArgumentType::get_int_from_hex(context, "hex1"), ColorArgumentType::get_int_from_hex(context, "hex2"), FloatArgumentType::get_float(context, "duration"), BoolArgumentType::get_bool(context, "cycleBack"), FloatArgumentType::get_float(context, "delay")))));
+        let mut cycle_back = client_command_registration_callback::argument("cycleBack", Arc::new(BoolArgumentType::bool()));
+        cycle_back.executes(Arc::new(|context: &Ctx| Ok(CustomArmorAnimatedDyes::customize_animated_dye(context.get_source(), ColorArgumentType::get_int_from_hex(context, "hex1"), ColorArgumentType::get_int_from_hex(context, "hex2"), FloatArgumentType::get_float(context, "duration"), BoolArgumentType::get_bool(context, "cycleBack"), DEFAULT_DELAY))));
+        cycle_back.then(&delay);
+        let mut duration = client_command_registration_callback::argument("duration", Arc::new(FloatArgumentType::float_arg_range(0.1, 10.0)));
+        duration.then(&cycle_back);
+        let mut hex2 = client_command_registration_callback::argument("hex2", Arc::new(ColorArgumentType::hex()));
+        hex2.then(&duration);
+        let mut hex1 = client_command_registration_callback::argument("hex1", Arc::new(ColorArgumentType::hex()));
+        hex1.then(&hex2);
+        let mut animated_dye = client_command_registration_callback::literal("animatedDye");
+        animated_dye.executes(Arc::new(|context: &Ctx| Ok(CustomArmorAnimatedDyes::customize_animated_dye(context.get_source(), i32::MIN, i32::MIN, 0.0, false, 0.0))));
+        animated_dye.then(&hex1);
+        let mut custom = client_command_registration_callback::literal("custom");
+        custom.then(&animated_dye);
+        let mut root = client_command_registration_callback::literal(crate::entry::skyblocker_mod::NAMESPACE);
+        root.then(&custom);
+        dispatcher.register(&root);
     }
 
     /// java: private static int customizeAnimatedDye(FabricClientCommandSource source, int color1, int color2, float duration, boolean cycleBack, float delay)
     pub fn customize_animated_dye(source: &crate::unresolved::FabricClientCommandSource, mut color1: i32, mut color2: i32, mut duration: f32, mut cycle_back: bool, mut delay: f32) -> i32 {
-        // TODO(fabric2seer): `.getPlayer(..)` on a FabricClientCommandSource
-        //   java: ItemStack heldItem = source.getPlayer().getMainHandItem();
+        // java: ItemStack heldItem = source.getPlayer().getMainHandItem(); (the source's player is the client's)
         let mut held_item: mcrust::net::minecraft::world::item::item_stack::ItemStack = mcrust::mcrust::modding::game::with_player(|player| player.get_main_hand_item().clone()).unwrap_or_else(mcrust::net::minecraft::world::item::item_stack::empty);
         if Utils::is_on_skyblock() && true /* java: held_item != null: never null here */ && !held_item.is_empty() {
             if held_item.is_in_tag(&mcrust::net::minecraft::tags::item_tags::cauldron_can_remove_dye()) {
@@ -84,29 +91,29 @@ impl CustomArmorAnimatedDyes {
                     if color1 == i32::MIN && color2 == i32::MIN {
                         if custom_animated_dyes.contains_key(&item_uuid) {
                             SkyblockerConfigManager::update(Arc::new(move |mut config| { config.general.custom_animated_dyes.remove(&item_uuid); }));
-                            // TODO(fabric2seer): `.sendFeedback(..)` on a FabricClientCommandSource
-                            //   java: source.sendFeedback(Constants.PREFIX.get().append(Component.translatable("skyblocker.customAnimatedDyes.removed")));
+                            // java: source.sendFeedback(Constants.PREFIX.get().append(Component.translatable("skyblocker.customAnimatedDyes.removed")));
+                            compat::batch_w_send_feedback(&(crate::de::hysky::skyblocker::utils::constants::PREFIX.get())().append(mcrust::net::minecraft::network::chat::component::translatable("skyblocker.customAnimatedDyes.removed")));
                         } else {
-                            // TODO(fabric2seer): `.sendError(..)` on a FabricClientCommandSource
-                            //   java: source.sendError(Constants.PREFIX.get().append(Component.translatable("skyblocker.customAnimatedDyes.neverHad")));
+                            // java: source.sendError(Constants.PREFIX.get().append(Component.translatable("skyblocker.customAnimatedDyes.neverHad")));
+                            compat::batch_w_send_error(&(crate::de::hysky::skyblocker::utils::constants::PREFIX.get())().append(mcrust::net::minecraft::network::chat::component::translatable("skyblocker.customAnimatedDyes.neverHad")));
                         }
                     } else {
                         let mut animated_dye: AnimatedDye = AnimatedDye::new(vec![Keyframe::new(color1, ((0) as f32) as f32), Keyframe::new(color2, ((1) as f32) as f32)], cycle_back, delay, duration);
                         SkyblockerConfigManager::update(Arc::new(move |mut config| { config.general.custom_animated_dyes.insert(item_uuid.clone(), animated_dye.clone()); }));
-                        // TODO(fabric2seer): `.sendFeedback(..)` on a FabricClientCommandSource
-                        //   java: source.sendFeedback(Constants.PREFIX.get().append(Component.translatable("skyblocker.customAnimatedDyes.added")));
+                        // java: source.sendFeedback(Constants.PREFIX.get().append(Component.translatable("skyblocker.customAnimatedDyes.added")));
+                        compat::batch_w_send_feedback(&(crate::de::hysky::skyblocker::utils::constants::PREFIX.get())().append(mcrust::net::minecraft::network::chat::component::translatable("skyblocker.customAnimatedDyes.added")));
                     }
                 } else {
-                    // TODO(fabric2seer): `.sendError(..)` on a FabricClientCommandSource
-                    //   java: source.sendError(Constants.PREFIX.get().append(Component.translatable("skyblocker.customAnimatedDyes.noItemUuid").withColor(TextColor.RED)));
+                    // java: source.sendError(Constants.PREFIX.get().append(Component.translatable("skyblocker.customAnimatedDyes.noItemUuid").withColor(TextColor.RED)));
+                    compat::batch_w_send_error(&(crate::de::hysky::skyblocker::utils::constants::PREFIX.get())().append(mcrust::net::minecraft::network::chat::component::translatable("skyblocker.customAnimatedDyes.noItemUuid").with_color(mcrust::net::minecraft::network::chat::text_color::TextColor::RED.get_value())));
                 }
             } else {
-                // TODO(fabric2seer): `.sendError(..)` on a FabricClientCommandSource
-                //   java: source.sendError(Constants.PREFIX.get().append(Component.translatable("skyblocker.customAnimatedDyes.notDyeable").withColor(TextColor.RED)));
+                // java: source.sendError(Constants.PREFIX.get().append(Component.translatable("skyblocker.customAnimatedDyes.notDyeable").withColor(TextColor.RED)));
+                compat::batch_w_send_error(&(crate::de::hysky::skyblocker::utils::constants::PREFIX.get())().append(mcrust::net::minecraft::network::chat::component::translatable("skyblocker.customAnimatedDyes.notDyeable").with_color(mcrust::net::minecraft::network::chat::text_color::TextColor::RED.get_value())));
             }
         } else {
-            // TODO(fabric2seer): `.sendError(..)` on a FabricClientCommandSource
-            //   java: source.sendError(Constants.PREFIX.get().append(Component.translatable("skyblocker.customAnimatedDyes.unableToSetDye").withColor(TextColor.RED)));
+            // java: source.sendError(Constants.PREFIX.get().append(Component.translatable("skyblocker.customAnimatedDyes.unableToSetDye").withColor(TextColor.RED)));
+            compat::batch_w_send_error(&(crate::de::hysky::skyblocker::utils::constants::PREFIX.get())().append(mcrust::net::minecraft::network::chat::component::translatable("skyblocker.customAnimatedDyes.unableToSetDye").with_color(mcrust::net::minecraft::network::chat::text_color::TextColor::RED.get_value())));
         }
         return 1;
     }
@@ -301,8 +308,11 @@ impl Keyframe {
     /// present set; unknown keys are ignored
     pub fn __gson_read(__v: &serde_json::Value) -> Option<Keyframe> {
         let __o = __v.as_object()?;
-        // TODO(fabric2seer): no no-argument constructor - Gson builds the object with every field at zero/null (Unsafe)
-        None
+        // no no-argument constructor: Gson's `Unsafe.allocateInstance` - every field zero, then each key present set
+        let mut __this = Keyframe { color: 0, time: 0.0 };
+        if let Some(__x) = __o.get("color").and_then(dandelion::compat::gson_i64) { __this.color = __x as i32; }
+        if let Some(__x) = __o.get("time").and_then(dandelion::compat::gson_f64) { __this.time = __x as f32; }
+        Some(__this)
     }
 
     /// Dandelion's ConfigPatcher: the field at a dotted path (`getDeclaredField` per segment) set to a
@@ -349,8 +359,14 @@ impl AnimatedDye {
     /// present set; unknown keys are ignored
     pub fn __gson_read(__v: &serde_json::Value) -> Option<AnimatedDye> {
         let __o = __v.as_object()?;
-        // TODO(fabric2seer): no no-argument constructor - Gson builds the object with every field at zero/null (Unsafe)
-        None
+        // no no-argument constructor: Gson's `Unsafe.allocateInstance` - every field zero/null (an absent list is an
+        // empty one here), then each key present set
+        let mut __this = AnimatedDye { keyframes: Vec::new(), cycle_back: false, delay: 0.0, duration: 0.0 };
+        if let Some(__x) = __o.get("keyframes").and_then(|__v| __v.as_array()) { __this.keyframes = __x.iter().filter_map(Keyframe::__gson_read).collect(); }
+        if let Some(__x) = __o.get("cycleBack").and_then(dandelion::compat::gson_bool) { __this.cycle_back = __x; }
+        if let Some(__x) = __o.get("delay").and_then(dandelion::compat::gson_f64) { __this.delay = __x as f32; }
+        if let Some(__x) = __o.get("duration").and_then(dandelion::compat::gson_f64) { __this.duration = __x as f32; }
+        Some(__this)
     }
 
     /// Dandelion's ConfigPatcher: the field at a dotted path (`getDeclaredField` per segment) set to a

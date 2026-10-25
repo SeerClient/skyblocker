@@ -56,21 +56,14 @@ impl ItemProtection {
     /// java: @Init public static void init()
     pub fn init() {
         // java: item_protection = KeyBindingHelper.registerKeyBinding(..) - the static must hold it (the config screen reads it)
-        *ITEM_PROTECTION.get_mut() = Some(key_binding_helper::register_key_binding(KeyMapping::new("key.skyblocker.itemProtection", 86, Category::Misc)));
+        *ITEM_PROTECTION.get_mut() = Some(key_binding_helper::register_key_binding(KeyMapping::new("key.skyblocker.itemProtection", mcrust::com::mojang::blaze3d::platform::input_constants::KEY_V, Category::Misc)));
         client_command_registration_callback::EVENT.register(Arc::new(
             |dispatcher: &mut client_command_registration_callback::ClientCommandDispatcher| {
-                dispatcher.register("skyblocker", |ctx| {
-                    if ctx.args.first().map(|s| &**s) == Some("protectItem") {
-                        ItemProtection::protect_my_item(ctx);
-                        return Ok(());
-                    }
-                    #[allow(unreachable_code)]
-                    Ok(())
-                });
+                ItemProtection::register_command(dispatcher);
             },
         ));
-        // TODO(fabric2seer): UseEntityCallback.EVENT.register: no SeerClient equivalent yet
         //   java: UseEntityCallback.EVENT.register(ItemProtection::onEntityInteract);
+        mcrust::mcrust::modding::events::use_entity_callback::register(|player, world, hand, entity, hit| ItemProtection::on_entity_interact(player, world, &hand, entity, hit.cloned()));
     }
 
     /// java: public static void drawSlotIcon(GuiGraphicsExtractor graphics, int slotX, int slotY)
@@ -80,24 +73,44 @@ impl ItemProtection {
 
     /// java: public static boolean isItemProtected(@Nullable ItemStack stack)
     pub fn is_item_protected(mut stack: Option<mcrust::net::minecraft::world::item::item_stack::ItemStack>) -> bool {
-        let Some(mut stack) = stack.clone() else {
+        // PERF (port-only, same result): read through the handle, not a `clone()` of it (a deep copy).
+        return ItemProtection::is_item_protected_ref(stack.as_ref());
+    }
+
+    /// `isItemProtected(stack)` for a caller holding the stack by reference: Java passes the object, and the
+    /// port's `Option<ItemStack>` form made per-frame callers `duplicate()` it (a deep copy) just to call this.
+    pub fn is_item_protected_ref(stack: Option<&mcrust::net::minecraft::world::item::item_stack::ItemStack>) -> bool {
+        let Some(stack) = stack else {
             return false;
         };
-        let mut item_uuid: String = stack.get_uuid();
-        return SkyblockerConfigManager::get().general.protected_items.contains(&item_uuid);
+        // PERF (port-only, same result): an empty set contains no uuid - skip reading it.
+        let protected_items = &SkyblockerConfigManager::get().general.protected_items;
+        if protected_items.is_empty() {
+            return false;
+        }
+        // OPTIMIZED BUT NOT FULLY VANILLA (perf round 1, P02-mods-runtime): the uuid looked up BORROWED (`with_uuid`),
+        // not cloned per slot per frame - the same uuid, the same cache write on a miss. Was:
+        //     let mut item_uuid: String = stack.get_uuid();
+        //     return protected_items.contains(&item_uuid);
+        return crate::mixins::item_stack_mixin::with_uuid(stack, |item_uuid: &str| protected_items.contains(item_uuid));
     }
 
     /// java: private static void registerCommand(CommandDispatcher<FabricClientCommandSource> dispatcher, CommandBuildContext registryAccess)
-    pub fn register_command(dispatcher: &CommandDispatcher<crate::unresolved::FabricClientCommandSource>, registry_access: &CommandBuildContext) {
-        // TODO(fabric2seer): a command builder outside dispatcher.register(..)
+    pub fn register_command(dispatcher: &mut client_command_registration_callback::ClientCommandDispatcher) {
         //   java: dispatcher.register(ClientCommands.literal("skyblocker")
         //   java: 				.then(ClientCommands.literal("protectItem")
         //   java: 						.executes(context -> protectMyItem(context.getSource()))));
+        use mcrust::com::mojang::brigadier::builder::argument_builder::ArgumentBuilder as _;
+        let mut protect_item = client_command_registration_callback::literal("protectItem");
+        protect_item.executes(Arc::new(|context: &mcrust::com::mojang::brigadier::context::command_context::CommandContext<client_command_registration_callback::FabricClientCommandSource>| Ok(ItemProtection::protect_my_item(context.get_source()))));
+        let mut root = client_command_registration_callback::literal("skyblocker");
+        root.then(&protect_item);
+        dispatcher.dispatcher().register(&root);
     }
 
     /// java: private static int protectMyItem(FabricClientCommandSource source)
-    /// `source` is the port's client command source (`ClientCommandContext`: its feedback goes to chat as text).
-    pub fn protect_my_item(source: &client_command_registration_callback::ClientCommandContext<'_>) -> i32 {
+    /// `source.sendFeedback(..)` is `client_command_registration_callback::send_feedback` (its feedback goes to chat as text).
+    pub fn protect_my_item(_source: &client_command_registration_callback::FabricClientCommandSource) -> i32 {
         // ItemStack heldItem = source.getPlayer().getMainHandItem();
         let mut held_item: mcrust::net::minecraft::world::item::item_stack::ItemStack = {
             use mcrust::net::minecraft::world::entity::living_entity::LivingEntity as _;
@@ -108,16 +121,16 @@ impl ItemProtection {
             if !item_uuid.is_empty() {
                 if !(SkyblockerConfigManager::get().general.protected_items.contains(&item_uuid)) {
                     SkyblockerConfigManager::update(Arc::new(move |mut config| { config.general.protected_items.insert(item_uuid.clone()); }));
-                    source.send_feedback(&(constants::PREFIX.get_mut())().append(ItemProtection::get_added_message(&held_item)).get_string());
+                    client_command_registration_callback::send_feedback(&(constants::PREFIX.get_mut())().append(ItemProtection::get_added_message(&held_item)).get_string());
                 } else {
                     SkyblockerConfigManager::update(Arc::new(move |mut config| { config.general.protected_items.remove(&item_uuid); }));
-                    source.send_feedback(&(constants::PREFIX.get_mut())().append(component::translatable_args("skyblocker.itemProtection.removed", vec![held_item.get_hover_name()])).get_string());
+                    client_command_registration_callback::send_feedback(&(constants::PREFIX.get_mut())().append(component::translatable_args("skyblocker.itemProtection.removed", vec![held_item.get_hover_name()])).get_string());
                 }
             } else {
-                source.send_feedback(&(constants::PREFIX.get_mut())().append(NO_UUID_TEXT.get().clone()).get_string());
+                client_command_registration_callback::send_feedback(&(constants::PREFIX.get_mut())().append(NO_UUID_TEXT.get().clone()).get_string());
             }
         } else {
-            source.send_feedback(&(constants::PREFIX.get_mut())().append(UNABLE_TO_PROTECT_TEXT.get().clone()).get_string());
+            client_command_registration_callback::send_feedback(&(constants::PREFIX.get_mut())().append(UNABLE_TO_PROTECT_TEXT.get().clone()).get_string());
         }
         return 1;
     }

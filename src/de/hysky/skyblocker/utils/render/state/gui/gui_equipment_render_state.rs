@@ -18,9 +18,9 @@ pub struct GuiEquipmentRenderState<S> {
     /// java: ResourceKey<EquipmentAsset> assetKey
     pub asset_key: ResourceKey,
     /// java: Model<S> model (the port's model handle - what `EquipmentLayerRenderer.renderLayers` takes)
-    pub model: std::rc::Rc<std::cell::RefCell<dyn mcrust::net::minecraft::client::renderer::feature::model_feature_renderer::AnimatedModel>>,
+    pub model: mcrust::net::minecraft::client::renderer::feature::model_feature_renderer::ModelRc<dyn mcrust::net::minecraft::client::renderer::feature::model_feature_renderer::AnimatedModel>,
     /// java: S state (a reference to the render state, as Java's record holds it)
-    pub state: std::rc::Rc<S>,
+    pub state: std::sync::Arc<S>,
     /// java: ItemStack stack
     pub stack: mcrust::net::minecraft::world::item::item_stack::ItemStack,
     /// java: int x0
@@ -43,16 +43,16 @@ pub struct GuiEquipmentRenderState<S> {
     pub bounds: Option<ScreenRectangle>,
 }
 
-impl<S: Clone + 'static> GuiEquipmentRenderState<S> {
+impl<S: 'static> GuiEquipmentRenderState<S> {
     /// java: public GuiEquipmentRenderState( EquipmentLayerRenderer equipmentRenderer, EquipmentClientInfo.LayerType layerType, ResourceKey<EquipmentAsset> assetKey, Model<S> model, S state, ItemStack stack, int x
-    pub fn new(mut equipment_renderer: EquipmentLayerRenderer, mut layer_type: LayerType, mut asset_key: ResourceKey, mut model: std::rc::Rc<std::cell::RefCell<dyn mcrust::net::minecraft::client::renderer::feature::model_feature_renderer::AnimatedModel>>, mut state: std::rc::Rc<S>, mut stack: mcrust::net::minecraft::world::item::item_stack::ItemStack, mut x1: i32, mut y1: i32, mut x2: i32, mut y2: i32, mut rotation: f32, mut scale: f32, mut offset: f32, mut scissor_area: Option<ScreenRectangle>) -> Self {
+    pub fn new(mut equipment_renderer: EquipmentLayerRenderer, mut layer_type: LayerType, mut asset_key: ResourceKey, mut model: mcrust::net::minecraft::client::renderer::feature::model_feature_renderer::ModelRc<dyn mcrust::net::minecraft::client::renderer::feature::model_feature_renderer::AnimatedModel>, mut state: std::sync::Arc<S>, mut stack: mcrust::net::minecraft::world::item::item_stack::ItemStack, mut x1: i32, mut y1: i32, mut x2: i32, mut y2: i32, mut rotation: f32, mut scale: f32, mut offset: f32, mut scissor_area: Option<ScreenRectangle>) -> Self {
         // java: this(equipmentRenderer, layerType, assetKey, model, state, stack, x1, y1, x2, y2, rotation, scale, offset, scissorArea, PictureInPictureRenderState.getBounds(x1, y1, x2, y2, scissorArea));
         let bounds = mcrust::net::minecraft::client::renderer::state::gui::pip::picture_in_picture_render_state::get_bounds(x1, y1, x2, y2, scissor_area.clone());
         Self::new_canonical(equipment_renderer, layer_type, asset_key, model, state, stack, x1, y1, x2, y2, rotation, scale, offset, scissor_area, bounds)
     }
 
     /// java: the canonical record constructor
-    pub fn new_canonical(mut equipment_renderer: EquipmentLayerRenderer, mut layer_type: LayerType, mut asset_key: ResourceKey, mut model: std::rc::Rc<std::cell::RefCell<dyn mcrust::net::minecraft::client::renderer::feature::model_feature_renderer::AnimatedModel>>, mut state: std::rc::Rc<S>, mut stack: mcrust::net::minecraft::world::item::item_stack::ItemStack, mut x0: i32, mut y0: i32, mut x1: i32, mut y1: i32, mut rotation: f32, mut scale: f32, mut offset: f32, mut scissor_area: Option<ScreenRectangle>, mut bounds: Option<ScreenRectangle>) -> Self {
+    pub fn new_canonical(mut equipment_renderer: EquipmentLayerRenderer, mut layer_type: LayerType, mut asset_key: ResourceKey, mut model: mcrust::net::minecraft::client::renderer::feature::model_feature_renderer::ModelRc<dyn mcrust::net::minecraft::client::renderer::feature::model_feature_renderer::AnimatedModel>, mut state: std::sync::Arc<S>, mut stack: mcrust::net::minecraft::world::item::item_stack::ItemStack, mut x0: i32, mut y0: i32, mut x1: i32, mut y1: i32, mut rotation: f32, mut scale: f32, mut offset: f32, mut scissor_area: Option<ScreenRectangle>, mut bounds: Option<ScreenRectangle>) -> Self {
         Self { equipment_renderer, layer_type, asset_key, model, state, stack, x0, y0, x1, y1, rotation, scale, offset, scissor_area, bounds }
     }
 
@@ -72,12 +72,12 @@ impl<S: Clone + 'static> GuiEquipmentRenderState<S> {
     }
 
     /// java: the record accessor `model()`
-    pub fn model(&self) -> std::rc::Rc<std::cell::RefCell<dyn mcrust::net::minecraft::client::renderer::feature::model_feature_renderer::AnimatedModel>> {
+    pub fn model(&self) -> mcrust::net::minecraft::client::renderer::feature::model_feature_renderer::ModelRc<dyn mcrust::net::minecraft::client::renderer::feature::model_feature_renderer::AnimatedModel> {
         self.model.clone()
     }
 
     /// java: the record accessor `state()`
-    pub fn state(&self) -> std::rc::Rc<S> {
+    pub fn state(&self) -> std::sync::Arc<S> {
         self.state.clone()
     }
 
@@ -131,4 +131,43 @@ impl<S: Clone + 'static> GuiEquipmentRenderState<S> {
         self.bounds.clone()
     }
 
+}
+
+/// java: `implements PictureInPictureRenderState` - `ScreenArea.bounds()` is the record's `bounds` component
+impl<S: 'static> mcrust::net::minecraft::client::renderer::state::gui::screen_area::ScreenArea for GuiEquipmentRenderState<S> {
+    fn bounds(&self) -> Option<ScreenRectangle> {
+        self.bounds
+    }
+}
+
+/// java: `implements PictureInPictureRenderState` - the record components `x0()`, `x1()`, `y0()`, `y1()`, `scale()` and
+/// `scissorArea()`; `pose()` is the interface's default
+impl<S: 'static> mcrust::net::minecraft::client::renderer::state::gui::pip::picture_in_picture_render_state::PictureInPictureRenderState for GuiEquipmentRenderState<S> {
+    fn x0(&self) -> i32 {
+        self.x0
+    }
+
+    fn x1(&self) -> i32 {
+        self.x1
+    }
+
+    fn y0(&self) -> i32 {
+        self.y0
+    }
+
+    fn y1(&self) -> i32 {
+        self.y1
+    }
+
+    fn scale(&self) -> f32 {
+        self.scale
+    }
+
+    fn scissor_area(&self) -> Option<ScreenRectangle> {
+        self.scissor_area
+    }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
 }

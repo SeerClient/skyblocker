@@ -44,17 +44,17 @@ pub const SECTION_SPACING: i32 = 16;
 pub const HEADING_CONTENT_SPACING: i32 = 8;
 
 /// java: public final class CollectionsPage implements ProfileViewerPage<LoadingInformation>
-#[derive(Clone)]
 pub struct CollectionsPage {
-    /// java: private final List<AbstractWidget> widgets = new ArrayList<>();
-    pub widgets: Vec<AbstractWidget>,
+    /// java: private final List<AbstractWidget> widgets = new ArrayList<>(); (held in a `Screen`, the port's holder
+    /// of game widgets: see `ProfileViewerPageAny::widgets_mut`)
+    pub widgets: mcrust::net::minecraft::client::gui::screens::screen::Screen,
 }
 
 impl CollectionsPage {
     /// java: the implicit no-argument constructor
     pub fn new() -> Self {
         let mut this = Self {
-            widgets: Vec::new(),
+            widgets: mcrust::net::minecraft::client::gui::screens::screen::Screen::new(String::new()),
         };
         this
     }
@@ -65,11 +65,17 @@ impl CollectionsPage {
     }
 
     /// java: private static void selectTab(int index, List<LayoutElement> tabContentLayouts)
-    pub fn select_tab(mut index: i32, tab_content_layouts: &Vec<LayoutElement>) {
+    ///
+    /// (`widgets` is the page's widget list the layouts' widget elements index - a press lambda's `screen`)
+    pub fn select_tab(mut index: i32, tab_content_layouts: &Vec<LayoutElement>, widgets: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen) {
         for i in 0..(tab_content_layouts.len() as i32) {
             let mut should_be_visible: bool = (i == index);
-            // TODO(fabric2seer): a lambda for a parameter the port does not type as a closure (`Consumer<net.minecraft.client.gui.components.AbstractWidget>`)
-            // rust: (tab_content_layouts[(i) as usize]).visit_widgets(|widget| { widget.visible = should_be_visible; });
+            // java: tabContentLayouts.get(i).visitWidgets(widget -> widget.visible = shouldBeVisible);
+            let mut __visited = Vec::new();
+            (tab_content_layouts[(i) as usize]).visit_widgets(&mut __visited);
+            for (__index, _, _) in __visited {
+                widgets.widget_mut(__index).visible = should_be_visible;
+            }
         }
     }
 
@@ -88,11 +94,17 @@ impl CollectionsPage {
         let mut collections_grid_layout: GridLayout = GridLayout::new_default(); collections_grid_layout.row_spacing(VERTICAL_GRID_SPACING); collections_grid_layout.column_spacing(HORIZONTAL_GRID_SPACING);
         let mut collections_row_helper: RowHelper = collections_grid_layout.create_row_helper(7);
         let mut category_contents: Vec<String> = CollectionTiers::get_collection_category_contents().get(collection_category).cloned().unwrap_or_else(|| vec![]);
-        // TODO(fabric2seer): static field Map.Entry
-        //   java: Map<String, CollectionTiers.Report> profileCollections = categoryContents.stream()
+        // java: Map<String, CollectionTiers.Report> profileCollections = categoryContents.stream()
         //   java: 				.map(itemId -> Map.entry(itemId, CollectionTiers.getCollectionReport(info.profile(), info.mainMember().id(), itemId)))
         //   java: 				.collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, (a, _) -> a, LinkedHashMap::new));
-        let mut profile_collections: std::collections::HashMap<String, Report> = todo!("fabric2seer: the initialiser of `profileCollections` (TODO above)");
+        // (a `LinkedHashMap`: insertion order, the first entry of a repeated key kept)
+        let mut profile_collections: Vec<(String, Report)> = Vec::new();
+        let __main_member_id = info.main_member().id();
+        for item_id in category_contents.iter() {
+            if !profile_collections.iter().any(|(k, _)| k == item_id) {
+                profile_collections.push((item_id.clone(), CollectionTiers::get_collection_report(&info.profile(), &__main_member_id, item_id)));
+            }
+        }
         let mut total_collections: i32 = (category_contents.len() as i32);
         let mut unlocked: i32 = 0;
         let mut maxed: i32 = 0;
@@ -106,11 +118,8 @@ impl CollectionsPage {
                 maxed += 1;
             }
             let mut widget: compat::Shared<dyn CollectionItemWidget> = CollectionItemWidgetBase::create(&item_id, info, report);
-            // TODO(fabric2seer): the port's `add_child` ports this Java method with other parameters (grid, child for Java's widget)
-            // TODO(fabric2seer): `add_child` takes 2 argument(s) in the port (`grid: &mut GridLayout, child: LayoutElement`), Java passes 1
-            // rust: collections_row_helper.add_child(&mut widget).unwrap();
+            collections_row_helper.add_child(&mut collections_grid_layout, crate::de::hysky::skyblocker::skyblock::profileviewer2::pages::profile_viewer_page::layout_widget(compat::WidgetAdapter::widget(compat::handle_as::<CollectionItemWidgetBase, _>(&widget)))).unwrap();
         }
-        // TODO(fabric2seer): static call WordUtils.capitalizeFully(..)
         //   java: String title = WordUtils.capitalizeFully(collectionCategory) + " Collections";
         let mut title: String = format!("{} Collections", compat::capitalize_fully(&collection_category));
         self.add_section_headings(&mut collections_layout, &title, total_collections, unlocked, maxed);
@@ -124,32 +133,25 @@ impl CollectionsPage {
         let mut minions_grid_layout: GridLayout = GridLayout::new_default(); minions_grid_layout.row_spacing(VERTICAL_GRID_SPACING); minions_grid_layout.column_spacing(HORIZONTAL_GRID_SPACING);
         let mut minions_row_helper: RowHelper = minions_grid_layout.create_row_helper(6);
         let mut minions: Vec<String> = ConstantData::get_minion_constants().categories().get(category).cloned().unwrap_or_else(|| vec![]);
-        // TODO(fabric2seer): static call Set.stream(..)
-        //   java: List<String> craftedMinions = info.profile().members.values().stream()
+        // java: List<String> craftedMinions = info.profile().members.values().stream()
         //   java: 				.map(member -> member.playerData.craftedMinions)
         //   java: 				.flatMap(Set::stream)
         //   java: 				.toList();
-        let mut crafted_minions: Vec<String> = todo!("fabric2seer: the initialiser of `craftedMinions` (TODO above)");
-        // TODO(fabric2seer): `.getMisc(..)` on a NEUConstants
+        let __members: Vec<compat::Shared<crate::de::hysky::skyblocker::skyblock::profileviewer2::model::profile_member::ProfileMember>> = compat::read(&info.profile(), |__p| __p.members.values().cloned().collect());
+        let mut crafted_minions: Vec<String> = __members.iter().flat_map(|member| compat::read(member, |__m| __m.player_data.crafted_minions.iter().cloned().collect::<Vec<String>>())).collect();
         //   java: Map<String, Integer> maxTiers = !NEURepoManager.isLoading() ? NEURepoManager.getConstants().getMisc().getMaxMinionLevel() : Map.of();
-        let mut max_tiers: std::collections::HashMap<String, i32> = todo!("fabric2seer: the initialiser of `maxTiers` (TODO above)");
+        let mut max_tiers: std::collections::HashMap<String, i32> =
+            if !(NEURepoManager::is_loading()) { NEURepoManager::get_constants().get_misc().get_max_minion_level().clone() } else { std::collections::HashMap::new() };
         let mut total_minions: i32 = (minions.len() as i32);
         let mut unlocked: i32 = 0;
         let mut maxed: i32 = 0;
         for minion_id in minions.iter() {
             let mut max_tier: i32 = max_tiers.get(&format!("{}_GENERATOR", minion_id)).cloned().unwrap_or_else(|| 11);
-            let mut has_crafted_tier: Arc<dyn Fn(i32) -> bool> = Arc::new(move |tier| PlayerData::has_crafted_minion_tier(&crafted_minions, minion_id, tier));
-            // TODO(fabric2seer): not a lambda
-            //   java: List<Integer> tiersCrafted = IntStream.rangeClosed(1, maxTier)
-            //   java: 					.filter(hasCraftedTier)
-            //   java: 					.boxed()
-            //   java: 					.toList();
-            let mut tiers_crafted: Vec<i32> = todo!("fabric2seer: the initialiser of `tiersCrafted` (TODO above)");
-            // TODO(fabric2seer): not a lambda
-            //   java: OptionalInt lowestUncraftedTier = IntStream.rangeClosed(1, maxTier)
-            //   java: 					.filter(hasCraftedTier.negate())
-            //   java: 					.min();
-            let mut lowest_uncrafted_tier: Option<i32> = todo!("fabric2seer: the initialiser of `lowestUncraftedTier` (TODO above)");
+            let has_crafted_tier = |tier: i32| PlayerData::has_crafted_minion_tier(&crafted_minions, minion_id, tier);
+            // java: List<Integer> tiersCrafted = IntStream.rangeClosed(1, maxTier).filter(hasCraftedTier).boxed().toList();
+            let mut tiers_crafted: Vec<i32> = (1..=max_tier).filter(|tier| has_crafted_tier(*tier)).collect();
+            // java: OptionalInt lowestUncraftedTier = IntStream.rangeClosed(1, maxTier).filter(hasCraftedTier.negate()).min();
+            let mut lowest_uncrafted_tier: Option<i32> = (1..=max_tier).filter(|tier| !has_crafted_tier(*tier)).min();
             if !tiers_crafted.is_empty() {
                 unlocked += 1;
             }
@@ -157,11 +159,8 @@ impl CollectionsPage {
                 maxed += 1;
             }
             let mut widget: compat::Shared<MinionWidget> = MinionWidget::create(minion_id, max_tier, &tiers_crafted, &lowest_uncrafted_tier);
-            // TODO(fabric2seer): the port's `add_child` ports this Java method with other parameters (grid, child for Java's widget)
-            // TODO(fabric2seer): `add_child` takes 2 argument(s) in the port (`grid: &mut GridLayout, child: LayoutElement`), Java passes 1
-            // rust: minions_row_helper.add_child(&mut widget).unwrap();
+            minions_row_helper.add_child(&mut minions_grid_layout, crate::de::hysky::skyblocker::skyblock::profileviewer2::pages::profile_viewer_page::layout_widget(compat::WidgetAdapter::widget(widget.clone()))).unwrap();
         }
-        // TODO(fabric2seer): static call WordUtils.capitalizeFully(..)
         //   java: String title = WordUtils.capitalizeFully(category) + " Minions";
         let mut title: String = format!("{} Minions", compat::capitalize_fully(&category));
         self.add_section_headings(&mut minions_layout, &title, total_minions, unlocked, maxed);
@@ -172,16 +171,13 @@ impl CollectionsPage {
     /// java: private void addSectionHeadings(LinearLayout layout, String title, int total, int unlocked, int maxed)
     pub fn add_section_headings(&self, layout: &mut LinearLayout, title: &str, mut total: i32, mut unlocked: i32, mut maxed: i32) {
         let mut font: Font = compat::font();
-        // TODO(fabric2seer): a widget put in a layout outside a mod screen's own methods: the port's layouts hold a widget by its index in the screen's widget list
-        // rust: layout.add_child_with(compat::string_widget(0, 0, -1, 9, component::literal(title).with_color(mcrust::net::minecraft::util::common_colors::DARK_GRAY).with_style_format(ChatFormatting::Bold).without_shadow()), layout.new_cell_settings().align_horizontally_center());
+        { let __settings = layout.new_cell_settings().align_horizontally_center(); layout.add_child_with(crate::de::hysky::skyblocker::skyblock::profileviewer2::pages::profile_viewer_page::layout_widget(compat::string_widget(0, 0, -1, 9, component::literal(title).with_color(mcrust::net::minecraft::util::common_colors::DARK_GRAY).with_style_format(ChatFormatting::Bold).without_shadow())), __settings); }
         let mut unlocked_percentage: f64 = CollectionsPage::calculate_percentage((unlocked) as f64, (total) as f64);
         let mut unlocked_text: String = format!("Unlocked: {}/{} ({}%)", unlocked, total, formatters::FLOAT_NUMBERS.get_mut().format(unlocked_percentage));
-        // TODO(fabric2seer): a widget put in a layout outside a mod screen's own methods: the port's layouts hold a widget by its index in the screen's widget list
-        // rust: layout.add_child_with(compat::string_widget(0, 0, -1, 9, component::literal(&unlocked_text).with_color(mcrust::net::minecraft::util::common_colors::DARK_GRAY).without_shadow()), layout.new_cell_settings().align_horizontally_center());
+        { let __settings = layout.new_cell_settings().align_horizontally_center(); layout.add_child_with(crate::de::hysky::skyblocker::skyblock::profileviewer2::pages::profile_viewer_page::layout_widget(compat::string_widget(0, 0, -1, 9, component::literal(&unlocked_text).with_color(mcrust::net::minecraft::util::common_colors::DARK_GRAY).without_shadow())), __settings); }
         let mut maxed_percentage: f64 = CollectionsPage::calculate_percentage((maxed) as f64, (total) as f64);
         let mut maxed_text: String = format!("Maxed: {}/{} ({}%)", maxed, total, formatters::FLOAT_NUMBERS.get_mut().format(maxed_percentage));
-        // TODO(fabric2seer): a widget put in a layout outside a mod screen's own methods: the port's layouts hold a widget by its index in the screen's widget list
-        // rust: layout.add_child_with(compat::string_widget(0, 0, -1, 9, component::literal(&maxed_text).with_color(mcrust::net::minecraft::util::common_colors::DARK_GRAY).without_shadow()), layout.new_cell_settings().align_horizontally_center());
+        { let __settings = layout.new_cell_settings().align_horizontally_center(); layout.add_child_with(crate::de::hysky::skyblocker::skyblock::profileviewer2::pages::profile_viewer_page::layout_widget(compat::string_widget(0, 0, -1, 9, component::literal(&maxed_text).with_color(mcrust::net::minecraft::util::common_colors::DARK_GRAY).without_shadow())), __settings); }
         layout.add_child(SpacerElement::height(HEADING_CONTENT_SPACING).as_layout_element());
     }
 
@@ -209,7 +205,11 @@ impl ProfileViewerPageAny for CollectionsPage {
 
     /// java: @Override public List<AbstractWidget> getWidgets()
     fn get_widgets(&self) -> Vec<AbstractWidget> {
-        return self.widgets.clone();
+        return self.widgets.children().to_vec();
+    }
+
+    fn widgets_mut(&mut self) -> &mut mcrust::net::minecraft::client::gui::screens::screen::Screen {
+        &mut self.widgets
     }
 
 }
@@ -219,13 +219,10 @@ impl ProfileViewerPage<crate::de::hysky::skyblocker::skyblock::profileviewer2::l
     fn build_widgets(&self, info: &LoadingInformation) -> LayoutElement {
         let mut page_layout: LinearLayout = LinearLayout::horizontal();
         let mut tab_content_layouts: Arc<Vec<LayoutElement>> = Arc::new(vec![self.build_collection_layout(info, "FARMING"), self.build_collection_layout(info, "MINING"), self.build_collection_layout(info, "COMBAT"), self.build_collection_layout(info, "FISHING"), self.build_collection_layout(info, "FORAGING"), self.build_collection_layout(info, "RIFT")]);
-        let mut tab_buttons: Vec<ButtonWidget> = vec![ButtonWidget::new(ico::GOLDEN_HOE.get_mut().clone(), { let __layouts = tab_content_layouts.clone(); OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| { CollectionsPage::select_tab(0, &__layouts); })) }), ButtonWidget::new(ico::STONE_PICKAXE.get_mut().clone(), { let __layouts = tab_content_layouts.clone(); OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| { CollectionsPage::select_tab(1, &__layouts); })) }), ButtonWidget::new(ico::STONE_SWORD.get_mut().clone(), { let __layouts = tab_content_layouts.clone(); OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| { CollectionsPage::select_tab(2, &__layouts); })) }), ButtonWidget::new(ico::FISH_ROD.get_mut().clone(), { let __layouts = tab_content_layouts.clone(); OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| { CollectionsPage::select_tab(3, &__layouts); })) }), ButtonWidget::new(ico::JUNGLE_SAPLING.get_mut().clone(), { let __layouts = tab_content_layouts.clone(); OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| { CollectionsPage::select_tab(4, &__layouts); })) }), ButtonWidget::new(ico::MYCELIUM.get_mut().clone(), { let __layouts = tab_content_layouts.clone(); OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| { CollectionsPage::select_tab(5, &__layouts); })) })];
+        let mut tab_buttons: Vec<compat::Shared<ButtonWidget>> = vec![ButtonWidget::new(ico::GOLDEN_HOE.get_mut().clone(), { let __layouts = tab_content_layouts.clone(); OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| { CollectionsPage::select_tab(0, &__layouts, __screen); })) }), ButtonWidget::new(ico::STONE_PICKAXE.get_mut().clone(), { let __layouts = tab_content_layouts.clone(); OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| { CollectionsPage::select_tab(1, &__layouts, __screen); })) }), ButtonWidget::new(ico::STONE_SWORD.get_mut().clone(), { let __layouts = tab_content_layouts.clone(); OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| { CollectionsPage::select_tab(2, &__layouts, __screen); })) }), ButtonWidget::new(ico::FISH_ROD.get_mut().clone(), { let __layouts = tab_content_layouts.clone(); OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| { CollectionsPage::select_tab(3, &__layouts, __screen); })) }), ButtonWidget::new(ico::JUNGLE_SAPLING.get_mut().clone(), { let __layouts = tab_content_layouts.clone(); OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| { CollectionsPage::select_tab(4, &__layouts, __screen); })) }), ButtonWidget::new(ico::MYCELIUM.get_mut().clone(), { let __layouts = tab_content_layouts.clone(); OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| { CollectionsPage::select_tab(5, &__layouts, __screen); })) })];
         let mut tab_layout: LinearLayout = LinearLayout::vertical().spacing(1);
         for button in tab_buttons.iter() {
-            // rust: port gap (GAPS_batchC #L3) - a widget object put in a layout outside a screen: the port's layouts
-            // hold a widget by its index in a screen's widget list
-            // rust: tab_layout.add_child(button.clone());
-            let _ = button;
+            tab_layout.add_child(crate::de::hysky::skyblocker::skyblock::profileviewer2::pages::profile_viewer_page::layout_widget(compat::WidgetAdapter::widget(button.clone())));
         }
         page_layout.add_child_with(LayoutElement::Grid(tab_layout.clone().wrapped), page_layout.new_cell_settings().align_vertically_middle());
         page_layout.add_child(SpacerElement::width(SECTION_SPACING).as_layout_element());
@@ -234,9 +231,10 @@ impl ProfileViewerPage<crate::de::hysky::skyblocker::skyblock::profileviewer2::l
             content_frame.add_child_with(layout, content_frame.new_child_layout_settings().align_vertically_top());
         }
         page_layout.add_child(LayoutElement::Frame(content_frame.clone()));
-        // TODO(fabric2seer): a lambda for a parameter the port does not type as a closure (`Consumer<net.minecraft.client.gui.components.AbstractWidget>`)
-        // rust: layout::visit_widgets(|__a0| { self.widgets.push(__a0.clone()); });
-        CollectionsPage::select_tab(0, &tab_content_layouts);
+        // java: pageLayout.visitWidgets(this.widgets::add); - every widget the layout holds was collected as it was put in
+        // it (`layout_widget`); `load` hands them to the page
+        // java: selectTab(0, tabContentLayouts);
+        crate::de::hysky::skyblocker::skyblock::profileviewer2::pages::profile_viewer_page::with_page_widgets(|__widgets| CollectionsPage::select_tab(0, &tab_content_layouts, __widgets));
         return LayoutElement::Grid(page_layout.wrapped);
     }
 
@@ -247,6 +245,10 @@ impl CollectionsPage {
     pub fn load_dyn(__this: &compat::Shared<dyn ProfileViewerPageAny>, info: &LoadingInformation) -> compat::LocalFuture<LayoutElement> {
         // java: return CompletableFuture.completedFuture(info).thenApplyAsync(this::buildWidgets, Minecraft.getInstance());
         let __h: compat::Shared<CollectionsPage> = compat::handle_as::<CollectionsPage, _>(__this);
-        return compat::LocalFuture::completed_future(info.clone()).then_apply_async(move |__a0| compat::read(&__h, |__t| __t.build_widgets(&__a0)));
+        return compat::LocalFuture::completed_future(info.clone()).then_apply_async(move |__a0| {
+            let (__layout, __widgets) = crate::de::hysky::skyblocker::skyblock::profileviewer2::pages::profile_viewer_page::collect_widgets(|| compat::read(&__h, |__t| __t.build_widgets(&__a0)));
+            compat::write(&__h, |__t| __t.widgets = __widgets);
+            __layout
+        });
     }
 }

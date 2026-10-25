@@ -54,14 +54,14 @@ impl<T: 'static> std::ops::DerefMut for CyclingIconButtonWidget<T> {
 
 impl<T: Clone + 'static> CyclingIconButtonWidget<T> {
     /// java: public CyclingIconButtonWidget(int width, int height, T value, T[] values, Function<T, Component> valueToText, Function<T, Icon> valueToIcon, Function<T, Tooltip> tooltipFactory, Consumer<T> callback,
-    pub fn new(mut width: i32, mut height: i32, mut value: T, mut values: Vec<T>, value_to_text: Arc<dyn Fn(T) -> MutableComponent>, value_to_icon: Arc<dyn Fn(T) -> Icon>, tooltip_factory: Arc<dyn Fn(T) -> Tooltip>, callback: Arc<dyn Fn(T)>, mut show_text: bool) -> compat::Shared<Self> {
-        // TODO(fabric2seer): static call ArrayUtils.indexOf(..)
-        //   java: this.index = ArrayUtils.indexOf(values, value);
+    pub fn new(mut width: i32, mut height: i32, mut value: T, mut values: Vec<T>, value_to_text: Arc<dyn Fn(T) -> MutableComponent>, value_to_icon: Arc<dyn Fn(T) -> Icon>, tooltip_factory: Arc<dyn Fn(T) -> Tooltip>, callback: Arc<dyn Fn(T)>, mut show_text: bool) -> compat::Shared<Self> where T: PartialEq {
+        // java: this.index = ArrayUtils.indexOf(values, value); - the first equal element, -1 when none
+        let __init_index: i32 = values.iter().position(|v| *v == value).map_or(-1, |i| i as i32);
         let __this = compat::shared(Self {
             base: AbstractWidget::new(0, 0, width, height, (&(value_to_text)(value.clone()).get_string()).to_string(), WidgetKind::PlainText, OnPress::Inert),
             value_to_icon: None,
             show_text: false,
-            index: todo!("fabric2seer: the field value (TODO above)"),
+            index: __init_index,
             value_to_text: None,
             values: Default::default(),
             callback: None,
@@ -81,7 +81,7 @@ impl<T: Clone + 'static> CyclingIconButtonWidget<T> {
     }
 
     /// java: public CyclingIconButtonWidget(int width, int height, T value, T[] values, Function<T, Icon> valueToIcon, Function<T, Tooltip> tooltipFactory, Consumer<T> callback)
-    pub fn new_7(mut width: i32, mut height: i32, mut value: T, mut values: Vec<T>, value_to_icon: Arc<dyn Fn(T) -> Icon>, tooltip_factory: Arc<dyn Fn(T) -> Tooltip>, callback: Arc<dyn Fn(T)>) -> compat::Shared<Self> where T: std::fmt::Display {
+    pub fn new_7(mut width: i32, mut height: i32, mut value: T, mut values: Vec<T>, value_to_icon: Arc<dyn Fn(T) -> Icon>, tooltip_factory: Arc<dyn Fn(T) -> Tooltip>, callback: Arc<dyn Fn(T)>) -> compat::Shared<Self> where T: std::fmt::Display + PartialEq {
         // java: this(width, height, value, values, Object::toString -> Component.literal(..), ..) - `toString` is `Display`
         let __this = Self::new(width, height, value.clone(), values.clone(), Arc::new(move |o: T| component::literal(&o.to_string())), value_to_icon.clone(), tooltip_factory.clone(), callback.clone(), false);
         __this
@@ -101,26 +101,37 @@ impl<T: Clone + 'static> CyclingIconButtonWidget<T> {
 
     /// java: @Override protected void extractContents(GuiGraphicsExtractor context, int mouseX, int mouseY, float deltaTicks)
     pub fn extract_contents(__this: &compat::Shared<Self>, context: &GuiGraphicsExtractor, mut mouse_x: i32, mut mouse_y: i32, mut delta_ticks: f32) {
-        // TODO(fabric2seer): `AbstractButton.extractDefaultSprite` has no Rust method in the port (looked for `extract_default_sprite` in AbstractButton and its supertypes)
-        // rust: __this.lock().borrow().extract_default_sprite(context);
+        // java: this.extractDefaultSprite(context); - `AbstractButton.extractDefaultSprite`: `graphics.blitSprite(GUI_TEXTURED,
+        // SPRITES.get(this.active, this.isHoveredOrFocused()), getX(), getY(), getWidth(), getHeight(), ARGB.white(this.alpha))`
+        {
+            let (__active, __highlighted, __x, __y, __w, __h, __alpha) = compat::read(__this, |__t| (__t.active, __t.is_hovered_or_focused(), __t.get_x(), __t.get_y(), __t.get_width(), __t.get_height(), __t.alpha));
+            let __sprite = mcrust::net::minecraft::client::gui::components::abstract_button::default_sprite(__active, __highlighted);
+            gui_graphics_extractor::blit_sprite_identifier_with_alpha(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), mcrust::net::minecraft::client::renderer::render_pipelines::gui_textured(), &__sprite, __x, __y, __w, __h, __alpha);
+        }
         let mut x: i32 = (if compat::read(__this, |__t| __t.show_text) { (((__this.lock().borrow().get_x()).wrapping_add(__this.lock().borrow().get_width())).wrapping_sub(__this.lock().borrow().current_icon.as_ref().unwrap().width())).wrapping_sub(2) } else { ((__this.lock().borrow().get_x()).wrapping_add((__this.lock().borrow().get_width()).wrapping_div(2))).wrapping_sub((__this.lock().borrow().current_icon.as_ref().unwrap().width()).wrapping_div(2)) });
         let mut y: i32 = ((__this.lock().borrow().get_y()).wrapping_add((__this.lock().borrow().get_height()).wrapping_div(2))).wrapping_sub((__this.lock().borrow().current_icon.as_ref().unwrap().height()).wrapping_div(2));
         gui_graphics_extractor::blit_sprite_identifier_with_alpha(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), mcrust::net::minecraft::client::renderer::render_pipelines::gui_textured(), &__this.lock().borrow().current_icon.as_ref().unwrap().id(), x, y, __this.lock().borrow().current_icon.as_ref().unwrap().width(), __this.lock().borrow().current_icon.as_ref().unwrap().height(), compat::read(__this, |__t| __t.alpha));
-        // TODO(fabric2seer): field `NONE` of a value of unknown type
-        //   java: this.extractDefaultLabel(context.textRenderer(GuiGraphicsExtractor.HoveredTextEffects.NONE));
+        // java: this.extractDefaultLabel(context.textRenderer(GuiGraphicsExtractor.HoveredTextEffects.NONE));
+        CyclingIconButtonWidget::extract_default_label(__this);
     }
 
     /// java: @Override public void extractDefaultLabel(ActiveTextCollector drawer)
-    pub fn extract_default_label(__this: &compat::Shared<Self>, drawer: &dyn ActiveTextCollector) {
+    ///
+    /// (`drawer` is the frame's plain text renderer - `HoveredTextEffects.NONE` - which the draw below is)
+    pub fn extract_default_label(__this: &compat::Shared<Self>) {
         if !(compat::read(__this, |__t| __t.show_text)) {
             return;
         }
         let mut x1: i32 = (__this.lock().borrow().get_x()).wrapping_add(2);
         let mut x2: i32 = (((__this.lock().borrow().get_x()).wrapping_add(__this.lock().borrow().get_width())).wrapping_sub(__this.lock().borrow().current_icon.as_ref().unwrap().width())).wrapping_sub(4);
         let mut x_center: i32 = (__this.lock().borrow().get_x()).wrapping_add((__this.lock().borrow().get_width()).wrapping_div(2));
-        // TODO(fabric2seer): the port's `accept_scrolling` ports this Java method with other parameters (center_x, left, right, top, bottom, line_width, time_millis for Java's message, center_x, left, right, top, bottom)
-        // TODO(fabric2seer): `accept_scrolling` takes 7 argument(s) in the port (`center_x: i32, left: i32, right: i32, top: i32, bottom: i32, line_width: i32, time_millis: i64`), Java passes 6
-        // rust: active_text_collector::accept_scrolling(compat::component_of(__this.lock().borrow().get_message_component()), x_center, x1, x2, __this.lock().borrow().get_y(), (__this.lock().borrow().get_y()).wrapping_add(__this.lock().borrow().get_height()));
+        // java: drawer.acceptScrolling(this.getMessage(), xCenter, x1, x2, this.getY(), this.getY() + this.getHeight());
+        let __message = mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(compat::component_of(__this.lock().borrow().get_message_component()));
+        let (__y, __height) = compat::read(__this, |__t| (__t.get_y(), __t.get_height()));
+        let minecraft = &*compat::minecraft();
+        let __line_width = mcrust::net::minecraft::client::gui::font::width(minecraft.font.splitter().string_width_formatted(&__message));
+        let __placement = active_text_collector::accept_scrolling(x_center, x1, x2, __y, __y.wrapping_add(__height), __line_width, mcrust::net::minecraft::util::util::get_millis());
+        gui_graphics_extractor::draw_clipped_formatted_text(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), minecraft, __placement.x, __placement.y, &__message, -1, &mcrust::net::minecraft::network::chat::style::Style::EMPTY, __placement.scissor, None, minecraft.window.get_gui_scale(), minecraft.window.get_height());
     }
 
     /// java: @Override protected void updateWidgetNarration(NarrationElementOutput builder)

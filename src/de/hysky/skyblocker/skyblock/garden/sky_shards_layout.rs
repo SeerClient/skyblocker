@@ -121,29 +121,30 @@ impl SkyShardsLayout {
     }
 
     /// java: private static @Nullable String decompress(String code) throws Exception
+    /// (`None` is Java's `null`, and also an exception, which `decode`'s `catch (Exception _)` turns into `null`)
     pub fn decompress(code: &str) -> Option<String> {
-        // rust: port gap (GAPS_batchG, GAPS_J #9) - the port's `java.util.Base64` has only the basic decoder (no
-        // `getUrlDecoder()`), and its `java.util.zip.Inflater` only the zlib-wrapped form (no `new Inflater(true)`,
-        // raw deflate). Both are game files; the statements stay markers until they exist.
-        // TODO(fabric2seer): `.decode(..)` on a value of unknown type
-        //   java: byte[] compressed = Base64.getUrlDecoder().decode(code);
-        let mut compressed: Vec<u8> = todo!("fabric2seer: the initialiser of `compressed` (TODO above)");
+        // java: byte[] compressed = Base64.getUrlDecoder().decode(code);
+        // `Decoder.RFC4648_URLSAFE` is the basic decoder over the URL alphabet (`fromBase64URL`): `-` and `_` where the
+        // basic one has `+` and `/`, which it rejects
+        if let Some(illegal) = code.chars().find(|c| *c == '+' || *c == '/') {
+            let _ = illegal;
+            return None; // IllegalArgumentException: Illegal base64 character
+        }
+        let basic: String = code.chars().map(|c| match c { '-' => '+', '_' => '/', c => c }).collect();
+        let compressed: Vec<u8> = mcrust::java::util::base64::get_decoder().decode(&basic).ok()?;
         {
-            // TODO(fabric2seer): `new InflaterInputStream(..)`
-            //   java: InputStream in = new InflaterInputStream(new ByteArrayInputStream(compressed), new Inflater(true));
-            let mut r#in: crate::unresolved::InputStream = todo!("fabric2seer: the initialiser of `in` (TODO above)");
-            // TODO(fabric2seer): `.readNBytes(..)` on a InputStream
-            //   java: byte[] decompressed = in.readNBytes(MAX_DECOMPRESSED_BYTES);
-            let mut decompressed: Vec<u8> = todo!("fabric2seer: the initialiser of `decompressed` (TODO above)");
-            // TODO(fabric2seer): the condition: `.read(..)` on a InputStream
-            //   java: in.read() != -1
-            if todo!("fabric2seer: the condition (TODO above)") {
+            // java: InputStream in = new InflaterInputStream(new ByteArrayInputStream(compressed), new Inflater(true));
+            // (`nowrap`: raw DEFLATE, no zlib header or trailer)
+            let inflated: Vec<u8> = mcrust::lwjgl::inflate::inflate(&compressed).ok()?;
+            // java: byte[] decompressed = in.readNBytes(MAX_DECOMPRESSED_BYTES);
+            // java: if (in.read() != -1) return null;
+            if inflated.len() > MAX_DECOMPRESSED_BYTES as usize {
                 return None;
             }
+            let decompressed: Vec<u8> = inflated;
             // new String(decompressed, StandardCharsets.UTF_8): malformed input becomes U+FFFD
             return Some(String::from_utf8_lossy(&decompressed).into_owned());
         }
-        todo!("fabric2seer: the value of this function is in a TODO above")
     }
 
     /// java: private static int paletteIndexOf(String chars)

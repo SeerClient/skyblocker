@@ -102,9 +102,8 @@ fn skyblocker_on_item_pickup(ci: &mut CallbackInfo<'_>) {
 
 /// @WrapWithCondition skyblocker$cancelEntityPassengersWarning
 ///   java: @WrapWithCondition(method = "handleSetEntityPassengersPacket", at = @At(value = "INVOKE", target = "Lorg/slf4j/Logger;warn(Ljava/lang/String;)V"))
-/// target: org.slf4j.Logger#warn(Ljava/lang/String;)V  [class not in JavaSrc]
+/// target: org.slf4j.Logger#warn(Ljava/lang/String;)V  [exists: org/slf4j/logger.rs]
 /// within: net.minecraft.client.multiplayer.ClientPacketListener#handleSetEntityPassengersPacket
-/// note: class not in JavaSrc: org.slf4j.Logger has no file in JavaSrc/src - a remapping problem, or a class this Minecraft version does not have
 fn skyblocker_cancel_entity_passengers_warning(ci: &CallbackInfo<'_>) -> bool {
     return !(crate::de::hysky::skyblocker::utils::utils::Utils::is_on_hypixel());
 }
@@ -166,9 +165,8 @@ fn skyblocker_on_list_change(ci: &mut CallbackInfo<'_>) {
 
 /// @WrapWithCondition skyblocker$cancelPlayerListWarning
 ///   java: @WrapWithCondition(method = "handlePlayerInfoUpdate", at = @At(value = "INVOKE", target = "Lorg/slf4j/Logger;warn(Ljava/lang/String;Ljava/lang/Object;Ljava/lang/Object;)V"))
-/// target: org.slf4j.Logger#warn(Ljava/lang/String;Ljava/lang/Object;Ljava/lang/Object;)V  [class not in JavaSrc]
+/// target: org.slf4j.Logger#warn(Ljava/lang/String;Ljava/lang/Object;Ljava/lang/Object;)V  [exists: org/slf4j/logger.rs]
 /// within: net.minecraft.client.multiplayer.ClientPacketListener#handlePlayerInfoUpdate
-/// note: class not in JavaSrc: org.slf4j.Logger has no file in JavaSrc/src - a remapping problem, or a class this Minecraft version does not have
 fn skyblocker_cancel_player_list_warning(ci: &CallbackInfo<'_>) -> bool {
     return !(crate::de::hysky::skyblocker::utils::utils::Utils::is_on_hypixel());
 }
@@ -189,9 +187,8 @@ fn skyblocker_on_play_sound(ci: &mut CallbackInfo<'_>) {
 
 /// @WrapWithCondition skyblocker$dropBadlionPacketWarnings
 ///   java: @WrapWithCondition(method = "handleUnknownCustomPayload", at = @At(value = "INVOKE", target = "Lorg/slf4j/Logger;warn(Ljava/lang/String;Ljava/lang/Object;)V"))
-/// target: org.slf4j.Logger#warn(Ljava/lang/String;Ljava/lang/Object;)V  [class not in JavaSrc]
+/// target: org.slf4j.Logger#warn(Ljava/lang/String;Ljava/lang/Object;)V  [exists: org/slf4j/logger.rs]
 /// within: net.minecraft.client.multiplayer.ClientPacketListener#handleUnknownCustomPayload
-/// note: class not in JavaSrc: org.slf4j.Logger has no file in JavaSrc/src - a remapping problem, or a class this Minecraft version does not have
 ///
 /// `handleUnknownCustomPayload:2198-2200` is that one `LOGGER.warn` call and nothing else; the port's body is the
 /// warning (client_packet_listener.rs:2199, a `warn_once`, not a hookable `Logger` call). So "skip the warn" is "skip
@@ -213,27 +210,24 @@ fn skyblocker_drop_badlion_packet_warnings_at_head(ci: &mut CallbackInfo<'_>) {
 
 /// @WrapWithCondition skyblocker$cancelUnknownScoreboardObjectiveWarnings
 ///   java: @WrapWithCondition(method = {"handleSetScore", "handleResetScore"}, at = @At(value = "INVOKE", target = "Lorg/slf4j/Logger;warn(Ljava/lang/String;Ljava/lang/Object;)V"), require = 2)
-/// target: org.slf4j.Logger#warn(Ljava/lang/String;Ljava/lang/Object;)V  [class not in JavaSrc]
+/// target: org.slf4j.Logger#warn(Ljava/lang/String;Ljava/lang/Object;)V  [exists: org/slf4j/logger.rs]
 /// within: net.minecraft.client.multiplayer.ClientPacketListener#handleSetScore
-/// note: class not in JavaSrc: org.slf4j.Logger has no file in JavaSrc/src - a remapping problem, or a class this Minecraft version does not have
 fn skyblocker_cancel_unknown_scoreboard_objective_warnings(ci: &CallbackInfo<'_>) -> bool {
     return !(crate::de::hysky::skyblocker::utils::utils::Utils::is_on_hypixel());
 }
 
 /// @WrapWithCondition skyblocker$cancelUnknownScoreboardObjectiveWarnings
 ///   java: @WrapWithCondition(method = {"handleSetScore", "handleResetScore"}, at = @At(value = "INVOKE", target = "Lorg/slf4j/Logger;warn(Ljava/lang/String;Ljava/lang/Object;)V"), require = 2)
-/// target: org.slf4j.Logger#warn(Ljava/lang/String;Ljava/lang/Object;)V  [class not in JavaSrc]
+/// target: org.slf4j.Logger#warn(Ljava/lang/String;Ljava/lang/Object;)V  [exists: org/slf4j/logger.rs]
 /// within: net.minecraft.client.multiplayer.ClientPacketListener#handleResetScore
-/// note: class not in JavaSrc: org.slf4j.Logger has no file in JavaSrc/src - a remapping problem, or a class this Minecraft version does not have
 fn skyblocker_cancel_unknown_scoreboard_objective_warnings_1(ci: &CallbackInfo<'_>) -> bool {
     return !(crate::de::hysky::skyblocker::utils::utils::Utils::is_on_hypixel());
 }
 
 /// @WrapWithCondition skyblocker$cancelTeamWarning
 ///   java: @WrapWithCondition(method = "handleSetPlayerTeamPacket", at = @At(value = "INVOKE", target = "Lorg/slf4j/Logger;warn(Ljava/lang/String;[Ljava/lang/Object;)V"))
-/// target: org.slf4j.Logger#warn(Ljava/lang/String;[Ljava/lang/Object;)V  [class not in JavaSrc]
+/// target: org.slf4j.Logger#warn(Ljava/lang/String;[Ljava/lang/Object;)V  [exists: org/slf4j/logger.rs]
 /// within: net.minecraft.client.multiplayer.ClientPacketListener#handleSetPlayerTeamPacket
-/// note: class not in JavaSrc: org.slf4j.Logger has no file in JavaSrc/src - a remapping problem, or a class this Minecraft version does not have
 fn skyblocker_cancel_team_warning(ci: &CallbackInfo<'_>) -> bool {
     return !(crate::de::hysky::skyblocker::utils::utils::Utils::is_on_hypixel());
 }
@@ -289,25 +283,25 @@ pub fn register() {
     report(hook::register_injector("net.minecraft.client.multiplayer.ClientPacketListener#handleMovePlayer", InjectOptions::at(At::Head).kind(InjectorKind::Inject).priority(1000), Arc::new(skyblocker_before_teleport)));
     report(hook::register_injector("net.minecraft.client.multiplayer.ClientPacketListener#handleMovePlayer", InjectOptions::at(At::Return).kind(InjectorKind::Inject).priority(1000), Arc::new(skyblocker_on_teleport)));
     report(hook::call_site("net.minecraft.client.multiplayer.ClientPacketListener#handleTakeItemEntity", "net.minecraft.world.entity.item.ItemEntity#getItem").priority(1000).inject(Shift::Before, skyblocker_on_item_pickup));
-    // TODO(fabric2seer): not registered - class not in JavaSrc: org.slf4j.Logger has no file in JavaSrc/src - a remapping problem, or a class this Minecraft version does not have
-    // report(hook::call_site(`net.minecraft.client.multiplayer.ClientPacketListener#handleSetEntityPassengersPacket`, `org.slf4j.Logger#warn(Ljava/lang/String;)V`).priority(1000).wrap_with_condition(skyblocker_cancel_entity_passengers_warning));
+    // `org.slf4j.Logger` is the game's `org::slf4j::logger::Logger` (its overloads are hooked by descriptor).
+    report(hook::call_site("net.minecraft.client.multiplayer.ClientPacketListener#handleSetEntityPassengersPacket", "org.slf4j.Logger#warn(Ljava/lang/String;)V").priority(1000).wrap_with_condition(skyblocker_cancel_entity_passengers_warning));
     report(hook::call_site("net.minecraft.client.multiplayer.ClientPacketListener#handleEntityEvent", "net.minecraft.network.protocol.game.ClientboundEntityEventPacket#getEntity").priority(1000).inject(Shift::After, skyblocker_on_entity_death));
     report(hook::register_injector("net.minecraft.client.multiplayer.ClientPacketListener#handleSetEquipment", InjectOptions::at(At::Tail).kind(InjectorKind::Inject).priority(1000), Arc::new(skyblocker_on_entity_equip)));
     // java: @At(INVOKE PlayerTabOverlay.setFooter) - see `skyblocker_update_player_list_footer`
     report(hook::register_injector("net.minecraft.client.multiplayer.ClientPacketListener#handleTabListCustomisation", InjectOptions::at(At::Return).kind(InjectorKind::Inject).priority(1000), Arc::new(skyblocker_update_player_list_footer)));
     report(hook::register_injector("net.minecraft.client.multiplayer.ClientPacketListener#handlePlayerInfoUpdate", InjectOptions::at(At::Head).kind(InjectorKind::Inject).priority(1000), Arc::new(skyblocker_on_list_change)));
-    // TODO(fabric2seer): not registered - class not in JavaSrc: org.slf4j.Logger has no file in JavaSrc/src - a remapping problem, or a class this Minecraft version does not have
-    // report(hook::call_site(`net.minecraft.client.multiplayer.ClientPacketListener#handlePlayerInfoUpdate`, `org.slf4j.Logger#warn(Ljava/lang/String;Ljava/lang/Object;Ljava/lang/Object;)V`).priority(1000).wrap_with_condition(skyblocker_cancel_player_list_warning));
+    // `org.slf4j.Logger` is the game's `org::slf4j::logger::Logger` (its overloads are hooked by descriptor).
+    report(hook::call_site("net.minecraft.client.multiplayer.ClientPacketListener#handlePlayerInfoUpdate", "org.slf4j.Logger#warn(Ljava/lang/String;Ljava/lang/Object;Ljava/lang/Object;)V").priority(1000).wrap_with_condition(skyblocker_cancel_player_list_warning));
     // java: @At(INVOKE PacketUtils.ensureRunningOnSameThread, shift = AFTER) - see `after_ensure_running_on_same_thread`
     report(hook::register_injector("net.minecraft.client.multiplayer.ClientPacketListener#handleSoundEvent", InjectOptions::at(At::Head).kind(InjectorKind::Inject).priority(1000), Arc::new(skyblocker_on_play_sound)));
     // java: @WrapWithCondition on the `Logger.warn` that is handleUnknownCustomPayload's whole body - see the handler.
     report(hook::register_injector("net.minecraft.client.multiplayer.ClientPacketListener#handleUnknownCustomPayload", InjectOptions::at(At::Head).kind(InjectorKind::Inject).priority(1000), Arc::new(skyblocker_drop_badlion_packet_warnings_at_head)));
-    // TODO(fabric2seer): not registered - class not in JavaSrc: org.slf4j.Logger has no file in JavaSrc/src - a remapping problem, or a class this Minecraft version does not have
-    // report(hook::call_site(`net.minecraft.client.multiplayer.ClientPacketListener#handleSetScore`, `org.slf4j.Logger#warn(Ljava/lang/String;Ljava/lang/Object;)V`).priority(1000).wrap_with_condition(skyblocker_cancel_unknown_scoreboard_objective_warnings));
-    // TODO(fabric2seer): not registered - class not in JavaSrc: org.slf4j.Logger has no file in JavaSrc/src - a remapping problem, or a class this Minecraft version does not have
-    // report(hook::call_site(`net.minecraft.client.multiplayer.ClientPacketListener#handleResetScore`, `org.slf4j.Logger#warn(Ljava/lang/String;Ljava/lang/Object;)V`).priority(1000).wrap_with_condition(skyblocker_cancel_unknown_scoreboard_objective_warnings_1));
-    // TODO(fabric2seer): not registered - class not in JavaSrc: org.slf4j.Logger has no file in JavaSrc/src - a remapping problem, or a class this Minecraft version does not have
-    // report(hook::call_site(`net.minecraft.client.multiplayer.ClientPacketListener#handleSetPlayerTeamPacket`, `org.slf4j.Logger#warn(Ljava/lang/String;[Ljava/lang/Object;)V`).priority(1000).wrap_with_condition(skyblocker_cancel_team_warning));
+    // `org.slf4j.Logger` is the game's `org::slf4j::logger::Logger` (its overloads are hooked by descriptor).
+    report(hook::call_site("net.minecraft.client.multiplayer.ClientPacketListener#handleSetScore", "org.slf4j.Logger#warn(Ljava/lang/String;Ljava/lang/Object;)V").priority(1000).wrap_with_condition(skyblocker_cancel_unknown_scoreboard_objective_warnings));
+    // `org.slf4j.Logger` is the game's `org::slf4j::logger::Logger` (its overloads are hooked by descriptor).
+    report(hook::call_site("net.minecraft.client.multiplayer.ClientPacketListener#handleResetScore", "org.slf4j.Logger#warn(Ljava/lang/String;Ljava/lang/Object;)V").priority(1000).wrap_with_condition(skyblocker_cancel_unknown_scoreboard_objective_warnings_1));
+    // `org.slf4j.Logger` is the game's `org::slf4j::logger::Logger` (its overloads are hooked by descriptor).
+    report(hook::call_site("net.minecraft.client.multiplayer.ClientPacketListener#handleSetPlayerTeamPacket", "org.slf4j.Logger#warn(Ljava/lang/String;[Ljava/lang/Object;)V").priority(1000).wrap_with_condition(skyblocker_cancel_team_warning));
     report(hook::register_injector("net.minecraft.client.multiplayer.ClientPacketListener#handleParticleEvent", InjectOptions::at(At::Return).kind(InjectorKind::Inject).priority(1000), Arc::new(skyblocker_on_particle)));
     report(hook::register_injector("net.minecraft.client.multiplayer.ClientPacketListener#handleMapItemData", InjectOptions::at(At::Return).kind(InjectorKind::Inject).priority(1000), Arc::new(skyblocker_on_map_item_data)));
     report(hook::register_injector("net.minecraft.client.multiplayer.ClientPacketListener#handleSetTime", InjectOptions::at(At::Return).kind(InjectorKind::Inject).priority(1000), Arc::new(skyblocker_on_set_time)));

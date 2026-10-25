@@ -189,6 +189,16 @@ impl compat::ScreenHalf for EditBarColorPopup {
 
 /// EditBarColorPopup as the game's screen: `game::set_screen(Box::new(compat::ScreenAdapter::new(..)))`
 impl ModScreen for compat::ScreenAdapter<EditBarColorPopup> {
+    /// java: AbstractPopupScreen.extractBackground overrides `Screen.extractBackground` without `super`
+    fn extract_background_calls_super(&self) -> bool {
+        false
+    }
+
+    /// java: @Override public void extractBackground(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a)
+    fn extract_background(&mut self, _screen: &mcrust::net::minecraft::client::gui::screens::screen::Screen, context: &mut mcrust::mcrust::modding::screens::ScreenRenderContext<'_>, mouse_x: i32, mouse_y: i32, a: f32) {
+        self.call(|__h| ({ let __f = compat::dispatch(__h, |__t| __t.extract_background()); __f(&compat::view(__h, |a| a as compat::Shared<dyn AbstractPopupScreen>), &mut context.graphics, mouse_x, mouse_y, a) }))
+    }
+
     fn get_title(&self) -> String {
         self.title()
     }

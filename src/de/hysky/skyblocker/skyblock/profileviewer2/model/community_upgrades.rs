@@ -93,3 +93,109 @@ impl UpgradeState {
     }
 
 }
+
+impl CommunityUpgrades {
+    /// Gson's reflective binding of the class's own fields (`ReflectiveTypeAdapterFactory`): each member the
+    /// JSON has is read over the field it names (`@SerializedName`, else the field's name) with the field's declared
+    /// type; an absent member (or a `null` one, or one Gson would reject) leaves the constructor's value.
+    pub fn read_json_fields(&mut self, json: &serde_json::Value) {
+        #[allow(unused_imports)]
+        use crate::io::github::moulberry::repo::neu_repository::gson;
+        if let Some(__v) = gson::member(json, "currently_upgrading") {
+            if let Some(__x) = (Some(CurrentlyUpgrading::from_json(__v))).map(Some) {
+                self.currently_upgrading = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "upgrade_states") {
+            if let Some(__x) = gson::list(__v, |__e0| Some(UpgradeState::from_json(__e0))) {
+                self.upgrade_states = __x;
+            }
+        }
+    }
+
+    /// `GSON.fromJson(json, CommunityUpgrades.class)`: the no-argument constructor, then the fields.
+    pub fn from_json(json: &serde_json::Value) -> Self {
+        let mut __this = Self::new();
+        __this.read_json_fields(json);
+        __this
+    }
+}
+
+impl CurrentlyUpgrading {
+    /// Gson's reflective binding of the class's own fields (`ReflectiveTypeAdapterFactory`): each member the
+    /// JSON has is read over the field it names (`@SerializedName`, else the field's name) with the field's declared
+    /// type; an absent member (or a `null` one, or one Gson would reject) leaves the constructor's value.
+    pub fn read_json_fields(&mut self, json: &serde_json::Value) {
+        #[allow(unused_imports)]
+        use crate::io::github::moulberry::repo::neu_repository::gson;
+        if let Some(__v) = gson::member(json, "upgrade") {
+            if let Some(__x) = gson::as_string(__v) {
+                self.upgrade_id = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "new_tier") {
+            if let Some(__x) = gson::as_i32(__v) {
+                self.new_tier = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "start_ms") {
+            if let Some(__x) = gson::as_i64(__v) {
+                self.started_at = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "who_started") {
+            if let Some(__x) = crate::de::hysky::skyblocker::skyblock::profileviewer2::profile_viewer::json_uuid(__v) {
+                self.started_by = __x;
+            }
+        }
+    }
+
+    /// `GSON.fromJson(json, CurrentlyUpgrading.class)`: the no-argument constructor, then the fields.
+    pub fn from_json(json: &serde_json::Value) -> Self {
+        let mut __this = Self::new();
+        __this.read_json_fields(json);
+        __this
+    }
+}
+
+impl UpgradeState {
+    /// Gson's reflective binding of the class's own fields (`ReflectiveTypeAdapterFactory`): each member the
+    /// JSON has is read over the field it names (`@SerializedName`, else the field's name) with the field's declared
+    /// type; an absent member (or a `null` one, or one Gson would reject) leaves the constructor's value.
+    pub fn read_json_fields(&mut self, json: &serde_json::Value) {
+        #[allow(unused_imports)]
+        use crate::io::github::moulberry::repo::neu_repository::gson;
+        if let Some(__v) = gson::member(json, "upgrade") {
+            if let Some(__x) = gson::as_string(__v) {
+                self.upgrade_id = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "tier") {
+            if let Some(__x) = gson::as_i32(__v) {
+                self.tier = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "started_ms") {
+            if let Some(__x) = gson::as_i64(__v) {
+                self.started_at = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "started_by") {
+            if let Some(__x) = crate::de::hysky::skyblocker::skyblock::profileviewer2::profile_viewer::json_uuid(__v) {
+                self.started_by = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "claimed_by") {
+            if let Some(__x) = crate::de::hysky::skyblocker::skyblock::profileviewer2::profile_viewer::json_uuid(__v) {
+                self.claimed_by = __x;
+            }
+        }
+    }
+
+    /// `GSON.fromJson(json, UpgradeState.class)`: the no-argument constructor, then the fields.
+    pub fn from_json(json: &serde_json::Value) -> Self {
+        let mut __this = Self::new();
+        __this.read_json_fields(json);
+        __this
+    }
+}

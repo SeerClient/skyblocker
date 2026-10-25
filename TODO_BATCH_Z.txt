@@ -1,0 +1,12 @@
+src/de/hysky/skyblocker/skyblock/profileviewer2/
+src/de/hysky/skyblocker/utils/render/
+src/de/hysky/skyblocker/skyblock/dwarven/
+src/mixins/
+src/de/hysky/skyblocker/
+src/de/hysky/skyblocker/skyblock/garden/
+src/de/hysky/skyblocker/skyblock/museum/
+src/de/hysky/skyblocker/utils/config/
+src/de/hysky/skyblocker/config/
+src/de/hysky/skyblocker/config/datafixer/
+src/de/hysky/skyblocker/skyblock/itemlist/
+src/de/hysky/skyblocker/utils/

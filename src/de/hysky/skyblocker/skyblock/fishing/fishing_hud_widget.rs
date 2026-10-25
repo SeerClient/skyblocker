@@ -206,8 +206,8 @@ impl FishingHudWidget {
             let mut sea_creature_cap: i32 = sea_creature_tracker::SEA_CREATURE_CAP;
             let mut sea_creature_percent: f32 = ((((SeaCreatureTracker::sea_creature_count()) as f32) / (sea_creature_cap as f32)) * (100 as f32));
             { let (__a0,) = (Elements::progress_component_5(Some(ico::TROPICAL_FISH_BUCKET.get_mut().clone()), &component::null_to_empty(Some("Alive Creatures")), &component::null_to_empty(Some(&format!("{}/{}", SeaCreatureTracker::sea_creature_count(), sea_creature_cap))), sea_creature_percent, ColorUtils::percent_to_color(((100 as f32) - sea_creature_percent))),); __this.lock().borrow_mut().add_element(__a0) };
-            // TODO(fabric2seer): Map.Entry.rightFloat
-            //   java: addElement(Elements.progressComponent(Ico.CLOCK, Component.nullToEmpty("Time Left"), timer.left(), timer.rightFloat()));
+            // java: addElement(Elements.progressComponent(Ico.CLOCK, Component.nullToEmpty("Time Left"), timer.left(), timer.rightFloat()));
+            { let (__a0,) = (Elements::progress_component_flexible_item_stack_component_component_float(Some(ico::CLOCK.get_mut().clone()), &component::null_to_empty(Some("Time Left")), &timer.0, timer.1),); __this.lock().borrow_mut().add_element(__a0) };
         }
         if compat::read(__this, |__t| __t.show_fishing_timer) && compat::get_state(&fishing_helper::START_TIME) != (0 as i64) {
             let mut time: f32 = ((compat::java_round_f32((((compat::millis()).wrapping_sub(compat::get_state(&fishing_helper::START_TIME)) as f32) / 1000.0f32))) as f32) as f32;

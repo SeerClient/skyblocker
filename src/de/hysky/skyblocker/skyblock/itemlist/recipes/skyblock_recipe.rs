@@ -19,8 +19,6 @@ use mcrust::net::minecraft::resources::identifier::Identifier;
 use mcrust::net::minecraft::world::item::component::item_lore::ItemLore;
 use mcrust::net::minecraft::world::item::items;
 
-// TODO(fabric2seer): static `NumberFormat.getInstance` has no Rust counterpart in the port
-//   java: NumberFormat NUMBER_FORMAT = NumberFormat.getInstance(Locale.US);
 /// java: NumberFormat NUMBER_FORMAT = NumberFormat.getInstance(Locale.US);
 pub static NUMBER_FORMAT: compat::MainThread<DecimalFormat> = compat::MainThread::new(|| DecimalFormat::new("#,##0.###", mcrust::java::text::decimal_format_symbols::get_instance(Locale::Us)));
 
@@ -73,18 +71,17 @@ impl dyn SkyblockRecipe {
 }
 
 /// java: static FlexibleItemStack getItemStack(NEUIngredient input)
-pub fn get_item_stack(input: &crate::unresolved::NEUIngredient) -> compat::Shared<FlexibleItemStack> {
-    // TODO(fabric2seer): the condition: static field NEUIngredient.SENTINEL_EMPTY
+pub fn get_item_stack(input: &crate::io::github::moulberry::repo::data::neu_ingredient::NEUIngredient) -> compat::Shared<FlexibleItemStack> {
     //   java: input == NEUIngredient.SENTINEL_EMPTY
-    if todo!("fabric2seer: the condition (TODO above)") {
+    // (the identity: `NEUIngredient.fromString` answers the one sentinel object for every `NEU_SENTINEL_EMPTY` id, so
+    // the sentinel is exactly the ingredient with that id)
+    if input.get_item_id() == crate::io::github::moulberry::repo::data::neu_ingredient::NEU_SENTINEL_EMPTY {
         return flexible_item_stack::EMPTY.get_mut().clone();
     }
-    // TODO(fabric2seer): `.getItemId(..)` on a NEUIngredient
     //   java: String id = input.getItemId();
-    let mut id: String = todo!("fabric2seer: the initialiser of `id` (TODO above)");
-    // TODO(fabric2seer): `.getAmount(..)` on a NEUIngredient
+    let mut id: String = input.get_item_id().to_string();
     //   java: int amount = (int) input.getAmount();
-    let mut amount: i32 = todo!("fabric2seer: the initialiser of `amount` (TODO above)");
+    let mut amount: i32 = input.get_amount() as i32;
     let mut cache_key: String = RecipeItemStackCache::get_cache_key(&id, amount);
     let mut cached_stack: Option<compat::Shared<FlexibleItemStack>> = recipe_item_stack_cache::CACHE.get_mut().get(&cache_key).cloned();
     if let Some(cached_stack) = &cached_stack {

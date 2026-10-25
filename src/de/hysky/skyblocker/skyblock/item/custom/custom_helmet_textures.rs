@@ -34,29 +34,45 @@ impl CustomHelmetTextures {
 
     /// java: private static void loadTextures()
     pub fn load_textures() {
-        // java: try {..} catch (Exception e) - the body runs inline: a Rust body does not throw checked exceptions (a panic in it propagates)
-        {
+        // java: try {..} catch (Exception e) { LOGGER.error("[Skyblocker] Failed to load helmet textures from repo", e); }
+        let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             if !(ItemRepository::files_imported()) {
                 return;
             }
             compat::lock(&TEXTURES).clear();
             let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
-            // TODO(fabric2seer): `is` is not a method of FlexibleItemStack
-            //   java: ItemRepository.getItemsStream()
-            //   java: 					.filter(stack -> stack.is(Items.PLAYER_HEAD))
-            //   java: 					.forEach(stack -> {
-            //   java: 						String texture = ItemUtils.getHeadTexture(stack);
-            //   java: 						if (texture.isEmpty() || !seen.add(texture)) return;
-            //   java: 						String name = cleanName(stack.get(DataComponents.CUSTOM_NAME).getString());
-            //   java: 						TEXTURES.add(new NamedTexture(name, texture, stack.getNeuName()));
-            //   java: 					});
+            // java: ItemRepository.getItemsStream().filter(stack -> stack.is(Items.PLAYER_HEAD)).forEach(stack -> {
+            //           String texture = ItemUtils.getHeadTexture(stack); if (texture.isEmpty() || !seen.add(texture)) return;
+            //           String name = cleanName(stack.get(DataComponents.CUSTOM_NAME).getString());
+            //           TEXTURES.add(new NamedTexture(name, texture, stack.getNeuName())); });
+            use crate::de::hysky::skyblocker::injected::skyblocker_stack::SkyblockerStack as _;
+            // The stream's elements are `FlexibleItemStack`s (an `ItemInstance`) and Java reads them AS SUCH - `is`,
+            // `getHeadTexture(ItemInstance)`, `get(CUSTOM_NAME)` and `getNeuName()` never build an `ItemStack`, so this
+            // runs before a world binds the item components (it runs after the repo import, at startup).
+            for flexible in ItemRepository::get_items_stream() {
+                let entry: Option<(String, String)> = compat::read(&flexible, |stack| {
+                    use mcrust::net::minecraft::core::typed_instance::TypedInstance as _;
+                    // java: .filter(stack -> stack.is(Items.PLAYER_HEAD))
+                    if !stack.is_value(&mcrust::net::minecraft::world::item::items::items().get("player_head").erased_obj()) {
+                        return None;
+                    }
+                    let texture: String = crate::de::hysky::skyblocker::utils::item_utils::ItemUtils::get_head_texture(stack);
+                    Some((texture, stack.get_neu_name()))
+                });
+                let Some((texture, neu_name)) = entry else { continue };
+                if texture.is_empty() || !seen.insert(texture.clone()) {
+                    continue;
+                }
+                let custom_name = compat::component_of(crate::de::hysky::skyblocker::utils::flexible_item_stack::FlexibleItemStack::get::<mcrust::net::minecraft::network::chat::formatted_text::FormattedText>(&flexible, mcrust::net::minecraft::core::component::data_components::custom_name()).expect("NullPointerException: CUSTOM_NAME"));
+                let name: String = CustomHelmetTextures::clean_name(&mcrust::net::minecraft::network::chat::component::Component::get_string(&custom_name));
+                compat::lock(&TEXTURES).push(NamedTexture::new(name, texture, neu_name));
+            }
             compat::lock(&TEXTURES).sort_by(|a, b| { let key = |__a0: &NamedTexture| __a0.internal_name(); compat::compare_to(&key(a), &key(b)).cmp(&0) });
             logger().info(&format!("[Skyblocker] Loaded and sorted {} helmet textures from repo", (compat::lock(&TEXTURES).len() as i32)));
+        }));
+        if let Err(e) = __result {
+            logger().error(&format!("[Skyblocker] Failed to load helmet textures from repo {}", compat::panic_message(&e)));
         }
-        // TODO(fabric2seer): the `catch (Exception e)` block is not reached in Rust - the try body returns, breaks or continues, so it cannot run inside `catch_unwind`
-        //   java: {
-        //   java: 			LOGGER.error("[Skyblocker] Failed to load helmet textures from repo", e);
-        //   java: 		}
     }
 
     /// java: private static String cleanName(String name)

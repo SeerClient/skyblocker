@@ -111,10 +111,6 @@ impl OtherOptionsScreen {
         { let (__q0,) = ({ let __w = (button::builder(mcrust::net::minecraft::network::chat::common_components::gui_done().get_string(), OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| { let Some(__this_1) = __this_w1.get().upgrade() else { return Default::default(); }; compat::lend_screen(&__this_1, __screen, || { let mut __pidx = compat::WidgetRef::Screen(__index); { OtherOptionsScreen::on_close((&__this_1)); } }) })))).build(); let (__ww, __wh) = (__w.get_width(), __w.get_height()); LayoutElement::widget(compat::write(__this, |__t| __t.add_widget(__w)), __ww, __wh) },); __this.lock().borrow_mut().layout.as_mut().unwrap().add_to_footer(__q0) };
         let conf = &SkyblockerConfigManager::get().ui_and_visuals.tab_hud;
         let mut large_width: i32 = ((mcrust::net::minecraft::client::gui::components::button::DEFAULT_WIDTH).wrapping_mul(2)).wrapping_add(2);
-        // TODO(fabric2seer): the port's `builder` ports this Java method with other parameters (default_value for Java's value_stringifier, default_value)
-        // TODO(fabric2seer): `builder` takes 1 argument(s) in the port (`default_value: String`), Java passes 2
-        // TODO(fabric2seer): a lambda for a parameter the port does not type as a closure (`Function<T, net.minecraft.network.chat.Component>`)
-        // TODO(fabric2seer): a lambda for a parameter the port does not type as a closure (`net.minecraft.client.OptionInstance.TooltipSupplier<T>`)
         // java: globalOptions.addChild(CycleButton.builder(style -> Component.translatable(style.toString()), conf.style)
         //   .withValues(TabHudStyle.values()).withTooltip(_ -> STYLE_TOOLTIP)
         //   .create(0, 0, largeWidth, Button.DEFAULT_HEIGHT, Component.translatable("..tabHud.style"), (_, value) -> updateConfig(config -> config.style = value)), 2);
@@ -482,6 +478,16 @@ impl compat::ScreenHalf for HiddenWidgetsPopup {
 
 /// HiddenWidgetsPopup as the game's screen: `game::set_screen(Box::new(compat::ScreenAdapter::new(..)))`
 impl ModScreen for compat::ScreenAdapter<HiddenWidgetsPopup> {
+    /// java: AbstractPopupScreen.extractBackground overrides `Screen.extractBackground` without `super`
+    fn extract_background_calls_super(&self) -> bool {
+        false
+    }
+
+    /// java: @Override public void extractBackground(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a)
+    fn extract_background(&mut self, _screen: &mcrust::net::minecraft::client::gui::screens::screen::Screen, context: &mut mcrust::mcrust::modding::screens::ScreenRenderContext<'_>, mouse_x: i32, mouse_y: i32, a: f32) {
+        self.call(|__h| ({ let __f = compat::dispatch(__h, |__t| __t.extract_background()); __f(&compat::view(__h, |a| a as compat::Shared<dyn AbstractPopupScreen>), &mut context.graphics, mouse_x, mouse_y, a) }))
+    }
+
     fn get_title(&self) -> String {
         self.title()
     }

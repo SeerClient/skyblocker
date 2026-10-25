@@ -109,3 +109,126 @@ impl WhispersSlot {
     }
 
 }
+
+impl ForagingCore {
+    /// Gson's reflective binding of the class's own fields (`ReflectiveTypeAdapterFactory`): each member the
+    /// JSON has is read over the field it names (`@SerializedName`, else the field's name) with the field's declared
+    /// type; an absent member (or a `null` one, or one Gson would reject) leaves the constructor's value.
+    pub fn read_json_fields(&mut self, json: &serde_json::Value) {
+        #[allow(unused_imports)]
+        use crate::io::github::moulberry::repo::neu_repository::gson;
+        if let Some(__v) = gson::member(json, "whispers") {
+            if let Some(__x) = Some(Whispers::from_json(__v)) {
+                self.whispers = __x;
+            }
+        }
+    }
+
+    /// `GSON.fromJson(json, ForagingCore.class)`: the no-argument constructor, then the fields.
+    pub fn from_json(json: &serde_json::Value) -> Self {
+        let mut __this = Self::new();
+        __this.read_json_fields(json);
+        __this
+    }
+}
+
+impl Whispers {
+    /// Gson's reflective binding of the class's own fields (`ReflectiveTypeAdapterFactory`): each member the
+    /// JSON has is read over the field it names (`@SerializedName`, else the field's name) with the field's declared
+    /// type; an absent member (or a `null` one, or one Gson would reject) leaves the constructor's value.
+    pub fn read_json_fields(&mut self, json: &serde_json::Value) {
+        #[allow(unused_imports)]
+        use crate::io::github::moulberry::repo::neu_repository::gson;
+        if let Some(__v) = gson::member(json, "forest") {
+            if let Some(__x) = Some(AbstractWhispersData::from_json(__v)) {
+                self.forest = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "desert") {
+            if let Some(__x) = Some(AbstractWhispersData::from_json(__v)) {
+                self.desert = __x;
+            }
+        }
+    }
+
+    /// `GSON.fromJson(json, Whispers.class)`: the no-argument constructor, then the fields.
+    pub fn from_json(json: &serde_json::Value) -> Self {
+        let mut __this = Self::new();
+        __this.read_json_fields(json);
+        __this
+    }
+}
+
+impl AbstractWhispersData {
+    /// Gson's reflective binding of the class's own fields (`ReflectiveTypeAdapterFactory`): each member the
+    /// JSON has is read over the field it names (`@SerializedName`, else the field's name) with the field's declared
+    /// type; an absent member (or a `null` one, or one Gson would reject) leaves the constructor's value.
+    pub fn read_json_fields(&mut self, json: &serde_json::Value) {
+        #[allow(unused_imports)]
+        use crate::io::github::moulberry::repo::neu_repository::gson;
+        if let Some(__v) = gson::member(json, "total") {
+            if let Some(__x) = gson::as_i64(__v) {
+                self.total = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "1") {
+            if let Some(__x) = Some(WhispersSlot::from_json(__v)) {
+                self.slot1 = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "2") {
+            if let Some(__x) = Some(WhispersSlot::from_json(__v)) {
+                self.slot2 = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "3") {
+            if let Some(__x) = Some(WhispersSlot::from_json(__v)) {
+                self.slot3 = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "4") {
+            if let Some(__x) = Some(WhispersSlot::from_json(__v)) {
+                self.slot4 = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "5") {
+            if let Some(__x) = Some(WhispersSlot::from_json(__v)) {
+                self.slot5 = __x;
+            }
+        }
+    }
+
+    /// `GSON.fromJson(json, AbstractWhispersData.class)`: the no-argument constructor, then the fields.
+    pub fn from_json(json: &serde_json::Value) -> compat::Shared<Self> {
+        let __this = Self::new();
+        compat::write(&__this, |__t| __t.read_json_fields(json));
+        __this
+    }
+}
+
+impl WhispersSlot {
+    /// Gson's reflective binding of the class's own fields (`ReflectiveTypeAdapterFactory`): each member the
+    /// JSON has is read over the field it names (`@SerializedName`, else the field's name) with the field's declared
+    /// type; an absent member (or a `null` one, or one Gson would reject) leaves the constructor's value.
+    pub fn read_json_fields(&mut self, json: &serde_json::Value) {
+        #[allow(unused_imports)]
+        use crate::io::github::moulberry::repo::neu_repository::gson;
+        if let Some(__v) = gson::member(json, "spent") {
+            if let Some(__x) = gson::as_i64(__v) {
+                self.spent = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "spent_non_refundable") {
+            if let Some(__x) = gson::as_i64(__v) {
+                self.spent_non_refundable = __x;
+            }
+        }
+    }
+
+    /// `GSON.fromJson(json, WhispersSlot.class)`: the no-argument constructor, then the fields.
+    pub fn from_json(json: &serde_json::Value) -> compat::Shared<Self> {
+        let __this = Self::new();
+        compat::write(&__this, |__t| __t.read_json_fields(json));
+        __this
+    }
+}

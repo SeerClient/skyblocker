@@ -31,6 +31,10 @@ pub struct KeybindWidget {
     pub on_press: Arc<dyn Fn()>,
     /// `extractDefaultSprite` + `extractDefaultLabel`, drawn by the game's own button pass
     pub look: compat::ButtonLook,
+    /// `Button.createNarration` when it is a lambda reading live state (`textSupplier -> ..`): called with Java's
+    /// `() -> super.createNarrationMessage()` each time the widget is narrated. `None` is the data form the widget
+    /// half carries (`base.create_narration`).
+    pub narration_supplier: Option<Arc<dyn Fn(&dyn Fn() -> mcrust::net::minecraft::network::chat::formatted_text::FormattedText) -> mcrust::net::minecraft::network::chat::formatted_text::FormattedText>>,
 }
 
 impl std::ops::Deref for KeybindWidget {
@@ -65,7 +69,24 @@ impl KeybindWidget {
         let mut base = AbstractWidget::new(x, y, width, height, message.get_string(), WidgetKind::Button, OnPress::Inert);
         base.message_text = Some(mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(message));
         base.create_narration = narration_supplier;
-        compat::shared(Self { base, key_binding, update_listener, editing: false, on_press, look: compat::ButtonLook::new() })
+        compat::shared(Self { base, key_binding, update_listener, editing: false, on_press, look: compat::ButtonLook::new(), narration_supplier: None })
+    }
+
+    /// java: `new KeybindWidget(keyBinding, x, y, width, height, message, textSupplier -> .., updateListener)` - the
+    /// eight-argument constructor with a `CreateNarration` lambda that reads live state
+    pub fn new_with_narration(
+        key_binding: compat::Shared<ShortcutKeyBinding>,
+        x: i32,
+        y: i32,
+        width: i32,
+        height: i32,
+        message: MutableComponent,
+        narration_supplier: Arc<dyn Fn(&dyn Fn() -> mcrust::net::minecraft::network::chat::formatted_text::FormattedText) -> mcrust::net::minecraft::network::chat::formatted_text::FormattedText>,
+        update_listener: Arc<dyn Fn()>,
+    ) -> compat::Shared<Self> {
+        let this = Self::new_8(key_binding, x, y, width, height, message, CreateNarration::Default, update_listener);
+        compat::write(&this, |t| t.narration_supplier = Some(narration_supplier));
+        this
     }
 
     /// `new KeybindWidget(..)` handed to the game (`List.of(keybindButton, replacement)` - the row's children)
@@ -114,7 +135,7 @@ impl KeybindWidget {
                 compat::write(&self.key_binding, |k| k.add_bound_key(input_constants::unknown()));
             } else {
                 // java: InputConstants.getKey(input)
-                compat::write(&self.key_binding, |k| k.add_bound_key(input_constants::get_key_from_event(input.key, input.scancode)));
+                compat::write(&self.key_binding, |k| k.add_bound_key(input_constants::get_key_from_event(input.key)));
             }
             (self.update_listener)();
             return Some(true);
@@ -139,9 +160,21 @@ impl ModWidget for compat::WidgetAdapter<KeybindWidget> {
         self.lend_ref(widget, |__h| compat::write(__h, |t| t.look.draw(widget, context, mouse_x, mouse_y)))
     }
 
-    /// `Button.updateWidgetNarration` - `defaultButtonNarrationText`
+    /// `Button.updateWidgetNarration` - `defaultButtonNarrationText`: `output.add(TITLE, createNarrationMessage())`, then
+    /// the usage hint of an active button; `Button.createNarrationMessage` is
+    /// `createNarration.createNarrationMessage(() -> super.createNarrationMessage())`
     fn update_widget_narration(&mut self, widget: &AbstractWidget, output: &mut dyn NarrationElementOutput) {
-        widget.default_button_narration_text(output);
+        let Some(supplier) = self.call(|__h| compat::read(__h, |t| t.narration_supplier.clone())) else {
+            widget.default_button_narration_text(output);
+            return;
+        };
+        use mcrust::net::minecraft::client::gui::narration::narrated_element_type::NarratedElementType;
+        let title = supplier(&|| AbstractWidget::wrap_default_narration_message(widget.get_message_component()));
+        output.add_component(NarratedElementType::Title, title);
+        if widget.active {
+            let key = if widget.is_focused() { "narration.button.usage.focused" } else { "narration.button.usage.hovered" };
+            output.add_component(NarratedElementType::Usage, mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(mcrust::net::minecraft::network::chat::component::translatable(key)));
+        }
     }
 
     /// `AbstractButton.onClick` -> `onPress(input)`
@@ -175,7 +208,8 @@ impl ModWidget for compat::WidgetAdapter<KeybindWidget> {
             // super.keyPressed: `AbstractButton.keyPressed:63-72` - an active button presses on Enter / Space / keypad Enter
             None => {
                 if mcrust::net::minecraft::client::gui::components::abstract_button::key_activates(widget.active, event.is_selection()) {
-                    // `:68`'s `playDownSound` - rust: port gap (a mod widget's key path has no sound manager to play it on)
+                    // `:68`'s `this.playDownSound(Minecraft.getInstance().getSoundManager())`
+                    compat::batch_w_play_down_sound();
                     self.lend(widget, |__h| compat::write(__h, |t| t.on_press()));
                     true
                 } else {

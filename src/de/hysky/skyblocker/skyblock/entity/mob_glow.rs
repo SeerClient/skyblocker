@@ -4,6 +4,8 @@
 use crate::prelude::*;
 use crate::de::hysky::skyblocker::skyblock::dungeon::livid_color::LividColor;
 use crate::de::hysky::skyblocker::skyblock::entity::mob_glow_adder::MobGlowAdder;
+use crate::net::azureaaron::renderchest::api::custom_glow_callback;
+use crate::net::azureaaron::renderchest::api::glow_constants::GlowConstants;
 use mcrust::net::minecraft::client::renderer::entity::state::entity_render_state::EntityRenderState;
 use mcrust::net::minecraft::util::argb;
 use mcrust::net::minecraft::world::entity::decoration::armor_stand::ArmorStand;
@@ -13,13 +15,8 @@ use mcrust::net::minecraft::world::phys::aabb::AABB;
 use mcrust::net::minecraft::network::chat::component::Component as _;
 use mcrust::net::minecraft::world::level::entity_getter::EntityGetter as _;
 
-/// java: `net.azureaaron.renderchest.api.GlowConstants` (Render Chest 1.0.3, bundled by Skyblocker): `NO_GLOW =
-/// EntityRenderState.NO_OUTLINE` - leave the entity's glow alone.
-const GLOW_CONSTANTS_NO_GLOW: i32 = mcrust::net::minecraft::client::renderer::entity::state::entity_render_state::NO_OUTLINE;
-/// java: `GlowConstants.REMOVE_GLOW = Integer.MAX_VALUE` - strip any glow, custom or vanilla.
-const GLOW_CONSTANTS_REMOVE_GLOW: i32 = i32::MAX;
 /// java: public static final int NO_GLOW = GlowConstants.NO_GLOW;
-pub static NO_GLOW: LazyLock<i32> = LazyLock::new(|| GLOW_CONSTANTS_NO_GLOW);
+pub static NO_GLOW: LazyLock<i32> = LazyLock::new(|| GlowConstants::NO_GLOW);
 /// java: private static final List<MobGlowAdder> ADDERS = new ArrayList<>();
 pub static ADDERS: compat::MainThread<Vec<compat::Shared<dyn MobGlowAdder>>> = compat::MainThread::new(|| Vec::new());
 /// java: private static final Object2IntMap<Entity> CACHE = new Object2IntOpenHashMap<>();
@@ -41,12 +38,18 @@ impl MobGlow {
 
     /// java: @Init public static void init()
     pub fn init() {
-        // TODO(fabric2seer): no SeerClient event yet: hook RETURN of ClientLevel#tick (`net.minecraft.client.multiplayer.ClientLevel#tick`: ported but not hooked)
-        //   java: ClientTickEvents.END_LEVEL_TICK.register(_ -> clearCache());
+        // java: ClientTickEvents.END_LEVEL_TICK.register(_ -> clearCache());
+        // (Fabric fires it at the end of `ClientLevel.tick`, inside `Minecraft.tick` and only while a level exists. The
+        // port runs `ClientLevel.tick`'s statements inline in `Minecraft.tick` - there is no hooked `ClientLevel#tick` -
+        // so the listener runs at the end of that same client tick, with the same level guard; nothing renders between
+        // the two points, which is where the cache is read.)
+        mcrust::mcrust::modding::events::client_tick_events::END_CLIENT_TICK.register(Arc::new(|_client: &mut mcrust::net::minecraft::client::minecraft::Minecraft| {
+            if mcrust::mcrust::modding::game::level().is_some() {
+                MobGlow::clear_cache();
+            }
+        }));
         // java: CustomGlowCallback.EVENT.register(MobGlow::applyCustomGlow);
-        // rust: port gap (GAPS_J #11) - `CustomGlowCallback` is the bundled Render Chest library (net.azureaaron.renderchest:
-        // its own outline pipelines and shaders, nine mixins into the entity/item feature renderers and the level
-        // renderer). With no port of it `applyCustomGlow` has no caller and no mob glows.
+        custom_glow_callback::EVENT.register(Arc::new(|entity: &dyn Entity, state: &EntityRenderState| MobGlow::apply_custom_glow(entity, state)));
     }
 
     /// java: private static int applyCustomGlow(Entity entity, EntityRenderState state)
@@ -58,10 +61,10 @@ impl MobGlow {
             return argb::opaque(MobGlow::get_mob_glow(entity));
         } else if !allow_glow {
             // java: return GlowConstants.REMOVE_GLOW;
-            return GLOW_CONSTANTS_REMOVE_GLOW;
+            return GlowConstants::REMOVE_GLOW;
         }
         // java: return GlowConstants.NO_GLOW;
-        return GLOW_CONSTANTS_NO_GLOW;
+        return GlowConstants::NO_GLOW;
     }
 
     /// java: protected static void registerGlowAdder(MobGlowAdder adder)

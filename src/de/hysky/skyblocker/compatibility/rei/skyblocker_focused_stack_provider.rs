@@ -20,8 +20,8 @@ impl SkyblockerFocusedStackProvider {
     pub fn provide(&self, screen: &mcrust::net::minecraft::client::gui::screens::screen::Screen, point: &crate::unresolved::Point) -> crate::unresolved::CompoundEventResult {
         let Some(mut focused_item) = HoveredItemStackUtils::get_hovered_item_stack(screen) else {
             // java: return CompoundEventResult.pass();
-            // rust: port gap - REI is the `crate::unresolved` placeholders (GAPS_batchG): the placeholder value stands
-            // for `pass()`
+            // (REI, a mod SeerClient never loads, is the only caller; its `CompoundEventResult` is the
+            // `crate::unresolved` name, whose value stands for `pass()`)
             return crate::unresolved::CompoundEventResult;
         };
         //   java: return CompoundEventResult.interruptTrue(EntryStacks.of(focusedItem));

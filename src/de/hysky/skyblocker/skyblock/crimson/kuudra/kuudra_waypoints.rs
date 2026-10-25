@@ -42,11 +42,6 @@ pub static SUPPLIES_AND_FUEL_TYPE: compat::MainThread<Arc<dyn Fn() -> Type>> = c
 pub static SAFE_SPOT_WAYPOINTS: compat::MainThread<Vec<compat::Shared<dyn Waypoint>>> = compat::MainThread::new(|| Vec::new());
 /// java: private static final ObjectArrayList<Waypoint> PEARL_WAYPOINTS = new ObjectArrayList<>();
 pub static PEARL_WAYPOINTS: compat::MainThread<Vec<compat::Shared<dyn Waypoint>>> = compat::MainThread::new(|| Vec::new());
-// TODO(fabric2seer): field `pos` of a S
-//   java: private static final Function<float[], Codec<List<Waypoint>>> CODEC = cc -> PosUtils.ALT_BLOCK_POS_CODEC.xmap(
-//   java: 			pos -> new Waypoint(pos, () -> Waypoint.Type.HIGHLIGHT, cc, false),
-//   java: 			waypoint -> waypoint.pos)
-//   java: 			.listOf();
 /// java: private static final Function<float[], Codec<List<Waypoint>>> CODEC = cc -> PosUtils.ALT_BLOCK_POS_CODEC.xmap( pos -> new Waypoint(pos, () -> Waypoint.Type.HIGHLIGHT, cc, false), waypoint -> waypoint.
 pub static CODEC: compat::MainThread<Arc<dyn Fn(Vec<f32>) -> CodecRef<Vec<compat::Shared<dyn Waypoint>>>>> = compat::MainThread::new(|| Arc::new(move |cc: Vec<f32>| mcrust::com::mojang::serialization::codec::list(mcrust::com::mojang::serialization::codec::xmap(pos_utils::ALT_BLOCK_POS_CODEC.get_mut().clone(), move |pos: BlockPos| WaypointBase::new6(pos, Arc::new(move || Type::Highlight), cc.clone(), false) as compat::Shared<dyn Waypoint>, |waypoint: &compat::Shared<dyn Waypoint>| compat::read(waypoint, |t| t.waypoint_base().pos.clone().unwrap())))) as Arc<dyn Fn(Vec<f32>) -> CodecRef<Vec<compat::Shared<dyn Waypoint>>>>);
 /// java: private static ObjectArrayList<Waypoint> supplyWaypoints = ObjectArrayList.of();
@@ -73,8 +68,12 @@ impl KuudraWaypoints {
     /// java: @Init public static void init()
     pub fn init() {
         level_render_extraction_callback::EVENT.register(Arc::new(move |__a0| { KuudraWaypoints::extract_rendering(&__a0); }));
-        // TODO(fabric2seer): no SeerClient event yet: hook RETURN of Minecraft's constructor (`net.minecraft.client.Minecraft#<init>`: exists)
-        //   java: ClientLifecycleEvents.CLIENT_STARTED.register(KuudraWaypoints::load);
+        // java: ClientLifecycleEvents.CLIENT_STARTED.register(KuudraWaypoints::load);
+        // (CLIENT_STARTED fires early in `Minecraft.run`, after the constructor the entrypoints run in: `compat::execute`
+        // runs the task before the first client tick, as `GreenhousePaste.init` does)
+        compat::execute(|| {
+            KuudraWaypoints::load(compat::minecraft());
+        });
         ({ let __r = scheduler::INSTANCE.get_mut(); let __f = compat::dispatch(__r, |__t| __t.schedule_cyclic()); __f(__r, Arc::new(move || { KuudraWaypoints::tick(); }), 20) });
     }
 

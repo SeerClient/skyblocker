@@ -70,34 +70,38 @@ impl VanillaStyleManaBar {
 
     /// java: @Init public static void init()
     pub fn init() {
-        // (consumed only by the HudElementRegistry.replaceElement calls below, which have no SeerClient equivalent:
-        // GAPS_batchC "Fabric HudElementRegistry")
-        let mut hide_if_vanilla_style_mana_bar_enabled: Arc<dyn Fn(fancy_status_bars::HudElement) -> fancy_status_bars::HudElement> = Arc::new(move |hud_element: fancy_status_bars::HudElement| -> fancy_status_bars::HudElement {
+        // java: Function<HudElement, HudElement> hideIfVanillaStyleManaBarEnabled = hudElement -> {
+        //   if (isEnabled()) return (_, _) -> {}; return hudElement; };
+        let hide_if_vanilla_style_mana_bar_enabled: Arc<hud_element_registry::HudElementReplacer> = Arc::new(|hud_element: Arc<HudElement>| -> Arc<HudElement> {
             if VanillaStyleManaBar::is_enabled() {
-                return Arc::new(move |_: &GuiGraphicsExtractor, _: f32| {});
+                // OPTIMIZED BUT NOT FULLY VANILLA (perf round 1, P02-mods-runtime): the shared empty element
+                // (`compat::empty_hud_element`). Was:
+                //     let empty: Arc<HudElement> = Arc::new(|_: &mut hud_render_callback::HudRenderContext<'_>| {});
+                //     return empty;
+                return compat::empty_hud_element();
             }
-            return hud_element;
+            hud_element
         });
-        // TODO(fabric2seer): HudElementRegistry.replaceElement: no SeerClient equivalent yet
-        //   java: HudElementRegistry.replaceElement(VanillaHudElements.FOOD_BAR, hideIfVanillaStyleManaBarEnabled);
-        // TODO(fabric2seer): HudElementRegistry.replaceElement: no SeerClient equivalent yet
-        //   java: HudElementRegistry.replaceElement(VanillaHudElements.MOUNT_HEALTH, hideIfVanillaStyleManaBarEnabled);
-        hud_render_callback::EVENT.register(Arc::new(|ctx: &mut hud_render_callback::HudRenderContext<'_>| {
-            // SAFETY: `ctx` outlives every call made through `graphics` (this callback).
-            let graphics = unsafe { ScriptGraphics::new(ctx.gl, &*ctx.minecraft, ctx.gui_width, ctx.gui_height) };
-            let _session = graphics.session();
-            if VanillaStyleManaBar::is_enabled() {
+        // java: HudElementRegistry.replaceElement(VanillaHudElements.FOOD_BAR, hideIfVanillaStyleManaBarEnabled);
+        hud_element_registry::replace_element(vanilla_hud_elements::FOOD_BAR, hide_if_vanilla_style_mana_bar_enabled.clone());
+        // java: HudElementRegistry.replaceElement(VanillaHudElements.MOUNT_HEALTH, hideIfVanillaStyleManaBarEnabled);
+        hud_element_registry::replace_element(vanilla_hud_elements::MOUNT_HEALTH, hide_if_vanilla_style_mana_bar_enabled.clone());
+        // Two versions of the same bar, one that renders when the hunger bar is visible and one for the mount health bar
+        // java: HudElementRegistry.attachElementBefore(VanillaHudElements.FOOD_BAR, MANABAR_FOOD_HUD_ID, (context, _) -> { if (isEnabled()) extractRenderState(context); });
+        // java: HudElementRegistry.attachElementBefore(VanillaHudElements.MOUNT_HEALTH, MANABAR_MOUNT_HUD_ID, (context, _) -> { if (isEnabled()) extractRenderState(context); });
+        for (anchor, id) in [(vanilla_hud_elements::FOOD_BAR, MANABAR_FOOD_HUD_ID.get()), (vanilla_hud_elements::MOUNT_HEALTH, MANABAR_MOUNT_HUD_ID.get())] {
+            hud_element_registry::attach_element_before(anchor, id, Arc::new(|ctx: &mut hud_render_callback::HudRenderContext<'_>| {
+                // PERF (port-only, same result): `isEnabled()` first - when it is false the element draws nothing,
+                // so the graphics session it would open is not set up at all (as `FancyStatusBars`' element does).
+                if !VanillaStyleManaBar::is_enabled() {
+                    return;
+                }
+                // SAFETY: `ctx` outlives every call made through `graphics` (this element).
+                let graphics = unsafe { ScriptGraphics::new(ctx.gl, &*ctx.minecraft, ctx.gui_width, ctx.gui_height) };
+                let _session = graphics.session();
                 VanillaStyleManaBar::extract_render_state(&ctx.graphics);
-            }
-        }));
-        hud_render_callback::EVENT.register(Arc::new(|ctx: &mut hud_render_callback::HudRenderContext<'_>| {
-            // SAFETY: `ctx` outlives every call made through `graphics` (this callback).
-            let graphics = unsafe { ScriptGraphics::new(ctx.gl, &*ctx.minecraft, ctx.gui_width, ctx.gui_height) };
-            let _session = graphics.session();
-            if VanillaStyleManaBar::is_enabled() {
-                VanillaStyleManaBar::extract_render_state(&ctx.graphics);
-            }
-        }));
+            }));
+        }
     }
 
     /// java: private static boolean isEnabled()

@@ -58,13 +58,24 @@ impl ApiAuthentication {
 
     /// java: @Init public static void init()
     pub fn init() {
-        // TODO(fabric2seer): no SeerClient event yet: hook RETURN of Minecraft's constructor (`net.minecraft.client.Minecraft#<init>`: exists)
         //   java: ClientLifecycleEvents.CLIENT_STARTED.register(_ -> updateToken());
+        // (CLIENT_STARTED fires once, on the client thread, after the `Minecraft` constructor - where the mods' entrypoints
+        // run - has returned: `compat::execute` from an entrypoint is exactly that point)
+        compat::execute(|| ApiAuthentication::update_token());
         if crate::de::hysky::skyblocker::debug::debug::Debug::debug_enabled() {
             client_command_registration_callback::EVENT.register(Arc::new(
                 |dispatcher: &mut client_command_registration_callback::ClientCommandDispatcher| {
-                    // TODO(fabric2seer): a command tree this tool cannot read (arguments, redirects, requires) - SeerClient commands receive the words after the name in `ctx.args`
-                    //   java: dispatcher.register(..);
+                    //   java: dispatcher.register(literal(SkyblockerMod.NAMESPACE).then(literal("updateToken").executes(_ -> {
+                    //   java: 		updateToken(); return Command.SINGLE_SUCCESS; })));
+                    use mcrust::com::mojang::brigadier::builder::argument_builder::ArgumentBuilder as _;
+                    let mut update_token = client_command_registration_callback::literal("updateToken");
+                    update_token.executes(Arc::new(|_: &mcrust::com::mojang::brigadier::context::command_context::CommandContext<client_command_registration_callback::FabricClientCommandSource>| {
+                        ApiAuthentication::update_token();
+                        Ok(1)
+                    }));
+                    let mut root = client_command_registration_callback::literal(skyblocker_mod::NAMESPACE);
+                    root.then(&update_token);
+                    dispatcher.dispatcher().register(&root);
                 },
             ));
         }
@@ -73,11 +84,12 @@ impl ApiAuthentication {
     /// java: private static void updateToken()
     pub fn update_token() {
         // java: ((MinecraftAccessor) CLIENT).getProfileKeyPairManagerField().prepareKeyPair()
-        let future = compat::minecraft()
-            .get_profile_key_pair_manager()
-            .as_mut()
-            .expect("Minecraft.profileKeyPairManager")
-            .prepare_key_pair();
+        // (`Minecraft.profileKeyPairManager` is final and never null in Java; the port's slot is empty only before the
+        // game installs it, where `prepareKeyPair` has no keys to answer: a completed empty future)
+        let future = match compat::minecraft().get_profile_key_pair_manager().as_mut() {
+            Some(manager) => manager.prepare_key_pair(),
+            None => mcrust::net::minecraft::client::multiplayer::profile_key_pair_manager::KeyPairFuture::completed(None),
+        };
         // java: CLIENT.getUser().getProfileId() - read here, on the render thread that owns the User (the same value
         // the async body reads: the user does not change while the game runs)
         let profile_id: Option<Uuid> = Uuid::from_string(&compat::minecraft().get_user().get_profile_id());
@@ -88,15 +100,9 @@ impl ApiAuthentication {
         let token_request_codec: CodecRef<TokenRequest> = TOKEN_REQUEST_CODEC.get().clone();
         let token_info_codec: CodecRef<TokenInfo> = TOKEN_INFO_CODEC.get().clone();
         // java: .thenAcceptAsync(playerKeypairOpt -> {..}, SkyblockerMod.VIRTUAL_THREAD_EXECUTOR).exceptionally(throwable -> {..})
-        // rust: port gap - the port's `KeyPairFuture` (CompletableFuture<Optional<ProfileKeyPair>>) has only
-        // isDone/join; the action runs on its own thread (the virtual-thread-per-task executor) once the future is
-        // done, and a panic in it is the exceptional completion `exceptionally` handles (GAPS_batchA.md)
-        compat::executor(Box::new(move || {
-            while !future.is_done() {
-                std::thread::sleep(std::time::Duration::from_millis(50));
-            }
+        // (a panic in the action is the exceptional completion `exceptionally` handles)
+        future.then_accept_async(move |player_keypair_opt| {
             let __outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                let player_keypair_opt = future.join();
                 let mut expired: bool = player_keypair_opt.as_ref().map(|key_pair| key_pair.public_key().data().has_expired()).unwrap_or(false);
                 if player_keypair_opt.is_some() && !expired {
                     let player_key_pair = player_keypair_opt.as_ref().unwrap();
@@ -142,7 +148,7 @@ impl ApiAuthentication {
                 //Try again in 5 minutes
                 ApiAuthentication::log_error_and_schedule_retry(&component::translatable("skyblocker.api.token.authFailure"), 300i32.wrapping_mul(20), "[Skyblocker Api Auth] Encountered an unexpected exception while refreshing the api token!", &vec![(std::sync::Arc::new(compat::panic_message(&throwable)) as compat::Object)]);
             }
-        }));
+        }, |task: Box<dyn FnOnce() + Send>| compat::executor(task));
     }
 
     /// java: private static TokenRequest.SignedData getRandomSignedData(PrivateKey privateKey)
@@ -170,19 +176,58 @@ impl ApiAuthentication {
         return None;
     }
 
+    /// SLF4J's `MessageFormatter.arrayFormat` as `LOGGER.error(String, Object...)` applies it: each `{}` takes the next
+    /// argument (`\{}` escapes it); an argument left over after the last placeholder is the throwable, printed on
+    /// the lines after the message.
+    fn slf4j_format(message: &str, args: &[compat::Object]) -> String {
+        let text = |arg: &compat::Object| -> String {
+            if let Some(s) = arg.downcast_ref::<String>() {
+                s.clone()
+            } else if let Some(s) = arg.downcast_ref::<&'static str>() {
+                s.to_string()
+            } else {
+                "null".to_string()
+            }
+        };
+        let mut out = String::with_capacity(message.len());
+        let mut next = 0usize;
+        let mut rest = message;
+        while let Some(at) = rest.find("{}") {
+            if next >= args.len() {
+                break;
+            }
+            if rest[..at].ends_with('\\') {
+                out.push_str(&rest[..at - 1]);
+                out.push_str("{}");
+            } else {
+                out.push_str(&rest[..at]);
+                out.push_str(&text(&args[next]));
+                next += 1;
+            }
+            rest = &rest[at + 2..];
+        }
+        out.push_str(rest);
+        if next < args.len() {
+            out.push('\n');
+            out.push_str(&text(&args[args.len() - 1]));
+        }
+        out
+    }
+
     /// java: private static void logErrorAndScheduleRetry(Component warningMessage, int retryAfter, String logMessage, Object... logArgs)
     pub fn log_error_and_schedule_retry(warning_message: &MutableComponent, mut retry_after: i32, log_message: &str, log_args: &Vec<compat::Object>) {
         // the lambda keeps its own copies (Java's captured references)
         let warning_message: MutableComponent = warning_message.clone();
         let log_message: String = log_message.to_string();
+        let log_args: Vec<compat::Object> = log_args.clone();
         RenderHelper::run_on_render_thread(Arc::new(move || {
-            // TODO(fabric2seer): a log call with a non-literal format
             //   java: LOGGER.error(logMessage, logArgs);
+            logger().error(&ApiAuthentication::slf4j_format(&log_message, &log_args));
             if retry_after != -1 {
                 ({ let __r = scheduler::INSTANCE.get_mut(); let __f = compat::dispatch(__r, |__t| __t.schedule()); __f(__r, Arc::new(move || { ApiAuthentication::update_token(); }), retry_after) });
             }
             if mcrust::mcrust::modding::game::with_player(|_| ()).is_some() && !(compat::get_state(&SENT_WARNING_ONCE)) {
-                mcrust::mcrust::modding::game::with_player(|player| { script_host::send_feedback(&(constants::PREFIX.get_mut())().append(warning_message.clone()).to_string()); });
+                mcrust::mcrust::modding::game::with_player(|player| { compat::batch_w_send_feedback(&(constants::PREFIX.get_mut())().append(warning_message.clone())); });
                 compat::set_state(&SENT_WARNING_ONCE, true);
             }
         }));

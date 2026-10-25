@@ -14,6 +14,11 @@ use crate::de::hysky::skyblocker::utils::container::regex_container_matcher::Reg
 use crate::de::hysky::skyblocker::utils::container::tooltip_adder::TooltipAdder;
 use crate::de::hysky::skyblocker::utils::item_utils::ItemUtils;
 use crate::de::hysky::skyblocker::utils::neu_repo_manager::NEURepoManager;
+use crate::io::github::moulberry::repo::data::neu_ingredient;
+use crate::io::github::moulberry::repo::data::neu_kat_upgrade_recipe::NEUKatUpgradeRecipe;
+use crate::io::github::moulberry::repo::data::neu_mob_drop_recipe::NEUMobDropRecipe;
+use crate::io::github::moulberry::repo::data::neu_recipe::NEURecipe;
+use crate::io::github::moulberry::repo::data::neu_trade_recipe::NEUTradeRecipe;
 use crate::de::hysky::skyblocker::utils::render::text::grid_component::GridComponent;
 use mcrust::net::minecraft::chat_formatting::ChatFormatting;
 use mcrust::net::minecraft::network::chat::component;
@@ -69,76 +74,91 @@ impl CraftPriceTooltip {
     /// java: public static double getItemCost(String neuId, int depth)
     pub fn get_item_cost_2(neu_id: &str, mut depth: i32) -> f64 {
         let __recipes = NEURepoManager::get_recipes();
-        let mut neu_recipes: Option<&std::collections::HashSet<crate::unresolved::NEURecipe>> = __recipes.get(neu_id);
+        let mut neu_recipes: Option<&Vec<Arc<dyn NEURecipe>>> = __recipes.get(neu_id);
         if neu_recipes.is_none() || neu_recipes.as_ref().unwrap().is_empty() {
             return ((-1) as f64) as f64;
         }
-        let mut recipe: Option<&crate::unresolved::NEURecipe> = neu_recipes.as_ref().unwrap().iter().filter(|__a0| CraftPriceTooltip::is_valid_recipe(__a0)).next();
-        if recipe.is_none() {
+        let mut recipe: Option<&Arc<dyn NEURecipe>> = neu_recipes.as_ref().unwrap().iter().filter(|__a0| CraftPriceTooltip::is_valid_recipe(&***__a0)).next();
+        let Some(recipe) = recipe else {
             return ((-1) as f64) as f64;
-        }
-        // TODO(fabric2seer): `.getAllOutputs(..)` on a NEURecipe
+        };
         //   java: return recipe.get().getAllOutputs().stream().filter(x -> x.getItemId().equals(neuId)).map(NEUIngredient::getAmount).findAny()
         //   java: 				.map(amount -> getRecipeCost(recipe.get(), depth + 1) / amount).orElse(-1.0);
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        return recipe
+            .get_all_outputs()
+            .iter()
+            .filter(|x| x.get_item_id() == neu_id)
+            .map(|x| x.get_amount())
+            .next()
+            .map(|amount| CraftPriceTooltip::get_recipe_cost(&**recipe, depth + 1) / amount)
+            .unwrap_or(-1.0);
     }
 
     /// java: public static double getRecipeCost(NEURecipe recipe, int depth)
-    pub fn get_recipe_cost(recipe: &crate::unresolved::NEURecipe, mut depth: i32) -> f64 {
+    pub fn get_recipe_cost(recipe: &dyn NEURecipe, mut depth: i32) -> f64 {
         if depth >= MAX_RECURSION_DEPTH || !(CraftPriceTooltip::is_valid_recipe(recipe)) {
             return ((-1) as f64) as f64;
         }
         let mut total_craft_cost: f64 = ((0) as f64) as f64;
-        // TODO(fabric2seer): `.getAllInputs(..)` on a NEURecipe
+        //   java: Object2ObjectMap<String, BazaarProduct> bazaarData = TooltipInfoType.BAZAAR.getData();
+        //   java: Object2DoubleMap<String> lowestBinsData = TooltipInfoType.LOWEST_BINS.getData();
+        // (read once for the loop - the port's `getData` answers a copy of the map, not the map itself)
+        let bazaar_data: Option<std::collections::HashMap<String, crate::de::hysky::skyblocker::utils::bazaar_product::BazaarProduct>> =
+            tooltip_info_type::BAZAAR.get_mut().lock().borrow().get_data();
+        let lowest_bins_data: Option<std::collections::HashMap<String, f64>> = tooltip_info_type::LOWEST_BINS.get_mut().lock().borrow().get_data();
         //   java: for (NEUIngredient input : recipe.getAllInputs()) {
-        //   java: 			String inputItemName = input.getItemId();
-        //   java: 			double inputItemCount = input.getAmount();
-        //   java: 			if (cachedCraftCosts.containsKey(inputItemName)) {
-        //   java: 				totalCraftCost += cachedCraftCosts.get(inputItemName) * inputItemCount;
-        //   java: 				continue;
-        //   java: 			}
-        //   java:
-        //   java: 			double itemCost = 0;
-        //   java:
-        //   java: 			Object2ObjectMap<String, BazaarProduct> bazaarData = TooltipInfoType.BAZAAR.getData();
-        //   java: 			Object2DoubleMap<String> lowestBinsData = TooltipInfoType.LOWEST_BINS.getData();
-        //   java: 			if (bazaarData != null && bazaarData.containsKey(inputItemName)) {
-        //   java: 				BazaarProduct product = bazaarData.get(inputItemName);
-        //   java: 				itemCost = SkyblockerConfigManager.get().general.itemTooltip.enableCraftingCost == Craft.BUY_ORDER ? product.buyPrice().orElse(0d) : product.sellPrice().orElse(0d);
-        //   java: 			} else if (lowestBinsData != null && lowestBinsData.containsKey(inputItemName)) {
-        //   java: 				itemCost = lowestBinsData.getDouble(inputItemName);
-        //   java: 			}
-        //   java:
-        //   java: 			if (itemCost > 0) {
-        //   java: 				cachedCraftCosts.put(inputItemName, itemCost);
-        //   java: 			}
-        //   java:
-        //   java: 			double craftCost = getItemCost(inputItemName, depth + 1);
-        //   java: 			if (craftCost > 0) {
-        //   java: 				if (itemCost > 0) itemCost = Math.min(itemCost, craftCost);
-        //   java: 				else itemCost = craftCost;
-        //   java: 				cachedCraftCosts.put(inputItemName, itemCost);
-        //   java: 			}
-        //   java:
-        //   java: 			totalCraftCost += itemCost * inputItemCount;
-        //   java: 		}
+        for input in recipe.get_all_inputs() {
+            let input_item_name: String = input.get_item_id().to_string();
+            let input_item_count: f64 = input.get_amount();
+            //   java: if (cachedCraftCosts.containsKey(inputItemName)) { totalCraftCost += cachedCraftCosts.get(inputItemName) * inputItemCount; continue; }
+            let __cached: Option<f64> = compat::lock(&CACHED_CRAFT_COSTS).get(&input_item_name).copied();
+            if let Some(cached) = __cached {
+                total_craft_cost += cached * input_item_count;
+                continue;
+            }
+            let mut item_cost: f64 = 0.0;
+            if let Some(product) = bazaar_data.as_ref().and_then(|data| data.get(&input_item_name)) {
+                //   java: itemCost = SkyblockerConfigManager.get().general.itemTooltip.enableCraftingCost == Craft.BUY_ORDER ? product.buyPrice().orElse(0d) : product.sellPrice().orElse(0d);
+                item_cost = if compat::read(&SkyblockerConfigManager::get().general.item_tooltip, |__t| __t.enable_crafting_cost) == Craft::BuyOrder {
+                    product.buy_price().unwrap_or(0.0)
+                } else {
+                    product.sell_price().unwrap_or(0.0)
+                };
+            } else if let Some(lowest_bin) = lowest_bins_data.as_ref().and_then(|data| data.get(&input_item_name)) {
+                //   java: itemCost = lowestBinsData.getDouble(inputItemName);
+                item_cost = *lowest_bin;
+            }
+            if item_cost > 0.0 {
+                compat::lock(&CACHED_CRAFT_COSTS).insert(input_item_name.clone(), item_cost);
+            }
+            //   java: double craftCost = getItemCost(inputItemName, depth + 1);
+            let craft_cost: f64 = CraftPriceTooltip::get_item_cost_2(&input_item_name, depth + 1);
+            if craft_cost > 0.0 {
+                if item_cost > 0.0 {
+                    item_cost = item_cost.min(craft_cost);
+                } else {
+                    item_cost = craft_cost;
+                }
+                compat::lock(&CACHED_CRAFT_COSTS).insert(input_item_name.clone(), item_cost);
+            }
+            total_craft_cost += item_cost * input_item_count;
+        }
         return total_craft_cost;
     }
 
     /// java: public static boolean isValidRecipe(NEURecipe recipe)
-    pub fn is_valid_recipe(recipe: &crate::unresolved::NEURecipe) -> bool {
-        // `instanceof` the library's recipe subclasses (io.github.moulberry.repo is not ported - GAPS_batchB.md)
-        let recipe: &dyn std::any::Any = recipe;
-        return !(recipe.is::<crate::unresolved::NEUKatUpgradeRecipe>() || recipe.is::<crate::unresolved::NEUTradeRecipe>() || recipe.is::<crate::unresolved::NEUMobDropRecipe>());
+    pub fn is_valid_recipe(recipe: &dyn NEURecipe) -> bool {
+        // `instanceof` the library's recipe subclasses
+        return !(recipe.is::<NEUKatUpgradeRecipe>() || recipe.is::<NEUTradeRecipe>() || recipe.is::<NEUMobDropRecipe>());
     }
 
     /// java: public static void clearCache()
     pub fn clear_cache() {
         compat::lock(&CACHED_CRAFT_COSTS).clear();
-        // TODO(fabric2seer): static field NEUIngredient.NEU_SENTINEL_COINS
         //   java: cachedCraftCosts.put(NEUIngredient.NEU_SENTINEL_COINS, 1d);
-        // TODO(fabric2seer): static field NEUIngredient.NEU_SENTINEL_EMPTY
+        compat::lock(&CACHED_CRAFT_COSTS).insert(neu_ingredient::NEU_SENTINEL_COINS.to_string(), 1.0);
         //   java: cachedCraftCosts.put(NEUIngredient.NEU_SENTINEL_EMPTY, 0d);
+        compat::lock(&CACHED_CRAFT_COSTS).insert(neu_ingredient::NEU_SENTINEL_EMPTY.to_string(), 0.0);
     }
 
 }
@@ -211,8 +231,8 @@ impl CraftPriceTooltip {
             return;
         }
         let mut item_id: String = stack.get_neu_name();
-        // java: try {..} catch (Exception e) - the body runs inline: a Rust body does not throw checked exceptions (a panic in it propagates)
-        {
+        // java: try {..} catch (Exception e) { LOGGER.error("[Skyblocker Craft Price] Error calculating craft price for: {}", stack.getNeuName(), e); }
+        let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             // cachedCraftCosts.computeIfAbsent(itemId, CraftPriceTooltip::getItemCost) - getItemCost reads the map
             // again, so the cost is computed outside the (non-re-entrant) lock
             let __cached: Option<f64> = compat::lock(&CACHED_CRAFT_COSTS).get(&item_id).copied();
@@ -228,11 +248,10 @@ impl CraftPriceTooltip {
             }
             let mut count: i32 = (ItemUtils::get_item_count_in_sack(stack, &stack.skyblocker_get_lore_strings()).unwrap_or(ItemUtils::get_item_count_in_stash_component(&lines[0]).unwrap_or(stack.get_count()))).max(1);
             lines.push(GridComponent::of(&vec![component::literal("Crafting Price:").with_style_format(ChatFormatting::Gold), ItemTooltip::get_coins_message(craft_price, count)]));
+        }));
+        if let Err(e) = __result {
+            logger().error(&format!("[Skyblocker Craft Price] Error calculating craft price for: {} {}", stack.get_neu_name(), compat::panic_message(&e)));
         }
-        // TODO(fabric2seer): the `catch (Exception e)` block is not reached in Rust - the try body returns, breaks or continues, so it cannot run inside `catch_unwind`
-        //   java: {
-        //   java: 			LOGGER.error("[Skyblocker Craft Price] Error calculating craft price for: {}", stack.getNeuName(), e);
-        //   java: 		}
     }
 
     /// CraftPriceTooltip.addToTooltip as the dispatch of TooltipAdder.addToTooltip

@@ -20,15 +20,14 @@ fn skyblocker_modify_item_cooldown(ci: &mut CallbackInfo<'_>) {
     });
 }
 
-/// `line instanceof GridTooltipComponent component`.
-/// rust: port gap - the port's `ClientTooltipComponent` trait has no `as_any`, so a mod cannot ask what class a
-/// line of the list is (GAPS_batchD); and the mod's `GridTooltipComponent` implements no `ClientTooltipComponent`
-/// yet (cross-package, utils/render/text). No line is recognised.
+/// `line instanceof GridTooltipComponent component`: the game's `ClientTooltipComponent.as_any` answers the line's
+/// object, and a grid line is the mod's `GridTooltipComponentLine` (`ClientTooltipComponentMixin.create`).
 fn as_grid_tooltip_component(
     line: &dyn mcrust::net::minecraft::client::gui::screens::inventory::tooltip::client_tooltip_component::ClientTooltipComponent,
 ) -> Option<compat::Shared<crate::de::hysky::skyblocker::utils::render::text::grid_tooltip_component::GridTooltipComponent>> {
-    let _ = line;
-    None
+    line.as_any()
+        .and_then(|any| any.downcast_ref::<crate::de::hysky::skyblocker::utils::render::text::grid_tooltip_component::GridTooltipComponentLine>())
+        .map(|line| line.0.clone())
 }
 
 /// @Inject initializeGrids

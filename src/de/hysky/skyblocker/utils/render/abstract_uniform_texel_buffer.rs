@@ -5,10 +5,48 @@ use crate::prelude::*;
 use mcrust::net::minecraft::client::renderer::state::level::camera_render_state::CameraRenderState;
 use mcrust::net::minecraft::util::argb;
 
-// TODO(fabric2seer): static call ByteOrder.nativeOrder(..)
-//   java: private static final boolean IS_LITTLE_ENDIAN = ByteOrder.nativeOrder() == ByteOrder.LITTLE_ENDIAN;
 /// java: private static final boolean IS_LITTLE_ENDIAN = ByteOrder.nativeOrder() == ByteOrder.LITTLE_ENDIAN;
 pub static IS_LITTLE_ENDIAN: LazyLock<bool> = LazyLock::new(|| cfg!(target_endian = "little"));
+
+/// java: `java.lang.foreign.MemorySegment` as these writers use it - the bytes an `Arena` allocated, which the caller
+/// uploads (`asByteBuffer()`); `set(ValueLayout.JAVA_FLOAT | JAVA_INT, long offset, value)` writes in the layouts'
+/// byte order, the native one, and a write past the end is Java's `IndexOutOfBoundsException` (a panic here).
+pub trait MemorySegmentBytes {
+    /// the segment's bytes
+    fn segment_bytes(&mut self) -> &mut [u8];
+
+    /// java: `segment.set(ValueLayout.JAVA_FLOAT, offset, value)`
+    fn set_java_float(&mut self, offset: i64, value: f32) {
+        let start = offset as usize;
+        self.segment_bytes()[start..start + 4].copy_from_slice(&value.to_ne_bytes());
+    }
+
+    /// java: `segment.set(ValueLayout.JAVA_INT, offset, value)`
+    fn set_java_int(&mut self, offset: i64, value: i32) {
+        let start = offset as usize;
+        self.segment_bytes()[start..start + 4].copy_from_slice(&value.to_ne_bytes());
+    }
+}
+
+impl MemorySegmentBytes for [u8] {
+    fn segment_bytes(&mut self) -> &mut [u8] {
+        self
+    }
+}
+
+impl MemorySegmentBytes for Vec<u8> {
+    fn segment_bytes(&mut self) -> &mut [u8] {
+        self.as_mut_slice()
+    }
+}
+
+/// The converter's `MemorySegment` placeholder holds no bytes: it is the zero-length segment (every `set` on it is out
+/// of bounds, as on Java's `MemorySegment.NULL`).
+impl MemorySegmentBytes for crate::unresolved::MemorySegment {
+    fn segment_bytes(&mut self) -> &mut [u8] {
+        &mut []
+    }
+}
 
 /// java: public abstract class AbstractUniformTexelBuffer<T>
 #[derive(Clone)]
@@ -51,13 +89,13 @@ pub trait AbstractUniformTexelBuffer<T> {
     }
 
     /// java: public final void writeToBuffer(List<T> states, CameraRenderState camera, MemorySegment buffer)
-    fn write_to_buffer(&self, states: &Vec<T>, camera: &CameraRenderState, buffer: &mut crate::unresolved::MemorySegment) {
+    fn write_to_buffer<S: MemorySegmentBytes + ?Sized>(&self, states: &Vec<T>, camera: &CameraRenderState, buffer: &mut S) {
         for i in 0..(states.len() as i32) {
             self.write_to_buffer_4(i, &states[(i) as usize], camera, buffer);
         }
     }
 
     /// java: protected abstract void writeToBuffer(int index, T state, CameraRenderState camera, MemorySegment buffer);
-    fn write_to_buffer_4(&self, index: i32, state: &T, camera: &CameraRenderState, buffer: &mut crate::unresolved::MemorySegment);
+    fn write_to_buffer_4<S: MemorySegmentBytes + ?Sized>(&self, index: i32, state: &T, camera: &CameraRenderState, buffer: &mut S);
 
 }

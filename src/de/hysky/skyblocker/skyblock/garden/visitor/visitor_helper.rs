@@ -66,6 +66,11 @@ pub const LINE_HEIGHT: i32 = 3;
 pub const PADDING: i32 = 4;
 /// java: private static final Object2LongMap<Component> copiedTimestamps = new Object2LongOpenHashMap<>();
 pub static COPIED_TIMESTAMPS: compat::MainThread<std::collections::HashMap<MutableComponent, i64>> = compat::MainThread::new(|| std::collections::HashMap::new());
+thread_local! {
+    /// whether the open screen's AFTER_INIT registered `ScreenEvents.afterTick(screen)` (`initialize`)
+    static AFTER_TICK_UPDATE_VISITORS: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
 /// java: private static boolean processVisitor = false;
 pub static PROCESS_VISITOR: LazyLock<Mutex<bool>> = LazyLock::new(|| Mutex::new(false));
 
@@ -106,7 +111,10 @@ impl VisitorHelper {
 
     /// java: @Init public static void initialize()
     pub fn initialize() {
+        VisitorHelper::install_after_tick();
         screen_events::AFTER_INIT.register(Arc::new(|screen: &mut Screen, width: i32, height: i32| {
+            // `ScreenEvents.afterTick(screen)` belongs to the screen being initialised: a new screen starts without it
+            AFTER_TICK_UPDATE_VISITORS.with(|f| f.set(false));
             if !(VisitorHelper::should_render()) {
                 return;
             }
@@ -117,18 +125,91 @@ impl VisitorHelper {
             }
             if compat::container_screen_open() {
                 compat::set_state(&PROCESS_VISITOR, true);
-                // TODO(fabric2seer): ScreenEvents.afterTick(..).register: no SeerClient equivalent yet
-                //   java: ScreenEvents.afterTick(screen).register(_ -> updateVisitors(handledScreen.getMenu()));
+                // java: ScreenEvents.afterTick(screen).register(_ -> updateVisitors(handledScreen.getMenu()));
+                // (Fabric's per-screen `afterTick` is the end of `Screen.tick`, whose last statement for a container screen is
+                // `containerTick()`: this screen's listener is run by `install_after_tick`'s RETURN injector there)
+                AFTER_TICK_UPDATE_VISITORS.with(|f| f.set(true));
             }
-            // TODO(fabric2seer): Fabric API `Screens.getWidgets` has no SeerClient equivalent
-            //   java: Screens.getWidgets(screen).add(new VisitorHelper(xOffset, yOffset));
+            // java: Screens.getWidgets(screen).add(new VisitorHelper(xOffset, yOffset));
+            screen.add_renderable_widget(compat::WidgetAdapter::widget(VisitorHelper::new(compat::get_state(&X_OFFSET), compat::get_state(&Y_OFFSET))));
         }));
+        // java: ClientCommandRegistrationCallback.EVENT.register((dispatcher, _) -> dispatcher.register(literal(SkyblockerMod.NAMESPACE)
+        //   .then(literal("garden").then(literal("visitors")
+        //     .then(literal("removeAll").executes(ctx -> { activeVisitors.clear(); updateItems();
+        //       ctx.getSource().sendFeedback(Constants.PREFIX.get().append(Component.translatable("skyblocker.farming.visitorHelper.command.clearedAllVisitors"))); return Command.SINGLE_SUCCESS; }))
+        //     .then(literal("remove").then(argument("visitor", StringArgumentType.greedyString()).executes(ctx -> {
+        //       String name = ctx.getArgument("visitor", String.class).toLowerCase(Locale.ENGLISH);
+        //       Optional<Visitor> visitor = activeVisitors.stream().filter(v -> v.name().getString().toLowerCase(Locale.ENGLISH).equals(name)).findAny();
+        //       if (visitor.isEmpty()) { ctx.getSource().sendError(Constants.PREFIX.get().append(Component.translatable("skyblocker.farming.visitorHelper.command.unableToRemoveVisitor"))); return Command.SINGLE_SUCCESS; }
+        //       activeVisitors.remove(visitor.get()); updateItems();
+        //       ctx.getSource().sendFeedback(Constants.PREFIX.get().append(Component.translatableEscape("skyblocker.farming.visitorHelper.command.removedVisitor", visitor.get().name()))); return Command.SINGLE_SUCCESS;
+        //     }).suggests((_, builder) -> SharedSuggestionProvider.suggest(activeVisitors.stream().map(Visitor::name).map(Component::getString), builder)))))));
         client_command_registration_callback::EVENT.register(Arc::new(
             |dispatcher: &mut client_command_registration_callback::ClientCommandDispatcher| {
-                // TODO(fabric2seer): a command tree this tool cannot read (arguments, redirects, requires) - SeerClient commands receive the words after the name in `ctx.args`
-                //   java: dispatcher.register(..);
+                use mcrust::com::mojang::brigadier::builder::argument_builder::ArgumentBuilder as _;
+                use mcrust::com::mojang::brigadier::context::command_context::CommandContext;
+                use mcrust::com::mojang::brigadier::arguments::string_argument_type::StringArgumentType;
+                type Source = client_command_registration_callback::FabricClientCommandSource;
+                let mut remove_all = client_command_registration_callback::literal("removeAll");
+                remove_all.executes(Arc::new(|_: &CommandContext<Source>| {
+                    ACTIVE_VISITORS.get_mut().clear();
+                    VisitorHelper::update_items();
+                    compat::batch_w_send_feedback(&(crate::de::hysky::skyblocker::utils::constants::PREFIX.get())().append(component::translatable("skyblocker.farming.visitorHelper.command.clearedAllVisitors")));
+                    Ok(1)
+                }));
+                let mut visitor = client_command_registration_callback::argument("visitor", Arc::new(StringArgumentType::greedy_string()));
+                visitor.executes(Arc::new(|ctx: &CommandContext<Source>| {
+                    let name: String = StringArgumentType::get_string(ctx, "visitor").to_lowercase();
+                    let position = ACTIVE_VISITORS.get_mut().iter().position(|v| v.name().get_string().to_lowercase() == name);
+                    let Some(position) = position else {
+                        compat::batch_w_send_error(&(crate::de::hysky::skyblocker::utils::constants::PREFIX.get())().append(component::translatable("skyblocker.farming.visitorHelper.command.unableToRemoveVisitor")));
+                        return Ok(1);
+                    };
+                    let removed: Visitor = ACTIVE_VISITORS.get_mut().remove(position);
+                    VisitorHelper::update_items();
+                    compat::batch_w_send_feedback(&(crate::de::hysky::skyblocker::utils::constants::PREFIX.get())().append(component::translatable_escape("skyblocker.farming.visitorHelper.command.removedVisitor", vec![mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(removed.name())])));
+                    Ok(1)
+                }));
+                let visitor_suggestions: mcrust::com::mojang::brigadier::suggestion::suggestion_provider::SuggestionProvider<Source> = Arc::new(|_: &CommandContext<Source>, builder: &mut mcrust::com::mojang::brigadier::suggestion::suggestions_builder::SuggestionsBuilder| {
+                    let names: Vec<String> = ACTIVE_VISITORS.get_mut().iter().map(|v| v.name().get_string()).collect();
+                    Ok(mcrust::net::minecraft::commands::shared_suggestion_provider::suggest(&names, builder))
+                });
+                visitor.suggests(Some(visitor_suggestions));
+                let mut remove = client_command_registration_callback::literal("remove");
+                remove.then(&visitor);
+                let mut visitors = client_command_registration_callback::literal("visitors");
+                visitors.then(&remove_all);
+                visitors.then(&remove);
+                let mut garden = client_command_registration_callback::literal("garden");
+                garden.then(&visitors);
+                let mut root = client_command_registration_callback::literal(crate::entry::skyblocker_mod::NAMESPACE);
+                root.then(&garden);
+                dispatcher.dispatcher().register(&root);
             },
         ));
+    }
+
+    /// java: `ScreenEvents.afterTick(screen).register(_ -> updateVisitors(handledScreen.getMenu()))` (see `initialize`): the
+    /// end of the open container screen's tick (`AbstractContainerScreen.tick`'s `containerTick()`), while that screen's
+    /// AFTER_INIT registered it.
+    fn install_after_tick() {
+        let result = mcrust::mcrust::modding::hook::inject(
+            "net.minecraft.client.gui.screens.inventory.AbstractContainerScreen#containerTick",
+            mcrust::mcrust::modding::hook::At::Return,
+            |_ci: &mut mcrust::mcrust::modding::hook::CallbackInfo<'_>| {
+                if !AFTER_TICK_UPDATE_VISITORS.with(|f| f.get()) {
+                    return;
+                }
+                // java: updateVisitors(handledScreen.getMenu());
+                let Some(slots) = compat::with_open_menu(|menu, _| menu.slots.to_vec()) else {
+                    return;
+                };
+                VisitorHelper::update_visitors(&slots);
+            },
+        );
+        if let Err(e) = result {
+            mcrust::mcrust::modding::log::warn_once("skyblocker-visitor-helper-after-tick", &format!("{e:?}"));
+        }
     }
 
     /// java: public static boolean shouldRender()
@@ -147,13 +228,15 @@ impl VisitorHelper {
     }
 
     /// java: private static void updateVisitors(AbstractContainerMenu handler)
-    pub fn update_visitors(handler: &AbstractContainerMenu) {
+    ///
+    /// (`handler` is the open menu's slot list - `handler.getSlot(i)` is `handler[i]`; the slots' items are read through
+    /// the player's open menu, which the caller does not hold)
+    pub fn update_visitors(handler: &[Slot]) {
         if !(compat::get_state(&PROCESS_VISITOR)) {
             return;
         }
-        // TODO(fabric2seer): `get_item` takes 1 argument(s) in the port (`containers: &'a Containers<'_>`), Java passes 0
-        // rust: let visitor_head = handler.get_slot(13).get_item();
-        let mut visitor_head: mcrust::net::minecraft::world::item::item_stack::ItemStack = compat::slot_item(handler.get_slot(13));
+        // java: ItemStack visitorHead = handler.getSlot(13).getItem();
+        let mut visitor_head: mcrust::net::minecraft::world::item::item_stack::ItemStack = compat::slot_item(&handler[13]);
         if visitor_head.is_empty() || !(visitor_head.has(mcrust::net::minecraft::core::component::data_components::lore())) || ItemUtils::get_lore_line_if(&visitor_head, Arc::new(move |t| t.contains("Times Visited"))).is_none() {
             return;
         }
@@ -170,10 +253,9 @@ impl VisitorHelper {
     }
 
     /// java: private static void extractRequiredItems(AbstractContainerMenu handler, Visitor visitor)
-    pub fn extract_required_items(handler: &AbstractContainerMenu, visitor: &mut Visitor) {
-        // TODO(fabric2seer): `get_item` takes 1 argument(s) in the port (`containers: &'a Containers<'_>`), Java passes 0
-        // rust: let accept_button = handler.get_slot(29).get_item();
-        let mut accept_button: mcrust::net::minecraft::world::item::item_stack::ItemStack = compat::slot_item(handler.get_slot(29));
+    pub fn extract_required_items(handler: &[Slot], visitor: &mut Visitor) {
+        // java: ItemStack acceptButton = handler.getSlot(29).getItem();
+        let mut accept_button: mcrust::net::minecraft::world::item::item_stack::ItemStack = compat::slot_item(&handler[29]);
         if accept_button.is_empty() || ItemUtils::get_lore_line_if(&accept_button, Arc::new(move |t| t.contains("Items Required"))).is_none() {
             return;
         }
@@ -209,11 +291,12 @@ impl VisitorHelper {
             if NEURepoManager::is_loading() || !(ItemRepository::files_imported()) {
                 return ItemUtils::get_named_placeholder(item_name);
             }
-            // rust: port gap - `NEUItem.getSkyblockItemId` (the NEU repo parser is a `crate::unresolved` placeholder,
-            // GAPS_batchB L1): the item found by name cannot be resolved to its id, so the placeholder is answered
-            let _item = NEURepoManager::get_item_by_name(item_name).into_iter().flatten().next();
-            return ItemUtils::get_named_placeholder(item_name);
-            // TODO(fabric2seer): `.getSkyblockItemId(..)` on a NEUItem
+            return NEURepoManager::get_item_by_name(item_name)
+                .into_iter()
+                .next()
+                .map(|item| item.get_skyblock_item_id().to_string())
+                .and_then(|neu_id| ItemRepository::get_item_stack(&neu_id))
+                .unwrap_or_else(|| ItemUtils::get_named_placeholder(item_name));
             //   java: return NEURepoManager.getItemByName(itemName)
             //   java: 					.stream()
             //   java: 					.filter(Objects::nonNull)
@@ -310,8 +393,13 @@ impl VisitorHelper {
         if ACTIVE_VISITORS.get_mut().is_empty() {
             return;
         }
-        // TODO(fabric2seer): an assignment used as a value
-        //   java: setPosition(xOffset = (int) click.x() - dragStartX, yOffset = (int) click.y() - dragStartY);
+        // java: setPosition(xOffset = (int) click.x() - dragStartX, yOffset = (int) click.y() - dragStartY);
+        let (drag_start_x, drag_start_y) = compat::read(__this, |__t| (__t.drag_start_x, __t.drag_start_y));
+        let x_offset: i32 = ((click.x()) as i32).wrapping_sub(drag_start_x);
+        compat::set_state(&X_OFFSET, x_offset);
+        let y_offset: i32 = ((click.y()) as i32).wrapping_sub(drag_start_y);
+        compat::set_state(&Y_OFFSET, y_offset);
+        compat::write(__this, |__t| __t.set_position(x_offset, y_offset));
     }
 
     /// java: public void onClick(MouseButtonEvent click, boolean doubled)
@@ -336,8 +424,14 @@ impl VisitorHelper {
                 let mut name: MutableComponent = item_name.copy();
                 let mut item_text: MutableComponent = (if SkyblockerConfigManager::get().farming.visitor_helper.show_in_stacks && total_amount >= 64 { name.append_str(&format!(" x{} stacks + {}", total_amount.wrapping_div(64), total_amount.wrapping_rem(64))) } else { name.append_str(&format!(" x{}", total_amount)) });
                 if VisitorHelper::is_mouse_over_text(&text_renderer, &item_text, text_x, y_position, click.x(), click.y()) {
-                    // TODO(fabric2seer): `set_clipboard` takes 2 argument(s) in the port (`clipboard: &mut dyn ClipboardAccess, value: &str`), Java passes 1
-                    // rust: compat::minecraft().keyboard_handler.set_clipboard(&mut total_amount.to_string());
+                    // java: Minecraft.getInstance().keyboardHandler.setClipboard(String.valueOf(totalAmount));
+                    {
+                        let mut __memory = mcrust::net::minecraft::client::gui::components::edit_box::MemoryClipboard::default();
+                        match mcrust::net::minecraft::client::minecraft::SdlClipboard::published() {
+                            Some(mut __glfw) => compat::minecraft().keyboard_handler.set_clipboard(&mut __glfw, &total_amount.to_string()),
+                            None => compat::minecraft().keyboard_handler.set_clipboard(&mut __memory, &total_amount.to_string()),
+                        }
+                    }
                     COPIED_TIMESTAMPS.get_mut().insert(item_name.clone(), compat::millis());
                     MessageScheduler::send_message_after_cooldown(message_scheduler::INSTANCE.get_mut(), &format!("/bz {}", item_name.get_string()), true);
                     return;

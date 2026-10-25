@@ -148,7 +148,6 @@ impl Dungeoneering {
                 }
                 let mut level: String;
                 if let Some(arabic) = &arabic {
-                    // TODO(fabric2seer): the condition: static call NumberUtils.isDigits(..)
                     //   java: !NumberUtils.isDigits(arabic)
                     if !(!arabic.is_empty() && arabic.chars().all(char::is_numeric)) {
                         return vec![];
@@ -166,7 +165,6 @@ impl Dungeoneering {
                 return vec![];
             }
         }
-        todo!("fabric2seer: the value of this function is in a TODO above")
     }
 
     /// Dungeoneering.getText as the dispatch of SlotTextAdder.getText
@@ -266,7 +264,6 @@ impl DungeonClasses {
         match slot_id {
             11 | 12 | 13 | 14 | 15 => {
                 let mut level: String = CatacombsLevelAdder::get_bracketed_level_from_name(stack).unwrap();
-                // TODO(fabric2seer): the condition: static call NumberUtils.isDigits(..)
                 //   java: !NumberUtils.isDigits(level)
                 if !(!level.is_empty() && level.chars().all(char::is_numeric)) {
                     return vec![];
@@ -277,7 +274,6 @@ impl DungeonClasses {
                 return vec![];
             }
         }
-        todo!("fabric2seer: the value of this function is in a TODO above")
     }
 
     /// DungeonClasses.getText as the dispatch of SlotTextAdder.getText
@@ -377,7 +373,6 @@ impl ReadyUp {
         match slot_id {
             29 | 30 | 31 | 32 | 33 => {
                 let mut level: String = CatacombsLevelAdder::get_bracketed_level_from_name(stack).unwrap();
-                // TODO(fabric2seer): the condition: static call NumberUtils.isDigits(..)
                 //   java: !NumberUtils.isDigits(level)
                 if !(!level.is_empty() && level.chars().all(char::is_numeric)) {
                     return vec![];
@@ -388,7 +383,6 @@ impl ReadyUp {
                 return vec![];
             }
         }
-        todo!("fabric2seer: the value of this function is in a TODO above")
     }
 
     /// ReadyUp.getText as the dispatch of SlotTextAdder.getText

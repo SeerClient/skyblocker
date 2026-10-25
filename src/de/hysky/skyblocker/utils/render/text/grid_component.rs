@@ -27,10 +27,8 @@ impl GridComponent {
     /// java: public static Component of(String group, Component... components)
     pub fn of_2(group: &str, components: &Vec<MutableComponent>) -> MutableComponent {
         // java: return MutableComponent.create(new Contents(group, List.of(components)));
-        // rust: port gap - the port's `ComponentContents` is a closed enum of the seven vanilla contents types, so a
-        // mod-defined `ComponentContents` implementation (this record) cannot be wrapped in a component (GAPS_batchA.md)
-        let _contents = Contents::new(group.to_string(), components.to_vec());
-        todo!("rust: port gap - ComponentContents is a closed enum; a mod cannot add GridComponent.Contents")
+        // (a mod's `ComponentContents` class is the open variant `ComponentContents::Mod`)
+        return MutableComponent::create(Arc::new(ComponentContents::Mod(Arc::new(Contents::new(group.to_string(), components.to_vec())))));
     }
 
 }
@@ -66,4 +64,28 @@ impl Contents {
         panic!("UnsupportedOperationException: {}", "Cannot serialize GridComponent.Contents");
     }
 
+}
+
+/// `record Contents(..) implements ComponentContents`: the interface's defaults (`visit` keeps going, `resolve` is
+/// `MutableComponent.create(this)`), the record's `equals` / `hashCode` / `toString`, and its `codec()`.
+impl mcrust::net::minecraft::network::chat::component_contents::ModComponentContents for Contents {
+    /// java: @Override public MapCodec<? extends ComponentContents> codec()
+    fn codec(&self) -> MapCodecRef<ComponentContents> {
+        Contents::codec(self)
+    }
+
+    /// the record's `equals`: same class, `group` and `components` equal
+    fn equals(&self, other: &dyn mcrust::net::minecraft::network::chat::component_contents::ModComponentContents) -> bool {
+        other.as_any().downcast_ref::<Contents>().is_some_and(|other| other == self)
+    }
+
+    /// the record's `hashCode`: `31 * group.hashCode() + components.hashCode()`
+    fn hash_code(&self) -> i32 {
+        compat::string_hash_code(&self.group).wrapping_mul(31).wrapping_add(compat::hash_code(&self.components))
+    }
+
+    /// the record's `toString`
+    fn to_string(&self) -> String {
+        format!("Contents[group={}, components=[{}]]", self.group, self.components.iter().map(|c| format!("{:?}", c)).collect::<Vec<_>>().join(", "))
+    }
 }

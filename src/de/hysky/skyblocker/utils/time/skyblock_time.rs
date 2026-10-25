@@ -323,20 +323,7 @@ impl Month {
 
     /// the constant's constructor data (Java keeps it in the constant's fields)
     pub fn fields(self) -> &'static MonthFields {
-        static FIELDS: LazyLock<Vec<MonthFields>> = LazyLock::new(|| vec![
-            MonthFields::new(),
-            MonthFields::new(),
-            MonthFields::new(),
-            MonthFields::new(),
-            MonthFields::new(),
-            MonthFields::new(),
-            MonthFields::new(),
-            MonthFields::new(),
-            MonthFields::new(),
-            MonthFields::new(),
-            MonthFields::new(),
-            MonthFields::new(),
-        ]);
+        static FIELDS: LazyLock<Vec<MonthFields>> = LazyLock::new(|| Month::VALUES.iter().map(|month| MonthFields::new(month.name())).collect());
         &FIELDS[self as usize]
     }
 
@@ -347,12 +334,12 @@ impl Month {
 
     /// java: public static @Nullable Month of(String name)
     pub fn of(name: &str) -> Option<Month> {
-        // TODO(fabric2seer): call to `values(..)` (not a method of this class)
-        //   java: for (Month month : values()) {
-        //   java: 				if (month.name.equalsIgnoreCase(name)) {
-        //   java: 					return month;
-        //   java: 				}
-        //   java: 			}
+        //   java: for (Month month : values()) { if (month.name.equalsIgnoreCase(name)) return month; } return null;
+        for month in Month::values() {
+            if compat::equals_ignore_case(&month.fields().name, name) {
+                return Some(month);
+            }
+        }
         return None;
     }
 
@@ -370,12 +357,23 @@ pub struct MonthFields {
 }
 
 impl MonthFields {
-    fn new() -> Self {
+    /// `constant_name` is the constant's `name()`
+    fn new(constant_name: &str) -> Self {
         let mut this = Self {
             name: Default::default(),
         };
-        // TODO(fabric2seer): static call WordUtils.capitalizeFully(..)
         //   java: this.name = WordUtils.capitalizeFully(this.name().replace("_", " "));
+        // (`capitalizeFully`: every character lower-cased, then the first of each whitespace-delimited word upper-cased)
+        let mut capitalize_next = true;
+        this.name = constant_name
+            .replace("_", " ")
+            .chars()
+            .map(|c| {
+                let out = if c.is_whitespace() { c } else if capitalize_next { c.to_ascii_uppercase() } else { c.to_ascii_lowercase() };
+                capitalize_next = c.is_whitespace();
+                out
+            })
+            .collect();
         this
     }
 

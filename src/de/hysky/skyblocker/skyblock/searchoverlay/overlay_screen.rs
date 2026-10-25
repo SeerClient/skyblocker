@@ -284,10 +284,8 @@ impl OverlayScreen {
 
     /// java: @Override public void extractBackground(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a)
     pub fn extract_background(__this: &compat::Shared<Self>, graphics: &GuiGraphicsExtractor, mut mouse_x: i32, mut mouse_y: i32, mut a: f32) {
-        //   java: super.extractBackground(graphics, mouseX, mouseY, a);
-        // rust: port gap - `Screen.extractBackground` has no Rust body a mod can call, and `ModScreen` has no
-        // `extract_background` override to call it from (the game draws a mod screen's background itself; DIVERGENCES
-        // chunk 371, GAPS_M #17): this override is not reached.
+        //   java: super.extractBackground(graphics, mouseX, mouseY, a); - the base body runs first, from the game's
+        //   `ModScreen::extract_background` slot (`extract_background_calls_super` is `true`), then this one
         let _ = (graphics, mouse_x, mouse_y, a);
         let mut max_height: i32 = ROW_HEIGHT.wrapping_mul((1i32.wrapping_add(__this.lock().borrow().suggestion_buttons.len() as i32)).wrapping_add(__this.lock().borrow().history_buttons.len() as i32));
         if (__this.lock().borrow().history_buttons.len() as i32) > 0 {
@@ -346,8 +344,17 @@ impl OverlayScreen {
         graphics.item(&item, button.get_x().wrapping_add(render_offset), button.get_y().wrapping_add(render_offset));
         if button.is_mouse_over((mouse_x) as f64, (mouse_y) as f64) {
             //   java: graphics.setTooltipForNextFrame(this.font, item, mouseX, mouseY);
-            // rust: port gap - the frame's deferred-tooltip slot is the game's; a mod's draw cannot set an item tooltip
-            // for the next frame (GAPS_M #15).
+            // `setTooltipForNextFrame(font, stack, x, y)` parks `Screen.getTooltipFromItem(minecraft, stack)` in the
+            // frame's deferred slot (`compat::batch_s_set_tooltip_for_next_frame`: lines only, default style)
+            {
+                let level = mcrust::mcrust::modding::game::level();
+                let flag = mcrust::net::minecraft::client::gui::screens::inventory::abstract_container_screen::tooltip_flag_from_options();
+                let lines = mcrust::mcrust::modding::game::with_player(|player| {
+                    mcrust::net::minecraft::client::gui::screens::inventory::abstract_container_screen::get_tooltip_from_item(&item, level.as_deref(), Some(&*player as &dyn mcrust::net::minecraft::world::entity::player::player::Player), flag)
+                })
+                .unwrap_or_else(|| mcrust::net::minecraft::client::gui::screens::inventory::abstract_container_screen::get_tooltip_from_item(&item, level.as_deref(), None, flag));
+                compat::batch_s_set_tooltip_for_next_frame(lines);
+            }
         }
     }
 
@@ -423,6 +430,11 @@ impl ModScreen for compat::ScreenAdapter<OverlayScreen> {
     /// java: @Override public final void tick()
     fn tick(&mut self, screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen) {
         self.lend(screen, |__h| OverlayScreen::tick(__h))
+    }
+
+    /// java: @Override public void extractBackground(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a)
+    fn extract_background(&mut self, screen: &mcrust::net::minecraft::client::gui::screens::screen::Screen, context: &mut ScreenRenderContext<'_>, mouse_x: i32, mouse_y: i32, a: f32) {
+        self.lend_ref(screen, |__h| OverlayScreen::extract_background(__h, &context.graphics, mouse_x, mouse_y, a))
     }
 
     /// java: @Override public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a)

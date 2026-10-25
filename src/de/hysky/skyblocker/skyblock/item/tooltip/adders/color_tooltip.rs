@@ -80,18 +80,6 @@ impl ColorTooltip {
 
     /// java: private static boolean isException(String id, String hex)
     pub fn is_exception(id: &str, hex: &str) -> bool {
-        // TODO(fabric2seer): a pattern switch expression
-        //   java: return switch (id) {
-        //   java: 			case String it when it.startsWith("LEATHER") || it.equals("GHOST_BOOTS") || Constants.SEYMOUR_IDS.contains(it) -> true;
-        //   java: 			case String it when it.startsWith("RANCHER") -> Constants.RANCHERS.contains(hex);
-        //   java: 			case String it when it.contains("ADAPTIVE_CHESTPLATE") -> Constants.ADAPTIVE_CHEST.contains(hex);
-        //   java: 			case String it when it.contains("ADAPTIVE") -> Constants.ADAPTIVE.contains(hex);
-        //   java: 			case String it when it.contains("REAPER") -> Constants.REAPER.contains(hex);
-        //   java: 			case String it when it.contains("FAIRY") -> Constants.FAIRY_HEXES.contains(hex);
-        //   java: 			case String it when it.contains("CRYSTAL") -> Constants.CRYSTAL_HEXES.contains(hex);
-        //   java: 			case String it when it.contains("SPOOK") -> Constants.SPOOK.contains(hex);
-        //   java: 			default -> false;
-        //   java: 		};
         let c = |l: &Vec<String>, v: &str| l.iter().any(|x| x == v);
         let it = id;
         return if it.starts_with("LEATHER") || it == "GHOST_BOOTS" || c(&constants::SEYMOUR_IDS, it) { true }
@@ -107,15 +95,6 @@ impl ColorTooltip {
 
     /// java: private static DyeType checkDyeType(ItemStack stack, String hex)
     pub fn check_dye_type(stack: &mcrust::net::minecraft::world::item::item_stack::ItemStack, hex: &str) -> DyeType {
-        // TODO(fabric2seer): a pattern switch expression
-        //   java: return switch (hex) {
-        //   java: 			case String it when Constants.CRYSTAL_HEXES.contains(it) -> DyeType.CRYSTAL;
-        //   java: 			case String it when Constants.FAIRY_HEXES.contains(it) -> DyeType.FAIRY;
-        //   java: 			case String it when Constants.OG_FAIRY_HEXES.contains(it) -> DyeType.OG_FAIRY;
-        //   java: 			case String it when Constants.SPOOK.contains(it) && stack.getSkyblockId().startsWith("FAIRY_") -> DyeType.SPOOK;
-        //   java: 			case String it when Constants.GLITCHED.contains(it) && isGlitched(stack, hex) -> DyeType.GLITCHED;
-        //   java: 			default -> DyeType.EXOTIC;
-        //   java: 		};
         let c = |l: &Vec<String>, v: &str| l.iter().any(|x| x == v);
         let it = hex;
         return if c(&constants::CRYSTAL_HEXES, it) { DyeType::Crystal }
@@ -146,14 +125,6 @@ impl ColorTooltip {
         if hex == "000000" && obtained < WITHER_GLITCHED_AFTER_DATE {
             return false;
         }
-        // TODO(fabric2seer): a pattern switch expression
-        //   java: return switch (id) {
-        //   java: 			case String it when it.contains("CHESTPLATE") -> Constants.WITHER_CHESTPLATE_HEXES.containsKey(hex) && Constants.WITHER_CHESTPLATE_HEXES.containsValue(it) && !Constants.WITHER_CHESTPLATE_HEXES.get(hex).equals(it);
-        //   java: 			case String it when it.contains("LEGGINGS") -> Constants.WITHER_LEGGINGS_HEXES.containsKey(hex) && Constants.WITHER_LEGGINGS_HEXES.containsValue(it) && !Constants.WITHER_LEGGINGS_HEXES.get(hex).equals(it);
-        //   java: 			case String it when it.contains("BOOTS") -> Constants.WITHER_BOOTS_HEXES.containsKey(hex) && Constants.WITHER_BOOTS_HEXES.containsValue(it) && !Constants.WITHER_BOOTS_HEXES.get(hex).equals(it);
-        //   java:
-        //   java: 			default -> false;
-        //   java: 		};
         let it = id;
         let m: Option<&std::collections::HashMap<String, String>> = if it.contains("CHESTPLATE") { Some(&constants::WITHER_CHESTPLATE_HEXES) }
             else if it.contains("LEGGINGS") { Some(&constants::WITHER_LEGGINGS_HEXES) }
@@ -232,7 +203,6 @@ impl ColorTooltip {
     pub fn add_to_tooltip_impl(__this: &compat::Shared<Self>, mut focused_slot: Option<Slot>, stack: &mcrust::net::minecraft::world::item::item_stack::ItemStack, lines: &mut Vec<MutableComponent>) {
         let mut internal_id: String = stack.get_skyblock_id();
         if tooltip_info_type::COLOR.get_mut().lock().borrow().has_or_null_warning(&internal_id) && stack.has(mcrust::net::minecraft::core::component::data_components::dyed_color()) {
-            // TODO(fabric2seer): `.rgb(..)` on a value of unknown type
             //   java: int dyeColor = stack.get(DataComponents.DYED_COLOR).rgb() & 0x00FFFFFF;
             let mut dye_color: i32 = stack.get(mcrust::net::minecraft::core::component::data_components::dyed_color()).and_then(|__value| mcrust::com::mojang::serialization::cast::<mcrust::net::minecraft::world::item::component::dyed_item_color::DyedItemColor>(&__value).copied()).expect("NullPointerException: stack.get(DataComponents.DYED_COLOR)").rgb() & 0x00FFFFFF;
             let mut color_hex: String = format!("{:06X}", dye_color);

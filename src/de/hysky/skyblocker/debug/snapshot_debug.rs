@@ -74,9 +74,10 @@ impl SnapshotDebug {
     pub fn get_seed() -> i64 {
         //   java: return CLIENT.hasSingleplayerServer() ? CLIENT.getSingleplayerServer().overworld().getSeed() : 0;
         if compat::minecraft().has_singleplayer_server() {
-            // rust: port gap - the port is a client without the integrated server (`hasSingleplayerServer` is false), so
-            // `getSingleplayerServer().overworld().getSeed()` has nothing to read and this arm is not reached
-            return todo!("rust: port gap - IntegratedServer.overworld().getSeed()");
+            // GAP (verified, RustSrc NEXT_STEPS 000rr): the port is a client without the integrated server
+            // (`has_singleplayer_server` is always false), so this arm is never reached.
+            // NEEDS-GAME-API: Minecraft::get_singleplayer_server().overworld().get_seed()
+            return 0;
         }
         return 0;
     }

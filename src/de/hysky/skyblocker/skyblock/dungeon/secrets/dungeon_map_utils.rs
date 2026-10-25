@@ -12,8 +12,6 @@ use mcrust::net::minecraft::world::level::saveddata::maps::map_item_saved_data::
 use mcrust::net::minecraft::world::phys::vec3::Vec3;
 use mcrust::org::joml::vector2i::Vector2i;
 
-// TODO(fabric2seer): static `MapColor.Brightness` has no Rust counterpart in the port's MapColor file
-//   java: public static final byte BLACK_COLOR = MapColor.COLOR_BLACK.getPackedId(MapColor.Brightness.LOWEST);
 /// java: public static final byte BLACK_COLOR = MapColor.COLOR_BLACK.getPackedId(MapColor.Brightness.LOWEST);
 pub static BLACK_COLOR: LazyLock<i8> = LazyLock::new(|| mcrust::net::minecraft::world::level::material::map_color::COLOR_BLACK.get_packed_id(mcrust::net::minecraft::world::level::material::map_color::Brightness::Lowest));
 /// java: public static final byte RED_COLOR = 18;
@@ -168,9 +166,8 @@ impl DungeonMapUtils {
 
     /// java: public static Vector2ic getPhysicalRoomPos(double x, double z)
     pub fn get_physical_room_pos_2(mut x: f64, mut z: f64) -> Vector2i {
-        // TODO(fabric2seer): static field RoundingMode.TRUNCATE
-        //   java: Vector2i physicalPos = new Vector2i(x + 8.5, z + 8.5, RoundingMode.TRUNCATE);
-        let mut physical_pos: Vector2i = todo!("fabric2seer: the initialiser of `physicalPos` (TODO above)");
+        // java: Vector2i physicalPos = new Vector2i(x + 8.5, z + 8.5, RoundingMode.TRUNCATE); - JOML's `RoundingMode.TRUNCATE` is 0
+        let mut physical_pos: Vector2i = Vector2i::new_rounded_f64(x + 8.5, z + 8.5, 0);
         return (physical_pos.sub(compat::floor_mod_i32(physical_pos.x(), 32), compat::floor_mod_i32(physical_pos.y(), 32))).sub(8, 8).clone();
     }
 
@@ -271,26 +268,25 @@ impl DungeonMapUtils {
         queue.push_back(map_pos.clone());
         while !queue.is_empty() {
             let mut cur_map_pos: Vector2i = queue.pop_front().unwrap();
-            // TODO(fabric2seer): `new` takes 2 argument(s) in the port (`x: i32, y: i32`), Java passes 0
-            // rust: let mut new_map_pos: Vector2i = Vector2i::new();
-            let mut new_map_pos: Vector2i = todo!("fabric2seer: the initialiser of `newMapPos` (TODO above)");
+            // java: Vector2i newMapPos = new Vector2i();
+            let mut new_map_pos: Vector2i = Vector2i::new(0, 0);
             if DungeonMapUtils::get_color(map, Some(new_map_pos.set_vector(&cur_map_pos).sub(1, 0).clone())) == color && !(segments.contains(new_map_pos.sub(map_room_size.wrapping_add(3), 0))) {
                 segments.insert(new_map_pos.clone());
                 queue.push_back(new_map_pos.clone());
-                // TODO(fabric2seer): `new` takes 2 argument(s) in the port (`x: i32, y: i32`), Java passes 0
-                // rust: new_map_pos = Vector2i::new();
+                // java: newMapPos = new Vector2i();
+                new_map_pos = Vector2i::new(0, 0);
             }
             if DungeonMapUtils::get_color(map, Some(new_map_pos.set_vector(&cur_map_pos).sub(0, 1).clone())) == color && !(segments.contains(new_map_pos.sub(0, map_room_size.wrapping_add(3)))) {
                 segments.insert(new_map_pos.clone());
                 queue.push_back(new_map_pos.clone());
-                // TODO(fabric2seer): `new` takes 2 argument(s) in the port (`x: i32, y: i32`), Java passes 0
-                // rust: new_map_pos = Vector2i::new();
+                // java: newMapPos = new Vector2i();
+                new_map_pos = Vector2i::new(0, 0);
             }
             if DungeonMapUtils::get_color(map, Some(new_map_pos.set_vector(&cur_map_pos).add(map_room_size, 0).clone())) == color && !(segments.contains(new_map_pos.add(4, 0))) {
                 segments.insert(new_map_pos.clone());
                 queue.push_back(new_map_pos.clone());
-                // TODO(fabric2seer): `new` takes 2 argument(s) in the port (`x: i32, y: i32`), Java passes 0
-                // rust: new_map_pos = Vector2i::new();
+                // java: newMapPos = new Vector2i();
+                new_map_pos = Vector2i::new(0, 0);
             }
             if DungeonMapUtils::get_color(map, Some(new_map_pos.set_vector(&cur_map_pos).add(0, map_room_size).clone())) == color && !(segments.contains(new_map_pos.add(0, 4))) {
                 segments.insert(new_map_pos.clone());

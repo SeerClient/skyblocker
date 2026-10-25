@@ -3,6 +3,9 @@
 #[allow(unused_imports)]
 use crate::prelude::*;
 use crate::de::hysky::skyblocker::utils::hovered_item::hovered_item_stack_provider::HoveredItemStackProvider;
+use crate::de::hysky::skyblocker::skyblock::accessories::accessories_helper_widget::ResultButton;
+use crate::de::hysky::skyblocker::skyblock::museum::museum_manager::MuseumManager;
+use crate::de::hysky::skyblocker::skyblock::profileviewer2::widgets::inventory_widget::InventoryWidget;
 
 /// java: public class HoveredItemStackUtils
 #[derive(Clone)]
@@ -20,11 +23,24 @@ impl HoveredItemStackUtils {
     pub fn get_provider(screen: &mcrust::net::minecraft::client::gui::screens::screen::Screen) -> Option<compat::Shared<dyn HoveredItemStackProvider>> {
         // java: if (screen instanceof HoveredItemStackProvider provider) return provider;
         //       else if (screen.getFocused() instanceof HoveredItemStackProvider provider) return provider;
-        // rust: port gap - the port hands this method the `Screen` husk; neither it nor its focused child (an index into
-        // its widget list) can be asked whether the mod object behind it implements the mod's own interface
-        // (`HoveredItemStackProvider`: SkyblockInventoryScreen, AccessoriesHelperWidget, ResultButton, MuseumManager,
-        // InventoryWidget). GAPS_batchA.md
-        let _ = screen;
+        // `screen instanceof HoveredItemStackProvider`: of the five providers only `SkyblockInventoryScreen` is a
+        // screen, and it has no game hosting yet (no `ModScreen`/`ModContainerScreen` adapter in its own file, which
+        // batch T does not own) - so no live screen can be one; the arm is the focused child below.
+        // `screen.getFocused() instanceof HoveredItemStackProvider`: the focused child is the game widget at
+        // `get_focused()`; a mod widget carries its object in its slot (`WidgetAdapter` / `ObjectWidgetSlot`).
+        let focused = screen.get_focused()?;
+        let slot = screen.widget(focused).mod_widget()?;
+        if let Some(o) = slot.with::<compat::WidgetAdapter<ResultButton>, _>(|a| a.object().clone()) {
+            return Some(o as compat::Shared<dyn HoveredItemStackProvider>);
+        }
+        if let Some(o) = slot.with::<compat::WidgetAdapter<InventoryWidget>, _>(|a| a.object().clone()) {
+            return Some(o as compat::Shared<dyn HoveredItemStackProvider>);
+        }
+        if let Some(o) = compat::batch_t_object_widget_object::<MuseumManager>(&slot) {
+            return Some(o as compat::Shared<dyn HoveredItemStackProvider>);
+        }
+        // `AccessoriesHelperWidget` likewise has no `ModWidget` hosting in its own file (it is never added to a
+        // screen: `attach_to_screen` is a recorded gap in GAPS_batchG), so it cannot be the focused child.
         return None;
     }
 

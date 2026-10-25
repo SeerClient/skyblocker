@@ -423,8 +423,9 @@ impl ModListEntry for ShortcutCategoryEntry {
         gui_graphics_extractor::centered_text(context.gl, context.minecraft, &FormattedText::from(self.category.target_name.clone()), entry.get_content_x_middle() - 85, entry.get_y() + TEXT_Y_OFFSET, common_colors::WHITE);
         gui_graphics_extractor::centered_text(context.gl, context.minecraft, &FormattedText::from(self.category.replacement_name.clone()), entry.get_content_x_middle() + 85, entry.get_y() + TEXT_Y_OFFSET, common_colors::WHITE);
         if self.category.tooltip.is_some() && entry.is_mouse_over(mouse_x as f64, mouse_y as f64) {
-            // java: graphics.setTooltipForNextFrame(tooltip, mouseX, mouseY);
-            // rust: port gap - the frame's deferred tooltip is not reachable from a mod's list row (GAPS_batchE.md)
+            // java: graphics.setTooltipForNextFrame(tooltip, mouseX, mouseY); - `setTooltipForNextFrame(font, Component, x, y)`,
+            // the component's one line
+            compat::batch_s_set_tooltip_for_next_frame(vec![FormattedText::from(self.category.tooltip.clone().unwrap())]);
         }
     }
 
@@ -772,6 +773,10 @@ pub struct KeybindShortcutEntry {
     /// `ShortcutsConfigListWidget.this::updateKeybinds`, which the button's update listener runs: the button is
     /// reached through this row's own call, so the listener marks it and the row runs it as the call returns
     pub update_requested: std::rc::Rc<std::cell::Cell<bool>>,
+    /// `replacement.getValue()` as the key button's narration lambda reads it: the box is a widget of this row's
+    /// `children`, which the lambda cannot reach, so the row keeps this copy current (`run_requested_update`, the
+    /// one place an edit of the box returns through)
+    pub replacement_for_narration: std::rc::Rc<std::cell::RefCell<String>>,
 }
 
 // SAFETY: see `RowThread`.
@@ -788,6 +793,7 @@ impl KeybindShortcutEntry {
     pub fn new_2(list: &AbstractSelectionList, category: std::sync::Arc<CategoryInfo>, key_binding: ShortcutKeyBinding) -> KeybindShortcutEntry {
         // java: super(category, keyBinding);
         let replacement_value = with_shortcuts_data(|data| data.key_bindings.get(&key_binding).cloned()).unwrap_or_default();
+        let replacement_for_narration = std::rc::Rc::new(std::cell::RefCell::new(replacement_value.clone()));
         let (mut base, replacement) = ShortcutEntryBase::new(list, category, replacement_value);
         let bound_keys_text = key_binding.get_bound_keys_text();
         let key_binding = compat::shared(key_binding);
@@ -797,14 +803,22 @@ impl KeybindShortcutEntry {
         //   textSupplier -> keyBinding.isUnbound() ? translatable("narrator.controls.unbound", replacement.getValue())
         //                                          : translatable("narrator.controls.bound", replacement.getValue(), textSupplier.get()),
         //   ShortcutsConfigListWidget.this::updateKeybinds);
-        // rust: port gap - the narration supplier reads `replacement` and `keyBinding` live in Java; the port's
-        //   `CreateNarration` is data, so the default narration stands (GAPS_batchE.md)
-        let keybind_button = KeybindWidget::new(key_binding.clone(), list.get_width() / 2 - 160, TEXT_Y_OFFSET, 150, 20, bound_keys_text, Arc::new(move || request.set(true)));
+        let narration_key_binding = key_binding.clone();
+        let narration_replacement = replacement_for_narration.clone();
+        let narration: Arc<dyn Fn(&dyn Fn() -> FormattedText) -> FormattedText> = Arc::new(move |text_supplier: &dyn Fn() -> FormattedText| {
+            let replacement_text = FormattedText::of(narration_replacement.borrow().clone());
+            if compat::read(&narration_key_binding, |k| k.is_unbound()) {
+                FormattedText::from(component::translatable_args("narrator.controls.unbound", vec![replacement_text]))
+            } else {
+                FormattedText::from(component::translatable_args("narrator.controls.bound", vec![replacement_text, text_supplier()]))
+            }
+        });
+        let keybind_button = KeybindWidget::new_with_narration(key_binding.clone(), list.get_width() / 2 - 160, TEXT_Y_OFFSET, 150, 20, bound_keys_text, narration, Arc::new(move || request.set(true)));
         // java: replacement.setResponder(_ -> ShortcutsConfigListWidget.this.updateKeybinds()); - see `run_requested_update`
         // java: children = List.of(keybindButton, replacement);
         let keybind_button_index = base.children.add_renderable_widget(KeybindWidget::widget(keybind_button.clone()));
         base.replacement = base.children.add_renderable_widget(replacement);
-        KeybindShortcutEntry { base, key_binding, keybind_button, keybind_button_index, conflicting: false, duplicate: false, update_requested }
+        KeybindShortcutEntry { base, key_binding, keybind_button, keybind_button_index, conflicting: false, duplicate: false, update_requested, replacement_for_narration }
     }
 
     /// The key button's message (`getMessage()`): the widget half the game holds.
@@ -893,7 +907,11 @@ impl KeybindShortcutEntry {
     /// After a call into the row's widgets: the key button's update listener and the replacement's responder
     /// (`ShortcutsConfigListWidget.this::updateKeybinds`), which ran inside it.
     fn run_requested_update(&mut self, list: &ModSelectionList, index: usize, replacement_before: &str) {
-        if self.update_requested.replace(false) || self.base.replacement_value() != replacement_before {
+        let replacement_now = self.base.replacement_value();
+        if replacement_now != replacement_before {
+            *self.replacement_for_narration.borrow_mut() = replacement_now.clone();
+        }
+        if self.update_requested.replace(false) || replacement_now != replacement_before {
             ShortcutsConfigListWidget::update_keybinds(&list.list, Some((index, self)));
         }
     }

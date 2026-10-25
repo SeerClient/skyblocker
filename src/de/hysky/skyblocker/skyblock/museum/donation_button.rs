@@ -34,7 +34,7 @@ pub const SIZE: i32 = 33;
 /// java: private static final int ITEM_OFFSET = 8;
 pub const ITEM_OFFSET: i32 = 8;
 /// java: private static final Font TEXT_RENDERER = Minecraft.getInstance().font;
-pub static TEXT_RENDERER: compat::MainThread<Font> = compat::MainThread::new(|| compat::font());
+pub static TEXT_RENDERER: compat::LiveFont = compat::LiveFont;
 
 /// java: public class DonationButton extends AbstractWidget
 #[derive(Clone)]

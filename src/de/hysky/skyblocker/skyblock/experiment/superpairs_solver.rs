@@ -50,8 +50,6 @@ impl std::ops::DerefMut for SuperpairsSolver {
 impl SuperpairsSolver {
     /// java: public SuperpairsSolver()
     pub fn new() -> compat::Shared<Self> {
-        // TODO(fabric2seer): the initialiser of `superpairsDuplicatedSlots`: `new IntArraySet(..)`
-        //   java: private final IntSet superpairsDuplicatedSlots = new IntArraySet(28);
         let (_, __this) = ExperimentSolverBase::new_in("^Superpairs \\(\\w+\\)$".to_string(), move |__base| {
             let __h = compat::shared(Self {
                 base: __base,
@@ -135,7 +133,7 @@ impl ContainerSolver for SuperpairsSolver {
     }
 
     /// java: @Override public List<ColorHighlight> getColors(Int2ObjectMap<ItemStack> displaySlots) (dispatch: the body for this class)
-    fn get_colors(&self) -> fn(&compat::Shared<dyn ContainerSolver>, &mut std::collections::HashMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack>) -> Vec<ColorHighlight> {
+    fn get_colors(&self) -> fn(&compat::Shared<dyn ContainerSolver>, &mut std::collections::BTreeMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack>) -> Vec<ColorHighlight> {
         SuperpairsSolver::get_colors_dyn
     }
 
@@ -219,7 +217,7 @@ impl SuperpairsSolver {
     }
 
     /// java: @Override public List<ColorHighlight> getColors(Int2ObjectMap<ItemStack> displaySlots)
-    pub fn get_colors_impl(__this: &compat::Shared<Self>, display_slots: &mut std::collections::HashMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack>) -> Vec<ColorHighlight> {
+    pub fn get_colors_impl(__this: &compat::Shared<Self>, display_slots: &mut std::collections::BTreeMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack>) -> Vec<ColorHighlight> {
         let mut highlights: Vec<ColorHighlight> = Vec::new();
         if ({ let __f = compat::dispatch(__this, |__t| __t.get_state()); __f(&compat::view(__this, |a| a as compat::Shared<dyn ExperimentSolver>)) }) == State::Show {
             for index_stack in display_slots.iter().map(|(k, v)| (k.clone(), v.clone())) {
@@ -241,7 +239,7 @@ impl SuperpairsSolver {
     }
 
     /// SuperpairsSolver.getColors as the dispatch of ContainerSolver.getColors
-    pub fn get_colors_dyn(__this: &compat::Shared<dyn ContainerSolver>, __p0: &mut std::collections::HashMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack>) -> Vec<ColorHighlight> {
+    pub fn get_colors_dyn(__this: &compat::Shared<dyn ContainerSolver>, __p0: &mut std::collections::BTreeMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack>) -> Vec<ColorHighlight> {
         Self::get_colors_impl(&compat::view_as::<Self, _, Self>(__this, |a| a), __p0)
     }
 

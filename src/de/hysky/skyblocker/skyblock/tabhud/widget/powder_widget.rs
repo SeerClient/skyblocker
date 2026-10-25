@@ -103,8 +103,7 @@ impl PowderWidget {
 
     /// java: private int parseAmount(Matcher matcher)
     pub fn parse_amount(__this: &compat::Shared<Self>, matcher: &compat::regex::Matcher) -> i32 {
-        // TODO(fabric2seer): static call NumberUtils.toInt(..)
-        //   java: return NumberUtils.toInt(matcher.group(1).replace(",", ""));
+        // java: return NumberUtils.toInt(matcher.group(1).replace(",", ""));
         compat::number_utils_to_int(&matcher.group(1).unwrap().replace(",", ""), 0)
     }
 
@@ -226,7 +225,9 @@ impl ElementCollector for PowderWidget {
 impl PowderWidget {
     /// java: @Override public void updateContent(PlayerListManager.Widget widget)
     pub fn update_content_1_impl(__this: &compat::Shared<Self>, widget: &Widget) {
-        let mut matcher: compat::regex::Matcher = compat::regex::Pattern::compile("").matcher("");
+        // PERF (port-only, same result): the placeholder pattern compiled once, not two regexes per update.
+        static EMPTY_PATTERN: LazyLock<compat::regex::Pattern> = LazyLock::new(|| compat::regex::Pattern::compile(""));
+        let mut matcher: compat::regex::Matcher = EMPTY_PATTERN.matcher("");
         let mut ms_after_last_update: i64 = (util::get_millis()).wrapping_sub(compat::read(__this, |__t| __t.last_update));
         for line in widget.lines() {
             if true && matcher.reset_with(&line.get_string()).use_pattern(&MITHRIL_PATTERN).matches() {

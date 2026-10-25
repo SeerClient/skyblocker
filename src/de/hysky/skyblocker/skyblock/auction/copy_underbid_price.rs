@@ -116,7 +116,7 @@ impl ContainerSolver for CopyUnderbidPrice {
     }
 
     /// java: @Override public List<ColorHighlight> getColors(Int2ObjectMap<ItemStack> slots) (dispatch: the body for this class)
-    fn get_colors(&self) -> fn(&compat::Shared<dyn ContainerSolver>, &mut std::collections::HashMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack>) -> Vec<ColorHighlight> {
+    fn get_colors(&self) -> fn(&compat::Shared<dyn ContainerSolver>, &mut std::collections::BTreeMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack>) -> Vec<ColorHighlight> {
         CopyUnderbidPrice::get_colors_dyn
     }
 
@@ -185,7 +185,7 @@ impl CopyUnderbidPrice {
         // java: client.keyboardHandler.setClipboard(String.valueOf(underbid));
         {
             let mut __memory = mcrust::net::minecraft::client::gui::components::edit_box::MemoryClipboard::default();
-            match mcrust::net::minecraft::client::minecraft::GlfwClipboard::published() {
+            match mcrust::net::minecraft::client::minecraft::SdlClipboard::published() {
                 Some(mut __glfw) => client.keyboard_handler.set_clipboard(&mut __glfw, &underbid.to_string()),
                 None => client.keyboard_handler.set_clipboard(&mut __memory, &underbid.to_string()),
             }
@@ -203,12 +203,12 @@ impl CopyUnderbidPrice {
     }
 
     /// java: @Override public List<ColorHighlight> getColors(Int2ObjectMap<ItemStack> slots)
-    pub fn get_colors_impl(__this: &compat::Shared<Self>, slots: &mut std::collections::HashMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack>) -> Vec<ColorHighlight> {
+    pub fn get_colors_impl(__this: &compat::Shared<Self>, slots: &mut std::collections::BTreeMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack>) -> Vec<ColorHighlight> {
         return vec![];
     }
 
     /// CopyUnderbidPrice.getColors as the dispatch of ContainerSolver.getColors
-    pub fn get_colors_dyn(__this: &compat::Shared<dyn ContainerSolver>, __p0: &mut std::collections::HashMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack>) -> Vec<ColorHighlight> {
+    pub fn get_colors_dyn(__this: &compat::Shared<dyn ContainerSolver>, __p0: &mut std::collections::BTreeMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack>) -> Vec<ColorHighlight> {
         Self::get_colors_impl(&compat::view_as::<Self, _, Self>(__this, |a| a), __p0)
     }
 

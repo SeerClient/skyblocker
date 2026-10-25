@@ -64,8 +64,11 @@ impl SlayerBossBar {
         debug_assert!(slayer_armor_stand.is_some());
         let mut name: MutableComponent = mcrust::mcrust::modding::game::with_entity(slayer_armor_stand.unwrap(), |e| compat::component_of(e.get_name())).expect("NullPointerException: the slayer armor stand");
         if BOSS_BAR.get_mut().is_none() {
-            // TODO(fabric2seer): field `PURPLE` of a value of unknown type
             //   java: bossBar = new LerpingBossEvent(UUID.randomUUID(), name, 1f, BossEvent.BossBarColor.PURPLE, BossEvent.BossBarOverlay.PROGRESS, false, false, false);
+            // (the port's boss event id is the UUID's 128 bits; its constructor takes `Util.getMillis()` for the lerp start)
+            let id: Uuid = Uuid::random_uuid();
+            let id_bits: u128 = ((id.get_most_significant_bits() as u64 as u128) << 64) | (id.get_least_significant_bits() as u64 as u128);
+            *BOSS_BAR.get_mut() = Some(LerpingBossEvent::new(id_bits, mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(name.clone()), 1.0f32, mcrust::net::minecraft::world::boss_event::BossBarColor::Purple, mcrust::net::minecraft::world::boss_event::BossBarOverlay::Progress, false, false, false, mcrust::net::minecraft::util::util::get_millis()));
         }
         let mut health_matcher: compat::regex::Matcher = HEALTH_PATTERN.matcher(&name.get_string());
         if health_matcher.find() {

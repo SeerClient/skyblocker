@@ -115,7 +115,7 @@ impl CustomizeScreen {
         }));
         screen_events::AFTER_INIT.register(Arc::new(|screen: &mut Screen, width: i32, height: i32| {
             // java: screen instanceof InventoryScreen inventoryScreen
-            let is_inventory_screen = compat::minecraft().gui.screen_kind == mcrust::net::minecraft::client::gui::gui::ScreenKind::Inventory;
+            let is_inventory_screen = compat::is_inventory_screen_initialising();
             if Utils::is_on_skyblock() && SkyblockerConfigManager::get().ui_and_visuals.show_customize_button && is_inventory_screen && !crate::entry::catharsis_compatibility::is_gui_element_hidden("skyblocker:customizeButton") {
                 // java: new CustomizeButton(accessor.getX() + 63, accessor.getY() + 10) - the panel as the screen's `init` placed
                 //   it (`(width - imageWidth) / 2`, `(height - imageHeight) / 2`) when it has not been drawn yet
@@ -127,7 +127,7 @@ impl CustomizeScreen {
                 // java: Screens.getWidgets(inventoryScreen).add(button);
                 screen.add_renderable_widget(compat::object_widget(button, ""));
                 // java: inventoryScreen.registerRecipeBookToggleCallback(() -> button.setPosition(accessor.getX() + 63, accessor.getY() + 10));
-                // rust: the button follows the panel itself each frame (`CustomizeButton::extract_widget_render_state`),
+                // Port note: the button follows the panel itself each frame (`CustomizeButton::extract_widget_render_state`),
                 //   which is where the toggle callback moves it
             }
         }));
@@ -317,7 +317,7 @@ impl CustomizeScreen {
             CustomizeScreen::layout_tab(__this, screen, index, area);
         }
         // :62-64 - `Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F))`
-        // rust: port gap - a mod has no sound manager in the port (GAPS_batchE.md)
+        mcrust::mcrust::modding::game::play_ui_sound(mcrust::net::minecraft::sounds::sound_events::ui_button_click(), 1.0f32);
     }
 
     /// java: @Override public void added()

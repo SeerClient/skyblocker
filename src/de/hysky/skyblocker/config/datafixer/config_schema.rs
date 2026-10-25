@@ -22,13 +22,9 @@ impl ConfigSchema {
 
     /// java: @Override public void registerTypes(Schema schema, Map<String, Supplier<TypeTemplate>> entityTypes, Map<String, Supplier<TypeTemplate>> blockEntityTypes)
     pub fn register_types(schema: &mut Schema) {
-        // rust: port gap - Java registers these three with `recursive = true`; the port's
-        // `Schema.registerType(true, ..)` panics (no RecursiveTypeFamily). A `DSL.remainder()`
-        // template references no type, so its recursive and non-recursive types are the same
-        // `Named(name, remainder)`; registered non-recursively until the port folds recursive types.
-        schema.register_type(false, config_data_fixer::CONFIG_TYPE.get(), Arc::new(|_: &Schema| dsl::remainder()));
-        schema.register_type(false, config_data_fixer::CHAT_RULES_TYPE.get(), Arc::new(|_: &Schema| dsl::remainder()));
-        schema.register_type(false, config_data_fixer::HUD_WIDGETS_TYPE.get(), Arc::new(|_: &Schema| dsl::remainder()));
+        schema.register_type(true, config_data_fixer::CONFIG_TYPE.get(), Arc::new(|_: &Schema| dsl::remainder()));
+        schema.register_type(true, config_data_fixer::CHAT_RULES_TYPE.get(), Arc::new(|_: &Schema| dsl::remainder()));
+        schema.register_type(true, config_data_fixer::HUD_WIDGETS_TYPE.get(), Arc::new(|_: &Schema| dsl::remainder()));
     }
 
     /// java: @Override public Map<String, Supplier<TypeTemplate>> registerEntities(Schema schema)

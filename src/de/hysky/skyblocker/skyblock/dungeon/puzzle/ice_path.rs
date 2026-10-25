@@ -76,8 +76,44 @@ impl IcePath {
         if crate::de::hysky::skyblocker::debug::debug::Debug::debug_enabled() {
             client_command_registration_callback::EVENT.register(Arc::new(
                 |dispatcher: &mut client_command_registration_callback::ClientCommandDispatcher| {
-                    // TODO(fabric2seer): a command tree this tool cannot read (arguments, redirects, requires) - SeerClient commands receive the words after the name in `ctx.args`
-                    //   java: dispatcher.register(..);
+                    use mcrust::com::mojang::brigadier::builder::argument_builder::ArgumentBuilder as _;
+                    use crate::prelude::client_command_registration_callback as ccr;
+                    type Ctx = mcrust::com::mojang::brigadier::context::command_context::CommandContext<ccr::FabricClientCommandSource>;
+                    fn prefixed(text: mcrust::net::minecraft::network::chat::mutable_component::MutableComponent) -> mcrust::net::minecraft::network::chat::mutable_component::MutableComponent {
+                        (crate::de::hysky::skyblocker::utils::constants::PREFIX.get())().append(text)
+                    }
+                    // java: .then(literal(INSTANCE.puzzleName).then(literal("printBoard")..).then(literal("printPath")..)) under NAMESPACE dungeons puzzle
+                    fn vector_list(path: &[mcrust::org::joml::vector2i::Vector2i]) -> String {
+                        // `List<Vector2ic>.toString()` - `[` + each JOML `toString` `(x y)` + `]`
+                        format!("[{}]", path.iter().map(|v| format!("({} {})", v.x(), v.y())).collect::<Vec<_>>().join(", "))
+                    }
+                    fn board_to_string(board: &[Vec<bool>]) -> String {
+                        // java: Arrays.deepToString(INSTANCE.silverfishBoard)
+                        format!("[{}]", board.iter().map(|row| format!("[{}]", row.iter().map(|b| b.to_string()).collect::<Vec<_>>().join(", "))).collect::<Vec<_>>().join(", "))
+                    }
+                    let mut print_board = ccr::literal("printBoard");
+                    print_board.executes(Arc::new(|_: &Ctx| {
+                        let board = compat::read(INSTANCE.get(), |__t| __t.silverfish_board.clone());
+                        compat::batch_w_send_feedback(&prefixed(mcrust::net::minecraft::network::chat::component::literal(&board_to_string(&board))));
+                        Ok(1)
+                    }));
+                    let mut print_path = ccr::literal("printPath");
+                    print_path.executes(Arc::new(|_: &Ctx| {
+                        let path = compat::read(INSTANCE.get(), |__t| __t.silverfish_path.clone());
+                        compat::batch_w_send_feedback(&prefixed(mcrust::net::minecraft::network::chat::component::literal(&vector_list(&path))));
+                        Ok(1)
+                    }));
+                    let puzzle_name: String = compat::read(INSTANCE.get(), |__t| __t.dungeon_puzzle_base().puzzle_name.clone());
+                    let mut puzzle = ccr::literal(&puzzle_name);
+                    puzzle.then(&print_board);
+                    puzzle.then(&print_path);
+                    let mut __n0 = ccr::literal("puzzle");
+                    __n0.then(&puzzle);
+                    let mut __n1 = ccr::literal("dungeons");
+                    __n1.then(&__n0);
+                    let mut __n2 = ccr::literal(crate::entry::skyblocker_mod::NAMESPACE);
+                    __n2.then(&__n1);
+                    dispatcher.dispatcher().register(&__n2);
                 },
             ));
         }
@@ -216,9 +252,6 @@ impl IcePath {
                 row += 1;
             }
         }
-        // TODO(fabric2seer): the port's `get_entities_of_class` ports this Java method with other parameters (base_class, except, bb, selector for Java's base_class, bb, selector)
-        // TODO(fabric2seer): `get_entities_of_class` takes 4 argument(s) in the port (`base_class: crate::net::minecraft::world::level::entity::entity_type_test::EntityClass, except: Option<i32>, bb: &AABB, selector: &dyn Fn(&(dyn Entity + Send + Sync)) -> bool`), Java passes 3
-        // TODO(fabric2seer): a lambda for a parameter the port does not type as a closure (`Predicate<? super T>`)
         // (the port's class filter has no Silverfish.class: the base class Entity plus `instanceof Silverfish`)
         use mcrust::net::minecraft::world::level::entity_getter::EntityGetter as _;
         let search_box = AABB::of_size(&vec3::at_center_of(&({ let __f = compat::dispatch(&room, |__t| __t.relative_to_actual()); __f(&room, &BlockPos::new(15, 66, 16)) })), (16) as f64, (16) as f64, (16) as f64);

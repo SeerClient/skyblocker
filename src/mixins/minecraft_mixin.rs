@@ -24,17 +24,18 @@ fn skyblocker_handle_input_events(ci: &mut CallbackInfo<'_>) {
 /// @WrapOperation skyblocker$skyblockInventoryScreen
 ///   java: @WrapOperation(method = "handleKeybinds", at = @At(value = "NEW", target = "Lnet/minecraft/client/gui/screens/inventory/InventoryScreen;"))
 /// note: @At("NEW") is not expressible: SeerClient hooks fire at a method's HEAD, RETURN and TAIL, and at a hooked CALLEE inside another hooked method (`within`); field access, `new`, constants and jumps are not hook points
-/// rust: port gap - `new InventoryScreen(player)` is not a call SeerClient can select (`@At("NEW")`), and the mod's
-/// `SkyblockInventoryScreen extends InventoryScreen` has no mod container-screen adapter over `InventoryScreen`
-/// (GAPS_batchB #10); nothing to register.
-fn skyblocker_skyblock_inventory_screen(ci: &mut CallbackInfo<'_>, original: &mut Original<'_>) {
+///
+/// `new InventoryScreen(player)` is asked of `container_screens::register_inventory_screen`'s factories at every
+/// construction site the client has (the inventory key in `handleKeybinds`, leaving creative): the factory is this
+/// wrapper's body - `Some` is `new SkyblockInventoryScreen(player)`, `None` is `original.call(player)`.
+fn skyblocker_skyblock_inventory_screen() -> Option<Box<dyn mcrust::mcrust::modding::container_screens::ModContainerScreen>> {
     //   java: return Utils.isOnSkyblock() && SkyblockerConfigManager.get().uiAndVisuals.showEquipmentInInventory ? new SkyblockInventoryScreen(player) : original.call(player);
-    let _ = ci;
-    let _ = original;
+    crate::de::hysky::skyblocker::skyblock::item::skyblock_inventory_screen::SkyblockInventoryScreen::inventory_screen_factory()
 }
 
 /// Mixins apply before the game runs: the `preLaunch` entrypoint calls this.
 pub fn register() {
     report(hook::register_injector("net.minecraft.client.Minecraft#handleKeybinds", InjectOptions::at(At::Head).kind(InjectorKind::Inject).priority(1000), Arc::new(skyblocker_handle_input_events)));
-    // TODO(fabric2seer): @WrapOperation skyblocker$skyblockInventoryScreen: nothing to register - @At("NEW") is not expressible: SeerClient hooks fire at a method's HEAD, RETURN and TAIL, and at a hooked CALLEE inside another hooked method (`within`); field access, `new`, constants and jumps are not hook points
+    // @WrapOperation skyblocker$skyblockInventoryScreen (`@At("NEW") InventoryScreen`): the inventory-screen factory
+    mcrust::mcrust::modding::container_screens::register_inventory_screen(skyblocker_skyblock_inventory_screen);
 }

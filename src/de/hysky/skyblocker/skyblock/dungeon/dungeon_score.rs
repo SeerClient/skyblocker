@@ -125,20 +125,25 @@ impl DungeonScore {
         }));
         dungeon_events::DUNGEON_STARTED.register(Arc::new(move || { DungeonScore::on_dungeon_start(); }));
         dungeon_events::DUNGEON_ENDED.register(Arc::new(move || { DungeonScore::reset(); }));
-        // TODO(fabric2seer): ClientReceiveMessageEvents.ALLOW_GAME.register: no SeerClient equivalent yet
-        //   java: ClientReceiveMessageEvents.ALLOW_GAME.register((message, overlay) -> {
-        //   java: 			if (overlay || !Utils.isInDungeons()) return true;
-        //   java: 			String str = message.getString();
-        //   java: 			if (dungeonStarted) {
-        //   java: 				checkMessageForDeaths(str);
-        //   java: 				checkMessageForWatcher(str);
-        //   java: 				if (floorHasMimics) checkMessageForMimic(str); //Only called when the message is not cancelled & isn't on the action bar, complementing MimicFilter
-        //   java: 				checkMessageForPrince(str);
-        //   java: 				checkMessageForBat(str);
-        //   java: 			}
-        //   java:
-        //   java: 			return true;
-        //   java: 		});
+        // java: ClientReceiveMessageEvents.ALLOW_GAME.register((message, overlay) -> {..});
+        compat::register_allow_game(|message, overlay| {
+            // java: if (overlay || !Utils.isInDungeons()) return true;
+            if overlay || !Utils::is_in_dungeons() {
+                return true;
+            }
+            let str: String = message.get_string();
+            if compat::get_state(&DUNGEON_STARTED) {
+                DungeonScore::check_message_for_deaths(&str);
+                DungeonScore::check_message_for_watcher(&str);
+                // Only called when the message is not cancelled & isn't on the action bar, complementing MimicFilter
+                if compat::get_state(&FLOOR_HAS_MIMICS) {
+                    DungeonScore::check_message_for_mimic(&str);
+                }
+                DungeonScore::check_message_for_prince(&str);
+                DungeonScore::check_message_for_bat(&str);
+            }
+            return true;
+        });
         skyblock_events::MAYOR_CHANGE.register(Arc::new(move || { compat::set_state(&IS_MAYOR_PAUL, MayorUtils::get_active_perks().iter().any(|e| *e == "EZPZ")); }));
     }
 

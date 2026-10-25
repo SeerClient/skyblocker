@@ -11,12 +11,8 @@ use mcrust::com::mojang::serialization::codecs::record_codec_builder;
 pub static DEFAULT: compat::MainThread<PositionRule> = compat::MainThread::new(|| PositionRule::new_canonical(None, POINT_DEFAULT.clone(), POINT_DEFAULT.clone(), 5, 5));
 /// java: public static final Codec<PositionRule> CODEC = RecordCodecBuilder.create(instance -> instance.group( Codec.STRING.optionalFieldOf("parent").forGetter(PositionRule::parent), Point.CODEC.fieldOf("paren
 pub static CODEC: compat::MainThread<CodecRef<PositionRule>> = compat::MainThread::new(|| record_codec_builder::create(record_codec_builder::apply5(record_codec_builder::of(|o: &PositionRule| o.parent(), codec::optional_field_of_opt(mcrust::com::mojang::serialization::codec::string_codec(), "parent")), record_codec_builder::of(|o: &PositionRule| o.parent_point(), codec::field_of(POINT_CODEC.get_mut().clone(), "parent_anchor")), record_codec_builder::of(|o: &PositionRule| o.this_point(), codec::field_of(POINT_CODEC.get_mut().clone(), "this_anchor")), record_codec_builder::of(|o: &PositionRule| o.relative_x(), codec::field_of(mcrust::com::mojang::serialization::codec::int_codec(), "relative_x")), record_codec_builder::of(|o: &PositionRule| o.relative_y(), codec::field_of(mcrust::com::mojang::serialization::codec::int_codec(), "relative_y")), move |__a0, __a1, __a2, __a3, __a4| PositionRule::new_canonical(__a0, __a1, __a2, __a3, __a4))));
-// TODO(fabric2seer): `.valueOf(..)` on a A
-//   java: public static final Codec<HorizontalPoint> CODEC = Codec.STRING.xmap(HorizontalPoint::valueOf, HorizontalPoint::name);
 /// java: public static final Codec<HorizontalPoint> CODEC = Codec.STRING.xmap(HorizontalPoint::valueOf, HorizontalPoint::name);
 pub static HORIZONTAL_POINT_CODEC: compat::MainThread<CodecRef<HorizontalPoint>> = compat::MainThread::new(|| codec::xmap(codec::string_codec(), |s: String| HorizontalPoint::value_of(&s), |p: &HorizontalPoint| p.name().to_string()));
-// TODO(fabric2seer): `.valueOf(..)` on a A
-//   java: public static final Codec<VerticalPoint> CODEC = Codec.STRING.xmap(VerticalPoint::valueOf, VerticalPoint::name);
 /// java: public static final Codec<VerticalPoint> CODEC = Codec.STRING.xmap(VerticalPoint::valueOf, VerticalPoint::name);
 pub static VERTICAL_POINT_CODEC: compat::MainThread<CodecRef<VerticalPoint>> = compat::MainThread::new(|| codec::xmap(codec::string_codec(), |s: String| VerticalPoint::value_of(&s), |p: &VerticalPoint| p.name().to_string()));
 /// java: public static final Point DEFAULT = new Point(VerticalPoint.TOP, HorizontalPoint.LEFT);

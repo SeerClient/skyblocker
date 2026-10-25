@@ -55,8 +55,9 @@ impl NewYearCakesHelper {
             });
             ((__h.clone() as compat::Shared<dyn SimpleContainerSolver>), __h)
         });
-        // TODO(fabric2seer): ClientReceiveMessageEvents.ALLOW_GAME.register: no SeerClient equivalent yet
-        //   java: ClientReceiveMessageEvents.ALLOW_GAME.register(this::onChatMessage);
+        // java: ClientReceiveMessageEvents.ALLOW_GAME.register(this::onChatMessage); - the listener holds this object
+        let __this_allow_game = compat::RenderThread::new(__this.clone());
+        compat::register_allow_game(move |text, overlay| NewYearCakesHelper::on_chat_message(__this_allow_game.get(), text, overlay));
         __this
     }
 
@@ -69,17 +70,12 @@ impl NewYearCakesHelper {
     pub fn get_cake_year_2(pattern: &compat::regex::Pattern, name: &str) -> i32 {
         let mut matcher: compat::regex::Matcher = pattern.matcher(name);
         if matcher.matches() {
-            // java: try {..} catch (ParseException e) - an exception here is a panic, caught by `catch_unwind`; the body's `return` is the closure's value
-            match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                // java: return Formatters.INTEGER_NUMBERS.parse(matcher.group("year")).intValue();
-                // rust: port gap - `DecimalFormat.parse` is not ported (GAPS_batchG). `year` is `\d+`, which the
-                // integer instance parses to its decimal value (a Long; `intValue` keeps the low 32 bits)
-                let year: String = matcher.group_named("year").unwrap();
-                return year.parse::<i64>().map(|v| v as i32).unwrap_or_else(|_| year.parse::<f64>().unwrap() as i32);
-            })) {
-                Ok(__v) => return __v,
+            // java: try { return Formatters.INTEGER_NUMBERS.parse(matcher.group("year")).intValue(); } catch (ParseException e) { LOGGER.info(..); }
+            let year: String = matcher.group_named("year").unwrap_or_default();
+            match formatters::INTEGER_NUMBERS.get().parse(&year) {
+                Ok(__v) => return __v.int_value(),
                 Err(e) => {
-                    logger().info(&format!("Failed to parse year from New Year Cake: {} {}", name, compat::panic_message(&e)));
+                    logger().info(&format!("Failed to parse year from New Year Cake: {} {}", name, e.message));
                 }
             }
         }
@@ -148,7 +144,7 @@ impl ContainerMatcher for NewYearCakesHelper {
 
 impl ContainerSolver for NewYearCakesHelper {
     /// java: @Override public List<ColorHighlight> getColors(Int2ObjectMap<ItemStack> slots) (dispatch: the body for this class)
-    fn get_colors(&self) -> fn(&compat::Shared<dyn ContainerSolver>, &mut std::collections::HashMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack>) -> Vec<ColorHighlight> {
+    fn get_colors(&self) -> fn(&compat::Shared<dyn ContainerSolver>, &mut std::collections::BTreeMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack>) -> Vec<ColorHighlight> {
         NewYearCakesHelper::get_colors_dyn
     }
 
@@ -178,7 +174,7 @@ impl NewYearCakesHelper {
     }
 
     /// java: @Override public List<ColorHighlight> getColors(Int2ObjectMap<ItemStack> slots)
-    pub fn get_colors_impl(__this: &compat::Shared<Self>, slots: &mut std::collections::HashMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack>) -> Vec<ColorHighlight> {
+    pub fn get_colors_impl(__this: &compat::Shared<Self>, slots: &mut std::collections::BTreeMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack>) -> Vec<ColorHighlight> {
         let mut profile: String = Utils::get_profile();
         if __this.lock().borrow().cakes.is_empty() || !(__this.lock().borrow().cakes.contains_key(&profile)) || __this.lock().borrow().cakes.contains_key(&profile) && __this.lock().borrow().cakes.get(&profile).cloned().unwrap().is_empty() {
             return vec![];
@@ -194,7 +190,7 @@ impl NewYearCakesHelper {
     }
 
     /// NewYearCakesHelper.getColors as the dispatch of ContainerSolver.getColors
-    pub fn get_colors_dyn(__this: &compat::Shared<dyn ContainerSolver>, __p0: &mut std::collections::HashMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack>) -> Vec<ColorHighlight> {
+    pub fn get_colors_dyn(__this: &compat::Shared<dyn ContainerSolver>, __p0: &mut std::collections::BTreeMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack>) -> Vec<ColorHighlight> {
         Self::get_colors_impl(&compat::view_as::<Self, _, Self>(__this, |a| a), __p0)
     }
 

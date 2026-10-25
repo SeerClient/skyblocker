@@ -9,7 +9,7 @@ use crate::prelude::*;
 /// field the override reads: `width` (its `Screen`), `imageWidth`, `leftPos`, `topPos`.
 fn init(this: &mut mcrust::net::minecraft::client::gui::screens::inventory::abstract_container_screen::AbstractContainerScreen) {
     // java: super.init(); - the override runs at the TAIL of `AbstractContainerScreen#init` (see `register`).
-    if crate::de::hysky::skyblocker::utils::utils::Utils::is_on_skyblock() && crate::de::hysky::skyblocker::config::skyblocker_config_manager::SkyblockerConfigManager::get().ui_and_visuals.museum_overlay && mcrust::mcrust::modding::game::with_player(|_| ()).is_some() && this.screen.get_title().to_string().contains("Museum") {
+    if crate::de::hysky::skyblocker::utils::utils::Utils::is_on_skyblock() && crate::de::hysky::skyblocker::config::skyblocker_config_manager::SkyblockerConfigManager::get().ui_and_visuals.museum_overlay && mcrust::mcrust::modding::game::has_player() && this.screen.get_title().to_string().contains("Museum") {
         let mut overlay_width: i32 = crate::de::hysky::skyblocker::skyblock::museum::museum_manager::BACKGROUND_WIDTH;
         let mut spacing: i32 = crate::de::hysky::skyblocker::skyblock::museum::museum_manager::SPACING;
         // Default: center inventory
@@ -40,27 +40,26 @@ fn init_override(ci: &mut CallbackInfo<'_>) {
 
 /// @ModifyVariable x
 ///   java: @ModifyVariable(method = "extractBackground", at = @At("STORE"), name = "xo")
-/// rust: port gap - `xo` / `yo` are the pair `container_screen::background_position` answers inside
-/// `extract_background`, and that function is not hooked (GAPS_batchD); the background stays centred.
+///   java: public int x(int ignored) { return this.leftPos; }
+/// The STORE is the game's hooked `ContainerScreen#xo(this, xo)`; `this` is argument 0.
 fn x(ci: &mut CallbackInfo<'_>) {
-    //   java: @ModifyVariable(method = "extractBackground", at = @At("STORE"), name = "xo")
-    //   java: 	public int x(int ignored) {
-    //   java: 		return this.leftPos;
-    //   java: 	}
+    let Some(this) = ci.arg::<mcrust::net::minecraft::client::gui::screens::inventory::abstract_container_screen::AbstractContainerScreen>(0) else { return; };
+    let left_pos = this.left_pos;
+    ci.set_return_value(left_pos);
 }
 
 /// @ModifyVariable y
 ///   java: @ModifyVariable(method = "extractBackground", at = @At("STORE"), name = "yo")
-/// rust: port gap - see `x`.
+///   java: public int y(int ignored) { return this.topPos; }
 fn y(ci: &mut CallbackInfo<'_>) {
-    //   java: @ModifyVariable(method = "extractBackground", at = @At("STORE"), name = "yo")
-    //   java: 	public int y(int ignored) {
-    //   java: 		return this.topPos;
-    //   java: 	}
+    let Some(this) = ci.arg::<mcrust::net::minecraft::client::gui::screens::inventory::abstract_container_screen::AbstractContainerScreen>(0) else { return; };
+    let top_pos = this.top_pos;
+    ci.set_return_value(top_pos);
 }
 
 /// Mixins apply before the game runs: the `preLaunch` entrypoint calls this.
 pub fn register() {
     report(hook::register_injector("net.minecraft.client.gui.screens.inventory.AbstractContainerScreen#init", InjectOptions::at(At::Tail).kind(InjectorKind::Inject).priority(1000), Arc::new(init_override)));
-    // @ModifyVariable x / y: nothing to register - see `x`.
+    report(hook::register_injector("net.minecraft.client.gui.screens.inventory.ContainerScreen#xo", InjectOptions::at(At::Return).kind(InjectorKind::ModifyReturnValue).priority(1000), Arc::new(x)));
+    report(hook::register_injector("net.minecraft.client.gui.screens.inventory.ContainerScreen#yo", InjectOptions::at(At::Return).kind(InjectorKind::ModifyReturnValue).priority(1000), Arc::new(y)));
 }

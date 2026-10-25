@@ -42,23 +42,20 @@ impl FloorDrops {
     pub fn init() {
         ({ let __r = scheduler::INSTANCE.get_mut(); let __f = compat::dispatch(__r, |__t| __t.schedule_cyclic()); __f(__r, Arc::new(move || { FloorDrops::update(); }), 20) });
         level_render_extraction_callback::EVENT.register(Arc::new(move |__a0| { FloorDrops::extract_rendering(&__a0); }));
-        // TODO(fabric2seer): AttackBlockCallback.EVENT.register: no SeerClient equivalent yet
-        //   java: AttackBlockCallback.EVENT.register((_, _, _, pos, _) -> {
-        //   java: 			if (!shouldProcess()) {
-        //   java: 				return InteractionResult.PASS;
-        //   java: 			}
-        //   java: 			forestNodes.remove(pos);
-        //   java: 			return InteractionResult.PASS;
-        //   java: 		});
-        // TODO(fabric2seer): UseBlockCallback.EVENT.register: no SeerClient equivalent yet
-        //   java: UseBlockCallback.EVENT.register((_, _, _, hitResult) -> {
-        //   java: 			if (!shouldProcess()) {
-        //   java: 				return InteractionResult.PASS;
-        //   java: 			}
-        //   java: 			BlockPos pos = hitResult.getBlockPos();
-        //   java: 			forestNodes.remove(pos);
-        //   java: 			return InteractionResult.PASS;
-        //   java: 		});
+        // java: AttackBlockCallback.EVENT.register((_, _, _, pos, _) -> { if (!shouldProcess()) return PASS; forestNodes.remove(pos); return PASS; });
+        mcrust::mcrust::modding::events::attack_block_callback::register(|_, _, _, pos, _| {
+            if FloorDrops::should_process() {
+                FOREST_NODES.get_mut().remove(pos);
+            }
+            mcrust::net::minecraft::world::interaction_result::InteractionResult::Pass
+        });
+        // java: UseBlockCallback.EVENT.register((_, _, _, hitResult) -> { if (!shouldProcess()) return PASS; forestNodes.remove(hitResult.getBlockPos()); return PASS; });
+        mcrust::mcrust::modding::events::use_block_callback::register(|_, _, _, hit_result| {
+            if FloorDrops::should_process() {
+                FOREST_NODES.get_mut().remove(&hit_result.get_block_pos());
+            }
+            mcrust::net::minecraft::world::interaction_result::InteractionResult::Pass
+        });
         client_play_connection_events::JOIN.register(Arc::new(|listener: &mut ClientPacketListener| {
             FloorDrops::reset();
         }));
@@ -71,12 +68,12 @@ impl FloorDrops {
             return;
         }
         // java: ParticleType<?> particleType = packet.getParticle().getType(); if (!ParticleTypes.HAPPY_VILLAGER.getType().equals(particleType)) return;
-        if !packet.get_particle().is_some_and(|particle| compat::particle_type_is(particle, mcrust::net::minecraft::core::particles::particle_types::happy_villager())) {
+        if !packet.particle().is_some_and(|particle| compat::particle_type_is(particle, mcrust::net::minecraft::core::particles::particle_types::happy_villager())) {
             return;
         }
-        let mut x: f64 = packet.get_x();
-        let mut y: f64 = (packet.get_y() - (1 as f64));
-        let mut z: f64 = packet.get_z();
+        let mut x: f64 = packet.x();
+        let mut y: f64 = (packet.y() - (1 as f64));
+        let mut z: f64 = packet.z();
         let mut pos: BlockPos = BlockPos::containing(x, y, z);
         if mcrust::mcrust::modding::game::level().is_some() {
             let mut string_item_count: i32 = FloorDrops::count_string_item_displays(&pos);

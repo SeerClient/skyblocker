@@ -6,15 +6,14 @@ use crate::prelude::*;
 
 /// @WrapWithCondition skyblocker$dontLogInvalidOwner
 ///   java: @WrapWithCondition(method = "recreateFromPacket", at = @At(
-/// target: org.slf4j.Logger#error(Ljava/lang/String;Ljava/lang/Object;Ljava/lang/Object;)V  [class not in JavaSrc]
+/// target: org.slf4j.Logger#error(Ljava/lang/String;Ljava/lang/Object;Ljava/lang/Object;)V  [exists: org/slf4j/logger.rs]
 /// within: net.minecraft.world.entity.projectile.FishingHook#recreateFromPacket
-/// note: class not in JavaSrc: org.slf4j.Logger has no file in JavaSrc/src - a remapping problem, or a class this Minecraft version does not have
 fn skyblocker_dont_log_invalid_owner(ci: &CallbackInfo<'_>) -> bool {
     return !(crate::de::hysky::skyblocker::utils::utils::Utils::is_on_hypixel());
 }
 
 /// Mixins apply before the game runs: the `preLaunch` entrypoint calls this.
 pub fn register() {
-    // TODO(fabric2seer): not registered - class not in JavaSrc: org.slf4j.Logger has no file in JavaSrc/src - a remapping problem, or a class this Minecraft version does not have
-    // report(hook::call_site(`net.minecraft.world.entity.projectile.FishingHook#recreateFromPacket`, `org.slf4j.Logger#error(Ljava/lang/String;Ljava/lang/Object;Ljava/lang/Object;)V`).priority(1000).wrap_with_condition(skyblocker_dont_log_invalid_owner));
+    // `org.slf4j.Logger` is the game's `org::slf4j::logger::Logger` (its overloads are hooked by descriptor).
+    report(hook::call_site("net.minecraft.world.entity.projectile.FishingHook#recreateFromPacket", "org.slf4j.Logger#error(Ljava/lang/String;Ljava/lang/Object;Ljava/lang/Object;)V").priority(1000).wrap_with_condition(skyblocker_dont_log_invalid_owner));
 }

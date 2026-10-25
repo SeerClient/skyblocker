@@ -27,8 +27,8 @@ impl MathTeacherHelper {
 
     /// java: @Init public static void init()
     pub fn init() {
-        // TODO(fabric2seer): ClientReceiveMessageEvents.MODIFY_GAME.register: no SeerClient equivalent yet
-        //   java: ClientReceiveMessageEvents.MODIFY_GAME.register(MathTeacherHelper::onMessage);
+        // java: ClientReceiveMessageEvents.MODIFY_GAME.register(MathTeacherHelper::onMessage);
+        compat::register_modify_game(|message, overlay| MathTeacherHelper::on_message(message, overlay));
     }
 
     /// java: public static Component onMessage(Component message, boolean overlay)

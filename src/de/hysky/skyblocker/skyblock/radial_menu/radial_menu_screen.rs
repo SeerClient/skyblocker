@@ -197,13 +197,12 @@ impl RadialMenuScreen {
     pub fn mouse_moved(__this: &compat::Shared<Self>, mut mouse_x: f64, mut mouse_y: f64) {
         //   java: super.mouseMoved(mouseX, mouseY); - `GuiEventListener.mouseMoved`'s empty default (neither `Screen` nor
         //   `AbstractContainerEventHandler` overrides it)
-        // rust: port gap - `ModScreen` has no `mouseMoved` slot, so the game never calls this method (GAPS_K)
-        if compat::minecraft().gui.screen().is_none() {
-            return;
-        }
-        let mut actual_x: f32 = ((((mouse_x * (2 as f64))) as f32) - (compat::minecraft().gui.screen().unwrap().width as f32));
-        let mut actual_y: f32 = ((((mouse_y * (2 as f64))) as f32) - (compat::minecraft().gui.screen().unwrap().height as f32));
-        if actual_x > ((compat::minecraft().gui.screen().unwrap().width).wrapping_sub(100) as f32) && actual_y > ((compat::minecraft().gui.screen().unwrap().height).wrapping_sub(50) as f32) {
+        // java: if (CLIENT.screen == null) return; - the game calls this only on the screen that is up, which is this one
+        // (`CLIENT.screen.width` / `.height` below are this screen's, lent to it for the call)
+        let (__screen_width, __screen_height): (i32, i32) = compat::read(__this, |__t| (__t.width, __t.height));
+        let mut actual_x: f32 = ((((mouse_x * (2 as f64))) as f32) - (__screen_width as f32));
+        let mut actual_y: f32 = ((((mouse_y * (2 as f64))) as f32) - (__screen_height as f32));
+        if actual_x > ((__screen_width).wrapping_sub(100) as f32) && actual_y > ((__screen_height).wrapping_sub(50) as f32) {
             { let __v = -1; compat::write(__this, |__t| __t.buttons_hovered_index = __v); }
             return;
         }
@@ -238,10 +237,6 @@ impl RadialMenuScreen {
                 RadialMenuScreen::click_slot(__this);
             }
             _ => {
-                // TODO(fabric2seer): `Options.keyUp` has no Rust field in the port (searched net.minecraft.client.Options and its supertypes)
-                // TODO(fabric2seer): `Options.keyDown` has no Rust field in the port (searched net.minecraft.client.Options and its supertypes)
-                // TODO(fabric2seer): `Options.keyLeft` has no Rust field in the port (searched net.minecraft.client.Options and its supertypes)
-                // TODO(fabric2seer): `Options.keyRight` has no Rust field in the port (searched net.minecraft.client.Options and its supertypes)
                 if mcrust::net::minecraft::client::key_mapping::matches("key.forward", key_event) {
                     RadialMenuScreen::navigate_direction(__this, ScreenDirection::Up);
                 } else if mcrust::net::minecraft::client::key_mapping::matches("key.back", key_event) {
@@ -300,9 +295,10 @@ impl RadialMenuScreen {
             return;
         }
         //   java: CLIENT.gui.setScreen(new ContainerScreen(handler, CLIENT.player.getInventory(), parentName));
-        // rust: port gap - a mod cannot open the game's own `ContainerScreen` over the open menu (`game::set_screen` takes
-        // a `ModScreen`; `gui::set_screen` is the client loop's) (GAPS_K)
-        // rust: gui::set_screen(&mut ContainerScreen::new(compat::read(__this, |__t| __t.handler.clone()).unwrap(), mcrust::mcrust::modding::game::with_player(|player| player.base.base.get_inventory().clone()).unwrap(), __this.lock().borrow().parent_name.get_string()));
+        // (`game::open_vanilla_menu_screen`: the vanilla `ContainerScreen` over the `ChestMenu` the player holds - this
+        // screen's `handler` - and the player's inventory, titled `parentName`)
+        let __title: String = __this.lock().borrow().parent_name.get_string();
+        mcrust::mcrust::modding::game::open_vanilla_menu_screen(__title);
     }
 
     /// java: private void clickSlot()
@@ -410,6 +406,11 @@ impl ModScreen for compat::ScreenAdapter<RadialMenuScreen> {
             RadialMenuScreen::drain_slot_changes(__h);
             RadialMenuScreen::mouse_clicked(__h, &MouseButtonEvent::new(x, y, MouseButtonInfo::new(button, 0)), false)
         })
+    }
+
+    /// java: @Override public void mouseMoved(double mouseX, double mouseY)
+    fn mouse_moved(&mut self, screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, x: f64, y: f64) {
+        self.lend(screen, |__h| RadialMenuScreen::mouse_moved(__h, x, y))
     }
 
     /// java: @Override public void onClose()

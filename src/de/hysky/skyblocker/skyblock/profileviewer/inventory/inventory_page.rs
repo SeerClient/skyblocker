@@ -27,7 +27,7 @@ pub const TOTAL_HEIGHT: i32 = 165;
 /// java: private static final Map<String, FlexibleItemStack> ICON_MAP = Map.ofEntries( Map.entry("wardrobe", Ico.L_CHESTPLATE), Map.entry("inventory", Ico.CHEST), Map.entry("backpack", ProfileViewerUtils.creat
 pub static ICON_MAP: compat::MainThread<std::collections::HashMap<String, compat::Shared<FlexibleItemStack>>> = compat::MainThread::new(|| std::collections::HashMap::from([("wardrobe".to_string(), ico::L_CHESTPLATE.get_mut().clone()), ("inventory".to_string(), ico::CHEST.get_mut().clone()), ("backpack".to_string(), ProfileViewerUtils::create_skull("eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHBzOi8vdGV4dHVyZXMubWluZWNyYWZ0Lm5ldC90ZXh0dXJlLzYyZjNiM2EwNTQ4MWNkZTc3MjQwMDA1YzBkZGNlZTFjMDY5ZTU1MDRhNjJjZTA5Nzc4NzlmNTVhMzkzOTYxNDYifX19")), ("pets".to_string(), ico::BONE.get_mut().clone()), ("enderchest".to_string(), ico::E_CHEST.get_mut().clone()), ("accessoryBag".to_string(), ProfileViewerUtils::create_skull("eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvOTYxYTkxOGMwYzQ5YmE4ZDA1M2U1MjJjYjkxYWJjNzQ2ODkzNjdiNGQ4YWEwNmJmYzFiYTkxNTQ3MzA5ODVmZiJ9fX0="))]));
 /// java: private static final Font textRenderer = Minecraft.getInstance().font;
-pub static TEXT_RENDERER: compat::MainThread<Font> = compat::MainThread::new(|| compat::font());
+pub static TEXT_RENDERER: compat::LiveFont = compat::LiveFont;
 
 /// java: public class InventoryPage implements ProfileViewerPage
 #[derive(Clone)]
@@ -142,14 +142,15 @@ impl InventoryPage {
             let __wa2 = starting_y.wrapping_add(i.wrapping_mul(21));
             let __o2 = __this.lock().borrow().inventory_select_buttons[(i) as usize].clone();
             compat::write(&__o2, |__t| __t.set_y(__wa2));
-            // rust: port gap (GAPS_batchC #C2) - `button.extractRenderState(graphics, ..)` on a widget OBJECT: the port's
-            // widget is drawn by the screen it was added to (`ProfileViewerScreen.init` adds `getButtons()`, which the game draws)
-            // rust: let __wa3 = graphics.clone();
-            // rust: let __wa4 = mouse_x;
-            // rust: let __wa5 = mouse_y;
-            // rust: let __wa6 = delta;
-            // rust: let __o3 = __this.lock().borrow().inventory_select_buttons[(i) as usize].clone();
-            // rust: compat::write(&__o3, |__t| __t.extract_render_state(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), __wa4, __wa5, __wa6));
+            // java: button.extractRenderState(graphics, mouseX, mouseY, a); - `AbstractWidget.extractRenderState`: when visible, the
+            // hover flag and then the class's `extractWidgetRenderState` (the screen draws the same widget again, as in Java)
+            {
+                let __button = __this.lock().borrow().inventory_select_buttons[(i) as usize].clone();
+                if compat::read(&__button, |__t| __t.base.visible) {
+                    compat::write(&__button, |__t| __t.base.set_hovered_from_extract(mouse_x, mouse_y));
+                    SubPageSelectButton::extract_widget_render_state(&__button, graphics, mouse_x, mouse_y, delta);
+                }
+            }
         }
         // java: if (inventorySubPages[activePage] == null) { .. return; }
         let Some(__r) = InventoryPage::active_sub_page(__this) else {

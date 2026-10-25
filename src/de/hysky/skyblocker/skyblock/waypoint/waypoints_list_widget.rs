@@ -77,7 +77,7 @@ pub struct WaypointsListWidget {
     /// java: extends net.minecraft.client.gui.components.ContainerObjectSelectionList
     pub base: ModSelectionList,
     /// java: private final AbstractWaypointsScreen<?> screen;
-    pub screen: compat::Shared<dyn AbstractWaypointsScreen<compat::Object>>,
+    pub screen: compat::Shared<dyn AbstractWaypointsScreen>,
     /// java: private Location island;
     pub island: Option<Location>,
     /// java: private List<WaypointGroup> waypoints;
@@ -126,18 +126,25 @@ fn index_of_waypoint(group: &compat::Shared<WaypointGroup>, waypoint: &compat::S
 
 impl WaypointsListWidget {
     /// java: public WaypointsListWidget(Minecraft client, AbstractWaypointsScreen<?> screen, int width, int height, int y, int itemHeight)
-    pub fn new(client: &mut mcrust::net::minecraft::client::minecraft::Minecraft, mut screen: compat::Shared<dyn AbstractWaypointsScreen<compat::Object>>, mut width: i32, mut height: i32, mut y: i32, mut item_height: i32) -> compat::Shared<Self> {
+    ///
+    /// (`screen.island` and `screen.waypoints` - the two fields the constructor reads - are handed in by the screen,
+    /// which builds this list from inside its own `init`; `screen.waypoints` is `final`, the map every later
+    /// `setIsland` reads)
+    pub fn new(client: &mut mcrust::net::minecraft::client::minecraft::Minecraft, mut screen: compat::Shared<dyn AbstractWaypointsScreen>, island: Location, waypoints: compat::Shared<LocationMultimap>, mut width: i32, mut height: i32, mut y: i32, mut item_height: i32) -> compat::Shared<Self> {
+        let _ = client;
         let __init_screen = screen.clone();
+        // java: super(client, width, height, y, itemHeight);
         let __this = compat::shared(Self {
             base: mcrust::mcrust::modding::widgets::ModSelectionList::new(mcrust::mcrust::modding::widgets::ListKind::Container, width, height, y, item_height),
             screen: __init_screen,
             island: None,
-            waypoints: None,
+            waypoints: Some(waypoints),
             insert_position: None,
             collapsed_groups: Vec::new(),
             update_entries_requested: false,
         });
-        WaypointsListWidget::set_island(&__this, compat::read(&screen, |__t| __t.abstract_waypoints_screen_base().island.clone()).unwrap());
+        // java: this.screen = screen; setIsland(screen.island);
+        WaypointsListWidget::set_island(&__this, island);
         __this
     }
 
@@ -166,10 +173,8 @@ impl WaypointsListWidget {
     /// java: void setIsland(Location island)
     pub fn set_island(__this: &compat::Shared<Self>, mut island: Location) {
         { let __v = Some(island); compat::write(__this, |__t| __t.island = __v); }
-        // `waypoints = (List<WaypointGroup>) screen.waypoints.get(island)`: the screen's map, the island's list read through it.
-        let __screen = compat::read(__this, |__t| __t.screen.clone());
-        let __map = compat::read(&__screen, |__t| __t.abstract_waypoints_screen_base().waypoints.clone());
-        compat::write(__this, |__t| __t.waypoints = __map);
+        // `waypoints = (List<WaypointGroup>) screen.waypoints.get(island)`: the screen's map (held since the constructor),
+        // the island's list read through it.
         let __groups = WaypointsListWidget::waypoint_groups(__this);
         compat::write(__this, |__t| {
             __t.collapsed_groups.clear();
@@ -300,14 +305,15 @@ impl WaypointsListWidget {
         }
         if hovering {
             { let __v = Some(InsertPosition::new(group_entry.clone(), position)); compat::write(__this, |__t| __t.insert_position = __v); }
-            // TODO(fabric2seer): static `CursorTypes.POINTING_HAND` has no Rust counterpart in the port's CursorTypes file
-            // TODO(fabric2seer): `GuiGraphicsExtractor.requestCursor` has no Rust method in the port (looked for `request_cursor` in GuiGraphicsExtractor and its supertypes)
-            // rust: context.request_cursor(&CursorTypes::POINTING_HAND);
+            // java: context.requestCursor(CursorTypes.POINTING_HAND);
+            compat::batch_w_request_cursor(compat::BatchWCursor::PointingHand);
         }
     }
 
-    /// java: @Override public boolean mouseClicked(MouseButtonEvent click, boolean doubled)
-    pub fn mouse_clicked(__this: &compat::Shared<Self>, click: &MouseButtonEvent, mut doubled: bool) -> bool {
+    /// java: @Override public boolean mouseClicked(MouseButtonEvent click, boolean doubled) - the statements before
+    /// `return super.mouseClicked(click, doubled)`, which the `ModList` override runs after this (`super_mouse_clicked`)
+    pub fn mouse_clicked(__this: &compat::Shared<Self>, click: &MouseButtonEvent, mut doubled: bool) {
+        let _ = (click, doubled);
         if compat::read(__this, |__t| __t.insert_position.clone()).is_some() {
             let insert_position = compat::read(__this, |__t| __t.insert_position.clone()).unwrap();
             let mut entry: compat::Shared<WaypointEntry> = WaypointEntry::new(std::sync::Arc::downgrade(__this), insert_position.group_entry.clone());
@@ -317,9 +323,6 @@ impl WaypointsListWidget {
             compat::write(&group, |__g| __g.waypoints.insert((insert_position.position) as usize, waypoint));
             WaypointsListWidget::update_entries(__this);
         }
-        // TODO(fabric2seer): `AbstractContainerWidget::mouse_clicked` ports `mouseClicked`, but the port's `AbstractSelectionList` holds no `AbstractContainerWidget` (no Deref, no `base` field) to call it on
-        // rust: return { let (__q0, __q1,) = (click.clone(), doubled,); __this.lock().borrow_mut().base.list.mouse_clicked(__q0, __q1) };
-        return todo!("fabric2seer: see the TODO above");
     }
 
     /// `updateEntries()` from a row's button: queued for the list's next draw (see `update_entries_requested`)
@@ -363,7 +366,7 @@ impl WaypointsListWidget {
             } else if let Some(waypoint_entry) = compat::try_view::<WaypointEntry, _>(&entry) {
                 let waypoint = compat::read(&*waypoint_entry, |__t| __t.waypoint.clone()).unwrap();
                 let screen = compat::read(__this, |__t| __t.screen.clone());
-                if WaypointEntry::enabled_selected(&waypoint_entry) != compat::read(&screen, |__s| __s.is_enabled(&waypoint)) {
+                if WaypointEntry::enabled_selected(&waypoint_entry) != <dyn AbstractWaypointsScreen>::is_enabled_of(&screen, &waypoint) {
                     // `waypointEntry.enabled.onPress(NoopInput.INSTANCE)`
                     compat::write(&*waypoint_entry, |__t| { let __s = &mut *__t; let __r = __s.enabled.as_mut().unwrap(); __s.base.__widgets.with(&mut __s.base.__row, __r, |__w| if let WidgetKind::Checkbox(__c) = &mut __w.kind { __c.on_press(); }) });
                 }
@@ -390,10 +393,17 @@ impl WaypointsListWidget {
     }
 
     /// java: @Override public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount)
-    pub fn mouse_scrolled(__this: &compat::Shared<Self>, mut mouse_x: f64, mut mouse_y: f64, mut horizontal_amount: f64, mut vertical_amount: f64) -> bool {
-        // TODO(fabric2seer): Optional.mouseScrolled
-        //   java: return this.getChildAt(mouseX, mouseY).filter(element -> element.mouseScrolled(mouseX, mouseY, horizontalAmount, verticalAmount)).isPresent() || super.mouseScrolled(mouseX, mouseY, horizontalAmount, verticalAmount);
-        todo!("fabric2seer: the value of this function is in a TODO above")
+    /// - `this.getChildAt(mouseX, mouseY).filter(element -> element.mouseScrolled(..)).isPresent()`: the row under the
+    /// cursor (`ContainerEventHandler.mouseScrolled` over its widgets). The `|| super.mouseScrolled(..)` half is the
+    /// `ModList` override's `super_mouse_scrolled`, run when this answers `false`.
+    pub fn mouse_scrolled(list: &mut ModSelectionList, mut mouse_x: f64, mut mouse_y: f64, mut horizontal_amount: f64, mut vertical_amount: f64) -> bool {
+        let Some(row) = list.list.get_child_at(mouse_x, mouse_y) else {
+            return false;
+        };
+        let Some(slot) = list.entry_object(row).cloned() else {
+            return false;
+        };
+        slot.with::<compat::EntryAdapter<dyn AbstractWaypointEntry>, _>(|__a| compat::children_mouse_scrolled(&mut __a.row, mouse_x, mouse_y, horizontal_amount, vertical_amount)).unwrap_or(false)
     }
 
 }
@@ -428,9 +438,21 @@ impl ModList for compat::ListClass<WaypointsListWidget> {
         compat::with_super(&mut || {}, || self.ask(&list.list, (), |__h| WaypointsListWidget::extract_list_items(__h, &context.graphics, mouse_x, mouse_y, a)))
     }
 
+    /// java: @Override public boolean mouseClicked(MouseButtonEvent click, boolean doubled) - the insert button, then
+    /// `return super.mouseClicked(click, doubled)`
+    fn mouse_clicked(&self, list: &mut ModSelectionList, event: &MouseButtonEvent, double_click: bool, super_mouse_clicked: &mut dyn FnMut(&mut ModSelectionList) -> bool) -> bool {
+        let __h = self.object().clone();
+        compat::lend_list(&__h, list, || WaypointsListWidget::mouse_clicked(&__h, event, double_click));
+        super_mouse_clicked(list)
+    }
+
+    /// java: @Override public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount)
+    fn mouse_scrolled(&self, list: &mut ModSelectionList, x: f64, y: f64, scroll_x: f64, scroll_y: f64, super_mouse_scrolled: &mut dyn FnMut(&mut ModSelectionList) -> bool) -> bool {
+        WaypointsListWidget::mouse_scrolled(list, x, y, scroll_x, scroll_y) || super_mouse_scrolled(list)
+    }
+
 }
 
-// NOTE(fabric2seer): extractListItems, getRowWidth, mouseClicked, mouseScrolled, scrollBarX override(s) of ContainerObjectSelectionList - the port dispatches its own calls, so these run only where the mod calls them; hook the port's method to make the game call them
 
 /// java: protected abstract static class AbstractWaypointEntry extends ContainerObjectSelectionList.Entry<AbstractWaypointEntry>
 pub struct AbstractWaypointEntryBase {
@@ -507,6 +529,125 @@ impl ModListEntry for compat::EntryAdapter<dyn AbstractWaypointEntry> {
         Some(&mut self.row)
     }
 
+    /// java: `ContainerEventHandler.keyPressed` - the row's focused widget (a `FilteredEditBox` refuses what its
+    /// filter does)
+    fn key_pressed(&mut self, list: &mut ModSelectionList, index: usize, event: &mcrust::net::minecraft::client::input::key_event::KeyEvent) -> bool {
+        let _ = (list, index);
+        let int_fields = row_int_fields(self.object());
+        filtered_edit(&mut self.row, &int_fields, |__row| compat::children_key_pressed(__row, event))
+    }
+
+    /// java: `ContainerEventHandler.charTyped` - the row's focused widget (see `key_pressed`)
+    fn char_typed(&mut self, list: &mut ModSelectionList, index: usize, event: &CharacterEvent) -> bool {
+        let _ = (list, index);
+        let int_fields = row_int_fields(self.object());
+        filtered_edit(&mut self.row, &int_fields, |__row| compat::children_char_typed(__row, event))
+    }
+
+}
+
+/// The row's `FilteredEditBox` indices (`WaypointEntry`'s x / y / z fields; none for the other rows)
+fn row_int_fields(row: &compat::Shared<dyn AbstractWaypointEntry>) -> Vec<usize> {
+    match compat::try_view::<WaypointEntry, _>(row) {
+        Some(entry) => compat::read(&*entry, |__t| __t.int_fields.clone()),
+        None => Vec::new(),
+    }
+}
+
+/// An edit of the row's focused widget, with `FilteredEditBox`'s filter (`checkInt`) in front of the int fields: the
+/// edit is first made on a copy of the box (with no responder), and the box takes it - firing its responder - only
+/// when the copy's new value passes the filter, as `FilteredEditBox` applies `insertText` / `deleteCharsToPos` only
+/// then. A refused edit answers what the box would have (the key or character was consumed).
+fn filtered_edit(row: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, int_fields: &[usize], edit: impl Fn(&mut mcrust::net::minecraft::client::gui::screens::screen::Screen) -> bool) -> bool {
+    let Some(focused) = row.get_focused().filter(|f| int_fields.contains(f)) else {
+        return edit(row);
+    };
+    let mut trial_widget = row.widget(focused).clone();
+    compat::with_edit_box(&mut trial_widget, |__e| __e.set_responder(Responder::Lambda(ResponderLambda::new(|_| {}))));
+    let mut trial = mcrust::net::minecraft::client::gui::screens::screen::Screen::new(String::new());
+    let trial_index = trial.add_widget(trial_widget);
+    trial.set_focused(Some(trial_index));
+    let answer = edit(&mut trial);
+    let before = compat::edit_box_value(row.widget(focused));
+    let after = compat::edit_box_value(trial.widget(trial_index));
+    // java: FilteredEditBox - `if (filter.test(newValue))` (an unchanged value is no edit)
+    if after != before && !check_int_value(&after) {
+        return answer;
+    }
+    edit(row)
+}
+
+/// java: private boolean checkInt(String string) - `parseEmptiableInt(string)` does not throw
+fn check_int_value(string: &str) -> bool {
+    string.is_empty() || string == "-" || string.parse::<i32>().is_ok()
+}
+
+/// A `CyclingIconButtonWidget` (utils/render/gui) as one of a row's widgets (`children`): the game's widget keeps the
+/// box the row's layout gives it, the object its value and icon. Each call copies the box into the object first
+/// (`extractContents` reads `getX()`), and a press copies the message and tooltip `onPress` set back out.
+struct RowCyclingButton<T: 'static> {
+    object: compat::RenderThread<compat::Shared<CyclingIconButtonWidget<T>>>,
+}
+
+impl<T: Clone + 'static> RowCyclingButton<T> {
+    /// `leftLayout.addChild(new CyclingIconButtonWidget<>(..))`: the game's widget over the object
+    fn widget(object: compat::Shared<CyclingIconButtonWidget<T>>) -> AbstractWidget {
+        let mut widget = compat::read(&object, |__o| __o.base.clone());
+        widget.kind = WidgetKind::Mod(mcrust::mcrust::modding::widgets::ModWidgetSlot::new(Box::new(RowCyclingButton { object: compat::RenderThread::new(object) })));
+        widget
+    }
+
+    /// The game's box (and hover, focus, visibility) into the object's widget half
+    fn sync_in(&self, widget: &AbstractWidget) {
+        compat::write(self.object.get(), |__o| {
+            let kind = std::mem::replace(&mut __o.base.kind, WidgetKind::PlainText);
+            __o.base = widget.clone();
+            __o.base.kind = kind;
+        });
+    }
+
+    /// What `onPress` changed on the object's half (`setMessage`, `setTooltip`) into the game's widget
+    fn sync_out(&self, widget: &mut AbstractWidget) {
+        compat::read(self.object.get(), |__o| {
+            widget.message = __o.base.message.clone();
+            widget.message_text = __o.base.message_text.clone();
+            widget.tooltip = __o.base.tooltip.clone();
+            widget.tooltip_narration = __o.base.tooltip_narration.clone();
+            widget.tooltip_holder = __o.base.tooltip_holder.clone();
+        });
+    }
+}
+
+impl<T: Clone + 'static> ModWidget for RowCyclingButton<T> {
+    /// java: `AbstractButton.extractWidgetRenderState` - `extractContents(..)`, which the class overrides
+    fn extract_widget_render_state(&mut self, widget: &AbstractWidget, context: &mut WidgetRenderContext<'_>, mouse_x: i32, mouse_y: i32, a: f32) {
+        self.sync_in(widget);
+        CyclingIconButtonWidget::extract_contents(self.object.get(), &context.graphics, mouse_x, mouse_y, a);
+    }
+
+    /// java: @Override protected void updateWidgetNarration(NarrationElementOutput builder) - empty
+    fn update_widget_narration(&mut self, widget: &AbstractWidget, output: &mut dyn NarrationElementOutput) {
+        self.sync_in(widget);
+        CyclingIconButtonWidget::update_widget_narration(self.object.get(), &*output);
+    }
+
+    /// java: `AbstractButton.onClick` - `onPress(event)`, which the class overrides
+    fn on_click(&mut self, widget: &mut AbstractWidget, event: &MouseButtonEvent, _double_click: bool) {
+        self.sync_in(widget);
+        CyclingIconButtonWidget::on_press(self.object.get(), event);
+        self.sync_out(widget);
+    }
+
+    /// java: `AbstractButton.keyPressed` - a selection key presses an active button
+    fn key_pressed(&mut self, widget: &mut AbstractWidget, event: &mcrust::net::minecraft::client::input::key_event::KeyEvent) -> bool {
+        if !widget.is_active() || !event.is_selection() {
+            return false;
+        }
+        self.sync_in(widget);
+        CyclingIconButtonWidget::on_press(self.object.get(), event);
+        self.sync_out(widget);
+        true
+    }
 }
 
 /// java: protected class WaypointsDisabledWarningEntry extends AbstractWaypointEntry
@@ -725,7 +866,7 @@ impl WaypointGroupEntry {
             let group = compat::read(&__this_1, |__t| __t.group.clone()).unwrap();
             let screen = compat::read(&__outer, |__t| __t.screen.clone());
             for waypoint in WaypointGroup::waypoints(&group) {
-                compat::write(&screen, |__s| __s.enabled_changed(&waypoint, checked));
+                <dyn AbstractWaypointsScreen>::enabled_changed_of(&screen, &waypoint, checked);
             }
         });
         let __enabled_index = compat::write(&__this, |__t| __t.base.__row.add_widget(__enabled));
@@ -746,16 +887,23 @@ impl WaypointGroupEntry {
         left_layout.add_child(WaypointGroupEntry::row_element(&__this, __name_index));
         __children.push(compat::WidgetRef::Screen(__name_index));
 
-        // java: the three CyclingIconButtonWidgets (ordered, throughWalls, waypointType)
-        // rust: port gap (GAPS_O) - `CyclingIconButtonWidget` (utils/render/gui) has no widget adapter (`WidgetHalf` /
-        // `ModWidget`), so the row cannot hold it: the objects are built as Java builds them and are not shown
+        // java: the three CyclingIconButtonWidgets (ordered, throughWalls, waypointType), each `leftLayout.addChild(..)`:
+        // row widgets through `RowCyclingButton` (the game's widget keeps the box, the object its value and icon)
         let __this_w3 = compat::RenderThread::new(std::sync::Arc::downgrade(&__this));
         let mut ordered_widget: compat::Shared<CyclingIconButtonWidget<bool>> = CyclingIconButtonWidget::new_7(20, 20, WaypointGroup::ordered(&compat::read(&__this, |__t| __t.group.clone()).unwrap()), vec![false, true], Arc::new(move |b: bool| Icon::new(crate::entry::skyblocker_mod::id(&format!("waypoints_screen/ordered_{}", (if b { "enabled" } else { "disabled" }))), 16, 16)), Arc::new(move |b: bool| Tooltip::create_text(mcrust::net::minecraft::network::chat::common_components::option_name_value(&component::translatable("skyblocker.waypoints.groupType").get_string(), &component::translatable(if b { "skyblocker.waypoints.groupType.ordered" } else { "skyblocker.waypoints.groupType.normal" }).with_style_format(ChatFormatting::Yellow).get_string()))), Arc::new(move |__a0: bool| { let Some(__this_3) = __this_w3.get().upgrade() else { return Default::default(); }; { WaypointGroupEntry::update_ordered(&__this_3, __a0); } }));
         let __this_w4 = compat::RenderThread::new(std::sync::Arc::downgrade(&__this));
         let mut through_walls_widget: compat::Shared<CyclingIconButtonWidget<bool>> = CyclingIconButtonWidget::new_7(20, 20, WaypointGroup::render_through_walls(&compat::read(&__this, |__t| __t.group.clone()).unwrap()), vec![false, true], Arc::new(move |b: bool| Icon::new(crate::entry::skyblocker_mod::id(&format!("waypoints_screen/through_walls_{}", (if b { "enabled" } else { "disabled" }))), 15, 16)), Arc::new(move |b: bool| Tooltip::create_text(mcrust::net::minecraft::network::chat::common_components::option_name_value(&component::translatable("skyblocker.waypoints.throughWalls").get_string(), &compat::component_of(if b { mcrust::net::minecraft::network::chat::common_components::gui_yes() } else { mcrust::net::minecraft::network::chat::common_components::gui_no() }).with_style_format(ChatFormatting::Yellow).get_string()))), Arc::new(move |__a0: bool| { let Some(__this_4) = __this_w4.get().upgrade() else { return Default::default(); }; { WaypointGroupEntry::update_render_through_walls(&__this_4, __a0); } }));
         let __this_w5 = compat::RenderThread::new(std::sync::Arc::downgrade(&__this));
         let mut waypoint_type_widget: compat::Shared<CyclingIconButtonWidget<Type>> = CyclingIconButtonWidget::new_7(20, 20, WaypointGroup::waypoint_type(&compat::read(&__this, |__t| __t.group.clone()).unwrap()), Type::values(), Arc::new(move |t: Type| Icon::new(crate::entry::skyblocker_mod::id(&format!("waypoints_screen/waypoint_type_{}", t.get_serialized_name())), 12, 15)), Arc::new(move |t: Type| Tooltip::create_text(mcrust::net::minecraft::network::chat::common_components::option_name_value(&component::translatable("skyblocker.waypoints.waypointType").get_string(), &component::literal(&t.to_string()).with_style_format(ChatFormatting::Yellow).get_string()))), Arc::new(move |__a0: Type| { let Some(__this_5) = __this_w5.get().upgrade() else { return Default::default(); }; { WaypointGroupEntry::update_waypoint_type(&__this_5, __a0); } }));
-        let _ = (&ordered_widget, &through_walls_widget, &waypoint_type_widget);
+        let __ordered_index = compat::write(&__this, |__t| __t.base.__row.add_widget(RowCyclingButton::widget(ordered_widget.clone())));
+        left_layout.add_child(WaypointGroupEntry::row_element(&__this, __ordered_index));
+        let __through_walls_index = compat::write(&__this, |__t| __t.base.__row.add_widget(RowCyclingButton::widget(through_walls_widget.clone())));
+        left_layout.add_child(WaypointGroupEntry::row_element(&__this, __through_walls_index));
+        let __waypoint_type_index = compat::write(&__this, |__t| __t.base.__row.add_widget(RowCyclingButton::widget(waypoint_type_widget.clone())));
+        left_layout.add_child(WaypointGroupEntry::row_element(&__this, __waypoint_type_index));
+        __children.push(compat::WidgetRef::Screen(__ordered_index));
+        __children.push(compat::WidgetRef::Screen(__through_walls_index));
+        __children.push(compat::WidgetRef::Screen(__waypoint_type_index));
 
         //   java: Button buttonNewWaypoint = Button.builder(Component.translatable("skyblocker.waypoints.new"), _ -> {..}).width(72).build();
         let __this_w6 = compat::RenderThread::new(std::sync::Arc::downgrade(&__this));
@@ -805,7 +953,6 @@ impl WaypointGroupEntry {
         WaypointGroupEntry::place_widgets(&__this);
         { let mut __vw = Vec::new(); __this.lock().borrow().layout.as_ref().unwrap().visit_widgets(&mut __vw); for (__i, _, _) in __vw { compat::write(&__this, |__t| __t.base.__row.mark_renderable(__i)); } };
         //   java: children = List.of(enabled, nameField, orderedWidget, throughWallsWidget, waypointTypeWidget, buttonNewWaypoint, buttonDelete, collapseWaypoint);
-        // (the three cycling widgets are not row widgets - see above)
         __children.push(compat::WidgetRef::Screen(__new_index));
         __children.push(compat::WidgetRef::Screen(__delete_index));
         __children.push(compat::WidgetRef::Screen(__collapse_index));
@@ -856,7 +1003,7 @@ impl WaypointGroupEntry {
         let waypoints = WaypointGroup::waypoints(&compat::read(__this, |__t| __t.group.clone()).unwrap());
         let Some(outer) = compat::read(__this, |__t| __t.base.outer.upgrade()) else { return false; };
         let screen = compat::read(&outer, |__t| __t.screen.clone());
-        return !waypoints.is_empty() && waypoints.iter().all(|w| compat::read(&screen, |__s| __s.is_enabled(w)));
+        return !waypoints.is_empty() && waypoints.iter().all(|w| <dyn AbstractWaypointsScreen>::is_enabled_of(&screen, w));
     }
 
     /// java: private void updateName(String name)
@@ -991,6 +1138,9 @@ pub struct WaypointEntry {
     pub color_picker_button: Option<compat::WidgetRef>,
     /// java: private final FrameLayout layout = new FrameLayout(getRowWidth(), defaultEntryHeight);
     pub layout: Option<FrameLayout>,
+    /// The x / y / z fields' indices in the row: Java's `FilteredEditBox`es whose filter is `this::checkInt`
+    /// (`xField.setFilter(this::checkInt)`), applied where the row hands them their keys (`filtered_edit`)
+    pub int_fields: Vec<usize>,
 }
 
 impl std::ops::Deref for WaypointEntry {
@@ -1041,6 +1191,7 @@ impl WaypointEntry {
                 enabled: None,
                 color_picker_button: None,
                 layout: Some(__layout),
+                int_fields: Vec::new(),
             });
             ((__h.clone() as compat::Shared<dyn AbstractWaypointEntry>), __h)
         });
@@ -1058,14 +1209,14 @@ impl WaypointEntry {
         {
             let __screen = outer.upgrade().map(|__o| compat::read(&__o, |__t| __t.screen.clone()));
             let __waypoint = compat::read(&__this, |__t| __t.waypoint.clone()).unwrap();
-            let __selected = __screen.as_ref().is_some_and(|__s| compat::read(__s, |__s| __s.is_enabled(&__waypoint)));
+            let __selected = __screen.as_ref().is_some_and(|__s| <dyn AbstractWaypointsScreen>::is_enabled_of(__s, &__waypoint));
             let __this_wc = compat::RenderThread::new(std::sync::Arc::downgrade(&__this));
             let __outer_c = compat::RenderThread::new(outer.clone());
             let __enabled = compat::checkbox(mcrust::net::minecraft::network::chat::formatted_text::FormattedText::Empty, 0, 0, None, __selected, move |checked: bool| {
                 let (Some(__this_c), Some(__outer)) = (__this_wc.get().upgrade(), __outer_c.get().upgrade()) else { return; };
                 let waypoint = compat::read(&__this_c, |__t| __t.waypoint.clone()).unwrap();
                 let screen = compat::read(&__outer, |__t| __t.screen.clone());
-                compat::write(&screen, |__s| __s.enabled_changed(&waypoint, checked));
+                <dyn AbstractWaypointsScreen>::enabled_changed_of(&screen, &waypoint, checked);
             });
             compat::write(&__this, |__t| __t.enabled = Some(compat::WidgetRef::value(__enabled)));
         }
@@ -1087,8 +1238,9 @@ impl WaypointEntry {
         // java: the X, Y and Z fields - `leftLayout.addChild(new StringWidget(Component.literal("X:"), font), p -> p.paddingLeft(2));`
         //   then `FilteredEditBox xField = new FilteredEditBox(minecraft.font, 26, 20, Component.literal("X")); xField.setValue(..);
         //   xField.setFilter(this::checkInt); xField.setResponder(this::updateX); leftLayout.addChild(xField);`
-        // rust: port gap (GAPS_N #2) - the game's EditBox has no filter slot, so `checkInt` does not reject a keystroke;
-        // the responder (`updateInt`) ignores what does not parse, as Java's catch does
+        // (`FilteredEditBox.setFilter(this::checkInt)`: the game's `EditBox` has no filter slot, so the row tests each
+        // edit of these fields before the box takes it - `filtered_edit` - and an edit `checkInt` refuses never reaches
+        // the box or its responder, as `FilteredEditBox.insertText` / `deleteCharsToPos` / `setValue` refuse it)
         let __pos = compat::read(&compat::read(&__this, |__t| __t.waypoint.clone()).unwrap(), |__t| __t.named_waypoint_base().pos.clone()).unwrap();
         for (__label, __value, __axis) in [("X", __pos.get_x(), 0), ("Y", __pos.get_y(), 1), ("Z", __pos.get_z(), 2)] {
             let __label_widget = compat::string_widget(0, 0, -1, mcrust::net::minecraft::client::gui::font::LINE_HEIGHT, component::literal(&format!("{}:", __label)));
@@ -1106,11 +1258,12 @@ impl WaypointEntry {
             }
             let (__fw, __fh) = (__field.get_width(), __field.get_height());
             let __fi = compat::write(&__this, |__t| __t.base.__row.add_widget(__field));
+            compat::write(&__this, |__t| __t.int_fields.push(__fi));
             left_layout.add_child(LayoutElement::widget(__fi, __fw, __fh));
         }
         //   java: ARGBTextInput colorField = new ARGBTextInput(0, 0, minecraft.font, true, true);
         let mut color_field: compat::Shared<ARGBTextInput> = ARGBTextInput::new(0, 0, compat::font(), true, true);        let __this_w13 = compat::RenderThread::new(std::sync::Arc::downgrade(&__this));
-        { let __v = (Some(ColorPickerButton::new(color_field.clone(), Arc::new(move |__a0| { let Some(__this_13) = __this_w13.get().upgrade() else { return Default::default(); }; { WaypointEntry::update_color(&__this_13, __a0); } })))).map(|__o| compat::WidgetRef::value(compat::WidgetAdapter::widget(__o))); compat::write(&__this, |__t| { let __s = &mut *__t; __s.color_picker_button = __v; }); }
+        { let __v = (Some(ColorPickerButton::new(outer.clone(), color_field.clone(), Arc::new(move |__a0| { let Some(__this_13) = __this_w13.get().upgrade() else { return Default::default(); }; { WaypointEntry::update_color(&__this_13, __a0); } })))).map(|__o| compat::WidgetRef::value(compat::WidgetAdapter::widget(__o))); compat::write(&__this, |__t| { let __s = &mut *__t; __s.color_picker_button = __v; }); }
         left_layout.add_child_adjusted({ let (__i, __ww, __wh) = compat::write(&__this, |__t| { let __s = &mut *__t; let __r = __s.color_picker_button.as_mut().unwrap(); __s.base.__widgets.add_to_layout(&mut __s.base.__row, __r) }); LayoutElement::widget(__i, __ww, __wh) }, &mut |p: &mut LayoutSettings| { *p = p.padding_left(2); });
         let mut color: i32 = argb::color_from_float(compat::read(&compat::read(&__this, |__t| __t.waypoint.clone()).unwrap(), |__t| __t.named_waypoint_base().alpha), compat::read(&__this, |__t| __t.waypoint.clone()).unwrap().lock().borrow().named_waypoint_base().color_components[(0) as usize], compat::read(&__this, |__t| __t.waypoint.clone()).unwrap().lock().borrow().named_waypoint_base().color_components[(1) as usize], compat::read(&__this, |__t| __t.waypoint.clone()).unwrap().lock().borrow().named_waypoint_base().color_components[(2) as usize]);
         { let __v = color; compat::write(&compat::write(&__this, |__t| { let __s = &mut *__t; match __s.color_picker_button.as_mut() { Some(__r) => Some(__s.base.__widgets.with(&mut __s.base.__row, __r, |__w| __w.mod_widget().and_then(|__ms| __ms.with::<compat::WidgetAdapter<ColorPickerButton>, _>(|__a| __a.object().clone())).expect("a mod widget reached from inside its own method"))), None => None } }).unwrap(), |__t| __t.color = __v); }
@@ -1332,6 +1485,8 @@ impl ModListEntry for compat::EntryAdapter<WaypointEntry> {
 pub struct ColorPickerButton {
     /// java: extends net.minecraft.client.gui.components.AbstractButton
     pub base: AbstractWidget,
+    /// java: WaypointsListWidget.this (an inner class: `screen.setPopup(..)` is the list's `screen`)
+    pub outer: compat::WeakShared<WaypointsListWidget>,
     /// java: private final ARGBTextInput textInput;
     pub text_input: compat::Shared<ARGBTextInput>,
     /// java: private final IntConsumer colorConsumer;
@@ -1354,12 +1509,15 @@ impl std::ops::DerefMut for ColorPickerButton {
 }
 
 impl ColorPickerButton {
-    /// java: ColorPickerButton(ARGBTextInput textInput, IntConsumer colorConsumer)
-    pub fn new(mut text_input: compat::Shared<ARGBTextInput>, color_consumer: Arc<dyn Fn(i32)>) -> compat::Shared<Self> {
+    /// java: ColorPickerButton(ARGBTextInput textInput, IntConsumer colorConsumer) (`outer` is the enclosing
+    /// `WaypointsListWidget.this`)
+    pub fn new(outer: compat::WeakShared<WaypointsListWidget>, mut text_input: compat::Shared<ARGBTextInput>, color_consumer: Arc<dyn Fn(i32)>) -> compat::Shared<Self> {
         let __init_text_input = text_input.clone();
         let __init_color_consumer = color_consumer.clone();
+        // java: super(0, 0, 20, 20, Component.empty());
         let __this = compat::shared(Self {
             base: AbstractWidget::new(0, 0, 20, 20, (&component::empty().get_string()).to_string(), WidgetKind::PlainText, OnPress::Inert),
+            outer,
             text_input: __init_text_input,
             color_consumer: __init_color_consumer,
             color: 0,
@@ -1379,8 +1537,12 @@ impl ColorPickerButton {
             }
         }));
         ColorPickerWidget::set_argb_color(&widget, ARGBTextInput::get_argb_color(&compat::read(__this, |__t| __t.text_input.clone())));
-        // TODO(fabric2seer): `screen` is a field of the enclosing instance (WaypointsListWidget.this) - an inner class has no outer reference in Rust
-        //   java: screen.setPopup(widget, getX(), getBottom());
+        // java: screen.setPopup(widget, getX(), getBottom());
+        let (x, bottom, outer) = compat::read(__this, |__t| (__t.get_x(), __t.get_bottom(), __t.outer.upgrade()));
+        if let Some(outer) = outer {
+            let screen = compat::read(&outer, |__t| __t.screen.clone());
+            <dyn AbstractWaypointsScreen>::set_popup(&screen, Some(compat::WidgetAdapter::widget(widget)), x, bottom);
+        }
     }
 
     /// java: @Override protected void extractContents(GuiGraphicsExtractor context, int mouseX, int mouseY, float deltaTicks)
@@ -1389,9 +1551,8 @@ impl ColorPickerButton {
         context.fill(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), (__this.lock().borrow().get_x()).wrapping_add(padding), (__this.lock().borrow().get_y()).wrapping_add(padding), (__this.lock().borrow().get_right()).wrapping_sub(padding), (__this.lock().borrow().get_bottom()).wrapping_sub(padding), (if __this.lock().borrow().is_hovered() { mcrust::net::minecraft::util::common_colors::WHITE } else { mcrust::net::minecraft::util::common_colors::BLACK }));
         context.fill(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), ((__this.lock().borrow().get_x()).wrapping_add(padding)).wrapping_add(1), ((__this.lock().borrow().get_y()).wrapping_add(padding)).wrapping_add(1), ((__this.lock().borrow().get_right()).wrapping_sub(padding)).wrapping_sub(1), ((__this.lock().borrow().get_bottom()).wrapping_sub(padding)).wrapping_sub(1), compat::read(__this, |__t| __t.color));
         if __this.lock().borrow().is_hovered() {
-            // TODO(fabric2seer): static `CursorTypes.POINTING_HAND` has no Rust counterpart in the port's CursorTypes file
-            // TODO(fabric2seer): `GuiGraphicsExtractor.requestCursor` has no Rust method in the port (looked for `request_cursor` in GuiGraphicsExtractor and its supertypes)
-            // rust: context.request_cursor(&CursorTypes::POINTING_HAND);
+            // java: context.requestCursor(CursorTypes.POINTING_HAND);
+            compat::batch_w_request_cursor(compat::BatchWCursor::PointingHand);
         }
     }
 
@@ -1410,9 +1571,10 @@ impl compat::WidgetHalf for ColorPickerButton {
 
 /// ColorPickerButton as the game's widget: `compat::WidgetAdapter::widget(handle)` where Java hands it on
 impl ModWidget for compat::WidgetAdapter<ColorPickerButton> {
-    /// java: extractWidgetRenderState - not overridden here (the base class's body has no entry point in the port)
+    /// java: `AbstractButton.extractWidgetRenderState` - `this.extractContents(graphics, mouseX, mouseY, a)`, which this
+    /// class overrides
     fn extract_widget_render_state(&mut self, widget: &AbstractWidget, context: &mut WidgetRenderContext<'_>, mouse_x: i32, mouse_y: i32, a: f32) {
-        let _ = widget;
+        self.lend_ref(widget, |__h| ColorPickerButton::extract_contents(__h, &mut context.graphics, mouse_x, mouse_y, a))
     }
 
     /// java: @Override protected void updateWidgetNarration(NarrationElementOutput builder)
@@ -1426,8 +1588,6 @@ impl ModWidget for compat::WidgetAdapter<ColorPickerButton> {
     }
 
 }
-
-// NOTE(fabric2seer): extractContents, onPress, updateWidgetNarration override(s) of AbstractButton - the port dispatches its own calls, so these run only where the mod calls them; hook the port's method to make the game call them
 
 /// java: private record InsertPosition(WaypointGroupEntry groupEntry, int position)
 #[derive(Clone)]

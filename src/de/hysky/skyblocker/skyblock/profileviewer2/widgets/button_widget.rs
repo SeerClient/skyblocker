@@ -43,12 +43,13 @@ impl std::ops::DerefMut for ButtonWidget {
 
 impl ButtonWidget {
     /// java: public ButtonWidget(FlexibleItemStack icon, OnPress onPress)
-    pub fn new(mut icon: compat::Shared<FlexibleItemStack>, mut on_press: OnPress) -> Self {
-        let __init_icon = icon.clone();
-        // TODO(fabric2seer): `new Button(..)`: the port has no `Button::new`
-        //   java: super(0, 0, SIZE, SIZE, CommonComponents.EMPTY, onPress, DEFAULT_NARRATION);
-        let mut this: Self = todo!("constructor");
-        this
+    ///
+    /// (the press is the widget half's `on_press`: the game runs it with the widget list the button is in, as
+    /// `Button.onPress` runs `onPress.onPress(this)`)
+    pub fn new(mut icon: compat::Shared<FlexibleItemStack>, mut on_press: OnPress) -> compat::Shared<Self> {
+        // java: super(0, 0, SIZE, SIZE, CommonComponents.EMPTY, onPress, DEFAULT_NARRATION);
+        let base = AbstractWidget::new(0, 0, SIZE, SIZE, String::new(), mcrust::net::minecraft::client::gui::components::abstract_widget::WidgetKind::Button, on_press);
+        compat::shared(Self { base, icon })
     }
 
     /// java: @Override public void extractContents(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a)
@@ -67,4 +68,28 @@ impl ButtonWidget {
 
 }
 
-// NOTE(fabric2seer): extractContents override(s) of Button - the port dispatches its own calls, so these run only where the mod calls them; hook the port's method to make the game call them
+/// ButtonWidget's widget half (`super`'s fields: x, y, size, message, `onPress`, ...), lent by the game for each call
+impl compat::WidgetHalf for ButtonWidget {
+    fn widget_half(&mut self) -> &mut AbstractWidget {
+        &mut self.base
+    }
+}
+
+/// ButtonWidget as the game's widget: `compat::WidgetAdapter::widget(handle)` where Java hands it on
+impl mcrust::mcrust::modding::widgets::ModWidget for compat::WidgetAdapter<ButtonWidget> {
+    /// java: AbstractButton.extractWidgetRenderState - `this.extractContents(graphics, mouseX, mouseY, a);
+    /// this.handleCursor(graphics);` (the cursor is `handle_cursor`)
+    fn extract_widget_render_state(&mut self, widget: &AbstractWidget, context: &mut mcrust::mcrust::modding::widgets::WidgetRenderContext<'_>, mouse_x: i32, mouse_y: i32, a: f32) {
+        self.lend_ref(widget, |__h| compat::write(__h, |__t| __t.extract_contents(&context.graphics, mouse_x, mouse_y, a)))
+    }
+
+    /// java: AbstractButton.updateWidgetNarration - `this.defaultButtonNarrationText(output)`
+    fn update_widget_narration(&mut self, widget: &AbstractWidget, output: &mut dyn mcrust::net::minecraft::client::gui::narration::narration_element_output::NarrationElementOutput) {
+        widget.default_button_narration_text(output);
+    }
+
+    /// java: AbstractButton.handleCursor
+    fn handle_cursor(&self, widget: &AbstractWidget, cursors: &mcrust::com::mojang::blaze3d::platform::cursor::cursor_types::CursorTypes) -> Option<mcrust::com::mojang::blaze3d::platform::cursor::cursor_type::CursorType> {
+        widget.handle_cursor(cursors)
+    }
+}

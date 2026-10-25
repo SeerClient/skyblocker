@@ -138,21 +138,21 @@ impl ARGBTextInput {
             context.fill(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), text_x.wrapping_add(selection_start), text_y, text_x.wrapping_add(selection_end), text_y.wrapping_add(mcrust::net::minecraft::client::gui::font::LINE_HEIGHT), 0xFF00BBFFu32 as i32);
             context.fill(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), text_x.wrapping_add(selection_start), (text_y.wrapping_add(mcrust::net::minecraft::client::gui::font::LINE_HEIGHT)).wrapping_sub(1), text_x.wrapping_add(selection_end), text_y.wrapping_add(mcrust::net::minecraft::client::gui::font::LINE_HEIGHT), mcrust::net::minecraft::util::common_colors::WHITE);
         }
-        // TODO(fabric2seer): a lambda for a parameter the port does not type as a closure (`net.minecraft.util.FormattedCharSequence`)
-        // rust: let __this_1 = compat::RenderThread::new(__this.clone());
-        // rust: gui_graphics_extractor::draw_formatted_char_sequence_with_drop_shadow(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), |visitor| {
-        // rust: let mut start: i32 = (if compat::read(__this_1.get(), |__t| __t.has_alpha) { 0 } else { 1 });
-        // rust: for i in 0..compat::str_len(&__this_1.get().lock().borrow().input) {
-        // rust: if !(visitor.accept(i, &(if __this_1.get().lock().borrow().is_hovered_or_focused() { mcrust::net::minecraft::network::chat::style::Style::EMPTY.apply_format(FORMATTINGS.get_mut()[((i.wrapping_div(2)).wrapping_add(start)) as usize]) } else { mcrust::net::minecraft::network::chat::style::Style::EMPTY }), (compat::char_at(&__this_1.get().lock().borrow().input, i)) as u32)) {
-        // rust: return false;
-        // rust: }
-        // rust: }
-        // rust: return true;
-        // rust: }, text_x, text_y, mcrust::net::minecraft::util::common_colors::WHITE, true);
+        // java: context.text(textRenderer, visitor -> { int start = hasAlpha ? 0 : 1; for (int i = 0; i < input.length(); i++) {
+        //   if (!visitor.accept(i, isHoveredOrFocused() ? Style.EMPTY.applyFormat(FORMATTINGS[i / 2 + start]) : Style.EMPTY, input.charAt(i))) return false; }
+        //   return true; }, textX, textY, CommonColors.WHITE, true);
+        // (the port's text draw takes the sequence as `FormattedText`: one styled piece per character, as the visitor
+        // hands them)
+        let (start, input, hovered_or_focused): (i32, String, bool) = compat::read(__this, |__t| (if __t.has_alpha { 0 } else { 1 }, __t.input.clone(), __t.is_hovered_or_focused()));
+        let mut sequence: mcrust::net::minecraft::network::chat::mutable_component::MutableComponent = component::empty();
+        for (i, c) in input.chars().enumerate() {
+            let style = if hovered_or_focused { mcrust::net::minecraft::network::chat::style::Style::EMPTY.apply_format(FORMATTINGS.get_mut()[((i as i32).wrapping_div(2)).wrapping_add(start) as usize]) } else { mcrust::net::minecraft::network::chat::style::Style::EMPTY };
+            sequence = sequence.append(component::literal(&c.to_string()).with_style(&style));
+        }
+        gui_graphics_extractor::draw_formatted_char_sequence_with_drop_shadow(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), &mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(sequence), text_x, text_y, mcrust::net::minecraft::util::common_colors::WHITE, true);
         if __this.lock().borrow().is_hovered() {
-            // TODO(fabric2seer): static `CursorTypes.IBEAM` has no Rust counterpart in the port's CursorTypes file
-            // TODO(fabric2seer): `GuiGraphicsExtractor.requestCursor` has no Rust method in the port (looked for `request_cursor` in GuiGraphicsExtractor and its supertypes)
-            // rust: context.request_cursor(&CursorTypes::IBEAM);
+            // java: context.requestCursor(CursorTypes.IBEAM);
+            compat::batch_w_request_cursor(compat::BatchWCursor::Ibeam);
         }
     }
 
@@ -168,15 +168,15 @@ impl ARGBTextInput {
         let mut bl: bool = match key_input.key() {
             261 => 'yield_1: {
                 let mut builder: String = compat::read(__this, |__t| __t.input.clone());
-                // TODO(fabric2seer): StringBuilder.setCharAt
-                //   java: builder.setCharAt(index, '0');
+                // java: builder.setCharAt(index, '0');
+                ARGBTextInput::set_char_at(&mut builder, compat::read(__this, |__t| __t.index), '0');
                 { let __v = builder.clone(); compat::write(__this, |__t| __t.input = __v); }
                 break 'yield_1 true;
             }
             259 => 'yield_2: {
                 let mut builder: String = compat::read(__this, |__t| __t.input.clone());
-                // TODO(fabric2seer): StringBuilder.setCharAt
-                //   java: builder.setCharAt(index, '0');
+                // java: builder.setCharAt(index, '0');
+                ARGBTextInput::set_char_at(&mut builder, compat::read(__this, |__t| __t.index), '0');
                 { let __v = builder.clone(); compat::write(__this, |__t| __t.input = __v); }
                 { let __v = 0i32.max((compat::read(__this, |__t| __t.index)).wrapping_sub(1)); compat::write(__this, |__t| __t.index = __v); }
                 break 'yield_2 true;
@@ -196,13 +196,23 @@ impl ARGBTextInput {
             return true;
         } else {
             if key_input.is_copy() {
-                // TODO(fabric2seer): `set_clipboard` takes 2 argument(s) in the port (`clipboard: &mut dyn ClipboardAccess, value: &str`), Java passes 1
-                // rust: compat::minecraft().keyboard_handler.set_clipboard(&mut compat::read(__this, |__t| __t.input.clone()));
+                // java: Minecraft.getInstance().keyboardHandler.setClipboard(input);
+                let __input = compat::read(__this, |__t| __t.input.clone());
+                let mut __memory = mcrust::net::minecraft::client::gui::components::edit_box::MemoryClipboard::default();
+                match mcrust::net::minecraft::client::minecraft::SdlClipboard::published() {
+                    Some(mut __glfw) => compat::minecraft().keyboard_handler.set_clipboard(&mut __glfw, &__input),
+                    None => compat::minecraft().keyboard_handler.set_clipboard(&mut __memory, &__input),
+                }
                 return true;
             } else if key_input.is_paste() {
-                // TODO(fabric2seer): `get_clipboard` takes 1 argument(s) in the port (`clipboard: &mut dyn ClipboardAccess`), Java passes 0
-                // rust: let mut clipboard: String = compat::minecraft().keyboard_handler.get_clipboard();
-                let mut clipboard: String = todo!("fabric2seer: the initialiser of `clipboard` (TODO above)");
+                // java: String clipboard = Minecraft.getInstance().keyboardHandler.getClipboard();
+                let mut clipboard: String = {
+                    let mut __memory = mcrust::net::minecraft::client::gui::components::edit_box::MemoryClipboard::default();
+                    match mcrust::net::minecraft::client::minecraft::SdlClipboard::published() {
+                        Some(mut __glfw) => compat::minecraft().keyboard_handler.get_clipboard(&mut __glfw),
+                        None => compat::minecraft().keyboard_handler.get_clipboard(&mut __memory),
+                    }
+                };
                 if clipboard.starts_with("#") {
                     clipboard = compat::substring(&clipboard, 1);
                 }
@@ -214,10 +224,8 @@ impl ARGBTextInput {
                 return true;
             }
         }
-        // TODO(fabric2seer): `key_pressed` takes 3 argument(s) in the port (`_key: i32, _scancode: i32, _modifiers: i32`), Java passes 1
-        // TODO(fabric2seer): `key_pressed` is a method of the port's trait `GuiEventListener`, which the port's `AbstractWidget` does not implement
-        // rust: return { let (__q0,) = (key_input.clone(),); __this.lock().borrow_mut().base.key_pressed(__q0) };
-        return todo!("fabric2seer: see the TODO above");
+        // java: return super.keyPressed(keyInput); - `AbstractWidget` keeps `GuiEventListener.keyPressed:34-36`: `false`
+        return false;
     }
 
     /// java: @Override public boolean charTyped(CharacterEvent input)
@@ -226,16 +234,29 @@ impl ARGBTextInput {
             return false;
         }
         if HEXADECIMAL_CHARS.contains(&input.codepoint_as_string()) {
-            // TODO(fabric2seer): StringBuilder.replace
-            //   java: this.input = new StringBuilder(this.input).replace(index, index+1, input.codepointAsString().toUpperCase(Locale.ENGLISH)).toString();
+            // java: this.input = new StringBuilder(this.input).replace(index, index+1, input.codepointAsString().toUpperCase(Locale.ENGLISH)).toString();
+            {
+                let (mut __input, __index) = compat::read(__this, |__t| (__t.input.clone(), __t.index));
+                let __end = (__index.wrapping_add(1)).min(compat::str_len(&__input));
+                __input = format!("{}{}{}", compat::substring2(&__input, 0, __index), input.codepoint_as_string().to_uppercase(), compat::substring(&__input, __end));
+                compat::write(__this, |__t| __t.input = __input);
+            }
             { let __v = ((compat::read(__this, |__t| __t.length)).wrapping_sub(1)).min((compat::read(__this, |__t| __t.index)).wrapping_add(1)); compat::write(__this, |__t| __t.index = __v); }
             ARGBTextInput::call_on_change(__this);
             return true;
         }
-        // TODO(fabric2seer): `char_typed` takes 2 argument(s) in the port (`_codepoint: char, _modifiers: i32`), Java passes 1
-        // TODO(fabric2seer): `char_typed` is a method of the port's trait `GuiEventListener`, which the port's `AbstractWidget` does not implement
-        // rust: return { let (__q0,) = (input.clone(),); __this.lock().borrow_mut().base.char_typed(__q0) };
-        return todo!("fabric2seer: see the TODO above");
+        // java: return super.charTyped(input); - `AbstractWidget` keeps `GuiEventListener.charTyped:42-44`: `false`
+        return false;
+    }
+
+    /// `StringBuilder.setCharAt(index, c)` (`StringIndexOutOfBoundsException` outside the string, as Java's)
+    fn set_char_at(builder: &mut String, index: i32, c: char) {
+        let mut chars: Vec<char> = builder.chars().collect();
+        if index < 0 || index as usize >= chars.len() {
+            panic!("StringIndexOutOfBoundsException: index {}, length {}", index, chars.len());
+        }
+        chars[index as usize] = c;
+        *builder = chars.into_iter().collect();
     }
 
     /// java: protected void callOnChange()
@@ -247,15 +268,13 @@ impl ARGBTextInput {
 
     /// java: @Override public void onClick(MouseButtonEvent click, boolean doubled)
     pub fn on_click(__this: &compat::Shared<Self>, click: &MouseButtonEvent, mut doubled: bool) {
-        // TODO(fabric2seer): `AbstractWidget.onClick` has no Rust method in the port (looked for `on_click` in AbstractWidget and its supertypes)
-        // rust: __this.lock().borrow_mut().base.on_click(click, doubled);
+        // java: super.onClick(click, doubled); - `AbstractWidget.onClick:100-101` is empty
         { let __v = ARGBTextInput::find_clicked_char(__this, ((click.x()) as i32)); compat::write(__this, |__t| __t.index = __v); }
     }
 
     /// java: @Override protected void onDrag(MouseButtonEvent click, double deltaX, double deltaY)
     pub fn on_drag(__this: &compat::Shared<Self>, click: &MouseButtonEvent, mut delta_x: f64, mut delta_y: f64) {
-        // TODO(fabric2seer): `AbstractWidget.onDrag` has no Rust method in the port (looked for `on_drag` in AbstractWidget and its supertypes)
-        // rust: __this.lock().borrow_mut().base.on_drag(click, delta_x, delta_y);
+        // java: super.onDrag(click, deltaX, deltaY); - `AbstractWidget.onDrag:106-107` is empty
         { let __v = ARGBTextInput::find_clicked_char(__this, ((click.x()) as i32)); compat::write(__this, |__t| __t.index = __v); }
     }
 

@@ -122,15 +122,15 @@ impl SlayerManager {
     /// java: @Init public static void init()
     pub fn init() {
         SLAYERS_DATA.get_mut().lock().borrow_mut().load();
-        // TODO(fabric2seer): ClientReceiveMessageEvents.ALLOW_GAME.register: no SeerClient equivalent yet
         //   java: ClientReceiveMessageEvents.ALLOW_GAME.register(SlayerManager::onChatMessage);
+        compat::register_allow_game(|text, overlay| SlayerManager::on_chat_message(text, overlay));
         skyblock_events::MAYOR_CHANGE.register(Arc::new(move || { SlayerManager::on_mayor_change(); }));
         skyblock_events::PROFILE_CHANGE.register(Arc::new(move |_, _| { *SLAYER_QUEST.get_mut() = None; }));
         client_play_connection_events::JOIN.register(Arc::new(|listener: &mut ClientPacketListener| {
             *BOSS_FIGHT.get_mut() = None;
         }));
-        // TODO(fabric2seer): AttackEntityCallback.EVENT.register: no SeerClient equivalent yet
         //   java: AttackEntityCallback.EVENT.register(SlayerManager::onEntityAttack);
+        compat::register_attack_entity_callback(|player, level, hand, entity, hit_result| SlayerManager::on_entity_attack(player, level, &hand, entity, hit_result));
         ({ let __r = scheduler::INSTANCE.get_mut(); let __f = compat::dispatch(__r, |__t| __t.schedule_cyclic()); __f(__r, Arc::new(move || { TwinClawsIndicator::update_ice(); }), SkyblockerConfigManager::get().slayers.vampire_slayer.holy_ice_update_frequency) });
         ({ let __r = scheduler::INSTANCE.get_mut(); let __f = compat::dispatch(__r, |__t| __t.schedule_cyclic()); __f(__r, Arc::new(move || { ManiaIndicator::update_mania(); }), SkyblockerConfigManager::get().slayers.vampire_slayer.mania_update_frequency) });
         ({ let __r = scheduler::INSTANCE.get_mut(); let __f = compat::dispatch(__r, |__t| __t.schedule_cyclic()); __f(__r, Arc::new(move || { StakeIndicator::update_stake(); }), SkyblockerConfigManager::get().slayers.vampire_slayer.steak_stake_update_frequency) });
@@ -215,6 +215,19 @@ impl SlayerManager {
         if !SlayerType::values().iter().copied().any(|slayer| entity_type.as_ref().is_some_and(|t| Arc::ptr_eq(&slayer.fields().mob_type, t))) {
             return InteractionResult::Pass;
         }
+        // The game fires this while it holds the attacked entity's lock, and
+        // `findBoss` scans the level's entities (locking each one), so the rest
+        // runs on the client loop right after the attack.
+        mcrust::net::minecraft::client::minecraft::execute(Box::new(move |_| {
+            let Some(level) = mcrust::mcrust::modding::game::level() else { return };
+            let Some(entity) = level.get_entity(entity_id) else { return };
+            let entity = entity.lock().unwrap_or_else(|p| p.into_inner());
+            SlayerManager::on_entity_attack_found(&*entity, entity_id);
+        }));
+        return InteractionResult::Pass;
+    }
+
+    fn on_entity_attack_found(entity: &dyn Entity, entity_id: i32) {
         let mut boss: Option<compat::Shared<BossFight>> = SlayerManager::find_boss(entity);
         if let Some(boss) = &boss {
             if !(SlayerManager::is_slayer_armor_stand_alive_held(Some(entity))) || (compat::read(boss, |__t| __t.player_boss) && BOSS_FIGHT.get_mut().is_some() && compat::read(BOSS_FIGHT.get_mut().as_ref().unwrap(), |__t| __t.armor_stand) != compat::read(boss, |__t| __t.armor_stand)) {
@@ -223,7 +236,6 @@ impl SlayerManager {
                 ENTITIES_CACHE.get_mut().insert(entity_id);
             }
         }
-        return InteractionResult::Pass;
     }
 
     /// java: public static void checkSlayerQuest()

@@ -84,9 +84,25 @@ pub trait JsonData<T> {
     fn as_any(&self) -> &dyn std::any::Any;
 
     /// java: public CompletableFuture<Void> init()
-    fn init(&mut self) -> mcrust::java::util::concurrent::completable_future::CompletableFuture<()> {
-        // TODO(fabric2seer): no SeerClient event yet: hook HEAD of Minecraft#stop (`net.minecraft.client.Minecraft#stop`: exists)
-        //   java: ClientLifecycleEvents.CLIENT_STOPPING.register(_ -> save().join());
+    fn init(&mut self) -> mcrust::java::util::concurrent::completable_future::CompletableFuture<()>
+    where
+        T: Clone + 'static,
+    {
+        // java: ClientLifecycleEvents.CLIENT_STOPPING.register(_ -> save().join());
+        // `save` reads only the object's `JsonData` half (`json_data_base`), which lives as long as the object - every
+        // `JsonData` is held by a `static` for the life of the game - so the listener holds that half's address.
+        struct BaseRef<T>(*const JsonDataBase<T>);
+        unsafe impl<T> Send for BaseRef<T> {}
+        unsafe impl<T> Sync for BaseRef<T> {}
+        impl<T: Clone + 'static> BaseRef<T> {
+            fn save(&self) {
+                // SAFETY: see above; the stopping listeners run on the client thread, which owns these objects.
+                let base: &JsonDataBase<T> = unsafe { &*self.0 };
+                base.save().join();
+            }
+        }
+        let base = BaseRef(self.json_data_base() as *const JsonDataBase<T>);
+        mcrust::mcrust::modding::events::client_lifecycle_events::register_client_stopping(move |_| base.save());
         return self.load();
     }
 
@@ -94,8 +110,8 @@ pub trait JsonData<T> {
     fn load(&mut self) -> mcrust::java::util::concurrent::completable_future::CompletableFuture<()> {
         if self.json_data_base().load_async {
             // java: loaded = CompletableFuture.runAsync(this::loadInternal, SkyblockerMod.VIRTUAL_THREAD_EXECUTOR);
-            // rust: port gap - the object, its `Codec` (`Arc<dyn Codec<T>>`) and its data are not `Send`, so the load
-            // cannot move to another thread; it runs here and `loaded` is complete when it returns (GAPS_batchA.md)
+            // Verified gap (GAPS_batchA.md): the object, its `Codec` (`Arc<dyn Codec<T>>`, not `Send`) and its data cannot
+            // move to the executor's thread, so the load runs here and `loaded` is complete when it returns
             self.load_internal();
             self.json_data_base_mut().loaded = Some(CompletableFuture::completed_future(()));
         } else {
@@ -140,14 +156,19 @@ pub trait JsonData<T> {
             }
         }
         if create_backup {
-            // TODO(fabric2seer): Path.relativize
-            //   java: SystemToast.add(
-            //   java: 					Minecraft.getInstance().gui.toastManager(), ERROR_TOAST_ID,
-            //   java: 					Component.literal("Skyblocker Config Error"),
-            //   java: 					Component.literal("Failed to load '" + FabricLoader.getInstance().getConfigDir().relativize(file) + "'")
-            //   java: 							.append("\n")
-            //   java: 							.append("See logs for details. A backup of the file has been made.")
-            //   java: 			);
+            // java: SystemToast.add(Minecraft.getInstance().gui.toastManager(), ERROR_TOAST_ID, Component.literal("Skyblocker Config Error"),
+            //           Component.literal("Failed to load '" + FabricLoader.getInstance().getConfigDir().relativize(file) + "'").append("\n").append("See logs for details. A backup of the file has been made."));
+            // (`Path.relativize` of a file under the config dir is the path below it; the toast manager is the client
+            // thread's, so the add runs there)
+            {
+                let relative: String = file.strip_prefix(mcrust::mcrust::modding::config::config_dir()).map(|p| p.display().to_string()).unwrap_or_else(|_| file.display().to_string());
+                compat::execute(move || {
+                    let minecraft = compat::minecraft();
+                    let title = mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::literal("Skyblocker Config Error"));
+                    let message = mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::literal(&format!("Failed to load '{}'", relative)).append(component::literal("\n")).append(component::literal("See logs for details. A backup of the file has been made.")));
+                    mcrust::net::minecraft::client::gui::components::toasts::system_toast::add(&mut minecraft.gui.toast_manager().borrow_mut(), &minecraft.font, *ERROR_TOAST_ID.get(), &title, Some(&message));
+                });
+            }
             // java: try {..} catch (IOException e) - an exception here is a panic, caught by `catch_unwind`
             let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                 let mut file_name: String = std::path::PathBuf::from(self.json_data_base().file.as_ref().unwrap().file_name().unwrap_or_default()).to_string_lossy().to_string();
@@ -155,15 +176,17 @@ pub trait JsonData<T> {
                 let mut new_file_name: String;
                 if extension_index >= 0 {
                     let mut extension: String = compat::substring(&file_name, extension_index);
-                    // TODO(fabric2seer): static call LocalDateTime.now(..)
-                    //   java: newFileName = fileName.substring(0, extensionIndex) + '_' + ConfigBackupManager.FORMATTER.format(LocalDateTime.now()) + extension;
+                    // java: newFileName = fileName.substring(0, extensionIndex) + '_' + ConfigBackupManager.FORMATTER.format(LocalDateTime.now()) + extension;
+                    new_file_name = format!("{}_{}{}", compat::substring2(&file_name, 0, extension_index), config_backup_manager::FORMATTER.get().format(mcrust::java::time::zoned_date_time::ZonedDateTime::now()), extension);
                 } else {
                     logger().warn(&format!("[Skyblocker Json Data] No extension? {}", compat::opt_str(&self.json_data_base().file.as_ref().map(|p| p.display().to_string()))));
-                    // TODO(fabric2seer): static call LocalDateTime.now(..)
-                    //   java: newFileName = fileName + '_' + ConfigBackupManager.FORMATTER.format(LocalDateTime.now());
+                    // java: newFileName = fileName + '_' + ConfigBackupManager.FORMATTER.format(LocalDateTime.now());
+                    new_file_name = format!("{}_{}", file_name, config_backup_manager::FORMATTER.get().format(mcrust::java::time::zoned_date_time::ZonedDateTime::now()));
                 }
-                // TODO(fabric2seer): static field StandardCopyOption.REPLACE_EXISTING
-                //   java: Files.copy(file, file.getParent().resolve(newFileName), StandardCopyOption.REPLACE_EXISTING);
+                // java: Files.copy(file, file.getParent().resolve(newFileName), StandardCopyOption.REPLACE_EXISTING);
+                // (`std::fs::copy` replaces an existing target)
+                let source: std::path::PathBuf = self.json_data_base().file.clone().unwrap();
+                std::fs::copy(&source, source.parent().map(|x| x.to_path_buf()).unwrap().join(&new_file_name)).unwrap_or_else(|e| panic!("IOException: {e}"));
             }));
             if let Err(e) = __result {
                 logger().error(&format!("[Skyblocker Json Data] Failed to create backup for file: `{}`", compat::opt_str(&self.json_data_base().file.as_ref().map(|p| p.display().to_string()))));
@@ -175,7 +198,7 @@ pub trait JsonData<T> {
     fn save(&self) -> mcrust::java::util::concurrent::completable_future::CompletableFuture<()> {
         if self.json_data_base().save_async && minecraft::is_running() {
             // java: return CompletableFuture.runAsync(this::saveInternal, SkyblockerMod.VIRTUAL_THREAD_EXECUTOR);
-            // rust: port gap - as `load`: the object is not `Send`, so the save runs here (GAPS_batchA.md)
+            // Verified gap (GAPS_batchA.md), as `load`: the object is not `Send`, so the save runs here
             self.save_internal();
             return CompletableFuture::completed_future(());
         } else {

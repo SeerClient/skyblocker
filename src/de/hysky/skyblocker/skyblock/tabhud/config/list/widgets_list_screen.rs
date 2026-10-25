@@ -49,8 +49,6 @@ use mcrust::net::minecraft::network::chat::component::Component as _;
 
 /// java: public static boolean overrideWidgetsScreen = false;
 pub static OVERRIDE_WIDGETS_SCREEN: LazyLock<Mutex<bool>> = LazyLock::new(|| Mutex::new(false));
-// TODO(fabric2seer): the port's `new` ports this Java method with other parameters ( for Java's display_time)
-//   java: public static final SystemToast.SystemToastId SYSTEM_TOAST_ID = new SystemToast.SystemToastId(1_000);
 /// java: public static final SystemToast.SystemToastId SYSTEM_TOAST_ID = new SystemToast.SystemToastId(1_000);
 pub static SYSTEM_TOAST_ID: compat::MainThread<SystemToastId> = compat::MainThread::new(|| SystemToastId::with_display_time(1_000));
 /// java: private static final int PADDING = 8;
@@ -75,7 +73,8 @@ pub struct WidgetsListScreen {
     /// java: private StringWidget waitingForServerText;
     pub waiting_for_server_text: Option<compat::WidgetRef>,
     /// java: private MultiLineTextWidget infoText;
-    pub info_text: Option<MultiLineTextWidget>,
+    /// (a widget of this screen: the header layout holds it by its index)
+    pub info_text: Option<compat::WidgetRef>,
     /// java: private final HeaderAndFooterLayout layout = new HeaderAndFooterLayout(this, 25);
     pub layout: Option<HeaderAndFooterLayout>,
     /// java: private final FrameLayout headerLayout = new FrameLayout(0, 25);
@@ -104,6 +103,10 @@ pub struct WidgetsListScreen {
     pub self_ref: compat::WeakShared<Self>,
     /// the screen's widgets as this object last saw them (see `compat::WidgetCache`)
     pub __widgets: compat::WidgetCache,
+    /// `handler.addSlotListener(this)`: the menu's `slotChanged` calls, queued for this screen's next own call
+    /// (`compat::SlotChangeQueue` - the menu calls its listeners inside the game's hold of the player); `None` until
+    /// the menu is the player's open one, where the listener is added
+    pub slot_changes: Option<compat::SlotChangeQueue>,
 }
 
 impl std::ops::Deref for WidgetsListScreen {
@@ -146,14 +149,15 @@ impl WidgetsListScreen {
             overflowing: false,
             preview_visible: false,
             third_column_enabled: false,
+            slot_changes: None,
         });
         compat::write(&__this, |__t| __t.self_ref = std::sync::Arc::downgrade(&__this));
         { let __v = Some(HeaderAndFooterLayout::with_height(0, 0, 25)); compat::write(&__this, |__t| __t.layout = __v); }
         { let __v = (Some(WidgetsElementList::new(__this.clone(), compat::minecraft(), 0, 0, 0))).map(|__o| compat::WidgetRef::value(compat::attach_list(__o))); compat::write(&__this, |__t| { let __s = &mut *__t; __s.widgets_element_list = __v; }); }
         { let __v = Some(handler); compat::write(&__this, |__t| __t.handler = __v); }
         { let __v = name.get_string().to_lowercase(); compat::write(&__this, |__t| __t.title_lowercase = __v); }
-        // TODO(fabric2seer): `add_slot_listener` takes 2 argument(s) in the port (`listener: Box<dyn ContainerListener>, containers: &mut Containers<'_>`), Java passes 1
-        // rust: { let _ = __this.lock().borrow().handler.as_ref().unwrap().with(|__chest| __chest.menu.add_slot_listener(__this)); };
+        // java: handler.addSlotListener(this);
+        WidgetsListScreen::listen_to_handler(&__this);
         __this
     }
 
@@ -161,15 +165,20 @@ impl WidgetsListScreen {
     pub fn init_commands() {
         client_command_registration_callback::EVENT.register(Arc::new(
             |dispatcher: &mut client_command_registration_callback::ClientCommandDispatcher| {
-                // TODO(fabric2seer): a command tree this tool cannot read (arguments, redirects, requires) - SeerClient commands receive the words after the name in `ctx.args`
-                //   java: dispatcher.register(ClientCommands.literal(SkyblockerMod.NAMESPACE)
-                //   java: 					.then(ClientCommands.literal("hypixelWidgets").executes(_ -> {
-                //   java: 						if (Utils.isOnSkyblock()) {
-                //   java: 							overrideWidgetsScreen = true;
-                //   java: 							MessageScheduler.INSTANCE.sendMessageAfterCooldown("/widgets", true);
-                //   java: 						}
-                //   java: 						return Command.SINGLE_SUCCESS;
-                //   java: 					})));
+                //   java: dispatcher.register(ClientCommands.literal(SkyblockerMod.NAMESPACE).then(ClientCommands.literal("hypixelWidgets").executes(_ -> {
+                //   java:     if (Utils.isOnSkyblock()) { overrideWidgetsScreen = true; MessageScheduler.INSTANCE.sendMessageAfterCooldown("/widgets", true); } return Command.SINGLE_SUCCESS; })));
+                use mcrust::com::mojang::brigadier::builder::argument_builder::ArgumentBuilder as _;
+                let mut hypixel_widgets = client_command_registration_callback::literal("hypixelWidgets");
+                hypixel_widgets.executes(Arc::new(|_: &mcrust::com::mojang::brigadier::context::command_context::CommandContext<client_command_registration_callback::FabricClientCommandSource>| {
+                    if crate::de::hysky::skyblocker::utils::utils::Utils::is_on_skyblock() {
+                        compat::set_state(&OVERRIDE_WIDGETS_SCREEN, true);
+                        crate::de::hysky::skyblocker::utils::scheduler::message_scheduler::MessageScheduler::send_message_after_cooldown(crate::de::hysky::skyblocker::utils::scheduler::message_scheduler::INSTANCE.get_mut(), "/widgets", true);
+                    }
+                    Ok(1)
+                }));
+                let mut root = client_command_registration_callback::literal(crate::entry::skyblocker_mod::NAMESPACE);
+                root.then(&hypixel_widgets);
+                dispatcher.dispatcher().register(&root);
             },
         ));
     }
@@ -192,13 +201,19 @@ impl WidgetsListScreen {
             WidgetsListScreen::click_and_wait_for_server((&__this_1), 48, 0);
             WidgetsListScreen::reset_scroll_on_load((&__this_1));
         } }) })))).size(60, 15).build())).map(compat::WidgetRef::value); compat::write(__this, |__t| { let __s = &mut *__t; __s.back = __v; }); }
-        { let (__q0, __q1,) = ({ let (__i, __ww, __wh) = compat::write(__this, |__t| { let __s = &mut *__t; let __r = __s.back.as_mut().unwrap(); __s.__widgets.add_to_layout(&mut __s.base, __r) }); LayoutElement::widget(__i, __ww, __wh) }, &mut |l: &mut mcrust::net::minecraft::client::gui::layouts::layout_settings::LayoutSettings| { l.align_horizontally_left().padding_left(PADDING); },); __this.lock().borrow_mut().header_layout.add_child_adjusted(__q0, __q1) };
+        { let (__q0, __q1,) = ({ let (__i, __ww, __wh) = compat::write(__this, |__t| { let __s = &mut *__t; let __r = __s.back.as_mut().unwrap(); __s.__widgets.add_to_layout(&mut __s.base, __r) }); LayoutElement::widget(__i, __ww, __wh) }, &mut |l: &mut mcrust::net::minecraft::client::gui::layouts::layout_settings::LayoutSettings| { *l = l.align_horizontally_left().padding_left(PADDING); },); __this.lock().borrow_mut().header_layout.add_child_adjusted(__q0, __q1) };
         let __this_w2 = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
         { let __v = (Some((button::builder((component::literal("if you are seeing this for more than a second, something went very wrong! (no i will not translate this aaron)")).get_string(), OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| { let Some(__this_2) = __this_w2.get().upgrade() else { return Default::default(); }; compat::lend_screen(&__this_2, __screen, || { let mut __pidx = compat::WidgetRef::Screen(__index); { WidgetsListScreen::click_and_wait_for_server((&__this_2), 50, 0); } }) })))).size(120, 15).build())).map(compat::WidgetRef::value); compat::write(__this, |__t| { let __s = &mut *__t; __s.third_column_button = __v; }); }
-        { let (__q0, __q1,) = ({ let (__i, __ww, __wh) = compat::write(__this, |__t| { let __s = &mut *__t; let __r = __s.third_column_button.as_mut().unwrap(); __s.__widgets.add_to_layout(&mut __s.base, __r) }); LayoutElement::widget(__i, __ww, __wh) }, &mut |l: &mut mcrust::net::minecraft::client::gui::layouts::layout_settings::LayoutSettings| { l.align_horizontally_right().padding_right(PADDING); },); __this.lock().borrow_mut().header_layout.add_child_adjusted(__q0, __q1) };
-        // TODO(fabric2seer): the port's `new` ports this Java method with other parameters (x, y, message for Java's message)
-        // TODO(fabric2seer): `new` takes 3 argument(s) in the port (`x: i32, y: i32, message: FormattedText`), Java passes 2
-        // rust: { let __v = Some({ let (__q0, __q1,) = ((MultiLineTextWidget::new(component::empty(), compat::font())).set_centered(true), &mut |l| { l.padding_vertical(4); },); __this.lock().borrow_mut().header_layout.add_child_adjusted(__q0, __q1) }); compat::write(__this, |__t| __t.info_text = __v); }
+        { let (__q0, __q1,) = ({ let (__i, __ww, __wh) = compat::write(__this, |__t| { let __s = &mut *__t; let __r = __s.third_column_button.as_mut().unwrap(); __s.__widgets.add_to_layout(&mut __s.base, __r) }); LayoutElement::widget(__i, __ww, __wh) }, &mut |l: &mut mcrust::net::minecraft::client::gui::layouts::layout_settings::LayoutSettings| { *l = l.align_horizontally_right().padding_right(PADDING); },); __this.lock().borrow_mut().header_layout.add_child_adjusted(__q0, __q1) };
+        // java: infoText = headerLayout.addChild(new MultiLineTextWidget(Component.empty(), font).setCentered(true), l -> l.paddingVertical(4));
+        {
+            let __info = MultiLineTextWidget::new(0, 0, mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::empty())).set_centered(true);
+            let (__iw, __ih) = { let __font = compat::font(); let __splitter = __font.splitter(); (__info.get_width(&__splitter), __info.get_height(&__splitter)) };
+            let __info_widget = AbstractWidget::new(0, 0, __iw, __ih, String::new(), mcrust::net::minecraft::client::gui::components::abstract_widget::WidgetKind::PlainMultiLineText(Box::new(__info)), OnPress::Inert);
+            let __v = Some(compat::WidgetRef::value(__info_widget));
+            compat::write(__this, |__t| __t.info_text = __v);
+        }
+        { let (__q0, __q1,) = ({ let (__i, __ww, __wh) = compat::write(__this, |__t| { let __s = &mut *__t; let __r = __s.info_text.as_mut().unwrap(); __s.__widgets.add_to_layout(&mut __s.base, __r) }); LayoutElement::widget(__i, __ww, __wh) }, &mut |l: &mut mcrust::net::minecraft::client::gui::layouts::layout_settings::LayoutSettings| { *l = l.padding_vertical(4); },); __this.lock().borrow_mut().header_layout.add_child_adjusted(__q0, __q1) };
         let __wa1 = Tooltip::create((component::translatable("skyblocker.config.hud.widgetsList.thirdColumn.@Tooltip")).get_string());
         compat::write(__this, |__t| { let __s = &mut *__t; let __r = __s.third_column_button.as_mut().unwrap(); __s.__widgets.with(&mut __s.base, __r, |__w| __w.set_tooltip(__wa1.clone())) });
         let mut footer: LinearLayout = LinearLayout::horizontal().spacing(10);
@@ -212,15 +227,21 @@ impl WidgetsListScreen {
         { let __v = (Some(compat::string_widget(0, 0, -1, 9, component::translatable("skyblocker.config.hud.widgetsList.waitingForServer")))).map(compat::WidgetRef::value); compat::write(__this, |__t| { let __s = &mut *__t; __s.waiting_for_server_text = __v; }); }
         let __wa2 = compat::font().width_of_cached(&mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(compat::write(__this, |__t| { let __s = &mut *__t; let __r = __s.waiting_for_server_text.as_mut().unwrap(); __s.__widgets.with(&mut __s.base, __r, |__w| compat::component_of(__w.get_message_component())) })));
         compat::write(__this, |__t| { let __s = &mut *__t; let __r = __s.waiting_for_server_text.as_mut().unwrap(); __s.__widgets.with(&mut __s.base, __r, |__w| __w.set_width(__wa2)) });
-        // TODO(fabric2seer): a lambda for a parameter the port does not type as a closure (`Consumer<net.minecraft.client.gui.layouts.LayoutSettings>`)
-        // rust: let __this_w5 = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
-        // rust: { let __v = (Some((button::builder(component::translatable("skyblocker.config.hud.widgetsList.reset").get_string(), OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| { let Some(__this_5) = __this_w5.get().upgrade() else { return Default::default(); }; compat::lend_screen(&__this_5, __screen, || { let mut __pidx = compat::WidgetRef::Screen(__index); {
-        // rust: if compat::read((&__this_5), |__t| __t.reset_slot_id) == -1 {
-        // rust: return;
-        // rust: }
-        // rust: WidgetsListScreen::click_and_wait_for_server((&__this_5), compat::read((&__this_5), |__t| __t.reset_slot_id), 0);
-        // rust: } }) })))).size(60, 15).build())).map(compat::WidgetRef::value); compat::write(__this, |__t| { let __s = &mut *__t; __s.reset_button = __v; }); }
-        // rust: { let (__q0, __q1,) = ({ let (__i, __ww, __wh) = compat::write(__this, |__t| { let __s = &mut *__t; let __r = __s.reset_button.as_mut().unwrap(); __s.__widgets.add_to_layout(&mut __s.base, __r) }); LayoutElement::widget(__i, __ww, __wh) }, |l| { l.align_horizontally_right().padding_right(PADDING); },); __this.lock().borrow_mut().layout.as_mut().unwrap().add_to_footer_with(__q0, __q1) };
+        // java: resetButton = layout.addToFooter(Button.builder(Component.translatable("skyblocker.config.hud.widgetsList.reset"), _ -> {
+        //           if (resetSlotId == -1) return; clickAndWaitForServer(resetSlotId, 0); }).size(60, 15).build(), l -> l.alignHorizontallyRight().paddingRight(PADDING));
+        let __this_w5 = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
+        { let __v = (Some((button::builder(component::translatable("skyblocker.config.hud.widgetsList.reset").get_string(), OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| { let Some(__this_5) = __this_w5.get().upgrade() else { return Default::default(); }; compat::lend_screen(&__this_5, __screen, || { let mut __pidx = compat::WidgetRef::Screen(__index); {
+            if compat::read((&__this_5), |__t| __t.reset_slot_id) == -1 {
+                return;
+            }
+            WidgetsListScreen::click_and_wait_for_server((&__this_5), compat::read((&__this_5), |__t| __t.reset_slot_id), 0);
+        } }) })))).size(60, 15).build())).map(compat::WidgetRef::value); compat::write(__this, |__t| { let __s = &mut *__t; __s.reset_button = __v; }); }
+        {
+            // (`l -> ..` applies to the footer frame's own child settings, `newChildLayoutSettings()`)
+            let __settings: mcrust::net::minecraft::client::gui::layouts::layout_settings::LayoutSettings = __this.lock().borrow().layout.as_ref().unwrap().footer_frame.new_child_layout_settings().align_horizontally_right().padding_right(PADDING);
+            let __q0 = { let (__i, __ww, __wh) = compat::write(__this, |__t| { let __s = &mut *__t; let __r = __s.reset_button.as_mut().unwrap(); __s.__widgets.add_to_layout(&mut __s.base, __r) }); LayoutElement::widget(__i, __ww, __wh) };
+            __this.lock().borrow_mut().layout.as_mut().unwrap().add_to_footer_with(__q0, __settings);
+        }
         { let __vw = __this.lock().borrow().layout.as_ref().unwrap().visit_widgets(); for (__i, _, _) in __vw { compat::write(__this, |__t| __t.mark_renderable(__i)); } };
         compat::write(__this, |__t| { let __s = &mut *__t; let __r = __s.waiting_for_server_text.as_mut().unwrap(); __s.__widgets.add(&mut __s.base, __r, true) });
         WidgetsListScreen::reposition_elements(__this);
@@ -228,7 +249,9 @@ impl WidgetsListScreen {
 
     /// java: @Override protected void repositionElements()
     pub fn reposition_elements(__this: &compat::Shared<Self>) {
-        { let (__q0,) = (((compat::read(__this, |__t| __t.width)).wrapping_sub((compat::write(__this, |__t| { let __s = &mut *__t; let __r = __s.third_column_button.as_mut().unwrap(); __s.__widgets.with(&mut __s.base, __r, |__w| __w.get_width()) })).wrapping_mul(2))).wrapping_sub(PADDING.wrapping_mul(3)),); compat::write(__this, |__t| { let __w = __t.info_text.take().expect("NullPointerException"); __t.info_text = Some(__w.set_max_width(__q0)); }) }; // (java: infoText.setMaxWidth(..) - the port's setter is a by-value builder: the field takes back its answer)
+        // java: infoText.setMaxWidth(width - thirdColumnButton.getWidth() * 2 - PADDING * 3);
+        let __max_width: i32 = ((compat::read(__this, |__t| __t.width)).wrapping_sub((compat::write(__this, |__t| { let __s = &mut *__t; let __r = __s.third_column_button.as_mut().unwrap(); __s.__widgets.with(&mut __s.base, __r, |__w| __w.get_width()) })).wrapping_mul(2))).wrapping_sub(PADDING.wrapping_mul(3));
+        WidgetsListScreen::with_info_text(__this, |__m| __m.max_width = Some(__max_width));
         let __r0 = compat::read(__this, |__t| __t.width);
         { let (__q0,) = (__r0,); __this.lock().borrow_mut().header_layout.set_min_width(__q0) };
         { __this.lock().borrow_mut().header_layout.arrange_elements(); let mut __vw = Vec::new(); __this.lock().borrow().header_layout.visit_widgets(&mut __vw); for (__i, __x, __y) in __vw { compat::write(__this, |__t| __t.widget_mut(__i).set_position(__x, __y)); } };
@@ -238,10 +261,10 @@ impl WidgetsListScreen {
         compat::write(__this, |__t| { let __s = &mut *__t; let __r = __s.widgets_element_list.as_mut().unwrap(); __s.__widgets.with(&mut __s.base, __r, |__w| __w.mod_widget().and_then(|__ms| __ms.with::<mcrust::mcrust::modding::widgets::ModSelectionList, _>(|__l| __l.list.update_size(__wa1, __wa2.as_ref().unwrap()))).expect("a mod list reached from inside its own method")) });
         let __r0 = compat::read(__this, |__t| (__t.width, __t.height));
         { let (__sw, __sh) = __r0; __this.lock().borrow_mut().layout.as_mut().unwrap().screen_width = __sw; __this.lock().borrow_mut().layout.as_mut().unwrap().screen_height = __sh; __this.lock().borrow_mut().layout.as_mut().unwrap().arrange_elements(); let __vw = __this.lock().borrow().layout.as_ref().unwrap().visit_widgets(); for (__i, __x, __y) in __vw { compat::write(__this, |__t| __t.widget_mut(__i).set_position(__x, __y)); } };
-        // TODO(fabric2seer): `width` takes 2 argument(s) in the port (`max_width: i32, text_width: i32`), Java passes 0
-        // rust: let __wa3 = ((compat::read(__this, |__t| __t.width)).wrapping_sub(compat::write(__this, |__t| { let __s = &mut *__t; let __r = __s.waiting_for_server_text.as_mut().unwrap(); __s.__widgets.with(&mut __s.base, __r, |__w| string_widget::width()) }))).wrapping_sub(5);
-        // rust: let __wa4 = ((compat::read(__this, |__t| __t.height)).wrapping_sub(mcrust::net::minecraft::client::gui::font::LINE_HEIGHT)).wrapping_sub(2);
-        // rust: compat::write(__this, |__t| { let __s = &mut *__t; let __r = __s.waiting_for_server_text.as_mut().unwrap(); __s.__widgets.with(&mut __s.base, __r, |__w| __w.set_position(__wa3, __wa4)) });
+        // java: waitingForServerText.setPosition(width - waitingForServerText.getWidth() - 5, height - font.lineHeight - 2);
+        let __wa3 = ((compat::read(__this, |__t| __t.width)).wrapping_sub(compat::write(__this, |__t| { let __s = &mut *__t; let __r = __s.waiting_for_server_text.as_mut().unwrap(); __s.__widgets.with(&mut __s.base, __r, |__w| __w.get_width()) }))).wrapping_sub(5);
+        let __wa4 = ((compat::read(__this, |__t| __t.height)).wrapping_sub(mcrust::net::minecraft::client::gui::font::LINE_HEIGHT)).wrapping_sub(2);
+        compat::write(__this, |__t| { let __s = &mut *__t; let __r = __s.waiting_for_server_text.as_mut().unwrap(); __s.__widgets.with(&mut __s.base, __r, |__w| __w.set_position(__wa3, __wa4)) });
     }
 
     /// java: public void resetScrollOnLoad()
@@ -262,8 +285,9 @@ impl WidgetsListScreen {
         if false /* java: compat::minecraft().game_mode == null: never null here */ || mcrust::mcrust::modding::game::with_player(|_| ()).is_none() {
             return;
         }
-        // TODO(fabric2seer): `MultiPlayerGameMode.handleContainerInput` has no Rust method in the port (looked for `handle_container_input` in MultiPlayerGameMode and its supertypes)
-        // rust: mcrust::mcrust::modding::game::with_player(|player| { compat::minecraft().game_mode.handle_container_input(__this.lock().borrow().handler.as_ref().unwrap().container_id, slot, ContainerUtils::get_container_click_button(button), ContainerInput::Pickup, player); });
+        // java: client.gameMode.handleContainerInput(handler.containerId, slot, ContainerUtils.getContainerClickButton(button), ContainerInput.PICKUP, client.player);
+        let __container_id: i32 = compat::read(__this, |__t| __t.handler.as_ref().unwrap().container_id);
+        compat::handle_container_input(__container_id, slot, ContainerUtils::get_container_click_button(button), ContainerInput::Pickup);
         { let __v = true; compat::write(__this, |__t| __t.waiting_for_server = __v); }
         { let __v = true; compat::write(__this, |__t| { let __s = &mut *__t; let __r = __s.waiting_for_server_text.as_mut().unwrap(); __s.__widgets.with(&mut __s.base, __r, |__w| __w.visible = __v) }); }
     }
@@ -276,8 +300,9 @@ impl WidgetsListScreen {
         if false /* java: compat::minecraft().game_mode == null: never null here */ || mcrust::mcrust::modding::game::with_player(|_| ()).is_none() {
             return;
         }
-        // TODO(fabric2seer): `MultiPlayerGameMode.handleContainerInput` has no Rust method in the port (looked for `handle_container_input` in MultiPlayerGameMode and its supertypes)
-        // rust: mcrust::mcrust::modding::game::with_player(|player| { compat::minecraft().game_mode.handle_container_input(__this.lock().borrow().handler.as_ref().unwrap().container_id, slot, ContainerUtils::get_container_click_button(button), ContainerInput::QuickMove, player); });
+        // java: client.gameMode.handleContainerInput(handler.containerId, slot, ContainerUtils.getContainerClickButton(button), ContainerInput.QUICK_MOVE, client.player);
+        let __container_id: i32 = compat::read(__this, |__t| __t.handler.as_ref().unwrap().container_id);
+        compat::handle_container_input(__container_id, slot, ContainerUtils::get_container_click_button(button), ContainerInput::QuickMove);
         let __this_1 = compat::RenderThread::new(__this.clone());
         ({ let __r = scheduler::INSTANCE.get_mut(); let __f = compat::dispatch(__r, |__t| __t.schedule()); __f(__r, Arc::new(move || {
             { let __v = false; compat::write(__this_1.get(), |__t| __t.waiting_for_server = __v); }
@@ -290,11 +315,12 @@ impl WidgetsListScreen {
     /// java: public void updateHandler(ChestMenu newHandler, Component name)
     pub fn update_handler(__this: &compat::Shared<Self>, mut new_handler: compat::LiveChestMenu, name: &MutableComponent) {
         { let __v = name.get_string().to_lowercase(); compat::write(__this, |__t| __t.title_lowercase = __v); }
-        // TODO(fabric2seer): `remove_slot_listener` takes 0 argument(s) in the port (``), Java passes 1
-        // rust: { let _ = __this.lock().borrow().handler.as_ref().unwrap().with(|__chest| __chest.menu.remove_slot_listener(__this.clone())); };
-        // TODO(fabric2seer): `add_slot_listener` takes 2 argument(s) in the port (`listener: Box<dyn ContainerListener>, containers: &mut Containers<'_>`), Java passes 1
-        // rust: { let _ = new_handler.with(|__chest| __chest.menu.add_slot_listener(__this.clone())); };
+        // java: handler.removeSlotListener(this); - the port's `removeSlotListener` clears the menu's listeners
+        { let __old = compat::read(__this, |__t| __t.handler.clone()); let _ = __old.as_ref().and_then(|__h| __h.with(|__chest| __chest.menu.remove_slot_listener())); }
+        compat::write(__this, |__t| __t.slot_changes = None);
         { let __v = Some(new_handler); compat::write(__this, |__t| __t.handler = __v); }
+        // java: newHandler.addSlotListener(this);
+        WidgetsListScreen::listen_to_handler(__this);
         { let __v = true; compat::write(__this, |__t| { let __s = &mut *__t; let __r = __s.back.as_mut().unwrap(); __s.__widgets.with(&mut __s.base, __r, |__w| __w.visible = __v) }); }
         __this.lock().borrow_mut().entries.clear();
         compat::write(__this, |__t| { let __s = &mut *__t; let __r = __s.widgets_element_list.as_mut().unwrap(); __s.__widgets.with(&mut __s.base, __r, |__w| __w.mod_widget().and_then(|__ms| __ms.with::<mcrust::mcrust::modding::widgets::ModSelectionList, _>(|__l| { let __h = &__l.class::<compat::ListClass<WidgetsElementList>>().map(|__c| __c.object().clone()).expect("a mod list without its class"); compat::lend_list(__h, __l, || WidgetsElementList::update_list(__h)) })).expect("a mod list reached from inside its own method")) });
@@ -384,8 +410,10 @@ impl WidgetsListScreen {
         compat::write(__this, |__t| { let __s = &mut *__t; let __r = __s.widgets_element_list.as_mut().unwrap(); __s.__widgets.with(&mut __s.base, __r, |__w| __w.mod_widget().and_then(|__ms| __ms.with::<mcrust::mcrust::modding::widgets::ModSelectionList, _>(|__l| { let __h = &__l.class::<compat::ListClass<WidgetsElementList>>().map(|__c| __c.object().clone()).expect("a mod list without its class"); compat::lend_list(__h, __l, || WidgetsElementList::update_list(__h)) })).expect("a mod list reached from inside its own method")) });
         match slot {
             45 => {
-                // TODO(fabric2seer): an assignment used as a value
-                //   java: widgetsElementList.setIsOnSecondPage(previousPage.visible = stack.is(Items.ARROW));
+                // java: widgetsElementList.setIsOnSecondPage(previousPage.visible = stack.is(Items.ARROW));
+                let __second_page: bool = stack.is_item(&items::items().get("arrow"));
+                compat::write(__this, |__t| { let __s = &mut *__t; let __r = __s.previous_page.as_mut().unwrap(); __s.__widgets.with(&mut __s.base, __r, |__w| __w.visible = __second_page) });
+                compat::write(__this, |__t| { let __s = &mut *__t; let __r = __s.widgets_element_list.as_mut().unwrap(); __s.__widgets.with(&mut __s.base, __r, |__w| __w.mod_widget().and_then(|__ms| __ms.with::<mcrust::mcrust::modding::widgets::ModSelectionList, _>(|__l| { let __h = &__l.class::<compat::ListClass<WidgetsElementList>>().map(|__c| __c.object().clone()).expect("a mod list without its class"); compat::lend_list(__h, __l, || WidgetsElementList::set_is_on_second_page(__h, __second_page)) })).expect("a mod list reached from inside its own method")) });
                 return;
             }
             51 | 53 => {
@@ -483,8 +511,8 @@ impl WidgetsListScreen {
     /// java: private void updateInfoText()
     pub fn update_info_text(__this: &compat::Shared<Self>) {
         if !(compat::read(__this, |__t| __t.preview_visible)) {
-            // TODO(fabric2seer): `AbstractWidget::set_message_text` ports `setMessage`, but the port's `MultiLineTextWidget` holds no `AbstractWidget` (no Deref, no `base` field) to call it on
-            // rust: { let (__q0,) = (mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(mcrust::net::minecraft::network::chat::common_components::empty()),); __this.lock().borrow_mut().info_text.as_mut().unwrap().set_message_text(__q0) };
+            // java: infoText.setMessage(CommonComponents.EMPTY);
+            WidgetsListScreen::set_info_text_message(__this, mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::empty()));
             WidgetsListScreen::reposition_elements(__this);
             return;
         }
@@ -499,20 +527,80 @@ impl WidgetsListScreen {
             text = text.append_str("\n");
             text = text.append(overflow_warning.clone());
         }
-        // TODO(fabric2seer): `AbstractWidget::set_message_text` ports `setMessage`, but the port's `MultiLineTextWidget` holds no `AbstractWidget` (no Deref, no `base` field) to call it on
-        // rust: { let (__q0,) = (mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(text.clone()),); __this.lock().borrow_mut().info_text.as_mut().unwrap().set_message_text(__q0) };
+        // java: infoText.setMessage(text);
+        WidgetsListScreen::set_info_text_message(__this, mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(text.clone()));
         WidgetsListScreen::reposition_elements(__this);
     }
 
     /// java: @Override public void removed()
     pub fn removed(__this: &compat::Shared<Self>) {
         if mcrust::mcrust::modding::game::with_player(|_| ()).is_some() {
-            // TODO(fabric2seer): `removed` takes 0 argument(s) in the port (``), Java passes 1
-            // TODO(fabric2seer): the mod keeps the game's `LocalPlayer` (Java holds a reference to the live object); the port's `LocalPlayer` is not a value to copy and the port lends the mod no handle to it
-            // rust: mcrust::mcrust::modding::game::with_player(|player| { { let _ = __this.lock().borrow().handler.as_ref().unwrap().with(|__chest| __chest.removed(player.clone())); }; });
+            // java: handler.removed(minecraft.player);
+            { let __h = compat::read(__this, |__t| __t.handler.clone()); let _ = __h.as_ref().and_then(|__h| __h.with(|__chest| __chest.removed())); }
         }
-        // TODO(fabric2seer): `remove_slot_listener` takes 0 argument(s) in the port (``), Java passes 1
-        // rust: { let _ = __this.lock().borrow().handler.as_ref().unwrap().with(|__chest| __chest.menu.remove_slot_listener(__this.clone())); };
+        // java: handler.removeSlotListener(this); - the port's `removeSlotListener` clears the menu's listeners
+        { let __h = compat::read(__this, |__t| __t.handler.clone()); let _ = __h.as_ref().and_then(|__h| __h.with(|__chest| __chest.menu.remove_slot_listener())); }
+        compat::write(__this, |__t| __t.slot_changes = None);
+    }
+
+    /// `handler.addSlotListener(this)` once the handler is the player's open menu (the constructor runs inside
+    /// `MenuScreens.fromPacket`, before it is): the listener queues `slotChanged` for `drain_slot_changes`.
+    pub fn listen_to_handler(__this: &compat::Shared<Self>) {
+        if compat::read(__this, |__t| __t.slot_changes.is_some()) {
+            return;
+        }
+        let __handler = compat::read(__this, |__t| __t.handler.clone());
+        let __queue: Option<compat::SlotChangeQueue> = __handler.as_ref().and_then(|__h| __h.with(|__chest| compat::listen_slot_changes(__chest, "WidgetsListScreen")));
+        compat::write(__this, |__t| __t.slot_changes = __queue);
+    }
+
+    /// The `slotChanged(handler, slotId, stack)` calls the menu made since this screen's last own call, in order.
+    pub fn drain_slot_changes(__this: &compat::Shared<Self>) {
+        WidgetsListScreen::listen_to_handler(__this);
+        let Some(__queue) = compat::read(__this, |__t| __t.slot_changes.clone()) else { return; };
+        let __pending = compat::take_slot_changes(&__queue);
+        if __pending.is_empty() {
+            return;
+        }
+        // `slotChanged`'s `handler` argument is this screen's `handler` (its body does not read the argument; it reads the
+        // field, through `LiveChestMenu`): the call gets the menu's id only, so no hold of the player is kept across it
+        let Some(__container_id) = compat::read(__this, |__t| __t.handler.map(|__h| __h.container_id)) else { return; };
+        let __menu = mcrust::net::minecraft::world::inventory::abstract_container_menu::AbstractContainerMenu::new(__container_id);
+        for (__slot_id, __stack) in __pending {
+            WidgetsListScreen::slot_changed(__this, &__menu, __slot_id, &__stack);
+        }
+    }
+
+    /// The header's `MultiLineTextWidget` (`infoText`), with its box kept at the size the widget answers
+    /// (`MultiLineTextWidget.getWidth()` / `getHeight()` follow its message and max width).
+    pub fn with_info_text(__this: &compat::Shared<Self>, f: impl FnOnce(&mut MultiLineTextWidget)) {
+        let __font = compat::font();
+        let __splitter = __font.splitter();
+        compat::write(__this, |__t| {
+            let __s = &mut *__t;
+            if let Some(__r) = __s.info_text.as_mut() {
+                __s.__widgets.with(&mut __s.base, __r, |__w| {
+                    if let mcrust::net::minecraft::client::gui::components::abstract_widget::WidgetKind::PlainMultiLineText(__m) = &mut __w.kind {
+                        f(__m);
+                        let (__mw, __mh) = (__m.get_width(&__splitter), __m.get_height(&__splitter));
+                        __w.width = __mw;
+                        __w.height = __mh;
+                    }
+                });
+            }
+        });
+    }
+
+    /// `infoText.setMessage(text)`.
+    pub fn set_info_text_message(__this: &compat::Shared<Self>, text: mcrust::net::minecraft::network::chat::formatted_text::FormattedText) {
+        let __text = text.clone();
+        WidgetsListScreen::with_info_text(__this, |__m| __m.message = __text);
+        compat::write(__this, |__t| {
+            let __s = &mut *__t;
+            if let Some(__r) = __s.info_text.as_mut() {
+                __s.__widgets.with(&mut __s.base, __r, |__w| __w.set_message_text(text));
+            }
+        });
     }
 
     /// java: @Override public void onClose()
@@ -556,9 +644,9 @@ impl ModScreen for compat::ScreenAdapter<WidgetsListScreen> {
         self.lend(screen, |__h| WidgetsListScreen::reposition_elements(__h))
     }
 
-    /// java: Screen.tick (the base body)
+    /// java: Screen.tick (the base body) - and the `ContainerListener` calls queued since the last call
     fn tick(&mut self, screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen) {
-        self.lend(screen, |_| ())
+        self.lend(screen, |__h| WidgetsListScreen::drain_slot_changes(__h))
     }
 
     /// java: @Override public void removed()

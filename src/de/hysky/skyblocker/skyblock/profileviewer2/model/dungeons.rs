@@ -153,34 +153,164 @@ impl DailyRuns {
         if self.current_day_stamp == 0 {
             return None;
         } else {
-            // TODO(fabric2seer): static `LocalDate.ofEpochDay` has no Rust counterpart in the port
-            // rust: return Some(LocalDate::of_epoch_day(self.current_day_stamp));
-            return todo!("fabric2seer: see the TODO above");
+            // java: return LocalDate.ofEpochDay(this.currentDayStamp); - day 0 is 1970-01-01
+            return Some(LocalDate::of(1970, 1, 1).expect("1970-01-01").plus_days(self.current_day_stamp as i64));
         }
-        todo!("fabric2seer: the value of this function is in a TODO above")
     }
 
     /// java: public int getDailyRunsCompleted()
     pub fn get_daily_runs_completed(&self) -> i32 {
         let mut last_day: LocalDate = self.get_last_daily_run_date().unwrap();
-        // TODO(fabric2seer): `now` takes 0 argument(s) in the port (``), Java passes 1
-        // rust: let mut current_day: LocalDate = LocalDate::now(time_format_utils::GMT.get_mut().clone());
-        let mut current_day: LocalDate = todo!("fabric2seer: the initialiser of `currentDay` (TODO above)");
+        // java: LocalDate currentDay = LocalDate.now(TimeFormatUtils.GMT);
+        let current_day: LocalDate = local_date_now(*crate::de::hysky::skyblocker::skyblock::profileviewer2::utils::time_format_utils::GMT.get());
         return (if current_day == last_day { self.completed_runs_count.min(DAILY_RUNS_MAX_DAILIES) } else { 0 });
     }
 
     /// java: public Duration timeUntilReset()
     pub fn time_until_reset(&self) -> std::time::Duration {
         let mut current_time: std::time::SystemTime = std::time::SystemTime::now();
-        // TODO(fabric2seer): `.plusDays(..)` on a value of unknown type
-        //   java: Instant nextResetTime = LocalDate.now(TimeFormatUtils.GMT)
-        //   java: 					.plusDays(1L)
-        //   java: 					.atStartOfDay(TimeFormatUtils.GMT)
-        //   java: 					.toInstant();
-        let mut next_reset_time: std::time::SystemTime = todo!("fabric2seer: the initialiser of `nextResetTime` (TODO above)");
-        // TODO(fabric2seer): static call Duration.between(..)
-        //   java: return Duration.between(currentTime, nextResetTime);
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        // java: Instant nextResetTime = LocalDate.now(TimeFormatUtils.GMT).plusDays(1L).atStartOfDay(TimeFormatUtils.GMT).toInstant();
+        let gmt = *crate::de::hysky::skyblocker::skyblock::profileviewer2::utils::time_format_utils::GMT.get();
+        let next_day = local_date_now(gmt).plus_days(1);
+        let midnight_local = mcrust::java::time::zone_id::epoch_second_from_civil(mcrust::java::time::zone_id::Civil { year: next_day.get_year(), month: next_day.get_month_value(), day: next_day.get_day_of_month(), hour: 0, minute: 0, second: 0 });
+        let midnight = midnight_local - gmt.offset_seconds(mcrust::java::time::instant::Instant::of_epoch_second(midnight_local)) as i64;
+        let next_reset_time: std::time::SystemTime = std::time::UNIX_EPOCH + std::time::Duration::from_secs(midnight.max(0) as u64);
+        // java: return Duration.between(currentTime, nextResetTime); (non-negative: the reset is always ahead)
+        next_reset_time.duration_since(current_time).unwrap_or_default()
     }
 
+}
+
+/// java: `LocalDate.now(ZoneId zone)` - today's date in `zone`
+fn local_date_now(zone: mcrust::java::time::zone_id::ZoneId) -> LocalDate {
+    let civil = zone.local_civil(mcrust::java::time::instant::Instant::now());
+    LocalDate::of(civil.year, civil.month, civil.day).expect("the clock names a real date")
+}
+
+impl Dungeons {
+    /// Gson's reflective binding of the class's own fields (`ReflectiveTypeAdapterFactory`): each member the
+    /// JSON has is read over the field it names (`@SerializedName`, else the field's name) with the field's declared
+    /// type; an absent member (or a `null` one, or one Gson would reject) leaves the constructor's value.
+    pub fn read_json_fields(&mut self, json: &serde_json::Value) {
+        #[allow(unused_imports)]
+        use crate::io::github::moulberry::repo::neu_repository::gson;
+        if let Some(__v) = gson::member(json, "last_dungeon_run") {
+            if let Some(__x) = gson::as_string(__v) {
+                self.last_dungeon_run = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "secrets") {
+            if let Some(__x) = gson::as_i32(__v) {
+                self.secrets = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "selected_dungeon_class") {
+            if let Some(__x) = gson::as_string(__v) {
+                self.selected_dungeon_class = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "daily_runs") {
+            if let Some(__x) = Some(DailyRuns::from_json(__v)) {
+                self.daily_runs = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "treasures") {
+            if let Some(__x) = Some(Treasures::from_json(__v)) {
+                self.treasures = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "player_classes") {
+            if let Some(__x) = gson::map(__v, gson::string_key, |__e0| Some(ClassStats::from_json(__e0))) {
+                self.class_stats = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "dungeon_types") {
+            if let Some(__x) = Some(PerDungeonType::from_json(__v)) {
+                self.dungeon_types = __x;
+            }
+        }
+    }
+
+    /// `GSON.fromJson(json, Dungeons.class)`: the no-argument constructor, then the fields.
+    pub fn from_json(json: &serde_json::Value) -> Self {
+        let mut __this = Self::new();
+        __this.read_json_fields(json);
+        __this
+    }
+}
+
+impl PerDungeonType {
+    /// Gson's reflective binding of the class's own fields (`ReflectiveTypeAdapterFactory`): each member the
+    /// JSON has is read over the field it names (`@SerializedName`, else the field's name) with the field's declared
+    /// type; an absent member (or a `null` one, or one Gson would reject) leaves the constructor's value.
+    pub fn read_json_fields(&mut self, json: &serde_json::Value) {
+        #[allow(unused_imports)]
+        use crate::io::github::moulberry::repo::neu_repository::gson;
+        if let Some(__v) = gson::member(json, "master_catacombs") {
+            if let Some(__x) = Some(GenericCatacombsBase::from_json(__v) as compat::Shared<dyn GenericCatacombs>) {
+                self.master_mode_catacombs = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "catacombs") {
+            if let Some(__x) = Some(DefaultCatacombs::from_json(__v)) {
+                self.catacombs = __x;
+            }
+        }
+    }
+
+    /// `GSON.fromJson(json, PerDungeonType.class)`: the no-argument constructor, then the fields.
+    pub fn from_json(json: &serde_json::Value) -> Self {
+        let mut __this = Self::new();
+        __this.read_json_fields(json);
+        __this
+    }
+}
+
+impl ClassStats {
+    /// Gson's reflective binding of the class's own fields (`ReflectiveTypeAdapterFactory`): each member the
+    /// JSON has is read over the field it names (`@SerializedName`, else the field's name) with the field's declared
+    /// type; an absent member (or a `null` one, or one Gson would reject) leaves the constructor's value.
+    pub fn read_json_fields(&mut self, json: &serde_json::Value) {
+        #[allow(unused_imports)]
+        use crate::io::github::moulberry::repo::neu_repository::gson;
+        if let Some(__v) = gson::member(json, "experience") {
+            if let Some(__x) = gson::as_f64(__v) {
+                self.experience = __x;
+            }
+        }
+    }
+
+    /// `GSON.fromJson(json, ClassStats.class)`: the no-argument constructor, then the fields.
+    pub fn from_json(json: &serde_json::Value) -> Self {
+        let mut __this = Self::new();
+        __this.read_json_fields(json);
+        __this
+    }
+}
+
+impl DailyRuns {
+    /// Gson's reflective binding of the class's own fields (`ReflectiveTypeAdapterFactory`): each member the
+    /// JSON has is read over the field it names (`@SerializedName`, else the field's name) with the field's declared
+    /// type; an absent member (or a `null` one, or one Gson would reject) leaves the constructor's value.
+    pub fn read_json_fields(&mut self, json: &serde_json::Value) {
+        #[allow(unused_imports)]
+        use crate::io::github::moulberry::repo::neu_repository::gson;
+        if let Some(__v) = gson::member(json, "current_day_stamp") {
+            if let Some(__x) = gson::as_i32(__v) {
+                self.current_day_stamp = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "completed_runs_count") {
+            if let Some(__x) = gson::as_i32(__v) {
+                self.completed_runs_count = __x;
+            }
+        }
+    }
+
+    /// `GSON.fromJson(json, DailyRuns.class)`: the no-argument constructor, then the fields.
+    pub fn from_json(json: &serde_json::Value) -> Self {
+        let mut __this = Self::new();
+        __this.read_json_fields(json);
+        __this
+    }
 }

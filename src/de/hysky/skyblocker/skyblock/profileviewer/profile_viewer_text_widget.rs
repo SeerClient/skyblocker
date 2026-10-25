@@ -198,9 +198,7 @@ impl ProfileViewerTextWidget {
     /// java: private double addItemNetworth(PriorityQueue<ItemValue> top, ItemStack stack)
     pub fn add_item_networth(&self, top: &mut compat::JavaPriorityQueue<ItemValue>, stack: &mcrust::net::minecraft::world::item::item_stack::ItemStack) -> f64 {
         // java: double p = NetworthCalculator.getItemNetworth(stack).price();
-        // rust: port gap (GAPS_J #7) - `NetworthResult` is a `crate::unresolved` placeholder (the external
-        // `net.azureaaron.networth` library is unported), so it has no `price()`.
-        let mut p: f64 = todo!("fabric2seer: the initialiser of `p` (TODO above)");
+        let mut p: f64 = NetworthCalculator::get_item_networth(stack).price();
         if p > (0 as f64) {
             // java: top.offer(new ItemValue(stack.getHoverName().getString(), p));
             top.offer(ItemValue::new(compat::component_of(stack.get_hover_name()).get_string(), p));
@@ -230,9 +228,7 @@ impl ProfileViewerTextWidget {
         gui_graphics_extractor::text_string_with_drop_shadow(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), Some(&nw_string), nw_x, nw_y, mcrust::net::minecraft::util::common_colors::WHITE, true);
         if mouse_x >= nw_x && mouse_x <= nw_x.wrapping_add(text_renderer.width(&nw_string)) && mouse_y >= nw_y && mouse_y <= nw_y.wrapping_add(mcrust::net::minecraft::client::gui::font::LINE_HEIGHT) {
             // java: graphics.setComponentTooltipForNextFrame(textRenderer, networthTooltip, mouseX, mouseY);
-            // rust: port gap (GAPS_batchE #1) - the frame's `DeferredTooltip` (`tooltip_for_next_frame`) lives in the
-            // render loop and is not reachable from mod draw code; the port's call is:
-            // rust: gui_graphics_extractor::set_component_tooltip_for_next_frame(&mut text_renderer, self.networth_tooltip.clone(), mouse_x, mouse_y);
+            compat::batch_s_set_tooltip_for_next_frame(self.networth_tooltip.iter().map(|line| mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(line.clone())).collect());
         }
         gui_graphics_extractor::text_string_with_drop_shadow(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), Some(&format!("§6MP:§r {}", self.magical_power)), root_x.wrapping_add(2), (root_y.wrapping_add(7)).wrapping_add(ROW_GAP.wrapping_mul(5)), mcrust::net::minecraft::util::common_colors::WHITE, true);
     }

@@ -104,9 +104,8 @@ impl LevelBarWidgetBase {
 
     /// java: public static LevelBarWidget placeholder(int width)
     pub fn placeholder(mut width: i32) -> compat::Shared<dyn LevelBarWidget> {
-        // TODO(fabric2seer): `.getRGB(..)` on a value of unknown type
-        //   java: return new LevelBarWidget(width, Ico.BARRIER.getStackOrThrow(), Component.literal("Placeholder"), 0.75d, Color.CYAN.getRGB(), List.of(), null);
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        // java: return new LevelBarWidget(width, Ico.BARRIER.getStackOrThrow(), Component.literal("Placeholder"), 0.75d, Color.CYAN.getRGB(), List.of(), null);
+        return (LevelBarWidgetBase::new(width, FlexibleItemStack::get_stack_or_throw(crate::de::hysky::skyblocker::skyblock::tabhud::util::ico::BARRIER.get_mut()), component::literal("Placeholder"), 0.75f64, mcrust::java::awt::color::cyan().get_rgb(), vec![], None) as compat::Shared<dyn LevelBarWidget>);
     }
 
     /// java: protected static double getBarFillPercentage(LevelInfo levelInfo)
@@ -122,9 +121,8 @@ impl LevelBarWidgetBase {
         } else if level_info.is_level_absolutely_maxed() {
             bar_fill_colour = mcrust::java::awt::color::magenta();
         }
-        // TODO(fabric2seer): `.getRGB(..)` on a Color
-        //   java: return barFillColour.getRGB();
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        // java: return barFillColour.getRGB();
+        return bar_fill_colour.get_rgb();
     }
 
     /// java: protected static List<Component> buildTooltip(Component label, LevelInfo levelInfo, int leaderboardPosition)
@@ -186,9 +184,10 @@ impl dyn LevelBarWidget {
         gui_graphics_extractor::blit_sprite_identifier(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), mcrust::net::minecraft::client::renderer::render_pipelines::gui_textured(), BAR_BACKGROUND.get_mut(), bar_x, bar_y, BAR_WIDTH, BAR_HEIGHT);
         gui_graphics_extractor::blit_sprite_identifier_with_color(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), mcrust::net::minecraft::client::renderer::render_pipelines::gui_textured(), BAR_FILL.get_mut(), bar_x, bar_y, bar_fill_width, BAR_HEIGHT, compat::read(__this, |__t| __t.level_bar_widget_base().bar_fill_colour));
         if GuiHelper::point_is_in_area((mouse_x) as f64, (mouse_y) as f64, (bar_x) as f64, (bar_y) as f64, ((bar_x.wrapping_add(BAR_WIDTH)) as f64) as f64, ((bar_y.wrapping_add(BAR_HEIGHT)) as f64) as f64) {
-            // TODO(fabric2seer): the port's `set_component_tooltip_for_next_frame_styled` ports this Java method with other parameters (tooltip_for_next_frame, lines for Java's lines, xo, yo, style)
-            // TODO(fabric2seer): `set_component_tooltip_for_next_frame_styled` takes 2 argument(s) in the port (`tooltip_for_next_frame: &mut Option<DeferredTooltip>, lines: Vec<crate::net::minecraft::network::chat::formatted_text::FormattedText>`), Java passes 5
-            // rust: gui_graphics_extractor::set_component_tooltip_for_next_frame_styled(&mut compat::font(), compat::read(__this, |__t| __t.level_bar_widget_base().tooltip.clone()), mouse_x, mouse_y, compat::read(__this, |__t| __t.level_bar_widget_base().tooltip_style.clone()).unwrap());
+            // java: graphics.setComponentTooltipForNextFrame(Minecraft.getInstance().font, this.tooltip, mouseX, mouseY, this.tooltipStyle);
+            // (the game's deferred tooltip draws every tooltip in the default style: its `_styled` overload takes none)
+            let __lines: Vec<mcrust::net::minecraft::network::chat::formatted_text::FormattedText> = compat::read(__this, |__t| __t.level_bar_widget_base().tooltip.iter().cloned().map(mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from).collect());
+            compat::batch_s_set_tooltip_for_next_frame(__lines);
         }
     }
 

@@ -695,13 +695,86 @@ impl Match {
         }
         // java: try {..} catch (IndexOutOfBoundsException | IllegalArgumentException _) - an exception here is a panic, caught by `catch_unwind`
         let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            // TODO(fabric2seer): Matcher.appendReplacement
             //   java: m.appendReplacement(sb, replaceMessage);
+            // `appendReplacement` appends the input from the append position (0 after `reset`) up to the match start,
+            // then the expanded replacement; `sb.substring(m.start())` below keeps exactly the expanded replacement.
+            Match::expand_replacement(&m, replace_message)
         }));
-        if let Err(_) = __result {
+        let Ok(expanded) = __result else {
             return replace_message.to_string();
+        };
+        // java: return sb.substring(m.start()); - the expanded replacement
+        let _ = &mut sb;
+        return expanded;
+    }
+
+    /// `Matcher.appendExpandedReplacement(replacement, sb)`: `\x` is `x`, `$n` / `${name}` is that group (nothing for a
+    /// group that took no part); a dangling `\`, a `$` without a group reference or an unknown name is an
+    /// `IllegalArgumentException`, a group number past `groupCount()` an `IndexOutOfBoundsException` (both panics).
+    fn expand_replacement(m: &compat::regex::Matcher, replacement: &str) -> String {
+        let chars: Vec<char> = replacement.chars().collect();
+        let mut result = String::new();
+        let mut cursor = 0usize;
+        while cursor < chars.len() {
+            let next_char = chars[cursor];
+            if next_char == '\\' {
+                cursor += 1;
+                if cursor == chars.len() {
+                    panic!("IllegalArgumentException: character to be escaped is missing");
+                }
+                result.push(chars[cursor]);
+                cursor += 1;
+            } else if next_char == '$' {
+                cursor += 1;
+                if cursor == chars.len() {
+                    panic!("IllegalArgumentException: Illegal group reference: group index is missing");
+                }
+                if chars[cursor] == '{' {
+                    cursor += 1;
+                    let mut name = String::new();
+                    while cursor < chars.len() && chars[cursor].is_ascii_alphanumeric() {
+                        name.push(chars[cursor]);
+                        cursor += 1;
+                    }
+                    if name.is_empty() {
+                        panic!("IllegalArgumentException: named capturing group has 0 length name");
+                    }
+                    if cursor == chars.len() || chars[cursor] != '}' {
+                        panic!("IllegalArgumentException: named capturing group is missing trailing '}}'");
+                    }
+                    cursor += 1;
+                    if let Some(group) = m.group_named(&name) {
+                        result.push_str(&group);
+                    }
+                } else {
+                    let Some(first) = chars[cursor].to_digit(10) else {
+                        panic!("IllegalArgumentException: Illegal group reference");
+                    };
+                    let mut ref_num: i32 = first as i32;
+                    if ref_num > m.group_count() {
+                        panic!("IndexOutOfBoundsException: No group {}", ref_num);
+                    }
+                    cursor += 1;
+                    // Capture the largest legal group string
+                    while cursor < chars.len() {
+                        let Some(digit) = chars[cursor].to_digit(10) else { break };
+                        let new_ref_num: i32 = ref_num * 10 + digit as i32;
+                        if m.group_count() < new_ref_num {
+                            break;
+                        }
+                        ref_num = new_ref_num;
+                        cursor += 1;
+                    }
+                    if let Some(group) = m.group(ref_num) {
+                        result.push_str(&group);
+                    }
+                }
+            } else {
+                result.push(next_char);
+                cursor += 1;
+            }
         }
-        return compat::substring(&sb, m.start(0));
+        result
     }
 
 }

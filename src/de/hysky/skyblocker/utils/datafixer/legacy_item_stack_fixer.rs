@@ -4,6 +4,7 @@
 use crate::prelude::*;
 use crate::de::hysky::skyblocker::utils::registry_utils::RegistryUtils;
 use crate::de::hysky::skyblocker::utils::text_transformer::TextTransformer;
+use crate::net::azureaaron::legacyitemdfu;
 use mcrust::com::mojang::serialization::codec::Codec;
 use mcrust::com::mojang::serialization::codec::CodecRef;
 use mcrust::com::mojang::serialization::dynamic::Dynamic;
@@ -72,11 +73,16 @@ impl LegacyItemStackFixer {
         // java: RegistryOps<Tag> ops = RegistryUtils.getRegistryWrapperLookup().createSerializationContext(NbtOps.INSTANCE);
         let mut ops: mcrust::com::mojang::serialization::dynamic_ops::Ops = holder_lookup::create_serialization_context(RegistryUtils::get_registry_wrapper_lookup(), mcrust::net::minecraft::nbt::nbt_ops::NbtOps::instance());
         // java: Dynamic<Tag> fixed = getFixer().update(TypeReferences.LEGACY_ITEM_STACK, new Dynamic<>(ops, nbt), getFirstVersion(), getLatestVersion());
-        // rust: port gap (GAPS_J #6) - `getFixer` / `getFirstVersion` / `getLatestVersion` / `TypeReferences.LEGACY_ITEM_STACK`
-        // are the external Legacy Item DFU library (`net.azureaaron.legacyitemdfu`, its own pre-1.13 schemas and fixes),
-        // which has no Rust port. The input half is `Dynamic::new_with(ops, Some(obj(nbt)))`.
-        let _ = (&ops, nbt);
-        let mut fixed: Dynamic = todo!("fabric2seer: the initialiser of `fixed` (TODO above)");
+        // (`getFixer` / `getFirstVersion` / `getLatestVersion` are the static imports of `net.azureaaron.legacyitemdfu.LegacyItemStackFixer`;
+        // an exception out of a fix - `Err` here - is not caught in Java either, so it reaches the caller.)
+        let mut fixed: Dynamic = legacyitemdfu::legacy_item_stack_fixer::LegacyItemStackFixer::get_fixer()
+            .update(
+                &legacyitemdfu::type_references::LEGACY_ITEM_STACK,
+                Dynamic::new_with(ops.clone(), Some(mcrust::com::mojang::serialization::obj(nbt.clone()))),
+                legacyitemdfu::legacy_item_stack_fixer::LegacyItemStackFixer::get_first_version(),
+                legacyitemdfu::legacy_item_stack_fixer::LegacyItemStackFixer::get_latest_version(),
+            )
+            .unwrap_or_else(|e| panic!("{e}"));
         let mut stack: T = codec.parse_dynamic(&fixed).result_or_partial_with(|__a0| { LegacyItemStackFixer::log(&__a0); }).unwrap_or(default_value.clone());
         // java: if (stack.is(Items.AIR)) return stack;
         if stack.is_item(&mcrust::net::minecraft::world::item::items::items().get("air")) {

@@ -29,8 +29,8 @@ impl TreeFelledNotification {
 
     /// java: @Init public static void init()
     pub fn init() {
-        // TODO(fabric2seer): ClientReceiveMessageEvents.ALLOW_GAME.register: no SeerClient equivalent yet
-        //   java: ClientReceiveMessageEvents.ALLOW_GAME.register(TreeFelledNotification::onMessage);
+        // java: ClientReceiveMessageEvents.ALLOW_GAME.register(TreeFelledNotification::onMessage);
+        compat::batch_w_allow_game_register(Arc::new(|message: &MutableComponent, overlay: bool| TreeFelledNotification::on_message(message, overlay)));
     }
 
     /// java: private static boolean onMessage(Component message, boolean overlay)

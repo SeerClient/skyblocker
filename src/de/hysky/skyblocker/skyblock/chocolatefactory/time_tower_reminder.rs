@@ -35,8 +35,8 @@ impl TimeTowerReminder {
     /// java: @Init public static void init()
     pub fn init() {
         skyblock_events::JOIN.register(Arc::new(move || { TimeTowerReminder::check_temp_file(); }));
-        // TODO(fabric2seer): ClientReceiveMessageEvents.ALLOW_GAME.register: no SeerClient equivalent yet
-        //   java: ClientReceiveMessageEvents.ALLOW_GAME.register(TimeTowerReminder::checkIfTimeTower);
+        // java: ClientReceiveMessageEvents.ALLOW_GAME.register(TimeTowerReminder::checkIfTimeTower);
+        compat::register_allow_game(|message, overlay| TimeTowerReminder::check_if_time_tower(message, overlay));
     }
 
     /// java: public static boolean checkIfTimeTower(Message message, boolean overlay)

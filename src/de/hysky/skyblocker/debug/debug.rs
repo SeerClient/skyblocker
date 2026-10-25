@@ -30,6 +30,9 @@ pub static DEBUG_ENABLED: LazyLock<bool> = LazyLock::new(|| std::env::var("skybl
 pub static DUMP_NEARBY_ENTITIES_KEY: compat::MainThread<Option<mcrust::net::minecraft::client::key_mapping::KeyMapping>> = compat::MainThread::new(|| None);
 /// java: public static KeyMapping dumpHoveredItemKey;
 pub static DUMP_HOVERED_ITEM_KEY: compat::MainThread<Option<mcrust::net::minecraft::client::key_mapping::KeyMapping>> = compat::MainThread::new(|| None);
+/// `((AbstractContainerScreenAccessor) handledScreen).getFocusedSlot()` of the screen handling the last key press (the
+/// slot's index in the menu, -1 for none); written at HEAD of `AbstractContainerScreen#keyPressed`.
+static FOCUSED_SLOT: std::sync::atomic::AtomicI32 = std::sync::atomic::AtomicI32::new(-1);
 /// java: private static boolean keyDown = false;
 pub static KEY_DOWN: LazyLock<Mutex<bool>> = LazyLock::new(|| Mutex::new(false));
 
@@ -69,9 +72,9 @@ impl Debug {
         }
         SnapshotDebug::init();
         // java: dump_nearby_entities_key = KeyBindingHelper.registerKeyBinding(..) - the static must hold it (the config screen reads it)
-        *DUMP_NEARBY_ENTITIES_KEY.get_mut() = Some(key_binding_helper::register_key_binding(KeyMapping::new("key.skyblocker.debug.dumpNearbyEntities", 73, Category::Misc)));
+        *DUMP_NEARBY_ENTITIES_KEY.get_mut() = Some(key_binding_helper::register_key_binding(KeyMapping::new("key.skyblocker.debug.dumpNearbyEntities", mcrust::com::mojang::blaze3d::platform::input_constants::KEY_I, Category::Misc)));
         // java: dump_hovered_item_key = KeyBindingHelper.registerKeyBinding(..) - the static must hold it (the config screen reads it)
-        *DUMP_HOVERED_ITEM_KEY.get_mut() = Some(key_binding_helper::register_key_binding(KeyMapping::new("key.skyblocker.debug.dumpHoveredItem", 85, Category::Misc)));
+        *DUMP_HOVERED_ITEM_KEY.get_mut() = Some(key_binding_helper::register_key_binding(KeyMapping::new("key.skyblocker.debug.dumpHoveredItem", mcrust::com::mojang::blaze3d::platform::input_constants::KEY_U, Category::Misc)));
         client_command_registration_callback::EVENT.register(Arc::new(
             |dispatcher: &mut client_command_registration_callback::ClientCommandDispatcher| {
                 //   java: dispatcher.register(literal(SkyblockerMod.NAMESPACE).then(literal("debug")
@@ -81,8 +84,7 @@ impl Debug {
                 //   java: 		.then(auditMixins()).then(prefixTest()).then(apiId()).then(neuName())));
                 let mut debug = client_command_registration_callback::literal("debug");
                 debug.then(&Debug::dump_players_command());
-                // rust: cross-package - `ItemUtils.dumpHeldItemCommand()` (utils/item_utils.rs) is still the converter's
-                // placeholder typed over `crate::unresolved`; it joins the tree once it answers the real builder (GAPS_K)
+                debug.then(&item_utils::ItemUtils::dump_held_item_command());
                 debug.then(&item_utils::ItemUtils::dump_held_item_networth_calculations_command());
                 debug.then(&Debug::toggle_showing_invisible_armor_stands());
                 debug.then(&Debug::dump_armor_stand_head_textures());
@@ -122,9 +124,8 @@ impl Debug {
                         write_view.build_result()
                     };
                     let text = nbt_utils::to_pretty_component(&tag);
-                    // rust: port gap - `player.sendSystemMessage(Component)` (a styled client message, GAPS_batchD #17): the
-                    // text is shown as plain feedback
-                    script_host::send_feedback(&text.get_string());
+                    // java: client.player.sendSystemMessage(text)
+                    compat::batch_w_send_feedback(&compat::component_of(text));
                 }
                 compat::set_state(&KEY_DOWN, true);
             } else if !(key_mapping::consume_click("key.skyblocker.debug.dumpNearbyEntities")) && compat::get_state(&KEY_DOWN) {
@@ -135,23 +136,38 @@ impl Debug {
         //   ScreenKeyboardEvents.afterKeyPress(screen).register((_, keyInput) -> {..}); });
         // (the port's afterKeyPress is one global event, not a per-screen one: the listener is registered once and asks
         // whether a container screen is open - GAPS_batchB #5)
+        // `((AbstractContainerScreenAccessor) handledScreen).getFocusedSlot()` - the screen's `hoveredSlot`, read where the
+        // screen handles the key (HEAD of `AbstractContainerScreen#keyPressed`) for the after-key listener below
+        let focused = mcrust::mcrust::modding::hook::inject("net.minecraft.client.gui.screens.inventory.AbstractContainerScreen#keyPressed", mcrust::mcrust::modding::hook::At::Head, |ci: &mut mcrust::mcrust::modding::hook::CallbackInfo<'_>| {
+            let hovered: i32 = ci.find_arg::<AbstractContainerScreen>().and_then(|screen| screen.hovered_slot).unwrap_or(-1);
+            FOCUSED_SLOT.store(hovered, std::sync::atomic::Ordering::Relaxed);
+        });
+        if let Err(e) = focused {
+            logger().error(&format!("[Skyblocker Debug] Failed to hook the container screen's key press: {:?}", e));
+        }
         screen_keyboard_events::AFTER_KEY_PRESS.register(Arc::new(|action: i32, key_event: &KeyEvent| {
             if !compat::container_screen_open() {
                 return;
             }
             {
                 // java: Slot focusedSlot = ((AbstractContainerScreenAccessor) handledScreen).getFocusedSlot();
-                // rust: port gap (GAPS_batchB #2) - the open container screen's hovered slot is not lent to mod callbacks
-                let mut focused_slot: Option<Slot> = None;
+                let focused_index: i32 = FOCUSED_SLOT.load(std::sync::atomic::Ordering::Relaxed);
+                let mut focused_slot: Option<Slot> = if focused_index < 0 { None } else { compat::with_open_menu(|menu, _| menu.slots.get(focused_index as usize).cloned()).flatten() };
                 // java: dumpHoveredItemKey.matches(keyInput) && client.player != null && focusedSlot != null && focusedSlot.hasItem()
                 if key_mapping::matches("key.skyblocker.debug.dumpHoveredItem", key_event) && mcrust::mcrust::modding::game::with_player(|_| ()).is_some() && focused_slot.as_ref().is_some_and(|slot| compat::slot_has_item(slot)) {
                     // java: !keyInput.hasShiftDown()
                     if !key_event.has_shift_down() {
-                        // TODO(fabric2seer): `client`: Fabric passes the Minecraft here; this SeerClient callback does not (take it from ClientTickEvents or a hook)
-                        //   java: client.player.sendSystemMessage(Constants.PREFIX.get().append("Hovered Item: ").append(SkyblockerConfigManager.get().debug.dumpFormat.format(focusedSlot.getItem())));
+                        // java: client.player.sendSystemMessage(Constants.PREFIX.get().append("Hovered Item: ").append(SkyblockerConfigManager.get().debug.dumpFormat.format(focusedSlot.getItem())));
+                        let item = compat::slot_item(focused_slot.as_ref().unwrap());
+                        compat::batch_w_send_feedback(&(crate::de::hysky::skyblocker::utils::constants::PREFIX.get())().append_str("Hovered Item: ").append(SkyblockerConfigManager::get().debug.dump_format.format(&item)));
                     } else {
-                        // TODO(fabric2seer): `client`: Fabric passes the Minecraft here; this SeerClient callback does not (take it from ClientTickEvents or a hook)
-                        //   java: client.player.sendSystemMessage(Constants.PREFIX.get().append("Held Item NW Calcs: ").append(Component.literal(SkyblockerMod.GSON_COMPACT.toJson(Calculation.LIST_CODEC.encodeStart(JsonOps.INSTANCE, NetworthCalculator.getItemNetworth(focusedSlot.getItem()).calculations()).getOrThrow()))));
+                        // java: client.player.sendSystemMessage(Constants.PREFIX.get().append("Held Item NW Calcs: ").append(Component.literal(SkyblockerMod.GSON_COMPACT.toJson(Calculation.LIST_CODEC.encodeStart(JsonOps.INSTANCE, NetworthCalculator.getItemNetworth(focusedSlot.getItem()).calculations()).getOrThrow()))));
+                        let item = compat::slot_item(focused_slot.as_ref().unwrap());
+                        let result = crate::de::hysky::skyblocker::utils::networth::networth_calculator::NetworthCalculator::get_item_networth(&item);
+                        let encoded = crate::net::azureaaron::networth::calculation::LIST_CODEC.encode_start(&mcrust::com::mojang::serialization::json_ops::JsonOps::instance(), &result.calculations()).get_or_throw().unwrap_or_else(|e| panic!("IllegalStateException: {e}"));
+                        let json: String = serde_json::to_string(&compat::json_from_port(&encoded)).expect("JsonIOException");
+                        compat::batch_w_send_feedback(&(crate::de::hysky::skyblocker::utils::constants::PREFIX.get())().append_str("Held Item NW Calcs: ").append(mcrust::net::minecraft::network::chat::component::literal(&json)));
+                        //   java (the original statement): client.player.sendSystemMessage(Constants.PREFIX.get().append("Held Item NW Calcs: ").append(Component.literal(SkyblockerMod.GSON_COMPACT.toJson(Calculation.LIST_CODEC.encodeStart(JsonOps.INSTANCE, NetworthCalculator.getItemNetworth(focusedSlot.getItem()).calculations()).getOrThrow()))));
                     }
                 }
             }
@@ -285,9 +301,26 @@ impl Debug {
         //   java: 				});
         let mut node = client_command_registration_callback::literal("dumpBiome");
         node.executes(Arc::new(|_: &CommandContext<FabricClientCommandSource>| {
-            // rust: port gap - `source.getLevel().getBiome(pos)` answers the biome's `Holder` (`getRegisteredName`) and
-            // `Biome.DIRECT_CODEC` encodes it; the port's `ClientLevel::get_biome` answers the bare `Biome` and has no
-            // direct codec (GAPS_K): the command prints nothing
+            // java: Holder<Biome> biome = source.getLevel().getBiome(source.getPlayer().blockPosition());
+            let (Some(level), Some(pos)) = (mcrust::mcrust::modding::game::level(), mcrust::mcrust::modding::game::with_player(|player| player.base.base.base.base.block_position())) else {
+                panic!("NullPointerException: getLevel() / getPlayer()");
+            };
+            let holder = level.get_biome_holder(&pos);
+            // java: if (biome != null && biome.value() != null)
+            if let Some(biome) = level.get_biome(&pos) {
+                // java: biome.getRegisteredName() - the key's identifier, or "[unregistered]"
+                let registered_name: String = match mcrust::com::mojang::serialization::cast::<mcrust::net::minecraft::world::level::chunk::paletted_container_factory::BiomeHolder>(&holder) {
+                    Some(biome_holder) => mcrust::net::minecraft::core::holder::Holder::Reference(biome_holder.0.clone()).unwrap_key().map(|key| key.identifier().to_string()).unwrap_or_else(|| "[unregistered]".to_string()),
+                    None => "[unregistered]".to_string(),
+                };
+                // java: String biomeData = Biome.DIRECT_CODEC.encodeStart(JsonOps.INSTANCE, biome.value()).map(JsonElement::toString).setPartial("").getPartialOrThrow();
+                // DIVERGENCE (whole subsystem): `Biome.DIRECT_CODEC:37-46` also writes the biome's generation settings and
+                // mob settings, whose classes (`BiomeGenerationSettings`, `MobSpawnSettings`) are the server worldgen the
+                // port has not ported (RustSrc biome.rs header, NEXT_STEPS 000rr). A client biome holds both EMPTY, so the
+                // dump is `DIRECT_CODEC`'s other three fields - `network_codec`, which is exactly those three.
+                let biome_data: String = mcrust::net::minecraft::world::level::biome::biome::network_codec().encode_start(&mcrust::com::mojang::serialization::json_ops::JsonOps::instance(), &*biome).result().map(|o| compat::json_from_port(&o).to_string()).unwrap_or_default();
+                compat::batch_w_send_feedback(&(crate::de::hysky::skyblocker::utils::constants::PREFIX.get())().append(mcrust::net::minecraft::network::chat::component::literal(&format!("Biome ID: {}, Data: {}", registered_name, biome_data))));
+            }
             Ok(1)
         }));
         return node;
@@ -309,8 +342,16 @@ impl Debug {
         //   java: 				});
         let mut node = client_command_registration_callback::literal("dumpActionBar");
         node.executes(Arc::new(|_: &CommandContext<FabricClientCommandSource>| {
-            // rust: port gap - `HudAccessor.getOverlayMessageString` and `ComponentSerialization.CODEC` into NBT for
-            // `NbtUtils.toPrettyComponent` (GAPS_K): the command prints nothing
+            // java: Component actionBar = ((HudAccessor) (source.getClient().gui.hud)).getOverlayMessageString();
+            let action_bar: Option<mcrust::net::minecraft::network::chat::formatted_text::FormattedText> = compat::minecraft().gui.hud.overlay_message.clone();
+            if let Some(action_bar) = action_bar {
+                // java: Component pretty = NbtUtils.toPrettyComponent(ComponentSerialization.CODEC.encodeStart(RegistryUtils.getRegistryWrapperLookup().createSerializationContext(NbtOps.INSTANCE), actionBar).getOrThrow());
+                let ops = mcrust::net::minecraft::resources::registry_ops::RegistryOps::create_from_provider(mcrust::net::minecraft::nbt::nbt_ops::NbtOps::instance(), crate::de::hysky::skyblocker::utils::registry_utils::RegistryUtils::get_registry_wrapper_lookup());
+                let encoded = mcrust::net::minecraft::network::chat::component_serialization::codec().encode_start(&ops, &action_bar).get_or_throw().unwrap_or_else(|e| panic!("IllegalStateException: {e}"));
+                let tag: mcrust::net::minecraft::nbt::tag::Tag = mcrust::com::mojang::serialization::cast::<mcrust::net::minecraft::nbt::tag::Tag>(&encoded).cloned().expect("ClassCastException: NbtOps answers a Tag");
+                let pretty = compat::component_of(nbt_utils::to_pretty_component(&tag));
+                compat::batch_w_send_feedback(&(crate::de::hysky::skyblocker::utils::constants::PREFIX.get())().append_str("Action Bar: ").append(pretty));
+            }
             Ok(1)
         }));
         return node;
@@ -333,8 +374,16 @@ impl Debug {
         //   java: 				});
         let mut node = client_command_registration_callback::literal("dumpServerResourcePacks");
         node.executes(Arc::new(|_: &CommandContext<FabricClientCommandSource>| {
-            // rust: port gap - `DownloadedPackSource.manager.packs` (`ServerPackManager.packs`) is not reachable from a mod
-            // (GAPS_K): the command prints nothing
+            // java: ServerPackManager packManager = source.getClient().getDownloadedPackSource().manager;
+            //       for (ServerPackData packData : packManager.packs) { source.sendFeedback(Constants.PREFIX.get().append(ComponentUtils.copyOnClickText(packData.url.toString()))); }
+            let urls: Vec<String> = {
+                let source = compat::minecraft().get_downloaded_pack_source().lock().unwrap_or_else(|p| p.into_inner());
+                source.manager().packs().iter().map(|pack_data| pack_data.url.to_string()).collect()
+            };
+            for url in urls {
+                let message = (crate::de::hysky::skyblocker::utils::constants::PREFIX.get())().append(mcrust::net::minecraft::network::chat::component_utils::copy_on_click_text(&url));
+                compat::batch_w_send_feedback(&message);
+            }
             Ok(1)
         }));
         return node;
@@ -351,7 +400,8 @@ impl Debug {
         let mut node = client_command_registration_callback::literal("auditMixins");
         node.executes(Arc::new(|_: &CommandContext<FabricClientCommandSource>| {
             //   java: MixinEnvironment.getCurrentEnvironment().audit();
-            // rust: port gap - there is no Mixin environment: SeerClient's hooks are registered, not applied to classes
+            // GAP (verified, impossible): there is no Mixin environment to audit - SeerClient's hooks are registered against
+            // the port's functions at run time, not applied to loaded classes, so there is nothing to force-load.
             Ok(1)
         }));
         return node;
@@ -366,7 +416,7 @@ impl Debug {
         //   java: 				});
         let mut node = client_command_registration_callback::literal("prefixTest");
         node.executes(Arc::new(|_: &CommandContext<FabricClientCommandSource>| {
-            client_command_registration_callback::send_feedback(&(crate::de::hysky::skyblocker::utils::constants::PREFIX.get())().get_string());
+            compat::batch_w_send_feedback(&(crate::de::hysky::skyblocker::utils::constants::PREFIX.get())());
             Ok(1)
         }));
         return node;

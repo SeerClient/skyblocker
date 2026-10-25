@@ -108,7 +108,7 @@ impl ContainerSolver for ReorderHelper {
     }
 
     /// java: @Override public List<ColorHighlight> getColors(Int2ObjectMap<ItemStack> slots) (dispatch: the body for this class)
-    fn get_colors(&self) -> fn(&compat::Shared<dyn ContainerSolver>, &mut std::collections::HashMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack>) -> Vec<ColorHighlight> {
+    fn get_colors(&self) -> fn(&compat::Shared<dyn ContainerSolver>, &mut std::collections::BTreeMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack>) -> Vec<ColorHighlight> {
         ReorderHelper::get_colors_dyn
     }
 
@@ -152,7 +152,7 @@ impl ReorderHelper {
 
     /// java: @Override public boolean onClickSlot(int slot, ItemStack stack, int screenId, int button)
     pub fn on_click_slot_impl(__this: &compat::Shared<Self>, mut slot: i32, stack: &mcrust::net::minecraft::world::item::item_stack::ItemStack, mut screen_id: i32, mut button: i32) -> bool {
-        if (slot == 11 || slot == 13) && stack.is_item(mcrust::net::minecraft::world::item::items::dyed_terracotta().green()) && input_constants::is_key_down(compat::minecraft().get_window().handle(), mcrust::com::mojang::blaze3d::platform::input_constants::KEY_LCONTROL) {
+        if (slot == 11 || slot == 13) && stack.is_item(mcrust::net::minecraft::world::item::items::dyed_terracotta().green()) && input_constants::is_key_down(mcrust::com::mojang::blaze3d::platform::input_constants::KEY_LCONTROL) {
             let mut matcher: Option<compat::regex::Matcher> = None;
             if slot == 13 {
                 matcher = ItemUtils::get_lore_line_if_contains_match(stack, &SELL_PATTERN);
@@ -162,7 +162,7 @@ impl ReorderHelper {
             if let Some(matcher) = &matcher {
                 // java: client.keyboardHandler.setClipboard(matcher.group(1).replace(",", ""));
                 let value: String = matcher.group(1).unwrap().replace(",", "");
-                if let Some(mut clipboard) = mcrust::net::minecraft::client::minecraft::GlfwClipboard::published() {
+                if let Some(mut clipboard) = mcrust::net::minecraft::client::minecraft::SdlClipboard::published() {
                     compat::minecraft().keyboard_handler.set_clipboard(&mut clipboard, &value);
                 }
                 return false;
@@ -177,12 +177,12 @@ impl ReorderHelper {
     }
 
     /// java: @Override public List<ColorHighlight> getColors(Int2ObjectMap<ItemStack> slots)
-    pub fn get_colors_impl(__this: &compat::Shared<Self>, slots: &mut std::collections::HashMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack>) -> Vec<ColorHighlight> {
+    pub fn get_colors_impl(__this: &compat::Shared<Self>, slots: &mut std::collections::BTreeMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack>) -> Vec<ColorHighlight> {
         return vec![];
     }
 
     /// ReorderHelper.getColors as the dispatch of ContainerSolver.getColors
-    pub fn get_colors_dyn(__this: &compat::Shared<dyn ContainerSolver>, __p0: &mut std::collections::HashMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack>) -> Vec<ColorHighlight> {
+    pub fn get_colors_dyn(__this: &compat::Shared<dyn ContainerSolver>, __p0: &mut std::collections::BTreeMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack>) -> Vec<ColorHighlight> {
         Self::get_colors_impl(&compat::view_as::<Self, _, Self>(__this, |a| a), __p0)
     }
 

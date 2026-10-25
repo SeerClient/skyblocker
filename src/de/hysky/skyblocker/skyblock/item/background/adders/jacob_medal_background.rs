@@ -65,12 +65,22 @@ impl ColoredItemBackground<i32> for JacobMedalBackground {
     }
 
     /// java: @Override protected Integer getColorKey(ItemStack stack, Int2ReferenceOpenHashMap<Integer> cache)
-    fn get_color_key(&mut self, stack: &mcrust::net::minecraft::world::item::item_stack::ItemStack, cache: &mut std::collections::HashMap<i32, Option<i32>>) -> Option<i32> {
+    fn get_color_key(&mut self, stack: &mcrust::net::minecraft::world::item::item_stack::ItemStack, cache: &mut crate::de::hysky::skyblocker::skyblock::item::background::colored_item_background::ColorKeyCache<i32>) -> Option<i32> {
         if false /* java: stack == null: never null here */ || stack.is_empty() {
             return None; // java: return null
         }
         // int hashCode = stack.getUuid().isEmpty() ? System.identityHashCode(stack) : stack.getUuid().hashCode();
-        let mut hash_code: i32 = (if stack.get_uuid().is_empty() { compat::identity_hash_code(stack) } else { compat::string_hash_code(&stack.get_uuid()) });
+        // (`getUuid()` read once: Java's two calls answer the same cached field)
+        // OPTIMIZED BUT NOT FULLY VANILLA (perf round 1, P02-mods-runtime): the uuid hashed BORROWED (`with_uuid`), not
+        // cloned per slot per frame; `identityHashCode` - which reads this stack's own attachments - runs after the
+        // borrow, outside the stack's attachment lock. The same number. Was:
+        //     let stack_uuid: String = stack.get_uuid();
+        //     let mut hash_code: i32 = (if stack_uuid.is_empty() { compat::identity_hash_code(stack) } else { compat::string_hash_code(&stack_uuid) });
+        let uuid_hash: Option<i32> = crate::mixins::item_stack_mixin::with_uuid(stack, |stack_uuid: &str| (!stack_uuid.is_empty()).then(|| compat::string_hash_code(stack_uuid)));
+        let mut hash_code: i32 = match uuid_hash {
+            Some(uuid_hash) => uuid_hash,
+            None => compat::identity_hash_code(stack),
+        };
         if cache.contains_key(&hash_code) {
             return cache.get(&hash_code).copied().flatten();
         }

@@ -52,10 +52,12 @@ pub struct RangedValueWidget {
     pub max: i32,
     /// java: private State state = State.CLOSED;
     pub state: State,
-    /// java: private final ModifiedTextFieldWidget input;
+    /// java: private final ModifiedTextFieldWidget input; - the subclass's own field (`isGood`); the box itself is the
+    /// game's `EditBox` widget, `children`' `INPUT`
     pub input: ModifiedTextFieldWidget,
-    /// java: private final Button okButton;
-    pub ok_button: Option<AbstractWidget>,
+    /// java: `children()` = `List.of(input, okButton)` - the two child widgets, held the way a container row holds its
+    /// own (`INPUT` the edit box, `OK_BUTTON` the button), drawn and clicked through the game's widget bodies
+    pub children: mcrust::net::minecraft::client::gui::screens::screen::Screen,
     /// the object's own shared handle: Java's `this` handed to other objects
     pub self_ref: compat::WeakShared<Self>,
 }
@@ -79,7 +81,10 @@ impl RangedValueWidget {
         let __init_slot_id = slot_id;
         let __init_screen = screen.clone();
         let __init_name = name.clone();
+        // java: this.input = new ModifiedTextFieldWidget(Minecraft.getInstance().font, x, y + 25, width - 15, 15, Component.empty());
         let __init_input = ModifiedTextFieldWidget::new(compat::font(), x, y.wrapping_add(25), width.wrapping_sub(15), 15, component::empty());
+        let mut __children = mcrust::net::minecraft::client::gui::screens::screen::Screen::new(String::new());
+        __children.add_renderable_widget(compat::edit_box(x, y.wrapping_add(25), width.wrapping_sub(15), 15, component::empty()));
         // java: super(x, y, width, 45, Component.empty(), AbstractScrollArea.defaultSettings(4));
         let __this: compat::Shared<Self> = compat::shared(Self {
             base: AbstractContainerWidget::new_with_scrollbar_settings(x, y, width, 45, mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::empty()), mcrust::net::minecraft::client::gui::components::abstract_scroll_area::ScrollbarSettings::default_settings(4.0)),
@@ -93,18 +98,25 @@ impl RangedValueWidget {
             max: -1,
             state: State::Closed,
             input: __init_input,
-            ok_button: None,
+            children: __children,
             self_ref: std::sync::Weak::new(),
         });
         compat::write(&__this, |__t| __t.self_ref = std::sync::Arc::downgrade(&__this));
-        // TODO(fabric2seer): `EditBox.setVisible` has no Rust method in the port (looked for `set_visible` in EditBox and its supertypes)
-        // rust: __this.lock().borrow().input.set_visible(false);
-        __this.lock().borrow_mut().input.set_max_length(3);
-        let __this_w1 = compat::RenderThread::new(std::sync::Arc::downgrade(&__this));
-        { let (__q0,) = (Responder::Lambda(ResponderLambda::new(move |__a0| { let Some(__this_1) = __this_w1.get().upgrade() else { return Default::default(); }; { RangedValueWidget::update_confirm_button(&__this_1, __a0); } })),); __this.lock().borrow_mut().input.set_responder(__q0) };
-        let __this_w2 = compat::RenderThread::new(std::sync::Arc::downgrade(&__this));
-        { let __v = Some((button::builder((component::literal("✔")).get_string(), OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| { let Some(__this_2) = __this_w2.get().upgrade() else { return Default::default(); }; { RangedValueWidget::send_packet(&__this_2); } })))).bounds((x.wrapping_add(width)).wrapping_sub(15), y.wrapping_add(25), 15, 15).build()); compat::write(&__this, |__t| __t.ok_button = __v); }
-        __this.lock().borrow_mut().ok_button.as_mut().unwrap().visible = false;
+        // java: this.input.setVisible(false); this.input.setMaxLength(3);
+        compat::write(&__this, |__t| {
+            let input = __t.children.widget_mut(INPUT);
+            input.visible = false;
+            compat::with_edit_box(input, |e| e.set_max_length(3));
+        });
+        // java: input.setResponder(this::updateConfirmButton); - the box answers its value changes to this object, which
+        // holds the box: the change is seen where this object hands the box an event (`after_input_event`), which calls
+        // `updateConfirmButton` with the new value, as the responder would
+        // java: this.okButton = Button.builder(Component.literal("✔"), _ -> sendPacket()).bounds(x + width - 15, y + 25, 15, 15).build();
+        // (the press is this object's: `mouse_clicked` runs `sendPacket` when the button takes the click)
+        let mut __ok_button = button::builder(component::literal("✔").get_string(), OnPress::Inert).bounds((x.wrapping_add(width)).wrapping_sub(15), y.wrapping_add(25), 15, 15).build();
+        // java: this.okButton.visible = false;
+        __ok_button.visible = false;
+        compat::write(&__this, |__t| { __t.children.add_renderable_widget(__ok_button); });
         __this
     }
 
@@ -121,25 +133,26 @@ impl RangedValueWidget {
         let __parsed: Result<i32, std::num::ParseIntError> = compat::trim(&string).parse::<i32>();
         let __result: Result<(), ()> = __parsed.map(|i| {
             if i < 0 || i > 999 {
-                __this.lock().borrow_mut().ok_button.as_mut().unwrap().active = false;
+                __this.lock().borrow_mut().children.widget_mut(OK_BUTTON).active = false;
                 __this.lock().borrow_mut().input.set_good(false);
             } else if compat::read(__this, |__t| __t.state) == State::ModifyingMin && i > compat::read(__this, |__t| __t.max) {
-                __this.lock().borrow_mut().ok_button.as_mut().unwrap().active = false;
+                __this.lock().borrow_mut().children.widget_mut(OK_BUTTON).active = false;
                 __this.lock().borrow_mut().input.set_good(false);
             } else {
                 let mut active1: bool = (compat::read(__this, |__t| __t.state) != State::ModifyingMax || i >= compat::read(__this, |__t| __t.min));
-                __this.lock().borrow_mut().ok_button.as_mut().unwrap().active = active1;
+                __this.lock().borrow_mut().children.widget_mut(OK_BUTTON).active = active1;
                 __this.lock().borrow_mut().input.set_good(active1);
             }
         }).map_err(|_| ());
         if let Err(_) = __result {
-            __this.lock().borrow_mut().ok_button.as_mut().unwrap().active = false;
+            __this.lock().borrow_mut().children.widget_mut(OK_BUTTON).active = false;
             __this.lock().borrow_mut().input.set_good(false);
         }
     }
 
     /// java: @Override protected void extractWidgetRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a)
-    pub fn extract_widget_render_state(__this: &compat::Shared<Self>, graphics: &mut GuiGraphicsExtractor, mut mouse_x: i32, mut mouse_y: i32, mut a: f32) {
+    /// (`context` is the frame's render context: the two children are drawn by the game's widget bodies, which take it)
+    pub fn extract_widget_render_state(__this: &compat::Shared<Self>, context: &mut mcrust::mcrust::modding::widgets::WidgetRenderContext<'_>, mut mouse_x: i32, mut mouse_y: i32, mut a: f32) {
         gui_graphics_extractor::draw_formatted_text_with_drop_shadow(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), &mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(compat::read(__this, |__t| __t.name.clone())), __this.lock().borrow().get_x(), __this.lock().borrow().get_y(), 0xFFD0D0D0u32 as i32, false);
         let mut text_offset: i32 = 10;
         if !(compat::read(__this, |__t| __t.visible)) {
@@ -152,17 +165,17 @@ impl RangedValueWidget {
             gui_graphics_extractor::text_string_with_drop_shadow(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), Some(&compat::read(__this, |__t| __t.max_slot_id).to_string()), (__this.lock().borrow().get_x()).wrapping_add(40), (__this.lock().borrow().get_y()).wrapping_sub(10), 0xFFFF0000u32 as i32, true);
             gui_graphics_extractor::text_string_with_drop_shadow(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), Some(&compat::read(__this, |__t| __t.back_slot_id).to_string()), (__this.lock().borrow().get_x()).wrapping_add(60), (__this.lock().borrow().get_y()).wrapping_sub(10), 0xFFFF0000u32 as i32, true);
         }
-        // TODO(fabric2seer): `extract_render_state` is a method of the port's trait `Renderable`, which the port's `EditBox` does not implement
-        // rust: { let (__q0, __q1, __q2, __q3, __q4,) = (mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), mouse_x, mouse_y, a,); __this.lock().borrow_mut().input.extract_render_state(__q0, __q1, __q2, __q3, __q4) };
-        // TODO(fabric2seer): `extract_render_state` is a method of the port's trait `Renderable`, which the port's `AbstractWidget` does not implement
-        // rust: { let (__q0, __q1, __q2, __q3, __q4,) = (mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), mouse_x, mouse_y, a,); __this.lock().borrow_mut().ok_button.as_mut().unwrap().extract_render_state(__q0, __q1, __q2, __q3, __q4) };
+        // java: this.input.extractRenderState(graphics, mouseX, mouseY, a); this.okButton.extractRenderState(graphics, mouseX, mouseY, a);
+        // (each draws only while visible - `AbstractWidget.extractRenderState:56`)
+        compat::write(__this, |__t| context.extract_widgets(&mut __t.children, mouse_x, mouse_y));
+        let _ = a;
         if compat::read(__this, |__t| __t.state) == State::Closed {
-            graphics.fill(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), __this.lock().borrow().get_x(), (__this.lock().borrow().get_y()).wrapping_add(text_offset), (__this.lock().borrow().get_x()).wrapping_add(compat::read(__this, |__t| __t.width)), ((__this.lock().borrow().get_y()).wrapping_add(15)).wrapping_add(text_offset), 0xFFFFFFFFu32 as i32);
-            graphics.fill(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), (__this.lock().borrow().get_x()).wrapping_add(1), ((__this.lock().borrow().get_y()).wrapping_add(1)).wrapping_add(text_offset), ((__this.lock().borrow().get_x()).wrapping_add(compat::read(__this, |__t| __t.width))).wrapping_sub(1), ((__this.lock().borrow().get_y()).wrapping_add(14)).wrapping_add(text_offset), 0xFF000000u32 as i32);
+            context.graphics.fill(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), __this.lock().borrow().get_x(), (__this.lock().borrow().get_y()).wrapping_add(text_offset), (__this.lock().borrow().get_x()).wrapping_add(compat::read(__this, |__t| __t.width)), ((__this.lock().borrow().get_y()).wrapping_add(15)).wrapping_add(text_offset), 0xFFFFFFFFu32 as i32);
+            context.graphics.fill(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), (__this.lock().borrow().get_x()).wrapping_add(1), ((__this.lock().borrow().get_y()).wrapping_add(1)).wrapping_add(text_offset), ((__this.lock().borrow().get_x()).wrapping_add(compat::read(__this, |__t| __t.width))).wrapping_sub(1), ((__this.lock().borrow().get_y()).wrapping_add(14)).wrapping_add(text_offset), 0xFF000000u32 as i32);
             gui_graphics_extractor::text_string_with_drop_shadow(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), Some(&format!("{} - {}", compat::read(__this, |__t| __t.min), compat::read(__this, |__t| __t.max))), (__this.lock().borrow().get_x()).wrapping_add(3), ((__this.lock().borrow().get_y()).wrapping_add(3)).wrapping_add(text_offset), 0xFFFFFFFFu32 as i32, false);
         } else {
-            graphics.fill(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), __this.lock().borrow().get_x(), (__this.lock().borrow().get_y()).wrapping_add(text_offset), (__this.lock().borrow().get_x()).wrapping_add(compat::read(__this, |__t| __t.width)), ((__this.lock().borrow().get_y()).wrapping_add(15)).wrapping_add(text_offset), 0xFFFFFFFFu32 as i32);
-            graphics.fill(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), (__this.lock().borrow().get_x()).wrapping_add(1), ((__this.lock().borrow().get_y()).wrapping_add(1)).wrapping_add(text_offset), ((__this.lock().borrow().get_x()).wrapping_add(compat::read(__this, |__t| __t.width))).wrapping_sub(1), ((__this.lock().borrow().get_y()).wrapping_add(14)).wrapping_add(text_offset), 0xFF000000u32 as i32);
+            context.graphics.fill(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), __this.lock().borrow().get_x(), (__this.lock().borrow().get_y()).wrapping_add(text_offset), (__this.lock().borrow().get_x()).wrapping_add(compat::read(__this, |__t| __t.width)), ((__this.lock().borrow().get_y()).wrapping_add(15)).wrapping_add(text_offset), 0xFFFFFFFFu32 as i32);
+            context.graphics.fill(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), (__this.lock().borrow().get_x()).wrapping_add(1), ((__this.lock().borrow().get_y()).wrapping_add(1)).wrapping_add(text_offset), ((__this.lock().borrow().get_x()).wrapping_add(compat::read(__this, |__t| __t.width))).wrapping_sub(1), ((__this.lock().borrow().get_y()).wrapping_add(14)).wrapping_add(text_offset), 0xFF000000u32 as i32);
             gui_graphics_extractor::centered_text_string(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), "-", (__this.lock().borrow().get_x()).wrapping_add((compat::read(__this, |__t| __t.width)).wrapping_shr((1) as u32)), ((__this.lock().borrow().get_y()).wrapping_add(3)).wrapping_add(text_offset), 0xFFFFFFFFu32 as i32);
             let mut selected_color: i32 = 0xFFFFFF00u32 as i32;
             let mut unselected_color: i32 = 0xFFD0D0D0u32 as i32;
@@ -170,13 +183,13 @@ impl RangedValueWidget {
             let mut mouse_over_max: bool = RangedValueWidget::mouse_over_max_button(__this, mouse_x, mouse_y);
             let mut min_start_x: i32 = (__this.lock().borrow().get_x()).wrapping_add(1);
             let mut min_end_x: i32 = ((__this.lock().borrow().get_x()).wrapping_add((compat::read(__this, |__t| __t.width)).wrapping_shr((1) as u32))).wrapping_sub(6);
-            graphics.fill(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), min_start_x, ((__this.lock().borrow().get_y()).wrapping_add(1)).wrapping_add(text_offset), min_end_x, ((__this.lock().borrow().get_y()).wrapping_add(14)).wrapping_add(text_offset), (if compat::read(__this, |__t| __t.state) == State::ModifyingMin { selected_color } else { (if mouse_over_min { 0xFFFFFFFFu32 as i32 } else { unselected_color }) }));
-            graphics.fill(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), min_start_x.wrapping_add(1), ((__this.lock().borrow().get_y()).wrapping_add(2)).wrapping_add(text_offset), min_end_x.wrapping_sub(1), ((__this.lock().borrow().get_y()).wrapping_add(13)).wrapping_add(text_offset), 0xFF000000u32 as i32);
+            context.graphics.fill(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), min_start_x, ((__this.lock().borrow().get_y()).wrapping_add(1)).wrapping_add(text_offset), min_end_x, ((__this.lock().borrow().get_y()).wrapping_add(14)).wrapping_add(text_offset), (if compat::read(__this, |__t| __t.state) == State::ModifyingMin { selected_color } else { (if mouse_over_min { 0xFFFFFFFFu32 as i32 } else { unselected_color }) }));
+            context.graphics.fill(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), min_start_x.wrapping_add(1), ((__this.lock().borrow().get_y()).wrapping_add(2)).wrapping_add(text_offset), min_end_x.wrapping_sub(1), ((__this.lock().borrow().get_y()).wrapping_add(13)).wrapping_add(text_offset), 0xFF000000u32 as i32);
             gui_graphics_extractor::centered_text_string(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), &compat::read(__this, |__t| __t.min).to_string(), (min_start_x.wrapping_add(min_end_x)).wrapping_shr((1) as u32), ((__this.lock().borrow().get_y()).wrapping_add(3)).wrapping_add(text_offset), 0xFFFFFFFFu32 as i32);
             let mut max_start_x: i32 = ((__this.lock().borrow().get_x()).wrapping_add((compat::read(__this, |__t| __t.width)).wrapping_shr((1) as u32))).wrapping_add(5);
             let mut max_end_x: i32 = ((__this.lock().borrow().get_x()).wrapping_add(compat::read(__this, |__t| __t.width))).wrapping_sub(1);
-            graphics.fill(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), max_start_x, ((__this.lock().borrow().get_y()).wrapping_add(1)).wrapping_add(text_offset), max_end_x, ((__this.lock().borrow().get_y()).wrapping_add(14)).wrapping_add(text_offset), (if compat::read(__this, |__t| __t.state) == State::ModifyingMax { selected_color } else { (if mouse_over_max { 0xFFFFFFFFu32 as i32 } else { unselected_color }) }));
-            graphics.fill(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), max_start_x.wrapping_add(1), ((__this.lock().borrow().get_y()).wrapping_add(2)).wrapping_add(text_offset), max_end_x.wrapping_sub(1), ((__this.lock().borrow().get_y()).wrapping_add(13)).wrapping_add(text_offset), 0xFF000000u32 as i32);
+            context.graphics.fill(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), max_start_x, ((__this.lock().borrow().get_y()).wrapping_add(1)).wrapping_add(text_offset), max_end_x, ((__this.lock().borrow().get_y()).wrapping_add(14)).wrapping_add(text_offset), (if compat::read(__this, |__t| __t.state) == State::ModifyingMax { selected_color } else { (if mouse_over_max { 0xFFFFFFFFu32 as i32 } else { unselected_color }) }));
+            context.graphics.fill(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), max_start_x.wrapping_add(1), ((__this.lock().borrow().get_y()).wrapping_add(2)).wrapping_add(text_offset), max_end_x.wrapping_sub(1), ((__this.lock().borrow().get_y()).wrapping_add(13)).wrapping_add(text_offset), 0xFF000000u32 as i32);
             gui_graphics_extractor::centered_text_string(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), &compat::read(__this, |__t| __t.max).to_string(), (max_start_x.wrapping_add(max_end_x)).wrapping_shr((1) as u32), ((__this.lock().borrow().get_y()).wrapping_add(3)).wrapping_add(text_offset), 0xFFFFFFFFu32 as i32);
         }
     }
@@ -196,26 +209,37 @@ impl RangedValueWidget {
         { let __v = state; compat::write(__this, |__t| __t.state = __v); }
         match state {
             State::Closed | State::Open => {
-                // TODO(fabric2seer): `EditBox.setVisible` has no Rust method in the port (looked for `set_visible` in EditBox and its supertypes)
-                // rust: __this.lock().borrow().input.set_visible(false);
-                // TODO(fabric2seer): `set_focused_at` takes 2 argument(s) in the port (`focused: bool, millis: i64`), Java passes 1
-                // rust: __this.lock().borrow_mut().input.set_focused_at(false);
-                __this.lock().borrow_mut().ok_button.as_mut().unwrap().visible = false;
-                // TODO(fabric2seer): `set_focused` takes 2 argument(s) in the port (`focused: bool, last_input_type: InputType`), Java passes 1
-                // rust: __this.lock().borrow_mut().ok_button.as_mut().unwrap().set_focused(false);
+                // java: this.input.setVisible(false); this.input.setFocused(false); this.okButton.visible = false; this.okButton.setFocused(false);
+                compat::write(__this, |__t| {
+                    let input = __t.children.widget_mut(INPUT);
+                    input.visible = false;
+                    RangedValueWidget::set_child_focused(input, false);
+                    let ok_button = __t.children.widget_mut(OK_BUTTON);
+                    ok_button.visible = false;
+                    RangedValueWidget::set_child_focused(ok_button, false);
+                    __t.children.set_focused(None);
+                });
             }
             State::ModifyingMin | State::ModifyingMax => {
-                // TODO(fabric2seer): `EditBox.setVisible` has no Rust method in the port (looked for `set_visible` in EditBox and its supertypes)
-                // rust: __this.lock().borrow().input.set_visible(true);
-                // TODO(fabric2seer): `move_cursor_to` takes 3 argument(s) in the port (`splitter: &StringSplitter<W>, pos: i32, extend_selection: bool`), Java passes 2
-                // rust: __this.lock().borrow_mut().input.move_cursor_to(&0, false);
-                // TODO(fabric2seer): `set_value` takes 2 argument(s) in the port (`splitter: &StringSplitter<W>, value: &str`), Java passes 1
-                // rust: let __r0 = compat::read(__this, |__t| __t.min);
-                // rust: let __r1 = compat::read(__this, |__t| __t.max);
-                // rust: { let (__q0,) = (&(if state == State::ModifyingMin { __r0 } else { __r1 }).to_string(),); __this.lock().borrow_mut().input.set_value(__q0) };
-                // TODO(fabric2seer): `set_focused_at` takes 2 argument(s) in the port (`focused: bool, millis: i64`), Java passes 1
-                // rust: __this.lock().borrow_mut().input.set_focused_at(true);
-                __this.lock().borrow_mut().ok_button.as_mut().unwrap().visible = true;
+                // java: this.input.setVisible(true); this.input.moveCursorTo(0, false);
+                // java: this.input.setValue(String.valueOf(state == State.MODIFYING_MIN ? min : max)); this.input.setFocused(true);
+                // java: this.okButton.visible = true;
+                let value: String = compat::read(__this, |__t| if state == State::ModifyingMin { __t.min } else { __t.max }).to_string();
+                compat::write(__this, |__t| {
+                    let font = compat::font();
+                    let input = __t.children.widget_mut(INPUT);
+                    input.visible = true;
+                    compat::with_edit_box(input, |e| {
+                        e.move_cursor_to(&font.splitter(), 0, false);
+                        e.set_value(&font.splitter(), &value);
+                    });
+                    RangedValueWidget::set_child_focused(input, true);
+                    // the box is the child keys go to (`ContainerEventHandler.getFocused()`)
+                    __t.children.set_focused(Some(INPUT));
+                    __t.children.widget_mut(OK_BUTTON).visible = true;
+                });
+                // (`setValue` calls the responder: `updateConfirmButton(value)`)
+                RangedValueWidget::update_confirm_button(__this, &value);
             }
             _ => {}
         }
@@ -239,7 +263,7 @@ impl RangedValueWidget {
     pub fn send_packet(__this: &compat::Shared<Self>) {
         // `sign` is the level's block entity object (a `SignBlockEntity`), as the screen keeps it
         let mut sign: Option<std::sync::Arc<dyn mcrust::net::minecraft::world::level::block::entity::block_entity::BlockEntityObj>> = PartyFinderScreen::get_sign(&compat::read(__this, |__t| __t.screen.clone()));
-        let mut input_trimmed: String = compat::trim(&__this.lock().borrow().input.get_value());
+        let mut input_trimmed: String = compat::trim(&compat::read(__this, |__t| compat::edit_box_value(__t.children.widget(INPUT))));
         if compat::read(__this, |__t| __t.state) == State::ModifyingMin {
             // java: try { min = Integer.parseInt(inputTrimmed); } catch (NumberFormatException _) {}
             if let Ok(__v) = input_trimmed.parse::<i32>() {
@@ -252,10 +276,12 @@ impl RangedValueWidget {
             }
         }
         if let Some(sign) = &sign {
+            let __sign_pos = sign.base().get_block_pos();
             let sign: &SignBlockEntity = sign.as_sign().expect("ClassCastException: SignBlockEntity");
-            let messages = (sign.get_text(PartyFinderScreen::is_sign_front(&compat::read(__this, |__t| __t.screen.clone())))).get_messages((PartyFinderScreen::get_client(&compat::read(__this, |__t| __t.screen.clone()))).is_text_filtering_enabled());
-            // TODO(fabric2seer): `ClientPacketListener.send` has no Rust method in the port (looked for `send` in ClientPacketListener and its supertypes)
-            // rust: mcrust::mcrust::modding::game::with_player(|player| { player.connection.as_ref().unwrap().send(&ServerboundSignUpdatePacket::new(sign.get_block_pos(), PartyFinderScreen::is_sign_front(&compat::read(__this, |__t| __t.screen.clone())), input_trimmed.clone(), (messages[(1) as usize]).get_string(), (messages[(2) as usize]).get_string(), (messages[(3) as usize]).get_string())); });
+            let __sign_text = sign.get_text(compat::sign_slot(PartyFinderScreen::is_sign_front(&compat::read(__this, |__t| __t.screen.clone()))));
+            let messages = __sign_text.get_messages((PartyFinderScreen::get_client(&compat::read(__this, |__t| __t.screen.clone()))).is_text_filtering_enabled());
+            // java: screen.getClient().player.connection.send(new ServerboundSignUpdatePacket(sign.getBlockPos(), screen.isSignFront(), inputTrimmed, messages[1].getString(), messages[2].getString(), messages[3].getString()));
+            compat::send_packet(ServerboundSignUpdatePacket::new(__sign_pos, vec![input_trimmed.clone(), messages[1].get_string(), messages[2].get_string(), messages[3].get_string()], compat::sign_slot(PartyFinderScreen::is_sign_front(&compat::read(__this, |__t| __t.screen.clone())))));
         }
         PartyFinderScreen::closed_sign(&compat::read(__this, |__t| __t.screen.clone()));
     }
@@ -274,11 +300,10 @@ impl RangedValueWidget {
                 return true;
             } else if compat::read(__this, |__t| __t.state) == State::ModifyingMin || compat::read(__this, |__t| __t.state) == State::ModifyingMax {
                 if !(__this.lock().borrow().input.is_good) {
-                    // TODO(fabric2seer): `set_value` takes 2 argument(s) in the port (`splitter: &StringSplitter<W>, value: &str`), Java passes 1
-                    // rust: let __r0 = compat::read(__this, |__t| __t.state);
-                    // rust: let __r1 = compat::read(__this, |__t| __t.min);
-                    // rust: let __r2 = compat::read(__this, |__t| __t.max);
-                    // rust: { let (__q0,) = (&(if __r0 == State::ModifyingMin { __r1 } else { __r2 }).to_string(),); __this.lock().borrow_mut().input.set_value(__q0) };
+                    // java: input.setValue(String.valueOf(state == State.MODIFYING_MIN ? min : max));
+                    let value: String = compat::read(__this, |__t| if __t.state == State::ModifyingMin { __t.min } else { __t.max }).to_string();
+                    compat::write(__this, |__t| compat::set_edit_box_value(__t.children.widget_mut(INPUT), &value));
+                    RangedValueWidget::update_confirm_button(__this, &value);
                 }
                 RangedValueWidget::send_packet(__this);
                 return true;
@@ -314,30 +339,80 @@ impl RangedValueWidget {
                 // java: return super.mouseClicked(click, doubled); - AbstractContainerWidget.mouseClicked:
                 // `updateScrolling(event)` (false: contentHeight() is 0, so no scrollbar) `||`
                 // ContainerEventHandler.mouseClicked over children() (the input and the OK button)
-                // rust: port gap - the two children are an EditBox and a Button this object holds outside any screen,
-                // and the port's EditBox / AbstractWidget take a click only through a screen's widget pass, so no
-                // child takes it here (GAPS_batchF.md)
                 let scrolling: bool = false;
-                return scrolling;
+                let (took, focused) = compat::write(__this, |__t| {
+                    let took = compat::children_mouse_clicked(&mut __t.children, click);
+                    (took, __t.children.get_focused())
+                });
+                // the OK button's press (`_ -> sendPacket()`)
+                if took && click.button() == 1 && focused == Some(OK_BUTTON) {
+                    RangedValueWidget::send_packet(__this);
+                }
+                return took || scrolling;
             }
         }
-        todo!("fabric2seer: the value of this function is in a TODO above")
+    }
+
+    /// `input.setFocused(b)` / `okButton.setFocused(b)` - `AbstractWidget.setFocused`, and an edit box's caret clock
+    /// (`EditBox.setFocused:503-509` restarts the blink).
+    fn set_child_focused(widget: &mut AbstractWidget, focused: bool) {
+        widget.set_focused(focused, mcrust::net::minecraft::client::input_type::InputType::None);
+        let now: i64 = compat::millis();
+        compat::with_edit_box(widget, |e| e.set_focused_at(focused, now));
+    }
+
+    /// java: `ContainerEventHandler.keyPressed(event)` - the focused child's: the input box, a
+    /// `ModifiedTextFieldWidget`, whose override sends the value on Enter (`input.keyPressed`).
+    pub fn key_pressed(__this: &compat::Shared<Self>, event: &mcrust::net::minecraft::client::input::key_event::KeyEvent) -> bool {
+        if compat::read(__this, |__t| __t.children.get_focused()) == Some(INPUT) {
+            return ModifiedTextFieldWidget::key_pressed(__this, event);
+        }
+        compat::write(__this, |__t| compat::children_key_pressed(&mut __t.children, event))
+    }
+
+    /// java: `ContainerEventHandler.charTyped(event)` - the focused child's (the input box).
+    pub fn char_typed(__this: &compat::Shared<Self>, event: &mcrust::net::minecraft::client::input::character_event::CharacterEvent) -> bool {
+        let before: String = compat::read(__this, |__t| compat::edit_box_value(__t.children.widget(INPUT)));
+        let typed: bool = compat::write(__this, |__t| compat::children_char_typed(&mut __t.children, event));
+        RangedValueWidget::after_input_event(__this, &before);
+        typed
+    }
+
+    /// The input box's responder (`updateConfirmButton`), for an event that may have changed its value: called with the
+    /// new value when it did, as the box's `onValueChange` calls the responder.
+    fn after_input_event(__this: &compat::Shared<Self>, before: &str) {
+        let after: String = compat::read(__this, |__t| compat::edit_box_value(__t.children.widget(INPUT)));
+        if after != before {
+            RangedValueWidget::update_confirm_button(__this, &after);
+        }
     }
 
     /// java: @Override public void setX(int x)
     pub fn set_x(__this: &compat::Shared<Self>, mut x: i32) {
         __this.lock().borrow_mut().base.set_x(x);
-        // TODO(fabric2seer): `set_x` takes 2 argument(s) in the port (`x: i32, splitter: &StringSplitter<W>`), Java passes 1
-        // rust: { let (__q0,) = (__this.lock().borrow().get_x(),); __this.lock().borrow_mut().input.set_x(__q0) };
-        { let (__q0,) = (((__this.lock().borrow().get_x()).wrapping_add(__this.lock().borrow().get_width())).wrapping_sub(15),); __this.lock().borrow_mut().ok_button.as_mut().unwrap().set_x(__q0) };
+        // java: this.input.setX(getX()); this.okButton.setX(getX() + getWidth() - 15);
+        compat::write(__this, |__t| {
+            let (x, width) = (__t.base.get_x(), __t.base.width);
+            let font = compat::font();
+            let input = __t.children.widget_mut(INPUT);
+            input.set_x(x);
+            compat::with_edit_box(input, |e| e.set_x(x, &font.splitter()));
+            __t.children.widget_mut(OK_BUTTON).set_x((x.wrapping_add(width)).wrapping_sub(15));
+        });
     }
 
     /// java: @Override public void setY(int y)
     pub fn set_y(__this: &compat::Shared<Self>, mut y: i32) {
         __this.lock().borrow_mut().base.set_y(y);
-        // TODO(fabric2seer): `set_y` takes 2 argument(s) in the port (`y: i32, splitter: &StringSplitter<W>`), Java passes 1
-        // rust: { let (__q0,) = ((__this.lock().borrow().get_y()).wrapping_add(25),); __this.lock().borrow_mut().input.set_y(__q0) };
-        { let (__q0,) = ((__this.lock().borrow().get_y()).wrapping_add(25),); __this.lock().borrow_mut().ok_button.as_mut().unwrap().set_y(__q0) };
+        // java: this.input.setY(getY() + 25); this.okButton.setY(getY() + 25);
+        compat::write(__this, |__t| {
+            let y = __t.base.get_y().wrapping_add(25);
+            let font = compat::font();
+            let input = __t.children.widget_mut(INPUT);
+            input.set_y(y);
+            compat::with_edit_box(input, |e| e.set_y(y, &font.splitter()));
+            __t.children.widget_mut(OK_BUTTON).set_y(y);
+        });
     }
 
     /// java: @Override protected void updateWidgetNarration(NarrationElementOutput builder)
@@ -419,63 +494,52 @@ impl std::fmt::Display for State {
 }
 
 /// java: protected class ModifiedTextFieldWidget extends EditBox
+/// (the subclass's own state; the box it extends is the game's `EditBox` widget, `RangedValueWidget.children`' `INPUT`,
+/// and its `keyPressed` override is run on that box with the enclosing widget, `RangedValueWidget.this`)
 #[derive(Clone)]
 pub struct ModifiedTextFieldWidget {
-    /// java: extends net.minecraft.client.gui.components.EditBox
-    pub base: EditBox,
     /// java: private boolean isGood = false;
     pub is_good: bool,
 }
 
-impl std::ops::Deref for ModifiedTextFieldWidget {
-    type Target = EditBox;
-    fn deref(&self) -> &Self::Target {
-        &self.base
-    }
-}
-
-impl std::ops::DerefMut for ModifiedTextFieldWidget {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.base
-    }
-}
-
 impl ModifiedTextFieldWidget {
     /// java: public ModifiedTextFieldWidget(Font textRenderer, int x, int y, int width, int height, Component text)
-    pub fn new(mut text_renderer: Font, mut x: i32, mut y: i32, mut width: i32, mut height: i32, mut text: MutableComponent) -> Self {
-        // java: super(textRenderer, x, y, width, height, text); - the port's EditBox measures through the font's
-        // splitter; its message (`text`, the narration) is the widget half's, which this box is in none of yet
-        let mut this: Self = Self { base: EditBox::new(&text_renderer.splitter(), x, y, width, height), is_good: false };
-        this
+    /// (`super(textRenderer, x, y, width, height, text)` is the box `RangedValueWidget`'s constructor adds to its
+    /// children)
+    pub fn new(text_renderer: Font, x: i32, y: i32, width: i32, height: i32, text: MutableComponent) -> Self {
+        let _ = (text_renderer, x, y, width, height, text);
+        ModifiedTextFieldWidget { is_good: false }
     }
 
     /// java: @Override public boolean keyPressed(KeyEvent input)
-    pub fn key_pressed(&self, input: &mcrust::net::minecraft::client::input::key_event::KeyEvent) -> bool {
+    /// (`outer` is `RangedValueWidget.this`, whose `children` hold the box)
+    pub fn key_pressed(outer: &compat::Shared<RangedValueWidget>, input: &mcrust::net::minecraft::client::input::key_event::KeyEvent) -> bool {
         // java: if (!isFocused()) return false;
-        // rust: port gap - an EditBox's focus lives in the screen's widget tree (`Screen.focused`), and this one is
-        // in no screen, so it is never focused (GAPS_batchF.md)
-        let __is_focused: bool = false;
-        if !__is_focused {
+        if !compat::read(outer, |__t| __t.children.widget(INPUT).is_focused()) {
             return false;
         }
-        if input.is_confirmation() && self.is_good {
-            // TODO(fabric2seer): `sendPacket(..)` is a method of the enclosing instance (RangedValueWidget.this) - an inner class has no outer reference in Rust
-            //   java: sendPacket();
+        // java: if (input.isConfirmation() && isGood) { sendPacket(); return true; }
+        if input.is_confirmation() && compat::read(outer, |__t| __t.input.is_good) {
+            RangedValueWidget::send_packet(outer);
             return true;
         }
-        // TODO(fabric2seer): `key_pressed` takes 5 argument(s) in the port (`splitter: &StringSplitter<W>, event: KeyEvent, focused: bool, active: bool, clipboard: &mut dyn ClipboardAccess`), Java passes 1
-        // rust: return self.base.key_pressed(input);
-        return todo!("fabric2seer: see the TODO above");
+        // java: return super.keyPressed(input); - `EditBox.keyPressed`, with the window's clipboard
+        let before: String = compat::read(outer, |__t| compat::edit_box_value(__t.children.widget(INPUT)));
+        let pressed: bool = compat::write(outer, |__t| compat::children_key_pressed(&mut __t.children, input));
+        RangedValueWidget::after_input_event(outer, &before);
+        pressed
     }
 
     /// java: public void setGood(boolean good)
-    pub fn set_good(&mut self, mut good: bool) {
+    pub fn set_good(&mut self, good: bool) {
         self.is_good = good;
     }
-
 }
 
-// NOTE(fabric2seer): keyPressed override(s) of EditBox - the port dispatches its own calls, so these run only where the mod calls them; hook the port's method to make the game call them
+/// `children()`' first element: the input box.
+pub const INPUT: usize = 0;
+/// `children()`' second element: the OK button.
+pub const OK_BUTTON: usize = 1;
 
 /// RangedValueWidget's container half (`super`'s fields)
 impl ContainerWidgetHalf for RangedValueWidget {
@@ -488,7 +552,7 @@ impl ContainerWidgetHalf for RangedValueWidget {
 impl mcrust::mcrust::modding::widgets::ModWidget for ContainerWidgetAdapter<RangedValueWidget> {
     /// java: @Override protected void extractWidgetRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a)
     fn extract_widget_render_state(&mut self, _widget: &AbstractWidget, context: &mut mcrust::mcrust::modding::widgets::WidgetRenderContext<'_>, mouse_x: i32, mouse_y: i32, a: f32) {
-        self.lend(|__h| RangedValueWidget::extract_widget_render_state(__h, &mut context.graphics, mouse_x, mouse_y, a))
+        self.lend(|__h| RangedValueWidget::extract_widget_render_state(__h, context, mouse_x, mouse_y, a))
     }
 
     /// java: @Override protected void updateWidgetNarration(NarrationElementOutput builder)
@@ -499,6 +563,16 @@ impl mcrust::mcrust::modding::widgets::ModWidget for ContainerWidgetAdapter<Rang
     /// java: @Override public boolean mouseClicked(MouseButtonEvent click, boolean doubled)
     fn mouse_clicked(&mut self, _widget: &mut AbstractWidget, event: &MouseButtonEvent, double_click: bool) -> bool {
         self.lend(|__h| RangedValueWidget::mouse_clicked(__h, event, double_click))
+    }
+
+    /// java: `ContainerEventHandler.keyPressed(event)`
+    fn key_pressed(&mut self, _widget: &mut AbstractWidget, event: &mcrust::net::minecraft::client::input::key_event::KeyEvent) -> bool {
+        self.lend(|__h| RangedValueWidget::key_pressed(__h, event))
+    }
+
+    /// java: `ContainerEventHandler.charTyped(event)`
+    fn char_typed(&mut self, _widget: &mut AbstractWidget, event: &mcrust::net::minecraft::client::input::character_event::CharacterEvent) -> bool {
+        self.lend(|__h| RangedValueWidget::char_typed(__h, event))
     }
 
     fn container_widget_mut(&mut self) -> Option<&mut AbstractContainerWidget> {

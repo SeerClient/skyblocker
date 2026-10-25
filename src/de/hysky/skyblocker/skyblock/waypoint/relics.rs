@@ -1,6 +1,7 @@
 //! Ported from de.hysky.skyblocker.skyblock.waypoint.Relics by fabric2seer.
 
 #[allow(unused_imports)]
+use mcrust::com::mojang::brigadier::builder::argument_builder::ArgumentBuilder as _;
 use crate::prelude::*;
 use crate::de::hysky::skyblocker::config::skyblocker_config_manager::SkyblockerConfigManager;
 use crate::de::hysky::skyblocker::utils::block_pos_set::BlockPosSet;
@@ -18,6 +19,8 @@ use crate::de::hysky::skyblocker::utils::waypoint::waypoint::Waypoint;
 use crate::de::hysky::skyblocker::utils::waypoint::waypoint::WaypointBase;
 use crate::entry::skyblocker_mod;
 use mcrust::com::mojang::brigadier::command_dispatcher::CommandDispatcher;
+use mcrust::com::mojang::brigadier::context::command_context::CommandContext;
+use crate::de::hysky::skyblocker::utils::constants;
 use mcrust::java::util::concurrent::completable_future::CompletableFuture;
 use mcrust::net::minecraft::commands::command_build_context::CommandBuildContext;
 use mcrust::net::minecraft::core::block_pos::BlockPos;
@@ -50,30 +53,24 @@ impl Relics {
 
     /// java: @Init public static void init()
     pub fn init() {
-        // TODO(fabric2seer): no SeerClient event yet: hook RETURN of Minecraft's constructor (`net.minecraft.client.Minecraft#<init>`: exists)
-        //   java: ClientLifecycleEvents.CLIENT_STARTED.register(Relics::loadRelics);
-        // TODO(fabric2seer): no SeerClient event yet: hook HEAD of Minecraft#stop (`net.minecraft.client.Minecraft#stop`: exists)
-        //   java: ClientLifecycleEvents.CLIENT_STOPPING.register(Relics::saveFoundRelics);
+        // java: ClientLifecycleEvents.CLIENT_STARTED.register(Relics::loadRelics); - a RETURN injector registered from inside
+        // `Minecraft#<init>` (the client entrypoints run there) is not in that call's injector snapshot, so it would never
+        // fire; `compat::execute` runs it before the first client tick, where Fabric fires CLIENT_STARTED (as
+        // `MuseumItemCache.init`)
+        compat::execute(|| Relics::load_relics(compat::minecraft()));
+        // java: ClientLifecycleEvents.CLIENT_STOPPING.register(Relics::saveFoundRelics); - HEAD of `Minecraft#stop`
+        report(hook::inject("net.minecraft.client.Minecraft#stop", At::Head, |_: &mut CallbackInfo<'_>| {
+            Relics::save_found_relics(compat::minecraft());
+        }));
+        // java: ClientCommandRegistrationCallback.EVENT.register(Relics::registerCommands);
         client_command_registration_callback::EVENT.register(Arc::new(
             |dispatcher: &mut client_command_registration_callback::ClientCommandDispatcher| {
-                // TODO(fabric2seer): a command tree this tool cannot read (arguments, redirects, requires) - SeerClient commands receive the words after the name in `ctx.args`
-                //   java: dispatcher.register(literal(SkyblockerMod.NAMESPACE)
-                //   java: 				.then(literal("relics")
-                //   java: 						.then(literal("markAllFound").executes(context -> {
-                //   java: 							relics.values().forEach(ProfileAwareWaypoint::setFound);
-                //   java: 							context.getSource().sendFeedback(Constants.PREFIX.get().append(Component.translatable("skyblocker.relics.markAllFound")));
-                //   java: 							return 1;
-                //   java: 						}))
-                //   java: 						.then(literal("markAllMissing").executes(context -> {
-                //   java: 							relics.values().forEach(ProfileAwareWaypoint::setMissing);
-                //   java: 							context.getSource().sendFeedback(Constants.PREFIX.get().append(Component.translatable("skyblocker.relics.markAllMissing")));
-                //   java: 							return 1;
-                //   java: 						}))));
+                Relics::register_commands(dispatcher.dispatcher(), dispatcher.build_context());
             },
         ));
         level_render_extraction_callback::EVENT.register(Arc::new(move |__a0| { Relics::extract_rendering(&__a0); }));
-        // TODO(fabric2seer): ClientReceiveMessageEvents.ALLOW_GAME.register: no SeerClient equivalent yet
-        //   java: ClientReceiveMessageEvents.ALLOW_GAME.register(Relics::onChatMessage);
+        // java: ClientReceiveMessageEvents.ALLOW_GAME.register(Relics::onChatMessage);
+        compat::batch_w_allow_game_register(Arc::new(|text: &MutableComponent, overlay: bool| Relics::on_chat_message(text, overlay)));
     }
 
     /// java: private static void loadRelics(Minecraft client)
@@ -151,20 +148,38 @@ impl Relics {
     }
 
     /// java: private static void registerCommands(CommandDispatcher<FabricClientCommandSource> dispatcher, CommandBuildContext registryAccess)
-    pub fn register_commands(dispatcher: &CommandDispatcher<crate::unresolved::FabricClientCommandSource>, registry_access: &CommandBuildContext) {
-        // TODO(fabric2seer): a command builder outside dispatcher.register(..)
-        //   java: dispatcher.register(literal(SkyblockerMod.NAMESPACE)
-        //   java: 				.then(literal("relics")
-        //   java: 						.then(literal("markAllFound").executes(context -> {
-        //   java: 							relics.values().forEach(ProfileAwareWaypoint::setFound);
-        //   java: 							context.getSource().sendFeedback(Constants.PREFIX.get().append(Component.translatable("skyblocker.relics.markAllFound")));
-        //   java: 							return 1;
-        //   java: 						}))
-        //   java: 						.then(literal("markAllMissing").executes(context -> {
-        //   java: 							relics.values().forEach(ProfileAwareWaypoint::setMissing);
-        //   java: 							context.getSource().sendFeedback(Constants.PREFIX.get().append(Component.translatable("skyblocker.relics.markAllMissing")));
-        //   java: 							return 1;
-        //   java: 						}))));
+    /// (`registryAccess` is the port's `Option`: absent before the first join)
+    pub fn register_commands(dispatcher: &CommandDispatcher<client_command_registration_callback::FabricClientCommandSource>, registry_access: Option<&CommandBuildContext>) {
+        let _ = registry_access;
+        // java: dispatcher.register(literal(SkyblockerMod.NAMESPACE).then(literal("relics")
+        //   .then(literal("markAllFound").executes(context -> { relics.values().forEach(ProfileAwareWaypoint::setFound);
+        //     context.getSource().sendFeedback(Constants.PREFIX.get().append(Component.translatable("skyblocker.relics.markAllFound"))); return 1; }))
+        //   .then(literal("markAllMissing").executes(context -> { relics.values().forEach(ProfileAwareWaypoint::setMissing);
+        //     context.getSource().sendFeedback(Constants.PREFIX.get().append(Component.translatable("skyblocker.relics.markAllMissing"))); return 1; }))));
+        let mut mark_all_found = client_command_registration_callback::literal("markAllFound");
+        mark_all_found.executes(Arc::new(|_context: &CommandContext<client_command_registration_callback::FabricClientCommandSource>| {
+            let relics: Vec<compat::Shared<dyn ProfileAwareWaypoint>> = RELICS.get().values().cloned().collect();
+            for relic in relics.iter() {
+                ({ let __f = compat::dispatch(relic, |__t| __t.set_found()); __f(&compat::view(relic, |a| a as compat::Shared<dyn Waypoint>)) });
+            }
+            compat::batch_w_send_feedback(&(constants::PREFIX.get())().append(mcrust::net::minecraft::network::chat::component::translatable("skyblocker.relics.markAllFound")));
+            Ok(1)
+        }));
+        let mut mark_all_missing = client_command_registration_callback::literal("markAllMissing");
+        mark_all_missing.executes(Arc::new(|_context: &CommandContext<client_command_registration_callback::FabricClientCommandSource>| {
+            let relics: Vec<compat::Shared<dyn ProfileAwareWaypoint>> = RELICS.get().values().cloned().collect();
+            for relic in relics.iter() {
+                ({ let __f = compat::dispatch(relic, |__t| __t.set_missing()); __f(&compat::view(relic, |a| a as compat::Shared<dyn Waypoint>)) });
+            }
+            compat::batch_w_send_feedback(&(constants::PREFIX.get())().append(mcrust::net::minecraft::network::chat::component::translatable("skyblocker.relics.markAllMissing")));
+            Ok(1)
+        }));
+        let mut relics = client_command_registration_callback::literal("relics");
+        relics.then(&mark_all_found);
+        relics.then(&mark_all_missing);
+        let mut root = client_command_registration_callback::literal(crate::entry::skyblocker_mod::NAMESPACE);
+        root.then(&relics);
+        dispatcher.register(&root);
     }
 
     /// java: private static void extractRendering(PrimitiveCollector collector)
@@ -199,10 +214,28 @@ impl Relics {
             logger().warn("[Skyblocker] Failed to mark closest relic as found because player is null");
             return;
         }
-        // TODO(fabric2seer): `dist_to_center_sqr` takes 3 argument(s) in the port (`x: f64, y: f64, z: f64`), Java passes 1
-        // rust: if let Some(__a0) = RELICS.get_mut().values().cloned().filter(|__a0| ({ let __f = compat::dispatch(__a0, |__t| __t.should_render()); __f(&compat::view(__a0, |a| a as compat::Shared<dyn Waypoint>)) })).min_by(|a, b| { let key = |relic| { let (__q0,) = (mcrust::mcrust::modding::game::with_player(|player| player.position()).unwrap(),); relic.lock().borrow().profile_aware_waypoint_base().pos.as_ref().unwrap().dist_to_center_sqr(__q0) }; key(a).total_cmp(&key(b)) }).filter(|relic| ({ let (__q0,) = (mcrust::mcrust::modding::game::with_player(|player| player.position()).unwrap(),); relic.lock().borrow().profile_aware_waypoint_base().pos.as_ref().unwrap().dist_to_center_sqr(__q0) } <= (16 as f64))) {
-        // rust: ({ let __f = compat::dispatch(&__a0, |__t| __t.set_found()); __f(&compat::view(&__a0, |a| a as compat::Shared<dyn Waypoint>)) });
-        // rust: }
+        // java: relics.values().stream().filter(Waypoint::shouldRender)
+        //   .min(Comparator.comparingDouble(relic -> relic.pos.distToCenterSqr(player.position())))
+        //   .filter(relic -> relic.pos.distToCenterSqr(player.position()) <= 16).ifPresent(Waypoint::setFound);
+        let player_position = mcrust::mcrust::modding::game::with_player(|player| player.position()).unwrap();
+        let relics: Vec<compat::Shared<dyn ProfileAwareWaypoint>> = RELICS.get().values().cloned().collect();
+        // (`Stream.min` keeps the first of equal elements: a strictly smaller distance replaces it)
+        let mut closest: Option<(f64, compat::Shared<dyn ProfileAwareWaypoint>)> = None;
+        for relic in relics {
+            let should_render = ({ let __f = compat::dispatch(&relic, |__t| __t.should_render()); __f(&compat::view(&relic, |a| a as compat::Shared<dyn Waypoint>)) });
+            if !should_render {
+                continue;
+            }
+            let distance: f64 = compat::read(&relic, |__t| __t.profile_aware_waypoint_base().pos.as_ref().unwrap().dist_to_center_sqr(player_position.x, player_position.y, player_position.z));
+            if closest.as_ref().is_none_or(|(closest_distance, _)| distance < *closest_distance) {
+                closest = Some((distance, relic));
+            }
+        }
+        if let Some((distance, relic)) = closest
+            && distance <= 16 as f64
+        {
+            ({ let __f = compat::dispatch(&relic, |__t| __t.set_found()); __f(&compat::view(&relic, |a| a as compat::Shared<dyn Waypoint>)) });
+        }
     }
 
 }

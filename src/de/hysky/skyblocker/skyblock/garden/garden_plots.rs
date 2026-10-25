@@ -4,6 +4,17 @@
 use crate::prelude::*;
 use crate::de::hysky::skyblocker::events::skyblock_events;
 use crate::de::hysky::skyblocker::skyblock::garden::garden_plots_widget::GardenPlotsWidget;
+use crate::de::hysky::skyblocker::skyblock::garden::garden_plots_widget::GardenPlotsWidgetRef;
+use crate::de::hysky::skyblocker::config::skyblocker_config_manager::SkyblockerConfigManager;
+use crate::de::hysky::skyblocker::utils::location::Location;
+use crate::de::hysky::skyblocker::utils::utils::Utils;
+use crate::mixins::inventory_screen_mixin;
+use crate::de::hysky::skyblocker::injected::skyblocker_stack::SkyblockerStack as _;
+use mcrust::net::minecraft::network::chat::component::Component as _;
+use mcrust::net::minecraft::client::gui::navigation::screen_rectangle::ScreenRectangle;
+use mcrust::net::minecraft::client::gui::screens::inventory::abstract_container_screen::AbstractContainerScreen;
+use mcrust::net::minecraft::client::gui::screens::inventory::inventory_screen::InventoryScreen;
+use mcrust::net::minecraft::world::item::items;
 use crate::entry::skyblocker_mod;
 use mcrust::com::mojang::datafixers::util::either::Either;
 use mcrust::com::mojang::serialization::codec;
@@ -23,7 +34,18 @@ pub static FOLDER: compat::MainThread<std::path::PathBuf> = compat::MainThread::
 /// The ELEMENTS are nullable (`new GardenPlot[25]` starts as 25 nulls).
 pub static GARDEN_PLOTS: compat::MainThread<Vec<Option<GardenPlot>>> = compat::MainThread::new(|| vec![None; 25]);
 /// java: public static @Nullable GardenPlotsWidget widget;
-pub static WIDGET: compat::MainThread<Option<GardenPlotsWidget>> = compat::MainThread::new(|| None);
+pub static WIDGET: compat::MainThread<Option<GardenPlotsWidgetRef>> = compat::MainThread::new(|| None);
+
+thread_local! {
+    /// The open "Configure Plots" screen registered its `ScreenEvents.remove` listener.
+    static CONFIGURE_PLOTS_REMOVE: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    /// The open inventory screen registered `ScreenEvents.remove(screen).register(_ -> widget = null)`.
+    static WIDGET_REMOVE: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    /// The inventory screen being initialised gets the garden plots widget (see `attach_widget`).
+    static WIDGET_ATTACH: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    /// The recipe book was toggled since the inventory screen last drew (`registerRecipeBookToggleCallback`).
+    static RECIPE_BOOK_TOGGLED: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
 /// java: @SuppressWarnings("deprecation") public static final Codec<GardenPlot> CODEC = RecordCodecBuilder.create(instance -> instance.group( Codec.either(Item.CODEC.xmap(Holder::value, Item::builtInRegistryHo
 ///
 /// `Item.CODEC.xmap(Holder::value, Item::builtInRegistryHolder)` is the port's `item::codec()` itself (its holder IS the
@@ -44,56 +66,74 @@ impl GardenPlots {
 
     /// java: @Init public static void init()
     pub fn init() {
+        // java: ScreenEvents.remove(screen).register(..) - the per-screen listeners below, fired as the screen they
+        // were registered for is removed (`compat::batch_s_on_container_screen_remove`: the screen's `onClose`)
+        compat::batch_s_on_container_screen_remove(|stacks| {
+            if CONFIGURE_PLOTS_REMOVE.with(|r| r.replace(false)) {
+                GardenPlots::take_plot_icons_and_names(stacks);
+            }
+            if WIDGET_REMOVE.with(|r| r.replace(false)) {
+                // java: ScreenEvents.remove(screen).register(_ -> widget = null);
+                *WIDGET.get_mut() = None;
+            }
+        });
+        // java: inventoryScreen.registerRecipeBookToggleCallback(() -> widget.setInventoryRectangle(new ScreenRectangle(
+        // java: 		accessor.getX(), accessor.getY(), accessor.getImageWidth(), accessor.getImageHeight())));
+        // (the callback runs in the recipe book button's press, where the screen is not lent; the rectangle is read off
+        // the screen at its next lent call, before it draws)
+        let rectangle = mcrust::mcrust::modding::hook::register_injector(
+            "net.minecraft.client.gui.screens.inventory.AbstractContainerScreen#extractContents",
+            mcrust::mcrust::modding::hook::InjectOptions::at(mcrust::mcrust::modding::hook::At::Head).priority(900),
+            Arc::new(|ci: &mut mcrust::mcrust::modding::hook::CallbackInfo<'_>| {
+                if !RECIPE_BOOK_TOGGLED.with(|t| t.replace(false)) {
+                    return;
+                }
+                let Some(accessor) = ci.find_arg::<AbstractContainerScreen>() else {
+                    return;
+                };
+                let rectangle = ScreenRectangle::new_at(accessor.left_pos, accessor.top_pos, accessor.image_width, accessor.image_height);
+                let widget = WIDGET.get().clone();
+                if let Some(widget) = widget {
+                    widget.set_inventory_rectangle(rectangle);
+                }
+            }),
+        );
+        if let Err(e) = rectangle {
+            logger().error(&format!("[Skyblocker] Failed to hook the inventory screen's draw: {:?}", e));
+        }
+        // The garden plots widget joins the inventory screen as its `init` returns (where Java's AFTER_INIT listener,
+        // below, runs on the whole screen: `leftPos` / `topPos` are final only after the recipe book's placement).
+        let attach = mcrust::mcrust::modding::hook::inject("net.minecraft.client.gui.screens.inventory.InventoryScreen#init", mcrust::mcrust::modding::hook::At::Return, |ci: &mut mcrust::mcrust::modding::hook::CallbackInfo<'_>| {
+            if !WIDGET_ATTACH.with(|a| a.replace(false)) {
+                return;
+            }
+            let Some(inventory_screen) = ci.this_mut::<InventoryScreen>() else {
+                return;
+            };
+            GardenPlots::attach_widget(inventory_screen);
+        });
+        if let Err(e) = attach {
+            logger().error(&format!("[Skyblocker] Failed to hook the inventory screen's init: {:?}", e));
+        }
         screen_events::AFTER_INIT.register(Arc::new(|screen: &mut Screen, width: i32, height: i32| {
-            // TODO(fabric2seer): `.getTitle(..)` on a value of unknown type
-            //   java: if (screen instanceof ContainerScreen containerScreen && screen.getTitle().getString().trim().equals("Configure Plots")) {
-            //   java: 				ScreenEvents.remove(screen).register(_ -> {
-            //   java: 					ChestMenu screenHandler = containerScreen.getMenu();
-            //   java: 					// Take plot icons and names
-            //   java: 					for (int row = 0; row < 5; row++)
-            //   java: 						for (int i = row * 9 + 2; i < row * 9 + 7; i++) {
-            //   java: 							if (i == 22) continue; // Barn icon
-            //   java: 							Slot slot = screenHandler.slots.get(i);
-            //   java: 							ItemStack stack = slot.getItem();
-            //   java: 							if (stack.isEmpty() || stack.is(Items.STAINED_GLASS_PANE.red()) || stack.is(Items.OAK_BUTTON) || stack.is(Items.STAINED_GLASS_PANE.black()))
-            //   java: 								continue;
-            //   java: 							// SkyHanni adds formatting codes to the plot names when using their custom plot icons.
-            //   java: 							String name = ChatFormatting.stripFormatting(stack.getHoverName().getString());
-            //   java: 							String[] parts = name.split("-", 2);
-            //   java: 							if (parts.length < 2) {
-            //   java: 								LOGGER.warn("Invalid plot name: {}", name);
-            //   java: 								continue;
-            //   java: 							}
-            //   java: 							int index = (i / 9) * 5 + (i % 9 - 2);
-            //   java: 							Either<Item, String> icon = stack.getNeuName().isBlank() ? Either.left(stack.getItem()) : Either.right(stack.getNeuName());
-            //   java: 							String plotName = parts[1].trim();
-            //   java: 							GardenPlot plot = GARDEN_PLOTS[index];
-            //   java: 							if (plot == null) {
-            //   java: 								GARDEN_PLOTS[index] = new GardenPlot(icon, plotName);
-            //   java: 							} else {
-            //   java: 								GARDEN_PLOTS[index] = plot.withIconName(icon, plotName);
-            //   java: 							}
-            //   java: 						}
-            //   java:
-            //   java: 				});
-            //   java: 			} else if (screen instanceof InventoryScreen inventoryScreen && Utils.getLocation().equals(Location.GARDEN) && SkyblockerConfigManager.get().farming.plotsWidget.enabled && !CatharsisCompatibility.isGuiElementHidden("skyblocker:gardenPlots")) {
-            //   java: 				ScreenEvents.remove(screen).register(_ -> widget = null);
-            //   java: 				AbstractContainerScreenAccessor accessor = (AbstractContainerScreenAccessor) inventoryScreen;
-            //   java: 				widget = new GardenPlotsWidget(new ScreenRectangle(
-            //   java: 						accessor.getX(),
-            //   java: 						accessor.getY(),
-            //   java: 						accessor.getImageWidth(),
-            //   java: 						accessor.getImageHeight()
-            //   java: 				));
-            //   java: 				Screens.getWidgets(inventoryScreen).add(widget);
-            //   java:
-            //   java: 				inventoryScreen.registerRecipeBookToggleCallback(() -> widget.setInventoryRectangle(new ScreenRectangle(
-            //   java: 								accessor.getX(),
-            //   java: 								accessor.getY(),
-            //   java: 								accessor.getImageWidth(),
-            //   java: 								accessor.getImageHeight()
-            //   java: 						)));
-            //   java: 			}
+            // a new screen (or a re-init) has registered no per-screen listener yet
+            CONFIGURE_PLOTS_REMOVE.with(|r| r.set(false));
+            WIDGET_REMOVE.with(|r| r.set(false));
+            WIDGET_ATTACH.with(|a| a.set(false));
+            // java: if (screen instanceof ContainerScreen containerScreen && screen.getTitle().getString().trim().equals("Configure Plots")) {
+            let is_container_screen: bool = compat::is_chest_screen_initialising();
+            let is_inventory_screen: bool = compat::is_inventory_screen_initialising();
+            if is_container_screen && screen.get_title().to_string().trim_matches(|c: char| c <= ' ') == "Configure Plots" {
+                // java: ScreenEvents.remove(screen).register(_ -> { .. take plot icons and names .. });
+                CONFIGURE_PLOTS_REMOVE.with(|r| r.set(true));
+            } else if is_inventory_screen && Utils::get_location() == Location::Garden && SkyblockerConfigManager::get().farming.plots_widget.enabled && !(crate::entry::catharsis_compatibility::is_gui_element_hidden("skyblocker:gardenPlots")) {
+                // java: ScreenEvents.remove(screen).register(_ -> widget = null);
+                WIDGET_REMOVE.with(|r| r.set(true));
+                // java: widget = new GardenPlotsWidget(..); Screens.getWidgets(inventoryScreen).add(widget);
+                // java: inventoryScreen.registerRecipeBookToggleCallback(..);
+                // (`attach_widget`, as the inventory screen's `init` returns)
+                WIDGET_ATTACH.with(|a| a.set(true));
+            }
         }));
         skyblock_events::PROFILE_CHANGE.register(Arc::new(move |prev_profile_id, profile_id| {
             if !prev_profile_id.is_empty() {
@@ -108,13 +148,77 @@ impl GardenPlots {
                 GardenPlots::load(&profile_id);
             }
         }));
-        // TODO(fabric2seer): no SeerClient event yet: hook HEAD of Minecraft#stop (`net.minecraft.client.Minecraft#stop`: exists)
-        //   java: ClientLifecycleEvents.CLIENT_STOPPING.register(_ -> {
-        //   java: 			String profileId = Utils.getProfileId();
-        //   java: 			if (!profileId.isBlank()) {
-        //   java: 				CompletableFuture.runAsync(() -> save(profileId), SkyblockerMod.VIRTUAL_THREAD_EXECUTOR);
-        //   java: 			}
-        //   java: 		});
+        // java: ClientLifecycleEvents.CLIENT_STOPPING.register(_ -> {
+        // java: 	String profileId = Utils.getProfileId();
+        // java: 	if (!profileId.isBlank()) {
+        // java: 		CompletableFuture.runAsync(() -> save(profileId), SkyblockerMod.VIRTUAL_THREAD_EXECUTOR);
+        // java: 	}
+        // java: });
+        // (`CLIENT_STOPPING` is Fabric's HEAD injector on `Minecraft#stop`; `save` reads GARDEN_PLOTS and FOLDER,
+        // render-thread statics, so the snapshot is taken here and written on the executor)
+        let stopping = mcrust::mcrust::modding::hook::inject("net.minecraft.client.Minecraft#stop", mcrust::mcrust::modding::hook::At::Head, |_: &mut mcrust::mcrust::modding::hook::CallbackInfo<'_>| {
+            let profile_id: String = Utils::get_profile_id();
+            if !compat::is_blank(&profile_id) {
+                let plots: Vec<Option<GardenPlot>> = GARDEN_PLOTS.get().clone();
+                let folder: std::path::PathBuf = FOLDER.get().clone();
+                CompletableFuture::<()>::run_async(move || GardenPlots::save_plots(&folder, &profile_id, &plots), compat::executor);
+            }
+        });
+        if let Err(e) = stopping {
+            logger().error(&format!("[Skyblocker] Failed to hook the client stop: {:?}", e));
+        }
+    }
+
+    /// java: `ScreenEvents.remove(screen).register(_ -> { .. })` of the "Configure Plots" screen: its body, over the
+    /// stacks of `containerScreen.getMenu().slots`
+    fn take_plot_icons_and_names(stacks: &[mcrust::net::minecraft::world::item::item_stack::ItemStack]) {
+        // Take plot icons and names
+        for row in 0..5 {
+            for i in (row * 9 + 2)..(row * 9 + 7) {
+                if i == 22 {
+                    continue; // Barn icon
+                }
+                // java: Slot slot = screenHandler.slots.get(i); ItemStack stack = slot.getItem();
+                let stack = &stacks[i as usize];
+                let held = stack.get_item();
+                if stack.is_empty() || Arc::ptr_eq(&held, items::stained_glass_pane().red()) || Arc::ptr_eq(&held, &items::items().get("oak_button")) || Arc::ptr_eq(&held, items::stained_glass_pane().black()) {
+                    continue;
+                }
+                // SkyHanni adds formatting codes to the plot names when using their custom plot icons.
+                let name: String = mcrust::net::minecraft::chat_formatting::strip_formatting(&compat::component_of(stack.get_hover_name()).get_string());
+                // java: String[] parts = name.split("-", 2);
+                let parts: Vec<&str> = name.splitn(2, '-').collect();
+                if parts.len() < 2 {
+                    logger().warn(&format!("Invalid plot name: {}", name));
+                    continue;
+                }
+                let index: i32 = (i / 9) * 5 + (i % 9 - 2);
+                // java: Either<Item, String> icon = stack.getNeuName().isBlank() ? Either.left(stack.getItem()) : Either.right(stack.getNeuName());
+                let neu_name: String = stack.get_neu_name();
+                let icon: Either<Arc<Item>, String> = if compat::is_blank(&neu_name) { Either::Left(held.clone()) } else { Either::Right(neu_name) };
+                // java: String plotName = parts[1].trim();
+                let plot_name: String = parts[1].trim_matches(|c: char| c <= ' ').to_string();
+                let plot: Option<GardenPlot> = GARDEN_PLOTS.get()[index as usize].clone();
+                match plot {
+                    None => GARDEN_PLOTS.get_mut()[index as usize] = Some(GardenPlot::new(icon, plot_name)),
+                    Some(plot) => GARDEN_PLOTS.get_mut()[index as usize] = Some(plot.with_icon_name(&icon, &plot_name)),
+                }
+            }
+        }
+    }
+
+    /// The inventory screen half of the AFTER_INIT listener, on the screen whose `init` is returning:
+    /// java: AbstractContainerScreenAccessor accessor = (AbstractContainerScreenAccessor) inventoryScreen;
+    /// java: widget = new GardenPlotsWidget(new ScreenRectangle(accessor.getX(), accessor.getY(), accessor.getImageWidth(), accessor.getImageHeight()));
+    /// java: Screens.getWidgets(inventoryScreen).add(widget);
+    /// java: inventoryScreen.registerRecipeBookToggleCallback(() -> widget.setInventoryRectangle(..));
+    fn attach_widget(inventory_screen: &mut InventoryScreen) {
+        let accessor = &mut inventory_screen.container;
+        let widget: compat::Shared<GardenPlotsWidget> = compat::shared(GardenPlotsWidget::new(ScreenRectangle::new_at(accessor.left_pos, accessor.top_pos, accessor.image_width, accessor.image_height)));
+        *WIDGET.get_mut() = Some(GardenPlotsWidgetRef(widget.clone()));
+        accessor.screen.add_renderable_widget(compat::object_widget(widget, ""));
+        // (`InventoryScreenMixin`'s `registerRecipeBookToggleCallback`, the list its `onRecipeBookButtonClick` TAIL runs)
+        inventory_screen_mixin::RECIPE_BOOK_TOGGLE_CALLBACKS.get_mut().push(Arc::new(|| RECIPE_BOOK_TOGGLED.with(|t| t.set(true))));
     }
 
     /// java: private static void save(String profileId)

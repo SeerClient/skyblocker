@@ -9,12 +9,16 @@ use crate::de::hysky::skyblocker::utils::sky_block_icons;
 use crate::de::hysky::skyblocker::utils::utils::Utils;
 use crate::entry::skyblocker_mod;
 use mcrust::java::text::decimal_format::DecimalFormat;
+use crate::meteordevelopment::discordipc::discord_ipc::DiscordIPC;
+use crate::meteordevelopment::discordipc::rich_presence::RichPresence;
 use mcrust::java::util::concurrent::completable_future::CompletableFuture;
 
 /// java: public static final DecimalFormat DECIMAL_FORMAT = new DecimalFormat("###,###.##");
-pub static DECIMAL_FORMAT: compat::MainThread<DecimalFormat> = compat::MainThread::new(|| DecimalFormat::new("###,###.##", mcrust::java::text::decimal_format_symbols::get_instance(mcrust::java::text::decimal_format_symbols::Locale::Us)));
+pub static DECIMAL_FORMAT: LazyLock<DecimalFormat> = LazyLock::new(|| DecimalFormat::new("###,###.##", mcrust::java::text::decimal_format_symbols::get_instance(mcrust::java::text::decimal_format_symbols::Locale::Us)));
 // (`new DecimalFormat(pattern)` takes the default locale's symbols; the port models no default locale and the mod's
 // other formatters use US - the same CLDR grouping and decimal symbols as ROOT)
+/// java: public static final Logger LOGGER = LoggerFactory.getLogger("Skyblocker Discord RPC");
+pub static LOGGER: LazyLock<Logger> = LazyLock::new(|| Logger::new("Skyblocker Discord RPC"));
 /// java: public static CompletableFuture<Void> updateTask;
 pub static UPDATE_TASK: compat::MainThread<Option<mcrust::java::util::concurrent::completable_future::CompletableFuture<()>>> = compat::MainThread::new(|| None);
 /// java: public static long startTimeStamp;
@@ -63,39 +67,35 @@ impl DiscordRPCManager {
     pub fn init_and_update_presence_1(mut initialization: bool) {
         if UPDATE_TASK.get_mut().is_none() || UPDATE_TASK.get_mut().as_ref().unwrap().is_done() {
             *UPDATE_TASK.get_mut() = Some(CompletableFuture::<()>::run_async(move || (|| {
-                // TODO(fabric2seer): static call DiscordIPC.isConnected(..)
-                //   java: if (SkyblockerConfigManager.get().misc.richPresence.enableRichPresence && Utils.isOnSkyblock()) {
-                //   java: 					if (!DiscordIPC.isConnected()) {
-                //   java: 						if (DiscordIPC.start(934607927837356052L, null)) {
-                //   java: 							LOGGER.info("[Skyblocker] Discord RPC connected successfully");
-                //   java: 						} else {
-                //   java: 							if (initialization) {
-                //   java: 								LOGGER.error("[Skyblocker] Discord RPC failed to connect");
-                //   java: 							}
-                //   java: 							return;
-                //   java: 						}
-                //   java: 					}
-                //   java: 					DiscordIPC.setActivity(buildPresence());
-                //   java: 				} else if (DiscordIPC.isConnected()) {
-                //   java: 					DiscordIPC.stop();
-                //   java: 					LOGGER.info("[Skyblocker] Discord RPC disconnected");
-                //   java: 				} else if (initialization) {
-                //   java: 					LOGGER.info("[Skyblocker] Discord RPC is currently disabled, will not connect");
-                //   java: 				}
+                if SkyblockerConfigManager::get().misc.rich_presence.enable_rich_presence && Utils::is_on_skyblock() {
+                    if !DiscordIPC::is_connected() {
+                        if DiscordIPC::start(934607927837356052, None) {
+                            LOGGER.info("[Skyblocker] Discord RPC connected successfully");
+                        } else {
+                            if initialization {
+                                LOGGER.error("[Skyblocker] Discord RPC failed to connect");
+                            }
+                            return;
+                        }
+                    }
+                    DiscordIPC::set_activity(&DiscordRPCManager::build_presence());
+                } else if DiscordIPC::is_connected() {
+                    DiscordIPC::stop();
+                    LOGGER.info("[Skyblocker] Discord RPC disconnected");
+                } else if initialization {
+                    LOGGER.info("[Skyblocker] Discord RPC is currently disabled, will not connect");
+                }
             })(), compat::executor));
         }
     }
 
     /// java: public static RichPresence buildPresence()
-    pub fn build_presence() -> crate::unresolved::RichPresence {
-        //   java: RichPresence presence = new RichPresence();
-        //   java: presence.setLargeImage("skyblocker-default", null);
-        //   java: presence.setStart(startTimeStamp);
-        //   java: presence.setDetails(SkyblockerConfigManager.get().misc.richPresence.customMessage);
-        //   java: presence.setState(getInfo());
-        // rust: port gap - the Discord IPC library (`meteordevelopment.discordipc`) is a `crate::unresolved` placeholder
-        // (`RichPresence` has no fields to set, and no IPC client sends it; GAPS_M #19): the presence is the placeholder.
-        let presence: crate::unresolved::RichPresence = crate::unresolved::RichPresence;
+    pub fn build_presence() -> RichPresence {
+        let mut presence = RichPresence::new();
+        presence.set_large_image(Some("skyblocker-default".to_string()), None);
+        presence.set_start(compat::get_state(&START_TIME_STAMP));
+        presence.set_details(Some(SkyblockerConfigManager::get().misc.rich_presence.custom_message.clone()));
+        presence.set_state(DiscordRPCManager::get_info());
         return presence;
     }
 
@@ -104,16 +104,16 @@ impl DiscordRPCManager {
         return (Utils::get_island_area().replace(sky_block_icons::AREA, &'⏣'.to_string())).replace(sky_block_icons::RIFT_AREA, &'ф'.to_string());
     }
 
-    /// java: public static String getInfo()
-    pub fn get_info() -> String {
+    /// java: public static String getInfo() - `null` when no arm matches
+    pub fn get_info() -> Option<String> {
         let mut info: Option<String> = None;
         if !(SkyblockerConfigManager::get().misc.rich_presence.cycle_mode) {
             match SkyblockerConfigManager::get().misc.rich_presence.info {
                 Info::Bits => {
-                    info = Some(format!("Bits: {}", DECIMAL_FORMAT.get_mut().format((Utils::get_bits()) as f64)));
+                    info = Some(format!("Bits: {}", DECIMAL_FORMAT.format((Utils::get_bits()) as f64)));
                 }
                 Info::Purse => {
-                    info = Some(format!("Purse: {}", DECIMAL_FORMAT.get_mut().format(Utils::get_purse())));
+                    info = Some(format!("Purse: {}", DECIMAL_FORMAT.format(Utils::get_purse())));
                 }
                 Info::Location => {
                     info = Some(DiscordRPCManager::island_area());
@@ -123,10 +123,10 @@ impl DiscordRPCManager {
         } else if SkyblockerConfigManager::get().misc.rich_presence.cycle_mode {
             match compat::get_state(&CYCLE_COUNT) {
                 0 => {
-                    info = Some(format!("Bits: {}", DECIMAL_FORMAT.get_mut().format((Utils::get_bits()) as f64)));
+                    info = Some(format!("Bits: {}", DECIMAL_FORMAT.format((Utils::get_bits()) as f64)));
                 }
                 1 => {
-                    info = Some(format!("Purse: {}", DECIMAL_FORMAT.get_mut().format(Utils::get_purse())));
+                    info = Some(format!("Purse: {}", DECIMAL_FORMAT.format(Utils::get_purse())));
                 }
                 2 => {
                     info = Some(DiscordRPCManager::island_area());
@@ -134,7 +134,7 @@ impl DiscordRPCManager {
                 _ => {}
             }
         }
-        return info.unwrap();
+        return info;
     }
 
 }

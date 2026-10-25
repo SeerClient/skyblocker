@@ -29,10 +29,10 @@ impl ConsumableProtection {
 
     /// java: @Init public static void init()
     pub fn init() {
-        // TODO(fabric2seer): UseItemCallback.EVENT.register: no SeerClient equivalent yet
         //   java: UseItemCallback.EVENT.register(ConsumableProtection::onInteract);
-        // TODO(fabric2seer): UseBlockCallback.EVENT.register: no SeerClient equivalent yet
+        compat::register_use_item_callback(|player, world, hand| ConsumableProtection::on_interact(player, world, &hand));
         //   java: UseBlockCallback.EVENT.register((player, world, hand, _) -> onInteract(player, world, hand));
+        mcrust::mcrust::modding::events::use_block_callback::register(|player, world, hand, _| ConsumableProtection::on_interact(player, world, &hand));
     }
 
     /// java: private static InteractionResult onInteract(Player player, Level world, InteractionHand hand)

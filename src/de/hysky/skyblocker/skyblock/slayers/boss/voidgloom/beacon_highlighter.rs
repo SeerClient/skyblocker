@@ -60,8 +60,8 @@ impl BeaconHighlighter {
         client_play_connection_events::JOIN.register(Arc::new(|listener: &mut ClientPacketListener| {
             BeaconHighlighter::reset();
         }));
-        // TODO(fabric2seer): ClientReceiveMessageEvents.ALLOW_GAME.register: no SeerClient equivalent yet
-        //   java: ClientReceiveMessageEvents.ALLOW_GAME.register(BeaconHighlighter::onMessage);
+        // java: ClientReceiveMessageEvents.ALLOW_GAME.register(BeaconHighlighter::onMessage);
+        compat::register_allow_game(|text, overlay| BeaconHighlighter::on_message(text, overlay));
     }
 
     /// java: private static void reset()
@@ -72,23 +72,53 @@ impl BeaconHighlighter {
     }
 
     /// java: @SuppressWarnings("ConstantValue") public static <T> void onThrowBeacon(SyncedDataHolder dataHolder, SynchedEntityData.DataItem<T> dataItem, SynchedEntityData.DataValue<T> newValue)
-    pub fn on_throw_beacon<T: 'static>(data_holder: &dyn SyncedDataHolder, data_item: &DataItem, new_value: &DataValue) {
-        // TODO(fabric2seer): instanceof an interface (`Entity`): Rust cannot test for a trait at run time
-        //   java: if (Utils.isInTheEnd() && (SkyblockerConfigManager.get().slayers.endermanSlayer.enableYangGlyphsNotification || SkyblockerConfigManager.get().slayers.endermanSlayer.highlightBeacons)
-        //   java: 				&& dataHolder instanceof Entity entity && SlayerManager.isSelectedBoss(entity.getUUID())
-        //   java: 				&& dataItem.getAccessor() == EnderManAccessor.getDATA_CARRY_STATE()
-        //   java: 				&& dataItem.getValue() instanceof Optional<?> value && value.isPresent() && value.get() instanceof BlockState state && state.is(Blocks.BEACON)
-        //   java: 				&& ((Optional<?>) newValue.value()).isEmpty()) {
-        //   java: 			if (SkyblockerConfigManager.get().slayers.endermanSlayer.highlightBeacons) {
-        //   java: 				beaconThrown = true;
-        //   java: 			}
-        //   java:
-        //   java: 			if (SkyblockerConfigManager.get().slayers.endermanSlayer.enableYangGlyphsNotification) {
-        //   java: 				CLIENT.gui.hud.setTimes(5, 20, 10);
-        //   java: 				CLIENT.gui.hud.setTitle(Component.literal("Yang Glyph!").withStyle(ChatFormatting.RED));
-        //   java: 				CLIENT.player.playSound(SoundEvents.NOTE_BLOCK_PLING.value(), 100f, 0.1f);
-        //   java: 			}
-        //   java: 		}
+    ///
+    /// `dataHolder` is `SynchedEntityData.entity` as the game names it during `assignValues`
+    /// (`synched_entity_data::assigning_holder()`); a client entity's data always belongs to an `Entity`, so
+    /// `dataHolder instanceof Entity entity` holds and `entity.getUUID()` is `data_holder.uuid`.
+    pub fn on_throw_beacon(data_holder: &mcrust::net::minecraft::network::syncher::synched_entity_data::AssigningHolder, data_item: &DataItem, new_value: &DataValue) {
+        let config = SkyblockerConfigManager::get();
+        if !(Utils::is_in_the_end() && (config.slayers.enderman_slayer.enable_yang_glyphs_notification || config.slayers.enderman_slayer.highlight_beacons)) {
+            return;
+        }
+        if !SlayerManager::is_selected_boss(&compat::uuid_of(data_holder.uuid)) {
+            return;
+        }
+        // dataItem.getAccessor() == EnderManAccessor.getDATA_CARRY_STATE()
+        if data_item.get_accessor_id() != crate::mixins::ender_man_accessor::get_data_carry_state().id() {
+            return;
+        }
+        type Carried = Option<mcrust::net::minecraft::world::level::block::block::ErasedBlockState>;
+        // dataItem.getValue() instanceof Optional<?> value && value.isPresent() && value.get() instanceof BlockState state && state.is(Blocks.BEACON)
+        let Some(Some(state)) = mcrust::com::mojang::serialization::cast::<Carried>(data_item.get_value()).cloned() else {
+            return;
+        };
+        if !state.0.is_block(&blocks::blocks().get("BEACON")) {
+            return;
+        }
+        // ((Optional<?>) newValue.value()).isEmpty()
+        if !mcrust::com::mojang::serialization::cast::<Carried>(&new_value.value).is_some_and(|v| v.is_none()) {
+            return;
+        }
+        if config.slayers.enderman_slayer.highlight_beacons {
+            compat::set_state(&BEACON_THROWN, true);
+        }
+        if config.slayers.enderman_slayer.enable_yang_glyphs_notification {
+            let client = compat::minecraft();
+            // CLIENT.gui.hud.setTimes(5, 20, 10);
+            let (times, title_time) = mcrust::net::minecraft::client::gui::hud::set_times(client.gui.hud.title_times, client.gui.hud.title_time, 5, 20, 10);
+            client.gui.hud.title_times = times;
+            client.gui.hud.title_time = title_time;
+            // CLIENT.gui.hud.setTitle(Component.literal("Yang Glyph!").withStyle(ChatFormatting.RED));
+            mcrust::net::minecraft::client::multiplayer::client_packet_listener::apply_set_title_text(
+                &mut client.gui.hud,
+                &mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(
+                    mcrust::net::minecraft::network::chat::component::literal("Yang Glyph!").with_style_format(mcrust::net::minecraft::chat_formatting::ChatFormatting::Red),
+                ),
+            );
+            // CLIENT.player.playSound(SoundEvents.NOTE_BLOCK_PLING.value(), 100f, 0.1f);
+            mcrust::mcrust::modding::game::with_player(|player| { mcrust::net::minecraft::world::entity::living_entity::LivingEntity::play_sound(player, mcrust::net::minecraft::sounds::sound_events::note_block_pling().clone(), 100.0f32, 0.1f32); });
+        }
     }
 
     /// java: public static void onEntitySpawn(ArmorStand entity)
@@ -164,17 +194,16 @@ impl BeaconHighlighter {
                     ({ let __f = compat::dispatch(collector, |__t| __t.submit_lines_from_points()); __f(collector, &beacon_entity_path.clone(), &RED_COLOR_COMPONENTS, 1.0f32, 10.0f32, true) });
                 }
             }
-            // TODO(fabric2seer): Map.object2LongEntrySet(..)
-            //   java: for (Object2LongMap.Entry<BlockPos> beacon : BEACONS.object2LongEntrySet()) {
-            //   java: 				collector.submitFilledBox(beacon.getKey(), RED_COLOR_COMPONENTS, 0.6f, true);
-            //   java:
-            //   java: 				long elapsed = System.currentTimeMillis() - beacon.getLongValue();
-            //   java: 				float remainingSec = (BEACON_DURATION_MS - elapsed) / 1000f;
-            //   java: 				if (remainingSec >= 0) {
-            //   java: 					Component text = Component.literal(String.format("%.1fs", remainingSec)).withStyle(ChatFormatting.AQUA);
-            //   java: 					collector.submitText(text, Vec3.atCenterOf(beacon.getKey().above()), 3, true);
-            //   java: 				}
-            //   java: 			}
+            // java: for (Object2LongMap.Entry<BlockPos> beacon : BEACONS.object2LongEntrySet()) { .. }
+            for (beacon_pos, placed_at) in BEACONS.get().iter().map(|(k, v)| (k.clone(), *v)) {
+                ({ let __f = compat::dispatch(collector, |__t| __t.submit_filled_box()); __f(collector, &beacon_pos, &RED_COLOR_COMPONENTS, 0.6f32, true) });
+                let elapsed: i64 = compat::millis().wrapping_sub(placed_at);
+                let remaining_sec: f32 = (BEACON_DURATION_MS.wrapping_sub(elapsed) as f32) / 1000.0f32;
+                if remaining_sec >= 0.0 {
+                    let text: MutableComponent = mcrust::net::minecraft::network::chat::component::literal(&compat::string_format("%.1fs", &[remaining_sec.into()])).with_style_format(mcrust::net::minecraft::chat_formatting::ChatFormatting::Aqua);
+                    ({ let __f = compat::dispatch(collector, |__t| __t.submit_text_4()); __f(collector, &text, &mcrust::net::minecraft::world::phys::vec3::at_center_of(&beacon_pos.above()), 3.0f32, true) });
+                }
+            }
         }
     }
 

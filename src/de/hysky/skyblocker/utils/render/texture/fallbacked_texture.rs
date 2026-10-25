@@ -63,12 +63,30 @@ pub fn of_widget_sprites(sprites: &WidgetSprites, fallback: &WidgetSprites) -> c
 /// java: @Init static void init()
 pub fn init() {
     let mut id: Identifier = crate::entry::skyblocker_mod::id("fallback_texture_reloader");
-    // TODO(fabric2seer): Fabric API `ResourceLoader.get` has no SeerClient equivalent
-    //   java: ResourceLoader.get(PackType.CLIENT_RESOURCES).registerReloadListener(id,
-    //   java: 				(_, executor, preparationBarrier, reloadExecutor) -> CompletableFuture
-    //   java: 						.supplyAsync(() -> Unit.INSTANCE, executor)
-    //   java: 						.thenCompose(preparationBarrier::wait)
-    //   java: 						.thenAcceptAsync(_ -> UPDATE_CALLBACKS.forEach(Runnable::run), reloadExecutor));
-    // TODO(fabric2seer): Fabric API `ResourceLoader.get` has no SeerClient equivalent
-    //   java: ResourceLoader.get(PackType.CLIENT_RESOURCES).addListenerOrdering(ResourceReloaderKeys.AFTER_VANILLA, id);
+    // java: ResourceLoader.get(PackType.CLIENT_RESOURCES).registerReloadListener(id, (_, executor, preparationBarrier, reloadExecutor) ->
+    //           CompletableFuture.supplyAsync(() -> Unit.INSTANCE, executor).thenCompose(preparationBarrier::wait)
+    //           .thenAcceptAsync(_ -> UPDATE_CALLBACKS.forEach(Runnable::run), reloadExecutor));
+    mcrust::mcrust::modding::resources::register_reload_listener(mcrust::net::minecraft::server::packs::pack_type::PackType::ClientResources, &id.to_string(), Arc::new(FallbackTextureReloader));
+    // java: ResourceLoader.get(PackType.CLIENT_RESOURCES).addListenerOrdering(ResourceReloaderKeys.AFTER_VANILLA, id);
+    mcrust::mcrust::modding::resources::add_listener_ordering_after_vanilla(mcrust::net::minecraft::server::packs::pack_type::PackType::ClientResources, &id.to_string());
+}
+
+/// The reload listener `init` registers: nothing to prepare (`supplyAsync(() -> Unit.INSTANCE, executor)`), then every
+/// update callback on the reload executor - the main thread - after the barrier.
+struct FallbackTextureReloader;
+
+impl mcrust::net::minecraft::server::packs::resources::preparable_reload_listener::PreparableReloadListener for FallbackTextureReloader {
+    fn prepare(&self, _state: &mcrust::net::minecraft::server::packs::resources::preparable_reload_listener::SharedState) {}
+
+    fn apply(&self, _state: &mcrust::net::minecraft::server::packs::resources::preparable_reload_listener::SharedState) {
+        // java: UPDATE_CALLBACKS.forEach(Runnable::run)
+        let callbacks: Vec<Arc<dyn Fn()>> = UPDATE_CALLBACKS.get().clone();
+        for callback in callbacks.iter() {
+            callback();
+        }
+    }
+
+    fn get_name(&self) -> &'static str {
+        "skyblocker:fallback_texture_reloader"
+    }
 }

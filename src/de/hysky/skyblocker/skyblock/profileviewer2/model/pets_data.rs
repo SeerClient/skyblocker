@@ -91,3 +91,99 @@ impl std::fmt::Display for Pet {
         write!(f, "{}", Pet::to_string(self))
     }
 }
+
+impl PetsData {
+    /// Gson's reflective binding of the class's own fields (`ReflectiveTypeAdapterFactory`): each member the
+    /// JSON has is read over the field it names (`@SerializedName`, else the field's name) with the field's declared
+    /// type; an absent member (or a `null` one, or one Gson would reject) leaves the constructor's value.
+    pub fn read_json_fields(&mut self, json: &serde_json::Value) {
+        #[allow(unused_imports)]
+        use crate::io::github::moulberry::repo::neu_repository::gson;
+        if let Some(__v) = gson::member(json, "pet_care") {
+            if let Some(__x) = Some(PetCare::from_json(__v)) {
+                self.pet_care = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "pets") {
+            if let Some(__x) = gson::list(__v, |__e0| Some(Pet::from_json(__e0))) {
+                self.pets = __x;
+            }
+        }
+    }
+
+    /// `GSON.fromJson(json, PetsData.class)`: the no-argument constructor, then the fields.
+    pub fn from_json(json: &serde_json::Value) -> Self {
+        let mut __this = Self::new();
+        __this.read_json_fields(json);
+        __this
+    }
+}
+
+impl PetCare {
+    /// Gson's reflective binding of the class's own fields (`ReflectiveTypeAdapterFactory`): each member the
+    /// JSON has is read over the field it names (`@SerializedName`, else the field's name) with the field's declared
+    /// type; an absent member (or a `null` one, or one Gson would reject) leaves the constructor's value.
+    pub fn read_json_fields(&mut self, json: &serde_json::Value) {
+        #[allow(unused_imports)]
+        use crate::io::github::moulberry::repo::neu_repository::gson;
+        if let Some(__v) = gson::member(json, "pet_types_sacrificed") {
+            if let Some(__x) = gson::list(__v, |__e0| gson::as_string(__e0)) {
+                self.pet_types_sacrificed = __x;
+            }
+        }
+    }
+
+    /// `GSON.fromJson(json, PetCare.class)`: the no-argument constructor, then the fields.
+    pub fn from_json(json: &serde_json::Value) -> Self {
+        let mut __this = Self::new();
+        __this.read_json_fields(json);
+        __this
+    }
+}
+
+impl Pet {
+    /// Gson's reflective binding of the class's own fields (`ReflectiveTypeAdapterFactory`): each member the
+    /// JSON has is read over the field it names (`@SerializedName`, else the field's name) with the field's declared
+    /// type; an absent member (or a `null` one, or one Gson would reject) leaves the constructor's value.
+    pub fn read_json_fields(&mut self, json: &serde_json::Value) {
+        #[allow(unused_imports)]
+        use crate::io::github::moulberry::repo::neu_repository::gson;
+        if let Some(__v) = gson::member(json, "uuid") {
+            if let Some(__x) = (crate::de::hysky::skyblocker::skyblock::profileviewer2::profile_viewer::json_uuid(__v)).map(Some) {
+                self.uuid = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "exp") {
+            if let Some(__x) = gson::as_f64(__v) {
+                self.exp = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "tier") {
+            if let Some(__x) = gson::as_string(__v) {
+                self.tier = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "heldItem") {
+            if let Some(__x) = (gson::as_string(__v)).map(Some) {
+                self.held_item = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "candyUsed") {
+            if let Some(__x) = gson::as_i32(__v) {
+                self.candy_used = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "skin") {
+            if let Some(__x) = (gson::as_string(__v)).map(Some) {
+                self.skin = __x;
+            }
+        }
+    }
+
+    /// `GSON.fromJson(json, Pet.class)`: the no-argument constructor, then the fields.
+    pub fn from_json(json: &serde_json::Value) -> compat::Shared<Self> {
+        let __this = Self::new();
+        compat::write(&__this, |__t| __t.read_json_fields(json));
+        __this
+    }
+}

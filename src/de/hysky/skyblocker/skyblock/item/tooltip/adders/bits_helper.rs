@@ -39,110 +39,67 @@ pub const LOGS_PREFIX: &str = "[Skyblocker Bits Helper] ";
 pub static GOOD_SELLING_ITEMS: LazyLock<Vec<String>> = LazyLock::new(|| vec!["KAT_FLOWER".to_string(), "KAT_BOUQUET".to_string(), "HEAT_CORE".to_string(), "ULTIMATE_CARROT_CANDY_UPGRADE".to_string(), "TALISMAN_ENRICHMENT_SWAPPER".to_string(), "GOD_POTION_2".to_string(), "KISMET_FEATHER".to_string(), "MATRIARCH_PARFUM".to_string(), "AUTOPET_RULES_2".to_string()]);
 /// java: private static final Object2IntMap<String> CAT_KAT = Util.make(new Object2IntOpenHashMap<>(), map -> { map.put("KAT_FLOWER", 500); map.put("KAT_BOUQUET", 2500); });
 pub static CAT_KAT: LazyLock<std::collections::HashMap<String, i32>> = LazyLock::new(|| util::make_with(std::collections::HashMap::new(), |map| {
-    // TODO(fabric2seer): `.put(..)` on a T
-    //   java: map.put("KAT_FLOWER", 500);
-    // TODO(fabric2seer): `.put(..)` on a T
-    //   java: map.put("KAT_BOUQUET", 2500);
+    map.insert("KAT_FLOWER".to_string(), 500);
+    map.insert("KAT_BOUQUET".to_string(), 2500);
 }));
 /// java: private static final Object2IntMap<String> CAT_UPGRADE_COMPONENTS = Util.make(new Object2IntOpenHashMap<>(), map -> { map.put("HEAT_CORE", 3000); map.put("HYPER_CATALYST_UPGRADE", 300); map.put("ULTIM
 pub static CAT_UPGRADE_COMPONENTS: LazyLock<std::collections::HashMap<String, i32>> = LazyLock::new(|| util::make_with(std::collections::HashMap::new(), |map| {
-    // TODO(fabric2seer): `.put(..)` on a T
-    //   java: map.put("HEAT_CORE", 3000);
-    // TODO(fabric2seer): `.put(..)` on a T
-    //   java: map.put("HYPER_CATALYST_UPGRADE", 300);
-    // TODO(fabric2seer): `.put(..)` on a T
-    //   java: map.put("ULTIMATE_CARROT_CANDY_UPGRADE", 8000);
-    // TODO(fabric2seer): `.put(..)` on a T
-    //   java: map.put("COLOSSAL_EXP_BOTTLE_UPGRADE", 1200);
-    // TODO(fabric2seer): `.put(..)` on a T
-    //   java: map.put("JUMBO_BACKPACK_UPGRADE", 4000);
-    // TODO(fabric2seer): `.put(..)` on a T
-    //   java: map.put("MINION_STORAGE_EXPANDER", 1500);
+    map.insert("HEAT_CORE".to_string(), 3000);
+    map.insert("HYPER_CATALYST_UPGRADE".to_string(), 300);
+    map.insert("ULTIMATE_CARROT_CANDY_UPGRADE".to_string(), 8000);
+    map.insert("COLOSSAL_EXP_BOTTLE_UPGRADE".to_string(), 1200);
+    map.insert("JUMBO_BACKPACK_UPGRADE".to_string(), 4000);
+    map.insert("MINION_STORAGE_EXPANDER".to_string(), 1500);
 }));
 /// java: private static final Object2IntMap<String> CAT_SACKS = Util.make(new Object2IntOpenHashMap<>(), map -> { map.put("POCKET_SACK_IN_A_SACK", 8000); map.put("LARGE_DUNGEON_SACK", 14000); map.put("RUNE_SAC
 pub static CAT_SACKS: LazyLock<std::collections::HashMap<String, i32>> = LazyLock::new(|| util::make_with(std::collections::HashMap::new(), |map| {
-    // TODO(fabric2seer): `.put(..)` on a T
-    //   java: map.put("POCKET_SACK_IN_A_SACK", 8000);
-    // TODO(fabric2seer): `.put(..)` on a T
-    //   java: map.put("LARGE_DUNGEON_SACK", 14000);
-    // TODO(fabric2seer): `.put(..)` on a T
-    //   java: map.put("RUNE_SACK", 14000);
-    // TODO(fabric2seer): `.put(..)` on a T
-    //   java: map.put("FLOWER_SACK", 14000);
-    // TODO(fabric2seer): `.put(..)` on a T
-    //   java: map.put("DWARVEN_MINES_SACK", 14000);
-    // TODO(fabric2seer): `.put(..)` on a T
-    //   java: map.put("CRYSTAL_HOLLOWS_SACK", 14000);
+    map.insert("POCKET_SACK_IN_A_SACK".to_string(), 8000);
+    map.insert("LARGE_DUNGEON_SACK".to_string(), 14000);
+    map.insert("RUNE_SACK".to_string(), 14000);
+    map.insert("FLOWER_SACK".to_string(), 14000);
+    map.insert("DWARVEN_MINES_SACK".to_string(), 14000);
+    map.insert("CRYSTAL_HOLLOWS_SACK".to_string(), 14000);
 }));
 /// java: private static final Object2IntMap<String> CAT_ABIPHONE = Util.make(new Object2IntOpenHashMap<>(), map -> { map.put("TRIO_CONTACTS_ADDON", 6450); map.put("ABICASE_SUMSUNG_1", 15000); map.put("ABICASE_
 pub static CAT_ABIPHONE: LazyLock<std::collections::HashMap<String, i32>> = LazyLock::new(|| util::make_with(std::collections::HashMap::new(), |map| {
-    // TODO(fabric2seer): `.put(..)` on a T
-    //   java: map.put("TRIO_CONTACTS_ADDON", 6450);
-    // TODO(fabric2seer): `.put(..)` on a T
-    //   java: map.put("ABICASE_SUMSUNG_1", 15000);
-    // TODO(fabric2seer): `.put(..)` on a T
-    //   java: map.put("ABICASE_SUMSUNG_2", 25000);
-    // TODO(fabric2seer): `.put(..)` on a T
-    //   java: map.put("ABICASE_REZAR", 26000);
-    // TODO(fabric2seer): `.put(..)` on a T
-    //   java: map.put("ABICASE_BLUE_AQUA", 17000);
-    // TODO(fabric2seer): `.put(..)` on a T
-    //   java: map.put("ABICASE_BLUE_BLUE", 17000);
-    // TODO(fabric2seer): `.put(..)` on a T
-    //   java: map.put("ABICASE_BLUE_GREEN", 17000);
-    // TODO(fabric2seer): `.put(..)` on a T
-    //   java: map.put("ABICASE_BLUE_RED", 17000);
-    // TODO(fabric2seer): `.put(..)` on a T
-    //   java: map.put("ABICASE_BLUE_YELLOW", 17000);
+    map.insert("TRIO_CONTACTS_ADDON".to_string(), 6450);
+    map.insert("ABICASE_SUMSUNG_1".to_string(), 15000);
+    map.insert("ABICASE_SUMSUNG_2".to_string(), 25000);
+    map.insert("ABICASE_REZAR".to_string(), 26000);
+    map.insert("ABICASE_BLUE_AQUA".to_string(), 17000);
+    map.insert("ABICASE_BLUE_BLUE".to_string(), 17000);
+    map.insert("ABICASE_BLUE_GREEN".to_string(), 17000);
+    map.insert("ABICASE_BLUE_RED".to_string(), 17000);
+    map.insert("ABICASE_BLUE_YELLOW".to_string(), 17000);
 }));
 /// java: private static final Object2IntMap<String> CAT_DYES = Util.make(new Object2IntOpenHashMap<>(), map -> { map.put("DYE_PURE_WHITE", 250000); map.put("DYE_PURE_BLACK", 250000); });
 pub static CAT_DYES: LazyLock<std::collections::HashMap<String, i32>> = LazyLock::new(|| util::make_with(std::collections::HashMap::new(), |map| {
-    // TODO(fabric2seer): `.put(..)` on a T
-    //   java: map.put("DYE_PURE_WHITE", 250000);
-    // TODO(fabric2seer): `.put(..)` on a T
-    //   java: map.put("DYE_PURE_BLACK", 250000);
+    map.insert("DYE_PURE_WHITE".to_string(), 250000);
+    map.insert("DYE_PURE_BLACK".to_string(), 250000);
 }));
 /// java: private static final Object2IntMap<String> CAT_ENCHANTS = Util.make(new Object2IntOpenHashMap<>(), map -> { map.put("ENCHANTMENT_HECATOMB_1", 6000); map.put("ENCHANTMENT_EXPERTISE_1", 4000); map.put("
 pub static CAT_ENCHANTS: LazyLock<std::collections::HashMap<String, i32>> = LazyLock::new(|| util::make_with(std::collections::HashMap::new(), |map| {
-    // TODO(fabric2seer): `.put(..)` on a T
-    //   java: map.put("ENCHANTMENT_HECATOMB_1", 6000);
-    // TODO(fabric2seer): `.put(..)` on a T
-    //   java: map.put("ENCHANTMENT_EXPERTISE_1", 4000);
-    // TODO(fabric2seer): `.put(..)` on a T
-    //   java: map.put("ENCHANTMENT_COMPACT_1", 4000);
-    // TODO(fabric2seer): `.put(..)` on a T
-    //   java: map.put("ENCHANTMENT_CULTIVATING_1", 4000);
-    // TODO(fabric2seer): `.put(..)` on a T
-    //   java: map.put("ENCHANTMENT_CHAMPION_1", 4000);
-    // TODO(fabric2seer): `.put(..)` on a T
-    //   java: map.put("ENCHANTMENT_TOXOPHILITE_1", 4000);
+    map.insert("ENCHANTMENT_HECATOMB_1".to_string(), 6000);
+    map.insert("ENCHANTMENT_EXPERTISE_1".to_string(), 4000);
+    map.insert("ENCHANTMENT_COMPACT_1".to_string(), 4000);
+    map.insert("ENCHANTMENT_CULTIVATING_1".to_string(), 4000);
+    map.insert("ENCHANTMENT_CHAMPION_1".to_string(), 4000);
+    map.insert("ENCHANTMENT_TOXOPHILITE_1".to_string(), 4000);
 }));
 /// java: private static final Object2IntMap<String> CAT_ENRICHMENTS = Util.make(new Object2IntOpenHashMap<>(), map -> { map.put("TALISMAN_ENRICHMENT_SWAPPER", 200); map.put("TALISMAN_ENRICHMENT_WALK_SPEED", 50
 pub static CAT_ENRICHMENTS: LazyLock<std::collections::HashMap<String, i32>> = LazyLock::new(|| util::make_with(std::collections::HashMap::new(), |map| {
-    // TODO(fabric2seer): `.put(..)` on a T
-    //   java: map.put("TALISMAN_ENRICHMENT_SWAPPER", 200);
-    // TODO(fabric2seer): `.put(..)` on a T
-    //   java: map.put("TALISMAN_ENRICHMENT_WALK_SPEED", 5000);
-    // TODO(fabric2seer): `.put(..)` on a T
-    //   java: map.put("TALISMAN_ENRICHMENT_INTELLIGENCE", 5000);
-    // TODO(fabric2seer): `.put(..)` on a T
-    //   java: map.put("TALISMAN_ENRICHMENT_CRITICAL_DAMAGE", 5000);
-    // TODO(fabric2seer): `.put(..)` on a T
-    //   java: map.put("TALISMAN_ENRICHMENT_CRITICAL_CHANCE", 5000);
-    // TODO(fabric2seer): `.put(..)` on a T
-    //   java: map.put("TALISMAN_ENRICHMENT_STRENGTH", 5000);
-    // TODO(fabric2seer): `.put(..)` on a T
-    //   java: map.put("TALISMAN_ENRICHMENT_DEFENSE", 5000);
-    // TODO(fabric2seer): `.put(..)` on a T
-    //   java: map.put("TALISMAN_ENRICHMENT_HEALTH", 5000);
-    // TODO(fabric2seer): `.put(..)` on a T
-    //   java: map.put("TALISMAN_ENRICHMENT_MAGIC_FIND", 5000);
-    // TODO(fabric2seer): `.put(..)` on a T
-    //   java: map.put("TALISMAN_ENRICHMENT_FEROCITY", 5000);
-    // TODO(fabric2seer): `.put(..)` on a T
-    //   java: map.put("TALISMAN_ENRICHMENT_SEA_CREATURE_CHANCE", 5000);
-    // TODO(fabric2seer): `.put(..)` on a T
-    //   java: map.put("TALISMAN_ENRICHMENT_ATTACK_SPEED", 5000);
+    map.insert("TALISMAN_ENRICHMENT_SWAPPER".to_string(), 200);
+    map.insert("TALISMAN_ENRICHMENT_WALK_SPEED".to_string(), 5000);
+    map.insert("TALISMAN_ENRICHMENT_INTELLIGENCE".to_string(), 5000);
+    map.insert("TALISMAN_ENRICHMENT_CRITICAL_DAMAGE".to_string(), 5000);
+    map.insert("TALISMAN_ENRICHMENT_CRITICAL_CHANCE".to_string(), 5000);
+    map.insert("TALISMAN_ENRICHMENT_STRENGTH".to_string(), 5000);
+    map.insert("TALISMAN_ENRICHMENT_DEFENSE".to_string(), 5000);
+    map.insert("TALISMAN_ENRICHMENT_HEALTH".to_string(), 5000);
+    map.insert("TALISMAN_ENRICHMENT_MAGIC_FIND".to_string(), 5000);
+    map.insert("TALISMAN_ENRICHMENT_FEROCITY".to_string(), 5000);
+    map.insert("TALISMAN_ENRICHMENT_SEA_CREATURE_CHANCE".to_string(), 5000);
+    map.insert("TALISMAN_ENRICHMENT_ATTACK_SPEED".to_string(), 5000);
 }));
 /// java: private static final Map<String, Map<String, Integer>> CATEGORIES = Map.of( "Kat Items", CAT_KAT, "Upgrade Components", CAT_UPGRADE_COMPONENTS, "Sacks", CAT_SACKS, "Abiphone Supershop", CAT_ABIPHONE, 
 pub static CATEGORIES: LazyLock<std::collections::HashMap<String, std::collections::HashMap<String, i32>>> = LazyLock::new(|| std::collections::HashMap::from([("Kat Items".to_string(), CAT_KAT.clone()), ("Upgrade Components".to_string(), CAT_UPGRADE_COMPONENTS.clone()), ("Sacks".to_string(), CAT_SACKS.clone()), ("Abiphone Supershop".to_string(), CAT_ABIPHONE.clone()), ("Dyes".to_string(), CAT_DYES.clone()), ("Stacking Enchants".to_string(), CAT_ENCHANTS.clone()), ("Enrichments".to_string(), CAT_ENRICHMENTS.clone())]));
@@ -194,11 +151,11 @@ impl BitsHelper {
     }
 
     /// java: private Int2ObjectMap<ItemStack> getSlots()
-    pub fn get_slots(__this: &compat::Shared<Self>) -> Option<std::collections::HashMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack>> {
+    pub fn get_slots(__this: &compat::Shared<Self>) -> Option<std::collections::BTreeMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack>> {
         // client.gui.screen() instanceof AbstractContainerScreen<?> screen; its getMenu() is the player's open menu
         if compat::container_screen_open() {
-            let mut slots: std::collections::HashMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack> = compat::with_open_menu(|handler, containers| {
-                let mut slots: std::collections::HashMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack> = std::collections::HashMap::new();
+            let mut slots: std::collections::BTreeMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack> = compat::with_open_menu(|handler, containers| {
+                let mut slots: std::collections::BTreeMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack> = std::collections::BTreeMap::new();
                 for i in 0..(handler.slots.len() as i32) {
                     // slots.put(i, handler.getSlot(i).getItem()); - the same stack (`duplicate` keeps its identity)
                     slots.insert(i, handler.get_slot(i).get_item(containers).duplicate());
@@ -215,7 +172,7 @@ impl BitsHelper {
     }
 
     /// java: private BestItemsResult calculateBestItems(Int2ObjectMap<ItemStack> slots)
-    pub fn calculate_best_items(__this: &compat::Shared<Self>, slots: &std::collections::HashMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack>) -> BestItemsResult {
+    pub fn calculate_best_items(__this: &compat::Shared<Self>, slots: &std::collections::BTreeMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack>) -> BestItemsResult {
         let mut best_coins_per_bit_selling: i64 = 0;
         let mut best_coins_per_bit_all: i64 = 0;
         let mut best_slot_index_selling: i32 = -1;
@@ -283,21 +240,19 @@ impl BitsHelper {
         let __h1 = ("".to_string(), 0);
         __this.lock().borrow_mut().category_output.insert(__h0, __h1);
         let mut category_results: std::collections::HashMap<String, i64> = BitsHelper::process_category(__this, stack);
-        // TODO(fabric2seer): Map.object2LongEntrySet(..)
-        //   java: for (Map.Entry<String, Long> categoryEntry : categoryResults.object2LongEntrySet()) {
-        //   java: 			String itemID = categoryEntry.getKey();
-        //   java: 			long coinsPerBit = categoryEntry.getValue();
-        //   java:
-        //   java: 			if (GOOD_SELLING_ITEMS.contains(itemID) && (coinsPerBit > bestCoinsPerBitSelling)) {
-        //   java: 				categoryOutput.put(catName + "GREEN", ObjectLongImmutablePair.of(itemID, coinsPerBit));
-        //   java: 				bestCoinsPerBitSelling = coinsPerBit;
-        //   java: 			}
-        //   java:
-        //   java: 			if (coinsPerBit > bestCoinsPerBitAll) {
-        //   java: 				categoryOutput.put(catName, ObjectLongImmutablePair.of(itemID, coinsPerBit));
-        //   java: 				bestCoinsPerBitAll = coinsPerBit;
-        //   java: 			}
-        //   java: 		}
+        // java: for (Map.Entry<String, Long> categoryEntry : categoryResults.object2LongEntrySet()) {
+        for (item_id, coins_per_bit) in category_results.iter() {
+            let item_id: String = item_id.clone();
+            let coins_per_bit: i64 = *coins_per_bit;
+            if GOOD_SELLING_ITEMS.contains(&item_id) && coins_per_bit > best_coins_per_bit_selling {
+                __this.lock().borrow_mut().category_output.insert(format!("{}GREEN", cat_name), (item_id.clone(), coins_per_bit));
+                best_coins_per_bit_selling = coins_per_bit;
+            }
+            if coins_per_bit > best_coins_per_bit_all {
+                __this.lock().borrow_mut().category_output.insert(cat_name.clone(), (item_id.clone(), coins_per_bit));
+                best_coins_per_bit_all = coins_per_bit;
+            }
+        }
         return __this.lock().borrow().category_output.get(&cat_name).cloned().unwrap();
     }
 
@@ -324,8 +279,8 @@ impl BitsHelper {
             fuel_block_result.insert(item_id.clone(), coins_per_bit);
             return fuel_block_result;
         } else {
-            // TODO(fabric2seer): a log call with a non-literal format
-            //   java: LOGGER.warn(LOGS_PREFIX + "Can't recognize category {} from bits shop! Consider reporting this to our discord!", categoryName);
+            // java: LOGGER.warn(LOGS_PREFIX + "Can't recognize category {} from bits shop! Consider reporting this to our discord!", categoryName);
+            logger().warn(&format!("{}Can't recognize category {} from bits shop! Consider reporting this to our discord!", LOGS_PREFIX, category_name));
         }
         return std::collections::HashMap::new();
     }
@@ -376,7 +331,7 @@ impl ContainerMatcher for BitsHelper {
 
 impl ContainerSolver for BitsHelper {
     /// java: @Override public List<ColorHighlight> getColors(Int2ObjectMap<ItemStack> slots) (dispatch: the body for this class)
-    fn get_colors(&self) -> fn(&compat::Shared<dyn ContainerSolver>, &mut std::collections::HashMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack>) -> Vec<ColorHighlight> {
+    fn get_colors(&self) -> fn(&compat::Shared<dyn ContainerSolver>, &mut std::collections::BTreeMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack>) -> Vec<ColorHighlight> {
         BitsHelper::get_colors_dyn
     }
 
@@ -419,7 +374,7 @@ impl BitsHelper {
     }
 
     /// java: @Override public List<ColorHighlight> getColors(Int2ObjectMap<ItemStack> slots)
-    pub fn get_colors_impl(__this: &compat::Shared<Self>, slots: &mut std::collections::HashMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack>) -> Vec<ColorHighlight> {
+    pub fn get_colors_impl(__this: &compat::Shared<Self>, slots: &mut std::collections::BTreeMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack>) -> Vec<ColorHighlight> {
         let mut highlights: Vec<ColorHighlight> = Vec::new();
         let mut best_items_result: BestItemsResult = BitsHelper::calculate_best_items(__this, slots);
         { let __v = best_items_result.best_slot_index_selling; compat::write(__this, |__t| __t.best_slot_index_selling = __v); }
@@ -438,7 +393,7 @@ impl BitsHelper {
     }
 
     /// BitsHelper.getColors as the dispatch of ContainerSolver.getColors
-    pub fn get_colors_dyn(__this: &compat::Shared<dyn ContainerSolver>, __p0: &mut std::collections::HashMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack>) -> Vec<ColorHighlight> {
+    pub fn get_colors_dyn(__this: &compat::Shared<dyn ContainerSolver>, __p0: &mut std::collections::BTreeMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack>) -> Vec<ColorHighlight> {
         Self::get_colors_impl(&compat::view_as::<Self, _, Self>(__this, |a| a), __p0)
     }
 
@@ -496,8 +451,8 @@ impl BitsHelper {
             lines.push((component::literal(&format!("From {}", compat::component_of(found_item_stack.as_ref().unwrap().get_hover_name()).get_string()))).with_style_format(ChatFormatting::DarkAqua));
         } else {
             if !(compat::component_of(stack.get_hover_name()).get_string() == "Stacking Enchants") {
-                // TODO(fabric2seer): a log call with a non-literal format
-                //   java: LOGGER.warn(LOGS_PREFIX + "ItemStack not found for {}", itemID);
+                // java: LOGGER.warn(LOGS_PREFIX + "ItemStack not found for {}", itemID);
+                logger().warn(&format!("{}ItemStack not found for {}", LOGS_PREFIX, item_id));
             }
             lines.push(component::empty().append(component::literal("Bits Cost: ").with_style_format(ChatFormatting::Aqua)).append((component::literal(&format!("{} Coins per bit", formatters::INTEGER_NUMBERS.get_mut().format((coins_per_bit) as f64)))).with_style_format(ChatFormatting::DarkAqua)));
             lines.push((component::literal(&format!("From {}", item_id))).with_style_format(ChatFormatting::DarkAqua));

@@ -10,13 +10,13 @@ use mcrust::net::minecraft::world::phys::vec3::Vec3;
 pub trait ClientPosArgument: compat::DynAny + Send {
     fn as_any(&self) -> &dyn std::any::Any;
     /// java: Vec3 toAbsolutePos(FabricClientCommandSource source); (dispatch: the body for this class)
-    fn to_absolute_pos(&self) -> fn(&compat::Shared<dyn ClientPosArgument>, &crate::unresolved::FabricClientCommandSource) -> Vec3;
+    fn to_absolute_pos(&self) -> fn(&compat::Shared<dyn ClientPosArgument>, &mcrust::mcrust::modding::events::client_command_registration_callback::FabricClientCommandSource) -> Vec3;
 
     /// java: Vec2 toAbsoluteRotation(FabricClientCommandSource source); (dispatch: the body for this class)
-    fn to_absolute_rotation(&self) -> fn(&compat::Shared<dyn ClientPosArgument>, &crate::unresolved::FabricClientCommandSource) -> Vec2;
+    fn to_absolute_rotation(&self) -> fn(&compat::Shared<dyn ClientPosArgument>, &mcrust::mcrust::modding::events::client_command_registration_callback::FabricClientCommandSource) -> Vec2;
 
     /// java: default BlockPos toAbsoluteBlockPos(FabricClientCommandSource source) (dispatch: the body for this class)
-    fn to_absolute_block_pos(&self) -> fn(&compat::Shared<dyn ClientPosArgument>, &crate::unresolved::FabricClientCommandSource) -> BlockPos {
+    fn to_absolute_block_pos(&self) -> fn(&compat::Shared<dyn ClientPosArgument>, &mcrust::mcrust::modding::events::client_command_registration_callback::FabricClientCommandSource) -> BlockPos {
         <dyn ClientPosArgument>::to_absolute_block_pos_body
     }
 
@@ -33,7 +33,7 @@ pub trait ClientPosArgument: compat::DynAny + Send {
 
 impl dyn ClientPosArgument {
     /// java: default BlockPos toAbsoluteBlockPos(FabricClientCommandSource source)
-    pub fn to_absolute_block_pos_body(__this: &compat::Shared<dyn ClientPosArgument>, source: &crate::unresolved::FabricClientCommandSource) -> BlockPos {
+    pub fn to_absolute_block_pos_body(__this: &compat::Shared<dyn ClientPosArgument>, source: &mcrust::mcrust::modding::events::client_command_registration_callback::FabricClientCommandSource) -> BlockPos {
         return BlockPos::containing_position(&({ let __f = compat::dispatch(__this, |__t| __t.to_absolute_pos()); __f(__this, source) }));
     }
 

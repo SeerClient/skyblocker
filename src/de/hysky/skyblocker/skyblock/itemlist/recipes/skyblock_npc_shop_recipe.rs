@@ -20,8 +20,8 @@ pub static ID: compat::MainThread<Identifier> = compat::MainThread::new(|| crate
 /// java: public class SkyblockNpcShopRecipe implements CenteredRecipe
 #[derive(Clone)]
 pub struct SkyblockNpcShopRecipe {
-    /// java: private final FlexibleItemStack npcShop;
-    pub npc_shop: compat::Shared<FlexibleItemStack>,
+    /// java: private final FlexibleItemStack npcShop; (null when the item repository has no stack for the NPC)
+    pub npc_shop: Option<compat::Shared<FlexibleItemStack>>,
     /// java: private final List<FlexibleItemStack> inputs;
     pub inputs: Vec<compat::Shared<FlexibleItemStack>>,
     /// java: private final FlexibleItemStack output;
@@ -30,17 +30,19 @@ pub struct SkyblockNpcShopRecipe {
 
 impl SkyblockNpcShopRecipe {
     /// java: public SkyblockNpcShopRecipe(NEUNpcShopRecipe shopRecipe)
-    pub fn new(mut shop_recipe: crate::unresolved::NEUNpcShopRecipe) -> compat::Shared<Self> {
-        // TODO(fabric2seer): `.getIsSoldBy(..)` on a NEUNpcShopRecipe
+    pub fn new(mut shop_recipe: crate::io::github::moulberry::repo::data::neu_npc_shop_recipe::NEUNpcShopRecipe) -> compat::Shared<Self> {
         //   java: npcShop = ItemRepository.getItemStack(shopRecipe.getIsSoldBy().getSkyblockItemId());
-        // TODO(fabric2seer): `.getCost(..)` on a NEUNpcShopRecipe
+        let __init_npc_shop: Option<compat::Shared<FlexibleItemStack>> = crate::de::hysky::skyblocker::skyblock::itemlist::item_repository::ItemRepository::get_item_stack(
+            shop_recipe.get_is_sold_by().expect("java.lang.NullPointerException: NEUNpcShopRecipe.isSoldBy").get_skyblock_item_id(),
+        );
         //   java: inputs = shopRecipe.getCost().stream().map(SkyblockRecipe::getItemStack).toList();
-        // TODO(fabric2seer): `.getResult(..)` on a NEUNpcShopRecipe
+        let __init_inputs: Vec<compat::Shared<FlexibleItemStack>> = shop_recipe.get_cost().iter().map(|__a0| crate::de::hysky::skyblocker::skyblock::itemlist::recipes::skyblock_recipe::get_item_stack(__a0)).collect();
         //   java: output = SkyblockRecipe.getItemStack(shopRecipe.getResult());
+        let __init_output: compat::Shared<FlexibleItemStack> = crate::de::hysky::skyblocker::skyblock::itemlist::recipes::skyblock_recipe::get_item_stack(shop_recipe.get_result().expect("java.lang.NullPointerException: the NEU recipe has no result"));
         let __this = compat::shared(Self {
-            npc_shop: todo!("fabric2seer: the field value (TODO above)"),
-            inputs: todo!("fabric2seer: the field value (TODO above)"),
-            output: todo!("fabric2seer: the field value (TODO above)"),
+            npc_shop: __init_npc_shop,
+            inputs: __init_inputs,
+            output: __init_output,
         });
         __this
     }
@@ -110,7 +112,7 @@ impl SkyblockRecipe for SkyblockNpcShopRecipe {
 impl SkyblockNpcShopRecipe {
     /// java: @Override public FlexibleItemStack getRepresentative()
     pub fn get_representative_impl(__this: &compat::Shared<Self>) -> Option<compat::Shared<FlexibleItemStack>> {
-        return Some(compat::read(__this, |__t| __t.npc_shop.clone()));
+        return compat::read(__this, |__t| __t.npc_shop.clone());
     }
 
     /// SkyblockNpcShopRecipe.getRepresentative as the dispatch of CenteredRecipe.getRepresentative
@@ -130,7 +132,7 @@ impl SkyblockNpcShopRecipe {
 
     /// java: @Override public List<RecipeSlot> getInputSlots(int width, int height)
     pub fn get_input_slots_impl(__this: &compat::Shared<Self>, mut width: i32, mut height: i32) -> Vec<RecipeSlot> {
-        return centered_recipe::arrange_inputs(width, height, Some(compat::read(__this, |__t| __t.npc_shop.clone())), &compat::read(__this, |__t| __t.inputs.clone()));
+        return centered_recipe::arrange_inputs(width, height, compat::read(__this, |__t| __t.npc_shop.clone()), &compat::read(__this, |__t| __t.inputs.clone()));
     }
 
     /// SkyblockNpcShopRecipe.getInputSlots as the dispatch of SkyblockRecipe.getInputSlots

@@ -80,34 +80,48 @@ impl FossilSolver {
                 output_colors.push(ColorHighlight::green(i));
                 continue;
             }
-            // TODO(fabric2seer): `.getRed(..)` on a Color
-            //   java: outputColors.add(new ColorHighlight(i, (int) (chance * 255) << 24 | gradientColor.getRed() << 16 | gradientColor.getGreen() << 8 | gradientColor.getBlue()));
+            // java: outputColors.add(new ColorHighlight(i, (int) (chance * 255) << 24 | gradientColor.getRed() << 16 | gradientColor.getGreen() << 8 | gradientColor.getBlue()));
+            output_colors.push(ColorHighlight::new(i, (((chance * 255.0) as i32).wrapping_shl(24)) | (gradient_color.get_red().wrapping_shl(16)) | (gradient_color.get_green().wrapping_shl(8)) | gradient_color.get_blue()));
         }
         return output_colors;
     }
 
     /// java: private int getChiselLeft(ItemStack itemStack)
     pub fn get_chisel_left(__this: &compat::Shared<Self>, item_stack: &mcrust::net::minecraft::world::item::item_stack::ItemStack) -> i32 {
-        // TODO(fabric2seer): field `EMPTY` of a value of unknown type
-        //   java: for (Component line : itemStack.getTooltipLines(Item.TooltipContext.EMPTY, CLIENT.player, TooltipFlag.NORMAL)) {
-        //   java: 			Matcher matcher = CHARGES_PATTERN.matcher(line.getString());
-        //   java: 			if (matcher.find()) {
-        //   java: 				return Integer.parseInt(matcher.group(1));
-        //   java: 			}
-        //   java: 		}
+        // java: for (Component line : itemStack.getTooltipLines(Item.TooltipContext.EMPTY, CLIENT.player, TooltipFlag.NORMAL)) {
+        //   java: 	Matcher matcher = CHARGES_PATTERN.matcher(line.getString());
+        //   java: 	if (matcher.find()) return Integer.parseInt(matcher.group(1));
+        //   java: }
+        for line in FossilSolver::tooltip_lines(item_stack) {
+            let mut matcher = CHARGES_PATTERN.matcher(&line.get_string());
+            if matcher.find() {
+                let group = matcher.group(1).unwrap();
+                return group.parse::<i32>().unwrap_or_else(|_| panic!("NumberFormatException: For input string: \"{group}\""));
+            }
+        }
         return -1;
     }
 
+    /// `itemStack.getTooltipLines(Item.TooltipContext.EMPTY, CLIENT.player, TooltipFlag.NORMAL)`
+    fn tooltip_lines(item_stack: &mcrust::net::minecraft::world::item::item_stack::ItemStack) -> Vec<mcrust::net::minecraft::network::chat::formatted_text::FormattedText> {
+        let context = mcrust::net::minecraft::world::item::item::TooltipContext::empty();
+        mcrust::mcrust::modding::game::with_player(|player| item_stack.get_tooltip_lines(&context, Some(&*player as &dyn mcrust::net::minecraft::world::entity::player::player::Player), mcrust::net::minecraft::world::item::tooltip_flag::NORMAL))
+            .unwrap_or_else(|| item_stack.get_tooltip_lines(&context, None, mcrust::net::minecraft::world::item::tooltip_flag::NORMAL))
+    }
+
     /// java: private String getFossilPercentage(Int2ObjectMap<ItemStack> slots)
-    pub fn get_fossil_percentage(__this: &compat::Shared<Self>, slots: &std::collections::HashMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack>) -> Option<String> {
+    pub fn get_fossil_percentage(__this: &compat::Shared<Self>, slots: &std::collections::BTreeMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack>) -> Option<String> {
         for item in slots.values().cloned() {
-            // TODO(fabric2seer): field `EMPTY` of a value of unknown type
-            //   java: for (Component line : item.getTooltipLines(Item.TooltipContext.EMPTY, CLIENT.player, TooltipFlag.NORMAL)) {
-            //   java: 				Matcher matcher = PERCENTAGE_PATTERN.matcher(line.getString());
-            //   java: 				if (matcher.matches()) {
-            //   java: 					return matcher.group(1);
-            //   java: 				}
-            //   java: 			}
+            // java: for (Component line : item.getTooltipLines(Item.TooltipContext.EMPTY, CLIENT.player, TooltipFlag.NORMAL)) {
+            //   java: 	Matcher matcher = PERCENTAGE_PATTERN.matcher(line.getString());
+            //   java: 	if (matcher.matches()) return matcher.group(1);
+            //   java: }
+            for line in FossilSolver::tooltip_lines(&item) {
+                let mut matcher = PERCENTAGE_PATTERN.matcher(&line.get_string());
+                if matcher.matches() {
+                    return matcher.group(1);
+                }
+            }
         }
         return None;
     }
@@ -158,7 +172,7 @@ impl ContainerMatcher for FossilSolver {
 
 impl ContainerSolver for FossilSolver {
     /// java: @Override public List<ColorHighlight> getColors(Int2ObjectMap<ItemStack> slots) (dispatch: the body for this class)
-    fn get_colors(&self) -> fn(&compat::Shared<dyn ContainerSolver>, &mut std::collections::HashMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack>) -> Vec<ColorHighlight> {
+    fn get_colors(&self) -> fn(&compat::Shared<dyn ContainerSolver>, &mut std::collections::BTreeMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack>) -> Vec<ColorHighlight> {
         FossilSolver::get_colors_dyn
     }
 
@@ -201,7 +215,7 @@ impl FossilSolver {
     }
 
     /// java: @Override public List<ColorHighlight> getColors(Int2ObjectMap<ItemStack> slots)
-    pub fn get_colors_impl(__this: &compat::Shared<Self>, slots: &mut std::collections::HashMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack>) -> Vec<ColorHighlight> {
+    pub fn get_colors_impl(__this: &compat::Shared<Self>, slots: &mut std::collections::BTreeMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack>) -> Vec<ColorHighlight> {
         let mut main_tile_grid: TileGrid = FossilCalculations::convert_items_to_tiles(slots);
         if !slots.is_empty() {
             compat::set_state(&CHISEL_LEFT, FossilSolver::get_chisel_left(__this, &slots.values().cloned().next().unwrap()));
@@ -216,7 +230,7 @@ impl FossilSolver {
     }
 
     /// FossilSolver.getColors as the dispatch of ContainerSolver.getColors
-    pub fn get_colors_dyn(__this: &compat::Shared<dyn ContainerSolver>, __p0: &mut std::collections::HashMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack>) -> Vec<ColorHighlight> {
+    pub fn get_colors_dyn(__this: &compat::Shared<dyn ContainerSolver>, __p0: &mut std::collections::BTreeMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack>) -> Vec<ColorHighlight> {
         Self::get_colors_impl(&compat::view_as::<Self, _, Self>(__this, |a| a), __p0)
     }
 

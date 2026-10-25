@@ -32,13 +32,6 @@ use mcrust::net::minecraft::world::phys::aabb::AABB;
 use crate::de::hysky::skyblocker::utils::data::json_data::JsonData as _;
 use mcrust::com::mojang::serialization::decoder::Decoder as _;
 
-// TODO(fabric2seer): field `secretIndex` of a value of unknown type
-//   java: public static final Codec<SecretWaypoint> CODEC = RecordCodecBuilder.create(instance -> instance.group(
-//   java: 			Codec.INT.fieldOf("secretIndex").forGetter(secretWaypoint -> secretWaypoint.secretIndex),
-//   java: 			Category.CODEC.fieldOf("category").forGetter(secretWaypoint -> secretWaypoint.category),
-//   java: 			ComponentSerialization.CODEC.fieldOf("name").forGetter(secretWaypoint -> secretWaypoint.name),
-//   java: 			BlockPos.CODEC.fieldOf("pos").forGetter(secretWaypoint -> secretWaypoint.pos)
-//   java: 	).apply(instance, SecretWaypoint::new));
 /// java: public static final Codec<SecretWaypoint> CODEC = RecordCodecBuilder.create(instance -> instance.group( Codec.INT.fieldOf("secretIndex").forGetter(secretWaypoint -> secretWaypoint.secretIndex), Catego
 pub static CODEC: compat::MainThread<CodecRef<compat::Shared<SecretWaypoint>>> = compat::MainThread::new(|| { /* port shape: the record is over the getters' values, `xmap`ped to the waypoint (as NamedWaypoint.CODEC) */ type Fields = (i32, Category, MutableComponent, BlockPos); let record: CodecRef<Fields> = mcrust::com::mojang::serialization::codecs::record_codec_builder::create(mcrust::com::mojang::serialization::codecs::record_codec_builder::apply4(mcrust::com::mojang::serialization::codecs::record_codec_builder::of(|o: &Fields| o.0, codec::field_of(codec::int_codec(), "secretIndex")), mcrust::com::mojang::serialization::codecs::record_codec_builder::of(|o: &Fields| o.1, codec::field_of(CATEGORY_CODEC.clone(), "category")), mcrust::com::mojang::serialization::codecs::record_codec_builder::of(|o: &Fields| o.2.clone(), codec::field_of(mcrust::net::minecraft::network::chat::component_serialization::component_codec(), "name")), mcrust::com::mojang::serialization::codecs::record_codec_builder::of(|o: &Fields| o.3.clone(), codec::field_of(mcrust::net::minecraft::core::block_pos::codec(), "pos")), |secret_index, category, name, pos| (secret_index, category, name, pos))); codec::xmap(record, |(secret_index, category, name, pos): Fields| SecretWaypoint::new2(secret_index, category, name, pos), |w: &compat::Shared<SecretWaypoint>| compat::read(w, |t| (t.secret_index, t.category.unwrap(), t.name.clone().unwrap(), t.pos.clone().unwrap()))) });
 /// java: public static final Codec<List<SecretWaypoint>> LIST_CODEC = CODEC.listOf();
@@ -104,15 +97,14 @@ impl SecretWaypoint {
         if !(dungeon_manager::WAYPOINT_COLOR_DATA.get_mut().lock().borrow().is_loaded()) {
             return category.fields().color_components.clone();
         }
-        // TODO(fabric2seer): `.get(..)` on a T
-        //   java: Color color = DungeonManager.WAYPOINT_COLOR_DATA.getData().get(category);
-        let mut color: Color = todo!("fabric2seer: the initialiser of `color` (TODO above)");
-        if false /* java: color == null: never null here */ {
+        // java: Color color = DungeonManager.WAYPOINT_COLOR_DATA.getData().get(category);
+        // (the data map is read under the handle's borrow and the colour copied out)
+        let color: Option<Color> = dungeon_manager::WAYPOINT_COLOR_DATA.get_mut().lock().borrow().get_data().get(&category).cloned();
+        let Some(color) = color else {
             return category.fields().color_components.clone();
-        }
-        // TODO(fabric2seer): `.getColorComponents(..)` on a Color
-        //   java: return color.getColorComponents(null);
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        };
+        // java: return color.getColorComponents(null);
+        return color.get_color_components(None).to_vec();
     }
 
     /// java: static ToDoubleFunction<SecretWaypoint> getSquaredDistanceToFunction(Entity entity)
@@ -312,7 +304,7 @@ impl SecretWaypoint {
     pub fn hash_code_impl(__this: &compat::Shared<Self>) -> i32 {
         let (secret_index, serialized_name, name, pos) = compat::read(__this, |t| (t.secret_index, t.category.as_ref().unwrap().get_serialized_name(), t.name.clone().unwrap(), t.pos.clone().unwrap()));
         // `Arrays.hashCode(Object[])`: `31 * h + hashCode(e)` from 1
-        return [secret_index, compat::string_hash_code(&serialized_name), component_java_hash_code(&name), pos.as_vec3i().java_hash_code()]
+        return [secret_index, compat::string_hash_code(&serialized_name), compat::component_java_hash_code(&name), pos.as_vec3i().java_hash_code()]
             .iter()
             .fold(1i32, |h, e| h.wrapping_mul(31).wrapping_add(*e));
     }
@@ -517,11 +509,11 @@ impl CategoryFields {
 /// java: static class CategoryArgumentType extends StringRepresentableArgument<Category>
 pub struct CategoryArgumentType {
     /// java: extends net.minecraft.commands.arguments.StringRepresentableArgument
-    pub base: StringRepresentableArgument<compat::Object>,
+    pub base: StringRepresentableArgument<Category>,
 }
 
 impl std::ops::Deref for CategoryArgumentType {
-    type Target = StringRepresentableArgument<compat::Object>;
+    type Target = StringRepresentableArgument<Category>;
     fn deref(&self) -> &Self::Target {
         &self.base
     }
@@ -536,9 +528,11 @@ impl std::ops::DerefMut for CategoryArgumentType {
 impl CategoryArgumentType {
     /// java: CategoryArgumentType()
     pub fn new() -> Self {
-        // TODO(fabric2seer): `new` takes 3 argument(s) in the port (`values: Vec<T>, codec_name: fn(&T) -> String, convert_id: fn(&str) -> String`), Java passes 2
-        //   java: super(Category.CODEC, Category::values);
-        let mut this: Self = todo!("constructor");
+        // java: super(Category.CODEC, Category::values); - the two-argument constructor is `this(codec, values, s -> s)`; the
+        // port's is handed the names the codec writes (`CODEC`'s `getSerializedName`) and that identity.
+        let mut this: Self = Self {
+            base: StringRepresentableArgument::new(Category::values(), |value: &Category| value.get_serialized_name(), |id: &str| id.to_string()),
+        };
         this
     }
 
@@ -554,21 +548,3 @@ impl CategoryArgumentType {
 
 }
 
-/// java: `Component.hashCode()` (`MutableComponent.hashCode:112-117`: `31 * (31 * (31 * 1 + contents.hashCode()) +
-/// style.hashCode()) + siblings.hashCode()`) for the component a secret waypoint is named with,
-/// `Component.nullToEmpty(name)`: `LiteralContents(text)` (a record of one field: `text.hashCode()`), `Style.EMPTY`
-/// (`Objects.hash` of ten nulls: `31^10`) and no siblings (`List.hashCode()` of an empty list: `1`).
-/// rust: port gap - any other component (a style, siblings, other contents) has no Java `int` in the port; such a
-/// name hashes by the port's own value (consistent with `equals`, not the JVM's number)
-fn component_java_hash_code(name: &mcrust::net::minecraft::network::chat::mutable_component::MutableComponent) -> i32 {
-    use mcrust::net::minecraft::network::chat::component::Component as _;
-    use mcrust::net::minecraft::network::chat::component_contents::ComponentContents;
-    use mcrust::net::minecraft::network::chat::contents::plain_text_contents::PlainTextContents;
-    if let ComponentContents::Text(PlainTextContents::Literal(text)) = &**name.get_contents() && name.get_style().is_empty() && name.get_siblings().is_empty() {
-        let style_empty: i32 = (0..10).fold(1i32, |h, _| h.wrapping_mul(31));
-        let siblings_empty: i32 = 1;
-        let contents: i32 = compat::string_hash_code(text);
-        return 1i32.wrapping_mul(31).wrapping_add(contents).wrapping_mul(31).wrapping_add(style_empty).wrapping_mul(31).wrapping_add(siblings_empty);
-    }
-    compat::hash_code(name)
-}

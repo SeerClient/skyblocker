@@ -213,14 +213,19 @@ impl PartyEntryBase {
                         let mut player_name: MutableComponent = component::literal(&player_name_trim).set_style(name_style.clone());
                         let mut class_name: String = (compat::regex::split(&(compat::trim(&(parts[(1) as usize]))), " "))[(0) as usize].clone();
                         let mut class_level: i32 = -1;
-                        let mut matcher: compat::regex::Matcher = (compat::regex::Pattern::compile("\\((\\d+)\\)")).matcher(&parts[(1) as usize]);
+                        // PERF (port-only, same result): compiled once, not two regexes per party member.
+                        static CLASS_LEVEL_PATTERN: LazyLock<compat::regex::Pattern> = LazyLock::new(|| compat::regex::Pattern::compile("\\((\\d+)\\)"));
+                        let mut matcher: compat::regex::Matcher = CLASS_LEVEL_PATTERN.matcher(&parts[(1) as usize]);
                         if matcher.find() {
                             class_level = matcher.group(1).unwrap().parse::<i32>().expect("NumberFormatException");
                         }
                         let mut player: compat::Shared<Player> = Player::new(player_name.clone(), class_name.clone(), class_level);
-                        // TODO(fabric2seer): `.ifPresent(..)` on a value of unknown type
-                        //   java: client.playerSkinRenderCache().lookup(ResolvableProfile.createUnresolved(playerNameTrim)).thenAccept(
-                        //   java: 						gameProfile -> gameProfile.ifPresent(entry -> player.skinTexture = entry.playerSkin().body().texturePath()));
+                        // java: client.playerSkinRenderCache().lookup(ResolvableProfile.createUnresolved(playerNameTrim)).thenAccept(
+                        //           gameProfile -> gameProfile.ifPresent(entry -> player.skinTexture = entry.playerSkin().body().texturePath()));
+                        {
+                            let __player = compat::RenderThread::new(player.clone());
+                            lookup_skin_texture(&player_name_trim, move |texture| { compat::write(__player.get(), |__t| __t.skin_texture = texture); });
+                        }
                         if player_name_trim == party_host {
                             { let __v = Some(player.clone()); compat::write(&__this, |__t| __t.party_entry_base_mut().party_leader = __v); }
                             j -= 1;
@@ -251,9 +256,13 @@ impl PartyEntryBase {
         if compat::read(&__this, |__t| __t.party_entry_base().party_leader.clone()).is_none() {
             { let __v = Some(Player::new(component::literal("Error"), "Error".to_string(), -1)); compat::write(&__this, |__t| __t.party_entry_base_mut().party_leader = __v); }
         }
-        // TODO(fabric2seer): `.ifPresent(..)` on a value of unknown type
-        //   java: client.playerSkinRenderCache().lookup(ResolvableProfile.createUnresolved(partyLeader.name.getString())).thenAccept(
-        //   java: 				gameProfile -> gameProfile.ifPresent(entry -> partyLeaderSkin = entry.playerSkin().body().texturePath()));
+        // java: client.playerSkinRenderCache().lookup(ResolvableProfile.createUnresolved(partyLeader.name.getString())).thenAccept(
+        //           gameProfile -> gameProfile.ifPresent(entry -> partyLeaderSkin = entry.playerSkin().body().texturePath()));
+        {
+            let __leader_name: String = compat::read(&__this, |__t| __t.party_entry_base().party_leader.clone()).map(|leader| compat::read(&leader, |__l| __l.name.get_string())).unwrap_or_default();
+            let __entry = compat::RenderThread::new(__this.clone());
+            lookup_skin_texture(&__leader_name, move |texture| { compat::write(__entry.get(), |__t| __t.party_entry_base_mut().party_leader_skin = texture); });
+        }
         (__this, __r)
     }
 
@@ -357,17 +366,15 @@ impl dyn PartyEntry {
         if compat::read(__this, |__t| __t.party_entry_base().min_class_level) > 0 {
             gui_graphics_extractor::draw_formatted_text(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), 278, 25, &mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::null_to_empty(Some(&format!("Class {}", compat::read(__this, |__t| __t.party_entry_base().min_class_level))))), mcrust::net::minecraft::util::common_colors::WHITE);
             if !(compat::read(__this, |__t| __t.party_entry_base().is_locked)) && hovered && mouse_x_local >= 276 && mouse_x_local <= 331 && mouse_y_local >= 22 && mouse_y_local <= 35 {
-                // TODO(fabric2seer): the port's `set_tooltip_for_next_frame_text` ports this Java method with other parameters (tooltip_for_next_frame, text for Java's text, xo, yo)
-                // TODO(fabric2seer): `set_tooltip_for_next_frame_text` takes 2 argument(s) in the port (`tooltip_for_next_frame: &mut Option<DeferredTooltip>, text: crate::net::minecraft::network::chat::formatted_text::FormattedText`), Java passes 4
-                // rust: gui_graphics_extractor::set_tooltip_for_next_frame_text(&mut text_renderer, mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::translatable_args("skyblocker.partyFinder.partyCard.minClassLevel", vec![mcrust::net::minecraft::network::chat::formatted_text::FormattedText::of(compat::read(__this, |__t| __t.party_entry_base().min_class_level).to_string())])), mouse_x, mouse_y);
+                // java: graphics.setTooltipForNextFrame(textRenderer, Component.translatable("skyblocker.partyFinder.partyCard.minClassLevel", minClassLevel), mouseX, mouseY);
+                compat::batch_s_set_tooltip_for_next_frame(vec![mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::translatable_args("skyblocker.partyFinder.partyCard.minClassLevel", vec![mcrust::net::minecraft::network::chat::formatted_text::FormattedText::of(compat::read(__this, |__t| __t.party_entry_base().min_class_level).to_string())]))]);
             }
         }
         if compat::read(__this, |__t| __t.party_entry_base().min_catacombs_level) > 0 {
             gui_graphics_extractor::draw_formatted_text(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), 278, 43, &mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::null_to_empty(Some(&format!("Cata {}", compat::read(__this, |__t| __t.party_entry_base().min_catacombs_level))))), mcrust::net::minecraft::util::common_colors::WHITE);
             if !(compat::read(__this, |__t| __t.party_entry_base().is_locked)) && hovered && mouse_x_local >= 276 && mouse_x_local <= 331 && mouse_y_local >= 40 && mouse_y_local <= 53 {
-                // TODO(fabric2seer): the port's `set_tooltip_for_next_frame_text` ports this Java method with other parameters (tooltip_for_next_frame, text for Java's text, xo, yo)
-                // TODO(fabric2seer): `set_tooltip_for_next_frame_text` takes 2 argument(s) in the port (`tooltip_for_next_frame: &mut Option<DeferredTooltip>, text: crate::net::minecraft::network::chat::formatted_text::FormattedText`), Java passes 4
-                // rust: gui_graphics_extractor::set_tooltip_for_next_frame_text(&mut text_renderer, mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::translatable_args("skyblocker.partyFinder.partyCard.minDungeonLevel", vec![mcrust::net::minecraft::network::chat::formatted_text::FormattedText::of(compat::read(__this, |__t| __t.party_entry_base().min_catacombs_level).to_string())])), mouse_x, mouse_y);
+                // java: graphics.setTooltipForNextFrame(textRenderer, Component.translatable("skyblocker.partyFinder.partyCard.minDungeonLevel", minCatacombsLevel), mouseX, mouseY);
+                compat::batch_s_set_tooltip_for_next_frame(vec![mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::translatable_args("skyblocker.partyFinder.partyCard.minDungeonLevel", vec![mcrust::net::minecraft::network::chat::formatted_text::FormattedText::of(compat::read(__this, |__t| __t.party_entry_base().min_catacombs_level).to_string())]))]);
             }
         }
         let mut stack: mcrust::net::minecraft::world::item::item_stack::ItemStack = mcrust::net::minecraft::world::item::item_stack::ItemStack::of_one(items::items().get("player_head"));
@@ -399,14 +406,15 @@ impl dyn PartyEntry {
         if compat::read(__this, |__t| __t.party_entry_base().slot_id) == -1 {
             logger().error(&format!("[Skyblocker] Slot ID is null for {}'s party", compat::read(__this, |__t| __t.party_entry_base().party_leader.clone()).unwrap().lock().borrow().name.get_string()));
         }
-        if click.button() == 0 && !(PartyFinderScreen::is_waiting_for_server(&compat::read(__this, |__t| __t.party_entry_base().screen.clone()).expect("NullPointerException"))) && compat::read(__this, |__t| __t.party_entry_base().slot_id) != -1 {
+        if click.button() == 1 && !(PartyFinderScreen::is_waiting_for_server(&compat::read(__this, |__t| __t.party_entry_base().screen.clone()).expect("NullPointerException"))) && compat::read(__this, |__t| __t.party_entry_base().slot_id) != -1 {
             PartyFinderScreen::click_and_wait_for_server(&compat::read(__this, |__t| __t.party_entry_base().screen.clone()).expect("NullPointerException"), compat::read(__this, |__t| __t.party_entry_base().slot_id));
             return true;
         }
-        // TODO(fabric2seer): `mouse_clicked` takes 4 argument(s) in the port (`_button: i32, _x: f64, _y: f64, _double_click: bool`), Java passes 2
-        // TODO(fabric2seer): `mouse_clicked` is a method of the port's trait `GuiEventListener`, which the port's `Entry` does not implement
-        // rust: return { let (__q0, __q1,) = (click.clone(), doubled,); __this.lock().borrow_mut().party_entry_base_mut().base.mouse_clicked(__q0, __q1) };
-        return todo!("fabric2seer: see the TODO above");
+        // java: return super.mouseClicked(click, doubled); - `ContainerObjectSelectionList.Entry.mouseClicked` is
+        // `ContainerEventHandler.mouseClicked` over `children()`, which this class answers with `List.of()`: no child is
+        // under the cursor, so `false`
+        let _ = doubled;
+        return false;
     }
 
 }
@@ -440,7 +448,8 @@ impl compat::RowHalf for dyn PartyEntry {
 impl ModListEntry for compat::EntryAdapter<dyn PartyEntry> {
     /// java: @Override public void extractContent(GuiGraphicsExtractor graphics, int mouseX, int mouseY, boolean hovered, float a)
     fn extract_content(&mut self, list: &mut ModSelectionList, index: usize, context: &mut WidgetRenderContext<'_>, mouse_x: i32, mouse_y: i32, hovered: bool, a: f32) {
-        self.lend(Some(list.list.entry(index)), |__h| { if let Some(__c) = compat::try_view::<NoParties, _>(__h) { return ({ let __f = compat::dispatch(&*__c, |__t| __t.extract_content()); __f(&compat::view(&*__c, |a| a as compat::Shared<dyn PartyEntry>), &mut context.graphics, mouse_x, mouse_y, hovered, a) }); } if let Some(__c) = compat::try_view::<YourParty, _>(__h) { return ({ let __f = compat::dispatch(&*__c, |__t| __t.extract_content()); __f(&compat::view(&*__c, |a| a as compat::Shared<dyn PartyEntry>), &mut context.graphics, mouse_x, mouse_y, hovered, a) }); }  });
+        // `extractContent` is virtual: the row's own class answers (`PartyEntry`, `NoParties`, `YourParty`)
+        self.lend(Some(list.list.entry(index)), |__h| { let __f = compat::dispatch(__h, |__t| __t.extract_content()); __f(__h, &mut context.graphics, mouse_x, mouse_y, hovered, a) });
         // the row's widgets (Java's `child.extractRenderState(..)` over `children()`)
         context.extract_widgets(&mut self.row, mouse_x, mouse_y);
     }
@@ -451,7 +460,8 @@ impl ModListEntry for compat::EntryAdapter<dyn PartyEntry> {
 
     /// java: @Override public boolean mouseClicked(MouseButtonEvent click, boolean doubled)
     fn mouse_clicked(&mut self, list: &mut ModSelectionList, index: usize, event: &MouseButtonEvent, double_click: bool) -> bool {
-        self.lend(Some(list.list.entry(index)), |__h| { if let Some(__c) = compat::try_view::<NoParties, _>(__h) { return ({ let __f = compat::dispatch(&*__c, |__t| __t.mouse_clicked()); __f(&compat::view(&*__c, |a| a as compat::Shared<dyn PartyEntry>), event, double_click) }); } if let Some(__c) = compat::try_view::<YourParty, _>(__h) { return ({ let __f = compat::dispatch(&*__c, |__t| __t.mouse_clicked()); __f(&compat::view(&*__c, |a| a as compat::Shared<dyn PartyEntry>), event, double_click) }); } false })
+        // `mouseClicked` is virtual: the row's own class answers (`PartyEntry`, `NoParties`, `YourParty`)
+        self.lend(Some(list.list.entry(index)), |__h| { let __f = compat::dispatch(__h, |__t| __t.mouse_clicked()); __f(__h, event, double_click) })
     }
 
 }
@@ -705,4 +715,23 @@ impl ModListEntry for compat::EntryAdapter<YourParty> {
         self.lend(Some(list.list.entry(index)), |__h| ({ let __f = compat::dispatch(__h, |__t| __t.mouse_clicked()); __f(&compat::view(__h, |a| a as compat::Shared<dyn PartyEntry>), event, double_click) }))
     }
 
+}
+
+/// `client.playerSkinRenderCache().lookup(ResolvableProfile.createUnresolved(name)).thenAccept(gameProfile ->
+/// gameProfile.ifPresent(entry -> action(entry.playerSkin().body().texturePath())))`: the action runs on the client
+/// thread (the objects it writes are the screen's) once the lookup completes with an entry.
+fn lookup_skin_texture(name: &str, action: impl FnOnce(Identifier) + 'static) {
+    use mcrust::net::minecraft::core::client_asset::Texture as _;
+    let Some(cache) = compat::minecraft().game_renderer.player_skin_render_cache.as_ref() else { return };
+    let Ok(profile) = mcrust::net::minecraft::world::item::component::resolvable_profile::ResolvableProfile::create_unresolved_name(name) else { return };
+    let action = compat::RenderThread::new(std::cell::RefCell::new(Some(Box::new(action) as Box<dyn FnOnce(Identifier)>)));
+    let render_thread: mcrust::java::util::concurrent::completable_future::Executor = Arc::new(|__t: Box<dyn FnOnce() + Send>| crate::compat::execute(__t));
+    let _ = cache.lookup(&profile).when_complete_async(move |outcome| {
+        if let Ok(Some(entry)) = outcome {
+            let texture: Identifier = entry.player_skin().body().texture_path().clone();
+            if let Some(action) = action.get().borrow_mut().take() {
+                action(texture);
+            }
+        }
+    }, render_thread);
 }

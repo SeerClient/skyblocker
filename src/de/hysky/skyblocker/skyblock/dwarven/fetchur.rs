@@ -116,7 +116,7 @@ impl Fetchur {
         logger().info(&format!("Original Fetchur message: {}", message.get_string()));
         let mut riddle: String = matcher.group(1).unwrap();
         let mut answer: String = ANSWERS.get(&riddle).cloned().unwrap_or_else(|| riddle.clone());
-        mcrust::mcrust::modding::game::with_player(|player| { script_host::send_feedback(&component::empty().append(component::literal("[NPC] Fetchur").with_color_text(mcrust::net::minecraft::network::chat::text_color::TextColor::YELLOW)).append_str(&format!(": {}", answer)).to_string()); });
+        mcrust::mcrust::modding::game::with_player(|player| { compat::batch_w_send_feedback(&component::empty().append(component::literal("[NPC] Fetchur").with_color_text(mcrust::net::minecraft::network::chat::text_color::TextColor::YELLOW)).append_str(&format!(": {}", answer))); });
         return true;
     }
 

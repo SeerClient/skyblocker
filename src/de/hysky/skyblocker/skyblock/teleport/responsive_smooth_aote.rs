@@ -36,10 +36,12 @@ impl ResponsiveSmoothAOTE {
 
     /// java: public static void playerGoingToTeleport()
     pub fn player_going_to_teleport() {
-        if mcrust::mcrust::modding::game::with_player(|_| ()).is_none() || SkyblockerConfigManager::get().ui_and_visuals.smooth_aote.maximum_added_lag == 0 {
+        if !mcrust::mcrust::modding::game::has_player() || SkyblockerConfigManager::get().ui_and_visuals.smooth_aote.maximum_added_lag == 0 {
             return;
         }
-        let mut held_item: mcrust::net::minecraft::world::item::item_stack::ItemStack = mcrust::mcrust::modding::game::with_player(|player| player.get_main_hand_item().clone()).unwrap();
+        let Some(mut held_item) = mcrust::mcrust::modding::game::with_player(|player| player.get_main_hand_item().clone()) else {
+            return;
+        };
         let mut item_id: String = held_item.get_skyblock_id();
         let mut custom_data: Tag = ItemUtils::get_custom_data(&held_item);
         let mut distance: i32 = PredictiveSmoothAOTE::get_item_distance(&item_id, &custom_data);
@@ -57,7 +59,7 @@ impl ResponsiveSmoothAOTE {
 
     /// java: @Nullable public static Vec3 getInterpolatedPos(Vec3 original)
     pub fn get_interpolated_pos(mut original: Vec3) -> Option<Vec3> {
-        if LAST_POSITION.get_mut().is_none() || mcrust::mcrust::modding::game::with_player(|_| ()).is_none() {
+        if LAST_POSITION.get_mut().is_none() || !mcrust::mcrust::modding::game::has_player() {
             return None;
         }
         *CAMERA_START_POS.get_mut() = Some(original.clone());
@@ -80,10 +82,25 @@ impl ResponsiveSmoothAOTE {
 
     /// java: @Nullable public static Vec3 getInterpolatedPlayerPos(float partialTicks)
     pub fn get_interpolated_player_pos(mut partial_ticks: f32) -> Option<Vec3> {
-        if mcrust::mcrust::modding::game::with_player(|_| ()).is_none() || CAMERA_START_POS.get_mut().is_none() {
+        if !mcrust::mcrust::modding::game::has_player() || CAMERA_START_POS.get_mut().is_none() {
             return None;
         }
-        let mut diff: Vec3 = mcrust::mcrust::modding::game::with_player(|player| player.base.base.base.base.get_position_partial(partial_ticks).subtract_vec(CAMERA_START_POS.get_mut().as_ref().unwrap())).unwrap();
+        // (the game holds the player while his render state is extracted - this method's only caller - so a
+        // `with_player` here answers None; the caller hands his partial position in through
+        // `get_interpolated_player_pos_at`)
+        let Some(position) = mcrust::mcrust::modding::game::with_player(|player| player.base.base.base.base.get_position_partial(partial_ticks)) else {
+            return None;
+        };
+        return ResponsiveSmoothAOTE::get_interpolated_player_pos_at(position);
+    }
+
+    /// `getInterpolatedPlayerPos(partialTicks)` with `CLIENT.player.getPosition(partialTicks)` already read - by
+    /// `EntityRendererMixin`, from the entity it is extracting (which IS `CLIENT.player`).
+    pub fn get_interpolated_player_pos_at(player_position: Vec3) -> Option<Vec3> {
+        if !mcrust::mcrust::modding::game::has_player() || CAMERA_START_POS.get_mut().is_none() {
+            return None;
+        }
+        let mut diff: Vec3 = player_position.subtract_vec(CAMERA_START_POS.get_mut().as_ref().unwrap());
         let Some(mut camara) = ResponsiveSmoothAOTE::get_interpolated_pos(CAMERA_START_POS.get_mut().clone().unwrap()) else {
             return None;
         };

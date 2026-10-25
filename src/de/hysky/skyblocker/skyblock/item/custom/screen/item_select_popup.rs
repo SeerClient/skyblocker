@@ -130,33 +130,45 @@ impl ItemSelectPopup {
     pub fn init_impl(__this: &compat::Shared<Self>) {
         <dyn AbstractPopupScreen>::init_body(&compat::view(__this, |a| a as compat::Shared<dyn AbstractPopupScreen>));
         let mut adder: RowHelper = __this.lock().borrow().main_grid.create_row_helper(9);
-        // TODO(fabric2seer): the mod keeps the game's `NonNullList` (Java holds a reference to the live object); the port's `NonNullList` is not a value to copy and the port lends the mod no handle to it
-        // rust: let mut stacks: NonNullList<mcrust::net::minecraft::world::item::item_stack::ItemStack> = mcrust::mcrust::modding::game::with_player(|player| player.base.base.get_inventory().get_non_equipment_items().clone()).unwrap();
-        let mut stacks: NonNullList<mcrust::net::minecraft::world::item::item_stack::ItemStack> = todo!("fabric2seer: the initialiser of `stacks` (TODO above)");
-        for i in mcrust::net::minecraft::world::entity::player::inventory::SELECTION_SIZE..(stacks.len() as i32).wrapping_add(mcrust::net::minecraft::world::entity::player::inventory::SELECTION_SIZE) {
-            let stack = &stacks[(i.wrapping_rem(stacks.len() as i32)) as usize];
-            if stack.is_empty() {
-                // TODO(fabric2seer): the port's `add_child` ports this Java method with other parameters (grid, child for Java's widget)
-                // TODO(fabric2seer): `add_child` takes 2 argument(s) in the port (`grid: &mut GridLayout, child: LayoutElement`), Java passes 1
-                // rust: adder.add_child(&mut SpacerElement::of(18, 18)).unwrap();
+        // java: LocalPlayer player = minecraft.player; NonNullList<ItemStack> stacks = player.getInventory().getNonEquipmentItems();
+        // (the list is only read here: a copy of the live one; the armour Java reads below with `player.getItemBySlot`
+        // is taken in the same hold of the player)
+        let (stacks, worn_armor): (Vec<mcrust::net::minecraft::world::item::item_stack::ItemStack>, Vec<mcrust::net::minecraft::world::item::item_stack::ItemStack>) = mcrust::mcrust::modding::game::with_player(|player| {
+            use mcrust::net::minecraft::world::entity::living_entity::LivingEntity as _;
+            // java: Arrays.stream(EquipmentSlot.values()).filter(e -> e.getType() == EquipmentSlot.Type.HUMANOID_ARMOR).toList().reversed()
+            //   - FEET, LEGS, CHEST, HEAD reversed
+            let armor_slots = [mcrust::net::minecraft::world::entity::equipment_slot::EquipmentSlot::Head, mcrust::net::minecraft::world::entity::equipment_slot::EquipmentSlot::Chest, mcrust::net::minecraft::world::entity::equipment_slot::EquipmentSlot::Legs, mcrust::net::minecraft::world::entity::equipment_slot::EquipmentSlot::Feet];
+            (player.base.base.get_inventory().get_non_equipment_items().to_vec(), armor_slots.iter().map(|slot| mcrust::net::minecraft::world::entity::living_entity::LivingEntity::get_item_by_slot(&*player, *slot).clone()).collect())
+        })
+        .expect("NullPointerException: minecraft.player");
+        let stacks_len: i32 = stacks.len() as i32;
+        for i in mcrust::net::minecraft::world::entity::player::inventory::SELECTION_SIZE..stacks_len.wrapping_add(mcrust::net::minecraft::world::entity::player::inventory::SELECTION_SIZE) {
+            let stack = &stacks[(i.wrapping_rem(stacks_len)) as usize];
+            // java: if (stack.isEmpty()) adder.addChild(new SpacerElement(18, 18)); else adder.addChild(new ItemWidget(stack));
+            let __child: LayoutElement = if stack.is_empty() {
+                (SpacerElement::of(18, 18)).as_layout_element()
             } else {
-                // TODO(fabric2seer): the port's `add_child` ports this Java method with other parameters (grid, child for Java's widget)
-                // TODO(fabric2seer): `add_child` takes 2 argument(s) in the port (`grid: &mut GridLayout, child: LayoutElement`), Java passes 1
-                // rust: adder.add_child(&mut ItemWidget::new(stack.clone())).unwrap();
+                let __w = compat::WidgetAdapter::widget(ItemWidget::new(std::sync::Arc::downgrade(&__this), stack.clone()));
+                let (__ww, __wh) = (__w.get_width(), __w.get_height());
+                LayoutElement::widget(compat::write(__this, |__t| __t.add_widget(__w)), __ww, __wh)
+            };
+            compat::write(__this, |__t| adder.add_child(&mut __t.main_grid, __child)).unwrap_or_else(|e| panic!("{e}"));
+        }
+        // java: ..forEach(slot -> { ItemStack stack = player.getItemBySlot(slot); if (stack.isEmpty()) equipmentLayout.addChild(new SpacerElement(18, 18)); else equipmentLayout.addChild(new ItemWidget(stack)); });
+        for stack in worn_armor {
+            if stack.is_empty() {
+                { let (__q0,) = ((SpacerElement::of(18, 18)).as_layout_element(),); __this.lock().borrow_mut().equipment_layout.add_child(__q0) };
+            } else {
+                { let (__q0,) = ({ let __w = compat::WidgetAdapter::widget(ItemWidget::new(std::sync::Arc::downgrade(&__this), stack.clone())); let (__ww, __wh) = (__w.get_width(), __w.get_height()); LayoutElement::widget(compat::write(__this, |__t| __t.add_widget(__w)), __ww, __wh) },); __this.lock().borrow_mut().equipment_layout.add_child(__q0) };
             }
         }
-        // TODO(fabric2seer): `getType` on a Object
-        //   java: Arrays.stream(EquipmentSlot.values()).filter(e -> e.getType() == EquipmentSlot.Type.HUMANOID_ARMOR).toList().reversed().forEach(slot -> {
-        //   java: 			ItemStack stack = player.getItemBySlot(slot);
-        //   java: 			if (stack.isEmpty()) equipmentLayout.addChild(new SpacerElement(18, 18));
-        //   java: 			else equipmentLayout.addChild(new ItemWidget(stack));
-        //   java: 		});
+        // java: equipmentLayout.addChild(new SpacerElement(18, 18));
         { let (__q0,) = ((SpacerElement::of(18, 18)).as_layout_element(),); __this.lock().borrow_mut().equipment_layout.add_child(__q0) };
         for stack in SkyblockInventoryScreen::get_current_equipment_set() {
             if stack.is_empty() {
                 { let (__q0,) = ((SpacerElement::of(18, 18)).as_layout_element(),); __this.lock().borrow_mut().equipment_layout.add_child(__q0) };
             } else {
-                { let (__q0,) = ({ let __w = compat::WidgetAdapter::widget(ItemWidget::new(stack.clone())); let (__ww, __wh) = (__w.get_width(), __w.get_height()); LayoutElement::widget(compat::write(__this, |__t| __t.add_widget(__w)), __ww, __wh) },); __this.lock().borrow_mut().equipment_layout.add_child(__q0) };
+                { let (__q0,) = ({ let __w = compat::WidgetAdapter::widget(ItemWidget::new(std::sync::Arc::downgrade(&__this), stack.clone())); let (__ww, __wh) = (__w.get_width(), __w.get_height()); LayoutElement::widget(compat::write(__this, |__t| __t.add_widget(__w)), __ww, __wh) },); __this.lock().borrow_mut().equipment_layout.add_child(__q0) };
             }
         }
         { let mut __vw = Vec::new(); LayoutElement::Grid(__this.lock().borrow().main_grid.clone()).visit_widgets(&mut __vw); for (__i, _, _) in __vw { compat::write(__this, |__t| __t.mark_renderable(__i)); } };
@@ -176,14 +188,22 @@ impl ItemSelectPopup {
         <dyn AbstractPopupScreen>::reposition_elements_body(&compat::view(__this, |a| a as compat::Shared<dyn AbstractPopupScreen>));
         { let __v = ((compat::read(__this, |__t| __t.width)).wrapping_sub(TEXTURE_WIDTH)).wrapping_div(2); compat::write(__this, |__t| __t.x = __v); }
         { let __v = ((compat::read(__this, |__t| __t.height)).wrapping_sub(TEXTURE_HEIGHT)).wrapping_div(2); compat::write(__this, |__t| __t.y = __v); }
-        // TODO(fabric2seer): `LayoutElement::set_position` ports `setPosition`, but the port's `GridLayout` holds no `LayoutElement` (no Deref, no `base` field) to call it on
-        // rust: let __r0 = compat::read(__this, |__t| __t.x);
-        // rust: let __r1 = compat::read(__this, |__t| __t.y);
-        // rust: { let (__q0, __q1,) = ((__r0).wrapping_add(7), (__r1).wrapping_add(53),); __this.lock().borrow_mut().main_grid.set_position(__q0, __q1) };
-        // TODO(fabric2seer): `LayoutElement::set_position` ports `setPosition`, but the port's `LinearLayout` holds no `LayoutElement` (no Deref, no `base` field) to call it on
-        // rust: let __r0 = compat::read(__this, |__t| __t.x);
-        // rust: let __r1 = compat::read(__this, |__t| __t.y);
-        // rust: { let (__q0, __q1,) = ((__r0).wrapping_add(7), (__r1).wrapping_add(17),); __this.lock().borrow_mut().equipment_layout.set_position(__q0, __q1) };
+        // java: mainGrid.setPosition(x + 7, y + 53); - `AbstractLayout.setX/setY` move every child by the delta: the
+        // grid is placed at its new origin and its widgets (held by index in this screen) follow it
+        let (__x, __y) = compat::read(__this, |__t| (__t.x, __t.y));
+        {
+            let mut __grid = compat::write(__this, |__t| { __t.main_grid.x = __x.wrapping_add(7); __t.main_grid.y = __y.wrapping_add(53); __t.main_grid.arrange_elements(); __t.main_grid.clone() });
+            let mut __vw = Vec::new();
+            LayoutElement::Grid(std::mem::take(&mut __grid)).visit_widgets(&mut __vw);
+            for (__i, __wx, __wy) in __vw { compat::write(__this, |__t| __t.widget_mut(__i).set_position(__wx, __wy)); }
+        }
+        // java: equipmentLayout.setPosition(x + 7, y + 17);
+        {
+            let __layout = compat::write(__this, |__t| { __t.equipment_layout.set_x(__x.wrapping_add(7)); __t.equipment_layout.set_y(__y.wrapping_add(17)); __t.equipment_layout.arrange_elements(); __t.equipment_layout.wrapped.clone() });
+            let mut __vw = Vec::new();
+            LayoutElement::Grid(__layout).visit_widgets(&mut __vw);
+            for (__i, __wx, __wy) in __vw { compat::write(__this, |__t| __t.widget_mut(__i).set_position(__wx, __wy)); }
+        }
     }
 
     /// ItemSelectPopup.repositionElements as the dispatch of AbstractPopupScreen.repositionElements
@@ -217,6 +237,16 @@ impl compat::ScreenHalf for ItemSelectPopup {
 
 /// ItemSelectPopup as the game's screen: `game::set_screen(Box::new(compat::ScreenAdapter::new(..)))`
 impl ModScreen for compat::ScreenAdapter<ItemSelectPopup> {
+    /// java: AbstractPopupScreen.extractBackground overrides `Screen.extractBackground` without `super`
+    fn extract_background_calls_super(&self) -> bool {
+        false
+    }
+
+    /// java: @Override public void extractBackground(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a)
+    fn extract_background(&mut self, _screen: &mcrust::net::minecraft::client::gui::screens::screen::Screen, context: &mut mcrust::mcrust::modding::screens::ScreenRenderContext<'_>, mouse_x: i32, mouse_y: i32, a: f32) {
+        self.call(|__h| ({ let __f = compat::dispatch(__h, |__t| __t.extract_background()); __f(&compat::view(__h, |a| a as compat::Shared<dyn AbstractPopupScreen>), &mut context.graphics, mouse_x, mouse_y, a) }))
+    }
+
     fn get_title(&self) -> String {
         self.title()
     }
@@ -272,6 +302,8 @@ pub struct ItemWidget {
     pub item: Option<mcrust::net::minecraft::world::item::item_stack::ItemStack>,
     /// java: private final boolean selectable;
     pub selectable: bool,
+    /// java: ItemSelectPopup.this (the inner class's enclosing instance)
+    pub outer: compat::WeakShared<ItemSelectPopup>,
 }
 
 impl std::ops::Deref for ItemWidget {
@@ -289,12 +321,13 @@ impl std::ops::DerefMut for ItemWidget {
 
 impl ItemWidget {
     /// java: private ItemWidget(ItemStack item)
-    pub fn new(mut item: mcrust::net::minecraft::world::item::item_stack::ItemStack) -> compat::Shared<Self> {
+    pub fn new(outer: compat::WeakShared<ItemSelectPopup>, mut item: mcrust::net::minecraft::world::item::item_stack::ItemStack) -> compat::Shared<Self> {
         let __init_selectable = !(item.get_uuid().is_empty());
         let __this = compat::shared(Self {
             base: AbstractWidget::new(0, 0, 18, 18, (&compat::component_of(item.get_hover_name()).get_string()).to_string(), WidgetKind::PlainText, OnPress::Inert),
             item: None,
             selectable: __init_selectable,
+            outer,
         });
         let mut message: MutableComponent = (if compat::read(&__this, |__t| __t.selectable) { compat::component_of(__this.lock().borrow().get_message_component()) } else { { let (__q0,) = (component::translatable("skyblocker.customization.item.cannotCustomize").with_style_format(ChatFormatting::Red),); (compat::component_of(__this.lock().borrow().get_message_component()).copy().append_str("\n")).append(__q0) } });
         { let (__q0,) = (Tooltip::create(message.get_string()),); __this.lock().borrow_mut().set_tooltip(__q0) };
@@ -321,10 +354,13 @@ impl ItemWidget {
     /// java: @Override public void onClick(MouseButtonEvent click, boolean doubled)
     pub fn on_click(__this: &compat::Shared<Self>, click: &MouseButtonEvent, mut doubled: bool) {
         if compat::read(__this, |__t| __t.selectable) {
-            // TODO(fabric2seer): `callback` is a field of the enclosing instance (ItemSelectPopup.this) - an inner class has no outer reference in Rust
-            //   java: callback.accept(item);
-            // TODO(fabric2seer): `onClose(..)` is a method of the enclosing instance (ItemSelectPopup.this) - an inner class has no outer reference in Rust
-            //   java: onClose();
+            let Some(outer) = compat::read(__this, |__t| __t.outer.upgrade()) else { return; };
+            // java: callback.accept(item);
+            let callback = compat::read(&outer, |__t| __t.callback.clone());
+            callback(compat::read(__this, |__t| __t.item.clone()).unwrap());
+            // java: onClose();
+            let __f = compat::dispatch(&outer, |__t| __t.on_close());
+            __f(&compat::view(&outer, |a| a as compat::Shared<dyn AbstractPopupScreen>));
         }
     }
 

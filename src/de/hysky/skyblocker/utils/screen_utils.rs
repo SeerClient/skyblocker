@@ -27,7 +27,6 @@ impl ScreenUtils {
 
     /// java: @Contract("null -> null; !null -> !null") public static @Nullable Screen getUnderlyingScreen(@Nullable Screen screen)
     pub fn get_underlying_screen_1<'a>(mut screen: Option<&'a mcrust::net::minecraft::client::gui::screens::screen::Screen>) -> Option<&'a mcrust::net::minecraft::client::gui::screens::screen::Screen> {
-        // TODO(fabric2seer): a pattern switch expression
         //   java: return switch (screen) {
         //   java: 			case PopupScreen popupScreen -> getUnderlyingScreen(((PopupScreenAccessor) popupScreen).getUnderlyingScreen());
         //   java: 			case AbstractPopupScreen popupScreen -> getUnderlyingScreen(popupScreen.backgroundScreen);
@@ -36,8 +35,9 @@ impl ScreenUtils {
         // The port keeps a vanilla `PopupScreen`'s `backgroundScreen` beside the popup's own tree, in the
         // `Gui.screen_extra` state of the screen it belongs to (`PopupState.background_widgets`): the screen is a
         // popup when it IS the current screen and that state is a popup's.
-        // rust: port gap - `case AbstractPopupScreen` is not reachable from the port's `Screen` tree: the mod popup's
-        // `backgroundScreen` is a stand-in (GAPS_batchA #19), so such a screen answers itself (GAPS_L.md).
+        // `case AbstractPopupScreen popupScreen -> getUnderlyingScreen(popupScreen.backgroundScreen)`: a mod popup is
+        // not a vanilla `Screen` this answers by reference; its `backgroundScreen` (the screen it was opened over, held
+        // by the game) is answered by `get_underlying_screen_view`.
         let Some(s) = screen else {
             return None;
         };
@@ -48,6 +48,14 @@ impl ScreenUtils {
             return ScreenUtils::get_underlying_screen_1(Some(&*state.background_widgets));
         }
         return Some(s);
+    }
+
+    /// `getUnderlyingScreen()`'s `case AbstractPopupScreen popupScreen -> getUnderlyingScreen(popupScreen.backgroundScreen)`
+    /// for the up screen: the screen a mod popup (`set_screen_keeping_parent`) was opened over, as the game publishes it
+    /// (`kind`, `title`, `is::<T>()` / `with::<T, _>(..)` for a mod screen). `None`: the up screen is no mod popup, so
+    /// `getUnderlyingScreen()` is the screen itself (`get_underlying_screen`).
+    pub fn get_underlying_screen_view() -> Option<mcrust::mcrust::modding::screens::UnderlyingScreen> {
+        mcrust::mcrust::modding::game::get_underlying_screen()
     }
 
     /// java: public static ScreenRectangle getSnapBox(ScreenRectangle rect, ScreenDirection side)

@@ -57,8 +57,8 @@ impl HealthBars {
             HealthBars::reset();
         }));
         level_render_extraction_callback::EVENT.register(Arc::new(move |__a0| { HealthBars::extract_rendering(&__a0); }));
-        // TODO(fabric2seer): no SeerClient event yet: hook HEAD of ClientLevel#removeEntity (`net.minecraft.client.multiplayer.ClientLevel#removeEntity`: exists)
-        //   java: ClientEntityEvents.ENTITY_UNLOAD.register(HealthBars::onEntityDespawn);
+        // java: ClientEntityEvents.ENTITY_UNLOAD.register(HealthBars::onEntityDespawn);
+        mcrust::mcrust::modding::events::client_entity_events::register_entity_unload(|entity, client_world| HealthBars::on_entity_despawn(entity, client_world));
     }
 
     /// java: private static void reset()

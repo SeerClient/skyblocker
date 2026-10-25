@@ -1,6 +1,7 @@
 //! Ported from de.hysky.skyblocker.skyblock.waypoint.Waypoints by fabric2seer.
 
 #[allow(unused_imports)]
+use mcrust::com::mojang::brigadier::builder::argument_builder::ArgumentBuilder as _;
 use crate::prelude::*;
 use crate::de::hysky::skyblocker::config::skyblocker_config_manager::SkyblockerConfigManager;
 use crate::de::hysky::skyblocker::utils::location::Location;
@@ -69,7 +70,7 @@ pub static ORDERED_ACTION_CODEC: compat::MainThread<CodecRef<OrderedAction>> = c
 /// each key's values an `ArrayList` in insertion order. A key whose list is empty is not in the map (Guava drops
 /// it), which `equals` and `values` both see. Java holds the map by reference (`WaypointsScreen` and the
 /// `WaypointsShareScreen` it opens edit the same one), so every holder keeps a `compat::Shared` of it.
-/// rust: belongs with `compat` (Guava's `Multimap` is unported - `crate::unresolved::Multimap`); kept here, the one
+/// (It would belong with `compat` - Guava's `Multimap` is unported - `crate::unresolved::Multimap`); kept here, the one
 /// package that builds this map.
 #[derive(Default)]
 pub struct LocationMultimap {
@@ -161,16 +162,15 @@ impl Waypoints {
     /// java: @Init public static void init()
     pub fn init() {
         Waypoints::load_waypoints();
-        // TODO(fabric2seer): no SeerClient event yet: hook HEAD of Minecraft#stop (`net.minecraft.client.Minecraft#stop`: exists)
-        //   java: ClientLifecycleEvents.CLIENT_STOPPING.register(Waypoints::saveWaypoints);
+        // java: ClientLifecycleEvents.CLIENT_STOPPING.register(Waypoints::saveWaypoints); - HEAD of `Minecraft#stop`
+        report(hook::inject("net.minecraft.client.Minecraft#stop", At::Head, |_: &mut CallbackInfo<'_>| {
+            Waypoints::save_waypoints(compat::minecraft());
+        }));
         level_render_extraction_callback::EVENT.register(Arc::new(move |__a0| { Waypoints::extract_rendering(&__a0); }));
         client_command_registration_callback::EVENT.register(Arc::new(
             |dispatcher: &mut client_command_registration_callback::ClientCommandDispatcher| {
-                // TODO(fabric2seer): a command tree this tool cannot read (arguments, redirects, requires) - SeerClient commands receive the words after the name in `ctx.args`
-                //   java: dispatcher.register(literal(SkyblockerMod.NAMESPACE)
-                //   java: 				.then(literal("waypoints").executes(Scheduler.queueOpenScreenCommand(() -> new WaypointsScreen(Minecraft.getInstance().gui.screen())))
-                //   java: 						.then(literal("ordered").then(argument("action", OrderedAction.ArgumentType.orderedAction()).executes(Waypoints::executeOrderedWaypointAction)))
-                //   java: 				));
+                // java: ClientCommandRegistrationCallback.EVENT.register(Waypoints::registerCommands);
+                Waypoints::register_commands(dispatcher.dispatcher(), dispatcher.build_context());
             },
         ));
         client_play_connection_events::JOIN.register(Arc::new(|listener: &mut ClientPacketListener| {
@@ -180,16 +180,30 @@ impl Waypoints {
     }
 
     /// java: private static void registerCommands(CommandDispatcher<FabricClientCommandSource> dispatcher, CommandBuildContext access)
-    pub fn register_commands(dispatcher: &CommandDispatcher<crate::unresolved::FabricClientCommandSource>, access: &CommandBuildContext) {
-        // TODO(fabric2seer): a command builder outside dispatcher.register(..)
-        //   java: dispatcher.register(literal(SkyblockerMod.NAMESPACE)
-        //   java: 				.then(literal("waypoints").executes(Scheduler.queueOpenScreenCommand(() -> new WaypointsScreen(Minecraft.getInstance().gui.screen())))
-        //   java: 						.then(literal("ordered").then(argument("action", OrderedAction.ArgumentType.orderedAction()).executes(Waypoints::executeOrderedWaypointAction)))
-        //   java: 				));
+    /// (`access` is the port's `Option`: absent before the first join)
+    pub fn register_commands(dispatcher: &CommandDispatcher<client_command_registration_callback::FabricClientCommandSource>, access: Option<&CommandBuildContext>) {
+        let _ = access;
+        // java: dispatcher.register(literal(SkyblockerMod.NAMESPACE)
+        //   .then(literal("waypoints").executes(Scheduler.queueOpenScreenCommand(() -> new WaypointsScreen(Minecraft.getInstance().gui.screen())))
+        //     .then(literal("ordered").then(argument("action", OrderedAction.ArgumentType.orderedAction()).executes(Waypoints::executeOrderedWaypointAction)))));
+        let mut action = client_command_registration_callback::argument("action", Arc::new(ArgumentType::ordered_action().base));
+        action.executes(Arc::new(|context: &CommandContext<client_command_registration_callback::FabricClientCommandSource>| Ok(Waypoints::execute_ordered_waypoint_action(context))));
+        let mut ordered = client_command_registration_callback::literal("ordered");
+        ordered.then(&action);
+        let mut waypoints = client_command_registration_callback::literal("waypoints");
+        // (`gui.screen()` - the screen open when the command runs - is the parent the game's screen stack keeps; the
+        // object's own `parent` is the stand-in the constructor takes)
+        waypoints.executes(scheduler::SchedulerBase::queue_open_screen_command(Arc::new(|| {
+            Box::new(compat::ScreenAdapter::new(crate::de::hysky::skyblocker::skyblock::waypoint::waypoints_screen::WaypointsScreen::new(mcrust::net::minecraft::client::gui::screens::screen::Screen::new(String::new())))) as Box<dyn mcrust::mcrust::modding::screens::ModScreen>
+        })));
+        waypoints.then(&ordered);
+        let mut root = client_command_registration_callback::literal(skyblocker_mod::NAMESPACE);
+        root.then(&waypoints);
+        dispatcher.register(&root);
     }
 
     /// java: private static int executeOrderedWaypointAction(CommandContext<FabricClientCommandSource> context)
-    pub fn execute_ordered_waypoint_action(context: &CommandContext<crate::unresolved::FabricClientCommandSource>) -> i32 {
+    pub fn execute_ordered_waypoint_action(context: &CommandContext<client_command_registration_callback::FabricClientCommandSource>) -> i32 {
         // `waypoints.get(Utils.getLocation()).stream().filter(group -> group.ordered() && !group.waypoints().isEmpty()
         // && group.waypoints().stream().allMatch(Waypoint::isEnabled)).findFirst()`
         let mut group_optional: Option<compat::Shared<WaypointGroup>> = compat::read(WAYPOINTS.get(), |__t| __t.get(Utils::get_location())).into_iter().find(|group| {
@@ -199,9 +213,8 @@ impl Waypoints {
             })
         });
         if group_optional.is_none() {
-            // TODO(batchD): cross-package - `FabricClientCommandSource` is `crate::unresolved` (no `sendFeedback`); the
-            // command that calls this is not registered either (see `init`).
             //   java: context.getSource().sendFeedback(Constants.PREFIX.get().append(Component.literal("No ordered group enabled here! (make sure all waypoints in the group are enabled)")));
+            compat::batch_w_send_feedback(&(crate::de::hysky::skyblocker::utils::constants::PREFIX.get())().append(mcrust::net::minecraft::network::chat::component::literal("No ordered group enabled here! (make sure all waypoints in the group are enabled)")));
             return 1;
         }
         let mut group: compat::Shared<WaypointGroup> = group_optional.clone().unwrap();

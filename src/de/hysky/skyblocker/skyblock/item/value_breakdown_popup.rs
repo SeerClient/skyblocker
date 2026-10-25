@@ -37,7 +37,7 @@ use mcrust::net::minecraft::network::chat::component::Component as _;
 //   java: 			SkyblockerMod.KEYBINDING_CATEGORY
 //   java: 	));
 /// java: public static final KeyMapping KEY_BINDING = KeyMappingHelper.registerKeyMapping(new KeyMapping( "key.skyblocker.valueBreadownPopup", InputConstants.KEY_I, SkyblockerMod.KEYBINDING_CATEGORY ));
-pub static KEY_BINDING: compat::MainThread<mcrust::net::minecraft::client::key_mapping::KeyMapping> = compat::MainThread::new(|| key_binding_helper::register_key_binding(mcrust::net::minecraft::client::key_mapping::KeyMapping::new("key.skyblocker.valueBreadownPopup", 73 /* InputConstants.KEY_I */, *crate::entry::skyblocker_mod::KEYBINDING_CATEGORY.get())));
+pub static KEY_BINDING: compat::MainThread<mcrust::net::minecraft::client::key_mapping::KeyMapping> = compat::MainThread::new(|| key_binding_helper::register_key_binding(mcrust::net::minecraft::client::key_mapping::KeyMapping::new("key.skyblocker.valueBreadownPopup", mcrust::com::mojang::blaze3d::platform::input_constants::KEY_I, *crate::entry::skyblocker_mod::KEYBINDING_CATEGORY.get())));
 /// java: private static final Function<String, Component> EMPTY = _ -> Component.empty();
 pub static EMPTY: compat::MainThread<Arc<dyn Fn(String) -> MutableComponent>> = compat::MainThread::new(|| Arc::new(move |_| component::empty()));
 /// java: private static final Function<String, Component> ITEM_NAME = s -> { NEUItem neuItem = NEURepoManager.getItemByNeuId(s); if (neuItem == null) return Component.literal(s); return TextTransformer.fromLeg
@@ -46,11 +46,7 @@ pub static ITEM_NAME: compat::MainThread<Arc<dyn Fn(String) -> MutableComponent>
         return component::literal(&s);
     };
     // return TextTransformer.fromLegacy(neuItem.getDisplayName());
-    // rust: port gap - `NEUItem.getDisplayName()`: io.github.moulberry.repo (the NEU repo parser library) is not
-    //   ported - `crate::unresolved::NEUItem` is a placeholder with no members (GAPS_batchB.md). The id stands in, as
-    //   for an unknown item, until the library is.
-    let _ = neu_item;
-    return component::literal(&s);
+    return crate::de::hysky::skyblocker::utils::text_transformer::TextTransformer::from_legacy(&neu_item.get_display_name());
 }));
 /// java: private static final LayoutAppender EMPTY_APPENDER = (_, _, _) -> {};
 pub static EMPTY_APPENDER: compat::MainThread<compat::Shared<dyn LayoutAppender>> = compat::MainThread::new(|| compat::shared(LayoutAppenderLambda(Arc::new(move |_, _, _, _| {
@@ -228,9 +224,7 @@ pub static FORMATTERS: compat::MainThread<std::collections::HashMap<crate::net::
                 return component::literal(&s);
             };
             // return TextTransformer.fromLegacy(EnchantedBookUtils.getEnchantNameFromLore(neuItem.getLore()));
-            // rust: port gap - `NEUItem.getLore()` (the NEU repo library, GAPS_batchB / GAPS_P #4): the id stands in
-            let _ = neu_item;
-            component::literal(&s)
+            crate::de::hysky::skyblocker::utils::text_transformer::TextTransformer::from_legacy(&crate::de::hysky::skyblocker::utils::enchanted_book_utils::EnchantedBookUtils::get_enchant_name_from_lore(&neu_item.get_lore()))
         }))) as compat::Shared<dyn LayoutAppender>),
         (Type::Skin, compat::shared(BasicSingleAppender::new(component::literal("Skin"), Arc::new(|s: String| {
             let mut neu_item = NEURepoManager::get_item_by_neu_id(&s);
@@ -241,9 +235,7 @@ pub static FORMATTERS: compat::MainThread<std::collections::HashMap<crate::net::
                 return component::literal(&s);
             };
             // return TextTransformer.fromLegacy(neuItem.getDisplayName());
-            // rust: port gap - `NEUItem.getDisplayName()` (the NEU repo library, GAPS_batchB / GAPS_P #4): the id stands in
-            let _ = neu_item;
-            component::literal(&s)
+            crate::de::hysky::skyblocker::utils::text_transformer::TextTransformer::from_legacy(&neu_item.get_display_name())
         }))) as compat::Shared<dyn LayoutAppender>),
         (Type::Silex, compat::shared(BasicSingleAppender::new(component::literal("Silex"), EMPTY.get().clone())) as compat::Shared<dyn LayoutAppender>),
         (Type::GoldenBounty, compat::shared(BasicSingleAppender::new(component::literal("Golden Bounty"), EMPTY.get().clone())) as compat::Shared<dyn LayoutAppender>),
@@ -339,31 +331,43 @@ impl ValueBreakdownPopup {
     }
 
     /// java: @Init public static void initClass()
-    /// `ScreenKeyboardEvents.afterKeyPress(screen)` is a per-screen event in Fabric; the port's
-    /// `screen_keyboard_events::AFTER_KEY_PRESS` is one global event (every key the handler processes), so the
-    /// listener is registered once and asks what the per-screen registration encoded: that the open screen is a
-    /// container screen (registered from its `AFTER_INIT` while on Skyblock).
+    /// `ScreenEvents.AFTER_INIT` + `ScreenKeyboardEvents.afterKeyPress(screen)` on an `AbstractContainerScreen`: Fabric
+    /// fires `afterKeyPress` after the screen's own `keyPressed`, so the listener is a RETURN injector on
+    /// `AbstractContainerScreen#keyPressed` - the one place the screen (`getFocusedSlot()`, i.e. `hoveredSlot`) is lent.
     pub fn init_class() {
         // the class's static initialiser runs when `initClass` first touches the class: the key mapping registers then
         let _ = KEY_BINDING.get();
-        screen_keyboard_events::AFTER_KEY_PRESS.register(Arc::new(|action: i32, key_event: &KeyEvent| {
+        let result = mcrust::mcrust::modding::hook::inject("net.minecraft.client.gui.screens.inventory.AbstractContainerScreen#keyPressed", mcrust::mcrust::modding::hook::At::Return, |ci: &mut mcrust::mcrust::modding::hook::CallbackInfo<'_>| {
             // ScreenEvents.AFTER_INIT: if (!Utils.isOnSkyblock()) return; if (screen instanceof AbstractContainerScreen<?>)
-            if !(Utils::is_on_skyblock()) || !compat::container_screen_open() {
+            if !(Utils::is_on_skyblock()) {
                 return;
             }
-            if !(mcrust::net::minecraft::client::key_mapping::matches("key.skyblocker.valueBreadownPopup", key_event)) {
+            let Some(key) = ci.find_arg::<KeyEvent>().cloned() else { return };
+            // if (!KEY_BINDING.matches(key)) return;
+            if !(mcrust::net::minecraft::client::key_mapping::matches("key.skyblocker.valueBreadownPopup", &key)) {
                 return;
             }
-            // Slot slot = ((AbstractContainerScreenAccessor) handledScreen).getFocusedSlot();
-            // rust: port gap - `AbstractContainerScreen.hoveredSlot` is not readable by a mod here (the screen object is
-            //   the game's; no accessor lends it - GAPS_batchB.md), so the slot is Java's null and the listener returns
-            //   at `if (slot == null || !slot.hasItem()) return;`. The rest is `NetworthCalculator.getItemNetworth`
-            //   (net.azureaaron.networth, not ported) and `client.gui.setScreen(new ValueBreakdownPopup(screen, ..))`.
-            let mut slot: Option<Slot> = None;
-            if slot.is_none() || !(compat::slot_has_item(slot.as_ref().unwrap())) {
+            // Slot slot = ((AbstractContainerScreenAccessor) handledScreen).getFocusedSlot(); - the port's `hoveredSlot` is the
+            // slot's index in the open menu
+            let Some(hovered) = ci.this::<mcrust::net::minecraft::client::gui::screens::inventory::abstract_container_screen::AbstractContainerScreen>().and_then(|screen| screen.hovered_slot) else { return };
+            let slot: Option<Slot> = compat::with_open_menu(|menu, _| (hovered >= 0).then(|| menu.slots.get(hovered as usize).cloned()).flatten()).flatten();
+            // if (slot == null || !slot.hasItem()) return;
+            let Some(slot) = slot else { return };
+            if !(compat::slot_has_item(&slot)) {
                 return;
             }
-        }));
+            // NetworthResult networth = NetworthCalculator.getItemNetworth(slot.getItem());
+            let networth: crate::net::azureaaron::networth::networth_result::NetworthResult = crate::de::hysky::skyblocker::utils::networth::networth_calculator::NetworthCalculator::get_item_networth(&compat::slot_item(&slot));
+            // if (networth.price() > 0) client.gui.setScreen(new ValueBreakdownPopup(screen, networth));
+            // (the popup is opened over the container screen, which `set_screen_keeping_parent` keeps as its background)
+            if networth.price() > 0.0 {
+                let popup = ValueBreakdownPopup::new(mcrust::net::minecraft::client::gui::screens::screen::Screen::new(String::new()), networth);
+                mcrust::mcrust::modding::game::set_screen_keeping_parent(Box::new(compat::ScreenAdapter::new(popup)));
+            }
+        });
+        if let Err(e) = result {
+            logger().error(&format!("[Skyblocker] Failed to hook the value breakdown key: {:?}", e));
+        }
     }
 
     /// java: private static Component getCoinsText(double price)
@@ -388,8 +392,7 @@ impl ValueBreakdownPopup {
         // java: MultiLineTextWidget widget = new MultiLineTextWidget(text, textRenderer);
         let mut widget: MultiLineTextWidget = MultiLineTextWidget::new(0, 0, mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(text.clone()));
         // java: widget.setComponentClickHandler(_ -> {});
-        // rust: port gap - `MultiLineTextWidget.setComponentClickHandler` is not ported (GAPS_batchB.md #12); the no-op
-        //   handler only stops a click on the text from opening its click event
+        // (the handler is the widget's press: `OnPress::ComponentClick` below)
         let (width, height) = (widget.get_width(&text_renderer.splitter()), widget.get_height(&text_renderer.splitter()));
         let index = screen.add_widget(mcrust::net::minecraft::client::gui::components::abstract_widget::AbstractWidget::new(
             0,
@@ -398,7 +401,7 @@ impl ValueBreakdownPopup {
             height,
             text.get_string(),
             mcrust::net::minecraft::client::gui::components::abstract_widget::WidgetKind::PlainMultiLineText(Box::new(widget)),
-            mcrust::net::minecraft::client::gui::components::abstract_widget::OnPress::Inert,
+            mcrust::net::minecraft::client::gui::components::abstract_widget::OnPress::ComponentClick(mcrust::net::minecraft::client::gui::components::abstract_widget::StyleClickLambda::new(|_| {})),
         ));
         screen.mark_renderable(index);
         return LayoutElement::widget(index, width, height);
@@ -546,6 +549,16 @@ impl compat::ScreenHalf for ValueBreakdownPopup {
 
 /// ValueBreakdownPopup as the game's screen: `game::set_screen(Box::new(compat::ScreenAdapter::new(..)))`
 impl ModScreen for compat::ScreenAdapter<ValueBreakdownPopup> {
+    /// java: AbstractPopupScreen.extractBackground overrides `Screen.extractBackground` without `super`
+    fn extract_background_calls_super(&self) -> bool {
+        false
+    }
+
+    /// java: @Override public void extractBackground(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a)
+    fn extract_background(&mut self, _screen: &mcrust::net::minecraft::client::gui::screens::screen::Screen, context: &mut mcrust::mcrust::modding::screens::ScreenRenderContext<'_>, mouse_x: i32, mouse_y: i32, a: f32) {
+        self.call(|__h| ({ let __f = compat::dispatch(__h, |__t| __t.extract_background()); __f(&compat::view(__h, |a| a as compat::Shared<dyn AbstractPopupScreen>), &mut context.graphics, mouse_x, mouse_y, a) }))
+    }
+
     fn get_title(&self) -> String {
         self.title()
     }

@@ -80,70 +80,86 @@ fn skyblocker_char_typed(ci: &mut CallbackInfo<'_>) {
 /// @Inject skyblocker$extractRenderStateSign
 ///   java: @Inject(method = "extractRenderState", at = @At("HEAD"))
 /// target: net.minecraft.client.gui.screens.inventory.AbstractSignEditScreen#extractRenderState  [exists]
-/// Rust: net/minecraft/client/gui/screens/inventory/abstract_sign_edit_screen.rs:1209 fn extract_render_state(gl: &crate::lwjgl::opengl::Gl, gfx: &crate::net::minecraft::client::minecraft::Minecraft, state: &AbstractSignEditScreen, gui_w: i32, now_ms: i64, title: &str, screen: &crate::net::minecraft::client::gui::screens::screen::Screen, gui_scale: i32, fb_height: i32)
+/// Rust: net/minecraft/client/gui/screens/inventory/abstract_sign_edit_screen.rs fn extract_render_state(gl: &Gl, gfx: &Minecraft, state: &AbstractSignEditScreen, gui_w: i32, now_ms: i64, title: &str, screen: &Screen, gui_scale: i32, fb_height: i32)
+/// `GuiGraphicsExtractor graphics` is the port's `(gl, gfx)` pair (arguments 0 and 1) and `graphics.guiWidth()` is
+/// `gui_w` (argument 3); `this` is the `state` argument (2), since the port's extractRenderState is a free function.
 fn skyblocker_extract_render_state_sign(ci: &mut CallbackInfo<'_>) {
+    let Some(gl) = compat::detach_ref(ci.arg::<mcrust::lwjgl::opengl::Gl>(0)) else { return; };
+    let Some(gfx) = compat::detach_ref(ci.arg::<Minecraft>(1)) else { return; };
     let Some(this) = compat::detach_ref(ci.arg::<mcrust::net::minecraft::client::gui::screens::inventory::abstract_sign_edit_screen::AbstractSignEditScreen>(2)) else { return; };
-    // `this`: this port's extractRenderState is a free function; its `state` argument (index 2) is the AbstractSignEditScreen
+    let Some(gui_width) = ci.arg::<i32>(3).copied() else { return; };
     if crate::de::hysky::skyblocker::utils::utils::Utils::is_on_skyblock() {
-        let mut config = crate::de::hysky::skyblocker::config::skyblocker_config_manager::SkyblockerConfigManager::get();
+        let config = crate::de::hysky::skyblocker::config::skyblocker_config_manager::SkyblockerConfigManager::get();
         if is_speed_input_sign(this) && config.general.speed_presets.enable_speed_presets {
-            let mut presets = crate::de::hysky::skyblocker::skyblock::speedpreset::speed_presets::SpeedPresets::get_instance();
-            if presets.has_preset(&this.messages[(0) as usize]) {
-                // TODO(fabric2seer): `graphics`: this argument is not visible to the injector (see the notes above the handler)
-                //   java: graphics.centeredText(this.font, Component.literal(String.format("%s » %d", messages[0], presets.getPreset(messages[0]))).withStyle(ChatFormatting.GREEN),
-                //   java: 							graphics.guiWidth() / 2, 55, 0xFFFFFFFF);
+            let presets = crate::de::hysky::skyblocker::skyblock::speedpreset::speed_presets::SpeedPresets::get_instance();
+            if presets.has_preset(&this.messages[0]) {
+                // java: graphics.centeredText(this.font, Component.literal(String.format("%s » %d", messages[0], presets.getPreset(messages[0]))).withStyle(ChatFormatting.GREEN),
+                //   graphics.guiWidth() / 2, 55, 0xFFFFFFFF);
+                let text = mcrust::net::minecraft::network::chat::component::literal(&format!("{} » {}", this.messages[0], presets.get_preset(&this.messages[0])))
+                    .with_style_format(mcrust::net::minecraft::chat_formatting::ChatFormatting::Green);
+                mcrust::net::minecraft::client::gui::gui_graphics_extractor::centered_text(
+                    gl,
+                    gfx,
+                    &mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(text),
+                    gui_width / 2,
+                    55,
+                    0xFFFFFFFFu32 as i32,
+                );
             }
         } else if is_input_sign(this) && config.ui_and_visuals.input_calculator.enabled {
-            // TODO(fabric2seer): `graphics`: this argument is not visible to the injector (see the notes above the handler)
-            //   java: SignCalculator.extractCalculator(graphics, messages[0], graphics.guiWidth() / 2, 55);
+            // java: SignCalculator.extractCalculator(graphics, messages[0], graphics.guiWidth() / 2, 55);
+            crate::de::hysky::skyblocker::skyblock::calculators::sign_calculator::SignCalculator::extract_calculator(
+                &mcrust::net::minecraft::client::gui::gui_graphics_extractor::GuiGraphicsExtractor::new(),
+                this.messages[0].clone(),
+                gui_width / 2,
+                55,
+            );
         }
     }
 }
 
 /// @Inject skyblocker$keyPressed
 ///   java: @Inject(method = "keyPressed", at = @At("HEAD"))
-/// target: net.minecraft.client.gui.screens.inventory.AbstractSignEditScreen#keyPressed  [exists]
-/// Rust: net/minecraft/client/gui/screens/inventory/abstract_sign_edit_screen.rs:917 fn key_pressed(&mut self, is_up: bool, is_down_or_confirmation: bool)
+/// target: net.minecraft.client.gui.screens.inventory.AbstractSignEditScreen#keyPressed(Lnet/minecraft/client/input/KeyEvent;)Z  [exists]
+/// Rust: the `ScreenHandler::key_pressed(&mut self, screen, ctx: &mut ScreenContext, event: &KeyEvent)` impl of
+/// abstract_sign_edit_screen.rs - Java's `keyPressed(KeyEvent)` (the inherent `key_pressed(is_up, is_down)` is a helper of it).
 fn skyblocker_key_pressed(ci: &mut CallbackInfo<'_>) {
     let Some(this) = compat::detach(ci.this_mut::<mcrust::net::minecraft::client::gui::screens::inventory::abstract_sign_edit_screen::AbstractSignEditScreen>()) else { return; };
-    // rust: port gap - the port's `keyPressed(is_up, is_down_or_confirmation)` is handed the caller's resolution of
-    // the `KeyEvent`, in which Enter (`input.isConfirmation()`) and Down are one flag, and its `onClose` answers
-    // whether the CALLER closes rather than closing (GAPS_batchD). Java's condition is kept with the confirmation
-    // term unanswerable, so the sign is not closed from here.
-    //   java: SkyblockerConfigManager.get().uiAndVisuals.inputCalculator.closeSignsWithEnter
-    //   java: 				&& Utils.isOnSkyblock() && isInputSign()
-    //   java: 				&& (input.isConfirmation())
-    let input_is_confirmation = false;
-    if input_is_confirmation && crate::de::hysky::skyblocker::config::skyblocker_config_manager::SkyblockerConfigManager::get().ui_and_visuals.input_calculator.close_signs_with_enter
-        && crate::de::hysky::skyblocker::utils::utils::Utils::is_on_skyblock() && is_input_sign(this) {
-        this.on_close();
+    let Some(input) = compat::detach_ref(ci.arg::<KeyEvent>(2)) else { return; };
+    if crate::de::hysky::skyblocker::config::skyblocker_config_manager::SkyblockerConfigManager::get().ui_and_visuals.input_calculator.close_signs_with_enter
+        && crate::de::hysky::skyblocker::utils::utils::Utils::is_on_skyblock() && is_input_sign(this)
+        && input.is_confirmation() {
+        // java: this.onClose(); - `onClose:116-119` is `onDone()` = `setScreen(null)`, which this screen RECORDS on its
+        // context and the loop performs (the Escape branch of the same method does exactly this).
+        if this.on_close()
+            && let Some(ctx) = compat::hook_arg_mut::<mcrust::net::minecraft::client::gui::screens::screen::ScreenContext<'static>>(ci, 1)
+        {
+            ctx.close_requested = true;
+        }
     }
 }
 
 /// @Inject skyblocker$finishEditing
 ///   java: @Inject(method = "onDone", at = @At("HEAD"))
 /// target: net.minecraft.client.gui.screens.inventory.AbstractSignEditScreen#onDone  [exists]
-/// Rust: net/minecraft/client/gui/screens/inventory/abstract_sign_edit_screen.rs:1030 fn on_done(&self)
+/// Rust: net/minecraft/client/gui/screens/inventory/abstract_sign_edit_screen.rs fn on_done(&mut self) - called by the
+/// closing unwind before `removed()` reads the four lines into `ServerboundSignUpdatePacket`.
 fn skyblocker_finish_editing(ci: &mut CallbackInfo<'_>) {
-    // The handler rewrites `this.messages`, so it needs the screen mutably.
-    // rust: port gap - the port's `onDone` (`AbstractSignEditScreen::on_done`) takes `&self` (and its body is not Java's
-    // send-and-close; GAPS_batchD.md), so the hook hands no mutable receiver and this returns without rewriting the
-    // lines until the game hooks the method that writes the sign.
     let Some(this) = compat::detach(ci.this_mut::<mcrust::net::minecraft::client::gui::screens::inventory::abstract_sign_edit_screen::AbstractSignEditScreen>()) else { return; };
-    let mut config = crate::de::hysky::skyblocker::config::skyblocker_config_manager::SkyblockerConfigManager::get();
+    let config = crate::de::hysky::skyblocker::config::skyblocker_config_manager::SkyblockerConfigManager::get();
     if crate::de::hysky::skyblocker::utils::utils::Utils::is_on_skyblock() {
         if is_speed_input_sign(this) && config.general.speed_presets.enable_speed_presets {
-            let mut presets = crate::de::hysky::skyblocker::skyblock::speedpreset::speed_presets::SpeedPresets::get_instance();
-            if presets.has_preset(&this.messages[(0) as usize]) {
-                this.messages[(0) as usize] = presets.get_preset(&this.messages[(0) as usize]).to_string();
+            let presets = crate::de::hysky::skyblocker::skyblock::speedpreset::speed_presets::SpeedPresets::get_instance();
+            if presets.has_preset(&this.messages[0]) {
+                this.messages[0] = presets.get_preset(&this.messages[0]).to_string();
             }
         } else if is_input_sign(this) && config.ui_and_visuals.input_calculator.enabled {
-            let mut is_price: bool = (this.messages[(2) as usize]).contains("price");
+            let is_price: bool = this.messages[2].contains("price");
             let mut value: String = crate::de::hysky::skyblocker::skyblock::calculators::sign_calculator::SignCalculator::get_new_value(is_price);
             if compat::str_len(&value) >= 15 {
                 value = compat::substring2(&value, 0, 15);
             }
-            this.messages[(0) as usize] = value.clone();
+            this.messages[0] = value;
         }
     }
 }
@@ -153,6 +169,6 @@ pub fn register() {
     report(hook::register_injector("net.minecraft.client.gui.screens.inventory.AbstractSignEditScreen#init", InjectOptions::at(At::Tail).kind(InjectorKind::Inject).priority(1000), Arc::new(skyblocker_init)));
     report(hook::register_injector("net.minecraft.client.gui.screens.inventory.AbstractSignEditScreen#charTyped", InjectOptions::at(At::Tail).kind(InjectorKind::Inject).priority(1000), Arc::new(skyblocker_char_typed)));
     report(hook::register_injector("net.minecraft.client.gui.screens.inventory.AbstractSignEditScreen#extractRenderState", InjectOptions::at(At::Head).kind(InjectorKind::Inject).priority(1000), Arc::new(skyblocker_extract_render_state_sign)));
-    report(hook::register_injector("net.minecraft.client.gui.screens.inventory.AbstractSignEditScreen#keyPressed", InjectOptions::at(At::Head).kind(InjectorKind::Inject).priority(1000), Arc::new(skyblocker_key_pressed)));
+    report(hook::register_injector("net.minecraft.client.gui.screens.inventory.AbstractSignEditScreen#keyPressed(Lnet/minecraft/client/input/KeyEvent;)Z", InjectOptions::at(At::Head).kind(InjectorKind::Inject).priority(1000), Arc::new(skyblocker_key_pressed)));
     report(hook::register_injector("net.minecraft.client.gui.screens.inventory.AbstractSignEditScreen#onDone", InjectOptions::at(At::Head).kind(InjectorKind::Inject).priority(1000), Arc::new(skyblocker_finish_editing)));
 }

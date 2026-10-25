@@ -2,6 +2,7 @@
 
 #[allow(unused_imports)]
 use crate::prelude::*;
+use crate::de::hysky::skyblocker::skyblock::waypoint::abstract_waypoints_screen;
 use crate::de::hysky::skyblocker::skyblock::waypoint::abstract_waypoints_screen::AbstractWaypointsScreen;
 use crate::de::hysky::skyblocker::skyblock::waypoint::abstract_waypoints_screen::AbstractWaypointsScreenBase;
 use crate::de::hysky::skyblocker::skyblock::waypoint::waypoints::Waypoints;
@@ -14,28 +15,23 @@ use mcrust::net::minecraft::client::gui::components::abstract_widget::AbstractWi
 use mcrust::net::minecraft::client::gui::components::abstract_widget::OnPress;
 use mcrust::net::minecraft::client::gui::components::abstract_widget::PressLambda;
 use mcrust::net::minecraft::client::gui::components::button;
-use mcrust::net::minecraft::client::gui::gui;
 use mcrust::net::minecraft::client::gui::layouts::grid_layout::GridLayout;
 use mcrust::net::minecraft::client::gui::layouts::grid_layout::RowHelper;
 use mcrust::net::minecraft::client::gui::layouts::layout_element::LayoutElement;
-use mcrust::net::minecraft::client::gui::screens::confirm_screen::ConfirmScreen;
-use mcrust::net::minecraft::client::input::character_event::CharacterEvent;
-use mcrust::net::minecraft::client::input::mouse_button_event::MouseButtonEvent;
-use mcrust::net::minecraft::client::input::mouse_button_info::MouseButtonInfo;
+use mcrust::net::minecraft::client::gui::screens::screen::Screen;
 use mcrust::net::minecraft::network::chat::component;
 use mcrust::net::minecraft::network::chat::component::Component as _;
-use crate::de::hysky::skyblocker::utils::location::Location;
 
 /// java: public class WaypointsScreen extends AbstractWaypointsScreen<Screen>
 pub struct WaypointsScreen {
     /// java: extends AbstractWaypointsScreen
-    pub base: AbstractWaypointsScreenBase<mcrust::net::minecraft::client::gui::screens::screen::Screen>,
+    pub base: AbstractWaypointsScreenBase,
     /// the object's own shared handle: Java's `this` handed to other objects
     pub self_ref: compat::WeakShared<Self>,
 }
 
 impl std::ops::Deref for WaypointsScreen {
-    type Target = AbstractWaypointsScreenBase<mcrust::net::minecraft::client::gui::screens::screen::Screen>;
+    type Target = AbstractWaypointsScreenBase;
     fn deref(&self) -> &Self::Target {
         &self.base
     }
@@ -49,137 +45,160 @@ impl std::ops::DerefMut for WaypointsScreen {
 
 impl WaypointsScreen {
     /// java: public WaypointsScreen(Screen parent)
-    pub fn new(mut parent: mcrust::net::minecraft::client::gui::screens::screen::Screen) -> compat::Shared<Self> {
-        // TODO(fabric2seer): the mod keeps the game's `Screen` (Java holds a reference to the live object); the port's `Screen` is not a value to copy and the port lends the mod no handle to it
-        //   java: super(Component.translatable("skyblocker.waypoints.config"), parent, Waypoints.waypointsDeepCopy());
-        let __this: compat::Shared<Self> = todo!("constructor");
+    pub fn new(parent: Screen) -> compat::Shared<Self> {
+        // java: super(Component.translatable("skyblocker.waypoints.config"), parent, Waypoints.waypointsDeepCopy());
+        let __this = compat::shared(Self {
+            base: AbstractWaypointsScreenBase::new_3(component::translatable("skyblocker.waypoints.config"), Some(std::rc::Rc::new(parent) as std::rc::Rc<dyn std::any::Any>), Waypoints::waypoints_deep_copy()),
+            self_ref: std::sync::Weak::new(),
+        });
+        compat::write(&__this, |__t| __t.self_ref = std::sync::Arc::downgrade(&__this));
         __this
     }
 
-    /// java: private void saveWaypoints()
-    pub fn save_waypoints(__this: &compat::Shared<Self>) {
-        Waypoints::clear_and_put_all_waypoints(&compat::read(__this, |__t| __t.waypoints.clone()).unwrap());
-        Waypoints::save_waypoints(compat::minecraft());
-    }
-
-    /// java: @Override public void onClose()
-    pub fn on_close(__this: &compat::Shared<Self>) {
-        if !(Waypoints::are_waypoints_equal(&compat::read(__this, |__t| __t.waypoints.clone()).unwrap())) {
-            // rust: port gap - the port lends a mod no `ConfirmScreen` (no constructor, no `game::` request for one), so the
-            // "discard changes?" prompt cannot be shown (GAPS_batchD.md); the screen stays open, as a cancelled prompt leaves it.
-            // TODO(fabric2seer): `set_screen` takes 14 argument(s) in the port (`gfx: &mut Minecraft, screen: &mut GuiScreen, screen_extra: &mut ScreenExtra, screen_stack: &mut Vec<HeldScreen>, screen_kind_before_pause: &mut Option<ScreenKind>, screen_is_open: &mut bool, level_screen_closed: &mut bool, frames_on_this_sc ..`), Java passes 1
-            // TODO(fabric2seer): `new ConfirmScreen(..)`: the port has no `ConfirmScreen::new`
-            // rust: let __this_w1 = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
-            // rust: gui::set_screen(&mut ConfirmScreen::new(Arc::new(move |confirmed_action| { let Some(__this_1) = __this_w1.get().upgrade() else { return Default::default(); }; gui::set_screen((if confirmed_action { compat::read((&__this_1), |__t| __t.parent.clone()) } else { Some((&__this_1).clone()) }).as_mut().unwrap()) }), component::translatable("text.skyblocker.quit_config"), component::translatable("text.skyblocker.quit_config_sure"), component::translatable("text.skyblocker.quit_discard"), mcrust::net::minecraft::network::chat::common_components::gui_cancel()));
-        } else {
-            // `minecraft.gui.setScreen(parent)`: the screen is opened keeping its parent, which the game's stack hands back.
-            mcrust::mcrust::modding::game::set_screen_to_parent();
-        }
-    }
-
-}
-
-impl AbstractWaypointsScreen<mcrust::net::minecraft::client::gui::screens::screen::Screen> for WaypointsScreen {
-    fn abstract_waypoints_screen_base(&self) -> &AbstractWaypointsScreenBase<mcrust::net::minecraft::client::gui::screens::screen::Screen> {
-        &self.base
-    }
-    fn abstract_waypoints_screen_base_mut(&mut self) -> &mut AbstractWaypointsScreenBase<mcrust::net::minecraft::client::gui::screens::screen::Screen> {
-        &mut self.base
-    }
-
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
+    /// The object as the class it extends (`AbstractWaypointsScreen<?>`), for the bodies the base class declares.
+    fn as_abstract(__this: &compat::Shared<Self>) -> compat::Shared<dyn AbstractWaypointsScreen> {
+        __this.clone()
     }
 
     /// java: @Override protected void init()
-    fn init(&mut self) {
-        self.init_super();
+    pub fn init(__this: &compat::Shared<Self>) {
+        let __abstract = WaypointsScreen::as_abstract(__this);
+        // java: super.init();
+        <dyn AbstractWaypointsScreen>::init_super(&__abstract);
+        // java: GridLayout gridWidget = new GridLayout().columnSpacing(5).rowSpacing(2);
         let mut grid_widget: GridLayout = GridLayout::new_default();
         grid_widget.column_spacing(5);
         grid_widget.row_spacing(2);
+        // java: GridLayout.RowHelper adder = gridWidget.createRowHelper(2);
         let mut adder: RowHelper = grid_widget.create_row_helper(2);
         // Each button's action reaches this screen through its own handle, the live screen lent to it for the call.
-        let __this_w1 = compat::RenderThread::new(self.self_ref.clone());
-        let __b1 = button::builder(component::translatable("skyblocker.waypoints.share").get_string(), OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| {
+        // java: adder.addChild(Button.builder(Component.translatable("skyblocker.waypoints.share"), _ -> minecraft.gui.setScreen(new WaypointsShareScreen(this, waypoints))).build());
+        let __this_w1 = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
+        let __b1 = button::builder(component::translatable("skyblocker.waypoints.share").get_string(), OnPress::Lambda(PressLambda::new(move |__screen: &mut Screen, __index: usize| {
             let Some(__this) = __this_w1.get().upgrade() else { return };
             compat::lend_screen(&__this, __screen, || {
-                // `minecraft.gui.setScreen(new WaypointsShareScreen(this, waypoints))`
                 let __waypoints = compat::read(&__this, |__t| __t.waypoints.clone()).unwrap();
                 mcrust::mcrust::modding::game::set_screen_keeping_parent(Box::new(compat::ScreenAdapter::new(WaypointsShareScreen::new(__this.clone(), __waypoints))));
             })
         }))).build();
-        WaypointsScreen::add_to_grid(self, &mut adder, &mut grid_widget, __b1);
-        let __this_w2 = compat::RenderThread::new(self.self_ref.clone());
-        let __b2 = button::builder(component::translatable("skyblocker.waypoints.newGroup").get_string(), OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| {
+        WaypointsScreen::add_to_grid(__this, &mut adder, &mut grid_widget, __b1);
+        // java: adder.addChild(Button.builder(Component.translatable("skyblocker.waypoints.newGroup"), _ -> waypointsListWidget.addWaypointGroupAfterSelected()).build());
+        let __this_w2 = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
+        let __b2 = button::builder(component::translatable("skyblocker.waypoints.newGroup").get_string(), OnPress::Lambda(PressLambda::new(move |__screen: &mut Screen, __index: usize| {
             let Some(__this) = __this_w2.get().upgrade() else { return };
             compat::lend_screen(&__this, __screen, || {
-                compat::write(&__this, |__t| __t.base.with_list(|__h| WaypointsListWidget::add_waypoint_group_after_selected(__h)));
+                <dyn AbstractWaypointsScreen>::with_list(&WaypointsScreen::as_abstract(&__this), |__h| WaypointsListWidget::add_waypoint_group_after_selected(__h));
             })
         }))).build();
-        WaypointsScreen::add_to_grid(self, &mut adder, &mut grid_widget, __b2);
-        let __this_w3 = compat::RenderThread::new(self.self_ref.clone());
-        let __b3 = button::builder(mcrust::net::minecraft::network::chat::common_components::gui_cancel().get_string(), OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| {
+        WaypointsScreen::add_to_grid(__this, &mut adder, &mut grid_widget, __b2);
+        // java: adder.addChild(Button.builder(CommonComponents.GUI_CANCEL, _ -> onClose()).build());
+        let __this_w3 = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
+        let __b3 = button::builder(mcrust::net::minecraft::network::chat::common_components::gui_cancel().get_string(), OnPress::Lambda(PressLambda::new(move |__screen: &mut Screen, __index: usize| {
             let Some(__this) = __this_w3.get().upgrade() else { return };
             compat::lend_screen(&__this, __screen, || WaypointsScreen::on_close(&__this))
         }))).build();
-        WaypointsScreen::add_to_grid(self, &mut adder, &mut grid_widget, __b3);
-        let __this_w4 = compat::RenderThread::new(self.self_ref.clone());
-        let __b4 = button::builder(mcrust::net::minecraft::network::chat::common_components::gui_done().get_string(), OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| {
+        WaypointsScreen::add_to_grid(__this, &mut adder, &mut grid_widget, __b3);
+        // java: adder.addChild(Button.builder(CommonComponents.GUI_DONE, _ -> { saveWaypoints(); onClose(); }).build());
+        let __this_w4 = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
+        let __b4 = button::builder(mcrust::net::minecraft::network::chat::common_components::gui_done().get_string(), OnPress::Lambda(PressLambda::new(move |__screen: &mut Screen, __index: usize| {
             let Some(__this) = __this_w4.get().upgrade() else { return };
             compat::lend_screen(&__this, __screen, || {
                 WaypointsScreen::save_waypoints(&__this);
                 WaypointsScreen::on_close(&__this);
             })
         }))).build();
-        WaypointsScreen::add_to_grid(self, &mut adder, &mut grid_widget, __b4);
-        self.layout.as_mut().unwrap().add_to_footer(LayoutElement::Grid(grid_widget.clone()));
-        self.layout.as_mut().unwrap().set_footer_height(64);
-        // `layout.addToHeader(Button.builder(.."otherOptions"..).build(), p -> p.alignHorizontallyLeft().paddingLeft(10))`
-        let __this_w5 = compat::RenderThread::new(self.self_ref.clone());
-        let __b5 = button::builder(component::translatable("skyblocker.waypoints.otherOptions").get_string(), OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| {
+        WaypointsScreen::add_to_grid(__this, &mut adder, &mut grid_widget, __b4);
+        // java: layout.addToFooter(gridWidget); layout.setFooterHeight(64);
+        compat::write(__this, |__t| {
+            let __layout = __t.base.layout.as_mut().unwrap();
+            __layout.add_to_footer(LayoutElement::Grid(grid_widget));
+            __layout.set_footer_height(64);
+        });
+        // java: layout.addToHeader(Button.builder(Component.translatable("skyblocker.waypoints.otherOptions"), _ ->
+        //   minecraft.gui.setScreen(new WaypointsOptionScreen(this))).build(), p -> p.alignHorizontallyLeft().paddingLeft(10));
+        let __this_w5 = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
+        let __b5 = button::builder(component::translatable("skyblocker.waypoints.otherOptions").get_string(), OnPress::Lambda(PressLambda::new(move |__screen: &mut Screen, __index: usize| {
             let Some(__this) = __this_w5.get().upgrade() else { return };
             compat::lend_screen(&__this, __screen, || {
+                // (the option screen's parent is this screen, which the game's stack keeps)
                 mcrust::mcrust::modding::game::set_screen_keeping_parent(Box::new(compat::ScreenAdapter::new(WaypointsOptionScreen::new(None))));
             })
         }))).build();
-        {
+        compat::write(__this, |__t| {
             let (__ww, __wh) = (__b5.get_width(), __b5.get_height());
-            let __i = self.base.base.add_widget(__b5);
-            let __layout = self.layout.as_mut().unwrap();
+            let __i = __t.base.base.add_widget(__b5);
+            let __layout = __t.base.layout.as_mut().unwrap();
             let __settings = __layout.header_frame.new_child_layout_settings().align_horizontally_left().padding_left(10);
             __layout.add_to_header_with(LayoutElement::widget(__i, __ww, __wh), __settings);
+        });
+        // java: updateButtons();
+        <dyn AbstractWaypointsScreen>::update_buttons(&__abstract);
+        // java: super.lateInit();
+        <dyn AbstractWaypointsScreen>::late_init(&__abstract);
+    }
+
+    /// `adder.addChild(button)`: the button joins the screen's widget list, the grid holds its index.
+    fn add_to_grid(__this: &compat::Shared<Self>, adder: &mut RowHelper, grid: &mut GridLayout, button: AbstractWidget) {
+        let (__ww, __wh) = (button.get_width(), button.get_height());
+        let __i = compat::write(__this, |__t| __t.base.base.add_widget(button));
+        adder.add_child(grid, LayoutElement::widget(__i, __ww, __wh)).unwrap();
+    }
+
+    /// java: private void saveWaypoints()
+    pub fn save_waypoints(__this: &compat::Shared<Self>) {
+        // java: Waypoints.clearAndPutAllWaypoints(waypoints);
+        Waypoints::clear_and_put_all_waypoints(&compat::read(__this, |__t| __t.waypoints.clone()).unwrap());
+        // java: Waypoints.saveWaypoints(minecraft);
+        Waypoints::save_waypoints(compat::minecraft());
+    }
+
+    /// java: @Override public void onClose()
+    pub fn on_close(__this: &compat::Shared<Self>) {
+        if !(Waypoints::are_waypoints_equal(&compat::read(__this, |__t| __t.waypoints.clone()).unwrap())) {
+            // java: minecraft.gui.setScreen(new ConfirmScreen(confirmedAction -> minecraft.gui.setScreen(confirmedAction ? parent : this),
+            //   Component.translatable("text.skyblocker.quit_config"), Component.translatable("text.skyblocker.quit_config_sure"),
+            //   Component.translatable("text.skyblocker.quit_discard"), CommonComponents.GUI_CANCEL));
+            // (the prompt is opened over this screen, which the game's stack keeps: `setScreen(this)` is one step back to
+            // it, `setScreen(parent)` two)
+            let popup = compat::ConfirmScreen::new(
+                |confirmed_action: bool| {
+                    mcrust::mcrust::modding::game::set_screen_to_parent();
+                    if confirmed_action {
+                        mcrust::mcrust::modding::game::set_screen_to_parent();
+                    }
+                },
+                component::translatable("text.skyblocker.quit_config"),
+                component::translatable("text.skyblocker.quit_config_sure"),
+                component::translatable("text.skyblocker.quit_discard"),
+                mcrust::net::minecraft::network::chat::common_components::gui_cancel(),
+            );
+            mcrust::mcrust::modding::game::set_screen_keeping_parent(Box::new(popup));
+        } else {
+            // java: minecraft.gui.setScreen(parent); - the screen is opened keeping its parent, which the game's stack hands back.
+            mcrust::mcrust::modding::game::set_screen_to_parent();
         }
-        self.update_buttons();
-        self.late_init();
     }
-
-    /// `this::islandChanged` for the island dropdown, through this screen's own handle.
-    fn island_changed_callback(&self) -> Arc<dyn Fn(Location)> {
-        let __this_w = compat::RenderThread::new(self.self_ref.clone());
-        Arc::new(move |location| {
-            if let Some(__this) = __this_w.get().upgrade() {
-                compat::write(&__this, |__t| __t.island_changed(location));
-            }
-        })
-    }
-
 }
 
-impl WaypointsScreen {
-    /// `adder.addChild(button)`: the button joins the screen's widget list, the grid holds its index.
-    fn add_to_grid(this: &mut WaypointsScreen, adder: &mut RowHelper, grid: &mut GridLayout, button: AbstractWidget) {
-        let (__ww, __wh) = (button.get_width(), button.get_height());
-        let __i = this.base.base.add_widget(button);
-        adder.add_child(grid, LayoutElement::widget(__i, __ww, __wh)).unwrap();
+impl AbstractWaypointsScreen for WaypointsScreen {
+    fn abstract_waypoints_screen_base(&self) -> &AbstractWaypointsScreenBase {
+        &self.base
+    }
+    fn abstract_waypoints_screen_base_mut(&mut self) -> &mut AbstractWaypointsScreenBase {
+        &mut self.base
+    }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
     }
 }
 
 /// WaypointsScreen's `Screen` half (`super`'s fields and widget tree), lent by the game for each call
 impl compat::ScreenHalf for WaypointsScreen {
-    fn screen_half(&mut self) -> &mut mcrust::net::minecraft::client::gui::screens::screen::Screen {
+    fn screen_half(&mut self) -> &mut Screen {
         &mut self.base.base
     }
-    fn screen_parts(&mut self) -> (&mut mcrust::net::minecraft::client::gui::screens::screen::Screen, Option<&mut compat::WidgetCache>) {
+    fn screen_parts(&mut self) -> (&mut Screen, Option<&mut compat::WidgetCache>) {
         let __s = &mut self.base;
         (&mut __s.base, Some(&mut __s.__widgets))
     }
@@ -191,13 +210,28 @@ impl ModScreen for compat::ScreenAdapter<WaypointsScreen> {
         self.title()
     }
 
-    /// java: Screen.tick (the base body)
-    fn tick(&mut self, screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen) {
-        self.lend(screen, |_| ())
+    /// java: @Override protected void init()
+    fn init(&mut self, screen: &mut Screen) {
+        self.lend(screen, |__h| WaypointsScreen::init(__h))
+    }
+
+    /// java: AbstractWaypointsScreen.repositionElements (it does not rebuild the widgets)
+    fn reposition_elements(&mut self, screen: &mut Screen) {
+        self.lend(screen, |__h| <dyn AbstractWaypointsScreen>::reposition_elements(&WaypointsScreen::as_abstract(__h)))
+    }
+
+    /// java: Screen.tick (the base body), and the `updateButtons()` a click asked for
+    fn tick(&mut self, screen: &mut Screen) {
+        self.lend(screen, |__h| <dyn AbstractWaypointsScreen>::tick(&WaypointsScreen::as_abstract(__h)))
+    }
+
+    /// java: Screen.extractRenderState (the base body) - the island dropdown and the popup container last
+    fn extract_render_state(&mut self, screen: &Screen, context: &mut ScreenRenderContext<'_>, mouse_x: i32, mouse_y: i32, a: f32) {
+        self.lend_ref(screen, |__h| <dyn AbstractWaypointsScreen>::extract_render_state(&WaypointsScreen::as_abstract(__h), context, mouse_x, mouse_y, a))
     }
 
     /// java: Screen.keyPressed (the base body)
-    fn key_pressed(&mut self, screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, event: &mcrust::net::minecraft::client::input::key_event::KeyEvent) -> bool {
+    fn key_pressed(&mut self, screen: &mut Screen, event: &mcrust::net::minecraft::client::input::key_event::KeyEvent) -> bool {
         self.lend(screen, |_| ());
         if event.is_escape() && self.should_close_on_esc() {
             self.on_close();
@@ -206,9 +240,28 @@ impl ModScreen for compat::ScreenAdapter<WaypointsScreen> {
         false
     }
 
+    /// java: AbstractWaypointsScreen.mouseClicked
+    fn mouse_clicked(&mut self, screen: &mut Screen, x: f64, y: f64, button: i32) -> bool {
+        self.lend(screen, |__h| <dyn AbstractWaypointsScreen>::mouse_clicked(&WaypointsScreen::as_abstract(__h), &abstract_waypoints_screen::click_event(x, y, button), false))
+    }
+
+    /// java: Screen.mouseReleased - the popup container while it is dragged
+    fn mouse_released(&mut self, screen: &mut Screen, x: f64, y: f64, button: i32) -> bool {
+        self.lend(screen, |__h| <dyn AbstractWaypointsScreen>::mouse_released(&WaypointsScreen::as_abstract(__h), &abstract_waypoints_screen::click_event(x, y, button)))
+    }
+
+    /// java: Screen.mouseDragged - the popup container while it is dragged
+    fn mouse_dragged(&mut self, screen: &mut Screen, x: f64, y: f64, button: i32, dx: f64, dy: f64) -> bool {
+        self.lend(screen, |__h| <dyn AbstractWaypointsScreen>::mouse_dragged(&WaypointsScreen::as_abstract(__h), &abstract_waypoints_screen::click_event(x, y, button), dx, dy))
+    }
+
+    /// java: AbstractWaypointsScreen.mouseScrolled
+    fn mouse_scrolled(&mut self, screen: &mut Screen, x: f64, y: f64, scroll_x: f64, scroll_y: f64) -> bool {
+        self.lend(screen, |__h| <dyn AbstractWaypointsScreen>::mouse_scrolled(&WaypointsScreen::as_abstract(__h), x, y, scroll_x, scroll_y))
+    }
+
     /// java: @Override public void onClose()
     fn on_close(&mut self) {
         self.call(|__h| WaypointsScreen::on_close(__h))
     }
-
 }

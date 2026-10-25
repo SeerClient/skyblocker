@@ -222,9 +222,35 @@ impl Formatters {
     /// java: private static ZoneId getTimeZone()
     pub fn get_time_zone() -> ZoneId {
         // java: return Debug.isTestEnvironment() ? ZoneId.of("UTC") : ZoneId.systemDefault();
-        // rust: port gap - the port's `ZoneId` is the system default only (`ZoneId.of` is not ported), so the test
-        //   environment's UTC zone cannot be named (GAPS_batchE.md)
+        // port gap (verified): `mcrust::java::time::zone_id::ZoneId` (RustSrc, read-only here) is a unit struct for
+        //   the system default zone - `ZoneId.of` is not in its surface, so the IS_TEST_ENV UTC zone cannot be named
+        //   (GAPS_batchE.md). Only the test environment takes that arm.
         return ZoneId::system_default();
+    }
+
+    /// `Locale.getDefault()` on a POSIX JVM is read from `LC_ALL` / `LC_TIME` / `LANG` (`en_US.UTF-8`); CLDR's
+    /// `timeData` `_preferred` cycle for its region is what ICU's `getBestPattern("j")` expands.
+    fn locale_prefers_12_hour_clock() -> bool {
+        // CLDR supplementalData.xml `timeData`: regions whose `_preferred` is `h`, `hb` or `hB` (12 hour, with `a`).
+        const TWELVE_HOUR_REGIONS: &[&str] = &[
+            "AE", "AG", "AL", "AS", "AU", "BB", "BD", "BH", "BM", "BN", "BS", "BT", "CA", "CO", "CY", "DJ", "DM", "DO",
+            "DZ", "EG", "EH", "ER", "ET", "FJ", "FM", "GD", "GH", "GM", "GR", "GU", "GY", "IN", "IQ", "JM", "JO", "KE",
+            "KI", "KM", "KN", "KP", "KR", "KW", "KY", "LB", "LC", "LR", "LS", "LY", "MH", "MO", "MP", "MR", "MW", "MY",
+            "NA", "NZ", "OM", "PG", "PH", "PK", "PR", "PS", "PW", "QA", "SA", "SB", "SD", "SG", "SL", "SO", "SS", "SY",
+            "SZ", "TC", "TD", "TN", "TO", "TT", "TW", "UG", "US", "VC", "VG", "VI", "VU", "WS", "YE", "ZA", "ZM",
+        ];
+        // CLDR likelySubtags for a language-only locale (`en` -> `en_Latn_US`); the rest are 24 hour regions.
+        const LIKELY_REGION: &[(&str, &str)] = &[("en", "US"), ("ar", "EG"), ("ko", "KR"), ("hi", "IN"), ("bn", "BD"), ("ur", "PK"), ("el", "GR"), ("zh", "CN"), ("fil", "PH"), ("am", "ET"), ("sw", "TZ"), ("ms", "MY")];
+        let locale: String = ["LC_ALL", "LC_TIME", "LANG"].iter().filter_map(|k| std::env::var(k).ok()).find(|v| !v.is_empty()).unwrap_or_else(|| "en_US".to_string());
+        // `ll_RR.codeset@modifier`
+        let base: &str = locale.split(['.', '@']).next().unwrap_or("");
+        let mut parts = base.split(['_', '-']);
+        let language: String = parts.next().unwrap_or("").to_lowercase();
+        let region: String = match parts.next() {
+            Some(r) if !r.is_empty() => r.to_uppercase(),
+            _ => LIKELY_REGION.iter().find(|(l, _)| *l == language).map(|(_, r)| r.to_string()).unwrap_or_default(),
+        };
+        return TWELVE_HOUR_REGIONS.contains(&region.as_str());
     }
 
     /// java: private static boolean is12HourClock()
@@ -235,9 +261,9 @@ impl Formatters {
             // The j formatting template returns the preferred formatting for the time
             // If the format contains a (am/pm pattern) then the preference is to use the 12 hour clock, otherwise its the 24 hour clock
             // java: default -> DateTimePatternGenerator.getInstance(Locale.getDefault()).getBestPattern("j").contains("a");
-            // rust: port gap - ICU's `DateTimePatternGenerator` (and a locale database) is not in the port: the default
-            //   locale's pattern cannot be asked, and the 24 hour clock is taken (GAPS_batchE.md)
-            _ => false,
+            // `getBestPattern("j")` resolves `j` through CLDR's `timeData`: the default locale's region (or, with
+            // none, its language's likely region) names the preferred hour cycle, and an `h`/`K` cycle carries `a`.
+            _ => Formatters::locale_prefers_12_hour_clock(),
         };
     }
 

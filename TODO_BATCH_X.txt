@@ -1,0 +1,12 @@
+src/de/hysky/skyblocker/skyblock/dungeon/
+src/de/hysky/skyblocker/skyblock/profileviewer/
+src/de/hysky/skyblocker/skyblock/
+src/de/hysky/skyblocker/debug/
+src/de/hysky/skyblocker/skyblock/chat/
+src/de/hysky/skyblocker/config/backup/
+src/de/hysky/skyblocker/skyblock/bazaar/
+src/de/hysky/skyblocker/skyblock/storageoverlay/
+src/de/hysky/skyblocker/utils/discord/
+src/de/hysky/skyblocker/skyblock/accessories/
+src/de/hysky/skyblocker/skyblock/searchoverlay/
+src/net/

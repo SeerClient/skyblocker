@@ -13,15 +13,6 @@ use mcrust::java::util::concurrent::completable_future::CompletableFuture;
 use mcrust::java::util::uuid::Uuid;
 use mcrust::com::mojang::serialization::decoder::Decoder as _;
 
-// TODO(fabric2seer): static call CacheBuilder.newBuilder(..)
-//   java: private static final LoadingCache<CacheKey, Map<String, Integer>> LEADERBOARDS_CACHE = CacheBuilder.newBuilder()
-//   java: 			.expireAfterWrite(Duration.ofMinutes(5L))
-//   java: 			.build(new CacheLoader<>() {
-//   java: 				@Override
-//   java: 				public Map<String, Integer> load(CacheKey key) throws Exception {
-//   java: 					return fetchPlayerLeaderboardsInternal(key);
-//   java: 				}
-//   java: 			});
 /// java: private static final LoadingCache<CacheKey, Map<String, Integer>> LEADERBOARDS_CACHE = CacheBuilder.newBuilder() .expireAfterWrite(Duration.ofMinutes(5L)) .build(new CacheLoader<>() { @Override public
 /// (read from `fetchPlayerLeaderboards`' worker: a `LazyLock`, the cache being thread-safe as Guava's is)
 pub static LEADERBOARDS_CACHE: LazyLock<LoadingCache<CacheKey, std::collections::HashMap<String, i32>, LeaderboardsLoader>> = LazyLock::new(|| {
@@ -78,8 +69,6 @@ impl EliteLeaderboards {
     pub fn fetch_leaderboards_list() -> Option<std::collections::HashMap<String, LeaderboardInfo>> {
         // java: try {..} catch (Exception e) - an exception here is a panic, caught by `catch_unwind`; the body's `return` is the closure's value
         match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            // TODO(fabric2seer): `Http.sendGetRequest` is not a static method of Http
-            //   java: String response = Http.sendGetRequest("https://api.eliteskyblock.com/leaderboards");
             let mut response: String = crate::de::hysky::skyblocker::utils::http::Http::send_get_request("https://api.eliteskyblock.com/leaderboards");
             let mut leaderboards_object: serde_json::Map<String, serde_json::Value> = compat::json::get_as_json_object_of(&(compat::json::get_as_json_object(&(serde_json::from_str::<serde_json::Value>(&response).expect("JsonSyntaxException")))), "leaderboards");
             let mut leaderboards: std::collections::HashMap<String, LeaderboardInfo> = (LEADERBOARD_INFO_MAP_CODEC.get().parse(&mcrust::com::mojang::serialization::json_ops::JsonOps::instance(), &compat::json_to_port(&serde_json::Value::Object(leaderboards_object)))).get_or_throw().unwrap_or_else(|e| panic!("IllegalStateException: {e}"));
@@ -91,7 +80,6 @@ impl EliteLeaderboards {
                 return None;
             }
         }
-        todo!("fabric2seer: the value of this function is in a TODO above")
     }
 
     /// java: private static void collectCollectionsLeaderboards(@Nullable Map<String, LeaderboardInfo> leaderboards)
@@ -122,8 +110,6 @@ impl EliteLeaderboards {
         // java: try {..} catch (Exception e) - an exception here is a panic, caught by `catch_unwind`; the body's `return` is the closure's value
         match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             let mut url: String = format!("https://api.eliteskyblock.com/leaderboards/{}/{}", key.uuid(), key.profile_id());
-            // TODO(fabric2seer): `Http.sendGetRequest` is not a static method of Http
-            //   java: String response = Http.sendGetRequest(url);
             let mut response: String = crate::de::hysky::skyblocker::utils::http::Http::send_get_request(&url);
             let mut data: serde_json::Map<String, serde_json::Value> = compat::json::get_as_json_object_of(&(compat::json::get_as_json_object(&(serde_json::from_str::<serde_json::Value>(&response).expect("JsonSyntaxException")))), "ranks");
             let mut positions: std::collections::HashMap<String, i32> = std::collections::HashMap::new();
@@ -142,7 +128,6 @@ impl EliteLeaderboards {
                 return std::collections::HashMap::from([]);
             }
         }
-        todo!("fabric2seer: the value of this function is in a TODO above")
     }
 
 }

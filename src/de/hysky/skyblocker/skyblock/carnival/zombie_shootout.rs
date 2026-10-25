@@ -58,15 +58,15 @@ impl ZombieShootout {
     pub fn get_zombie_glow_color(zombie: &Zombie) -> i32 {
         if !(zombie.get_item_by_slot(EquipmentSlot::Chest).is_empty()) {
             let mut item: Arc<Item> = zombie.get_item_by_slot(EquipmentSlot::Chest).get_item();
-            // TODO(fabric2seer): a pattern switch expression
-            //   java: return switch (item) {
-            //   java: 				case Item i when i == Items.DIAMOND_CHESTPLATE -> DisciplineTestHelper.SWORD_TO_COLOR_LOOKUP.get("DIAMOND_SWORD");
-            //   java: 				case Item i when i == Items.GOLDEN_CHESTPLATE -> DisciplineTestHelper.SWORD_TO_COLOR_LOOKUP.get("GOLD_SWORD");
-            //   java: 				case Item i when i == Items.IRON_CHESTPLATE -> DisciplineTestHelper.SWORD_TO_COLOR_LOOKUP.get("IRON_SWORD");
-            //   java: 				case Item i when i == Items.LEATHER_CHESTPLATE -> DisciplineTestHelper.SWORD_TO_COLOR_LOOKUP.get("WOOD_SWORD");
-            //   java:
-            //   java: 				default -> MobGlow.NO_GLOW;
-            //   java: 			};
+            // java: return switch (item) { case Item i when i == Items.X_CHESTPLATE -> DisciplineTestHelper.SWORD_TO_COLOR_LOOKUP.get(".."); default -> MobGlow.NO_GLOW; };
+            let lookup = &crate::de::hysky::skyblocker::skyblock::crimson::dojo::discipline_test_helper::SWORD_TO_COLOR_LOOKUP;
+            let items = mcrust::net::minecraft::world::item::items::items();
+            for (chestplate, sword) in [("diamond_chestplate", "DIAMOND_SWORD"), ("golden_chestplate", "GOLD_SWORD"), ("iron_chestplate", "IRON_SWORD"), ("leather_chestplate", "WOOD_SWORD")] {
+                if Arc::ptr_eq(&item, &items.get(chestplate)) {
+                    return *lookup.get(sword).unwrap();
+                }
+            }
+            return *mob_glow::NO_GLOW;
         }
         return *mob_glow::NO_GLOW;
     }

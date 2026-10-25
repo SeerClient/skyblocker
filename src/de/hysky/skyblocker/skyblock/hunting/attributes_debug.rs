@@ -106,11 +106,11 @@ impl AttributesDebug {
 
     /// java: private static Int2ObjectMap<ItemStack> getSlots(AbstractContainerScreen<?> screen)
     /// (`screen.getMenu()` is the player's open menu, read live)
-    pub fn get_slots() -> std::collections::HashMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack> {
+    pub fn get_slots() -> std::collections::BTreeMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack> {
         // java: ContainerSolverManager.slotMap(screen.getMenu().slots.subList(0, ((AbstractContainerScreen<ChestMenu>) screen).getMenu().getRowCount() * 9));
         let rows: i32 = mcrust::mcrust::modding::game::with_chest_menu(|chest| chest.get_row_count()).expect("ClassCastException: the menu is not a ChestMenu");
-        let mut slots: std::collections::HashMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack> = compat::with_open_menu(|menu, containers| {
-            let mut slot_map = std::collections::HashMap::new();
+        let mut slots: std::collections::BTreeMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack> = compat::with_open_menu(|menu, containers| {
+            let mut slot_map = std::collections::BTreeMap::new();
             for i in 0..rows.wrapping_mul(9) {
                 slot_map.insert(i, menu.slots[(i) as usize].get_item(containers).duplicate());
             }
@@ -122,7 +122,7 @@ impl AttributesDebug {
 
     /// java: private static void dumpAttributes(AbstractContainerScreen<?> screen)
     pub fn dump_attributes() {
-        let mut slots: std::collections::HashMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack> = AttributesDebug::get_slots();
+        let mut slots: std::collections::BTreeMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack> = AttributesDebug::get_slots();
         for stack in slots.values().cloned() {
             if stack.is_empty() {
                 continue;
@@ -156,7 +156,7 @@ impl AttributesDebug {
 
     /// java: private static void fixAttributes(AbstractContainerScreen<?> screen)
     pub fn fix_attributes() {
-        let mut slots: std::collections::HashMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack> = AttributesDebug::get_slots();
+        let mut slots: std::collections::BTreeMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack> = AttributesDebug::get_slots();
         for stack in slots.values().cloned() {
             if stack.is_empty() {
                 continue;

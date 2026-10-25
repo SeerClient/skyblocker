@@ -90,8 +90,9 @@ impl TopAlignedWidgetPositioner {
             { let __v = START_Y; compat::write(__this, |__t| __t.current_y = __v); }
             { let __v = 0; compat::write(__this, |__t| __t.current_width = __v); }
         }
-        // TODO(fabric2seer): `setPosition` is not a method of HudWidget
-        //   java: hudWidget.setPosition(totalWidth, currentY);
+        // java: hudWidget.setPosition(totalWidth, currentY); - `LayoutElement.setPosition` is setX then setY
+        { let __x = compat::read(__this, |__t| __t.total_width); let __f = compat::dispatch(hud_widget, |__t| __t.set_x()); __f(hud_widget, __x) };
+        { let __y = compat::read(__this, |__t| __t.current_y); let __f = compat::dispatch(hud_widget, |__t| __t.set_y()); __f(hud_widget, __y) };
         { let __v = (compat::read(__this, |__t| __t.current_y)).wrapping_add(({ let __f = compat::dispatch(hud_widget, |__t| __t.get_height()); __f(hud_widget) }).wrapping_add(screen_const::WIDGET_PAD)); compat::write(__this, |__t| __t.current_y = __v); }
         { let __v = (compat::read(__this, |__t| __t.current_width)).max(({ let __f = compat::dispatch(hud_widget, |__t| __t.get_width()); __f(hud_widget) })); compat::write(__this, |__t| __t.current_width = __v); }
     }

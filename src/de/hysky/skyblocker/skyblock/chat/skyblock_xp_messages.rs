@@ -29,8 +29,8 @@ impl SkyblockXpMessages {
 
     /// java: @Init public static void init()
     pub fn init() {
-        // TODO(fabric2seer): ClientReceiveMessageEvents.ALLOW_GAME.register: no SeerClient equivalent yet
         //   java: ClientReceiveMessageEvents.ALLOW_GAME.register(SkyblockXpMessages::onMessage);
+        compat::register_allow_game(|text, overlay| SkyblockXpMessages::on_message(text, overlay));
     }
 
     /// java: private static boolean onMessage(Component text, boolean overlay)

@@ -17,12 +17,9 @@ impl DungeonTextures {
 
     /// java: @Init public static void init()
     pub fn init() {
-        // TODO(fabric2seer): Fabric API `ResourceLoader.registerBuiltinPack` has no SeerClient equivalent
-        //   java: ResourceLoader.registerBuiltinPack(
-        //   java: 				SkyblockerMod.id("recolored_dungeon_items"),
-        //   java: 				SkyblockerMod.SKYBLOCKER_MOD,
-        //   java: 				PackActivationType.NORMAL
-        //   java: 		);
+        // java: ResourceLoader.registerBuiltinPack(SkyblockerMod.id("recolored_dungeon_items"), SkyblockerMod.SKYBLOCKER_MOD, PackActivationType.NORMAL);
+        // (the pack is the mod package's `resourcepacks/recolored_dungeon_items`)
+        mcrust::mcrust::modding::resources::register_builtin_pack(crate::entry::skyblocker_mod::NAMESPACE, "recolored_dungeon_items", crate::entry::skyblocker_mod::NAMESPACE, mcrust::mcrust::modding::resources::PackActivationType::Normal);
     }
 
 }

@@ -119,7 +119,6 @@ impl SkyblockLevelAdder {
             return vec![];
         }
         let mut level_text: String = (siblings[(2) as usize]).get_string();
-        // TODO(fabric2seer): the condition: static call NumberUtils.isDigits(..)
         //   java: !NumberUtils.isDigits(levelText)
         if !(!level_text.is_empty() && level_text.chars().all(char::is_numeric)) {
             return vec![];

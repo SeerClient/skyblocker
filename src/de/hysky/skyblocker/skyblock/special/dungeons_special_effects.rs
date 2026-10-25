@@ -27,8 +27,8 @@ impl DungeonsSpecialEffects {
 
     /// java: @Init public static void init()
     pub fn init() {
-        // TODO(fabric2seer): ClientReceiveMessageEvents.ALLOW_GAME.register: no SeerClient equivalent yet
-        //   java: ClientReceiveMessageEvents.ALLOW_GAME.register(DungeonsSpecialEffects::displayRareDropEffect);
+        // java: ClientReceiveMessageEvents.ALLOW_GAME.register(DungeonsSpecialEffects::display_rare_drop_effect);
+        compat::register_allow_game(|message, overlay| DungeonsSpecialEffects::display_rare_drop_effect(message, overlay));
     }
 
     /// java: private static boolean displayRareDropEffect(Component message, boolean overlay)

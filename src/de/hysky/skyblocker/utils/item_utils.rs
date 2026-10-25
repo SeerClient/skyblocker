@@ -129,13 +129,28 @@ impl ItemUtils {
     }
 
     /// java: public static LiteralArgumentBuilder<FabricClientCommandSource> dumpHeldItemCommand()
-    pub fn dump_held_item_command() -> LiteralArgumentBuilder<crate::unresolved::FabricClientCommandSource> {
-        // TODO(fabric2seer): a command builder outside dispatcher.register(..)
+    pub fn dump_held_item_command() -> LiteralArgumentBuilder<mcrust::mcrust::modding::events::client_command_registration_callback::FabricClientCommandSource> {
         //   java: return literal("dumpHeldItem").executes(context -> {
         //   java: 			context.getSource().sendFeedback(Component.literal("[Skyblocker Debug] Held Item: " + SkyblockerMod.GSON_COMPACT.toJson(ItemStack.CODEC.encodeStart(RegistryUtils.getRegistryWrapperLookup().createSerializationContext(JsonOps.INSTANCE), context.getSource().getPlayer().getMainHandItem()).getOrThrow())));
         //   java: 			return Command.SINGLE_SUCCESS;
         //   java: 		});
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        use mcrust::com::mojang::brigadier::builder::argument_builder::ArgumentBuilder as _;
+        use mcrust::com::mojang::serialization::encoder::Encoder as _;
+        use mcrust::mcrust::modding::events::client_command_registration_callback;
+        let mut node = client_command_registration_callback::literal("dumpHeldItem");
+        node.executes(std::sync::Arc::new(|_: &mcrust::com::mojang::brigadier::context::command_context::CommandContext<client_command_registration_callback::FabricClientCommandSource>| {
+            // java: context.getSource().getPlayer().getMainHandItem() - a copy taken under the player lock, released before encoding
+            let stack: Option<mcrust::net::minecraft::world::item::item_stack::ItemStack> = mcrust::mcrust::modding::game::with_player(|player| player.get_main_hand_item().clone());
+            let Some(stack) = stack else { return Ok(1) };
+            let ops = mcrust::net::minecraft::core::holder_lookup::create_serialization_context(crate::de::hysky::skyblocker::utils::registry_utils::RegistryUtils::get_registry_wrapper_lookup(), mcrust::com::mojang::serialization::json_ops::JsonOps::instance());
+            // java: ItemStack.CODEC.encodeStart(..).getOrThrow() - IllegalStateException on an empty stack
+            let encoded = mcrust::net::minecraft::world::item::item_stack::codec().encode_start(&ops, &stack).get_or_throw().unwrap_or_else(|e| panic!("java.lang.IllegalStateException: {e}"));
+            // `GSON_COMPACT.toJson(..)`: no whitespace, as serde's compact writer.
+            let json: String = serde_json::to_string(&compat::json_from_port(&encoded)).unwrap();
+            client_command_registration_callback::send_feedback(&format!("[Skyblocker Debug] Held Item: {}", json));
+            Ok(1)
+        }));
+        return node;
     }
 
     /// java: public static LiteralArgumentBuilder<FabricClientCommandSource> dumpHeldItemNetworthCalculationsCommand()
@@ -170,46 +185,69 @@ impl ItemUtils {
         return mcrust::com::mojang::serialization::cast::<mcrust::net::minecraft::world::item::component::custom_data::CustomData>(&custom_data).expect("ClassCastException: CustomData").copy_tag();
     }
 
+    /// PERF (port-only, same result): `getCustomData(stack)` as Java's accessor has it - the component's own
+    /// `tag` field, READ IN PLACE. `CustomDataAccessor.getTag()` does not copy; `get_custom_data` above must hand
+    /// back an owned `Tag` (one caller writes into its copy), and its `copyTag()` deep-copies a Skyblock item's
+    /// whole compound on every call - per stack, per frame, from the hot readers below, which only read it.
+    /// The component (`Obj`) is held for as long as the borrow `custom_data_tag` lends out of it.
+    pub fn custom_data_component(stack: &dyn DataComponentGetter) -> mcrust::com::mojang::serialization::Obj {
+        // `CustomData.EMPTY` (immutable) built once per thread, not one `Arc` per call.
+        thread_local! {
+            static EMPTY_CUSTOM_DATA: mcrust::com::mojang::serialization::Obj = mcrust::com::mojang::serialization::obj(mcrust::net::minecraft::world::item::component::custom_data::empty());
+        }
+        stack.get_or_default(mcrust::net::minecraft::core::component::data_components::custom_data(), EMPTY_CUSTOM_DATA.with(|empty| empty.clone()))
+    }
+
+    /// The `tag` field of a component `custom_data_component` answered (`CustomDataAccessor.getTag()`).
+    pub fn custom_data_tag(custom_data: &mcrust::com::mojang::serialization::Obj) -> &Tag {
+        mcrust::com::mojang::serialization::cast::<mcrust::net::minecraft::world::item::component::custom_data::CustomData>(custom_data).expect("ClassCastException: CustomData").get_tag()
+    }
+
+    /// `f(getCustomData(stack))`, the tag read in place (see `custom_data_component`).
+    pub fn with_custom_data<R>(stack: &dyn DataComponentGetter, f: impl FnOnce(&Tag) -> R) -> R {
+        let custom_data = ItemUtils::custom_data_component(stack);
+        f(ItemUtils::custom_data_tag(&custom_data))
+    }
+
     /// java: public static Optional<String> getItemIdOptional(DataComponentGetter stack)
     pub fn get_item_id_optional(stack: &dyn DataComponentGetter) -> Option<String> {
-        let mut custom_data: Tag = ItemUtils::get_custom_data(stack);
         // java: customData.getString(ID) - Optional<String>: present for a string tag only
-        return match custom_data.get(ID) {
+        return ItemUtils::with_custom_data(stack, |custom_data| match custom_data.get(ID) {
             Some(Tag::String(value)) => Some(value.clone()),
             _ => None,
-        };
+        });
     }
 
     /// java: @Deprecated(since = "5.8.0") public static String getItemId(DataComponentGetter stack)
     pub fn get_item_id(stack: &dyn DataComponentGetter) -> String {
-        return ItemUtils::get_custom_data(stack).get_string_or(ID, "");
+        return ItemUtils::with_custom_data(stack, |custom_data| custom_data.get_string_or(ID, ""));
     }
 
     /// java: public static Optional<String> getItemUuidOptional(DataComponentGetter stack)
     pub fn get_item_uuid_optional(stack: &dyn DataComponentGetter) -> Option<String> {
-        let mut custom_data: Tag = ItemUtils::get_custom_data(stack);
         // java: customData.getString(UUID) - Optional<String>: present for a string tag only
-        return match custom_data.get(UUID) {
+        return ItemUtils::with_custom_data(stack, |custom_data| match custom_data.get(UUID) {
             Some(Tag::String(value)) => Some(value.clone()),
             _ => None,
-        };
+        });
     }
 
     /// java: @Deprecated(since = "5.8.0") public static String getItemUuid(DataComponentGetter stack)
     pub fn get_item_uuid(stack: &dyn DataComponentGetter) -> String {
-        return ItemUtils::get_custom_data(stack).get_string_or(UUID, "");
+        return ItemUtils::with_custom_data(stack, |custom_data| custom_data.get_string_or(UUID, ""));
     }
 
     /// java: @Deprecated(since = "5.8.0") public static String getSkyblockApiId(DataComponentGetter stack)
     pub fn get_skyblock_api_id(stack: &dyn DataComponentGetter) -> String {
-        let mut custom_data: Tag = ItemUtils::get_custom_data(stack);
+        let __custom_data = ItemUtils::custom_data_component(stack);
+        let custom_data: &Tag = ItemUtils::custom_data_tag(&__custom_data);
         let mut id: String = custom_data.get_string_or(ID, "");
         if custom_data.contains("is_shiny") {
             return format!("SHINY_{}", id);
         }
         if id.contains(";") && !(NEURepoManager::is_loading()) {
-            // TODO(fabric2seer): `.getBazaarStocks(..)` on a NEUConstants
             //   java: return NEURepoManager.getConstants().getBazaarStocks().getBazaarStockOrDefault(id);
+            return NEURepoManager::get_constants().get_bazaar_stocks().get_bazaar_stock_or_default(&id);
         }
         // java: switch (id) { .. } - arrow cases, no fall-through: a case whose test fails leaves the switch
         match id.as_str() {
@@ -329,7 +367,8 @@ impl ItemUtils {
         if false /* java: stack == null: never null here */ {
             return "".to_string();
         }
-        let mut custom_data: Tag = ItemUtils::get_custom_data(stack);
+        let __custom_data = ItemUtils::custom_data_component(stack);
+        let custom_data: &Tag = ItemUtils::custom_data_tag(&__custom_data);
         let mut id: String = custom_data.get_string_or(ID, "");
         // java: return switch (id) { .. };
         return match id.as_str() {
@@ -393,10 +432,10 @@ impl ItemUtils {
 
     /// java: @Deprecated(since = "5.8.0") public static PetInfo getPetInfo(DataComponentGetter stack)
     pub fn get_pet_info(stack: &dyn DataComponentGetter) -> PetInfo {
-        if !(ItemUtils::get_custom_data(stack).get_string_or(ID, "") == "PET") {
+        if !(ItemUtils::with_custom_data(stack, |custom_data| custom_data.get_string_or(ID, "") == "PET")) {
             return pet_info::EMPTY.clone();
         }
-        let mut pet_info: String = ItemUtils::get_custom_data(stack).get_string_or("petInfo", "");
+        let mut pet_info: String = ItemUtils::with_custom_data(stack, |custom_data| custom_data.get_string_or("petInfo", ""));
         if !pet_info.is_empty() {
             // java: try {..} catch (Exception _) - an exception here is a panic, caught by `catch_unwind`; the body's `return` is the closure's value
             match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
@@ -464,19 +503,25 @@ impl ItemUtils {
 
     /// java: public static boolean hasCustomDurability(ItemStack stack)
     pub fn has_custom_durability(stack: &mcrust::net::minecraft::world::item::item_stack::ItemStack) -> bool {
-        let mut custom_data: Tag = ItemUtils::get_custom_data(stack);
         // java: return !customData.isEmpty() && customData.contains("drill_fuel") || stack.getSkyblockId().equals("PICKONIMBUS");
-        return (!custom_data.compound_is_empty() && custom_data.contains("drill_fuel")) || stack.get_skyblock_id() == "PICKONIMBUS";
+        // OPTIMIZED BUT NOT FULLY VANILLA (perf round 1, P02-mods-runtime): the skyblock id compared BORROWED
+        // (`with_skyblock_id`) instead of cloned - the same id, the same cache write on a miss. Was:
+        //     return ItemUtils::with_custom_data(stack, |custom_data| !custom_data.compound_is_empty() && custom_data.contains("drill_fuel")) || stack.get_skyblock_id() == "PICKONIMBUS";
+        return ItemUtils::with_custom_data(stack, |custom_data| !custom_data.compound_is_empty() && custom_data.contains("drill_fuel")) || crate::mixins::item_stack_mixin::with_skyblock_id(stack, |skyblock_id: &str| skyblock_id == "PICKONIMBUS");
     }
 
     /// java: public static @Nullable IntIntPair getDurability(ItemStack stack)
     pub fn get_durability(stack: &mcrust::net::minecraft::world::item::item_stack::ItemStack) -> Option<(i32, i32)> {
-        let mut custom_data: Tag = ItemUtils::get_custom_data(stack);
+        let __custom_data = ItemUtils::custom_data_component(stack);
+        let custom_data: &Tag = ItemUtils::custom_data_tag(&__custom_data);
         // java: if (customData.isEmpty())
         if custom_data.compound_size() == 0 {
             return None;
         }
-        if stack.get_skyblock_id() == "PICKONIMBUS" {
+        // OPTIMIZED BUT NOT FULLY VANILLA (perf round 1, P02-mods-runtime): compared borrowed, as in
+        // `has_custom_durability`. Was:
+        //     if stack.get_skyblock_id() == "PICKONIMBUS" {
+        if crate::mixins::item_stack_mixin::with_skyblock_id(stack, |skyblock_id: &str| skyblock_id == "PICKONIMBUS") {
             let mut pickonimbus_durability: i32 = custom_data.get_int_or("pickonimbus_durability", 0);
             return Some(((if custom_data.contains("pickonimbus_durability") { pickonimbus_durability } else { 2000 }), 2000));
         }
@@ -633,7 +678,7 @@ impl ItemUtils {
             .slots()
             .iter()
             .filter(|es| es.get_type() == mcrust::net::minecraft::world::entity::equipment_slot::Type::HumanoidArmor)
-            .map(|es| entity.living().get_item_by_slot(*es).clone())
+            .map(|es| entity.get_item_by_slot(*es).clone())  // the class's own `getItemBySlot` (a player's is `PlayerEquipment` over the inventory), not the base map
             .collect();
     }
 
@@ -705,7 +750,7 @@ impl ItemUtils {
         if stack.is_value(&items::items().get("air").erased_obj()) {
             return SkyblockItemRarity::Unknown;
         }
-        if ItemUtils::get_custom_data(stack).get_string_or(ID, "") == "PET" {
+        if ItemUtils::with_custom_data(stack, |custom_data| custom_data.get_string_or(ID, "") == "PET") {
             // java: PetInfo info = stack.getPetInfo();
             let mut info: PetInfo = stack.get_pet_info();
             if info.is_empty() {
@@ -748,7 +793,6 @@ impl ItemUtils {
     /// java: public static MutableComponent getIcon(ItemInstance itemInstance)
     pub fn get_icon<S: ItemInstance + TypedInstance + ?Sized>(item_instance: &S) -> MutableComponent {
         let mut item: Arc<Item> = mcrust::net::minecraft::world::item::item::from_obj(&item_instance.type_holder().value()).expect("a Holder<Item>");
-        // TODO(fabric2seer): a pattern switch expression
         //   java: ObjectInfo objectInfo = switch (item) {
         //   java: 			case BlockItem _ when itemInstance.is(Items.PLAYER_HEAD) && itemInstance.get(DataComponents.PROFILE) != null -> new PlayerSprite(itemInstance.get(DataComponents.PROFILE), true);
         //   java: 			case BlockItem _ -> new AtlasSprite(AtlasIds.BLOCKS, BuiltInRegistries.ITEM.getKey(item).withPath(itemId -> "block/" + itemId));

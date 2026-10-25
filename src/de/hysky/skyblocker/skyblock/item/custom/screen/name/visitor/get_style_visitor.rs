@@ -35,13 +35,13 @@ impl std::ops::DerefMut for GetStyleVisitor {
 impl GetStyleVisitor {
     /// java: public GetStyleVisitor(int selectionStart, int selectionEnd)
     pub fn new(mut selection_start: i32, mut selection_end: i32) -> compat::Shared<Self> {
-        // TODO(fabric2seer): the initialiser of `noSize`: instance field `selSize` read in a static context
-        //   java: private final boolean noSize = selSize == 0;
         let (_, __this) = BaseVisitorBase::new_in(selection_start, selection_end, move |__base| {
+            // java: private final boolean noSize = selSize == 0; - the field initialiser runs after `super(..)`
+            let __no_size: bool = __base.sel_size == 0;
             let __h = compat::shared(Self {
                 base: __base,
                 style: mcrust::net::minecraft::network::chat::style::Style::EMPTY,
-                no_size: Default::default(),
+                no_size: __no_size,
                 done: false,
             });
             ((__h.clone() as compat::Shared<dyn BaseVisitor>), __h)

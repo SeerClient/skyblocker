@@ -61,18 +61,27 @@ impl DangerWarning {
     pub fn get_danger_title(pos: &BlockPos) -> Option<compat::Shared<Title>> {
         let mut state: Arc<BlockState> = mcrust::mcrust::modding::game::level().unwrap().get_block_state_typed(pos);
         let mut block: Arc<Block> = state.get_block();
-        // TODO(fabric2seer): a pattern switch expression
-        //   java: int argb = switch (block) {
-        //   java: 			case Block b when b == Blocks.DYED_TERRACOTTA.green() -> DyeColor.GREEN.getTextureDiffuseColor();
-        //   java: 			case Block b when b == Blocks.DYED_TERRACOTTA.lime() -> DyeColor.LIME.getTextureDiffuseColor();
-        //   java: 			case Block b when b == Blocks.DYED_TERRACOTTA.yellow() -> DyeColor.YELLOW.getTextureDiffuseColor();
-        //   java: 			case Block b when b == Blocks.DYED_TERRACOTTA.orange() -> DyeColor.ORANGE.getTextureDiffuseColor();
-        //   java: 			case Block b when b == Blocks.DYED_TERRACOTTA.pink() -> DyeColor.PINK.getTextureDiffuseColor();
-        //   java: 			case Block b when b == Blocks.DYED_TERRACOTTA.red() -> DyeColor.RED.getTextureDiffuseColor();
-        //   java:
-        //   java: 			default -> 0;
-        //   java: 		};
-        let mut argb: i32 = todo!("fabric2seer: the initialiser of `argb` (TODO above)");
+        //   java: int argb = switch (block) { case Block b when b == Blocks.DYED_TERRACOTTA.green() -> DyeColor.GREEN.getTextureDiffuseColor();
+        //     .. lime, yellow, orange, pink, red ..; default -> 0; };
+        // (each case compares the block by identity)
+        use mcrust::net::minecraft::world::item::dye_color::DyeColor;
+        use mcrust::net::minecraft::world::level::block::blocks;
+        let terracotta = blocks::dyed_terracotta();
+        let mut argb: i32 = if Arc::ptr_eq(&block, terracotta.green()) {
+            DyeColor::Green.get_texture_diffuse_color()
+        } else if Arc::ptr_eq(&block, terracotta.lime()) {
+            DyeColor::Lime.get_texture_diffuse_color()
+        } else if Arc::ptr_eq(&block, terracotta.yellow()) {
+            DyeColor::Yellow.get_texture_diffuse_color()
+        } else if Arc::ptr_eq(&block, terracotta.orange()) {
+            DyeColor::Orange.get_texture_diffuse_color()
+        } else if Arc::ptr_eq(&block, terracotta.pink()) {
+            DyeColor::Pink.get_texture_diffuse_color()
+        } else if Arc::ptr_eq(&block, terracotta.red()) {
+            DyeColor::Red.get_texture_diffuse_color()
+        } else {
+            0
+        };
         return (if argb != 0 { Some(Title::set_text(TITLE.get_mut(), (DANGER_TEXT.get_mut())().with_color((argb & 0x00FFFFFF)))) } else { None });
     }
 

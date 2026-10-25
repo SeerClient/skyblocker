@@ -7,16 +7,12 @@ use mcrust::net::minecraft::core::holder_lookup::Provider;
 
 /// java: private static final HolderLookup.Provider LOOKUP = VanillaRegistries.createLookup();
 ///
-/// `VanillaRegistries.createLookup()` is `RegistrySetBuilder.build(RegistryAccess.fromRegistryOfRegistries(
-/// BuiltInRegistries.REGISTRY))`. The port has the built-in half; the data-generator half (the worldgen /
-/// enchantment / ... bootstrap registries `VanillaRegistries.BUILDER` adds) is datagen-only there (GAPS_L.md).
-pub static LOOKUP: compat::MainThread<Arc<dyn Provider>> = compat::MainThread::new(|| {
-    use mcrust::net::minecraft::core::registries::built_in_registries;
-    use mcrust::net::minecraft::core::registry::Registry;
-    use mcrust::net::minecraft::core::registry_access::RegistryAccess;
-    let root: Arc<dyn Registry> = built_in_registries::registry().clone();
-    Arc::new(RegistryAccess::from_registry_of_registries(&root)) as Arc<dyn Provider>
-});
+/// The game's port of `VanillaRegistries.createLookup()` (`RegistrySetBuilder.build` over
+/// `RegistryAccess.fromRegistryOfRegistries(BuiltInRegistries.REGISTRY)`): the static registries plus the datapack
+/// registries whose vanilla bootstrap the game carries - enchantment, enchantment_provider, damage_type, trim_material,
+/// trim_pattern, banner_pattern, jukebox_song, instrument, chat_type.
+pub static LOOKUP: compat::MainThread<Arc<dyn Provider>> =
+    compat::MainThread::new(mcrust::net::minecraft::data::registries::vanilla_registries::create_world_lookup);
 
 /// java: public final class RegistryUtils
 #[derive(Clone)]

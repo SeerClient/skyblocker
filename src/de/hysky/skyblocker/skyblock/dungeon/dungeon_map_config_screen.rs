@@ -77,8 +77,8 @@ impl DungeonMapConfigScreen {
         ();
         DungeonMapConfigScreen::extract_hud_map(__this, graphics, compat::read(__this, |__t| __t.map_x), compat::read(__this, |__t| __t.map_y));
         DungeonMapConfigScreen::extract_hud_score(__this, graphics, compat::read(__this, |__t| __t.score_x), compat::read(__this, |__t| __t.score_y));
-        // TODO(fabric2seer): `.getRGB(..)` on a value of unknown type
-        //   java: graphics.centeredText(font, "Right Click To Reset Position", width >> 1, height >> 1, Color.GRAY.getRGB());
+        // java: graphics.centeredText(font, "Right Click To Reset Position", width >> 1, height >> 1, Color.GRAY.getRGB());
+        mcrust::net::minecraft::client::gui::gui_graphics_extractor::centered_text_string(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), "Right Click To Reset Position", compat::read(__this, |__t| __t.width).wrapping_shr(1), compat::read(__this, |__t| __t.height).wrapping_shr(1), mcrust::java::awt::color::gray().get_rgb());
     }
 
     /// java: @Override public boolean mouseDragged(MouseButtonEvent click, double offsetX, double offsetY)
@@ -87,10 +87,10 @@ impl DungeonMapConfigScreen {
         let mut score_scaling: f32 = compat::read(&SkyblockerConfigManager::get().dungeons.dungeon_score, |__t| __t.score_scaling);
         let mut score_width: i32 = ((((compat::font().width_of_cached(&mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(DungeonScoreHUD::get_formatted_score_text())) as f32) * score_scaling)) as i32);
         let mut score_height: i32 = ((((mcrust::net::minecraft::client::gui::font::LINE_HEIGHT as f32) * score_scaling)) as i32);
-        if GuiHelper::point_is_in_area(click.x(), click.y(), ((compat::read(__this, |__t| __t.map_x)) as f64) as f64, ((compat::read(__this, |__t| __t.map_y)) as f64) as f64, (((compat::read(__this, |__t| __t.map_x)).wrapping_add(map_size)) as f64) as f64, (((compat::read(__this, |__t| __t.map_y)).wrapping_add(map_size)) as f64) as f64) && click.button() == 0 {
+        if GuiHelper::point_is_in_area(click.x(), click.y(), ((compat::read(__this, |__t| __t.map_x)) as f64) as f64, ((compat::read(__this, |__t| __t.map_y)) as f64) as f64, (((compat::read(__this, |__t| __t.map_x)).wrapping_add(map_size)) as f64) as f64, (((compat::read(__this, |__t| __t.map_y)).wrapping_add(map_size)) as f64) as f64) && click.button() == 1 {
             { let __v = ((((click.x() - (map_size.wrapping_shr((1) as u32) as f64)).min(((compat::read(__this, |__t| __t.width)).wrapping_sub(map_size) as f64))).max((0 as f64))) as i32); compat::write(__this, |__t| __t.map_x = __v); }
             { let __v = ((((click.y() - (map_size.wrapping_shr((1) as u32) as f64)).min(((compat::read(__this, |__t| __t.height)).wrapping_sub(map_size) as f64))).max((0 as f64))) as i32); compat::write(__this, |__t| __t.map_y = __v); }
-        } else if GuiHelper::point_is_in_area(click.x(), click.y(), ((compat::read(__this, |__t| __t.score_x)) as f64) as f64, ((compat::read(__this, |__t| __t.score_y)) as f64) as f64, (((compat::read(__this, |__t| __t.score_x)).wrapping_add(score_width)) as f64) as f64, (((compat::read(__this, |__t| __t.score_y)).wrapping_add(score_height)) as f64) as f64) && click.button() == 0 {
+        } else if GuiHelper::point_is_in_area(click.x(), click.y(), ((compat::read(__this, |__t| __t.score_x)) as f64) as f64, ((compat::read(__this, |__t| __t.score_y)) as f64) as f64, (((compat::read(__this, |__t| __t.score_x)).wrapping_add(score_width)) as f64) as f64, (((compat::read(__this, |__t| __t.score_y)).wrapping_add(score_height)) as f64) as f64) && click.button() == 1 {
             { let __v = ((((click.x() - (score_width.wrapping_shr((1) as u32) as f64)).min(((compat::read(__this, |__t| __t.width)).wrapping_sub(score_width) as f64))).max((0 as f64))) as i32); compat::write(__this, |__t| __t.score_x = __v); }
             { let __v = ((((click.y() - (score_height.wrapping_shr((1) as u32) as f64)).min(((compat::read(__this, |__t| __t.height)).wrapping_sub(score_height) as f64))).max((0 as f64))) as i32); compat::write(__this, |__t| __t.score_y = __v); }
         }
@@ -99,7 +99,7 @@ impl DungeonMapConfigScreen {
 
     /// java: @Override public boolean mouseClicked(MouseButtonEvent click, boolean doubled)
     pub fn mouse_clicked(__this: &compat::Shared<Self>, click: &MouseButtonEvent, mut doubled: bool) -> bool {
-        if click.button() == 1 {
+        if click.button() == 3 {
             { let __v = 2; compat::write(__this, |__t| __t.map_x = __v); }
             { let __v = 2; compat::write(__this, |__t| __t.map_y = __v); }
             { let __v = (((((compat::read(__this, |__t| __t.map_x) as f32) + ((64 as f32) * SkyblockerConfigManager::get().dungeons.dungeon_map.map_scaling)) - (((compat::font().width_of_cached(&mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(DungeonScoreHUD::get_formatted_score_text())) as f32) * compat::read(&SkyblockerConfigManager::get().dungeons.dungeon_score, |__t| __t.score_scaling)) / (2 as f32)))) as i32).max(0); compat::write(__this, |__t| __t.score_x = __v); }

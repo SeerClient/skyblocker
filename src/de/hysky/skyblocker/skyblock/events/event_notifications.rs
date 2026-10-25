@@ -260,9 +260,8 @@ impl EventNotifications {
                 let mut sound_event: Option<SoundEvent> = SkyblockerConfigManager::get().event_notifications.reminder_sound.get_sound_event();
                 if let Some(sound_event) = &sound_event {
                     //   java: instance.getSoundManager().play(SimpleSoundInstance.forUI(soundEvent, 1f, 1f));
-                    // rust: port gap - `SoundManager.play(SoundInstance)` needs the audio device and library, locals of the
-                    // port's frame loop (GAPS_batchH #1)
-                    // rust: instance.get_sound_manager().play(&SimpleSoundInstance::for_ui_with_volume(sound_event, 1.0f32, 1.0f32));
+                    // (played with the device the client lends the sound manager each tick - `compat::batch_v_play_ui_sound`)
+                    compat::batch_v_play_ui_sound(sound_event, 1.0f32, 1.0f32);
                 }
                 break;
             }

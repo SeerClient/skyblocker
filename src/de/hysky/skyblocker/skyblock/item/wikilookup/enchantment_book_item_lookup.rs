@@ -60,13 +60,7 @@ impl EnchantmentBookItemLookup {
     pub fn open_impl(__this: &compat::Shared<Self>, item_stack: &mcrust::net::minecraft::world::item::item_stack::ItemStack, player: &dyn Player) {
         let mut nbt: Tag = ItemUtils::get_custom_data(item_stack);
         let mut enchantments: Tag = nbt.get_compound_or_empty("enchantments");
-        // TODO(fabric2seer): static call Iterables.getFirst(..)
-        //   java: String firstEnchantment = Iterables.getFirst(enchantments.keySet(), null)
-        //   java: 				.replace("ultimate_", "") // Stripped out ultimate prefix
-        //   java: 				.replace("_", " ").trim();
         let mut first_enchantment: String = enchantments.key_set().into_iter().next().expect("NullPointerException: Iterables.getFirst(..)").to_string().replace("ultimate_", "").replace("_", " ").trim().to_string();
-        // TODO(fabric2seer): static call WordUtils.capitalizeFully(..)
-        //   java: String enchantment = REPLACING_FUNCTION.apply(WordUtils.capitalizeFully(firstEnchantment + " enchantment"));
         let mut enchantment: String = (wiki_lookup::REPLACING_FUNCTION.get())(compat::capitalize_fully(&format!("{} enchantment", first_enchantment)));
         WikiLookupManager::open_wiki_link_name(&enchantment, player);
     }

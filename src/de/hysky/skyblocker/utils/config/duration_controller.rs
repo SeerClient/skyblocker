@@ -4,7 +4,22 @@
 use crate::prelude::*;
 use crate::de::hysky::skyblocker::utils::config::duration_controller_widget::DurationControllerWidget;
 use crate::de::hysky::skyblocker::utils::time::skyblock_time::SkyblockTime;
+use dandelion::net::azureaaron::dandelion::api::controllers::controller::{Controller, ControllerKind, NumberControllerKind};
+use dandelion::net::azureaaron::dandelion::api::controllers::integer_controller::IntegerController;
+use dandelion::net::azureaaron::dandelion::api::controllers::number_controller::NumberController;
+use dandelion::net::azureaaron::dandelion::api::option::Option as DandelionOption;
+use dandelion::net::azureaaron::dandelion::r#impl::controllers::integer_controller_impl::IntegerControllerImpl;
+use dandelion::net::azureaaron::dandelion::r#impl::moulconfig::editor::dandelion_number_field_editor::{DandelionNumberFieldEditor, NumberFieldClass};
+use dandelion::net::azureaaron::dandelion::r#impl::moulconfig::moul_config_definition::MoulConfigDefinition;
 use mcrust::net::minecraft::network::chat::component::Component as _;
+use mcrust::net::minecraft::network::chat::mutable_component::MutableComponent;
+use yacl::dev::isxander::yacl3::api::controller::Controller as YController;
+use yacl::dev::isxander::yacl3::api::controller::controller_builder::{self, ControllerBuilder};
+use yacl::dev::isxander::yacl3::api::option::Option as YOption;
+use yacl::dev::isxander::yacl3::api::utils::dimension::Dimension;
+use yacl::dev::isxander::yacl3::gui::abstract_widget::AbstractWidget as YAbstractWidget;
+use yacl::dev::isxander::yacl3::gui::controllers::string::i_string_controller::{self, IStringController};
+use yacl::dev::isxander::yacl3::gui::yacl_screen::YACLScreen;
 
 /// java: private static final Pattern SECONDS_PATTERN = Pattern.compile("(^|\\s)(\\d+)s(\\s|$)");
 pub static SECONDS_PATTERN: LazyLock<compat::regex::Pattern> = LazyLock::new(|| compat::regex::Pattern::compile("(^|\\s)(\\d+)s(\\s|$)"));
@@ -16,11 +31,11 @@ pub static HOURS_PATTERN: LazyLock<compat::regex::Pattern> = LazyLock::new(|| co
 /// java: public class DurationController extends IntegerControllerImpl
 pub struct DurationController {
     /// java: extends net.azureaaron.dandelion.impl.controllers.IntegerControllerImpl
-    pub base: crate::unresolved::IntegerControllerImpl,
+    pub base: IntegerControllerImpl,
 }
 
 impl std::ops::Deref for DurationController {
-    type Target = crate::unresolved::IntegerControllerImpl;
+    type Target = IntegerControllerImpl;
     fn deref(&self) -> &Self::Target {
         &self.base
     }
@@ -35,10 +50,8 @@ impl std::ops::DerefMut for DurationController {
 impl DurationController {
     /// java: public DurationController()
     pub fn new() -> Self {
-        // TODO(fabric2seer): `new IntegerControllerImpl(..)`: the port has no `IntegerControllerImpl::new`
-        //   java: super(0, Integer.MAX_VALUE, 1, false);
-        let mut this: Self = todo!("constructor");
-        this
+        // java: super(0, Integer.MAX_VALUE, 1, false);
+        Self { base: IntegerControllerImpl::new(0, i32::MAX, 1, false) }
     }
 
     /// java: @SuppressWarnings("unused") private static String toString(int duration)
@@ -52,14 +65,15 @@ impl DurationController {
         let mut minutes_matcher: compat::regex::Matcher = MINUTES_PATTERN.matcher(value);
         let mut seconds_matcher: compat::regex::Matcher = SECONDS_PATTERN.matcher(value);
         let mut result: i32 = 0;
+        // java: Integer.parseInt(..) - no trim
         if hours_matcher.find() {
-            result = result.wrapping_add((hours_matcher.group(2).unwrap().trim().parse::<i32>().expect("NumberFormatException")).wrapping_mul(3600));
+            result = result.wrapping_add((hours_matcher.group(2).unwrap().parse::<i32>().expect("NumberFormatException")).wrapping_mul(3600));
         }
         if minutes_matcher.find() {
-            result = result.wrapping_add((minutes_matcher.group(2).unwrap().trim().parse::<i32>().expect("NumberFormatException")).wrapping_mul(60));
+            result = result.wrapping_add((minutes_matcher.group(2).unwrap().parse::<i32>().expect("NumberFormatException")).wrapping_mul(60));
         }
         if seconds_matcher.find() {
-            result = result.wrapping_add(seconds_matcher.group(2).unwrap().trim().parse::<i32>().expect("NumberFormatException"));
+            result = result.wrapping_add(seconds_matcher.group(2).unwrap().parse::<i32>().expect("NumberFormatException"));
         }
         return result;
     }
@@ -92,109 +106,143 @@ impl DurationController {
         s = compat::regex::replace_all(&s, &SECONDS_PATTERN.pattern().to_string(), "");
         return compat::is_blank(&s);
     }
+}
+
+/// `IntegerControllerImpl implements IntegerController`, inherited: Dandelion's sealed `Controller` arm is the
+/// integer one (`IntegerControllerImpl.kind`).
+impl Controller<i32> for DurationController {
+    fn kind(&self) -> ControllerKind<'_> {
+        ControllerKind::Number(NumberControllerKind::Integer(self))
+    }
 
     /// java: @SuppressWarnings("UnstableApiUsage") @Override public @Nullable GuiOptionEditor controllerMoulConfig(Option<Integer> option, ProcessedOption moulConfigOption, MoulConfigDefinition configDefinition)
-    pub fn controller_moul_config(&self, option: &crate::unresolved::Option, moul_config_option: &crate::unresolved::ProcessedOption, config_definition: &crate::unresolved::MoulConfigDefinition) -> Option<crate::unresolved::GuiOptionEditor> {
-        // TODO(fabric2seer): `.binding(..)` on a Option
-        //   java: return new DurationControllerMoul(moulConfigOption, min(), max(), option.binding().defaultValue());
-        todo!("fabric2seer: the value of this function is in a TODO above")
+    fn controller_moul_config(
+        &self,
+        option: Arc<dyn DandelionOption<i32>>,
+        moul_config_option: Arc<dyn moulconfig::io::github::notenoughupdates::moulconfig::processor::processed_option::ProcessedOption>,
+        config_definition: &Arc<MoulConfigDefinition>,
+    ) -> Arc<dyn moulconfig::io::github::notenoughupdates::moulconfig::gui::gui_option_editor::GuiOptionEditor> {
+        let _ = config_definition;
+        // java: return new DurationControllerMoul(moulConfigOption, min(), max(), option.binding().defaultValue());
+        DurationControllerMoul::new(moul_config_option, NumberController::min(self) as f32, NumberController::max(self) as f32, option.binding().default_value() as f32)
     }
 
-    /// java: @SuppressWarnings("UnstableApiUsage") @Override public ControllerBuilder<Integer> controllerYACL(dev.isxander.yacl3.api.Option<Integer> yaclOption, Class<Integer> type)
-    pub fn controller_yacl(&self, yacl_option: &crate::unresolved::Option, r#type: &crate::unresolved::Class) -> crate::unresolved::ControllerBuilder {
+    /// java: @Override public ControllerBuilder<Integer> controllerYACL(dev.isxander.yacl3.api.Option<Integer> yaclOption, Class<Integer> type)
+    fn controller_yacl(&self, yacl_option: Arc<dyn YOption<i32>>, r#type: yacl::compat::ClassOf<i32>) -> Box<dyn ControllerBuilder<i32>> {
+        let _ = r#type;
         // java: return () -> new DurationControllerYACL(yaclOption);
-        // rust: port gap - YACL (dev.isxander.yacl3: ControllerBuilder, Option, YACLScreen) is not available to SeerClient
-        // mods; `crate::unresolved::ControllerBuilder` is a placeholder with no lambda form (GAPS_batchA.md)
-        todo!("rust: port gap - YACL ControllerBuilder (GAPS_batchA.md)")
+        Box::new(controller_builder::of(move || Arc::new(DurationControllerYACL::new(yacl_option.clone())) as Arc<dyn YController<i32>>))
     }
-
 }
 
-// NOTE(fabric2seer): controllerMoulConfig, controllerYACL override(s) of IntegerControllerImpl - the port dispatches its own calls, so these run only where the mod calls them; hook the port's method to make the game call them
+impl NumberController<i32> for DurationController {
+    /// `IntegerControllerImpl.min()`, inherited
+    fn min(&self) -> i32 {
+        NumberController::min(&self.base)
+    }
+
+    /// `IntegerControllerImpl.max()`, inherited
+    fn max(&self) -> i32 {
+        NumberController::max(&self.base)
+    }
+
+    /// `IntegerControllerImpl.step()`, inherited
+    fn step(&self) -> i32 {
+        NumberController::step(&self.base)
+    }
+
+    /// `IntegerControllerImpl.slider()`, inherited
+    fn slider(&self) -> bool {
+        NumberController::slider(&self.base)
+    }
+}
+
+impl IntegerController for DurationController {}
 
 /// java: public static class DurationControllerMoul extends DandelionNumberFieldEditor
-pub struct DurationControllerMoul {
-    /// java: extends net.azureaaron.dandelion.impl.moulconfig.editor.DandelionNumberFieldEditor
-    pub base: crate::unresolved::DandelionNumberFieldEditor,
-}
-
-impl std::ops::Deref for DurationControllerMoul {
-    type Target = crate::unresolved::DandelionNumberFieldEditor;
-    fn deref(&self) -> &Self::Target {
-        &self.base
-    }
-}
-
-impl std::ops::DerefMut for DurationControllerMoul {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.base
-    }
-}
+///
+/// The subclass overrides `toString(Float)` and `parseNumber(..)`, which `DandelionNumberFieldEditor` calls
+/// virtually; the object is a `DandelionNumberFieldEditor` built with those two (`NumberFieldClass`).
+pub struct DurationControllerMoul {}
 
 impl DurationControllerMoul {
     /// java: public DurationControllerMoul(ProcessedOption option, float minValue, float maxValue, float defaultValue)
-    pub fn new(mut option: crate::unresolved::ProcessedOption, mut min_value: f32, mut max_value: f32, mut default_value: f32) -> Self {
-        // TODO(fabric2seer): `new DandelionNumberFieldEditor(..)`: the port has no `DandelionNumberFieldEditor::new`
-        //   java: super(option, minValue, maxValue, defaultValue);
-        let mut this: Self = todo!("constructor");
-        this
+    pub fn new(
+        option: Arc<dyn moulconfig::io::github::notenoughupdates::moulconfig::processor::processed_option::ProcessedOption>,
+        min_value: f32,
+        max_value: f32,
+        default_value: f32,
+    ) -> Arc<DandelionNumberFieldEditor> {
+        // java: super(option, minValue, maxValue, defaultValue);
+        DandelionNumberFieldEditor::new_with_class(
+            option,
+            min_value,
+            max_value,
+            default_value,
+            NumberFieldClass {
+                to_string: Box::new(DurationControllerMoul::to_string),
+                parse_number: Box::new(DurationControllerMoul::parse_number),
+            },
+        )
     }
 
     /// java: @SuppressWarnings("UnstableApiUsage") @Override protected String toString(Float floatValue)
-    pub fn to_string(&self, mut float_value: f32) -> String {
-        return DurationController::to_string((float_value) as i32);
+    pub fn to_string(float_value: f32) -> String {
+        // java: DurationController.toString(floatValue.intValue())
+        DurationController::to_string(float_value as i32)
     }
 
     /// java: @SuppressWarnings("UnstableApiUsage") @Override protected float parseNumber(String input, float minValue, float maxValue, float defaultValue)
-    pub fn parse_number(&self, input: &str, mut min_value: f32, mut max_value: f32, mut default_value: f32) -> f32 {
-        return ((DurationController::from_string(input)) as f32) as f32;
+    pub fn parse_number(input: &str, min_value: f32, max_value: f32, default_value: f32) -> f32 {
+        let _ = (min_value, max_value, default_value);
+        DurationController::from_string(input) as f32
     }
-
 }
-
-// NOTE(fabric2seer): parseNumber, toString override(s) of DandelionNumberFieldEditor - the port dispatches its own calls, so these run only where the mod calls them; hook the port's method to make the game call them
 
 /// java: public record DurationControllerYACL(dev.isxander.yacl3.api.Option<Integer> option) implements IStringController<Integer>
 pub struct DurationControllerYACL {
     /// java: dev.isxander.yacl3.api.Option<Integer> option
-    pub option: crate::unresolved::Option,
+    pub option: Arc<dyn YOption<i32>>,
 }
 
 impl DurationControllerYACL {
     /// java: the canonical record constructor
-    pub fn new(mut option: crate::unresolved::Option) -> Self {
+    pub fn new(option: Arc<dyn YOption<i32>>) -> Self {
         Self { option }
     }
+}
 
-    /// java: the record accessor `option()`
-    pub fn option(&self) -> &crate::unresolved::Option {
-        &self.option
+impl YController<i32> for DurationControllerYACL {
+    /// java: the record accessor `option()` (`Controller.option()`)
+    fn option(&self) -> Arc<dyn YOption<i32>> {
+        self.option.clone()
     }
 
-    /// java: @Override public String getString()
-    pub fn get_string(&self) -> String {
-        // TODO(fabric2seer): `.pendingValue(..)` on a Option
-        //   java: return DurationController.toString(option.pendingValue());
-        todo!("fabric2seer: the value of this function is in a TODO above")
-    }
-
-    /// java: @Override public void setFromString(String value)
-    pub fn set_from_string(&self, value: &str) {
-        // TODO(fabric2seer): `.requestSet(..)` on a Option
-        //   java: option.requestSet(DurationController.fromString(value));
-    }
-
-    /// java: @Override public boolean isInputValid(String s)
-    pub fn is_input_valid(&self, s: &str) -> bool {
-        return DurationController::is_valid(s.to_string());
+    /// java: IStringController.formatValue() (the interface default)
+    fn format_value(&self) -> MutableComponent {
+        i_string_controller::format_value::<i32, Self>(self)
     }
 
     /// java: @Override public AbstractWidget provideWidget(YACLScreen screen, Dimension<Integer> widgetDimension)
-    pub fn provide_widget(&self, screen: &crate::unresolved::YACLScreen, widget_dimension: &crate::unresolved::Dimension) -> crate::unresolved::AbstractWidget {
+    fn provide_widget(self: Arc<Self>, screen: &Arc<YACLScreen>, widget_dimension: Arc<dyn Dimension<i32>>) -> Arc<dyn YAbstractWidget> {
         // java: return new DurationControllerWidget(this, screen, widgetDimension);
-        // rust: port gap - YACL (dev.isxander.yacl3: IStringController, YACLScreen, Dimension, its AbstractWidget) is not
-        // available to SeerClient mods; the placeholders cannot carry this record or be copied (GAPS_batchA.md)
-        todo!("rust: port gap - YACL StringControllerElement (GAPS_batchA.md)")
+        Arc::new(DurationControllerWidget::new(self, screen, widget_dimension))
+    }
+}
+
+impl IStringController<i32> for DurationControllerYACL {
+    /// java: @Override public String getString()
+    fn get_string(&self) -> String {
+        DurationController::to_string(self.option.pending_value())
     }
 
+    /// java: @Override public void setFromString(String value)
+    fn set_from_string(&self, value: &str) {
+        self.option.request_set(DurationController::from_string(value));
+    }
+
+    /// java: @Override public boolean isInputValid(String s)
+    fn is_input_valid(&self, s: &str) -> bool {
+        DurationController::is_valid(s.to_string())
+    }
 }

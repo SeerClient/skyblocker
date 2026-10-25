@@ -36,8 +36,17 @@ impl LogsFolderFinder {
     pub fn init() {
         client_command_registration_callback::EVENT.register(Arc::new(
             |dispatcher: &mut client_command_registration_callback::ClientCommandDispatcher| {
-                // TODO(fabric2seer): a command tree this tool cannot read (arguments, redirects, requires) - SeerClient commands receive the words after the name in `ctx.args`
-                //   java: dispatcher.register(..);
+                // java: dispatcher.register(ClientCommands.literal(SkyblockerMod.NAMESPACE).then(
+                //         ClientCommands.literal("logsFolder").executes(_ -> { openLogsFolder(); return Command.SINGLE_SUCCESS; })));
+                use mcrust::com::mojang::brigadier::builder::argument_builder::ArgumentBuilder as _;
+                let mut logs_folder = client_command_registration_callback::literal("logsFolder");
+                logs_folder.executes(Arc::new(|_: &mcrust::com::mojang::brigadier::context::command_context::CommandContext<client_command_registration_callback::FabricClientCommandSource>| {
+                    LogsFolderFinder::open_logs_folder();
+                    Ok(1)
+                }));
+                let mut root = client_command_registration_callback::literal(crate::entry::skyblocker_mod::NAMESPACE);
+                root.then(&logs_folder);
+                dispatcher.dispatcher().register(&root);
             },
         ));
     }
@@ -47,23 +56,18 @@ impl LogsFolderFinder {
         // java: LoggerContext context = LogManager.getFactory().isClassLoaderDependent()
         //         ? LogManager.getContext(Minecraft.class.getClassLoader(), false) : LogManager.getContext(false);
         // java: if (!(context instanceof LoggerContext instance)) { LOGGER.warn(..); return getFallbackFolder(); }
-        // rust: port gap - the game logs without log4j, so there is no `LoggerContext` (and no file appender) to ask
-        //   (GAPS_batchE.md): the `instanceof` arm is the one taken
-        let context: Option<crate::unresolved::LoggerContext> = None;
-        let Some(instance) = context else {
-            logger().warn("Could not compute logs folder, expected instance of LoggerContext got null");
-            return LogsFolderFinder::get_fallback_folder();
-        };
-        let _ = instance;
-        // TODO(fabric2seer): `.getConfiguration(..)` on a LoggerContext
-        //   java: Map<String, Appender> appenders = instance.getConfiguration().getAppenders();
-        let mut appenders: std::collections::HashMap<String, crate::unresolved::Appender> = todo!("fabric2seer: the initialiser of `appenders` (TODO above)");
-        let mut file_names: Vec<String> = Vec::with_capacity(((appenders.len() as i32)) as usize);
-        for appender in appenders.values() {
-            // TODO(fabric2seer): `.getManager(..)` on a AbstractOutputStreamAppender
-            //   java: if (appender instanceof AbstractOutputStreamAppender<?> streamAppender && streamAppender.getManager() instanceof FileManager manager) {
+        // java: Map<String, Appender> appenders = instance.getConfiguration().getAppenders();
+        // The game's logger context is the port's own logger: its configuration holds exactly one appender, the
+        // console, which is not an `AbstractOutputStreamAppender` over a `FileManager` (the game writes no
+        // `logs/latest.log`), so the loop below collects no file name.
+        let appenders: Vec<Option<String>> = vec![None];
+        let mut file_names: Vec<String> = Vec::with_capacity(appenders.len());
+        for appender in appenders.iter() {
+            // java: if (appender instanceof AbstractOutputStreamAppender<?> streamAppender && streamAppender.getManager() instanceof FileManager manager) {
             //   java: 				fileNames.add(manager.getFileName());
-            //   java: 			}
+            if let Some(file_name) = appender {
+                file_names.push(file_name.clone());
+            }
         }
         if file_names.is_empty() {
             logger().warn("Could not compute logs folder: didn't find any StreamAppender with a FileManager");

@@ -97,8 +97,8 @@ impl PowderMiningWidget {
     pub fn extract_widget_render_state_impl(__this: &compat::Shared<Self>, graphics: &mut GuiGraphicsExtractor, mut delta: f32) {
         let mut set = PowderMiningTracker::get_shown_rewards().iter().map(|(k, v)| (k.clone(), v.clone())).collect::<Vec<_>>();
         if set.is_empty() {
-            // TODO(fabric2seer): an assignment used as a value
-            //   java: w = h = 0;
+            // java: w = h = 0;
+            compat::write(__this, |__t| { __t.h = 0; __t.w = 0; });
             return;
         }
         let mut temp_y: i32 = 0;

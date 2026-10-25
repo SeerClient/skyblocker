@@ -53,10 +53,10 @@ impl BloodCampHelper {
 
     /// java: @Init public static void init()
     pub fn init() {
-        // TODO(fabric2seer): no SeerClient event yet: hook HEAD of ClientLevel#addEntity (`net.minecraft.client.multiplayer.ClientLevel#addEntity`: exists)
-        //   java: ClientEntityEvents.ENTITY_LOAD.register(BloodCampHelper::onEntityLoad);
-        // TODO(fabric2seer): no SeerClient event yet: hook HEAD of ClientLevel#removeEntity (`net.minecraft.client.multiplayer.ClientLevel#removeEntity`: exists)
-        //   java: ClientEntityEvents.ENTITY_UNLOAD.register(BloodCampHelper::onEntityUnload);
+        // java: ClientEntityEvents.ENTITY_LOAD.register(BloodCampHelper::onEntityLoad);
+        mcrust::mcrust::modding::events::client_entity_events::register_entity_load(|entity, world| BloodCampHelper::on_entity_load(entity, world));
+        // java: ClientEntityEvents.ENTITY_UNLOAD.register(BloodCampHelper::onEntityUnload);
+        mcrust::mcrust::modding::events::client_entity_events::register_entity_unload(|entity, world| BloodCampHelper::on_entity_unload(entity, world));
         level_render_extraction_callback::EVENT.register(Arc::new(move |__a0| { BloodCampHelper::extract_rendering(&__a0); }));
         client_tick_events::END_CLIENT_TICK.register(Arc::new(|minecraft: &mut Minecraft| {
             BloodCampHelper::tick();

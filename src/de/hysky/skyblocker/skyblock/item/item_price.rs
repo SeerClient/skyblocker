@@ -25,7 +25,7 @@ use mcrust::net::minecraft::network::chat::component::Component as _;
 //   java: 			SkyblockerMod.KEYBINDING_CATEGORY
 //   java: 	));
 /// java: public static final KeyMapping ITEM_PRICE_LOOKUP = KeyMappingHelper.registerKeyMapping(new KeyMapping( "key.skyblocker.itemPriceLookup", InputConstants.KEY_F6, SkyblockerMod.KEYBINDING_CATEGORY ));
-pub static ITEM_PRICE_LOOKUP: compat::MainThread<mcrust::net::minecraft::client::key_mapping::KeyMapping> = compat::MainThread::new(|| key_binding_helper::register_key_binding(mcrust::net::minecraft::client::key_mapping::KeyMapping::new("key.skyblocker.itemPriceLookup", 295 /* InputConstants.KEY_F6 */, *crate::entry::skyblocker_mod::KEYBINDING_CATEGORY.get())));
+pub static ITEM_PRICE_LOOKUP: compat::MainThread<mcrust::net::minecraft::client::key_mapping::KeyMapping> = compat::MainThread::new(|| key_binding_helper::register_key_binding(mcrust::net::minecraft::client::key_mapping::KeyMapping::new("key.skyblocker.itemPriceLookup", mcrust::com::mojang::blaze3d::platform::input_constants::KEY_F6, *crate::entry::skyblocker_mod::KEYBINDING_CATEGORY.get())));
 
 /// java: public class ItemPrice
 #[derive(Clone)]
@@ -45,12 +45,21 @@ impl ItemPrice {
         let _ = ITEM_PRICE_LOOKUP.get();
         client_command_registration_callback::EVENT.register(Arc::new(
             |dispatcher: &mut client_command_registration_callback::ClientCommandDispatcher| {
-                // TODO(fabric2seer): a command tree this tool cannot read (arguments, redirects, requires) - SeerClient commands receive the words after the name in `ctx.args`
                 //   java: dispatcher.register(ClientCommands.literal(SkyblockerMod.NAMESPACE)
                 //   java: 					.then(ClientCommands.literal("refreshPrices").executes(context -> {
                 //   java: 						refreshItemPrices(context.getSource().getPlayer());
                 //   java: 						return Command.SINGLE_SUCCESS;
                 //   java: 					})));
+                use mcrust::com::mojang::brigadier::builder::argument_builder::ArgumentBuilder as _;
+                let mut refresh_prices = client_command_registration_callback::literal("refreshPrices");
+                refresh_prices.executes(Arc::new(|_: &mcrust::com::mojang::brigadier::context::command_context::CommandContext<client_command_registration_callback::FabricClientCommandSource>| {
+                    // java: context.getSource().getPlayer()
+                    mcrust::mcrust::modding::game::with_player(|player| ItemPrice::refresh_item_prices(player));
+                    Ok(1)
+                }));
+                let mut root = client_command_registration_callback::literal(crate::entry::skyblocker_mod::NAMESPACE);
+                root.then(&refresh_prices);
+                dispatcher.dispatcher().register(&root);
             },
         ));
     }

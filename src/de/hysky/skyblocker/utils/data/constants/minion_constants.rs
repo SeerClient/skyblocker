@@ -6,10 +6,6 @@ use mcrust::com::mojang::serialization::codec::Codec;
 use mcrust::com::mojang::serialization::codec::CodecRef;
 use mcrust::com::mojang::serialization::codecs::record_codec_builder;
 
-// TODO(fabric2seer): `PrimitiveCodec.listOf` has no Rust method in the port (looked for `list_of` in PrimitiveCodec and its supertypes)
-//   java: public static final Codec<MinionConstants> CODEC = RecordCodecBuilder.create(instance -> instance.group(
-//   java: 			Codec.unboundedMap(Codec.STRING, Codec.STRING.listOf()).fieldOf("categories").forGetter(MinionConstants::categories)
-//   java: 			).apply(instance, MinionConstants::new));
 /// java: public static final Codec<MinionConstants> CODEC = RecordCodecBuilder.create(instance -> instance.group( Codec.unboundedMap(Codec.STRING, Codec.STRING.listOf()).fieldOf("categories").forGetter(MinionC
 pub static CODEC: compat::MainThread<CodecRef<MinionConstants>> = compat::MainThread::new(|| { use mcrust::com::mojang::serialization::codec as c; record_codec_builder::create(record_codec_builder::apply1(record_codec_builder::of(|o: &MinionConstants| o.categories(), c::field_of(c::xmap(c::unbounded_map(c::string_codec(), c::list(c::string_codec())), |entries: Vec<(String, Vec<String>)>| entries.into_iter().collect::<std::collections::HashMap<String, Vec<String>>>(), |map: &std::collections::HashMap<String, Vec<String>>| map.iter().map(|(k, v)| (k.clone(), v.clone())).collect::<Vec<(String, Vec<String>)>>()), "categories")), move |__a0| MinionConstants::new(__a0.clone()))) });
 /// java: public static final MinionConstants EMPTY = new MinionConstants(Map.of());

@@ -174,9 +174,11 @@ impl dyn CollectionItemWidget {
         graphics.item(&compat::read(__this, |__t| __t.collection_item_widget_base().icon.clone()), (__this.lock().borrow().collection_item_widget_base().get_x()).wrapping_add(((__this.lock().borrow().collection_item_widget_base().get_width()).wrapping_sub(mcrust::net::minecraft::client::gui::render::gui_renderer::DEFAULT_ITEM_SIZE)).wrapping_div(2)), (__this.lock().borrow().collection_item_widget_base().get_y()).wrapping_add((item_box_height.wrapping_sub(mcrust::net::minecraft::client::gui::render::gui_renderer::DEFAULT_ITEM_SIZE)).wrapping_div(2)));
         gui_graphics_extractor::draw_formatted_text_with_drop_shadow(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), &mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(compat::read(__this, |__t| __t.collection_item_widget_base().tier_text.clone())), (__this.lock().borrow().collection_item_widget_base().get_x()).wrapping_add(((__this.lock().borrow().collection_item_widget_base().get_width()).wrapping_sub(font.width_of_cached(&mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(compat::read(__this, |__t| __t.collection_item_widget_base().tier_text.clone()))))).wrapping_div(2)), (__this.lock().borrow().collection_item_widget_base().get_y()).wrapping_add((__this.lock().borrow().collection_item_widget_base().get_height()).wrapping_sub(mcrust::net::minecraft::client::gui::font::LINE_HEIGHT)), mcrust::net::minecraft::util::common_colors::WHITE, false);
         if __this.lock().borrow().collection_item_widget_base().is_hovered() {
-            // TODO(fabric2seer): the port's `set_component_tooltip_for_next_frame_styled` ports this Java method with other parameters (tooltip_for_next_frame, lines for Java's lines, xo, yo, style)
-            // TODO(fabric2seer): `set_component_tooltip_for_next_frame_styled` takes 2 argument(s) in the port (`tooltip_for_next_frame: &mut Option<DeferredTooltip>, lines: Vec<crate::net::minecraft::network::chat::formatted_text::FormattedText>`), Java passes 5
-            // rust: gui_graphics_extractor::set_component_tooltip_for_next_frame_styled(&mut font, compat::read(__this, |__t| __t.collection_item_widget_base().tooltip.clone()), mouse_x, mouse_y, compat::read(__this, |__t| __t.collection_item_widget_base().tooltip_style.clone()).unwrap());
+            // java: graphics.setComponentTooltipForNextFrame(font, this.tooltip, mouseX, mouseY, this.tooltipStyle); (the game's
+            // deferred tooltip draws every tooltip in the default style: its `_styled` overload takes no style)
+            let __lines: Vec<mcrust::net::minecraft::network::chat::formatted_text::FormattedText> = compat::read(__this, |__t| __t.collection_item_widget_base().tooltip.iter().cloned().map(mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from).collect());
+            let _ = (&font, compat::read(__this, |__t| __t.collection_item_widget_base().tooltip_style.clone()));
+            compat::batch_s_set_tooltip_for_next_frame(__lines);
         }
     }
 
@@ -203,4 +205,29 @@ impl CollectionItemWidget for CollectionItemWidgetBase {
         self
     }
 
+}
+
+/// CollectionItemWidget's widget half (`super`'s fields: x, y, size, message, ...), lent by the game for each call
+impl compat::WidgetHalf for CollectionItemWidgetBase {
+    fn widget_half(&mut self) -> &mut AbstractWidget {
+        &mut self.base
+    }
+}
+
+/// CollectionItemWidget as the game's widget: `compat::WidgetAdapter::widget(handle)` where Java hands it on
+impl mcrust::mcrust::modding::widgets::ModWidget for compat::WidgetAdapter<CollectionItemWidgetBase> {
+    /// java: @Override protected void extractWidgetRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a)
+    fn extract_widget_render_state(&mut self, widget: &AbstractWidget, context: &mut mcrust::mcrust::modding::widgets::WidgetRenderContext<'_>, mouse_x: i32, mouse_y: i32, a: f32) {
+        self.lend_ref(widget, |__h| ({ let __f = compat::dispatch(__h, |__t| __t.extract_widget_render_state()); __f(&compat::view(__h, |a| a as compat::Shared<dyn CollectionItemWidget>), &mut context.graphics, mouse_x, mouse_y, a) }))
+    }
+
+    /// java: @Override protected void updateWidgetNarration(NarrationElementOutput output)
+    fn update_widget_narration(&mut self, widget: &AbstractWidget, output: &mut dyn NarrationElementOutput) {
+        self.lend_ref(widget, |__h| ({ let __f = compat::dispatch(__h, |__t| __t.update_widget_narration()); __f(&compat::view(__h, |a| a as compat::Shared<dyn CollectionItemWidget>), output) }))
+    }
+
+    /// java: @Override public boolean shouldTakeFocusAfterInteraction()
+    fn should_take_focus_after_interaction(&self) -> bool {
+        self.call(|__h| ({ let __f = compat::dispatch(__h, |__t| __t.should_take_focus_after_interaction()); __f(&compat::view(__h, |a| a as compat::Shared<dyn CollectionItemWidget>)) }))
+    }
 }

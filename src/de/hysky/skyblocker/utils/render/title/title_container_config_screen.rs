@@ -18,6 +18,7 @@ use mcrust::mcrust::modding::screens::ModScreen;
 use mcrust::mcrust::modding::screens::ScreenRenderContext;
 use mcrust::net::minecraft::chat_formatting::ChatFormatting;
 use mcrust::net::minecraft::client::gui::gui_graphics_extractor::GuiGraphicsExtractor;
+use mcrust::net::minecraft::client::gui::gui_graphics_extractor;
 use mcrust::net::minecraft::client::input::character_event::CharacterEvent;
 use mcrust::net::minecraft::client::input::mouse_button_event::MouseButtonEvent;
 use mcrust::net::minecraft::client::input::mouse_button_info::MouseButtonInfo;
@@ -178,8 +179,10 @@ impl TitleContainerConfigScreen {
             let mut x: i32 = config.x;
             let mut y: i32 = config.y;
             if x >= 0 && y >= 0 {
-                // TODO(fabric2seer): `setPosition` is not a method of BasicWidget
-                //   java: widgets.getFirst().setPosition(x, y);
+                // java: widgets.getFirst().setPosition(x, y); - `LayoutElement.setPosition`: `setX(x); setY(y);`
+                let __widget = compat::read(__this_1.get(), |__t| __t.widgets[0].clone());
+                ({ let __f = compat::dispatch(&__widget, |__t| __t.set_x()); __f(&__widget, x) });
+                ({ let __f = compat::dispatch(&__widget, |__t| __t.set_y()); __f(&__widget, y) });
             }
             TitleContainerConfigScreen::update_widget_dimensions(__this_1.get());
         }));
@@ -194,14 +197,16 @@ impl TitleContainerConfigScreen {
     pub fn extract_render_state_3_impl(__this: &compat::Shared<Self>, context: &GuiGraphicsExtractor, widgets: &Vec<compat::Shared<dyn BasicWidget>>, mut delta: f32) {
         <dyn HudConfigScreen>::extract_render_state_3_body(&compat::view(__this, |a| a as compat::Shared<dyn HudConfigScreen>), context, widgets, delta);
         TitleContainer::render_8(context, EXAMPLES.get_mut(), ({ let __r = &widgets[0]; let __f = compat::dispatch(__r, |__t| __t.get_x()); __f(__r) }), ({ let __r = &widgets[0]; let __f = compat::dispatch(__r, |__t| __t.get_y()); __f(__r) }), delta, compat::read(__this, |__t| __t.render_scale), compat::read(__this, |__t| __t.direction), compat::read(__this, |__t| __t.alignment));
-        // TODO(fabric2seer): `.getRGB(..)` on a value of unknown type
-        //   java: context.centeredText(font, "Press Q/E to change Alignment: " + alignment, width / 2, font.lineHeight * 2, Color.WHITE.getRGB());
-        // TODO(fabric2seer): `.getRGB(..)` on a value of unknown type
-        //   java: context.centeredText(font, "Press R to change Direction: " + direction, width / 2, font.lineHeight * 3 + 5, Color.WHITE.getRGB());
-        // TODO(fabric2seer): `.getRGB(..)` on a value of unknown type
-        //   java: context.centeredText(font, "Press +/- to change Scale", width / 2, font.lineHeight * 4 + 10, Color.WHITE.getRGB());
-        // TODO(fabric2seer): `.getRGB(..)` on a value of unknown type
-        //   java: context.centeredText(font, "Right Click To Reset Position", width / 2, font.lineHeight * 5 + 15, Color.GRAY.getRGB());
+        let __width: i32 = compat::read(__this, |__t| __t.width);
+        let __line_height: i32 = mcrust::net::minecraft::client::gui::font::LINE_HEIGHT;
+        // java: context.centeredText(font, "Press Q/E to change Alignment: " + alignment, width / 2, font.lineHeight * 2, Color.WHITE.getRGB());
+        gui_graphics_extractor::centered_text_string(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), &format!("Press Q/E to change Alignment: {}", compat::jstring(&compat::read(__this, |__t| __t.alignment))), __width.wrapping_div(2), __line_height.wrapping_mul(2), mcrust::java::awt::color::white().get_rgb());
+        // java: context.centeredText(font, "Press R to change Direction: " + direction, width / 2, font.lineHeight * 3 + 5, Color.WHITE.getRGB());
+        gui_graphics_extractor::centered_text_string(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), &format!("Press R to change Direction: {}", compat::jstring(&compat::read(__this, |__t| __t.direction))), __width.wrapping_div(2), (__line_height.wrapping_mul(3)).wrapping_add(5), mcrust::java::awt::color::white().get_rgb());
+        // java: context.centeredText(font, "Press +/- to change Scale", width / 2, font.lineHeight * 4 + 10, Color.WHITE.getRGB());
+        gui_graphics_extractor::centered_text_string(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), "Press +/- to change Scale", __width.wrapping_div(2), (__line_height.wrapping_mul(4)).wrapping_add(10), mcrust::java::awt::color::white().get_rgb());
+        // java: context.centeredText(font, "Right Click To Reset Position", width / 2, font.lineHeight * 5 + 15, Color.GRAY.getRGB());
+        gui_graphics_extractor::centered_text_string(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), "Right Click To Reset Position", __width.wrapping_div(2), (__line_height.wrapping_mul(5)).wrapping_add(15), mcrust::java::awt::color::gray().get_rgb());
         let mut selection_width: i32 = TitleContainerConfigScreen::get_selection_width(__this);
         let mut x1: i32 = match compat::read(__this, |__t| __t.alignment) {
             Alignment::Left => ({ let __r = &widgets[0]; let __f = compat::dispatch(__r, |__t| __t.get_x()); __f(__r) }),
@@ -212,14 +217,12 @@ impl TitleContainerConfigScreen {
         let mut y1: i32 = ({ let __r = &widgets[0]; let __f = compat::dispatch(__r, |__t| __t.get_y()); __f(__r) });
         let mut x2: i32 = x1.wrapping_add(selection_width);
         let mut y2: i32 = y1.wrapping_add(TitleContainerConfigScreen::get_selection_height(__this));
-        // TODO(fabric2seer): `.getRGB(..)` on a value of unknown type
-        //   java: context.horizontalLine(x1, x2, y1, Color.RED.getRGB());
-        // TODO(fabric2seer): `.getRGB(..)` on a value of unknown type
-        //   java: context.horizontalLine(x1, x2, y2, Color.RED.getRGB());
-        // TODO(fabric2seer): `.getRGB(..)` on a value of unknown type
-        //   java: context.verticalLine(x1, y1, y2, Color.RED.getRGB());
-        // TODO(fabric2seer): `.getRGB(..)` on a value of unknown type
-        //   java: context.verticalLine(x2, y1, y2, Color.RED.getRGB());
+        // java: context.horizontalLine(x1, x2, y1, Color.RED.getRGB()); (and the other three sides)
+        let __red: i32 = mcrust::java::awt::color::red().get_rgb();
+        gui_graphics_extractor::horizontal_line(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), x1, x2, y1, __red);
+        gui_graphics_extractor::horizontal_line(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), x1, x2, y2, __red);
+        gui_graphics_extractor::vertical_line(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), x1, y1, y2, __red);
+        gui_graphics_extractor::vertical_line(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), x2, y1, y2, __red);
     }
 
     /// TitleContainerConfigScreen.extractRenderState as the dispatch of HudConfigScreen.extractRenderState

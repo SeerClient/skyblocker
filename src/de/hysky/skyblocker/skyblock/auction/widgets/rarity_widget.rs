@@ -103,9 +103,9 @@ impl RarityWidget {
         }
         gui_graphics_extractor::pop_pose(__pose_1);
         if !on_left_arrow && !on_right_arrow && __this.lock().borrow().is_hovered() {
-            // TODO(fabric2seer): the port's `set_component_tooltip_for_next_frame` ports this Java method with other parameters (tooltip_for_next_frame, lines for Java's lines, xo, yo)
-            // TODO(fabric2seer): `set_component_tooltip_for_next_frame` takes 2 argument(s) in the port (`tooltip_for_next_frame: &mut Option<DeferredTooltip>, lines: Vec<crate::net::minecraft::network::chat::formatted_text::FormattedText>`), Java passes 4
-            // rust: gui_graphics_extractor::set_component_tooltip_for_next_frame(&mut text_renderer, compat::read(__this, |__t| __t.tooltip.clone()), mouse_x, mouse_y);
+            // java: graphics.setComponentTooltipForNextFrame(textRenderer, tooltip, mouseX, mouseY);
+            let lines: Vec<mcrust::net::minecraft::network::chat::formatted_text::FormattedText> = compat::read(__this, |__t| __t.tooltip.iter().map(|line| mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(line.clone())).collect());
+            compat::batch_s_set_tooltip_for_next_frame(lines);
         }
     }
 
@@ -175,4 +175,3 @@ impl ModWidget for compat::WidgetAdapter<RarityWidget> {
 
 }
 
-// NOTE(fabric2seer): extractWidgetRenderState, onClick, updateWidgetNarration override(s) of AbstractWidget - the port dispatches its own calls, so these run only where the mod calls them; hook the port's method to make the game call them

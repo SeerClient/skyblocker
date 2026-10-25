@@ -38,10 +38,11 @@ fn skyblocker_keep_cursor_grabbed_during_transfer(ci: &mut CallbackInfo<'_>) {
 }
 
 /// @Inject dontResetMouseInStorageOverlay
-///   java: @Inject(method = "releaseMouse", at = @At(value = "INVOKE", target = "Lcom/mojang/blaze3d/platform/InputConstants;grabOrReleaseMouse(Lcom/mojang/blaze3d/platform/Window;IDD)V", shift = At.Shift.AFTER))
-/// target: com.mojang.blaze3d.platform.InputConstants#grabOrReleaseMouse  [exists]
+///   java: @Inject(method = "releaseMouse", at = @At(value = "INVOKE", target = "Lcom/mojang/blaze3d/platform/InputConstants;releaseMouse(Lcom/mojang/blaze3d/platform/Window;DD)V", shift = At.Shift.AFTER))
+/// 26.3: `grabOrReleaseMouse` was split; `MouseHandler.releaseMouse:438` calls `InputConstants.releaseMouse(window, xpos, ypos)`.
+/// target: com.mojang.blaze3d.platform.InputConstants#releaseMouse  [exists]
 /// within: net.minecraft.client.MouseHandler#releaseMouse
-/// Rust: com/mojang/blaze3d/platform/input_constants.rs:711 fn grab_or_release_mouse(g: &crate::lwjgl::glfw::Glfw, handle: *mut std::ffi::c_void, cursor_mode: std::os::raw::c_int, xpos: f64, ypos: f64)
+/// Rust: com/mojang/blaze3d/platform/input_constants.rs:771 fn release_mouse(handle: *mut std::ffi::c_void, xpos: f64, ypos: f64)
 ///
 /// The port's `releaseMouse` (`:426-433`) answers `true` where Java goes on to `grabOrReleaseMouse(window, NORMAL,
 /// xpos, ypos)`, and its caller makes that call with `this.xpos` / `this.ypos` right after. So "after the call, set

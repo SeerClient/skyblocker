@@ -28,14 +28,14 @@ fn skyblocker_release_cursor_while_unfocused(_ci: &mut CallbackInfo<'_>) {
         crate::de::hysky::skyblocker::utils::render::gui::server_transfer_helper::ServerTransferHelper::set_interrupted(true);
         if minecraft.mouse_handler.is_mouse_grabbed() {
             //   java: this.minecraft.mouseHandler.releaseMouse();
-            // The port's `releaseMouse` (:426-433) answers `true` where Java goes on to
-            // `InputConstants.grabOrReleaseMouse(window, GLFW_CURSOR_NORMAL, xpos, ypos)`, and leaves that call to its
-            // caller (the GLFW handle lives outside it) - the call every game caller makes after it.
+            // The port's `releaseMouse` (26.3 :433-440) answers `true` where Java goes on to
+            // `InputConstants.releaseMouse(window, xpos, ypos)` (:438), and leaves that call to its caller (the window
+            // handle lives outside it) - the call every game caller makes after it (`gui.rs`).
             let (width, height) = (minecraft.window.get_screen_width(), minecraft.window.get_screen_height());
             if minecraft.mouse_handler.release_mouse(width, height) {
                 let handle = mcrust::com::mojang::blaze3d::platform::window::published_handle();
-                if !handle.is_null() && mcrust::lwjgl::glfw::is_installed() {
-                    mcrust::com::mojang::blaze3d::platform::input_constants::grab_or_release_mouse(mcrust::lwjgl::glfw::Glfw::get(), handle, mcrust::lwjgl::glfw::GLFW_CURSOR_NORMAL, minecraft.mouse_handler.xpos, minecraft.mouse_handler.ypos);
+                if !handle.is_null() {
+                    mcrust::com::mojang::blaze3d::platform::input_constants::release_mouse(handle, minecraft.mouse_handler.xpos, minecraft.mouse_handler.ypos);
                 }
             }
         }
@@ -44,11 +44,9 @@ fn skyblocker_release_cursor_while_unfocused(_ci: &mut CallbackInfo<'_>) {
 
 /// @Inject skyblocker$hideReconfiguringScreen
 ///   java: @Inject(method = "extractRenderState", at = @At("HEAD"), cancellable = true)
-/// target: net.minecraft.client.gui.screens.Screen#extractRenderState  [no Rust counterpart]
-/// note: no Rust counterpart: hook_coverage.py: NO RUST - the port has no Rust body for this Java method, so a hook there has nothing to land on - the registration is left commented out (it would never fire, and `seer check` refuses an unhooked target)
-///
-/// rust: port gap - the port draws the `ServerReconfigScreen` (its title and disconnect button) from the client
-/// loop's widget pass with no `Screen#extractRenderState` body to cancel (GAPS_M #3); not registered.
+/// target: net.minecraft.client.gui.screens.Screen#extractRenderState  [exists: abstract_widget.rs
+/// `draw_screen_widgets_with`, `Screen.extractRenderState:115-119`'s renderables pass, which draws the
+/// `ServerReconfigScreen`'s title and disconnect button]
 fn skyblocker_hide_reconfiguring_screen(ci: &mut CallbackInfo<'_>) {
     use mcrust::net::minecraft::client::gui::gui::ScreenKind;
     //   java: (Object) this instanceof ServerReconfigScreen && Utils.isOnHypixel() && !ServerTransferHelper.isInterrupted()
@@ -62,10 +60,7 @@ pub fn register() {
     report(hook::register_injector("net.minecraft.client.gui.screens.Screen#tick", InjectOptions::at(At::Head).kind(InjectorKind::Inject).priority(1000), Arc::new(skyblocker_release_cursor_while_unfocused)));
     // `super.tick()` at the top of the two subclasses' own ticks (see the handler).
     report(hook::register_injector("net.minecraft.client.gui.screens.multiplayer.ServerReconfigScreen#tick", InjectOptions::at(At::Head).kind(InjectorKind::Inject).priority(1000), Arc::new(skyblocker_release_cursor_while_unfocused)));
-    // rust: port gap - `LevelLoadingScreen#tick` (`tick_progress`) has no caller: the port holds no LevelLoadingScreen
-    // object (DIVERGENCES chunk 362), so this registration never fires (GAPS_M #4).
+    // `level_loading_screen::tick`, entered by `tick_arm` while the loading screen is up.
     report(hook::register_injector("net.minecraft.client.gui.screens.LevelLoadingScreen#tick", InjectOptions::at(At::Head).kind(InjectorKind::Inject).priority(1000), Arc::new(skyblocker_release_cursor_while_unfocused)));
-    // TODO(fabric2seer): not registered - no Rust counterpart: hook_coverage.py: NO RUST - the port has no Rust body for this Java method, so a hook there has nothing to land on - the registration is left commented out (it would never fire, and `seer check` refuses an unhooked target)
-    // report(hook::register_injector(`net.minecraft.client.gui.screens.Screen#extractRenderState`, InjectOptions::at(At::Head).kind(InjectorKind::Inject).priority(1000), Arc::new(skyblocker_hide_reconfiguring_screen)));
-    let _ = skyblocker_hide_reconfiguring_screen;
+    report(hook::register_injector("net.minecraft.client.gui.screens.Screen#extractRenderState", InjectOptions::at(At::Head).kind(InjectorKind::Inject).priority(1000), Arc::new(skyblocker_hide_reconfiguring_screen)));
 }

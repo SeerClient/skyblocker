@@ -35,19 +35,26 @@ pub fn get_image_height(obj: &mcrust::net::minecraft::client::gui::screens::inve
 }
 
 /// @Accessor setHandler -> net.minecraft.client.gui.screens.inventory.AbstractContainerScreen.menu
-// TODO(fabric2seer): `AbstractContainerMenu` - assign `obj.menu` with its Rust type
+/// (the port's container screen shows the player's `containerMenu`, which is the screen's `menu`: it is assigned there)
+pub fn set_handler(_obj: &mut mcrust::net::minecraft::client::gui::screens::inventory::abstract_container_screen::AbstractContainerScreen, value: mcrust::net::minecraft::world::entity::player::player::ContainerMenu) {
+    mcrust::mcrust::modding::game::with_container_menu(move |menu| *menu = value);
+}
 
 /// @Accessor getFocusedSlot -> net.minecraft.client.gui.screens.inventory.AbstractContainerScreen.hoveredSlot
-// TODO(fabric2seer): `Slot` - return `&obj.hovered_slot` with its Rust type
-// pub fn get_focused_slot(obj: &mcrust::net::minecraft::client::gui::screens::inventory::abstract_container_screen::AbstractContainerScreen) -> &T { &obj.hovered_slot }
+/// (the port keeps the hovered slot as its MENU index; `None` is Java's `null`)
+pub fn get_focused_slot(obj: &mcrust::net::minecraft::client::gui::screens::inventory::abstract_container_screen::AbstractContainerScreen) -> Option<i32> {
+    obj.hovered_slot
+}
 
 /// @Accessor getSLOT_HIGHLIGHT_BACK_SPRITE -> net.minecraft.client.gui.screens.inventory.AbstractContainerScreen.SLOT_HIGHLIGHT_BACK_SPRITE
-// TODO(fabric2seer): `Identifier` - return `&obj.slot_highlight_back_sprite` with its Rust type
-// pub fn get_slot_highlight_back_sprite(obj: &mcrust::net::minecraft::client::gui::screens::inventory::abstract_container_screen::AbstractContainerScreen) -> &T { &obj.slot_highlight_back_sprite }
+pub fn get_slot_highlight_back_sprite() -> mcrust::net::minecraft::resources::identifier::Identifier {
+    mcrust::net::minecraft::client::gui::screens::inventory::abstract_container_screen::slot_highlight_back_sprite()
+}
 
 /// @Accessor getSLOT_HIGHLIGHT_FRONT_SPRITE -> net.minecraft.client.gui.screens.inventory.AbstractContainerScreen.SLOT_HIGHLIGHT_FRONT_SPRITE
-// TODO(fabric2seer): `Identifier` - return `&obj.slot_highlight_front_sprite` with its Rust type
-// pub fn get_slot_highlight_front_sprite(obj: &mcrust::net::minecraft::client::gui::screens::inventory::abstract_container_screen::AbstractContainerScreen) -> &T { &obj.slot_highlight_front_sprite }
+pub fn get_slot_highlight_front_sprite() -> mcrust::net::minecraft::resources::identifier::Identifier {
+    mcrust::net::minecraft::client::gui::screens::inventory::abstract_container_screen::slot_highlight_front_sprite()
+}
 
 /// Mixins apply before the game runs: the `preLaunch` entrypoint calls this.
 pub fn register() {

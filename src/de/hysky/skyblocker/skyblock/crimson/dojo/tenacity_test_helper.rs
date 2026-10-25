@@ -95,10 +95,10 @@ impl TenacityTestHelper {
 
     /// java: protected static void onParticle(ClientboundLevelParticlesPacket packet)
     pub fn on_particle(packet: &ClientboundLevelParticlesPacket) {
-        if !(compat::particle_type_is(packet.get_particle().unwrap(), mcrust::net::minecraft::core::particles::particle_types::flame())) {
+        if !(compat::particle_type_is(packet.particle().unwrap(), mcrust::net::minecraft::core::particles::particle_types::flame())) {
             return;
         }
-        let mut particle_pos: Vec3 = Vec3::new(packet.get_x(), packet.get_y(), packet.get_z());
+        let mut particle_pos: Vec3 = Vec3::new(packet.x(), packet.y(), packet.z());
         // the nearest fireball: (id, position)
         let mut neareast_fireball: Option<(i32, Vec3)> = None;
         let mut clostest_distance: f64 = ((50) as f64) as f64;

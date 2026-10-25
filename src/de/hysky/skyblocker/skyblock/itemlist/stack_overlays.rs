@@ -11,11 +11,13 @@ use mcrust::net::minecraft::core::holder_lookup;
 use mcrust::net::minecraft::nbt::tag_parser;
 use mcrust::net::minecraft::shared_constants;
 use mcrust::com::mojang::serialization::decoder::Decoder as _;
+use crate::io::github::moulberry::repo::data::item_overlays::ItemOverlayFile;
+use crate::io::github::moulberry::repo::data::neu_item::NEUItem;
 
 /// java: private static final int DATA_VERSION = SharedConstants.getCurrentVersion().dataVersion().version();
 pub static DATA_VERSION: LazyLock<i32> = LazyLock::new(|| shared_constants::get_current_version().data_version().version());
 /// java: private static Map<@NEUId String, ItemOverlayFile> overlays = Map.of();
-pub static OVERLAYS: compat::MainThread<std::collections::HashMap<String, crate::unresolved::ItemOverlayFile>> = compat::MainThread::new(|| std::collections::HashMap::from([]));
+pub static OVERLAYS: compat::MainThread<std::collections::HashMap<String, ItemOverlayFile>> = compat::MainThread::new(|| std::collections::HashMap::from([]));
 
 /// java: public class StackOverlays
 #[derive(Clone)]
@@ -35,19 +37,27 @@ impl StackOverlays {
     }
 
     /// java: protected static void applyOverlay(NEUItem neuItem, FlexibleItemStack stack)
-    pub fn apply_overlay(neu_item: &crate::unresolved::NEUItem, stack: &compat::Shared<FlexibleItemStack>) {
+    pub fn apply_overlay(neu_item: &NEUItem, stack: &compat::Shared<FlexibleItemStack>) {
         // java: try {..} catch (Exception e) - an exception here is a panic, caught by `catch_unwind`
         let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            // TODO(fabric2seer): `.getSkyblockItemId(..)` on a NEUItem
             //   java: ItemOverlayFile overlayFile = overlays.get(neuItem.getSkyblockItemId());
-            let mut overlay_file: crate::unresolved::ItemOverlayFile = todo!("fabric2seer: the initialiser of `overlayFile` (TODO above)");
-            if true /* java: overlay_file != null: never null here */ {
-                // TODO(fabric2seer): `.getFile(..)` on a ItemOverlayFile
+            let overlay_file: Option<ItemOverlayFile> = OVERLAYS.get().get(neu_item.get_skyblock_item_id()).cloned();
+            // The returned file is null if it does not exist
+            if let Some(overlay_file) = overlay_file {
                 //   java: String overlayData = Files.readString(overlayFile.getFile().getFsPath());
-                let mut overlay_data: String = todo!("fabric2seer: the initialiser of `overlayData` (TODO above)");
-                // TODO(fabric2seer): `create_serialization_context` takes 2 argument(s) in the port (`provider: Arc<dyn Provider>, parent: crate::com::mojang::serialization::dynamic_ops::Ops`), Java passes 1
-                // rust: let mut overlay_stack: compat::Shared<FlexibleItemStack> = (flexible_item_stack::CODEC.get_mut().parse(&holder_lookup::create_serialization_context(mcrust::net::minecraft::nbt::nbt_ops::NbtOps::instance()), &tag_parser::parse_compound_fully(&overlay_data).unwrap())).set_partial(flexible_item_stack::EMPTY.get_mut().clone()).result_or_partial_with(|error| { StackOverlays::log_parse_error(neu_item, &error); }).unwrap();
-                let mut overlay_stack: compat::Shared<FlexibleItemStack> = todo!("fabric2seer: the initialiser of `overlayStack` (TODO above)");
+                let mut overlay_data: String = std::fs::read_to_string(overlay_file.get_file().get_fs_path()).unwrap_or_else(|e| panic!("java.io.IOException: {e}"));
+                //   java: FlexibleItemStack overlayStack = FlexibleItemStack.CODEC.parse(RegistryUtils.getRegistryWrapperLookup()
+                //     .createSerializationContext(NbtOps.INSTANCE), TagParser.parseCompoundFully(overlayData))
+                //     .setPartial(FlexibleItemStack.EMPTY).resultOrPartial(error -> logParseError(neuItem, error)).get();
+                let ops = holder_lookup::create_serialization_context(RegistryUtils::get_registry_wrapper_lookup(), mcrust::net::minecraft::nbt::nbt_ops::NbtOps::instance());
+                let overlay_tag = tag_parser::parse_compound_fully(&overlay_data).unwrap_or_else(|e| panic!("CommandSyntaxException: {e:?}"));
+                let empty: compat::Shared<FlexibleItemStack> = flexible_item_stack::EMPTY.get().clone();
+                let mut overlay_stack: compat::Shared<FlexibleItemStack> = flexible_item_stack::CODEC
+                    .get()
+                    .parse(&ops, &mcrust::com::mojang::serialization::obj(overlay_tag))
+                    .set_partial(empty)
+                    .result_or_partial_with(|error| StackOverlays::log_parse_error(neu_item, &error))
+                    .expect("NoSuchElementException: No value present");
                 if !(FlexibleItemStack::is_empty(&overlay_stack)) {
                     let mut changes: DataComponentPatch = FlexibleItemStack::components(&overlay_stack);
                     FlexibleItemStack::apply_components(stack, &changes);
@@ -55,8 +65,8 @@ impl StackOverlays {
             }
         }));
         if let Err(e) = __result {
-            // TODO(fabric2seer): `.getSkyblockItemId(..)` on a NEUItem
             //   java: LOGGER.error("[Skyblocker Stack Overlays] Failed to apply stack overlay! Item: {}", neuItem.getSkyblockItemId(), e);
+            logger().error(&format!("[Skyblocker Stack Overlays] Failed to apply stack overlay! Item: {} {}", neu_item.get_skyblock_item_id(), compat::panic_message(&e)));
         }
     }
 
@@ -66,9 +76,9 @@ impl StackOverlays {
     }
 
     /// java: private static void logParseError(NEUItem neuItem, String message)
-    pub fn log_parse_error(neu_item: &crate::unresolved::NEUItem, message: &str) {
-        // TODO(fabric2seer): `.getSkyblockItemId(..)` on a NEUItem
+    pub fn log_parse_error(neu_item: &NEUItem, message: &str) {
         //   java: LOGGER.error("[Skyblocker Stack Overlays] Failed to parse item \"{}\". Error: {}", neuItem.getSkyblockItemId(), message);
+        logger().error(&format!("[Skyblocker Stack Overlays] Failed to parse item \"{}\". Error: {}", neu_item.get_skyblock_item_id(), message));
     }
 
 }

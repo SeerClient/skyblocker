@@ -213,6 +213,12 @@ pub trait SearchableGridWidget: compat::DynAny {
         <dyn SearchableGridWidget>::mouse_scrolled_body
     }
 
+    /// java: protected double scrollRate() - `AbstractScrollArea`'s, which `WidgetsContainer.scrollRate()` asks of
+    /// the enclosing grid (`SearchableGridWidget.this.scrollRate()`) (dispatch: the body for this class)
+    fn scroll_rate(&self) -> fn(&compat::Shared<dyn SearchableGridWidget>) -> f64 {
+        <dyn SearchableGridWidget>::scroll_rate_body
+    }
+
     /// java: @Override protected int contentHeight() (dispatch: the body for this class)
     fn content_height(&self) -> fn(&compat::Shared<dyn SearchableGridWidget>) -> i32 {
         <dyn SearchableGridWidget>::content_height_body
@@ -405,18 +411,19 @@ impl dyn SearchableGridWidget {
     /// `extractWidgetRenderState`: its visible widgets (`isVisible`) and its scroll bar.
     pub fn extract_children(__this: &compat::Shared<dyn SearchableGridWidget>, context: &WidgetRenderContext<'_>, mouse_x: i32, mouse_y: i32) {
         <dyn SearchableGridWidget>::apply_pending_search(__this);
-        let (top, bottom, area, content_height, scroll_bar_x) = compat::read(__this, |__t| {
+        let (left, top, right, bottom, area, content_height, scroll_bar_x) = compat::read(__this, |__t| {
             let __c = __t.searchable_grid_widget_base().widgets_container.as_ref().unwrap();
-            (__c.get_y(), __c.get_bottom(), __c.area, __c.content_height(), __c.get_right() - __c.area.scrollbar_width())
+            (__c.get_x(), __c.get_y(), __c.get_right(), __c.get_bottom(), __c.area, __c.content_height(), __c.get_right() - __c.area.scrollbar_width())
         });
         // (the children are drawn out of the object: a child's draw reaches mod objects that may reach this one)
         let mut children = compat::write(__this, |__t| std::mem::take(&mut __t.searchable_grid_widget_base_mut().children));
         // java: for (AbstractWidget widget : filteredWidgets) if (isVisible(widget)) widget.extractRenderState(..);
-        // rust: port gap (GAPS_N #3) - the container's scissor is not applied to the game's widget pass: a widget
-        // partly outside the container is drawn whole
+        // (the container's `enableScissor(getX(), getY(), getRight(), getBottom())` is each child's `clip`, which the
+        // widget pass pushes around that child's draw)
         for __i in SEARCH_FIELD_INDEX + 1..children.children().len() {
             let __w = children.widget_mut(__i);
             __w.visible = __w.get_bottom() >= top && __w.get_y() < bottom;
+            __w.clip = Some((left, top, right, bottom));
         }
         context.extract_widgets(&mut children, mouse_x, mouse_y);
         compat::write(__this, |__t| __t.searchable_grid_widget_base_mut().children = children);
@@ -495,12 +502,13 @@ impl dyn SearchableGridWidget {
         // java: return getChildAt(mouseX, mouseY).filter(element -> element.mouseScrolled(mouseX, mouseY, horizontalAmount, verticalAmount)).isPresent();
         // - the search field (an `EditBox` does not scroll) or the widgets container (`AbstractScrollArea.mouseScrolled`)
         let _ = horizontal_amount;
+        // (`WidgetsContainer.scrollRate()` is `SearchableGridWidget.this.scrollRate()` - the subclass's override)
+        let __rate: f64 = { let __f = compat::dispatch(__this, |__t| __t.scroll_rate()); __f(__this) };
         let scrolled = compat::write(__this, |__t| {
             let __c = __t.searchable_grid_widget_base_mut().widgets_container.as_mut().unwrap();
             if !__c.visible || !__c.is_mouse_over(mouse_x, mouse_y) {
                 return false;
             }
-            let __rate = __c.scroll_rate();
             __c.set_scroll_amount(__c.area.scroll_amount() - vertical_amount * __rate);
             true
         });
@@ -508,6 +516,11 @@ impl dyn SearchableGridWidget {
             <dyn SearchableGridWidget>::recreate_grid(__this);
         }
         scrolled
+    }
+
+    /// `AbstractScrollArea.scrollRate()` of the grid itself: its `defaultSettings(8)` rate
+    pub fn scroll_rate_body(__this: &compat::Shared<dyn SearchableGridWidget>) -> f64 {
+        compat::read(__this, |__t| __t.searchable_grid_widget_base().widgets_container.as_ref().map_or(8.0, |__c| __c.scroll_rate()))
     }
 
     /// java: @Override protected int contentHeight()

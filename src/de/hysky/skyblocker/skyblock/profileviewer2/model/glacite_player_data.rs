@@ -160,3 +160,77 @@ impl FossilFields {
     }
 
 }
+
+impl GlacitePlayerData {
+    /// Gson's reflective binding of the class's own fields (`ReflectiveTypeAdapterFactory`): each member the
+    /// JSON has is read over the field it names (`@SerializedName`, else the field's name) with the field's declared
+    /// type; an absent member (or a `null` one, or one Gson would reject) leaves the constructor's value.
+    pub fn read_json_fields(&mut self, json: &serde_json::Value) {
+        #[allow(unused_imports)]
+        use crate::io::github::moulberry::repo::neu_repository::gson;
+        if let Some(__v) = gson::member(json, "fossil_dust") {
+            if let Some(__x) = gson::as_f64(__v) {
+                self.fossil_dust = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "mineshafts_entered") {
+            if let Some(__x) = gson::as_i32(__v) {
+                self.mineshafts_entered = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "corpses_looted") {
+            if let Some(__x) = Some(CorpsesLooted::from_json(__v)) {
+                self.corpses_looted = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "fossils_donated") {
+            if let Some(__x) = gson::list(__v, |__e0| gson::as_string(__e0)) {
+                self.fossils_donated = __x;
+            }
+        }
+    }
+
+    /// `GSON.fromJson(json, GlacitePlayerData.class)`: the no-argument constructor, then the fields.
+    pub fn from_json(json: &serde_json::Value) -> Self {
+        let mut __this = Self::new();
+        __this.read_json_fields(json);
+        __this
+    }
+}
+
+impl CorpsesLooted {
+    /// Gson's reflective binding of the class's own fields (`ReflectiveTypeAdapterFactory`): each member the
+    /// JSON has is read over the field it names (`@SerializedName`, else the field's name) with the field's declared
+    /// type; an absent member (or a `null` one, or one Gson would reject) leaves the constructor's value.
+    pub fn read_json_fields(&mut self, json: &serde_json::Value) {
+        #[allow(unused_imports)]
+        use crate::io::github::moulberry::repo::neu_repository::gson;
+        if let Some(__v) = gson::member(json, "lapis") {
+            if let Some(__x) = gson::as_i32(__v) {
+                self.lapis = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "umber") {
+            if let Some(__x) = gson::as_i32(__v) {
+                self.umber = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "tungsten") {
+            if let Some(__x) = gson::as_i32(__v) {
+                self.tungsten = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "vanguard") {
+            if let Some(__x) = gson::as_i32(__v) {
+                self.vanguard = __x;
+            }
+        }
+    }
+
+    /// `GSON.fromJson(json, CorpsesLooted.class)`: the no-argument constructor, then the fields.
+    pub fn from_json(json: &serde_json::Value) -> Self {
+        let mut __this = Self::new();
+        __this.read_json_fields(json);
+        __this
+    }
+}

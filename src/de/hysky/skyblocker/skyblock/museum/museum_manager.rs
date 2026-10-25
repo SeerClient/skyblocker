@@ -48,7 +48,7 @@ use mcrust::net::minecraft::core::component::data_component_map::DataComponentGe
 use mcrust::net::minecraft::network::chat::component::Component as _;
 
 /// java: private static final Font TEXT_RENDERER = CLIENT.font;
-pub static TEXT_RENDERER: compat::MainThread<Font> = compat::MainThread::new(|| compat::font());
+pub static TEXT_RENDERER: compat::LiveFont = compat::LiveFont;
 /// java: private static final Identifier BACKGROUND_TEXTURE = SkyblockerMod.id("background");
 pub static BACKGROUND_TEXTURE: compat::MainThread<Identifier> = compat::MainThread::new(|| crate::entry::skyblocker_mod::id("background"));
 /// java: public static final int BACKGROUND_WIDTH = 147;
@@ -278,9 +278,8 @@ impl MuseumManager {
             // java: Identifier tooltipStyle = hoveredDonationButton.getItem().get(DataComponents.TOOLTIP_STYLE); (nullable)
             let mut tooltip_style: Option<Identifier> = (DonationButton::get_item(hovered)).get(mcrust::net::minecraft::core::component::data_components::tooltip_style()).and_then(|o| mcrust::com::mojang::serialization::cast::<Identifier>(&o).cloned());
             // java: graphics.setComponentTooltipForNextFrame(TEXT_RENDERER, tooltip, x, y, tooltipStyle);
-            // rust: port gap (GAPS_batchE #1) - the frame's `DeferredTooltip` is not reachable from a mod widget's draw;
-            // the port's call is `gui_graphics_extractor::set_component_tooltip_for_next_frame_styled(&mut deferred, lines)`
-            let _ = (tooltip, tooltip_style, x, y);
+            let _ = (x, y);
+            compat::batch_s_set_tooltip_for_next_frame_styled(tooltip.into_iter().map(FormattedText::from).collect(), tooltip_style.take());
         }
     }
 
@@ -443,7 +442,7 @@ impl compat::ObjectWidget for MuseumManager {
             let active = search_field.active;
             compat::with_edit_box(search_field, |e| {
                 let mut memory = mcrust::net::minecraft::client::gui::components::edit_box::MemoryClipboard::default();
-                match mcrust::net::minecraft::client::minecraft::GlfwClipboard::published() {
+                match mcrust::net::minecraft::client::minecraft::SdlClipboard::published() {
                     Some(mut clipboard) => e.key_pressed(&font.splitter(), input.clone(), is_focused, active, &mut clipboard),
                     None => e.key_pressed(&font.splitter(), input.clone(), is_focused, active, &mut memory),
                 }

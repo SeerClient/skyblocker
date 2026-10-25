@@ -41,7 +41,9 @@ fn skyblocker_move_player_render_pos(ci: &mut CallbackInfo<'_>) {
         if crate::de::hysky::skyblocker::config::skyblocker_config_manager::SkyblockerConfigManager::get().ui_and_visuals.smooth_aote.predictive {
             pos = crate::de::hysky::skyblocker::skyblock::teleport::predictive_smooth_aote::PredictiveSmoothAOTE::get_interpolated_player_pos();
         } else {
-            pos = crate::de::hysky::skyblocker::skyblock::teleport::responsive_smooth_aote::ResponsiveSmoothAOTE::get_interpolated_player_pos(partial_ticks);
+            // (`client.player.getPosition(partialTicks)` read off the entity being extracted - it IS the player, and
+            // the game holds him here, so `with_player` cannot reach him)
+            pos = crate::de::hysky::skyblocker::skyblock::teleport::responsive_smooth_aote::ResponsiveSmoothAOTE::get_interpolated_player_pos_at(Entity::base(entity).get_position_partial(partial_ticks));
         }
         if let Some(pos) = pos {
             state.x = pos.x;
@@ -67,17 +69,41 @@ fn skyblocker_apply_custom_name(ci: &mut CallbackInfo<'_>) {
         } else {
             None
         };
-    let Some(original) = ci.take_return_value::<Option<std::rc::Rc<mcrust::net::minecraft::network::chat::formatted_text::FormattedText>>>() else { return; };
+    let Some(original) = ci.take_return_value::<Option<std::sync::Arc<mcrust::net::minecraft::network::chat::formatted_text::FormattedText>>>() else { return; };
     ci.set_return_value(match custom_name {
-        Some(custom_name) => Some(std::rc::Rc::new(mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(custom_name))),
+        Some(custom_name) => Some(std::sync::Arc::new(mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(custom_name))),
         None => original,
     });
     return;
 }
 
+/// PERF (port-only, same result): `skyblocker_mob_bounding_box`'s pre-filter (`InjectOptions::when`). Its first arm
+/// needs `shouldDrawMobBoundingBox`, which is false outside dungeons; its second needs `SlayerManager.shouldGlow(..,
+/// HITBOX)`, which is false unless `highlightMinis` or `highlightBosses` is HITBOX. Neither: the handler does nothing.
+fn mob_bounding_box_may_apply() -> bool {
+    use crate::de::hysky::skyblocker::config::configs::slayers_config::HighlightSlayerEntities;
+    if crate::de::hysky::skyblocker::utils::utils::Utils::is_in_dungeons() {
+        return true;
+    }
+    let slayers = &crate::de::hysky::skyblocker::config::skyblocker_config_manager::SkyblockerConfigManager::get().slayers;
+    slayers.highlight_minis == HighlightSlayerEntities::Hitbox || slayers.highlight_bosses == HighlightSlayerEntities::Hitbox
+}
+
+/// PERF (port-only, same result): `skyblocker_move_player_render_pos`'s pre-filter - it moves nothing in first person.
+fn move_player_render_pos_may_apply() -> bool {
+    !mcrust::net::minecraft::client::options::get_camera_type().is_first_person()
+}
+
+/// PERF (port-only, same result): `skyblocker_apply_custom_name`'s pre-filter (`InjectOptions::when`). With no
+/// `skyblocker$customName` ever written (`entity_mixin::ANY_SKYBLOCKER_CUSTOM_NAME`) every entity's is null, and the
+/// handler hands `original` back unchanged.
+fn custom_name_may_apply() -> bool {
+    crate::mixins::entity_mixin::ANY_SKYBLOCKER_CUSTOM_NAME.load(std::sync::atomic::Ordering::Relaxed)
+}
+
 /// Mixins apply before the game runs: the `preLaunch` entrypoint calls this.
 pub fn register() {
-    report(hook::register_injector("net.minecraft.client.renderer.entity.EntityRenderer#extractRenderState", InjectOptions::at(At::Tail).kind(InjectorKind::Inject).priority(1000), Arc::new(skyblocker_mob_bounding_box)));
-    report(hook::register_injector("net.minecraft.client.renderer.entity.EntityRenderer#extractRenderState", InjectOptions::at(At::Tail).kind(InjectorKind::Inject).priority(1000), Arc::new(skyblocker_move_player_render_pos)));
-    report(hook::register_injector("net.minecraft.client.renderer.entity.EntityRenderer#getNameTag", InjectOptions::at(At::Return).kind(InjectorKind::ModifyReturnValue).priority(1000), Arc::new(skyblocker_apply_custom_name)));
+    report(hook::register_injector("net.minecraft.client.renderer.entity.EntityRenderer#extractRenderState", InjectOptions::at(At::Tail).kind(InjectorKind::Inject).priority(1000).when(mob_bounding_box_may_apply), Arc::new(skyblocker_mob_bounding_box)));
+    report(hook::register_injector("net.minecraft.client.renderer.entity.EntityRenderer#extractRenderState", InjectOptions::at(At::Tail).kind(InjectorKind::Inject).priority(1000).when(move_player_render_pos_may_apply), Arc::new(skyblocker_move_player_render_pos)));
+    report(hook::register_injector("net.minecraft.client.renderer.entity.EntityRenderer#getNameTag", InjectOptions::at(At::Return).kind(InjectorKind::ModifyReturnValue).priority(1000).when(custom_name_may_apply), Arc::new(skyblocker_apply_custom_name)));
 }

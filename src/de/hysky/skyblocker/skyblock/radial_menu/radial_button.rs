@@ -111,8 +111,13 @@ impl RadialButton {
                 BackpackPreview::extract_preview(graphics, &compat::minecraft().gui.screen().unwrap(), self.linked_slot, mouse_x, mouse_y);
             } else {
                 //   java: graphics.setTooltipForNextFrame(CLIENT.font, icon, mouseX, mouseY);
-                // rust: port gap - the frame's `DeferredTooltip` is not reachable from a `ModWidget`'s draw (GAPS_batchE #1)
-                // rust: graphics.set_tooltip_for_next_frame(&compat::font(), &self.icon, mouse_x, mouse_y);
+                // (`setTooltipForNextFrame(Font, ItemStack, x, y)` is `Screen.getTooltipFromItem(minecraft, stack)` parked in
+                // the frame's deferred tooltip slot)
+                let __level = mcrust::mcrust::modding::game::level();
+                let __flag = mcrust::net::minecraft::client::gui::screens::inventory::abstract_container_screen::tooltip_flag_from_options();
+                let __lines = mcrust::mcrust::modding::game::with_player(|player| mcrust::net::minecraft::client::gui::screens::inventory::abstract_container_screen::get_tooltip_from_item(&self.icon, __level.as_deref(), Some(&*player as &dyn mcrust::net::minecraft::world::entity::player::player::Player), __flag))
+                    .unwrap_or_else(|| mcrust::net::minecraft::client::gui::screens::inventory::abstract_container_screen::get_tooltip_from_item(&self.icon, __level.as_deref(), None, __flag));
+                compat::batch_s_set_tooltip_for_next_frame(__lines);
             }
         }
     }

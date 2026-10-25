@@ -73,10 +73,14 @@ impl CorpseList {
             let mut r#type: CorpseType = CorpseLoot::corpse_type(&loot);
             let __entry = (SingleEntry::new(component::literal(&format!("{} Corpse", compat::capitalize_fully(r#type.name()))).with_style_format(r#type.fields().color)) as compat::Shared<dyn AbstractEntry>);
             compat::write(&__this, |__t| { let __l = &mut __t.base; (__l.add_entry(Box::new(compat::EntryAdapter::new(__entry))) as i32) });
-            // TODO(batchD): cross-package - `Formatters.DATE_FORMATTER` (utils/formatters.rs) is a `todo!` initialiser, so the
-            // timestamp row cannot be built until its owner ports it.
-            // TODO(fabric2seer): static call LocalDateTime.ofInstant(..)
-            //   java: addEntry(new RewardList.SingleEntry(Component.literal(Formatters.DATE_FORMATTER.format(LocalDateTime.ofInstant(loot.timestamp(), ZoneId.systemDefault()))).withStyle(ChatFormatting.LIGHT_PURPLE)));
+            // java: addEntry(new RewardList.SingleEntry(Component.literal(Formatters.DATE_FORMATTER.format(LocalDateTime.ofInstant(loot.timestamp(), ZoneId.systemDefault()))).withStyle(ChatFormatting.LIGHT_PURPLE)));
+            // (a `LocalDateTime` carries no instant, so the formatter's own zone does not apply: the system zone's wall time)
+            {
+                let __millis: i64 = match CorpseLoot::timestamp(&loot).duration_since(std::time::UNIX_EPOCH) { Ok(d) => d.as_millis() as i64, Err(e) => -(e.duration().as_millis() as i64) };
+                let __date = mcrust::java::time::zoned_date_time::ZonedDateTime::of_instant(mcrust::java::time::instant::Instant::of_epoch_milli(__millis), mcrust::java::time::zone_id::ZoneId::system_default());
+                let __entry = (SingleEntry::new(component::literal(&crate::de::hysky::skyblocker::utils::formatters::DATE_FORMATTER.get_mut().format(__date)).with_style_format(ChatFormatting::LightPurple)) as compat::Shared<dyn AbstractEntry>);
+                compat::write(&__this, |__t| { let __l = &mut __t.base; (__l.add_entry(Box::new(compat::EntryAdapter::new(__entry))) as i32) });
+            }
             let mut entries: Vec<compat::Shared<Reward>> = CorpseLoot::rewards(&loot);
             for reward in entries.iter() {
                 let mut item_name: MutableComponent = CorpseList::get_item_name(&Reward::item_id(reward));
@@ -333,44 +337,29 @@ impl MultiEntry {
         if compat::read(__this, |__t| __t.item_name.is_some()) {
             let __wa1 = entry_y;
             compat::write(__this, |__t| { let __s = &mut *__t; let __r = __s.item_name.as_mut().unwrap(); __s.base.__widgets.with(&mut __s.base.__row, __r, |__w| __w.set_y(__wa1)) });
-            // TODO(fabric2seer): field `SCROLLING` of a value of unknown type
-            //   java: itemName.setMaxWidth(entryWidth / 3 - 2 * INNER_MARGIN, StringWidget.TextOverflow.SCROLLING);
-            // TODO(fabric2seer): `extract_render_state` is a method of the port's trait `Renderable`, which the port's `AbstractWidget` does not implement
-            // rust: let __wa3 = graphics.clone();
-            // rust: let __wa4 = mouse_x;
-            // rust: let __wa5 = mouse_y;
-            // rust: let __wa6 = a;
-            // rust: compat::write(__this, |__t| { let __s = &mut *__t; let __r = __s.item_name.as_mut().unwrap(); __s.base.__widgets.with(&mut __s.base.__row, __r, |__w| __w.extract_render_state(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), __wa4, __wa5, __wa6)) });
+            // java: itemName.setMaxWidth(entryWidth / 3 - 2 * INNER_MARGIN, StringWidget.TextOverflow.SCROLLING);
+            let __max_width = (entry_width.wrapping_div(3)).wrapping_sub(2i32.wrapping_mul(INNER_MARGIN));
+            compat::write(__this, |__t| { let __s = &mut *__t; let __r = __s.item_name.as_mut().unwrap(); __s.base.__widgets.with(&mut __s.base.__row, __r, |__w| __w.set_max_width(__max_width, mcrust::net::minecraft::client::gui::components::string_widget::TextOverflow::Scrolling)) });
+            // java: itemName.extractRenderState(graphics, mouseX, mouseY, a); - the row's widgets are drawn by the game's widget
+            // pass right after this body (`context.extract_widgets`), at the position set above
         }
         if compat::read(__this, |__t| __t.amount.is_some()) {
             let __wa7 = entry_y;
             compat::write(__this, |__t| { let __s = &mut *__t; let __r = __s.amount.as_mut().unwrap(); __s.base.__widgets.with(&mut __s.base.__row, __r, |__w| __w.set_y(__wa7)) });
-            // TODO(fabric2seer): `extract_render_state` is a method of the port's trait `Renderable`, which the port's `AbstractWidget` does not implement
-            // rust: let __wa8 = graphics.clone();
-            // rust: let __wa9 = mouse_x;
-            // rust: let __wa10 = mouse_y;
-            // rust: let __wa11 = a;
-            // rust: compat::write(__this, |__t| { let __s = &mut *__t; let __r = __s.amount.as_mut().unwrap(); __s.base.__widgets.with(&mut __s.base.__row, __r, |__w| __w.extract_render_state(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), __wa9, __wa10, __wa11)) });
+            // java: amount.extractRenderState(graphics, mouseX, mouseY, a); - the row's widgets are drawn by the game's widget
+            // pass right after this body (`context.extract_widgets`), at the position set above
         }
         if compat::read(__this, |__t| __t.total_price.is_some()) {
             let __wa12 = entry_y;
             compat::write(__this, |__t| { let __s = &mut *__t; let __r = __s.total_price.as_mut().unwrap(); __s.base.__widgets.with(&mut __s.base.__row, __r, |__w| __w.set_y(__wa12)) });
-            // TODO(fabric2seer): `extract_render_state` is a method of the port's trait `Renderable`, which the port's `AbstractWidget` does not implement
-            // rust: let __wa13 = graphics.clone();
-            // rust: let __wa14 = mouse_x;
-            // rust: let __wa15 = mouse_y;
-            // rust: let __wa16 = a;
-            // rust: compat::write(__this, |__t| { let __s = &mut *__t; let __r = __s.total_price.as_mut().unwrap(); __s.base.__widgets.with(&mut __s.base.__row, __r, |__w| __w.extract_render_state(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), __wa14, __wa15, __wa16)) });
+            // java: totalPrice.extractRenderState(graphics, mouseX, mouseY, a); - the row's widgets are drawn by the game's widget
+            // pass right after this body (`context.extract_widgets`), at the position set above
         }
         if compat::read(__this, |__t| __t.price_per_unit.is_some()) {
             let __wa17 = entry_y;
             compat::write(__this, |__t| { let __s = &mut *__t; let __r = __s.price_per_unit.as_mut().unwrap(); __s.base.__widgets.with(&mut __s.base.__row, __r, |__w| __w.set_y(__wa17)) });
-            // TODO(fabric2seer): `extract_render_state` is a method of the port's trait `Renderable`, which the port's `AbstractWidget` does not implement
-            // rust: let __wa18 = graphics.clone();
-            // rust: let __wa19 = mouse_x;
-            // rust: let __wa20 = mouse_y;
-            // rust: let __wa21 = a;
-            // rust: compat::write(__this, |__t| { let __s = &mut *__t; let __r = __s.price_per_unit.as_mut().unwrap(); __s.base.__widgets.with(&mut __s.base.__row, __r, |__w| __w.extract_render_state(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), __wa19, __wa20, __wa21)) });
+            // java: pricePerUnit.extractRenderState(graphics, mouseX, mouseY, a); - the row's widgets are drawn by the game's widget
+            // pass right after this body (`context.extract_widgets`), at the position set above
         }
     }
 

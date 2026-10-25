@@ -79,9 +79,8 @@ impl EmblemConstants {
 
     /// java: public List<Emblem> all()
     pub fn all(&self) -> Vec<Emblem> {
-        // TODO(fabric2seer): static `List.stream` has no Rust counterpart in the port
-        // rust: return vec![self.skills(), self.catacombs(), self.levelling(), self.slayer(), self.achievement(), self.superstar(), self.special()].into_iter().flat_map(|__a0| List::stream(__a0.clone()).iter().cloned()).collect::<Vec<_>>();
-        return todo!("fabric2seer: see the TODO above");
+        // java: return List.of(this.skills(), this.catacombs(), this.levelling(), this.slayer(), this.achievement(), this.superstar(), this.special()).stream().flatMap(List::stream).toList();
+        return vec![self.skills(), self.catacombs(), self.levelling(), self.slayer(), self.achievement(), self.superstar(), self.special()].into_iter().flatten().collect::<Vec<_>>();
     }
 
     /// java: public Optional<Emblem> fromId(String id)

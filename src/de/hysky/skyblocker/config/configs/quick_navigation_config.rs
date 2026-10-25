@@ -365,8 +365,23 @@ impl ItemData {
     /// present set; unknown keys are ignored
     pub fn __gson_read(__v: &serde_json::Value) -> Option<ItemData> {
         let __o = __v.as_object()?;
-        // TODO(fabric2seer): no no-argument constructor - Gson builds the object with every field at zero/null (Unsafe)
-        None
+        // no no-argument constructor: Gson builds the object through `Unsafe.allocateInstance` - every field at its
+        // zero/null value, the field initialisers (`count = 1`) NOT run - then sets every key present
+        let mut __this = ItemData { item: None, count: 0, components: String::new() };
+        if let Some(__v) = __o.get("item") {
+            // the config Gson's `Item` adapter: the registry id (`BuiltInRegistries.ITEM`), `null` for JSON null
+            __this.item = dandelion::compat::gson_string(__v).and_then(|__id| {
+                let __path: &str = __id.strip_prefix("minecraft:").unwrap_or(&__id);
+                mcrust::net::minecraft::world::item::items::items().get_optional(__path)
+            });
+        }
+        if let Some(__v) = __o.get("count") {
+            if let Some(__x) = dandelion::compat::gson_i64(__v).map(|__n| __n as i32) { __this.count = __x; }
+        }
+        if let Some(__v) = __o.get("components") {
+            if let Some(__x) = dandelion::compat::gson_string(__v) { __this.components = __x; }
+        }
+        Some(__this)
     }
 
     /// Dandelion's ConfigPatcher: the field at a dotted path (`getDeclaredField` per segment) set to a

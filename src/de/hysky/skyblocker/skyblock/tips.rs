@@ -156,13 +156,7 @@ impl Tips {
     pub fn init() {
         client_command_registration_callback::EVENT.register(Arc::new(
             |dispatcher: &mut client_command_registration_callback::ClientCommandDispatcher| {
-                // TODO(fabric2seer): a command tree this tool cannot read (arguments, redirects, requires) - SeerClient commands receive the words after the name in `ctx.args`
-                //   java: dispatcher.register(literal(SkyblockerMod.NAMESPACE).then(literal("tips")
-                //   java: 				.then(literal("enable").executes(Tips::enableTips))
-                //   java: 				.then(literal("disable").executes(Tips::disableTips))
-                //   java: 				.then(literal("previous").executes(Tips::sendPreviousTipCommand))
-                //   java: 				.then(literal("next").executes(Tips::sendNextTipCommand))
-                //   java: 		));
+                Tips::register_tips_command(dispatcher);
             },
         ));
         skyblock_events::JOIN.register(Arc::new(move || { Tips::send_next_tip(); }));
@@ -170,29 +164,45 @@ impl Tips {
     }
 
     /// java: private static void registerTipsCommand(CommandDispatcher<FabricClientCommandSource> dispatcher, CommandBuildContext registryAccess)
-    pub fn register_tips_command(dispatcher: &CommandDispatcher<crate::unresolved::FabricClientCommandSource>, registry_access: &CommandBuildContext) {
-        // TODO(fabric2seer): a command builder outside dispatcher.register(..)
-        //   java: dispatcher.register(literal(SkyblockerMod.NAMESPACE).then(literal("tips")
-        //   java: 				.then(literal("enable").executes(Tips::enableTips))
-        //   java: 				.then(literal("disable").executes(Tips::disableTips))
-        //   java: 				.then(literal("previous").executes(Tips::sendPreviousTipCommand))
-        //   java: 				.then(literal("next").executes(Tips::sendNextTipCommand))
-        //   java: 		));
+    /// (`registryAccess` is not read)
+    pub fn register_tips_command(dispatcher: &mut client_command_registration_callback::ClientCommandDispatcher) {
+        use mcrust::com::mojang::brigadier::builder::argument_builder::ArgumentBuilder as _;
+        // java: dispatcher.register(literal(SkyblockerMod.NAMESPACE).then(literal("tips")
+        //     .then(literal("enable").executes(Tips::enableTips)).then(literal("disable").executes(Tips::disableTips))
+        //     .then(literal("previous").executes(Tips::sendPreviousTipCommand)).then(literal("next").executes(Tips::sendNextTipCommand))));
+        let mut enable = client_command_registration_callback::literal("enable");
+        enable.executes(Arc::new(|context: &CommandContext<mcrust::mcrust::modding::events::client_command_registration_callback::FabricClientCommandSource>| Ok(Tips::enable_tips(context))));
+        let mut disable = client_command_registration_callback::literal("disable");
+        disable.executes(Arc::new(|context: &CommandContext<mcrust::mcrust::modding::events::client_command_registration_callback::FabricClientCommandSource>| Ok(Tips::disable_tips(context))));
+        let mut previous = client_command_registration_callback::literal("previous");
+        previous.executes(Arc::new(|context: &CommandContext<mcrust::mcrust::modding::events::client_command_registration_callback::FabricClientCommandSource>| Ok(Tips::send_previous_tip_command(context))));
+        let mut next = client_command_registration_callback::literal("next");
+        next.executes(Arc::new(|context: &CommandContext<mcrust::mcrust::modding::events::client_command_registration_callback::FabricClientCommandSource>| Ok(Tips::send_next_tip_command(context))));
+        let mut tips = client_command_registration_callback::literal("tips");
+        tips.then(&enable);
+        tips.then(&disable);
+        tips.then(&previous);
+        tips.then(&next);
+        let mut namespace = client_command_registration_callback::literal(skyblocker_mod::NAMESPACE);
+        namespace.then(&tips);
+        dispatcher.dispatcher().register(&namespace);
     }
 
     /// java: private static int enableTips(CommandContext<FabricClientCommandSource> context)
-    pub fn enable_tips(context: &CommandContext<crate::unresolved::FabricClientCommandSource>) -> i32 {
+    pub fn enable_tips(context: &CommandContext<mcrust::mcrust::modding::events::client_command_registration_callback::FabricClientCommandSource>) -> i32 {
         SkyblockerConfigManager::update(Arc::new(move |mut config| { config.general.enable_tips = true; }));
-        // TODO(fabric2seer): `.sendFeedback(..)` on a FabricClientCommandSource
-        //   java: context.getSource().sendFeedback(Constants.PREFIX.get().append(Component.translatable("skyblocker.tips.enabled").withColor(TextColor.GREEN)).append(" ").append(DISABLE_TEXT));
+        // java: context.getSource().sendFeedback(Constants.PREFIX.get().append(Component.translatable("skyblocker.tips.enabled").withColor(TextColor.GREEN)).append(" ").append(DISABLE_TEXT));
+        let _ = context;
+        compat::batch_w_send_feedback(&(constants::PREFIX.get_mut())().append(component::translatable("skyblocker.tips.enabled").with_color_text(mcrust::net::minecraft::network::chat::text_color::TextColor::GREEN)).append_str(" ").append(DISABLE_TEXT.get().clone()));
         return 1;
     }
 
     /// java: private static int disableTips(CommandContext<FabricClientCommandSource> context)
-    pub fn disable_tips(context: &CommandContext<crate::unresolved::FabricClientCommandSource>) -> i32 {
+    pub fn disable_tips(context: &CommandContext<mcrust::mcrust::modding::events::client_command_registration_callback::FabricClientCommandSource>) -> i32 {
         SkyblockerConfigManager::update(Arc::new(move |mut config| { config.general.enable_tips = false; }));
-        // TODO(fabric2seer): `.sendFeedback(..)` on a FabricClientCommandSource
-        //   java: context.getSource().sendFeedback(Constants.PREFIX.get().append(Component.translatable("skyblocker.tips.disabled").withColor(TextColor.RED)).append(" ").append(ENABLE_TEXT));
+        // java: context.getSource().sendFeedback(Constants.PREFIX.get().append(Component.translatable("skyblocker.tips.disabled").withColor(TextColor.RED)).append(" ").append(ENABLE_TEXT));
+        let _ = context;
+        compat::batch_w_send_feedback(&(constants::PREFIX.get_mut())().append(component::translatable("skyblocker.tips.disabled").with_color_text(mcrust::net::minecraft::network::chat::text_color::TextColor::RED)).append_str(" ").append(ENABLE_TEXT.get().clone()));
         return 1;
     }
 
@@ -200,15 +210,17 @@ impl Tips {
     pub fn send_next_tip() {
         let client = compat::minecraft();
         if mcrust::mcrust::modding::game::with_player(|_| ()).is_some() && SkyblockerConfigManager::get().general.enable_tips && !(compat::get_state(&SENT_TIP)) {
-            mcrust::mcrust::modding::game::with_player(|player| { script_host::send_feedback(&Tips::tip_message(&Tips::next_tip()).to_string()); });
+            // java: client.player.sendSystemMessage(tipMessage(nextTip()));
+            compat::batch_w_send_feedback(&Tips::tip_message(&Tips::next_tip()));
             compat::set_state(&SENT_TIP, true);
         }
     }
 
     /// java: private static int sendNextTipCommand(CommandContext<FabricClientCommandSource> context)
-    pub fn send_next_tip_command(context: &CommandContext<crate::unresolved::FabricClientCommandSource>) -> i32 {
-        // TODO(fabric2seer): `.sendFeedback(..)` on a FabricClientCommandSource
-        //   java: context.getSource().sendFeedback(tipMessage(nextTip()));
+    pub fn send_next_tip_command(context: &CommandContext<mcrust::mcrust::modding::events::client_command_registration_callback::FabricClientCommandSource>) -> i32 {
+        // java: context.getSource().sendFeedback(tipMessage(nextTip()));
+        let _ = context;
+        compat::batch_w_send_feedback(&Tips::tip_message(&Tips::next_tip()));
         return 1;
     }
 
@@ -225,9 +237,10 @@ impl Tips {
     }
 
     /// java: private static int sendPreviousTipCommand(CommandContext<FabricClientCommandSource> context)
-    pub fn send_previous_tip_command(context: &CommandContext<crate::unresolved::FabricClientCommandSource>) -> i32 {
-        // TODO(fabric2seer): `.sendFeedback(..)` on a FabricClientCommandSource
-        //   java: context.getSource().sendFeedback(tipMessage(previousTip()));
+    pub fn send_previous_tip_command(context: &CommandContext<mcrust::mcrust::modding::events::client_command_registration_callback::FabricClientCommandSource>) -> i32 {
+        // java: context.getSource().sendFeedback(tipMessage(previousTip()));
+        let _ = context;
+        compat::batch_w_send_feedback(&Tips::tip_message(&Tips::previous_tip()));
         return 1;
     }
 

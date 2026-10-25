@@ -54,6 +54,18 @@ pub static KUUDRA_TEETH_PATTERN: LazyLock<compat::regex::Pattern> = LazyLock::ne
 pub static HEAVY_PEARL_PATTERN: LazyLock<compat::regex::Pattern> = LazyLock::new(|| compat::regex::Pattern::compile("Heavy Pearl(?: x(?<amount>\\d+))?"));
 /// java: private static final Pattern MINION_PATTERN = Pattern.compile("Minion (I|II|III|IV|V|VI|VII|VIII|IX|X|XI|XII)$");
 pub static MINION_PATTERN: LazyLock<compat::regex::Pattern> = LazyLock::new(|| compat::regex::Pattern::compile("Minion (I|II|III|IV|V|VI|VII|VIII|IX|X|XI|XII)$"));
+/// The `ChestValueTextWidget`s each container screen holds (`Screens.getWidgets(screen)`'s
+/// `ChestValueTextWidget.class::isInstance`), by the screen's identity and the widgets' indices in it.
+static CHEST_VALUE_TEXT_WIDGETS: compat::MainThread<std::collections::HashMap<u64, Vec<usize>>> = compat::MainThread::new(std::collections::HashMap::new);
+
+/// `AbstractContainerScreenAccessor.getX()` / `getY()` / `getImageWidth()` of the container screen.
+#[derive(Clone, Copy, Debug)]
+pub struct ContainerPosition {
+    pub x: i32,
+    pub y: i32,
+    pub image_width: i32,
+}
+
 /// java: public static boolean hideChestNameLabel = false;
 pub static HIDE_CHEST_NAME_LABEL: LazyLock<Mutex<bool>> = LazyLock::new(|| Mutex::new(false));
 
@@ -70,46 +82,63 @@ impl ChestValue {
     }
 
     /// java: @Init public static void init()
+    ///
+    /// Java's `ScreenEvents.AFTER_INIT` listener tests `screen instanceof ContainerScreen genericContainerScreen` and
+    /// reads its menu and its `AbstractContainerScreenAccessor` position. The listener is handed only the `Screen`, so
+    /// the container half runs at the RETURN of `AbstractContainerScreen#init` (inside the same `Screen#init`, before
+    /// `AFTER_INIT`), where the container screen's position is in hand; the menu is the player's open `ChestMenu`.
     pub fn init() {
-        screen_events::AFTER_INIT.register(Arc::new(|screen: &mut Screen, width: i32, height: i32| {
+        screen_events::AFTER_INIT.register(Arc::new(|_screen: &mut Screen, _width: i32, _height: i32| {
             compat::set_state(&HIDE_CHEST_NAME_LABEL, false);
-            // `screen instanceof ContainerScreen genericContainerScreen`: the screen's kind (the vanilla `ContainerScreen`
-            // object itself is not lent to the listener - its menu and accessor reads below stay with the TODOs)
-            if Utils::is_on_skyblock() && matches!(compat::minecraft().gui.screen_kind, mcrust::net::minecraft::client::gui::gui::ScreenKind::Container) && !(crate::entry::catharsis_compatibility::is_gui_element_hidden("skyblocker:chestValueButton")) {
-                let mut title: MutableComponent = compat::component_of(mcrust::net::minecraft::network::chat::formatted_text::FormattedText::of(screen.get_title().to_string()));
-                let mut title_string: String = title.get_string();
-                let mut chest_type: Option<RewardChestType> = (if DUNGEON_CHESTS.contains(&title_string) { Some(RewardChestType::Dungeon) } else { (if KUUDRA_CHESTS.contains(&title_string) { Some(RewardChestType::Kuudra) } else { None }) });
-                if let Some(chest_type) = &chest_type {
-                    if SkyblockerConfigManager::get().dungeons.dungeon_chest_profit.enable_profit_calculator {
-                        // TODO(fabric2seer): ScreenEvents.afterTick(..).register: no SeerClient equivalent yet
-                        //   java: ScreenEvents.afterTick(screen).register(_ -> {
-                        //   java: 							Component dungeonChestProfit = getRewardChestProfit(genericContainerScreen.getMenu(), chestType);
-                        //   java: 							if (dungeonChestProfit != null)
-                        //   java: 								addValueToContainer(client, genericContainerScreen, dungeonChestProfit, title);
-                        //   java: 						});
-                    }
-                } else {
-                    if SkyblockerConfigManager::get().ui_and_visuals.chest_value.enable_chest_value && !(title_string == "SkyBlock Menu") {
-                        let mut screen_type: ScreenType = ChestValue::determine_screen_type(&title_string);
-                        // TODO(fabric2seer): Fabric API `Screens.getWidgets` has no SeerClient equivalent
-                        //   java: Screens.getWidgets(screen).add(Button
-                        //   java: 							.builder(Component.literal("$"), buttonWidget -> {
-                        //   java: 								Screens.getWidgets(screen).remove(buttonWidget);
-                        //   java: 								ScreenEvents.afterTick(screen).register(_ -> {
-                        //   java: 									Component chestValue = getChestValue(genericContainerScreen.getMenu(), screenType);
-                        //   java: 									if (chestValue != null) {
-                        //   java: 										addValueToContainer(client, genericContainerScreen, chestValue, title);
-                        //   java: 									}
-                        //   java: 								});
-                        //   java: 							})
-                        //   java: 							.bounds(((AbstractContainerScreenAccessor) genericContainerScreen).getX() + ((AbstractContainerScreenAccessor) genericContainerScreen).getImageWidth() - 16, ((AbstractContainerScreenAccessor) genericContainerScreen).getY() + 4, 12, 12)
-                        //   java: 							.tooltip(Tooltip.create(getButtonTooltipText(screenType)))
-                        //   java: 							.build()
-                        //   java: 					);
-                    }
-                }
-            }
         }));
+        let result = mcrust::mcrust::modding::hook::inject("net.minecraft.client.gui.screens.inventory.AbstractContainerScreen#init", mcrust::mcrust::modding::hook::At::Return, |ci: &mut mcrust::mcrust::modding::hook::CallbackInfo<'_>| {
+            let Some(screen) = ci.this_mut::<mcrust::net::minecraft::client::gui::screens::inventory::abstract_container_screen::AbstractContainerScreen>() else { return };
+            if !(Utils::is_on_skyblock() && matches!(compat::minecraft().gui.screen_kind, mcrust::net::minecraft::client::gui::gui::ScreenKind::Container) && !(crate::entry::catharsis_compatibility::is_gui_element_hidden("skyblocker:chestValueButton"))) {
+                return;
+            }
+            let position: ContainerPosition = ContainerPosition { x: screen.left_pos, y: screen.top_pos, image_width: screen.image_width };
+            let title: MutableComponent = compat::component_of(mcrust::net::minecraft::network::chat::formatted_text::FormattedText::of(screen.screen.get_title().to_string()));
+            let title_string: String = title.get_string();
+            let chest_type: Option<RewardChestType> = if DUNGEON_CHESTS.contains(&title_string) { Some(RewardChestType::Dungeon) } else if KUUDRA_CHESTS.contains(&title_string) { Some(RewardChestType::Kuudra) } else { None };
+            if let Some(chest_type) = chest_type {
+                if SkyblockerConfigManager::get().dungeons.dungeon_chest_profit.enable_profit_calculator {
+                    // java: ScreenEvents.afterTick(screen).register(_ -> { Component dungeonChestProfit = getRewardChestProfit(genericContainerScreen.getMenu(), chestType);
+                    //       if (dungeonChestProfit != null) addValueToContainer(client, genericContainerScreen, dungeonChestProfit, title); });
+                    let title: MutableComponent = title.clone();
+                    screen_events::after_tick(&screen.screen, Arc::new(move |screen: &mut Screen| {
+                        let dungeon_chest_profit: Option<MutableComponent> = mcrust::mcrust::modding::game::with_chest_menu(|menu| ChestValue::get_reward_chest_profit(menu, chest_type)).flatten();
+                        if let Some(dungeon_chest_profit) = dungeon_chest_profit {
+                            ChestValue::add_value_to_container(screen, position, &dungeon_chest_profit, &title);
+                        }
+                    }));
+                }
+            } else if SkyblockerConfigManager::get().ui_and_visuals.chest_value.enable_chest_value && !(title_string == "SkyBlock Menu") {
+                let screen_type: ScreenType = ChestValue::determine_screen_type(&title_string);
+                // java: Screens.getWidgets(screen).add(Button.builder(Component.literal("$"), buttonWidget -> {
+                //           Screens.getWidgets(screen).remove(buttonWidget);
+                //           ScreenEvents.afterTick(screen).register(_ -> { Component chestValue = getChestValue(genericContainerScreen.getMenu(), screenType);
+                //               if (chestValue != null) addValueToContainer(client, genericContainerScreen, chestValue, title); }); })
+                //       .bounds(accessor.getX() + accessor.getImageWidth() - 16, accessor.getY() + 4, 12, 12)
+                //       .tooltip(Tooltip.create(getButtonTooltipText(screenType))).build());
+                use mcrust::net::minecraft::client::gui::components::abstract_widget::{OnPress, PressLambda, WidgetKind};
+                let press_title: MutableComponent = title.clone();
+                let mut button = AbstractWidget::new(position.x.wrapping_add(position.image_width).wrapping_sub(16), position.y.wrapping_add(4), 12, 12, "$".to_string(), WidgetKind::Button, OnPress::Lambda(PressLambda::new(move |screen, button_index| {
+                    screen.remove_widget(button_index);
+                    let title: MutableComponent = press_title.clone();
+                    screen_events::after_tick(screen, Arc::new(move |screen: &mut Screen| {
+                        let chest_value: Option<MutableComponent> = mcrust::mcrust::modding::game::with_chest_menu(|menu| ChestValue::get_chest_value(menu, screen_type)).flatten();
+                        if let Some(chest_value) = chest_value {
+                            ChestValue::add_value_to_container(screen, position, &chest_value, &title);
+                        }
+                    }));
+                })));
+                button.set_tooltip(mcrust::net::minecraft::client::gui::components::tooltip::Tooltip::create(ChestValue::get_button_tooltip_text(screen_type).get_string()));
+                screen.screen.add_renderable_widget(button);
+            }
+        });
+        if let Err(e) = result {
+            logger().error(&format!("[Skyblocker Value Calculator] Failed to hook the container screen init: {:?}", e));
+        }
     }
 
     /// java: private static @Nullable Component getRewardChestProfit(ChestMenu handler, RewardChestType chestType)
@@ -281,8 +310,9 @@ impl ChestValue {
 
     /// java: private static @Nullable Component getChestValue(ChestMenu handler, ScreenType screenType)
     pub fn get_chest_value(handler: &ChestMenu, mut screen_type: ScreenType) -> Option<MutableComponent> {
-        // java: try {..} catch (Exception e) - the body runs inline: a Rust body does not throw checked exceptions (a panic in it propagates)
-        {
+        // java: try {..} catch (Exception e) { LOGGER.error("[Skyblocker Value Calculator] Failed to calculate dungeon chest value! ", e); } return null;
+        // (an exception here is a panic, caught by `catch_unwind`; the body's `return` is the closure's value)
+        match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| -> Option<MutableComponent> {
             let mut value: f64 = ((0) as f64) as f64;
             let mut has_incomplete_data: bool = false;
             let mut slots: Vec<Slot> = match screen_type {
@@ -339,16 +369,17 @@ impl ChestValue {
                     if price_data.is_none() {
                         has_incomplete_data = true;
                     }
-                    // TODO(fabric2seer): `.price(..)` on a NetworthResult
-                    //   java: value += screenType == ScreenType.HUNTING_BOX ? priceData.orElse(0) * count : NetworthCalculator.getItemNetworth(stack, count).price();
+                    // java: value += screenType == ScreenType.HUNTING_BOX ? priceData.orElse(0) * count : NetworthCalculator.getItemNetworth(stack, count).price();
+                    value += if screen_type == ScreenType::HuntingBox { price_data.unwrap_or(0.0) * (count as f64) } else { NetworthCalculator::get_item_networth_2(&stack, count).price() };
                 }
             }
             return Some(ChestValue::get_value_text(((value) as i64), has_incomplete_data));
+        })) {
+            Ok(value) => return value,
+            Err(e) => {
+                logger().error(&format!("[Skyblocker Value Calculator] Failed to calculate dungeon chest value! {}", compat::panic_message(&e)));
+            }
         }
-        // TODO(fabric2seer): the `catch (Exception e)` block is not reached in Rust - the try body returns, breaks or continues, so it cannot run inside `catch_unwind`
-        //   java: {
-        //   java: 			LOGGER.error("[Skyblocker Value Calculator] Failed to calculate dungeon chest value! ", e);
-        //   java: 		}
         return None;
     }
 
@@ -388,25 +419,35 @@ impl ChestValue {
     }
 
     /// java: private static void addValueToContainer(Minecraft client, ContainerScreen genericContainerScreen, Component chestValue, Component title)
-    pub fn add_value_to_container(client: &mut mcrust::net::minecraft::client::minecraft::Minecraft, generic_container_screen: &ContainerScreen, chest_value: &MutableComponent, title: &MutableComponent) {
+    ///
+    /// `genericContainerScreen` is the container screen's `Screen` (`Screens.getWidgets`) and its position, read when
+    /// the listener was registered (`init` re-runs, and drops the listener, whenever the position changes).
+    pub fn add_value_to_container(screen: &mut Screen, generic_container_screen: ContainerPosition, chest_value: &MutableComponent, title: &MutableComponent) {
         compat::set_state(&HIDE_CHEST_NAME_LABEL, true);
-        // TODO(fabric2seer): Fabric API `Screens.getWidgets` has no SeerClient equivalent
-        //   java: Screens.getWidgets(genericContainerScreen).removeIf(ChestValueTextWidget.class::isInstance);
-        let mut inner_width: i32 = generic_container_screen.container.image_width.wrapping_sub(8);
-        let mut x: i32 = generic_container_screen.container.left_pos;
-        let mut y: i32 = generic_container_screen.container.top_pos;
+        // java: Screens.getWidgets(genericContainerScreen).removeIf(ChestValueTextWidget.class::isInstance);
+        if let Some(indices) = CHEST_VALUE_TEXT_WIDGETS.get_mut().remove(&screen.mod_event_id()) {
+            for index in indices {
+                if index < screen.children().len() {
+                    screen.remove_widget(index);
+                }
+            }
+        }
+        let mut inner_width: i32 = generic_container_screen.image_width.wrapping_sub(8);
+        let mut x: i32 = generic_container_screen.x;
+        let mut y: i32 = generic_container_screen.y;
         let mut max_chest_value_width: i32 = ((inner_width.wrapping_div(2)).wrapping_sub(2)).max(inner_width.wrapping_sub(compat::font().width_of_cached(&mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(title.clone()))));
         let mut chest_value_width: i32 = (compat::font().width_of_cached(&mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(chest_value.clone()))).min(max_chest_value_width);
         let mut chest_value_widget: ChestValueTextWidget = ChestValueTextWidget::new(chest_value_width, mcrust::net::minecraft::client::gui::font::LINE_HEIGHT, chest_value.clone(), compat::font());
         //   java: chestValueWidget.setPosition(x + innerWidth - chestValueWidget.getWidth() + 4, y + 6);
         let chest_value_widget_width: i32 = chest_value_widget.get_width();
         chest_value_widget.set_position(((x.wrapping_add(inner_width)).wrapping_sub(chest_value_widget_width)).wrapping_add(4), y.wrapping_add(6));
-        // TODO(fabric2seer): Fabric API `Screens.getWidgets` has no SeerClient equivalent
-        //   java: Screens.getWidgets(genericContainerScreen).add(chestValueWidget);
+        // java: Screens.getWidgets(genericContainerScreen).add(chestValueWidget);
+        let value_index: usize = screen.add_renderable_widget(chest_value_widget.base.clone());
         let mut chest_title_widget: ChestValueTextWidget = ChestValueTextWidget::new((inner_width.wrapping_sub(chest_value_width)).wrapping_sub(2), mcrust::net::minecraft::client::gui::font::LINE_HEIGHT, title.copy().with_style(&mcrust::net::minecraft::network::chat::style::Style::EMPTY.with_color(0x404040)), compat::font());
         chest_title_widget.set_position(x.wrapping_add(8), y.wrapping_add(6));
-        // TODO(fabric2seer): Fabric API `Screens.getWidgets` has no SeerClient equivalent
-        //   java: Screens.getWidgets(genericContainerScreen).add(chestTitleWidget);
+        // java: Screens.getWidgets(genericContainerScreen).add(chestTitleWidget);
+        let title_index: usize = screen.add_renderable_widget(chest_title_widget.base.clone());
+        CHEST_VALUE_TEXT_WIDGETS.get_mut().insert(screen.mod_event_id(), vec![value_index, title_index]);
     }
 
     /// java: private static ScreenType determineScreenType(String rawTitleString)

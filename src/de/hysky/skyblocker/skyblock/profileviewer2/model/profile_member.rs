@@ -151,3 +151,190 @@ impl ProfileMember {
     }
 
 }
+
+impl ProfileMember {
+    /// Gson's reflective binding of the class's own fields (`ReflectiveTypeAdapterFactory`): each member the
+    /// JSON has is read over the field it names (`@SerializedName`, else the field's name) with the field's declared
+    /// type; an absent member (or a `null` one, or one Gson would reject) leaves the constructor's value.
+    pub fn read_json_fields(&mut self, json: &serde_json::Value) {
+        #[allow(unused_imports)]
+        use crate::io::github::moulberry::repo::neu_repository::gson;
+        if let Some(__v) = gson::member(json, "player_id") {
+            if let Some(__x) = (crate::de::hysky::skyblocker::skyblock::profileviewer2::profile_viewer::json_uuid(__v)).map(Some) {
+                self.player_id = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "accessory_bag_storage") {
+            if let Some(__x) = Some(AccessoryBagStorage::from_json(__v)) {
+                self.accessory_bag_storage = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "attributes") {
+            if let Some(__x) = Some(Attributes::from_json(__v)) {
+                self.attributes = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "bestiary") {
+            if let Some(__x) = Some(Bestiary::from_json(__v)) {
+                self.bestiary = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "collection") {
+            if let Some(__x) = gson::map(__v, gson::string_key, |__e0| gson::as_i64(__e0)) {
+                self.collection = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "events") {
+            if let Some(__x) = Some(Events::from_json(__v)) {
+                self.events = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "fairy_soul") {
+            if let Some(__x) = Some(FairySouls::from_json(__v)) {
+                self.fairy_souls = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "currencies") {
+            if let Some(__x) = Some(Currencies::from_json(__v)) {
+                self.currencies = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "dungeons") {
+            if let Some(__x) = Some(Dungeons::from_json(__v)) {
+                self.dungeons = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "experimentation") {
+            if let Some(__x) = Some(Experimentation::from_json(__v)) {
+                self.experimentation = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "foraging") {
+            if let Some(__x) = Some(Foraging::from_json(__v)) {
+                self.foraging = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "foraging_core") {
+            if let Some(__x) = Some(ForagingCore::from_json(__v)) {
+                self.foraging_core = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "forge") {
+            if let Some(__x) = Some(Forge::from_json(__v)) {
+                self.forge = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "garden_player_data") {
+            if let Some(__x) = Some(GardenPlayerData::from_json(__v)) {
+                self.garden_player_data = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "glacite_player_data") {
+            if let Some(__x) = Some(GlacitePlayerData::from_json(__v)) {
+                self.glacite_player_data = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "inventory") {
+            if let Some(__x) = Some(Inventories::from_json(__v)) {
+                self.inventories = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "item_data") {
+            if let Some(__x) = Some(ItemData::from_json(__v)) {
+                self.item_data = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "jacobs_contest") {
+            if let Some(__x) = Some(JacobsContest::from_json(__v)) {
+                self.jacobs_contest = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "leveling") {
+            if let Some(__x) = Some(Levelling::from_json(__v)) {
+                self.levelling = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "loadout") {
+            if let Some(__x) = Some(Loadouts::from_json(__v)) {
+                self.loadouts = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "mining_core") {
+            if let Some(__x) = Some(MiningCore::from_json(__v)) {
+                self.mining_core = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "nether_island_player_data") {
+            if let Some(__x) = Some(NetherIslandPlayerData::from_json(__v)) {
+                self.nether_island_player_data = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "pets_data") {
+            if let Some(__x) = Some(PetsData::from_json(__v)) {
+                self.pets_data = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "player_data") {
+            if let Some(__x) = Some(PlayerData::from_json(__v)) {
+                self.player_data = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "player_stats") {
+            if let Some(__x) = Some(PlayerStats::from_json(__v)) {
+                self.player_stats = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "profile") {
+            if let Some(__x) = Some(ProfileMemberProfile::from_json(__v)) {
+                self.profile = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "rift") {
+            if let Some(__x) = Some(Rift::from_json(__v)) {
+                self.rift = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "safari") {
+            if let Some(__x) = Some(Safari::from_json(__v)) {
+                self.safari = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "shards") {
+            if let Some(__x) = Some(Shards::from_json(__v)) {
+                self.shards = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "skill_tree") {
+            if let Some(__x) = Some(SkillTree::from_json(__v)) {
+                self.skill_tree = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "slayer") {
+            if let Some(__x) = Some(SlayerData::from_json(__v)) {
+                self.slayer = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "temples") {
+            if let Some(__x) = Some(Temples::from_json(__v)) {
+                self.temples = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "trophy_fish") {
+            if let Some(__x) = __v.as_object().cloned() {
+                self.trophy_fish = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "winter_player_data") {
+            if let Some(__x) = Some(WinterPlayerData::from_json(__v)) {
+                self.winter_player_data = __x;
+            }
+        }
+    }
+
+    /// `GSON.fromJson(json, ProfileMember.class)`: the no-argument constructor, then the fields.
+    pub fn from_json(json: &serde_json::Value) -> compat::Shared<Self> {
+        let __this = Self::new();
+        compat::write(&__this, |__t| __t.read_json_fields(json));
+        __this
+    }
+}

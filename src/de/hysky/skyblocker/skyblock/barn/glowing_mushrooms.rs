@@ -48,11 +48,13 @@ impl GlowingMushrooms {
         particle_events::FROM_SERVER.register(Arc::new(move |__a0| { GlowingMushrooms::on_particle(&__a0); }));
         ({ let __r = scheduler::INSTANCE.get_mut(); let __f = compat::dispatch(__r, |__t| __t.schedule_cyclic()); __f(__r, Arc::new(move || { GlowingMushrooms::update(); }), 1) });
         level_render_extraction_callback::EVENT.register(Arc::new(move |__a0| { GlowingMushrooms::extract_rendering(&__a0); }));
-        // TODO(fabric2seer): AttackBlockCallback.EVENT.register: no SeerClient equivalent yet
-        //   java: AttackBlockCallback.EVENT.register((_, _, _, pos, _) -> {
-        //   java: 			if (shouldProcess()) glowingMushrooms.remove(pos);
-        //   java: 			return InteractionResult.PASS;
-        //   java: 		});
+        // java: AttackBlockCallback.EVENT.register((_, _, _, pos, _) -> { if (shouldProcess()) glowingMushrooms.remove(pos); return InteractionResult.PASS; });
+        mcrust::mcrust::modding::events::attack_block_callback::register(|_, _, _, pos, _| {
+            if GlowingMushrooms::should_process() {
+                GLOWING_MUSHROOMS.get_mut().remove(pos);
+            }
+            mcrust::net::minecraft::world::interaction_result::InteractionResult::Pass
+        });
         client_play_connection_events::JOIN.register(Arc::new(|listener: &mut ClientPacketListener| {
             GlowingMushrooms::reset();
         }));
@@ -64,10 +66,10 @@ impl GlowingMushrooms {
             return;
         }
         // `ParticleTypes.ENTITY_EFFECT.equals(packet.getParticle().getType())`: identity of the registered type
-        if !(packet.get_particle().unwrap().get_type().java_equals(&**mcrust::net::minecraft::core::particles::particle_types::entity_effect())) {
+        if !(packet.particle().unwrap().get_type().java_equals(&**mcrust::net::minecraft::core::particles::particle_types::entity_effect())) {
             return;
         }
-        let mut pos: BlockPos = BlockPos::containing(packet.get_x(), packet.get_y(), packet.get_z());
+        let mut pos: BlockPos = BlockPos::containing(packet.x(), packet.y(), packet.z());
         let mut block: Arc<Block> = mcrust::mcrust::modding::game::level().unwrap().get_block_state_typed(&pos).get_block();
         if !std::ptr::addr_eq(std::sync::Arc::as_ptr(&block), std::sync::Arc::as_ptr(&blocks::blocks().get("RED_MUSHROOM"))) && !std::ptr::addr_eq(std::sync::Arc::as_ptr(&block), std::sync::Arc::as_ptr(&blocks::blocks().get("BROWN_MUSHROOM"))) {
             return;

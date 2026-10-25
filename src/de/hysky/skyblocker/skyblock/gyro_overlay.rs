@@ -52,8 +52,19 @@ impl GyroOverlay {
         if SkyblockerConfigManager::get().ui_and_visuals.gyro_overlay.gyro_overlay_mode == Mode::Off {
             return;
         }
-        let mut held_item: String = mcrust::mcrust::modding::game::with_player(|player| player.get_main_hand_item().get_skyblock_id()).unwrap();
-        if !(held_item == "GYROKINETIC_WAND") {
+        // OPTIMIZED BUT NOT FULLY VANILLA (perf round 1, P02-mods-runtime): the held id compared BORROWED
+        // (`with_skyblock_id`), not cloned into a `String` every frame; the same id and the same cache write on a miss.
+        // (The null check at the top stays where it is: folding it into this read would move `getCameraEntity`, a
+        // hooked call, ahead of it.) `SKYBLOCKER_VANILLA_COLLECTOR=1` clones as before. Was:
+        //     let mut held_item: String = mcrust::mcrust::modding::game::with_player(|player| player.get_main_hand_item().get_skyblock_id()).unwrap();
+        //     if !(held_item == "GYROKINETIC_WAND") {
+        let holds_gyro: bool = if crate::de::hysky::skyblocker::utils::render::primitive::primitive_collector_impl::VANILLA_COLLECTOR.on() {
+            let held_item: String = mcrust::mcrust::modding::game::with_player(|player| player.get_main_hand_item().get_skyblock_id()).unwrap();
+            held_item == "GYROKINETIC_WAND"
+        } else {
+            mcrust::mcrust::modding::game::with_player(|player| crate::mixins::item_stack_mixin::with_skyblock_id(player.get_main_hand_item(), |held_item: &str| held_item == "GYROKINETIC_WAND")).unwrap()
+        };
+        if !holds_gyro {
             return;
         }
         //   java: HitResult hit = CLIENT.getCameraEntity().pick(MAX_REACH, CLIENT.getDeltaTracker().getGameTimeDeltaPartialTick(false), false);

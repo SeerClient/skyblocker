@@ -72,113 +72,84 @@ impl SearchOverManager {
 
     /// java: @Init public static void init()
     pub fn init() {
+        //   java: ClientCommandRegistrationCallback.EVENT.register(SearchOverManager::registerSearchCommands);
         client_command_registration_callback::EVENT.register(Arc::new(
             |dispatcher: &mut client_command_registration_callback::ClientCommandDispatcher| {
-                if SkyblockerConfigManager::get().ui_and_visuals.search_overlay.enable_commands {
-                    dispatcher.register("ahs", |ctx| {
-                        SearchOverManager::start_command(true, "");
-                        #[allow(unreachable_code)]
-                        Ok(())
-                    });
-                    dispatcher.register("ahsearch", |ctx| {
-                        SearchOverManager::start_command(true, "");
-                        #[allow(unreachable_code)]
-                        Ok(())
-                    });
-                    dispatcher.register("bzs", |ctx| {
-                        SearchOverManager::start_command(false, "");
-                        #[allow(unreachable_code)]
-                        Ok(())
-                    });
-                    dispatcher.register("ahs", |ctx| {
-                        #[allow(unreachable_code)]
-                        Ok(())
-                    });
-                    dispatcher.register("ahsearch", |ctx| {
-                        #[allow(unreachable_code)]
-                        Ok(())
-                    });
-                    if SkyblockerConfigManager::get().ui_and_visuals.search_overlay.command_autocomplete {
-                        dispatcher.register("bzs", |ctx| {
-                            #[allow(unreachable_code)]
-                            Ok(())
-                        });
-                    } else {
-                        dispatcher.register("bzs", |ctx| {
-                            #[allow(unreachable_code)]
-                            Ok(())
-                        });
-                    }
-                }
-                if !(crate::de::hysky::skyblocker::debug::debug::Debug::debug_enabled()) {
-                    return;
-                }
-                // TODO(fabric2seer): a command tree this tool cannot read (arguments, redirects, requires) - SeerClient commands receive the words after the name in `ctx.args`
-                //   java: dispatcher.register(literal(SkyblockerMod.NAMESPACE).then(literal("debug").then(literal("reloadSearchOverManager").executes(ctx -> {
-                //   java: 			ctx.getSource().sendFeedback(Constants.PREFIX.get().append(Component.literal("Reloading Search Overlay Manager items data").withColor(TextColor.AQUA)));
-                //   java: 			SearchOverManager.loadItems();
-                //   java: 			ctx.getSource().sendFeedback(Constants.PREFIX.get().append(Component.literal("Reloaded Search Overlay Manager items data").withColor(TextColor.AQUA)));
-                //   java: 			return Command.SINGLE_SUCCESS;
-                //   java: 		}))));
+                SearchOverManager::register_search_commands(dispatcher);
             },
         ));
         NEURepoManager::run_async_after_load(Arc::new(move || { SearchOverManager::load_items(); }));
     }
 
+    /// `literal(name).requires(_ -> Utils.isOnSkyblock()).executes(_ -> startCommand(isAuction, ""))`, optionally
+    /// `.then(argument("item", StringArgumentType.greedyString())[.suggests(suggestions)].executes(context ->
+    /// startCommand(isAuction, StringArgumentType.getString(context, "item"))))`
+    fn search_command(name: &str, is_auction: bool, with_item: bool, suggests: Option<mcrust::com::mojang::brigadier::suggestion::suggestion_provider::SuggestionProvider<client_command_registration_callback::FabricClientCommandSource>>) -> mcrust::com::mojang::brigadier::builder::literal_argument_builder::LiteralArgumentBuilder<client_command_registration_callback::FabricClientCommandSource> {
+        use mcrust::com::mojang::brigadier::arguments::string_argument_type::StringArgumentType;
+        use mcrust::com::mojang::brigadier::builder::argument_builder::ArgumentBuilder as _;
+        use mcrust::com::mojang::brigadier::context::command_context::CommandContext;
+        type Source = client_command_registration_callback::FabricClientCommandSource;
+        let mut literal = client_command_registration_callback::literal(name);
+        literal.requires(Arc::new(|_: &Source| crate::de::hysky::skyblocker::utils::utils::Utils::is_on_skyblock()));
+        if with_item {
+            let mut item = client_command_registration_callback::argument("item", Arc::new(StringArgumentType::greedy_string()));
+            if suggests.is_some() {
+                item.suggests(suggests);
+            }
+            item.executes(Arc::new(move |context: &CommandContext<Source>| Ok(SearchOverManager::start_command(is_auction, &StringArgumentType::get_string(context, "item")))));
+            literal.then(&item);
+        } else {
+            literal.executes(Arc::new(move |_: &CommandContext<Source>| Ok(SearchOverManager::start_command(is_auction, ""))));
+        }
+        literal
+    }
+
     /// java: private static void registerSearchCommands(CommandDispatcher<FabricClientCommandSource> dispatcher, CommandBuildContext registryAccess)
-    pub fn register_search_commands(dispatcher: &CommandDispatcher<crate::unresolved::FabricClientCommandSource>, registry_access: &CommandBuildContext) {
+    pub fn register_search_commands(dispatcher: &mut client_command_registration_callback::ClientCommandDispatcher) {
+        use mcrust::com::mojang::brigadier::builder::argument_builder::ArgumentBuilder as _;
         if SkyblockerConfigManager::get().ui_and_visuals.search_overlay.enable_commands {
-            // TODO(fabric2seer): a command builder outside dispatcher.register(..)
-            //   java: dispatcher.register(literal("ahs")
-            //   java: 					.requires(_ -> Utils.isOnSkyblock())
-            //   java: 					.executes(_ -> startCommand(true, "")));
-            // TODO(fabric2seer): a command builder outside dispatcher.register(..)
-            //   java: dispatcher.register(literal("ahsearch")
-            //   java: 					.requires(_ -> Utils.isOnSkyblock())
-            //   java: 					.executes(_ -> startCommand(true, "")));
-            // TODO(fabric2seer): a command builder outside dispatcher.register(..)
-            //   java: dispatcher.register(literal("bzs")
-            //   java: 					.requires(_ -> Utils.isOnSkyblock())
-            //   java: 					.executes(_ -> startCommand(false, "")));
-            // TODO(fabric2seer): a command builder outside dispatcher.register(..)
-            //   java: dispatcher.register(literal("ahs")
-            //   java: 					.requires(_ -> Utils.isOnSkyblock())
-            //   java: 					.then(argument("item", StringArgumentType.greedyString())
-            //   java: 					.executes(context -> startCommand(true, StringArgumentType.getString(context, "item"))
-            //   java: 					)));
-            // TODO(fabric2seer): a command builder outside dispatcher.register(..)
-            //   java: dispatcher.register(literal("ahsearch")
-            //   java: 					.requires(_ -> Utils.isOnSkyblock())
-            //   java: 					.then(argument("item", StringArgumentType.greedyString())
-            //   java: 					.executes(context -> startCommand(true, StringArgumentType.getString(context, "item"))
-            //   java: 					)));
+            //   java: dispatcher.register(literal("ahs").requires(_ -> Utils.isOnSkyblock()).executes(_ -> startCommand(true, "")));
+            dispatcher.dispatcher().register(&SearchOverManager::search_command("ahs", true, false, None));
+            //   java: dispatcher.register(literal("ahsearch").requires(_ -> Utils.isOnSkyblock()).executes(_ -> startCommand(true, "")));
+            dispatcher.dispatcher().register(&SearchOverManager::search_command("ahsearch", true, false, None));
+            //   java: dispatcher.register(literal("bzs").requires(_ -> Utils.isOnSkyblock()).executes(_ -> startCommand(false, "")));
+            dispatcher.dispatcher().register(&SearchOverManager::search_command("bzs", false, false, None));
+            //   java: dispatcher.register(literal("ahs").requires(..).then(argument("item", StringArgumentType.greedyString()).executes(context -> startCommand(true, StringArgumentType.getString(context, "item")))));
+            dispatcher.dispatcher().register(&SearchOverManager::search_command("ahs", true, true, None));
+            //   java: dispatcher.register(literal("ahsearch").requires(..).then(argument("item", ..).executes(context -> startCommand(true, ..))));
+            dispatcher.dispatcher().register(&SearchOverManager::search_command("ahsearch", true, true, None));
             if SkyblockerConfigManager::get().ui_and_visuals.search_overlay.command_autocomplete {
-                // TODO(fabric2seer): a command builder outside dispatcher.register(..)
-                //   java: dispatcher.register(literal("bzs")
-                //   java: 						.requires(_ -> Utils.isOnSkyblock())
-                //   java: 						.then(argument("item", StringArgumentType.greedyString())
-                //   java: 						.suggests(AuctionBazaarAutocomplete::suggestBzs)
-                //   java: 						.executes(context -> startCommand(false, StringArgumentType.getString(context, "item"))
-                //   java: 						)));
+                //   java: dispatcher.register(literal("bzs").requires(..).then(argument("item", ..).suggests(AuctionBazaarAutocomplete::suggestBzs).executes(context -> startCommand(false, ..))));
+                let suggest_bzs: mcrust::com::mojang::brigadier::suggestion::suggestion_provider::SuggestionProvider<client_command_registration_callback::FabricClientCommandSource> =
+                    Arc::new(|context: &mcrust::com::mojang::brigadier::context::command_context::CommandContext<client_command_registration_callback::FabricClientCommandSource>, builder: &mut mcrust::com::mojang::brigadier::suggestion::suggestions_builder::SuggestionsBuilder| Ok(crate::de::hysky::skyblocker::skyblock::auction_bazaar_autocomplete::AuctionBazaarAutocomplete::suggest_bzs(context, builder)));
+                dispatcher.dispatcher().register(&SearchOverManager::search_command("bzs", false, true, Some(suggest_bzs)));
             } else {
-                // TODO(fabric2seer): a command builder outside dispatcher.register(..)
-                //   java: dispatcher.register(literal("bzs")
-                //   java: 						.requires(_ -> Utils.isOnSkyblock())
-                //   java: 						.then(argument("item", StringArgumentType.greedyString())
-                //   java: 						.executes(context -> startCommand(false, StringArgumentType.getString(context, "item"))
-                //   java: 						)));
+                //   java: dispatcher.register(literal("bzs").requires(..).then(argument("item", ..).executes(context -> startCommand(false, ..))));
+                dispatcher.dispatcher().register(&SearchOverManager::search_command("bzs", false, true, None));
             }
         }
         if !(crate::de::hysky::skyblocker::debug::debug::Debug::debug_enabled()) {
             return;
         }
-        // TODO(fabric2seer): a command builder outside dispatcher.register(..)
         //   java: dispatcher.register(literal(SkyblockerMod.NAMESPACE).then(literal("debug").then(literal("reloadSearchOverManager").executes(ctx -> {
         //   java: 			ctx.getSource().sendFeedback(Constants.PREFIX.get().append(Component.literal("Reloading Search Overlay Manager items data").withColor(TextColor.AQUA)));
         //   java: 			SearchOverManager.loadItems();
         //   java: 			ctx.getSource().sendFeedback(Constants.PREFIX.get().append(Component.literal("Reloaded Search Overlay Manager items data").withColor(TextColor.AQUA)));
         //   java: 			return Command.SINGLE_SUCCESS;
         //   java: 		}))));
+        let mut reload = client_command_registration_callback::literal("reloadSearchOverManager");
+        reload.executes(Arc::new(|_: &mcrust::com::mojang::brigadier::context::command_context::CommandContext<client_command_registration_callback::FabricClientCommandSource>| {
+            let prefix = crate::de::hysky::skyblocker::utils::constants::PREFIX.get().clone();
+            client_command_registration_callback::send_feedback(&prefix().append(mcrust::net::minecraft::network::chat::component::literal("Reloading Search Overlay Manager items data").with_color_text(mcrust::net::minecraft::network::chat::text_color::TextColor::AQUA)).get_string());
+            SearchOverManager::load_items();
+            client_command_registration_callback::send_feedback(&prefix().append(mcrust::net::minecraft::network::chat::component::literal("Reloaded Search Overlay Manager items data").with_color_text(mcrust::net::minecraft::network::chat::text_color::TextColor::AQUA)).get_string());
+            Ok(1)
+        }));
+        let mut debug = client_command_registration_callback::literal("debug");
+        debug.then(&reload);
+        let mut root = client_command_registration_callback::literal(crate::entry::skyblocker_mod::NAMESPACE);
+        root.then(&debug);
+        dispatcher.dispatcher().register(&root);
     }
 
     /// java: private static int startCommand(boolean isAuction, String itemName)
@@ -223,7 +194,7 @@ impl SearchOverManager {
                         continue;
                     };
                     //   java: String name = ChatFormatting.stripFormatting(EnchantedBookUtils.getEnchantNameFromLore(neuItem.getLore()));
-                    let mut name: String = mcrust::net::minecraft::chat_formatting::strip_formatting(&crate::de::hysky::skyblocker::utils::enchanted_book_utils::EnchantedBookUtils::get_enchant_name_from_lore(&neu_item_lore(&neu_item)));
+                    let mut name: String = mcrust::net::minecraft::chat_formatting::strip_formatting(&crate::de::hysky::skyblocker::utils::enchanted_book_utils::EnchantedBookUtils::get_enchant_name_from_lore(neu_item.get_lore()));
                     bazaar_items.insert(name.clone());
                     names_to_neu_id.insert(name.clone(), neu_id.clone());
                     continue;
@@ -231,10 +202,10 @@ impl SearchOverManager {
                 if id.starts_with("SHARD_") && ItemRepository::get_bazaar_stocks().contains_key(&id) {
                     id = ItemRepository::get_bazaar_stocks().get(&id).cloned().unwrap();
                 }
-                let mut neu_item: Option<crate::unresolved::NEUItem> = NEURepoManager::get_item_by_neu_id(&id);
+                let mut neu_item: Option<Arc<crate::io::github::moulberry::repo::data::neu_item::NEUItem>> = NEURepoManager::get_item_by_neu_id(&id);
                 if let Some(neu_item) = &neu_item {
                     //   java: String name = ChatFormatting.stripFormatting(neuItem.getDisplayName());
-                    let mut name: String = mcrust::net::minecraft::chat_formatting::strip_formatting(&neu_item_display_name(neu_item));
+                    let mut name: String = mcrust::net::minecraft::chat_formatting::strip_formatting(neu_item.get_display_name());
                     bazaar_items.insert(name.clone());
                     names_to_neu_id.insert(name.clone(), id.clone());
                 }
@@ -246,7 +217,7 @@ impl SearchOverManager {
         // java: try {..} catch (Exception e) - an exception here is a panic, caught by `catch_unwind`
         let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             //   java: Set<@NEUId String> essenceCosts = NEURepoManager.getConstants().getEssenceCost().getCosts().keySet();
-            let essence_costs: std::collections::HashSet<String> = neu_constants_essence_cost_ids();
+            let essence_costs: std::collections::HashSet<String> = NEURepoManager::get_constants().get_essence_cost().get_costs().keys().cloned().collect();
             if tooltip_info_type::THREE_DAY_AVERAGE.get_mut().lock().borrow().get_data().is_none() {
                 tooltip_info_type::THREE_DAY_AVERAGE.get_mut().lock().borrow_mut().run();
             }
@@ -258,9 +229,9 @@ impl SearchOverManager {
                 //look up in NEU repo.
                 let parts: Vec<String> = compat::regex::split(&id, "[+-]");
                 id = parts[0].clone();
-                let neu_item: Option<crate::unresolved::NEUItem> = NEURepoManager::get_item_by_neu_id(&id);
+                let neu_item: Option<Arc<crate::io::github::moulberry::repo::data::neu_item::NEUItem>> = NEURepoManager::get_item_by_neu_id(&id);
                 if let Some(neu_item) = &neu_item {
-                    let mut name: String = mcrust::net::minecraft::chat_formatting::strip_formatting(&neu_item_display_name(neu_item));
+                    let mut name: String = mcrust::net::minecraft::chat_formatting::strip_formatting(neu_item.get_display_name());
                     //add names that are pets to the list of pets to work with the lvl 100 button
                     if name.starts_with(PET_NAME_START) {
                         name = name.replace(PET_NAME_START, "");
@@ -271,7 +242,7 @@ impl SearchOverManager {
                         }
                     }
                     //if it has essence cost add to starable items
-                    if essence_costs.contains(&neu_item_skyblock_item_id(neu_item)) {
+                    if essence_costs.contains(neu_item.get_skyblock_item_id()) {
                         starable_items.insert(name.to_lowercase());
                     }
                     auction_items.insert(name.clone());
@@ -308,7 +279,7 @@ impl SearchOverManager {
         compat::set_state(&IS_COMMAND, false);
         compat::set_state(&LOCATION, location);
         if SkyblockerConfigManager::get().ui_and_visuals.search_overlay.keep_previous_searches {
-            let mut messages: Vec<MutableComponent> = SIGN.get_mut().as_ref().unwrap().as_sign().expect("ClassCastException: SignBlockEntity").get_text(compat::get_state(&SIGN_FRONT)).get_messages(compat::minecraft().is_text_filtering_enabled()).iter().cloned().map(compat::component_of).collect::<Vec<_>>();
+            let mut messages: Vec<MutableComponent> = SIGN.get_mut().as_ref().unwrap().as_sign().expect("ClassCastException: SignBlockEntity").get_text(compat::sign_slot(compat::get_state(&SIGN_FRONT))).get_messages(compat::minecraft().is_text_filtering_enabled()).iter().cloned().map(compat::component_of).collect::<Vec<_>>();
             compat::set_state(&SEARCH, (messages[(0) as usize]).get_string());
             if !(((messages[(1) as usize]).get_string()).is_empty()) {
                 if !(compat::lock(&SEARCH).ends_with(" ")) {
@@ -584,11 +555,11 @@ impl SearchOverManager {
     pub fn push_sign() {
         let mut split: (String, String) = SearchOverManager::split_string(&compat::get_state(&SEARCH));
         if mcrust::mcrust::modding::game::with_player(|_| ()).is_some() && SIGN.get_mut().is_some() {
-            let mut messages: Vec<MutableComponent> = SIGN.get_mut().as_ref().unwrap().as_sign().expect("ClassCastException: SignBlockEntity").get_text(compat::get_state(&SIGN_FRONT)).get_messages(compat::minecraft().is_text_filtering_enabled()).iter().cloned().map(compat::component_of).collect::<Vec<_>>();
+            let mut messages: Vec<MutableComponent> = SIGN.get_mut().as_ref().unwrap().as_sign().expect("ClassCastException: SignBlockEntity").get_text(compat::sign_slot(compat::get_state(&SIGN_FRONT))).get_messages(compat::minecraft().is_text_filtering_enabled()).iter().cloned().map(compat::component_of).collect::<Vec<_>>();
             //   java: CLIENT.player.connection.send(new ServerboundSignUpdatePacket(sign.getBlockPos(), signFront, split.left(), split.right(), messages[2].getString(), messages[3].getString()));
             // (`connection.send` from the client thread: the play connection's own hand-off, `client_advancements::send`)
             let __pos = SIGN.get_mut().as_ref().unwrap().as_sign().expect("ClassCastException: SignBlockEntity").get_block_pos();
-            let __packet = mcrust::net::minecraft::network::protocol::game::serverbound_sign_update_packet::ServerboundSignUpdatePacket::new(__pos, compat::get_state(&SIGN_FRONT), split.0.clone(), split.1.clone(), (messages[(2) as usize]).get_string(), (messages[(3) as usize]).get_string());
+            let __packet = mcrust::net::minecraft::network::protocol::game::serverbound_sign_update_packet::ServerboundSignUpdatePacket::new(__pos, vec![split.0.clone(), split.1.clone(), (messages[(2) as usize]).get_string(), (messages[(3) as usize]).get_string()], compat::sign_slot(compat::get_state(&SIGN_FRONT)));
             if let Some(__sinks) = mcrust::net::minecraft::client::multiplayer::client_packet_listener::published_play_sinks() {
                 mcrust::net::minecraft::client::multiplayer::client_advancements::send(&__sinks.connection, __packet);
             }
@@ -658,33 +629,4 @@ impl std::fmt::Display for SearchLocation {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(self.name())
     }
-}
-
-// The NEU repo library's item / constants accessors this class reads.
-//
-// rust: port gap - the NEU repo library (`io.github.moulberry.repo`) is `crate::unresolved` placeholders: a `NEUItem`
-// carries no data and `NEURepoManager.getItemByNeuId` answers none (GAPS_L, GAPS_J #5, GAPS_M #10).
-
-/// `neuItem.getLore()`.
-fn neu_item_lore(item: &crate::unresolved::NEUItem) -> Vec<String> {
-    let _ = item;
-    Vec::new()
-}
-
-/// `neuItem.getDisplayName()`.
-fn neu_item_display_name(item: &crate::unresolved::NEUItem) -> String {
-    let _ = item;
-    String::new()
-}
-
-/// `neuItem.getSkyblockItemId()`.
-fn neu_item_skyblock_item_id(item: &crate::unresolved::NEUItem) -> String {
-    let _ = item;
-    String::new()
-}
-
-/// `NEURepoManager.getConstants().getEssenceCost().getCosts().keySet()`.
-fn neu_constants_essence_cost_ids() -> std::collections::HashSet<String> {
-    let _ = NEURepoManager::get_constants();
-    std::collections::HashSet::new()
 }

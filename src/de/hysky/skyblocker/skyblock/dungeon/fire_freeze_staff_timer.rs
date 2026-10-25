@@ -35,30 +35,10 @@ impl FireFreezeStaffTimer {
 
     /// java: @Init public static void init()
     pub fn init() {
-        hud_render_callback::EVENT.register(Arc::new(|ctx: &mut hud_render_callback::HudRenderContext<'_>| {
-            let mut client = (&mut *ctx.minecraft);
-            if client.gui.screen().is_some() {
-                return;
-            }
-            if SkyblockerConfigManager::get().dungeons.the_professor.fire_freeze_staff_timer && compat::get_state(&FIRE_FREEZE_TIMER) != (0 as i64) {
-                if compat::get_state(&FIRE_FREEZE_TIMER) <= (-5000 as i64) {
-                    FireFreezeStaffTimer::reset();
-                    return;
-                }
-                let mut message: MutableComponent;
-                if compat::get_state(&FIRE_FREEZE_TIMER) > (0 as i64) {
-                    message = component::literal("in ").append((component::literal(&format!("{}s", compat::string_format("%.2f", &[(((compat::get_state(&FIRE_FREEZE_TIMER)) as f32) / (1000 as f32)).into()])))).with_style_format(ChatFormatting::Yellow));
-                } else {
-                    message = component::literal("NOW").with_style_format(ChatFormatting::Red);
-                }
-                let mut renderer: Font = compat::font();
-                let mut width: i32 = (client.get_window().get_gui_scaled_width()).wrapping_div(2);
-                let mut height: i32 = (client.get_window().get_gui_scaled_height()).wrapping_div(2);
-                mcrust::net::minecraft::client::gui::gui_graphics_extractor::centered_text(ctx.gl, &*client, &mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::literal("Fire Freeze ").append(message.clone())), width, height, mcrust::net::minecraft::util::common_colors::WHITE);
-            }
-        }));
-        // TODO(fabric2seer): ClientReceiveMessageEvents.ALLOW_GAME.register: no SeerClient equivalent yet
-        //   java: ClientReceiveMessageEvents.ALLOW_GAME.register(FireFreezeStaffTimer::onChatMessage);
+        // java: HudElementRegistry.attachElementAfter(VanillaHudElements.BOSS_BAR, FIRE_FREEZE_STAFF_TIMER, FireFreezeStaffTimer::extractRenderState);
+        hud_element_registry::attach_element_after(vanilla_hud_elements::OVERLAY_MESSAGE, FIRE_FREEZE_STAFF_TIMER.get(), Arc::new(|ctx: &mut hud_render_callback::HudRenderContext<'_>| { FireFreezeStaffTimer::extract_render_state(ctx) }));
+        // java: ClientReceiveMessageEvents.ALLOW_GAME.register(FireFreezeStaffTimer::onChatMessage);
+        compat::register_allow_game(|text, overlay| FireFreezeStaffTimer::on_chat_message(text, overlay));
         client_play_connection_events::JOIN.register(Arc::new(|listener: &mut ClientPacketListener| {
             FireFreezeStaffTimer::reset();
         }));
@@ -73,8 +53,8 @@ impl FireFreezeStaffTimer {
     }
 
     /// java: private static void extractRenderState(GuiGraphicsExtractor graphics, DeltaTracker tickCounter)
-    pub fn extract_render_state(graphics: &GuiGraphicsExtractor, tick_counter: &crate::unresolved::DeltaTracker) {
-        let client = compat::minecraft();
+    pub fn extract_render_state(ctx: &mut hud_render_callback::HudRenderContext<'_>) {
+        let client = &*ctx.minecraft;
         if client.gui.screen().is_some() {
             return;
         }
@@ -92,7 +72,7 @@ impl FireFreezeStaffTimer {
             let mut renderer: Font = compat::font();
             let mut width: i32 = (client.get_window().get_gui_scaled_width()).wrapping_div(2);
             let mut height: i32 = (client.get_window().get_gui_scaled_height()).wrapping_div(2);
-            gui_graphics_extractor::centered_text(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), &mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::literal("Fire Freeze ").append(message.clone())), width, height, mcrust::net::minecraft::util::common_colors::WHITE);
+            mcrust::net::minecraft::client::gui::gui_graphics_extractor::centered_text(ctx.gl, &*client, &mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::literal("Fire Freeze ").append(message.clone())), width, height, mcrust::net::minecraft::util::common_colors::WHITE);
         }
     }
 

@@ -45,31 +45,30 @@ impl ChatPositionShare {
     pub fn init() {
         client_command_registration_callback::EVENT.register(Arc::new(
             |dispatcher: &mut client_command_registration_callback::ClientCommandDispatcher| {
-                dispatcher.register("skyblocker", |ctx| {
-                    if ctx.args.first().map(|s| &**s) == Some("sharePosition") {
-                        ChatPositionShare::share_player_position(ctx);
-                        return Ok(());
-                    }
-                    #[allow(unreachable_code)]
-                    Ok(())
-                });
-                dispatcher.register("skyblocker", |ctx| {
-                    if ctx.args.first().map(|s| &**s) == Some("shareCoords") {
-                        ChatPositionShare::share_player_position(ctx);
-                        return Ok(());
-                    }
-                    #[allow(unreachable_code)]
-                    Ok(())
-                });
+                // java: dispatcher.register(ClientCommands.literal("skyblocker").then(ClientCommands.literal("sharePosition").executes(context -> sharePlayerPosition(context.getSource()))));
+                use mcrust::com::mojang::brigadier::builder::argument_builder::ArgumentBuilder as _;
+                use mcrust::com::mojang::brigadier::context::command_context::CommandContext;
+                type Source = client_command_registration_callback::FabricClientCommandSource;
+                let mut share_position = client_command_registration_callback::literal("sharePosition");
+                share_position.executes(Arc::new(|context: &CommandContext<Source>| Ok(ChatPositionShare::share_player_position(context.get_source()))));
+                let mut root = client_command_registration_callback::literal("skyblocker");
+                root.then(&share_position);
+                dispatcher.dispatcher().register(&root);
+                // java: dispatcher.register(ClientCommands.literal("skyblocker").then(ClientCommands.literal("shareCoords").executes(context -> sharePlayerPosition(context.getSource()))));
+                let mut share_coords = client_command_registration_callback::literal("shareCoords");
+                share_coords.executes(Arc::new(|context: &CommandContext<Source>| Ok(ChatPositionShare::share_player_position(context.get_source()))));
+                let mut root = client_command_registration_callback::literal("skyblocker");
+                root.then(&share_coords);
+                dispatcher.dispatcher().register(&root);
             },
         ));
-        // TODO(fabric2seer): ClientReceiveMessageEvents.ALLOW_GAME.register: no SeerClient equivalent yet
         //   java: ClientReceiveMessageEvents.ALLOW_GAME.register(ChatPositionShare::onMessage);
+        compat::register_allow_game(|text, overlay| ChatPositionShare::on_message(text, overlay));
     }
 
     /// java: private static int sharePlayerPosition(FabricClientCommandSource source)
-    /// (`source` is SeerClient's client command context: `FabricClientCommandSource`'s position is the player's)
-    pub fn share_player_position(source: &client_command_registration_callback::ClientCommandContext<'_>) -> i32 {
+    /// (`FabricClientCommandSource.getPosition()` is the player's position)
+    pub fn share_player_position(source: &client_command_registration_callback::FabricClientCommandSource) -> i32 {
         // java: Vec3 pos = source.getPosition(); - `client.player.position()`
         let mut pos: Vec3 = mcrust::mcrust::modding::game::with_player(|player| player.base.base.base.base.position()).expect("NullPointerException");
         MessageScheduler::send_message_after_cooldown(message_scheduler::INSTANCE.get_mut(), &format!("x: {}, y: {}, z: {} | {}", ((pos.x()) as i32), ((pos.y()) as i32), ((pos.z()) as i32), ({ let __r = &Utils::get_area(); let __f = compat::dispatch(__r, |__t| __t.display_name()); __f(__r) })), true);

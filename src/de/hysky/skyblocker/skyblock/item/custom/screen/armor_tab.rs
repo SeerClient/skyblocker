@@ -113,17 +113,17 @@ impl ArmorTab {
         // java: super(Component.translatable("skyblocker.customization.armor"));
 
         // java: private final RemotePlayer player = new RemotePlayer(CLIENT.level, CLIENT.getGameProfile()) {..}
-        // rust: port gap - the anonymous subclass's overrides (isInvisibleTo, onEquipItem, isModelPartShown, getId) have
-        //   no home: the port's entity classes take no mod subclass; and `Minecraft.getGameProfile()` is not ported - its
-        //   `new GameProfile(user.getProfileId(), user.getName())` arm is used (GAPS_batchE.md)
+        // The anonymous subclass's overrides are the game's `RemotePlayerSubclass` (`entities::new_remote_player`);
+        // `getId()` is `EntityUtils.PLACEHOLDER_ID`, the id the entity carries. `onEquipItem` is empty: the port's
+        // `LivingEntity::set_item_slot` (below) is `PlayerEquipment.set` (the inventory's armour slots the renderer reads), with no equip sound or event either.
         let player = {
-            let client = compat::minecraft();
-            let user = client.get_user();
-            let profile = mcrust::com::mojang::authlib::game_profile::GameProfile::without_properties(
-                mcrust::java::util::uuid::Uuid::from_string(&mcrust::net::minecraft::client::user::dashed_uuid(&user.get_profile_id())).expect("User.getProfileId"),
-                user.get_name(),
-            );
-            compat::shared(RemotePlayer::new(mcrust::net::minecraft::world::entity::entity_dimensions::scalable(0.6, 1.8), &profile))
+            let profile = mcrust::mcrust::modding::game::get_game_profile().expect("Minecraft.getGameProfile()");
+            let mut player = mcrust::mcrust::modding::entities::new_remote_player(&profile, Some(Arc::new(ArmorTabPlayer)));
+            {
+                use mcrust::net::minecraft::world::entity::entity::Entity as _;
+                player.base_mut().set_id(crate::de::hysky::skyblocker::utils::entity_utils::PLACEHOLDER_ID);
+            }
+            compat::shared(player)
         };
 
         // java: List<ItemStack> list = ItemUtils.getArmor(CLIENT.player);
@@ -133,7 +133,7 @@ impl ArmorTab {
         for i in 0..list.len() {
             let copy = list[i].copy();
             armor[3 - i] = copy.clone();
-            compat::write(&player, |p| p.living_mut().set_item_slot(ARMOR_SLOTS[i], copy));
+            compat::write(&player, |p| mcrust::net::minecraft::world::entity::living_entity::LivingEntity::set_item_slot(p, ARMOR_SLOTS[i], copy));
         }
         let mut selected_slot: i32 = 0;
         while selected_slot < (armor.len() as i32) - 1 && !ArmorTab::can_edit(&armor[selected_slot as usize]) {
@@ -619,5 +619,21 @@ impl compat::ObjectWidget for ModelFieldContainer {
             return false;
         }
         compat::children_char_typed(&mut self.children, event)
+    }
+}
+
+/// java: the anonymous `RemotePlayer` subclass of `ArmorTab.player`: invisible to everyone (no name tag), and only the
+/// model parts the player's own options show, never the CAPE.
+struct ArmorTabPlayer;
+
+impl mcrust::mcrust::modding::entities::RemotePlayerSubclass for ArmorTabPlayer {
+    fn is_model_part_shown(&self, _player: &RemotePlayer, part: mcrust::net::minecraft::world::entity::player::player_model_part::PlayerModelPart, _super_answer: bool) -> bool {
+        // java: return modelPart != PlayerModelPart.CAPE && CLIENT.options.isModelPartEnabled(modelPart);
+        part != mcrust::net::minecraft::world::entity::player::player_model_part::PlayerModelPart::Cape
+            && mcrust::net::minecraft::client::options::is_model_part_enabled(&compat::minecraft().options.borrow(), part)
+    }
+
+    fn is_invisible_to(&self, _player: &RemotePlayer, _super_answer: bool) -> bool {
+        true
     }
 }

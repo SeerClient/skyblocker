@@ -53,8 +53,10 @@ impl CarpetHighlighter {
         level_render_extraction_callback::EVENT.register(Arc::new(move |__a0| { ({ let __f = compat::dispatch(&INSTANCE, |__t| __t.extract_rendering()); __f(&compat::view(&INSTANCE, |a| a as compat::Shared<dyn Renderable>), &__a0) }); }));
         skyblock_events::LOCATION_CHANGE.register(Arc::new(move |__a0| { CarpetHighlighter::on_location_change(&INSTANCE, __a0); }));
         ({ let __r = scheduler::INSTANCE.get_mut(); let __f = compat::dispatch(__r, |__t| __t.schedule_cyclic()); __f(__r, Arc::new(move || { CarpetHighlighter::tick(&INSTANCE); }), TICK_INTERVAL) });
-        // TODO(fabric2seer): a listener that is neither a lambda nor a method reference
-        //   java: ClientPlayConnectionEvents.JOIN.register(INSTANCE);
+        // java: ClientPlayConnectionEvents.JOIN.register(INSTANCE); - `Resettable.onPlayReady` is `reset()`
+        client_play_connection_events::JOIN.register(Arc::new(|_listener: &mut ClientPacketListener| {
+            CarpetHighlighter::reset_impl(&INSTANCE);
+        }));
     }
 
     /// java: public void onLocationChange(Location location)
@@ -67,7 +69,7 @@ impl CarpetHighlighter {
         if !(compat::get_state(&IS_LOCATION_VALID)) || !(SkyblockerConfigManager::get().mining.dwarven_mines.enable_carpet_highlighter) || mcrust::mcrust::modding::game::level().is_none() || mcrust::mcrust::modding::game::with_player(|_| ()).is_none() {
             return;
         }
-        let mut iterable: mcrust::net::minecraft::core::block_pos::WithinManhattan = BlockPos::within_manhattan(&mcrust::mcrust::modding::game::with_player(|player| player.base.base.base.base.block_position()).unwrap(), SEARCH_RADIUS, SEARCH_RADIUS, SEARCH_RADIUS);
+        let mut iterable: mcrust::net::minecraft::core::block_pos::WithinManhattan = BlockPos::within_manhattan(&mcrust::mcrust::modding::game::with_player(|player| player.base.base.base.base.block_position()).unwrap(), SEARCH_RADIUS);
         for block_pos in iterable {
             if CarpetHighlighter::check_for_carpet(__this, &block_pos) {
                 BlockPosSet::add(CARPET_LOCATIONS.get_mut(), &block_pos);
@@ -87,8 +89,8 @@ impl CarpetHighlighter {
 
     /// java: public void configCallback(Color color)
     pub fn config_callback(__this: &compat::Shared<Self>, color: &Color) {
-        // TODO(fabric2seer): `.getRGBComponents(..)` on a Color
-        //   java: colorComponents = color.getRGBComponents(null);
+        // java: colorComponents = color.getRGBComponents(null);
+        compat::set_state(&COLOR_COMPONENTS, color.get_rgb_components(None).to_vec());
     }
 
 }

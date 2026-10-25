@@ -2,6 +2,7 @@
 
 #[allow(unused_imports)]
 use crate::prelude::*;
+use crate::de::hysky::skyblocker::skyblock::tabhud::config::custom_dropdown_widget::CustomDropdownAdapter;
 use crate::de::hysky::skyblocker::skyblock::tabhud::config::custom_dropdown_widget::CustomDropdownWidget;
 use crate::de::hysky::skyblocker::skyblock::tabhud::config::other_options_screen::OtherOptionsScreen;
 use crate::de::hysky::skyblocker::skyblock::tabhud::config::styled_button_widget::StyledButtonWidget;
@@ -10,12 +11,11 @@ use crate::de::hysky::skyblocker::skyblock::tabhud::config::widgets_configuratio
 use crate::de::hysky::skyblocker::skyblock::tabhud::screenbuilder::widget_manager;
 use crate::de::hysky::skyblocker::skyblock::tabhud::screenbuilder::widget_manager::ScreenLayer;
 use crate::de::hysky::skyblocker::utils::location::Location;
+use mcrust::mcrust::modding::widgets::WidgetRenderContext;
 use mcrust::net::minecraft::client::gui::components::abstract_container_widget::AbstractContainerWidget;
 use mcrust::net::minecraft::client::gui::components::abstract_widget::AbstractWidget;
 use mcrust::net::minecraft::client::gui::components::abstract_widget::OnPress;
 use mcrust::net::minecraft::client::gui::components::abstract_widget::PressLambda;
-use mcrust::net::minecraft::client::gui::components::events::container_event_handler;
-use mcrust::net::minecraft::client::gui::components::events::gui_event_listener::GuiEventListener;
 use mcrust::net::minecraft::client::gui::components::tooltip::Tooltip;
 use mcrust::net::minecraft::client::gui::gui_graphics_extractor;
 use mcrust::net::minecraft::client::gui::gui_graphics_extractor::GuiGraphicsExtractor;
@@ -25,12 +25,13 @@ use mcrust::net::minecraft::client::gui::layouts::layout;
 use mcrust::net::minecraft::client::gui::layouts::layout_element::LayoutElement;
 use mcrust::net::minecraft::client::gui::layouts::linear_layout::LinearLayout;
 use mcrust::net::minecraft::client::gui::narration::narration_element_output::NarrationElementOutput;
+use mcrust::net::minecraft::client::gui::screens::screen::Screen;
+use mcrust::net::minecraft::client::input::mouse_button_event::MouseButtonEvent;
 use mcrust::net::minecraft::network::chat::component;
 use mcrust::mcrust::modding::screens::ModScreen;
 use mcrust::net::minecraft::resources::identifier::Identifier;
 use mcrust::net::minecraft::util::argb;
 use crate::de::hysky::skyblocker::utils::render::gui::dropdown_widget::DropdownWidget as _;
-use mcrust::net::minecraft::client::gui::components::renderable::Renderable as _;
 use mcrust::net::minecraft::network::chat::component::Component as _;
 
 /// java: private static final Identifier TEXTURE = SkyblockerMod.id("menu_outer_space");
@@ -43,13 +44,15 @@ pub struct TopBarWidget {
     /// java: extends net.minecraft.client.gui.components.AbstractContainerWidget
     pub base: AbstractContainerWidget,
     /// java: private final CustomDropdownWidget<Location> locationDropdown;
-    pub location_dropdown: Option<compat::Shared<CustomDropdownWidget<Location>>>,
+    pub location_dropdown: compat::Shared<CustomDropdownWidget<Location>>,
     /// java: private final CustomDropdownWidget<WidgetManager.ScreenLayer> screenLayerDropdown;
-    pub screen_layer_dropdown: Option<compat::Shared<CustomDropdownWidget<ScreenLayer>>>,
+    pub screen_layer_dropdown: compat::Shared<CustomDropdownWidget<ScreenLayer>>,
     /// java: private final Layout layout;
     pub layout: Layout,
-    /// java: private final List<AbstractWidget> widgets;
-    pub widgets: Vec<AbstractWidget>,
+    /// java: private final List<AbstractWidget> widgets; - `List.of(optionsButton, helpButton, locationDropdown,
+    /// screenLayerDropdown, autoAnchorToggle)`, held in this widget's own `Screen` list (the list this port's layouts
+    /// index, and the one its widget pass draws and asks)
+    pub widgets: Screen,
 }
 
 impl std::ops::Deref for TopBarWidget {
@@ -67,67 +70,92 @@ impl std::ops::DerefMut for TopBarWidget {
 
 impl TopBarWidget {
     /// java: TopBarWidget(int width, WidgetsConfigurationScreen parent)
-    /// (the screen holds this widget in a field: the lambdas hold the screen weakly)
-    pub fn new(width: i32, parent: compat::Shared<WidgetsConfigurationScreen>) -> Self {
-        // java: super(0, 0, width, HEIGHT, Component.literal("hi"), defaultSettings(0));
-        let mut this: Self = Self {
-            base: AbstractContainerWidget::new_with_scrollbar_settings(0, 0, width, HEIGHT, mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::literal("hi")), mcrust::net::minecraft::client::gui::components::abstract_scroll_area::ScrollbarSettings::default_settings(0.0)),
-            location_dropdown: None,
-            screen_layer_dropdown: None,
-            // java: layout = new Layout();
-            layout: Layout::new(),
-            widgets: Vec::new(),
-        };
+    /// (the screen holds this widget: the actions hold the screen weakly)
+    pub fn new(width: i32, parent: &compat::Shared<WidgetsConfigurationScreen>) -> compat::Shared<Self> {
+        // java: layout = new Layout();
+        let mut layout = Layout::new();
+        let mut widgets = Screen::new(String::new());
+        // java: LinearLayout leftButtons = LinearLayout.horizontal();
         let mut left_buttons: LinearLayout = LinearLayout::horizontal();
-        let __parent_w1 = compat::RenderThread::new(std::sync::Arc::downgrade(&parent));
-        // java: new StyledButtonWidget(60, HEIGHT, .., _ -> parent.openPopup(OtherOptionsScreen::new))
-        let mut options_button: compat::Shared<StyledButtonWidget> = StyledButtonWidget::new(60, HEIGHT, component::translatable("skyblocker.config.hud.topBar.options"), OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| {
+        // java: StyledButtonWidget optionsButton = new StyledButtonWidget(60, HEIGHT, Component.translatable("skyblocker.config.hud.topBar.options"), _ -> parent.openPopup(OtherOptionsScreen::new));
+        let __parent_w1 = compat::RenderThread::new(std::sync::Arc::downgrade(parent));
+        let options_button: compat::Shared<StyledButtonWidget> = StyledButtonWidget::new(60, HEIGHT, component::translatable("skyblocker.config.hud.topBar.options"), OnPress::Lambda(PressLambda::new(move |__screen: &mut Screen, __index: usize| {
             let Some(parent) = __parent_w1.get().upgrade() else { return; };
             WidgetsConfigurationScreen::open_popup(&parent, Arc::new(move |__a0| Box::new(compat::ScreenAdapter::new(OtherOptionsScreen::new(__a0))) as Box<dyn ModScreen>));
         })));
-        let __wa1 = Tooltip::create((component::translatable("skyblocker.config.hud.topBar.options.@Tooltip")).get_string());
-        let __o1 = options_button.clone();
-        compat::write(&__o1, |__t| __t.set_tooltip(__wa1.clone()));
-        // TODO(fabric2seer): `addButton` on a void
-        //   java: StyledButtonWidget helpButton = new StyledButtonWidget(60, HEIGHT, Component.literal("(?) ").append(Component.translatable("skyblocker.config.hud.topBar.help")),
-        //   java: 				_ -> parent.openPopup(screen -> new PopupScreen.Builder(screen, Component.translatable("skyblocker.config.hud.help"))
-        //   java: 						.addMessage(Component.translatable("skyblocker.config.hud.helpText"))
-        //   java: 						.addButton(CommonComponents.GUI_OK, PopupScreen::onClose)
-        //   java: 						.setWidth(300)
-        //   java: 						.build()));
-        let mut help_button: compat::Shared<StyledButtonWidget> = todo!("fabric2seer: the initialiser of `helpButton` (TODO above)");
-        // rust: port gap (GAPS_batchC #L3) - a widget OBJECT put in a layout outside a screen: the port's layouts hold a
-        // widget by its index in a screen's widget list
-        // rust: left_buttons.add_child(options_button.clone());
-        // rust: left_buttons.add_child(help_button.clone());
-        this.layout.add(LayoutElement::Grid(left_buttons.clone().wrapped));
-        let __parent_w2 = std::sync::Arc::downgrade(&parent);
-        this.location_dropdown = Some(CustomDropdownWidget::new(((width.wrapping_div(2)).wrapping_sub(100)).wrapping_sub(5), 0, 100, 200, widget_manager::ALLOWED_LOCATIONS.iter().cloned().collect::<Vec<_>>(), Arc::new(move |__a0: Location| { if let Some(parent) = __parent_w2.upgrade() { WidgetsConfigurationScreen::set_current_location(&parent, __a0); } }), WidgetsConfigurationScreen::get_current_location(&parent)));
+        // java: optionsButton.setTooltip(Tooltip.create(Component.translatable("skyblocker.config.hud.topBar.options.@Tooltip")));
+        let __tooltip = Tooltip::create((component::translatable("skyblocker.config.hud.topBar.options.@Tooltip")).get_string());
+        compat::write(&options_button, |__t| __t.set_tooltip(__tooltip));
+        // java: StyledButtonWidget helpButton = new StyledButtonWidget(60, HEIGHT, Component.literal("(?) ").append(Component.translatable("skyblocker.config.hud.topBar.help")),
+        //           _ -> parent.openPopup(screen -> new PopupScreen.Builder(screen, Component.translatable("skyblocker.config.hud.help"))
+        //               .addMessage(Component.translatable("skyblocker.config.hud.helpText")).addButton(CommonComponents.GUI_OK, PopupScreen::onClose).setWidth(300).build()));
+        // (the builder's `screen` is the popup's background: the screen it is opened over, held by `set_screen_keeping_parent`)
+        let __parent_w5 = compat::RenderThread::new(std::sync::Arc::downgrade(parent));
+        let help_button: compat::Shared<StyledButtonWidget> = StyledButtonWidget::new(60, HEIGHT, component::literal("(?) ").append(component::translatable("skyblocker.config.hud.topBar.help")), OnPress::Lambda(PressLambda::new(move |__screen: &mut Screen, __index: usize| {
+            let Some(parent) = __parent_w5.get().upgrade() else { return; };
+            WidgetsConfigurationScreen::open_popup(&parent, Arc::new(move |_screen| {
+                Box::new(compat::BatchUPopupScreenBuilder::new(component::translatable("skyblocker.config.hud.help"))
+                    .add_message(component::translatable("skyblocker.config.hud.helpText"))
+                    .add_button(component::translatable("gui.ok"), |popup_screen| popup_screen.on_close())
+                    .set_width(300)
+                    .build()) as Box<dyn ModScreen>
+            }));
+        })));
+        // java: leftButtons.addChild(optionsButton); leftButtons.addChild(helpButton); layout.add(leftButtons);
+        let __i = widgets.add_renderable_widget(compat::WidgetAdapter::widget(options_button.clone()));
+        left_buttons.add_widget_child(&widgets, __i);
+        let __i = widgets.add_renderable_widget(compat::WidgetAdapter::widget(help_button.clone()));
+        left_buttons.add_widget_child(&widgets, __i);
+        layout.add(LayoutElement::Grid(left_buttons.wrapped.clone()));
+        // java: locationDropdown = new CustomDropdownWidget<>(width / 2 - 100 - 5, 0, 100, 200, List.copyOf(WidgetManager.ALLOWED_LOCATIONS), parent::setCurrentLocation, parent.getCurrentLocation());
+        let __parent_w2 = compat::RenderThread::new(std::sync::Arc::downgrade(parent));
+        let location_dropdown = CustomDropdownWidget::new(((width.wrapping_div(2)).wrapping_sub(100)).wrapping_sub(5), 0, 100, 200, widget_manager::ALLOWED_LOCATIONS.iter().cloned().collect::<Vec<_>>(), Arc::new(move |__a0: Location| { if let Some(parent) = __parent_w2.get().upgrade() { WidgetsConfigurationScreen::set_current_location(&parent, __a0); } }), WidgetsConfigurationScreen::get_current_location(parent));
         // java: locationDropdown.setFormatter(l -> Component.literal(l.toString()));
-        { let (__a0,) = (Arc::new(move |l: Location| component::literal(&compat::jstring(&l))) as Arc<dyn Fn(Location) -> mcrust::net::minecraft::network::chat::mutable_component::MutableComponent>,); this.location_dropdown.as_ref().unwrap().lock().borrow_mut().set_formatter(__a0) };
-        let __parent_w3 = std::sync::Arc::downgrade(&parent);
-        this.screen_layer_dropdown = Some(CustomDropdownWidget::new((width.wrapping_div(2)).wrapping_add(5), 0, 100, 200, ScreenLayer::values().to_vec(), Arc::new(move |__a0: ScreenLayer| { if let Some(parent) = __parent_w3.upgrade() { WidgetsConfigurationScreen::set_current_screen_layer(&parent, __a0); } }), ScreenLayer::Hud));
+        compat::write(&location_dropdown, |__t| __t.set_formatter(Arc::new(move |l: Location| component::literal(&compat::jstring(&l)))));
+        // java: screenLayerDropdown = new CustomDropdownWidget<>(width / 2 + 5, 0, 100, 200, List.of(WidgetManager.ScreenLayer.values()), parent::setCurrentScreenLayer, WidgetManager.ScreenLayer.HUD);
+        let __parent_w3 = compat::RenderThread::new(std::sync::Arc::downgrade(parent));
+        let screen_layer_dropdown = CustomDropdownWidget::new((width.wrapping_div(2)).wrapping_add(5), 0, 100, 200, ScreenLayer::values().to_vec(), Arc::new(move |__a0: ScreenLayer| { if let Some(parent) = __parent_w3.get().upgrade() { WidgetsConfigurationScreen::set_current_screen_layer(&parent, __a0); } }), ScreenLayer::Hud);
+        // java: LinearLayout dropdownsLayout = LinearLayout.horizontal().spacing(2);
+        //       dropdownsLayout.addChild(locationDropdown); dropdownsLayout.addChild(screenLayerDropdown); layout.add(dropdownsLayout);
         let mut dropdowns_layout: LinearLayout = LinearLayout::horizontal().spacing(2);
-        // rust: port gap (GAPS_batchC #L3) - widget objects in a layout outside a screen
-        // rust: dropdowns_layout.add_child(this.location_dropdown.clone().unwrap());
-        // rust: dropdowns_layout.add_child(this.screen_layer_dropdown.clone().unwrap());
-        this.layout.add(LayoutElement::Grid(dropdowns_layout.clone().wrapped));
-        let __parent_w4 = std::sync::Arc::downgrade(&parent);
-        let mut auto_anchor_toggle: compat::Shared<ToggleButtonWidget> = ToggleButtonWidget::new(100, HEIGHT, component::translatable("skyblocker.config.hud.topBar.autoAnchor"), Arc::new(move |b| { if let Some(parent) = __parent_w4.upgrade() { compat::write(&parent, |__t| __t.auto_anchor = b); } }));
+        let __i = widgets.add_renderable_widget(CustomDropdownAdapter::widget(location_dropdown.clone()));
+        dropdowns_layout.add_widget_child(&widgets, __i);
+        let __i = widgets.add_renderable_widget(CustomDropdownAdapter::widget(screen_layer_dropdown.clone()));
+        dropdowns_layout.add_widget_child(&widgets, __i);
+        layout.add(LayoutElement::Grid(dropdowns_layout.wrapped.clone()));
+        // java: ToggleButtonWidget autoAnchorToggle = new ToggleButtonWidget(100, HEIGHT, Component.translatable("skyblocker.config.hud.topBar.autoAnchor"), b -> parent.autoAnchor = b);
+        let __parent_w4 = compat::RenderThread::new(std::sync::Arc::downgrade(parent));
+        let auto_anchor_toggle: compat::Shared<ToggleButtonWidget> = ToggleButtonWidget::new(100, HEIGHT, component::translatable("skyblocker.config.hud.topBar.autoAnchor"), Arc::new(move |b| { if let Some(parent) = __parent_w4.get().upgrade() { compat::write(&parent, |__t| __t.auto_anchor = b); } }));
+        // java: autoAnchorToggle.setState(true);
         ToggleButtonWidget::set_state(&auto_anchor_toggle, true);
-        let __wa2 = Tooltip::create((component::translatable("skyblocker.config.hud.topBar.autoAnchor.@Tooltip")).get_string());
-        let __o2 = auto_anchor_toggle.clone();
-        compat::write(&__o2, |__t| __t.set_tooltip(__wa2.clone()));
+        // java: autoAnchorToggle.setTooltip(Tooltip.create(Component.translatable("skyblocker.config.hud.topBar.autoAnchor.@Tooltip")));
+        let __tooltip = Tooltip::create((component::translatable("skyblocker.config.hud.topBar.autoAnchor.@Tooltip")).get_string());
+        compat::write(&auto_anchor_toggle, |__t| __t.set_tooltip(__tooltip));
+        // java: LinearLayout rightButtons = LinearLayout.horizontal(); rightButtons.addChild(autoAnchorToggle); layout.add(rightButtons);
         let mut right_buttons: LinearLayout = LinearLayout::horizontal();
-        // rust: port gap (GAPS_batchC #L3) - a widget object in a layout outside a screen
-        // rust: right_buttons.add_child(auto_anchor_toggle.clone());
-        this.layout.add(LayoutElement::Grid(right_buttons.clone().wrapped));
-        // rust: port gap (GAPS_batchC #L3) - `List<AbstractWidget>` of the widget OBJECTS (StyledButtonWidget and
-        // CustomDropdownWidget have no widget adapter): the list stays empty
-        // rust: this.widgets = vec![options_button.clone(), help_button.clone(), this.location_dropdown.clone().unwrap(), this.screen_layer_dropdown.clone().unwrap(), auto_anchor_toggle.clone()];
-        let _ = (&options_button, &help_button, &auto_anchor_toggle);
-        this.layout.arrange_elements();
-        this
+        let __i = widgets.add_renderable_widget(compat::WidgetAdapter::widget(auto_anchor_toggle.clone()));
+        right_buttons.add_widget_child(&widgets, __i);
+        layout.add(LayoutElement::Grid(right_buttons.wrapped.clone()));
+        // java: super(0, 0, width, HEIGHT, Component.literal("hi"), defaultSettings(0));
+        let mut this: Self = Self {
+            base: AbstractContainerWidget::new_with_scrollbar_settings(0, 0, width, HEIGHT, mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::literal("hi")), mcrust::net::minecraft::client::gui::components::abstract_scroll_area::ScrollbarSettings::default_settings(0.0)),
+            location_dropdown,
+            screen_layer_dropdown,
+            layout,
+            widgets,
+        };
+        // java: layout.arrangeElements();
+        this.arrange_layout();
+        compat::shared(this)
+    }
+
+    /// `layout.arrangeElements()` with the inner class's `TopBarWidget.this` box brought up to date first, over the
+    /// widgets' live sizes, and the arranged positions written into the widget list.
+    pub fn arrange_layout(&mut self) {
+        self.layout.outer_box = (self.base.get_x(), self.base.get_y(), self.base.get_width(), self.get_height());
+        self.layout.sync_widget_sizes(&self.widgets);
+        self.layout.arrange_elements();
+        self.layout.place_widgets(&mut self.widgets);
     }
 
     /// java: static void drawButtonBorder(GuiGraphicsExtractor context, int x, int y, int y2)
@@ -139,49 +167,95 @@ impl TopBarWidget {
 
     /// java: @Override public int getHeight()
     pub fn get_height(&self) -> i32 {
-        let __o1 = self.location_dropdown.clone().unwrap();
-        let __o2 = self.screen_layer_dropdown.clone().unwrap();
-        return self.base.get_height().max((compat::write(&__o1, |__t| __t.get_height())).max(compat::write(&__o2, |__t| __t.get_height())));
+        let __location = compat::read(&self.location_dropdown, |__t| __t.get_height());
+        let __layer = compat::read(&self.screen_layer_dropdown, |__t| __t.get_height());
+        return self.base.get_height().max(__location.max(__layer));
     }
 
-    /// java: @Override public List<? extends GuiEventListener> children()
-    pub fn children(&self) -> Vec<Box<dyn GuiEventListener>> {
-        // rust: port gap (GAPS_batchA #9) - `children()` lending the live child widgets: the port answers owned
-        // listeners, and these children are this object's own values
-        // rust: return self.widgets.clone();
-        return Vec::new();
+    /// `AbstractWidget.isMouseOver` - `isActive() && areCoordinatesInRectangle(x, y)`, over this class's `getHeight()`
+    pub fn is_mouse_over(&self, mouse_x: f64, mouse_y: f64) -> bool {
+        self.base.active && self.base.visible
+            && mouse_x >= self.get_x() as f64 && mouse_y >= self.get_y() as f64
+            && mouse_x < (self.get_x() + self.get_width()) as f64 && mouse_y < (self.get_y() + self.get_height()) as f64
     }
 
     /// java: @Override public void setWidth(int width)
     pub fn set_width(&mut self, mut width: i32) {
         self.base.set_width(width);
-        self.layout.arrange_elements();
+        self.arrange_layout();
+    }
+
+    /// `AbstractWidget.extractRenderState` - `if (visible) extractWidgetRenderState(..)` (hover is the widget pass's)
+    pub fn extract_render_state(__this: &compat::Shared<Self>, context: &mut WidgetRenderContext<'_>, mouse_x: i32, mouse_y: i32, delta_ticks: f32) {
+        if !compat::read(__this, |__t| __t.visible) {
+            return;
+        }
+        TopBarWidget::extract_widget_render_state(__this, context, mouse_x, mouse_y, delta_ticks);
     }
 
     /// java: @Override protected void extractWidgetRenderState(GuiGraphicsExtractor context, int mouseX, int mouseY, float deltaTicks)
-    pub fn extract_widget_render_state(&self, context: &GuiGraphicsExtractor, mut mouse_x: i32, mut mouse_y: i32, mut delta_ticks: f32) {
-        gui_graphics_extractor::blit_sprite_identifier(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), mcrust::net::minecraft::client::renderer::render_pipelines::gui_textured(), TEXTURE.get_mut(), self.get_x().wrapping_sub(2), self.get_y().wrapping_sub(2), self.get_width().wrapping_add(4), HEIGHT.wrapping_add(2));
-        for widget in self.widgets.iter() {
-            // TODO(fabric2seer): `extract_render_state` is a method of the port's trait `Renderable`, which the port's `AbstractWidget` does not implement
-            // rust: widget.extract_render_state(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), mouse_x, mouse_y, delta_ticks);
-        }
+    pub fn extract_widget_render_state(__this: &compat::Shared<Self>, context: &mut WidgetRenderContext<'_>, mut mouse_x: i32, mut mouse_y: i32, mut delta_ticks: f32) {
+        let (x, y, w) = compat::read(__this, |__t| (__t.get_x(), __t.get_y(), __t.get_width()));
+        gui_graphics_extractor::blit_sprite_identifier(context.gl, context.minecraft, mcrust::net::minecraft::client::renderer::render_pipelines::gui_textured(), TEXTURE.get(), x.wrapping_sub(2), y.wrapping_sub(2), w.wrapping_add(4), HEIGHT.wrapping_add(2));
+        // java: for (AbstractWidget widget : widgets) widget.extractRenderState(context, mouseX, mouseY, deltaTicks);
+        let mut __widgets = compat::write(__this, |__t| std::mem::replace(&mut __t.widgets, Screen::new(String::new())));
+        context.extract_widgets(&mut __widgets, mouse_x, mouse_y);
+        compat::write(__this, |__t| __t.widgets = __widgets);
+        let _ = delta_ticks;
+    }
+
+    /// The children, taken out of the object for a call that reaches back into it (a dropdown's select callback
+    /// rebuilds the screen's layer, a button opens a popup) and put back after it. A child's size may have changed (a
+    /// dropdown opened), so the layout is arranged again.
+    fn with_children<R>(__this: &compat::Shared<Self>, f: impl FnOnce(&mut Screen) -> R) -> R {
+        let mut __widgets = compat::write(__this, |__t| std::mem::replace(&mut __t.widgets, Screen::new(String::new())));
+        let out = f(&mut __widgets);
+        compat::write(__this, |__t| __t.widgets = __widgets);
+        out
+    }
+
+    /// java: `AbstractContainerWidget.mouseClicked` - `updateScrolling` (`NO_SCROLL`: never) and
+    /// `ContainerEventHandler.mouseClicked` over `children()`
+    pub fn mouse_clicked(__this: &compat::Shared<Self>, click: &MouseButtonEvent, doubled: bool) -> bool {
+        let _ = doubled;
+        TopBarWidget::with_children(__this, |widgets| {
+            if widgets.get_child_at(click.x(), click.y()).is_none() {
+                return false;
+            }
+            let _ = widgets.mouse_clicked(click.button(), click.x(), click.y());
+            true
+        })
+    }
+
+    /// java: `ContainerEventHandler.mouseReleased` - the focused, dragging child's
+    pub fn mouse_released(__this: &compat::Shared<Self>, click: &MouseButtonEvent) -> bool {
+        TopBarWidget::with_children(__this, |widgets| {
+            widgets.mouse_released(click.button(), click.x(), click.y());
+            false
+        })
+    }
+
+    /// java: `ContainerEventHandler.mouseDragged` - the focused, dragging child's (a dropdown list's scrollbar)
+    pub fn mouse_dragged(__this: &compat::Shared<Self>, click: &MouseButtonEvent, dx: f64, dy: f64) -> bool {
+        TopBarWidget::with_children(__this, |widgets| {
+            widgets.mouse_dragged(click.x(), click.y(), dx, dy);
+            false
+        })
     }
 
     /// java: @Override public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount)
-    pub fn mouse_scrolled(&self, mut mouse_x: f64, mut mouse_y: f64, mut horizontal_amount: f64, mut vertical_amount: f64) -> bool {
-        if !self.visible {
+    pub fn mouse_scrolled(__this: &compat::Shared<Self>, mut mouse_x: f64, mut mouse_y: f64, mut horizontal_amount: f64, mut vertical_amount: f64) -> bool {
+        if !compat::read(__this, |__t| __t.visible) {
             return false;
         }
-        // TODO(fabric2seer): `get_child_at` takes 3 argument(s) in the port (`children: &[(usize, ScreenRectangle)], x: f64, y: f64`), Java passes 2
-        // TODO(fabric2seer): the condition: Optional.mouseScrolled
-        //   java: this.getChildAt(..).filter(..).isPresent(..)
-        if todo!("fabric2seer: the condition (TODO above)") {
+        // java: if (this.getChildAt(mouseX, mouseY).filter(element -> element.mouseScrolled(mouseX, mouseY, horizontalAmount, verticalAmount)).isPresent()) return true;
+        if TopBarWidget::with_children(__this, |widgets| widgets.mouse_scrolled_mod_widget(mouse_x, mouse_y, horizontal_amount, vertical_amount)) {
             return true;
         }
-        // TODO(fabric2seer): `mouse_scrolled` takes 2 argument(s) in the port (`content_height: i32, scroll_y: f64`), Java passes 4
-        // TODO(fabric2seer): `ScrollArea::mouse_scrolled` ports `mouseScrolled`, but the port's `AbstractContainerWidget` holds no `ScrollArea` (no Deref, no `base` field) to call it on
-        // rust: return self.base.mouse_scrolled(mouse_x, mouse_y, horizontal_amount, vertical_amount);
-        return todo!("fabric2seer: see the TODO above");
+        // java: return super.mouseScrolled(mouseX, mouseY, horizontalAmount, verticalAmount);
+        // (`AbstractScrollArea.mouseScrolled`: `setScrollAmount(scrollAmount() - verticalAmount * scrollRate())` - this
+        // widget is `NO_SCROLL` with a `contentHeight()` of 0, so the amount stays 0 - then `return true`)
+        return true;
     }
 
     /// java: @Override protected void updateWidgetNarration(NarrationElementOutput builder)
@@ -195,20 +269,25 @@ impl TopBarWidget {
 
 }
 
-// NOTE(fabric2seer): children, contentHeight, extractWidgetRenderState, getHeight, mouseScrolled, setWidth, updateWidgetNarration override(s) of AbstractContainerWidget - the port dispatches its own calls, so these run only where the mod calls them; hook the port's method to make the game call them
-
 /// java: private class Layout extends AbstractLayout
 pub struct Layout {
-    // TODO(fabric2seer): extends AbstractLayout - a TRAIT in the port: implement it for Layout instead of holding a base
+    /// java: extends AbstractLayout - `super(0, 0, 0, 0)`'s four fields (`AbstractLayout` is a trait here, implemented
+    /// below; this class's `getX()` .. `getHeight()` overrides answer `outer_box` instead)
+    pub fields: (i32, i32, i32, i32),
     /// java: private final List<LayoutElement> widgets = new ArrayList<>(4);
     pub widgets: Vec<LayoutElement>,
+    /// `TopBarWidget.this`'s box `(getX(), getY(), getWidth(), getHeight())`, which the inner class's four getters
+    /// answer: the enclosing widget writes it before every `arrangeElements` (`TopBarWidget::arrange_layout`)
+    pub outer_box: (i32, i32, i32, i32),
 }
 
 impl Layout {
     /// java: Layout()
     pub fn new() -> Self {
         let mut this = Self {
+            fields: (0, 0, 0, 0),
             widgets: Vec::with_capacity((4) as usize),
+            outer_box: (0, 0, 0, 0),
         };
         this
     }
@@ -228,30 +307,26 @@ impl Layout {
 
     /// java: @Override public int getX()
     pub fn get_x(&self) -> i32 {
-        // TODO(fabric2seer): `TopBarWidget.this` (the enclosing instance of an inner class)
-        //   java: return TopBarWidget.this.getX();
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        // java: return TopBarWidget.this.getX();
+        return self.outer_box.0;
     }
 
     /// java: @Override public int getY()
     pub fn get_y(&self) -> i32 {
-        // TODO(fabric2seer): `TopBarWidget.this` (the enclosing instance of an inner class)
-        //   java: return TopBarWidget.this.getY();
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        // java: return TopBarWidget.this.getY();
+        return self.outer_box.1;
     }
 
     /// java: @Override public int getWidth()
     pub fn get_width(&self) -> i32 {
-        // TODO(fabric2seer): `TopBarWidget.this` (the enclosing instance of an inner class)
-        //   java: return TopBarWidget.this.getWidth();
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        // java: return TopBarWidget.this.getWidth();
+        return self.outer_box.2;
     }
 
     /// java: @Override public int getHeight()
     pub fn get_height(&self) -> i32 {
-        // TODO(fabric2seer): `TopBarWidget.this` (the enclosing instance of an inner class)
-        //   java: return TopBarWidget.this.getHeight();
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        // java: return TopBarWidget.this.getHeight();
+        return self.outer_box.3;
     }
 
     /// java: @Override public void arrangeElements()
@@ -290,4 +365,39 @@ impl Layout {
 
 }
 
-// NOTE(fabric2seer): arrangeElements, getHeight, getWidth, getX, getY, removeChildren, visitChildren override(s) of AbstractLayout - the port dispatches its own calls, so these run only where the mod calls them; hook the port's method to make the game call them
+
+/// java: `extends AbstractLayout` - `setX` / `setY` move every child by the layout's delta (the trait's bodies), and the
+/// four getters are this class's overrides (`TopBarWidget.this`'s box)
+impl AbstractLayout for Layout {
+    fn abstract_layout_fields(&mut self) -> (&mut i32, &mut i32, &mut i32, &mut i32) {
+        let f = &mut self.fields;
+        (&mut f.0, &mut f.1, &mut f.2, &mut f.3)
+    }
+
+    fn abstract_layout_values(&self) -> (i32, i32, i32, i32) {
+        self.outer_box
+    }
+
+    fn visit_children_mut(&mut self, visitor: &mut dyn FnMut(&mut LayoutElement)) {
+        for __w in self.widgets.iter_mut() {
+            visitor(__w);
+        }
+    }
+}
+
+impl Layout {
+    /// The positions this layout's children were arranged to, written into the top bar's widget list (Java's layout
+    /// moves the widget objects themselves).
+    pub fn place_widgets(&self, widgets: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen) {
+        for __w in self.widgets.iter() {
+            __w.place_widgets(widgets);
+        }
+    }
+
+    /// The layout's copy of each child widget's size brought up to the widget list (Java reads it off the widget).
+    pub fn sync_widget_sizes(&mut self, widgets: &mcrust::net::minecraft::client::gui::screens::screen::Screen) {
+        for __w in self.widgets.iter_mut() {
+            __w.sync_widget_sizes(widgets);
+        }
+    }
+}

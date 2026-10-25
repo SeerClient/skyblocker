@@ -112,8 +112,9 @@ pub trait SliderWidget<E: Clone + OptionInfo + 'static> {
         if self.slider_widget_base().slot_id == -1 {
             return;
         }
-        (self.slider_widget_base().click_slot)(self.slider_widget_base().slot_id, self.slider_widget_base().button);
-        // TODO(fabric2seer): `AbstractWidget.onClick` has no Rust method in the port (looked for `on_click` in AbstractWidget and its supertypes)
+        // 26.3: the mouse button is SDL-numbered (left 1, right 3); the slot click takes the container button
+        // (left 0, right 1) - `AbstractContainerScreen.getContainerClickButton:287-293`.
+        (self.slider_widget_base().click_slot)(self.slider_widget_base().slot_id, mcrust::net::minecraft::client::gui::screens::inventory::abstract_container_screen::get_container_click_button(self.slider_widget_base().button));
         // java: super.onClick(click, doubled) - AbstractWidget.onClick:100-101 is an empty body, nothing to run
     }
 
@@ -121,7 +122,7 @@ pub trait SliderWidget<E: Clone + OptionInfo + 'static> {
     fn is_valid_click_button(&mut self, input: &MouseButtonInfo) -> bool {
         self.slider_widget_base_mut().button = input.button();
         // java: return super.isValidClickButton(input) || button == InputConstants.MOUSE_BUTTON_RIGHT;
-        return (self.slider_widget_base().base.is_valid_click_button(input.button()) || self.slider_widget_base().button == 1);
+        return (self.slider_widget_base().base.is_valid_click_button(input.button()) || self.slider_widget_base().button == mcrust::com::mojang::blaze3d::platform::input_constants::MOUSE_BUTTON_RIGHT);
     }
 
     /// java: public void setSlotId(int slotId)

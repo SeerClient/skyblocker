@@ -69,9 +69,9 @@ impl SkillTreeNodeWidget {
         let mut y: i32 = (__this.lock().borrow().get_y()).wrapping_add(1);
         graphics.item(&compat::read(__this, |__t| __t.icon.clone()), x, y);
         if __this.lock().borrow().is_hovered() {
-            // TODO(fabric2seer): the port's `set_component_tooltip_for_next_frame_styled` ports this Java method with other parameters (tooltip_for_next_frame, lines for Java's lines, xo, yo, style)
-            // TODO(fabric2seer): `set_component_tooltip_for_next_frame_styled` takes 2 argument(s) in the port (`tooltip_for_next_frame: &mut Option<DeferredTooltip>, lines: Vec<crate::net::minecraft::network::chat::formatted_text::FormattedText>`), Java passes 5
-            // rust: gui_graphics_extractor::set_component_tooltip_for_next_frame_styled(&mut compat::font(), compat::read(__this, |__t| __t.tooltip.clone()), mouse_x, mouse_y, compat::read(__this, |__t| __t.tooltip_style.clone()));
+            // java: graphics.setComponentTooltipForNextFrame(Minecraft.getInstance().font, this.tooltip, mouseX, mouseY, this.tooltipStyle);
+            // (the game's deferred tooltip draws every tooltip in the default style: its `_styled` overload takes none)
+            compat::batch_s_set_tooltip_for_next_frame(compat::read(__this, |__t| __t.tooltip.iter().cloned().map(mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from).collect()));
         }
     }
 

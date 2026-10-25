@@ -11,10 +11,15 @@ use mcrust::net::minecraft::network::chat::component;
 use mcrust::net::minecraft::world::item::items;
 use mcrust::net::minecraft::network::chat::formatted_text::FormattedText;
 use crate::de::hysky::skyblocker::utils::datafixer::legacy_item_stack_fixer::LegacyItemStackFixer;
+use crate::de::hysky::skyblocker::utils::datafixer::legacy_string_nbt_reader::LegacyStringNbtReader;
+use crate::io::github::moulberry::repo::constants::pet_numbers::PetNumbers;
+use crate::io::github::moulberry::repo::data::neu_item::NEUItem;
+use crate::io::github::moulberry::repo::data::rarity::Rarity;
+use mcrust::net::minecraft::world::item::component::item_lore::ItemLore;
 
 
 /// java: private static Map<String, Map<Rarity, PetNumbers>> petNums = Map.of();
-pub static PET_NUMS: compat::MainThread<std::collections::HashMap<String, std::collections::HashMap<crate::unresolved::Rarity, crate::unresolved::PetNumbers>>> = compat::MainThread::new(|| std::collections::HashMap::from([]));
+pub static PET_NUMS: compat::MainThread<std::collections::HashMap<String, std::collections::HashMap<Rarity, PetNumbers>>> = compat::MainThread::new(|| std::collections::HashMap::from([]));
 
 /// java: public class ItemStackBuilder
 #[derive(Clone)]
@@ -33,8 +38,8 @@ impl ItemStackBuilder {
         // java: try {..} catch (Exception _) - an exception here is a panic, caught by `catch_unwind`
         let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             // java: petNums = NEURepoManager.getConstants().getPetNumbers();
-            // rust: port gap (GAPS_J #5) - `NEUConstants` / `PetNumbers` / `Rarity` are `crate::unresolved` unit structs
-            // (the NEU repo library is unported), so there is no `getPetNumbers()` to read.
+            let pet_numbers: std::collections::HashMap<String, std::collections::HashMap<Rarity, PetNumbers>> = (*NEURepoManager::get_constants().get_pet_numbers()).clone();
+            *PET_NUMS.get_mut() = pet_numbers;
         }));
         if let Err(_) = __result {
             logger().error("[Skyblocker ItemStackBuilder] Failed to load petnums.json");
@@ -42,54 +47,52 @@ impl ItemStackBuilder {
     }
 
     /// java: protected static FlexibleItemStack fromNEUItem(NEUItem item)
-    pub fn from_neu_item(item: &crate::unresolved::NEUItem) -> compat::Shared<FlexibleItemStack> {
+    pub fn from_neu_item(item: &NEUItem) -> compat::Shared<FlexibleItemStack> {
         // java: try {..} catch (Exception e) - an exception here is a panic, caught by `catch_unwind`; the body's `return` is the closure's value
         match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             let mut nbt: Tag = Tag::compound();
             // java: CompoundTag tag = LegacyStringNbtReader.parse(item.getNbttag());
-            // rust: port gap (GAPS_J #5) - `NEUItem.getNbttag()` / `getMinecraftItemId()` / `getDamage()` /
-            // `getSkyblockItemId()` / `getDisplayName()` / `getLore()`: `NEUItem` is a `crate::unresolved` unit struct
-            // (the NEU repo library is unported). Every statement below that does not read the `NEUItem` is ported.
-            let mut tag: Tag = todo!("fabric2seer: the initialiser of `tag` (TODO above)");
+            let mut tag: Tag = LegacyStringNbtReader::parse(&item.get_nbttag().to_string());
             nbt.put("tag", tag.clone());
-            // java: nbt.putString("id", item.getMinecraftItemId());  - rust: port gap (NEUItem, above)
-            // java: nbt.putShort("Damage", (short) item.getDamage()); - rust: port gap (NEUItem, above)
+            // java: nbt.putString("id", item.getMinecraftItemId());
+            nbt.put_string("id", &item.get_minecraft_item_id().to_string());
+            // java: nbt.putShort("Damage", (short) item.getDamage());
+            nbt.put_short("Damage", item.get_damage() as i16);
             nbt.put_int("Count", 1);
             // java: FlexibleItemStack stack = LegacyItemStackFixer.fixLegacyStack(nbt, FlexibleItemStack.CODEC, FlexibleItemStack.EMPTY, FlexibleItemStack::set);
             let mut stack: compat::Shared<FlexibleItemStack> = LegacyItemStackFixer::fix_legacy_stack(&nbt, flexible_item_stack::CODEC.get(), flexible_item_stack::EMPTY.get(), &|s: &mut compat::Shared<FlexibleItemStack>, r#type, value| FlexibleItemStack::set_obj(s, r#type, value));
             // java: if (stack.is(Items.AIR)) {
             if Arc::ptr_eq(&flexible_item_stack::item_of(&FlexibleItemStack::type_holder(&stack)), &items::items().get("air")) {
                 // java: LOGGER.error("[Skyblocker ItemStackBuilder] Failed to build item with skyblock id: {}!", item.getSkyblockItemId());
+                logger().error(&format!("[Skyblocker ItemStackBuilder] Failed to build item with skyblock id: {}!", item.get_skyblock_item_id()));
                 // java: return createErrorStack(item.getSkyblockItemId());
-                // rust: port gap (NEUItem.getSkyblockItemId, above) - both statements read the NEUItem; they are
-                // unreachable today (the `tag` initialiser above panics first) and must be written when NEUItem is ported.
+                return ItemStackBuilder::create_error_stack(&item.get_skyblock_item_id().to_string());
             }
             // java: List<Pair<String, String>> injectors = new ArrayList<>(petData(item.getSkyblockItemId()));
-            // rust: port gap (NEUItem.getSkyblockItemId, above)
-            let mut injectors: Vec<(String, String)> = todo!("fabric2seer: the initialiser of `injectors` (TODO above)");
+            let mut injectors: Vec<(String, String)> = ItemStackBuilder::pet_data(&item.get_skyblock_item_id().to_string());
             // java: String name = injectData(item.getDisplayName(), injectors);
-            // rust: port gap (NEUItem.getDisplayName, above)
-            let mut name: String = todo!("fabric2seer: the initialiser of `name` (TODO above)");
+            let mut name: String = ItemStackBuilder::inject_data(item.get_display_name().to_string(), &injectors);
             // java: stack.set(DataComponents.CUSTOM_NAME, TextTransformer.fromLegacy(name));
             // (the port's CUSTOM_NAME value is a `FormattedText` - `ItemStack.getCustomName` casts to it)
             FlexibleItemStack::set(&stack, mcrust::net::minecraft::core::component::data_components::custom_name().clone(), FormattedText::from(TextTransformer::from_legacy(&name)));
-            // rust: port gap (NEUItem.getLore, above)
             //   java: stack.set(DataComponents.LORE, new ItemLore(item.getLore().stream()
             //   java: 					.map(line -> TextTransformer.fromLegacy(injectData(line, injectors)))
             //   java: 					.map(Component.class::cast)
             //   java: 					.toList()));
+            // (the port's LORE lines are `FormattedText`, as CUSTOM_NAME's; `new ItemLore` throws past 256 lines - the
+            // catch below)
+            let lore_lines: Vec<FormattedText> = item.get_lore().iter().map(|line| FormattedText::from(TextTransformer::from_legacy(&ItemStackBuilder::inject_data(line.to_string(), &injectors)))).collect();
+            FlexibleItemStack::set(&stack, mcrust::net::minecraft::core::component::data_components::lore().clone(), ItemLore::new(lore_lines).unwrap_or_else(|e| panic!("IllegalArgumentException: {e:?}")));
             return stack;
         })) {
             Ok(__v) => return __v,
             Err(e) => {
                 // java: LOGGER.error("[Skyblocker ItemStackBuilder] Failed to build item with skyblock id: {}!", item.getSkyblockItemId(), e);
-                // rust: port gap (NEUItem.getSkyblockItemId, GAPS_J #5) - the id is left out of the message.
-                logger().error(&format!("[Skyblocker ItemStackBuilder] Failed to build item with skyblock id: {}! {}", "<NEUItem.getSkyblockItemId unported>", compat::panic_message(&e)));
+                logger().error(&format!("[Skyblocker ItemStackBuilder] Failed to build item with skyblock id: {}! {}", item.get_skyblock_item_id(), compat::panic_message(&e)));
             }
         }
         // java: return createErrorStack(item.getSkyblockItemId());
-        // rust: port gap (NEUItem.getSkyblockItemId, GAPS_J #5)
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        return ItemStackBuilder::create_error_stack(&item.get_skyblock_item_id().to_string());
     }
 
     /// java: private static FlexibleItemStack createErrorStack(String skyblockItemId)
@@ -107,8 +110,6 @@ impl ItemStackBuilder {
         if !(internal_name.contains(";")) || !(PET_NUMS.get_mut().contains_key(&pet_name)) {
             return list;
         }
-        // rust: port gap (GAPS_J #5) - `Rarity` (and `PetNumbers` below) are `crate::unresolved` unit structs of the
-        // unported NEU repo library: no constants, no getters.
         //   java: final Rarity[] rarities = {
         //   java: 				Rarity.COMMON,
         //   java: 				Rarity.UNCOMMON,
@@ -120,22 +121,21 @@ impl ItemStackBuilder {
         //   java: 				Rarity.SPECIAL, // phoenix
         //   java: 				Rarity.VERY_SPECIAL // phoenix
         //   java: 		};
-        let mut rarities: Vec<crate::unresolved::Rarity> = todo!("fabric2seer: the initialiser of `rarities` (TODO above)");
+        let mut rarities: Vec<Rarity> = vec![Rarity::Common, Rarity::Uncommon, Rarity::Rare, Rarity::Epic, Rarity::Legendary, Rarity::Mythic, Rarity::Divine, Rarity::Special, Rarity::VerySpecial];
+        // java: Rarity rarity = rarities[Integer.parseInt(internalName.split(";")[1])]; - an index past the array throws
         let rarity = &rarities[(((compat::regex::split(&internal_name, ";"))[(1) as usize]).parse::<i32>().expect("NumberFormatException")) as usize];
-        let mut data: crate::unresolved::PetNumbers = PET_NUMS.get_mut().get(&pet_name).cloned().unwrap().get(rarity).cloned().unwrap();
-        // TODO(fabric2seer): `.getLowLevel(..)` on a PetNumbers
+        // java: PetNumbers data = petNums.get(petName).get(rarity); - a rarity the pet has no numbers for is a null
+        // `data`, and `data.getLowLevel()` the NullPointerException the caller's catch logs
+        let mut data: PetNumbers = PET_NUMS.get().get(&pet_name).and_then(|by_rarity| by_rarity.get(rarity).cloned()).expect("NullPointerException");
         //   java: int minLevel = data.getLowLevel();
-        let mut min_level: i32 = todo!("fabric2seer: the initialiser of `minLevel` (TODO above)");
-        // TODO(fabric2seer): `.getHighLevel(..)` on a PetNumbers
+        let mut min_level: i32 = data.get_low_level();
         //   java: int maxLevel = data.getHighLevel();
-        let mut max_level: i32 = todo!("fabric2seer: the initialiser of `maxLevel` (TODO above)");
+        let mut max_level: i32 = data.get_high_level();
         list.push(("\\{LVL\\}".to_string(), format!("{} ➡ {}", min_level, max_level)));
-        // TODO(fabric2seer): `.getStatsAtLowLevel(..)` on a PetNumbers
         //   java: Map<String, Double> statNumsMin = data.getStatsAtLowLevel().getStatNumbers();
-        let mut stat_nums_min: std::collections::HashMap<String, f64> = todo!("fabric2seer: the initialiser of `statNumsMin` (TODO above)");
-        // TODO(fabric2seer): `.getStatsAtHighLevel(..)` on a PetNumbers
+        let mut stat_nums_min: std::collections::HashMap<String, f64> = data.get_stats_at_low_level().get_stat_numbers().clone();
         //   java: Map<String, Double> statNumsMax = data.getStatsAtHighLevel().getStatNumbers();
-        let mut stat_nums_max: std::collections::HashMap<String, f64> = todo!("fabric2seer: the initialiser of `statNumsMax` (TODO above)");
+        let mut stat_nums_max: std::collections::HashMap<String, f64> = data.get_stats_at_high_level().get_stat_numbers().clone();
         // java: Set<Map.Entry<String, Double>> entrySet = statNumsMin.entrySet(); - the entries, iterated
         let mut entry_set: Vec<(String, f64)> = stat_nums_min.iter().map(|(k, v)| (k.clone(), v.clone())).collect::<Vec<_>>();
         for entry in entry_set.iter() {
@@ -144,12 +144,10 @@ impl ItemStackBuilder {
             let mut right: String = format!("{} ➡ {}", compat::opt_str(&stat_nums_min.get(&key).cloned()), compat::opt_str(&stat_nums_max.get(&key).cloned()));
             list.push((left.clone(), right.clone()));
         }
-        // TODO(fabric2seer): `.getStatsAtLowLevel(..)` on a PetNumbers
         //   java: List<Double> otherNumsMin = data.getStatsAtLowLevel().getOtherNumbers();
-        let mut other_nums_min: Vec<f64> = todo!("fabric2seer: the initialiser of `otherNumsMin` (TODO above)");
-        // TODO(fabric2seer): `.getStatsAtHighLevel(..)` on a PetNumbers
+        let mut other_nums_min: Vec<f64> = data.get_stats_at_low_level().get_other_numbers().clone();
         //   java: List<Double> otherNumsMax = data.getStatsAtHighLevel().getOtherNumbers();
-        let mut other_nums_max: Vec<f64> = todo!("fabric2seer: the initialiser of `otherNumsMax` (TODO above)");
+        let mut other_nums_max: Vec<f64> = data.get_stats_at_high_level().get_other_numbers().clone();
         for i in 0..(other_nums_min.len() as i32) {
             let mut left: String = format!("\\{{{}\\}}", i);
             let mut right: String = format!("{} ➡ {}", compat::fstr(other_nums_min[(i) as usize] as f64), compat::fstr(other_nums_max[(i) as usize] as f64));

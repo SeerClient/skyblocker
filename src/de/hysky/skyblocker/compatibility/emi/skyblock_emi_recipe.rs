@@ -46,16 +46,18 @@ impl SkyblockEmiRecipe {
 
     /// java: @Override public List<EmiIngredient> getInputs()
     pub fn get_inputs(__this: &compat::Shared<Self>) -> Vec<crate::unresolved::EmiIngredient> {
-        // TODO(fabric2seer): `of` is not a method of FlexibleItemStack
         //   java: return recipe.getInputs().stream().map(EmiStack::of).map(EmiIngredient.class::cast).toList();
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        let __r = compat::read(__this, |__t| __t.recipe.clone());
+        let __f = compat::dispatch(&__r, |__t| __t.get_inputs());
+        return __f(&__r).iter().map(emi_stack_of).map(emi_ingredient_cast).collect();
     }
 
     /// java: @Override public List<EmiStack> getOutputs()
     pub fn get_outputs(__this: &compat::Shared<Self>) -> Vec<crate::unresolved::EmiStack> {
-        // TODO(fabric2seer): `of` is not a method of FlexibleItemStack
         //   java: return recipe.getOutputs().stream().map(EmiStack::of).toList();
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        let __r = compat::read(__this, |__t| __t.recipe.clone());
+        let __f = compat::dispatch(&__r, |__t| __t.get_outputs());
+        return __f(&__r).iter().map(emi_stack_of).collect();
     }
 
     /// java: @Override public int getDisplayWidth()
@@ -89,4 +91,20 @@ impl SkyblockEmiRecipe {
         //   java: widgets.addDrawable(0, 0, getDisplayWidth(), getDisplayHeight(), (draw, mouseX, mouseY, delta) -> recipe.render(draw, getDisplayWidth(), getDisplayHeight(), mouseX, mouseY));
     }
 
+}
+
+// EMI (`dev.emi.emi`) is a separate mod that SeerClient never loads: `SkyblockerEMIPlugin` is EMI's entrypoint, so this
+// recipe is only built when EMI calls `register` - which does not happen. Its API types are the `crate::unresolved`
+// names; the functions below are EMI's side of the boundary.
+
+/// `EmiStack.of(FlexibleItemStack)` (Skyblocker's injected `EmiStack.of` overload reads `getStackOrThrow()`).
+pub(crate) fn emi_stack_of(stack: &compat::Shared<crate::de::hysky::skyblocker::utils::flexible_item_stack::FlexibleItemStack>) -> crate::unresolved::EmiStack {
+    let _ = stack;
+    crate::unresolved::EmiStack
+}
+
+/// `EmiIngredient.class::cast` - an `EmiStack` is an `EmiIngredient`.
+fn emi_ingredient_cast(stack: crate::unresolved::EmiStack) -> crate::unresolved::EmiIngredient {
+    let _ = stack;
+    crate::unresolved::EmiIngredient
 }

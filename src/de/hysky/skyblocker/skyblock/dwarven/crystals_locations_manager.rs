@@ -72,55 +72,12 @@ impl CrystalsLocationsManager {
     pub fn init() {
         ({ let __r = scheduler::INSTANCE.get_mut(); let __f = compat::dispatch(__r, |__t| __t.schedule_cyclic()); __f(__r, Arc::new(move || { CrystalsLocationsManager::update(); }), 40) });
         level_render_extraction_callback::EVENT.register(Arc::new(move |__a0| { CrystalsLocationsManager::extract_rendering(&__a0); }));
-        // TODO(fabric2seer): ClientReceiveMessageEvents.ALLOW_GAME.register: no SeerClient equivalent yet
-        //   java: ClientReceiveMessageEvents.ALLOW_GAME.register(CrystalsLocationsManager::extractLocationFromMessage);
+        // java: ClientReceiveMessageEvents.ALLOW_GAME.register(CrystalsLocationsManager::extractLocationFromMessage);
+        compat::register_allow_game(|text: &mcrust::net::minecraft::network::chat::mutable_component::MutableComponent, overlay: bool| CrystalsLocationsManager::extract_location_from_message(text, overlay));
         client_command_registration_callback::EVENT.register(Arc::new(
             |dispatcher: &mut client_command_registration_callback::ClientCommandDispatcher| {
-                // TODO(fabric2seer): a command tree this tool cannot read (arguments, redirects, requires) - SeerClient commands receive the words after the name in `ctx.args`
-                //   java: dispatcher.register(literal(SkyblockerMod.NAMESPACE)
-                //   java: 				.then(literal("crystalWaypoints")
-                //   java: 						.then(literal("add")
-                //   java: 								.executes(_ -> {
-                //   java: 									if (CLIENT.player == null) {
-                //   java: 										return 0;
-                //   java: 									}
-                //   java: 									CLIENT.player.sendSystemMessage(getLocationMenu((int) CLIENT.player.getX() + " " + (int) CLIENT.player.getY() + " " + (int) CLIENT.player.getZ(), true));
-                //   java: 									return Command.SINGLE_SUCCESS;
-                //   java: 								})
-                //   java: 								.then(argument("pos", ClientBlockPosArgumentType.blockPos())
-                //   java: 										.then(argument("place", StringArgumentType.greedyString())
-                //   java: 												.suggests((_, builder) -> suggest(WAYPOINT_LOCATIONS.keySet(), builder))
-                //   java: 												.executes(context -> addWaypointFromCommand(context.getSource(), getString(context, "place"), context.getArgument("pos", ClientPosArgument.class)))
-                //   java: 										)
-                //   java: 								))
-                //   java: 						.then(literal("share")
-                //   java: 								.executes(_ -> {
-                //   java: 									if (CLIENT.player == null) {
-                //   java: 										return 0;
-                //   java: 									}
-                //   java: 									CLIENT.player.sendSystemMessage(getPlacesMenu("share"));
-                //   java: 									return Command.SINGLE_SUCCESS;
-                //   java: 								})
-                //   java: 								.then(argument("place", StringArgumentType.greedyString())
-                //   java: 										.suggests((_, builder) -> suggest(WAYPOINT_LOCATIONS.keySet(), builder))
-                //   java: 										.executes(context -> shareWaypoint(getString(context, "place")))
-                //   java: 								)
-                //   java: 						)
-                //   java: 						.then(literal("remove")
-                //   java: 								.executes(_ -> {
-                //   java: 									if (CLIENT.player == null) {
-                //   java: 										return 0;
-                //   java: 									}
-                //   java: 									CLIENT.player.sendSystemMessage(getPlacesMenu("remove"));
-                //   java: 									return Command.SINGLE_SUCCESS;
-                //   java: 								})
-                //   java: 								.then(argument("place", StringArgumentType.greedyString())
-                //   java: 										.suggests((_, builder) -> suggest(WAYPOINT_LOCATIONS.keySet(), builder))
-                //   java: 										.executes(context -> removeWaypoint(getString(context, "place")))
-                //   java: 								)
-                //   java: 						)
-                //   java: 				)
-                //   java: 		);
+                // java: ClientCommandRegistrationCallback.EVENT.register(CrystalsLocationsManager::registerWaypointLocationCommands);
+                dispatcher.dispatcher().register(&CrystalsLocationsManager::waypoint_location_command());
             },
         ));
         skyblock_events::LOCATION_CHANGE.register(Arc::new(move |__a0| { CrystalsLocationsManager::on_location_change(__a0); }));
@@ -136,8 +93,9 @@ impl CrystalsLocationsManager {
             return true;
         }
         let mut text: String = chat_formatting::strip_formatting(&message.get_string());
-        // java: try {..} catch (Exception e) - the body runs inline: a Rust body does not throw checked exceptions (a panic in it propagates)
-        {
+        // java: try {..} catch (Exception e) { LOGGER.error("[Skyblocker Crystals Locations Manager] Encountered an exception while extracing a location from a chat message!", e); }
+        // (an exception here is a panic, caught by `catch_unwind`; the body's `return true` is the closure's `Some(true)`)
+        match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| -> Option<bool> {
             if text.contains(":") && !(text.starts_with(&(constants::PREFIX.get_mut())().get_string())) {
                 let mut user_message: String = (compat::regex::split_limit(&text, ":", 2))[(1) as usize].clone();
                 let mut matcher: compat::regex::Matcher = TEXT_CWORDS_PATTERN.matcher(&user_message);
@@ -145,27 +103,30 @@ impl CrystalsLocationsManager {
                     let mut block_pos: BlockPos = BlockPos::new(matcher.group(1).unwrap().parse::<i32>().expect("NumberFormatException"), matcher.group(2).unwrap().parse::<i32>().expect("NumberFormatException"), matcher.group(3).unwrap().parse::<i32>().expect("NumberFormatException"));
                     let mut location: String = format!("{} {} {}", block_pos.get_x(), block_pos.get_y(), block_pos.get_z());
                     if !(CrystalsLocationsManager::check_in_crystals(&block_pos)) {
-                        return true;
+                        return Some(true);
                     }
                     for waypoint_location in WAYPOINT_LOCATIONS.keys().cloned() {
                         if (compat::regex::split(&waypoint_location.to_lowercase(), " ")).iter().cloned().any(|word| user_message.to_lowercase().contains(&word)) {
                             if !(ACTIVE_WAYPOINTS.get_mut().contains_key(&waypoint_location)) {
                                 CrystalsLocationsManager::add_custom_waypoint(waypoint_location.clone(), &block_pos);
                             }
-                            return true;
+                            return Some(true);
                         }
                     }
                     if mcrust::mcrust::modding::game::with_player(|_| ()).is_none() || compat::get_connection(compat::minecraft()).is_none() {
-                        return true;
+                        return Some(true);
                     }
-                    mcrust::mcrust::modding::game::with_player(|player| { script_host::send_feedback(&CrystalsLocationsManager::get_location_menu(&location, false).to_string()); });
+                    mcrust::mcrust::modding::game::with_player(|player| { compat::batch_w_send_feedback(&CrystalsLocationsManager::get_location_menu(&location, false)); });
                 }
             }
+            None
+        })) {
+            Ok(Some(value)) => return value,
+            Ok(None) => {}
+            Err(e) => {
+                logger().error(&format!("[Skyblocker Crystals Locations Manager] Encountered an exception while extracing a location from a chat message! {}", compat::panic_message(&e)));
+            }
         }
-        // TODO(fabric2seer): the `catch (Exception e)` block is not reached in Rust - the try body returns, breaks or continues, so it cannot run inside `catch_unwind`
-        //   java: {
-        //   java: 			LOGGER.error("[Skyblocker Crystals Locations Manager] Encountered an exception while extracing a location from a chat message!", e);
-        //   java: 		}
         if mcrust::mcrust::modding::game::with_player(|_| ()).is_some() && SkyblockerConfigManager::get().mining.crystals_waypoints.enabled {
             for waypoint_location in WAYPOINT_LOCATIONS.values().copied() {
                 let mut waypoint_linked_message: Option<String> = waypoint_location.get_linked_message();
@@ -187,51 +148,82 @@ impl CrystalsLocationsManager {
 
     /// java: private static void registerWaypointLocationCommands(CommandDispatcher<FabricClientCommandSource> dispatcher, CommandBuildContext registryAccess)
     pub fn register_waypoint_location_commands(dispatcher: &CommandDispatcher<crate::unresolved::FabricClientCommandSource>, registry_access: &CommandBuildContext) {
-        // TODO(fabric2seer): a command builder outside dispatcher.register(..)
-        //   java: dispatcher.register(literal(SkyblockerMod.NAMESPACE)
-        //   java: 				.then(literal("crystalWaypoints")
-        //   java: 						.then(literal("add")
-        //   java: 								.executes(_ -> {
-        //   java: 									if (CLIENT.player == null) {
-        //   java: 										return 0;
-        //   java: 									}
-        //   java: 									CLIENT.player.sendSystemMessage(getLocationMenu((int) CLIENT.player.getX() + " " + (int) CLIENT.player.getY() + " " + (int) CLIENT.player.getZ(), true));
-        //   java: 									return Command.SINGLE_SUCCESS;
-        //   java: 								})
-        //   java: 								.then(argument("pos", ClientBlockPosArgumentType.blockPos())
-        //   java: 										.then(argument("place", StringArgumentType.greedyString())
-        //   java: 												.suggests((_, builder) -> suggest(WAYPOINT_LOCATIONS.keySet(), builder))
-        //   java: 												.executes(context -> addWaypointFromCommand(context.getSource(), getString(context, "place"), context.getArgument("pos", ClientPosArgument.class)))
-        //   java: 										)
-        //   java: 								))
-        //   java: 						.then(literal("share")
-        //   java: 								.executes(_ -> {
-        //   java: 									if (CLIENT.player == null) {
-        //   java: 										return 0;
-        //   java: 									}
-        //   java: 									CLIENT.player.sendSystemMessage(getPlacesMenu("share"));
-        //   java: 									return Command.SINGLE_SUCCESS;
-        //   java: 								})
-        //   java: 								.then(argument("place", StringArgumentType.greedyString())
-        //   java: 										.suggests((_, builder) -> suggest(WAYPOINT_LOCATIONS.keySet(), builder))
-        //   java: 										.executes(context -> shareWaypoint(getString(context, "place")))
-        //   java: 								)
-        //   java: 						)
-        //   java: 						.then(literal("remove")
-        //   java: 								.executes(_ -> {
-        //   java: 									if (CLIENT.player == null) {
-        //   java: 										return 0;
-        //   java: 									}
-        //   java: 									CLIENT.player.sendSystemMessage(getPlacesMenu("remove"));
-        //   java: 									return Command.SINGLE_SUCCESS;
-        //   java: 								})
-        //   java: 								.then(argument("place", StringArgumentType.greedyString())
-        //   java: 										.suggests((_, builder) -> suggest(WAYPOINT_LOCATIONS.keySet(), builder))
-        //   java: 										.executes(context -> removeWaypoint(getString(context, "place")))
-        //   java: 								)
-        //   java: 						)
-        //   java: 				)
-        //   java: 		);
+        // (the tree is `waypoint_location_command`, which `init` registers through the client command event - the
+        // dispatcher this signature names is the event's)
+        let _ = (dispatcher, registry_access);
+    }
+
+    /// `registerWaypointLocationCommands`'s tree:
+    /// java: dispatcher.register(literal(SkyblockerMod.NAMESPACE).then(literal("crystalWaypoints")
+    ///   .then(literal("add").executes(_ -> { if (CLIENT.player == null) return 0;
+    ///       CLIENT.player.sendSystemMessage(getLocationMenu((int) CLIENT.player.getX() + " " + (int) CLIENT.player.getY() + " " + (int) CLIENT.player.getZ(), true)); return Command.SINGLE_SUCCESS; })
+    ///     .then(argument("pos", ClientBlockPosArgumentType.blockPos()).then(argument("place", StringArgumentType.greedyString())
+    ///       .suggests((_, builder) -> suggest(WAYPOINT_LOCATIONS.keySet(), builder))
+    ///       .executes(context -> addWaypointFromCommand(context.getSource(), getString(context, "place"), context.getArgument("pos", ClientPosArgument.class))))))
+    ///   .then(literal("share").executes(_ -> { if (CLIENT.player == null) return 0; CLIENT.player.sendSystemMessage(getPlacesMenu("share")); return Command.SINGLE_SUCCESS; })
+    ///     .then(argument("place", StringArgumentType.greedyString()).suggests(..).executes(context -> shareWaypoint(getString(context, "place")))))
+    ///   .then(literal("remove").executes(_ -> { if (CLIENT.player == null) return 0; CLIENT.player.sendSystemMessage(getPlacesMenu("remove")); return Command.SINGLE_SUCCESS; })
+    ///     .then(argument("place", StringArgumentType.greedyString()).suggests(..).executes(context -> removeWaypoint(getString(context, "place"))))));
+    pub fn waypoint_location_command() -> mcrust::com::mojang::brigadier::builder::literal_argument_builder::LiteralArgumentBuilder<client_command_registration_callback::FabricClientCommandSource> {
+        use mcrust::com::mojang::brigadier::builder::argument_builder::ArgumentBuilder as _;
+        use mcrust::com::mojang::brigadier::context::command_context::CommandContext;
+        use mcrust::com::mojang::brigadier::arguments::string_argument_type::StringArgumentType;
+        use crate::de::hysky::skyblocker::utils::command::argumenttypes::blockpos::client_block_pos_argument_type::ClientBlockPosArgumentType;
+        type Source = client_command_registration_callback::FabricClientCommandSource;
+        // `suggest(WAYPOINT_LOCATIONS.keySet(), builder)`
+        fn place_suggestions() -> mcrust::com::mojang::brigadier::suggestion::suggestion_provider::SuggestionProvider<Source> {
+            Arc::new(|_: &CommandContext<Source>, builder: &mut mcrust::com::mojang::brigadier::suggestion::suggestions_builder::SuggestionsBuilder| {
+                let places: Vec<String> = WAYPOINT_LOCATIONS.keys().cloned().collect();
+                Ok(mcrust::net::minecraft::commands::shared_suggestion_provider::suggest(&places, builder))
+            })
+        }
+        // `CLIENT.player.sendSystemMessage(text)` - the client's chat line
+        fn send_system_message(text: MutableComponent) -> i32 {
+            if mcrust::mcrust::modding::game::with_player(|_| ()).is_none() {
+                return 0;
+            }
+            compat::batch_w_send_feedback(&text);
+            1
+        }
+        // add
+        let mut add_place = client_command_registration_callback::argument("place", Arc::new(StringArgumentType::greedy_string()));
+        add_place.suggests(Some(place_suggestions()));
+        add_place.executes(Arc::new(|context: &CommandContext<Source>| {
+            let place: String = StringArgumentType::get_string(context, "place");
+            let location = context.get_argument::<compat::Shared<dyn ClientPosArgument>>("pos").unwrap().clone();
+            Ok(CrystalsLocationsManager::add_waypoint_from_command(context.get_source(), &place, &location))
+        }));
+        let mut add_pos = client_command_registration_callback::argument("pos", Arc::new(ClientBlockPosArgumentType::block_pos()));
+        add_pos.then(&add_place);
+        let mut add = client_command_registration_callback::literal("add");
+        add.executes(Arc::new(|_: &CommandContext<Source>| {
+            let Some(location) = mcrust::mcrust::modding::game::with_player(|player| format!("{} {} {}", player.base.base.base.base.get_x() as i32, player.base.base.base.base.get_y() as i32, player.base.base.base.base.get_z() as i32)) else {
+                return Ok(0);
+            };
+            Ok(send_system_message(CrystalsLocationsManager::get_location_menu(&location, true)))
+        }));
+        add.then(&add_pos);
+        // share
+        let mut share_place = client_command_registration_callback::argument("place", Arc::new(StringArgumentType::greedy_string()));
+        share_place.suggests(Some(place_suggestions()));
+        share_place.executes(Arc::new(|context: &CommandContext<Source>| Ok(CrystalsLocationsManager::share_waypoint(&StringArgumentType::get_string(context, "place")))));
+        let mut share = client_command_registration_callback::literal("share");
+        share.executes(Arc::new(|_: &CommandContext<Source>| Ok(send_system_message(CrystalsLocationsManager::get_places_menu("share")))));
+        share.then(&share_place);
+        // remove
+        let mut remove_place = client_command_registration_callback::argument("place", Arc::new(StringArgumentType::greedy_string()));
+        remove_place.suggests(Some(place_suggestions()));
+        remove_place.executes(Arc::new(|context: &CommandContext<Source>| Ok(CrystalsLocationsManager::remove_waypoint(&StringArgumentType::get_string(context, "place")))));
+        let mut remove = client_command_registration_callback::literal("remove");
+        remove.executes(Arc::new(|_: &CommandContext<Source>| Ok(send_system_message(CrystalsLocationsManager::get_places_menu("remove")))));
+        remove.then(&remove_place);
+        let mut crystal_waypoints = client_command_registration_callback::literal("crystalWaypoints");
+        crystal_waypoints.then(&add);
+        crystal_waypoints.then(&share);
+        crystal_waypoints.then(&remove);
+        let mut root = client_command_registration_callback::literal(crate::entry::skyblocker_mod::NAMESPACE);
+        root.then(&crystal_waypoints);
+        root
     }
 
     /// java: protected static Component getSetLocationMessage(String location, BlockPos blockPos)
@@ -282,14 +274,14 @@ impl CrystalsLocationsManager {
     }
 
     /// java: public static int addWaypointFromCommand(FabricClientCommandSource source, String place, ClientPosArgument location)
-    pub fn add_waypoint_from_command(source: &crate::unresolved::FabricClientCommandSource, place: &str, location: &compat::Shared<dyn ClientPosArgument>) -> i32 {
+    pub fn add_waypoint_from_command(source: &client_command_registration_callback::FabricClientCommandSource, place: &str, location: &compat::Shared<dyn ClientPosArgument>) -> i32 {
         let mut block_pos: BlockPos = ({ let __f = compat::dispatch(location, |__t| __t.to_absolute_block_pos()); __f(location, source) });
         if WAYPOINT_LOCATIONS.contains_key(place) {
             CrystalsLocationsManager::add_custom_waypoint(place.to_string(), &block_pos);
             if mcrust::mcrust::modding::game::with_player(|_| ()).is_none() || compat::get_connection(compat::minecraft()).is_none() {
                 return 0;
             }
-            mcrust::mcrust::modding::game::with_player(|player| { script_host::send_feedback(&CrystalsLocationsManager::get_set_location_message(place, &block_pos).to_string()); });
+            mcrust::mcrust::modding::game::with_player(|player| { compat::batch_w_send_feedback(&CrystalsLocationsManager::get_set_location_message(place, &block_pos)); });
         }
         return 1;
     }
@@ -303,7 +295,7 @@ impl CrystalsLocationsManager {
             if mcrust::mcrust::modding::game::with_player(|_| ()).is_none() || compat::get_connection(compat::minecraft()).is_none() {
                 return 0;
             }
-            mcrust::mcrust::modding::game::with_player(|player| { script_host::send_feedback(&(constants::PREFIX.get_mut())().append(component::translatable("skyblocker.config.mining.crystalsWaypoints.shareFail").with_style_format(ChatFormatting::Red)).to_string()); });
+            mcrust::mcrust::modding::game::with_player(|player| { compat::batch_w_send_feedback(&(constants::PREFIX.get_mut())().append(component::translatable("skyblocker.config.mining.crystalsWaypoints.shareFail").with_style_format(ChatFormatting::Red))); });
         }
         return 1;
     }
@@ -314,11 +306,11 @@ impl CrystalsLocationsManager {
             return 0;
         }
         if ACTIVE_WAYPOINTS.get_mut().contains_key(place) {
-            mcrust::mcrust::modding::game::with_player(|player| { script_host::send_feedback(&(constants::PREFIX.get_mut())().append(component::translatable("skyblocker.config.mining.crystalsWaypoints.removeSuccess").with_style_format(ChatFormatting::Green)).append(component::literal(place).with_color(WAYPOINT_LOCATIONS.get(place).cloned().unwrap().get_color())).to_string()); });
+            mcrust::mcrust::modding::game::with_player(|player| { compat::batch_w_send_feedback(&(constants::PREFIX.get_mut())().append(component::translatable("skyblocker.config.mining.crystalsWaypoints.removeSuccess").with_style_format(ChatFormatting::Green)).append(component::literal(place).with_color(WAYPOINT_LOCATIONS.get(place).cloned().unwrap().get_color()))); });
             ACTIVE_WAYPOINTS.get_mut().remove(place);
             compat::remove_item(&mut compat::lock(&VERIFIED_WAYPOINTS), &place.to_string());
         } else {
-            mcrust::mcrust::modding::game::with_player(|player| { script_host::send_feedback(&(constants::PREFIX.get_mut())().append(component::translatable("skyblocker.config.mining.crystalsWaypoints.removeFail").with_style_format(ChatFormatting::Red)).to_string()); });
+            mcrust::mcrust::modding::game::with_player(|player| { compat::batch_w_send_feedback(&(constants::PREFIX.get_mut())().append(component::translatable("skyblocker.config.mining.crystalsWaypoints.removeFail").with_style_format(ChatFormatting::Red))); });
         }
         return 1;
     }
@@ -350,7 +342,7 @@ impl CrystalsLocationsManager {
             return;
         }
         debug_assert!(mcrust::mcrust::modding::game::with_player(|_| ()).is_some());
-        mcrust::mcrust::modding::game::with_player(|player| { script_host::send_feedback(&(constants::PREFIX.get_mut())().append(component::translatable_args("skyblocker.webSocket.receivedCrystalsWaypoint", vec![mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(received_waypoint_names.clone())])).to_string()); });
+        mcrust::mcrust::modding::game::with_player(|player| { compat::batch_w_send_feedback(&(constants::PREFIX.get_mut())().append(component::translatable_args("skyblocker.webSocket.receivedCrystalsWaypoint", vec![mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(received_waypoint_names.clone())]))); });
     }
 
     /// java: protected static void addCustomWaypoint(String waypointName, BlockPos pos)

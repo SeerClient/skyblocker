@@ -392,3 +392,372 @@ impl SkillTreeProperties {
     }
 
 }
+
+impl SkillTree {
+    /// Gson's reflective binding of the class's own fields (`ReflectiveTypeAdapterFactory`): each member the
+    /// JSON has is read over the field it names (`@SerializedName`, else the field's name) with the field's declared
+    /// type; an absent member (or a `null` one, or one Gson would reject) leaves the constructor's value.
+    pub fn read_json_fields(&mut self, json: &serde_json::Value) {
+        #[allow(unused_imports)]
+        use crate::io::github::moulberry::repo::neu_repository::gson;
+        if let Some(__v) = gson::member(json, "nodes") {
+            if let Some(__x) = Some(Nodes::from_json(__v)) {
+                self.nodes = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "tokens_spent") {
+            if let Some(__x) = Some(TokensSpent::from_json(__v)) {
+                self.tokens_spent = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "selected_ability") {
+            if let Some(__x) = Some(SelectedAbility::from_json(__v)) {
+                self.selected_ability = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "experience") {
+            if let Some(__x) = Some(Experience::from_json(__v)) {
+                self.experience = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "selected_skill_tree_slot") {
+            if let Some(__x) = Some(SelectedSkillTreeSlot::from_json(__v)) {
+                self.selected_skill_tree_slot = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "mining") {
+            if let Some(__x) = Some(SkillTreeProperties::from_json(__v)) {
+                self.mining1_properties = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "mining_2") {
+            if let Some(__x) = Some(SkillTreeProperties::from_json(__v)) {
+                self.mining2_properties = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "mining_3") {
+            if let Some(__x) = Some(SkillTreeProperties::from_json(__v)) {
+                self.mining3_properties = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "mining_4") {
+            if let Some(__x) = Some(SkillTreeProperties::from_json(__v)) {
+                self.mining4_properties = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "mining_5") {
+            if let Some(__x) = Some(SkillTreeProperties::from_json(__v)) {
+                self.mining5_properties = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "foraging") {
+            if let Some(__x) = Some(SkillTreeProperties::from_json(__v)) {
+                self.foraging1_properties = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "foraging_2") {
+            if let Some(__x) = Some(SkillTreeProperties::from_json(__v)) {
+                self.foraging2_properties = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "foraging_3") {
+            if let Some(__x) = Some(SkillTreeProperties::from_json(__v)) {
+                self.foraging3_properties = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "foraging_4") {
+            if let Some(__x) = Some(SkillTreeProperties::from_json(__v)) {
+                self.foraging4_properties = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "foraging_5") {
+            if let Some(__x) = Some(SkillTreeProperties::from_json(__v)) {
+                self.foraging5_properties = __x;
+            }
+        }
+    }
+
+    /// `GSON.fromJson(json, SkillTree.class)`: the no-argument constructor, then the fields.
+    pub fn from_json(json: &serde_json::Value) -> Self {
+        let mut __this = Self::new();
+        __this.read_json_fields(json);
+        __this
+    }
+}
+
+impl Nodes {
+    /// Gson's reflective binding of the class's own fields (`ReflectiveTypeAdapterFactory`): each member the
+    /// JSON has is read over the field it names (`@SerializedName`, else the field's name) with the field's declared
+    /// type; an absent member (or a `null` one, or one Gson would reject) leaves the constructor's value.
+    pub fn read_json_fields(&mut self, json: &serde_json::Value) {
+        #[allow(unused_imports)]
+        use crate::io::github::moulberry::repo::neu_repository::gson;
+        if let Some(__v) = gson::member(json, "mining") {
+            if let Some(__x) = gson::map(__v, gson::string_key, |__e0| Some(crate::de::hysky::skyblocker::skyblock::profileviewer2::profile_viewer::json_object(__e0))) {
+                self.mining1 = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "mining_2") {
+            if let Some(__x) = gson::map(__v, gson::string_key, |__e0| Some(crate::de::hysky::skyblocker::skyblock::profileviewer2::profile_viewer::json_object(__e0))) {
+                self.mining2 = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "mining_3") {
+            if let Some(__x) = gson::map(__v, gson::string_key, |__e0| Some(crate::de::hysky::skyblocker::skyblock::profileviewer2::profile_viewer::json_object(__e0))) {
+                self.mining3 = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "mining_4") {
+            if let Some(__x) = gson::map(__v, gson::string_key, |__e0| Some(crate::de::hysky::skyblocker::skyblock::profileviewer2::profile_viewer::json_object(__e0))) {
+                self.mining4 = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "mining_5") {
+            if let Some(__x) = gson::map(__v, gson::string_key, |__e0| Some(crate::de::hysky::skyblocker::skyblock::profileviewer2::profile_viewer::json_object(__e0))) {
+                self.mining5 = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "foraging") {
+            if let Some(__x) = gson::map(__v, gson::string_key, |__e0| Some(crate::de::hysky::skyblocker::skyblock::profileviewer2::profile_viewer::json_object(__e0))) {
+                self.foraging1 = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "foraging_2") {
+            if let Some(__x) = gson::map(__v, gson::string_key, |__e0| Some(crate::de::hysky::skyblocker::skyblock::profileviewer2::profile_viewer::json_object(__e0))) {
+                self.foraging2 = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "foraging_3") {
+            if let Some(__x) = gson::map(__v, gson::string_key, |__e0| Some(crate::de::hysky::skyblocker::skyblock::profileviewer2::profile_viewer::json_object(__e0))) {
+                self.foraging3 = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "foraging_4") {
+            if let Some(__x) = gson::map(__v, gson::string_key, |__e0| Some(crate::de::hysky::skyblocker::skyblock::profileviewer2::profile_viewer::json_object(__e0))) {
+                self.foraging4 = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "foraging_5") {
+            if let Some(__x) = gson::map(__v, gson::string_key, |__e0| Some(crate::de::hysky::skyblocker::skyblock::profileviewer2::profile_viewer::json_object(__e0))) {
+                self.foraging5 = __x;
+            }
+        }
+    }
+
+    /// `GSON.fromJson(json, Nodes.class)`: the no-argument constructor, then the fields.
+    pub fn from_json(json: &serde_json::Value) -> Self {
+        let mut __this = Self::new();
+        __this.read_json_fields(json);
+        __this
+    }
+}
+
+impl TokensSpent {
+    /// Gson's reflective binding of the class's own fields (`ReflectiveTypeAdapterFactory`): each member the
+    /// JSON has is read over the field it names (`@SerializedName`, else the field's name) with the field's declared
+    /// type; an absent member (or a `null` one, or one Gson would reject) leaves the constructor's value.
+    pub fn read_json_fields(&mut self, json: &serde_json::Value) {
+        #[allow(unused_imports)]
+        use crate::io::github::moulberry::repo::neu_repository::gson;
+        if let Some(__v) = gson::member(json, "mountain") {
+            if let Some(__x) = gson::as_i32(__v) {
+                self.mountain1 = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "mountain_2") {
+            if let Some(__x) = gson::as_i32(__v) {
+                self.mountain2 = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "mountain_3") {
+            if let Some(__x) = gson::as_i32(__v) {
+                self.mountain3 = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "mountain_4") {
+            if let Some(__x) = gson::as_i32(__v) {
+                self.mountain4 = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "mountain_5") {
+            if let Some(__x) = gson::as_i32(__v) {
+                self.mountain5 = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "forest") {
+            if let Some(__x) = gson::as_i32(__v) {
+                self.forest1 = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "forest_2") {
+            if let Some(__x) = gson::as_i32(__v) {
+                self.forest2 = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "forest_3") {
+            if let Some(__x) = gson::as_i32(__v) {
+                self.forest3 = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "forest_4") {
+            if let Some(__x) = gson::as_i32(__v) {
+                self.forest4 = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "forest_5") {
+            if let Some(__x) = gson::as_i32(__v) {
+                self.forest5 = __x;
+            }
+        }
+    }
+
+    /// `GSON.fromJson(json, TokensSpent.class)`: the no-argument constructor, then the fields.
+    pub fn from_json(json: &serde_json::Value) -> Self {
+        let mut __this = Self::new();
+        __this.read_json_fields(json);
+        __this
+    }
+}
+
+impl SelectedAbility {
+    /// Gson's reflective binding of the class's own fields (`ReflectiveTypeAdapterFactory`): each member the
+    /// JSON has is read over the field it names (`@SerializedName`, else the field's name) with the field's declared
+    /// type; an absent member (or a `null` one, or one Gson would reject) leaves the constructor's value.
+    pub fn read_json_fields(&mut self, json: &serde_json::Value) {
+        #[allow(unused_imports)]
+        use crate::io::github::moulberry::repo::neu_repository::gson;
+        if let Some(__v) = gson::member(json, "mining") {
+            if let Some(__x) = gson::as_string(__v) {
+                self.mining1 = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "mining_2") {
+            if let Some(__x) = gson::as_string(__v) {
+                self.mining2 = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "mining_3") {
+            if let Some(__x) = gson::as_string(__v) {
+                self.mining3 = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "mining_4") {
+            if let Some(__x) = gson::as_string(__v) {
+                self.mining4 = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "mining_5") {
+            if let Some(__x) = gson::as_string(__v) {
+                self.mining5 = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "foraging") {
+            if let Some(__x) = gson::as_string(__v) {
+                self.foraging1 = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "foraging_2") {
+            if let Some(__x) = gson::as_string(__v) {
+                self.foraging2 = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "foraging_3") {
+            if let Some(__x) = gson::as_string(__v) {
+                self.foraging3 = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "foraging_4") {
+            if let Some(__x) = gson::as_string(__v) {
+                self.foraging4 = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "foraging_5") {
+            if let Some(__x) = gson::as_string(__v) {
+                self.foraging5 = __x;
+            }
+        }
+    }
+
+    /// `GSON.fromJson(json, SelectedAbility.class)`: the no-argument constructor, then the fields.
+    pub fn from_json(json: &serde_json::Value) -> Self {
+        let mut __this = Self::new();
+        __this.read_json_fields(json);
+        __this
+    }
+}
+
+impl Experience {
+    /// Gson's reflective binding of the class's own fields (`ReflectiveTypeAdapterFactory`): each member the
+    /// JSON has is read over the field it names (`@SerializedName`, else the field's name) with the field's declared
+    /// type; an absent member (or a `null` one, or one Gson would reject) leaves the constructor's value.
+    pub fn read_json_fields(&mut self, json: &serde_json::Value) {
+        #[allow(unused_imports)]
+        use crate::io::github::moulberry::repo::neu_repository::gson;
+        if let Some(__v) = gson::member(json, "mining") {
+            if let Some(__x) = gson::as_f64(__v) {
+                self.mining = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "foraging") {
+            if let Some(__x) = gson::as_f64(__v) {
+                self.foraging = __x;
+            }
+        }
+    }
+
+    /// `GSON.fromJson(json, Experience.class)`: the no-argument constructor, then the fields.
+    pub fn from_json(json: &serde_json::Value) -> Self {
+        let mut __this = Self::new();
+        __this.read_json_fields(json);
+        __this
+    }
+}
+
+impl SelectedSkillTreeSlot {
+    /// Gson's reflective binding of the class's own fields (`ReflectiveTypeAdapterFactory`): each member the
+    /// JSON has is read over the field it names (`@SerializedName`, else the field's name) with the field's declared
+    /// type; an absent member (or a `null` one, or one Gson would reject) leaves the constructor's value.
+    pub fn read_json_fields(&mut self, json: &serde_json::Value) {
+        #[allow(unused_imports)]
+        use crate::io::github::moulberry::repo::neu_repository::gson;
+        if let Some(__v) = gson::member(json, "mining") {
+            if let Some(__x) = gson::as_i32(__v) {
+                self.mining = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "foraging") {
+            if let Some(__x) = gson::as_i32(__v) {
+                self.foraging = __x;
+            }
+        }
+    }
+
+    /// `GSON.fromJson(json, SelectedSkillTreeSlot.class)`: the no-argument constructor, then the fields.
+    pub fn from_json(json: &serde_json::Value) -> Self {
+        let mut __this = Self::new();
+        __this.read_json_fields(json);
+        __this
+    }
+}
+
+impl SkillTreeProperties {
+    /// Gson's reflective binding of the class's own fields (`ReflectiveTypeAdapterFactory`): each member the
+    /// JSON has is read over the field it names (`@SerializedName`, else the field's name) with the field's declared
+    /// type; an absent member (or a `null` one, or one Gson would reject) leaves the constructor's value.
+    pub fn read_json_fields(&mut self, json: &serde_json::Value) {
+        #[allow(unused_imports)]
+        use crate::io::github::moulberry::repo::neu_repository::gson;
+        if let Some(__v) = gson::member(json, "custom_name") {
+            if let Some(__x) = (gson::as_string(__v)).map(Some) {
+                self.custom_name = __x;
+            }
+        }
+    }
+
+    /// `GSON.fromJson(json, SkillTreeProperties.class)`: the no-argument constructor, then the fields.
+    pub fn from_json(json: &serde_json::Value) -> compat::Shared<Self> {
+        let __this = Self::new();
+        compat::write(&__this, |__t| __t.read_json_fields(json));
+        __this
+    }
+}

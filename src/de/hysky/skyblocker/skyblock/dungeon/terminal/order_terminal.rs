@@ -23,6 +23,8 @@ pub const PANES_NUM: i32 = 14;
 pub struct OrderTerminal {
     /// java: extends SimpleContainerSolver
     pub base: SimpleContainerSolverBase,
+    /// java: private int @Nullable [] orderedSlots;
+    pub ordered_slots: Option<Vec<i32>>,
     /// java: private int currentNum = Integer.MAX_VALUE;
     pub current_num: i32,
 }
@@ -46,6 +48,7 @@ impl OrderTerminal {
         let (_, __this) = SimpleContainerSolverBase::new_in("^Click in order!$".to_string(), move |__base| {
             let __h = compat::shared(Self {
                 base: __base,
+                ordered_slots: None,
                 current_num: i32::MAX,
             });
             ((__h.clone() as compat::Shared<dyn SimpleContainerSolver>), __h)
@@ -54,25 +57,24 @@ impl OrderTerminal {
     }
 
     /// java: public boolean orderSlots(Int2ObjectMap<ItemStack> slots)
-    pub fn order_slots(__this: &compat::Shared<Self>, slots: &mut std::collections::HashMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack>) -> bool {
+    pub fn order_slots(__this: &compat::Shared<Self>, slots: &mut std::collections::BTreeMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack>) -> bool {
         container_solver::trim_edges(slots, 4);
-        // TODO(fabric2seer): assignment to unknown `orderedSlots`
-        //   java: orderedSlots = new int[PANES_NUM];
-        // TODO(fabric2seer): unknown name `orderedSlots`
-        //   java: Arrays.fill(orderedSlots, -1);
+        // java: orderedSlots = new int[PANES_NUM]; Arrays.fill(orderedSlots, -1);
+        let mut ordered_slots: Vec<i32> = vec![-1; PANES_NUM as usize];
         for slot in slots.iter().map(|(k, v)| (k.clone(), v.clone())) {
             let stack = &slot.1;
             if stack.is_item(mcrust::net::minecraft::world::item::items::stained_glass_pane().black()) {
                 continue;
             }
             if stack.is_empty() {
-                // TODO(fabric2seer): assignment to unknown `orderedSlots`
-                //   java: orderedSlots = null;
+                // java: orderedSlots = null;
+                compat::write(__this, |__t| __t.ordered_slots = None);
                 return false;
             }
-            // TODO(fabric2seer): unknown name `orderedSlots`
-            //   java: orderedSlots[stack.getCount() - 1] = slot.getIntKey();
+            // java: orderedSlots[stack.getCount() - 1] = slot.getIntKey(); (out of range throws, as Java's array store)
+            ordered_slots[(stack.get_count().wrapping_sub(1)) as usize] = slot.0;
         }
+        compat::write(__this, |__t| __t.ordered_slots = Some(ordered_slots));
         { let __v = 0; compat::write(__this, |__t| __t.current_num = __v); }
         return true;
     }
@@ -123,7 +125,7 @@ impl ContainerMatcher for OrderTerminal {
 
 impl ContainerSolver for OrderTerminal {
     /// java: @Override public List<ColorHighlight> getColors(Int2ObjectMap<ItemStack> slots) (dispatch: the body for this class)
-    fn get_colors(&self) -> fn(&compat::Shared<dyn ContainerSolver>, &mut std::collections::HashMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack>) -> Vec<ColorHighlight> {
+    fn get_colors(&self) -> fn(&compat::Shared<dyn ContainerSolver>, &mut std::collections::BTreeMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack>) -> Vec<ColorHighlight> {
         OrderTerminal::get_colors_dyn
     }
 
@@ -156,8 +158,8 @@ impl TerminalSolver for OrderTerminal {
 impl OrderTerminal {
     /// java: @Override public boolean isEnabled()
     pub fn is_enabled_impl(__this: &compat::Shared<Self>) -> bool {
-        // TODO(fabric2seer): assignment to unknown `orderedSlots`
-        //   java: orderedSlots = null;
+        // java: orderedSlots = null;
+        compat::write(__this, |__t| __t.ordered_slots = None);
         { let __v = 0; compat::write(__this, |__t| __t.current_num = __v); }
         return SkyblockerConfigManager::get().dungeons.terminals.solve_order;
     }
@@ -168,23 +170,24 @@ impl OrderTerminal {
     }
 
     /// java: @Override public List<ColorHighlight> getColors(Int2ObjectMap<ItemStack> slots)
-    pub fn get_colors_impl(__this: &compat::Shared<Self>, slots: &mut std::collections::HashMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack>) -> Vec<ColorHighlight> {
-        // TODO(fabric2seer): the condition: unknown name `orderedSlots`
-        //   java: orderedSlots == null && !orderSlots(slots)
-        if todo!("fabric2seer: the condition (TODO above)") {
+    pub fn get_colors_impl(__this: &compat::Shared<Self>, slots: &mut std::collections::BTreeMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack>) -> Vec<ColorHighlight> {
+        // java: orderedSlots == null && !orderSlots(slots)
+        if compat::read(__this, |__t| __t.ordered_slots.is_none()) && !OrderTerminal::order_slots(__this, slots) {
             return Default::default();
         }
-        // TODO(fabric2seer): the condition: unknown name `orderedSlots`
-        //   java: currentNum < PANES_NUM && slots.containsKey(orderedSlots[currentNum]) && slots.get(orderedSlots[currentNum]).is(Items.STAINED_GLASS_PANE.lime())
-        while todo!("fabric2seer: the condition (TODO above)") {
+        // java: currentNum < PANES_NUM && slots.containsKey(orderedSlots[currentNum]) && slots.get(orderedSlots[currentNum]).is(Items.STAINED_GLASS_PANE.lime())
+        let ordered_slots: Vec<i32> = compat::read(__this, |__t| __t.ordered_slots.clone()).expect("NullPointerException: orderedSlots");
+        while compat::read(__this, |__t| __t.current_num) < PANES_NUM && {
+            let __slot = ordered_slots[compat::read(__this, |__t| __t.current_num) as usize];
+            slots.get(&__slot).is_some_and(|__stack| __stack.is_item(mcrust::net::minecraft::world::item::items::stained_glass_pane().lime()))
+        } {
             { let __v = compat::read(__this, |__t| __t.current_num) + 1; compat::write(__this, |__t| __t.current_num = __v); }
         }
         let mut highlights: Vec<ColorHighlight> = Vec::with_capacity((3) as usize);
         let mut last: i32 = 3i32.min(PANES_NUM.wrapping_sub(compat::read(__this, |__t| __t.current_num)));
         for i in 0..last {
-            // TODO(fabric2seer): unknown name `orderedSlots`
-            //   java: int slotNum = orderedSlots[currentNum + i];
-            let mut slot_num: i32 = todo!("fabric2seer: the initialiser of `slotNum` (TODO above)");
+            // java: int slotNum = orderedSlots[currentNum + i];
+            let mut slot_num: i32 = ordered_slots[(compat::read(__this, |__t| __t.current_num).wrapping_add(i)) as usize];
             if slot_num == -1 {
                 continue;
             }
@@ -194,7 +197,7 @@ impl OrderTerminal {
     }
 
     /// OrderTerminal.getColors as the dispatch of ContainerSolver.getColors
-    pub fn get_colors_dyn(__this: &compat::Shared<dyn ContainerSolver>, __p0: &mut std::collections::HashMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack>) -> Vec<ColorHighlight> {
+    pub fn get_colors_dyn(__this: &compat::Shared<dyn ContainerSolver>, __p0: &mut std::collections::BTreeMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack>) -> Vec<ColorHighlight> {
         Self::get_colors_impl(&compat::view_as::<Self, _, Self>(__this, |a| a), __p0)
     }
 

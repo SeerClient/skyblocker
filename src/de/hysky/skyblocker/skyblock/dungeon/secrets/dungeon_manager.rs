@@ -32,6 +32,12 @@ use crate::de::hysky::skyblocker::utils::tickable::Tickable;
 use crate::de::hysky::skyblocker::utils::utils::Utils;
 use crate::entry::skyblocker_mod;
 use mcrust::com::mojang::brigadier::builder::literal_argument_builder::LiteralArgumentBuilder;
+use mcrust::com::mojang::brigadier::builder::argument_builder::ArgumentBuilder as _;
+use mcrust::com::mojang::brigadier::arguments::integer_argument_type::IntegerArgumentType;
+use mcrust::com::mojang::brigadier::arguments::string_argument_type::StringArgumentType;
+use mcrust::mcrust::modding::events::client_command_registration_callback::FabricClientCommandSource;
+use mcrust::net::minecraft::network::chat::formatted_text::FormattedText;
+use crate::de::hysky::skyblocker::utils::command::argumenttypes::blockpos::client_block_pos_argument_type::ClientBlockPosArgumentType;
 use mcrust::com::mojang::brigadier::builder::required_argument_builder::RequiredArgumentBuilder;
 use mcrust::com::mojang::brigadier::context::command_context::CommandContext;
 use mcrust::com::mojang::brigadier::suggestion::suggestions::Suggestions;
@@ -114,7 +120,6 @@ pub static ROOMS_DATA: LazyLock<Mutex<std::collections::HashMap<String, std::col
 pub static ROOMS_INFO: LazyLock<Mutex<std::collections::HashMap<String, RoomInfo>>> = LazyLock::new(|| Mutex::new(std::collections::HashMap::new()));
 /// java: private static final Map<String, List<RoomWaypoint>> ROOMS_WAYPOINTS = new ConcurrentHashMap<>();
 pub static ROOMS_WAYPOINTS: LazyLock<Mutex<std::collections::HashMap<String, Vec<RoomWaypoint>>>> = LazyLock::new(|| Mutex::new(std::collections::HashMap::new()));
-// TODO(fabric2seer): static call Function.identity(..)
 //   java: static final JsonData<Map<SecretWaypoint.Category, Color>> WAYPOINT_COLOR_DATA = new JsonData<>(
 //   java: 			SkyblockerMod.CONFIG_DIR.resolve("secret_waypoint_color.json"),
 //   java: 			Codec.unboundedMap(SecretWaypoint.Category.CODEC, CodecUtils.COLOR_CODEC).xmap(EnumMap::new, Function.identity()),
@@ -207,14 +212,14 @@ impl DungeonManager {
     }
 
     /// java: private static int addCustomWaypoint(CommandContext<FabricClientCommandSource> context, BlockPos pos)
-    pub fn add_custom_waypoint_command_context_block_pos(context: &CommandContext<crate::unresolved::FabricClientCommandSource>, pos: &BlockPos) -> i32 {
+    pub fn add_custom_waypoint_command_context_block_pos(context: &CommandContext<FabricClientCommandSource>, pos: &BlockPos) -> i32 {
         let mut room: Option<compat::Shared<dyn Room>> = DungeonManager::get_room_at_physical_vec3i(pos.as_vec3i());
         if DungeonManager::is_room_matched(room.clone()) {
             let room: compat::Shared<dyn Room> = room.unwrap();
             ({ let __f = compat::dispatch(&room, |__t| __t.add_custom_waypoint()); __f(&room, context, &({ let __f = compat::dispatch(&room, |__t| __t.actual_to_relative()); __f(&room, pos) })) });
         } else {
-            // TODO(fabric2seer): `.sendError(..)` on a FabricClientCommandSource
-            //   java: context.getSource().sendError(Constants.PREFIX.get().append(NOT_MATCHED_TEXT));
+            // java: context.getSource().sendError(Constants.PREFIX.get().append(NOT_MATCHED_TEXT));
+            compat::batch_w_send_error(&(constants::PREFIX.get())().append(NOT_MATCHED_TEXT.get().clone()));
         }
         return 1;
     }
@@ -233,14 +238,14 @@ impl DungeonManager {
     }
 
     /// java: private static int removeCustomWaypoint(CommandContext<FabricClientCommandSource> context, BlockPos pos)
-    pub fn remove_custom_waypoint_command_context_block_pos(context: &CommandContext<crate::unresolved::FabricClientCommandSource>, pos: &BlockPos) -> i32 {
+    pub fn remove_custom_waypoint_command_context_block_pos(context: &CommandContext<FabricClientCommandSource>, pos: &BlockPos) -> i32 {
         let mut room: Option<compat::Shared<dyn Room>> = DungeonManager::get_room_at_physical_vec3i(pos.as_vec3i());
         if DungeonManager::is_room_matched(room.clone()) {
             let room: compat::Shared<dyn Room> = room.unwrap();
             ({ let __f = compat::dispatch(&room, |__t| __t.remove_custom_waypoint()); __f(&room, context, &({ let __f = compat::dispatch(&room, |__t| __t.actual_to_relative()); __f(&room, pos) })) });
         } else {
-            // TODO(fabric2seer): `.sendError(..)` on a FabricClientCommandSource
-            //   java: context.getSource().sendError(Constants.PREFIX.get().append(NOT_MATCHED_TEXT));
+            // java: context.getSource().sendError(Constants.PREFIX.get().append(NOT_MATCHED_TEXT));
+            compat::batch_w_send_error(&(constants::PREFIX.get())().append(NOT_MATCHED_TEXT.get().clone()));
         }
         return 1;
     }
@@ -282,26 +287,130 @@ impl DungeonManager {
             logger().error(&format!("[Skyblocker Dungeon Secrets] Failed to load dungeon secrets"));
             return Default::default(); // java: return null
         });
-        // TODO(fabric2seer): no SeerClient event yet: hook HEAD of Minecraft#stop (`net.minecraft.client.Minecraft#stop`: exists)
-        //   java: ClientLifecycleEvents.CLIENT_STOPPING.register(DungeonManager::saveCustomWaypoints);
+        // java: ClientLifecycleEvents.CLIENT_STOPPING.register(DungeonManager::saveCustomWaypoints);
+        // (`CLIENT_STOPPING` is Fabric's HEAD injector on `Minecraft#stop`)
+        let stopping = mcrust::mcrust::modding::hook::inject("net.minecraft.client.Minecraft#stop", mcrust::mcrust::modding::hook::At::Head, |_: &mut mcrust::mcrust::modding::hook::CallbackInfo<'_>| {
+            DungeonManager::save_custom_waypoints(compat::minecraft());
+        });
+        if let Err(e) = stopping {
+            logger().error(&format!("[Skyblocker Dungeon Secrets] Failed to hook the client stop: {:?}", e));
+        }
         ({ let __r = scheduler::INSTANCE.get_mut(); let __f = compat::dispatch(__r, |__t| __t.schedule_cyclic()); __f(__r, Arc::new(move || { DungeonManager::update(); }), 5) });
         ({ let __r = scheduler::INSTANCE.get_mut(); let __f = compat::dispatch(__r, |__t| __t.schedule_cyclic()); __f(__r, Arc::new(move || { DungeonManager::update_all_room_checkmarks(); }), 20) });
         level_render_extraction_callback::EVENT.register(Arc::new(move |__a0| { DungeonManager::extract_rendering(&__a0); }));
-        // TODO(fabric2seer): ClientReceiveMessageEvents.ALLOW_GAME.register: no SeerClient equivalent yet
-        //   java: ClientReceiveMessageEvents.ALLOW_GAME.register(DungeonManager::onChatMessage);
-        // TODO(fabric2seer): UseBlockCallback.EVENT.register: no SeerClient equivalent yet
-        //   java: UseBlockCallback.EVENT.register((_, world, _, hitResult) -> onUseBlock(world, hitResult));
+        // java: ClientReceiveMessageEvents.ALLOW_GAME.register(DungeonManager::onChatMessage);
+        compat::register_allow_game(|text, overlay| DungeonManager::on_chat_message(text, overlay));
+        // java: UseBlockCallback.EVENT.register((_, world, _, hitResult) -> onUseBlock(world, hitResult));
+        mcrust::mcrust::modding::events::use_block_callback::register(|_, world, _, hit_result| DungeonManager::on_use_block(world, hit_result));
         client_command_registration_callback::EVENT.register(Arc::new(
             |dispatcher: &mut client_command_registration_callback::ClientCommandDispatcher| {
-                // TODO(fabric2seer): a command tree this tool cannot read (arguments, redirects, requires) - SeerClient commands receive the words after the name in `ctx.args`
-                //   java: dispatcher.register(..);
+                // java: dispatcher.register(literal(SkyblockerMod.NAMESPACE).then(literal("dungeons").then(literal("secrets")
+                //     .then(literal("markAsFound").then(markSecretsCommand(true)))
+                //     .then(literal("markAsMissing").then(markSecretsCommand(false)).then(markAllSecretsAsMissingCommand()))
+                //     .then(literal("getRelativePos").executes(DungeonManager::getRelativePos))
+                //     .then(literal("getRelativeTargetPos").executes(DungeonManager::getRelativeTargetPos))
+                //     .then(literal("addWaypoint").then(addCustomWaypointCommand(false, registryAccess)))
+                //     .then(literal("addWaypointRelatively").then(addCustomWaypointCommand(true, registryAccess)))
+                //     .then(literal("removeWaypoint").then(removeCustomWaypointCommand(false)))
+                //     .then(literal("removeWaypointRelatively").then(removeCustomWaypointCommand(true))))));
+                let mut secrets = client_command_registration_callback::literal("secrets");
+                let mut mark_as_found = client_command_registration_callback::literal("markAsFound");
+                mark_as_found.then(&DungeonManager::mark_secrets_command(true));
+                secrets.then(&mark_as_found);
+                let mut mark_as_missing = client_command_registration_callback::literal("markAsMissing");
+                mark_as_missing.then(&DungeonManager::mark_secrets_command(false));
+                mark_as_missing.then(&DungeonManager::mark_all_secrets_as_missing_command());
+                secrets.then(&mark_as_missing);
+                let mut get_relative_pos = client_command_registration_callback::literal("getRelativePos");
+                get_relative_pos.executes(Arc::new(|context: &CommandContext<FabricClientCommandSource>| Ok(DungeonManager::get_relative_pos(context))));
+                secrets.then(&get_relative_pos);
+                let mut get_relative_target_pos = client_command_registration_callback::literal("getRelativeTargetPos");
+                get_relative_target_pos.executes(Arc::new(|context: &CommandContext<FabricClientCommandSource>| Ok(DungeonManager::get_relative_target_pos(context))));
+                secrets.then(&get_relative_target_pos);
+                // `registryAccess` is the dispatcher's build context (the connection's registries)
+                if let Some(registry_access) = dispatcher.build_context().cloned() {
+                    let mut add_waypoint = client_command_registration_callback::literal("addWaypoint");
+                    add_waypoint.then(&DungeonManager::add_custom_waypoint_command(false, &registry_access));
+                    secrets.then(&add_waypoint);
+                    let mut add_waypoint_relatively = client_command_registration_callback::literal("addWaypointRelatively");
+                    add_waypoint_relatively.then(&DungeonManager::add_custom_waypoint_command(true, &registry_access));
+                    secrets.then(&add_waypoint_relatively);
+                }
+                let mut remove_waypoint = client_command_registration_callback::literal("removeWaypoint");
+                remove_waypoint.then(&DungeonManager::remove_custom_waypoint_command(false));
+                secrets.then(&remove_waypoint);
+                let mut remove_waypoint_relatively = client_command_registration_callback::literal("removeWaypointRelatively");
+                remove_waypoint_relatively.then(&DungeonManager::remove_custom_waypoint_command(true));
+                secrets.then(&remove_waypoint_relatively);
+                let mut dungeons = client_command_registration_callback::literal("dungeons");
+                dungeons.then(&secrets);
+                let mut namespace = client_command_registration_callback::literal(skyblocker_mod::NAMESPACE);
+                namespace.then(&dungeons);
+                dispatcher.dispatcher().register(&namespace);
             },
         ));
         if crate::de::hysky::skyblocker::debug::debug::Debug::debug_enabled() {
             client_command_registration_callback::EVENT.register(Arc::new(
                 |dispatcher: &mut client_command_registration_callback::ClientCommandDispatcher| {
-                    // TODO(fabric2seer): a command tree this tool cannot read (arguments, redirects, requires) - SeerClient commands receive the words after the name in `ctx.args`
-                    //   java: dispatcher.register(..);
+                    let mut secrets = client_command_registration_callback::literal("secrets");
+                    // java: .then(literal("matchAgainst").then(matchAgainstCommand()))
+                    let mut match_against = client_command_registration_callback::literal("matchAgainst");
+                    match_against.then(&DungeonManager::match_against_command());
+                    secrets.then(&match_against);
+                    // java: .then(literal("clearSubProcesses").executes(context -> {..}))
+                    let mut clear_sub_processes = client_command_registration_callback::literal("clearSubProcesses");
+                    clear_sub_processes.executes(Arc::new(|_: &CommandContext<FabricClientCommandSource>| {
+                        if let Some(current) = CURRENT_ROOM.get().clone() {
+                            compat::write(&current, |__t| {
+                                __t.room_base_mut().tickables.clear();
+                                __t.room_base_mut().renderables.clear();
+                            });
+                            compat::batch_w_send_feedback(&(constants::PREFIX.get())().append_str("Cleared sub processes in the current room."));
+                        } else {
+                            compat::batch_w_send_error(&DungeonManager::error("Current room is null."));
+                        }
+                        Ok(1)
+                    }));
+                    secrets.then(&clear_sub_processes);
+                    // java: .then(literal("getCheckmarkColour").executes(context -> {..}))
+                    let mut get_checkmark_colour = client_command_registration_callback::literal("getCheckmarkColour");
+                    get_checkmark_colour.executes(Arc::new(|_: &CommandContext<FabricClientCommandSource>| {
+                        let state = DungeonManager::get_map_state(compat::minecraft());
+                        let current = CURRENT_ROOM.get().clone();
+                        if let (Some(current), Some(state)) = (current, state) {
+                            let checkmark_colour: i32 = {
+                                let state = state.lock().unwrap_or_else(|p| p.into_inner());
+                                DungeonManager::get_room_checkmark_colour(&state, &current, None)
+                            };
+                            let result: &str = if checkmark_colour == dungeon_map_utils::GREEN_COLOR as i32 {
+                                "Green"
+                            } else if checkmark_colour == dungeon_map_utils::WHITE_COLOR as i32 {
+                                "White"
+                            } else if checkmark_colour == dungeon_map_utils::RED_COLOR as i32 {
+                                "Red"
+                            } else {
+                                "Unknown"
+                            };
+                            compat::batch_w_send_feedback(&(constants::PREFIX.get())().append_str(&format!("Checkmark colour: {}", result)));
+                        } else {
+                            compat::batch_w_send_error(&DungeonManager::error("Current room or map state is null."));
+                        }
+                        Ok(1)
+                    }));
+                    secrets.then(&get_checkmark_colour);
+                    // java: .then(literal("clearRooms").executes(context -> { rooms.clear(); ..}))
+                    let mut clear_rooms = client_command_registration_callback::literal("clearRooms");
+                    clear_rooms.executes(Arc::new(|_: &CommandContext<FabricClientCommandSource>| {
+                        ROOMS.get_mut().clear();
+                        compat::batch_w_send_feedback(&(constants::PREFIX.get())().append_str("Cleared all rooms!"));
+                        Ok(1)
+                    }));
+                    secrets.then(&clear_rooms);
+                    let mut dungeons = client_command_registration_callback::literal("dungeons");
+                    dungeons.then(&secrets);
+                    let mut namespace = client_command_registration_callback::literal(skyblocker_mod::NAMESPACE);
+                    namespace.then(&dungeons);
+                    dispatcher.dispatcher().register(&namespace);
                 },
             ));
         }
@@ -422,24 +531,26 @@ impl DungeonManager {
 
     /// java: private static void saveCustomWaypoints(Minecraft client)
     pub fn save_custom_waypoints(client: &mut mcrust::net::minecraft::client::minecraft::Minecraft) {
-        {
-            // TODO(fabric2seer): Files.newBufferedWriter
-            //   java: BufferedWriter writer = Files.newBufferedWriter(..);
-            let mut writer: crate::unresolved::BufferedWriter = todo!("fabric2seer: the initialiser of `writer` (TODO above)");
-            // java: try {..} catch (Exception e) - an exception here is a panic, caught by `catch_unwind`
-            let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                let mut custom_waypoints_json: serde_json::Map<String, serde_json::Value> = serde_json::Map::new();
-                // TODO(fabric2seer): `.rowMap(..)` on a Table
-                //   java: customWaypoints.rowMap().forEach((room, waypoints) ->
-                //   java: 					customWaypointsJson.add(room, SecretWaypoint.LIST_CODEC.encodeStart(JsonOps.INSTANCE, new ArrayList<>(waypoints.values())).resultOrPartial(LOGGER::error).orElseGet(JsonArray::new))
-                //   java: 			);
-                // TODO(fabric2seer): `.toJson(..)` on a Gson
-                //   java: SkyblockerMod.GSON.toJson(customWaypointsJson, writer);
-                logger().info("[Skyblocker Dungeon Secrets] Saved custom dungeon secret waypoints");
-            }));
-            if let Err(e) = __result {
-                logger().error(&format!("[Skyblocker Dungeon Secrets] Failed to save custom dungeon secret waypoints"));
+        let _ = client;
+        // java: try (BufferedWriter writer = Files.newBufferedWriter(CUSTOM_WAYPOINTS_DIR)) {..} catch (Exception e) - an
+        // exception here (the writer's IOException too) is a panic, caught by `catch_unwind`
+        let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            // java: JsonObject customWaypointsJson = new JsonObject();
+            let mut custom_waypoints_json: serde_json::Map<String, serde_json::Value> = serde_json::Map::new();
+            // java: customWaypoints.rowMap().forEach((room, waypoints) -> customWaypointsJson.add(room,
+            //     SecretWaypoint.LIST_CODEC.encodeStart(JsonOps.INSTANCE, new ArrayList<>(waypoints.values())).resultOrPartial(LOGGER::error).orElseGet(JsonArray::new)));
+            for (room, waypoints) in CUSTOM_WAYPOINTS.get().row_map() {
+                let values: Vec<compat::Shared<SecretWaypoint>> = waypoints.into_iter().map(|(_, waypoint)| waypoint).collect();
+                let encoded: serde_json::Value = secret_waypoint::LIST_CODEC.get().encode_start(&mcrust::com::mojang::serialization::json_ops::JsonOps::instance(), &values).result_or_partial_with(|e| logger().error(&e)).map(|o| compat::json_from_port(&o)).unwrap_or_else(|| serde_json::Value::Array(Vec::new()));
+                custom_waypoints_json.insert(room, encoded);
             }
+            // java: SkyblockerMod.GSON.toJson(customWaypointsJson, writer); - GSON pretty-prints (two-space indent)
+            let text: String = serde_json::to_string_pretty(&serde_json::Value::Object(custom_waypoints_json)).expect("JsonIOException");
+            std::fs::write(CUSTOM_WAYPOINTS_DIR.get(), text).expect("IOException");
+            logger().info("[Skyblocker Dungeon Secrets] Saved custom dungeon secret waypoints");
+        }));
+        if let Err(e) = __result {
+            logger().error(&format!("[Skyblocker Dungeon Secrets] Failed to save custom dungeon secret waypoints: {}", compat::panic_message(&e)));
         }
     }
 
@@ -463,165 +574,211 @@ impl DungeonManager {
     }
 
     /// java: private static RequiredArgumentBuilder<FabricClientCommandSource, Integer> markSecretsCommand(boolean found)
-    pub fn mark_secrets_command(mut found: bool) -> RequiredArgumentBuilder<crate::unresolved::FabricClientCommandSource> {
-        // TODO(fabric2seer): Fabric API `ClientCommands.argument` has no SeerClient equivalent
-        //   java: return argument("secretIndex", IntegerArgumentType.integer()).suggests((_, builder) -> {
-        //   java: 			if (isCurrentRoomMatched()) {
-        //   java: 				//noinspection DataFlowIssue - checked above
-        //   java: 				IntStream.rangeClosed(1, currentRoom.getSecretCount()).forEach(builder::suggest);
-        //   java: 			}
-        //   java: 			return builder.buildFuture();
-        //   java: 		}).executes(context -> {
-        //   java: 			int secretIndex = IntegerArgumentType.getInteger(context, "secretIndex");
-        //   java: 			if (markSecrets(secretIndex, found)) {
-        //   java: 				context.getSource().sendFeedback(Constants.PREFIX.get().append(Component.translatable(found ? "skyblocker.dungeons.secrets.markSecretFound" : "skyblocker.dungeons.secrets.markSecretMissing", secretIndex)));
-        //   java: 			} else {
-        //   java: 				context.getSource().sendError(Constants.PREFIX.get().append(Component.translatable(found ? "skyblocker.dungeons.secrets.markSecretFoundUnable" : "skyblocker.dungeons.secrets.markSecretMissingUnable", secretIndex).withColor(TextColor.RED)));
-        //   java: 			}
-        //   java: 			return Command.SINGLE_SUCCESS;
-        //   java: 		});
-        todo!("fabric2seer: the value of this function is in a TODO above")
+    pub fn mark_secrets_command(found: bool) -> RequiredArgumentBuilder<FabricClientCommandSource> {
+        // java: return argument("secretIndex", IntegerArgumentType.integer()).suggests((_, builder) -> {
+        //     if (isCurrentRoomMatched()) IntStream.rangeClosed(1, currentRoom.getSecretCount()).forEach(builder::suggest);
+        //     return builder.buildFuture(); }).executes(context -> {..});
+        let mut secret_index = client_command_registration_callback::argument("secretIndex", Arc::new(IntegerArgumentType::integer()));
+        secret_index.suggests(Some(Arc::new(|_: &CommandContext<FabricClientCommandSource>, builder: &mut SuggestionsBuilder| {
+            if DungeonManager::is_current_room_matched() {
+                let current = CURRENT_ROOM.get().clone().unwrap();
+                let secret_count: i32 = { let __f = compat::dispatch(&current, |__t| __t.get_secret_count()); __f(&current) };
+                for i in 1..=secret_count {
+                    builder.suggest_integer(i);
+                }
+            }
+            Ok(builder.build_future())
+        })));
+        secret_index.executes(Arc::new(move |context: &CommandContext<FabricClientCommandSource>| {
+            let secret_index: i32 = IntegerArgumentType::get_integer(context, "secretIndex");
+            if DungeonManager::mark_secrets(secret_index, found) {
+                compat::batch_w_send_feedback(&(constants::PREFIX.get())().append(component::translatable_args(if found { "skyblocker.dungeons.secrets.markSecretFound" } else { "skyblocker.dungeons.secrets.markSecretMissing" }, vec![FormattedText::of(secret_index.to_string())])));
+            } else {
+                compat::batch_w_send_error(&(constants::PREFIX.get())().append(component::translatable_args(if found { "skyblocker.dungeons.secrets.markSecretFoundUnable" } else { "skyblocker.dungeons.secrets.markSecretMissingUnable" }, vec![FormattedText::of(secret_index.to_string())]).with_color_text(mcrust::net::minecraft::network::chat::text_color::TextColor::RED)));
+            }
+            Ok(1)
+        }));
+        return secret_index;
     }
 
     /// java: private static LiteralArgumentBuilder<FabricClientCommandSource> markAllSecretsAsMissingCommand()
-    pub fn mark_all_secrets_as_missing_command() -> LiteralArgumentBuilder<crate::unresolved::FabricClientCommandSource> {
-        // TODO(fabric2seer): a command builder outside dispatcher.register(..)
-        //   java: return literal("all").executes(context -> {
-        //   java: 			if (isCurrentRoomMatched()) {
-        //   java: 				//noinspection DataFlowIssue - checked above
-        //   java: 				currentRoom.markAllSecrets(false);
-        //   java: 				context.getSource().sendFeedback(Constants.PREFIX.get().append(Component.translatable("skyblocker.dungeons.secrets.markSecretsMissing")));
-        //   java: 			} else {
-        //   java: 				context.getSource().sendFeedback(Constants.PREFIX.get().append(Component.translatable("skyblocker.dungeons.secrets.markSecretsMissingUnable").withColor(TextColor.RED)));
-        //   java: 			}
-        //   java:
-        //   java: 			return Command.SINGLE_SUCCESS;
-        //   java: 		});
-        todo!("fabric2seer: the value of this function is in a TODO above")
+    pub fn mark_all_secrets_as_missing_command() -> LiteralArgumentBuilder<FabricClientCommandSource> {
+        // java: return literal("all").executes(context -> {..});
+        let mut all = client_command_registration_callback::literal("all");
+        all.executes(Arc::new(|_: &CommandContext<FabricClientCommandSource>| {
+            if DungeonManager::is_current_room_matched() {
+                // java: currentRoom.markAllSecrets(false);
+                let current = CURRENT_ROOM.get().clone().unwrap();
+                { let __f = compat::dispatch(&current, |__t| __t.mark_all_secrets()); __f(&current, false) };
+                compat::batch_w_send_feedback(&(constants::PREFIX.get())().append(component::translatable("skyblocker.dungeons.secrets.markSecretsMissing")));
+            } else {
+                compat::batch_w_send_feedback(&(constants::PREFIX.get())().append(component::translatable("skyblocker.dungeons.secrets.markSecretsMissingUnable").with_color_text(mcrust::net::minecraft::network::chat::text_color::TextColor::RED)));
+            }
+            Ok(1)
+        }));
+        return all;
     }
 
     /// java: private static int getRelativePos(CommandContext<FabricClientCommandSource> context)
-    pub fn get_relative_pos(context: &CommandContext<crate::unresolved::FabricClientCommandSource>) -> i32 {
-        // TODO(fabric2seer): `.getPlayer(..)` on a FabricClientCommandSource
-        //   java: return getRelativePos(context.getSource(), context.getSource().getPlayer().blockPosition());
-        todo!("fabric2seer: the value of this function is in a TODO above")
+    pub fn get_relative_pos(context: &CommandContext<FabricClientCommandSource>) -> i32 {
+        // java: return getRelativePos(context.getSource(), context.getSource().getPlayer().blockPosition());
+        let Some(pos) = mcrust::mcrust::modding::game::with_player(|player| player.base.base.base.base.block_position()) else {
+            panic!("NullPointerException: getPlayer()");
+        };
+        return DungeonManager::get_relative_pos_2(context.get_source(), &pos);
     }
 
     /// java: private static int getRelativePos(FabricClientCommandSource source, BlockPos pos)
-    pub fn get_relative_pos_2(source: &crate::unresolved::FabricClientCommandSource, pos: &BlockPos) -> i32 {
-        let mut room: Option<compat::Shared<dyn Room>> = DungeonManager::get_room_at_physical_vec3i(pos.as_vec3i());
+    pub fn get_relative_pos_2(source: &FabricClientCommandSource, pos: &BlockPos) -> i32 {
+        let _ = source;
+        let room: Option<compat::Shared<dyn Room>> = DungeonManager::get_room_at_physical_vec3i(pos.as_vec3i());
         if DungeonManager::is_room_matched(room.clone()) {
-            let room: compat::Shared<dyn Room> = room.unwrap();
-            let mut relative_pos: BlockPos = ({ let __r = CURRENT_ROOM.get_mut().as_ref().unwrap(); let __f = compat::dispatch(__r, |__t| __t.actual_to_relative()); __f(__r, pos) });
-            // TODO(fabric2seer): `.sendFeedback(..)` on a FabricClientCommandSource
-            //   java: source.sendFeedback(Constants.PREFIX.get().append(Component.translatable("skyblocker.dungeons.secrets.posMessage", currentRoom.getName(), currentRoom.getDirection().getSerializedName(), relativePos.getX(), relativePos.getY(), relativePos.getZ())));
+            // java: BlockPos relativePos = currentRoom.actualToRelative(pos);
+            let current = CURRENT_ROOM.get().clone().unwrap();
+            let relative_pos: BlockPos = { let __f = compat::dispatch(&current, |__t| __t.actual_to_relative()); __f(&current, pos) };
+            let name: String = { let __f = compat::dispatch(&current, |__t| __t.get_name()); __f(&current) }.unwrap_or_else(|| "null".to_string());
+            let direction: String = { let __f = compat::dispatch(&current, |__t| __t.get_direction()); __f(&current) }.expect("NullPointerException: getDirection()").get_serialized_name();
+            // java: source.sendFeedback(Constants.PREFIX.get().append(Component.translatable("skyblocker.dungeons.secrets.posMessage", currentRoom.getName(), currentRoom.getDirection().getSerializedName(), relativePos.getX(), relativePos.getY(), relativePos.getZ())));
+            compat::batch_w_send_feedback(&(constants::PREFIX.get())().append(component::translatable_args("skyblocker.dungeons.secrets.posMessage", vec![FormattedText::of(name), FormattedText::of(direction), FormattedText::of(relative_pos.get_x().to_string()), FormattedText::of(relative_pos.get_y().to_string()), FormattedText::of(relative_pos.get_z().to_string())])));
         } else {
-            // TODO(fabric2seer): `.sendError(..)` on a FabricClientCommandSource
-            //   java: source.sendError(Constants.PREFIX.get().append(NOT_MATCHED_TEXT));
+            // java: source.sendError(Constants.PREFIX.get().append(NOT_MATCHED_TEXT));
+            compat::batch_w_send_error(&(constants::PREFIX.get())().append(NOT_MATCHED_TEXT.get().clone()));
         }
         return 1;
     }
 
     /// java: private static int getRelativeTargetPos(CommandContext<FabricClientCommandSource> context)
-    pub fn get_relative_target_pos(context: &CommandContext<crate::unresolved::FabricClientCommandSource>) -> i32 {
-        // TODO(fabric2seer): field `BLOCK` of a value of unknown type
-        //   java: if (CLIENT.hitResult instanceof BlockHitResult blockHitResult && blockHitResult.getType() == HitResult.Type.BLOCK) {
-        //   java: 			return getRelativePos(context.getSource(), blockHitResult.getBlockPos());
-        //   java: 		} else {
-        //   java: 			context.getSource().sendError(Constants.PREFIX.get().append(Component.translatable("skyblocker.dungeons.secrets.noTarget").withColor(TextColor.RED)));
-        //   java: 		}
+    pub fn get_relative_target_pos(context: &CommandContext<FabricClientCommandSource>) -> i32 {
+        // java: if (CLIENT.hitResult instanceof BlockHitResult blockHitResult && blockHitResult.getType() == HitResult.Type.BLOCK) {
+        let target: Option<BlockPos> = match compat::minecraft().hit_result.as_ref() {
+            Some(mcrust::net::minecraft::world::phys::hit_result::AnyHitResult::Block(block_hit_result)) if block_hit_result.get_type() == mcrust::net::minecraft::world::phys::hit_result::Type::Block => Some(block_hit_result.get_block_pos().clone()),
+            _ => None,
+        };
+        if let Some(pos) = target {
+            return DungeonManager::get_relative_pos_2(context.get_source(), &pos);
+        } else {
+            compat::batch_w_send_error(&(constants::PREFIX.get())().append(component::translatable("skyblocker.dungeons.secrets.noTarget").with_color_text(mcrust::net::minecraft::network::chat::text_color::TextColor::RED)));
+        }
         return 1;
     }
 
     /// java: private static RequiredArgumentBuilder<FabricClientCommandSource, ClientPosArgument> addCustomWaypointCommand(boolean relative, CommandBuildContext registryAccess)
-    pub fn add_custom_waypoint_command(mut relative: bool, registry_access: &CommandBuildContext) -> RequiredArgumentBuilder<crate::unresolved::FabricClientCommandSource> {
-        // TODO(fabric2seer): Fabric API `ClientCommands.argument` has no SeerClient equivalent
-        //   java: return argument("pos", ClientBlockPosArgumentType.blockPos())
-        //   java: 				.then(argument("secretIndex", IntegerArgumentType.integer())
-        //   java: 						.then(argument("category", SecretWaypoint.Category.CategoryArgumentType.category())
-        //   java: 								.then(argument("name", ComponentArgument.textComponent(registryAccess)).executes(context -> {
-        //   java: 									BlockPos pos = context.getArgument("pos", ClientPosArgument.class).toAbsoluteBlockPos(context.getSource());
-        //   java: 									return relative ? addCustomWaypointRelative(context, pos) : addCustomWaypoint(context, pos);
-        //   java: 								}))
-        //   java: 						)
-        //   java: 				);
-        todo!("fabric2seer: the value of this function is in a TODO above")
+    pub fn add_custom_waypoint_command(relative: bool, registry_access: &CommandBuildContext) -> RequiredArgumentBuilder<FabricClientCommandSource> {
+        // java: return argument("pos", ClientBlockPosArgumentType.blockPos())
+        //     .then(argument("secretIndex", IntegerArgumentType.integer())
+        //         .then(argument("category", SecretWaypoint.Category.CategoryArgumentType.category())
+        //             .then(argument("name", ComponentArgument.textComponent(registryAccess)).executes(context -> {
+        //                 BlockPos pos = context.getArgument("pos", ClientPosArgument.class).toAbsoluteBlockPos(context.getSource());
+        //                 return relative ? addCustomWaypointRelative(context, pos) : addCustomWaypoint(context, pos); }))));
+        let mut name = client_command_registration_callback::argument("name", Arc::new(mcrust::net::minecraft::commands::arguments::component_argument::ComponentArgument::text_component(registry_access)));
+        name.executes(Arc::new(move |context: &CommandContext<FabricClientCommandSource>| {
+            let pos: BlockPos = ClientBlockPosArgumentType::get_block_pos(context, "pos");
+            Ok(if relative { DungeonManager::add_custom_waypoint_relative(context, &pos) } else { DungeonManager::add_custom_waypoint_command_context_block_pos(context, &pos) })
+        }));
+        let mut category = client_command_registration_callback::argument("category", Arc::new(secret_waypoint::CategoryArgumentType::category().base));
+        category.then(&name);
+        let mut secret_index = client_command_registration_callback::argument("secretIndex", Arc::new(IntegerArgumentType::integer()));
+        secret_index.then(&category);
+        let mut pos = client_command_registration_callback::argument("pos", Arc::new(ClientBlockPosArgumentType::block_pos()));
+        pos.then(&secret_index);
+        return pos;
     }
 
     /// java: private static int addCustomWaypointRelative(CommandContext<FabricClientCommandSource> context, BlockPos pos)
-    pub fn add_custom_waypoint_relative(context: &CommandContext<crate::unresolved::FabricClientCommandSource>, pos: &BlockPos) -> i32 {
+    pub fn add_custom_waypoint_relative(context: &CommandContext<FabricClientCommandSource>, pos: &BlockPos) -> i32 {
         if DungeonManager::is_current_room_matched() {
-            ({ let __r = CURRENT_ROOM.get_mut().as_ref().unwrap(); let __f = compat::dispatch(__r, |__t| __t.add_custom_waypoint()); __f(__r, context, pos) });
+            let current = CURRENT_ROOM.get().clone().unwrap();
+            { let __f = compat::dispatch(&current, |__t| __t.add_custom_waypoint()); __f(&current, context, pos) };
         } else {
-            // TODO(fabric2seer): `.sendError(..)` on a FabricClientCommandSource
-            //   java: context.getSource().sendError(Constants.PREFIX.get().append(NOT_MATCHED_TEXT));
+            // java: context.getSource().sendError(Constants.PREFIX.get().append(NOT_MATCHED_TEXT));
+            compat::batch_w_send_error(&(constants::PREFIX.get())().append(NOT_MATCHED_TEXT.get().clone()));
         }
         return 1;
     }
 
     /// java: private static RequiredArgumentBuilder<FabricClientCommandSource, ClientPosArgument> removeCustomWaypointCommand(boolean relative)
-    pub fn remove_custom_waypoint_command(mut relative: bool) -> RequiredArgumentBuilder<crate::unresolved::FabricClientCommandSource> {
-        // TODO(fabric2seer): Fabric API `ClientCommands.argument` has no SeerClient equivalent
-        //   java: return argument("pos", ClientBlockPosArgumentType.blockPos())
-        //   java: 				.executes(context -> {
-        //   java: 					BlockPos pos = context.getArgument("pos", ClientPosArgument.class).toAbsoluteBlockPos(context.getSource());
-        //   java: 					return relative ? removeCustomWaypointRelative(context, pos) : removeCustomWaypoint(context, pos);
-        //   java: 				});
-        todo!("fabric2seer: the value of this function is in a TODO above")
+    pub fn remove_custom_waypoint_command(relative: bool) -> RequiredArgumentBuilder<FabricClientCommandSource> {
+        // java: return argument("pos", ClientBlockPosArgumentType.blockPos()).executes(context -> {
+        //     BlockPos pos = context.getArgument("pos", ClientPosArgument.class).toAbsoluteBlockPos(context.getSource());
+        //     return relative ? removeCustomWaypointRelative(context, pos) : removeCustomWaypoint(context, pos); });
+        let mut pos = client_command_registration_callback::argument("pos", Arc::new(ClientBlockPosArgumentType::block_pos()));
+        pos.executes(Arc::new(move |context: &CommandContext<FabricClientCommandSource>| {
+            let pos: BlockPos = ClientBlockPosArgumentType::get_block_pos(context, "pos");
+            Ok(if relative { DungeonManager::remove_custom_waypoint_relative(context, &pos) } else { DungeonManager::remove_custom_waypoint_command_context_block_pos(context, &pos) })
+        }));
+        return pos;
     }
 
     /// java: private static int removeCustomWaypointRelative(CommandContext<FabricClientCommandSource> context, BlockPos pos)
-    pub fn remove_custom_waypoint_relative(context: &CommandContext<crate::unresolved::FabricClientCommandSource>, pos: &BlockPos) -> i32 {
+    pub fn remove_custom_waypoint_relative(context: &CommandContext<FabricClientCommandSource>, pos: &BlockPos) -> i32 {
         if DungeonManager::is_current_room_matched() {
-            ({ let __r = CURRENT_ROOM.get_mut().as_ref().unwrap(); let __f = compat::dispatch(__r, |__t| __t.remove_custom_waypoint()); __f(__r, context, pos) });
+            let current = CURRENT_ROOM.get().clone().unwrap();
+            { let __f = compat::dispatch(&current, |__t| __t.remove_custom_waypoint()); __f(&current, context, pos) };
         } else {
-            // TODO(fabric2seer): `.sendError(..)` on a FabricClientCommandSource
-            //   java: context.getSource().sendError(Constants.PREFIX.get().append(NOT_MATCHED_TEXT));
+            // java: context.getSource().sendError(Constants.PREFIX.get().append(NOT_MATCHED_TEXT));
+            compat::batch_w_send_error(&(constants::PREFIX.get())().append(NOT_MATCHED_TEXT.get().clone()));
         }
         return 1;
     }
 
     /// java: private static RequiredArgumentBuilder<FabricClientCommandSource, String> matchAgainstCommand()
-    pub fn match_against_command() -> RequiredArgumentBuilder<crate::unresolved::FabricClientCommandSource> {
-        // TODO(fabric2seer): Fabric API `ClientCommands.argument` has no SeerClient equivalent
-        //   java: return argument("room", StringArgumentType.string()).suggests((_, builder) -> SharedSuggestionProvider.suggest(ROOMS_DATA.values().stream().map(Map::values).flatMap(Collection::stream).map(Map::keySet).flatMap(Collection::stream), builder)).then(argument("direction", Room.Direction.DirectionArgumentType.direction()).executes(context -> {
-        //   java: 			if (!isClearingDungeon()) {
-        //   java: 				context.getSource().sendError(error("You are not in a dungeon."));
-        //   java: 				return Command.SINGLE_SUCCESS;
-        //   java: 			}
-        //   java: 			if (CLIENT.player == null || CLIENT.level == null) {
-        //   java: 				context.getSource().sendError(error("Failed to get player or world."));
-        //   java: 				return Command.SINGLE_SUCCESS;
-        //   java: 			}
-        //   java: 			ItemStack stack = CLIENT.player.getInventory().getNonEquipmentItems().get(8);
-        //   java: 			if (!stack.is(Items.FILLED_MAP)) {
-        //   java: 				context.getSource().sendError(error("Failed to get dungeon map."));
-        //   java: 				return Command.SINGLE_SUCCESS;
-        //   java: 			}
-        //   java: 			MapItemSavedData map = MapItem.getSavedData(stack.get(DataComponents.MAP_ID), CLIENT.level);
-        //   java: 			if (map == null) {
-        //   java: 				context.getSource().sendError(error("Failed to get dungeon map state."));
-        //   java: 				return Command.SINGLE_SUCCESS;
-        //   java: 			}
-        //   java:
-        //   java: 			String roomName = StringArgumentType.getString(context, "room");
-        //   java: 			Room.Direction direction = Room.Direction.DirectionArgumentType.getDirection(context, "direction");
-        //   java:
-        //   java: 			Room room = newDebugRoom(roomName, direction, CLIENT.player, map);
-        //   java: 			if (room == null) {
-        //   java: 				context.getSource().sendError(error("Failed to find room with name " + roomName + "."));
-        //   java: 				return Command.SINGLE_SUCCESS;
-        //   java: 			}
-        //   java: 			if (currentRoom != null) {
-        //   java: 				currentRoom.addSubProcess(room);
-        //   java: 				context.getSource().sendFeedback(Constants.PREFIX.get().append("Matching room " + roomName + " with direction " + direction + " against current room."));
-        //   java: 			} else {
-        //   java: 				context.getSource().sendError(error("Current room is null."));
-        //   java: 			}
-        //   java:
-        //   java: 			return Command.SINGLE_SUCCESS;
-        //   java: 		}));
-        todo!("fabric2seer: the value of this function is in a TODO above")
+    pub fn match_against_command() -> RequiredArgumentBuilder<FabricClientCommandSource> {
+        // java: return argument("room", StringArgumentType.string()).suggests((_, builder) -> SharedSuggestionProvider.suggest(
+        //     ROOMS_DATA.values().stream().map(Map::values).flatMap(Collection::stream).map(Map::keySet).flatMap(Collection::stream), builder))
+        //     .then(argument("direction", Room.Direction.DirectionArgumentType.direction()).executes(context -> {..}));
+        let mut direction = client_command_registration_callback::argument("direction", Arc::new(crate::de::hysky::skyblocker::skyblock::dungeon::secrets::room::DirectionArgumentType::direction().base));
+        direction.executes(Arc::new(|context: &CommandContext<FabricClientCommandSource>| {
+            if !DungeonManager::is_clearing_dungeon() {
+                compat::batch_w_send_error(&DungeonManager::error("You are not in a dungeon."));
+                return Ok(1);
+            }
+            // java: if (CLIENT.player == null || CLIENT.level == null)
+            let Some(player_position) = mcrust::mcrust::modding::game::with_player(|player| player.position()) else {
+                compat::batch_w_send_error(&DungeonManager::error("Failed to get player or world."));
+                return Ok(1);
+            };
+            let Some(level) = mcrust::mcrust::modding::game::level() else {
+                compat::batch_w_send_error(&DungeonManager::error("Failed to get player or world."));
+                return Ok(1);
+            };
+            // java: ItemStack stack = CLIENT.player.getInventory().getNonEquipmentItems().get(8);
+            let stack = mcrust::mcrust::modding::game::with_player(|player| player.base.base.get_inventory().get_non_equipment_items()[8].clone()).unwrap();
+            if !stack.is_item(&mcrust::net::minecraft::world::item::items::items().get("filled_map")) {
+                compat::batch_w_send_error(&DungeonManager::error("Failed to get dungeon map."));
+                return Ok(1);
+            }
+            // java: MapItemSavedData map = MapItem.getSavedData(stack.get(DataComponents.MAP_ID), CLIENT.level);
+            let Some(map_handle) = map_item::get_saved_data(Some(&DungeonMap::get_map_id_component(Some(stack))), &level) else {
+                compat::batch_w_send_error(&DungeonManager::error("Failed to get dungeon map state."));
+                return Ok(1);
+            };
+            let room_name: String = StringArgumentType::get_string(context, "room");
+            let direction: Direction = crate::de::hysky::skyblocker::skyblock::dungeon::secrets::room::DirectionArgumentType::get_direction(context, "direction");
+            let room: Option<compat::Shared<DebugRoom>> = {
+                let map = map_handle.lock().unwrap_or_else(|p| p.into_inner());
+                DungeonManager::new_debug_room(&room_name, direction, &player_position, &map)
+            };
+            let Some(room) = room else {
+                compat::batch_w_send_error(&DungeonManager::error(&format!("Failed to find room with name {}.", room_name)));
+                return Ok(1);
+            };
+            if let Some(current) = CURRENT_ROOM.get().clone() {
+                // java: currentRoom.addSubProcess(room);
+                let (tickable, renderable) = (room.clone() as compat::Shared<dyn Tickable>, room.clone() as compat::Shared<dyn Renderable>);
+                compat::write(&current, |__t| __t.add_sub_process(tickable, renderable));
+                compat::batch_w_send_feedback(&(constants::PREFIX.get())().append_str(&format!("Matching room {} with direction {} against current room.", room_name, direction.name())));
+            } else {
+                compat::batch_w_send_error(&DungeonManager::error("Current room is null."));
+            }
+            Ok(1)
+        }));
+        let mut room = client_command_registration_callback::argument("room", Arc::new(StringArgumentType::string()));
+        room.suggests(Some(Arc::new(|_: &CommandContext<FabricClientCommandSource>, builder: &mut SuggestionsBuilder| {
+            let names: Vec<String> = compat::lock(&ROOMS_DATA).values().flat_map(|shapes| shapes.values()).flat_map(|rooms| rooms.keys().cloned()).collect();
+            Ok(shared_suggestion_provider::suggest(&names, builder))
+        })));
+        room.then(&direction);
+        return room;
     }
 
     /// java: private static Component error(String message)
@@ -630,22 +787,29 @@ impl DungeonManager {
     }
 
     /// java: private static @Nullable Room newDebugRoom(String roomName, Room.Direction direction, Player player, MapItemSavedData map)
-    pub fn new_debug_room(room_name: &str, mut direction: Direction, player: &dyn Player, map: &MapItemSavedData) -> Option<compat::Shared<dyn Room>> {
-        let mut room: Option<compat::Shared<dyn Room>> = None;
-        let mut room_data: Vec<i32>;
-        // TODO(fabric2seer): static call Map.entrySet(..)
-        //   java: if ((roomData = ROOMS_DATA.get("catacombs").get(Room.Shape.PUZZLE.shape).get(roomName)) != null) {
-        //   java: 			room = DebugRoom.ofSinglePossibleRoom(Room.Type.PUZZLE, DungeonMapUtils.getPhysicalRoomPos(player.position()), roomName, roomData, direction);
-        //   java: 		} else if ((roomData = ROOMS_DATA.get("catacombs").get(Room.Shape.TRAP.shape).get(roomName)) != null) {
-        //   java: 			room = DebugRoom.ofSinglePossibleRoom(Room.Type.TRAP, DungeonMapUtils.getPhysicalRoomPos(player.position()), roomName, roomData, direction);
-        //   java: 		} else if ((roomData = ROOMS_DATA.get("catacombs").get(Room.Shape.MINIBOSS.shape).get(roomName)) != null) {
-        //   java: 			room = DebugRoom.ofSinglePossibleRoom(Room.Type.MINIBOSS, DungeonMapUtils.getPhysicalRoomPos(player.position()), roomName, roomData, direction);
-        //   java: 		} else if ((roomData = ROOMS_DATA.get("catacombs").values().stream().map(Map::entrySet).flatMap(Collection::stream).filter(entry -> entry.getKey().equals(roomName)).findAny().map(Map.Entry::getValue).orElse(null)) != null) {
-        //   java: 			if (mapEntrancePos == null || physicalEntrancePos == null) return null;
-        //   java: 			Vector2ic mapRoomPos = DungeonMapUtils.getMapRoomPos(map, mapEntrancePos, mapRoomSize);
-        //   java: 			if (mapRoomPos == null) return null;
-        //   java: 			room = DebugRoom.ofSinglePossibleRoom(Room.Type.ROOM, DungeonMapUtils.getPhysicalPosFromMap(mapEntrancePos, mapRoomSize, physicalEntrancePos, DungeonMapUtils.getRoomSegments(map, mapRoomPos, mapRoomSize, Room.Type.ROOM.color)), roomName, roomData, direction);
-        //   java: 		}
+    /// (the player is read for its `position()` only, so the position is handed in; every room it builds is a `DebugRoom`)
+    pub fn new_debug_room(room_name: &str, direction: Direction, player_position: &Vec3, map: &MapItemSavedData) -> Option<compat::Shared<DebugRoom>> {
+        let mut room: Option<compat::Shared<DebugRoom>> = None;
+        let catacombs: std::collections::HashMap<String, std::collections::HashMap<String, Vec<i32>>> = compat::lock(&ROOMS_DATA).get("catacombs").cloned().expect("NullPointerException: ROOMS_DATA.get(catacombs)");
+        let by_shape = |shape: Shape| -> Option<Vec<i32>> { catacombs.get(&shape.fields().shape).expect("NullPointerException").get(room_name).cloned() };
+        if let Some(room_data) = by_shape(Shape::Puzzle) {
+            room = Some(DebugRoom::of_single_possible_room(Type::Puzzle, &DungeonMapUtils::get_physical_room_pos(player_position), room_name, &room_data, direction));
+        } else if let Some(room_data) = by_shape(Shape::Trap) {
+            room = Some(DebugRoom::of_single_possible_room(Type::Trap, &DungeonMapUtils::get_physical_room_pos(player_position), room_name, &room_data, direction));
+        } else if let Some(room_data) = by_shape(Shape::Miniboss) {
+            room = Some(DebugRoom::of_single_possible_room(Type::Miniboss, &DungeonMapUtils::get_physical_room_pos(player_position), room_name, &room_data, direction));
+        } else if let Some(room_data) = catacombs.values().flat_map(|rooms| rooms.iter()).find(|(name, _)| name.as_str() == room_name).map(|(_, data)| data.clone()) {
+            let (Some(map_entrance_pos), Some(physical_entrance_pos)) = (MAP_ENTRANCE_POS.get().clone(), PHYSICAL_ENTRANCE_POS.get().clone()) else {
+                return None;
+            };
+            let map_room_size: i32 = compat::get_state(&MAP_ROOM_SIZE);
+            let Some(map_room_pos) = DungeonMapUtils::get_map_room_pos(map, &map_entrance_pos, map_room_size) else {
+                return None;
+            };
+            let mut segments: Vec<Vector2i> = DungeonMapUtils::get_room_segments(map, map_room_pos, map_room_size, Type::Room.fields().color);
+            let physical_positions: Vec<Vector2i> = DungeonMapUtils::get_physical_pos_from_map(&map_entrance_pos, map_room_size, &physical_entrance_pos, &mut segments);
+            room = Some(DebugRoom::of_single_possible_room_type_vector2ic_string_int_direction(Type::Room, &physical_positions, room_name, &room_data, direction));
+        }
         return room;
     }
 
@@ -654,7 +818,6 @@ impl DungeonManager {
         if mcrust::mcrust::modding::game::level().is_none() {
             return None;
         }
-        // TODO(fabric2seer): `with_entities` takes 1 argument(s) in the port (`f: impl FnOnce(&dyn LevelEntityGetter<StoredEntity>) -> R`), Java passes 0
         // for (var entity : CLIENT.level.entitiesForRendering()) - each entity read under its own lock (never one this
         // thread already holds)
         let entities = mcrust::mcrust::modding::game::level().unwrap().with_entities(|getter| getter.get_all());
@@ -1064,7 +1227,7 @@ impl DungeonManager {
     }
 
     /// java: public static CompletableFuture<Suggestions> suggestRoomTypes(CommandContext<FabricClientCommandSource> ctx, SuggestionsBuilder suggestionsBuilder)
-    pub fn suggest_room_types(ctx: &CommandContext<crate::unresolved::FabricClientCommandSource>, suggestions_builder: &mut SuggestionsBuilder) -> mcrust::java::util::concurrent::completable_future::CompletableFuture<Suggestions> {
+    pub fn suggest_room_types(ctx: &CommandContext<FabricClientCommandSource>, suggestions_builder: &mut SuggestionsBuilder) -> mcrust::java::util::concurrent::completable_future::CompletableFuture<Suggestions> {
         return shared_suggestion_provider::suggest(&compat::lock(&ROOMS_DATA).get("catacombs").cloned().unwrap().keys().cloned().collect::<Vec<String>>(), suggestions_builder);
     }
 

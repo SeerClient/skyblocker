@@ -109,7 +109,7 @@ impl NewYearCakeAdder {
         if !(stack.is_item(&items::items().get("cake"))) {
             return vec![];
         }
-        let mut year: i32 = ItemUtils::get_custom_data(stack).get_int_or("new_years_cake", 0);
+        let mut year: i32 = ItemUtils::with_custom_data(stack, |custom_data| custom_data.get_int_or("new_years_cake", 0));
         if year <= 0 {
             return vec![];
         }

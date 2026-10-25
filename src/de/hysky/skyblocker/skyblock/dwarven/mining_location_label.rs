@@ -22,8 +22,6 @@ use mcrust::net::minecraft::world::item::dye_color::DyeColor;
 
 /// java: private static final String CRYSTALS_SPACER = " ";
 pub const CRYSTALS_SPACER: &str = "                                ";
-// TODO(fabric2seer): `from_values` takes 2 argument(s) in the port (`values: Vec<E>, serialized_name: impl Fn(&E) -> String + Send + Sync + Copy + 'static`), Java passes 1
-//   java: public static final Codec<CrystalHollowsLocationsCategory> CODEC = StringRepresentable.fromValues(CrystalHollowsLocationsCategory::values);
 /// java: public static final Codec<CrystalHollowsLocationsCategory> CODEC = StringRepresentable.fromValues(CrystalHollowsLocationsCategory::values);
 /// The port's `fromValues` is handed the values and the `getSerializedName` it calls on each.
 pub static CRYSTAL_HOLLOWS_LOCATIONS_CATEGORY_CODEC: compat::MainThread<CodecRef<CrystalHollowsLocationsCategory>> = compat::MainThread::new(|| mcrust::net::minecraft::util::string_representable::from_values(CrystalHollowsLocationsCategory::values(), |value: &CrystalHollowsLocationsCategory| value.get_serialized_name()));

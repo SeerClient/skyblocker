@@ -10,10 +10,13 @@ pub fn set_selected(obj: &mut mcrust::net::minecraft::client::gui::components::c
 }
 
 /// @Accessor getTextWidget -> net.minecraft.client.gui.components.Checkbox.textWidget
-// TODO(fabric2seer): `MultiLineTextWidget` - return `&obj.text_widget` with its Rust type
-// pub fn get_text_widget(obj: &mcrust::net::minecraft::client::gui::components::checkbox::Checkbox) -> &T { &obj.text_widget }
+pub fn get_text_widget(
+    obj: &mcrust::net::minecraft::client::gui::components::checkbox::Checkbox,
+) -> &mcrust::net::minecraft::client::gui::components::multi_line_text_widget::MultiLineTextWidget {
+    &obj.text_widget
+}
 
 /// Mixins apply before the game runs: the `preLaunch` entrypoint calls this.
 pub fn register() {
-    // (nothing to register)
+    // (nothing to register: accessors are plain functions)
 }

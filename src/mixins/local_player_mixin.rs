@@ -5,17 +5,20 @@
 use crate::prelude::*;
 
 /// @Inject skyblocker$dropSelectedItem
-///   java: @Inject(method = "drop(Z)Z", at = @At("HEAD"), cancellable = true)
-/// target: net.minecraft.client.player.LocalPlayer#drop  [exists]
-/// Rust: net/minecraft/client/player/local_player.rs:7934 fn drop(&mut self, all: bool)
+///   java (26.2): @Inject(method = "drop(Z)Z", at = @At("HEAD"), cancellable = true)
+/// 26.3: `LocalPlayer.drop(Z)Z` no longer exists; `Minecraft.handleKeybinds:1953-1957` calls
+/// `MultiPlayerGameMode.dropItem(LocalPlayer, boolean)` (`:581-589`, void), so the injector is at that method's HEAD
+/// and cancels it where the 26.2 one answered `false`.
+/// target: net.minecraft.client.multiplayer.MultiPlayerGameMode#dropItem  [exists]
+/// Rust: net/minecraft/client/multiplayer/multi_player_game_mode.rs:2666 fn drop_item(&mut self, player: &mut LocalPlayer, all: bool)
 fn skyblocker_drop_selected_item(ci: &mut CallbackInfo<'_>) {
-    let Some(this) = compat::detach(ci.this_mut::<mcrust::net::minecraft::client::player::local_player::LocalPlayer>()) else { return; };
+    let Some(this) = compat::detach(ci.arg_mut::<mcrust::net::minecraft::client::player::local_player::LocalPlayer>(0)) else { return; };
     let item: mcrust::net::minecraft::world::item::item_stack::ItemStack = <mcrust::net::minecraft::client::player::local_player::LocalPlayer as mcrust::net::minecraft::world::entity::living_entity::LivingEntity>::get_main_hand_item(&*this).duplicate();
     if crate::de::hysky::skyblocker::utils::utils::Utils::is_on_skyblock() && (crate::de::hysky::skyblocker::skyblock::item::item_protection::ItemProtection::is_item_protected(Some(item.duplicate())) || crate::de::hysky::skyblocker::skyblock::item::hotbar_slot_lock::HotbarSlotLock::is_locked(this.base.base.get_inventory().get_selected_slot())) {
         let mut should_drop_in_dungeons: bool = (crate::de::hysky::skyblocker::config::skyblocker_config_manager::SkyblockerConfigManager::get().dungeons.allow_dropping_protected_items && crate::de::hysky::skyblocker::skyblock::dungeon::dungeon_score::DungeonScore::is_dungeon_started());
         let mut should_drop_shining_coins: bool = (crate::de::hysky::skyblocker::config::skyblocker_config_manager::SkyblockerConfigManager::get().hunting.haunted_biome.ignore_slot_locking_for_shining_coins && crate::de::hysky::skyblocker::skyblock::hunting::safari::safari_utils::SafariUtils::is_in_haunted_biome() && item.get_skyblock_id() == "SHINING_COIN");
         if !should_drop_in_dungeons && !should_drop_shining_coins {
-            ci.set_return_value(false);
+            ci.cancel();
         }
     }
 }
@@ -45,7 +48,7 @@ fn skyblocker_redirect_edit_sign_screen(ci: &mut CallbackInfo<'_>) {
     let sign = pending.sign.clone();
     let front: bool = pending.is_front_text;
     // `sign.getText(front).getMessage(3, false).getString()`
-    let message_3: String = pending.sign_text.get_message(3, false).get_string();
+    let message_3: String = pending.sign_text.get_messages(false)[3].get_string();
     let screen_open: bool = ci.arg::<bool>(6).copied().unwrap_or(false);
     let screen_title: Option<String> = if screen_open { ci.arg::<mcrust::net::minecraft::client::gui::screens::screen::Screen>(1).map(|screen| screen.get_title().to_string()) } else { None };
     let cancel = |ci: &mut CallbackInfo<'_>, gfx: &mut mcrust::net::minecraft::client::minecraft::Minecraft| {
@@ -101,7 +104,7 @@ fn skyblocker_redirect_edit_sign_screen(ci: &mut CallbackInfo<'_>) {
 
 /// Mixins apply before the game runs: the `preLaunch` entrypoint calls this.
 pub fn register() {
-    report(hook::register_injector("net.minecraft.client.player.LocalPlayer#drop", InjectOptions::at(At::Head).kind(InjectorKind::Inject).priority(1000), Arc::new(skyblocker_drop_selected_item)));
+    report(hook::register_injector("net.minecraft.client.multiplayer.MultiPlayerGameMode#dropItem", InjectOptions::at(At::Head).kind(InjectorKind::Inject).priority(1000), Arc::new(skyblocker_drop_selected_item)));
     report(hook::register_injector("net.minecraft.client.player.LocalPlayer#hurtTo", InjectOptions::at(At::Return).kind(InjectorKind::Inject).priority(1000), Arc::new(skyblocker_update_health)));
     report(hook::register_injector("net.minecraft.client.player.LocalPlayer#openTextEdit", InjectOptions::at(At::Head).kind(InjectorKind::Inject).priority(1000), Arc::new(skyblocker_redirect_edit_sign_screen)));
 }

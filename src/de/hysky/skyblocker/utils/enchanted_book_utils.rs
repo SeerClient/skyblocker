@@ -28,26 +28,22 @@ impl EnchantedBookUtils {
         NEURepoManager::run_async_after_load(Arc::new(move || {
             compat::lock(&API_ID_OVERRIDES).clear();
             NEURepoManager::for_each_item(Arc::new(move |item| {
-                // TODO(fabric2seer): `.getSkyblockItemId(..)` on a NEUItem
                 //   java: String itemId = item.getSkyblockItemId();
-                let mut item_id: String = todo!("fabric2seer: the initialiser of `itemId` (TODO above)");
+                let mut item_id: String = item.get_skyblock_item_id().to_string();
                 if !(item_id.contains(";")) {
                     return;
                 }
-                // TODO(fabric2seer): the condition: `.getMinecraftItemId(..)` on a NEUItem
                 //   java: !item.getMinecraftItemId().equals("minecraft:enchanted_book")
-                if todo!("fabric2seer: the condition (TODO above)") {
+                if !(item.get_minecraft_item_id() == "minecraft:enchanted_book") {
                     return;
                 }
-                // TODO(fabric2seer): `.getBazaarStocks(..)` on a NEUConstants
                 //   java: String actualId = NEURepoManager.getConstants().getBazaarStocks().getBazaarStockOrDefault(itemId);
-                let mut actual_id: String = todo!("fabric2seer: the initialiser of `actualId` (TODO above)");
+                let mut actual_id: String = NEURepoManager::get_constants().get_bazaar_stocks().get_bazaar_stock_or_default(&item_id);
                 if item_id == actual_id {
                     return;
                 }
-                // TODO(fabric2seer): `.getLore(..)` on a NEUItem
                 //   java: String guessId = getApiIdByName(TextTransformer.fromLegacy(getEnchantNameFromLore(item.getLore())));
-                let mut guess_id: String = todo!("fabric2seer: the initialiser of `guessId` (TODO above)");
+                let mut guess_id: String = EnchantedBookUtils::get_api_id_by_name(&crate::de::hysky::skyblocker::utils::text_transformer::TextTransformer::from_legacy(&EnchantedBookUtils::get_enchant_name_from_lore(&item.get_lore())));
                 if guess_id == actual_id {
                     return;
                 }
@@ -75,7 +71,7 @@ impl EnchantedBookUtils {
     }
 
     /// java: public static String getEnchantNameFromLore(List<String> lore)
-    pub fn get_enchant_name_from_lore(lore: &Vec<String>) -> String {
+    pub fn get_enchant_name_from_lore(lore: &[String]) -> String {
         let mut line: Option<String> = lore.iter().cloned().filter(|x| !(x.contains("Combinable in Anvil"))).filter(|x| !x.is_empty()).next();
         return line.clone().unwrap_or("".to_string());
     }

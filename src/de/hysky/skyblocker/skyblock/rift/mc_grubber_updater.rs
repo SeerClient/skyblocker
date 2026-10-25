@@ -5,7 +5,7 @@ use crate::prelude::*;
 use crate::de::hysky::skyblocker::config::skyblocker_config_manager::SkyblockerConfigManager;
 use crate::de::hysky::skyblocker::utils::regex_utils::RegexUtils;
 use crate::de::hysky::skyblocker::utils::utils::Utils;
-use mcrust::net::minecraft::client::gui::screens::inventory::container_screen::ContainerScreen;
+use mcrust::net::minecraft::world::inventory::slot::Slot;
 use mcrust::net::minecraft::network::chat::mutable_component::MutableComponent;
 use mcrust::net::minecraft::client::gui::screens::inventory::abstract_container_screen::ContainerScreenHost as _;
 use mcrust::net::minecraft::network::chat::component::Component as _;
@@ -35,74 +35,84 @@ impl McGrubberUpdater {
 
     /// java: @Init public static void init()
     pub fn init() {
-        screen_events::BEFORE_INIT.register(Arc::new(|screen: &mut Screen, width: i32, height: i32| {
-            // TODO(fabric2seer): an `instanceof` pattern under `||` / `!`
-            //   java: if (!Utils.isOnSkyblock() || !(screen instanceof ContainerScreen containerScreen)) {
-            //   java: 				return;
-            //   java: 			} else if (!SkyblockerConfigManager.get().otherLocations.rift.autoDetectMcGrubber) {
-            //   java: 				return;
-            //   java: 			}
-            // TODO(fabric2seer): unknown name `containerScreen`
-            //   java: if (Utils.isInTheRift() && containerScreen.getTitle().getString().equals(MOTES_GRUBBER)) {
-            //   java: 				ScreenEvents.remove(screen).register(_ -> McGrubberUpdater.fromMotesGrubber(containerScreen));
-            //   java: 			} else if (!Utils.isInTheRift() && containerScreen.getTitle().getString().equals(CONSUMABLE_ITEMS)) {
-            //   java: 				ScreenEvents.remove(screen).register(_ -> McGrubberUpdater.fromConsumableItems(containerScreen));
-            //   java: 			}
+        screen_events::BEFORE_INIT.register(Arc::new(|screen: &mut Screen, _width: i32, _height: i32| {
+            // java: if (!Utils.isOnSkyblock() || !(screen instanceof ContainerScreen containerScreen)) return;
+            //       else if (!SkyblockerConfigManager.get().otherLocations.rift.autoDetectMcGrubber) return;
+            if !Utils::is_on_skyblock() || !matches!(compat::minecraft().gui.screen_kind, mcrust::net::minecraft::client::gui::gui::ScreenKind::Container) {
+                return;
+            } else if !SkyblockerConfigManager::get().other_locations.rift.auto_detect_mc_grubber {
+                return;
+            }
+            // `containerScreen.getMenu()` is the player's open `ChestMenu`, read when the screen is removed
+            let title: String = screen.get_title().to_string();
+            if Utils::is_in_the_rift() && title == MOTES_GRUBBER {
+                // java: ScreenEvents.remove(screen).register(_ -> McGrubberUpdater.fromMotesGrubber(containerScreen));
+                screen_events::remove(screen, Arc::new(|_| {
+                    let slots: Vec<Slot> = mcrust::mcrust::modding::game::with_chest_menu(|menu| menu.menu.slots.clone()).unwrap_or_default();
+                    McGrubberUpdater::from_motes_grubber(&slots);
+                }));
+            } else if !Utils::is_in_the_rift() && title == CONSUMABLE_ITEMS {
+                // java: ScreenEvents.remove(screen).register(_ -> McGrubberUpdater.fromConsumableItems(containerScreen));
+                screen_events::remove(screen, Arc::new(|_| {
+                    let slots: Vec<Slot> = mcrust::mcrust::modding::game::with_chest_menu(|menu| menu.menu.slots.clone()).unwrap_or_default();
+                    McGrubberUpdater::from_consumable_items(&slots);
+                }));
+            }
         }));
-        // TODO(fabric2seer): ClientReceiveMessageEvents.ALLOW_GAME.register: no SeerClient equivalent yet
-        //   java: ClientReceiveMessageEvents.ALLOW_GAME.register(McGrubberUpdater::fromOrbPickup);
+        // java: ClientReceiveMessageEvents.ALLOW_GAME.register(McGrubberUpdater::fromOrbPickup);
+        compat::register_allow_game(|text, overlay| McGrubberUpdater::from_orb_pickup(text, overlay));
     }
 
-    /// java: private static void fromMotesGrubber(ContainerScreen screen)
-    pub fn from_motes_grubber(screen: &ContainerScreen) {
-        // TODO(fabric2seer): field `slots` of a value of unknown type
-        //   java: for (Slot slot : screen.getMenu().slots) {
-        //   java: 			if (slot.container != Minecraft.getInstance().player.getInventory()) continue;
-        //   java:
-        //   java: 			ItemStack item = slot.getItem();
-        //   java: 			Matcher matcher = ItemUtils.getLoreLineIfMatch(item, MOTES_PRICE);
-        //   java:
-        //   java: 			if (matcher == null) continue;
-        //   java:
-        //   java: 			float price = NumberUtils.toFloat(matcher.group("price"));
-        //   java: 			final String internalID = item.getSkyblockId();
-        //   java:
-        //   java: 			// Compare against base price to determine mcgrubber stacks
-        //   java: 			if (TooltipInfoType.MOTES.hasOrNullWarning(internalID)) {
-        //   java: 				// x is mcgrubber stacks, y is final price, & z is initial price
-        //   java: 				// y = (1 + 0.05x)z -> reorder to solve for x -> x = 20y / z - 20
-        //   java: 				int mcGrubberStacks = Math.round(20 * price / TooltipInfoType.MOTES.getData().getInt(internalID) - 20);
-        //   java:
-        //   java: 				if (SkyblockerConfigManager.get().otherLocations.rift.mcGrubberStacks != mcGrubberStacks) {
-        //   java: 					SkyblockerConfigManager.updateOnly(config -> config.otherLocations.rift.mcGrubberStacks = mcGrubberStacks);
-        //   java: 				}
-        //   java:
-        //   java: 				break;
-        //   java: 			}
-        //   java: 		}
+    /// java: private static void fromMotesGrubber(ContainerScreen screen) - `screen.getMenu().slots`
+    pub fn from_motes_grubber(slots: &[Slot]) {
+        use crate::de::hysky::skyblocker::injected::skyblocker_stack::SkyblockerStack as _;
+        use crate::de::hysky::skyblocker::skyblock::item::tooltip::info::tooltip_info_type;
+        use crate::de::hysky::skyblocker::skyblock::item::tooltip::info::data_tooltip_info_type::DataTooltipInfoType as _;
+        for slot in slots.iter() {
+            // java: if (slot.container != Minecraft.getInstance().player.getInventory()) continue;
+            if !matches!(slot.container, mcrust::net::minecraft::world::inventory::slot::SlotContainer::Inventory) {
+                continue;
+            }
+            let item: mcrust::net::minecraft::world::item::item_stack::ItemStack = compat::slot_item(slot);
+            let Some(matcher) = crate::de::hysky::skyblocker::utils::item_utils::ItemUtils::get_lore_line_if_match(&item, &MOTES_PRICE) else {
+                continue;
+            };
+            // java: float price = NumberUtils.toFloat(matcher.group("price")); (0 for an unparseable string)
+            let price: f32 = matcher.group_named("price").and_then(|p| p.parse::<f32>().ok()).unwrap_or(0.0);
+            let internal_id: String = item.get_skyblock_id();
+            // Compare against base price to determine mcgrubber stacks
+            if tooltip_info_type::MOTES.get_mut().lock().borrow().has_or_null_warning(&internal_id) {
+                // x is mcgrubber stacks, y is final price, & z is initial price
+                // y = (1 + 0.05x)z -> reorder to solve for x -> x = 20y / z - 20
+                let base: i32 = tooltip_info_type::MOTES.get_mut().lock().borrow().get_data().and_then(|data| data.get(&internal_id).copied()).unwrap_or(0);
+                // java: Math.round(float) - floor(x + 0.5)
+                let mc_grubber_stacks: i32 = ((20.0f32 * price / (base as f32) - 20.0f32) + 0.5f32).floor() as i32;
+                if SkyblockerConfigManager::get().other_locations.rift.mc_grubber_stacks != mc_grubber_stacks {
+                    SkyblockerConfigManager::update_only(Arc::new(move |config| { config.other_locations.rift.mc_grubber_stacks = mc_grubber_stacks; }));
+                }
+                break;
+            }
+        }
     }
 
-    /// java: private static void fromConsumableItems(ContainerScreen screen)
-    pub fn from_consumable_items(screen: &ContainerScreen) {
-        // TODO(fabric2seer): field `slots` of a value of unknown type
-        //   java: for (Slot slot : screen.getMenu().slots) {
-        //   java: 			ItemStack item = slot.getItem();
-        //   java:
-        //   java: 			if (!item.getSkyblockId().equals("MCGRUBBER_BURGER")) continue;
-        //   java:
-        //   java: 			Matcher matcher = ItemUtils.getLoreLineIfMatch(item, MCGRUBBER_PROGRESS);
-        //   java:
-        //   java: 			if (matcher == null) continue;
-        //   java:
-        //   java: 			// 20% progress per mcgrubber stack
-        //   java: 			int mcGrubberStacks = RegexUtils.parseIntFromMatcher(matcher, "percent") / 20;
-        //   java:
-        //   java: 			if (SkyblockerConfigManager.get().otherLocations.rift.mcGrubberStacks != mcGrubberStacks) {
-        //   java: 				SkyblockerConfigManager.updateOnly(config -> config.otherLocations.rift.mcGrubberStacks = mcGrubberStacks);
-        //   java: 			}
-        //   java:
-        //   java: 			break;
-        //   java: 		}
+    /// java: private static void fromConsumableItems(ContainerScreen screen) - `screen.getMenu().slots`
+    pub fn from_consumable_items(slots: &[Slot]) {
+        use crate::de::hysky::skyblocker::injected::skyblocker_stack::SkyblockerStack as _;
+        for slot in slots.iter() {
+            let item: mcrust::net::minecraft::world::item::item_stack::ItemStack = compat::slot_item(slot);
+            if item.get_skyblock_id() != "MCGRUBBER_BURGER" {
+                continue;
+            }
+            let Some(matcher) = crate::de::hysky::skyblocker::utils::item_utils::ItemUtils::get_lore_line_if_match(&item, &MCGRUBBER_PROGRESS) else {
+                continue;
+            };
+            // 20% progress per mcgrubber stack
+            let mc_grubber_stacks: i32 = RegexUtils::parse_int_from_matcher_matcher_string(&matcher, "percent").wrapping_div(20);
+            if SkyblockerConfigManager::get().other_locations.rift.mc_grubber_stacks != mc_grubber_stacks {
+                SkyblockerConfigManager::update_only(Arc::new(move |config| { config.other_locations.rift.mc_grubber_stacks = mc_grubber_stacks; }));
+            }
+            break;
+        }
     }
 
     /// java: private static boolean fromOrbPickup(Component text, boolean overlay)

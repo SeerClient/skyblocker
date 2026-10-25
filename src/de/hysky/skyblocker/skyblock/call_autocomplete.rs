@@ -30,12 +30,13 @@ impl CallAutocomplete {
 
     /// java: private static void loadCallNames()
     pub fn load_call_names() {
-        let suggestions: Vec<String> = Vec::new();
+        let mut suggestions: Vec<String> = Vec::new();
         //   java: for (Map.Entry<String, AbiphoneContact> entry : NEURepoManager.getConstants().getAbiphoneContacts().entrySet()) {
         //   java: 			suggestions.addAll(computeCallNames(entry.getKey(), entry.getValue().getCallNames()));
         //   java: 		}
-        // rust: port gap (NEU repo library) - `NEUConstants.getAbiphoneContacts()` is not ported (crate::unresolved::NEUConstants),
-        // so the contacts add no names
+        for (key, contact) in NEURepoManager::get_constants().get_abiphone_contacts().iter() {
+            suggestions.extend(CallAutocomplete::compute_call_names(key, contact.get_call_names().map(|names| names.to_vec())));
+        }
         //   java: commandNode = literal("call")
         //   java: 				.requires(_ -> Utils.isOnSkyblock())
         //   java: 				.executes(CommandUtils.noOp)

@@ -48,10 +48,10 @@ impl SeaCreatureTracker {
 
     /// java: @Init public static void init()
     pub fn init() {
-        // TODO(fabric2seer): ClientReceiveMessageEvents.ALLOW_GAME.register: no SeerClient equivalent yet
-        //   java: ClientReceiveMessageEvents.ALLOW_GAME.register(SeaCreatureTracker::onChatMessage);
-        // TODO(fabric2seer): no SeerClient event yet: hook HEAD of ClientLevel#removeEntity (`net.minecraft.client.multiplayer.ClientLevel#removeEntity`: exists)
-        //   java: ClientEntityEvents.ENTITY_UNLOAD.register(SeaCreatureTracker::onEntityDespawn);
+        // java: ClientReceiveMessageEvents.ALLOW_GAME.register(SeaCreatureTracker::onChatMessage);
+        compat::register_allow_game(|text, overlay| SeaCreatureTracker::on_chat_message(text, overlay));
+        // java: ClientEntityEvents.ENTITY_UNLOAD.register(SeaCreatureTracker::onEntityDespawn);
+        mcrust::mcrust::modding::events::client_entity_events::register_entity_unload(|entity, client_world| SeaCreatureTracker::on_entity_despawn(entity, client_world));
     }
 
     /// java: private static void onEntityDespawn(Entity entity, ClientLevel clientWorld)

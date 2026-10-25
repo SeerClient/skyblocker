@@ -30,19 +30,26 @@ impl<S: 'static> std::ops::DerefMut for GuiEquipmentRenderer<S> {
     }
 }
 
-impl<S: Clone + 'static> GuiEquipmentRenderer<S> {
-    /// java: private GuiEquipmentRenderer(PictureInPictureRendererRegistry.Context context)
-    pub fn new(mut context: crate::unresolved::Context) -> Self {
-        // TODO(fabric2seer): `new` takes 1 argument(s) in the port (`simple_name: &str`), Java passes 0
-        //   java:
-        let mut this: Self = todo!("constructor");
-        this
+impl<S: 'static> GuiEquipmentRenderer<S> {
+    /// java: private GuiEquipmentRenderer(PictureInPictureRendererRegistry.Context context) {} - the base's texture state
+    pub fn new() -> Self {
+        Self {
+            base: PictureInPictureRenderer::new("GuiEquipmentRenderer"),
+            _state: std::marker::PhantomData,
+        }
     }
 
     /// java: @Init public static void init()
     pub fn init() {
-        // TODO(fabric2seer): Fabric API `PictureInPictureRendererRegistry.register` has no SeerClient equivalent
-        //   java: PictureInPictureRendererRegistry.register(GuiEquipmentRenderer::new);
+        // java: PictureInPictureRendererRegistry.register(GuiEquipmentRenderer::new);
+        // The renderer draws the states of its class (`getRenderStateClass`); Java's class object is one for every `S`,
+        // the port's `TypeId` is one per `S`, so it is registered for the state the mod builds (`TrimElementButton`'s
+        // `AvatarRenderState`).
+        compat::leftovers_register_picture_in_picture_renderer::<GuiEquipmentRenderState<mcrust::net::minecraft::client::renderer::entity::state::avatar_render_state::AvatarRenderState>>(
+            "skyblocker equipment renderer",
+            |height, gui_scale| GuiEquipmentRenderer::<mcrust::net::minecraft::client::renderer::entity::state::avatar_render_state::AvatarRenderState>::new().get_translate_y(height, gui_scale),
+            |state, matrices, submit_node_collector, lighting| GuiEquipmentRenderer::<mcrust::net::minecraft::client::renderer::entity::state::avatar_render_state::AvatarRenderState>::new().render_to_texture(state, matrices, submit_node_collector, lighting),
+        );
     }
 
     /// java: @SuppressWarnings("unchecked") @Override public Class<GuiEquipmentRenderState<S>> getRenderStateClass()
@@ -53,15 +60,16 @@ impl<S: Clone + 'static> GuiEquipmentRenderer<S> {
     }
 
     /// java: @Override protected void renderToTexture(GuiEquipmentRenderState<S> state, PoseStack matrices, SubmitNodeCollector submitNodeCollector)
-    pub fn render_to_texture(&self, state: &GuiEquipmentRenderState<S>, matrices: &mut PoseStack, submit_node_collector: &mut dyn SubmitNodeCollector) {
-        let client = compat::minecraft();
+    ///
+    /// (`lighting`: `client.gameRenderer.lighting()`, handed in as the game's own pip renderers take it)
+    pub fn render_to_texture(&self, state: &GuiEquipmentRenderState<S>, matrices: &mut PoseStack, submit_node_collector: &mut dyn SubmitNodeCollector, lighting: &Lighting) {
         matrices.push_pose();
         matrices.translate((0) as f32, (state.offset() / state.scale()), (0) as f32);
-        matrices.mul_pose_quat(&mcrust::com::mojang::math::axis::XN.rotation_degrees((-5) as f32));
-        matrices.mul_pose_quat(&mcrust::com::mojang::math::axis::YN.rotation_degrees(state.rotation()));
-        // TODO(fabric2seer): field `ENTITY_IN_UI` of a value of unknown type
-        //   java: client.gameRenderer.lighting().setupFor(Lighting.Entry.ENTITY_IN_UI);
-        state.equipment_renderer().render_layers(state.layer_type(), &state.asset_key(), state.model(), state.state() as std::rc::Rc<dyn std::any::Any>, &state.stack(), matrices, submit_node_collector, mcrust::net::minecraft::util::light_coords_util::FULL_BRIGHT, 0);
+        matrices.rotate(&mcrust::com::mojang::math::axis::XN.rotation_degrees((-5) as f32));
+        matrices.rotate(&mcrust::com::mojang::math::axis::YN.rotation_degrees(state.rotation()));
+        // java: client.gameRenderer.lighting().setupFor(Lighting.Entry.ENTITY_IN_UI);
+        lighting.setup_for(mcrust::com::mojang::blaze3d::platform::lighting::Entry::EntityInUi);
+        state.equipment_renderer().render_layers(state.layer_type(), &state.asset_key(), state.model(), state.state() as std::sync::Arc<dyn std::any::Any>, &state.stack(), matrices, submit_node_collector, mcrust::net::minecraft::util::light_coords_util::FULL_BRIGHT, 0);
         matrices.pop_pose();
     }
 

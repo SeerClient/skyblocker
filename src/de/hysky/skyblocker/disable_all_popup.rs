@@ -41,15 +41,20 @@ impl DisableAllPopup {
     pub fn open(&self, parent: &mcrust::net::minecraft::client::gui::screens::screen::Screen) {
         let mut confirm_prefix: MutableComponent = component::translatable("text.skyblocker.confirm").with_color(mcrust::net::minecraft::util::common_colors::RED).with_style_fn(|style| style.with_bold(Some(true)));
         let mut confirm_component: compat::Shared<CountdownComponent> = CountdownComponent::new(DELAY_S, compat::TimeUnit::Seconds, confirm_prefix.clone(), mcrust::net::minecraft::network::chat::style::Style::EMPTY);
-        // TODO(fabric2seer): `addButton` on a void
         //   java: PopupScreen.Builder builder = new PopupScreen.Builder(parent, Component.translatable("skyblocker.disableAll.popup.title"))
         //   java: 				.addMessage(Component.translatable("skyblocker.disableAll.popup.warning", Component.translatable("skyblocker.disableAll.popup.seriousWarning").withColor(CommonColors.SOFT_RED)))
         //   java: 				.addButton(confirmComponent, this::tryReset)
         //   java: 				.addButton(CommonComponents.GUI_CANCEL, PopupScreen::onClose);
-        let mut builder: crate::unresolved::PopupScreen_Builder = todo!("fabric2seer: the initialiser of `builder` (TODO above)");
-        // rust: port gap - `PopupScreen.Builder` (a vanilla popup with mod callbacks on its buttons) has no modding
-        // API: the game builds its popups itself (`gui::PopupState`), and a mod can only open a `ModScreen` (GAPS_L.md)
-        // rust: gui::set_screen(&mut builder.build());
+        // (`parent` is the popup's background screen: the screen it is opened over, held by `set_screen_keeping_parent`)
+        let _ = parent;
+        let __this = self.clone();
+        let __confirm = confirm_component.clone();
+        let mut builder: compat::BatchUPopupScreenBuilder = compat::BatchUPopupScreenBuilder::new(component::translatable("skyblocker.disableAll.popup.title"))
+            .add_message(component::translatable_args("skyblocker.disableAll.popup.warning", vec![mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::translatable("skyblocker.disableAll.popup.seriousWarning").with_color(mcrust::net::minecraft::util::common_colors::SOFT_RED))]))
+            .add_button_dynamic(move || countdown_text(&__confirm), move |popup_screen| __this.try_reset(popup_screen))
+            .add_button(component::translatable("gui.cancel"), |popup_screen| popup_screen.on_close());
+        //   java: minecraft.gui.setScreen(builder.build());
+        mcrust::mcrust::modding::game::set_screen_keeping_parent(Box::new(builder.build()));
     }
 
     /// `SystemToast.add(minecraft.gui.toastManager(), TOAST_ID, Component.translatable("skyblocker.disableAll.toast.title"),
@@ -62,14 +67,14 @@ impl DisableAllPopup {
     }
 
     /// java: private void tryReset(PopupScreen popupScreen)
-    pub fn try_reset(&self, popup_screen: &mcrust::net::minecraft::client::gui::screens::screen::Screen) {
+    pub fn try_reset(&self, popup_screen: &compat::BatchUPopupScreenRef) {
         if compat::millis() >= self.end {
             let minecraft = compat::minecraft();
             // java: try {..} catch (Exception e) - an exception here is a panic, caught by `catch_unwind`
             let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                 DisableAll::disable_all_0();
-                // java: popupScreen.onClose(); - `PopupScreen.onClose` sets the screen back to its background screen
-                mcrust::mcrust::modding::game::set_screen_to_parent();
+                // java: popupScreen.onClose();
+                popup_screen.on_close();
                 // java: minecraft.gui.setScreen(SkyblockerConfigManager.createGUI(null));
                 crate::de::hysky::skyblocker::config::skyblocker_config_manager::SkyblockerConfigManager::create_gui(None).set();
                 // java: SystemToast.add(minecraft.gui.toastManager(), TOAST_ID, Component.translatable("skyblocker.disableAll.toast.title"), Component.translatable("skyblocker.disableAll.success").withStyle(ChatFormatting.RED));
@@ -83,4 +88,15 @@ impl DisableAllPopup {
         }
     }
 
+}
+
+/// The `CountdownComponent` as the confirm button draws it: `getVisualOrderText()`'s
+/// `FormattedText.composite(this.prefix, this)`, `this` read as its contents now with its style.
+fn countdown_text(countdown: &compat::Shared<CountdownComponent>) -> mcrust::net::minecraft::network::chat::formatted_text::FormattedText {
+    let prefix = compat::read(countdown, |__t| __t.prefix.clone());
+    let this_text: MutableComponent = MutableComponent::create(Arc::new(CountdownComponent::get_contents(countdown))).set_style(CountdownComponent::get_style(countdown));
+    mcrust::net::minecraft::network::chat::formatted_text::FormattedText::composite(vec![
+        mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(prefix),
+        mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(this_text),
+    ])
 }

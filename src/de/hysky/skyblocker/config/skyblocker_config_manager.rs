@@ -64,6 +64,9 @@ pub static CONFIG_MANAGER: compat::MainThread<Arc<dyn ConfigManager<SkyblockerCo
 /// `get()` result would also keep alive. Its `compat::Shared` members are the patched instance's own objects (a clone
 /// of the `Arc`), so a caller writing through one changes the patched instance, as in Java.
 static PATCHED_VIEW: compat::MainThread<Option<(compat::Shared<SkyblockerConfig>, &'static SkyblockerConfig)>> = compat::MainThread::new(|| None);
+/// The manager's `instance_epoch()` under which `PATCHED_VIEW` was last confirmed current (`u64::MAX`: none -
+/// the manager keeps no epoch, or nothing confirmed yet).
+static VIEW_EPOCH: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(u64::MAX);
 
 /// java: public class SkyblockerConfigManager
 #[derive(Clone)]
@@ -77,16 +80,31 @@ impl SkyblockerConfigManager {
 
     /// java: public static SkyblockerConfig get()
     pub fn get() -> &'static SkyblockerConfig {
+        // PERF (port-only, same result): ~hundreds of calls a frame. The manager's instance epoch changes exactly
+        // when `instance()` starts answering another object, so while it equals the epoch the lent view was built
+        // under, the view is still the published instance's - one atomic load, no `instance()` (a RefCell borrow
+        // and an `Arc` clone + drop). The epoch is read BEFORE `instance()`, so a stale number only forces the
+        // pointer comparison below again, never a stale view.
+        let manager = CONFIG_MANAGER.get();
+        let epoch: Option<u64> = manager.instance_epoch();
+        if let Some(epoch) = epoch
+            && epoch == VIEW_EPOCH.load(std::sync::atomic::Ordering::Relaxed)
+            && let Some((_, lent)) = PATCHED_VIEW.get()
+        {
+            return *lent;
+        }
         // java: return CONFIG_MANAGER.instance();
-        let instance: compat::Shared<SkyblockerConfig> = CONFIG_MANAGER.get().instance();
+        let instance: compat::Shared<SkyblockerConfig> = manager.instance();
         let view = PATCHED_VIEW.get_mut();
         if let Some((published, lent)) = view {
             if Arc::ptr_eq(published, &instance) {
+                VIEW_EPOCH.store(epoch.unwrap_or(u64::MAX), std::sync::atomic::Ordering::Relaxed);
                 return *lent;
             }
         }
         let lent: &'static SkyblockerConfig = Box::leak(Box::new(compat::read(&instance, |config| config.clone())));
         *view = Some((instance, lent));
+        VIEW_EPOCH.store(epoch.unwrap_or(u64::MAX), std::sync::atomic::Ordering::Relaxed);
         lent
     }
 
@@ -124,23 +142,38 @@ impl SkyblockerConfigManager {
                 dispatcher.dispatcher().register(&root);
             },
         ));
-        screen_events::AFTER_INIT.register(Arc::new(|screen: &mut Screen, _width: i32, _height: i32| {
+        // java: ScreenEvents.AFTER_INIT.register((client, screen, _, _) -> { .. });
+        // The listener reads the container screen's `AbstractContainerScreenAccessor` geometry, so it runs where that
+        // screen is lent whole: the RETURN of `AbstractContainerScreen#init` (inside `Screen.init(II)`, after its
+        // `clearWidgets()`, so the button stays in the screen's widget list as `Screens.getWidgets(screen).add` leaves it).
+        let result = mcrust::mcrust::modding::hook::inject("net.minecraft.client.gui.screens.inventory.AbstractContainerScreen#init", mcrust::mcrust::modding::hook::At::Return, |ci: &mut mcrust::mcrust::modding::hook::CallbackInfo<'_>| {
+            let Some(screen) = ci.this_mut::<mcrust::net::minecraft::client::gui::screens::inventory::abstract_container_screen::AbstractContainerScreen>() else { return };
             // java: if (get().uiAndVisuals.showConfigButton && screen instanceof ContainerScreen genericContainerScreen
             //       && screen.getTitle().getString().equals("SkyBlock Menu"))
             if SkyblockerConfigManager::get().ui_and_visuals.show_config_button
                 && matches!(compat::minecraft().gui.screen_kind, mcrust::net::minecraft::client::gui::gui::ScreenKind::Container)
-                && screen.get_title() == "SkyBlock Menu"
+                && screen.screen.get_title() == "SkyBlock Menu"
             {
-                // rust: port gap (the same one `chest_value.rs` and the other `Screens.getWidgets(screen).add(..)`
-                // sites name) - Fabric's `Screens.getWidgets` has no SeerClient equivalent for a vanilla container
-                // screen, so the wrench button that opens `createGUI(screen)` cannot be added:
                 //   java: Screens.getWidgets(screen).add(Button
                 //   java: 		.builder(Component.literal("🔧"), _ -> client.gui.setScreen(createGUI(screen)))
                 //   java: 		.bounds(accessor.getX() + accessor.getImageWidth() - 16, accessor.getY() + 4, 12, 12)
                 //   java: 		.tooltip(Tooltip.create(Component.translatable("skyblocker.config.title", Component.translatable("skyblocker.config.title.settings"))))
                 //   java: 		.build());
+                use mcrust::net::minecraft::client::gui::components::abstract_widget::{AbstractWidget, OnPress, PressLambda, WidgetKind};
+                use mcrust::net::minecraft::network::chat::component::Component as _;
+                let (x, y) = (screen.left_pos.wrapping_add(screen.image_width).wrapping_sub(16), screen.top_pos.wrapping_add(4));
+                let mut button = AbstractWidget::new(x, y, 12, 12, "🔧".to_string(), WidgetKind::Button, OnPress::Lambda(PressLambda::new(|_, _| {
+                    // `createGUI(screen)`: the container screen that is up is the config screen's parent
+                    SkyblockerConfigManager::create_gui(Some(ScreenRef::Current)).set();
+                })));
+                let tooltip = component::translatable_args("skyblocker.config.title", vec![FormattedText::from(component::translatable("skyblocker.config.title.settings"))]);
+                button.set_tooltip(mcrust::net::minecraft::client::gui::components::tooltip::Tooltip::create(tooltip.get_string()));
+                screen.screen.add_renderable_widget(button);
             }
-        }));
+        });
+        if let Err(e) = result {
+            logger().error(&format!("[Skyblocker Config Manager] Failed to hook the container screen init: {:?}", e));
+        }
     }
 
     /// java: protected static void setPatches(List<ConfigPatch> patches)
@@ -202,16 +235,9 @@ impl SkyblockerConfigManager {
                         .build(),
                 )
         });
-        // java: .generateScreen(parent, get().misc.configBackend)
-        //
-        // rust: MoulConfig is not ported (GAPS_D.md D1 - a whole Kotlin library), and Java's default backend is
-        // `ConfigType.MOUL_CONFIG` (`MiscConfig.configBackend`, kept as the field's default so an existing config file
-        // round-trips unchanged). The YACL backend is therefore the effective one: a MOUL_CONFIG choice opens the YACL
-        // screen instead of reaching Dandelion's `generateMoulConfigScreen`, which panics on the missing library.
-        let backend: ConfigType = match SkyblockerConfigManager::get().misc.config_backend {
-            ConfigType::MoulConfig => ConfigType::Yacl,
-            other => other,
-        };
+        // java: .generateScreen(parent, get().misc.configBackend) - MOUL_CONFIG (the default) reaches Dandelion's
+        // MoulConfig backend (the `moulconfig` library crate), YACL the YACL one
+        let backend: ConfigType = SkyblockerConfigManager::get().misc.config_backend;
         return screen.generate_screen(parent, backend);
     }
 

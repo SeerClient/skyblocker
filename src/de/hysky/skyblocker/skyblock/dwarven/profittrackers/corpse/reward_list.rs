@@ -71,17 +71,6 @@ impl RewardList {
             compat::write(&__this, |__t| { let __l = &mut __t.base; (__l.add_entry(Box::new(compat::EntryAdapter::new(__entry))) as i32) });
             return __this.clone();
         }
-        // TODO(fabric2seer): Stream.collect
-        //   java: List<Reward> rewards = lootList.stream()
-        //   java: 				.flatMap(loot -> loot.rewards().stream())
-        //   java: 				.collect(ObjectArrayList::new,
-        //   java: 						(list, entry) -> {
-        //   java: 							if (list.stream().anyMatch(reward -> reward.itemId().equals(entry.itemId()))) {
-        //   java: 								list.stream().filter(reward -> reward.itemId().equals(entry.itemId())).findFirst().ifPresent(reward -> reward.amount(reward.amount() + entry.amount()));
-        //   java: 							} else {
-        //   java: 								list.add(new Reward(entry.amount(), entry.itemId(), entry.pricePerUnit())); // Add a clone of the entry so we don't modify the original
-        //   java: 							}
-        //   java: 						}, ObjectArrayList::addAll);
         let mut rewards: Vec<compat::Shared<Reward>> = Vec::new();
         for entry in loot_list.iter().flat_map(|loot| CorpseLoot::rewards(loot)) {
             if let Some(reward) = rewards.iter().find(|reward| Reward::item_id(reward) == Reward::item_id(&entry)) {
@@ -92,11 +81,6 @@ impl RewardList {
         }
         // Sorts in-place: `comparingInt(RewardList::comparePriority).thenComparing(Reward::itemId)` (a stable sort, as `List.sort`)
         rewards.sort_by(|a, b| RewardList::compare_priority(a).cmp(&RewardList::compare_priority(b)).then_with(|| compat::compare_to(&Reward::item_id(a), &Reward::item_id(b)).cmp(&0)));
-        // TODO(fabric2seer): Stream.collect
-        //   java: Reference2IntArrayMap<CorpseType> keyAmounts = lootList.stream()
-        //   java: 				.collect(Reference2IntArrayMap::new,
-        //   java: 						(map, loot) -> map.mergeInt(loot.corpseType(), 1, Integer::sum),
-        //   java: 						Reference2IntArrayMap::putAll);
         // `Reference2IntArrayMap`: insertion-ordered, keyed by identity (an enum constant).
         let mut key_amounts: Vec<(CorpseType, i32)> = Vec::new();
         for loot in loot_list.iter() {
@@ -696,42 +680,26 @@ impl MultiEntry {
             let __wa2 = (entry_width.wrapping_div(3)).wrapping_sub(2i32.wrapping_mul(INNER_MARGIN));
             compat::write(__this, |__t| { let __s = &mut *__t; let __r = __s.item_name.as_mut().unwrap(); __s.base.__widgets.with(&mut __s.base.__row, __r, |__w| __w.set_max_width(__wa2, string_widget::TextOverflow::Scrolling)) });
             // `itemName.extractRenderState(..)` (and each one below): the game draws the row's widgets after this body.
-            // TODO(fabric2seer): `extract_render_state` is a method of the port's trait `Renderable`, which the port's `AbstractWidget` does not implement
-            // rust: let __wa3 = graphics.clone();
-            // rust: let __wa4 = mouse_x;
-            // rust: let __wa5 = mouse_y;
-            // rust: let __wa6 = a;
-            // rust: compat::write(__this, |__t| { let __s = &mut *__t; let __r = __s.item_name.as_mut().unwrap(); __s.base.__widgets.with(&mut __s.base.__row, __r, |__w| __w.extract_render_state(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), __wa4, __wa5, __wa6)) });
+            // java: itemName.extractRenderState(graphics, mouseX, mouseY, a); - the row's widgets are drawn by the game's widget
+            // pass right after this body (`context.extract_widgets`), at the position set above
         }
         if compat::read(__this, |__t| __t.amount.is_some()) {
             let __wa7 = entry_y;
             compat::write(__this, |__t| { let __s = &mut *__t; let __r = __s.amount.as_mut().unwrap(); __s.base.__widgets.with(&mut __s.base.__row, __r, |__w| __w.set_y(__wa7)) });
-            // TODO(fabric2seer): `extract_render_state` is a method of the port's trait `Renderable`, which the port's `AbstractWidget` does not implement
-            // rust: let __wa8 = graphics.clone();
-            // rust: let __wa9 = mouse_x;
-            // rust: let __wa10 = mouse_y;
-            // rust: let __wa11 = a;
-            // rust: compat::write(__this, |__t| { let __s = &mut *__t; let __r = __s.amount.as_mut().unwrap(); __s.base.__widgets.with(&mut __s.base.__row, __r, |__w| __w.extract_render_state(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), __wa9, __wa10, __wa11)) });
+            // java: amount.extractRenderState(graphics, mouseX, mouseY, a); - the row's widgets are drawn by the game's widget
+            // pass right after this body (`context.extract_widgets`), at the position set above
         }
         if compat::read(__this, |__t| __t.total_price.is_some()) {
             let __wa12 = entry_y;
             compat::write(__this, |__t| { let __s = &mut *__t; let __r = __s.total_price.as_mut().unwrap(); __s.base.__widgets.with(&mut __s.base.__row, __r, |__w| __w.set_y(__wa12)) });
-            // TODO(fabric2seer): `extract_render_state` is a method of the port's trait `Renderable`, which the port's `AbstractWidget` does not implement
-            // rust: let __wa13 = graphics.clone();
-            // rust: let __wa14 = mouse_x;
-            // rust: let __wa15 = mouse_y;
-            // rust: let __wa16 = a;
-            // rust: compat::write(__this, |__t| { let __s = &mut *__t; let __r = __s.total_price.as_mut().unwrap(); __s.base.__widgets.with(&mut __s.base.__row, __r, |__w| __w.extract_render_state(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), __wa14, __wa15, __wa16)) });
+            // java: totalPrice.extractRenderState(graphics, mouseX, mouseY, a); - the row's widgets are drawn by the game's widget
+            // pass right after this body (`context.extract_widgets`), at the position set above
         }
         if compat::read(__this, |__t| __t.price_per_unit.is_some()) {
             let __wa17 = entry_y;
             compat::write(__this, |__t| { let __s = &mut *__t; let __r = __s.price_per_unit.as_mut().unwrap(); __s.base.__widgets.with(&mut __s.base.__row, __r, |__w| __w.set_y(__wa17)) });
-            // TODO(fabric2seer): `extract_render_state` is a method of the port's trait `Renderable`, which the port's `AbstractWidget` does not implement
-            // rust: let __wa18 = graphics.clone();
-            // rust: let __wa19 = mouse_x;
-            // rust: let __wa20 = mouse_y;
-            // rust: let __wa21 = a;
-            // rust: compat::write(__this, |__t| { let __s = &mut *__t; let __r = __s.price_per_unit.as_mut().unwrap(); __s.base.__widgets.with(&mut __s.base.__row, __r, |__w| __w.extract_render_state(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), __wa19, __wa20, __wa21)) });
+            // java: pricePerUnit.extractRenderState(graphics, mouseX, mouseY, a); - the row's widgets are drawn by the game's widget
+            // pass right after this body (`context.extract_widgets`), at the position set above
         }
     }
 

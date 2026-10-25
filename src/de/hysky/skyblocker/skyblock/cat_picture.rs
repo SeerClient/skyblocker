@@ -71,15 +71,19 @@ impl CatPicture {
         compat::set_state(&RECIPE_BOOK_EASTER_EGG, true);
         compat::set_state(&MOVE_AROUND, true);
         *RENDER_POSITION.get_mut() = None;
-        // TODO(fabric2seer): field `CLASSIC` of a value of unknown type
-        //   java: Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.CAT_SOUNDS.get(CatSoundVariants.SoundSet.CLASSIC).adultSounds().ambientSound(), 1));
+        // java: Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.CAT_SOUNDS.get(CatSoundVariants.SoundSet.CLASSIC).adultSounds().ambientSound(), 1));
+        // (`registerCatSoundVariants` registers CLASSIC's adult ambient as `entity.<cat>.ambient`; `forUI(sound, 1)` is pitch 1, volume 0.25)
+        let classic = mcrust::net::minecraft::world::entity::animal::feline::cat_sound_variants::SoundSet::Classic.get_sound_event_identifier();
+        let ambient = mcrust::net::minecraft::sounds::sound_event::SoundEvent::create_variable_range_event(mcrust::net::minecraft::resources::identifier::Identifier::with_default_namespace(&format!("entity.{classic}.ambient")));
+        mcrust::mcrust::modding::game::play_ui_sound(&ambient, 1.0);
     }
 
     /// java: private static void extractRendering(PrimitiveCollector collector)
     pub fn extract_rendering(collector: &compat::Shared<dyn PrimitiveCollector>) {
         if compat::get_state(&MOVE_AROUND) || SkyblockerConfigManager::get().misc.cat && Utils::get_location() == Location::Hub {
-            // TODO(fabric2seer): no overload of `extractRenderState` takes 1 argument(s)
-            //   java: collector.submitVanilla(EmptyRenderState.INSTANCE, CatPicture::extractRenderState);
+            // java: collector.submitVanilla(EmptyRenderState.INSTANCE, CatPicture::extractRenderState);
+            let renderer: compat::Shared<dyn crate::de::hysky::skyblocker::utils::render::primitive::vanilla_renderer::VanillaRenderer<EmptyRenderState>> = compat::shared(CatPictureRenderer) as compat::Shared<dyn crate::de::hysky::skyblocker::utils::render::primitive::vanilla_renderer::VanillaRenderer<EmptyRenderState>>;
+            compat::write_as::<crate::de::hysky::skyblocker::utils::render::primitive::primitive_collector_impl::PrimitiveCollectorImpl, dyn PrimitiveCollector, _>(collector, |collector| collector.submit_vanilla(&*empty_render_state::INSTANCE, &renderer));
         }
     }
 
@@ -146,18 +150,21 @@ impl CatPicture {
             return;
         }
         let mut item_frame_state: ItemFrameRenderState = ItemFrameRenderState::new();
-        // TODO(fabric2seer): `.updateForItemFrame(..)` on a BlockModelResolver
-        //   java: ((EntityRenderDispatcherAccessor) Minecraft.getInstance().getEntityRenderDispatcher()).getBlockModelResolver().updateForItemFrame(itemFrameState.frameModel, false, true);
+        // java: ((EntityRenderDispatcherAccessor) Minecraft.getInstance().getEntityRenderDispatcher()).getBlockModelResolver().updateForItemFrame(itemFrameState.frameModel, false, true);
+        // (the dispatcher's resolver is `new BlockModelResolver(modelManager)` over the game's one baked `BlockModelSet`)
+        if let Some(resolver) = mcrust::net::minecraft::client::renderer::game_renderer::block_model_set().map(mcrust::net::minecraft::client::renderer::block::block_model_resolver::BlockModelResolver::new) {
+            resolver.update_for_item_frame(&mut item_frame_state.frame_model.borrow_mut(), false, true);
+        }
         let mut matrices: PoseStack = PoseStack::new();
         matrices.push_pose();
         matrices.translate_d((((-level_state.camera_render_state.pos.x) + RENDER_POSITION.get_mut().as_ref().unwrap().x) + 0.5), (((-level_state.camera_render_state.pos.y) + RENDER_POSITION.get_mut().as_ref().unwrap().y) + 0.5), (((-level_state.camera_render_state.pos.z) + RENDER_POSITION.get_mut().as_ref().unwrap().z) + 0.5));
-        matrices.mul_pose_quat(&mcrust::com::mojang::math::axis::YP.rotation_degrees(compat::get_state(&ROTATION)));
+        matrices.rotate(&mcrust::com::mojang::math::axis::YP.rotation_degrees(compat::get_state(&ROTATION)));
         matrices.translate_d(-0.5, -0.5, -0.5);
         item_frame_state.frame_model.borrow().submit_with_z_offset(&mut matrices, submit_node_collector, mcrust::net::minecraft::util::light_coords_util::FULL_BRIGHT, mcrust::net::minecraft::client::renderer::texture::overlay_texture::NO_OVERLAY, mcrust::net::minecraft::client::renderer::entity::state::entity_render_state::NO_OUTLINE);
         matrices.translate_d((1) as f64, (1) as f64, (0) as f64);
-        matrices.mul_pose_quat(&mcrust::com::mojang::math::axis::ZP.rotation_degrees(180.0f32));
+        matrices.rotate(&mcrust::com::mojang::math::axis::ZP.rotation_degrees(180.0f32));
         //   java: submitNodeCollector.submitCustomGeometry(matrices, RenderTypes.text(TEXTURE), (matricesEntry, buffer) -> { .. });
-        submit_node_collector.submit_custom_geometry(&matrices, render_types::text(TEXTURE.get()), std::rc::Rc::new(CatGeometry));
+        submit_node_collector.submit_custom_geometry(&matrices, render_types::text(TEXTURE.get()), std::sync::Arc::new(CatGeometry));
         matrices.pop_pose();
     }
 
@@ -190,4 +197,17 @@ fn next_double_between(random: &mut compat::Random, origin: f64, bound: f64) -> 
         r = if bound > 0.0 { f64::from_bits(bound.to_bits() - 1) } else if bound < 0.0 { f64::from_bits(bound.to_bits() + 1) } else { -f64::from_bits(1) };
     }
     r
+}
+
+/// `CatPicture::extractRenderState` as the `VanillaRenderer` `submitVanilla` is handed (a method reference in Java).
+struct CatPictureRenderer;
+
+impl crate::de::hysky::skyblocker::utils::render::primitive::vanilla_renderer::VanillaRenderer<EmptyRenderState> for CatPictureRenderer {
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+
+    fn submit_vanilla(&self, state: &EmptyRenderState, world_state: &LevelRenderState, submit_node_collector: &mut dyn SubmitNodeCollector) {
+        CatPicture::extract_render_state(state, world_state, submit_node_collector);
+    }
 }

@@ -37,7 +37,7 @@ use mcrust::net::minecraft::world::level::level_height_accessor::LevelHeightAcce
 use mcrust::net::minecraft::world::scores::score_holder::ScoreHolder as _;
 
 /// java: private static final String ALTERNATE_HYPIXEL_ADDRESS = System.getProperty("skyblocker.alternateHypixelAddress", "");
-pub static ALTERNATE_HYPIXEL_ADDRESS: LazyLock<String> = LazyLock::new(|| std::env::var("skyblocker.alternateHypixelAddress").ok().unwrap());
+pub static ALTERNATE_HYPIXEL_ADDRESS: LazyLock<String> = LazyLock::new(|| std::env::var("skyblocker.alternateHypixelAddress").unwrap_or_default());
 /// java: public static final String HYPIXEL_NAMESPACE = "hypixel";
 pub const HYPIXEL_NAMESPACE: &str = "hypixel";
 /// java: public static final String HYPIXEL_SKYBLOCK_NAMESPACE = "hypixel_skyblock";
@@ -58,6 +58,36 @@ pub static PURSE: LazyLock<compat::regex::Pattern> = LazyLock::new(|| compat::re
 pub static IS_ON_HYPIXEL: LazyLock<Mutex<bool>> = LazyLock::new(|| Mutex::new(false));
 /// java: private static boolean isOnSkyblock = false;
 pub static IS_ON_SKYBLOCK: LazyLock<Mutex<bool>> = LazyLock::new(|| Mutex::new(false));
+/// PERF (port-only): lock-free mirrors of `IS_ON_SKYBLOCK` / `LOCATION`, read by
+/// `isOnSkyblock()` / `isInX()` - which hot render hooks (shouldRender,
+/// DataComponentHolder#get, ...) call hundreds of times a frame. Written
+/// together with the mutexes by `set_is_on_skyblock` / `set_location_state`,
+/// the only writers.
+static IS_ON_SKYBLOCK_FAST: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+static LOCATION_FAST: std::sync::atomic::AtomicU16 = std::sync::atomic::AtomicU16::new(Location::Unknown as u16);
+/// PERF (port-only): the lock-free mirror of `IS_ON_HYPIXEL`, read by `isOnHypixel()` (hot render hooks:
+/// `Entity#isInvisibleTo`'s pre-filter). Written together with the mutex by `set_is_on_hypixel`, the only writer.
+static IS_ON_HYPIXEL_FAST: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+fn set_is_on_hypixel(value: bool) {
+    compat::set_state(&IS_ON_HYPIXEL, value);
+    IS_ON_HYPIXEL_FAST.store(value, std::sync::atomic::Ordering::Relaxed);
+}
+
+fn set_is_on_skyblock(value: bool) {
+    compat::set_state(&IS_ON_SKYBLOCK, value);
+    IS_ON_SKYBLOCK_FAST.store(value, std::sync::atomic::Ordering::Relaxed);
+}
+
+fn set_location_state(value: Location) {
+    LOCATION_FAST.store(value as u16, std::sync::atomic::Ordering::Relaxed);
+    compat::set_state(&LOCATION, value);
+}
+
+#[inline]
+fn location_is(location: Location) -> bool {
+    LOCATION_FAST.load(std::sync::atomic::Ordering::Relaxed) == location as u16
+}
 /// java: private static boolean isGuest = false;
 pub static IS_GUEST: LazyLock<Mutex<bool>> = LazyLock::new(|| Mutex::new(false));
 /// java: private static RankType rank = PackageRank.NONE;
@@ -107,72 +137,72 @@ impl Utils {
 
     /// java: public static boolean isOnHypixel()
     pub fn is_on_hypixel() -> bool {
-        return compat::get_state(&IS_ON_HYPIXEL);
+        return IS_ON_HYPIXEL_FAST.load(std::sync::atomic::Ordering::Relaxed);
     }
 
     /// java: public static boolean isOnSkyblock()
     pub fn is_on_skyblock() -> bool {
-        return compat::get_state(&IS_ON_SKYBLOCK);
+        return IS_ON_SKYBLOCK_FAST.load(std::sync::atomic::Ordering::Relaxed);
     }
 
     /// java: public static boolean isInDungeons()
     pub fn is_in_dungeons() -> bool {
-        return (compat::get_state(&LOCATION) == Location::Dungeon);
+        return (location_is(Location::Dungeon));
     }
 
     /// java: public static boolean isInCrystalHollows()
     pub fn is_in_crystal_hollows() -> bool {
-        return (compat::get_state(&LOCATION) == Location::CrystalHollows);
+        return (location_is(Location::CrystalHollows));
     }
 
     /// java: public static boolean isInDwarvenMines()
     pub fn is_in_dwarven_mines() -> bool {
-        return (compat::get_state(&LOCATION) == Location::DwarvenMines || compat::get_state(&LOCATION) == Location::GlaciteMineshafts);
+        return (location_is(Location::DwarvenMines) || location_is(Location::GlaciteMineshafts));
     }
 
     /// java: public static boolean isInTheRift()
     pub fn is_in_the_rift() -> bool {
-        return (compat::get_state(&LOCATION) == Location::TheRift);
+        return (location_is(Location::TheRift));
     }
 
     /// java: public static boolean isInGarden()
     pub fn is_in_garden() -> bool {
-        return (compat::get_state(&LOCATION) == Location::Garden);
+        return (location_is(Location::Garden));
     }
 
     /// java: public static boolean isInTheEnd()
     pub fn is_in_the_end() -> bool {
-        return (compat::get_state(&LOCATION) == Location::TheEnd);
+        return (location_is(Location::TheEnd));
     }
 
     /// java: public static boolean isInKuudra()
     pub fn is_in_kuudra() -> bool {
-        return (compat::get_state(&LOCATION) == Location::KuudrasHollow);
+        return (location_is(Location::KuudrasHollow));
     }
 
     /// java: public static boolean isInCrimson()
     pub fn is_in_crimson() -> bool {
-        return (compat::get_state(&LOCATION) == Location::CrimsonIsle);
+        return (location_is(Location::CrimsonIsle));
     }
 
     /// java: public static boolean isInSpidersDen()
     pub fn is_in_spiders_den() -> bool {
-        return (compat::get_state(&LOCATION) == Location::SpidersDen);
+        return (location_is(Location::SpidersDen));
     }
 
     /// java: public static boolean isInFarm()
     pub fn is_in_farm() -> bool {
-        return (compat::get_state(&LOCATION) == Location::TheFarmingIsland);
+        return (location_is(Location::TheFarmingIsland));
     }
 
     /// java: public static boolean isInGalatea()
     pub fn is_in_galatea() -> bool {
-        return (compat::get_state(&LOCATION) == Location::Galatea);
+        return (location_is(Location::Galatea));
     }
 
     /// java: public static boolean isInTorrhusCanyon()
     pub fn is_in_torrhus_canyon() -> bool {
-        return (compat::get_state(&LOCATION) == Location::TorrhusCanyon);
+        return (location_is(Location::TorrhusCanyon));
     }
 
     /// java: public static boolean isInForagingIsland()
@@ -182,22 +212,22 @@ impl Utils {
 
     /// java: public static boolean isInSafari()
     pub fn is_in_safari() -> bool {
-        return (compat::get_state(&LOCATION) == Location::Safari);
+        return (location_is(Location::Safari));
     }
 
     /// java: public static boolean isInHub()
     pub fn is_in_hub() -> bool {
-        return (compat::get_state(&LOCATION) == Location::Hub);
+        return (location_is(Location::Hub));
     }
 
     /// java: public static boolean isInPrivateIsland()
     pub fn is_in_private_island() -> bool {
-        return (compat::get_state(&LOCATION) == Location::PrivateIsland);
+        return (location_is(Location::PrivateIsland));
     }
 
     /// java: public static boolean isInPark()
     pub fn is_in_park() -> bool {
-        return (compat::get_state(&LOCATION) == Location::ThePark);
+        return (location_is(Location::ThePark));
     }
 
     /// java: public static boolean isInBiome(Identifier targetBiome)
@@ -233,7 +263,7 @@ impl Utils {
 
     /// java: @VisibleForTesting public static void setTestLocation(Location located)
     pub fn set_test_location(mut located: Location) {
-        compat::set_state(&LOCATION, located);
+        set_location_state(located);
     }
 
     /// java: public static Area getArea()
@@ -275,8 +305,8 @@ impl Utils {
 
     /// java: @Init public static void init()
     pub fn init() {
-        // TODO(fabric2seer): ClientReceiveMessageEvents.ALLOW_GAME.register: no SeerClient equivalent yet
         //   java: ClientReceiveMessageEvents.ALLOW_GAME.register(Utils::onChatMessage);
+        compat::register_allow_game(|message, overlay| Utils::on_chat_message(message, overlay));
         client_play_connection_events::DISCONNECT.register(Arc::new(|listener: &mut ClientPacketListener| {
             Utils::on_disconnect();
         }));
@@ -302,15 +332,15 @@ impl Utils {
     pub fn update_player_presence(client: &mut mcrust::net::minecraft::client::minecraft::Minecraft) {
         if mcrust::mcrust::modding::game::level().is_none() || client.is_local_server() {
             if false {
-                compat::set_state(&IS_ON_SKYBLOCK, true);
+                set_is_on_skyblock(true);
             }
         }
         if false || Utils::is_connected_to_hypixel(client) {
             if !(compat::get_state(&IS_ON_HYPIXEL)) {
-                compat::set_state(&IS_ON_HYPIXEL, true);
+                set_is_on_hypixel(true);
             }
         } else if compat::get_state(&IS_ON_HYPIXEL) {
-            compat::set_state(&IS_ON_HYPIXEL, false);
+            set_is_on_hypixel(false);
         }
     }
 
@@ -330,18 +360,20 @@ impl Utils {
 
     /// java: @Deprecated public static String getIslandArea()
     pub fn get_island_area() -> String {
-        // java: try {..} catch (IndexOutOfBoundsException e) - the body runs inline: a Rust body does not throw checked exceptions (a panic in it propagates)
-        {
+        // java: try {..} catch (IndexOutOfBoundsException e) { LOGGER.error("[Skyblocker] Failed to get location from sidebar", e); }
+        // - an exception in the body is a panic, caught by `catch_unwind`; the body's `return` is the closure's value
+        match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| -> Option<String> {
             for sidebar_line in compat::get_state(&STRING_SCOREBOARD) {
                 if compat::index_of(&sidebar_line, sky_block_icons::AREA) >= 0 || compat::index_of(&sidebar_line, sky_block_icons::RIFT_AREA) >= 0 {
-                    return sidebar_line.trim().to_string();
+                    return Some(sidebar_line.trim().to_string());
                 }
             }
+            None
+        })) {
+            Ok(Some(area)) => return area,
+            Ok(None) => {}
+            Err(e) => logger().error(&format!("[Skyblocker] Failed to get location from sidebar {}", compat::panic_message(&e))),
         }
-        // TODO(fabric2seer): the `catch (IndexOutOfBoundsException e)` block is not reached in Rust - the try body returns, breaks or continues, so it cannot run inside `catch_unwind`
-        //   java: {
-        //   java: 			LOGGER.error("[Skyblocker] Failed to get location from sidebar", e);
-        //   java: 		}
         return "Unknown".to_string();
     }
 
@@ -388,7 +420,7 @@ impl Utils {
             let mut string_lines: Vec<String> = Vec::new();
             for score_holder in scoreboard.get_tracked_players() {
                 // java: scoreboard.listPlayerScores(scoreHolder).containsKey(objective) - the port's map is by objective name
-                if scoreboard.list_scores_of(score_holder).contains_key(objective.as_ref().expect("NullPointerException: objective").get_name()) {
+                if objective.as_ref().is_some_and(|o| scoreboard.list_scores_of(score_holder).contains_key(o.get_name())) {
                     let mut team: Option<PlayerTeam> = scoreboard.get_players_team(score_holder).cloned();
                     if let Some(team) = &team {
                         let mut text_line: MutableComponent = component::empty().append(compat::component_of(team.get_player_prefix().clone()).copy()).append(compat::component_of(team.get_player_suffix().clone()).copy());
@@ -411,7 +443,7 @@ impl Utils {
             drop(scoreboard);
             TEXT_SCOREBOARD.get_mut().extend(text_lines.iter().cloned());
             compat::lock(&STRING_SCOREBOARD).extend(string_lines.iter().cloned());
-            if compat::get_state(&IS_ON_SKYBLOCK) {
+            if IS_ON_SKYBLOCK_FAST.load(std::sync::atomic::Ordering::Relaxed) {
                 Utils::update_purse();
                 SlayerManager::check_slayer_quest();
                 Utils::update_area();
@@ -422,10 +454,9 @@ impl Utils {
                 drop(__guard_string_scoreboard); // released before anything below locks it again
             }
         }
-        // TODO(fabric2seer): the `catch (NullPointerException _)` block is not reached in Rust - the try body returns, breaks or continues, so it cannot run inside `catch_unwind`
-        //   java: {
-        //   java: 			//Do nothing
-        //   java: 		}
+        // java: catch (NullPointerException _) { //Do nothing }
+        // (every value Java could find null in the body - the player, the scoreboard, the objective - is an `Option`
+        // the body tests, so the body has no null to throw on)
     }
 
     /// java: private static void updateArea()
@@ -506,14 +537,14 @@ impl Utils {
 
     /// java: private static void onDisconnect()
     pub fn on_disconnect() {
-        if compat::get_state(&IS_ON_SKYBLOCK) {
+        if IS_ON_SKYBLOCK_FAST.load(std::sync::atomic::Ordering::Relaxed) {
             (skyblock_events::leave_invoker())();
         }
-        compat::set_state(&IS_ON_SKYBLOCK, false);
+        set_is_on_skyblock(false);
         compat::set_state(&SERVER, "".to_string());
         compat::set_state(&GAME_TYPE, "".to_string());
         compat::set_state(&LOCATION_RAW, "".to_string());
-        compat::set_state(&LOCATION, Location::Unknown);
+        set_location_state(Location::Unknown);
         *AREA.get_mut() = area::UNKNOWN.get_mut().clone();
         compat::set_state(&MAP, "".to_string());
         *BIOME.get_mut() = None;
@@ -527,27 +558,33 @@ impl Utils {
             HypixelS2CPacket::Hello(hello) => {
                 *ENVIRONMENT.get_mut() = hello.environment;
                 //Request the player's rank information
-                let _ = crate::net::azureaaron::hmapi::network::hypixel_networking::HypixelNetworking::send_player_info_c2s_packet(1);
+                // Java runs this inside `CLIENT.execute`, whose BlockableEventLoop catches the
+                // UnsupportedOperationException `requireIsOnHypixel` throws and logs it; no packet is sent.
+                if crate::net::azureaaron::hmapi::utils::utils::Utils::is_on_hypixel() {
+                    let _ = crate::net::azureaaron::hmapi::network::hypixel_networking::HypixelNetworking::send_player_info_c2s_packet(1);
+                } else {
+                    logger().error("Error executing task: UnsupportedOperationException: Requested to send a C2S packet to Hypixel whilst not being on the server!");
+                }
             }
             HypixelS2CPacket::LocationUpdate(location_update) => {
                 compat::set_state(&SERVER, location_update.server_name.clone());
                 let previous_server_type: String = compat::get_state(&GAME_TYPE);
                 compat::set_state(&GAME_TYPE, location_update.server_type.clone().unwrap_or_default());
                 compat::set_state(&LOCATION_RAW, location_update.mode.clone().unwrap_or_default());
-                compat::set_state(&LOCATION, Location::from(&compat::get_state(&LOCATION_RAW)));
+                set_location_state(Location::from(&compat::get_state(&LOCATION_RAW)));
                 compat::set_state(&MAP, location_update.map.clone().unwrap_or_default());
 
                 (skyblock_events::location_change_invoker())(compat::get_state(&LOCATION));
 
                 if compat::get_state(&GAME_TYPE) == "SKYBLOCK" {
-                    compat::set_state(&IS_ON_SKYBLOCK, true);
+                    set_is_on_skyblock(true);
                     Utils::tick_profile_id();
 
                     if previous_server_type != "SKYBLOCK" {
                         (skyblock_events::join_invoker())();
                     }
                 } else if previous_server_type == "SKYBLOCK" {
-                    compat::set_state(&IS_ON_SKYBLOCK, false);
+                    set_is_on_skyblock(false);
                     (skyblock_events::leave_invoker())();
                 }
             }
@@ -555,13 +592,13 @@ impl Utils {
                 compat::set_state(&SERVER, "".to_string());
                 compat::set_state(&GAME_TYPE, "".to_string());
                 compat::set_state(&LOCATION_RAW, "".to_string());
-                compat::set_state(&LOCATION, Location::Unknown);
+                set_location_state(Location::Unknown);
                 compat::set_state(&MAP, "".to_string());
 
                 if mcrust::mcrust::modding::game::with_player(|_| ()).is_some() {
                     // java: player.sendSystemMessage(Constants.PREFIX.get().append(Component.translatable("skyblocker.utils.locationUpdateError").withStyle(ChatFormatting.RED)));
                     let message = (crate::de::hysky::skyblocker::utils::constants::PREFIX.get())().append(component::translatable("skyblocker.utils.locationUpdateError").with_style_format(mcrust::net::minecraft::chat_formatting::ChatFormatting::Red));
-                    script_host::send_feedback(&message.get_string());
+                    compat::batch_w_send_feedback(&message);
                 }
 
                 logger().error(&format!("[Skyblocker] Failed to update your current location! Some features of the mod may not work correctly :( - Error: {:?}", error.reason));
@@ -599,13 +636,13 @@ impl Utils {
         }
         if compat::json::has(&loc_raw, "gametype") {
             compat::set_state(&GAME_TYPE, compat::json::get_as_string(&loc_raw.get("gametype").cloned().unwrap()));
-            compat::set_state(&IS_ON_SKYBLOCK, (compat::get_state(&GAME_TYPE) == "SKYBLOCK"));
+            set_is_on_skyblock((compat::get_state(&GAME_TYPE) == "SKYBLOCK"));
         }
         if compat::json::has(&loc_raw, "mode") {
             compat::set_state(&LOCATION_RAW, compat::json::get_as_string(&loc_raw.get("mode").cloned().unwrap()));
-            compat::set_state(&LOCATION, Location::from(&compat::get_state(&LOCATION_RAW)));
+            set_location_state(Location::from(&compat::get_state(&LOCATION_RAW)));
         } else {
-            compat::set_state(&LOCATION, Location::Unknown);
+            set_location_state(Location::Unknown);
         }
         if compat::json::has(&loc_raw, "map") {
             compat::set_state(&MAP, compat::json::get_as_string(&loc_raw.get("map").cloned().unwrap()));
@@ -621,7 +658,7 @@ impl Utils {
         if message.starts_with("{\"server\":") && message.ends_with("}") {
             Utils::parse_loc_raw(&message);
         }
-        if compat::get_state(&IS_ON_SKYBLOCK) {
+        if IS_ON_SKYBLOCK_FAST.load(std::sync::atomic::Ordering::Relaxed) {
             if message.starts_with(PROFILE_MESSAGE_PREFIX) {
                 compat::set_state(&PROFILE, (compat::regex::split(&(compat::substring(&message, compat::str_len(PROFILE_MESSAGE_PREFIX))), "§b"))[(0) as usize].clone());
             } else if message.starts_with(PROFILE_ID_PREFIX) {
@@ -674,15 +711,11 @@ impl Utils {
 
     /// java: public static OptionalInt parseInt(String input)
     pub fn parse_int(input: &str) -> Option<i32> {
-        // java: try {..} catch (NumberFormatException _) - an exception here is a panic, caught by `catch_unwind`; the body's `return` is the closure's value
-        match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            return Some(input.parse::<i32>().expect("NumberFormatException"));
-        })) {
-            Ok(__v) => return __v,
-            Err(_) => {
-                return None;
-            }
-        }
+        // java: try { return OptionalInt.of(Integer.parseInt(input)); } catch (NumberFormatException _) { return OptionalInt.empty(); }
+        // The `Err` IS the NumberFormatException. (Not a panic + `catch_unwind`: every caught panic still runs the
+        // panic hook, which writes a synchronous stderr message - this is called per frame from HUD/tab parsing and
+        // logged ~92,000 panics in one session.)
+        input.parse::<i32>().ok()
     }
 
     /// java: public static float getEyeHeight(Player player)
@@ -697,8 +730,9 @@ impl Utils {
     pub fn check_for_illegal_resource_modification(id: &Identifier, resource: &Resource, error: &str) {
         if !(resource.source_pack_id() == skyblocker_mod::NAMESPACE) {
             logger().error(&"!".repeat((50) as usize));
-            // TODO(fabric2seer): a log call with a non-literal format
             //   java: LOGGER.error(LogUtils.FATAL_MARKER, error, id, resource.sourcePackId());
+            // (SLF4J's `{}` placeholders take `id` then the pack id, in order)
+            logger().error(&error.replacen("{}", &id.to_string(), 1).replacen("{}", &resource.source_pack_id(), 1));
             logger().error(&"!".repeat((50) as usize));
             blaze3d::you_just_lost_the_game();
         }

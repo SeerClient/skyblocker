@@ -63,8 +63,8 @@ impl CrystalsChestHighlighter {
 
     /// java: @Init public static void init()
     pub fn init() {
-        // TODO(fabric2seer): ClientReceiveMessageEvents.ALLOW_GAME.register: no SeerClient equivalent yet
-        //   java: ClientReceiveMessageEvents.ALLOW_GAME.register(CrystalsChestHighlighter::extractLocationFromMessage);
+        // java: ClientReceiveMessageEvents.ALLOW_GAME.register(CrystalsChestHighlighter::extractLocationFromMessage);
+        compat::register_allow_game(|text: &mcrust::net::minecraft::network::chat::mutable_component::MutableComponent, overlay: bool| CrystalsChestHighlighter::extract_location_from_message(text, overlay));
         level_render_extraction_callback::EVENT.register(Arc::new(move |__a0| { CrystalsChestHighlighter::extract_rendering(&__a0); }));
         client_play_connection_events::JOIN.register(Arc::new(|listener: &mut ClientPacketListener| {
             CrystalsChestHighlighter::reset();
@@ -118,9 +118,9 @@ impl CrystalsChestHighlighter {
         if !(Utils::is_in_crystal_hollows()) || !(SkyblockerConfigManager::get().mining.crystal_hollows.chest_highlighter) {
             return;
         }
-        if packet.get_particle().is_some_and(|particle| compat::particle_type_is(particle, mcrust::net::minecraft::core::particles::particle_types::crit())) {
+        if packet.particle().is_some_and(|particle| compat::particle_type_is(particle, mcrust::net::minecraft::core::particles::particle_types::crit())) {
             // `activeParticles.put(pos, now)`
-            let particle_pos = Vec3::new(packet.get_x(), packet.get_y(), packet.get_z());
+            let particle_pos = Vec3::new(packet.x(), packet.y(), packet.z());
             let now = compat::millis();
             match ACTIVE_PARTICLES.get_mut().iter_mut().find(|(pos, _)| *pos == particle_pos) {
                 Some((_, time)) => *time = now,

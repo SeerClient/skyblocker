@@ -137,7 +137,7 @@ impl ContainerMatcher for UltrasequencerSolver {
 
 impl ContainerSolver for UltrasequencerSolver {
     /// java: @Override public List<ColorHighlight> getColors(Int2ObjectMap<ItemStack> slots) (dispatch: the body for this class)
-    fn get_colors(&self) -> fn(&compat::Shared<dyn ContainerSolver>, &mut std::collections::HashMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack>) -> Vec<ColorHighlight> {
+    fn get_colors(&self) -> fn(&compat::Shared<dyn ContainerSolver>, &mut std::collections::BTreeMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack>) -> Vec<ColorHighlight> {
         UltrasequencerSolver::get_colors_dyn
     }
 
@@ -247,12 +247,12 @@ impl UltrasequencerSolver {
     }
 
     /// java: @Override public List<ColorHighlight> getColors(Int2ObjectMap<ItemStack> slots)
-    pub fn get_colors_impl(__this: &compat::Shared<Self>, slots: &mut std::collections::HashMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack>) -> Vec<ColorHighlight> {
+    pub fn get_colors_impl(__this: &compat::Shared<Self>, slots: &mut std::collections::BTreeMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack>) -> Vec<ColorHighlight> {
         return (if ({ let __f = compat::dispatch(__this, |__t| __t.get_state()); __f(&compat::view(__this, |a| a as compat::Shared<dyn ExperimentSolver>)) }) == State::Show && compat::read(__this, |__t| __t.ultrasequencer_next_slot) != 0 { vec![ColorHighlight::green(compat::read(__this, |__t| __t.ultrasequencer_next_slot))] } else { vec![] });
     }
 
     /// UltrasequencerSolver.getColors as the dispatch of ContainerSolver.getColors
-    pub fn get_colors_dyn(__this: &compat::Shared<dyn ContainerSolver>, __p0: &mut std::collections::HashMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack>) -> Vec<ColorHighlight> {
+    pub fn get_colors_dyn(__this: &compat::Shared<dyn ContainerSolver>, __p0: &mut std::collections::BTreeMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack>) -> Vec<ColorHighlight> {
         Self::get_colors_impl(&compat::view_as::<Self, _, Self>(__this, |a| a), __p0)
     }
 
@@ -286,7 +286,7 @@ impl UltrasequencerSolver {
             // java: List<Slot> slots = genericContainerScreen.getMenu().slots.subList(0, genericContainerScreen.getMenu().getRowCount() * 9);
             //   Int2ObjectMap<ItemStack> slotMap = ContainerSolverManager.slotMap(slots); - the items by position
             let __row_count: i32 = mcrust::mcrust::modding::game::with_chest_menu(|__chest| __chest.get_row_count()).unwrap_or(0);
-            let mut slot_map: std::collections::HashMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack> = compat::with_open_menu(|menu, containers| menu.slots.iter().take((__row_count.wrapping_mul(9)).max(0) as usize).enumerate().map(|(i, slot)| (i as i32, slot.get_item(containers).duplicate())).collect()).unwrap_or_default();
+            let mut slot_map: std::collections::BTreeMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack> = compat::with_open_menu(|menu, containers| menu.slots.iter().take((__row_count.wrapping_mul(9)).max(0) as usize).enumerate().map(|(i, slot)| (i as i32, slot.get_item(containers).duplicate())).collect()).unwrap_or_default();
             for pane_slot in PANE_SLOTS.iter().copied() {
                 let mut slot_item: Option<mcrust::net::minecraft::world::item::item_stack::ItemStack> = slot_map.get(&pane_slot).cloned();
                 // java: slotItem.getItem() instanceof BlockItem blockItem && blockItem.getBlock() instanceof StainedGlassPaneBlock stainedGlassPaneBlock

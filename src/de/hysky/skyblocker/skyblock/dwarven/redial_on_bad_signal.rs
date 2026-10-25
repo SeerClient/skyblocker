@@ -103,9 +103,8 @@ impl RedialOnBadSignal {
         let mut name: String = matcher.group(1).unwrap();
         let mut call_message: MutableComponent = (constants::PREFIX.get_mut())().append(component::translatable_args("skyblocker.config.mining.redialOnBadSignal.message", vec![mcrust::net::minecraft::network::chat::formatted_text::FormattedText::of(name.clone())]));
         call_message = call_message.with_style_fn(|style| (style.with_click_event(Some(ClickEvent::new_run_command(format!("/call {}", name))))).with_color_format(Some(ChatFormatting::Aqua)));
-        // java: player.sendSystemMessage(callMessage); - rust: port gap: a mod has only the text form of a system
-        // message (`script_host::send_feedback`), so the click event is not carried (GAPS_batchD).
-        mcrust::mcrust::modding::game::with_player(|player| { script_host::send_feedback(&call_message.to_string()); });
+        // java: player.sendSystemMessage(callMessage); - the component itself (its click event) in the chat
+        mcrust::mcrust::modding::game::with_player(|player| { compat::batch_w_send_feedback(&call_message); });
         return false;
     }
 

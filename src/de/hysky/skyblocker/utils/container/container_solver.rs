@@ -13,7 +13,7 @@ use mcrust::net::minecraft::client::gui::screens::inventory::abstract_container_
 /// java: public interface ContainerSolver extends ContainerMatcher, Resettable
 pub trait ContainerSolver: ContainerMatcher + Resettable {
     /// java: List<ColorHighlight> getColors(Int2ObjectMap<ItemStack> slots); (dispatch: the body for this class)
-    fn get_colors(&self) -> fn(&compat::Shared<dyn ContainerSolver>, &mut std::collections::HashMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack>) -> Vec<ColorHighlight>;
+    fn get_colors(&self) -> fn(&compat::Shared<dyn ContainerSolver>, &mut std::collections::BTreeMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack>) -> Vec<ColorHighlight>;
 
     /// java: default void start(AbstractContainerScreen<?> screen) (dispatch: the body for this class)
     fn start(&self) -> fn(&compat::Shared<dyn ContainerSolver>, &AbstractContainerScreen) {
@@ -100,7 +100,7 @@ impl dyn ContainerSolver {
 }
 
 /// java: static void trimEdges(Int2ObjectMap<ItemStack> slots, int rows)
-pub fn trim_edges(slots: &mut std::collections::HashMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack>, mut rows: i32) {
+pub fn trim_edges(slots: &mut std::collections::BTreeMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack>, mut rows: i32) {
     for i in 0..rows {
         slots.remove(&9i32.wrapping_mul(i));
         slots.remove(&(9i32.wrapping_mul(i)).wrapping_add(8));

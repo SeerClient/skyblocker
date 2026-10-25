@@ -61,8 +61,8 @@ impl MetalDetector {
 
     /// java: @Init public static void init()
     pub fn init() {
-        // TODO(fabric2seer): ClientReceiveMessageEvents.ALLOW_GAME.register: no SeerClient equivalent yet
-        //   java: ClientReceiveMessageEvents.ALLOW_GAME.register(MetalDetector::getDistanceMessage);
+        // java: ClientReceiveMessageEvents.ALLOW_GAME.register(MetalDetector::getDistanceMessage);
+        compat::register_allow_game(|text: &mcrust::net::minecraft::network::chat::mutable_component::MutableComponent, overlay: bool| MetalDetector::get_distance_message(text, overlay));
         level_render_extraction_callback::EVENT.register(Arc::new(move |__a0| { MetalDetector::extract_rendering(&__a0); }));
         client_play_connection_events::JOIN.register(Arc::new(|listener: &mut ClientPacketListener| {
             MetalDetector::reset();
@@ -84,7 +84,7 @@ impl MetalDetector {
         let mut previous_possible_block_count: i32 = (POSSIBLE_BLOCKS.get_mut().len() as i32);
         if !(compat::get_state(&STARTED_LOOKING)) {
             compat::set_state(&STARTED_LOOKING, true);
-            mcrust::mcrust::modding::game::with_player(|player| { script_host::send_feedback(&(constants::PREFIX.get_mut())().append(component::translatable("skyblocker.dwarvenMines.metalDetectorHelper.startTip")).to_string()); });
+            mcrust::mcrust::modding::game::with_player(|player| { compat::batch_w_send_feedback(&(constants::PREFIX.get_mut())().append(component::translatable("skyblocker.dwarvenMines.metalDetectorHelper.startTip"))); });
         }
         if MINES_CENTER.get_mut().is_none() {
             MetalDetector::find_center_of_mines();
@@ -94,9 +94,9 @@ impl MetalDetector {
         }
         if (POSSIBLE_BLOCKS.get_mut().len() as i32) != previous_possible_block_count {
             if (POSSIBLE_BLOCKS.get_mut().len() as i32) == 1 {
-                mcrust::mcrust::modding::game::with_player(|player| { script_host::send_feedback(&(constants::PREFIX.get_mut())().append(component::translatable("skyblocker.dwarvenMines.metalDetectorHelper.foundTreasureMessage").with_style_format(ChatFormatting::Green)).to_string()); });
+                mcrust::mcrust::modding::game::with_player(|player| { compat::batch_w_send_feedback(&(constants::PREFIX.get_mut())().append(component::translatable("skyblocker.dwarvenMines.metalDetectorHelper.foundTreasureMessage").with_style_format(ChatFormatting::Green))); });
             } else {
-                mcrust::mcrust::modding::game::with_player(|player| { script_host::send_feedback(&(constants::PREFIX.get_mut())().append(component::translatable("skyblocker.dwarvenMines.metalDetectorHelper.possibleTreasureLocationsMessage").append(component::null_to_empty(Some(&(POSSIBLE_BLOCKS.get_mut().len() as i32).to_string())))).to_string()); });
+                mcrust::mcrust::modding::game::with_player(|player| { compat::batch_w_send_feedback(&(constants::PREFIX.get_mut())().append(component::translatable("skyblocker.dwarvenMines.metalDetectorHelper.possibleTreasureLocationsMessage").append(component::null_to_empty(Some(&(POSSIBLE_BLOCKS.get_mut().len() as i32).to_string()))))); });
             }
         }
         compat::set_state(&PREVIOUS_DISTANCE, distance);
@@ -143,7 +143,7 @@ impl MetalDetector {
         if POSSIBLE_BLOCKS.get_mut().is_empty() {
             compat::set_state(&NEW_TREASURE, true);
             if mcrust::mcrust::modding::game::with_player(|_| ()).is_some() {
-                mcrust::mcrust::modding::game::with_player(|player| { script_host::send_feedback(&(constants::PREFIX.get_mut())().append(component::translatable("skyblocker.dwarvenMines.metalDetectorHelper.somethingWentWrongMessage").with_style_format(ChatFormatting::Red)).to_string()); });
+                mcrust::mcrust::modding::game::with_player(|player| { compat::batch_w_send_feedback(&(constants::PREFIX.get_mut())().append(component::translatable("skyblocker.dwarvenMines.metalDetectorHelper.somethingWentWrongMessage").with_style_format(ChatFormatting::Red))); });
             }
         }
     }
@@ -166,7 +166,7 @@ impl MetalDetector {
             if name_matcher.matches() {
                 let mut offset: Vec3i = KEEPER_OFFSETS.get_mut().get(name_matcher.group(1).as_ref().unwrap()).cloned().unwrap();
                 *MINES_CENTER.get_mut() = Some(*armor_stand_position.offset_vec(&offset).as_vec3i());
-                mcrust::mcrust::modding::game::with_player(|player| { script_host::send_feedback(&(constants::PREFIX.get_mut())().append(component::translatable("skyblocker.dwarvenMines.metalDetectorHelper.foundCenter").with_style_format(ChatFormatting::Green)).to_string()); });
+                mcrust::mcrust::modding::game::with_player(|player| { compat::batch_w_send_feedback(&(constants::PREFIX.get_mut())().append(component::translatable("skyblocker.dwarvenMines.metalDetectorHelper.foundCenter").with_style_format(ChatFormatting::Green))); });
                 return;
             }
         }
@@ -187,7 +187,7 @@ impl MetalDetector {
             let mut block: Vec3i = POSSIBLE_BLOCKS.get_mut()[0].offset(0, -1, 0);
             let mut waypoint: compat::Shared<dyn NamedWaypoint> = NamedWaypointBase::new_3(BlockPos::new(block.get_x(), block.get_y(), block.get_z()), component::translatable("skyblocker.dwarvenMines.metalDetectorHelper.treasure").get_string(), mcrust::java::awt::color::yellow().get_color_components(None).to_vec()) as compat::Shared<dyn NamedWaypoint>;
             ({ let __f = compat::dispatch(&waypoint, |__t| __t.extract_rendering()); __f(&compat::view(&waypoint, |a| a as compat::Shared<dyn Renderable>), collector) });
-            ({ let __f = compat::dispatch(collector, |__t| __t.submit_line_from_cursor()); __f(collector, &vec3::at_center_of(&BlockPos::from_vec3i(&block)), &LIGHT_GRAY, 1.0f32, 5.0f32) });
+            ({ let __f = compat::dispatch(collector, |__t| __t.submit_line_from_cursor()); __f(collector, &vec3::at_center_of(&BlockPos::new(block.get_x(), block.get_y(), block.get_z())), &LIGHT_GRAY, 1.0f32, 5.0f32) });
             return;
         }
         for block in POSSIBLE_BLOCKS.get_mut().iter() {
@@ -200,5 +200,5 @@ impl MetalDetector {
 
 /// `Vec3.atLowerCornerOf(Vec3i)`: the port's takes the `BlockPos` (Java's parameter is the `Vec3i` it extends).
 fn at_lower_corner_of(pos: &Vec3i) -> Vec3 {
-    vec3::at_lower_corner_of(&BlockPos::from_vec3i(pos))
+    vec3::at_lower_corner_of(&BlockPos::new(pos.get_x(), pos.get_y(), pos.get_z()))
 }

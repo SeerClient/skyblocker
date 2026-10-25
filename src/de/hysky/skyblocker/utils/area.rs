@@ -16,7 +16,6 @@ pub trait Area: compat::DynAny {
 
 /// java: @SuppressWarnings("unchecked") static Area from(String name)
 pub fn from(name: &str) -> compat::Shared<dyn Area> {
-    // TODO(fabric2seer): `.getPermittedSubclasses(..)` on a Class
     //   java: return Arrays.stream((Class<Area>[]) Area.class.getPermittedSubclasses())
     //   java: 				.<Area>mapMulti((clazz, consumer) -> {
     //   java: 					// Implicitly excluding the Unknown record is fine since thats the fallback value anyways

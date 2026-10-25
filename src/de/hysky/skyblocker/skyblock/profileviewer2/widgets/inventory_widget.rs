@@ -60,16 +60,20 @@ impl InventoryWidget {
     pub fn new(mut label: MutableComponent, mut rows: i32, mut columns: i32, mut pages: Vec<Vec<mcrust::net::minecraft::world::item::item_stack::ItemStack>>, mut has_hotbar: bool) -> compat::Shared<Self> {
         let mut width: i32 = (columns.wrapping_mul(18)).wrapping_add(7i32.wrapping_mul(2));
         let mut height: i32 = (((rows.wrapping_mul(18)).wrapping_add(17)).wrapping_add(7)).wrapping_add(if has_hotbar { HOTBAR_SEPARATOR_HEIGHT } else { 0 });
-        // TODO(fabric2seer): `new` takes 7 argument(s) in the port (`x: i32, y: i32, width: i32, height: i32, message: String, kind: WidgetKind, on_press: OnPress`), Java passes 0
-        //   java:
-        let __this: compat::Shared<Self> = todo!("constructor");
-        // TODO(fabric2seer): super statement
-        //   java: super(0, 0, width, height, label);
-        { let __v = rows; compat::write(&__this, |__t| __t.rows = __v); }
-        { let __v = columns.max(3); compat::write(&__this, |__t| __t.columns = __v); }
-        { let __v = pages.clone(); compat::write(&__this, |__t| __t.pages = __v); }
-        { let __v = has_hotbar; compat::write(&__this, |__t| __t.has_hotbar = __v); }
-        { let __v = false; compat::write(&__this, |__t| __t.active = __v); }
+        // java: super(0, 0, width, height, label);
+        use mcrust::net::minecraft::network::chat::component::Component as _;
+        let mut base = AbstractWidget::new(0, 0, width, height, label.get_string(), mcrust::net::minecraft::client::gui::components::abstract_widget::WidgetKind::PlainText, mcrust::net::minecraft::client::gui::components::abstract_widget::OnPress::Inert);
+        base.set_message_text(mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(label.clone()));
+        // Make the widget ignore clicks
+        base.active = false;
+        let __this: compat::Shared<Self> = compat::shared(Self {
+            base,
+            rows,
+            columns: columns.max(3),
+            pages: pages.clone(),
+            has_hotbar,
+            index: 0,
+        });
         __this
     }
 
@@ -106,7 +110,7 @@ impl InventoryWidget {
             let mut item_x: i32 = (x.wrapping_add(column.wrapping_mul(18))).wrapping_add(8);
             let mut item_y: i32 = ((y.wrapping_add(row.wrapping_mul(18))).wrapping_add(18)).wrapping_add(hotbar_y_shift);
             ItemBackgroundManager::draw_backgrounds(stack, graphics, item_x, item_y);
-            if ItemProtection::is_item_protected(Some(stack.clone())) {
+            if ItemProtection::is_item_protected_ref(Some(stack)) {
                 ItemProtection::draw_slot_icon(graphics, item_x, item_y);
             }
             graphics.fake_item(stack, item_x, item_y);
@@ -117,8 +121,8 @@ impl InventoryWidget {
             }
         }
         if let Some(hovered_stack) = &hovered_stack {
-            // TODO(fabric2seer): `GuiGraphicsExtractor.setTooltipForNextFrame` has no Rust method in the port (looked for `set_tooltip_for_next_frame` in GuiGraphicsExtractor and its supertypes)
-            // rust: graphics.set_tooltip_for_next_frame(&font, hovered_stack, mouse_x, mouse_y);
+            // java: graphics.setTooltipForNextFrame(font, hoveredStack, mouseX, mouseY);
+            compat::batch_w_set_item_tooltip_for_next_frame(hovered_stack);
         }
     }
 

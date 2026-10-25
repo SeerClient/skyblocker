@@ -75,9 +75,6 @@ impl CreeperBeams {
 
     /// java: private static @Nullable BlockPos findCreeperBase(LocalPlayer player, ClientLevel world)
     pub fn find_creeper_base(player: &LocalPlayer, world: &ClientLevel) -> Option<BlockPos> {
-        // TODO(fabric2seer): static `EntitySelector.ENTITY_STILL_ALIVE` has no Rust counterpart in the port's EntitySelector file
-        // TODO(fabric2seer): the port's `get_entities_of_class` ports this Java method with other parameters (base_class, except, bb, selector for Java's base_class, bb, selector)
-        // TODO(fabric2seer): `get_entities_of_class` takes 4 argument(s) in the port (`base_class: crate::net::minecraft::world::level::entity::entity_type_test::EntityClass, except: Option<i32>, bb: &AABB, selector: &dyn Fn(&(dyn Entity + Send + Sync)) -> bool`), Java passes 3
         use mcrust::net::minecraft::world::level::entity_getter::EntityGetter as _;
         // (the port's class filter has no Creeper.class: the base class Entity plus `instanceof Creeper`)
         let creepers: Vec<mcrust::net::minecraft::world::level::entity_getter::SharedEntity> = world.get_entities_of_class(
@@ -107,7 +104,7 @@ impl CreeperBeams {
         let mut end: BlockPos = BlockPos::new(base_pos.get_x().wrapping_add(16), FLOOR_Y, base_pos.get_z().wrapping_add(16));
         for pos in BlockPos::between_closed_pos(&start, &end) {
             if CreeperBeams::is_target(world, &pos) {
-                targets.push(BlockPos::from_vec3i(pos.as_vec3i()));
+                targets.push(BlockPos::new(pos.get_x(), pos.get_y(), pos.get_z()));
             }
         }
         return targets;

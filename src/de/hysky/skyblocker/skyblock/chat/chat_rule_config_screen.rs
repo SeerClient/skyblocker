@@ -223,6 +223,12 @@ impl ChatRuleConfigScreen {
     /// order: the initial value does not reach the responder), `setHint` and `setTooltip`, joined to the screen's
     /// widgets: the reference (which reaches the live box) and its layout leaf.
     fn add_edit_box(__this: &compat::Shared<Self>, width: i32, max_length: i32, value: &str, responder: Option<Responder>, hint: Option<MutableComponent>, tooltip: Option<MutableComponent>) -> (compat::WidgetRef, LayoutElement) {
+        ChatRuleConfigScreen::add_edit_box_formatted(__this, width, max_length, value, responder, hint, tooltip, None)
+    }
+
+    /// `add_edit_box` and then `editBox.addFormatter(formatter)` - the formatter is attached before the box goes into
+    /// the screen (its draw runs it at `applyFormat`).
+    fn add_edit_box_formatted(__this: &compat::Shared<Self>, width: i32, max_length: i32, value: &str, responder: Option<Responder>, hint: Option<MutableComponent>, tooltip: Option<MutableComponent>, formatter: Option<ModTextFormatter>) -> (compat::WidgetRef, LayoutElement) {
         let mut __w = compat::edit_box(0, 0, width, 20, component::empty());
         let __font = compat::font();
         compat::with_edit_box(&mut __w, |__e| {
@@ -233,6 +239,12 @@ impl ChatRuleConfigScreen {
             }
             if let Some(hint) = hint {
                 __e.set_hint_component(FormattedText::from(hint));
+            }
+            if let Some(formatter) = formatter {
+                // the game's formatter returns the formatted text where Java's returns a `FormattedCharSequence`: the
+                // sequence's styled characters gathered back into runs (`compat::sequence_text`)
+                let formatter = compat::RenderThread::new(formatter);
+                __e.add_formatter(mcrust::net::minecraft::client::gui::components::edit_box::TextFormatter::Mod(mcrust::net::minecraft::client::gui::components::edit_box::ModTextFormatter::new(move |text: &str, offset: i32| (formatter.get())(text, offset).map(|seq| compat::sequence_text(&*seq)))));
             }
         });
         if let Some(tooltip) = tooltip {
@@ -302,10 +314,12 @@ impl ChatRuleConfigScreen {
         let __l = ChatRuleConfigScreen::add_string_widget(__this, component::translatable("skyblocker.config.chat.chatRules.screen.ruleScreen.filter").with_style_formats(&[ChatFormatting::Bold, ChatFormatting::Underline]));
         ChatRuleConfigScreen::add_content(__this, __l, 3, None, None);
         // java: filterInput.addFormatter(createRenderTextProvider(filterInput::getValue, true));
-        // rust: port gap - `EditBox.TextFormatter` is a closed enum of the game's two formatters, so the mod's formatter
-        // (`create_render_text_provider_2`) cannot be attached to the box (GAPS_batchF.md)
+        // (`filterInput::getValue`: the box is borrowed while its own formatter runs, so the supplier reads the value
+        // the box's responder writes into the rule on every change - the same string)
+        let __rule_f = compat::RenderThread::new(rule.clone());
+        let __filter_formatter = ChatRuleConfigScreen::create_render_text_provider_2(__this, Arc::new(move || ChatRule::get_filter(__rule_f.get())), true);
         let __rule_3 = compat::RenderThread::new(rule.clone());
-        let (_filter_input, __l) = ChatRuleConfigScreen::add_edit_box(__this, ChatRuleConfigScreen::get_width(3.0), 1024, &ChatRule::get_filter(&rule), Some(Responder::Lambda(ResponderLambda::new(move |__a0| ChatRule::set_filter(__rule_3.get(), __a0.to_string())))), Some(component::translatable("skyblocker.config.chat.chatRules.screen.ruleScreen.filter").with_style_formats(&[ChatFormatting::Gray, ChatFormatting::Italic])), Some(component::translatable("skyblocker.config.chat.chatRules.screen.ruleScreen.filter.@Tooltip")));
+        let (_filter_input, __l) = ChatRuleConfigScreen::add_edit_box_formatted(__this, ChatRuleConfigScreen::get_width(3.0), 1024, &ChatRule::get_filter(&rule), Some(Responder::Lambda(ResponderLambda::new(move |__a0| ChatRule::set_filter(__rule_3.get(), __a0.to_string())))), Some(component::translatable("skyblocker.config.chat.chatRules.screen.ruleScreen.filter").with_style_formats(&[ChatFormatting::Gray, ChatFormatting::Italic])), Some(component::translatable("skyblocker.config.chat.chatRules.screen.ruleScreen.filter.@Tooltip")), Some(__filter_formatter));
         ChatRuleConfigScreen::add_content(__this, __l, 3, None, None);
 
         // Filter settings
@@ -374,7 +388,11 @@ impl ChatRuleConfigScreen {
             // java: chatRule.setCustomSound(value.orElse(null));
             ChatRule::set_custom_sound(__rule_10.get(), value.clone());
             // java: value.ifPresent(soundEvent -> minecraft.getSoundManager().play(SimpleSoundInstance.forUI(soundEvent, 1.0f)));
-            // rust: port gap (GAPS_batchH #1) - `SoundManager.play` is not reachable from a mod
+            // (`SimpleSoundInstance.forUI(event, pitch)`: volume 0.25; played with the device the client lends the sound
+            // manager each tick - `compat::batch_v_play_ui_sound`)
+            if let Some(sound_event) = &value {
+                compat::batch_v_play_ui_sound(sound_event, 1.0f32, 0.25f32);
+            }
         });
         // java: soundButton.setTooltip(Tooltip.create(..sounds.@Tooltip));
         __sound_button.set_tooltip(Tooltip::create_text(FormattedText::from(component::translatable("skyblocker.config.chat.chatRules.screen.ruleScreen.sounds.@Tooltip"))));
@@ -393,9 +411,11 @@ impl ChatRuleConfigScreen {
         let __l = ChatRuleConfigScreen::add_multi_line_text(__this, component::translatable("skyblocker.config.chat.chatRules.screen.ruleScreen.chatMessage"), ChatRuleConfigScreen::get_width(1.0), false);
         ChatRuleConfigScreen::add_content(__this, __l, 1, Some(aligned_left), Some(__not_hidden.clone()));
         // java: chatMessageInput.addFormatter(createRenderTextProvider(chatMessageInput::getValue));
-        // rust: port gap - `EditBox.TextFormatter` is a closed enum; the mod's formatter cannot be attached (GAPS_batchF.md)
+        // (`chatMessageInput::getValue`: the value its responder writes into the rule - see the filter box above)
+        let __rule_m = compat::RenderThread::new(rule.clone());
+        let __chat_message_formatter = ChatRuleConfigScreen::create_render_text_provider(__this, Arc::new(move || ChatRule::get_chat_message(__rule_m.get()).unwrap_or_default()));
         let __rule_12 = compat::RenderThread::new(rule.clone());
-        let (_chat_message_input, __l) = ChatRuleConfigScreen::add_edit_box(__this, ChatRuleConfigScreen::get_width(2.0), 1024, &ChatRule::get_chat_message(&rule).unwrap_or_default(), Some(Responder::Lambda(ResponderLambda::new(move |__a0| ChatRule::set_chat_message(__rule_12.get(), Some(__a0.to_string()))))), Some(component::translatable("skyblocker.config.chat.chatRules.screen.ruleScreen.chatMessage.@Placeholder").with_style_formats(&[ChatFormatting::Gray, ChatFormatting::Italic])), None);
+        let (_chat_message_input, __l) = ChatRuleConfigScreen::add_edit_box_formatted(__this, ChatRuleConfigScreen::get_width(2.0), 1024, &ChatRule::get_chat_message(&rule).unwrap_or_default(), Some(Responder::Lambda(ResponderLambda::new(move |__a0| ChatRule::set_chat_message(__rule_12.get(), Some(__a0.to_string()))))), Some(component::translatable("skyblocker.config.chat.chatRules.screen.ruleScreen.chatMessage.@Placeholder").with_style_formats(&[ChatFormatting::Gray, ChatFormatting::Italic])), None, Some(__chat_message_formatter));
         ChatRuleConfigScreen::add_content(__this, __l, 2, None, Some(__not_hidden));
 
         // Action Bar
@@ -684,7 +704,8 @@ impl ChatRuleConfigScreen {
     /// scrollAmount())` - the content's widgets moved with it.
     fn place_content(__this: &compat::Shared<Self>) {
         let Some((container, _)) = compat::read(__this, |__t| __t.content_container.clone()) else { return; };
-        let (x, y, bottom, scroll) = compat::read(&container, |__c| (__c.base.get_x(), __c.base.get_y(), __c.base.get_bottom(), __c.area.scroll_amount()));
+        let (x, y, bottom, scroll, right) = compat::read(&container, |__c| (__c.base.get_x(), __c.base.get_y(), __c.base.get_bottom(), __c.area.scroll_amount(), __c.base.get_right()));
+        let (__clip_left, __clip_right) = (x, right);
         let mut __placed: Vec<(usize, i32, i32)> = Vec::new();
         compat::write(__this, |__t| {
             __t.content.x = x + CONTENT_CONTAINER_SIDE_PADDING;
@@ -698,10 +719,9 @@ impl ChatRuleConfigScreen {
                 let __w = __t.widget_mut(*__i);
                 __w.set_position(*__x, *__y);
                 // ContentContainer.extractWidgetRenderState draws its children inside `enableScissor(getX(), getY(),
-                // getRight(), getBottom())`: a child wholly outside the box draws nothing.
-                // rust: port gap - the game draws the content's widgets itself, without the container's scissor, so a
-                // child partly outside the box is drawn whole (GAPS_N #3)
-                __w.visible = *__y + __w.get_height() > y && *__y < bottom;
+                // getRight(), getBottom())`: the widget pass pushes the child's `clip` as that scissor around its draw
+                // (and skips a child wholly outside it)
+                __w.clip = Some((__clip_left, y, __clip_right, bottom));
             }
         });
     }
@@ -730,19 +750,9 @@ impl ChatRuleConfigScreen {
                 // java: defaultHandleClickEvent(style.getClickEvent(), minecraft, this);
                 use mcrust::net::minecraft::client::gui::screens::screen::{default_handle_click_event, ClickEventOutcome};
                 let (__links, __prompt) = { let __o = compat::minecraft().options.borrow(); (mcrust::net::minecraft::client::options::chat_links(&__o), mcrust::net::minecraft::client::options::chat_links_prompt(&__o)) };
-                match default_handle_click_event(__click, __links, __prompt) {
-                    // `clickUrlAction`: the confirm screen over this one, or the link opened outright
-                    ClickEventOutcome::OpenUrl { uri, prompt } => {
-                        if prompt {
-                            compat::confirm_link_now(&uri);
-                        } else {
-                            mcrust::net::minecraft::util::util::open_uri(&uri);
-                        }
-                    }
-                    // rust: port gap - the other outcomes (`CopyToClipboard`, `OpenFile`, `SuggestCommand`) are run by the
-                    // game's screen pass, which a mod screen's override cannot hand them to (GAPS_N #4)
-                    _ => {}
-                }
+                // the outcome is applied by the game with its screens' own body (`OpenUrl` + `ConfirmLinkScreen`,
+                // `CopyToClipboard`, `OpenFile`, `SendUnattendedCommand`, `ShowDialog`, `CustomClickAction`, ..)
+                mcrust::mcrust::modding::game::handle_click_event_outcome(default_handle_click_event(__click, __links, __prompt));
                 return true;
             }
         }

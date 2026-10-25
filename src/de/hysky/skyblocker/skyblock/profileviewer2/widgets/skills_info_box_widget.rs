@@ -102,18 +102,14 @@ impl SkillsInfoBoxWidget {
         let mut tooltip: Option<Vec<MutableComponent>> = None;
         let __pose_1 = gui_graphics_extractor::push_pose();
         gui_graphics_extractor::pose_translate((x) as f32, (y.wrapping_sub(1)) as f32);
-        // TODO(fabric2seer): Matrix3x2fStack.scale
-        //   java: graphics.pose().scale(0.75f);
+        // java: graphics.pose().scale(0.75f);
+        gui_graphics_extractor::pose_scale(0.75f32, 0.75f32);
         graphics.fake_item(&FlexibleItemStack::get_stack_or_throw(ico::PAINTING.get_mut()), 0, 0);
         gui_graphics_extractor::pop_pose(__pose_1);
         let mut profile_text: MutableComponent = (component::literal(&compat::read(&profile, |__t| __t.cute_name.clone()))).with_style_format(ChatFormatting::Underline);
         gui_graphics_extractor::draw_formatted_text(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), (x.wrapping_add(12)).wrapping_add(2), y, &mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(profile_text.clone()), mcrust::net::minecraft::util::common_colors::WHITE);
         y = y.wrapping_add(1);
         let mut first_join: mcrust::java::time::instant::Instant = mcrust::java::time::instant::Instant::of_epoch_milli(member.lock().borrow().profile.first_join);
-        // TODO(fabric2seer): `.atZone(..)` on a value of unknown type
-        //   java: int firstJoinYear = Instant.ofEpochMilli(member.profile.firstJoin)
-        //   java: 				.atZone(ZoneId.systemDefault())
-        //   java: 				.getYear();
         let mut first_join_year: i32 = mcrust::java::time::zoned_date_time::ZonedDateTime::of_instant(mcrust::java::time::instant::Instant::of_epoch_milli(member.lock().borrow().profile.first_join), mcrust::java::time::zone_id::ZoneId::system_default()).get_year();
         let mut joined_text: MutableComponent = component::empty().append(component::literal("Joined: ").with_style_format(ChatFormatting::Green)).append_str(&first_join_year.to_string());
         y = y.wrapping_add(text_y_step);
@@ -124,11 +120,6 @@ impl SkillsInfoBoxWidget {
         }
         y = y.wrapping_add(text_y_step);
         let mut emblem: Option<Emblem> = ConstantData::get_emblem_constants().from_id(&member.lock().borrow().levelling.selected_emblem);
-        // TODO(fabric2seer): `Emblem.display` is not a static method of Emblem
-        //   java: Component emblemText = Component.empty()
-        //   java: 				.append(Component.literal("Emblem: ").withStyle(ChatFormatting.GREEN))
-        //   java: 				.append(emblem.map(EmblemConstants.Emblem::display)
-        //   java: 						.orElseGet(() -> Component.literal("None")));
         let mut emblem_text: MutableComponent = component::empty()
             .append(component::literal("Emblem: ").with_style_format(ChatFormatting::Green))
             .append(emblem.as_ref().map(|e| e.display()).unwrap_or_else(|| component::literal("None")));
@@ -156,9 +147,8 @@ impl SkillsInfoBoxWidget {
             tooltip = Some(bank_tooltip.clone());
         }
         if let Some(tooltip) = &tooltip {
-            // TODO(fabric2seer): the port's `set_component_tooltip_for_next_frame` ports this Java method with other parameters (tooltip_for_next_frame, lines for Java's lines, xo, yo)
-            // TODO(fabric2seer): `set_component_tooltip_for_next_frame` takes 2 argument(s) in the port (`tooltip_for_next_frame: &mut Option<DeferredTooltip>, lines: Vec<crate::net::minecraft::network::chat::formatted_text::FormattedText>`), Java passes 4
-            // rust: gui_graphics_extractor::set_component_tooltip_for_next_frame(&mut font, tooltip.clone(), mouse_x, mouse_y);
+            // java: graphics.setComponentTooltipForNextFrame(font, tooltip, mouseX, mouseY);
+            compat::batch_s_set_tooltip_for_next_frame(tooltip.iter().cloned().map(mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from).collect());
         }
     }
 

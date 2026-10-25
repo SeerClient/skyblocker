@@ -36,14 +36,14 @@ impl ClientBlockPosArgumentType {
     }
 
     /// java: public static BlockPos getLoadedBlockPos(CommandContext<FabricClientCommandSource> context, String name) throws CommandSyntaxException
-    pub fn get_loaded_block_pos(context: &CommandContext<crate::unresolved::FabricClientCommandSource>, name: &str) -> BlockPos {
-        // TODO(fabric2seer): `.getLevel(..)` on a FabricClientCommandSource
-        //   java: return getLoadedBlockPos(context, context.getSource().getLevel(), name);
-        todo!("fabric2seer: the value of this function is in a TODO above")
+    pub fn get_loaded_block_pos(context: &CommandContext<mcrust::mcrust::modding::events::client_command_registration_callback::FabricClientCommandSource>, name: &str) -> BlockPos {
+        // java: return getLoadedBlockPos(context, context.getSource().getLevel(), name); - Fabric's client source: `client.level`
+        let level = mcrust::mcrust::modding::game::level().unwrap_or_else(|| panic!("NullPointerException: no level"));
+        return ClientBlockPosArgumentType::get_loaded_block_pos_3(context, &level, name);
     }
 
     /// java: @SuppressWarnings("deprecation") public static BlockPos getLoadedBlockPos(CommandContext<FabricClientCommandSource> context, ClientLevel world, String name) throws CommandSyntaxException
-    pub fn get_loaded_block_pos_3(context: &CommandContext<crate::unresolved::FabricClientCommandSource>, world: &ClientLevel, name: &str) -> BlockPos {
+    pub fn get_loaded_block_pos_3(context: &CommandContext<mcrust::mcrust::modding::events::client_command_registration_callback::FabricClientCommandSource>, world: &ClientLevel, name: &str) -> BlockPos {
         let mut block_pos: BlockPos = ClientBlockPosArgumentType::get_block_pos(context, name);
         if !(world.has_chunk_at(&block_pos)) {
             panic!("{:?}", mcrust::net::minecraft::commands::arguments::coordinates::block_pos_argument::error_not_loaded().create());
@@ -55,12 +55,12 @@ impl ClientBlockPosArgumentType {
     }
 
     /// java: public static BlockPos getBlockPos(CommandContext<FabricClientCommandSource> context, String name)
-    pub fn get_block_pos(context: &CommandContext<crate::unresolved::FabricClientCommandSource>, name: &str) -> BlockPos {
+    pub fn get_block_pos(context: &CommandContext<mcrust::mcrust::modding::events::client_command_registration_callback::FabricClientCommandSource>, name: &str) -> BlockPos {
         return ({ let __r = &context.get_argument::<compat::Shared<dyn ClientPosArgument>>(name).unwrap(); let __f = compat::dispatch(__r, |__t| __t.to_absolute_block_pos()); __f(__r, context.get_source()) });
     }
 
     /// java: public static BlockPos getValidBlockPos(CommandContext<FabricClientCommandSource> context, String name) throws CommandSyntaxException
-    pub fn get_valid_block_pos(context: &CommandContext<crate::unresolved::FabricClientCommandSource>, name: &str) -> BlockPos {
+    pub fn get_valid_block_pos(context: &CommandContext<mcrust::mcrust::modding::events::client_command_registration_callback::FabricClientCommandSource>, name: &str) -> BlockPos {
         let mut block_pos: BlockPos = ClientBlockPosArgumentType::get_block_pos(context, name);
         if !(level::is_in_spawnable_bounds(&block_pos)) {
             panic!("{:?}", mcrust::net::minecraft::commands::arguments::coordinates::block_pos_argument::error_out_of_bounds().create());
@@ -76,12 +76,13 @@ impl ClientBlockPosArgumentType {
 
     /// java: @Override public <S> CompletableFuture<Suggestions> listSuggestions(CommandContext<S> context, SuggestionsBuilder builder)
     pub fn list_suggestions<S: 'static>(&self, context: &CommandContext<S>, builder: &mut SuggestionsBuilder) -> mcrust::java::util::concurrent::completable_future::CompletableFuture<Suggestions> {
-        // TODO(fabric2seer): instanceof an interface (`SharedSuggestionProvider`): Rust cannot test for a trait at run time
-        //   java: if (!(context.getSource() instanceof SharedSuggestionProvider commandSource)) return Suggestions.empty();
-        let mut string: String = builder.get_remaining().to_string();
-        // TODO(fabric2seer): field `DEFAULT_LOCAL` of a value of unknown type
-        //   java: Collection<SharedSuggestionProvider.TextCoordinates> collection = !string.isEmpty() && string.charAt(0) == '^' ? Collections.singleton(SharedSuggestionProvider.TextCoordinates.DEFAULT_LOCAL) : commandSource.getRelevantCoordinates();
-        let mut collection: Vec<TextCoordinates> = todo!("fabric2seer: the initialiser of `collection` (TODO above)");
+        // java: if (!(context.getSource() instanceof SharedSuggestionProvider commandSource)) return Suggestions.empty();
+        // (Fabric's client source is a SharedSuggestionProvider; any other source answers no suggestions)
+        let _ = context;
+        let string: String = builder.get_remaining().to_string();
+        // java: Collection<TextCoordinates> collection = !string.isEmpty() && string.charAt(0) == '^' ? Collections.singleton(TextCoordinates.DEFAULT_LOCAL) : commandSource.getRelevantCoordinates();
+        // (`SharedSuggestionProvider.getRelevantCoordinates()`'s default: `Collections.singleton(TextCoordinates.DEFAULT_GLOBAL)`)
+        let collection: Vec<TextCoordinates> = if string.starts_with('^') { vec![TextCoordinates::default_local()] } else { vec![TextCoordinates::default_global()] };
         return shared_suggestion_provider::suggest_coordinates(&string, &collection, builder, &commands::create_validator(|__a0: &mut StringReader| { self.parse(__a0); Ok(()) }));
     }
 
@@ -90,4 +91,39 @@ impl ClientBlockPosArgumentType {
         return mcrust::net::minecraft::commands::arguments::coordinates::block_pos_argument::EXAMPLES.iter().map(|example| example.to_string()).collect();
     }
 
+}
+
+/// java: `implements ArgumentType<ClientPosArgument>` - the parsed value is the `ClientPosArgument` handle
+impl std::fmt::Debug for ClientBlockPosArgumentType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("ClientBlockPosArgumentType")
+    }
+}
+
+impl mcrust::com::mojang::brigadier::arguments::argument_type::ArgumentType for ClientBlockPosArgumentType {
+    fn parse(&self, reader: &mut StringReader) -> Result<Arc<dyn std::any::Any + Send + Sync>, mcrust::com::mojang::brigadier::exceptions::command_syntax_exception::CommandSyntaxException> {
+        // the Java parsers throw `CommandSyntaxException`; the port's parse helpers panic with it
+        let start = reader.get_cursor();
+        match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| ClientBlockPosArgumentType::parse(self, reader))) {
+            Ok(argument) => Ok(Arc::new(argument)),
+            Err(payload) => {
+                reader.set_cursor(start);
+                match payload.downcast::<mcrust::com::mojang::brigadier::exceptions::command_syntax_exception::CommandSyntaxException>() {
+                    Ok(exception) => Err(*exception),
+                    Err(payload) => std::panic::resume_unwind(payload),
+                }
+            }
+        }
+    }
+
+    fn list_suggestions(&self, context: &dyn std::any::Any, builder: &mut SuggestionsBuilder) -> mcrust::java::util::concurrent::completable_future::CompletableFuture<Suggestions> {
+        let _ = context;
+        let string: String = builder.get_remaining().to_string();
+        let collection: Vec<TextCoordinates> = if string.starts_with('^') { vec![TextCoordinates::default_local()] } else { vec![TextCoordinates::default_global()] };
+        shared_suggestion_provider::suggest_coordinates(&string, &collection, builder, &commands::create_validator(|__a0: &mut StringReader| { ClientBlockPosArgumentType::parse(self, __a0); Ok(()) }))
+    }
+
+    fn get_examples(&self) -> Vec<String> {
+        ClientBlockPosArgumentType::get_examples(self)
+    }
 }

@@ -51,10 +51,18 @@ impl DungeonMap {
         }));
         client_command_registration_callback::EVENT.register(Arc::new(
             |dispatcher: &mut client_command_registration_callback::ClientCommandDispatcher| {
-                dispatcher.register("skyblocker", |ctx| {
-                    #[allow(unreachable_code)]
-                    Ok(())
-                });
+                // java: dispatcher.register(ClientCommands.literal("skyblocker").then(ClientCommands.literal("hud")
+                //   .then(ClientCommands.literal("dungeon").executes(Scheduler.queueOpenScreenCommand(DungeonMapConfigScreen::new)))))
+                use mcrust::com::mojang::brigadier::builder::argument_builder::ArgumentBuilder as _;
+                let mut leaf = client_command_registration_callback::literal("dungeon");
+                leaf.executes(crate::de::hysky::skyblocker::utils::scheduler::scheduler::SchedulerBase::queue_open_screen_command(Arc::new(|| {
+                    Box::new(compat::ScreenAdapter::new(crate::de::hysky::skyblocker::skyblock::dungeon::dungeon_map_config_screen::DungeonMapConfigScreen::new())) as Box<dyn mcrust::mcrust::modding::screens::ModScreen>
+                })));
+                let mut hud = client_command_registration_callback::literal("hud");
+                hud.then(&leaf);
+                let mut root = client_command_registration_callback::literal("skyblocker");
+                root.then(&hud);
+                dispatcher.dispatcher().register(&root);
             },
         ));
         client_play_connection_events::JOIN.register(Arc::new(|listener: &mut ClientPacketListener| {

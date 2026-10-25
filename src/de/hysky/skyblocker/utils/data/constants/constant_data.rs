@@ -32,11 +32,13 @@ impl ConstantData {
 
     /// java: @Init public static void init()
     pub fn init() {
-        // TODO(fabric2seer): no SeerClient event yet: hook RETURN of Minecraft's constructor (`net.minecraft.client.Minecraft#<init>`: exists)
-        //   java: ClientLifecycleEvents.CLIENT_STARTED.register(minecraft -> {
-        //   java: 			loadDataAsync(minecraft, "emblems.json", EmblemConstants.CODEC, data -> emblemConstants = data);
-        //   java: 			loadDataAsync(minecraft, "minions.json", MinionConstants.CODEC, data -> minionConstants = data);
-        //   java: 		});
+        // java: ClientLifecycleEvents.CLIENT_STARTED.register(minecraft -> {
+        //           loadDataAsync(minecraft, "emblems.json", EmblemConstants.CODEC, data -> emblemConstants = data);
+        //           loadDataAsync(minecraft, "minions.json", MinionConstants.CODEC, data -> minionConstants = data); });
+        mcrust::mcrust::modding::events::client_lifecycle_events::register_client_started(|minecraft| {
+            ConstantData::load_data_async(minecraft, "emblems.json", emblem_constants::CODEC.get(), Arc::new(|data: EmblemConstants| { *EMBLEM_CONSTANTS.get_mut() = data; }));
+            ConstantData::load_data_async(minecraft, "minions.json", minion_constants::CODEC.get(), Arc::new(|data: MinionConstants| { compat::set_state(&MINION_CONSTANTS, data); }));
+        });
     }
 
     /// java: public static EmblemConstants getEmblemConstants()
@@ -53,7 +55,7 @@ impl ConstantData {
     pub fn load_data_async<T: Clone + 'static>(minecraft: &mut mcrust::net::minecraft::client::minecraft::Minecraft, file_name: &str, codec: &CodecRef<T>, setter: Arc<dyn Fn(T)>) {
         // java: CompletableFuture.supplyAsync(() -> loadData(minecraft, fileName, codec), VIRTUAL_THREAD_EXECUTOR)
         //           .thenAcceptAsync(data -> setData(data, setter), minecraft);
-        // rust: the port's `Codec` objects are not `Send` (`Arc<dyn Codec<T>>`), so `loadData` is split where the
+        // Verified gap: the port's `Codec` objects are not `Send` (`Arc<dyn Codec<T>>`), so `loadData` is split where the
         // thread changes: the worker reads the resource (`openAsReader`), and the parse runs with `setData` on the
         // render thread (`minecraft` as the executor). `codec` and `setter` stay on the render thread.
         let file_name: String = file_name.to_string();

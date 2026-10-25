@@ -54,9 +54,7 @@ fn migrate_to_loadout_keybinds(nbt: &mut CompoundTag) {
 
 /// @ModifyReturnValue updateSkyblockerKeybinds
 ///   java: @ModifyReturnValue(method = "dataFix", at = @At("TAIL"))
-/// target: net.minecraft.client.Options#dataFix  [no Rust counterpart]
-/// note: no Rust counterpart: hook_coverage.py: NO RUST - the port has no Rust body for this Java method, so a hook there has nothing to land on - the registration is left commented out (it would never fire, and `seer check` refuses an unhooked target)
-/// rust: port gap - `Options.dataFix` has no Rust body (GAPS_batchD); the handler is not registered.
+/// target: net.minecraft.client.Options#dataFix  [exists: options.rs `data_fix`, called by `OptionsData::parse` (`load:1659`)]
 fn update_skyblocker_keybinds(ci: &mut CallbackInfo<'_>) {
     let Some(mut nbt) = ci.take_return_value::<CompoundTag>() else { return; };
     skyblocker_update("wikiLookup.fandom", &mut nbt);
@@ -71,6 +69,5 @@ fn update_skyblocker_keybinds(ci: &mut CallbackInfo<'_>) {
 
 /// Mixins apply before the game runs: the `preLaunch` entrypoint calls this.
 pub fn register() {
-    // TODO(fabric2seer): not registered - no Rust counterpart: hook_coverage.py: NO RUST - the port has no Rust body for this Java method, so a hook there has nothing to land on - the registration is left commented out (it would never fire, and `seer check` refuses an unhooked target)
-    // report(hook::register_injector(`net.minecraft.client.Options#dataFix`, InjectOptions::at(At::Return).kind(InjectorKind::ModifyReturnValue).priority(1000), Arc::new(update_skyblocker_keybinds)));
+    report(hook::register_injector("net.minecraft.client.Options#dataFix", InjectOptions::at(At::Return).kind(InjectorKind::ModifyReturnValue).priority(1000), Arc::new(update_skyblocker_keybinds)));
 }

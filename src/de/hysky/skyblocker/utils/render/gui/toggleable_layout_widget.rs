@@ -91,9 +91,7 @@ impl ToggleableLayoutWidget {
                 LayoutElement::Grid(layout) => layout.remove_children(),
                 LayoutElement::Frame(layout) => layout.remove_children(),
                 LayoutElement::EqualSpacing(layout) => layout.remove_children(),
-                // rust: port gap - `ScrollableLayout.removeChildren:82-85` has no port on `ScrollableLayoutElement`
-                // (GAPS_batchA.md)
-                LayoutElement::Scrollable(_) => {}
+                LayoutElement::Scrollable(layout) => layout.remove_children(),
                 LayoutElement::Widget { .. } | LayoutElement::Spacer { .. } => {}
             }
         }

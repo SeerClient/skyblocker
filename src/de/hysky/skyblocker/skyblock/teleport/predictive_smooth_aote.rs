@@ -84,12 +84,18 @@ impl PredictiveSmoothAOTE {
 
     /// java: @Init public static void init()
     pub fn init() {
-        // TODO(fabric2seer): UseItemCallback.EVENT.register: no SeerClient equivalent yet
-        //   java: UseItemCallback.EVENT.register(SMOOTH_AOTE_BEFORE_PHASE, PredictiveSmoothAOTE::onItemInteract);
-        // TODO(fabric2seer): static field UseItemCallback.EVENT
-        //   java: UseItemCallback.EVENT.addPhaseOrdering(SMOOTH_AOTE_BEFORE_PHASE, Event.DEFAULT_PHASE);
-        // TODO(fabric2seer): UseBlockCallback.EVENT.register: no SeerClient equivalent yet
-        //   java: UseBlockCallback.EVENT.register(PredictiveSmoothAOTE::onBlockInteract);
+        // java: UseItemCallback.EVENT.register(SMOOTH_AOTE_BEFORE_PHASE, PredictiveSmoothAOTE::onItemInteract);
+        // java: UseItemCallback.EVENT.addPhaseOrdering(SMOOTH_AOTE_BEFORE_PHASE, Event.DEFAULT_PHASE);
+        // (the game's `UseItemCallback.EVENT` - invoked by `MultiPlayerGameMode.useItem`'s prediction lambda, where
+        // Fabric's mixin injects; the listener always answers PASS, so its phase only orders it ahead of listeners that
+        // could stop the invoker, and Skyblocker's other use-item listeners hook `useItem`'s HEAD instead)
+        mcrust::mcrust::modding::events::use_item_callback::register(|player: &dyn Player, world: &Level, hand: InteractionHand| {
+            PredictiveSmoothAOTE::on_item_interact(player, world, &hand).unwrap_or(InteractionResult::Pass)
+        });
+        // java: UseBlockCallback.EVENT.register(PredictiveSmoothAOTE::onBlockInteract);
+        mcrust::mcrust::modding::events::use_block_callback::register(|player: &dyn Player, world: &Level, hand: InteractionHand, hit: &BlockHitResult| {
+            PredictiveSmoothAOTE::on_block_interact(player, world, &hand, hit)
+        });
     }
 
     /// java: public static void playerTeleported()
@@ -114,10 +120,10 @@ impl PredictiveSmoothAOTE {
 
     /// java: private static InteractionResult onItemInteract(Player playerEntity, Level world, InteractionHand hand)
     pub fn on_item_interact(player_entity: &dyn Player, world: &Level, hand: &InteractionHand) -> Option<InteractionResult> {
-        if mcrust::mcrust::modding::game::with_player(|_| ()).is_none() {
+        if !mcrust::mcrust::modding::game::has_player() {
             return None;
         }
-        PredictiveSmoothAOTE::calculate_teleport_use(hand);
+        PredictiveSmoothAOTE::calculate_teleport_use(player_entity, hand);
         return Some(InteractionResult::Pass);
     }
 
@@ -125,7 +131,7 @@ impl PredictiveSmoothAOTE {
     pub fn on_block_interact(player_entity: &dyn Player, world: &Level, hand: &InteractionHand, block_hit_result: &BlockHitResult) -> InteractionResult {
         let item_stack = player_entity.get_item_in_hand(*hand);
         if PredictiveSmoothAOTE::is_shovel(item_stack) && PredictiveSmoothAOTE::can_shovel_act_on_block(&world.get_block_state_typed(&block_hit_result.get_block_pos()).get_block()) {
-            PredictiveSmoothAOTE::calculate_teleport_use(hand);
+            PredictiveSmoothAOTE::calculate_teleport_use(player_entity, hand);
         }
         return InteractionResult::Pass;
     }
@@ -141,8 +147,11 @@ impl PredictiveSmoothAOTE {
     }
 
     /// java: private static void calculateTeleportUse(InteractionHand hand)
-    pub fn calculate_teleport_use(hand: &InteractionHand) {
-        if mcrust::mcrust::modding::game::with_player(|_| ()).is_none() || mcrust::mcrust::modding::game::level().is_none() {
+    ///
+    /// `player` is `CLIENT.player`: the use callbacks hand him in, and the game holds his lock while it runs them, so
+    /// he is read through the parameter rather than `game::with_player` (which answers None inside that hold).
+    pub fn calculate_teleport_use(player: &dyn Player, hand: &InteractionHand) {
+        if !mcrust::mcrust::modding::game::has_player() || mcrust::mcrust::modding::game::level().is_none() {
             return;
         }
         if !(SkyblockerConfigManager::get().ui_and_visuals.smooth_aote.predictive) {
@@ -157,7 +166,8 @@ impl PredictiveSmoothAOTE {
         if !(PredictiveSmoothAOTE::is_allowed_location()) {
             return;
         }
-        let mut held_item: mcrust::net::minecraft::world::item::item_stack::ItemStack = mcrust::mcrust::modding::game::with_player(|player| player.get_main_hand_item().clone()).unwrap();
+        // java: CLIENT.player.getMainHandItem()
+        let mut held_item: mcrust::net::minecraft::world::item::item_stack::ItemStack = player.get_item_in_hand(InteractionHand::MainHand).clone();
         let mut item_id: String = held_item.get_skyblock_id();
         let mut custom_data: Tag = ItemUtils::get_custom_data(&held_item);
         let mut distance: i32 = PredictiveSmoothAOTE::get_item_distance(&item_id, &custom_data);
@@ -173,7 +183,7 @@ impl PredictiveSmoothAOTE {
             }
         }
         if compat::get_state(&TELEPORTS_AHEAD) == 0 || START_POS.get_mut().is_none() || TELEPORT_VECTOR.get_mut().is_none() {
-            *START_POS.get_mut() = mcrust::mcrust::modding::game::with_player(|player| player.position().add((0) as f64, (Utils::get_eye_height(player)) as f64, (0) as f64));
+            *START_POS.get_mut() = Some(Entity::base(player).position().add((0) as f64, (Utils::get_eye_height(player)) as f64, (0) as f64));
             *CAMERA_START_POS.get_mut() = Some(RenderHelper::get_camera().position());
             compat::set_state(&LAST_TELEPORT_TIME, compat::millis());
             compat::set_state(&CURRENT_TELEPORT_PING, compat::get_state(&LAST_PING));
@@ -183,13 +193,13 @@ impl PredictiveSmoothAOTE {
             compat::set_state(&CURRENT_TELEPORT_PING, compat::get_state(&LAST_PING));
         }
         compat::set_state(&START_TIME, compat::millis());
-        let mut pitch: f32 = mcrust::mcrust::modding::game::with_player(|player| player.base.base.base.base.get_x_rot()).unwrap();
-        let mut yaw: f32 = mcrust::mcrust::modding::game::with_player(|player| player.base.base.base.base.get_y_rot()).unwrap();
-        let mut look: Vec3 = mcrust::mcrust::modding::game::with_player(|player| player.base.base.base.base.calculate_view_vector(pitch, yaw)).unwrap();
+        let mut pitch: f32 = Entity::base(player).get_x_rot();
+        let mut yaw: f32 = Entity::base(player).get_y_rot();
+        let mut look: Vec3 = mcrust::net::minecraft::world::entity::entity::EntityBase::calculate_view_vector(pitch, yaw);
         if START_POS.get_mut().is_none() {
             return;
         }
-        if PredictiveSmoothAOTE::is_targeting_npc(((4) as f64) as f64, START_POS.get_mut().as_ref(), &look) {
+        if PredictiveSmoothAOTE::is_targeting_npc(player, ((4) as f64) as f64, START_POS.get_mut().as_ref(), &look) {
             *START_POS.get_mut() = None;
             *TELEPORT_VECTOR.get_mut() = None;
             return;
@@ -201,7 +211,7 @@ impl PredictiveSmoothAOTE {
             return;
         }
         let mut predicted_end: Vec3 = START_POS.get_mut().as_ref().unwrap().add_vec(TELEPORT_VECTOR.get_mut().as_ref().unwrap());
-        let mut offset_vec: Vec3 = Vec3::new((predicted_end.x - PredictiveSmoothAOTE::round_to_center(predicted_end.x)), (predicted_end.y - ((predicted_end.y.ceil() + (mcrust::mcrust::modding::game::with_player(|player| Utils::get_eye_height(player)).unwrap() as f64)) - (1 as f64))), (predicted_end.z - PredictiveSmoothAOTE::round_to_center(predicted_end.z)));
+        let mut offset_vec: Vec3 = Vec3::new((predicted_end.x - PredictiveSmoothAOTE::round_to_center(predicted_end.x)), (predicted_end.y - ((predicted_end.y.ceil() + (Utils::get_eye_height(player) as f64)) - (1 as f64))), (predicted_end.z - PredictiveSmoothAOTE::round_to_center(predicted_end.z)));
         *TELEPORT_VECTOR.get_mut() = Some(TELEPORT_VECTOR.get_mut().as_ref().unwrap().subtract_vec(&offset_vec));
         compat::set_state(&TELEPORTS_AHEAD, (compat::get_state(&TELEPORTS_AHEAD)).wrapping_add(1));
     }
@@ -268,9 +278,8 @@ impl PredictiveSmoothAOTE {
     }
 
     /// java: private static Boolean isTargetingNPC(Player player, double maxDistance, Vec3 startPos, Vec3 look)
-    /// (`player` is always the local player: it is reached through `game::with_player` for the parts that read it, so its
-    /// lock is not held while the entity pick locks the candidates)
-    pub fn is_targeting_npc(mut max_distance: f64, start_pos: Option<&Vec3>, look: &Vec3) -> bool {
+    /// (`player` is the local player, handed in by `calculateTeleportUse`; the entity pick locks only the candidates)
+    pub fn is_targeting_npc(player: &dyn Player, mut max_distance: f64, start_pos: Option<&Vec3>, look: &Vec3) -> bool {
         let Some(start_pos) = start_pos else {
             return false;
         };
@@ -280,20 +289,24 @@ impl PredictiveSmoothAOTE {
         let mut end_pos: Vec3 = start_pos.add_vec(&look.scale(max_distance));
         // java: ClipContext context = new ClipContext(startPos, endPos, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, player);
         //       double blockHitDistance = world.clip(context).getLocation().distanceTo(startPos);
-        let Some((block_hit_distance, player_id, search_box)) = mcrust::mcrust::modding::game::with_player(|player| {
-            let collision_context = mcrust::net::minecraft::world::phys::shapes::collision_context::of(&*player, level.as_block_getter());
+        let (block_hit_distance, player_id, search_box) = {
+            let collision_context = mcrust::net::minecraft::world::phys::shapes::collision_context::of(player, level.as_block_getter());
             let context = ClipContext::new(start_pos.clone(), end_pos.clone(), mcrust::net::minecraft::world::level::clip_context::Block::Collider, mcrust::net::minecraft::world::level::clip_context::Fluid::None, &*collision_context);
             let block_hit_distance: f64 = level.clip(&context).get_location().distance_to(start_pos);
             // java: AABB searchBox = player.getBoundingBox().expandTowards(look.scale(maxDistance)).inflate(1);
-            let search_box: AABB = player.base.base.base.base.get_bounding_box().expand_towards_vec(&look.scale(max_distance)).inflate((1) as f64);
-            (block_hit_distance, player.base.base.base.base.get_id(), search_box)
-        }) else {
-            return false;
+            let search_box: AABB = Entity::base(player).get_bounding_box().expand_towards_vec(&look.scale(max_distance)).inflate((1) as f64);
+            (block_hit_distance, Entity::base(player).get_id(), search_box)
         };
         // java: EntityHitResult entityHit = ProjectileUtil.getEntityHitResult(player, startPos, endPos, searchBox,
         //       entity -> !entity.isSpectator() && entity != player, Mth.square(blockHitDistance));
         // (the root-vehicle walk of `getEntityHitResult` locks one entity per hop, as LocalPlayer.pick does)
+        // (the player himself is answered from the parameter: the game holds his lock here, and a second lock of
+        // a `std::sync::Mutex` on this thread would deadlock)
+        let player_vehicle: Option<i32> = Entity::base(player).get_vehicle();
         let vehicle_of = |id: i32| -> Option<i32> {
+            if id == player_id {
+                return player_vehicle;
+            }
             level.get_entity(id).and_then(|shared| mcrust::mcrust::modding::game::lock_entity(&*shared, "skyblocker PredictiveSmoothAOTE.isTargetingNPC").base().get_vehicle())
         };
         let entity_hit: Option<EntityHitResult> = projectile_util::get_entity_hit_result(
@@ -443,7 +456,7 @@ impl PredictiveSmoothAOTE {
 
     /// java: @Nullable public static Vec3 getInterpolatedPos()
     pub fn get_interpolated_pos() -> Option<Vec3> {
-        if mcrust::mcrust::modding::game::with_player(|_| ()).is_none() || TELEPORT_VECTOR.get_mut().is_none() || START_POS.get_mut().is_none() || compat::get_state(&TELEPORT_DISABLED) {
+        if !mcrust::mcrust::modding::game::has_player() || TELEPORT_VECTOR.get_mut().is_none() || START_POS.get_mut().is_none() || compat::get_state(&TELEPORT_DISABLED) {
             return None;
         }
         let mut gap: i64 = (compat::millis()).wrapping_sub(compat::get_state(&START_TIME));
@@ -466,10 +479,14 @@ impl PredictiveSmoothAOTE {
 
     /// java: @Nullable public static Vec3 getInterpolatedPlayerPos()
     pub fn get_interpolated_player_pos() -> Option<Vec3> {
-        if START_POS.get_mut().is_none() || mcrust::mcrust::modding::game::with_player(|_| ()).is_none() || CAMERA_START_POS.get_mut().is_none() {
+        if START_POS.get_mut().is_none() || !mcrust::mcrust::modding::game::has_player() || CAMERA_START_POS.get_mut().is_none() {
             return None;
         }
-        let mut diff: Vec3 = (START_POS.get_mut().as_ref().unwrap().subtract((0) as f64, (mcrust::mcrust::modding::game::with_player(|player| Utils::get_eye_height(player)).unwrap()) as f64, (0) as f64)).subtract_vec(CAMERA_START_POS.get_mut().as_ref().unwrap());
+        // (None while the game holds the player - e.g. during his own render-state extraction - instead of a panic)
+        let Some(eye_height) = mcrust::mcrust::modding::game::with_player(|player| Utils::get_eye_height(player)) else {
+            return None;
+        };
+        let mut diff: Vec3 = (START_POS.get_mut().as_ref().unwrap().subtract((0) as f64, (eye_height) as f64, (0) as f64)).subtract_vec(CAMERA_START_POS.get_mut().as_ref().unwrap());
         let Some(mut camara) = PredictiveSmoothAOTE::get_interpolated_pos() else {
             return None;
         };

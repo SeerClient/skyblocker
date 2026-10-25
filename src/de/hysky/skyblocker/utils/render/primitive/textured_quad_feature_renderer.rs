@@ -2,6 +2,7 @@
 
 #[allow(unused_imports)]
 use crate::prelude::*;
+use crate::de::hysky::skyblocker::utils::render::primitive::primitive_feature_renderer;
 use crate::de::hysky::skyblocker::utils::render::primitive::primitive_feature_renderer::PrimitiveFeatureRenderer;
 use crate::de::hysky::skyblocker::utils::render::primitive::primitive_feature_renderer::PrimitiveFeatureRendererBase;
 use crate::de::hysky::skyblocker::utils::render::skyblocker_render_pipelines;
@@ -64,18 +65,18 @@ impl PrimitiveFeatureRenderer<crate::de::hysky::skyblocker::utils::render::primi
     }
 
     /// java: @Override protected void buildGroup(FeatureFrameContext context, List<Submit> submits)
-    fn build_group(&self, context: &FeatureFrameContext, submits: &Vec<Submit>) {
-        for submit in submits.iter() {
-            for state in submit.states() {
-                // TODO(fabric2seer): `with_sampler_cache` takes 1 argument(s) in the port (`f: impl FnOnce(&SamplerCache) -> R`), Java passes 0
-                // rust: let mut texture_setup: TextureSetup = TextureSetup::single_texture(context.texture_manager().get_texture_or_request(&state.texture()).unwrap().get_texture_view().clone(), render_system::with_sampler_cache().get_clamp_to_edge(FilterMode::Nearest));
-                let mut texture_setup: TextureSetup = todo!("fabric2seer: the initialiser of `textureSetup` (TODO above)");
-                let mut builder: Box<dyn VertexConsumer> = self.get_vertex_builder_render_pipeline_texture_setup(&(if submit.through_walls() { skyblocker_render_pipelines::TEXTURE_THROUGH_WALLS.get_mut().clone() } else { skyblocker_render_pipelines::TEXTURE.get_mut().clone() }), &texture_setup);
-                let mut position_matrix: Matrix4f = (Matrix4f::new().translate((((state.pos().x() - submit.camera().pos.x())) as f32), (((state.pos().y() - submit.camera().pos.y())) as f32), (((state.pos().z() - submit.camera().pos.z())) as f32))).rotate_quat(&submit.camera().orientation);
-                { builder.add_vertex_matrix(&position_matrix, ((state.render_offset().x()) as f32), ((state.render_offset().y()) as f32), ((state.render_offset().z()) as f32)); builder.set_uv((1) as f32, ((1 as f32) - state.texture_height())); builder.set_color_f32(state.shader_colour()[(0) as usize], state.shader_colour()[(1) as usize], state.shader_colour()[(2) as usize], state.alpha()); &mut builder };
-                { builder.add_vertex_matrix(&position_matrix, ((state.render_offset().x()) as f32), (((state.render_offset().y()) as f32) + state.height()), ((state.render_offset().z()) as f32)); builder.set_uv((1) as f32, (1) as f32); builder.set_color_f32(state.shader_colour()[(0) as usize], state.shader_colour()[(1) as usize], state.shader_colour()[(2) as usize], state.alpha()); &mut builder };
-                { builder.add_vertex_matrix(&position_matrix, (((state.render_offset().x()) as f32) + state.width()), (((state.render_offset().y()) as f32) + state.height()), ((state.render_offset().z()) as f32)); builder.set_uv(((1 as f32) - state.texture_width()), (1) as f32); builder.set_color_f32(state.shader_colour()[(0) as usize], state.shader_colour()[(1) as usize], state.shader_colour()[(2) as usize], state.alpha()); &mut builder };
-                { builder.add_vertex_matrix(&position_matrix, (((state.render_offset().x()) as f32) + state.width()), ((state.render_offset().y()) as f32), ((state.render_offset().z()) as f32)); builder.set_uv(((1 as f32) - state.texture_width()), ((1 as f32) - state.texture_height())); builder.set_color_f32(state.shader_colour()[(0) as usize], state.shader_colour()[(1) as usize], state.shader_colour()[(2) as usize], state.alpha()); &mut builder };
+    fn build_group(&mut self, context: &mut FeatureFrameContext<'_>, submits: &[std::sync::Arc<dyn SubmitNode>]) {
+        for submit in primitive_feature_renderer::submits::<Submit>(submits) {
+            for state in submit.states.iter() {
+                // java: TextureSetup textureSetup = TextureSetup.singleTexture(context.textureManager().getTexture(state.texture()).getTextureView(), RenderSystem.getSamplerCache().getClampToEdge(FilterMode.NEAREST));
+                let texture_view = context.main.texture_manager.get_texture(context.shared.resource_manager, &state.texture()).get_texture_view().clone();
+                let texture_setup: TextureSetup = TextureSetup::single_texture(texture_view, render_system::with_sampler_cache(|cache| cache.get_clamp_to_edge(FilterMode::Nearest)));
+                let builder = self.get_vertex_builder_render_pipeline_texture_setup(context, &(if submit.through_walls() { skyblocker_render_pipelines::TEXTURE_THROUGH_WALLS.get_mut().clone() } else { skyblocker_render_pipelines::TEXTURE.get_mut().clone() }), &texture_setup);
+                let mut position_matrix: Matrix4f = (Matrix4f::new().translate((((state.pos().x() - submit.camera.pos.x())) as f32), (((state.pos().y() - submit.camera.pos.y())) as f32), (((state.pos().z() - submit.camera.pos.z())) as f32))).rotate_quat(&submit.camera.orientation);
+                { builder.add_vertex_matrix(&position_matrix, ((state.render_offset().x()) as f32), ((state.render_offset().y()) as f32), ((state.render_offset().z()) as f32)); builder.set_uv((1) as f32, ((1 as f32) - state.texture_height())); builder.set_color_f32(state.shader_colour()[(0) as usize], state.shader_colour()[(1) as usize], state.shader_colour()[(2) as usize], state.alpha()); };
+                { builder.add_vertex_matrix(&position_matrix, ((state.render_offset().x()) as f32), (((state.render_offset().y()) as f32) + state.height()), ((state.render_offset().z()) as f32)); builder.set_uv((1) as f32, (1) as f32); builder.set_color_f32(state.shader_colour()[(0) as usize], state.shader_colour()[(1) as usize], state.shader_colour()[(2) as usize], state.alpha()); };
+                { builder.add_vertex_matrix(&position_matrix, (((state.render_offset().x()) as f32) + state.width()), (((state.render_offset().y()) as f32) + state.height()), ((state.render_offset().z()) as f32)); builder.set_uv(((1 as f32) - state.texture_width()), (1) as f32); builder.set_color_f32(state.shader_colour()[(0) as usize], state.shader_colour()[(1) as usize], state.shader_colour()[(2) as usize], state.alpha()); };
+                { builder.add_vertex_matrix(&position_matrix, (((state.render_offset().x()) as f32) + state.width()), ((state.render_offset().y()) as f32), ((state.render_offset().z()) as f32)); builder.set_uv(((1 as f32) - state.texture_width()), ((1 as f32) - state.texture_height())); builder.set_color_f32(state.shader_colour()[(0) as usize], state.shader_colour()[(1) as usize], state.shader_colour()[(2) as usize], state.alpha()); };
             }
         }
     }
@@ -119,4 +120,15 @@ impl Submit {
         return TYPE.get_mut().clone();
     }
 
+}
+
+/// java: `implements SubmitNode` - the record's `featureType()`; `as_any` is the downcast `FeatureRenderer` reads it back through
+impl SubmitNode for Submit {
+    fn feature_type(&self) -> FeatureRendererType {
+        *TYPE.get()
+    }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
 }

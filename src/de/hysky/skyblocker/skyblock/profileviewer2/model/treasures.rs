@@ -36,12 +36,11 @@ impl Treasures {
 
     /// java: public int runsWithUnclaimedChests()
     pub fn runs_with_unclaimed_chests(&self) -> i32 {
-        // TODO(fabric2seer): not a lambda
-        //   java: return (int) this.chestsByRun().entrySet().stream()
-        //   java: 				// Check paid for dungeons and isOpened for kuudra
-        //   java: 				.filter(Predicate.not(entry -> entry.getValue().stream().anyMatch(chest -> chest.paid || chest.isOpened)))
-        //   java: 				.count();
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        // java: return (int) this.chestsByRun().entrySet().stream()
+        //           // Check paid for dungeons and isOpened for kuudra
+        //           .filter(Predicate.not(entry -> entry.getValue().stream().anyMatch(chest -> chest.paid || chest.isOpened)))
+        //           .count();
+        return self.chests_by_run().values().filter(|chests| !chests.iter().any(|chest| chest.paid || chest.is_opened)).count() as i32;
     }
 
 }
@@ -191,4 +190,234 @@ impl Participant {
         this
     }
 
+}
+
+impl Treasures {
+    /// Gson's reflective binding of the class's own fields (`ReflectiveTypeAdapterFactory`): each member the
+    /// JSON has is read over the field it names (`@SerializedName`, else the field's name) with the field's declared
+    /// type; an absent member (or a `null` one, or one Gson would reject) leaves the constructor's value.
+    pub fn read_json_fields(&mut self, json: &serde_json::Value) {
+        #[allow(unused_imports)]
+        use crate::io::github::moulberry::repo::neu_repository::gson;
+        if let Some(__v) = gson::member(json, "runs") {
+            if let Some(__x) = gson::list(__v, |__e0| Some(Run::from_json(__e0))) {
+                self.runs = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "chests") {
+            if let Some(__x) = gson::list(__v, |__e0| Some(Chest::from_json(__e0))) {
+                self.chests = __x;
+            }
+        }
+    }
+
+    /// `GSON.fromJson(json, Treasures.class)`: the no-argument constructor, then the fields.
+    pub fn from_json(json: &serde_json::Value) -> Self {
+        let mut __this = Self::new();
+        __this.read_json_fields(json);
+        __this
+    }
+}
+
+impl Chest {
+    /// Gson's reflective binding of the class's own fields (`ReflectiveTypeAdapterFactory`): each member the
+    /// JSON has is read over the field it names (`@SerializedName`, else the field's name) with the field's declared
+    /// type; an absent member (or a `null` one, or one Gson would reject) leaves the constructor's value.
+    pub fn read_json_fields(&mut self, json: &serde_json::Value) {
+        #[allow(unused_imports)]
+        use crate::io::github::moulberry::repo::neu_repository::gson;
+        if let Some(__v) = gson::member(json, "run_id") {
+            if let Some(__x) = crate::de::hysky::skyblocker::skyblock::profileviewer2::profile_viewer::json_uuid(__v) {
+                self.run_id = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "chest_id") {
+            if let Some(__x) = crate::de::hysky::skyblocker::skyblock::profileviewer2::profile_viewer::json_uuid(__v) {
+                self.chest_id = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "treasure_type") {
+            if let Some(__x) = gson::as_string(__v) {
+                self.treasure_type = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "rewards") {
+            if let Some(__x) = Some(Rewards::from_json(__v)) {
+                self.rewards = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "quality") {
+            if let Some(__x) = gson::as_i32(__v) {
+                self.quality = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "shiny_eligible") {
+            if let Some(__x) = gson::as_bool(__v) {
+                self.shiny_eligible = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "paid") {
+            if let Some(__x) = gson::as_bool(__v) {
+                self.paid = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "rerolls") {
+            if let Some(__x) = gson::as_i32(__v) {
+                self.rerolls = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "chest_type") {
+            if let Some(__x) = gson::as_string(__v) {
+                self.chest_type = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "run_tier") {
+            if let Some(__x) = gson::as_string(__v) {
+                self.kuudra_tier = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "loot_table_id") {
+            if let Some(__x) = gson::as_string(__v) {
+                self.loot_table_id = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "secondary_slots") {
+            if let Some(__x) = gson::as_i32(__v) {
+                self.secondary_slots = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "percentage_completed") {
+            if let Some(__x) = gson::as_i32(__v) {
+                self.percentage_completed = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "is_opened") {
+            if let Some(__x) = gson::as_bool(__v) {
+                self.is_opened = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "is_rerolled") {
+            if let Some(__x) = gson::as_bool(__v) {
+                self.is_rerolled = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "is_attribute_rerolled") {
+            if let Some(__x) = gson::as_bool(__v) {
+                self.is_attribute_rerolled = __x;
+            }
+        }
+    }
+
+    /// `GSON.fromJson(json, Chest.class)`: the no-argument constructor, then the fields.
+    pub fn from_json(json: &serde_json::Value) -> Self {
+        let mut __this = Self::new();
+        __this.read_json_fields(json);
+        __this
+    }
+}
+
+impl Rewards {
+    /// Gson's reflective binding of the class's own fields (`ReflectiveTypeAdapterFactory`): each member the
+    /// JSON has is read over the field it names (`@SerializedName`, else the field's name) with the field's declared
+    /// type; an absent member (or a `null` one, or one Gson would reject) leaves the constructor's value.
+    pub fn read_json_fields(&mut self, json: &serde_json::Value) {
+        #[allow(unused_imports)]
+        use crate::io::github::moulberry::repo::neu_repository::gson;
+        if let Some(__v) = gson::member(json, "rewards") {
+            if let Some(__x) = gson::list(__v, |__e0| gson::as_string(__e0)) {
+                self.rewards = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "rolled_rng_meter_randomly") {
+            if let Some(__x) = gson::as_bool(__v) {
+                self.rolled_rng_meter_randomly = __x;
+            }
+        }
+    }
+
+    /// `GSON.fromJson(json, Rewards.class)`: the no-argument constructor, then the fields.
+    pub fn from_json(json: &serde_json::Value) -> Self {
+        let mut __this = Self::new();
+        __this.read_json_fields(json);
+        __this
+    }
+}
+
+impl Run {
+    /// Gson's reflective binding of the class's own fields (`ReflectiveTypeAdapterFactory`): each member the
+    /// JSON has is read over the field it names (`@SerializedName`, else the field's name) with the field's declared
+    /// type; an absent member (or a `null` one, or one Gson would reject) leaves the constructor's value.
+    pub fn read_json_fields(&mut self, json: &serde_json::Value) {
+        #[allow(unused_imports)]
+        use crate::io::github::moulberry::repo::neu_repository::gson;
+        if let Some(__v) = gson::member(json, "run_id") {
+            if let Some(__x) = crate::de::hysky::skyblocker::skyblock::profileviewer2::profile_viewer::json_uuid(__v) {
+                self.run_id = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "completion_ts") {
+            if let Some(__x) = gson::as_i64(__v) {
+                self.completion_timestamp = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "dungeon_type") {
+            if let Some(__x) = gson::as_string(__v) {
+                self.dungeon_type = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "dungeon_tier") {
+            if let Some(__x) = gson::as_i32(__v) {
+                self.dungeon_tier = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "tier_id") {
+            if let Some(__x) = gson::as_string(__v) {
+                self.kuudra_tier = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "participants") {
+            if let Some(__x) = gson::list(__v, |__e0| Some(Participant::from_json(__e0))) {
+                self.participants = __x;
+            }
+        }
+    }
+
+    /// `GSON.fromJson(json, Run.class)`: the no-argument constructor, then the fields.
+    pub fn from_json(json: &serde_json::Value) -> Self {
+        let mut __this = Self::new();
+        __this.read_json_fields(json);
+        __this
+    }
+}
+
+impl Participant {
+    /// Gson's reflective binding of the class's own fields (`ReflectiveTypeAdapterFactory`): each member the
+    /// JSON has is read over the field it names (`@SerializedName`, else the field's name) with the field's declared
+    /// type; an absent member (or a `null` one, or one Gson would reject) leaves the constructor's value.
+    pub fn read_json_fields(&mut self, json: &serde_json::Value) {
+        #[allow(unused_imports)]
+        use crate::io::github::moulberry::repo::neu_repository::gson;
+        if let Some(__v) = gson::member(json, "player_uuid") {
+            if let Some(__x) = (crate::de::hysky::skyblocker::skyblock::profileviewer2::profile_viewer::json_uuid(__v)).map(Some) {
+                self.player_uuid = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "display_name") {
+            if let Some(__x) = gson::as_string(__v) {
+                self.display_name = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "class_milestone") {
+            if let Some(__x) = gson::as_i32(__v) {
+                self.class_milestone = __x;
+            }
+        }
+    }
+
+    /// `GSON.fromJson(json, Participant.class)`: the no-argument constructor, then the fields.
+    pub fn from_json(json: &serde_json::Value) -> Self {
+        let mut __this = Self::new();
+        __this.read_json_fields(json);
+        __this
+    }
 }

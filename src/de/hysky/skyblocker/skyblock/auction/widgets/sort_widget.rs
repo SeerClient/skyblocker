@@ -20,7 +20,6 @@ use mcrust::net::minecraft::resources::identifier::Identifier;
 pub const OPTION_PREFIX: &str = "auctions_gui/sort_widget/";
 /// java: private static final Identifier BACK_TEXTURE = SkyblockerMod.id(prefix + "back");
 pub static OPTION_BACK_TEXTURE: compat::MainThread<Identifier> = compat::MainThread::new(|| crate::entry::skyblocker_mod::id(&format!("{}back", OPTION_PREFIX)));
-// TODO(fabric2seer): call to `values(..)` (not a method of this class)
 //   java: private static final Option[] values = values();
 /// java: private static final Option[] values = values();
 pub static OPTION_VALUES: LazyLock<Vec<Option>> = LazyLock::new(Option::values);
@@ -79,14 +78,28 @@ impl compat::WidgetHalf for SortWidget {
 
 /// SortWidget as the game's widget: `compat::WidgetAdapter::widget(handle)` where Java hands it on
 impl ModWidget for compat::WidgetAdapter<SortWidget> {
-    /// java: extractWidgetRenderState - not overridden here (the base class's body has no entry point in the port)
+    /// java: SliderWidget.extractWidgetRenderState(graphics, mouseX, mouseY, delta) - inherited, not overridden here
     fn extract_widget_render_state(&mut self, widget: &AbstractWidget, context: &mut WidgetRenderContext<'_>, mouse_x: i32, mouse_y: i32, a: f32) {
-        let _ = widget;
+        self.lend_ref(widget, |__h| compat::write(__h, |__t| SliderWidget::extract_widget_render_state(__t, &context.graphics, mouse_x, mouse_y, a)))
     }
 
-    /// java: updateWidgetNarration - not overridden here (the base class's body has no entry point in the port)
+    /// java: SliderWidget.updateWidgetNarration(builder) - inherited: an empty body
     fn update_widget_narration(&mut self, widget: &AbstractWidget, output: &mut dyn NarrationElementOutput) {
+        let _ = (widget, output);
+    }
+
+    /// java: SliderWidget.onClick(click, doubled) - inherited: `clickSlot.click(slotId, button)`
+    fn on_click(&mut self, widget: &mut AbstractWidget, event: &MouseButtonEvent, double_click: bool) {
+        // (read out of the object first: the click handler reaches the screen, which holds this widget)
         let _ = widget;
+        let __snapshot = self.call(|__h| compat::read(__h, |__t| __t.clone()));
+        SliderWidget::on_click(&__snapshot, event, double_click);
+    }
+
+    /// java: SliderWidget.isValidClickButton(input) - inherited: `this.button = input.button(); return
+    /// super.isValidClickButton(input) || button == MOUSE_BUTTON_RIGHT`
+    fn is_valid_click_button(&self, button_info: MouseButtonInfo) -> bool {
+        self.call(|__h| compat::write(__h, |__t| SliderWidget::is_valid_click_button(__t, &button_info)))
     }
 
 }
@@ -162,7 +175,6 @@ impl Option {
 
     /// java: @Override public int getOffset()
     pub fn get_offset(&self) -> i32 {
-        // TODO(fabric2seer): call to `ordinal(..)` (not a method of this class)
         //   java: return 5 * ordinal();
         5 * self.ordinal()
     }

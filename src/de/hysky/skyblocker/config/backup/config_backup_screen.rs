@@ -43,6 +43,10 @@ pub struct ConfigBackupScreen {
     /// (the inner classes `SettingsListWidget` / `StringEntry` read and write this field of their enclosing screen: they
     /// hold the same cell, and Java's `changedPaths = x` replaces its contents)
     pub changed_paths: std::sync::Arc<std::sync::Mutex<std::collections::HashSet<String>>>,
+    /// the inner `BackupListWidget.setSelected`'s `detailsWidget.updateEntries(path)` on this enclosing screen: the
+    /// list runs inside the game's click on it, where the screen's widget tree is the game's, so the call is handed
+    /// over through this cell (shared with the list) and made in the screen's next own call (`tick`)
+    pub pending_details: std::sync::Arc<std::sync::Mutex<Option<Option<std::path::PathBuf>>>>,
     /// the object's own shared handle: Java's `this` handed to other objects
     pub self_ref: compat::WeakShared<Self>,
     /// the screen's widgets as this object last saw them (see `compat::WidgetCache`)
@@ -74,9 +78,20 @@ impl ConfigBackupScreen {
             list_widget: None,
             details_widget: None,
             changed_paths: std::sync::Arc::new(std::sync::Mutex::new(std::collections::HashSet::new())),
+            pending_details: std::sync::Arc::new(std::sync::Mutex::new(None)),
         });
         compat::write(&__this, |__t| __t.self_ref = std::sync::Arc::downgrade(&__this));
         __this
+    }
+
+    /// `detailsWidget.updateEntries(path)` for the selection `BackupListWidget.setSelected` handed over
+    pub fn apply_pending_details(__this: &compat::Shared<Self>) {
+        let pending: Option<Option<std::path::PathBuf>> = compat::read(__this, |__t| __t.pending_details.lock().unwrap_or_else(|p| p.into_inner()).take());
+        let Some(path) = pending else { return };
+        if compat::read(__this, |__t| __t.details_widget.is_none()) {
+            return;
+        }
+        compat::write(__this, |__t| { let __s = &mut *__t; let __r = __s.details_widget.as_mut().unwrap(); __s.__widgets.with(&mut __s.base, __r, |__w| __w.mod_widget().and_then(|__ms| __ms.with::<mcrust::mcrust::modding::widgets::ModSelectionList, _>(|__l| { let __h = &__l.class::<compat::ListClass<SettingsListWidget>>().map(|__c| __c.object().clone()).expect("a mod list without its class"); compat::lend_list(__h, __l, || SettingsListWidget::update_entries(__h, path.clone())) })).expect("a mod list reached from inside its own method")) });
     }
 
     /// java: @Override protected void init()
@@ -85,7 +100,7 @@ impl ConfigBackupScreen {
         let mut details_width: i32 = ((compat::read(__this, |__t| __t.width)).wrapping_sub(list_width)).wrapping_sub(8);
         let mut list_height: i32 = (compat::read(__this, |__t| __t.height)).wrapping_sub(64);
         if compat::write(__this, |__t| { let __s = &mut *__t; match __s.list_widget.as_mut() { Some(__r) => Some(__s.__widgets.with(&mut __s.base, __r, |__w| compat::list_object::<BackupListWidget>(__w).expect("a mod list reached from inside its own method"))), None => None } }).is_none() {
-            { let __v = (Some(BackupListWidget::new(compat::minecraft(), list_width, list_height, 32, 25))).map(|__o| compat::WidgetRef::value(compat::attach_list(__o))); compat::write(__this, |__t| { let __s = &mut *__t; __s.list_widget = __v; }); }
+            { let __v = (Some(BackupListWidget::new(compat::minecraft(), list_width, list_height, 32, 25, compat::read(__this, |__t| __t.pending_details.clone())))).map(|__o| compat::WidgetRef::value(compat::attach_list(__o))); compat::write(__this, |__t| { let __s = &mut *__t; __s.list_widget = __v; }); }
             compat::write(__this, |__t| { let __s = &mut *__t; let __r = __s.list_widget.as_mut().unwrap(); __s.__widgets.with(&mut __s.base, __r, |__w| __w.mod_widget().and_then(|__ms| __ms.with::<mcrust::mcrust::modding::widgets::ModSelectionList, _>(|__l| { let __h = &__l.class::<compat::ListClass<BackupListWidget>>().map(|__c| __c.object().clone()).expect("a mod list without its class"); compat::lend_list(__h, __l, || BackupListWidget::update_entries(__h)) })).expect("a mod list reached from inside its own method")) });
         } else {
             let __wa1 = list_width;
@@ -194,9 +209,9 @@ impl ModScreen for compat::ScreenAdapter<ConfigBackupScreen> {
         self.lend(screen, |__h| ConfigBackupScreen::init(__h))
     }
 
-    /// java: Screen.tick (the base body)
+    /// java: Screen.tick (the base body), and the details update a list selection handed over (`pending_details`)
     fn tick(&mut self, screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen) {
-        self.lend(screen, |_| ())
+        self.lend(screen, |__h| ConfigBackupScreen::apply_pending_details(__h))
     }
 
     /// java: Screen.keyPressed (the base body)
@@ -227,6 +242,9 @@ impl ModScreen for compat::ScreenAdapter<ConfigBackupScreen> {
 pub struct BackupListWidget {
     /// java: extends net.minecraft.client.gui.components.ObjectSelectionList
     pub base: ModSelectionList,
+    /// `ConfigBackupScreen.this.detailsWidget.updateEntries(..)`: the enclosing screen's hand-over cell (see
+    /// `ConfigBackupScreen.pending_details`)
+    pub pending_details: std::sync::Arc<std::sync::Mutex<Option<Option<std::path::PathBuf>>>>,
 }
 
 impl std::ops::Deref for BackupListWidget {
@@ -244,9 +262,10 @@ impl std::ops::DerefMut for BackupListWidget {
 
 impl BackupListWidget {
     /// java: BackupListWidget(Minecraft client, int width, int height, int y, int itemHeight)
-    pub fn new(client: &mut mcrust::net::minecraft::client::minecraft::Minecraft, mut width: i32, mut height: i32, mut y: i32, mut item_height: i32) -> compat::Shared<Self> {
+    pub fn new(client: &mut mcrust::net::minecraft::client::minecraft::Minecraft, mut width: i32, mut height: i32, mut y: i32, mut item_height: i32, pending_details: std::sync::Arc<std::sync::Mutex<Option<Option<std::path::PathBuf>>>>) -> compat::Shared<Self> {
         let __this = compat::shared(Self {
             base: mcrust::mcrust::modding::widgets::ModSelectionList::new(mcrust::mcrust::modding::widgets::ListKind::Object, width, height, y, item_height),
+            pending_details,
         });
         BackupListWidget::update_entries(&__this);
         __this
@@ -261,8 +280,9 @@ impl BackupListWidget {
     /// java: @Override public void setSelected(@Nullable BackupEntry entry)
     pub fn set_selected(__this: &compat::Shared<Self>, mut entry: Option<compat::Shared<BackupEntry>>) {
         compat::call_super();
-        // TODO(fabric2seer): `detailsWidget` is a field of the enclosing instance (ConfigBackupScreen.this) - an inner class has no outer reference in Rust
         //   java: detailsWidget.updateEntries(entry != null ? entry.path : null);
+        let path: Option<std::path::PathBuf> = entry.as_ref().map(|entry| compat::read(entry, |__t| __t.path.clone()));
+        *compat::read(__this, |__t| __t.pending_details.clone()).lock().unwrap_or_else(|p| p.into_inner()) = Some(path);
     }
 
     /// java: void updateEntries()
@@ -357,9 +377,8 @@ impl BackupEntry {
         mcrust::net::minecraft::client::gui::gui_graphics_extractor::centered_text_string(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), &__name, __x, __y + 7, 0xFFFFFFFFu32 as i32);
         if { let (__q0, __q1,) = ((mouse_x) as f64, (mouse_y) as f64,); __this.lock().borrow().is_mouse_over(__q0, __q1) } {
             // java: context.requestCursor(CursorTypes.POINTING_HAND);
-            // rust: port gap - a mod list ROW cannot ask for a cursor: `ModListEntry` has no `handle_cursor`, and the
-            // list answers only its scrollbar's (GAPS_L.md)
-            // rust: context.request_cursor(&CursorTypes::POINTING_HAND);
+            // (the row's draw request is `graphics.pendingCursor`, applied after the frame: `compat::batch_w_request_cursor`)
+            compat::batch_w_request_cursor(compat::BatchWCursor::PointingHand);
         }
     }
 
@@ -517,10 +536,8 @@ impl SettingsListWidget {
 
     /// java: @Override protected void extractScrollbar(GuiGraphicsExtractor context, int mouseX, int mouseY)
     pub fn extract_scrollbar(__this: &compat::Shared<Self>, context: &mut GuiGraphicsExtractor, mut mouse_x: i32, mut mouse_y: i32) {
-        // java: super.extractScrollbar(context, mouseX, mouseY);
-        // rust: port gap - the game draws a mod list's scrollbar itself and `ModList` has no `extractScrollbar` slot, so
-        // neither this override nor its `super` call is dispatched from the game's frame (GAPS_L.md)
-        // rust: __this.lock().borrow_mut().base.list.extract_scrollbar(context, mouse_x, mouse_y);
+        // java: super.extractScrollbar(context, mouseX, mouseY); - the base track and scroller, drawn by the game's
+        // `ModList::extract_scrollbar` slot (`super_extract_scrollbar`) right before it calls this body (below)
         if __this.lock().borrow().scrollable() {
             let mut scroll_bar_x: i32 = __this.lock().borrow().scroll_bar_x();
             let mut list_widget_y: i32 = __this.lock().borrow().get_y();
@@ -555,9 +572,15 @@ impl ModList for compat::ListClass<SettingsListWidget> {
         self.ask(list, super_answer, |__h| SettingsListWidget::get_row_width(__h))
     }
 
+    /// java: @Override protected void extractScrollbar(GuiGraphicsExtractor context, int mouseX, int mouseY)
+    fn extract_scrollbar(&self, list: &AbstractSelectionList, context: &mut WidgetRenderContext<'_>, mouse_x: i32, mouse_y: i32, super_extract_scrollbar: &mut dyn FnMut(&mut WidgetRenderContext<'_>)) {
+        // java: super.extractScrollbar(context, mouseX, mouseY); - the override's first statement
+        super_extract_scrollbar(context);
+        self.ask(list, (), |__h| SettingsListWidget::extract_scrollbar(__h, &mut context.graphics, mouse_x, mouse_y));
+    }
+
 }
 
-// NOTE(fabric2seer): extractScrollbar, getRowWidth override(s) of ContainerObjectSelectionList - the port dispatches its own calls, so these run only where the mod calls them; hook the port's method to make the game call them
 
 /// java: private record JsonLine(String text, @Nullable String path)
 #[derive(Clone, Debug, PartialEq)]

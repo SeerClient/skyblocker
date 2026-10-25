@@ -62,8 +62,11 @@ impl ColoredItemBackground<i32> for LegacyAttributeBackground {
     }
 
     /// java: @Override protected Integer getColorKey(ItemStack stack, Int2ReferenceOpenHashMap<Integer> cache)
-    fn get_color_key(&mut self, stack: &mcrust::net::minecraft::world::item::item_stack::ItemStack, cache: &mut std::collections::HashMap<i32, Option<i32>>) -> Option<i32> {
-        if false /* java: stack == null: never null here */ || stack.is_empty() || stack.get_skyblock_id() == "ATTRIBUTE_SHARD" {
+    fn get_color_key(&mut self, stack: &mcrust::net::minecraft::world::item::item_stack::ItemStack, cache: &mut crate::de::hysky::skyblocker::skyblock::item::background::colored_item_background::ColorKeyCache<i32>) -> Option<i32> {
+        // OPTIMIZED BUT NOT FULLY VANILLA (perf round 1, P02-mods-runtime): the skyblock id compared BORROWED
+        // (`with_skyblock_id`), not cloned per slot per frame - the same id, the same cache write on a miss. Was:
+        //     if false /* java: stack == null: never null here */ || stack.is_empty() || stack.get_skyblock_id() == "ATTRIBUTE_SHARD" {
+        if false /* java: stack == null: never null here */ || stack.is_empty() || crate::mixins::item_stack_mixin::with_skyblock_id(stack, |skyblock_id: &str| skyblock_id == "ATTRIBUTE_SHARD") {
             return None; // java: return null
         }
         // int hashCode = System.identityHashCode(stack);
@@ -71,7 +74,8 @@ impl ColoredItemBackground<i32> for LegacyAttributeBackground {
         if cache.contains_key(&hash_code) {
             return cache.get(&hash_code).copied().flatten();
         }
-        let mut has_attributes: bool = ItemUtils::get_custom_data(stack).contains("attributes");
+        // PERF (port-only, same result): the custom data read in place, not deep-copied.
+        let mut has_attributes: bool = ItemUtils::with_custom_data(stack, |custom_data| custom_data.contains("attributes"));
         cache.insert(hash_code, (if has_attributes { Some(COLOR) } else { None }));
         return (if has_attributes { Some(COLOR) } else { None });
     }

@@ -44,14 +44,53 @@ impl DungeonPuzzleBase {
                 { let __v = true; compat::write(&(*__this_1.get()), |__t| __t.dungeon_puzzle_base_mut().should_solve = __v); }
             }
         }));
+        let __this_3 = compat::RenderThread::new(__this.clone());
         client_command_registration_callback::EVENT.register(Arc::new(
-            |dispatcher: &mut client_command_registration_callback::ClientCommandDispatcher| {
-                // TODO(fabric2seer): a command tree this tool cannot read (arguments, redirects, requires) - SeerClient commands receive the words after the name in `ctx.args`
-                //   java: dispatcher.register(..);
+            move |dispatcher: &mut client_command_registration_callback::ClientCommandDispatcher| {
+                use mcrust::com::mojang::brigadier::builder::argument_builder::ArgumentBuilder as _;
+                use crate::prelude::client_command_registration_callback as ccr;
+                type Ctx = mcrust::com::mojang::brigadier::context::command_context::CommandContext<ccr::FabricClientCommandSource>;
+                fn prefixed(text: mcrust::net::minecraft::network::chat::mutable_component::MutableComponent) -> mcrust::net::minecraft::network::chat::mutable_component::MutableComponent {
+                    (crate::de::hysky::skyblocker::utils::constants::PREFIX.get())().append(text)
+                }
+                // java: dispatcher.register(literal(NAMESPACE).then(literal("dungeons").then(literal("puzzle").then(literal(puzzleName).then(literal("solve").executes(context -> {
+                // java:     Room currentRoom = DungeonManager.getCurrentRoom(); if (currentRoom != null) { reset(); currentRoom.addSubProcess(this); sendFeedback(..); } else sendError(..); return 1; }))))));
+                let __this_3 = __this_3.clone();
+                let puzzle_name: String = compat::read(&*__this_3.get(), |__t| __t.dungeon_puzzle_base().puzzle_name.clone());
+                let mut solve = ccr::literal("solve");
+                let __solve_name = puzzle_name.clone();
+                solve.executes(Arc::new(move |_: &Ctx| {
+                    let this = (*__this_3.get()).clone();
+                    match crate::de::hysky::skyblocker::skyblock::dungeon::secrets::dungeon_manager::DungeonManager::get_current_room() {
+                        Some(current_room) => {
+                            { let __r = this.clone() as compat::Shared<dyn Resettable>; let __f = compat::dispatch(&__r, |__t| __t.reset()); __f(&__r); }
+                            { let (__a0, __a1) = ((this.clone() as compat::Shared<dyn Tickable>), (this.clone() as compat::Shared<dyn Renderable>)); current_room.lock().borrow_mut().add_sub_process(__a0, __a1) };
+                            compat::batch_w_send_feedback(&prefixed(mcrust::net::minecraft::network::chat::component::literal(&format!("Solving {} puzzle in the current room.", __solve_name)).with_color(mcrust::net::minecraft::network::chat::text_color::TextColor::GREEN.get_value())));
+                        }
+                        None => {
+                            compat::batch_w_send_error(&prefixed(mcrust::net::minecraft::network::chat::component::literal("Current room is null.").with_color(mcrust::net::minecraft::network::chat::text_color::TextColor::RED.get_value())));
+                        }
+                    }
+                    Ok(1)
+                }));
+                let mut puzzle = ccr::literal(&puzzle_name);
+                puzzle.then(&solve);
+                let mut __n0 = ccr::literal("puzzle");
+                __n0.then(&puzzle);
+                let mut __n1 = ccr::literal("dungeons");
+                __n1.then(&__n0);
+                let mut __n2 = ccr::literal(crate::entry::skyblocker_mod::NAMESPACE);
+                __n2.then(&__n1);
+                dispatcher.dispatcher().register(&__n2);
             },
         ));
-        // TODO(fabric2seer): a listener that is neither a lambda nor a method reference
-        //   java: ClientPlayConnectionEvents.JOIN.register(this);
+        // java: ClientPlayConnectionEvents.JOIN.register(this); - `Resettable.onPlayReady` is `reset()`
+        let __this_2 = compat::RenderThread::new(__this.clone() as compat::Shared<dyn Resettable>);
+        client_play_connection_events::JOIN.register(Arc::new(move |_listener: &mut ClientPacketListener| {
+            let __r = __this_2.get();
+            let __f = compat::dispatch(__r, |__t| __t.reset());
+            __f(__r);
+        }));
         (__this, __r)
     }
 

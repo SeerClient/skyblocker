@@ -43,10 +43,25 @@ impl ItemBackgroundManager {
 
     /// java: public static void drawBackgrounds(ItemStack stack, GuiGraphicsExtractor graphics, int x, int y)
     pub fn draw_backgrounds(stack: &mcrust::net::minecraft::world::item::item_stack::ItemStack, graphics: &GuiGraphicsExtractor, mut x: i32, mut y: i32) {
-        for background in BACKGROUNDS.get().iter() {
-            if compat::read(background, |__t| __t.is_enabled()) {
-                compat::write(background, |__t| __t.try_extract(stack, graphics, x, y));
+        // OPTIMIZED BUT NOT FULLY VANILLA (perf round 1, P02-mods-runtime): ONE lock and borrow per background (per
+        // hotbar slot, per frame) instead of a read for `isEnabled` and a write for `tryExtract` - the same two calls,
+        // in the same order, on the same object. `isEnabled` only reads the config, so taking it under the write borrow
+        // changes nothing it sees. `SKYBLOCKER_VANILLA_BACKGROUNDS=1` takes the two borrows, as before.
+        static VANILLA_BACKGROUNDS: compat::EnvSwitch = compat::EnvSwitch::new("SKYBLOCKER_VANILLA_BACKGROUNDS");
+        if VANILLA_BACKGROUNDS.on() {
+            for background in BACKGROUNDS.get().iter() {
+                if compat::read(background, |__t| __t.is_enabled()) {
+                    compat::write(background, |__t| __t.try_extract(stack, graphics, x, y));
+                }
             }
+            return;
+        }
+        for background in BACKGROUNDS.get().iter() {
+            compat::write(background, |__t| {
+                if __t.is_enabled() {
+                    __t.try_extract(stack, graphics, x, y);
+                }
+            });
         }
     }
 

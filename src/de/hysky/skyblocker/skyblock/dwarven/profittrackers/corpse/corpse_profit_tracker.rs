@@ -152,27 +152,69 @@ impl CorpseProfitTracker {
             });
             ((__h.clone() as compat::Shared<dyn AbstractProfitTracker>), __h)
         });
-        // TODO(fabric2seer): static call Function.identity(..)
-        //   java: private final ProfiledData<ObjectArrayList<CorpseLoot>> allRewards = new ProfiledData<>(getRewardFilePath("corpse-profits.json"), CorpseLoot.CODEC.listOf().xmap(ObjectArrayList::new, Function.identity()));
+        // java: private final ProfiledData<ObjectArrayList<CorpseLoot>> allRewards = new ProfiledData<>(getRewardFilePath("corpse-profits.json"), CorpseLoot.CODEC.listOf().xmap(ObjectArrayList::new, Function.identity()));
+        // (`xmap(ObjectArrayList::new, Function.identity())` is the list itself here; `getRewardFilePath` reads `this`, so
+        // the field is written once the object exists)
+        {
+            let __file = ({ let __f = compat::dispatch(&__this, |__t| __t.get_reward_file_path()); __f(&compat::view(&__this, |a| a as compat::Shared<dyn AbstractProfitTracker>), "corpse-profits.json") });
+            let __v = Some(ProfiledData::new(__file, codec::list(corpse_loot::CODEC.get_mut().clone())));
+            compat::write(&__this, |__t| __t.all_rewards = __v);
+        }
         __this
     }
 
     /// java: @Init public static void init()
     pub fn init() {
-        // TODO(fabric2seer): ClientReceiveMessageEvents.ALLOW_GAME.register: no SeerClient equivalent yet
-        //   java: ClientReceiveMessageEvents.ALLOW_GAME.register(INSTANCE::onChatMessage);
-        // rust: port gap - the constructor's `allRewards` ProfiledData is not built yet (its codec's
-        // `xmap(ObjectArrayList::new, Function.identity())` above is a TODO), so the corpse tracker stays off
-        let Some(all_rewards) = compat::read(INSTANCE.get(), |__t| __t.all_rewards.clone()) else {
-            logger().warn("[Skyblocker Corpse Profit Tracker] reward storage is not ported yet; the tracker is disabled");
-            return;
-        };
+        // java: ClientReceiveMessageEvents.ALLOW_GAME.register(INSTANCE::onChatMessage);
+        compat::register_allow_game(|text: &MutableComponent, overlay: bool| CorpseProfitTracker::on_chat_message(INSTANCE.get_mut(), text, overlay));
+        // java: INSTANCE.allRewards.init();
+        let all_rewards = compat::read(INSTANCE.get(), |__t| __t.all_rewards.clone()).expect("allRewards is built by the constructor");
         compat::write(&all_rewards, |__t| { __t.init(); });
         skyblock_events::PROFILE_CHANGE.register(Arc::new(move |__a0, __a1| { CorpseProfitTracker::on_profile_change(INSTANCE.get_mut(), &__a0, &__a1); }));
+        // java: ClientCommandRegistrationCallback.EVENT.register((dispatcher, _) -> dispatcher.register(literal(SkyblockerMod.NAMESPACE)
+        //   .then(literal("rewardTrackers").then(literal("corpse")
+        //     .then(literal("list")
+        //       .then(argument("summaryView", BoolArgumentType.bool()).executes(ctx -> { Scheduler.queueOpenScreen(new CorpseProfitScreen(ctx.getSource().getClient().gui.screen(), BoolArgumentType.getBool(ctx, "summaryView"))); return Command.SINGLE_SUCCESS; }))
+        //       .executes(ctx -> { Scheduler.queueOpenScreen(new CorpseProfitScreen(ctx.getSource().getClient().gui.screen())); return Command.SINGLE_SUCCESS; }))
+        //     .then(literal("reset").executes(ctx -> { INSTANCE.currentProfileRewards.clear(); INSTANCE.allRewards.save();
+        //       ctx.getSource().sendFeedback(Constants.PREFIX.get().append(Component.translatable("skyblocker.corpseTracker.historyReset").withStyle(ChatFormatting.GREEN))); return Command.SINGLE_SUCCESS; }))))));
         client_command_registration_callback::EVENT.register(Arc::new(
             |dispatcher: &mut client_command_registration_callback::ClientCommandDispatcher| {
-                // TODO(fabric2seer): a command tree this tool cannot read (arguments, redirects, requires) - SeerClient commands receive the words after the name in `ctx.args`
-                //   java: dispatcher.register(..);
+                use mcrust::com::mojang::brigadier::builder::argument_builder::ArgumentBuilder as _;
+                use mcrust::com::mojang::brigadier::context::command_context::CommandContext;
+                use mcrust::com::mojang::brigadier::arguments::bool_argument_type::BoolArgumentType;
+                type Source = client_command_registration_callback::FabricClientCommandSource;
+                // (the screen is the game's to open: its parent is the screen it is opened over, which the game holds)
+                let mut summary_view = client_command_registration_callback::argument("summaryView", Arc::new(BoolArgumentType::bool()));
+                summary_view.executes(Arc::new(|ctx: &CommandContext<Source>| {
+                    let summary_view: bool = BoolArgumentType::get_bool(ctx, "summaryView");
+                    crate::de::hysky::skyblocker::utils::scheduler::scheduler::SchedulerBase::queue_open_screen(Arc::new(move || -> Box<dyn mcrust::mcrust::modding::screens::ModScreen> { Box::new(compat::ScreenAdapter::new(crate::de::hysky::skyblocker::skyblock::dwarven::profittrackers::corpse::corpse_profit_screen::CorpseProfitScreen::new_2(None, summary_view))) }));
+                    Ok(1)
+                }));
+                let mut list = client_command_registration_callback::literal("list");
+                list.then(&summary_view);
+                list.executes(Arc::new(|_: &CommandContext<Source>| {
+                    crate::de::hysky::skyblocker::utils::scheduler::scheduler::SchedulerBase::queue_open_screen(Arc::new(|| -> Box<dyn mcrust::mcrust::modding::screens::ModScreen> { Box::new(compat::ScreenAdapter::new(crate::de::hysky::skyblocker::skyblock::dwarven::profittrackers::corpse::corpse_profit_screen::CorpseProfitScreen::new(None))) }));
+                    Ok(1)
+                }));
+                let mut reset = client_command_registration_callback::literal("reset");
+                reset.executes(Arc::new(|_: &CommandContext<Source>| {
+                    compat::write(INSTANCE.get(), |__t| __t.current_profile_rewards.clear());
+                    let all_rewards = compat::read(INSTANCE.get(), |__t| __t.all_rewards.clone());
+                    if let Some(all_rewards) = all_rewards {
+                        compat::read(&all_rewards, |__t| __t.save());
+                    }
+                    compat::batch_w_send_feedback(&(constants::PREFIX.get_mut())().append(component::translatable("skyblocker.corpseTracker.historyReset").with_style_format(ChatFormatting::Green)));
+                    Ok(1)
+                }));
+                let mut corpse = client_command_registration_callback::literal("corpse");
+                corpse.then(&list);
+                corpse.then(&reset);
+                let mut reward_trackers = client_command_registration_callback::literal("rewardTrackers");
+                reward_trackers.then(&corpse);
+                let mut root = client_command_registration_callback::literal(crate::entry::skyblocker_mod::NAMESPACE);
+                root.then(&reward_trackers);
+                dispatcher.dispatcher().register(&root);
             },
         ));
         item_price_update_event::ON_PRICE_UPDATE.register(Arc::new(move || { CorpseProfitTracker::recalculate_all(INSTANCE.get_mut()); }));
@@ -180,9 +222,9 @@ impl CorpseProfitTracker {
 
     /// java: @UnmodifiableView public static List<CorpseLoot> getCurrentProfileRewards()
     pub fn get_current_profile_rewards() -> Vec<compat::Shared<CorpseLoot>> {
-        // TODO(fabric2seer): static call ObjectLists.unmodifiable(..)
-        //   java: return ObjectLists.unmodifiable(INSTANCE.currentProfileRewards);
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        // java: return ObjectLists.unmodifiable(INSTANCE.currentProfileRewards); - the rewards, read-only (the entries are
+        // the tracker's own objects)
+        return compat::read(INSTANCE.get(), |__t| __t.current_profile_rewards.clone());
     }
 
     /// java: @UnmodifiableView public static Object2ObjectMap<String, String> getName2IdMap()
@@ -219,23 +261,21 @@ impl CorpseProfitTracker {
             let __h0 = compat::read(__this, |__t| __t.last_corpse_loot.clone()).unwrap();
             __this.lock().borrow_mut().current_profile_rewards.push(__h0);
             if !(CorpseLoot::is_price_data_complete(&compat::read(__this, |__t| __t.last_corpse_loot.clone()).unwrap())) {
-                // TODO(fabric2seer): `add_client_system_message` takes 5 argument(s) in the port (`message: FormattedText, gui_ticks: i32, splitter: &StringSplitter<impl WidthProvider>, options: ChatOptions, is_chat_focused: bool`), Java passes 1
-                // rust: compat::minecraft().gui.hud.get_chat().add_client_system_message(mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from((constants::PREFIX.get_mut())().append(component::translatable("skyblocker.corpseTracker.somethingWentWrong").with_style_format(ChatFormatting::Gold))));
+                // java: Minecraft.getInstance().gui.hud.getChat().addClientSystemMessage(Constants.PREFIX.get().append(Component.translatable("skyblocker.corpseTracker.somethingWentWrong").withStyle(ChatFormatting.GOLD)));
+                add_client_system_message((constants::PREFIX.get_mut())().append(component::translatable("skyblocker.corpseTracker.somethingWentWrong").with_style_format(ChatFormatting::Gold)));
             } else {
                 if !(SkyblockerConfigManager::get().mining.glacite.force_english_corpse_profit_tracker) {
-                    // TODO(fabric2seer): `add_client_system_message` takes 5 argument(s) in the port (`message: FormattedText, gui_ticks: i32, splitter: &StringSplitter<impl WidthProvider>, options: ChatOptions, is_chat_focused: bool`), Java passes 1
-                    // rust: compat::minecraft().gui.hud.get_chat().add_client_system_message(mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(((constants::PREFIX.get_mut())().append(component::translatable_args("skyblocker.corpseTracker.corpseProfit", vec![mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from((component::literal(&formatters::INTEGER_NUMBERS.get_mut().format(CorpseLoot::profit(&compat::read(__this, |__t| __t.last_corpse_loot.clone()).unwrap())))).with_style_format((if CorpseLoot::profit(&compat::read(__this, |__t| __t.last_corpse_loot.clone()).unwrap()) > (0 as f64) { ChatFormatting::Green } else { ChatFormatting::Red })))]))).with_style_fn(|style| style.with_hover_event(Some(HoverEvent::new_show_text(mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::translatable("skyblocker.corpseTracker.hoverText").with_style_format(ChatFormatting::Green))))).with_click_event(Some(ClickEvent::new_run_command("/skyblocker rewardTrackers corpse list false".to_string()))))));
+                    // java: Minecraft.getInstance().gui.hud.getChat().addClientSystemMessage(..);
+                    add_client_system_message(((constants::PREFIX.get_mut())().append(component::translatable_args("skyblocker.corpseTracker.corpseProfit", vec![mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from((component::literal(&formatters::INTEGER_NUMBERS.get_mut().format(CorpseLoot::profit(&compat::read(__this, |__t| __t.last_corpse_loot.clone()).unwrap())))).with_style_format((if CorpseLoot::profit(&compat::read(__this, |__t| __t.last_corpse_loot.clone()).unwrap()) > (0 as f64) { ChatFormatting::Green } else { ChatFormatting::Red })))]))).with_style_fn(|style| style.with_hover_event(Some(HoverEvent::new_show_text(mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::translatable("skyblocker.corpseTracker.hoverText").with_style_format(ChatFormatting::Green))))).with_click_event(Some(ClickEvent::new_run_command("/skyblocker rewardTrackers corpse list false".to_string())))));
                 } else {
-                    // TODO(fabric2seer): String.format with a non-literal format
-                    //   java: Minecraft.getInstance().gui.hud.getChat().addClientSystemMessage(
-                    //   java: 							Constants.PREFIX.get()
-                    //   java: 									.append(Component.literal(String.format(CORPSE_PROFIT_MESSAGE, Formatters.INTEGER_NUMBERS.format(lastCorpseLoot.profit())))
-                    //   java: 											.withStyle(lastCorpseLoot.profit() > 0 ? ChatFormatting.GREEN : ChatFormatting.RED))
-                    //   java: 									.withStyle(style ->
-                    //   java: 											style.withHoverEvent(new HoverEvent.ShowText(Component.translatable("skyblocker.corpseTracker.hoverText").withStyle(ChatFormatting.GREEN)))
-                    //   java: 													.withClickEvent(new ClickEvent.RunCommand("/skyblocker rewardTrackers corpse list false"))
-                    //   java: 									)
-                    //   java: 					);
+                    // java: Minecraft.getInstance().gui.hud.getChat().addClientSystemMessage(Constants.PREFIX.get()
+                    //   .append(Component.literal(String.format(CORPSE_PROFIT_MESSAGE, Formatters.INTEGER_NUMBERS.format(lastCorpseLoot.profit())))
+                    //     .withStyle(lastCorpseLoot.profit() > 0 ? ChatFormatting.GREEN : ChatFormatting.RED))
+                    //   .withStyle(style -> style.withHoverEvent(new HoverEvent.ShowText(Component.translatable("skyblocker.corpseTracker.hoverText").withStyle(ChatFormatting.GREEN)))
+                    //     .withClickEvent(new ClickEvent.RunCommand("/skyblocker rewardTrackers corpse list false"))));
+                    let __profit = CorpseLoot::profit(&compat::read(__this, |__t| __t.last_corpse_loot.clone()).unwrap());
+                    let __text = compat::string_format(CORPSE_PROFIT_MESSAGE, &[compat::FormatArg::from(formatters::INTEGER_NUMBERS.get_mut().format(__profit))]);
+                    add_client_system_message((constants::PREFIX.get_mut())().append(component::literal(&__text).with_style_format(if __profit > (0 as f64) { ChatFormatting::Green } else { ChatFormatting::Red })).with_style_fn(|style| style.with_hover_event(Some(HoverEvent::new_show_text(mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::translatable("skyblocker.corpseTracker.hoverText").with_style_format(ChatFormatting::Green))))).with_click_event(Some(ClickEvent::new_run_command("/skyblocker rewardTrackers corpse list false".to_string())))));
                 }
             }
             { let __v = None; compat::write(__this, |__t| __t.last_corpse_loot = __v); }
@@ -274,8 +314,6 @@ impl CorpseProfitTracker {
             return true;
         }
         let mut item_name: String = matcher.group(1).unwrap();
-        // TODO(fabric2seer): static call NumberUtils.toInt(..)
-        //   java: int amount = NumberUtils.toInt(matcher.group(2).replace(",", ""), 1);
         let mut amount: i32 = compat::number_utils_to_int(&matcher.group(2).unwrap().replace(",", ""), 1);
         if matcher.use_pattern(&abstract_profit_tracker::HOTM_XP_PATTERN).matches() {
             return true;
@@ -327,4 +365,16 @@ impl AbstractProfitTracker for CorpseProfitTracker {
         self
     }
 
+}
+
+/// `Minecraft.getInstance().gui.hud.getChat().addClientSystemMessage(message)`: the chat line, with the frame values
+/// the port's `ChatComponent.addClientSystemMessage` takes (the gui tick, the font, the chat options)
+fn add_client_system_message(message: MutableComponent) {
+    let client = compat::minecraft();
+    let message = mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(message);
+    let chat_focused = client.gui.screen_kind == mcrust::net::minecraft::client::gui::gui::ScreenKind::Chat;
+    let options = mcrust::net::minecraft::client::gui::components::chat_component::chat_options(&client.options.borrow(), chat_focused);
+    let ticks = client.gui.hud.tick_count;
+    let splitter = client.font.splitter();
+    client.gui.hud.chat.add_client_system_message(message, ticks, &splitter, options, chat_focused);
 }

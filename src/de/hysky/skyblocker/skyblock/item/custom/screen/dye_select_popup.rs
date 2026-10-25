@@ -281,6 +281,16 @@ impl compat::ScreenHalf for DyeSelectPopup {
 
 /// DyeSelectPopup as the game's screen: `game::set_screen(Box::new(compat::ScreenAdapter::new(..)))`
 impl ModScreen for compat::ScreenAdapter<DyeSelectPopup> {
+    /// java: AbstractPopupScreen.extractBackground overrides `Screen.extractBackground` without `super`
+    fn extract_background_calls_super(&self) -> bool {
+        false
+    }
+
+    /// java: @Override public void extractBackground(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a)
+    fn extract_background(&mut self, _screen: &mcrust::net::minecraft::client::gui::screens::screen::Screen, context: &mut mcrust::mcrust::modding::screens::ScreenRenderContext<'_>, mouse_x: i32, mouse_y: i32, a: f32) {
+        self.call(|__h| ({ let __f = compat::dispatch(__h, |__t| __t.extract_background()); __f(&compat::view(__h, |a| a as compat::Shared<dyn AbstractPopupScreen>), &mut context.graphics, mouse_x, mouse_y, a) }))
+    }
+
     fn get_title(&self) -> String {
         self.title()
     }
@@ -356,7 +366,7 @@ impl StaticDyeButtonBase {
     /// java: protected StaticDyeButton(String dyeId, int color, OnPress onPress) (built by the most-derived class's `wrap`, then run on its handle)
     pub fn new_in<__R>(mut dye_id: String, mut color: i32, mut on_press: OnPress, __wrap: impl FnOnce(Self) -> (compat::Shared<dyn StaticDyeButton>, __R)) -> (compat::Shared<dyn StaticDyeButton>, __R) {
         let __init_name = dye_id.clone();
-        let mut item: Option<crate::unresolved::NEUItem> = NEURepoManager::get_item_by_neu_id(&dye_id);
+        let mut item: Option<Arc<crate::io::github::moulberry::repo::data::neu_item::NEUItem>> = NEURepoManager::get_item_by_neu_id(&dye_id);
         // java: super(0, 0, 150, 20, Component.empty(), onPress, _ -> Component.empty()); - a plain button whose press is
         //   `onPress` (the game runs it on the widget's press) and whose narration is empty
         let this = Self {
@@ -367,8 +377,9 @@ impl StaticDyeButtonBase {
         };
         let (__this, __r) = __wrap(this);
         if let Some(item) = &item {
-            // TODO(fabric2seer): `.getDisplayName(..)` on a NEUItem
             //   java: name = ChatFormatting.stripFormatting(item.getDisplayName());
+            let __v = mcrust::net::minecraft::chat_formatting::strip_formatting(item.get_display_name());
+            compat::write(&__this, |__t| __t.static_dye_button_base_mut().name = __v);
         }
         { let __v = Some(FlexibleItemStack::get_stack_or_throw(&ItemRepository::get_item_stack_2(&dye_id, ico::BARRIER.get_mut()))); compat::write(&__this, |__t| __t.static_dye_button_base_mut().dye_stack = __v); }
         let mut component: MutableComponent = (component::literal(&compat::read(&__this, |__t| __t.static_dye_button_base().name.clone()))).with_color(color);

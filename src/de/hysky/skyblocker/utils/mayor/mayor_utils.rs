@@ -67,8 +67,26 @@ impl MayorUtils {
         }));
         client_command_registration_callback::EVENT.register(Arc::new(
             |dispatcher: &mut client_command_registration_callback::ClientCommandDispatcher| {
-                // TODO(fabric2seer): a command tree this tool cannot read (arguments, redirects, requires) - SeerClient commands receive the words after the name in `ctx.args`
-                //   java: dispatcher.register(..);
+                //   java: dispatcher.register(ClientCommands.literal(SkyblockerMod.NAMESPACE).then(ClientCommands.literal("updatePerkOverrides").executes(context -> {
+                //   java:     loadMayorPerkOverrides().thenAcceptAsync(result -> { if (minecraft.player != null) sendSystemMessage(PREFIX + (result ? ..success : ..failed)); }, minecraft);
+                //   java:     return Command.SINGLE_SUCCESS; })));
+                use mcrust::com::mojang::brigadier::builder::argument_builder::ArgumentBuilder as _;
+                let mut update = client_command_registration_callback::literal("updatePerkOverrides");
+                update.executes(Arc::new(|_context: &mcrust::com::mojang::brigadier::context::command_context::CommandContext<client_command_registration_callback::FabricClientCommandSource>| {
+                    MayorUtils::load_mayor_perk_overrides().then_accept(|result: &bool| {
+                        let result: bool = *result;
+                        crate::compat::execute(move || {
+                            if mcrust::mcrust::modding::game::with_player(|_| ()).is_some() {
+                                let key = if result { "skyblocker.mayor.perkOverrides.update.success" } else { "skyblocker.mayor.perkOverrides.update.failed" };
+                                compat::batch_w_send_feedback(&(crate::de::hysky::skyblocker::utils::constants::PREFIX.get())().append(mcrust::net::minecraft::network::chat::component::translatable(key)));
+                            }
+                        });
+                    });
+                    Ok(1)
+                }));
+                let mut root = client_command_registration_callback::literal(skyblocker_mod::NAMESPACE);
+                root.then(&update);
+                dispatcher.dispatcher().register(&root);
             },
         ));
     }
@@ -89,79 +107,82 @@ impl MayorUtils {
     /// java: private static void tickMayorCache()
     pub fn tick_mayor_cache() {
         MayorUtils::load_mayor_perk_overrides();
-        // TODO(fabric2seer): `.thenRunAsync(..)` on a value of unknown type
-        //   java: CompletableFuture.supplyAsync(() -> {
-        //   java: 			try (Http.ApiResponse response = Http.sendCacheableGetRequest("https://hysky.de/api/skyblock/election", null)) {
-        //   java: 				if (!response.ok()) {
-        //   java: 					throw new RuntimeException("Received bad http response: " + response.statusCode() + " " + response.content());
-        //   java: 				}
-        //   java:
-        //   java: 				JsonObject json = JsonParser.parseString(response.content()).getAsJsonObject();
-        //   java:
-        //   java: 				if (!json.get("success").getAsBoolean()) {
-        //   java: 					//Can't find a more appropriate exception to throw here.
-        //   java: 					throw new RuntimeException("Request failed!");
-        //   java: 				}
-        //   java:
-        //   java: 				JsonObject mayorObject = json.getAsJsonObject("mayor");
-        //   java:
-        //   java: 				if (mayorObject == null) {
-        //   java: 					throw new RuntimeException("No mayor object found in response!");
-        //   java: 				}
-        //   java:
-        //   java: 				return mayorObject;
-        //   java: 			} catch (Exception e) {
-        //   java: 				throw new RuntimeException(e); //Wrap the exception to be handled by the exceptionally block
-        //   java: 			}
-        //   java: 		}, SkyblockerMod.VIRTUAL_THREAD_EXECUTOR).exceptionally(throwable -> {
-        //   java: 			LOGGER.error("[Skyblocker] Failed to get mayor status!", throwable.getCause());
-        //   java: 			if (mayorTickRetryAttempts < 5) {
-        //   java: 				int minutes = 5 << mayorTickRetryAttempts; //5, 10, 20, 40, 80 minutes
-        //   java: 				mayorTickRetryAttempts++;
-        //   java:
-        //   java: 				LOGGER.warn("[Skyblocker] Retrying in {} minutes.", minutes);
-        //   java: 				RenderHelper.runOnRenderThread(() -> {
-        //   java: 					Scheduler.INSTANCE.schedule(MayorUtils::tickMayorCache, minutes * 60 * 20);
-        //   java: 				});
-        //   java: 			} else {
-        //   java: 				LOGGER.warn("[Skyblocker] Failed to get mayor status after 5 retries! Stopping further retries until next reboot.");
-        //   java: 			}
-        //   java: 			return new JsonObject(); //Have to return a value for the thenAccept block.
-        //   java: 		}).thenAccept(result -> {
-        //   java: 			if (!result.isEmpty()) {
-        //   java: 				try {
-        //   java: 					mayor = Mayor.CODEC.parse(JsonOps.INSTANCE, result)
-        //   java: 							.setPartial(Mayor.EMPTY)
-        //   java: 							.resultOrPartial(error -> LOGGER.warn("[Skyblocker] Failed to parse mayor status from the API response. Error: {}", error))
-        //   java: 							.get();
-        //   java: 				} catch (Exception e) {
-        //   java: 					LOGGER.warn("[Skyblocker] Failed to parse mayor status from the API response.", e);
-        //   java: 					mayor = Mayor.EMPTY;
-        //   java: 				}
-        //   java:
-        //   java: 				try {
-        //   java: 					JsonObject ministerObject = result.getAsJsonObject("minister");
-        //   java:
-        //   java: 					// Check if ministerObject is not null stops NPE caused by Derpy
-        //   java: 					if (ministerObject != null) {
-        //   java: 						minister = Minister.CODEC.parse(JsonOps.INSTANCE, ministerObject)
-        //   java: 								.setPartial(Minister.EMPTY)
-        //   java: 								.resultOrPartial(error -> LOGGER.warn("[Skyblocker] Failed to parse minister status from the API response. Error: {}", error))
-        //   java: 								.get();
-        //   java: 					} else {
-        //   java: 						LOGGER.info("[Skyblocker] No minister data found for the current mayor.");
-        //   java: 						minister = Minister.EMPTY;
-        //   java: 					}
-        //   java: 				} catch (Exception e) {
-        //   java: 					LOGGER.warn("[Skyblocker] Failed to parse minister status from the API response.", e);
-        //   java: 					minister = Minister.EMPTY;
-        //   java: 				}
-        //   java: 				LOGGER.info("[Skyblocker] Mayor set to {}, minister set to {}.", mayor, minister);
-        //   java: 			}
-        //   java: 		}).thenRunAsync(() -> {
-        //   java: 			scheduleMayorTick(); //Ends up as a cyclic task with finer control over scheduled time
-        //   java: 			SkyblockEvents.MAYOR_CHANGE.invoker().onMayorChange();
-        //   java: 		}, Minecraft.getInstance());
+        // java: CompletableFuture.supplyAsync(() -> { try (Http.ApiResponse response = Http.sendCacheableGetRequest("https://hysky.de/api/skyblock/election", null)) { .. return mayorObject; } catch (Exception e) { throw new RuntimeException(e); } }, VIRTUAL_THREAD_EXECUTOR)
+        //       .exceptionally(throwable -> { LOGGER.error(..); retry; return new JsonObject(); })
+        //       .thenAccept(result -> { if (!result.isEmpty()) { mayor = ..; minister = ..; LOGGER.info(..); } })
+        //       .thenRunAsync(() -> { scheduleMayorTick(); SkyblockEvents.MAYOR_CHANGE.invoker().onMayorChange(); }, Minecraft.getInstance());
+        // The request and the JSON parse run on the executor; the codecs are the render thread's, so the parse into `Mayor` /
+        // `Minister` and the rest run there (`Minecraft.getInstance()` is the last stage's executor anyway).
+        compat::executor(Box::new(|| {
+            let fetched: Result<serde_json::Map<String, serde_json::Value>, String> = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| -> Result<serde_json::Map<String, serde_json::Value>, String> {
+                let response = crate::de::hysky::skyblocker::utils::http::Http::send_cacheable_get_request("https://hysky.de/api/skyblock/election", None);
+                if !response.ok() {
+                    return Err(format!("Received bad http response: {} {}", response.status_code(), response.content()));
+                }
+                let json: serde_json::Value = serde_json::from_str(&response.content()).map_err(|e| e.to_string())?;
+                let json = json.as_object().ok_or_else(|| "Not a JSON object".to_string())?;
+                if !json.get("success").and_then(|s| s.as_bool()).unwrap_or(false) {
+                    // Can't find a more appropriate exception to throw here.
+                    return Err("Request failed!".to_string());
+                }
+                let Some(mayor_object) = json.get("mayor").and_then(|m| m.as_object()) else {
+                    return Err("No mayor object found in response!".to_string());
+                };
+                Ok(mayor_object.clone())
+            })).unwrap_or_else(|e| Err(compat::panic_message(&e)));
+            crate::compat::execute(move || {
+                // java: .exceptionally(throwable -> {..})
+                let result: serde_json::Map<String, serde_json::Value> = match fetched {
+                    Ok(result) => result,
+                    Err(cause) => {
+                        logger().error(&format!("[Skyblocker] Failed to get mayor status! {cause}"));
+                        let attempts: i32 = compat::get_state(&MAYOR_TICK_RETRY_ATTEMPTS);
+                        if attempts < 5 {
+                            let minutes: i32 = 5 << attempts; // 5, 10, 20, 40, 80 minutes
+                            compat::set_state(&MAYOR_TICK_RETRY_ATTEMPTS, attempts + 1);
+                            logger().warn(&format!("[Skyblocker] Retrying in {} minutes.", minutes));
+                            // java: RenderHelper.runOnRenderThread(() -> Scheduler.INSTANCE.schedule(MayorUtils::tickMayorCache, minutes * 60 * 20));
+                            ({ let __r = scheduler::INSTANCE.get_mut(); let __f = compat::dispatch(__r, |__t| __t.schedule()); __f(__r, Arc::new(move || { MayorUtils::tick_mayor_cache(); }), minutes * 60 * 20) });
+                        } else {
+                            logger().warn("[Skyblocker] Failed to get mayor status after 5 retries! Stopping further retries until next reboot.");
+                        }
+                        serde_json::Map::new()
+                    }
+                };
+                // java: .thenAccept(result -> {..})
+                if !result.is_empty() {
+                    let ops = mcrust::com::mojang::serialization::json_ops::JsonOps::instance();
+                    let result_value = serde_json::Value::Object(result.clone());
+                    let parsed_mayor: Mayor = match mayor::CODEC.get().parse(&ops, &compat::json_to_port(&result_value)).get_or_throw() {
+                        Ok(parsed) => parsed,
+                        Err(error) => {
+                            logger().warn(&format!("[Skyblocker] Failed to parse mayor status from the API response. Error: {}", error));
+                            mayor::EMPTY.clone()
+                        }
+                    };
+                    compat::set_state(&MAYOR, parsed_mayor);
+                    // Check if ministerObject is not null stops NPE caused by Derpy
+                    let parsed_minister: Minister = match result.get("minister").and_then(|m| m.as_object()) {
+                        Some(minister_object) => match minister::CODEC.get().parse(&ops, &compat::json_to_port(&serde_json::Value::Object(minister_object.clone()))).get_or_throw() {
+                            Ok(parsed) => parsed,
+                            Err(error) => {
+                                logger().warn(&format!("[Skyblocker] Failed to parse minister status from the API response. Error: {}", error));
+                                minister::EMPTY.clone()
+                            }
+                        },
+                        None => {
+                            logger().info("[Skyblocker] No minister data found for the current mayor.");
+                            minister::EMPTY.clone()
+                        }
+                    };
+                    compat::set_state(&MINISTER, parsed_minister);
+                    logger().info(&format!("[Skyblocker] Mayor set to {:?}, minister set to {:?}.", compat::get_state(&MAYOR), compat::get_state(&MINISTER)));
+                }
+                // java: .thenRunAsync(() -> {..}, Minecraft.getInstance())
+                MayorUtils::schedule_mayor_tick(); // Ends up as a cyclic task with finer control over scheduled time
+                (skyblock_events::mayor_change_invoker())();
+            });
+        }));
     }
 
     /// java: private static CompletableFuture<Boolean> loadMayorPerkOverrides()

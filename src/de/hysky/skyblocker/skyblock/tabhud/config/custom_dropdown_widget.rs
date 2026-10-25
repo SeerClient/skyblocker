@@ -2,6 +2,7 @@
 
 #[allow(unused_imports)]
 use crate::prelude::*;
+use mcrust::net::minecraft::network::chat::component::Component as _;
 use crate::de::hysky::skyblocker::skyblock::tabhud::config::top_bar_widget::TopBarWidget;
 use crate::de::hysky::skyblocker::utils::render::gui::dropdown_widget::DropdownList;
 use crate::de::hysky::skyblocker::utils::render::gui::dropdown_widget::DropdownListBase;
@@ -12,6 +13,7 @@ use mcrust::mcrust::modding::widgets::ModList;
 use mcrust::mcrust::modding::widgets::ModListEntry;
 use mcrust::mcrust::modding::widgets::ModSelectionList;
 use mcrust::mcrust::modding::widgets::WidgetRenderContext;
+use mcrust::net::minecraft::client::gui::components::abstract_widget::AbstractWidget;
 use mcrust::net::minecraft::client::gui::active_text_collector;
 use mcrust::net::minecraft::client::gui::components::abstract_selection_list::AbstractSelectionList;
 use mcrust::net::minecraft::client::gui::gui_graphics_extractor;
@@ -293,16 +295,14 @@ impl CustomEntry {
         if !compat::read(__this, |__t| __t.is_first) {
             gui_graphics_extractor::horizontal_line(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), __this.lock().borrow().get_x(), (__this.lock().borrow().get_x()).wrapping_add(__this.lock().borrow().get_width()), __this.lock().borrow().get_y(), argb::color_alpha_rgb(15, 0));
         }
-        // rust: port gap - `formatter` is a field of the enclosing CustomDropdownWidget.this, which the entry (made by the
-        // widget's constructor before the widget is shared, and erased to `Rc<dyn Any>`) cannot reach; the label is not
-        // drawn (GAPS_O)
-        //   java: graphics.textRenderer().acceptScrollingWithDefaultCenter(
-        //   java: 					formatter.apply(entry).copy().withStyle(Style.EMPTY.withUnderlined(hovered)),
-        //   java: 					this.getX(),
-        //   java: 					this.getX() + this.getWidth(),
-        //   java: 					this.getY(),
-        //   java: 					this.getY() + 11
-        //   java: 			);
+        // java: graphics.textRenderer().acceptScrollingWithDefaultCenter(formatter.apply(entry).copy().withStyle(Style.EMPTY.withUnderlined(hovered)),
+        //           this.getX(), this.getX() + this.getWidth(), this.getY(), this.getY() + 11);
+        // (`formatter` is the enclosing widget's, reached through the row's link to it - `EntryBase::format_entry`)
+        let Some(__label) = __this.lock().borrow().format_entry() else { return; };
+        let __label = __label.copy().with_style(&mcrust::net::minecraft::network::chat::style::Style::EMPTY.with_underlined(Some(hovered)));
+        let (__x, __y, __w) = (__this.lock().borrow().get_x(), __this.lock().borrow().get_y(), __this.lock().borrow().get_width());
+        // `acceptScrollingWithDefaultCenter`: the centre is the middle of `left..right`
+        accept_scrolling(&mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(__label), __x.wrapping_add(__w.wrapping_div(2)), __x, __x.wrapping_add(__w), __y, __y.wrapping_add(11));
     }
 
     /// CustomEntry.extractContent as the dispatch of Entry.extractContent
@@ -341,4 +341,99 @@ impl ModListEntry for compat::EntryAdapter<CustomEntry> {
         self.lend(Some(list.list.entry(index)), |__h| ({ let __f = compat::dispatch(__h, |__t| __t.mouse_clicked()); __f(&compat::view(__h, |a| a as compat::Shared<dyn crate::de::hysky::skyblocker::utils::render::gui::dropdown_widget::Entry>), event, double_click) }))
     }
 
+}
+
+/// `CustomDropdownWidget` as a child widget OBJECT of a container (`TopBarWidget.widgets`, its `LinearLayout`): the
+/// game's widget in the container's child `Screen`, attached to the dropdown object. Java's one object is both; here
+/// the game's widget carries the box a layout moves and the object carries everything else, so every call first moves
+/// the object to the game widget's position (`setX` / `setY` are the dropdown's overrides, which move its list) and
+/// hands the object's height back (it changes when the list opens).
+pub struct CustomDropdownAdapter<T: 'static> {
+    object: compat::RenderThread<compat::Shared<CustomDropdownWidget<T>>>,
+}
+
+impl<T: Clone + std::fmt::Display + 'static> CustomDropdownAdapter<T> {
+    /// `addChild(dropdown)` - the game's widget, from the object's box, with the object attached.
+    pub fn widget(object: compat::Shared<CustomDropdownWidget<T>>) -> AbstractWidget {
+        let (x, y, w, h) = compat::read(&object, |__t| (__t.get_x(), __t.get_y(), __t.get_width(), __t.get_height()));
+        mcrust::mcrust::modding::widgets::ModWidgetSlot::widget(x, y, w, h, String::new(), Box::new(CustomDropdownAdapter { object: compat::RenderThread::new(object) }))
+    }
+
+    /// The dropdown object.
+    pub fn object(&self) -> &compat::Shared<CustomDropdownWidget<T>> {
+        self.object.get()
+    }
+
+    /// The object brought to the game widget's box and hover; the object's height handed back after `f`.
+    fn sync<R>(&self, widget: &mut AbstractWidget, f: impl FnOnce(&compat::Shared<CustomDropdownWidget<T>>) -> R) -> R {
+        let object = self.object.get().clone();
+        let (wx, wy, hovered, visible, active) = (widget.get_x(), widget.get_y(), widget.is_hovered(), widget.visible, widget.active);
+        compat::write(&object, |__t| {
+            if __t.get_x() != wx {
+                DropdownWidget::set_x(__t, wx);
+            }
+            if __t.get_y() != wy {
+                DropdownWidget::set_y(__t, wy);
+            }
+            __t.base.base.is_hovered = hovered;
+            __t.base.base.visible = visible;
+            __t.base.base.active = active;
+        });
+        let out = f(&object);
+        let (w, h) = compat::read(&object, |__t| (__t.get_width(), __t.get_height()));
+        widget.width = w;
+        widget.height = h;
+        out
+    }
+}
+
+impl<T: Clone + std::fmt::Display + 'static> mcrust::mcrust::modding::widgets::ModWidget for CustomDropdownAdapter<T> {
+    /// java: DropdownWidget.extractWidgetRenderState (the header through this class's `extractHeader`)
+    fn extract_widget_render_state(&mut self, widget: &AbstractWidget, context: &mut WidgetRenderContext<'_>, mouse_x: i32, mouse_y: i32, a: f32) {
+        let mut lent = widget.clone();
+        self.sync(&mut lent, |__h| compat::write(__h, |__t| DropdownWidget::extract_widget_render_state(__t, &mut context.graphics, mouse_x, mouse_y, a)));
+    }
+
+    /// java: DropdownWidget.updateWidgetNarration - empty
+    fn update_widget_narration(&mut self, _widget: &AbstractWidget, _output: &mut dyn mcrust::net::minecraft::client::gui::narration::narration_element_output::NarrationElementOutput) {}
+
+    /// java: DropdownWidget.mouseClicked
+    fn mouse_clicked(&mut self, widget: &mut AbstractWidget, event: &MouseButtonEvent, double_click: bool) -> bool {
+        self.sync(widget, |__h| compat::write(__h, |__t| DropdownWidget::mouse_clicked(__t, event, double_click)))
+    }
+
+    /// java: AbstractContainerWidget.mouseReleased - `ContainerEventHandler.mouseReleased` reaches the list
+    fn mouse_released(&mut self, widget: &mut AbstractWidget, event: &MouseButtonEvent) -> bool {
+        let list = compat::read(self.object.get(), |__t| __t.dropdown_list.clone());
+        self.sync(widget, |_| match &list {
+            Some(list) => {
+                let __f = compat::dispatch(list, |__t| __t.mouse_released());
+                __f(list, event)
+            }
+            None => false,
+        })
+    }
+
+    /// java: AbstractContainerWidget.mouseDragged - the list's scrollbar drag
+    fn mouse_dragged(&mut self, widget: &mut AbstractWidget, event: &MouseButtonEvent, dx: f64, dy: f64) -> bool {
+        let list = compat::read(self.object.get(), |__t| __t.dropdown_list.clone());
+        self.sync(widget, |_| match &list {
+            Some(list) => {
+                let __f = compat::dispatch(list, |__t| __t.mouse_dragged());
+                __f(list, event, dx, dy)
+            }
+            None => false,
+        })
+    }
+
+    /// java: DropdownWidget.mouseScrolled
+    fn mouse_scrolled(&mut self, widget: &mut AbstractWidget, x: f64, y: f64, scroll_x: f64, scroll_y: f64) -> bool {
+        self.sync(widget, |__h| compat::read(__h, |__t| DropdownWidget::mouse_scrolled(__t, x, y, scroll_x, scroll_y)))
+    }
+
+    /// java: `isMouseOver` - the box the object answers (the open list is part of it)
+    fn is_mouse_over(&self, widget: &AbstractWidget, mouse_x: f64, mouse_y: f64) -> bool {
+        let _ = widget;
+        compat::read(self.object.get(), |__t| __t.base.base.is_mouse_over(mouse_x, mouse_y))
+    }
 }

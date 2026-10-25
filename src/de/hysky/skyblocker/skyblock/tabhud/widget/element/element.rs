@@ -17,7 +17,7 @@ pub const PAD_S: i32 = 2;
 /// java: public static final int PAD_L = 2;
 pub const PAD_L: i32 = 2;
 /// java: static final Font txtRend = Minecraft.getInstance().font;
-pub static TXT_REND: compat::MainThread<Font> = compat::MainThread::new(|| compat::font());
+pub static TXT_REND: compat::LiveFont = compat::LiveFont;
 
 /// java: public abstract class Element
 #[derive(Clone)]

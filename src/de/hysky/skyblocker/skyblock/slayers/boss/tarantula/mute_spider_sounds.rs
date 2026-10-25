@@ -10,21 +10,6 @@ use crate::de::hysky::skyblocker::utils::utils::Utils;
 use mcrust::net::minecraft::resources::identifier::Identifier;
 use mcrust::net::minecraft::sounds::sound_event::SoundEvent;
 
-// TODO(fabric2seer): static call ObjectSet.of(..)
-//   java: private static final ObjectSet<Identifier> MUTED_SOUNDS = ObjectSet.of(
-//   java: 			SoundEvents.SPIDER_AMBIENT.location(),
-//   java: 			SoundEvents.SPIDER_DEATH.location(),
-//   java: 			SoundEvents.SPIDER_HURT.location(),
-//   java: 			SoundEvents.SPIDER_STEP.location(),
-//   java: 			SoundEvents.BAT_HURT.location(),
-//   java: 			SoundEvents.SILVERFISH_HURT.location(),
-//   java: 			SoundEvents.SILVERFISH_DEATH.location(),
-//   java: 			SoundEvents.SILVERFISH_AMBIENT.location(),
-//   java: 			SoundEvents.SKELETON_AMBIENT.location(),
-//   java: 			SoundEvents.SKELETON_DEATH.location(),
-//   java: 			SoundEvents.SKELETON_HURT.location(),
-//   java: 			SoundEvents.SKELETON_STEP.location()
-//   java: 	);
 /// java: private static final ObjectSet<Identifier> MUTED_SOUNDS = ObjectSet.of( SoundEvents.SPIDER_AMBIENT.location(), SoundEvents.SPIDER_DEATH.location(), SoundEvents.SPIDER_HURT.location(), SoundEvents.SPID
 pub static MUTED_SOUNDS: compat::MainThread<std::collections::HashSet<Identifier>> = compat::MainThread::new(|| { use mcrust::net::minecraft::sounds::sound_events as se; [se::spider_ambient(), se::spider_death(), se::spider_hurt(), se::spider_step(), se::bat_hurt(), se::silverfish_hurt(), se::silverfish_death(), se::silverfish_ambient(), se::skeleton_ambient(), se::skeleton_death(), se::skeleton_hurt(), se::skeleton_step()].into_iter().map(|e| e.location().clone()).collect() });
 

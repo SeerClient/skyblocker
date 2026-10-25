@@ -57,8 +57,8 @@ impl SimonSays {
 
     /// java: @Init public static void init()
     pub fn init() {
-        // TODO(fabric2seer): UseBlockCallback.EVENT.register: no SeerClient equivalent yet
-        //   java: UseBlockCallback.EVENT.register(SimonSays::onBlockInteract);
+        // java: UseBlockCallback.EVENT.register(SimonSays::onBlockInteract);
+        mcrust::mcrust::modding::events::use_block_callback::register(|player, world, hand, hit_result| SimonSays::on_block_interact(player, world, &hand, hit_result));
         client_play_connection_events::JOIN.register(Arc::new(|listener: &mut ClientPacketListener| {
             SimonSays::reset();
         }));
@@ -73,7 +73,7 @@ impl SimonSays {
             let mut block: Arc<Block> = world.get_block_state_typed(&pos).get_block();
             if std::ptr::addr_eq(std::sync::Arc::as_ptr(&block), std::sync::Arc::as_ptr(&blocks::blocks().get("STONE_BUTTON"))) {
                 if BUTTONS_AREA.get_mut().contains_vec(&vec3::at_lower_corner_of(&pos)) {
-                    BlockPosSet::add(CLICKED_BUTTONS.get_mut(), &BlockPos::from_vec3i(pos.as_vec3i()));
+                    BlockPosSet::add(CLICKED_BUTTONS.get_mut(), &BlockPos::new(pos.get_x(), pos.get_y(), pos.get_z()));
                 } else if pos == *START_BUTTON.get_mut() {
                     SimonSays::reset();
                 }

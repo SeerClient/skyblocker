@@ -252,3 +252,203 @@ impl TuningSlot for TuningTemplate {
     }
 
 }
+
+impl AccessoryBagStorage {
+    /// Gson's reflective binding of the class's own fields (`ReflectiveTypeAdapterFactory`): each member the
+    /// JSON has is read over the field it names (`@SerializedName`, else the field's name) with the field's declared
+    /// type; an absent member (or a `null` one, or one Gson would reject) leaves the constructor's value.
+    pub fn read_json_fields(&mut self, json: &serde_json::Value) {
+        #[allow(unused_imports)]
+        use crate::io::github::moulberry::repo::neu_repository::gson;
+        if let Some(__v) = gson::member(json, "highest_magical_power") {
+            if let Some(__x) = gson::as_i32(__v) {
+                self.highest_magical_power = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "selected_power") {
+            if let Some(__x) = gson::as_string(__v) {
+                self.selected_power = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "bag_upgrades_purchased") {
+            if let Some(__x) = gson::as_i32(__v) {
+                self.bag_upgrades_purchased = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "unlocked_powers") {
+            if let Some(__x) = gson::list(__v, |__e0| gson::as_string(__e0)) {
+                self.unlocked_powers = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "tuning") {
+            if let Some(__x) = Some(Tuning::from_json(__v)) {
+                self.tuning = __x;
+            }
+        }
+    }
+
+    /// `GSON.fromJson(json, AccessoryBagStorage.class)`: the no-argument constructor, then the fields.
+    pub fn from_json(json: &serde_json::Value) -> Self {
+        let mut __this = Self::new();
+        __this.read_json_fields(json);
+        __this
+    }
+}
+
+impl Tuning {
+    /// Gson's reflective binding of the class's own fields (`ReflectiveTypeAdapterFactory`): each member the
+    /// JSON has is read over the field it names (`@SerializedName`, else the field's name) with the field's declared
+    /// type; an absent member (or a `null` one, or one Gson would reject) leaves the constructor's value.
+    pub fn read_json_fields(&mut self, json: &serde_json::Value) {
+        #[allow(unused_imports)]
+        use crate::io::github::moulberry::repo::neu_repository::gson;
+        if let Some(__v) = gson::member(json, "highest_unlocked_slot") {
+            if let Some(__x) = gson::as_i32(__v) {
+                self.highest_unlocked_slot = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "refund_1") {
+            if let Some(__x) = gson::as_bool(__v) {
+                self.refund1 = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "refund_2") {
+            if let Some(__x) = gson::as_bool(__v) {
+                self.refund2 = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "slot_0") {
+            if let Some(__x) = Some(TuningSlotBase::from_json(__v) as compat::Shared<dyn TuningSlot>) {
+                self.active_slot = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "slot_1") {
+            if let Some(__x) = Some(TuningTemplate::from_json(__v)) {
+                self.slot1 = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "slot_2") {
+            if let Some(__x) = Some(TuningTemplate::from_json(__v)) {
+                self.slot2 = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "slot_3") {
+            if let Some(__x) = Some(TuningTemplate::from_json(__v)) {
+                self.slot3 = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "slot_4") {
+            if let Some(__x) = Some(TuningTemplate::from_json(__v)) {
+                self.slot4 = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "slot_5") {
+            if let Some(__x) = Some(TuningTemplate::from_json(__v)) {
+                self.slot5 = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "slot_6") {
+            if let Some(__x) = Some(TuningTemplate::from_json(__v)) {
+                self.slot6 = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "slot_7") {
+            if let Some(__x) = Some(TuningTemplate::from_json(__v)) {
+                self.slot7 = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "slot_8") {
+            if let Some(__x) = Some(TuningTemplate::from_json(__v)) {
+                self.slot8 = __x;
+            }
+        }
+    }
+
+    /// `GSON.fromJson(json, Tuning.class)`: the no-argument constructor, then the fields.
+    pub fn from_json(json: &serde_json::Value) -> Self {
+        let mut __this = Self::new();
+        __this.read_json_fields(json);
+        __this
+    }
+}
+
+impl TuningSlotBase {
+    /// Gson's reflective binding of the class's own fields (`ReflectiveTypeAdapterFactory`): each member the
+    /// JSON has is read over the field it names (`@SerializedName`, else the field's name) with the field's declared
+    /// type; an absent member (or a `null` one, or one Gson would reject) leaves the constructor's value.
+    pub fn read_json_fields(&mut self, json: &serde_json::Value) {
+        #[allow(unused_imports)]
+        use crate::io::github::moulberry::repo::neu_repository::gson;
+        if let Some(__v) = gson::member(json, "health") {
+            if let Some(__x) = gson::as_i32(__v) {
+                self.health = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "defense") {
+            if let Some(__x) = gson::as_i32(__v) {
+                self.defence = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "walk_speed") {
+            if let Some(__x) = gson::as_i32(__v) {
+                self.walk_speed = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "strength") {
+            if let Some(__x) = gson::as_i32(__v) {
+                self.strength = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "critical_damage") {
+            if let Some(__x) = gson::as_i32(__v) {
+                self.critical_damage = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "critical_chance") {
+            if let Some(__x) = gson::as_i32(__v) {
+                self.critical_chance = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "attack_speed") {
+            if let Some(__x) = gson::as_i32(__v) {
+                self.attack_speed = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "intelligence") {
+            if let Some(__x) = gson::as_i32(__v) {
+                self.intelligence = __x;
+            }
+        }
+    }
+
+    /// `GSON.fromJson(json, TuningSlotBase.class)`: the no-argument constructor, then the fields.
+    pub fn from_json(json: &serde_json::Value) -> compat::Shared<Self> {
+        let __this = Self::new();
+        compat::write(&__this, |__t| __t.read_json_fields(json));
+        __this
+    }
+}
+
+impl TuningTemplate {
+    /// Gson's reflective binding of the class's own fields (`ReflectiveTypeAdapterFactory`): each member the
+    /// JSON has is read over the field it names (`@SerializedName`, else the field's name) with the field's declared
+    /// type; an absent member (or a `null` one, or one Gson would reject) leaves the constructor's value.
+    pub fn read_json_fields(&mut self, json: &serde_json::Value) {
+        #[allow(unused_imports)]
+        use crate::io::github::moulberry::repo::neu_repository::gson;
+        // java: the fields `TuningSlot` declares (`extends TuningSlot`)
+        self.base.read_json_fields(json);
+        if let Some(__v) = gson::member(json, "purchase_ts") {
+            if let Some(__x) = (gson::as_i64(__v)).map(Some) {
+                self.purchase_timestamp = __x;
+            }
+        }
+    }
+
+    /// `GSON.fromJson(json, TuningTemplate.class)`: the no-argument constructor, then the fields.
+    pub fn from_json(json: &serde_json::Value) -> compat::Shared<Self> {
+        let __this = Self::new();
+        compat::write(&__this, |__t| __t.read_json_fields(json));
+        __this
+    }
+}

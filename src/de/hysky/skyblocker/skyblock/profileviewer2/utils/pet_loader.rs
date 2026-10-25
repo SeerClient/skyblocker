@@ -21,12 +21,11 @@ use mcrust::net::minecraft::network::chat::style::Style;
 use mcrust::net::minecraft::world::item::component::item_lore::ItemLore;
 use mcrust::net::minecraft::world::item::component::resolvable_profile::ResolvableProfile;
 
-// TODO(fabric2seer): `.thenComparing(..)` on a value of unknown type
-//   java: private static final Comparator<PetsData.Pet> PETS_COMPARATOR = Comparator.comparing((PetsData.Pet pet) -> SkyblockItemRarity.valueOf(pet.tier))
-//   java: 			.reversed()
-//   java: 			.thenComparing(pet -> pet.type);
 /// java: private static final Comparator<PetsData.Pet> PETS_COMPARATOR = Comparator.comparing((PetsData.Pet pet) -> SkyblockItemRarity.valueOf(pet.tier)) .reversed() .thenComparing(pet -> pet.type);
-pub static PETS_COMPARATOR: compat::MainThread<Arc<dyn Fn(&compat::Shared<Pet>, &compat::Shared<Pet>) -> std::cmp::Ordering>> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `PETS_COMPARATOR` - see the TODO above"));
+pub static PETS_COMPARATOR: compat::MainThread<Arc<dyn Fn(&compat::Shared<Pet>, &compat::Shared<Pet>) -> std::cmp::Ordering>> = compat::MainThread::new(|| Arc::new(|a: &compat::Shared<Pet>, b: &compat::Shared<Pet>| {
+    let rarity = |p: &compat::Shared<Pet>| crate::de::hysky::skyblocker::skyblock::item::skyblock_item_rarity::SkyblockItemRarity::value_of(&compat::read(p, |t| t.tier.clone()));
+    rarity(b).cmp(&rarity(a)).then_with(|| compat::read(a, |t| t.r#type.clone()).cmp(&compat::read(b, |t| t.r#type.clone())))
+}));
 /// java: private static final Pattern STATS_NUMBER_PATTERN = Pattern.compile("\\{(?<name>[A-Za-z_]+)\\}");
 pub static STATS_NUMBER_PATTERN: LazyLock<compat::regex::Pattern> = LazyLock::new(|| compat::regex::Pattern::compile("\\{(?<name>[A-Za-z_]+)\\}"));
 /// java: private static final Pattern OTHER_NUMBER_PATTERN = Pattern.compile("\\{(?<index>\\d+)\\}");
@@ -69,31 +68,27 @@ impl PetLoader {
             return FlexibleItemStack::get_stack_or_throw(&ItemUtils::get_named_placeholder("NEU Repo / Items not loaded"));
         }
         let mut pet_rarity: SkyblockItemRarity = PetLoader::get_pet_rarity(pet);
-        let mut neu_pet_rarity: crate::unresolved::Rarity = pet_rarity.to_neu_rarity();
+        let mut neu_pet_rarity: crate::io::github::moulberry::repo::data::rarity::Rarity = pet_rarity.to_neu_rarity();
         let mut neu_pet_id: String = format!("{};{}", compat::read(pet, |__t| __t.r#type.clone()), PetLoader::get_rarity_index(pet_rarity));
         let mut base_stack: Option<compat::Shared<FlexibleItemStack>> = ItemRepository::get_item_stack(&neu_pet_id);
-        let mut pet_item: Option<crate::unresolved::NEUItem> = NEURepoManager::get_item_by_neu_id(&neu_pet_id);
+        let mut pet_item: Option<Arc<crate::io::github::moulberry::repo::data::neu_item::NEUItem>> = NEURepoManager::get_item_by_neu_id(&neu_pet_id);
         if base_stack.is_none() || pet_item.is_none() {
             logger().warn(&format!("[Skyblocker Profile Viewer Pet Loader] Failed to get pet data for {}.", neu_pet_id));
             return FlexibleItemStack::get_stack_or_throw(&ItemUtils::get_item_id_placeholder(&neu_pet_id));
         }
-        // TODO(fabric2seer): `.getPetLevelingData(..)` on a NEUConstants
         //   java: PetLevelingData petLevellingData = NEURepoManager.getConstants().getPetLevelingData();
-        let mut pet_levelling_data: crate::unresolved::PetLevelingData = todo!("fabric2seer: the initialiser of `petLevellingData` (TODO above)");
-        // TODO(fabric2seer): `.getPetNumbers(..)` on a NEUConstants
+        let mut pet_levelling_data: Arc<crate::io::github::moulberry::repo::constants::pet_leveling_data::PetLevelingData> = NEURepoManager::get_constants().get_pet_leveling_data();
         //   java: Map<@PetId String, Map<Rarity, PetNumbers>> petNumbersData = NEURepoManager.getConstants().getPetNumbers();
-        let mut pet_numbers_data: std::collections::HashMap<String, std::collections::HashMap<crate::unresolved::Rarity, crate::unresolved::PetNumbers>> = todo!("fabric2seer: the initialiser of `petNumbersData` (TODO above)");
-        // rust: port gap (GAPS_batchB L1, the NEU repo library) - `Rarity` / `PetNumbers` are the library's types, of which
-        // the port has placeholders with no equality or hash: the map cannot be looked up by them
-        // rust: if !(pet_numbers_data.contains_key(&compat::read(pet, |__t| __t.r#type.clone()))) || !((pet_numbers_data.get(&compat::read(pet, |__t| __t.r#type.clone())).cloned().unwrap()).contains_key(&neu_pet_rarity)) {
-        // rust:     logger().warn(&format!("[Skyblocker Profile Viewer Pet Loader] Mising pet numbers for {}.", compat::read(pet, |__t| __t.r#type.clone())));
-        // rust:     return FlexibleItemStack::get_stack_or_throw(&ItemUtils::get_item_id_placeholder(&compat::read(pet, |__t| __t.r#type.clone())));
-        // rust: }
+        let mut pet_numbers_data: Arc<crate::io::github::moulberry::repo::neu_constants::PetNumbersMap> = NEURepoManager::get_constants().get_pet_numbers();
+        // Ensure the pet has the numbers data for the given rarity
+        let pet_type: String = compat::read(pet, |__t| __t.r#type.clone());
+        if !(pet_numbers_data.contains_key(&pet_type)) || !(pet_numbers_data.get(&pet_type).unwrap().contains_key(&neu_pet_rarity)) {
+            logger().warn(&format!("[Skyblocker Profile Viewer Pet Loader] Mising pet numbers for {}.", pet_type));
+            return FlexibleItemStack::get_stack_or_throw(&ItemUtils::get_item_id_placeholder(&pet_type));
+        }
         let mut level_info: LevelInfo = PetLoader::calculate_pet_level(pet, &neu_pet_rarity, &pet_levelling_data);
-        // (Rarity is Hash + Eq and PetNumbers Clone now - the Java lookup, restored)
-        let _ = &pet_numbers_data;
-        // (unreached: `petNumbersData` above is still the converter's todo; the placeholder type has no data to look up)
-        let mut pet_numbers: crate::unresolved::PetNumbers = (pet_numbers_data.get(&compat::read(pet, |__t| __t.r#type.clone())).cloned().unwrap()).get(&neu_pet_rarity).cloned().unwrap();
+        //   java: PetNumbers petNumbers = petNumbersData.get(pet.type).get(neuPetRarity);
+        let mut pet_numbers: crate::io::github::moulberry::repo::constants::pet_numbers::PetNumbers = pet_numbers_data.get(&pet_type).unwrap().get(&neu_pet_rarity).cloned().unwrap();
         let mut name: MutableComponent = PetLoader::format_name(pet_item.as_ref().unwrap(), level_info.level());
         let mut lore: Vec<MutableComponent> = PetLoader::append_lore_extras(pet, &level_info, &mut PetLoader::format_lore(pet_item.as_ref().unwrap(), &pet_numbers, level_info.level()));
         let mut head: Option<ResolvableProfile> = PetLoader::get_head_icon(pet, FlexibleItemStack::get::<ResolvableProfile>(base_stack.as_ref().unwrap(), mcrust::net::minecraft::core::component::data_components::profile()));
@@ -109,40 +104,35 @@ impl PetLoader {
     }
 
     /// java: private static LevelInfo calculatePetLevel(PetsData.Pet pet, Rarity neuPetRarity, PetLevelingData petLevellingData)
-    pub fn calculate_pet_level(pet: &compat::Shared<Pet>, neu_pet_rarity: &crate::unresolved::Rarity, pet_levelling_data: &crate::unresolved::PetLevelingData) -> LevelInfo {
+    pub fn calculate_pet_level(pet: &compat::Shared<Pet>, neu_pet_rarity: &crate::io::github::moulberry::repo::data::rarity::Rarity, pet_levelling_data: &crate::io::github::moulberry::repo::constants::pet_leveling_data::PetLevelingData) -> LevelInfo {
+        use crate::io::github::moulberry::repo::constants::pet_leveling_behaviour_override::PetExpModifierType;
         let mut max_level: i32 = 100;
-        // TODO(fabric2seer): `.getPetLevelStartOffset(..)` on a PetLevelingData
-        //   java: int xpCostsOffset = petLevellingData.getPetLevelStartOffset().get(neuPetRarity);
-        let mut xp_costs_offset: i32 = todo!("fabric2seer: the initialiser of `xpCostsOffset` (TODO above)");
-        // TODO(fabric2seer): `.getPetExpCostForLevel(..)` on a PetLevelingData
+        //   java: int xpCostsOffset = petLevellingData.getPetLevelStartOffset().get(neuPetRarity); - unboxing a missing one is an NPE
+        let mut xp_costs_offset: i32 = *pet_levelling_data.get_pet_level_start_offset().get(neu_pet_rarity).expect("java.lang.NullPointerException: pet level start offset");
         //   java: List<Integer> allXpCosts = new ArrayList<>(petLevellingData.getPetExpCostForLevel());
-        let mut all_xp_costs: Vec<i32> = todo!("fabric2seer: the initialiser of `allXpCosts` (TODO above)");
-        // TODO(fabric2seer): the condition: `.getPetLevelingBehaviourOverrides(..)` on a PetLevelingData
-        //   java: petLevellingData.getPetLevelingBehaviourOverrides(..).containsKey(..)
-        if todo!("fabric2seer: the condition (TODO above)") {
-            // TODO(fabric2seer): `.getPetLevelingBehaviourOverrides(..)` on a PetLevelingData
-            //   java: PetLevelingBehaviourOverride override = petLevellingData.getPetLevelingBehaviourOverrides().get(pet.type);
-            let mut r#override: crate::unresolved::PetLevelingBehaviourOverride = todo!("fabric2seer: the initialiser of `override` (TODO above)");
-            // TODO(fabric2seer): the condition: `.getMaxLevel(..)` on a PetLevelingBehaviourOverride
-            //   java: override.getMaxLevel() != null
-            if todo!("fabric2seer: the condition (TODO above)") {
-                // TODO(fabric2seer): `.getMaxLevel(..)` on a PetLevelingBehaviourOverride
-                //   java: maxLevel = override.getMaxLevel().intValue();
+        let mut all_xp_costs: Vec<i32> = pet_levelling_data.get_pet_exp_cost_for_level().to_vec();
+        let pet_type: String = compat::read(pet, |__t| __t.r#type.clone());
+        //   java: if (petLevellingData.getPetLevelingBehaviourOverrides().containsKey(pet.type)) {
+        if let Some(r#override) = pet_levelling_data.get_pet_leveling_behaviour_overrides().get(&pet_type) {
+            // Adjust max level
+            //   java: if (override.getMaxLevel() != null) maxLevel = override.getMaxLevel().intValue();
+            if let Some(override_max_level) = r#override.get_max_level() {
+                max_level = override_max_level;
             }
-            // TODO(fabric2seer): the condition: `.getPetExpCostModifierType(..)` on a PetLevelingBehaviourOverride
-            //   java: override.getPetExpCostModifierType() != null && override.getPetExpCostModifier() != null
-            if todo!("fabric2seer: the condition (TODO above)") {
-                // TODO(fabric2seer): `.getPetExpCostModifierType(..)` on a PetLevelingBehaviourOverride
-                //   java: switch (override.getPetExpCostModifierType()) {
-                //   java: 				case PetLevelingBehaviourOverride.PetExpModifierType.APPEND -> allXpCosts.addAll(override.getPetExpCostModifier());
-                //   java: 				case PetLevelingBehaviourOverride.PetExpModifierType.REPLACE -> allXpCosts = override.getPetExpCostModifier();
-                //   java: 				}
+            // Apply allXpCosts override
+            //   java: if (override.getPetExpCostModifierType() != null && override.getPetExpCostModifier() != null) switch (..) {
+            //   java:     case APPEND -> allXpCosts.addAll(override.getPetExpCostModifier());
+            //   java:     case REPLACE -> allXpCosts = override.getPetExpCostModifier(); }
+            if let (Some(modifier_type), Some(modifier)) = (r#override.get_pet_exp_cost_modifier_type(), r#override.get_pet_exp_cost_modifier()) {
+                match modifier_type {
+                    PetExpModifierType::Append => all_xp_costs.extend(modifier.iter().copied()),
+                    PetExpModifierType::Replace => all_xp_costs = modifier.clone(),
+                }
             }
-            // TODO(fabric2seer): the condition: `.getPetLevelStartOffset(..)` on a PetLevelingBehaviourOverride
-            //   java: override.getPetLevelStartOffset() != null
-            if todo!("fabric2seer: the condition (TODO above)") {
-                // TODO(fabric2seer): `.getPetLevelStartOffset(..)` on a PetLevelingBehaviourOverride
-                //   java: xpCostsOffset = override.getPetLevelStartOffset().get(neuPetRarity);
+            // Apply xpCostsOffset override
+            //   java: if (override.getPetLevelStartOffset() != null) xpCostsOffset = override.getPetLevelStartOffset().get(neuPetRarity);
+            if let Some(offsets) = r#override.get_pet_level_start_offset() {
+                xp_costs_offset = *offsets.get(neu_pet_rarity).expect("java.lang.NullPointerException: pet level start offset");
             }
         }
         let mut xp_costs: Vec<i32> = all_xp_costs[(xp_costs_offset) as usize..((xp_costs_offset.wrapping_add(max_level)).wrapping_sub(1)) as usize].to_vec();
@@ -167,23 +157,21 @@ impl PetLoader {
     }
 
     /// java: private static Component formatName(NEUItem petItem, int petLevel)
-    pub fn format_name(pet_item: &crate::unresolved::NEUItem, mut pet_level: i32) -> MutableComponent {
-        // TODO(fabric2seer): `.getDisplayName(..)` on a NEUItem
+    pub fn format_name(pet_item: &crate::io::github::moulberry::repo::data::neu_item::NEUItem, mut pet_level: i32) -> MutableComponent {
         //   java: String name = petItem.getDisplayName();
-        let mut name: String = todo!("fabric2seer: the initialiser of `name` (TODO above)");
+        let mut name: String = pet_item.get_display_name().to_string();
         name = name.replace("{LVL}", &pet_level.to_string());
         return TextTransformer::from_legacy(&name);
     }
 
     /// java: private static List<Component> formatLore(NEUItem petItem, PetNumbers petNumbers, int petLevel)
-    pub fn format_lore(pet_item: &crate::unresolved::NEUItem, pet_numbers: &crate::unresolved::PetNumbers, mut pet_level: i32) -> Vec<MutableComponent> {
-        // TODO(fabric2seer): `.getLore(..)` on a NEUItem
+    pub fn format_lore(pet_item: &crate::io::github::moulberry::repo::data::neu_item::NEUItem, pet_numbers: &crate::io::github::moulberry::repo::constants::pet_numbers::PetNumbers, mut pet_level: i32) -> Vec<MutableComponent> {
         //   java: List<String> unformattedLore = petItem.getLore();
-        let mut unformatted_lore: Vec<String> = todo!("fabric2seer: the initialiser of `unformattedLore` (TODO above)");
+        let mut unformatted_lore: Vec<String> = pet_item.get_lore().to_vec();
         let mut formatted_lore: Vec<String> = Vec::new();
-        // TODO(fabric2seer): `.interpolatedStatsAtLevel(..)` on a PetNumbers
-        //   java: PetNumbers.Stats stats = petNumbers.interpolatedStatsAtLevel(petLevel);
-        let mut stats: crate::unresolved::Stats = todo!("fabric2seer: the initialiser of `stats` (TODO above)");
+        //   java: PetNumbers.Stats stats = petNumbers.interpolatedStatsAtLevel(petLevel); - null outside the pet's levels, and
+        //   the first read of it the NullPointerException
+        let mut stats: Option<crate::io::github::moulberry::repo::constants::pet_numbers::Stats> = pet_numbers.interpolated_stats_at_level(pet_level);
         let mut skip_next: bool = false;
         for line in unformatted_lore.iter() {
             let mut is_rc: bool = (line.contains("Right-click to add this") || line.contains("pet menu!"));
@@ -205,15 +193,23 @@ impl PetLoader {
             }
             let mut formatted_line: String = line.to_string();
             for stat_name in stats_replacements.iter() {
-                // TODO(fabric2seer): `.getStatNumbers(..)` on a Stats
                 //   java: double replacement = stats.getStatNumbers().get(statName).doubleValue();
-                let mut replacement: f64 = todo!("fabric2seer: the initialiser of `replacement` (TODO above)");
+                let mut replacement: f64 = *stats
+                    .as_ref()
+                    .expect("java.lang.NullPointerException: PetNumbers.Stats stats")
+                    .get_stat_numbers()
+                    .get(stat_name)
+                    .expect("java.lang.NullPointerException: stat number");
                 formatted_line = formatted_line.replace(&format!("{{{}}}", stat_name), &formatters::TRIPLE_NUMBERS.get_mut().format(replacement));
             }
             for index in other_number_replacements.iter().copied() {
-                // TODO(fabric2seer): `.getOtherNumbers(..)` on a Stats
                 //   java: double replacement = stats.getOtherNumbers().get(index).doubleValue();
-                let mut replacement: f64 = todo!("fabric2seer: the initialiser of `replacement` (TODO above)");
+                let mut replacement: f64 = *stats
+                    .as_ref()
+                    .expect("java.lang.NullPointerException: PetNumbers.Stats stats")
+                    .get_other_numbers()
+                    .get(index as usize)
+                    .expect("java.lang.IndexOutOfBoundsException: other number");
                 formatted_line = formatted_line.replace(&format!("{{{}}}", index), &formatters::TRIPLE_NUMBERS.get_mut().format(replacement));
             }
             formatted_lore.push(formatted_line.clone());
@@ -228,11 +224,8 @@ impl PetLoader {
     /// java: private static List<Component> appendLoreExtras(PetsData.Pet pet, LevelInfo levelInfo, List<Component> lore)
     pub fn append_lore_extras(pet: &compat::Shared<Pet>, level_info: &LevelInfo, lore: &mut Vec<MutableComponent>) -> Vec<MutableComponent> {
         if compat::read(pet, |__t| __t.skin.clone()).is_some() {
-            // TODO(fabric2seer): `getOrDefault` is not a method of FlexibleItemStack
-            //   java: String petSkinName = ItemRepository.getItemStack("PET_SKIN_" + pet.skin, FlexibleItemStack.EMPTY)
-            //   java: 					.getOrDefault(DataComponents.CUSTOM_NAME, Component.empty())
-            //   java: 					.getString();
-            let mut pet_skin_name: String = todo!("fabric2seer: the initialiser of `petSkinName` (TODO above)");
+            let skin_stack = ItemRepository::get_item_stack_2(&format!("PET_SKIN_{}", compat::read(pet, |__t| __t.skin.clone()).unwrap()), crate::de::hysky::skyblocker::utils::flexible_item_stack::EMPTY.get());
+            let pet_skin_name: String = FlexibleItemStack::get::<mcrust::net::minecraft::network::chat::formatted_text::FormattedText>(&skin_stack, mcrust::net::minecraft::core::component::data_components::custom_name()).map(|n| n.get_string()).unwrap_or_default();
             let mut new_first_line: MutableComponent = component::empty().with_style(NO_ITALIC.get_mut()).append(lore[0].clone()).append((component::literal(&format!(", {}", pet_skin_name))).with_style_format(ChatFormatting::DarkGray));
             lore[(0) as usize] = new_first_line.clone();
         }

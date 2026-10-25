@@ -16,8 +16,11 @@ pub static STRIP_DE_FACTO_TRANSPARENT_PIXELS: LazyLock<std::collections::HashSet
 });
 pub static BRIGHTNESS_THRESHOLD: LazyLock<Mutex<f32>> = LazyLock::new(|| Mutex::new(0.1f32));
 /// `@Share("isSkyblockSkinTexture") LocalBooleanRef` - one value per run of `processLegacySkin`, shared by the two
-/// injectors.
-static IS_SKYBLOCK_SKIN_TEXTURE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+/// injectors. Thread-local: `processLegacySkin` runs on the download pool's threads, several at once, and both
+/// injectors of one run are on that run's thread (the `@Share` is a local of the call).
+thread_local! {
+    static IS_SKYBLOCK_SKIN_TEXTURE: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
 
 /// @Unique
 fn strip_de_facto_transparent_pixels(image: &mut mcrust::com::mojang::blaze3d::platform::native_image::NativeImage) {
@@ -37,16 +40,22 @@ fn strip_de_facto_transparent_pixels(image: &mut mcrust::com::mojang::blaze3d::p
 
 /// @Inject skyblocker$determineSkinSource
 ///   java: @Inject(method = "processLegacySkin", at = @At("HEAD"))
-/// target: net.minecraft.client.renderer.texture.SkinTextureDownloader#processLegacySkin  [no Rust counterpart]
-/// note: no Rust counterpart: hook_coverage.py: NO RUST - the port has no Rust body for this Java method, so a hook there has nothing to land on - the registration is left commented out (it would never fire, and `seer check` refuses an unhooked target)
-/// rust: port gap - `SkinTextureDownloader.processLegacySkin` has no Rust body (GAPS_batchD); the handler is the
-/// Java's over its two arguments (`image`, `uri`) and is not registered.
+/// target: net.minecraft.client.renderer.texture.SkinTextureDownloader#processLegacySkin  [exists]
+/// Rust: net/minecraft/client/renderer/texture/skin_texture_downloader.rs fn process_legacy_skin_image(mut image: NativeImage, url: &str)
+fn skyblocker_determine_skin_source_hook(ci: &mut CallbackInfo<'_>) {
+    let Some(uri) = ci.arg::<str>(1).map(str::to_string) else { return; };
+    let Some(image) = ci.arg_mut::<mcrust::com::mojang::blaze3d::platform::native_image::NativeImage>(0) else { return; };
+    skyblocker_determine_skin_source(image, &uri);
+}
+
+/// The handler's body over its two arguments (`image`, `uri`).
 fn skyblocker_determine_skin_source(image: &mut mcrust::com::mojang::blaze3d::platform::native_image::NativeImage, uri: &str) {
-    IS_SKYBLOCK_SKIN_TEXTURE.store(false, std::sync::atomic::Ordering::Relaxed);
+    IS_SKYBLOCK_SKIN_TEXTURE.with(|share| share.set(false));
     if crate::de::hysky::skyblocker::config::skyblocker_config_manager::SkyblockerConfigManager::get().ui_and_visuals.dont_strip_skin_alpha_values && (crate::de::hysky::skyblocker::utils::utils::Utils::is_on_skyblock() || mcrust::mcrust::modding::game::current_screen_is::<compat::ScreenAdapter<crate::de::hysky::skyblocker::skyblock::profileviewer::profile_viewer_screen::ProfileViewerScreen>>() || mcrust::mcrust::modding::game::current_screen_is::<compat::ScreenAdapter<crate::de::hysky::skyblocker::skyblock::profileviewer2::profile_viewer_screen::ProfileViewerScreen>>()) {
         let mut skin_texture_hash: String = crate::de::hysky::skyblocker::skyblock::item::player_head_hash_cache::PlayerHeadHashCache::get_skin_hash_from_url(uri);
         let mut skin_hash: i32 = compat::string_hash_code(&skin_texture_hash);
-        IS_SKYBLOCK_SKIN_TEXTURE.store(crate::de::hysky::skyblocker::skyblock::item::player_head_hash_cache::PlayerHeadHashCache::contains(skin_hash), std::sync::atomic::Ordering::Relaxed);
+        let contains = crate::de::hysky::skyblocker::skyblock::item::player_head_hash_cache::PlayerHeadHashCache::contains(skin_hash);
+        IS_SKYBLOCK_SKIN_TEXTURE.with(|share| share.set(contains));
         //Hypixel had the grand idea of using black pixels in place of actual transparent pixels on the titanium equipment so here we go!
         if STRIP_DE_FACTO_TRANSPARENT_PIXELS.contains(&skin_texture_hash) {
             strip_de_facto_transparent_pixels(image);
@@ -59,15 +68,12 @@ fn skyblocker_determine_skin_source(image: &mut mcrust::com::mojang::blaze3d::pl
 /// target: net.minecraft.client.renderer.texture.SkinTextureDownloader#setNoAlpha  [exists]
 /// within: net.minecraft.client.renderer.texture.SkinTextureDownloader#processLegacySkin
 /// Rust: net/minecraft/client/renderer/texture/skin_texture_downloader.rs:256 fn set_no_alpha(image: &mut NativeImage, x0: i32, y0: i32, x1: i32, y1: i32)
-/// note: `within` net.minecraft.client.renderer.texture.SkinTextureDownloader#processLegacySkin: no Rust counterpart - the caller must be hooked for `within` to see it on the stack; the registration is left commented out
 fn skyblocker_dont_strip_alpha_values(ci: &CallbackInfo<'_>) -> bool {
-    return !IS_SKYBLOCK_SKIN_TEXTURE.load(std::sync::atomic::Ordering::Relaxed);
+    return !IS_SKYBLOCK_SKIN_TEXTURE.with(|share| share.get());
 }
 
 /// Mixins apply before the game runs: the `preLaunch` entrypoint calls this.
 pub fn register() {
-    // TODO(fabric2seer): not registered - no Rust counterpart: hook_coverage.py: NO RUST - the port has no Rust body for this Java method, so a hook there has nothing to land on - the registration is left commented out (it would never fire, and `seer check` refuses an unhooked target)
-    // report(hook::register_injector(`net.minecraft.client.renderer.texture.SkinTextureDownloader#processLegacySkin`, InjectOptions::at(At::Head).kind(InjectorKind::Inject).priority(1000), Arc::new(skyblocker_determine_skin_source)));
-    // TODO(fabric2seer): not registered - `within` net.minecraft.client.renderer.texture.SkinTextureDownloader#processLegacySkin: no Rust counterpart - the caller must be hooked for `within` to see it on the stack; the registration is left commented out
-    // report(hook::call_site(`net.minecraft.client.renderer.texture.SkinTextureDownloader#processLegacySkin`, `net.minecraft.client.renderer.texture.SkinTextureDownloader#setNoAlpha`).priority(1000).wrap_with_condition(skyblocker_dont_strip_alpha_values));
+    report(hook::register_injector("net.minecraft.client.renderer.texture.SkinTextureDownloader#processLegacySkin", InjectOptions::at(At::Head).kind(InjectorKind::Inject).priority(1000), Arc::new(skyblocker_determine_skin_source_hook)));
+    report(hook::call_site("net.minecraft.client.renderer.texture.SkinTextureDownloader#processLegacySkin", "net.minecraft.client.renderer.texture.SkinTextureDownloader#setNoAlpha").priority(1000).wrap_with_condition(skyblocker_dont_strip_alpha_values));
 }

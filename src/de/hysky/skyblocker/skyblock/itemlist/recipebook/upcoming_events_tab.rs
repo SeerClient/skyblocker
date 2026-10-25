@@ -13,6 +13,7 @@ use crate::de::hysky::skyblocker::skyblock::tabhud::util::ico;
 use crate::de::hysky::skyblocker::skyblock::tabhud::widget::jacobs_contest_widget;
 use crate::de::hysky::skyblocker::utils::flexible_item_stack::FlexibleItemStack;
 use crate::de::hysky::skyblocker::utils::formatters;
+use crate::de::hysky::skyblocker::utils::time::skyblock_time::SkyblockTime;
 use crate::de::hysky::skyblocker::utils::render::gui_helper::GuiHelper;
 use crate::de::hysky::skyblocker::utils::scheduler::message_scheduler;
 use crate::de::hysky::skyblocker::utils::scheduler::message_scheduler::MessageScheduler;
@@ -45,12 +46,13 @@ pub struct UpcomingEventsTab {
 impl UpcomingEventsTab {
     /// java: protected UpcomingEventsTab()
     pub fn new() -> compat::Shared<Self> {
-        // TODO(fabric2seer): List.peekFirst(..)
-        //   java: List<EventRenderer> renderers = EventNotifications.getEvents().entrySet().stream()
-        //   java: 				.sorted(Comparator.comparingLong(a -> a.getValue().isEmpty() ? Long.MAX_VALUE : a.getValue().peekFirst().start()))
-        //   java: 				.map(stringLinkedListEntry -> new EventRenderer(stringLinkedListEntry.getKey(), stringLinkedListEntry.getValue()))
-        //   java: 				.toList();
-        let mut renderers: Vec<EventRenderer> = todo!("fabric2seer: the initialiser of `renderers` (TODO above)");
+        // java: List<EventRenderer> renderers = EventNotifications.getEvents().entrySet().stream()
+        //   .sorted(Comparator.comparingLong(a -> a.getValue().isEmpty() ? Long.MAX_VALUE : a.getValue().peekFirst().start()))
+        //   .map(entry -> new EventRenderer(entry.getKey(), entry.getValue())).toList();
+        // (`peekFirst()` of the event list is its first element; the sort is stable, as `Stream.sorted` is)
+        let mut entries: Vec<(String, Vec<SkyblockEvent>)> = EventNotifications::get_events().into_iter().collect();
+        entries.sort_by_key(|(_, events)| events.first().map(|event| event.start()).unwrap_or(i64::MAX));
+        let mut renderers: Vec<EventRenderer> = entries.into_iter().map(|(event_name, events)| EventRenderer::new(event_name, events)).collect();
         let __this = compat::shared(Self {
             events: Vec::new(),
             hovered: None,
@@ -149,8 +151,10 @@ impl UpcomingEventsTab {
     /// java: @Override public void extractTooltip(GuiGraphicsExtractor graphics, int x, int y)
     pub fn extract_tooltip_impl(__this: &compat::Shared<Self>, graphics: &mut GuiGraphicsExtractor, mut x: i32, mut y: i32) {
         if compat::read(__this, |__t| __t.hovered.clone()).is_some() {
-            // TODO(fabric2seer): `tooltip` takes 7 argument(s) in the port (`graphics: &mut crate::net::minecraft::client::gui::screens::inventory::tooltip::client_tooltip_component::TooltipGraphics<'_>, font: &dyn crate::net::minecraft::client::gui::screens::inventory::tooltip::client_tooltip_component::TooltipFont ..`), Java passes 6
-            // rust: gui_graphics_extractor::tooltip(&mut compat::font(), &__this.lock().borrow().hovered.as_ref().unwrap().get_tooltip(), &x, y, mcrust::net::minecraft::client::gui::screens::inventory::tooltip::default_tooltip_positioner::DefaultTooltipPositioner::INSTANCE, None /* java: null */);
+            // java: graphics.tooltip(CLIENT.font, this.hovered.getTooltip(), x, y, DefaultTooltipPositioner.INSTANCE, null);
+            // (the components - Jacob's crops are an image component - go to the frame's tooltip pass, drawn at the mouse)
+            let components = compat::read(__this, |__t| __t.hovered.as_ref().unwrap().get_tooltip());
+            compat::batch_w_set_component_tooltip_for_next_frame(components);
         }
     }
 
@@ -219,61 +223,55 @@ impl EventRenderer {
         let mut time: i64 = (compat::millis()).wrapping_div(1000 as i64);
         let mut text_renderer: Font = compat::font();
         gui_graphics_extractor::draw_formatted_char_sequence(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), &mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::literal(&self.event_name).with_style(&mcrust::net::minecraft::network::chat::style::Style::EMPTY.with_underlined(Some(EventRenderer::is_mouse_over(mouse_x, mouse_y, x, y))))), x, y, mcrust::net::minecraft::util::common_colors::WHITE);
-        // TODO(fabric2seer): List.peekFirst(..)
-        //   java: if (events.isEmpty()) {
-        //   java: 				graphics.text(textRenderer, Component.literal(" ").append(Component.translatable("skyblocker.events.tab.noMore")), x, y + textRenderer.lineHeight, CommonColors.GRAY, false);
-        //   java: 			} else if (events.peekFirst().start() > time) {
-        //   java: 				Component formatted = Component.literal(" ").append(Component.translatable("skyblocker.events.tab.startsIn", SkyblockTime.formatTime((int) (events.peekFirst().start() - time)))).withStyle(ChatFormatting.YELLOW);
-        //   java:
-        //   java: 				graphics.text(textRenderer, formatted, x, y + textRenderer.lineHeight, CommonColors.WHITE);
-        //   java: 			} else {
-        //   java: 				Component formatted = Component.literal(" ").append(Component.translatable("skyblocker.events.tab.endsIn", SkyblockTime.formatTime((int) (events.peekFirst().start() + events.peekFirst().duration() - time)))).withStyle(ChatFormatting.GREEN);
-        //   java:
-        //   java: 				graphics.text(textRenderer, formatted, x, y + textRenderer.lineHeight, CommonColors.WHITE);
-        //   java: 			}
+        if self.events.is_empty() {
+            // java: graphics.text(textRenderer, Component.literal(" ").append(Component.translatable("skyblocker.events.tab.noMore")), x, y + textRenderer.lineHeight, CommonColors.GRAY, false);
+            gui_graphics_extractor::draw_formatted_text_with_drop_shadow(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), &mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::literal(" ").append(component::translatable("skyblocker.events.tab.noMore"))), x, y.wrapping_add(mcrust::net::minecraft::client::gui::font::LINE_HEIGHT), mcrust::net::minecraft::util::common_colors::GRAY, false);
+        } else if self.events[0].start() > time {
+            // java: Component formatted = Component.literal(" ").append(Component.translatable("skyblocker.events.tab.startsIn", SkyblockTime.formatTime((int) (events.peekFirst().start() - time)))).withStyle(ChatFormatting.YELLOW);
+            let formatted: MutableComponent = component::literal(" ").append(component::translatable_args("skyblocker.events.tab.startsIn", vec![mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(SkyblockTime::format_time(((self.events[0].start() - time) as i32) as f64))])).with_style_format(ChatFormatting::Yellow);
+            // java: graphics.text(textRenderer, formatted, x, y + textRenderer.lineHeight, CommonColors.WHITE);
+            gui_graphics_extractor::draw_formatted_text_with_drop_shadow(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), &mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(formatted), x, y.wrapping_add(mcrust::net::minecraft::client::gui::font::LINE_HEIGHT), mcrust::net::minecraft::util::common_colors::WHITE, true);
+        } else {
+            // java: Component formatted = Component.literal(" ").append(Component.translatable("skyblocker.events.tab.endsIn", SkyblockTime.formatTime((int) (events.peekFirst().start() + events.peekFirst().duration() - time)))).withStyle(ChatFormatting.GREEN);
+            let formatted: MutableComponent = component::literal(" ").append(component::translatable_args("skyblocker.events.tab.endsIn", vec![mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(SkyblockTime::format_time(((self.events[0].start() + (self.events[0].duration() as i64) - time) as i32) as f64))])).with_style_format(ChatFormatting::Green);
+            gui_graphics_extractor::draw_formatted_text_with_drop_shadow(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), &mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(formatted), x, y.wrapping_add(mcrust::net::minecraft::client::gui::font::LINE_HEIGHT), mcrust::net::minecraft::util::common_colors::WHITE, true);
+        }
     }
 
     /// java: private List<ClientTooltipComponent> getTooltip()
     pub fn get_tooltip(&self) -> Vec<Box<dyn ClientTooltipComponent>> {
         let mut components: Vec<Box<dyn ClientTooltipComponent>> = Vec::new();
-        // TODO(fabric2seer): List.peekFirst(..)
-        //   java: EventNotifications.SkyblockEvent event = events.peekFirst();
-        let mut event: SkyblockEvent = todo!("fabric2seer: the initialiser of `event` (TODO above)");
-        if false /* java: event == null: never null here */ {
+        // java: EventNotifications.SkyblockEvent event = events.peekFirst(); if (event == null) return components;
+        let Some(event) = self.events.first().cloned() else {
             return components;
-        }
+        };
         if self.event_name == event_notifications::JACOBS && event.extras().left_value().is_some() {
             components.push(Box::new(JacobsTooltip::new(event.extras().left_value().unwrap())));
         } else if self.event_name == event_notifications::MAYOR_JERRY && event.extras().right_value().is_some() {
             let mut jerry_info: JerryPerks = event.extras().right_value().unwrap();
             let mut mayor_text: MutableComponent = (component::translatable_args("skyblocker.events.tab.currentJerryMayor", vec![mcrust::net::minecraft::network::chat::formatted_text::FormattedText::of(jerry_info.mayor_name())])).with_style_format(ChatFormatting::DarkGreen);
-            // TODO(fabric2seer): the port's `create_text` ports this Java method with other parameters ( for Java's char_sequence)
-            // TODO(fabric2seer): `create_text` takes 0 argument(s) in the port (``), Java passes 1
-            // rust: components.push(client_tooltip_component::create_text(mayor_text.get_visual_order_text()));
+            // java: components.add(ClientTooltipComponent.create(mayorText.getVisualOrderText())); - a text component
+            components.push(Box::new(mcrust::net::minecraft::client::gui::screens::inventory::tooltip::client_text_tooltip::ClientTextTooltip::new(mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(mayor_text.clone()))));
             for perk in jerry_info.perks() {
                 let mut perk_text: MutableComponent = (component::literal("- ")).with_style_format(ChatFormatting::Gray).append(component::literal(&perk).with_style_format(ChatFormatting::Green));
-                // TODO(fabric2seer): the port's `create_text` ports this Java method with other parameters ( for Java's char_sequence)
-                // TODO(fabric2seer): `create_text` takes 0 argument(s) in the port (``), Java passes 1
-                // rust: components.push(client_tooltip_component::create_text(perk_text.get_visual_order_text()));
+                // java: components.add(ClientTooltipComponent.create(perkText.getVisualOrderText()));
+                components.push(Box::new(mcrust::net::minecraft::client::gui::screens::inventory::tooltip::client_text_tooltip::ClientTextTooltip::new(mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(perk_text.clone()))));
             }
             return components;
         }
         if !(event.warp_command().is_empty()) {
-            // TODO(fabric2seer): the port's `create_text` ports this Java method with other parameters ( for Java's char_sequence)
-            // TODO(fabric2seer): `create_text` takes 0 argument(s) in the port (``), Java passes 1
-            // rust: components.push(client_tooltip_component::create_text(component::translatable("skyblocker.events.tab.clickToWarp").with_style_format(ChatFormatting::Italic).get_visual_order_text()));
+            // java: components.add(ClientTooltipComponent.create(Component.translatable("skyblocker.events.tab.clickToWarp").withStyle(ChatFormatting.ITALIC).getVisualOrderText()));
+            components.push(Box::new(mcrust::net::minecraft::client::gui::screens::inventory::tooltip::client_text_tooltip::ClientTextTooltip::new(mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::translatable("skyblocker.events.tab.clickToWarp").with_style_format(ChatFormatting::Italic)))));
         }
-        // TODO(fabric2seer): the port's `create_text` ports this Java method with other parameters ( for Java's char_sequence)
-        // TODO(fabric2seer): `create_text` takes 0 argument(s) in the port (``), Java passes 1
-        // rust: components.push(client_tooltip_component::create_text((component::literal(&formatters::DATE_FORMATTER.get_mut().format(mcrust::java::time::instant::Instant::of_epoch_second(event.start()))).with_style_formats(&[ChatFormatting::Italic, ChatFormatting::DarkGray])).get_visual_order_text()));
+        // java: components.add(ClientTooltipComponent.create(Component.literal(Formatters.DATE_FORMATTER.format(Instant.ofEpochSecond(event.start()))).withStyle(ChatFormatting.ITALIC, ChatFormatting.DARK_GRAY).getVisualOrderText()));
+        components.push(Box::new(mcrust::net::minecraft::client::gui::screens::inventory::tooltip::client_text_tooltip::ClientTextTooltip::new(mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::literal(&formatters::DATE_FORMATTER.get_mut().format(mcrust::java::time::zoned_date_time::ZonedDateTime::of_instant(mcrust::java::time::instant::Instant::of_epoch_second(event.start()), formatters::Formatters::get_time_zone()))).with_style_formats(&[ChatFormatting::Italic, ChatFormatting::DarkGray])))));
         return components;
     }
 
     /// java: private @Nullable String getWarpCommand()
     pub fn get_warp_command(&self) -> Option<String> {
-        // TODO(fabric2seer): List.peek(..)
-        //   java: return !events.isEmpty() ? events.peek().warpCommand() : null;
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        // java: return !events.isEmpty() ? events.peek().warpCommand() : null;
+        return self.events.first().map(|event| event.warp_command());
     }
 
 }

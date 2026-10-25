@@ -61,18 +61,18 @@ impl DojoManager {
 
     /// java: @Init public static void init()
     pub fn init() {
-        // TODO(fabric2seer): ClientReceiveMessageEvents.ALLOW_GAME.register: no SeerClient equivalent yet
-        //   java: ClientReceiveMessageEvents.ALLOW_GAME.register(DojoManager::onMessage);
+        // java: ClientReceiveMessageEvents.ALLOW_GAME.register(DojoManager::onMessage);
+        compat::batch_w_allow_game_register(Arc::new(|text: &MutableComponent, overlay: bool| DojoManager::on_message(text, overlay)));
         level_render_extraction_callback::EVENT.register(Arc::new(move |__a0| { DojoManager::extract_rendering(&__a0); }));
         client_play_connection_events::JOIN.register(Arc::new(|listener: &mut ClientPacketListener| {
             DojoManager::reset();
         }));
-        // TODO(fabric2seer): no SeerClient event yet: hook HEAD of ClientLevel#addEntity (`net.minecraft.client.multiplayer.ClientLevel#addEntity`: exists)
-        //   java: ClientEntityEvents.ENTITY_LOAD.register(DojoManager::onEntitySpawn);
-        // TODO(fabric2seer): no SeerClient event yet: hook HEAD of ClientLevel#removeEntity (`net.minecraft.client.multiplayer.ClientLevel#removeEntity`: exists)
-        //   java: ClientEntityEvents.ENTITY_UNLOAD.register(DojoManager::onEntityDespawn);
-        // TODO(fabric2seer): AttackEntityCallback.EVENT.register: no SeerClient equivalent yet
-        //   java: AttackEntityCallback.EVENT.register(DojoManager::onEntityAttacked);
+        // java: ClientEntityEvents.ENTITY_LOAD.register(DojoManager::onEntitySpawn);
+        compat::batch_w_register_entity_load(Arc::new(|entity: &dyn Entity, client_world: &ClientLevel| DojoManager::on_entity_spawn(entity, client_world)));
+        // java: ClientEntityEvents.ENTITY_UNLOAD.register(DojoManager::onEntityDespawn);
+        compat::batch_w_register_entity_unload(Arc::new(|entity: &dyn Entity, client_world: &ClientLevel| DojoManager::on_entity_despawn(entity, client_world)));
+        // java: AttackEntityCallback.EVENT.register(DojoManager::onEntityAttacked);
+        compat::register_attack_entity_callback(|player_entity: &dyn Player, world: &Level, hand: InteractionHand, entity: &dyn Entity, entity_hit_result: Option<&EntityHitResult>| DojoManager::on_entity_attacked(player_entity, world, &hand, entity, entity_hit_result));
         ({ let __r = scheduler::INSTANCE.get_mut(); let __f = compat::dispatch(__r, |__t| __t.schedule_cyclic()); __f(__r, Arc::new(move || { DojoManager::update(); }), 3) });
         world_events::BLOCK_STATE_UPDATE.register(Arc::new(move |__a0, __a1, __a2| { DojoManager::on_block_update(&__a0, &__a1, &__a2); }));
         particle_events::FROM_SERVER.register(Arc::new(move |__a0| { DojoManager::on_particle(&__a0); }));
@@ -233,7 +233,8 @@ impl DojoManager {
     }
 
     /// java: private static InteractionResult onEntityAttacked(Player playerEntity, Level world, InteractionHand hand, Entity entity, EntityHitResult entityHitResult)
-    pub fn on_entity_attacked(player_entity: &dyn Player, world: &Level, hand: &InteractionHand, entity: &dyn Entity, entity_hit_result: &EntityHitResult) -> InteractionResult {
+    /// (`entityHitResult` is `@Nullable`: Fabric's attack hook passes `null`)
+    pub fn on_entity_attacked(player_entity: &dyn Player, world: &Level, hand: &InteractionHand, entity: &dyn Entity, entity_hit_result: Option<&EntityHitResult>) -> InteractionResult {
         if !(Utils::is_in_crimson()) || !(compat::get_state(&IN_ARENA)) {
             return InteractionResult::Pass;
         }

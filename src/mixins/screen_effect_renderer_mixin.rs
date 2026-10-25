@@ -41,32 +41,59 @@ fn configure_flame_opacity(v: &i32) -> i32 {
     return mcrust::net::minecraft::util::argb::color_alpha_f32_rgb(modified_opacity, colour);
 }
 
+/// `@Shadow @Nullable private ItemStack itemActivationItem` of the `renderItemActivationAnimation` frame the
+/// `submit` call below is made in. A call-site injector is handed the CALL's receiver and arguments, so the frame's
+/// receiver field is read at that method's HEAD (`ScreenEffectRenderer::get_item_activation_item`) and kept for the
+/// one call it contains (render thread only).
+static ITEM_ACTIVATION_ITEM: compat::MainThread<Option<ItemStack>> = compat::MainThread::new(|| None);
+
+fn skyblocker_capture_item_activation_item(ci: &mut CallbackInfo<'_>) {
+    let _ = ci;
+    // 26.3: the item moved off `ScreenEffectRenderer` into `LocalPlayer.itemActivation()`.
+    let item = mcrust::mcrust::modding::game::with_player(|player| player.item_activation().item().map(|item| item.duplicate())).flatten();
+    *ITEM_ACTIVATION_ITEM.get_mut() = item;
+}
+
 /// @Inject skyblocker$renderSpecialEffectsItemName
 ///   java: @Inject(method = "renderItemActivationAnimation", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/renderer/item/ItemStackRenderState;submit(Lcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/SubmitNodeCollector;III)V"))
 /// target: net.minecraft.client.renderer.item.ItemStackRenderState#submit  [exists]
 /// within: net.minecraft.client.renderer.ScreenEffectRenderer#renderItemActivationAnimation
-/// Rust: net/minecraft/client/renderer/item/item_stack_render_state.rs:1173 fn submit(&self, pose_stack: &mut crate::com::mojang::blaze3d::vertex::pose_stack::PoseStack, submit_node_collector: &mut dyn crate::net::minecraft::client::renderer::submit_node_collector::SubmitNodeCollector, light_coords: i32, overlay_coords: i32, outline_color: i32)
-/// note: @Inject at INVOKE: a call-site injector (`hook::call_site`) - `ci` is the CALL's (its arguments; cancel() skips that call, not the rest of the method)
-///
-/// rust: port gap - the handler draws with `renderItemActivationAnimation`'s own `poseStack` / `submitNodeCollector`
-/// (as transformed at the `submit` call) and reads `this.itemActivationItem`; a call-site injector on
-/// `ItemStackRenderState.submit` is handed that call's receiver and arguments only (GAPS_batchD). And
-/// `SpecialEffects.ITEM` is a `WeakReference` placeholder in the mod (`crate::unresolved`, cross-package). The
-/// statements are kept as the Java's; nothing is drawn.
+/// Rust: net/minecraft/client/renderer/item/item_stack_render_state.rs fn submit(&self, pose_stack: &mut PoseStack, submit_node_collector: &mut dyn SubmitNodeCollector, light_coords: i32, overlay_coords: i32, outline_color: i32)
+/// The method's `poseStack` and `submitNodeCollector` are exactly the call's arguments 0 and 1, as transformed at the
+/// call; `itemActivationItem` is the frame's (see `ITEM_ACTIVATION_ITEM`).
 fn skyblocker_render_special_effects_item_name(ci: &mut CallbackInfo<'_>) {
+    use mcrust::net::minecraft::client::renderer::ordered_submit_node_collector::OrderedSubmitNodeCollector as _;
     // Render item names for all special effect items
+    let Some(item_activation_item) = ITEM_ACTIVATION_ITEM.get().as_ref().map(|item| item.duplicate()) else { return; };
     //   java: if (SpecialEffects.ITEM.get() != itemActivationItem) return;
+    if !crate::de::hysky::skyblocker::skyblock::special::special_effects::ITEM.get().is_same_instance(&item_activation_item) {
+        return;
+    }
     //   java: Component name = itemActivationItem.getHoverName();
+    let name = item_activation_item.get_hover_name();
     //   java: int x = -minecraft.font.width(name) / 2;
-    let _ = ci;
-    // TODO(fabric2seer): `poseStack`: this argument is not visible to the injector (see the notes above the handler)
+    let x: i32 = -compat::font().width_of(&name) / 2;
+    let Some(pose_stack) = compat::hook_arg_mut::<mcrust::com::mojang::blaze3d::vertex::pose_stack::PoseStack>(ci, 0) else { return; };
+    let Some(submit_node_collector) = compat::hook_arg_mut::<dyn mcrust::net::minecraft::client::renderer::submit_node_collector::SubmitNodeCollector>(ci, 1) else { return; };
     //   java: poseStack.pushPose();
-    // TODO(fabric2seer): `poseStack`: this argument is not visible to the injector (see the notes above the handler)
+    pose_stack.push_pose();
     //   java: poseStack.scale(-0.03125f, -0.03125f, 0.03125f);
-    // TODO(fabric2seer): `submitNodeCollector`: this argument is not visible to the injector (see the notes above the handler)
+    pose_stack.scale(-0.03125f32, -0.03125f32, 0.03125f32);
     //   java: submitNodeCollector.submitText(poseStack, x, 16f, name.getVisualOrderText(), false, Font.DisplayMode.POLYGON_OFFSET, 0xF000F0, 0xFFFFFFFF, 0, 0);
-    // TODO(fabric2seer): `poseStack`: this argument is not visible to the injector (see the notes above the handler)
+    submit_node_collector.submit_text(
+        pose_stack,
+        x as f32,
+        16.0f32,
+        &name,
+        false,
+        mcrust::net::minecraft::client::gui::font::DisplayMode::PolygonOffset,
+        0xF000F0,
+        0xFFFFFFFFu32 as i32,
+        0,
+        0,
+    );
     //   java: poseStack.popPose();
+    pose_stack.pop_pose();
 }
 
 /// Mixins apply before the game runs: the `preLaunch` entrypoint calls this.
@@ -74,5 +101,6 @@ pub fn register() {
     report(hook::call_site("net.minecraft.client.renderer.ScreenEffectRenderer#buildFireQuad", "net.minecraft.client.renderer.ScreenEffectRenderer#buildSpriteQuad").priority(1000).modify_arg::<f32>(4, configure_flame_height1));
     report(hook::call_site("net.minecraft.client.renderer.ScreenEffectRenderer#buildFireQuad", "net.minecraft.client.renderer.ScreenEffectRenderer#buildSpriteQuad").priority(1000).modify_arg::<f32>(6, configure_flame_height2));
     report(hook::call_site("net.minecraft.client.renderer.ScreenEffectRenderer#buildFireQuad", "net.minecraft.client.renderer.ScreenEffectRenderer#buildSpriteQuad").priority(1000).modify_arg::<i32>(8, configure_flame_opacity));
+    report(hook::register_injector("net.minecraft.client.renderer.ScreenEffectRenderer#renderItemActivationAnimation", InjectOptions::at(At::Head).kind(InjectorKind::Inject).priority(1000), Arc::new(skyblocker_capture_item_activation_item)));
     report(hook::call_site("net.minecraft.client.renderer.ScreenEffectRenderer#renderItemActivationAnimation", "net.minecraft.client.renderer.item.ItemStackRenderState#submit").priority(1000).inject(Shift::Before, skyblocker_render_special_effects_item_name));
 }

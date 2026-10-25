@@ -126,7 +126,6 @@ impl ChoosePetLevelAdder {
         }
         let mut name: String = compat::component_of(stack.get_hover_name()).get_string();
         let mut level: String = matcher.as_mut().unwrap().group(1).unwrap();
-        // TODO(fabric2seer): the condition: static call NumberUtils.isDigits(..)
         //   java: !NumberUtils.isDigits(level) || "100".equals(level) && (!name.contains("Dragon") || name.contains("Ender Dragon")) || "200".equals(level)
         if !(!level.is_empty() && level.chars().all(char::is_numeric)) || (level == "100" && (!name.contains("Dragon") || name.contains("Ender Dragon"))) || level == "200" {
             return vec![];

@@ -86,6 +86,9 @@ pub struct ProfileViewerScreen {
     pub self_ref: compat::WeakShared<Self>,
     /// the screen's widgets as this object last saw them (see `compat::WidgetCache`)
     pub __widgets: compat::WidgetCache,
+    /// `thenRunAsync(this::rebuildWidgets, Minecraft.getInstance())` queued: the client-thread task runs at the screen's
+    /// next tick, where the game lends this object its `Screen` half
+    pub pending_rebuild: bool,
 }
 
 impl std::ops::Deref for ProfileViewerScreen {
@@ -108,6 +111,7 @@ impl ProfileViewerScreen {
             base: mcrust::net::minecraft::client::gui::screens::screen::Screen::new(TITLE.get_mut().get_string()),
             self_ref: std::sync::Weak::new(),
             __widgets: Default::default(),
+            pending_rebuild: false,
             player_name: None,
             hypixel_profile: None,
             player_profile: None,
@@ -251,13 +255,13 @@ impl ProfileViewerScreen {
             .then_combine_async(&inventories_future, |_, _| ())
             .then_combine_async(&collections_future, |_, _| ());
         let __this_7 = __this.clone();
+        let __this_6 = __this.clone();
         // java: .thenRunAsync(this::rebuildWidgets, Minecraft.getInstance())
+        // (`Minecraft.getInstance()` as the executor runs `rebuildWidgets` as a client-thread task; the screen's `Screen`
+        // half is lent to it at the next tick - see `ModScreen::tick` below)
         let _ = all_of
             .then_accept_async(move |()| {
-                // rust: port gap (GAPS_batchC #C1) - `Screen.rebuildWidgets()` from a task: the port's `rebuild_widgets`
-                // needs the game's `Screen` half, which is lent to the object only inside the screen's own methods
-                // (the page buttons join the screen at its next `init`, a resize)
-                // rust: __this_6.get().lock().borrow_mut().rebuild_widgets();
+                compat::write(&__this_6, |__t| __t.pending_rebuild = true);
             })
             // java: .exceptionally(err -> {..})
             .exceptionally_async(move |err| {
@@ -281,14 +285,9 @@ impl ProfileViewerScreen {
             let __wa2 = root_y.wrapping_sub(28);
             let __o2 = button.clone();
             compat::write(&__o2, |__t| __t.set_y(__wa2));
-            // rust: port gap (GAPS_batchC #C2) - `button.extractRenderState(graphics, ..)` on a widget OBJECT: the port's
-            // widget is drawn by the screen it was added to (`addRenderableWidget` in `init`, which the game draws)
-            // rust: let __wa3 = graphics.clone();
-            // rust: let __wa4 = mouse_x;
-            // rust: let __wa5 = mouse_y;
-            // rust: let __wa6 = delta;
-            // rust: let __o3 = button.clone();
-            // rust: compat::write(&__o3, |__t| __t.extract_render_state(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), __wa4, __wa5, __wa6));
+            // java: button.extractRenderState(graphics, mouseX, mouseY, delta);
+            // (the button is also one of this screen's renderables - `addRenderableWidget` in `init` - and Java draws it
+            // twice per frame; the port's screen pass draws the renderable, at the position set above)
         }
         if compat::read(__this, |__t| __t.text_widget.clone()).is_some() {
             let __h0 = &compat::font();
@@ -509,11 +508,12 @@ impl ProfileViewerScreen {
                                 // java: this.playerName = entry.get().gameProfile().name();
                                 { let __v = Some(game_profile.name().to_string()); compat::write(__this_4, |__t| __t.player_name = __v); }
                                 // java: entity = new RemotePlayer(Minecraft.getInstance().level, entry.get().gameProfile()) {..};
-                                // rust: port gap (GAPS_batchB #9) - the anonymous subclass's overrides (`getSkin` from a fresh
-                                // `PlayerInfo`, `isModelPartShown` hiding the CAPE, `isInvisibleTo` true) have no home: the port's
-                                // entity classes take no mod subclass, so a plain `RemotePlayer` stands in (as `ArmorTab`'s).
-                                // Its dimensions are the player's (`EntityType.PLAYER`, 0.6 x 1.8).
-                                let mut entity = RemotePlayer::new(mcrust::net::minecraft::world::entity::entity_dimensions::scalable(0.6, 1.8), &game_profile);
+                                // The anonymous subclass's three overrides are the game's `RemotePlayerSubclass`
+                                // (`entities::new_remote_player`), asked where Java dispatches them.
+                                let mut entity = mcrust::mcrust::modding::entities::new_remote_player(&game_profile, Some(std::sync::Arc::new(ProfileViewerPlayer {
+                                    // java: new PlayerInfo(entry.get().gameProfile(), false) - its skin lookup, kept with the entity
+                                    player_info: mcrust::net::minecraft::client::multiplayer::player_info::PlayerInfo::new(game_profile.clone(), false).player_info_skin(),
+                                })));
                                 {
                                     use mcrust::net::minecraft::world::entity::entity::Entity as _;
                                     // java: entity.setCustomNameVisible(false);
@@ -596,9 +596,13 @@ impl ModScreen for compat::ScreenAdapter<ProfileViewerScreen> {
         self.lend(screen, |__h| ProfileViewerScreen::init(__h))
     }
 
-    /// java: Screen.tick (the base body)
+    /// java: Screen.tick (the base body); and the queued `rebuildWidgets()` client task (`initialisePagesAndWidgets`)
     fn tick(&mut self, screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen) {
-        self.lend(screen, |_| ())
+        let __rebuild = self.lend(screen, |__h| compat::write(__h, |__t| std::mem::take(&mut __t.pending_rebuild)));
+        if __rebuild {
+            // java: Screen.rebuildWidgets() - `clearWidgets(); clearFocus(); init(); setInitialFocus()`
+            self.reposition_elements(screen);
+        }
     }
 
     /// java: @Override public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta)
@@ -624,3 +628,24 @@ impl ModScreen for compat::ScreenAdapter<ProfileViewerScreen> {
 }
 
 // NOTE(fabric2seer): extractRenderState, init override(s) of Screen - the port dispatches its own calls, so these run only where the mod calls them; hook the port's method to make the game call them
+
+/// java: the anonymous `RemotePlayer` subclass of `ProfileViewerScreen`'s constructor:
+/// `getSkin()` is a fresh `PlayerInfo(gameProfile, false).getSkin()`, `isModelPartShown(part)` hides the CAPE and
+/// `isInvisibleTo(player)` is `true` (no name tag).
+struct ProfileViewerPlayer {
+    player_info: mcrust::net::minecraft::client::multiplayer::player_info::PlayerInfoSkin,
+}
+
+impl mcrust::mcrust::modding::entities::RemotePlayerSubclass for ProfileViewerPlayer {
+    fn get_skin(&self, _player: &RemotePlayer, _super_skin: mcrust::net::minecraft::world::entity::player::player_skin::PlayerSkin) -> mcrust::net::minecraft::world::entity::player::player_skin::PlayerSkin {
+        self.player_info.get_skin()
+    }
+
+    fn is_model_part_shown(&self, _player: &RemotePlayer, part: mcrust::net::minecraft::world::entity::player::player_model_part::PlayerModelPart, _super_answer: bool) -> bool {
+        part != mcrust::net::minecraft::world::entity::player::player_model_part::PlayerModelPart::Cape
+    }
+
+    fn is_invisible_to(&self, _player: &RemotePlayer, _super_answer: bool) -> bool {
+        true
+    }
+}

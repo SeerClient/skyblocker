@@ -141,21 +141,27 @@ impl dyn HudConfigScreen {
     pub fn extract_render_state_body(__this: &compat::Shared<dyn HudConfigScreen>, graphics: &GuiGraphicsExtractor, mut mouse_x: i32, mut mouse_y: i32, mut delta: f32) {
         ();
         ({ let __f = compat::dispatch(__this, |__t| __t.extract_render_state_3()); __f(__this, graphics, &compat::read(__this, |__t| __t.hud_config_screen_base().widgets.clone()), delta) });
-        // TODO(fabric2seer): `.getRGB(..)` on a value of unknown type
         //   java: graphics.centeredText(font, "Right Click To Reset Position", width / 2, height / 2, Color.GRAY.getRGB());
+        // (`java.awt.Color.GRAY` is (128, 128, 128), opaque: 0xFF808080)
+        let (width, height) = compat::read(__this, |__t| (__t.hud_config_screen_base().width, __t.hud_config_screen_base().height));
+        mcrust::net::minecraft::client::gui::gui_graphics_extractor::centered_text_string(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), "Right Click To Reset Position", width.wrapping_div(2), height.wrapping_div(2), 0xFF808080u32 as i32);
     }
 
     /// java: protected void extractRenderState(GuiGraphicsExtractor graphics, List<BasicWidget> widgets, float delta)
     pub fn extract_render_state_3_body(__this: &compat::Shared<dyn HudConfigScreen>, graphics: &GuiGraphicsExtractor, widgets: &Vec<compat::Shared<dyn BasicWidget>>, mut delta: f32) {
         for widget in widgets.iter() {
-            // TODO(fabric2seer): `extractRenderState` is not a method of BasicWidget
             //   java: widget.extractRenderState(graphics, -1, -1, delta);
+            // (`Renderable.extractRenderState` of the widget's class: `EmptyWidget` is the one `BasicWidget` class the
+            // port has, and the only one a HUD config screen is built with)
+            if let Some(empty) = compat::try_view::<crate::de::hysky::skyblocker::utils::render::gui::empty_widget::EmptyWidget, _>(widget) {
+                crate::de::hysky::skyblocker::utils::render::gui::empty_widget::EmptyWidget::extract_render_state(&empty, graphics, -1, -1, delta);
+            }
         }
     }
 
     /// java: @Override public final boolean mouseDragged(MouseButtonEvent click, double offsetX, double offsetY)
     pub fn mouse_dragged_body(__this: &compat::Shared<dyn HudConfigScreen>, click: &MouseButtonEvent, mut offset_x: f64, mut offset_y: f64) -> bool {
-        if click.button() == 0 && compat::read(__this, |__t| __t.hud_config_screen_base().dragging_widget.clone()).is_some() {
+        if click.button() == 1 && compat::read(__this, |__t| __t.hud_config_screen_base().dragging_widget.clone()).is_some() {
             ({ let __r = &compat::read(__this, |__t| __t.hud_config_screen_base().dragging_widget.clone()).unwrap(); let __f = compat::dispatch(__r, |__t| __t.set_x()); __f(__r, (((click.x() - compat::read(__this, |__t| __t.hud_config_screen_base().mouse_click_relative_x)).clamp((0 as f64), ((compat::read(__this, |__t| __t.hud_config_screen_base().width)).wrapping_sub({ let __r = &compat::read(__this, |__t| __t.hud_config_screen_base().dragging_widget.clone()).unwrap(); let __f = compat::dispatch(__r, |__t| __t.get_width()); __f(__r) }) as f64))) as i32).wrapping_sub({ let __f = compat::dispatch(__this, |__t| __t.get_widget_x_offset()); __f(__this, &compat::read(__this, |__t| __t.hud_config_screen_base().dragging_widget.clone()).unwrap()) })) });
             ({ let __r = &compat::read(__this, |__t| __t.hud_config_screen_base().dragging_widget.clone()).unwrap(); let __f = compat::dispatch(__r, |__t| __t.set_y()); __f(__r, (((click.y() - compat::read(__this, |__t| __t.hud_config_screen_base().mouse_click_relative_y)).clamp((0 as f64), ((compat::read(__this, |__t| __t.hud_config_screen_base().height)).wrapping_sub({ let __r = &compat::read(__this, |__t| __t.hud_config_screen_base().dragging_widget.clone()).unwrap(); let __f = compat::dispatch(__r, |__t| __t.get_height()); __f(__r) }) as f64))) as i32)) });
         }
@@ -164,7 +170,7 @@ impl dyn HudConfigScreen {
 
     /// java: @Override public final boolean mouseClicked(MouseButtonEvent click, boolean doubled)
     pub fn mouse_clicked_body(__this: &compat::Shared<dyn HudConfigScreen>, click: &MouseButtonEvent, mut doubled: bool) -> bool {
-        if click.button() == 0 {
+        if click.button() == 1 {
             for widget in compat::read(__this, |__t| __t.hud_config_screen_base().widgets.clone()) {
                 if GuiHelper::point_is_in_area(click.x(), click.y(), ((({ let __f = compat::dispatch(&widget, |__t| __t.get_x()); __f(&widget) }).wrapping_add({ let __f = compat::dispatch(__this, |__t| __t.get_widget_x_offset()); __f(__this, &widget) })) as f64) as f64, ((({ let __f = compat::dispatch(&widget, |__t| __t.get_y()); __f(&widget) })) as f64) as f64, (((({ let __f = compat::dispatch(&widget, |__t| __t.get_x()); __f(&widget) }).wrapping_add({ let __f = compat::dispatch(__this, |__t| __t.get_widget_x_offset()); __f(__this, &widget) })).wrapping_add({ let __f = compat::dispatch(&widget, |__t| __t.get_width()); __f(&widget) })) as f64) as f64, ((({ let __f = compat::dispatch(&widget, |__t| __t.get_y()); __f(&widget) }).wrapping_add({ let __f = compat::dispatch(&widget, |__t| __t.get_height()); __f(&widget) })) as f64) as f64) {
                     { let __v = Some(widget.clone()); compat::write(__this, |__t| __t.hud_config_screen_base_mut().dragging_widget = __v); }
@@ -173,7 +179,7 @@ impl dyn HudConfigScreen {
                     break;
                 }
             }
-        } else if click.button() == 1 {
+        } else if click.button() == 3 {
             ({ let __f = compat::dispatch(__this, |__t| __t.reset_pos()); __f(__this) });
         }
         return false;

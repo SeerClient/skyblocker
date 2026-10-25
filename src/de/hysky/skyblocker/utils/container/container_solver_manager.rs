@@ -121,7 +121,11 @@ impl ContainerSolverManager {
                 let _ = &screen_name;
                 if { let __f = compat::dispatch(solver, |__t| __t.test()); __f(&compat::view(solver, |a| a as compat::Shared<dyn ContainerMatcher>), &screen.screen) } {
                     // java: if (screen instanceof ContainerScreen || !solver.chestScreensOnly())
-                    if compat::minecraft().gui.screen_kind == mcrust::net::minecraft::client::gui::gui::ScreenKind::Container || !({ let __f = compat::dispatch(solver, |__t| __t.chest_screens_only()); __f(solver) }) {
+                    // (`screen` is being initialised by the game's open site, before `setScreen` writes `gui.screen_kind`,
+                    // which then still names the PREVIOUS screen: the build site answers for the screen itself)
+                    let __is_container_screen = mcrust::net::minecraft::client::gui::screens::menu_screens::building_chest_screen()
+                        .unwrap_or_else(|| compat::minecraft().gui.screen_kind == mcrust::net::minecraft::client::gui::gui::ScreenKind::Container);
+                    if __is_container_screen || !({ let __f = compat::dispatch(solver, |__t| __t.chest_screens_only()); __f(solver) }) {
                         { let mut __g = compat::lock(&SCREEN_ID); *__g = __g.wrapping_add(1); }
                         *CURRENT_SOLVER.get_mut() = Some(solver.clone());
                         ({ let __f = compat::dispatch(solver, |__t| __t.start()); __f(solver, screen) });
@@ -156,19 +160,36 @@ impl ContainerSolverManager {
     }
 
     /// java: public static void onExtract(GuiGraphicsExtractor context, AbstractContainerScreen<?> handledScreen, List<Slot> slots)
-    pub fn on_extract(context: &mut GuiGraphicsExtractor, handled_screen: &AbstractContainerScreen, mut slots: Vec<Slot>) {
+    ///
+    /// `containers` is what the slots' `getItem()` reads through: the hooked `extractTooltip` call's own (its argument
+    /// 2), lent by the game for the call. Java's `slots.get(i).getItem()` reads the menu the screen is drawing; the
+    /// port's `with_open_menu` cannot lend that menu here, because the frame's extract is the thread holding it, and
+    /// answered every slot EMPTY - so every solver saw an empty container (the equipment updater copied four EMPTYs
+    /// into the drawn equipment).
+    pub fn on_extract(context: &mut GuiGraphicsExtractor, handled_screen: &AbstractContainerScreen, slots: Vec<Slot>) {
+        ContainerSolverManager::on_extract_in(context, handled_screen, slots, None, None)
+    }
+
+    /// `on_extract` with the containers the slots read through (see above).
+    pub fn on_extract_in(context: &mut GuiGraphicsExtractor, handled_screen: &AbstractContainerScreen, mut slots: Vec<Slot>, containers: Option<&mcrust::net::minecraft::world::inventory::slot::Containers<'_>>, menu: Option<&mcrust::net::minecraft::world::inventory::abstract_container_menu::AbstractContainerMenu>) {
         if CURRENT_SOLVER.get_mut().is_none() {
             return;
         }
         let __pose_1 = gui_graphics_extractor::push_pose();
         gui_graphics_extractor::pose_translate((handled_screen.left_pos) as f32, (handled_screen.top_pos) as f32);
-        if { let __r = CURRENT_SOLVER.get_mut().as_ref().unwrap(); let __f = compat::dispatch(__r, |__t| __t.chest_inventory_only()); __f(__r) } && let Some(row_count) = mcrust::mcrust::modding::game::with_chest_menu(|chest_menu| chest_menu.get_row_count()) {
+        if { let __r = CURRENT_SOLVER.get_mut().as_ref().unwrap(); let __f = compat::dispatch(__r, |__t| __t.chest_inventory_only()); __f(__r) } && let Some(row_count) = (match menu {
+            // `handledScreen.getMenu() instanceof ChestMenu chestMenu` -> `chestMenu.getRowCount()`, off the menu the hooked
+            // call lent: a chest menu is its `rows * 9` grid slots followed by the player's 36 (`ChestMenu:36-58`). The
+            // frame holds the player's open menu here, so `with_chest_menu` cannot lend it and never trimmed.
+            Some(menu) => compat::is_chest_menu(menu).then(|| ((menu.slots.len() as i32) - 36) / 9),
+            None => mcrust::mcrust::modding::game::with_chest_menu(|chest_menu| chest_menu.get_row_count()),
+        }) {
             // java: handledScreen.getMenu() instanceof ChestMenu chestMenu - the screen's menu is the player's open one
             slots = slots[(0) as usize..(row_count.wrapping_mul(9)) as usize].to_vec();
         }
         let mut highlights_safe: Option<Vec<ColorHighlight>> = compat::get_state(&HIGHLIGHTS);
         if highlights_safe.is_none() {
-            highlights_safe = Some(({ let __r = CURRENT_SOLVER.get_mut().as_ref().unwrap(); let __f = compat::dispatch(__r, |__t| __t.get_colors()); __f(__r, &mut ContainerSolverManager::slot_map(&slots)) }));
+            highlights_safe = Some(({ let __r = CURRENT_SOLVER.get_mut().as_ref().unwrap(); let __f = compat::dispatch(__r, |__t| __t.get_colors()); __f(__r, &mut match containers { Some(containers) => ContainerSolverManager::slot_map_in(&slots, containers), None => ContainerSolverManager::slot_map(&slots) }) }));
             compat::set_state(&HIGHLIGHTS, highlights_safe.clone());
         }
         for highlight in highlights_safe.as_ref().unwrap().iter() {
@@ -179,9 +200,18 @@ impl ContainerSolverManager {
         gui_graphics_extractor::pop_pose(__pose_1);
     }
 
+    /// `slotMap(slots)` over the containers a hooked call lent (`slots.get(i).getItem()` read through them).
+    pub fn slot_map_in(slots: &Vec<Slot>, containers: &mcrust::net::minecraft::world::inventory::slot::Containers<'_>) -> std::collections::BTreeMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack> {
+        let mut slot_map: std::collections::BTreeMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack> = std::collections::BTreeMap::new();
+        for i in 0..(slots.len() as i32) {
+            slot_map.insert(i, slots[(i) as usize].get_item(containers).duplicate());
+        }
+        return slot_map;
+    }
+
     /// java: public static Int2ObjectMap<ItemStack> slotMap(List<Slot> slots)
-    pub fn slot_map(slots: &Vec<Slot>) -> std::collections::HashMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack> {
-        let mut slot_map: std::collections::HashMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack> = std::collections::HashMap::new();
+    pub fn slot_map(slots: &Vec<Slot>) -> std::collections::BTreeMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack> {
+        let mut slot_map: std::collections::BTreeMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack> = std::collections::BTreeMap::new();
         // java: for (int i = 0; i < slots.size(); i++) slotMap.put(i, slots.get(i).getItem());
         // (the port's `Slot::get_item` reads through the open menu's containers: one lend for the whole loop; `duplicate`
         // keeps the stack's identity, as `compat::slot_item`. Where the menu cannot be lent - no player, or this thread

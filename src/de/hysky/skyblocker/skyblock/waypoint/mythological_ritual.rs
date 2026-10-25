@@ -1,6 +1,7 @@
 //! Ported from de.hysky.skyblocker.skyblock.waypoint.MythologicalRitual by fabric2seer.
 
 #[allow(unused_imports)]
+use mcrust::com::mojang::brigadier::builder::argument_builder::ArgumentBuilder as _;
 use crate::prelude::*;
 use crate::de::hysky::skyblocker::config::skyblocker_config_manager::SkyblockerConfigManager;
 use crate::de::hysky::skyblocker::events::particle_events;
@@ -14,6 +15,8 @@ use crate::de::hysky::skyblocker::utils::waypoint::waypoint::Type;
 use crate::de::hysky::skyblocker::utils::waypoint::waypoint::Waypoint;
 use crate::de::hysky::skyblocker::utils::waypoint::waypoint::WaypointBase;
 use mcrust::net::minecraft::core::block_pos::BlockPos;
+use mcrust::com::mojang::brigadier::context::command_context::CommandContext;
+use crate::de::hysky::skyblocker::utils::command::argumenttypes::blockpos::client_block_pos_argument_type::ClientBlockPosArgumentType;
 use mcrust::net::minecraft::core::direction::Direction;
 use mcrust::net::minecraft::network::chat::mutable_component::MutableComponent;
 use mcrust::net::minecraft::network::protocol::game::clientbound_level_particles_packet::ClientboundLevelParticlesPacket;
@@ -66,21 +69,45 @@ impl MythologicalRitual {
     /// java: @Init public static void init()
     pub fn init() {
         level_render_extraction_callback::EVENT.register(Arc::new(move |__a0| { MythologicalRitual::extract_rendering(&__a0); }));
-        // TODO(fabric2seer): AttackBlockCallback.EVENT.register: no SeerClient equivalent yet
-        //   java: AttackBlockCallback.EVENT.register(MythologicalRitual::onAttackBlock);
-        // TODO(fabric2seer): UseBlockCallback.EVENT.register: no SeerClient equivalent yet
-        //   java: UseBlockCallback.EVENT.register(MythologicalRitual::onUseBlock);
-        // TODO(fabric2seer): UseItemCallback.EVENT.register: no SeerClient equivalent yet
-        //   java: UseItemCallback.EVENT.register(MythologicalRitual::onUseItem);
-        // TODO(fabric2seer): ClientReceiveMessageEvents.ALLOW_GAME.register: no SeerClient equivalent yet
-        //   java: ClientReceiveMessageEvents.ALLOW_GAME.register(MythologicalRitual::onChatMessage);
+        // java: AttackBlockCallback.EVENT.register(MythologicalRitual::onAttackBlock);
+        compat::batch_w_register_attack_block_callback(Arc::new(|player: &dyn Player, world: &Level, hand: InteractionHand, pos: &BlockPos, direction: Direction| MythologicalRitual::on_attack_block(player, world, &hand, pos, &direction)));
+        // java: UseBlockCallback.EVENT.register(MythologicalRitual::onUseBlock);
+        compat::batch_w_register_use_block_callback(Arc::new(|player: &dyn Player, world: &Level, hand: InteractionHand, hit_result: &BlockHitResult| MythologicalRitual::on_use_block(player, world, &hand, hit_result)));
+        // java: UseItemCallback.EVENT.register(MythologicalRitual::onUseItem);
+        compat::register_use_item_callback(|player: &dyn Player, world: &Level, hand: InteractionHand| MythologicalRitual::on_use_item(player, world, &hand));
+        // java: ClientReceiveMessageEvents.ALLOW_GAME.register(MythologicalRitual::onChatMessage);
+        compat::batch_w_allow_game_register(Arc::new(|message: &MutableComponent, overlay: bool| MythologicalRitual::on_chat_message(message, overlay)));
         client_play_connection_events::JOIN.register(Arc::new(|listener: &mut ClientPacketListener| {
             MythologicalRitual::reset();
         }));
         client_command_registration_callback::EVENT.register(Arc::new(
             |dispatcher: &mut client_command_registration_callback::ClientCommandDispatcher| {
-                // TODO(fabric2seer): a command tree this tool cannot read (arguments, redirects, requires) - SeerClient commands receive the words after the name in `ctx.args`
-                //   java: dispatcher.register(..);
+                // java: dispatcher.register(literal(SkyblockerMod.NAMESPACE).then(literal("diana")
+                //   .then(literal("clearGriffinBurrows").executes(_ -> { reset(); return Command.SINGLE_SUCCESS; }))
+                //   .then(literal("clearGriffinBurrow").then(argument("position", ClientBlockPosArgumentType.blockPos()).executes(context -> {
+                //     griffinBurrows.remove(context.getArgument("position", ClientPosArgument.class).toAbsoluteBlockPos(context.getSource()));
+                //     return Command.SINGLE_SUCCESS; })))));
+                type Source = client_command_registration_callback::FabricClientCommandSource;
+                let mut clear_griffin_burrows = client_command_registration_callback::literal("clearGriffinBurrows");
+                clear_griffin_burrows.executes(Arc::new(|_context: &CommandContext<Source>| {
+                    MythologicalRitual::reset();
+                    Ok(1)
+                }));
+                let mut position = client_command_registration_callback::argument("position", Arc::new(ClientBlockPosArgumentType::block_pos()));
+                position.executes(Arc::new(|context: &CommandContext<Source>| {
+                    // `context.getArgument("position", ClientPosArgument.class).toAbsoluteBlockPos(context.getSource())`
+                    let pos: BlockPos = ClientBlockPosArgumentType::get_block_pos(context, "position");
+                    GRIFFIN_BURROWS.get_mut().remove(&pos);
+                    Ok(1)
+                }));
+                let mut clear_griffin_burrow = client_command_registration_callback::literal("clearGriffinBurrow");
+                clear_griffin_burrow.then(&position);
+                let mut diana = client_command_registration_callback::literal("diana");
+                diana.then(&clear_griffin_burrows);
+                diana.then(&clear_griffin_burrow);
+                let mut root = client_command_registration_callback::literal(crate::entry::skyblocker_mod::NAMESPACE);
+                root.then(&diana);
+                dispatcher.dispatcher().register(&root);
             },
         ));
         particle_events::FROM_SERVER.register(Arc::new(move |__a0| { MythologicalRitual::on_particle(&__a0); }));
@@ -93,12 +120,12 @@ impl MythologicalRitual {
     pub fn on_particle(packet: &ClientboundLevelParticlesPacket) {
         if MythologicalRitual::is_active() {
             // `switch (packet.getParticle().getType())` with `case ParticleType<?> type when ParticleTypes.X.equals(type)`
-            let particle = packet.get_particle().expect("NullPointerException");
+            let particle = packet.particle().expect("NullPointerException");
             if particle_type_is(particle, &**particle_types::crit()) || particle_type_is(particle, &**particle_types::enchant()) {
                 MythologicalRitual::handle_burrow_particle(packet);
             } else if particle_type_is(particle, &**particle_types::dust()) {
                 MythologicalRitual::handle_next_burrow_particle(packet);
-            } else if particle_type_is(particle, &**particle_types::dripping_lava()) && packet.get_count() == 2 {
+            } else if particle_type_is(particle, &**particle_types::dripping_lava()) && packet.count() == 2 {
                 MythologicalRitual::handle_echo_burrow_particle(packet);
             } else {
             }
@@ -107,12 +134,12 @@ impl MythologicalRitual {
 
     /// java: private static void handleBurrowParticle(ClientboundLevelParticlesPacket packet)
     pub fn handle_burrow_particle(packet: &ClientboundLevelParticlesPacket) {
-        let mut pos: BlockPos = (BlockPos::containing(packet.get_x(), packet.get_y(), packet.get_z())).below();
+        let mut pos: BlockPos = (BlockPos::containing(packet.x(), packet.y(), packet.z())).below();
         if mcrust::mcrust::modding::game::level().is_none() || !(mcrust::mcrust::modding::game::level().unwrap().get_block_state_typed(&pos).is_block(&blocks::blocks().get("GRASS_BLOCK"))) {
             return;
         }
         let mut burrow: compat::Shared<GriffinBurrow> = GRIFFIN_BURROWS.get_mut().entry(pos.clone()).or_insert_with_key(|k| GriffinBurrow::new(k.clone())).clone();
-        let particle = packet.get_particle().expect("NullPointerException");
+        let particle = packet.particle().expect("NullPointerException");
         if particle_type_is(particle, &**particle_types::crit()) {
             compat::write(&burrow, |__t| __t.crit_particle += 1);
         }
@@ -126,7 +153,7 @@ impl MythologicalRitual {
 
     /// java: private static void handleNextBurrowParticle(ClientboundLevelParticlesPacket packet)
     pub fn handle_next_burrow_particle(packet: &ClientboundLevelParticlesPacket) {
-        let mut pos: BlockPos = BlockPos::containing(packet.get_x(), packet.get_y(), packet.get_z());
+        let mut pos: BlockPos = BlockPos::containing(packet.x(), packet.y(), packet.z());
         let mut burrow_pos: BlockPos;
         if let Some(level) = mcrust::mcrust::modding::game::level() {
             burrow_pos = mcrust::net::minecraft::world::level::level_reader::get_heightmap_pos(&level, mcrust::net::minecraft::world::level::levelgen::heightmap::Types::WorldSurface, &pos);
@@ -136,7 +163,7 @@ impl MythologicalRitual {
         let Some(mut burrow) = GRIFFIN_BURROWS.get_mut().get(&burrow_pos).cloned() else {
             return;
         };
-        compat::write(&burrow, |__t| __t.regression.add_data(packet.get_x(), packet.get_z()));
+        compat::write(&burrow, |__t| __t.regression.add_data(packet.x(), packet.z()));
         let mut slope: f64 = compat::read(&burrow, |__t| __t.regression.get_slope());
         if slope.is_nan() {
             return;
@@ -158,14 +185,14 @@ impl MythologicalRitual {
         if compat::millis() > (compat::get_state(&LAST_ECHO_TIME)).wrapping_add(10000 as i64) {
             return;
         }
-        if mcrust::mcrust::modding::game::level().is_some() && !((mcrust::mcrust::modding::game::level().unwrap().get_block_state_typed(&BlockPos::containing(packet.get_x(), (packet.get_y() - 0.25), packet.get_z()))).is_air()) {
+        if mcrust::mcrust::modding::game::level().is_some() && !((mcrust::mcrust::modding::game::level().unwrap().get_block_state_typed(&BlockPos::containing(packet.x(), (packet.y() - 0.25), packet.z()))).is_air()) {
             return;
         }
         let previous_burrow = PREVIOUS_BURROW.get().clone();
         let echo = compat::write(&previous_burrow, |__t| {
             let direction = __t.echo_burrow_direction.get_or_insert_with(|| vec![None; 2]);
             direction[0] = direction[1];
-            direction[1] = Some(Vec3::new(packet.get_x(), packet.get_y(), packet.get_z()));
+            direction[1] = Some(Vec3::new(packet.x(), packet.y(), packet.z()));
             match (direction[0], direction[1]) {
                 (Some(first), Some(second)) => Some((first, second)),
                 _ => None,

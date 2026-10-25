@@ -31,6 +31,19 @@ pub static FACTION_SHOP_PATTERN: LazyLock<compat::regex::Pattern> = LazyLock::ne
 /// java: protected static KuudraPhase phase = KuudraPhase.OTHER;
 pub static PHASE: LazyLock<Mutex<KuudraPhase>> = LazyLock::new(|| Mutex::new(KuudraPhase::Other));
 
+/// The `ScreenEvents.afterTick` listener the current container screen's AFTER_INIT registered.
+#[derive(Clone)]
+enum AfterTick {
+    /// `checkKuudraKeyShop(genericContainerScreen, factionShopMatcher)` (the matched title)
+    KeyShop(String),
+    /// `checkForKuudraPet(genericContainerScreen)`
+    Pets,
+}
+
+thread_local! {
+    static AFTER_TICK: std::cell::RefCell<Option<AfterTick>> = const { std::cell::RefCell::new(None) };
+}
+
 /// java: public class Kuudra
 #[derive(Clone)]
 pub struct Kuudra {}
@@ -48,29 +61,64 @@ impl Kuudra {
         DATA.get_mut().lock().borrow_mut().load();
         screen_events::AFTER_INIT.register(Arc::new(|screen: &mut Screen, width: i32, height: i32| {
             // `screen instanceof ContainerScreen genericContainerScreen`: the screen's kind (the vanilla `ContainerScreen`
-            // object itself is not lent to the listener - its uses below stay with the TODOs)
+            // object itself is not lent to the listener - the menu is read at the after-tick hook)
             if Utils::is_on_skyblock() && matches!(compat::minecraft().gui.screen_kind, mcrust::net::minecraft::client::gui::gui::ScreenKind::Container) {
                 let mut title: String = screen.get_title().to_string();
                 let mut faction_shop_matcher: compat::regex::Matcher = FACTION_SHOP_PATTERN.matcher(&title);
-                if true && faction_shop_matcher.matches() {
-                    // TODO(fabric2seer): ScreenEvents.afterTick(..).register: no SeerClient equivalent yet
-                    //   java: ScreenEvents.afterTick(screen).register(_ -> {
-                    //   java: 							checkKuudraKeyShop(genericContainerScreen, factionShopMatcher);
-                    //   java: 						});
-                } else if true && title.ends_with("Pets") {
-                    // TODO(fabric2seer): ScreenEvents.afterTick(..).register: no SeerClient equivalent yet
-                    //   java: ScreenEvents.afterTick(screen).register(_ -> {
-                    //   java: 							checkForKuudraPet(genericContainerScreen);
-                    //   java: 						});
-                } else {
+                // (Fabric's per-screen `afterTick` is the end of the container screen's `containerTick()`: the listener
+                // belongs to this screen, so a new screen's AFTER_INIT replaces it - see `install_after_tick`)
+                AFTER_TICK.with(|t| *t.borrow_mut() = None);
+                if faction_shop_matcher.matches() {
+                    // java: ScreenEvents.afterTick(screen).register(_ -> checkKuudraKeyShop(genericContainerScreen, factionShopMatcher));
+                    AFTER_TICK.with(|t| *t.borrow_mut() = Some(AfterTick::KeyShop(title.clone())));
+                } else if title.ends_with("Pets") {
+                    // java: ScreenEvents.afterTick(screen).register(_ -> checkForKuudraPet(genericContainerScreen));
+                    AFTER_TICK.with(|t| *t.borrow_mut() = Some(AfterTick::Pets));
                 }
+            } else {
+                AFTER_TICK.with(|t| *t.borrow_mut() = None);
             }
         }));
         client_play_connection_events::JOIN.register(Arc::new(|listener: &mut ClientPacketListener| {
             Kuudra::reset();
         }));
-        // TODO(fabric2seer): ClientReceiveMessageEvents.ALLOW_GAME.register: no SeerClient equivalent yet
-        //   java: ClientReceiveMessageEvents.ALLOW_GAME.register(Kuudra::onMessage);
+        // java: ClientReceiveMessageEvents.ALLOW_GAME.register(Kuudra::onMessage);
+        compat::batch_w_allow_game_register(Arc::new(|text: &MutableComponent, overlay: bool| Kuudra::on_message(text, overlay)));
+        Kuudra::install_after_tick();
+    }
+
+    /// java: the two `ScreenEvents.afterTick(screen)` listeners `init` registers: run at the RETURN of the open container
+    /// screen's `containerTick()` (the end of its `tick`), while that screen's AFTER_INIT chose one.
+    fn install_after_tick() {
+        let result = mcrust::mcrust::modding::hook::inject(
+            "net.minecraft.client.gui.screens.inventory.AbstractContainerScreen#containerTick",
+            mcrust::mcrust::modding::hook::At::Return,
+            |_ci: &mut mcrust::mcrust::modding::hook::CallbackInfo<'_>| {
+                let Some(listener) = AFTER_TICK.with(|t| t.borrow().clone()) else {
+                    return;
+                };
+                if !matches!(compat::minecraft().gui.screen_kind, mcrust::net::minecraft::client::gui::gui::ScreenKind::Container) {
+                    return;
+                }
+                // java: screen.getMenu().slots - the items of the open menu's slots
+                let Some(items) = compat::with_open_menu(|menu, containers| menu.slots.iter().filter(|slot| slot.has_item(containers)).map(|slot| slot.get_item(containers).duplicate()).collect::<Vec<_>>()) else {
+                    return;
+                };
+                match listener {
+                    AfterTick::KeyShop(title) => {
+                        // (the captured matcher, matched against the same title)
+                        let mut matcher = FACTION_SHOP_PATTERN.matcher(&title);
+                        if matcher.matches() {
+                            Kuudra::check_kuudra_key_shop(&items, &matcher);
+                        }
+                    }
+                    AfterTick::Pets => Kuudra::check_for_kuudra_pet(&items),
+                }
+            },
+        );
+        if let Err(e) = result {
+            mcrust::mcrust::modding::log::warn_once("skyblocker-kuudra-after-tick", &format!("{e:?}"));
+        }
     }
 
     /// java: public static KuudraProfileData getKuudraProfileData()
@@ -79,25 +127,18 @@ impl Kuudra {
     }
 
     /// java: private static void checkKuudraKeyShop(ContainerScreen screen, Matcher factionShopMatcher)
-    pub fn check_kuudra_key_shop(screen: &ContainerScreen, faction_shop_matcher: &compat::regex::Matcher) {
+    /// (`screen.getMenu().slots`' items that `Slot::hasItem` - the open container's - are handed in)
+    pub fn check_kuudra_key_shop(slot_items: &Vec<mcrust::net::minecraft::world::item::item_stack::ItemStack>, faction_shop_matcher: &compat::regex::Matcher) {
         let mut faction: CrimsonFaction = CrimsonFaction::value_of(&faction_shop_matcher.group_named("faction").unwrap().to_uppercase());
-        // TODO(fabric2seer): field `slots` of a value of unknown type
-        //   java: List<ItemStack> kuudraKeyItems = screen.getMenu().slots.stream()
-        //   java: 				.filter(Slot::hasItem)
-        //   java: 				.map(Slot::getItem)
-        //   java: 				.filter(stack -> KuudraProfileData.EMPTY.kuudraKeyPrices().containsKey(stack.getSkyblockId()))
-        //   java: 				.toList();
-        let mut kuudra_key_items: Vec<mcrust::net::minecraft::world::item::item_stack::ItemStack> = todo!("fabric2seer: the initialiser of `kuudraKeyItems` (TODO above)");
+        let mut kuudra_key_items: Vec<mcrust::net::minecraft::world::item::item_stack::ItemStack> = slot_items.iter().filter(|stack| kuudra_profile_data::EMPTY.kuudra_key_prices().contains_key(&stack.get_skyblock_id())).cloned().collect();
         let mut kuudra_key_prices: std::collections::HashMap<String, i32> = std::collections::HashMap::new();
         kuudra_key_prices.extend(kuudra_profile_data::EMPTY.kuudra_key_prices().iter().map(|(k, v)| (k.clone(), v.clone())));
         for kuudra_key in kuudra_key_items.iter() {
-            // TODO(fabric2seer): static `ChatFormatting.stripFormatting` has no Rust counterpart in the port
-            // rust: let mut matcher: Option<compat::regex::Matcher> = Some(RegexListUtils::match_in_list_list_function_pattern(&kuudra_key.skyblocker_get_lore_strings(), Arc::new(move |__a0| ChatFormatting::strip_formatting(__a0.clone())), &chest_value::DUNGEON_CHEST_COIN_COST_PATTERN));
-            let mut matcher: compat::regex::Matcher = todo!("fabric2seer: the initialiser of `matcher` (TODO above)");
-            if true /* java: matcher != null: never null here */ {
+            let Some(matcher) = RegexListUtils::match_in_list_list_function_pattern(&kuudra_key.skyblocker_get_lore_strings(), Arc::new(move |__a0: String| chat_formatting::strip_formatting(&__a0)), &chest_value::DUNGEON_CHEST_COIN_COST_PATTERN) else {
+                continue;
+            };
+            {
                 let mut found_string: String = compat::regex::replace_all(&matcher.group(1).unwrap(), "\\D", "");
-                // TODO(fabric2seer): the condition: static call NumberUtils.isCreatable(..)
-                //   java: !NumberUtils.isCreatable(foundString)
                 if !compat::number_utils_is_creatable(&found_string) {
                     continue;
                 }
@@ -114,29 +155,22 @@ impl Kuudra {
     }
 
     /// java: private static void checkForKuudraPet(ContainerScreen screen)
-    pub fn check_for_kuudra_pet(screen: &ContainerScreen) {
-        // TODO(fabric2seer): field `slots` of a value of unknown type
-        //   java: for (Slot slot : screen.getMenu().slots) {
-        //   java: 			if (slot.hasItem()) {
-        //   java: 				PetInfo currentPet = slot.getItem().getPetInfo();
-        //   java: 				KuudraProfileData storedData = getKuudraProfileData();
-        //   java:
-        //   java: 				// Ignore non-pet items
-        //   java: 				if (currentPet.isEmpty()) continue;
-        //   java:
-        //   java: 				// If this is a Kuudra pet, the rarity of this pet is greater than or equal to the rarity of the stored one, and its exp is greater than
-        //   java: 				// or equal to that of the stored one then we want to override the stored Kuudra pet data with this one.
-        //   java: 				//
-        //   java: 				// We also check if the stored pet is empty since in that case we want to update it.
-        //   java: 				if (currentPet.type().equals("KUUDRA") && ((currentPet.tierIndex() >= storedData.kuudraPet().tierIndex() && currentPet.exp() >= storedData.kuudraPet().exp()) || storedData.kuudraPet().isEmpty())) {
-        //   java: 					KuudraProfileData newData = new KuudraProfileData(storedData.faction(), currentPet, storedData.kuudraKeyPrices());
-        //   java: 					DATA.put(newData);
-        //   java: 					DATA.save();
-        //   java:
-        //   java: 					return;
-        //   java: 				}
-        //   java: 			}
-        //   java: 		}
+    /// (the items of `screen.getMenu().slots` that `slot.hasItem()` are handed in)
+    pub fn check_for_kuudra_pet(slot_items: &Vec<mcrust::net::minecraft::world::item::item_stack::ItemStack>) {
+        for item in slot_items.iter() {
+            let current_pet = item.get_pet_info();
+            let stored_data: KuudraProfileData = Kuudra::get_kuudra_profile_data();
+            // Ignore non-pet items
+            if current_pet.is_empty() {
+                continue;
+            }
+            if current_pet.r#type() == "KUUDRA" && ((current_pet.tier_index() >= stored_data.kuudra_pet().tier_index() && current_pet.exp() >= stored_data.kuudra_pet().exp()) || stored_data.kuudra_pet().is_empty()) {
+                let new_data: KuudraProfileData = KuudraProfileData::new(stored_data.faction(), current_pet, stored_data.kuudra_key_prices().clone());
+                ProfiledData::put(DATA.get_mut(), new_data);
+                DATA.get_mut().lock().borrow().save();
+                return;
+            }
+        }
     }
 
     /// java: private static boolean onMessage(Component text, boolean overlay)

@@ -6,7 +6,7 @@ use crate::de::hysky::skyblocker::skyblock::entity::mob_glow_adder::MobGlowAdder
 use crate::de::hysky::skyblocker::skyblock::entity::mob_glow_adder::MobGlowAdderBase;
 use crate::de::hysky::skyblocker::utils::utils::Utils;
 use mcrust::net::minecraft::world::entity::entity::Entity;
-use mcrust::net::minecraft::world::entity::monster::ender_man::EnderMan;
+use mcrust::net::minecraft::world::entity::monster::enderman::Enderman;
 
 /// java: @SuppressWarnings("unused") private static final EndGlowAdder INSTANCE = new EndGlowAdder();
 pub static INSTANCE: compat::MainThread<compat::Shared<EndGlowAdder>> = compat::MainThread::new(|| EndGlowAdder::new());
@@ -77,7 +77,7 @@ impl EndGlowAdder {
     /// java: @Override public int computeColour(Entity entity)
     pub fn compute_colour_impl(__this: &compat::Shared<Self>, entity: &dyn Entity) -> i32 {
         // java: return entity instanceof EnderMan enderman && TheEnd.isSpecialZealot(enderman) ? TextColor.RED.getValue() : NO_GLOW;
-        if let Some(enderman) = entity.as_any().unwrap_or(&() as &dyn std::any::Any).downcast_ref::<EnderMan>() && crate::de::hysky::skyblocker::skyblock::end::the_end::TheEnd::is_special_zealot(enderman) {
+        if let Some(enderman) = entity.as_any().unwrap_or(&() as &dyn std::any::Any).downcast_ref::<Enderman>() && crate::de::hysky::skyblocker::skyblock::end::the_end::TheEnd::is_special_zealot(enderman) {
             return mcrust::net::minecraft::network::chat::text_color::TextColor::RED.get_value();
         }
         return *crate::de::hysky::skyblocker::skyblock::entity::mob_glow::NO_GLOW;

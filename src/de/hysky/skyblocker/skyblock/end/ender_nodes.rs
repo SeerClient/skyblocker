@@ -44,11 +44,11 @@ impl EnderNodes {
     pub fn init() {
         ({ let __r = scheduler::INSTANCE.get_mut(); let __f = compat::dispatch(__r, |__t| __t.schedule_cyclic()); __f(__r, Arc::new(move || { EnderNodes::update(); }), 20) });
         level_render_extraction_callback::EVENT.register(Arc::new(move |__a0| { EnderNodes::extract_rendering(&__a0); }));
-        // TODO(fabric2seer): AttackBlockCallback.EVENT.register: no SeerClient equivalent yet
-        //   java: AttackBlockCallback.EVENT.register((_, _, _, pos, _) -> {
-        //   java: 			enderNodes.remove(pos);
-        //   java: 			return InteractionResult.PASS;
-        //   java: 		});
+        // java: AttackBlockCallback.EVENT.register((_, _, _, pos, _) -> { enderNodes.remove(pos); return InteractionResult.PASS; });
+        mcrust::mcrust::modding::events::attack_block_callback::register(|_, _, _, pos, _| {
+            ENDER_NODES.get_mut().remove(pos);
+            mcrust::net::minecraft::world::interaction_result::InteractionResult::Pass
+        });
         client_play_connection_events::JOIN.register(Arc::new(|listener: &mut ClientPacketListener| {
             EnderNodes::reset();
         }));
@@ -61,15 +61,15 @@ impl EnderNodes {
             return;
         }
         // java: ParticleType<?> particleType = packet.getParticle().getType(); (the port erases getType(): compared through Object.equals)
-        let Some(particle) = packet.get_particle() else { return; };
+        let Some(particle) = packet.particle() else { return; };
         let is_portal: bool = compat::particle_type_is(particle, mcrust::net::minecraft::core::particles::particle_types::portal());
         let is_witch: bool = compat::particle_type_is(particle, mcrust::net::minecraft::core::particles::particle_types::witch());
         if !is_portal && !is_witch {
             return;
         }
-        let mut x: f64 = packet.get_x();
-        let mut y: f64 = packet.get_y();
-        let mut z: f64 = packet.get_z();
+        let mut x: f64 = packet.x();
+        let mut y: f64 = packet.y();
+        let mut z: f64 = packet.z();
         let mut x_frac: f64 = mth::positive_modulo_f64(x, (1) as f64);
         let mut y_frac: f64 = mth::positive_modulo_f64(y, (1) as f64);
         let mut z_frac: f64 = mth::positive_modulo_f64(z, (1) as f64);

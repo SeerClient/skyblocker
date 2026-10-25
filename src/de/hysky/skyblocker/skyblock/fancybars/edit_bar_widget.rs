@@ -288,9 +288,9 @@ impl<$($g)*> EditOption for compat::Shared<$o> {
         if !active || !visible {
             return false;
         }
-        if click.button() == 0 && over {
+        if click.button() == 1 && over {
             // java: this.playDownSound(Minecraft.getInstance().getSoundManager());
-            // rust: port gap (GAPS_batchH #1) - `SoundManager.play` is not reachable from a mod
+            compat::batch_w_play_down_sound();
             <$o as OptionClick>::on_click(self, click, doubled);
             return true;
         }

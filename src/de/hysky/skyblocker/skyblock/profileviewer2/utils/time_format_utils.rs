@@ -5,10 +5,8 @@ use crate::prelude::*;
 use mcrust::java::text::decimal_format_symbols::Locale;
 use mcrust::java::time::zone_id::ZoneId;
 
-// TODO(fabric2seer): static `ZoneId.of` has no Rust counterpart in the port
-//   java: public static final ZoneId GMT = ZoneId.of("GMT");
 /// java: public static final ZoneId GMT = ZoneId.of("GMT");
-pub static GMT: compat::MainThread<ZoneId> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `GMT` - see the TODO above"));
+pub static GMT: compat::MainThread<ZoneId> = compat::MainThread::new(|| ZoneId::of("GMT").expect("ZoneId.of(GMT)"));
 
 /// java: public class TimeFormatUtils
 #[derive(Clone)]
@@ -24,21 +22,12 @@ impl TimeFormatUtils {
 
     /// java: public static String getShortestReasonableUnit(Duration duration)
     pub fn get_shortest_reasonable_unit(duration: &std::time::Duration) -> String {
-        // TODO(fabric2seer): `.toDays(..)` on a Duration
-        //   java: long days = duration.toDays();
-        let mut days: i64 = todo!("fabric2seer: the initialiser of `days` (TODO above)");
-        // TODO(fabric2seer): `.toHours(..)` on a Duration
-        //   java: long hours = duration.toHours();
-        let mut hours: i64 = todo!("fabric2seer: the initialiser of `hours` (TODO above)");
-        // TODO(fabric2seer): `.toMinutes(..)` on a Duration
-        //   java: long minutes = duration.toMinutes();
-        let mut minutes: i64 = todo!("fabric2seer: the initialiser of `minutes` (TODO above)");
-        // TODO(fabric2seer): `.toSeconds(..)` on a Duration
-        //   java: long seconds = duration.toSeconds();
-        let mut seconds: i64 = todo!("fabric2seer: the initialiser of `seconds` (TODO above)");
-        // TODO(fabric2seer): `.toMillis(..)` on a Duration
-        //   java: long millis = duration.toMillis();
-        let mut millis: i64 = todo!("fabric2seer: the initialiser of `millis` (TODO above)");
+        // java: duration.toDays() / toHours() / toMinutes() / toSeconds() / toMillis() - each the whole units of the duration
+        let days: i64 = (duration.as_secs() / 86_400) as i64;
+        let hours: i64 = (duration.as_secs() / 3_600) as i64;
+        let minutes: i64 = (duration.as_secs() / 60) as i64;
+        let seconds: i64 = duration.as_secs() as i64;
+        let millis: i64 = duration.as_millis() as i64;
         if days > (0 as i64) {
             return format!("{}d", days);
         } else if hours > (0 as i64) {
@@ -50,17 +39,14 @@ impl TimeFormatUtils {
         } else {
             return format!("{}ms", millis);
         }
-        todo!("fabric2seer: the value of this function is in a TODO above")
     }
 
     /// java: public static String getDurationString(long millis)
     pub fn get_duration_string(mut millis: i64) -> String {
-        // TODO(fabric2seer): `.toMinutes(..)` on a TimeUnit
-        //   java: long minutes = TimeUnit.MILLISECONDS.toMinutes(millis);
-        let mut minutes: i64 = todo!("fabric2seer: the initialiser of `minutes` (TODO above)");
-        // TODO(fabric2seer): `.toSeconds(..)` on a TimeUnit
-        //   java: long seconds = TimeUnit.MILLISECONDS.toSeconds(millis) % 60;
-        let mut seconds: i64 = todo!("fabric2seer: the initialiser of `seconds` (TODO above)");
+        // java: long minutes = TimeUnit.MILLISECONDS.toMinutes(millis);
+        let minutes: i64 = millis / 60_000;
+        // java: long seconds = TimeUnit.MILLISECONDS.toSeconds(millis) % 60;
+        let seconds: i64 = (millis / 1_000) % 60;
         return format!("{}:{:02}", minutes, seconds);
     }
 

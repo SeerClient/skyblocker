@@ -185,29 +185,44 @@ impl PartyFinderScreen {
 
     /// java: @Init public static void initClass()
     pub fn init_class() {
-        // TODO(fabric2seer): no SeerClient event yet: hook RETURN of Minecraft's constructor (`net.minecraft.client.Minecraft#<init>`: exists)
-        //   java: ClientLifecycleEvents.CLIENT_STARTED.register(client -> {
-        //   java: 			//Checking when this is loaded probably isn't necessary as the maps are always null checked
-        //   java: 			CompletableFuture.runAsync(() -> {
-        //   java: 				floorIconsNormal = new HashMap<>();
-        //   java: 				floorIconsMaster = new HashMap<>();
-        //   java: 				try (BufferedReader skullTextureReader = client.getResourceManager().openAsReader(SkyblockerMod.id("dungeons/catacombs/floorskulls.json"))) {
-        //   java: 					JsonObject json = SkyblockerMod.GSON.fromJson(skullTextureReader, JsonObject.class);
-        //   java: 					json.getAsJsonObject("normal").asMap().forEach((s, tex) -> floorIconsNormal.put(s, ItemUtils.propertyMapWithTexture(tex.getAsString())));
-        //   java: 					json.getAsJsonObject("master").asMap().forEach((s, tex) -> floorIconsMaster.put(s, ItemUtils.propertyMapWithTexture(tex.getAsString())));
-        //   java: 					LOGGER.debug("[Skyblocker] Dungeons floor skull textures json loaded");
-        //   java: 				} catch (Exception e) {
-        //   java: 					LOGGER.error("[Skyblocker] Failed to load dungeons floor skull textures json", e);
-        //   java: 				}
-        //   java: 			}, SkyblockerMod.VIRTUAL_THREAD_EXECUTOR);
-        //   java: 		});
-        // TODO(fabric2seer): ClientSendMessageEvents.COMMAND.register: no SeerClient equivalent yet
-        //   java: ClientSendMessageEvents.COMMAND.register(command -> {
-        //   java: 			if (!Utils.isOnSkyblock() || !SkyblockerConfigManager.get().dungeons.fancyPartyFinder) return;
-        //   java: 			command = command.toLowerCase(Locale.ENGLISH);
-        //   java: 			if (!command.startsWith("join")) return;
-        //   java: 			isInKuudraPartyFinder = command.startsWith("joinkuudra") || command.startsWith("joininstance kuudra_");
-        //   java: 		});
+        // java: ClientLifecycleEvents.CLIENT_STARTED.register(client -> CompletableFuture.runAsync(() -> { floorIconsNormal = ..; floorIconsMaster = ..; try (reader = client.getResourceManager().openAsReader(..floorskulls.json)) {..} catch (Exception e) {..} }, VIRTUAL_THREAD_EXECUTOR));
+        mcrust::mcrust::modding::events::client_lifecycle_events::register_client_started(|client| {
+            let manager = client.get_resource_manager();
+            compat::executor(Box::new(move || {
+                let file: Identifier = crate::entry::skyblocker_mod::id("dungeons/catacombs/floorskulls.json");
+                let json: Result<serde_json::Value, String> = manager.get_resource(&file).ok_or_else(|| format!("FileNotFoundException: {}", file)).and_then(|resource| resource.open()).and_then(|bytes| String::from_utf8(bytes).map_err(|e| e.to_string())).and_then(|reader| serde_json::from_str::<serde_json::Value>(&reader).map_err(|e| e.to_string()));
+                // (the PropertyMaps are the render thread's: the maps are filled there)
+                crate::compat::execute(move || {
+                    *FLOOR_ICONS_NORMAL.get_mut() = Some(std::collections::HashMap::new());
+                    *FLOOR_ICONS_MASTER.get_mut() = Some(std::collections::HashMap::new());
+                    let result: Result<(), String> = json.and_then(|json| {
+                        for (key, target) in [("normal", &FLOOR_ICONS_NORMAL), ("master", &FLOOR_ICONS_MASTER)] {
+                            let object = json.get(key).and_then(|v| v.as_object()).ok_or_else(|| format!("no `{key}` object"))?;
+                            for (s, tex) in object {
+                                let tex = tex.as_str().ok_or_else(|| format!("`{key}.{s}` is not a string"))?;
+                                target.get_mut().as_mut().unwrap().insert(s.clone(), ItemUtils::property_map_with_texture(tex));
+                            }
+                        }
+                        Ok(())
+                    });
+                    match result {
+                        Ok(()) => logger().debug("[Skyblocker] Dungeons floor skull textures json loaded"),
+                        Err(e) => logger().error(&format!("[Skyblocker] Failed to load dungeons floor skull textures json {e}")),
+                    }
+                });
+            }));
+        });
+        // java: ClientSendMessageEvents.COMMAND.register(command -> {..});
+        mcrust::mcrust::modding::events::client_send_message_events::register_command(|command| {
+            if !crate::de::hysky::skyblocker::utils::utils::Utils::is_on_skyblock() || !crate::de::hysky::skyblocker::config::skyblocker_config_manager::SkyblockerConfigManager::get().dungeons.fancy_party_finder {
+                return;
+            }
+            let command: String = command.to_lowercase();
+            if !command.starts_with("join") {
+                return;
+            }
+            compat::set_state(&IS_IN_KUUDRA_PARTY_FINDER, command.starts_with("joinkuudra") || command.starts_with("joininstance kuudra_"));
+        });
     }
 
     /// java: public ChestMenu getHandler()
@@ -236,8 +251,11 @@ impl PartyFinderScreen {
         let mut widget_height: i32 = ((((compat::read(__this, |__t| __t.height) as f64) * 0.8)) as i32);
         let mut entry_list_top_y: i32 = 43i32.max(((((compat::read(__this, |__t| __t.height) as f64) * 0.1)) as i32));
         { let __v = (Some(PartyEntryListWidget::new(compat::minecraft(), compat::read(__this, |__t| __t.width), widget_height, entry_list_top_y, 68))).map(|__o| compat::WidgetRef::value(compat::attach_list(__o))); compat::write(__this, |__t| { let __s = &mut *__t; __s.party_entry_list_widget = __v; }); }
-        // TODO(fabric2seer): `new` takes 5 argument(s) in the port (`splitter: &StringSplitter<W>, x: i32, y: i32, width: i32, height: i32`), Java passes 6
-        // rust: { let __v = Some(EditBox::new(&compat::font(), component::literal("Search..."), (compat::write(__this, |__t| { let __s = &mut *__t; let __r = __s.party_entry_list_widget.as_mut().unwrap(); __s.__widgets.with(&mut __s.base, __r, |__w| __w.mod_widget().and_then(|__ms| __ms.with::<mcrust::mcrust::modding::widgets::ModSelectionList, _>(|__l| __l.list.get_row_left())).expect("a mod list reached from inside its own method")) })).wrapping_add(12), entry_list_top_y.wrapping_sub(12), ((compat::write(__this, |__t| { let __s = &mut *__t; let __r = __s.party_entry_list_widget.as_mut().unwrap(); __s.__widgets.with(&mut __s.base, __r, |__w| __w.mod_widget().and_then(|__ms| __ms.with::<mcrust::mcrust::modding::widgets::ModSelectionList, _>(|__l| { let __h = &__l.class::<compat::ListClass<PartyEntryListWidget>>().map(|__c| __c.object().clone()).expect("a mod list without its class"); compat::lend_list(__h, __l, || PartyEntryListWidget::get_row_width(__h)) })).expect("a mod list reached from inside its own method")) })).wrapping_sub(12i32.wrapping_mul(3))).wrapping_sub(6), 12)); compat::write(__this, |__t| __t.search_field = __v); }
+        // java: this.searchField = new EditBox(font, partyEntryListWidget.getRowLeft() + 12, entryListTopY - 12, partyEntryListWidget.getRowWidth() - 12 * 3 - 6, 12, Component.literal("Search..."));
+        // (the box is the game's `EditBox` widget, as the buttons are)
+        let __row_left: i32 = compat::write(__this, |__t| { let __s = &mut *__t; let __r = __s.party_entry_list_widget.as_mut().unwrap(); __s.__widgets.with(&mut __s.base, __r, |__w| __w.mod_widget().and_then(|__ms| __ms.with::<mcrust::mcrust::modding::widgets::ModSelectionList, _>(|__l| __l.list.get_row_left())).expect("a mod list reached from inside its own method")) });
+        let __row_width: i32 = compat::write(__this, |__t| { let __s = &mut *__t; let __r = __s.party_entry_list_widget.as_mut().unwrap(); __s.__widgets.with(&mut __s.base, __r, |__w| __w.mod_widget().and_then(|__ms| __ms.with::<mcrust::mcrust::modding::widgets::ModSelectionList, _>(|__l| { let __h = &__l.class::<compat::ListClass<PartyEntryListWidget>>().map(|__c| __c.object().clone()).expect("a mod list without its class"); compat::lend_list(__h, __l, || PartyEntryListWidget::get_row_width(__h)) })).expect("a mod list reached from inside its own method")) });
+        { let __v = Some(compat::WidgetRef::value(compat::edit_box(__row_left.wrapping_add(12), entry_list_top_y.wrapping_sub(12), (__row_width.wrapping_sub(12i32.wrapping_mul(3))).wrapping_sub(6), 12, component::literal("Search...")))); compat::write(__this, |__t| __t.search_field = __v); }
         { let __q0 = SEARCH_TEXT.get().clone(); compat::write(__this, |__t| { let __s = &mut *__t; let __r = __s.search_field.as_mut().unwrap(); __s.__widgets.with(&mut __s.base, __r, |__w| if let mcrust::net::minecraft::client::gui::components::abstract_widget::WidgetKind::EditBox(__e) = &mut __w.kind { __e.set_hint_component(mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(__q0)); }) }); }
         let __this_w1 = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
         { let (__q0,) = (Responder::Lambda(ResponderLambda::new(move |s| { let Some(__this_1) = __this_w1.get().upgrade() else { return Default::default(); }; { let __wa1 = s.to_string(); compat::write((&__this_1), |__t| { let __s = &mut *__t; let __r = __s.party_entry_list_widget.as_mut().unwrap(); __s.__widgets.with(&mut __s.base, __r, |__w| __w.mod_widget().and_then(|__ms| __ms.with::<mcrust::mcrust::modding::widgets::ModSelectionList, _>(|__l| { let __h = &__l.class::<compat::ListClass<PartyEntryListWidget>>().map(|__c| __c.object().clone()).expect("a mod list without its class"); compat::lend_list(__h, __l, || PartyEntryListWidget::set_search(__h, &__wa1)) })).expect("a mod list reached from inside its own method")) }); } })),); compat::write(__this, |__t| { let __s = &mut *__t; let __r = __s.search_field.as_mut().unwrap(); __s.__widgets.with(&mut __s.base, __r, |__w| if let mcrust::net::minecraft::client::gui::components::abstract_widget::WidgetKind::EditBox(__e) = &mut __w.kind { __e.set_responder(__q0); }) }) };
@@ -336,9 +354,12 @@ impl PartyFinderScreen {
                 gui_graphics_extractor::text_string_with_drop_shadow(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), Some(&compat::read(__this, |__t| __t.refresh_slot_id).to_string()), (compat::read(__this, |__t| __t.width)).wrapping_sub(25), 30, mcrust::net::minecraft::util::common_colors::WHITE, true);
                 gui_graphics_extractor::text_string_with_drop_shadow(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), Some(&compat::read(__this, |__t| __t.prev_page_slot_id).to_string()), (compat::read(__this, |__t| __t.width)).wrapping_sub(25), 40, mcrust::net::minecraft::util::common_colors::WHITE, true);
                 gui_graphics_extractor::text_string_with_drop_shadow(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), Some(&compat::read(__this, |__t| __t.next_page_slot_id).to_string()), (compat::read(__this, |__t| __t.width)).wrapping_sub(25), 50, mcrust::net::minecraft::util::common_colors::WHITE, true);
-                for i in { 0..((__this.lock().borrow().handler.with(|__chest| __chest.menu.slots.clone()).unwrap()).len() as i32) } {
-                    // TODO(fabric2seer): `get_item` takes 1 argument(s) in the port (`containers: &'a Containers<'_>`), Java passes 0
-                    // rust: graphics.item(((__this.lock().borrow().handler.with(|__chest| __chest.menu.slots.clone()).unwrap())[(i) as usize]).get_item(), (i.wrapping_rem(9)).wrapping_mul(16), (i.wrapping_div(9)).wrapping_mul(16));
+                // java: for (int i = 0; i < handler.slots.size(); i++) graphics.item(handler.slots.get(i).getItem(), (i % 9) * 16, (i / 9) * 16);
+                let __handler = compat::read(__this, |__t| __t.handler);
+                let __items: Vec<mcrust::net::minecraft::world::item::item_stack::ItemStack> = __handler.with_slots(|menu, containers| menu.slots.iter().map(|slot| slot.get_item(containers).duplicate()).collect()).unwrap_or_default();
+                for (i, __item) in __items.iter().enumerate() {
+                    let i = i as i32;
+                    graphics.item(__item, (i.wrapping_rem(9)).wrapping_mul(16), (i.wrapping_div(9)).wrapping_mul(16));
                 }
                 gui_graphics_extractor::text_string_with_drop_shadow(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), Some(&compat::read(__this, |__t| __t.settings_button_slot_id).to_string()), (compat::write(__this, |__t| { let __s = &mut *__t; let __r = __s.settings_button.as_mut().unwrap(); __s.__widgets.with(&mut __s.base, __r, |__w| __w.get_x()) })).wrapping_add((compat::write(__this, |__t| { let __s = &mut *__t; let __r = __s.settings_button.as_mut().unwrap(); __s.__widgets.with(&mut __s.base, __r, |__w| __w.get_width()) })).wrapping_div(2)), 0i32.max((compat::write(__this, |__t| { let __s = &mut *__t; let __r = __s.settings_button.as_mut().unwrap(); __s.__widgets.with(&mut __s.base, __r, |__w| __w.get_y()) })).wrapping_sub(8)), mcrust::net::minecraft::util::common_colors::WHITE, true);
             }
@@ -351,11 +372,14 @@ impl PartyFinderScreen {
 
     /// java: @Override public void extractBackground(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a)
     pub fn extract_background(__this: &compat::Shared<Self>, graphics: &GuiGraphicsExtractor, mut mouse_x: i32, mut mouse_y: i32, mut a: f32) {
-        // TODO(fabric2seer): `Screen.extractTransparentBackground` has no Rust method in the port (looked for `extract_transparent_background` in Screen and its supertypes)
-        // rust: __this.lock().borrow().extract_transparent_background(graphics);
+        // java: this.extractTransparentBackground(graphics); - `Screen:423-425`
+        graphics.fill_gradient(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), 0, 0, compat::read(__this, |__t| __t.width), compat::read(__this, |__t| __t.height), -1072689136, -804253680);
         let mut i: i32 = ((compat::write(__this, |__t| { let __s = &mut *__t; let __r = __s.party_entry_list_widget.as_mut().unwrap(); __s.__widgets.with(&mut __s.base, __r, |__w| __w.mod_widget().and_then(|__ms| __ms.with::<mcrust::mcrust::modding::widgets::ModSelectionList, _>(|__l| { let __h = &__l.class::<compat::ListClass<PartyEntryListWidget>>().map(|__c| __c.object().clone()).expect("a mod list without its class"); compat::lend_list(__h, __l, || PartyEntryListWidget::get_row_width(__h)) })).expect("a mod list reached from inside its own method")) })).wrapping_add(16)).wrapping_add(6);
-        // TODO(fabric2seer): `get` is not a method of FallbackedTexture
         //   java: graphics.blitSprite(RenderPipelines.GUI_TEXTURED, BACKGROUND_TEXTURE.get(), partyEntryListWidget.getRowLeft() - 8, partyEntryListWidget.getY() - 12 - 8, i, partyEntryListWidget.getBottom() - partyEntryListWidget.getY() + 16 + 12);
+        let (__row_left, __list_y, __list_bottom): (i32, i32, i32) = compat::write(__this, |__t| { let __s = &mut *__t; let __r = __s.party_entry_list_widget.as_mut().unwrap(); __s.__widgets.with(&mut __s.base, __r, |__w| (__w.mod_widget().and_then(|__ms| __ms.with::<mcrust::mcrust::modding::widgets::ModSelectionList, _>(|__l| __l.list.get_row_left())).expect("a mod list reached from inside its own method"), __w.get_y(), __w.get_bottom())) });
+        let __texture: Identifier = compat::read(BACKGROUND_TEXTURE.get(), |__t| __t.get());
+        gui_graphics_extractor::blit_sprite_identifier(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), mcrust::net::minecraft::client::renderer::render_pipelines::gui_textured(), &__texture, __row_left.wrapping_sub(8), (__list_y.wrapping_sub(12)).wrapping_sub(8), i, ((__list_bottom.wrapping_sub(__list_y)).wrapping_add(16)).wrapping_add(12));
+        let _ = (mouse_x, mouse_y, a);
     }
 
     /// java: @Override public void onClose()
@@ -366,9 +390,10 @@ impl PartyFinderScreen {
         } else {
             let mut network_handler: Option<mcrust::net::minecraft::client::multiplayer::client_packet_listener::PlayListenerSinks> = compat::get_connection(&*compat::minecraft());
             if network_handler.is_some() && compat::read(__this, |__t| __t.sign.is_some()) {
-                let mut original_text: Vec<String> = ({ let (__q0,) = (compat::read(__this, |__t| __t.sign_front),); compat::read(__this, |__t| __t.sign.clone()).unwrap().as_sign().expect("ClassCastException: SignBlockEntity").get_text(__q0) }).get_messages(true).iter().cloned().map(|__a0| __a0.get_string()).collect::<Vec<_>>();
-                // TODO(fabric2seer): `ClientPacketListener.send` has no Rust method in the port (looked for `send` in ClientPacketListener and its supertypes)
-                // rust: network_handler.as_ref().unwrap().send(&ServerboundSignUpdatePacket::new(__this.lock().borrow().sign.as_ref().unwrap().get_block_pos(), compat::read(__this, |__t| __t.sign_front), original_text[0].clone(), original_text[(1) as usize].clone(), original_text[(2) as usize].clone(), original_text[(3) as usize].clone()));
+                let mut original_text: Vec<String> = ({ let (__q0,) = (compat::read(__this, |__t| __t.sign_front),); compat::read(__this, |__t| __t.sign.clone()).unwrap().as_sign().expect("ClassCastException: SignBlockEntity").get_text(compat::sign_slot(__q0)) }).get_messages(true).iter().cloned().map(|__a0| __a0.get_string()).collect::<Vec<_>>();
+                // java: networkHandler.send(new ServerboundSignUpdatePacket(sign.getBlockPos(), signFront, originalText.getFirst(), originalText.get(1), originalText.get(2), originalText.get(3)));
+                let __pos = compat::read(__this, |__t| __t.sign.clone()).unwrap().base().get_block_pos();
+                compat::send_packet(ServerboundSignUpdatePacket::new(__pos, vec![original_text[0].clone(), original_text[1].clone(), original_text[2].clone(), original_text[3].clone()], compat::sign_slot(compat::read(__this, |__t| __t.sign_front))));
             }
         }
         mcrust::mcrust::modding::game::set_screen_null();
@@ -378,8 +403,8 @@ impl PartyFinderScreen {
     pub fn set_current_page(__this: &compat::Shared<Self>, mut page: Page) {
         { let __v = Some(page); compat::write(__this, |__t| __t.current_page = __v); }
         if page == Page::Finder {
-            // TODO(fabric2seer): `AbstractContainerWidget.visible` is a field of the port's `AbstractContainerWidget`, which the port's `AbstractSelectionList` does not hold (no Deref, no `base` field)
-            // rust: { let __v = true; compat::write(__this, |__t| { let __s = &mut *__t; let __r = __s.party_entry_list_widget.as_mut().unwrap(); __s.__widgets.with(&mut __s.base, __r, |__w| __w.visible = __v) }); }
+            // java: partyEntryListWidget.visible = true; - the list's game widget
+            { let __v = true; compat::write(__this, |__t| { let __s = &mut *__t; let __r = __s.party_entry_list_widget.as_mut().unwrap(); __s.__widgets.with(&mut __s.base, __r, |__w| __w.visible = __v) }); }
             { let __v = false; compat::write(__this, |__t| { let __s = &mut *__t; let __r = __s.party_finder_button.as_mut().unwrap(); __s.__widgets.with(&mut __s.base, __r, |__w| __w.active = __v) }); }
             let __wa1 = (compat::write(__this, |__t| { let __s = &mut *__t; let __r = __s.party_finder_button.as_mut().unwrap(); __s.__widgets.with(&mut __s.base, __r, |__w| compat::component_of(__w.get_message_component())) })).copy().set_style(mcrust::net::minecraft::network::chat::style::Style::EMPTY.with_underlined(Some(true)));
             compat::write(__this, |__t| { let __s = &mut *__t; let __r = __s.party_finder_button.as_mut().unwrap(); __s.__widgets.with(&mut __s.base, __r, |__w| __w.set_message_text(mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(__wa1.clone()))) });
@@ -394,8 +419,8 @@ impl PartyFinderScreen {
             { let __v = true; compat::write(__this, |__t| { let __s = &mut *__t; let __r = __s.previous_page_button.as_mut().unwrap(); __s.__widgets.with(&mut __s.base, __r, |__w| __w.visible = __v) }); }
             { let __v = true; compat::write(__this, |__t| { let __s = &mut *__t; let __r = __s.next_page_button.as_mut().unwrap(); __s.__widgets.with(&mut __s.base, __r, |__w| __w.visible = __v) }); }
         } else if page == Page::Settings || page == Page::Sign {
-            // TODO(fabric2seer): `AbstractContainerWidget.visible` is a field of the port's `AbstractContainerWidget`, which the port's `AbstractSelectionList` does not hold (no Deref, no `base` field)
-            // rust: { let __v = false; compat::write(__this, |__t| { let __s = &mut *__t; let __r = __s.party_entry_list_widget.as_mut().unwrap(); __s.__widgets.with(&mut __s.base, __r, |__w| __w.visible = __v) }); }
+            // java: partyEntryListWidget.visible = false; - the list's game widget
+            { let __v = false; compat::write(__this, |__t| { let __s = &mut *__t; let __r = __s.party_entry_list_widget.as_mut().unwrap(); __s.__widgets.with(&mut __s.base, __r, |__w| __w.visible = __v) }); }
             { let __v = (page != Page::Sign); compat::write(__this, |__t| { let __s = &mut *__t; let __r = __s.party_finder_button.as_mut().unwrap(); __s.__widgets.with(&mut __s.base, __r, |__w| __w.active = __v) }); }
             let __wa3 = (compat::write(__this, |__t| { let __s = &mut *__t; let __r = __s.party_finder_button.as_mut().unwrap(); __s.__widgets.with(&mut __s.base, __r, |__w| compat::component_of(__w.get_message_component())) })).copy().set_style(mcrust::net::minecraft::network::chat::style::Style::EMPTY.with_underlined(Some(false)));
             compat::write(__this, |__t| { let __s = &mut *__t; let __r = __s.party_finder_button.as_mut().unwrap(); __s.__widgets.with(&mut __s.base, __r, |__w| __w.set_message_text(mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(__wa3.clone()))) });
@@ -471,9 +496,9 @@ impl PartyFinderScreen {
         if ((__this.lock().borrow().handler.with(|__chest| __chest.menu.slots.clone()).unwrap()).len() as i32) < 54 {
             return;
         }
-        // TODO(fabric2seer): `get_item` takes 1 argument(s) in the port (`containers: &'a Containers<'_>`), Java passes 0
-        // rust: let stack = ((__this.lock().borrow().handler.with(|__chest| __chest.menu.slots.clone()).unwrap())[(45) as usize]).get_item();
-        let mut stack: mcrust::net::minecraft::world::item::item_stack::ItemStack = todo!("fabric2seer: the initialiser of `stack` (TODO above)");
+        // java: ItemStack stack = handler.slots.get(45).getItem();
+        let __handler = compat::read(__this, |__t| __t.handler);
+        let stack: mcrust::net::minecraft::world::item::item_stack::ItemStack = __handler.with_slots(|menu, containers| menu.slots[45].get_item(containers).duplicate()).unwrap_or_else(mcrust::net::minecraft::world::item::item_stack::empty);
         if stack.is_empty() {
             return;
         }
@@ -570,14 +595,21 @@ impl PartyFinderScreen {
     pub fn abort(__this: &compat::Shared<Self>) {
         if compat::read(__this, |__t| __t.current_page.clone()).unwrap() == Page::Sign {
             debug_assert!(mcrust::mcrust::modding::game::with_player(|_| ()).is_some());
-            // TODO(fabric2seer): `open_text_edit_arm` takes 14 argument(s) in the port (`gfx: &mut crate::net::minecraft::client::minecraft::Minecraft, screen: &mut crate::net::minecraft::client::gui::screens::screen::Screen, screen_extra: &mut crate::net::minecraft::client::gui::gui::ScreenExtra, screen_kind_before_pause: &mut ..`), Java passes 2
-            // rust: mcrust::mcrust::modding::game::with_player(|player| { local_player::open_text_edit_arm(compat::read(__this, |__t| __t.sign.clone()).as_mut().unwrap(), &mut compat::read(__this, |__t| __t.sign_front)); });
+            // java: this.minecraft.player.openTextEdit(sign, signFront);
+            let __sign_pos = compat::read(__this, |__t| __t.sign.clone()).unwrap().base().get_block_pos();
+            mcrust::mcrust::modding::game::open_text_edit(__sign_pos, compat::read(__this, |__t| __t.sign_front));
         } else {
-            // TODO(fabric2seer): `set_screen` takes 14 argument(s) in the port (`gfx: &mut Minecraft, screen: &mut GuiScreen, screen_extra: &mut ScreenExtra, screen_stack: &mut Vec<HeldScreen>, screen_kind_before_pause: &mut Option<ScreenKind>, screen_is_open: &mut bool, level_screen_closed: &mut bool, frames_on_this_sc ..`), Java passes 1
-            // rust: gui::set_screen(&mut ContainerScreen::new(compat::read(__this, |__t| __t.handler.clone()), compat::read(__this, |__t| __t.inventory.clone()), __this.lock().borrow().title.get_string()));
+            // java: this.minecraft.gui.setScreen(new ContainerScreen(handler, inventory, title)); - the vanilla screen over
+            // the chest menu the player still holds
+            mcrust::mcrust::modding::game::open_vanilla_menu_screen(compat::read(__this, |__t| __t.base.title.clone()));
         }
-        // TODO(fabric2seer): field `PERIODIC_NOTIFICATION` of a value of unknown type
-        //   java: this.minecraft.gui.toastManager().addToast(new SystemToast(SystemToast.SystemToastId.PERIODIC_NOTIFICATION, Component.translatable("skyblocker.partyFinder.error.name"), Component.translatable("skyblocker.partyFinder.error.message")));
+        // java: this.minecraft.gui.toastManager().addToast(new SystemToast(SystemToast.SystemToastId.PERIODIC_NOTIFICATION, Component.translatable("skyblocker.partyFinder.error.name"), Component.translatable("skyblocker.partyFinder.error.message")));
+        {
+            let minecraft = compat::minecraft();
+            let title = mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::translatable("skyblocker.partyFinder.error.name"));
+            let message = mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::translatable("skyblocker.partyFinder.error.message"));
+            mcrust::net::minecraft::client::gui::components::toasts::system_toast::add(&mut minecraft.gui.toast_manager().borrow_mut(), &minecraft.font, mcrust::net::minecraft::client::gui::components::toasts::system_toast::SystemToastId::PeriodicNotification, &title, Some(&message));
+        }
         { let __v = true; compat::write(__this, |__t| __t.aborted = __v); }
     }
 
@@ -586,9 +618,10 @@ impl PartyFinderScreen {
         if mcrust::mcrust::modding::game::with_player(|_| ()).is_none() || compat::read(__this, |__t| __t.aborted) || compat::read(__this, |__t| __t.current_page.clone()).unwrap() == Page::Sign {
             return;
         }
-        // TODO(fabric2seer): `removed` takes 0 argument(s) in the port (``), Java passes 1
-        // TODO(fabric2seer): the mod keeps the game's `LocalPlayer` (Java holds a reference to the live object); the port's `LocalPlayer` is not a value to copy and the port lends the mod no handle to it
-        // rust: mcrust::mcrust::modding::game::with_player(|player| { { let _ = __this.lock().borrow().handler.with(|__chest| __chest.removed(player.clone())); }; });
+        // java: this.handler.removed(this.minecraft.player); - `ChestMenu.removed` (a client player is not a `ServerPlayer`,
+        // so the base keeps the carried stack; the port's body takes no player)
+        let __handler = compat::read(__this, |__t| __t.handler);
+        let _ = __handler.with(|__chest| __chest.removed());
     }
 
     /// java: @Override public final void tick()
@@ -614,8 +647,9 @@ impl PartyFinderScreen {
     /// java: public void clickAndWaitForServer(int slotID)
     pub fn click_and_wait_for_server(__this: &compat::Shared<Self>, mut slot_id: i32) {
         debug_assert!(true /* java: compat::minecraft().game_mode != null: never null here */);
-        // TODO(fabric2seer): `MultiPlayerGameMode.handleContainerInput` has no Rust method in the port (looked for `handle_container_input` in MultiPlayerGameMode and its supertypes)
-        // rust: mcrust::mcrust::modding::game::with_player(|player| { compat::minecraft().game_mode.handle_container_input(__this.lock().borrow().handler.container_id, slot_id, ContainerUtils::get_container_click_button(0), ContainerInput::Pickup, player); });
+        // java: minecraft.gameMode.handleContainerInput(handler.containerId, slotID, ContainerUtils.getContainerClickButton(InputConstants.MOUSE_BUTTON_LEFT), ContainerInput.PICKUP, minecraft.player);
+        let __container_id: i32 = compat::read(__this, |__t| __t.handler.container_id);
+        compat::handle_container_input(__container_id, slot_id, ContainerUtils::get_container_click_button(0), ContainerInput::Pickup);
         { let __v = true; compat::write(__this, |__t| __t.waiting_for_server = __v); }
     }
 
@@ -661,6 +695,16 @@ impl ModScreen for compat::ScreenAdapter<PartyFinderScreen> {
     /// java: @Override public void removed()
     fn removed(&mut self) {
         self.call(|__h| PartyFinderScreen::removed(__h))
+    }
+
+    /// java: @Override public void extractBackground(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a)
+    fn extract_background(&mut self, screen: &mcrust::net::minecraft::client::gui::screens::screen::Screen, context: &mut ScreenRenderContext<'_>, mouse_x: i32, mouse_y: i32, a: f32) {
+        self.lend_ref(screen, |__h| PartyFinderScreen::extract_background(__h, &context.graphics, mouse_x, mouse_y, a))
+    }
+
+    /// The override does not call `super.extractBackground`: it is the whole background.
+    fn extract_background_calls_super(&self) -> bool {
+        false
     }
 
     /// java: @Override public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a)

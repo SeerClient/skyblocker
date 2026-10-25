@@ -94,8 +94,8 @@ pub struct Context;
 pub struct ControllerBuilder;
 /// TODO(fabric2seer): java net.azureaaron.dandelion.impl.moulconfig.editor.DandelionNumberFieldEditor
 pub struct DandelionNumberFieldEditor;
-/// TODO(fabric2seer): java net.minecraft.client.DeltaTracker
-pub struct DeltaTracker;
+/// java net.minecraft.client.DeltaTracker - the game's `DeltaTracker.Timer` (`Minecraft.getDeltaTracker()`)
+pub type DeltaTracker = mcrust::net::minecraft::client::delta_tracker::Timer;
 /// TODO(fabric2seer): java dev.isxander.yacl3.api.utils.Dimension
 pub struct Dimension;
 /// TODO(fabric2seer): java me.shedaniel.rei.api.common.display.Display
@@ -152,8 +152,8 @@ pub struct ExclusionZoneManager;
 pub struct ExclusionZones;
 /// TODO(fabric2seer): java java.util.concurrent.ExecutorService
 pub struct ExecutorService;
-/// TODO(fabric2seer): java net.fabricmc.fabric.api.client.command.v2.FabricClientCommandSource
-pub struct FabricClientCommandSource;
+/// java net.fabricmc.fabric.api.client.command.v2.FabricClientCommandSource - the game's client command source
+pub type FabricClientCommandSource = mcrust::mcrust::modding::events::client_command_registration_callback::FabricClientCommandSource;
 /// TODO(fabric2seer): java net.fabricmc.loader.api.FabricLoader
 pub struct FabricLoader;
 /// TODO(fabric2seer): java java.lang.reflect.Field
@@ -224,12 +224,12 @@ pub struct IntegerControllerImpl;
 pub struct IntegratedServer;
 /// TODO(fabric2seer): java me.shedaniel.rei.api.common.entry.comparison.ItemComparatorRegistry
 pub struct ItemComparatorRegistry;
-/// TODO(fabric2seer): java io.github.moulberry.repo.constants.ResourcePack.ItemModels
-pub struct ItemModels;
-/// TODO(fabric2seer): java io.github.moulberry.repo.data.ItemOverlays.ItemOverlayFile
-pub struct ItemOverlayFile;
-/// TODO(fabric2seer): java io.github.moulberry.repo.data.ItemOverlays
-pub struct ItemOverlays;
+/// java io.github.moulberry.repo.constants.resource_pack.ItemModels - ported (src/io/github/moulberry/repo).
+pub use crate::io::github::moulberry::repo::constants::resource_pack::ItemModels;
+/// java io.github.moulberry.repo.data.item_overlays.ItemOverlayFile - ported (src/io/github/moulberry/repo).
+pub use crate::io::github::moulberry::repo::data::item_overlays::ItemOverlayFile;
+/// java io.github.moulberry.repo.data.item_overlays.ItemOverlays - ported (src/io/github/moulberry/repo).
+pub use crate::io::github::moulberry::repo::data::item_overlays::ItemOverlays;
 /// TODO(fabric2seer): java com.google.gson.JsonDeserializationContext
 pub struct JsonDeserializationContext;
 /// TODO(fabric2seer): java com.google.gson.JsonSerializationContext
@@ -240,8 +240,8 @@ pub struct LevelExtractionContext;
 pub struct LevelRenderContext;
 /// TODO(fabric2seer): java net.fabricmc.fabric.api.client.rendering.v1.level.LevelTerrainRenderContext
 pub struct LevelTerrainRenderContext;
-/// TODO(fabric2seer): java io.github.moulberry.repo.constants.Leveling
-pub struct Leveling;
+/// java io.github.moulberry.repo.constants.leveling.Leveling - ported (src/io/github/moulberry/repo).
+pub use crate::io::github::moulberry::repo::constants::leveling::Leveling;
 /// TODO(fabric2seer): java org.apache.commons.math3.geometry.euclidean.threed.Line, org.apache.commons.math3.geometry.euclidean.twod.Line
 pub struct Line;
 /// TODO(fabric2seer): java moe.nea.lisp.LispData
@@ -282,32 +282,32 @@ pub struct Multimap;
 pub struct MutableInt;
 /// TODO(fabric2seer): java org.apache.commons.lang3.tuple.MutableTriple
 pub struct MutableTriple;
-/// TODO(fabric2seer): java io.github.moulberry.repo.NEUConstants
-pub struct NEUConstants;
-/// TODO(fabric2seer): java io.github.moulberry.repo.data.NEUCraftingRecipe
-pub struct NEUCraftingRecipe;
-/// TODO(fabric2seer): java io.github.moulberry.repo.data.NEUForgeRecipe
-pub struct NEUForgeRecipe;
-/// TODO(fabric2seer): java io.github.moulberry.repo.data.NEUIngredient
-pub struct NEUIngredient;
-/// TODO(fabric2seer): java io.github.moulberry.repo.data.NEUItem
-pub struct NEUItem;
-/// TODO(fabric2seer): java io.github.moulberry.repo.data.NEUKatUpgradeRecipe
-pub struct NEUKatUpgradeRecipe;
-/// TODO(fabric2seer): java io.github.moulberry.repo.data.NEUMobDropRecipe
-pub struct NEUMobDropRecipe;
-/// TODO(fabric2seer): java io.github.moulberry.repo.data.NEUNpcShopRecipe
-pub struct NEUNpcShopRecipe;
-/// TODO(fabric2seer): java io.github.moulberry.repo.data.NEURecipe
-pub struct NEURecipe;
-/// TODO(fabric2seer): java io.github.moulberry.repo.NEURecipeCache
-pub struct NEURecipeCache;
-/// TODO(fabric2seer): java io.github.moulberry.repo.NEURepoFile
-pub struct NEURepoFile;
-/// TODO(fabric2seer): java io.github.moulberry.repo.NEURepository
-pub struct NEURepository;
-/// TODO(fabric2seer): java io.github.moulberry.repo.data.NEUTradeRecipe
-pub struct NEUTradeRecipe;
+/// java io.github.moulberry.repo.neu_constants.NEUConstants - ported (src/io/github/moulberry/repo).
+pub use crate::io::github::moulberry::repo::neu_constants::NEUConstants;
+/// java io.github.moulberry.repo.data.neu_crafting_recipe.NEUCraftingRecipe - ported (src/io/github/moulberry/repo).
+pub use crate::io::github::moulberry::repo::data::neu_crafting_recipe::NEUCraftingRecipe;
+/// java io.github.moulberry.repo.data.neu_forge_recipe.NEUForgeRecipe - ported (src/io/github/moulberry/repo).
+pub use crate::io::github::moulberry::repo::data::neu_forge_recipe::NEUForgeRecipe;
+/// java io.github.moulberry.repo.data.neu_ingredient.NEUIngredient - ported (src/io/github/moulberry/repo).
+pub use crate::io::github::moulberry::repo::data::neu_ingredient::NEUIngredient;
+/// java io.github.moulberry.repo.data.neu_item.NEUItem - ported (src/io/github/moulberry/repo).
+pub use crate::io::github::moulberry::repo::data::neu_item::NEUItem;
+/// java io.github.moulberry.repo.data.neu_kat_upgrade_recipe.NEUKatUpgradeRecipe - ported (src/io/github/moulberry/repo).
+pub use crate::io::github::moulberry::repo::data::neu_kat_upgrade_recipe::NEUKatUpgradeRecipe;
+/// java io.github.moulberry.repo.data.neu_mob_drop_recipe.NEUMobDropRecipe - ported (src/io/github/moulberry/repo).
+pub use crate::io::github::moulberry::repo::data::neu_mob_drop_recipe::NEUMobDropRecipe;
+/// java io.github.moulberry.repo.data.neu_npc_shop_recipe.NEUNpcShopRecipe - ported (src/io/github/moulberry/repo).
+pub use crate::io::github::moulberry::repo::data::neu_npc_shop_recipe::NEUNpcShopRecipe;
+/// java io.github.moulberry.repo.data.neu_recipe.NEURecipe - ported (src/io/github/moulberry/repo).
+pub use crate::io::github::moulberry::repo::data::neu_recipe::NEURecipe;
+/// java io.github.moulberry.repo.neu_recipe_cache.NEURecipeCache - ported (src/io/github/moulberry/repo).
+pub use crate::io::github::moulberry::repo::neu_recipe_cache::NEURecipeCache;
+/// java io.github.moulberry.repo.neu_repo_file.NEURepoFile - ported (src/io/github/moulberry/repo).
+pub use crate::io::github::moulberry::repo::neu_repo_file::NEURepoFile;
+/// java io.github.moulberry.repo.neu_repository.NEURepository - ported (src/io/github/moulberry/repo).
+pub use crate::io::github::moulberry::repo::neu_repository::NEURepository;
+/// java io.github.moulberry.repo.data.neu_trade_recipe.NEUTradeRecipe - ported (src/io/github/moulberry/repo).
+pub use crate::io::github::moulberry::repo::data::neu_trade_recipe::NEUTradeRecipe;
 /// TODO(fabric2seer): java NarrationPriority
 pub struct NarrationPriority;
 /// TODO(fabric2seer): java net.azureaaron.networth.NetworthResult
@@ -327,31 +327,12 @@ pub struct OptionGroup;
 pub struct OutputStream;
 /// TODO(fabric2seer): java net.fabricmc.fabric.api.networking.v1.PacketSender
 pub struct PacketSender;
-/// TODO(fabric2seer): java io.github.moulberry.repo.constants.PetLevelingBehaviourOverride
-pub struct PetLevelingBehaviourOverride;
-/// TODO(fabric2seer): java io.github.moulberry.repo.constants.PetLevelingData
-pub struct PetLevelingData;
-/// TODO(fabric2seer): java io.github.moulberry.repo.constants.PetNumbers - the NEU repo's per-rarity pet numbers (the
-/// repo library is not ported: no instance is made until it is)
-#[derive(Clone, Debug, Default, PartialEq)]
-pub struct PetNumbers {
-    /// `int lowLevel`
-    pub low_level: i32,
-    /// `int highLevel`
-    pub high_level: i32,
-}
-
-impl PetNumbers {
-    /// `getLowLevel()`
-    pub fn get_low_level(&self) -> i32 {
-        self.low_level
-    }
-
-    /// `getHighLevel()`
-    pub fn get_high_level(&self) -> i32 {
-        self.high_level
-    }
-}
+/// java io.github.moulberry.repo.constants.pet_leveling_behaviour_override.PetLevelingBehaviourOverride - ported (src/io/github/moulberry/repo).
+pub use crate::io::github::moulberry::repo::constants::pet_leveling_behaviour_override::PetLevelingBehaviourOverride;
+/// java io.github.moulberry.repo.constants.pet_leveling_data.PetLevelingData - ported (src/io/github/moulberry/repo).
+pub use crate::io::github::moulberry::repo::constants::pet_leveling_data::PetLevelingData;
+/// java io.github.moulberry.repo.constants.PetNumbers - ported (src/io/github/moulberry/repo).
+pub use crate::io::github::moulberry::repo::constants::pet_numbers::PetNumbers;
 /// TODO(fabric2seer): java me.shedaniel.math.Point
 pub struct Point;
 /// TODO(fabric2seer): java net.minecraft.client.gui.components.PopupScreen$Builder
@@ -492,23 +473,8 @@ impl RankType {
         }
     }
 }
-/// java io.github.moulberry.repo.data.Rarity - an enum of the NEU repo library (the rest of the library is not
-/// ported, GAPS_batchB L1). Its constants are the ones the mod names (`SkyblockItemRarity.toNeuRarity`, the pet
-/// tables); the library's declaration order is not on disk, so the enum derives no ordering.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum Rarity {
-    Common,
-    Uncommon,
-    Rare,
-    Epic,
-    Legendary,
-    Mythic,
-    Divine,
-    Special,
-    VerySpecial,
-    Supreme,
-    Unknown,
-}
+/// java io.github.moulberry.repo.data.Rarity - ported (src/io/github/moulberry/repo).
+pub use crate::io::github::moulberry::repo::data::rarity::Rarity;
 /// TODO(fabric2seer): java de.hysky.skyblocker.mixins.accessors.RecipeBookComponentAccessor
 pub struct RecipeBookComponentAccessor;
 /// TODO(fabric2seer): java me.shedaniel.math.Rectangle
@@ -541,8 +507,8 @@ pub struct SlotAccessor;
 pub struct SoundEvents;
 /// TODO(fabric2seer): java moe.nea.lisp.StackFrame
 pub struct StackFrame;
-/// TODO(fabric2seer): java io.github.moulberry.repo.constants.PetNumbers.Stats
-pub struct Stats;
+/// java io.github.moulberry.repo.constants.pet_numbers.Stats - ported (src/io/github/moulberry/repo).
+pub use crate::io::github::moulberry::repo::constants::pet_numbers::Stats;
 /// TODO(fabric2seer): java dev.isxander.yacl3.gui.controllers.string.StringControllerElement
 pub struct StringControllerElement;
 /// TODO(fabric2seer): java net.minecraft.world.level.levelgen.structure.templatesystem.StructurePlaceSettings

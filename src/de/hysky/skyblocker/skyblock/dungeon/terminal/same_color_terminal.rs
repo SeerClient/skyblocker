@@ -81,7 +81,7 @@ impl SameColorTerminal {
     }
 
     /// java: private void computeClicks(Int2ObjectMap<ItemStack> slots)
-    pub fn compute_clicks(__this: &compat::Shared<Self>, slots: &std::collections::HashMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack>) {
+    pub fn compute_clicks(__this: &compat::Shared<Self>, slots: &std::collections::BTreeMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack>) {
         __this.lock().borrow_mut().click_map.clear();
         let mut counts: Vec<i32> = vec![0; ((ORDER.get_mut().len() as i32)) as usize];
         let mut slot_colors: std::collections::HashMap<i32, i32> = std::collections::HashMap::new();
@@ -102,15 +102,14 @@ impl SameColorTerminal {
                 target = i;
             }
         }
-        // TODO(fabric2seer): Map.int2IntEntrySet(..)
-        //   java: for (Int2IntMap.Entry entry : slotColors.int2IntEntrySet()) {
-        //   java: 			int slot = entry.getIntKey();
-        //   java: 			int color = entry.getIntValue();
-        //   java: 			int diffForward = Math.floorMod(target - color, ORDER.length);
-        //   java: 			int diffBackward = Math.floorMod(color - target, ORDER.length);
-        //   java: 			int clicks = diffForward <= diffBackward ? diffForward : -diffBackward;
-        //   java: 			clickMap.put(slot, clicks);
-        //   java: 		}
+        // java: for (Int2IntMap.Entry entry : slotColors.int2IntEntrySet()) { .. clickMap.put(slot, clicks); }
+        let order_len: i32 = ORDER.get().len() as i32;
+        for (slot, color) in slot_colors.iter().map(|(k, v)| (*k, *v)) {
+            let diff_forward: i32 = (target - color).rem_euclid(order_len);
+            let diff_backward: i32 = (color - target).rem_euclid(order_len);
+            let clicks: i32 = if diff_forward <= diff_backward { diff_forward } else { -diff_backward };
+            __this.lock().borrow_mut().click_map.insert(slot, clicks);
+        }
     }
 
 }
@@ -159,7 +158,7 @@ impl ContainerMatcher for SameColorTerminal {
 
 impl ContainerSolver for SameColorTerminal {
     /// java: @Override public List<ColorHighlight> getColors(Int2ObjectMap<ItemStack> slots) (dispatch: the body for this class)
-    fn get_colors(&self) -> fn(&compat::Shared<dyn ContainerSolver>, &mut std::collections::HashMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack>) -> Vec<ColorHighlight> {
+    fn get_colors(&self) -> fn(&compat::Shared<dyn ContainerSolver>, &mut std::collections::BTreeMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack>) -> Vec<ColorHighlight> {
         SameColorTerminal::get_colors_dyn
     }
 
@@ -210,13 +209,13 @@ impl SameColorTerminal {
     }
 
     /// java: @Override public List<ColorHighlight> getColors(Int2ObjectMap<ItemStack> slots)
-    pub fn get_colors_impl(__this: &compat::Shared<Self>, slots: &mut std::collections::HashMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack>) -> Vec<ColorHighlight> {
+    pub fn get_colors_impl(__this: &compat::Shared<Self>, slots: &mut std::collections::BTreeMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack>) -> Vec<ColorHighlight> {
         SameColorTerminal::compute_clicks(__this, slots);
         return vec![];
     }
 
     /// SameColorTerminal.getColors as the dispatch of ContainerSolver.getColors
-    pub fn get_colors_dyn(__this: &compat::Shared<dyn ContainerSolver>, __p0: &mut std::collections::HashMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack>) -> Vec<ColorHighlight> {
+    pub fn get_colors_dyn(__this: &compat::Shared<dyn ContainerSolver>, __p0: &mut std::collections::BTreeMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack>) -> Vec<ColorHighlight> {
         Self::get_colors_impl(&compat::view_as::<Self, _, Self>(__this, |a| a), __p0)
     }
 

@@ -54,10 +54,18 @@ impl TitleContainer {
         }));
         client_command_registration_callback::EVENT.register(Arc::new(
             |dispatcher: &mut client_command_registration_callback::ClientCommandDispatcher| {
-                dispatcher.register("skyblocker", |ctx| {
-                    #[allow(unreachable_code)]
-                    Ok(())
-                });
+                // java: dispatcher.register(ClientCommands.literal("skyblocker").then(ClientCommands.literal("hud")
+                //   .then(ClientCommands.literal("titleContainer").executes(Scheduler.queueOpenScreenCommand(TitleContainerConfigScreen::new)))))
+                use mcrust::com::mojang::brigadier::builder::argument_builder::ArgumentBuilder as _;
+                let mut leaf = client_command_registration_callback::literal("titleContainer");
+                leaf.executes(crate::de::hysky::skyblocker::utils::scheduler::scheduler::SchedulerBase::queue_open_screen_command(Arc::new(|| {
+                    Box::new(compat::ScreenAdapter::new(crate::de::hysky::skyblocker::utils::render::title::title_container_config_screen::TitleContainerConfigScreen::new())) as Box<dyn mcrust::mcrust::modding::screens::ModScreen>
+                })));
+                let mut hud = client_command_registration_callback::literal("hud");
+                hud.then(&leaf);
+                let mut root = client_command_registration_callback::literal("skyblocker");
+                root.then(&hud);
+                dispatcher.dispatcher().register(&root);
             },
         ));
     }
@@ -119,9 +127,10 @@ impl TitleContainer {
     }
 
     /// java: private static void render(GuiGraphicsExtractor graphics, DeltaTracker tickCounter)
-    pub fn render(graphics: &GuiGraphicsExtractor, tick_counter: &crate::unresolved::DeltaTracker) {
-        // TODO(fabric2seer): `DeltaTracker.getGameTimeDeltaPartialTick` has no Rust method in the port (looked for `get_game_time_delta_partial_tick` in DeltaTracker and its supertypes)
-        // rust: TitleContainer::render_5(graphics, TITLES.get_mut(), SkyblockerConfigManager::get().ui_and_visuals.title_container.x, SkyblockerConfigManager::get().ui_and_visuals.title_container.y, tick_counter.get_game_time_delta_partial_tick(true));
+    ///
+    /// (`DeltaTracker` is the client's `DeltaTracker.Timer`, the one the HUD is handed)
+    pub fn render(graphics: &GuiGraphicsExtractor, tick_counter: &mcrust::net::minecraft::client::delta_tracker::Timer) {
+        TitleContainer::render_5(graphics, TITLES.get_mut(), SkyblockerConfigManager::get().ui_and_visuals.title_container.x, SkyblockerConfigManager::get().ui_and_visuals.title_container.y, tick_counter.get_game_time_delta_partial_tick(true));
     }
 
     /// java: protected static void render(GuiGraphicsExtractor graphics, Set<Title> titles, int xPos, int yPos, float tickDelta)

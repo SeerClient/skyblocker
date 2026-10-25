@@ -28,48 +28,64 @@ impl CustomItemNames {
 
     /// java: @Init public static void init()
     pub fn init() {
+        // java: ClientCommandRegistrationCallback.EVENT.register(CustomItemNames::registerCommands);
         client_command_registration_callback::EVENT.register(Arc::new(
             |dispatcher: &mut client_command_registration_callback::ClientCommandDispatcher| {
-                dispatcher.register("skyblocker", |ctx| {
-                    #[allow(unreachable_code)]
-                    Ok(())
-                });
+                CustomItemNames::register_commands(dispatcher.dispatcher(), dispatcher.build_context());
             },
         ));
     }
 
     /// java: private static void registerCommands(CommandDispatcher<FabricClientCommandSource> dispatcher, CommandBuildContext registryAccess)
-    pub fn register_commands(dispatcher: &CommandDispatcher<crate::unresolved::FabricClientCommandSource>, registry_access: &CommandBuildContext) {
-        // TODO(fabric2seer): a command builder outside dispatcher.register(..)
-        //   java: dispatcher.register(ClientCommands.literal("skyblocker")
-        //   java: 				.then(ClientCommands.literal("custom")
-        //   java: 						.then(ClientCommands.literal("renameItem")
-        //   java: 								.executes(context -> openScreen(context.getSource()))
-        //   java: 								.then(ClientCommands.argument("textComponent", ComponentArgument.textComponent(registryAccess))
-        //   java: 										.executes(context -> renameItem(context.getSource(), context.getArgument("textComponent", Component.class))))
-        //   java: 								// greedy string will only consume the arg if the text component parsing fails.
-        //   java: 								.then(ClientCommands.argument("basicText", StringArgumentType.greedyString())
-        //   java: 										.executes(context -> renameItem(context.getSource(), Component.nullToEmpty(context.getArgument("basicText", String.class))))))));
+    pub fn register_commands(dispatcher: &CommandDispatcher<crate::unresolved::FabricClientCommandSource>, registry_access: Option<&CommandBuildContext>) {
+        //   java: dispatcher.register(ClientCommands.literal("skyblocker").then(ClientCommands.literal("custom").then(ClientCommands.literal("renameItem")
+        //   java:     .executes(context -> openScreen(context.getSource()))
+        //   java:     .then(ClientCommands.argument("textComponent", ComponentArgument.textComponent(registryAccess))
+        //   java:         .executes(context -> renameItem(context.getSource(), context.getArgument("textComponent", Component.class))))
+        //   java:     // greedy string will only consume the arg if the text component parsing fails.
+        //   java:     .then(ClientCommands.argument("basicText", StringArgumentType.greedyString())
+        //   java:         .executes(context -> renameItem(context.getSource(), Component.nullToEmpty(context.getArgument("basicText", String.class))))))));
+        use mcrust::com::mojang::brigadier::builder::argument_builder::ArgumentBuilder as _;
+        use mcrust::com::mojang::brigadier::arguments::string_argument_type::StringArgumentType;
+        type Ctx = mcrust::com::mojang::brigadier::context::command_context::CommandContext<crate::unresolved::FabricClientCommandSource>;
+        let mut rename_item = client_command_registration_callback::literal("renameItem");
+        rename_item.executes(Arc::new(|context: &Ctx| Ok(CustomItemNames::open_screen(context.get_source()))));
+        // (the registry access is the client's once the server's command tree arrived; the text-component form needs it)
+        if let Some(registry_access) = registry_access {
+            let mut text_component = client_command_registration_callback::argument("textComponent", Arc::new(mcrust::net::minecraft::commands::arguments::component_argument::ComponentArgument::text_component(registry_access)));
+            text_component.executes(Arc::new(|context: &Ctx| {
+                let text = context.get_argument::<mcrust::net::minecraft::network::chat::formatted_text::FormattedText>("textComponent").cloned().expect("getArgument: textComponent");
+                Ok(CustomItemNames::rename_item(context.get_source(), compat::component_of(text)))
+            }));
+            rename_item.then(&text_component);
+        }
+        let mut basic_text = client_command_registration_callback::argument("basicText", Arc::new(StringArgumentType::greedy_string()));
+        basic_text.executes(Arc::new(|context: &Ctx| Ok(CustomItemNames::rename_item(context.get_source(), mcrust::net::minecraft::network::chat::component::null_to_empty(context.get_argument::<String>("basicText").map(|s| s.as_str()))))));
+        rename_item.then(&basic_text);
+        let mut custom = client_command_registration_callback::literal("custom");
+        custom.then(&rename_item);
+        let mut root = client_command_registration_callback::literal("skyblocker");
+        root.then(&custom);
+        dispatcher.register(&root);
     }
 
     /// java: private static int openScreen(FabricClientCommandSource source)
     pub fn open_screen(source: &crate::unresolved::FabricClientCommandSource) -> i32 {
         if !(Utils::is_on_skyblock()) {
-            // TODO(fabric2seer): `.sendError(..)` on a FabricClientCommandSource
-            //   java: source.sendError(Constants.PREFIX.get().append(Component.translatable("skyblocker.customItemNames.notOnSkyblock")));
+            // java: source.sendError(Constants.PREFIX.get().append(Component.translatable("skyblocker.customItemNames.notOnSkyblock")));
+            compat::batch_w_send_error(&(crate::de::hysky::skyblocker::utils::constants::PREFIX.get())().append(mcrust::net::minecraft::network::chat::component::translatable("skyblocker.customItemNames.notOnSkyblock")));
             return 0;
         }
-        // TODO(fabric2seer): `.getPlayer(..)` on a FabricClientCommandSource
-        //   java: ItemStack handStack = source.getPlayer().getMainHandItem();
+        // java: ItemStack handStack = source.getPlayer().getMainHandItem(); (the source's player is the client's)
         let mut hand_stack: mcrust::net::minecraft::world::item::item_stack::ItemStack = mcrust::mcrust::modding::game::with_player(|player| player.get_main_hand_item().clone()).unwrap_or_else(mcrust::net::minecraft::world::item::item_stack::empty);
         if hand_stack.is_empty() {
-            // TODO(fabric2seer): `.sendError(..)` on a FabricClientCommandSource
-            //   java: source.sendError(Constants.PREFIX.get().append(Component.translatable("skyblocker.customItemNames.noItem")));
+            // java: source.sendError(Constants.PREFIX.get().append(Component.translatable("skyblocker.customItemNames.noItem")));
+            compat::batch_w_send_error(&(crate::de::hysky::skyblocker::utils::constants::PREFIX.get())().append(mcrust::net::minecraft::network::chat::component::translatable("skyblocker.customItemNames.noItem")));
             return 0;
         }
         if hand_stack.get_uuid().is_empty() {
-            // TODO(fabric2seer): `.sendError(..)` on a FabricClientCommandSource
-            //   java: source.sendError(Constants.PREFIX.get().append(Component.translatable("skyblocker.customItemNames.noItemUuid")));
+            // java: source.sendError(Constants.PREFIX.get().append(Component.translatable("skyblocker.customItemNames.noItemUuid")));
+            compat::batch_w_send_error(&(crate::de::hysky::skyblocker::utils::constants::PREFIX.get())().append(mcrust::net::minecraft::network::chat::component::translatable("skyblocker.customItemNames.noItemUuid")));
             return 0;
         }
         SchedulerBase::queue_open_screen_screen(Box::new(compat::ScreenAdapter::new(CustomizeScreen::new(true))));
@@ -79,8 +95,7 @@ impl CustomItemNames {
     /// java: @SuppressWarnings("SameReturnValue") private static int renameItem(FabricClientCommandSource source, Component text)
     pub fn rename_item(source: &crate::unresolved::FabricClientCommandSource, mut text: MutableComponent) -> i32 {
         if Utils::is_on_skyblock() {
-            // TODO(fabric2seer): `.getPlayer(..)` on a FabricClientCommandSource
-            //   java: String itemUuid = source.getPlayer().getMainHandItem().getUuid();
+            // java: String itemUuid = source.getPlayer().getMainHandItem().getUuid(); (the source's player is the client's)
             let mut item_uuid: String = mcrust::mcrust::modding::game::with_player(|player| player.get_main_hand_item().get_uuid()).unwrap_or_default();
             if !item_uuid.is_empty() {
                 // Set italic to false if it hasn't been changed (or was already false):
@@ -92,15 +107,15 @@ impl CustomItemNames {
                     let custom_item_names = &mut config.general.custom_item_names;
                     custom_item_names.insert(item_uuid.clone(), text.clone());
                 }));
-                // TODO(fabric2seer): `.sendFeedback(..)` on a FabricClientCommandSource
-                //   java: source.sendFeedback(Constants.PREFIX.get().append(Component.translatable("skyblocker.customItemNames.added")));
+                // java: source.sendFeedback(Constants.PREFIX.get().append(Component.translatable("skyblocker.customItemNames.added")));
+                compat::batch_w_send_feedback(&(crate::de::hysky::skyblocker::utils::constants::PREFIX.get())().append(mcrust::net::minecraft::network::chat::component::translatable("skyblocker.customItemNames.added")));
             } else {
-                // TODO(fabric2seer): `.sendError(..)` on a FabricClientCommandSource
-                //   java: source.sendError(Constants.PREFIX.get().append(Component.translatable("skyblocker.customItemNames.noItemUuid")));
+                // java: source.sendError(Constants.PREFIX.get().append(Component.translatable("skyblocker.customItemNames.noItemUuid")));
+                compat::batch_w_send_error(&(crate::de::hysky::skyblocker::utils::constants::PREFIX.get())().append(mcrust::net::minecraft::network::chat::component::translatable("skyblocker.customItemNames.noItemUuid")));
             }
         } else {
-            // TODO(fabric2seer): `.sendError(..)` on a FabricClientCommandSource
-            //   java: source.sendError(Constants.PREFIX.get().append(Component.translatable("skyblocker.customItemNames.notOnSkyblock")));
+            // java: source.sendError(Constants.PREFIX.get().append(Component.translatable("skyblocker.customItemNames.notOnSkyblock")));
+            compat::batch_w_send_error(&(crate::de::hysky::skyblocker::utils::constants::PREFIX.get())().append(mcrust::net::minecraft::network::chat::component::translatable("skyblocker.customItemNames.notOnSkyblock")));
         }
         return 1;
     }

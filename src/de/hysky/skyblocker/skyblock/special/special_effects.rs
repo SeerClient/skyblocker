@@ -26,8 +26,9 @@ impl SpecialEffects {
     pub fn display_special_effect(stack: &mcrust::net::minecraft::world::item::item_stack::ItemStack, particle: &Arc<SimpleParticleType>) {
         // java: ITEM = new WeakReference<>(SkyblockerConfigManager.get().general.specialEffects.displayItemName ? stack : ItemStack.EMPTY);
         *ITEM.get_mut() = if crate::de::hysky::skyblocker::config::skyblocker_config_manager::SkyblockerConfigManager::get().general.special_effects.display_item_name { stack.duplicate() } else { mcrust::net::minecraft::world::item::item_stack::empty() };
-        // java: client.gameRenderer.displayItemActivation(stack); - the same stack object
-        compat::minecraft().game_renderer.display_item_activation(stack.duplicate());
+        // java (26.2): client.gameRenderer.displayItemActivation(stack); - 26.3 moved it to the player
+        // (`LocalPlayer.displayItemActivation:244-246`, `itemActivation.activate(itemStack, this.random)`)
+        mcrust::mcrust::modding::game::with_player(|player| player.display_item_activation(stack));
         if mcrust::mcrust::modding::game::with_player(|_| ()).is_some() {
             // java: client.particleEngine.createTrackingEmitter(client.player, particle, 30);
             // (the emitter holds the level's shared handle of the player entity, found by its id)

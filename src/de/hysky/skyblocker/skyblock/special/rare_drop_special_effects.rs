@@ -30,30 +30,31 @@ impl RareDropSpecialEffects {
 
     /// java: @Init public static void init()
     pub fn init() {
-        // TODO(fabric2seer): ClientReceiveMessageEvents.ALLOW_GAME.register: no SeerClient equivalent yet
-        //   java: ClientReceiveMessageEvents.ALLOW_GAME.register(RareDropSpecialEffects::displayRareDropEffect);
+        // java: ClientReceiveMessageEvents.ALLOW_GAME.register(RareDropSpecialEffects::display_rare_drop_effect);
+        compat::register_allow_game(|message, overlay| RareDropSpecialEffects::display_rare_drop_effect(message, overlay));
     }
 
     /// java: private static boolean displayRareDropEffect(Component message, boolean overlay)
     pub fn display_rare_drop_effect(message: &MutableComponent, mut overlay: bool) -> bool {
         if Utils::is_on_skyblock() && SkyblockerConfigManager::get().general.special_effects.rare_drop_effects && !overlay {
-            // java: try {..} catch (Exception e) - the body runs inline: a Rust body does not throw checked exceptions (a panic in it propagates)
-            {
+            // java: try {..} catch (Exception e) { //In case there's a regex failure or something else bad happens
+            //           LOGGER.error("[Skyblocker Special Effects] An unexpected exception was encountered: ", e); }
+            let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                 let mut string_form: String = message.get_string();
                 let mut magic_find_matcher: compat::regex::Matcher = MAGIC_FIND_PATTERN.matcher(&string_form);
                 if magic_find_matcher.matches() {
                     RareDropSpecialEffects::trigger_drop_effect(magic_find_matcher.group_named("item").as_deref().unwrap());
-                    return true;
+                    // java: return true; (the method's answer either way)
+                    return;
                 }
                 let mut overbloom_matcher: compat::regex::Matcher = OVERBLOOM_PATTERN.matcher(&string_form);
                 if overbloom_matcher.matches() {
                     RareDropSpecialEffects::trigger_drop_effect(overbloom_matcher.group_named("crop").as_deref().unwrap());
                 }
+            }));
+            if let Err(e) = __result {
+                logger().error(&format!("[Skyblocker Special Effects] An unexpected exception was encountered: {}", compat::panic_message(&e)));
             }
-            // TODO(fabric2seer): the `catch (Exception e)` block is not reached in Rust - the try body returns, breaks or continues, so it cannot run inside `catch_unwind`
-            //   java: { //In case there's a regex failure or something else bad happens
-            //   java: 				LOGGER.error("[Skyblocker Special Effects] An unexpected exception was encountered: ", e);
-            //   java: 			}
         }
         return true;
     }

@@ -181,8 +181,9 @@ impl DungeonSplitsWidget {
         BEST_SPLITS.get_mut().lock().borrow_mut().init();
         let __this_1 = compat::RenderThread::new(__this.clone());
         dungeon_events::DUNGEON_LOADED.register(Arc::new(move || { DungeonSplitsWidget::on_dungeon_loaded(&(*__this_1.get())); }));
-        // TODO(fabric2seer): ClientReceiveMessageEvents.ALLOW_GAME.register: no SeerClient equivalent yet
-        //   java: ClientReceiveMessageEvents.ALLOW_GAME.register(this::onChatMessage);
+        // java: ClientReceiveMessageEvents.ALLOW_GAME.register(this::onChatMessage); - the listener holds this object
+        let __this_allow_game = compat::RenderThread::new(__this.clone());
+        compat::register_allow_game(move |text, overlay| DungeonSplitsWidget::on_chat_message(__this_allow_game.get(), text, overlay));
         let __this_2 = compat::RenderThread::new(__this.clone());
         skyblock_events::LOCATION_CHANGE.register(Arc::new(move |__a0| { DungeonSplitsWidget::on_location_change(&(*__this_2.get()), __a0); }));
         __this

@@ -220,7 +220,9 @@ impl EnchantmentAbbreviationAdder {
 
     /// java: public static @Nullable CompoundTag getEnchantments(ItemStack stack)
     pub fn get_enchantments(stack: &mcrust::net::minecraft::world::item::item_stack::ItemStack) -> Option<Tag> {
-        let mut nbt: Tag = ItemUtils::get_custom_data(stack);
+        // PERF (port-only, same result): the custom data read in place, not deep-copied per slot per frame.
+        let __nbt = ItemUtils::custom_data_component(stack);
+        let nbt: &Tag = ItemUtils::custom_data_tag(&__nbt);
         if nbt.compound_is_empty() || !(nbt.contains("enchantments")) {
             return None;
         }

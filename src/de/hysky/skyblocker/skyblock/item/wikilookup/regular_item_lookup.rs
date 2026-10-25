@@ -48,9 +48,8 @@ impl RegularItemLookup {
     /// java: @Override public void open(ItemStack itemStack, Player player)
     pub fn open_impl(__this: &compat::Shared<Self>, item_stack: &mcrust::net::minecraft::world::item::item_stack::ItemStack, player: &dyn Player) {
         let mut neu_id: String = item_stack.get_neu_name();
-        // TODO(fabric2seer): the condition: static call StringUtils.isNotEmpty(..)
-        //   java: StringUtils.isNotEmpty(..)
-        if todo!("fabric2seer: the condition (TODO above)") {
+        // java: if (StringUtils.isNotEmpty(neuId)) {
+        if !neu_id.is_empty() {
             let mut wiki_link: Option<String> = ItemRepository::get_wiki_link(&neu_id);
             if let Some(wiki_link) = &wiki_link {
                 WikiLookupManager::open_wiki_link(wiki_link, player);

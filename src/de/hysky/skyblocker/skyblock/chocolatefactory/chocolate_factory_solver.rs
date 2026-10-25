@@ -188,16 +188,15 @@ impl ChocolateFactorySolver {
             compat::set_state(&DING_TICK, ding_tick);
             if ding_tick == 0 {
                 // java: client.getSoundManager().play(SimpleSoundInstance.forUI(ding == StraySound.NORMAL ? SoundEvents.NOTE_BLOCK_PLING.value() : SoundEvents.NOTE_BLOCK_HARP.value(), 1.f, 1.f));
-                // rust: port gap - `SoundManager.play(SoundInstance)` needs the audio device and library, which are
-                // locals of the port's frame loop (`sound_engine::play_ui_sound(audio, ..)`); a tick callback holding
-                // only `&mut Minecraft` cannot reach them (GAPS_batchH #1).
+                // (`game::play_ui_sound_with_volume` is `getSoundManager().play(SimpleSoundInstance.forUI(event, pitch, volume))`)
                 let _ = client;
+                mcrust::mcrust::modding::game::play_ui_sound_with_volume(if ding == StraySound::Normal { mcrust::net::minecraft::sounds::sound_events::note_block_pling() } else { mcrust::net::minecraft::sounds::sound_events::note_block_harp() }, 1.0f32, 1.0f32);
             }
         }
     }
 
     /// java: private void updateFactoryInfo(Int2ObjectMap<ItemStack> slots)
-    pub fn update_factory_info(__this: &compat::Shared<Self>, slots: &std::collections::HashMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack>) {
+    pub fn update_factory_info(__this: &compat::Shared<Self>, slots: &std::collections::BTreeMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack>) {
         compat::write(__this, |__t| __t.cps_increase_factors.clear());
         for i in RABBITS_START..=(RABBITS_END) as i32 {
             let mut item: mcrust::net::minecraft::world::item::item_stack::ItemStack = slots.get(&i).cloned().unwrap();
@@ -342,7 +341,7 @@ impl ChocolateFactorySolver {
     }
 
     /// java: private List<ColorHighlight> getStrayRabbitHighlight(Int2ObjectMap<ItemStack> slots)
-    pub fn get_stray_rabbit_highlight(__this: &compat::Shared<Self>, slots: &std::collections::HashMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack>) -> Vec<ColorHighlight> {
+    pub fn get_stray_rabbit_highlight(__this: &compat::Shared<Self>, slots: &std::collections::BTreeMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack>) -> Vec<ColorHighlight> {
         compat::set_state(&DING, StraySound::None);
         let mut highlights: Vec<ColorHighlight> = Vec::new();
         {
@@ -479,7 +478,7 @@ impl ContainerMatcher for ChocolateFactorySolver {
 
 impl ContainerSolver for ChocolateFactorySolver {
     /// java: @Override public List<ColorHighlight> getColors(Int2ObjectMap<ItemStack> slots) (dispatch: the body for this class)
-    fn get_colors(&self) -> fn(&compat::Shared<dyn ContainerSolver>, &mut std::collections::HashMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack>) -> Vec<ColorHighlight> {
+    fn get_colors(&self) -> fn(&compat::Shared<dyn ContainerSolver>, &mut std::collections::BTreeMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack>) -> Vec<ColorHighlight> {
         ChocolateFactorySolver::get_colors_dyn
     }
 
@@ -530,7 +529,7 @@ impl ChocolateFactorySolver {
     }
 
     /// java: @Override public List<ColorHighlight> getColors(Int2ObjectMap<ItemStack> slots)
-    pub fn get_colors_impl(__this: &compat::Shared<Self>, slots: &mut std::collections::HashMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack>) -> Vec<ColorHighlight> {
+    pub fn get_colors_impl(__this: &compat::Shared<Self>, slots: &mut std::collections::BTreeMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack>) -> Vec<ColorHighlight> {
         ChocolateFactorySolver::update_factory_info(__this, slots);
         let mut highlights: Vec<ColorHighlight> = Vec::new();
         if let Some(__a0) = ChocolateFactorySolver::get_prestige_highlight(__this) {
@@ -558,7 +557,7 @@ impl ChocolateFactorySolver {
     }
 
     /// ChocolateFactorySolver.getColors as the dispatch of ContainerSolver.getColors
-    pub fn get_colors_dyn(__this: &compat::Shared<dyn ContainerSolver>, __p0: &mut std::collections::HashMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack>) -> Vec<ColorHighlight> {
+    pub fn get_colors_dyn(__this: &compat::Shared<dyn ContainerSolver>, __p0: &mut std::collections::BTreeMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack>) -> Vec<ColorHighlight> {
         Self::get_colors_impl(&compat::view_as::<Self, _, Self>(__this, |a| a), __p0)
     }
 

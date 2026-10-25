@@ -42,13 +42,16 @@ impl Http {
         this
     }
 
-    /// One request with the headers every `Http` request sends. Java asks for `gzip, deflate` and decodes the body
-    /// in `getDecodedInputStream`; the port's client hands back the body bytes as sent, and this crate has no
-    /// inflater, so the request asks for the identity encoding (the server then sends none - the `""` arm).
-    fn send(method: &str, url: &str, accept: Option<&str>, extra: &[(&str, &str)], body: Option<&str>) -> mcrust::java::net::http::http_client::HttpResponse {
+    /// One request with the headers every `Http` request sends; `accept_encoding` is the `Accept-Encoding: gzip,
+    /// deflate` header the GET / POST requests carry (the HEAD request does not). The port's client hands back the
+    /// body bytes as sent, and `get_decoded_bytes` decodes them as `getDecodedInputStream` does.
+    fn send(method: &str, url: &str, accept: Option<&str>, accept_encoding: bool, extra: &[(&str, &str)], body: Option<&str>) -> mcrust::java::net::http::http_client::HttpResponse {
         let mut headers: Vec<(&str, &str)> = Vec::new();
         if let Some(accept) = accept {
             headers.push(("Accept", accept));
+        }
+        if accept_encoding {
+            headers.push(("Accept-Encoding", "gzip, deflate"));
         }
         headers.push(("User-Agent", USER_AGENT.as_str()));
         headers.extend_from_slice(extra);
@@ -56,14 +59,40 @@ impl Http {
             .unwrap_or_else(|e| panic!("IOException: {e}"))
     }
 
-    /// java: private static InputStream getDecodedInputStream(HttpResponse<InputStream> response) (read to a String)
-    fn get_decoded_body(response: &mcrust::java::net::http::http_client::HttpResponse) -> String {
+    /// java: private static InputStream getDecodedInputStream(HttpResponse<InputStream> response) (read to the end)
+    fn get_decoded_bytes(response: &mcrust::java::net::http::http_client::HttpResponse) -> Vec<u8> {
         let encoding: String = Http::get_content_encoding(&Http::headers_of(response));
         return match encoding.as_str() {
-            "" => String::from_utf8_lossy(&response.bytes).into_owned(),
-            // rust: port gap - no gzip / deflate decoder in this crate (the request asks for none, see `send`)
+            "" => response.bytes.clone(),
+            // java: new GZIPInputStream(response.body()) - an IOException is rethrown as UncheckedIOException
+            "gzip" => mcrust::java::util::zip::gzip::gzip_decompress(&response.bytes).unwrap_or_else(|e| panic!("UncheckedIOException: {e}")),
+            // java: new InflaterInputStream(response.body()) - `new Inflater()`, the zlib-wrapped form
+            "deflate" => Http::inflate(&response.bytes),
             _ => panic!("UnsupportedOperationException: The server sent content in an unexpected encoding: {encoding}"),
         };
+    }
+
+    /// `InflaterInputStream.readAllBytes()` over `new Inflater()`.
+    fn inflate(data: &[u8]) -> Vec<u8> {
+        let mut inflater = mcrust::java::util::zip::inflater::Inflater::new();
+        inflater.set_input(data);
+        let mut out: Vec<u8> = Vec::new();
+        let mut buf = [0u8; 8192];
+        while !inflater.finished() {
+            let n = inflater.inflate(&mut buf).unwrap_or_else(|e| panic!("UncheckedIOException: java.util.zip.ZipException: {e:?}"));
+            if n == 0 && !inflater.finished() {
+                // java: EOFException("Unexpected end of ZLIB input stream")
+                panic!("UncheckedIOException: java.io.EOFException: Unexpected end of ZLIB input stream");
+            }
+            out.extend_from_slice(&buf[..n]);
+        }
+        inflater.end();
+        return out;
+    }
+
+    /// `new String(getDecodedInputStream(response).readAllBytes())`
+    fn get_decoded_body(response: &mcrust::java::net::http::http_client::HttpResponse) -> String {
+        return String::from_utf8_lossy(&Http::get_decoded_bytes(response)).into_owned();
     }
 
     fn headers_of(response: &mcrust::java::net::http::http_client::HttpResponse) -> HttpHeaders {
@@ -77,7 +106,7 @@ impl Http {
             (header_name.to_string(), format!("Bearer {token}"))
         });
         let extra: Vec<(&str, &str)> = authorization.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect();
-        let response = Http::send("GET", url, Some("application/json"), &extra, None);
+        let response = Http::send("GET", url, Some("application/json"), true, &extra, None);
         let body: String = Http::get_decoded_body(&response);
         let headers = Http::headers_of(&response);
         return ApiResponse::new(body, response.status as i32, Http::get_cache_statuses(&headers), Http::get_age(&headers));
@@ -85,12 +114,8 @@ impl Http {
 
     /// java: public static InputStream downloadContent(String url) throws IOException, InterruptedException (the bytes)
     pub fn download_content(url: &str) -> Vec<u8> {
-        let response = Http::send("GET", url, Some("*/*"), &[], None);
-        let encoding = Http::get_content_encoding(&Http::headers_of(&response));
-        if !encoding.is_empty() {
-            panic!("UnsupportedOperationException: The server sent content in an unexpected encoding: {encoding}");
-        }
-        return response.bytes;
+        let response = Http::send("GET", url, Some("*/*"), true, &[], None);
+        return Http::get_decoded_bytes(&response);
     }
 
     /// java: public static String sendGetRequest(String url) throws IOException, InterruptedException
@@ -100,13 +125,13 @@ impl Http {
 
     /// java: public static HttpHeaders sendHeadRequest(String url) throws IOException, InterruptedException
     pub fn send_head_request(url: &str) -> HttpHeaders {
-        let response = Http::send("HEAD", url, None, &[], None);
+        let response = Http::send("HEAD", url, None, false, &[], None);
         return Http::headers_of(&response);
     }
 
     /// java: public static String sendPostRequest(String url, String requestBody, String contentType) throws IOException, InterruptedException
     pub fn send_post_request(url: &str, request_body: &str, content_type: &str) -> String {
-        let response = Http::send("POST", url, Some(content_type), &[("Content-Type", content_type)], Some(request_body));
+        let response = Http::send("POST", url, Some(content_type), true, &[("Content-Type", content_type)], Some(request_body));
         return Http::get_decoded_body(&response);
     }
 

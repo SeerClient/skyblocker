@@ -31,11 +31,11 @@ impl LevelCalculator {
 
     /// java: public static LevelInfo getSkillLevel(long xp, Skill skill, LoadingInformation info)
     pub fn get_skill_level(mut xp: i64, mut skill: Skill, info: &LoadingInformation) -> LevelInfo {
-        // TODO(fabric2seer): `.getLeveling(..)` on a NEUConstants
         //   java: Leveling levelling = NEURepoManager.getConstants().getLeveling();
-        let mut levelling: crate::unresolved::Leveling = todo!("fabric2seer: the initialiser of `levelling` (TODO above)");
-        let mut has_levelling_constants: bool = (!(NEURepoManager::is_loading()) && true /* java: levelling != null: never null here */);
-        // TODO(fabric2seer): `.getCatacombsExperienceRequiredPerLevel(..)` on a Leveling
+        let mut levelling: Arc<crate::io::github::moulberry::repo::constants::leveling::Leveling> = NEURepoManager::get_constants().get_leveling();
+        //   java: boolean hasLevellingConstants = !NEURepoManager.isLoading() && levelling != null; (the port's getter answers
+        //   an empty `Leveling` before the first load, never null)
+        let mut has_levelling_constants: bool = !(NEURepoManager::is_loading());
         //   java: List<Integer> xpChart = hasLevellingConstants ? switch (skill) {
         //   java: 			case CATACOMBS -> levelling.getCatacombsExperienceRequiredPerLevel();
         //   java: 			case RUNECRAFTING -> levelling.getRunecraftingExperienceRequiredPerLevel();
@@ -43,7 +43,16 @@ impl LevelCalculator {
         //   java:
         //   java: 			default -> levelling.getSkillExperienceRequiredPerLevel();
         //   java: 		} : List.of();
-        let mut xp_chart: Vec<i32> = todo!("fabric2seer: the initialiser of `xpChart` (TODO above)");
+        let mut xp_chart: Vec<i32> = if has_levelling_constants {
+            match skill {
+                Skill::Catacombs => levelling.get_catacombs_experience_required_per_level().to_vec(),
+                Skill::Runecrafting => levelling.get_runecrafting_experience_required_per_level().to_vec(),
+                Skill::Social => levelling.get_social_experience_required_per_level().to_vec(),
+                _ => levelling.get_skill_experience_required_per_level().to_vec(),
+            }
+        } else {
+            Vec::new()
+        };
         let mut level_cap_increase: i32 = LevelCalculator::get_skill_cap_increase(skill, info);
         let mut level_cap: i32 = skill.get_base_cap().wrapping_add(level_cap_increase);
         let mut level: i32 = 0;
@@ -96,14 +105,18 @@ impl LevelCalculator {
 
     /// java: public static LevelInfo getSlayerLevel(long xp, SlayerType slayer)
     pub fn get_slayer_level(mut xp: i64, mut slayer: SlayerType) -> LevelInfo {
-        // TODO(fabric2seer): `.getLeveling(..)` on a NEUConstants
         //   java: Leveling levelling = NEURepoManager.getConstants().getLeveling();
-        let mut levelling: crate::unresolved::Leveling = todo!("fabric2seer: the initialiser of `levelling` (TODO above)");
-        let mut has_levelling_constants: bool = (!(NEURepoManager::is_loading()) && true /* java: levelling != null: never null here */);
+        let mut levelling: Arc<crate::io::github::moulberry::repo::constants::leveling::Leveling> = NEURepoManager::get_constants().get_leveling();
+        //   java: boolean hasLevellingConstants = !NEURepoManager.isLoading() && levelling != null; (the port's getter answers
+        //   an empty `Leveling` before the first load, never null)
+        let mut has_levelling_constants: bool = !(NEURepoManager::is_loading());
         let mut neu_slayer_id: String = slayer.fields().friendly_name.to_lowercase();
-        // TODO(fabric2seer): `.getSlayerExperienceRequiredPerLevel(..)` on a Leveling
         //   java: List<Integer> xpChart = hasLevellingConstants ? levelling.getSlayerExperienceRequiredPerLevel().getOrDefault(neuSlayerId, List.of()) : List.of();
-        let mut xp_chart: Vec<i32> = todo!("fabric2seer: the initialiser of `xpChart` (TODO above)");
+        let mut xp_chart: Vec<i32> = if has_levelling_constants {
+            levelling.get_slayer_experience_required_per_level().get(&neu_slayer_id).cloned().unwrap_or_default()
+        } else {
+            Vec::new()
+        };
         let mut level: i32 = 0;
         let mut remaining_xp: i64 = xp;
         for xp_required in xp_chart.iter().copied() {
@@ -144,16 +157,15 @@ impl LevelCalculator {
 
     /// java: private static LevelInfo getHotxLevel(long xp, String id)
     pub fn get_hotx_level(mut xp: i64, id: &str) -> LevelInfo {
-        // TODO(fabric2seer): `.getLeveling(..)` on a NEUConstants
         //   java: Leveling levelling = NEURepoManager.getConstants().getLeveling();
-        let mut levelling: crate::unresolved::Leveling = todo!("fabric2seer: the initialiser of `levelling` (TODO above)");
-        let mut has_levelling_constants: bool = (!(NEURepoManager::is_loading()) && true /* java: levelling != null: never null here */);
-        // TODO(fabric2seer): `.getHotmExperienceRequiredPerLevel(..)` on a Leveling
+        let mut levelling: Arc<crate::io::github::moulberry::repo::constants::leveling::Leveling> = NEURepoManager::get_constants().get_leveling();
+        //   java: boolean hasLevellingConstants = !NEURepoManager.isLoading() && levelling != null; (the port's getter answers
+        //   an empty `Leveling` before the first load, never null)
+        let mut has_levelling_constants: bool = !(NEURepoManager::is_loading());
         //   java: List<Integer> xpChart = hasLevellingConstants ? levelling.getHotmExperienceRequiredPerLevel() : List.of();
-        let mut xp_chart: Vec<i32> = todo!("fabric2seer: the initialiser of `xpChart` (TODO above)");
-        // TODO(fabric2seer): `.getMaximumLevels(..)` on a Leveling
+        let mut xp_chart: Vec<i32> = if has_levelling_constants { levelling.get_hotm_experience_required_per_level().to_vec() } else { Vec::new() };
         //   java: int maxLevel = hasLevellingConstants ? levelling.getMaximumLevels().getOrDefault(id, 0) : 0;
-        let mut max_level: i32 = todo!("fabric2seer: the initialiser of `maxLevel` (TODO above)");
+        let mut max_level: i32 = if has_levelling_constants { levelling.get_maximum_levels().get(id).copied().unwrap_or(0) } else { 0 };
         let mut level: i32 = 0;
         let mut remaining_xp: i64 = xp;
         for xp_required in xp_chart.iter().copied() {

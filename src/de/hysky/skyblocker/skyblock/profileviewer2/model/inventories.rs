@@ -92,3 +92,129 @@ impl BagContents {
     }
 
 }
+
+impl Inventories {
+    /// Gson's reflective binding of the class's own fields (`ReflectiveTypeAdapterFactory`): each member the
+    /// JSON has is read over the field it names (`@SerializedName`, else the field's name) with the field's declared
+    /// type; an absent member (or a `null` one, or one Gson would reject) leaves the constructor's value.
+    pub fn read_json_fields(&mut self, json: &serde_json::Value) {
+        #[allow(unused_imports)]
+        use crate::io::github::moulberry::repo::neu_repository::gson;
+        if let Some(__v) = gson::member(json, "bag_contents") {
+            if let Some(__x) = Some(BagContents::from_json(__v)) {
+                self.bag_contents = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "inv_contents") {
+            if let Some(__x) = (Some(AbstractInventoryContents::from_json(__v))).map(Some) {
+                self.inventory_contents = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "ender_chest_contents") {
+            if let Some(__x) = (Some(AbstractInventoryContents::from_json(__v))).map(Some) {
+                self.ender_chest_contents = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "backpack_icons") {
+            if let Some(__x) = gson::map(__v, gson::string_key, |__e0| Some(AbstractInventoryContents::from_json(__e0))) {
+                self.backpack_icons = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "backpack_contents") {
+            if let Some(__x) = gson::map(__v, gson::string_key, |__e0| Some(AbstractInventoryContents::from_json(__e0))) {
+                self.backpack_contents = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "inv_armor") {
+            if let Some(__x) = (Some(AbstractInventoryContents::from_json(__v))).map(Some) {
+                self.armour_contents = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "equipment_contents") {
+            if let Some(__x) = (Some(AbstractInventoryContents::from_json(__v))).map(Some) {
+                self.equipment_contents = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "personal_vault_contents") {
+            if let Some(__x) = (Some(AbstractInventoryContents::from_json(__v))).map(Some) {
+                self.personal_vault_contents = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "sacks_counts") {
+            if let Some(__x) = (gson::map(__v, gson::string_key, |__e0| gson::as_i32(__e0))).map(Some) {
+                self.sacks_counts = __x;
+            }
+        }
+    }
+
+    /// `GSON.fromJson(json, Inventories.class)`: the no-argument constructor, then the fields.
+    pub fn from_json(json: &serde_json::Value) -> Self {
+        let mut __this = Self::new();
+        __this.read_json_fields(json);
+        __this
+    }
+}
+
+impl AbstractInventoryContents {
+    /// Gson's reflective binding of the class's own fields (`ReflectiveTypeAdapterFactory`): each member the
+    /// JSON has is read over the field it names (`@SerializedName`, else the field's name) with the field's declared
+    /// type; an absent member (or a `null` one, or one Gson would reject) leaves the constructor's value.
+    pub fn read_json_fields(&mut self, json: &serde_json::Value) {
+        #[allow(unused_imports)]
+        use crate::io::github::moulberry::repo::neu_repository::gson;
+        if let Some(__v) = gson::member(json, "data") {
+            if let Some(__x) = gson::as_string(__v) {
+                self.data = __x;
+            }
+        }
+    }
+
+    /// `GSON.fromJson(json, AbstractInventoryContents.class)`: the no-argument constructor, then the fields.
+    pub fn from_json(json: &serde_json::Value) -> compat::Shared<Self> {
+        let __this = Self::new();
+        compat::write(&__this, |__t| __t.read_json_fields(json));
+        __this
+    }
+}
+
+impl BagContents {
+    /// Gson's reflective binding of the class's own fields (`ReflectiveTypeAdapterFactory`): each member the
+    /// JSON has is read over the field it names (`@SerializedName`, else the field's name) with the field's declared
+    /// type; an absent member (or a `null` one, or one Gson would reject) leaves the constructor's value.
+    pub fn read_json_fields(&mut self, json: &serde_json::Value) {
+        #[allow(unused_imports)]
+        use crate::io::github::moulberry::repo::neu_repository::gson;
+        if let Some(__v) = gson::member(json, "sacks_bag") {
+            if let Some(__x) = (Some(AbstractInventoryContents::from_json(__v))).map(Some) {
+                self.sacks_bag = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "potion_bag") {
+            if let Some(__x) = (Some(AbstractInventoryContents::from_json(__v))).map(Some) {
+                self.potion_bag = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "talisman_bag") {
+            if let Some(__x) = (Some(AbstractInventoryContents::from_json(__v))).map(Some) {
+                self.talisman_bag = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "fishing_bag") {
+            if let Some(__x) = (Some(AbstractInventoryContents::from_json(__v))).map(Some) {
+                self.fishing_bag = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "quiver") {
+            if let Some(__x) = (Some(AbstractInventoryContents::from_json(__v))).map(Some) {
+                self.quiver = __x;
+            }
+        }
+    }
+
+    /// `GSON.fromJson(json, BagContents.class)`: the no-argument constructor, then the fields.
+    pub fn from_json(json: &serde_json::Value) -> Self {
+        let mut __this = Self::new();
+        __this.read_json_fields(json);
+        __this
+    }
+}

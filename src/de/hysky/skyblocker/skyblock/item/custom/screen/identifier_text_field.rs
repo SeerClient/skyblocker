@@ -46,8 +46,14 @@ impl IdentifierTextField {
             e.set_max_length(100);
         });
         // java: addFormatter((string, _) -> FormattedCharSequence.forward(string, valid ? Style.EMPTY : Style.EMPTY.applyFormat(ChatFormatting.RED)));
-        // rust: port gap - `EditBox.addFormatter` takes the port's closed `TextFormatter` enum, so a mod's formatter (the
-        //   red text of an invalid identifier) cannot be added (GAPS_batchE.md)
+        let formatter_state = state.clone();
+        compat::with_edit_box(&mut widget, |e| {
+            e.add_formatter(mcrust::net::minecraft::client::gui::components::edit_box::TextFormatter::Mod(mcrust::net::minecraft::client::gui::components::edit_box::ModTextFormatter::new(move |string: &str, _offset: i32| {
+                let valid: bool = compat::lock(&formatter_state).valid;
+                let style = if valid { mcrust::net::minecraft::network::chat::style::Style::EMPTY } else { mcrust::net::minecraft::network::chat::style::Style::EMPTY.apply_format(mcrust::net::minecraft::chat_formatting::ChatFormatting::Red) };
+                Some(mcrust::net::minecraft::network::chat::formatted_text::FormattedText::of_styled(string, style))
+            })));
+        });
         (IdentifierTextField { callback, state }, widget)
     }
 

@@ -74,7 +74,7 @@ impl OptionWidget {
     /// java: `widget.isMouseOver(x, y)` (neither class overrides it)
     pub fn is_mouse_over(&self, x: f64, y: f64) -> bool {
         match self {
-            OptionWidget::Dropdown(w) => compat::read(w, |__t| __t.base.is_mouse_over(x, y)),
+            OptionWidget::Dropdown(w) => compat::read(w, |__t| __t.base.list.is_mouse_over(x, y)),
             OptionWidget::Ranged(w) => compat::read(w, |__t| __t.base.is_mouse_over(x, y)),
         }
     }
@@ -148,13 +148,17 @@ impl FinderSettingsContainer {
             let __wa7 = (x.wrapping_add(width.wrapping_div(4))).wrapping_sub(50);
             let __wa8 = y.wrapping_add(70);
             let __o4 = compat::read(__this, |__t| __t.class_level_range.clone()).unwrap();
-            compat::write(&__o4, |__t| __t.set_position(__wa7, __wa8));
+            // java: classLevelRange.setPosition(..) - `setX(x); setY(y)`, both overridden (the children move along)
+            RangedValueWidget::set_x(&__o4, __wa7);
+            RangedValueWidget::set_y(&__o4, __wa8);
         }
         if compat::read(__this, |__t| __t.dungeon_level_range.clone()).is_some() {
             let __wa9 = (x.wrapping_add((3i32.wrapping_mul(width)).wrapping_div(4))).wrapping_sub(50);
             let __wa10 = y.wrapping_add(70);
             let __o5 = compat::read(__this, |__t| __t.dungeon_level_range.clone()).unwrap();
-            compat::write(&__o5, |__t| __t.set_position(__wa9, __wa10));
+            // java: dungeonLevelRange.setPosition(..) - `setX(x); setY(y)`, both overridden (the children move along)
+            RangedValueWidget::set_x(&__o5, __wa9);
+            RangedValueWidget::set_y(&__o5, __wa10);
         }
     }
 
@@ -233,8 +237,8 @@ impl FinderSettingsContainer {
             if compat::read(__this, |__t| __t.dungeon_level_range.clone()).is_some() {
                 RangedValueWidget::set_state(&compat::read(__this, |__t| __t.dungeon_level_range.clone()).unwrap(), State::Closed);
             }
-            // TODO(fabric2seer): `partyFinderButton`, a widget the screen holds, reached outside the screen's own methods
-            //   java: screen.partyFinderButton.active = true;
+            // java: screen.partyFinderButton.active = true;
+            compat::write(screen, |__t| { let __s = &mut *__t; if let Some(__r) = __s.party_finder_button.as_mut() { __s.__widgets.with(&mut __s.base, __r, |__w| __w.active = true) } });
             { let __v = None; compat::write(__this, |__t| __t.currently_opened_option = __v); }
             let __slots: Vec<(i32, mcrust::net::minecraft::world::item::item_stack::ItemStack)> = handler.with_slots(|menu, containers| menu.slots.iter().map(|slot| (slot.index, slot.get_item(containers).duplicate())).collect()).unwrap_or_default();
             let __row_count: i32 = handler.with(|__chest| __chest.get_row_count()).unwrap_or(0);
@@ -246,8 +250,8 @@ impl FinderSettingsContainer {
             }
             return true;
         } else {
-            // TODO(fabric2seer): `partyFinderButton`, a widget the screen holds, reached outside the screen's own methods
-            //   java: screen.partyFinderButton.active = false;
+            // java: screen.partyFinderButton.active = false;
+            compat::write(screen, |__t| { let __s = &mut *__t; if let Some(__r) = __s.party_finder_button.as_mut() { __s.__widgets.with(&mut __s.base, __r, |__w| __w.active = false) } });
             if name_lower_case.contains("floor") {
                 FinderSettingsContainer::update_dropdown_option_widget(__this, &handler, compat::read(__this, |__t| __t.floor_selector.clone()));
                 return true;
@@ -326,8 +330,9 @@ impl FinderSettingsContainer {
                     return false;
                 }
                 let mut floor_name: String = compat::trim(&(split[(1) as usize]));
-                // TODO(fabric2seer): not translated (qualified inner-class creation)
-                //   java: dropdownWidget.setSelectedOption(dropdownWidget.new Option(floorName, stack, slot.index));
+                // java: dropdownWidget.setSelectedOption(dropdownWidget.new Option(floorName, stack, slot.index));
+                let __option = crate::de::hysky::skyblocker::skyblock::dungeon::partyfinder::option_dropdown_widget::Option::new(dropdown_widget, floor_name.clone(), Some(stack.clone()), slot_index);
+                OptionDropdownWidget::set_selected_option(dropdown_widget, __option);
                 return true;
             }
         }
@@ -357,7 +362,7 @@ impl FinderSettingsContainer {
     /// java: private boolean updateValues(SignBlockEntity sign, boolean front, RangedValueWidget valueWidget)
     pub fn update_values(__this: &compat::Shared<Self>, sign: &SignBlockEntity, mut front: bool, value_widget: &compat::Shared<RangedValueWidget>) -> bool {
         let mut state: State;
-        let mut lower_case: String = ((compat::component_of(sign.get_text(front).get_message((3) as usize, false).clone())).get_string()).to_lowercase();
+        let mut lower_case: String = ((compat::component_of(sign.get_text(compat::sign_slot(front)).get_messages(false)[(3) as usize].clone())).get_string()).to_lowercase();
         if lower_case.contains("max") {
             state = State::ModifyingMax;
         } else if lower_case.contains("min") {
@@ -366,8 +371,9 @@ impl FinderSettingsContainer {
             return false;
         }
         RangedValueWidget::set_state(value_widget, state);
-        // TODO(fabric2seer): `AbstractContainerWidget.setFocused` has no Rust method in the port (looked for `set_focused` in AbstractContainerWidget and its supertypes)
-        // rust: __this.lock().borrow().set_focused(value_widget);
+        // java: this.setFocused(valueWidget); - the child's place in `children()` (`initializedWidgets`)
+        let __index: Option<usize> = compat::read(__this, |__t| __t.initialized_widgets.iter().position(|w| w.ptr_eq(&OptionWidget::Ranged(value_widget.clone()))));
+        compat::write(__this, |__t| { __t.base.set_focused(__index); });
         return true;
     }
 
@@ -387,8 +393,8 @@ impl FinderSettingsContainer {
                 break;
             }
             if !slot_item.is_empty() && !(slot_item.is_item(mcrust::net::minecraft::world::item::items::stained_glass_pane().black())) {
-                // TODO(fabric2seer): not translated (qualified inner-class creation)
-                //   java: entries.add(dropdownWidget.new Option(slot.getItem().getHoverName().getString(), slot.getItem(), slot.index));
+                // java: entries.add(dropdownWidget.new Option(slot.getItem().getHoverName().getString(), slot.getItem(), slot.index));
+                entries.push(crate::de::hysky::skyblocker::skyblock::dungeon::partyfinder::option_dropdown_widget::Option::new(&dropdown_widget, compat::component_of(slot_item.get_hover_name()).get_string(), Some(slot_item.clone()), *slot_index));
             }
         }
         let mut back_id: i32 = FinderSettingsContainer::find_back_slot_id(__this, handler);
@@ -425,12 +431,12 @@ impl FinderSettingsContainer {
     pub fn set_visible(__this: &compat::Shared<Self>, mut visible: bool) {
         { let __v = visible; compat::write(__this, |__t| __t.visible = __v); }
         if compat::read(__this, |__t| __t.floor_selector.clone()).is_some() {
-            // TODO(fabric2seer): `AbstractContainerWidget.visible` is a field of the port's `AbstractContainerWidget`, which the port's `AbstractSelectionList` does not hold (no Deref, no `base` field)
-            // rust: { let __v = visible; compat::write(&compat::read(__this, |__t| __t.floor_selector.clone()).unwrap(), |__t| __t.visible = __v); }
+            // java: this.floor_selector.visible = visible; - the list's own field (`ModSelectionList.visible`)
+            { let __v = visible; compat::write(&compat::read(__this, |__t| __t.floor_selector.clone()).unwrap(), |__t| __t.base.visible = __v); }
         }
         if compat::read(__this, |__t| __t.dungeon_type_selector.clone()).is_some() {
-            // TODO(fabric2seer): `AbstractContainerWidget.visible` is a field of the port's `AbstractContainerWidget`, which the port's `AbstractSelectionList` does not hold (no Deref, no `base` field)
-            // rust: { let __v = visible; compat::write(&compat::read(__this, |__t| __t.dungeon_type_selector.clone()).unwrap(), |__t| __t.visible = __v); }
+            // java: this.dungeon_type_selector.visible = visible; - the list's own field (`ModSelectionList.visible`)
+            { let __v = visible; compat::write(&compat::read(__this, |__t| __t.dungeon_type_selector.clone()).unwrap(), |__t| __t.base.visible = __v); }
         }
         if compat::read(__this, |__t| __t.class_level_range.clone()).is_some() {
             { let __v = visible; compat::write(&compat::read(__this, |__t| __t.class_level_range.clone()).unwrap(), |__t| __t.visible = __v); }
@@ -439,8 +445,8 @@ impl FinderSettingsContainer {
             { let __v = visible; compat::write(&compat::read(__this, |__t| __t.dungeon_level_range.clone()).unwrap(), |__t| __t.visible = __v); }
         }
         if compat::read(__this, |__t| __t.sort_groups_selector.clone()).is_some() {
-            // TODO(fabric2seer): `AbstractContainerWidget.visible` is a field of the port's `AbstractContainerWidget`, which the port's `AbstractSelectionList` does not hold (no Deref, no `base` field)
-            // rust: { let __v = visible; compat::write(&compat::read(__this, |__t| __t.sort_groups_selector.clone()).unwrap(), |__t| __t.visible = __v); }
+            // java: this.sort_groups_selector.visible = visible; - the list's own field (`ModSelectionList.visible`)
+            { let __v = visible; compat::write(&compat::read(__this, |__t| __t.sort_groups_selector.clone()).unwrap(), |__t| __t.base.visible = __v); }
         }
     }
 
@@ -476,7 +482,7 @@ impl FinderSettingsContainer {
                 // `&& widget.shouldTakeFocusAfterInteraction()` - the default `true`
                 if widget.mouse_clicked(click, doubled) {
                     compat::write(__this, |__t| { __t.base.set_focused(Some(__index)); });
-                    if click.button() == 0 {
+                    if click.button() == 1 {
                         compat::write(__this, |__t| __t.base.set_dragging(true));
                     }
                 }
@@ -487,54 +493,43 @@ impl FinderSettingsContainer {
     }
 
     /// java: @Override protected void extractWidgetRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a)
-    pub fn extract_widget_render_state(__this: &compat::Shared<Self>, graphics: &GuiGraphicsExtractor, mut mouse_x: i32, mut mouse_y: i32, mut a: f32) {
+    /// (`context` is the frame's render context, which the children's draws take)
+    pub fn extract_widget_render_state(__this: &compat::Shared<Self>, context: &mut mcrust::mcrust::modding::widgets::WidgetRenderContext<'_>, mut mouse_x: i32, mut mouse_y: i32, mut a: f32) {
         if !(compat::read(__this, |__t| __t.visible)) || !(compat::read(__this, |__t| __t.is_initialized)) {
             return;
         }
-        if compat::read(__this, |__t| __t.class_level_range.clone()).is_some() {
-            // TODO(fabric2seer): `extract_render_state` is a method of the port's trait `Renderable`, which the port's `AbstractContainerWidget` does not implement
-            // rust: let __wa1 = graphics.clone();
-            // rust: let __wa2 = mouse_x;
-            // rust: let __wa3 = mouse_y;
-            // rust: let __wa4 = a;
-            // rust: let __o1 = compat::read(__this, |__t| __t.class_level_range.clone()).unwrap();
-            // rust: compat::write(&__o1, |__t| __t.extract_render_state(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), __wa2, __wa3, __wa4));
+        // java: this.classLevelRange.extractRenderState(graphics, mouseX, mouseY, a); (and dungeonLevelRange) -
+        // `AbstractWidget.extractRenderState`: drawn only while visible
+        for __range in [compat::read(__this, |__t| __t.class_level_range.clone()), compat::read(__this, |__t| __t.dungeon_level_range.clone())].into_iter().flatten() {
+            if compat::read(&__range, |__t| __t.visible) {
+                RangedValueWidget::extract_widget_render_state(&__range, context, mouse_x, mouse_y, a);
+            }
         }
-        if compat::read(__this, |__t| __t.dungeon_level_range.clone()).is_some() {
-            // TODO(fabric2seer): `extract_render_state` is a method of the port's trait `Renderable`, which the port's `AbstractContainerWidget` does not implement
-            // rust: let __wa5 = graphics.clone();
-            // rust: let __wa6 = mouse_x;
-            // rust: let __wa7 = mouse_y;
-            // rust: let __wa8 = a;
-            // rust: let __o2 = compat::read(__this, |__t| __t.dungeon_level_range.clone()).unwrap();
-            // rust: compat::write(&__o2, |__t| __t.extract_render_state(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), __wa6, __wa7, __wa8));
+        // Render the dropdowns last to fix overlap issue.
+        // java: this.sortGroupsSelector / floorSelector / dungeonTypeSelector .extractRenderState(graphics, mouseX, mouseY, a)
+        for __dropdown in [compat::read(__this, |__t| __t.sort_groups_selector.clone()), compat::read(__this, |__t| __t.floor_selector.clone()), compat::read(__this, |__t| __t.dungeon_type_selector.clone())].into_iter().flatten() {
+            if compat::read(&__dropdown, |__t| __t.base.visible) {
+                OptionDropdownWidget::extract_widget_render_state(&__dropdown, context, mouse_x, mouse_y, a);
+            }
         }
-        if compat::read(__this, |__t| __t.sort_groups_selector.clone()).is_some() {
-            // TODO(fabric2seer): `extract_render_state` is a method of the port's trait `Renderable`, which the port's `AbstractSelectionList` does not implement
-            // rust: let __wa9 = graphics.clone();
-            // rust: let __wa10 = mouse_x;
-            // rust: let __wa11 = mouse_y;
-            // rust: let __wa12 = a;
-            // rust: let __o3 = compat::read(__this, |__t| __t.sort_groups_selector.clone()).unwrap();
-            // rust: compat::write(&__o3, |__t| __t.extract_render_state(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), __wa10, __wa11, __wa12));
+    }
+
+    /// java: `ContainerEventHandler.keyPressed(event)` - `getFocused() != null && getFocused().keyPressed(event)`
+    /// (a dropdown's is the list's own, which moves a selection its `entriesCanBeSelected() == false` never shows)
+    pub fn key_pressed(__this: &compat::Shared<Self>, event: &mcrust::net::minecraft::client::input::key_event::KeyEvent) -> bool {
+        let __focused: Option<OptionWidget> = compat::read(__this, |__t| __t.base.get_focused().and_then(|i| __t.initialized_widgets.get(i).cloned()));
+        match __focused {
+            Some(OptionWidget::Ranged(w)) => RangedValueWidget::key_pressed(&w, event),
+            _ => false,
         }
-        if compat::read(__this, |__t| __t.floor_selector.clone()).is_some() {
-            // TODO(fabric2seer): `extract_render_state` is a method of the port's trait `Renderable`, which the port's `AbstractSelectionList` does not implement
-            // rust: let __wa13 = graphics.clone();
-            // rust: let __wa14 = mouse_x;
-            // rust: let __wa15 = mouse_y;
-            // rust: let __wa16 = a;
-            // rust: let __o4 = compat::read(__this, |__t| __t.floor_selector.clone()).unwrap();
-            // rust: compat::write(&__o4, |__t| __t.extract_render_state(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), __wa14, __wa15, __wa16));
-        }
-        if compat::read(__this, |__t| __t.dungeon_type_selector.clone()).is_some() {
-            // TODO(fabric2seer): `extract_render_state` is a method of the port's trait `Renderable`, which the port's `AbstractSelectionList` does not implement
-            // rust: let __wa17 = graphics.clone();
-            // rust: let __wa18 = mouse_x;
-            // rust: let __wa19 = mouse_y;
-            // rust: let __wa20 = a;
-            // rust: let __o5 = compat::read(__this, |__t| __t.dungeon_type_selector.clone()).unwrap();
-            // rust: compat::write(&__o5, |__t| __t.extract_render_state(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), __wa18, __wa19, __wa20));
+    }
+
+    /// java: `ContainerEventHandler.charTyped(event)` - the focused child's
+    pub fn char_typed(__this: &compat::Shared<Self>, event: &mcrust::net::minecraft::client::input::character_event::CharacterEvent) -> bool {
+        let __focused: Option<OptionWidget> = compat::read(__this, |__t| __t.base.get_focused().and_then(|i| __t.initialized_widgets.get(i).cloned()));
+        match __focused {
+            Some(OptionWidget::Ranged(w)) => RangedValueWidget::char_typed(&w, event),
+            _ => false,
         }
     }
 
@@ -573,7 +568,7 @@ impl ContainerWidgetHalf for FinderSettingsContainer {
 impl mcrust::mcrust::modding::widgets::ModWidget for ContainerWidgetAdapter<FinderSettingsContainer> {
     /// java: @Override protected void extractWidgetRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a)
     fn extract_widget_render_state(&mut self, _widget: &mcrust::net::minecraft::client::gui::components::abstract_widget::AbstractWidget, context: &mut mcrust::mcrust::modding::widgets::WidgetRenderContext<'_>, mouse_x: i32, mouse_y: i32, a: f32) {
-        self.lend(|__h| FinderSettingsContainer::extract_widget_render_state(__h, &context.graphics, mouse_x, mouse_y, a))
+        self.lend(|__h| FinderSettingsContainer::extract_widget_render_state(__h, context, mouse_x, mouse_y, a))
     }
 
     /// java: @Override protected void updateWidgetNarration(NarrationElementOutput builder)
@@ -584,6 +579,16 @@ impl mcrust::mcrust::modding::widgets::ModWidget for ContainerWidgetAdapter<Find
     /// java: @Override public boolean mouseClicked(MouseButtonEvent click, boolean doubled)
     fn mouse_clicked(&mut self, _widget: &mut mcrust::net::minecraft::client::gui::components::abstract_widget::AbstractWidget, event: &MouseButtonEvent, double_click: bool) -> bool {
         self.lend(|__h| FinderSettingsContainer::mouse_clicked(__h, event, double_click))
+    }
+
+    /// java: `ContainerEventHandler.keyPressed(event)` - the focused child's
+    fn key_pressed(&mut self, _widget: &mut mcrust::net::minecraft::client::gui::components::abstract_widget::AbstractWidget, event: &mcrust::net::minecraft::client::input::key_event::KeyEvent) -> bool {
+        self.lend(|__h| FinderSettingsContainer::key_pressed(__h, event))
+    }
+
+    /// java: `ContainerEventHandler.charTyped(event)` - the focused child's
+    fn char_typed(&mut self, _widget: &mut mcrust::net::minecraft::client::gui::components::abstract_widget::AbstractWidget, event: &mcrust::net::minecraft::client::input::character_event::CharacterEvent) -> bool {
+        self.lend(|__h| FinderSettingsContainer::char_typed(__h, event))
     }
 
     fn container_widget_mut(&mut self) -> Option<&mut AbstractContainerWidget> {

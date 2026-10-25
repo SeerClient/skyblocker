@@ -15,6 +15,8 @@ use crate::de::hysky::skyblocker::utils::waypoint::waypoint::Waypoint;
 use mcrust::net::minecraft::client::multiplayer::client_level::ClientLevel;
 use mcrust::net::minecraft::core::block_pos::BlockPos;
 use mcrust::org::joml::vector2i::Vector2i;
+use mcrust::net::minecraft::world::level::block_getter::BlockGetter as _;
+use mcrust::net::minecraft::core::defaulted_registry::DefaultedRegistry as _;
 
 /// java: public class DebugRoom extends Room
 pub struct DebugRoom {
@@ -112,20 +114,30 @@ impl Renderable for DebugRoom {
 impl DebugRoom {
     /// java: @Override protected boolean checkBlock(ClientLevel world, BlockPos pos)
     pub fn check_block_impl(__this: &compat::Shared<Self>, world: &ClientLevel, pos: &BlockPos) -> bool {
-        // TODO(fabric2seer): Map.getByte(..)
-        //   java: byte id = DungeonManager.NUMERIC_ID.getByte(BuiltInRegistries.BLOCK.getKey(world.getBlockState(pos).getBlock()).toString());
-        let mut id: i8 = todo!("fabric2seer: the initialiser of `id` (TODO above)");
+        // java: byte id = DungeonManager.NUMERIC_ID.getByte(BuiltInRegistries.BLOCK.getKey(world.getBlockState(pos).getBlock()).toString());
+        // (`getByte` of a missing key is the map's default return value, 0)
+        let block_key: String = mcrust::net::minecraft::core::registries::built_in_registries::block().get_key_defaulted(&world.get_block_state_typed(pos).get_block().erased_obj()).to_string();
+        let id: i8 = dungeon_manager::NUMERIC_ID.get(&block_key).copied().unwrap_or(0);
         if (id as i32) == 0 {
             return false;
         }
-        for direction_rooms in __this.lock().borrow().possible_rooms.as_ref().unwrap().iter() {
-            // TODO(fabric2seer): `.getLeft(..)` on a MutableTriple
-            //   java: int block = posIdToInt(DungeonMapUtils.actualToRelative(directionRooms.getLeft(), directionRooms.getMiddle(), pos), id);
-            let mut block: i32 = todo!("fabric2seer: the initialiser of `block` (TODO above)");
-            // TODO(fabric2seer): `.getRight(..)` on a MutableTriple
-            //   java: for (String room : directionRooms.getRight()) {
-            //   java: 				checkedBlocks.add(new Waypoint(pos, SecretWaypoint.TYPE_SUPPLIER, Arrays.binarySearch(roomsData.get(room), block) >= 0 ? Room.GREEN_COLOR_COMPONENTS : Room.RED_COLOR_COMPONENTS));
-            //   java: 			}
+        let __room: compat::Shared<dyn Room> = __this.clone();
+        let possible_rooms = compat::read(__this, |__t| __t.base.possible_rooms.clone()).expect("NullPointerException: possibleRooms");
+        let rooms_data = compat::read(__this, |__t| __t.base.rooms_data.clone());
+        for direction_rooms in possible_rooms.iter() {
+            // java: int block = posIdToInt(DungeonMapUtils.actualToRelative(directionRooms.getLeft(), directionRooms.getMiddle(), pos), id);
+            let block: i32 = ({ let __f = compat::dispatch(&__room, |__t| __t.pos_id_to_int()); __f(&__room, &DungeonMapUtils::actual_to_relative(direction_rooms.get_left(), &direction_rooms.get_middle(), pos), id) });
+            for room in direction_rooms.right.iter() {
+                // java: checkedBlocks.add(new Waypoint(pos, SecretWaypoint.TYPE_SUPPLIER, Arrays.binarySearch(roomsData.get(room), block) >= 0 ? Room.GREEN_COLOR_COMPONENTS : Room.RED_COLOR_COMPONENTS));
+                let found = rooms_data.as_ref().expect("NullPointerException: roomsData").get(room).expect("NullPointerException: roomsData.get(room)").binary_search(&block).is_ok();
+                let color: Vec<f32> = if found { crate::de::hysky::skyblocker::skyblock::dungeon::secrets::room::GREEN_COLOR_COMPONENTS.clone() } else { crate::de::hysky::skyblocker::skyblock::dungeon::secrets::room::RED_COLOR_COMPONENTS.clone() };
+                let type_supplier = crate::de::hysky::skyblocker::skyblock::dungeon::secrets::secret_waypoint::TYPE_SUPPLIER.get_mut().clone();
+                let (waypoint, _) = crate::de::hysky::skyblocker::utils::waypoint::waypoint::WaypointBase::new2_in(pos.clone(), type_supplier, color, |__b| {
+                    let __h = compat::shared(__b);
+                    (__h as compat::Shared<dyn Waypoint>, ())
+                });
+                compat::write(__this, |__t| __t.checked_blocks.push(waypoint));
+            }
         }
         return false;
     }

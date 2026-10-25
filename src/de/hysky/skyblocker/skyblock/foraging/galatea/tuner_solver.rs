@@ -78,6 +78,11 @@ pub struct TunerSolver {
     pub last_speed_ticks: i32,
 }
 
+thread_local! {
+    /// The solver whose `start` registered the open screen's `afterTick` / `remove` listeners.
+    static TUNER_SCREEN_LISTENER: std::cell::RefCell<Option<compat::Shared<TunerSolver>>> = const { std::cell::RefCell::new(None) };
+}
+
 impl std::ops::Deref for TunerSolver {
     type Target = SimpleContainerSolverBase;
     fn deref(&self) -> &Self::Target {
@@ -128,7 +133,7 @@ impl TunerSolver {
     }
 
     /// java: private static int computeColorClicks(Int2ObjectMap<ItemStack> slots)
-    pub fn compute_color_clicks(slots: &std::collections::HashMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack>) -> i32 {
+    pub fn compute_color_clicks(slots: &std::collections::BTreeMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack>) -> i32 {
         let mut dye_stack: Option<mcrust::net::minecraft::world::item::item_stack::ItemStack> = slots.get(&46).cloned();
         if dye_stack.is_none() || dye_stack.as_ref().unwrap().is_empty() {
             logger().warn("No dye found in slot 46");
@@ -188,30 +193,29 @@ impl TunerSolver {
     }
 
     /// java: private static int readCurrentSpeed(Int2ObjectMap<ItemStack> slots)
-    pub fn read_current_speed(slots: &std::collections::HashMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack>) -> i32 {
+    pub fn read_current_speed(slots: &std::collections::BTreeMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack>) -> i32 {
         let mut speed_stack: Option<mcrust::net::minecraft::world::item::item_stack::ItemStack> = slots.get(&48).cloned();
         if speed_stack.is_some() && !(speed_stack.as_ref().unwrap().is_empty()) {
             let mut lore: Vec<String> = speed_stack.as_ref().unwrap().skyblocker_get_lore_strings();
             if (lore.len() as i32) >= 4 {
-                // java: try {..} catch (NumberFormatException _) - the body runs inline: a Rust body does not throw checked exceptions (a panic in it propagates)
+                // java: try { .. Integer.parseInt(parts[1].trim()) .. } catch (NumberFormatException _) {} - only the
+                // parse's failure is caught (an index out of bounds still throws)
                 {
                     let mut speed_text: String = lore[(3) as usize].clone();
                     let mut parts: Vec<String> = compat::regex::split(&speed_text, ": ");
-                    let mut current_speed: i32 = (compat::trim(&(parts[(1) as usize]))).parse::<i32>().expect("NumberFormatException");
-                    if current_speed >= 1 && current_speed <= 5 {
-                        return current_speed;
+                    if let Ok(current_speed) = (compat::trim(&(parts[(1) as usize]))).parse::<i32>() {
+                        if current_speed >= 1 && current_speed <= 5 {
+                            return current_speed;
+                        }
                     }
                 }
-                // TODO(fabric2seer): the `catch (NumberFormatException _)` block is not reached in Rust - the try body returns, breaks or continues, so it cannot run inside `catch_unwind`
-                //   java: {
-                //   java: 				}
             }
         }
         return 0;
     }
 
     /// java: private static @Nullable String readCurrentPitch(Int2ObjectMap<ItemStack> slots)
-    pub fn read_current_pitch(slots: &std::collections::HashMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack>) -> Option<String> {
+    pub fn read_current_pitch(slots: &std::collections::BTreeMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack>) -> Option<String> {
         let mut pitch_stack: Option<mcrust::net::minecraft::world::item::item_stack::ItemStack> = slots.get(&50).cloned();
         if pitch_stack.is_some() && !(pitch_stack.as_ref().unwrap().is_empty()) {
             let mut lore: Vec<String> = pitch_stack.as_ref().unwrap().skyblocker_get_lore_strings();
@@ -344,9 +348,8 @@ impl TunerSolver {
     pub fn track_target_pane_movement(__this: &compat::Shared<Self>, slots: &Vec<Slot>) {
         let mut current_target_slot: i32 = -1;
         for slot in 10..=16 {
-            // TODO(fabric2seer): `get_item` takes 1 argument(s) in the port (`containers: &'a Containers<'_>`), Java passes 0
-            // rust: let mut stack: Option<mcrust::net::minecraft::world::item::item_stack::ItemStack> = Some((slots[(slot) as usize]).get_item().clone());
-            let mut stack: mcrust::net::minecraft::world::item::item_stack::ItemStack = todo!("fabric2seer: the initialiser of `stack` (TODO above)");
+            // java: ItemStack stack = slots.get(slot).getItem(); (read through the open menu's containers)
+            let mut stack: mcrust::net::minecraft::world::item::item_stack::ItemStack = compat::slot_item(&slots[(slot) as usize]);
             if true /* java: stack != null: never null here */ && TunerSolver::is_stained_glass_pane(&stack.get_item()) {
                 current_target_slot = slot;
                 break;
@@ -377,7 +380,6 @@ impl TunerSolver {
 
     /// java: private void onSound(ClientboundSoundPacket packet)
     pub fn on_sound(__this: &compat::Shared<Self>, packet: &ClientboundSoundPacket) {
-        // TODO(fabric2seer): the condition: `.location(..)` on a value of unknown type
         //   java: !SkyblockerConfigManager.get().foraging.moongladeMarsh.enableTunerSolver
         //   java: 				|| pitchSolved || !Utils.isInForagingIsland() || !isInMenu
         //   java: 				|| !packet.getSound().value().location().equals(SoundEvents.NOTE_BLOCK_BASS.value().location())
@@ -423,7 +425,7 @@ impl TunerSolver {
     }
 
     /// java: private void maybeSolveSpeed(Int2ObjectMap<ItemStack> slots)
-    pub fn maybe_solve_speed(__this: &compat::Shared<Self>, slots: &std::collections::HashMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack>) {
+    pub fn maybe_solve_speed(__this: &compat::Shared<Self>, slots: &std::collections::BTreeMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack>) {
         let mut current_speed: i32 = TunerSolver::read_current_speed(slots);
         if current_speed > 0 && compat::read(__this, |__t| __t.target_speed) != -1 {
             let mut current_index: i32 = TunerSolver::get_speed_index(current_speed);
@@ -484,7 +486,7 @@ impl ContainerMatcher for TunerSolver {
 
 impl ContainerSolver for TunerSolver {
     /// java: @Override public List<ColorHighlight> getColors(Int2ObjectMap<ItemStack> slots) (dispatch: the body for this class)
-    fn get_colors(&self) -> fn(&compat::Shared<dyn ContainerSolver>, &mut std::collections::HashMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack>) -> Vec<ColorHighlight> {
+    fn get_colors(&self) -> fn(&compat::Shared<dyn ContainerSolver>, &mut std::collections::BTreeMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack>) -> Vec<ColorHighlight> {
         TunerSolver::get_colors_dyn
     }
 
@@ -532,7 +534,7 @@ impl TunerSolver {
     }
 
     /// java: @Override public List<ColorHighlight> getColors(Int2ObjectMap<ItemStack> slots)
-    pub fn get_colors_impl(__this: &compat::Shared<Self>, slots: &mut std::collections::HashMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack>) -> Vec<ColorHighlight> {
+    pub fn get_colors_impl(__this: &compat::Shared<Self>, slots: &mut std::collections::BTreeMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack>) -> Vec<ColorHighlight> {
         if !(compat::read(__this, |__t| __t.has_processed)) {
             let mut dye_stack: Option<mcrust::net::minecraft::world::item::item_stack::ItemStack> = slots.get(&46).cloned();
             if dye_stack.is_some() && !(dye_stack.as_ref().unwrap().is_empty()) && TunerSolver::is_dye(&dye_stack.as_ref().unwrap().get_item()) {
@@ -553,7 +555,7 @@ impl TunerSolver {
     }
 
     /// TunerSolver.getColors as the dispatch of ContainerSolver.getColors
-    pub fn get_colors_dyn(__this: &compat::Shared<dyn ContainerSolver>, __p0: &mut std::collections::HashMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack>) -> Vec<ColorHighlight> {
+    pub fn get_colors_dyn(__this: &compat::Shared<dyn ContainerSolver>, __p0: &mut std::collections::BTreeMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack>) -> Vec<ColorHighlight> {
         Self::get_colors_impl(&compat::view_as::<Self, _, Self>(__this, |a| a), __p0)
     }
 
@@ -561,10 +563,42 @@ impl TunerSolver {
     pub fn start_impl(__this: &compat::Shared<Self>, screen: &AbstractContainerScreen) {
         TunerSolver::reset_state(__this);
         { let __v = true; compat::write(__this, |__t| __t.is_in_menu = __v); }
-        // TODO(fabric2seer): ScreenEvents.afterTick(..).register: no SeerClient equivalent yet
-        //   java: ScreenEvents.afterTick(screen).register(_ -> trackTargetPaneMovement(screen.getMenu().slots));
-        // TODO(fabric2seer): ScreenEvents.remove(..).register: no SeerClient equivalent yet
-        //   java: ScreenEvents.remove(screen).register(_ -> resetState());
+        // java: ScreenEvents.afterTick(screen).register(_ -> trackTargetPaneMovement(screen.getMenu().slots));
+        // java: ScreenEvents.remove(screen).register(_ -> resetState());
+        // (both listeners belong to `screen`: they are this solver's, held until that screen's `removed`)
+        let _ = screen;
+        TunerSolver::install_screen_listeners();
+        TUNER_SCREEN_LISTENER.with(|l| *l.borrow_mut() = Some(__this.clone()));
+    }
+
+    /// The per-screen `ScreenEvents.afterTick` / `ScreenEvents.remove` listeners `start` registers: the end of the open
+    /// container screen's tick (`containerTick()` RETURN) and the HEAD of its `removed()`, which drops both.
+    fn install_screen_listeners() {
+        static ONCE: std::sync::Once = std::sync::Once::new();
+        ONCE.call_once(|| {
+            let result = mcrust::mcrust::modding::hook::inject("net.minecraft.client.gui.screens.inventory.AbstractContainerScreen#containerTick", mcrust::mcrust::modding::hook::At::Return, |_ci: &mut mcrust::mcrust::modding::hook::CallbackInfo<'_>| {
+                let Some(solver) = TUNER_SCREEN_LISTENER.with(|l| l.borrow().clone()) else {
+                    return;
+                };
+                // java: screen.getMenu().slots
+                let Some(slots) = compat::with_open_menu(|menu, _| menu.slots.to_vec()) else {
+                    return;
+                };
+                TunerSolver::track_target_pane_movement(&solver, &slots);
+            });
+            if let Err(e) = result {
+                mcrust::mcrust::modding::log::warn_once("skyblocker-tuner-after-tick", &format!("{e:?}"));
+            }
+            let result = mcrust::mcrust::modding::hook::inject("net.minecraft.client.gui.screens.inventory.AbstractContainerScreen#removed", mcrust::mcrust::modding::hook::At::Head, |_ci: &mut mcrust::mcrust::modding::hook::CallbackInfo<'_>| {
+                let Some(solver) = TUNER_SCREEN_LISTENER.with(|l| l.borrow_mut().take()) else {
+                    return;
+                };
+                TunerSolver::reset_state(&solver);
+            });
+            if let Err(e) = result {
+                mcrust::mcrust::modding::log::warn_once("skyblocker-tuner-remove", &format!("{e:?}"));
+            }
+        });
     }
 
     /// TunerSolver.start as the dispatch of ContainerSolver.start

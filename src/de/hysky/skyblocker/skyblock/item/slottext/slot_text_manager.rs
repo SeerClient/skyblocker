@@ -59,10 +59,8 @@ pub static ADDERS: compat::MainThread<Vec<compat::Shared<dyn SlotTextAdder>>> = 
 /// java: private static final Set<SlotTextAdder> currentScreenAdders = new HashSet<>();
 /// A set of OBJECTS (the adders have identity equality): kept as a list, an adder added at most once (`Arc::ptr_eq`).
 pub static CURRENT_SCREEN_ADDERS: compat::MainThread<Vec<compat::Shared<dyn SlotTextAdder>>> = compat::MainThread::new(|| Vec::new());
-// TODO(fabric2seer): Fabric API `KeyMappingHelper.registerKeyMapping` has no SeerClient equivalent
-//   java: public static final KeyMapping KEY_MAPPING = KeyMappingHelper.registerKeyMapping(new KeyMapping("key.skyblocker.slottext", InputConstants.KEY_LALT, SkyblockerMod.KEYBINDING_CATEGORY));
 /// java: public static final KeyMapping KEY_MAPPING = KeyMappingHelper.registerKeyMapping(new KeyMapping("key.skyblocker.slottext", InputConstants.KEY_LALT, SkyblockerMod.KEYBINDING_CATEGORY));
-pub static KEY_MAPPING: compat::MainThread<mcrust::net::minecraft::client::key_mapping::KeyMapping> = compat::MainThread::new(|| key_binding_helper::register_key_binding(mcrust::net::minecraft::client::key_mapping::KeyMapping::new("key.skyblocker.slottext", 342 /* InputConstants.KEY_LALT */, *crate::entry::skyblocker_mod::KEYBINDING_CATEGORY.get())));
+pub static KEY_MAPPING: compat::MainThread<mcrust::net::minecraft::client::key_mapping::KeyMapping> = compat::MainThread::new(|| key_binding_helper::register_key_binding(mcrust::net::minecraft::client::key_mapping::KeyMapping::new("key.skyblocker.slottext", mcrust::com::mojang::blaze3d::platform::input_constants::KEY_LALT, *crate::entry::skyblocker_mod::KEYBINDING_CATEGORY.get())));
 /// java: private static boolean keyHeld = false;
 pub static KEY_HELD: LazyLock<Mutex<bool>> = LazyLock::new(|| Mutex::new(false));
 
@@ -84,31 +82,34 @@ impl SlotTextManager {
     }
 
     /// java: @Init public static void init()
-    ///
-    /// Java registers `ScreenKeyboardEvents.afterKeyPress(screen)` from `AFTER_INIT` for EVERY screen it sees; the
-    /// port's `AFTER_KEY_PRESS` is one global event over every screen, so ONE listener is registered here (registering
-    /// it inside `AFTER_INIT` would add another listener per screen opened, and the toggle would flip once per screen
-    /// ever opened).
     pub fn init() {
         screen_events::AFTER_INIT.register(Arc::new(|screen: &mut Screen, _width: i32, _height: i32| {
             if compat::container_screen_open() || mcrust::mcrust::modding::game::current_screen_is::<compat::ScreenAdapter<ProfileViewerScreen>>() || mcrust::mcrust::modding::game::current_screen_is::<compat::ScreenAdapter<RadialMenuScreen>>() {
                 SlotTextManager::on_screen_change(&screen);
                 // java: ScreenEvents.remove(screen).register(_ -> currentScreenAdders.clear());
-                // rust: port gap - the port has no `ScreenEvents.remove` (GAPS_batchE.md); the adders of the last
-                //   matching screen stay until the next one replaces them
-            }
-        }));
-        screen_keyboard_events::AFTER_KEY_PRESS.register(Arc::new(|_action: i32, key_event: &KeyEvent| {
-            if KEY_MAPPING.get_mut().matches(&key_event) {
-                // java: SkyblockerConfigManager.get().uiAndVisuals.slotText.slotTextToggled = !SkyblockerConfigManager.get().uiAndVisuals.slotText.slotTextToggled;
-                SkyblockerConfigManager::update(Arc::new(|config: &mut crate::de::hysky::skyblocker::config::skyblocker_config::SkyblockerConfig| {
-                    config.ui_and_visuals.slot_text.slot_text_toggled = !config.ui_and_visuals.slot_text.slot_text_toggled;
+                // Without this every adder ever matched stays active: e.g. "^Your Skills"' SkillLevelAdder then
+                // stamps a LIGHT_PURPLE "0" on rows 1-4 of every later container (the player inventory included).
+                screen_events::remove(&*screen, Arc::new(|_screen: &Screen| {
+                    CURRENT_SCREEN_ADDERS.get_mut().clear();
                 }));
-                compat::set_state(&KEY_HELD, true);
             }
+            // java: ScreenKeyboardEvents.afterKeyPress(screen).register((_, input) -> {..});
+            screen_keyboard_events::after_key_press(&*screen, Arc::new(|_screen: &Screen, input: &KeyEvent| {
+                if KEY_MAPPING.get_mut().matches(input) {
+                    // java: SkyblockerConfigManager.get().uiAndVisuals.slotText.slotTextToggled = !SkyblockerConfigManager.get().uiAndVisuals.slotText.slotTextToggled;
+                    SkyblockerConfigManager::update(Arc::new(|config: &mut crate::de::hysky::skyblocker::config::skyblocker_config::SkyblockerConfig| {
+                        config.ui_and_visuals.slot_text.slot_text_toggled = !config.ui_and_visuals.slot_text.slot_text_toggled;
+                    }));
+                    compat::set_state(&KEY_HELD, true);
+                }
+            }));
+            // java: ScreenKeyboardEvents.afterKeyRelease(screen).register((_, input) -> { if (KEY_MAPPING.matches(input)) keyHeld = false; });
+            screen_keyboard_events::after_key_release(&*screen, Arc::new(|_screen: &Screen, input: &KeyEvent| {
+                if KEY_MAPPING.get_mut().matches(input) {
+                    compat::set_state(&KEY_HELD, false);
+                }
+            }));
         }));
-        // java: ScreenKeyboardEvents.afterKeyRelease(screen).register((_, input) -> { if (KEY_MAPPING.matches(input)) keyHeld = false; });
-        // rust: port gap - the port has no `ScreenKeyboardEvents.afterKeyRelease` (GAPS_batchE.md)
     }
 
     /// java: private static void onScreenChange(Screen screen)

@@ -66,17 +66,20 @@ impl QuickNavConfirmationButton {
     }
 
     /// java: @Override public void playDownSound(SoundManager soundManager)
-    pub fn play_down_sound(__this: &compat::Shared<Self>, sound_manager: &mut SoundManager) {
+    /// (the port's press sound is played by the screen's click sweep, which asks the class WHICH event: this answers it)
+    pub fn play_down_sound(__this: &compat::Shared<Self>) -> Option<&'static mcrust::net::minecraft::sounds::sound_event::SoundEvent> {
         if QuickNavConfirmationButton::is_double_click(__this) {
             // java: super.playDownSound(soundManager);
-            // rust: port gap (GAPS_batchH #1) - the base click sound is the same `SoundManager.play` (no `AbstractWidget`
-            // method in the port; the game plays it from its own press path):
-            // rust: __this.lock().borrow_mut().base.play_down_sound(sound_manager);
-            return;
+            return <dyn QuickNavButton>::play_down_sound_body(&compat::view(__this, |a| a as compat::Shared<dyn QuickNavButton>));
         }
-        // rust: port gap (GAPS_batchH #1) - `SoundManager.play(instance)` needs the OpenAL device and library, which are
-        // locals of the port's frame loop (`LocalSoundContext`), not reachable from a widget's sound callback:
-        // rust: sound_manager.play(&SimpleSoundInstance::for_ui(mcrust::net::minecraft::sounds::sound_events::note_block_chime(), 1.0f32));
+        // java: soundManager.play(SimpleSoundInstance.forUI(SoundEvents.NOTE_BLOCK_CHIME, 1.0f));
+        // (`forUI(sound, 1.0f)` is the base's own instance shape, which the sweep plays)
+        return Some(mcrust::net::minecraft::sounds::sound_events::note_block_chime());
+    }
+
+    /// QuickNavConfirmationButton.playDownSound as the dispatch of QuickNavButton.playDownSound
+    pub fn play_down_sound_dyn(__this: &compat::Shared<dyn QuickNavButton>) -> Option<&'static mcrust::net::minecraft::sounds::sound_event::SoundEvent> {
+        Self::play_down_sound(&compat::view_as::<Self, _, Self>(__this, |a| a))
     }
 
     /// java: private boolean isDoubleClick()
@@ -102,6 +105,11 @@ impl QuickNavButton for QuickNavConfirmationButton {
     /// java: @Override public void extractWidgetRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a) (dispatch: the body for this class)
     fn extract_widget_render_state(&self) -> fn(&compat::Shared<dyn QuickNavButton>, &GuiGraphicsExtractor, i32, i32, f32) {
         QuickNavConfirmationButton::extract_widget_render_state_dyn
+    }
+
+    /// java: @Override public void playDownSound(SoundManager soundManager) (dispatch: the body for this class)
+    fn play_down_sound(&self) -> fn(&compat::Shared<dyn QuickNavButton>) -> Option<&'static mcrust::net::minecraft::sounds::sound_event::SoundEvent> {
+        QuickNavConfirmationButton::play_down_sound_dyn
     }
 
     /// java: @Override public void onClick(MouseButtonEvent click, boolean doubled) (dispatch: the body for this class)
@@ -172,4 +180,9 @@ impl ModWidget for compat::WidgetAdapter<QuickNavConfirmationButton> {
         self.lend(widget, |__h| ({ let __f = compat::dispatch(__h, |__t| __t.on_click()); __f(&compat::view(__h, |a| a as compat::Shared<dyn QuickNavButton>), event, double_click) }))
     }
 
+
+    /// java: @Override public void playDownSound(SoundManager soundManager)
+    fn play_down_sound(&self) -> Option<&'static mcrust::net::minecraft::sounds::sound_event::SoundEvent> {
+        QuickNavConfirmationButton::play_down_sound(self.object())
+    }
 }

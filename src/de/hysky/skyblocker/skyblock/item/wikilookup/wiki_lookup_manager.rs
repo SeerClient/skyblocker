@@ -41,14 +41,16 @@ impl WikiLookupManager {
     /// java: @Init public static void init()
     pub fn init() {
         // java: independent_wiki_lookup = KeyBindingHelper.registerKeyBinding(..) - the static must hold it (the config screen reads it)
-        *INDEPENDENT_WIKI_LOOKUP.get_mut() = Some(key_binding_helper::register_key_binding(KeyMapping::new("key.skyblocker.wikiLookup.independent", 290, Category::Misc)));
+        *INDEPENDENT_WIKI_LOOKUP.get_mut() = Some(key_binding_helper::register_key_binding(KeyMapping::new("key.skyblocker.wikiLookup.independent", mcrust::com::mojang::blaze3d::platform::input_constants::KEY_F1, Category::Misc)));
     }
 
     /// java: public static String getKeysText()
     pub fn get_keys_text() -> String {
-        // TODO(fabric2seer): `get_translated_key_message` takes 2 argument(s) in the port (`name: &str, key_name: &dyn Fn(i32, i32) -> Option<String>`), Java passes 0
-        // rust: let mut independent: Option<String> = (if INDEPENDENT_WIKI_LOOKUP.get_mut().as_ref().unwrap().is_unbound() { None } else { Some(compat::component_of(key_mapping::get_translated_key_message()).get_string()) });
-        let mut independent: Option<String> = todo!("fabric2seer: the initialiser of `independent` (TODO above)");
+        // java: String independent = independentWikiLookup.isUnbound() ? null : independentWikiLookup.getTranslatedKeyMessage().getString();
+        let mut independent: Option<String> = {
+            let __key = INDEPENDENT_WIKI_LOOKUP.get_mut().as_ref().unwrap();
+            if __key.is_unbound() { None } else { Some(mcrust::net::minecraft::client::key_mapping::get_translated_key_message(__key.get_name(), &|key: i32, _scancode: i32| compat::minecraft().key_names.get(&key).cloned()).get_string()) }
+        };
         let Some(independent) = independent else {
             return "".to_string();
         };
@@ -109,9 +111,12 @@ impl WikiLookupManager {
 
     /// java: public static ItemStack mapEitherToItemStack(Either<Slot, ItemStack> either)
     pub fn map_either_to_item_stack(either: &Either<Slot, mcrust::net::minecraft::world::item::item_stack::ItemStack>) -> mcrust::net::minecraft::world::item::item_stack::ItemStack {
-        // TODO(fabric2seer): `.getItem(..)` on a L
-        //   java: return either.right().orElseGet(() -> either.mapLeft(Slot::getItem).left().orElse(ItemStack.EMPTY));
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        // java: return either.right().orElseGet(() -> either.mapLeft(Slot::getItem).left().orElse(ItemStack.EMPTY));
+        // (`Slot.getItem()` reads the slot's container: the player's open menu, `compat::slot_item`)
+        if let Some(item_stack) = either.right_ref() {
+            return item_stack.clone();
+        }
+        return either.left_ref().map(|slot| compat::slot_item(slot)).unwrap_or_else(mcrust::net::minecraft::world::item::item_stack::empty);
     }
 
 }

@@ -21,12 +21,10 @@ fn skyblocker_hide_world_loading_screen(ci: &mut CallbackInfo<'_>) {
 
 /// @Inject skyblocker$hideWorldLoadingScreen
 ///   java: @Inject(method = { "extractRenderState", "extractBackground" }, at = @At("HEAD"), cancellable = true, require = 2)
-/// target: net.minecraft.client.gui.screens.LevelLoadingScreen#extractBackground  [no Rust counterpart]
-/// note: no Rust counterpart: hook_coverage.py: NO RUST - the port has no Rust body for this Java method, so a hook there has nothing to land on - the registration is left commented out (it would never fire, and `seer check` refuses an unhooked target)
-///
-/// rust: port gap - the loading screen's background is drawn inline by the client loop (minecraft.rs:17098), with no
-/// `LevelLoadingScreen.extractBackground` body to hook (GAPS_M #2); the handler is the same test as above and is not
-/// registered.
+/// target: net.minecraft.client.gui.screens.LevelLoadingScreen#extractBackground  [exists]
+/// Rust: net/minecraft/client/gui/screens/level_loading_screen.rs fn extract_background(gl, gfx, gui_w, gui_h, load_tracker, drawn: &mut bool)
+/// - called by the screen pass before it draws the panorama, blur and menu tile; cancelling it draws none of them.
+/// `this.loadTracker` is its argument 4, as for `extract_render_state`.
 fn skyblocker_hide_world_loading_screen_1(ci: &mut CallbackInfo<'_>) {
     //   java: Utils.isOnHypixel() && this.loadTracker.statusView() == null
     let no_status_view: bool = compat::hook_arg::<Option<&mcrust::net::minecraft::client::multiplayer::level_load_tracker::LevelLoadTracker>>(ci, 4).copied().flatten().is_none_or(|tracker| tracker.status_view().is_none());
@@ -38,6 +36,5 @@ fn skyblocker_hide_world_loading_screen_1(ci: &mut CallbackInfo<'_>) {
 /// Mixins apply before the game runs: the `preLaunch` entrypoint calls this.
 pub fn register() {
     report(hook::register_injector("net.minecraft.client.gui.screens.LevelLoadingScreen#extractRenderState", InjectOptions::at(At::Head).kind(InjectorKind::Inject).priority(1000), Arc::new(skyblocker_hide_world_loading_screen)));
-    // TODO(fabric2seer): not registered - no Rust counterpart: hook_coverage.py: NO RUST - the port has no Rust body for this Java method, so a hook there has nothing to land on - the registration is left commented out (it would never fire, and `seer check` refuses an unhooked target)
-    // report(hook::register_injector(`net.minecraft.client.gui.screens.LevelLoadingScreen#extractBackground`, InjectOptions::at(At::Head).kind(InjectorKind::Inject).priority(1000), Arc::new(skyblocker_hide_world_loading_screen_1)));
+    report(hook::register_injector("net.minecraft.client.gui.screens.LevelLoadingScreen#extractBackground", InjectOptions::at(At::Head).kind(InjectorKind::Inject).priority(1000), Arc::new(skyblocker_hide_world_loading_screen_1)));
 }

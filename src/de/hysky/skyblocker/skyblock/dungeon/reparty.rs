@@ -120,16 +120,15 @@ impl Reparty {
                     __f(__r, Arc::new(move || { if let Some(this) = __this_1.get().upgrade() { compat::write(&this, |__t| __t.repartying = false); } }), count.wrapping_mul(BASE_DELAY));
                 } else {
                     // java: CLIENT.player.sendSystemMessage(Constants.PREFIX.get().append(Component.translatable("skyblocker.reparty.notInPartyOrNotLeader")));
-                    // rust: port gap (GAPS_batchD #17) - a mod's system message is its text form (`script_host::send_feedback`)
                     let message = (crate::de::hysky::skyblocker::utils::constants::PREFIX.get())().append(mcrust::net::minecraft::network::chat::component::translatable("skyblocker.reparty.notInPartyOrNotLeader"));
-                    script_host::send_feedback(&message.to_string());
+                    compat::batch_w_send_feedback(&message);
                     compat::write(__this, |__t| __t.repartying = false);
                 }
             }
             // java: case ErrorS2CPacket(var id, var error) when id.equals(PartyInfoS2CPacket.ID) && this.repartying -> {..}
             crate::unresolved::HypixelS2CPacket::Error(error) if error.id == PartyInfoS2CPacket::ID && repartying => {
                 let message = (crate::de::hysky::skyblocker::utils::constants::PREFIX.get())().append(mcrust::net::minecraft::network::chat::component::translatable("skyblocker.reparty.error"));
-                script_host::send_feedback(&message.to_string());
+                compat::batch_w_send_feedback(&message);
                 logger().error(&format!("[Skyblocker Reparty] The party info packet returned an unexpected error! {:?}", error.reason));
                 compat::write(__this, |__t| __t.repartying = false);
             }

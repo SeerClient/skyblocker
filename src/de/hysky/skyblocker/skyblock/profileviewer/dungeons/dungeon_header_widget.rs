@@ -12,9 +12,7 @@ use mcrust::net::minecraft::client::gui::gui_graphics_extractor::GuiGraphicsExtr
 use mcrust::net::minecraft::resources::identifier::Identifier;
 
 /// java: private static final Font textRenderer = Minecraft.getInstance().font;
-pub static TEXT_RENDERER: compat::MainThread<Font> = compat::MainThread::new(|| compat::font());
-// TODO(fabric2seer): `new` takes 2 argument(s) in the port (`pattern: &str, symbols: DecimalFormatSymbols`), Java passes 1
-//   java: private static final DecimalFormat DF = new DecimalFormat("#.##");
+pub static TEXT_RENDERER: compat::LiveFont = compat::LiveFont;
 /// java: private static final DecimalFormat DF = new DecimalFormat("#.##");
 pub static DF: compat::MainThread<DecimalFormat> = compat::MainThread::new(|| DecimalFormat::new("#.##", mcrust::java::text::decimal_format_symbols::get_instance(Locale::Us)));
 /// java: private static final Identifier TEXTURE = SkyblockerMod.id("textures/gui/profile_viewer/dungeons_header.png");
@@ -57,10 +55,10 @@ impl DungeonHeaderWidget {
     /// java: public void extractRenderState(GuiGraphicsExtractor graphics, int x, int y)
     pub fn extract_render_state(&self, graphics: &GuiGraphicsExtractor, mut x: i32, mut y: i32) {
         gui_graphics_extractor::blit_identifier(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), mcrust::net::minecraft::client::renderer::render_pipelines::gui_textured(), TEXTURE.get_mut(), x, y, ((0) as f32) as f32, ((0) as f32) as f32, 109, 26, 109, 26);
-        // TODO(fabric2seer): `.getRGB(..)` on a value of unknown type
-        //   java: graphics.text(textRenderer, "§i§6§lCatacombs §r" + this.classLevel.level, x + 3, y + 4, Color.WHITE.getRGB(), true);
-        // TODO(fabric2seer): `.getRGB(..)` on a value of unknown type
-        //   java: graphics.text(textRenderer, "§eClass Average §r" + DF.format(this.classAvg), x + 3, y + 14, Color.WHITE.getRGB(), true);
+        // java: graphics.text(textRenderer, "§i§6§lCatacombs §r" + this.classLevel.level, x + 3, y + 4, Color.WHITE.getRGB(), true);
+        gui_graphics_extractor::text_string_with_drop_shadow(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), Some(&format!("§i§6§lCatacombs §r{}", compat::read(self.class_level.as_ref().unwrap(), |__t| __t.level))), x.wrapping_add(3), y.wrapping_add(4), mcrust::java::awt::color::white().get_rgb(), true);
+        // java: graphics.text(textRenderer, "§eClass Average §r" + DF.format(this.classAvg), x + 3, y + 14, Color.WHITE.getRGB(), true);
+        gui_graphics_extractor::text_string_with_drop_shadow(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), Some(&format!("§eClass Average §r{}", DF.get().format(self.class_avg as f64))), x.wrapping_add(3), y.wrapping_add(14), mcrust::java::awt::color::white().get_rgb(), true);
     }
 
 }

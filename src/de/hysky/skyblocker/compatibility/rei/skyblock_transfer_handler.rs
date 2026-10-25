@@ -50,7 +50,7 @@ impl SkyblockTransferHandler {
         };
         //   java: String neuId = itemStack.getNeuName();
         let neu_id: String = item_stack.get_neu_name();
-        if !(NEURepoManager::get_recipes().contains_key(&neu_id)) || !NEURepoManager::get_recipes().get(&neu_id).unwrap().iter().any(|recipe| (recipe as &dyn std::any::Any).is::<crate::unresolved::NEUCraftingRecipe>()) {
+        if !(NEURepoManager::get_recipes().contains_key(&neu_id)) || !NEURepoManager::get_recipes().get(&neu_id).unwrap().iter().any(|recipe| recipe.is::<crate::io::github::moulberry::repo::data::neu_crafting_recipe::NEUCraftingRecipe>()) {
             //   java: return ApplicabilityResult.createApplicableWithError(Component.translatable("skyblocker.rei.transfer.noRecipe"));
             return rei_applicability_result();
         }
@@ -81,7 +81,7 @@ impl SkyblockTransferHandler {
     }
 
     /// java: @Override public Result handle(Context context)
-    pub fn handle(&mut self, context: &crate::unresolved::Context) -> crate::unresolved::Result {
+    pub fn handle(__this: &compat::Shared<Self>, context: &crate::unresolved::Context) -> crate::unresolved::Result {
         //   java: EntryIngredient ingredient = context.getDisplay().getOutputEntries().getFirst();
         //   java: EntryStack<?> entryStack = ingredient.getFirst();
         //   java: if (!(entryStack.getValue() instanceof ItemStack itemStack)) return Result.createNotApplicable();
@@ -90,7 +90,7 @@ impl SkyblockTransferHandler {
         };
         //   java: String skyblockId = itemStack.getSkyblockId();
         let skyblock_id: String = item_stack.get_skyblock_id();
-        if self.has_failed(&skyblock_id) {
+        if compat::write(__this, |__t| __t.has_failed(&skyblock_id)) {
             //   java: return Result.createFailed(Component.translatable("skyblocker.rei.transfer.failed"));
             return rei_result();
         }
@@ -99,9 +99,9 @@ impl SkyblockTransferHandler {
             return rei_result();
         }
         MessageScheduler::send_message_after_cooldown(message_scheduler::INSTANCE.get_mut(), &format!("/viewrecipe {}", skyblock_id), false);
-        // rust: port gap - `Scheduler.INSTANCE.schedule(() -> checkScreen(skyblockId), 5)`: the handler is REI's object (the REI
-        // library is the `crate::unresolved` placeholders, GAPS_batchG) and the port holds no shared handle to it for the task
-        let _ = &skyblock_id;
+        // java: Scheduler.INSTANCE.schedule(() -> checkScreen(skyblockId), 5);
+        let __this_1 = __this.clone();
+        ({ let __r = scheduler::INSTANCE.get_mut(); let __f = compat::dispatch(__r, |__t| __t.schedule()); __f(__r, Arc::new(move || { let __id = skyblock_id.clone(); compat::write(&__this_1, |__t| __t.check_screen(__id)); }), 5) });
         //   java: return Result.createSuccessful();
         return rei_result();
     }
@@ -110,9 +110,10 @@ impl SkyblockTransferHandler {
 
 // The REI accessors this handler reads.
 //
-// rust: port gap - REI (`me.shedaniel.rei`) is a Java mod; its API types are `crate::unresolved` placeholders and no REI
-// runs to hand a `Context` (GAPS_batchG, GAPS_M #12). A placeholder context has no display: no category, no output
-// entry, not crafting; a placeholder result stands for each `create*()` answer.
+// REI (`me.shedaniel.rei`) is a separate mod that SeerClient never loads, so this handler is only reached when REI
+// hands it a `Context` - which does not happen. Its API types are the `crate::unresolved` names; the accessors below
+// are REI's side of the boundary and answer what a context without a display answers: no category, no output
+// entry, not crafting; the result value stands for each `create*()` answer.
 
 /// `context.getDisplay().getCategoryIdentifier()` as its identifier's string.
 fn rei_display_category(context: &crate::unresolved::Context) -> Option<String> {

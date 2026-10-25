@@ -5,32 +5,45 @@
 use crate::prelude::*;
 
 /// @Accessor getOverlayMessageString -> net.minecraft.client.gui.Hud.overlayMessageString
-// TODO(fabric2seer): `Component` - return `&obj.overlay_message_string` with its Rust type
-// pub fn get_overlay_message_string(obj: &mcrust::net::minecraft::client::gui::hud::Hud) -> &T { &obj.overlay_message_string }
+pub fn get_overlay_message_string(obj: &mcrust::net::minecraft::client::gui::hud::Hud) -> Option<mcrust::net::minecraft::network::chat::formatted_text::FormattedText> {
+    obj.overlay_message.clone()
+}
 
 /// @Accessor getFOOD_EMPTY_HUNGER_SPRITE -> net.minecraft.client.gui.Hud.FOOD_EMPTY_HUNGER_SPRITE
-// TODO(fabric2seer): `Identifier` - return `&obj.food_empty_hunger_sprite` with its Rust type
-// pub fn get_food_empty_hunger_sprite(obj: &mcrust::net::minecraft::client::gui::hud::Hud) -> &T { &obj.food_empty_hunger_sprite }
+/// (`Identifier.withDefaultNamespace("hud/food_empty_hunger")`, the constant `Hud` draws with)
+pub fn get_food_empty_hunger_sprite() -> mcrust::net::minecraft::resources::identifier::Identifier {
+    mcrust::net::minecraft::resources::identifier::Identifier::with_default_namespace("hud/food_empty_hunger")
+}
 
 /// @Accessor getFOOD_HALF_HUNGER_SPRITE -> net.minecraft.client.gui.Hud.FOOD_HALF_HUNGER_SPRITE
-// TODO(fabric2seer): `Identifier` - return `&obj.food_half_hunger_sprite` with its Rust type
-// pub fn get_food_half_hunger_sprite(obj: &mcrust::net::minecraft::client::gui::hud::Hud) -> &T { &obj.food_half_hunger_sprite }
+/// (`Identifier.withDefaultNamespace("hud/food_half_hunger")`, the constant `Hud` draws with)
+pub fn get_food_half_hunger_sprite() -> mcrust::net::minecraft::resources::identifier::Identifier {
+    mcrust::net::minecraft::resources::identifier::Identifier::with_default_namespace("hud/food_half_hunger")
+}
 
 /// @Accessor getFOOD_FULL_HUNGER_SPRITE -> net.minecraft.client.gui.Hud.FOOD_FULL_HUNGER_SPRITE
-// TODO(fabric2seer): `Identifier` - return `&obj.food_full_hunger_sprite` with its Rust type
-// pub fn get_food_full_hunger_sprite(obj: &mcrust::net::minecraft::client::gui::hud::Hud) -> &T { &obj.food_full_hunger_sprite }
+/// (`Identifier.withDefaultNamespace("hud/food_full_hunger")`, the constant `Hud` draws with)
+pub fn get_food_full_hunger_sprite() -> mcrust::net::minecraft::resources::identifier::Identifier {
+    mcrust::net::minecraft::resources::identifier::Identifier::with_default_namespace("hud/food_full_hunger")
+}
 
 /// @Accessor getFOOD_EMPTY_SPRITE -> net.minecraft.client.gui.Hud.FOOD_EMPTY_SPRITE
-// TODO(fabric2seer): `Identifier` - return `&obj.food_empty_sprite` with its Rust type
-// pub fn get_food_empty_sprite(obj: &mcrust::net::minecraft::client::gui::hud::Hud) -> &T { &obj.food_empty_sprite }
+/// (`Identifier.withDefaultNamespace("hud/food_empty")`, the constant `Hud` draws with)
+pub fn get_food_empty_sprite() -> mcrust::net::minecraft::resources::identifier::Identifier {
+    mcrust::net::minecraft::resources::identifier::Identifier::with_default_namespace("hud/food_empty")
+}
 
 /// @Accessor getFOOD_HALF_SPRITE -> net.minecraft.client.gui.Hud.FOOD_HALF_SPRITE
-// TODO(fabric2seer): `Identifier` - return `&obj.food_half_sprite` with its Rust type
-// pub fn get_food_half_sprite(obj: &mcrust::net::minecraft::client::gui::hud::Hud) -> &T { &obj.food_half_sprite }
+/// (`Identifier.withDefaultNamespace("hud/food_half")`, the constant `Hud` draws with)
+pub fn get_food_half_sprite() -> mcrust::net::minecraft::resources::identifier::Identifier {
+    mcrust::net::minecraft::resources::identifier::Identifier::with_default_namespace("hud/food_half")
+}
 
 /// @Accessor getFOOD_FULL_SPRITE -> net.minecraft.client.gui.Hud.FOOD_FULL_SPRITE
-// TODO(fabric2seer): `Identifier` - return `&obj.food_full_sprite` with its Rust type
-// pub fn get_food_full_sprite(obj: &mcrust::net::minecraft::client::gui::hud::Hud) -> &T { &obj.food_full_sprite }
+/// (`Identifier.withDefaultNamespace("hud/food_full")`, the constant `Hud` draws with)
+pub fn get_food_full_sprite() -> mcrust::net::minecraft::resources::identifier::Identifier {
+    mcrust::net::minecraft::resources::identifier::Identifier::with_default_namespace("hud/food_full")
+}
 
 /// @Invoker extractSidebar -> net.minecraft.client.gui.Hud.displayScoreboardSidebar
 // @Invoker: native mods call the method directly: `obj.display_scoreboard_sidebar(..)` (or `mcrust::net::minecraft::client::gui::hud::Hud::display_scoreboard_sidebar(..)`)

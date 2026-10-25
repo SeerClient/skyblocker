@@ -61,8 +61,8 @@ impl CorpseFinder {
             CORPSES_BY_TYPE.get_mut().clear();
         }));
         skyblock_events::LOCATION_CHANGE.register(Arc::new(move |__a0| { CorpseFinder::handle_location_change(__a0); }));
-        // TODO(fabric2seer): ClientReceiveMessageEvents.ALLOW_GAME.register: no SeerClient equivalent yet
-        //   java: ClientReceiveMessageEvents.ALLOW_GAME.register(CorpseFinder::onChatMessage);
+        // java: ClientReceiveMessageEvents.ALLOW_GAME.register(CorpseFinder::onChatMessage);
+        compat::register_allow_game(|text: &mcrust::net::minecraft::network::chat::mutable_component::MutableComponent, overlay: bool| CorpseFinder::on_chat_message(text, overlay));
         level_render_extraction_callback::EVENT.register(Arc::new(move |__a0| { CorpseFinder::extract_rendering(&__a0); }));
         client_tick_events::END_CLIENT_TICK.register(Arc::new(|minecraft: &mut Minecraft| {
             if !(SkyblockerConfigManager::get().mining.glacite.enable_corpse_finder) || mcrust::mcrust::modding::game::with_player(|_| ()).is_none() {
@@ -82,8 +82,28 @@ impl CorpseFinder {
         }));
         client_command_registration_callback::EVENT.register(Arc::new(
             |dispatcher: &mut client_command_registration_callback::ClientCommandDispatcher| {
-                // TODO(fabric2seer): a command tree this tool cannot read (arguments, redirects, requires) - SeerClient commands receive the words after the name in `ctx.args`
-                //   java: dispatcher.register(..);
+                use mcrust::com::mojang::brigadier::builder::argument_builder::ArgumentBuilder as _;
+                use mcrust::com::mojang::brigadier::context::command_context::CommandContext;
+                use crate::de::hysky::skyblocker::utils::command::argumenttypes::blockpos::client_block_pos_argument_type::ClientBlockPosArgumentType;
+                use crate::de::hysky::skyblocker::skyblock::dwarven::corpse_type::CorpseTypeArgumentType;
+                type Source = client_command_registration_callback::FabricClientCommandSource;
+                // java: dispatcher.register(literal(SkyblockerMod.NAMESPACE).then(literal("corpseHelper").then(literal("shareLocation")
+                //   .then(argument("blockPos", ClientBlockPosArgumentType.blockPos()).then(argument("corpseType", CorpseTypeArgumentType.corpseType())
+                //     .executes(context -> { shareLocation(ClientBlockPosArgumentType.getBlockPos(context, "blockPos"), CorpseTypeArgumentType.getCorpseType(context, "corpseType")); return Command.SINGLE_SUCCESS; }))))));
+                let mut corpse_type = client_command_registration_callback::argument("corpseType", Arc::new(CorpseTypeArgumentType::corpse_type().base));
+                corpse_type.executes(Arc::new(|context: &CommandContext<Source>| {
+                    CorpseFinder::share_location(&ClientBlockPosArgumentType::get_block_pos(context, "blockPos"), CorpseTypeArgumentType::get_corpse_type(context, "corpseType"));
+                    Ok(1)
+                }));
+                let mut block_pos = client_command_registration_callback::argument("blockPos", Arc::new(ClientBlockPosArgumentType::block_pos()));
+                block_pos.then(&corpse_type);
+                let mut share_location = client_command_registration_callback::literal("shareLocation");
+                share_location.then(&block_pos);
+                let mut corpse_helper = client_command_registration_callback::literal("corpseHelper");
+                corpse_helper.then(&share_location);
+                let mut root = client_command_registration_callback::literal(crate::entry::skyblocker_mod::NAMESPACE);
+                root.then(&corpse_helper);
+                dispatcher.dispatcher().register(&root);
             },
         ));
     }
@@ -127,7 +147,7 @@ impl CorpseFinder {
             corpse_waypoint = (WaypointBase::new(armor_stand_position.above(), Type::OutlinedWaypoint, color.clone()) as compat::Shared<dyn Waypoint>);
             // `!seenDebugWarning && (seenDebugWarning = true)`
             if crate::de::hysky::skyblocker::debug::debug::Debug::debug_enabled() && SkyblockerConfigManager::get().debug.corpse_finder_debug && !compat::get_state(&SEEN_DEBUG_WARNING) && { compat::set_state(&SEEN_DEBUG_WARNING, true); true } {
-                mcrust::mcrust::modding::game::with_player(|player| { script_host::send_feedback(&(constants::PREFIX.get_mut())().append((component::literal("Corpse finder debug mode is active! Please use it only for the sake of debugging corpse detection!")).with_style_formats(&[ChatFormatting::Gold, ChatFormatting::Bold])).to_string()); });
+                mcrust::mcrust::modding::game::with_player(|player| { compat::batch_w_send_feedback(&(constants::PREFIX.get_mut())().append((component::literal("Corpse finder debug mode is active! Please use it only for the sake of debugging corpse detection!")).with_style_formats(&[ChatFormatting::Gold, ChatFormatting::Bold]))); });
             }
             let mut new_corpse: Corpse = Corpse::new(armor_stand, corpse_waypoint.clone(), corpse_type);
             corpses.push(new_corpse);
@@ -204,11 +224,11 @@ impl CorpseFinder {
             .append(component::literal(&format!("{} Corpse", compat::capitalize_fully(&corpse.corpse_type.get_serialized_name()))).with_color(TextColor::from_legacy_format(corpse.corpse_type.fields().color).unwrap().get_value()))
             .append_str(&format!(" at {}!", corpse.block_position().above().as_vec3i().to_short_string()));
         message = message.with_style_fn(|style| style
-            .with_click_event(Some(mcrust::net::minecraft::network::chat::click_event::ClickEvent::new_run_command(format!("/skyblocker corpseHelper shareLocation {} {}", crate::de::hysky::skyblocker::utils::pos_utils::PosUtils::to_space_separated_string(&waypoint_pos), corpse.corpse_type.to_string().to_lowercase())))));
-        // java: Minecraft.getInstance().player.sendSystemMessage(..) - rust: port gap: a mod has only the text form of a
-        // system message (`script_host::send_feedback`), so the click and hover events are not carried (GAPS_batchD).
-        //   java: .withHoverEvent(new HoverEvent.ShowText(Component.literal("Click to share the location in chat!").withStyle(ChatFormatting.GREEN)))
-        mcrust::mcrust::modding::game::with_player(|player| { script_host::send_feedback(&message.to_string()); });
+            .with_click_event(Some(mcrust::net::minecraft::network::chat::click_event::ClickEvent::new_run_command(format!("/skyblocker corpseHelper shareLocation {} {}", crate::de::hysky::skyblocker::utils::pos_utils::PosUtils::to_space_separated_string(&waypoint_pos), corpse.corpse_type.to_string().to_lowercase()))))
+            // java: .withHoverEvent(new HoverEvent.ShowText(Component.literal("Click to share the location in chat!").withStyle(ChatFormatting.GREEN)))
+            .with_hover_event(Some(mcrust::net::minecraft::network::chat::hover_event::HoverEvent::new_show_text(mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::literal("Click to share the location in chat!").with_style_format(ChatFormatting::Green))))));
+        // java: Minecraft.getInstance().player.sendSystemMessage(..) - the component itself (its click and hover events)
+        mcrust::mcrust::modding::game::with_player(|player| { compat::batch_w_send_feedback(&message); });
     }
 
     /// java: private static void shareLocation(BlockPos pos, CorpseType corpseType)
@@ -255,7 +275,7 @@ impl CorpseFinder {
                     corpse.seen = true;
                     found_corpse = true;
                     logger().info(&format!("{}Setting corpse {} as seen!", PREFIX, corpse.entity));
-                    mcrust::mcrust::modding::game::with_player(|player| { script_host::send_feedback(&(constants::PREFIX.get_mut())().append_str("Parsed message from chat, adding corpse at ").append_str(&corpse.block_position().as_vec3i().to_short_string()).to_string()); });
+                    mcrust::mcrust::modding::game::with_player(|player| { compat::batch_w_send_feedback(&(constants::PREFIX.get_mut())().append_str("Parsed message from chat, adding corpse at ").append_str(&corpse.block_position().as_vec3i().to_short_string())); });
                     break;
                 }
             }

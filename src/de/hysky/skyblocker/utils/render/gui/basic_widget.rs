@@ -194,9 +194,9 @@ impl dyn BasicWidget {
 
     /// java: @Override public ScreenRectangle getRectangle()
     pub fn get_rectangle_body(__this: &compat::Shared<dyn BasicWidget>) -> ScreenRectangle {
-        // TODO(fabric2seer): `.getRectangle(..)` on a value of unknown type
-        //   java: return LayoutElement.super.getRectangle();
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        // java: return LayoutElement.super.getRectangle(); - `LayoutElement.getRectangle`: `new ScreenRectangle(this.getX(),
+        // this.getY(), this.getWidth(), this.getHeight())`
+        return ScreenRectangle::new_at(({ let __f = compat::dispatch(__this, |__t| __t.get_x()); __f(__this) }), ({ let __f = compat::dispatch(__this, |__t| __t.get_y()); __f(__this) }), ({ let __f = compat::dispatch(__this, |__t| __t.get_width()); __f(__this) }), ({ let __f = compat::dispatch(__this, |__t| __t.get_height()); __f(__this) }));
     }
 
 }

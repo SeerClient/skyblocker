@@ -1,5 +1,6 @@
 //! Ported from de.hysky.skyblocker.utils.render.primitive.PrimitiveCollectorImpl by fabric2seer.
 
+use std::sync::Arc;
 #[allow(unused_imports)]
 use crate::prelude::*;
 use crate::de::hysky::skyblocker::utils::render::frustum_utils::FrustumUtils;
@@ -27,6 +28,8 @@ use mcrust::net::minecraft::client::renderer::culling::frustum::Frustum;
 use mcrust::net::minecraft::client::renderer::state::level::camera_render_state::CameraRenderState;
 use mcrust::net::minecraft::client::renderer::state::level::level_render_state::LevelRenderState;
 use mcrust::net::minecraft::client::renderer::submit_node_collector::SubmitNodeCollector;
+use mcrust::net::minecraft::client::renderer::submit_node_storage::SubmitNodeStorage;
+use mcrust::net::minecraft::client::renderer::feature::submit::submit_node::SubmitNode;
 use mcrust::net::minecraft::core::block_pos::BlockPos;
 use mcrust::net::minecraft::network::chat::mutable_component::MutableComponent;
 use mcrust::net::minecraft::resources::identifier::Identifier;
@@ -44,12 +47,51 @@ use mcrust::net::minecraft::world::entity::player::player::Player as _;
 /// java: private static final int MAX_OVERWORLD_BUILD_HEIGHT = 319;
 pub const MAX_OVERWORLD_BUILD_HEIGHT: i32 = 319;
 
+/// OPTIMIZED BUT NOT FULLY VANILLA (perf round 1, P02-mods-runtime): `SKYBLOCKER_VANILLA_COLLECTOR=1` restores the
+/// per-primitive frustum copy, the per-frame backend query and the beacon beam's separate player null check.
+pub static VANILLA_COLLECTOR: compat::EnvSwitch = compat::EnvSwitch::new("SKYBLOCKER_VANILLA_COLLECTOR");
+
+/// `Frustum`'s hooked methods: while a non-Track injector targets one, the visibility test runs on a copy of the
+/// frustum, as before, so no injector code ever runs inside the collector's borrow.
+static FRUSTUM_STAND_DOWN: compat::HookStandDown = compat::HookStandDown::new(&[("net.minecraft.client.renderer.culling.Frustum", "*")], false);
+
+/// The hooked methods `isVulkan`'s query calls: while a non-Track injector targets one, the query runs every frame.
+static DEVICE_STAND_DOWN: compat::HookStandDown = compat::HookStandDown::new(
+    &[
+        ("com.mojang.blaze3d.", "getDevice"),
+        ("com.mojang.blaze3d.", "tryGetDevice"),
+        ("com.mojang.blaze3d.", "getDeviceInfo"),
+        ("com.mojang.blaze3d.", "backendName"),
+    ],
+    false,
+);
+
+/// java: `isVulkan = RenderSystem.getDevice().getDeviceInfo().backendName().equalsIgnoreCase("vulkan")` (constructor).
+///
+/// OPTIMIZED BUT NOT FULLY VANILLA (perf round 1, P02-mods-runtime): asked ONCE per process instead of once per frame
+/// (a new collector every frame). The device is created once (`RenderSystem.initRenderer`, at startup) and its backend
+/// cannot change without a restart, so every frame's query answers the first one's. Only an answer computed while no
+/// injector targets the query's methods is kept.
+fn backend_is_vulkan() -> bool {
+    fn query() -> bool {
+        compat::equals_ignore_case(&render_system::get_device().get_device_info().backend_name(), "vulkan")
+    }
+    static IS_VULKAN: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    if VANILLA_COLLECTOR.on() || !DEVICE_STAND_DOWN.clear() {
+        return query();
+    }
+    *IS_VULKAN.get_or_init(query)
+}
+
 /// java: public final class PrimitiveCollectorImpl implements PrimitiveCollector
 pub struct PrimitiveCollectorImpl {
     /// java: private final boolean isVulkan;
     pub is_vulkan: bool,
-    /// java: private final LevelRenderState worldState;
-    pub world_state: LevelRenderState,
+    /// java: private final LevelRenderState worldState; - the collector's only use of it is
+    /// `worldState.blockEntityRenderStates.add(state)` (`submitBeaconBeam`). The level state is the game's, lent to
+    /// `RenderHelper.startExtraction` and not held across the listeners it calls, so the added states wait here and
+    /// `RenderHelper` appends them to that same list when the collection ends (`end_collection_into`).
+    pub world_state_block_entity_render_states: Vec<mcrust::net::minecraft::client::renderer::blockentity::state::block_entity_render_state::PooledBlockEntityRenderState>,
     /// java: private final Frustum frustum;
     pub frustum: Frustum,
     /// java: private final List<VanillaSubmittable<?>> vanillaSubmittables = new ArrayList<>();
@@ -99,15 +141,15 @@ pub struct PrimitiveCollectorImpl {
 
 impl PrimitiveCollectorImpl {
     /// java: public PrimitiveCollectorImpl(LevelRenderState worldState, Frustum frustum)
-    pub fn new(mut world_state: LevelRenderState, mut frustum: Frustum) -> compat::Shared<Self> {
-        let __init_is_vulkan = compat::equals_ignore_case(&render_system::get_device().get_device_info().backend_name(), "vulkan");
-        // TODO(fabric2seer): the mod keeps the game's `LevelRenderState` (Java holds a reference to the live object); the port's `LevelRenderState` is not a value to copy and the port lends the mod no handle to it
-        //   java: this.worldState = worldState;
+    pub fn new(frustum: Frustum) -> compat::Shared<Self> {
+        // OPTIMIZED BUT NOT FULLY VANILLA (perf round 1, P02-mods-runtime): see `backend_is_vulkan`. Was:
+        //     let __init_is_vulkan = compat::equals_ignore_case(&render_system::get_device().get_device_info().backend_name(), "vulkan");
+        let __init_is_vulkan = backend_is_vulkan();
         let __init_frustum = frustum.clone();
         let __this = compat::shared(Self {
             self_ref: std::sync::Weak::new(),
             is_vulkan: __init_is_vulkan,
-            world_state: todo!("fabric2seer: the field value (TODO above)"),
+            world_state_block_entity_render_states: Vec::new(),
             frustum: __init_frustum,
             vanilla_submittables: Vec::new(),
             filled_box_states: Vec::new(),
@@ -134,10 +176,25 @@ impl PrimitiveCollectorImpl {
         __this
     }
 
+    /// `FrustumUtils.isVisible(this.frustum, minX, minY, minZ, maxX, maxY, maxZ)`.
+    ///
+    /// OPTIMIZED BUT NOT FULLY VANILLA (perf round 1, P02-mods-runtime): tested under the collector's read borrow on
+    /// the frustum in place, instead of on a copy of the ~300-byte frustum per submitted primitive. The test reads the
+    /// frustum and calls `Frustum.isVisible`, nothing else: with no injector on `Frustum` (`FRUSTUM_STAND_DOWN`) no
+    /// code can reach this collector while the borrow is held. The same frustum value, the same answer.
+    fn frustum_visible(__this: &compat::Shared<Self>, min_x: f64, min_y: f64, min_z: f64, max_x: f64, max_y: f64, max_z: f64) -> bool {
+        if VANILLA_COLLECTOR.on() || !FRUSTUM_STAND_DOWN.clear() {
+            // Was (at every submit): FrustumUtils::is_visible_7(&compat::read(__this, |__t| __t.frustum.clone()), ..)
+            return FrustumUtils::is_visible_7(&compat::read(__this, |__t| __t.frustum.clone()), min_x, min_y, min_z, max_x, max_y, max_z);
+        }
+        compat::read(__this, |__t| FrustumUtils::is_visible_7(&__t.frustum, min_x, min_y, min_z, max_x, max_y, max_z))
+    }
+
     /// java: private void submitFilledBox(double minX, double minY, double minZ, double maxX, double maxY, double maxZ, float[] colourComponents, float alpha, boolean throughWalls)
     pub fn submit_filled_box_9(__this: &compat::Shared<Self>, mut min_x: f64, mut min_y: f64, mut min_z: f64, mut max_x: f64, mut max_y: f64, mut max_z: f64, colour_components: &Vec<f32>, mut alpha: f32, mut through_walls: bool) {
         PrimitiveCollectorImpl::ensure_not_frozen(__this);
-        if !(FrustumUtils::is_visible_7(&compat::read(__this, |__t| __t.frustum.clone()), min_x, min_y, min_z, max_x, max_y, max_z)) {
+        // Was: if !(FrustumUtils::is_visible_7(&compat::read(__this, |__t| __t.frustum.clone()), min_x, min_y, min_z, max_x, max_y, max_z)) {
+        if !(PrimitiveCollectorImpl::frustum_visible(__this, min_x, min_y, min_z, max_x, max_y, max_z)) {
             return;
         }
         let mut state: FilledBoxRenderState = FilledBoxRenderState::new(min_x, min_y, min_z, max_x, max_y, max_z, colour_components.clone(), alpha);
@@ -153,7 +210,8 @@ impl PrimitiveCollectorImpl {
     /// java: private void submitBeaconBeam(BlockPos pos, float[] colourComponents)
     pub fn submit_beacon_beam(__this: &compat::Shared<Self>, mut pos: BlockPos, colour_components: &Vec<f32>) {
         PrimitiveCollectorImpl::ensure_not_frozen(__this);
-        if !(FrustumUtils::is_visible_7(&compat::read(__this, |__t| __t.frustum.clone()), ((pos.get_x()) as f64) as f64, ((pos.get_y()) as f64) as f64, ((pos.get_z()) as f64) as f64, ((pos.get_x().wrapping_add(1)) as f64) as f64, ((MAX_OVERWORLD_BUILD_HEIGHT) as f64) as f64, ((pos.get_z().wrapping_add(1)) as f64) as f64)) {
+        // Was: if !(FrustumUtils::is_visible_7(&compat::read(__this, |__t| __t.frustum.clone()), ..)) {
+        if !(PrimitiveCollectorImpl::frustum_visible(__this, ((pos.get_x()) as f64) as f64, ((pos.get_y()) as f64) as f64, ((pos.get_z()) as f64) as f64, ((pos.get_x().wrapping_add(1)) as f64) as f64, ((MAX_OVERWORLD_BUILD_HEIGHT) as f64) as f64, ((pos.get_z().wrapping_add(1)) as f64) as f64)) {
             return;
         }
         let mut colour: i32 = argb::color_from_float(1.0f32, colour_components[(0) as usize], colour_components[(1) as usize], colour_components[(2) as usize]);
@@ -166,23 +224,31 @@ impl PrimitiveCollectorImpl {
         };
         state.base.block_pos = pos.clone();
         // java: state.blockState = Blocks.BEACON.defaultBlockState();
-        // rust: port gap - `BlockEntityRenderState.block_state` is private in the port (only `extract_base` writes it) and
-        // has no setter; the field keeps its default (air), which only the crash report category reads (GAPS_batchA.md)
+        state.base.set_block_state(blocks::beacon().default_block_state());
         state.base.block_entity_type = mcrust::net::minecraft::world::level::block::entity::block_entity_types::beacon();
         state.base.light_coords = mcrust::net::minecraft::util::light_coords_util::FULL_BRIGHT;
         state.base.break_progress = None;
         state.beacon.animation_time = (if mcrust::mcrust::modding::game::level().is_some() { ((compat::floor_mod_i64(mcrust::mcrust::modding::game::level().unwrap().get_game_time(), (40 as i64)) as f32) + compat::minecraft().get_delta_tracker().get_game_time_delta_partial_tick(true)) } else { 0.0f32 });
         state.beacon.sections.push(Section { color: colour, height: MAX_OVERWORLD_BUILD_HEIGHT });
-        state.beacon.beam_radius_scale = (if mcrust::mcrust::modding::game::with_player(|_| ()).is_some() && mcrust::mcrust::modding::game::with_player(|player| player.is_scoping()).unwrap_or(false) { 1.0f32 } else { (1.0f32).max((length / 96.0f32)) });
+        // OPTIMIZED BUT NOT FULLY VANILLA (perf round 1, P02-mods-runtime): the null check folded into the read -
+        // `with_player` answers `None` for a null player and `isScoping` is then not asked, as the `&&` did. Was:
+        //     state.beacon.beam_radius_scale = (if mcrust::mcrust::modding::game::with_player(|_| ()).is_some() && mcrust::mcrust::modding::game::with_player(|player| player.is_scoping()).unwrap_or(false) { 1.0f32 } else { (1.0f32).max((length / 96.0f32)) });
+        let scoping: bool = if VANILLA_COLLECTOR.on() {
+            mcrust::mcrust::modding::game::with_player(|_| ()).is_some() && mcrust::mcrust::modding::game::with_player(|player| player.is_scoping()).unwrap_or(false)
+        } else {
+            mcrust::mcrust::modding::game::with_player(|player| player.is_scoping()).unwrap_or(false)
+        };
+        state.beacon.beam_radius_scale = (if scoping { 1.0f32 } else { (1.0f32).max((length / 96.0f32)) });
         // java: this.worldState.blockEntityRenderStates.add(state);
         let __h0 = mcrust::net::minecraft::client::renderer::blockentity::state::block_entity_render_state::PooledBlockEntityRenderState::new(Box::new(state));
-        __this.lock().borrow_mut().world_state.block_entity_render_states.push(__h0);
+        __this.lock().borrow_mut().world_state_block_entity_render_states.push(__h0);
     }
 
     /// java: private void submitOutlinedBox(double minX, double minY, double minZ, double maxX, double maxY, double maxZ, float[] colourComponents, float alpha, float lineWidth, boolean throughWalls)
     pub fn submit_outlined_box_10(__this: &compat::Shared<Self>, mut min_x: f64, mut min_y: f64, mut min_z: f64, mut max_x: f64, mut max_y: f64, mut max_z: f64, colour_components: &Vec<f32>, mut alpha: f32, mut line_width: f32, mut through_walls: bool) {
         PrimitiveCollectorImpl::ensure_not_frozen(__this);
-        if !(FrustumUtils::is_visible_7(&compat::read(__this, |__t| __t.frustum.clone()), min_x, min_y, min_z, max_x, max_y, max_z)) {
+        // Was: if !(FrustumUtils::is_visible_7(&compat::read(__this, |__t| __t.frustum.clone()), min_x, min_y, min_z, max_x, max_y, max_z)) {
+        if !(PrimitiveCollectorImpl::frustum_visible(__this, min_x, min_y, min_z, max_x, max_y, max_z)) {
             return;
         }
         let mut state: OutlinedBoxRenderState = OutlinedBoxRenderState::new(min_x, min_y, min_z, max_x, max_y, max_z, colour_components.clone(), alpha, line_width);
@@ -196,14 +262,16 @@ impl PrimitiveCollectorImpl {
     }
 
     /// java: private void submitText(FormattedCharSequence text, Vec3 pos, float scale, float yOffset, boolean throughWalls)
-    pub fn submit_text_formatted_char_sequence_vec3_float_float_boolean(__this: &compat::Shared<Self>, text: &Seq, pos: &Vec3, mut scale: f32, mut y_offset: f32, mut through_walls: bool) {
+    ///
+    /// (`text`: the component whose `getVisualOrderText()` Java hands in - the port's `Font.prepareText` /
+    /// `Font.width` take the component and lay it out in visual order themselves)
+    pub fn submit_text_formatted_char_sequence_vec3_float_float_boolean(__this: &compat::Shared<Self>, text: &mcrust::net::minecraft::network::chat::formatted_text::FormattedText, pos: &Vec3, mut scale: f32, mut y_offset: f32, mut through_walls: bool) {
         PrimitiveCollectorImpl::ensure_not_frozen(__this);
-        let mut text_renderer: Font = compat::font();
-        let mut x_offset: f32 = (((-text_renderer.width_of_sequence(&**text)) as f32) / 2.0f32);
-        // TODO(fabric2seer): the port's `prepare_text` ports this Java method with other parameters (text, x, y, color, drop_shadow, background_color for Java's text, x, y, original_color, draw_shadow, include_empty, background_color)
-        // TODO(fabric2seer): `prepare_text` takes 6 argument(s) in the port (`text: &crate::net::minecraft::network::chat::formatted_text::FormattedText, x: f32, y: f32, color: i32, drop_shadow: bool, background_color: i32`), Java passes 7
-        // rust: let mut glyphs: PreparedText = text_renderer.prepare_text(text, x_offset, y_offset, mcrust::net::minecraft::util::common_colors::WHITE, false, false, 0);
-        let mut glyphs: PreparedText = todo!("fabric2seer: the initialiser of `glyphs` (TODO above)");
+        let text_renderer: Font = compat::font();
+        let x_offset: f32 = ((-text_renderer.width_of(text)) as f32) / 2.0f32;
+        // java: Font.PreparedText glyphs = textRenderer.prepareText(text, xOffset, yOffset, CommonColors.WHITE, false, false, 0);
+        // (`includeEmpty` false: the port's `prepare_text` keeps no empty glyphs)
+        let glyphs: PreparedText = text_renderer.prepare_text(text, x_offset, y_offset, mcrust::net::minecraft::util::common_colors::WHITE, false, 0);
         let mut state: TextRenderState = TextRenderState::new(glyphs.clone(), pos.clone(), (scale * 0.025f32), y_offset);
         if through_walls {
             let __h0 = state.clone();
@@ -226,109 +294,110 @@ impl PrimitiveCollectorImpl {
         }
     }
 
+    /// RenderHelper.startExtraction's end: `collector.endCollection()`, with the states `submitBeaconBeam` added to
+    /// `worldState.blockEntityRenderStates` appended to that list (see `world_state_block_entity_render_states`).
+    pub fn end_collection_into(__this: &compat::Shared<Self>, world_state: &mut LevelRenderState) {
+        PrimitiveCollectorImpl::end_collection(__this);
+        let added = std::mem::take(&mut __this.lock().borrow_mut().world_state_block_entity_render_states);
+        world_state.block_entity_render_states.extend(added);
+    }
+
     /// java: @SuppressWarnings("unchecked") public void dispatchSubmits(LevelRenderState levelState, SubmitNodeCollector submitNodeCollector)
-    pub fn dispatch_submits(__this: &compat::Shared<Self>, level_state: &LevelRenderState, submit_node_collector: &mut dyn SubmitNodeCollector) {
+    ///
+    /// The collector is used once (Java drops it after this call), so each list is MOVED into its submit where Java
+    /// hands the list itself.
+    pub fn dispatch_submits(__this: &compat::Shared<Self>, level_state: &LevelRenderState, submit_node_collector: &mut SubmitNodeStorage) {
+        use mcrust::net::minecraft::client::renderer::submit_node_collection::PhaseId;
+        use super::{block_hologram_feature_renderer, cursor_line_feature_renderer, cylinder_feature_renderer, filled_box_feature_renderer, filled_box_instanced_feature_renderer, filled_circle_feature_renderer, lines_feature_renderer, outlined_box_feature_renderer, outlined_box_instanced_feature_renderer, outlined_circle_feature_renderer, quad_feature_renderer, sphere_feature_renderer, text_feature_renderer, textured_quad_feature_renderer};
         if !(compat::read(__this, |__t| __t.frozen)) {
             panic!("IllegalStateException: {}", "Cannot dispatch submits until the collection phase has ended!");
         }
         let camera = &level_state.camera_render_state;
-        if !(__this.lock().borrow().vanilla_submittables.is_empty()) {
-            for submittable in compat::read(__this, |__t| __t.vanilla_submittables.clone()) {
-                // java: ((VanillaSubmittable<Object>) submittable).renderer().submitVanilla(submittable.state(), levelState, submitNodeCollector);
+        let is_vulkan = compat::read(__this, |__t| __t.is_vulkan);
+        let vanilla_submittables = std::mem::take(&mut __this.lock().borrow_mut().vanilla_submittables);
+        if !vanilla_submittables.is_empty() {
+            for submittable in vanilla_submittables.iter() {
+                // java: ((VanillaRenderer<Object>) submittable.renderer).submitVanilla(submittable.state(), levelState, submitNodeCollector);
                 submittable.submit(level_state, submit_node_collector);
             }
         }
-        if !(__this.lock().borrow().filled_box_states.is_empty()) {
-            if compat::read(__this, |__t| __t.is_vulkan) {
-                // TODO(fabric2seer): static field SubmitRenderPhases.AFTER_TERRAIN
-                //   java: submitNodeCollector.submitCustom(SubmitRenderPhases.AFTER_TERRAIN, new FilledBoxInstancedFeatureRenderer.Submit(this.filledBoxStates, camera, false));
+        // SubmitRenderPhases.AFTER_TERRAIN / ALWAYS_ON_TOP / TEXTS - the frame's phases of those names
+        let mut submit_custom = |phase: PhaseId, node: std::sync::Arc<dyn SubmitNode>| compat::leftovers_submit_custom(submit_node_collector, phase, node);
+        let this_guard = __this.lock();
+        let mut this = this_guard.borrow_mut();
+        if !this.filled_box_states.is_empty() {
+            let states = std::mem::take(&mut this.filled_box_states);
+            if is_vulkan {
+                submit_custom(PhaseId::AfterTerrain, std::sync::Arc::new(filled_box_instanced_feature_renderer::Submit::new(states, camera.clone(), false)));
             } else {
-                // TODO(fabric2seer): static field SubmitRenderPhases.AFTER_TERRAIN
-                //   java: submitNodeCollector.submitCustom(SubmitRenderPhases.AFTER_TERRAIN, new FilledBoxFeatureRenderer.Submit(this.filledBoxStates, camera, false));
+                submit_custom(PhaseId::AfterTerrain, std::sync::Arc::new(filled_box_feature_renderer::Submit::new(states, camera.clone(), false)));
             }
         }
-        if !(__this.lock().borrow().filled_box_through_walls_states.is_empty()) {
-            if compat::read(__this, |__t| __t.is_vulkan) {
-                // TODO(fabric2seer): static field SubmitRenderPhases.ALWAYS_ON_TOP
-                //   java: submitNodeCollector.submitCustom(SubmitRenderPhases.ALWAYS_ON_TOP, new FilledBoxInstancedFeatureRenderer.Submit(this.filledBoxThroughWallsStates, camera, true));
+        if !this.filled_box_through_walls_states.is_empty() {
+            let states = std::mem::take(&mut this.filled_box_through_walls_states);
+            if is_vulkan {
+                submit_custom(PhaseId::AlwaysOnTopGizmos, std::sync::Arc::new(filled_box_instanced_feature_renderer::Submit::new(states, camera.clone(), true)));
             } else {
-                // TODO(fabric2seer): static field SubmitRenderPhases.ALWAYS_ON_TOP
-                //   java: submitNodeCollector.submitCustom(SubmitRenderPhases.ALWAYS_ON_TOP, new FilledBoxFeatureRenderer.Submit(this.filledBoxThroughWallsStates, camera, true));
+                submit_custom(PhaseId::AlwaysOnTopGizmos, std::sync::Arc::new(filled_box_feature_renderer::Submit::new(states, camera.clone(), true)));
             }
         }
-        if !(__this.lock().borrow().outlined_box_states.is_empty()) {
-            if compat::read(__this, |__t| __t.is_vulkan) {
-                // TODO(fabric2seer): static field SubmitRenderPhases.AFTER_TERRAIN
-                //   java: submitNodeCollector.submitCustom(SubmitRenderPhases.AFTER_TERRAIN, new OutlinedBoxInstancedFeatureRenderer.Submit(this.outlinedBoxStates, camera, false));
+        if !this.outlined_box_states.is_empty() {
+            let states = std::mem::take(&mut this.outlined_box_states);
+            if is_vulkan {
+                submit_custom(PhaseId::AfterTerrain, std::sync::Arc::new(outlined_box_instanced_feature_renderer::Submit::new(states, camera.clone(), false)));
             } else {
-                // TODO(fabric2seer): static field SubmitRenderPhases.AFTER_TERRAIN
-                //   java: submitNodeCollector.submitCustom(SubmitRenderPhases.AFTER_TERRAIN, new OutlinedBoxFeatureRenderer.Submit(this.outlinedBoxStates, camera, false));
+                submit_custom(PhaseId::AfterTerrain, std::sync::Arc::new(outlined_box_feature_renderer::Submit::new(states, camera.clone(), false)));
             }
         }
-        if !(__this.lock().borrow().outlined_box_through_walls_states.is_empty()) {
-            if compat::read(__this, |__t| __t.is_vulkan) {
-                // TODO(fabric2seer): static field SubmitRenderPhases.ALWAYS_ON_TOP
-                //   java: submitNodeCollector.submitCustom(SubmitRenderPhases.ALWAYS_ON_TOP, new OutlinedBoxInstancedFeatureRenderer.Submit(this.outlinedBoxThroughWallsStates, camera, true));
+        if !this.outlined_box_through_walls_states.is_empty() {
+            let states = std::mem::take(&mut this.outlined_box_through_walls_states);
+            if is_vulkan {
+                submit_custom(PhaseId::AlwaysOnTopGizmos, std::sync::Arc::new(outlined_box_instanced_feature_renderer::Submit::new(states, camera.clone(), true)));
             } else {
-                // TODO(fabric2seer): static field SubmitRenderPhases.ALWAYS_ON_TOP
-                //   java: submitNodeCollector.submitCustom(SubmitRenderPhases.ALWAYS_ON_TOP, new OutlinedBoxFeatureRenderer.Submit(this.outlinedBoxThroughWallsStates, camera, true));
+                submit_custom(PhaseId::AlwaysOnTopGizmos, std::sync::Arc::new(outlined_box_feature_renderer::Submit::new(states, camera.clone(), true)));
             }
         }
-        if !(__this.lock().borrow().lines_states.is_empty()) {
-            // TODO(fabric2seer): static field SubmitRenderPhases.AFTER_TERRAIN
-            //   java: submitNodeCollector.submitCustom(SubmitRenderPhases.AFTER_TERRAIN, new LinesFeatureRenderer.Submit(this.linesStates, camera, false));
+        if !this.lines_states.is_empty() {
+            submit_custom(PhaseId::AfterTerrain, std::sync::Arc::new(lines_feature_renderer::Submit::new(std::mem::take(&mut this.lines_states), camera.clone(), false)));
         }
-        if !(__this.lock().borrow().lines_through_walls_states.is_empty()) {
-            // TODO(fabric2seer): static field SubmitRenderPhases.ALWAYS_ON_TOP
-            //   java: submitNodeCollector.submitCustom(SubmitRenderPhases.ALWAYS_ON_TOP, new LinesFeatureRenderer.Submit(this.linesThroughWallsStates, camera, true));
+        if !this.lines_through_walls_states.is_empty() {
+            submit_custom(PhaseId::AlwaysOnTopGizmos, std::sync::Arc::new(lines_feature_renderer::Submit::new(std::mem::take(&mut this.lines_through_walls_states), camera.clone(), true)));
         }
-        if !(__this.lock().borrow().cursor_line_states.is_empty()) {
-            // TODO(fabric2seer): static field SubmitRenderPhases.ALWAYS_ON_TOP
-            //   java: submitNodeCollector.submitCustom(SubmitRenderPhases.ALWAYS_ON_TOP, new CursorLineFeatureRenderer.Submit(this.cursorLineStates, camera));
+        if !this.cursor_line_states.is_empty() {
+            submit_custom(PhaseId::AlwaysOnTopGizmos, std::sync::Arc::new(cursor_line_feature_renderer::Submit::new(std::mem::take(&mut this.cursor_line_states), camera.clone())));
         }
-        if !(__this.lock().borrow().quad_states.is_empty()) {
-            // TODO(fabric2seer): static field SubmitRenderPhases.AFTER_TERRAIN
-            //   java: submitNodeCollector.submitCustom(SubmitRenderPhases.AFTER_TERRAIN, new QuadFeatureRenderer.Submit(this.quadStates, camera, false));
+        if !this.quad_states.is_empty() {
+            submit_custom(PhaseId::AfterTerrain, std::sync::Arc::new(quad_feature_renderer::Submit::new(std::mem::take(&mut this.quad_states), camera.clone(), false)));
         }
-        if !(__this.lock().borrow().quad_through_walls_states.is_empty()) {
-            // TODO(fabric2seer): static field SubmitRenderPhases.ALWAYS_ON_TOP
-            //   java: submitNodeCollector.submitCustom(SubmitRenderPhases.ALWAYS_ON_TOP, new QuadFeatureRenderer.Submit(this.quadThroughWallsStates, camera, true));
+        if !this.quad_through_walls_states.is_empty() {
+            submit_custom(PhaseId::AlwaysOnTopGizmos, std::sync::Arc::new(quad_feature_renderer::Submit::new(std::mem::take(&mut this.quad_through_walls_states), camera.clone(), true)));
         }
-        if !(__this.lock().borrow().textured_quad_states.is_empty()) {
-            // TODO(fabric2seer): static field SubmitRenderPhases.AFTER_TERRAIN
-            //   java: submitNodeCollector.submitCustom(SubmitRenderPhases.AFTER_TERRAIN, new TexturedQuadFeatureRenderer.Submit(this.texturedQuadStates, camera, false));
+        if !this.textured_quad_states.is_empty() {
+            submit_custom(PhaseId::AfterTerrain, std::sync::Arc::new(textured_quad_feature_renderer::Submit::new(std::mem::take(&mut this.textured_quad_states), camera.clone(), false)));
         }
-        if !(__this.lock().borrow().textured_quad_through_walls_states.is_empty()) {
-            // TODO(fabric2seer): static field SubmitRenderPhases.ALWAYS_ON_TOP
-            //   java: submitNodeCollector.submitCustom(SubmitRenderPhases.ALWAYS_ON_TOP, new TexturedQuadFeatureRenderer.Submit(this.texturedQuadThroughWallsStates, camera, true));
+        if !this.textured_quad_through_walls_states.is_empty() {
+            submit_custom(PhaseId::AlwaysOnTopGizmos, std::sync::Arc::new(textured_quad_feature_renderer::Submit::new(std::mem::take(&mut this.textured_quad_through_walls_states), camera.clone(), true)));
         }
-        if !(__this.lock().borrow().block_hologram_states.is_empty()) {
-            // TODO(fabric2seer): static field SubmitRenderPhases.AFTER_TERRAIN
-            //   java: submitNodeCollector.submitCustom(SubmitRenderPhases.AFTER_TERRAIN, new BlockHologramFeatureRenderer.Submit(this.blockHologramStates, camera));
+        if !this.block_hologram_states.is_empty() {
+            submit_custom(PhaseId::AfterTerrain, std::sync::Arc::new(block_hologram_feature_renderer::Submit::new(std::mem::take(&mut this.block_hologram_states), camera.clone())));
         }
-        if !(__this.lock().borrow().text_states.is_empty()) {
-            // TODO(fabric2seer): static field SubmitRenderPhases.TEXTS
-            //   java: submitNodeCollector.submitCustom(SubmitRenderPhases.TEXTS, new TextFeatureRenderer.Submit(this.textStates, camera, false));
+        if !this.text_states.is_empty() {
+            submit_custom(PhaseId::Texts, std::sync::Arc::new(text_feature_renderer::Submit::new(std::mem::take(&mut this.text_states), camera.clone(), false)));
         }
-        if !(__this.lock().borrow().text_through_walls_states.is_empty()) {
-            // TODO(fabric2seer): static field SubmitRenderPhases.ALWAYS_ON_TOP
-            //   java: submitNodeCollector.submitCustom(SubmitRenderPhases.ALWAYS_ON_TOP, new TextFeatureRenderer.Submit(this.textThroughWallsStates, camera, true));
+        if !this.text_through_walls_states.is_empty() {
+            submit_custom(PhaseId::AlwaysOnTopGizmos, std::sync::Arc::new(text_feature_renderer::Submit::new(std::mem::take(&mut this.text_through_walls_states), camera.clone(), true)));
         }
-        if !(__this.lock().borrow().cylinder_states.is_empty()) {
-            // TODO(fabric2seer): static field SubmitRenderPhases.AFTER_TERRAIN
-            //   java: submitNodeCollector.submitCustom(SubmitRenderPhases.AFTER_TERRAIN, new CylinderFeatureRenderer.Submit(this.cylinderStates, camera));
+        if !this.cylinder_states.is_empty() {
+            submit_custom(PhaseId::AfterTerrain, std::sync::Arc::new(cylinder_feature_renderer::Submit::new(std::mem::take(&mut this.cylinder_states), camera.clone())));
         }
-        if !(__this.lock().borrow().sphere_states.is_empty()) {
-            // TODO(fabric2seer): static field SubmitRenderPhases.AFTER_TERRAIN
-            //   java: submitNodeCollector.submitCustom(SubmitRenderPhases.AFTER_TERRAIN, new SphereFeatureRenderer.Submit(this.sphereStates, camera));
+        if !this.sphere_states.is_empty() {
+            submit_custom(PhaseId::AfterTerrain, std::sync::Arc::new(sphere_feature_renderer::Submit::new(std::mem::take(&mut this.sphere_states), camera.clone())));
         }
-        if !(__this.lock().borrow().filled_circle_states.is_empty()) {
-            // TODO(fabric2seer): static field SubmitRenderPhases.AFTER_TERRAIN
-            //   java: submitNodeCollector.submitCustom(SubmitRenderPhases.AFTER_TERRAIN, new FilledCircleFeatureRenderer.Submit(this.filledCircleStates, camera));
+        if !this.filled_circle_states.is_empty() {
+            submit_custom(PhaseId::AfterTerrain, std::sync::Arc::new(filled_circle_feature_renderer::Submit::new(std::mem::take(&mut this.filled_circle_states), camera.clone())));
         }
-        if !(__this.lock().borrow().outlined_circle_states.is_empty()) {
-            // TODO(fabric2seer): static field SubmitRenderPhases.AFTER_TERRAIN
-            //   java: submitNodeCollector.submitCustom(SubmitRenderPhases.AFTER_TERRAIN, new OutlinedCircleFeatureRenderer.Submit(this.outlinedCircleStates, camera));
+        if !this.outlined_circle_states.is_empty() {
+            submit_custom(PhaseId::AfterTerrain, std::sync::Arc::new(outlined_circle_feature_renderer::Submit::new(std::mem::take(&mut this.outlined_circle_states), camera.clone())));
         }
     }
 
@@ -600,7 +669,8 @@ impl PrimitiveCollectorImpl {
     /// java: @Override public void submitBlockHologram(BlockPos pos, BlockState state, float alpha)
     pub fn submit_block_hologram_impl(__this: &compat::Shared<Self>, pos: &BlockPos, state: &Arc<BlockState>, mut alpha: f32) {
         PrimitiveCollectorImpl::ensure_not_frozen(__this);
-        if !(FrustumUtils::is_visible_7(&compat::read(__this, |__t| __t.frustum.clone()), ((pos.get_x()) as f64) as f64, ((pos.get_y()) as f64) as f64, ((pos.get_z()) as f64) as f64, ((pos.get_x().wrapping_add(1)) as f64) as f64, ((pos.get_y().wrapping_add(1)) as f64) as f64, ((pos.get_z().wrapping_add(1)) as f64) as f64)) {
+        // Was: if !(FrustumUtils::is_visible_7(&compat::read(__this, |__t| __t.frustum.clone()), ..)) {
+        if !(PrimitiveCollectorImpl::frustum_visible(__this, ((pos.get_x()) as f64) as f64, ((pos.get_y()) as f64) as f64, ((pos.get_z()) as f64) as f64, ((pos.get_x().wrapping_add(1)) as f64) as f64, ((pos.get_y().wrapping_add(1)) as f64) as f64, ((pos.get_z().wrapping_add(1)) as f64) as f64)) {
             return;
         }
         let mut render_state: BlockHologramRenderState = BlockHologramRenderState::new(pos.clone(), state.clone(), alpha);
@@ -635,7 +705,7 @@ impl PrimitiveCollectorImpl {
 
     /// java: @Override public void submitText(Component text, Vec3 pos, float scale, float yOffset, boolean throughWalls)
     pub fn submit_text_5_impl(__this: &compat::Shared<Self>, text: &MutableComponent, pos: &Vec3, mut scale: f32, mut y_offset: f32, mut through_walls: bool) {
-        PrimitiveCollectorImpl::submit_text_formatted_char_sequence_vec3_float_float_boolean(__this, &text.get_visual_order_text(), pos, scale, y_offset, through_walls);
+        PrimitiveCollectorImpl::submit_text_formatted_char_sequence_vec3_float_float_boolean(__this, &mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(text.clone()), pos, scale, y_offset, through_walls);
     }
 
     /// PrimitiveCollectorImpl.submitText as the dispatch of PrimitiveCollector.submitText

@@ -6,8 +6,7 @@ use crate::prelude::*;
 
 /// @Inject skyblocker$onGameRendererClose
 ///   java: @Inject(method = "close", at = @At("TAIL"))
-/// target: net.minecraft.client.renderer.GameRenderer#close  [no Rust counterpart]
-/// note: no Rust counterpart: hook_coverage.py: NO RUST - the port has no Rust body for this Java method, so a hook there has nothing to land on - the registration is left commented out (it would never fire, and `seer check` refuses an unhooked target)
+/// target: net.minecraft.client.renderer.GameRenderer#close  [exists: game_renderer.rs `GameRenderer::close`, called by `Minecraft.close:1145`]
 fn skyblocker_on_game_renderer_close(ci: &mut CallbackInfo<'_>) {
     crate::de::hysky::skyblocker::utils::render::gui_helper::GuiHelper::close();
     crate::de::hysky::skyblocker::skyblock::dungeon::dungeon_map_texture::DungeonMapTexture::close();
@@ -34,15 +33,13 @@ fn on_get_night_vision_strength(ci: &mut CallbackInfo<'_>) {
 
 /// @Inject skyblocker$onRenderGui
 ///   java: @Inject(method = "render", at = @At(value = "CONSTANT", args = "stringValue=gui"))
-/// note: @At("CONSTANT") is not expressible: SeerClient hooks fire at a method's HEAD, RETURN and TAIL, and at a hooked CALLEE inside another hooked method (`within`); field access, `new`, constants and jumps are not hook points
 fn skyblocker_on_render_gui(ci: &mut CallbackInfo<'_>) {
     crate::de::hysky::skyblocker::utils::render::gui_helper::GuiHelper::update_screen_blit_texture();
 }
 
 /// Mixins apply before the game runs: the `preLaunch` entrypoint calls this.
 pub fn register() {
-    // TODO(fabric2seer): not registered - no Rust counterpart: hook_coverage.py: NO RUST - the port has no Rust body for this Java method, so a hook there has nothing to land on - the registration is left commented out (it would never fire, and `seer check` refuses an unhooked target)
-    // report(hook::register_injector(`net.minecraft.client.renderer.GameRenderer#close`, InjectOptions::at(At::Tail).kind(InjectorKind::Inject).priority(1000), Arc::new(skyblocker_on_game_renderer_close)));
+    report(hook::register_injector("net.minecraft.client.renderer.GameRenderer#close", InjectOptions::at(At::Tail).kind(InjectorKind::Inject).priority(1000), Arc::new(skyblocker_on_game_renderer_close)));
     report(hook::register_injector("net.minecraft.client.renderer.GameRenderer#nightVisionScale", InjectOptions::at(At::Return).kind(InjectorKind::ModifyReturnValue).priority(1000), Arc::new(on_get_night_vision_strength)));
     // java: @At(CONSTANT "gui") in render - the `profiler.push("gui")` right before `this.guiRenderer.render()`
     // (GameRenderer:446-447, its only caller); the port runs that call from the client loop, so it is GuiRenderer#render's HEAD.

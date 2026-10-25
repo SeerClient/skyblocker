@@ -15,9 +15,7 @@ pub static TEXTURE: compat::MainThread<Identifier> = compat::MainThread::new(|| 
 /// java: private static final Identifier RUN_ICON = SkyblockerMod.id("textures/gui/profile_viewer/run_icon.png");
 pub static RUN_ICON: compat::MainThread<Identifier> = compat::MainThread::new(|| crate::entry::skyblocker_mod::id("textures/gui/profile_viewer/run_icon.png"));
 /// java: private static final Font textRenderer = Minecraft.getInstance().font;
-pub static TEXT_RENDERER: compat::MainThread<Font> = compat::MainThread::new(|| compat::font());
-// TODO(fabric2seer): `new` takes 2 argument(s) in the port (`pattern: &str, symbols: DecimalFormatSymbols`), Java passes 1
-//   java: private static final DecimalFormat DF = new DecimalFormat("#.##");
+pub static TEXT_RENDERER: compat::LiveFont = compat::LiveFont;
 /// java: private static final DecimalFormat DF = new DecimalFormat("#.##");
 pub static DF: compat::MainThread<DecimalFormat> = compat::MainThread::new(|| DecimalFormat::new("#.##", mcrust::java::text::decimal_format_symbols::get_instance(mcrust::java::text::decimal_format_symbols::Locale::Us)));
 /// java: private static final String[] DUNGEONS = {"catacombs", "master_catacombs"};
@@ -69,16 +67,16 @@ impl DungeonMiscStatsWidgets {
     pub fn extract_render_state(&self, graphics: &GuiGraphicsExtractor, mut x: i32, mut y: i32) {
         gui_graphics_extractor::blit_identifier(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), mcrust::net::minecraft::client::renderer::render_pipelines::gui_textured(), TEXTURE.get_mut(), x, y, ((0) as f32) as f32, ((0) as f32) as f32, 109, 26, 109, 26);
         graphics.item(&FlexibleItemStack::get_stack_or_throw(ico::FEATHER.get_mut()), x.wrapping_add(2), y.wrapping_add(4));
-        // TODO(fabric2seer): `.getRGB(..)` on a value of unknown type
-        //   java: graphics.text(textRenderer, "Secrets " + secrets, x + 30, y + 4, Color.WHITE.getRGB(), true);
-        // TODO(fabric2seer): `.getRGB(..)` on a value of unknown type
-        //   java: graphics.text(textRenderer, "Avg " + (totalRuns > 0 ? DF.format(secrets / (float) totalRuns) : 0) + "/Run", x + 30, y + 14, Color.WHITE.getRGB(), true);
+        // java: graphics.text(textRenderer, "Secrets " + secrets, x + 30, y + 4, Color.WHITE.getRGB(), true);
+        gui_graphics_extractor::text_string_with_drop_shadow(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), Some(&format!("Secrets {}", self.secrets)), x.wrapping_add(30), y.wrapping_add(4), mcrust::java::awt::color::white().get_rgb(), true);
+        // java: graphics.text(textRenderer, "Avg " + (totalRuns > 0 ? DF.format(secrets / (float) totalRuns) : 0) + "/Run", x + 30, y + 14, Color.WHITE.getRGB(), true);
+        gui_graphics_extractor::text_string_with_drop_shadow(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), Some(&format!("Avg {}/Run", if self.total_runs > 0 { DF.get().format(((self.secrets as f32) / (self.total_runs as f32)) as f64) } else { "0".to_string() })), x.wrapping_add(30), y.wrapping_add(14), mcrust::java::awt::color::white().get_rgb(), true);
         gui_graphics_extractor::blit_identifier(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), mcrust::net::minecraft::client::renderer::render_pipelines::gui_textured(), TEXTURE.get_mut(), x, y.wrapping_add(28), ((0) as f32) as f32, ((0) as f32) as f32, 109, 26, 109, 26);
         gui_graphics_extractor::blit_identifier(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), mcrust::net::minecraft::client::renderer::render_pipelines::gui_textured(), RUN_ICON.get_mut(), x.wrapping_add(4), y.wrapping_add(33), ((0) as f32) as f32, ((0) as f32) as f32, 14, 16, 14, 16);
-        // TODO(fabric2seer): `.getRGB(..)` on a value of unknown type
-        //   java: graphics.text(textRenderer, "§aNormal §r" + dungeonRuns.getOrDefault("catacombs", 0), x + 30, y + 32, Color.WHITE.getRGB(), true);
-        // TODO(fabric2seer): `.getRGB(..)` on a value of unknown type
-        //   java: graphics.text(textRenderer, "§cMaster §r" + dungeonRuns.getOrDefault("master_catacombs", 0), x + 30, y + 42, Color.WHITE.getRGB(), true);
+        // java: graphics.text(textRenderer, "§aNormal §r" + dungeonRuns.getOrDefault("catacombs", 0), x + 30, y + 32, Color.WHITE.getRGB(), true);
+        gui_graphics_extractor::text_string_with_drop_shadow(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), Some(&format!("§aNormal §r{}", self.dungeon_runs.get("catacombs").copied().unwrap_or(0))), x.wrapping_add(30), y.wrapping_add(32), mcrust::java::awt::color::white().get_rgb(), true);
+        // java: graphics.text(textRenderer, "§cMaster §r" + dungeonRuns.getOrDefault("master_catacombs", 0), x + 30, y + 42, Color.WHITE.getRGB(), true);
+        gui_graphics_extractor::text_string_with_drop_shadow(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), Some(&format!("§cMaster §r{}", self.dungeon_runs.get("master_catacombs").copied().unwrap_or(0))), x.wrapping_add(30), y.wrapping_add(42), mcrust::java::awt::color::white().get_rgb(), true);
     }
 
 }

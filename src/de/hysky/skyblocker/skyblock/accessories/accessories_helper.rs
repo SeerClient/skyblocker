@@ -18,6 +18,12 @@ use mcrust::net::minecraft::world::inventory::slot::Slot;
 use crate::de::hysky::skyblocker::injected::skyblocker_stack::SkyblockerStack as _;
 use crate::de::hysky::skyblocker::utils::data::json_data::JsonData as _;
 
+thread_local! {
+    /// The page of the accessory bag screen whose `ScreenEvents.afterTick` listener is registered (`None`: the open
+    /// screen registered none).
+    static AFTER_TICK_PAGE: std::cell::Cell<Option<i32>> = const { std::cell::Cell::new(None) };
+}
+
 /// java: private static final ObjectOpenHashSet<String> EMPTY = new ObjectOpenHashSet<>(0);
 pub static EMPTY: LazyLock<std::collections::HashSet<String>> = LazyLock::new(|| std::collections::HashSet::with_capacity((0) as usize));
 /// java: private static final Path FILE = SkyblockerMod.CONFIG_DIR.resolve("collected_accessories.json");
@@ -34,7 +40,6 @@ pub static HAS_FAMILY: compat::MainThread<Arc<dyn Fn(Accessory) -> bool>> = comp
 pub static ACCESSORY_TIER: compat::MainThread<Arc<dyn Fn(Accessory) -> i32>> = compat::MainThread::new(|| Arc::new(move |__a0| __a0.tier()));
 /// java: public static Map<String, Accessory> ACCESSORY_DATA = new Object2ObjectOpenHashMap<>();
 pub static ACCESSORY_DATA: LazyLock<Mutex<std::collections::HashMap<String, Accessory>>> = LazyLock::new(|| Mutex::new(std::collections::HashMap::new()));
-// TODO(fabric2seer): `PrimitiveCodec.listOf` has no Rust method in the port (looked for `list_of` in PrimitiveCodec and its supertypes)
 //   java: private static final Codec<ProfileAccessoryData> CODEC = RecordCodecBuilder.create(instance -> instance.group(
 //   java: 				Codec.unboundedMap(Codec.INT, Codec.STRING.listOf().xmap(ObjectOpenHashSet::new, ObjectArrayList::new))
 //   java: 						.xmap(Int2ObjectOpenHashMap::new, Int2ObjectOpenHashMap::new).fieldOf("pages").forGetter(ProfileAccessoryData::pages),
@@ -75,25 +80,67 @@ impl AccessoriesHelper {
     /// java: @Init public static void init()
     pub fn init() {
         COLLECTED_ACCESSORIES.get_mut().lock().borrow_mut().init();
+        AccessoriesHelper::install_after_tick();
+        AccessoriesHelperWidget::install_screen_hooks();
         screen_events::AFTER_INIT.register(Arc::new(|screen: &mut Screen, width: i32, height: i32| {
+            // `ScreenEvents.afterTick(screen)` and `attachToScreen(screen)` belong to the screen being initialised: a
+            // new screen (or a re-init) starts with neither, as a new Java screen has no listeners of its own
+            AFTER_TICK_PAGE.with(|p| p.set(None));
+            AccessoriesHelperWidget::cancel_attach();
             if Utils::is_on_skyblock() && { let __r = tooltip_info_type::ACCESSORIES.get_mut(); let __f = compat::dispatch(__r, |__t| __t.is_tooltip_enabled()); __f(&compat::view(__r, |a| a as compat::Shared<dyn TooltipInfoType>)) } && matches!(compat::minecraft().gui.screen_kind, mcrust::net::minecraft::client::gui::gui::ScreenKind::Container) && !(crate::entry::catharsis_compatibility::is_gui_element_hidden("skyblocker:accessoriesHelper")) {
                 // `screen instanceof ContainerScreen genericContainerScreen`: the screen's kind; its title is the
                 // `Screen` half the listener is handed
                 let mut matcher: compat::regex::Matcher = ACCESSORY_BAG_TITLE.matcher(&screen.get_title().to_string());
                 if matcher.matches() {
-                    // TODO(fabric2seer): ScreenEvents.afterTick(..).register: no SeerClient equivalent yet
-                    //   java: ScreenEvents.afterTick(screen).register(_ -> {
-                    //   java: 						ChestMenu handler = genericContainerScreen.getMenu();
-                    //   java: 						int page = matcher.group("page") != null ? Integer.parseInt(matcher.group("page")) : 1;
-                    //   java:
-                    //   java: 						collectAccessories(handler.slots.subList(0, handler.getRowCount() * 9), page);
-                    //   java: 					});
-                    // rust: port gap - `AccessoriesHelperWidget.attachToScreen(genericContainerScreen)`: the vanilla
-                    // `ContainerScreen` object is not lent to an AFTER_INIT listener (GAPS_batchG), so the widget is not attached
-                    let _ = AccessoriesHelperWidget::attach_to_screen;
+                    // java: ScreenEvents.afterTick(screen).register(_ -> {
+                    // java: 	ChestMenu handler = genericContainerScreen.getMenu();
+                    // java: 	int page = matcher.group("page") != null ? Integer.parseInt(matcher.group("page")) : 1;
+                    // java: 	collectAccessories(handler.slots.subList(0, handler.getRowCount() * 9), page);
+                    // java: });
+                    // (Fabric's per-screen `afterTick` is the end of `Screen.tick`, whose last statement for a container
+                    // screen is `containerTick()`: the listener is this screen's page, run by `install_after_tick`'s
+                    // RETURN injector there. The matcher is evaluated once, as the captured Java matcher answers the same
+                    // group on every tick.)
+                    let page: i32 = match matcher.group_named("page") {
+                        Some(page) => page.parse::<i32>().unwrap_or_else(|_| panic!("NumberFormatException: For input string: \"{page}\"")),
+                        None => 1,
+                    };
+                    AFTER_TICK_PAGE.with(|p| p.set(Some(page)));
+                    // java: AccessoriesHelperWidget.attachToScreen(genericContainerScreen);
+                    // (the listener is handed the `Screen` half; the container screen around it - `leftPos`, its widget
+                    // list - is attached to as `AbstractContainerScreen.init` returns, which is where this listener runs)
+                    AccessoriesHelperWidget::request_attach();
                 }
             }
         }));
+    }
+
+    /// java: `ScreenEvents.afterTick(screen).register(..)` for the accessory bag screen (see `init`): the end of the open
+    /// container screen's tick (`AbstractContainerScreen.tick:547`'s `containerTick()`), while that screen's AFTER_INIT
+    /// recorded a page.
+    fn install_after_tick() {
+        let result = mcrust::mcrust::modding::hook::inject(
+            "net.minecraft.client.gui.screens.inventory.AbstractContainerScreen#containerTick",
+            mcrust::mcrust::modding::hook::At::Return,
+            |_ci: &mut mcrust::mcrust::modding::hook::CallbackInfo<'_>| {
+                let Some(page) = AFTER_TICK_PAGE.with(|p| p.get()) else {
+                    return;
+                };
+                // java: ChestMenu handler = genericContainerScreen.getMenu();
+                // java: collectAccessories(handler.slots.subList(0, handler.getRowCount() * 9), page);
+                let Some(rows) = mcrust::mcrust::modding::game::with_chest_menu(|handler| handler.get_row_count()) else {
+                    return;
+                };
+                let count: usize = (rows.wrapping_mul(9)) as usize;
+                let Some(slots) = compat::with_open_menu(|menu, _| menu.slots[0..count].to_vec()) else {
+                    return;
+                };
+                AccessoriesHelper::collect_accessories(&slots, page);
+            },
+        );
+        if let Err(e) = result {
+            mcrust::mcrust::modding::log::warn_once("skyblocker-accessories-after-tick", &format!("{e:?}"));
+        }
     }
 
     /// java: private static void collectAccessories(List<Slot> slots, int page)

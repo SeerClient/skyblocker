@@ -87,7 +87,11 @@ pub trait AbstractCustomHypixelGUI<T: Clone + 'static> {
         let container_id = self.abstract_custom_hypixel_gui_base().container_id;
         compat::handle_container_input(container_id, slot_id, crate::de::hysky::skyblocker::utils::container_utils::ContainerUtils::get_container_click_button(button), ContainerInput::Pickup);
         // java: menu.getCarried().setCount(0);
+        // (`menu` is this screen's: the open menu only while its container id is the one this GUI clicks)
         mcrust::mcrust::modding::game::with_abstract_container_menu(|menu| {
+            if menu.container_id != container_id {
+                return;
+            }
             let mut carried = menu.get_carried().clone();
             carried.set_count(0);
             menu.set_carried(carried);

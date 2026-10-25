@@ -135,22 +135,151 @@ impl WaterboardOneFlow {
 
     /// java: @Init public static void init()
     pub fn init() {
-        // TODO(fabric2seer): no SeerClient event yet: hook RETURN of Minecraft's constructor (`net.minecraft.client.Minecraft#<init>`: exists)
-        //   java: ClientLifecycleEvents.CLIENT_STARTED.register(WaterboardOneFlow::loadSolutions);
-        // TODO(fabric2seer): UseBlockCallback.EVENT.register: no SeerClient equivalent yet
-        //   java: UseBlockCallback.EVENT.register(INSTANCE::onUseBlock);
+        // java: ClientLifecycleEvents.CLIENT_STARTED.register(WaterboardOneFlow::loadSolutions);
+        // (CLIENT_STARTED fires once on the client thread after the `Minecraft` constructor: `compat::execute` from an
+        // entrypoint is that point)
+        compat::execute(|| WaterboardOneFlow::load_solutions(compat::minecraft()));
+        // java: UseBlockCallback.EVENT.register(INSTANCE::onUseBlock);
+        mcrust::mcrust::modding::events::use_block_callback::register(|player, world, hand, block_hit_result| WaterboardOneFlow::on_use_block(INSTANCE.get(), player, world, &hand, block_hit_result));
         client_command_registration_callback::EVENT.register(Arc::new(
             |dispatcher: &mut client_command_registration_callback::ClientCommandDispatcher| {
-                // TODO(fabric2seer): a command tree this tool cannot read (arguments, redirects, requires) - SeerClient commands receive the words after the name in `ctx.args`
-                //   java: dispatcher.register(..);
+                use mcrust::com::mojang::brigadier::builder::argument_builder::ArgumentBuilder as _;
+                use crate::prelude::client_command_registration_callback as ccr;
+                type Ctx = mcrust::com::mojang::brigadier::context::command_context::CommandContext<ccr::FabricClientCommandSource>;
+                fn prefixed(text: mcrust::net::minecraft::network::chat::mutable_component::MutableComponent) -> mcrust::net::minecraft::network::chat::mutable_component::MutableComponent {
+                    (crate::de::hysky::skyblocker::utils::constants::PREFIX.get())().append(text)
+                }
+                // java: dispatcher.register(literal(NAMESPACE).then(literal("dungeons").then(literal("puzzle").then(literal(INSTANCE.puzzleName)
+                // java:     .then(literal("reset").executes(_ -> { INSTANCE.softReset(); return Command.SINGLE_SUCCESS; }))))));
+                let _ = prefixed;
+                let mut reset = ccr::literal("reset");
+                reset.executes(Arc::new(|_: &Ctx| { WaterboardOneFlow::soft_reset(INSTANCE.get()); Ok(1) }));
+                let puzzle_name: String = compat::read(INSTANCE.get(), |__t| __t.dungeon_puzzle_base().puzzle_name.clone());
+                let mut puzzle = ccr::literal(&puzzle_name);
+                puzzle.then(&reset);
+                let mut __n0 = ccr::literal("puzzle");
+                __n0.then(&puzzle);
+                let mut __n1 = ccr::literal("dungeons");
+                __n1.then(&__n0);
+                let mut __n2 = ccr::literal(crate::entry::skyblocker_mod::NAMESPACE);
+                __n2.then(&__n1);
+                dispatcher.dispatcher().register(&__n2);
             },
         ));
         server_tick_callback::EVENT.register(Arc::new(move || { WaterboardOneFlow::on_server_tick(INSTANCE.get_mut()); }));
         if crate::de::hysky::skyblocker::debug::debug::Debug::debug_enabled() {
             client_command_registration_callback::EVENT.register(Arc::new(
                 |dispatcher: &mut client_command_registration_callback::ClientCommandDispatcher| {
-                    // TODO(fabric2seer): a command tree this tool cannot read (arguments, redirects, requires) - SeerClient commands receive the words after the name in `ctx.args`
-                    //   java: dispatcher.register(..);
+                    use mcrust::com::mojang::brigadier::builder::argument_builder::ArgumentBuilder as _;
+                    use crate::prelude::client_command_registration_callback as ccr;
+                    type Ctx = mcrust::com::mojang::brigadier::context::command_context::CommandContext<ccr::FabricClientCommandSource>;
+                    fn prefixed(text: mcrust::net::minecraft::network::chat::mutable_component::MutableComponent) -> mcrust::net::minecraft::network::chat::mutable_component::MutableComponent {
+                        (crate::de::hysky::skyblocker::utils::constants::PREFIX.get())().append(text)
+                    }
+                    use mcrust::com::mojang::brigadier::arguments::string_argument_type::StringArgumentType;
+                    fn error(text: &str) {
+                        compat::batch_w_send_error(&prefixed(mcrust::net::minecraft::network::chat::component::literal(text)));
+                    }
+                    // java: .then(literal("setDoors").then(argument("combination", StringArgumentType.string()).executes(..)))
+                    let mut combination = ccr::argument("combination", Arc::new(StringArgumentType::string()));
+                    combination.executes(Arc::new(|context: &Ctx| {
+                        let door_combination: String = StringArgumentType::get_string(context, "combination");
+                        // java: if (SOLUTIONS.get("1").getAsJsonObject().keySet().contains(doorCombination))
+                        let known: bool = compat::lock(&SOLUTIONS).as_ref().and_then(|solutions| solutions.get("1")).and_then(|one| one.as_object()).is_some_and(|one| one.contains_key(&door_combination));
+                        if known {
+                            WaterboardOneFlow::soft_reset(INSTANCE.get());
+                            compat::write(INSTANCE.get(), |__t| __t.doors = Some(door_combination));
+                        } else {
+                            error("Door combination must be three increasing digits between 0 and 4");
+                        }
+                        Ok(1)
+                    }));
+                    let mut set_doors = ccr::literal("setDoors");
+                    set_doors.then(&combination);
+                    // java: .then(literal("toggleTimer").executes(..))
+                    let mut toggle_timer = ccr::literal("toggleTimer");
+                    toggle_timer.executes(Arc::new(|_: &Ctx| {
+                        let enabled: bool = compat::write(INSTANCE.get(), |__t| { __t.timer_enabled = !__t.timer_enabled; __t.timer_enabled });
+                        compat::batch_w_send_feedback(&prefixed(mcrust::net::minecraft::network::chat::component::literal(if enabled { "Timer enabled." } else { "Timer disabled." })));
+                        Ok(1)
+                    }));
+                    // java: .then(literal("modifyLever").then(argument("leverType", LeverTypeArgumentType.leverType()).then(argument("times", StringArgumentType.greedyString()).executes(..))))
+                    let mut times = ccr::argument("times", Arc::new(StringArgumentType::greedy_string()));
+                    times.executes(Arc::new(|context: &Ctx| {
+                        let lever_type: Option<LeverType> = context.get_argument::<LeverType>("leverType").copied();
+                        match lever_type {
+                            None => error("Invalid lever type"),
+                            Some(_) if compat::read(INSTANCE.get(), |__t| __t.solution.is_none()) => error("No existing solution"),
+                            Some(lever_type) => {
+                                // java: for (String time : getString(context, "times").split(" ")) times.add(Double.parseDouble(time)); - NumberFormatException
+                                let parsed: Result<Vec<f64>, ()> = compat::regex::split(&StringArgumentType::get_string(context, "times"), " ").iter().map(|time| time.trim().parse::<f64>().map_err(|_| ())).collect();
+                                match parsed {
+                                    Ok(times) => compat::write(INSTANCE.get(), |__t| { __t.solution.as_mut().unwrap().insert(lever_type, times); }),
+                                    Err(()) => error("Times must be valid numbers or decimals"),
+                                }
+                            }
+                        }
+                        Ok(1)
+                    }));
+                    let mut lever_type_argument = ccr::argument("leverType", Arc::new(crate::de::hysky::skyblocker::skyblock::dungeon::puzzle::waterboard::waterboard::LeverTypeArgumentType::lever_type().base));
+                    lever_type_argument.then(&times);
+                    let mut modify_lever = ccr::literal("modifyLever");
+                    modify_lever.then(&lever_type_argument);
+                    // java: .then(literal("addMark").executes(..))
+                    let mut add_mark = ccr::literal("addMark");
+                    add_mark.executes(Arc::new(|_: &Ctx| {
+                        use mcrust::net::minecraft::world::entity::entity::Entity as _;
+                        use crate::de::hysky::skyblocker::skyblock::dungeon::puzzle::waterboard::waterboard::{BOARD_MIN_X, BOARD_MAX_X, BOARD_MIN_Y, BOARD_MAX_Y, BOARD_Z};
+                        let (world, room, player) = compat::read(INSTANCE.get(), |__t| (__t.world.clone(), __t.room.clone(), __t.player));
+                        let (Some(world), Some(room), Some(_player)) = (world, room, player) else {
+                            error("Solver not active");
+                            return Ok(1);
+                        };
+                        let Some((eye, look_angle)) = mcrust::mcrust::modding::game::with_player(|player| (player.base().get_eye_position(), player.base().get_look_angle())) else {
+                            error("Solver not active");
+                            return Ok(1);
+                        };
+                        let to_relative = compat::dispatch(&room, |__t| __t.actual_to_relative_vec3());
+                        let camera: mcrust::net::minecraft::world::phys::vec3::Vec3 = to_relative(&room, &eye);
+                        let look: mcrust::net::minecraft::world::phys::vec3::Vec3 = to_relative(&room, &eye.add_vec(&look_angle)).subtract_vec(&camera);
+                        let t: f64 = ((BOARD_Z as f64) + 0.5 - camera.z) / look.z;
+                        let vec = camera.add_vec(&look.scale(t));
+                        let (x, y, z) = (vec.x.floor(), vec.y.floor(), vec.z.floor());
+                        if x < BOARD_MIN_X as f64 || x > BOARD_MAX_X as f64 || y < BOARD_MIN_Y as f64 || y > BOARD_MAX_Y as f64 || z != BOARD_Z as f64 {
+                            error("Mark is not inside the board");
+                            return Ok(1);
+                        }
+                        let to_actual = compat::dispatch(&room, |__t| __t.relative_to_actual_vec3());
+                        let actual = to_actual(&room, &vec);
+                        let pos = mcrust::net::minecraft::core::block_pos::BlockPos::containing(actual.x, actual.y, actual.z);
+                        if !world.get_block_state_typed(&pos).is_air() {
+                            error("Marks can only be placed on air");
+                            return Ok(1);
+                        }
+                        if compat::read(INSTANCE.get(), |__t| __t.marks.iter().any(|mark| mark.pos == pos)) {
+                            error("There is already a mark at that position");
+                            return Ok(1);
+                        }
+                        compat::write(INSTANCE.get(), |__t| { let index = (__t.marks.len() as i32) + 1; __t.marks.push(Mark::new(index, pos)); });
+                        Ok(1)
+                    }));
+                    // java: .then(literal("clearMarks").executes(..))
+                    let mut clear_marks = ccr::literal("clearMarks");
+                    clear_marks.executes(Arc::new(|_: &Ctx| { compat::write(INSTANCE.get(), |__t| __t.marks.clear()); Ok(1) }));
+                    let puzzle_name: String = compat::read(INSTANCE.get(), |__t| __t.dungeon_puzzle_base().puzzle_name.clone());
+                    let mut puzzle = ccr::literal(&puzzle_name);
+                    puzzle.then(&set_doors);
+                    puzzle.then(&toggle_timer);
+                    puzzle.then(&modify_lever);
+                    puzzle.then(&add_mark);
+                    puzzle.then(&clear_marks);
+                    let mut __n0 = ccr::literal("puzzle");
+                    __n0.then(&puzzle);
+                    let mut __n1 = ccr::literal("dungeons");
+                    __n1.then(&__n0);
+                    let mut __n2 = ccr::literal(crate::entry::skyblocker_mod::NAMESPACE);
+                    __n2.then(&__n1);
+                    dispatcher.dispatcher().register(&__n2);
                 },
             ));
         }
@@ -196,13 +325,13 @@ impl WaterboardOneFlow {
                 { let __v = true; compat::write(__this, |__t| __t.finished = __v); }
                 return;
             } else if compat::str_len(&__this.lock().borrow().doors.as_ref().unwrap()) != 3 {
-                script_host::send_feedback(&(constants::PREFIX.get_mut())().append(component::translatable("skyblocker.dungeons.puzzle.waterboard.invalidDoors")).to_string());
+                compat::batch_w_send_feedback(&(constants::PREFIX.get_mut())().append(component::translatable("skyblocker.dungeons.puzzle.waterboard.invalidDoors")));
                 { let __v = true; compat::write(__this, |__t| __t.finished = __v); }
                 return;
             }
         }
         if !(WaterboardOneFlow::check_water(__this)) {
-            script_host::send_feedback(&(constants::PREFIX.get_mut())().append(component::translatable("skyblocker.dungeons.puzzle.waterboard.waterFound")).to_string());
+            compat::batch_w_send_feedback(&(constants::PREFIX.get_mut())().append(component::translatable("skyblocker.dungeons.puzzle.waterboard.waterFound")));
             { let __v = true; compat::write(__this, |__t| __t.finished = __v); }
             return;
         }
@@ -287,11 +416,12 @@ impl WaterboardOneFlow {
             }
         }
         for lever_type in LeverType::values() {
-            let mut times: Vec<f64> = solution.get(&lever_type).cloned().unwrap();
+            // (`times` is the list the map holds: Java mutates it in place)
             if lever_type != LeverType::Water && WaterboardOneFlow::is_lever_active(__this, lever_type) {
+                let times: &mut Vec<f64> = solution.get_mut(&lever_type).unwrap();
                 if times.is_empty() || times[0] != 0.0 {
-                    // TODO(fabric2seer): List.addFirst(..)
-                    //   java: times.addFirst(0.0);
+                    // java: times.addFirst(0.0);
+                    times.insert(0, 0.0);
                 } else {
                     times.remove(0);
                 }
@@ -349,17 +479,16 @@ impl WaterboardOneFlow {
     pub fn on_use_block(__this: &compat::Shared<Self>, player: &dyn Player, world: &Level, hand: &InteractionHand, block_hit_result: &BlockHitResult) -> InteractionResult {
         // java: try {..} catch (Exception e) - an exception here is a panic, caught by `catch_unwind`
         let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            // TODO(fabric2seer): static `HitResult.Type` has no Rust counterpart in the port's HitResult file
-            // TODO(fabric2seer): the condition: field `BLOCK` of a value of unknown type
-            //   java: SkyblockerConfigManager.get().dungeons.puzzleSolvers.waterboardOneFlow &&
+            // java: SkyblockerConfigManager.get().dungeons.puzzleSolvers.waterboardOneFlow &&
             //   java: 					solution != null && blockHitResult.getType() == HitResult.Type.BLOCK
             if SkyblockerConfigManager::get().dungeons.puzzle_solvers.waterboard_one_flow && compat::read(__this, |__t| __t.solution.is_some()) && block_hit_result.get_type() == mcrust::net::minecraft::world::phys::hit_result::Type::Block {
                 let mut lever_type: Option<LeverType> = LeverType::from_pos(&({ let __r = &compat::read(__this, |__t| __t.room.clone()).unwrap(); let __f = compat::dispatch(__r, |__t| __t.actual_to_relative()); __f(__r, &block_hit_result.get_block_pos()) }));
                 if let Some(lever_type) = &lever_type {
+                    // (`times` is the list the solution map holds: Java mutates it in place)
                     let mut times: Vec<f64> = __this.lock().borrow().solution.as_ref().unwrap().get(lever_type).cloned().unwrap();
                     if compat::read(__this, |__t| __t.water_start_millis) == (0 as i64) && *lever_type != LeverType::Water && (times.is_empty() || times[0] != 0.0) {
-                        // TODO(fabric2seer): List.addFirst(..)
-                        //   java: times.addFirst(0.0);
+                        // java: times.addFirst(0.0);
+                        times.insert(0, 0.0);
                     } else {
                         if !times.is_empty() {
                             times.remove(0);
@@ -368,6 +497,7 @@ impl WaterboardOneFlow {
                             { let __v = compat::read(__this, |__t| __t.current_time_millis); compat::write(__this, |__t| __t.water_start_millis = __v); }
                         }
                     }
+                    { let __lever = *lever_type; compat::write(__this, |__t| { __t.solution.as_mut().unwrap().insert(__lever, times); }); }
                 }
             }
         }));
@@ -456,7 +586,7 @@ impl WaterboardOneFlow {
             let __this_w1 = std::sync::Arc::downgrade(__this);
             let __this_w2 = std::sync::Arc::downgrade(__this);
             // java: solve = CompletableFuture.runAsync(() -> solvePuzzle(), Executors.newVirtualThreadPerTaskExecutor()).exceptionally(e -> {..});
-            // rust: the solve reads and writes this object (not `Send`), so it runs deferred on the render thread
+            // DIVERGENCE: the solve reads and writes this object (not `Send`), so it runs deferred on the render thread
             // (`compat::LocalFuture::supply_local`) rather than on a worker; its exception handler likewise
             { let __v = Some((compat::LocalFuture::<()>::supply_local(move || { let Some(__this_1) = __this_w1.upgrade() else { return Default::default(); }; { WaterboardOneFlow::solve_puzzle((&__this_1)); } })).exceptionally_async(move |e| { let Some(__this_2) = __this_w2.upgrade() else { return Default::default(); }; {
                 logger().error(&format!("[Skyblocker Waterboard] Encountered an unknown exception while solving waterboard."));
@@ -469,8 +599,7 @@ impl WaterboardOneFlow {
             if compat::read(__this, |__t| __t.timer_enabled) {
                 let mut elapsed: f64 = (((compat::read(__this, |__t| __t.current_time_millis)).wrapping_sub(compat::read(__this, |__t| __t.water_start_millis)) as f64) / 1000.0);
                 // java: player.sendSystemMessage(Constants.PREFIX.get().append("Puzzle solved in ").append(Component.literal(String.format("%.2f", elapsed)).withStyle(GREEN)).append(RESET.toString()).append(" seconds."));
-                // rust: port gap (GAPS_batchD #17) - a mod's system message is its text form (`script_host::send_feedback`)
-                { use mcrust::net::minecraft::network::chat::component::Component as _; script_host::send_feedback(&(constants::PREFIX.get())().append_str("Puzzle solved in ").append((component::literal(&compat::string_format("%.2f", &[elapsed.into()]))).with_style_format(ChatFormatting::Green)).append_str(&ChatFormatting::Reset.to_string()).append_str(" seconds.").get_string()); }
+                { use mcrust::net::minecraft::network::chat::component::Component as _; compat::batch_w_send_feedback(&(constants::PREFIX.get())().append_str("Puzzle solved in ").append((component::literal(&compat::string_format("%.2f", &[elapsed.into()]))).with_style_format(ChatFormatting::Green)).append_str(&ChatFormatting::Reset.to_string()).append_str(" seconds.")); }
             }
         }
         if compat::read(__this, |__t| __t.water_start_millis) > (0 as i64) {
@@ -481,8 +610,7 @@ impl WaterboardOneFlow {
                     compat::write(__this, |__t| __t.marks[__mark_index].reached = true);
                     let mut elapsed: f64 = (((compat::read(__this, |__t| __t.current_time_millis)).wrapping_sub(compat::read(__this, |__t| __t.water_start_millis)) as f64) / 1000.0);
                     // java: player.sendSystemMessage(Constants.PREFIX.get().append(String.format("Mark %d reached in ", mark.index)).append(..).append(RESET.toString()).append(" seconds."));
-                    // rust: port gap (GAPS_batchD #17) - a mod's system message is its text form (`script_host::send_feedback`)
-                    { use mcrust::net::minecraft::network::chat::component::Component as _; script_host::send_feedback(&(constants::PREFIX.get())().append_str(&format!("Mark {} reached in ", mark.index)).append((component::literal(&compat::string_format("%.2f", &[elapsed.into()]))).with_style_format(ChatFormatting::Green)).append_str(&ChatFormatting::Reset.to_string()).append_str(" seconds.").get_string()); }
+                        { use mcrust::net::minecraft::network::chat::component::Component as _; compat::batch_w_send_feedback(&(constants::PREFIX.get())().append_str(&format!("Mark {} reached in ", mark.index)).append((component::literal(&compat::string_format("%.2f", &[elapsed.into()]))).with_style_format(ChatFormatting::Green)).append_str(&ChatFormatting::Reset.to_string()).append_str(" seconds.")); }
                 }
             }
         }
@@ -506,8 +634,7 @@ impl WaterboardOneFlow {
                 ({ let __f = compat::dispatch(collector, |__t| __t.submit_text()); __f(collector, &component::null_to_empty(Some(&format!("Mark {}", mark.index))), &vec3::at_center_of(&mark.pos).relative(Direction::Up, 0.2), true) });
             }
             if compat::read(__this, |__t| __t.solution.clone()).is_some() {
-                // TODO(fabric2seer): List.doubleStream(..)
-                //   java: List<ObjectDoublePair<LeverType>> sortedTimes = solution.entrySet().stream()
+                // java: List<ObjectDoublePair<LeverType>> sortedTimes = solution.entrySet().stream()
                 //   java: 						.flatMap(entry -> entry.getValue().doubleStream().mapToObj(time -> ObjectDoublePair.of(entry.getKey(), time)))
                 //   java: 						// Sort by next use time, then by lever type
                 //   java: 						.sorted(Comparator

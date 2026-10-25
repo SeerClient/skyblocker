@@ -59,14 +59,13 @@ impl GridTooltipComponent {
 
     /// java: @Override public void extractText(GuiGraphicsExtractor graphics, Font font, int x, int y)
     pub fn extract_text(__this: &compat::Shared<Self>, graphics: &GuiGraphicsExtractor, font: &Font, mut x: i32, mut y: i32) {
-        // TODO(fabric2seer): the port's `text_renderer` ports this Java method with other parameters (mouse_x, mouse_y for Java's )
-        // TODO(fabric2seer): `text_renderer` takes 2 argument(s) in the port (`mouse_x: f64, mouse_y: f64`), Java passes 0
-        // rust: let mut text_renderer: Box<dyn ActiveTextCollector> = gui_graphics_extractor::text_renderer();
-        let mut text_renderer: Box<dyn ActiveTextCollector> = todo!("fabric2seer: the initialiser of `textRenderer` (TODO above)");
+        // java: ActiveTextCollector textRenderer = graphics.textRenderer(); - its `accept(x, y, text)` below is
+        // `RenderingTextCollector.accept`'s draw: the text left-aligned at (x, y), `ARGB.white(opacity)` (opacity 1), with
+        // its drop shadow
         for i in { 0..(__this.lock().borrow().sequence.grid_contents().components().len() as i32) } {
             let column = &__this.lock().borrow().sequence.grid_contents().components()[(i) as usize];
-            // TODO(fabric2seer): `ActiveTextCollector.accept` has no Rust method in the port (looked for `accept` in ActiveTextCollector and its supertypes)
-            // rust: text_renderer.accept(x, y, column);
+            // java: textRenderer.accept(x, y, column);
+            gui_graphics_extractor::draw_formatted_text_with_drop_shadow(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), &mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(column.clone()), x, y, -1, true);
             if compat::read(__this, |__t| __t.manager.clone()).is_none() {
                 x = x.wrapping_add(font.width_of_cached(&mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(column.clone())));
             } else {
@@ -76,4 +75,34 @@ impl GridTooltipComponent {
         }
     }
 
+}
+
+/// java: `GridTooltipComponent implements ClientTooltipComponent` - the object the game's tooltip list holds
+/// (`List<ClientTooltipComponent>`): it carries the mod's shared object, so `initializeGrids` can find it again
+/// (`as_any`) and hand it its manager, and every draw goes to the bodies above.
+pub struct GridTooltipComponentLine(pub compat::Shared<GridTooltipComponent>);
+
+impl mcrust::net::minecraft::client::gui::screens::inventory::tooltip::client_tooltip_component::ClientTooltipComponent for GridTooltipComponentLine {
+    fn as_any(&self) -> Option<&dyn std::any::Any> {
+        Some(self)
+    }
+
+    /// java: @Override public int getHeight(Font font)
+    fn get_height(&self, _font: &dyn mcrust::net::minecraft::client::gui::screens::inventory::tooltip::client_tooltip_component::TooltipFont) -> i32 {
+        GridTooltipComponent::get_height(&self.0, &compat::font())
+    }
+
+    /// java: @Override public int getWidth(Font font) (the game's `Font`: the tooltip's font is always `Minecraft.font`)
+    fn get_width(&self, _font: &dyn mcrust::net::minecraft::client::gui::screens::inventory::tooltip::client_tooltip_component::TooltipFont) -> i32 {
+        GridTooltipComponent::get_width(&self.0, &compat::font())
+    }
+
+    fn extracts_text(&self) -> bool {
+        true
+    }
+
+    /// java: @Override public void extractText(GuiGraphicsExtractor graphics, Font font, int x, int y)
+    fn extract_text(&self, _graphics: &mut mcrust::net::minecraft::client::gui::screens::inventory::tooltip::client_tooltip_component::TooltipGraphics<'_>, _font: &dyn mcrust::net::minecraft::client::gui::screens::inventory::tooltip::client_tooltip_component::TooltipFont, x: i32, y: i32) {
+        GridTooltipComponent::extract_text(&self.0, &GuiGraphicsExtractor::new(), &compat::font(), x, y);
+    }
 }

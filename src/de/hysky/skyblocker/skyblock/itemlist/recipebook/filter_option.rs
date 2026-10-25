@@ -106,3 +106,10 @@ impl crate::de::hysky::skyblocker::utils::enum_utils::JavaEnum for FilterOption 
         FilterOption::values()
     }
 }
+
+/// java: `FilterOption implements Supplier<Identifier>`
+impl crate::de::hysky::skyblocker::utils::render::gui::cycling_texture_widget::IdentifierSupplier for FilterOption {
+    fn get(&self) -> mcrust::net::minecraft::resources::identifier::Identifier {
+        FilterOption::get(self)
+    }
+}

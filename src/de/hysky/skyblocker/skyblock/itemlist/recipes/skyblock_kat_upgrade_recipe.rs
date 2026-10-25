@@ -37,7 +37,7 @@ pub struct SkyblockKatUpgradeRecipe {
 
 impl SkyblockKatUpgradeRecipe {
     /// java: public SkyblockKatUpgradeRecipe(NEUKatUpgradeRecipe recipe)
-    pub fn new(mut recipe: crate::unresolved::NEUKatUpgradeRecipe) -> compat::Shared<Self> {
+    pub fn new(mut recipe: crate::io::github::moulberry::repo::data::neu_kat_upgrade_recipe::NEUKatUpgradeRecipe) -> compat::Shared<Self> {
         let __this = compat::shared(Self {
             base_pet: None,
             inputs: Default::default(),
@@ -47,19 +47,23 @@ impl SkyblockKatUpgradeRecipe {
         if KAT_ICON.get_mut().is_none() {
             *KAT_ICON.get_mut() = ItemRepository::get_item_stack("KAT_NPC");
         }
-        // TODO(fabric2seer): `.getSeconds(..)` on a NEUKatUpgradeRecipe
         //   java: upgradeTime = SkyblockTime.formatTime(recipe.getSeconds());
-        // TODO(fabric2seer): `.getInput(..)` on a NEUKatUpgradeRecipe
+        { let __v = Some(crate::de::hysky::skyblocker::utils::time::skyblock_time::SkyblockTime::format_time(recipe.get_seconds() as f64)); compat::write(&__this, |__t| __t.upgrade_time = __v); }
         //   java: basePet = SkyblockRecipe.getItemStack(recipe.getInput());
-        // TODO(fabric2seer): `.getOutput(..)` on a NEUKatUpgradeRecipe
+        { let __v = Some(crate::de::hysky::skyblocker::skyblock::itemlist::recipes::skyblock_recipe::get_item_stack(recipe.get_input().expect("java.lang.NullPointerException: the NEU recipe has no input"))); compat::write(&__this, |__t| __t.base_pet = __v); }
         //   java: upgradedPet = SkyblockRecipe.getItemStack(recipe.getOutput());
+        { let __v = Some(crate::de::hysky::skyblocker::skyblock::itemlist::recipes::skyblock_recipe::get_item_stack(recipe.get_output().expect("java.lang.NullPointerException: the NEU recipe has no output"))); compat::write(&__this, |__t| __t.upgraded_pet = __v); }
         { let __v = Vec::new(); compat::write(&__this, |__t| __t.inputs = __v); }
         let __h0 = compat::read(&__this, |__t| __t.base_pet.clone()).unwrap();
         __this.lock().borrow_mut().inputs.push(__h0);
-        // TODO(fabric2seer): `.getItems(..)` on a NEUKatUpgradeRecipe
         //   java: recipe.getItems().stream().map(SkyblockRecipe::getItemStack).forEach(inputs::add);
-        // TODO(fabric2seer): static call NEUIngredient.ofCoins(..)
+        for item in recipe.get_items().iter() {
+            let __v = crate::de::hysky::skyblocker::skyblock::itemlist::recipes::skyblock_recipe::get_item_stack(item);
+            __this.lock().borrow_mut().inputs.push(__v);
+        }
         //   java: inputs.add(SkyblockRecipe.getItemStack(NEUIngredient.ofCoins(recipe.getCoins())));
+        let __v = crate::de::hysky::skyblocker::skyblock::itemlist::recipes::skyblock_recipe::get_item_stack(&crate::io::github::moulberry::repo::data::neu_ingredient::NEUIngredient::of_coins(recipe.get_coins()));
+        __this.lock().borrow_mut().inputs.push(__v);
         __this
     }
 

@@ -4,6 +4,8 @@ pub use std::sync::{Arc, LazyLock, Mutex};
 pub use mcrust::mcrust::modding::hook::{self, At, CallbackInfo, InjectOptions, InjectorKind, Original, Shift};
 pub use mcrust::mcrust::modding::events::{client_command_registration_callback, client_play_connection_events, client_tick_events, hud_render_callback, item_tooltip_callback, key_binding_helper, screen_events, screen_keyboard_events, screen_mouse_events, world_render_events};
 pub use mcrust::mcrust::modding::script_host::{self, ScriptGraphics};
+// Fabric API `HudElementRegistry` / `VanillaHudElements` / `HudElement`
+pub use mcrust::mcrust::modding::hud_element_registry::{self, vanilla_hud_elements, HudElement};
 pub use mcrust::mcrust::modding::attach::{AttachmentTarget, AttachmentType};
 pub use mcrust::mcrust::modding::networking;
 pub use mcrust::mcrust::modding::log::Logger;

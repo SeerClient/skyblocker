@@ -2,6 +2,7 @@
 
 #[allow(unused_imports)]
 use crate::prelude::*;
+use crate::de::hysky::skyblocker::utils::render::text::grid_component::GridComponent;
 use crate::de::hysky::skyblocker::config::skyblocker_config_manager::SkyblockerConfigManager;
 use crate::de::hysky::skyblocker::skyblock::item::tooltip::info::tooltip_info_type;
 use crate::de::hysky::skyblocker::skyblock::item::tooltip::info::tooltip_info_type::TooltipInfoType;
@@ -132,10 +133,10 @@ impl MotesTooltip {
     pub fn add_to_tooltip_impl(__this: &compat::Shared<Self>, mut focused_slot: Option<Slot>, stack: &mcrust::net::minecraft::world::item::item_stack::ItemStack, lines: &mut Vec<MutableComponent>) {
         let mut internal_id: String = stack.get_skyblock_id();
         if tooltip_info_type::MOTES.get_mut().lock().borrow().has_or_null_warning(&internal_id) {
-            // TODO(fabric2seer): `.getInt(..)` on a T
-            //   java: lines.add(GridComponent.of(
-            //   java: 					Component.literal("Motes Price:").withStyle(ChatFormatting.LIGHT_PURPLE),
-            //   java: 					getMotesMessage(TooltipInfoType.MOTES.getData().getInt(internalID), stack.getCount())));
+            //   java: lines.add(GridComponent.of(Component.literal("Motes Price:").withStyle(ChatFormatting.LIGHT_PURPLE),
+            //   java:     getMotesMessage(TooltipInfoType.MOTES.getData().getInt(internalID), stack.getCount())));
+            let price: i32 = tooltip_info_type::MOTES.get_mut().lock().borrow().get_data().expect("NullPointerException: TooltipInfoType.MOTES.getData()").get(&internal_id).copied().unwrap_or(0);
+            lines.push(GridComponent::of(&vec![component::literal("Motes Price:").with_style_format(ChatFormatting::LightPurple), MotesTooltip::get_motes_message(price, stack.get_count())]));
         }
     }
 

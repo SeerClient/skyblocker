@@ -9,12 +9,17 @@
 extern crate mcrust;
 
 pub mod compat;
+pub mod overflow_trace;
 pub mod prelude;
 pub mod mixins;
 pub mod entry;
 pub mod de;
 pub mod unresolved;
 pub mod net;
+/// io.github.moulberry.repo - the NEU repository parser library (`moe.nea:neurepoparser`).
+pub mod io;
+/// meteordevelopment.discordipc - the Discord Rich Presence IPC library (`meteordevelopment:discord-ipc:1.1`).
+pub mod meteordevelopment;
 
 use mcrust::mcrust::modding::entrypoint::{ClientModInitializer, ModInitializer, PreLaunchEntrypoint};
 
@@ -27,6 +32,8 @@ impl PreLaunchEntrypoint for Mixins {
         compat::register_hooks(); // the hooks the compat layer reads the game through
         // the hm-api library's mixins (its Hypixel Mod API channels) - Fabric applies a dependency's mixins with the mod's
         net::azureaaron::hmapi::hm_api::HMApi::register_mixins();
+        // the Render Chest library's mixins (render-chest.mixins.json) - a bundled mod, applied with the mod's
+        net::azureaaron::renderchest::r#impl::render_chest::RenderChest::register_mixins();
         mixins::abstract_container_menu_mixin::register();
         mixins::abstract_container_screen_mixin::register();
         mixins::abstract_sign_edit_screen_mixin::register();
@@ -124,6 +131,13 @@ impl ClientModInitializer for Client {
         // hm-api's ClientModInitializer: a dependency of Skyblocker, so Fabric initializes it first
         net::azureaaron::hmapi::hm_api::HMApi::on_initialize_client();
         entry::skyblocker_mod::on_initialize_client();
+        // java: the "modmenu" entrypoint, de.hysky.skyblocker.compatibility.modmenu.ModMenuEntry -
+        // `getModConfigScreenFactory()` is `SkyblockerConfigManager::createGUI`. SeerClient's mod list reads it from
+        // `mod_menu::register_config_screen*`; the config screen is built by Dandelion and opened by its own `.set()`,
+        // with the mod list (the current screen) as its parent.
+        mcrust::mcrust::modding::mod_menu::register_config_screen_opener("skyblocker", || {
+            crate::de::hysky::skyblocker::config::skyblocker_config_manager::SkyblockerConfigManager::create_gui(Some(dandelion::compat::ScreenRef::Current)).set();
+        });
     }
 }
 

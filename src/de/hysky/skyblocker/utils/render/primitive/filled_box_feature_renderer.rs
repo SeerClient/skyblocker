@@ -2,6 +2,7 @@
 
 #[allow(unused_imports)]
 use crate::prelude::*;
+use crate::de::hysky::skyblocker::utils::render::primitive::primitive_feature_renderer;
 use crate::de::hysky::skyblocker::utils::render::primitive::primitive_feature_renderer::PrimitiveFeatureRenderer;
 use crate::de::hysky::skyblocker::utils::render::primitive::primitive_feature_renderer::PrimitiveFeatureRendererBase;
 use crate::de::hysky::skyblocker::utils::render::skyblocker_render_pipelines;
@@ -61,11 +62,11 @@ impl PrimitiveFeatureRenderer<crate::de::hysky::skyblocker::utils::render::primi
     }
 
     /// java: @Override protected void buildGroup(FeatureFrameContext context, List<Submit> submits)
-    fn build_group(&self, context: &FeatureFrameContext, submits: &Vec<Submit>) {
-        for submit in submits.iter() {
-            let mut position_matrix: Matrix4f = Matrix4f::new().translate((((-submit.camera().pos.x)) as f32), (((-submit.camera().pos.y)) as f32), (((-submit.camera().pos.z)) as f32));
-            for state in submit.states() {
-                let mut builder: Box<dyn VertexConsumer> = self.get_vertex_builder(&(if submit.through_walls() { skyblocker_render_pipelines::FILLED_THROUGH_WALLS.get_mut().clone() } else { mcrust::net::minecraft::client::renderer::render_pipelines::debug_filled_box() }));
+    fn build_group(&mut self, context: &mut FeatureFrameContext<'_>, submits: &[std::sync::Arc<dyn SubmitNode>]) {
+        for submit in primitive_feature_renderer::submits::<Submit>(submits) {
+            let mut position_matrix: Matrix4f = Matrix4f::new().translate((((-submit.camera.pos.x)) as f32), (((-submit.camera.pos.y)) as f32), (((-submit.camera.pos.z)) as f32));
+            for state in submit.states.iter() {
+                let builder = self.get_vertex_builder(context, &(if submit.through_walls() { skyblocker_render_pipelines::FILLED_THROUGH_WALLS.get_mut().clone() } else { mcrust::net::minecraft::client::renderer::render_pipelines::debug_filled_box() }));
                 let mut min_x: f32 = ((state.min_x()) as f32);
                 let mut min_y: f32 = ((state.min_y()) as f32);
                 let mut min_z: f32 = ((state.min_z()) as f32);
@@ -76,30 +77,30 @@ impl PrimitiveFeatureRenderer<crate::de::hysky::skyblocker::utils::render::primi
                 let mut green: f32 = state.colour_components()[(1) as usize];
                 let mut blue: f32 = state.colour_components()[(2) as usize];
                 let mut alpha: f32 = state.alpha();
-                { builder.add_vertex_matrix(&position_matrix, min_x, min_y, max_z); builder.set_color_f32(red, green, blue, alpha); &mut builder };
-                { builder.add_vertex_matrix(&position_matrix, max_x, min_y, max_z); builder.set_color_f32(red, green, blue, alpha); &mut builder };
-                { builder.add_vertex_matrix(&position_matrix, max_x, max_y, max_z); builder.set_color_f32(red, green, blue, alpha); &mut builder };
-                { builder.add_vertex_matrix(&position_matrix, min_x, max_y, max_z); builder.set_color_f32(red, green, blue, alpha); &mut builder };
-                { builder.add_vertex_matrix(&position_matrix, max_x, min_y, min_z); builder.set_color_f32(red, green, blue, alpha); &mut builder };
-                { builder.add_vertex_matrix(&position_matrix, min_x, min_y, min_z); builder.set_color_f32(red, green, blue, alpha); &mut builder };
-                { builder.add_vertex_matrix(&position_matrix, min_x, max_y, min_z); builder.set_color_f32(red, green, blue, alpha); &mut builder };
-                { builder.add_vertex_matrix(&position_matrix, max_x, max_y, min_z); builder.set_color_f32(red, green, blue, alpha); &mut builder };
-                { builder.add_vertex_matrix(&position_matrix, min_x, min_y, min_z); builder.set_color_f32(red, green, blue, alpha); &mut builder };
-                { builder.add_vertex_matrix(&position_matrix, min_x, min_y, max_z); builder.set_color_f32(red, green, blue, alpha); &mut builder };
-                { builder.add_vertex_matrix(&position_matrix, min_x, max_y, max_z); builder.set_color_f32(red, green, blue, alpha); &mut builder };
-                { builder.add_vertex_matrix(&position_matrix, min_x, max_y, min_z); builder.set_color_f32(red, green, blue, alpha); &mut builder };
-                { builder.add_vertex_matrix(&position_matrix, max_x, min_y, max_z); builder.set_color_f32(red, green, blue, alpha); &mut builder };
-                { builder.add_vertex_matrix(&position_matrix, max_x, min_y, min_z); builder.set_color_f32(red, green, blue, alpha); &mut builder };
-                { builder.add_vertex_matrix(&position_matrix, max_x, max_y, min_z); builder.set_color_f32(red, green, blue, alpha); &mut builder };
-                { builder.add_vertex_matrix(&position_matrix, max_x, max_y, max_z); builder.set_color_f32(red, green, blue, alpha); &mut builder };
-                { builder.add_vertex_matrix(&position_matrix, min_x, max_y, max_z); builder.set_color_f32(red, green, blue, alpha); &mut builder };
-                { builder.add_vertex_matrix(&position_matrix, max_x, max_y, max_z); builder.set_color_f32(red, green, blue, alpha); &mut builder };
-                { builder.add_vertex_matrix(&position_matrix, max_x, max_y, min_z); builder.set_color_f32(red, green, blue, alpha); &mut builder };
-                { builder.add_vertex_matrix(&position_matrix, min_x, max_y, min_z); builder.set_color_f32(red, green, blue, alpha); &mut builder };
-                { builder.add_vertex_matrix(&position_matrix, min_x, min_y, min_z); builder.set_color_f32(red, green, blue, alpha); &mut builder };
-                { builder.add_vertex_matrix(&position_matrix, max_x, min_y, min_z); builder.set_color_f32(red, green, blue, alpha); &mut builder };
-                { builder.add_vertex_matrix(&position_matrix, max_x, min_y, max_z); builder.set_color_f32(red, green, blue, alpha); &mut builder };
-                { builder.add_vertex_matrix(&position_matrix, min_x, min_y, max_z); builder.set_color_f32(red, green, blue, alpha); &mut builder };
+                { builder.add_vertex_matrix(&position_matrix, min_x, min_y, max_z); builder.set_color_f32(red, green, blue, alpha); };
+                { builder.add_vertex_matrix(&position_matrix, max_x, min_y, max_z); builder.set_color_f32(red, green, blue, alpha); };
+                { builder.add_vertex_matrix(&position_matrix, max_x, max_y, max_z); builder.set_color_f32(red, green, blue, alpha); };
+                { builder.add_vertex_matrix(&position_matrix, min_x, max_y, max_z); builder.set_color_f32(red, green, blue, alpha); };
+                { builder.add_vertex_matrix(&position_matrix, max_x, min_y, min_z); builder.set_color_f32(red, green, blue, alpha); };
+                { builder.add_vertex_matrix(&position_matrix, min_x, min_y, min_z); builder.set_color_f32(red, green, blue, alpha); };
+                { builder.add_vertex_matrix(&position_matrix, min_x, max_y, min_z); builder.set_color_f32(red, green, blue, alpha); };
+                { builder.add_vertex_matrix(&position_matrix, max_x, max_y, min_z); builder.set_color_f32(red, green, blue, alpha); };
+                { builder.add_vertex_matrix(&position_matrix, min_x, min_y, min_z); builder.set_color_f32(red, green, blue, alpha); };
+                { builder.add_vertex_matrix(&position_matrix, min_x, min_y, max_z); builder.set_color_f32(red, green, blue, alpha); };
+                { builder.add_vertex_matrix(&position_matrix, min_x, max_y, max_z); builder.set_color_f32(red, green, blue, alpha); };
+                { builder.add_vertex_matrix(&position_matrix, min_x, max_y, min_z); builder.set_color_f32(red, green, blue, alpha); };
+                { builder.add_vertex_matrix(&position_matrix, max_x, min_y, max_z); builder.set_color_f32(red, green, blue, alpha); };
+                { builder.add_vertex_matrix(&position_matrix, max_x, min_y, min_z); builder.set_color_f32(red, green, blue, alpha); };
+                { builder.add_vertex_matrix(&position_matrix, max_x, max_y, min_z); builder.set_color_f32(red, green, blue, alpha); };
+                { builder.add_vertex_matrix(&position_matrix, max_x, max_y, max_z); builder.set_color_f32(red, green, blue, alpha); };
+                { builder.add_vertex_matrix(&position_matrix, min_x, max_y, max_z); builder.set_color_f32(red, green, blue, alpha); };
+                { builder.add_vertex_matrix(&position_matrix, max_x, max_y, max_z); builder.set_color_f32(red, green, blue, alpha); };
+                { builder.add_vertex_matrix(&position_matrix, max_x, max_y, min_z); builder.set_color_f32(red, green, blue, alpha); };
+                { builder.add_vertex_matrix(&position_matrix, min_x, max_y, min_z); builder.set_color_f32(red, green, blue, alpha); };
+                { builder.add_vertex_matrix(&position_matrix, min_x, min_y, min_z); builder.set_color_f32(red, green, blue, alpha); };
+                { builder.add_vertex_matrix(&position_matrix, max_x, min_y, min_z); builder.set_color_f32(red, green, blue, alpha); };
+                { builder.add_vertex_matrix(&position_matrix, max_x, min_y, max_z); builder.set_color_f32(red, green, blue, alpha); };
+                { builder.add_vertex_matrix(&position_matrix, min_x, min_y, max_z); builder.set_color_f32(red, green, blue, alpha); };
             }
         }
     }
@@ -143,4 +144,15 @@ impl Submit {
         return TYPE.get_mut().clone();
     }
 
+}
+
+/// java: `implements SubmitNode` - the record's `featureType()`; `as_any` is the downcast `FeatureRenderer` reads it back through
+impl SubmitNode for Submit {
+    fn feature_type(&self) -> FeatureRendererType {
+        *TYPE.get()
+    }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
 }

@@ -118,7 +118,6 @@ impl PetLevelAdder {
             return vec![];
         }
         let mut level: String = matcher.group(1).unwrap();
-        // TODO(fabric2seer): the condition: static call NumberUtils.isDigits(..)
         //   java: !NumberUtils.isDigits(level) || "100".equals(level) && (!name.contains("Dragon") || name.contains("Ender Dragon")) || "200".equals(level)
         if !(!level.is_empty() && level.chars().all(char::is_numeric)) || (level == "100" && (!name.contains("Dragon") || name.contains("Ender Dragon"))) || level == "200" {
             return vec![];

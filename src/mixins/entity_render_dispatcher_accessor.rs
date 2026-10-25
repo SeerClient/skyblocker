@@ -5,14 +5,22 @@
 use crate::prelude::*;
 
 /// @Accessor getEquipmentAssets -> net.minecraft.client.renderer.entity.EntityRenderDispatcher.equipmentAssets
-// TODO(fabric2seer): `EquipmentAssetManager` - return `&obj.equipment_assets` with its Rust type
-// pub fn get_equipment_assets(obj: &mcrust::net::minecraft::client::renderer::entity::entity_render_dispatcher::EntityRenderDispatcher) -> &T { &obj.equipment_assets }
+/// The port's dispatcher is built from (and does not keep) the `EquipmentAssetManager`; the game renderer holds the one
+/// instance it was given (`GameRenderer.equipment_assets`). `None` before the first resource load.
+pub fn get_equipment_assets(minecraft: &Minecraft) -> Option<Arc<mcrust::net::minecraft::client::resources::model::equipment_asset_manager::EquipmentAssetManager>> {
+    minecraft.game_renderer.equipment_assets.clone()
+}
 
 /// @Accessor getBlockModelResolver -> net.minecraft.client.renderer.entity.EntityRenderDispatcher.blockModelResolver
-// TODO(fabric2seer): `BlockModelResolver` - return `&obj.block_model_resolver` with its Rust type
-// pub fn get_block_model_resolver(obj: &mcrust::net::minecraft::client::renderer::entity::entity_render_dispatcher::EntityRenderDispatcher) -> &T { &obj.block_model_resolver }
+/// `new BlockModelResolver(modelManager)` over the current bake's memoised `BlockModelSet` - the resolver the
+/// dispatcher's renderers are built with (one `BlockModelSet` per bake, see game_renderer.rs). `None` before the first
+/// bake.
+pub fn get_block_model_resolver() -> Option<mcrust::net::minecraft::client::renderer::block::block_model_resolver::BlockModelResolver> {
+    mcrust::net::minecraft::client::renderer::game_renderer::block_model_set()
+        .map(mcrust::net::minecraft::client::renderer::block::block_model_resolver::BlockModelResolver::new)
+}
 
 /// Mixins apply before the game runs: the `preLaunch` entrypoint calls this.
 pub fn register() {
-    // (nothing to register)
+    // (nothing to register: accessors are plain functions)
 }

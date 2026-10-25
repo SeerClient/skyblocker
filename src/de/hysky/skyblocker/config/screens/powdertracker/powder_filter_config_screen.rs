@@ -235,4 +235,3 @@ impl ModScreen for compat::ScreenAdapter<PowderFilterConfigScreen> {
 
 }
 
-// NOTE(fabric2seer): init, onClose override(s) of Screen - the port dispatches its own calls, so these run only where the mod calls them; hook the port's method to make the game call them

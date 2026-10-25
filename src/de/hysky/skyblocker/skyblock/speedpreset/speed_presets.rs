@@ -79,19 +79,35 @@ impl SpeedPresets {
     /// java: @Init public static void init()
     pub fn init() {
         let mut instance: SpeedPresets = SpeedPresets::get_instance();
-        // TODO(fabric2seer): no SeerClient event yet: hook RETURN of Minecraft's constructor (`net.minecraft.client.Minecraft#<init>`: exists)
-        //   java: ClientLifecycleEvents.CLIENT_STARTED.register(_ -> instance.presets.init());
-        // TODO(fabric2seer): ClientSendMessageEvents.MODIFY_COMMAND.register: no SeerClient equivalent yet
-        //   java: ClientSendMessageEvents.MODIFY_COMMAND.register(command -> {
-        //   java: 			Matcher matcher = COMMAND_PATTERN.matcher(command);
-        //   java: 			if (matcher.matches() && SkyblockerConfigManager.get().general.speedPresets.enableSpeedPresets) {
-        //   java: 				String preset = matcher.group(1);
-        //   java: 				if (instance.hasPreset(preset)) {
-        //   java: 					return String.format("setmaxspeed %d", instance.getPreset(preset));
-        //   java: 				}
-        //   java: 			}
-        //   java: 			return command;
-        //   java: 		});
+        // java: ClientLifecycleEvents.CLIENT_STARTED.register(_ -> instance.presets.init());
+        // (as `MuseumItemCache.init`: a RETURN injector registered from inside `Minecraft#<init>` would miss that call, so
+        // `compat::execute` runs it before the first client tick, where Fabric fires CLIENT_STARTED)
+        let started = compat::RenderThread::new(instance.clone());
+        compat::execute(move || {
+            let _ = started.get().presets.lock().borrow_mut().init();
+        });
+        // java: ClientSendMessageEvents.MODIFY_COMMAND.register(command -> {
+        // java: 	Matcher matcher = COMMAND_PATTERN.matcher(command);
+        // java: 	if (matcher.matches() && SkyblockerConfigManager.get().general.speedPresets.enableSpeedPresets) {
+        // java: 		String preset = matcher.group(1);
+        // java: 		if (instance.hasPreset(preset)) {
+        // java: 			return String.format("setmaxspeed %d", instance.getPreset(preset));
+        // java: 		}
+        // java: 	}
+        // java: 	return command;
+        // java: });
+        let modifier = compat::RenderThread::new(instance);
+        compat::batch_s_register_modify_command(move |command: &str| {
+            let instance = modifier.get();
+            let mut matcher: compat::regex::Matcher = COMMAND_PATTERN.matcher(command);
+            if matcher.matches() && crate::de::hysky::skyblocker::config::skyblocker_config_manager::SkyblockerConfigManager::get().general.speed_presets.enable_speed_presets {
+                let preset: String = matcher.group(1).unwrap_or_default();
+                if instance.has_preset(&preset) {
+                    return compat::string_format("setmaxspeed %d", &[instance.get_preset(&preset).into()]);
+                }
+            }
+            command.to_string()
+        });
     }
 
     /// java: public static Object2IntOpenHashMap<String> createDefaultMap()
@@ -119,7 +135,11 @@ impl SpeedPresets {
 
     /// java: public void setPreset(String name, int value)
     pub fn set_preset(&self, mut name: String, mut value: i32) {
-        self.get_presets().insert(name.clone(), value);
+        // java: getPresets().put(name, value); - `getPresets()` is the JsonData's own map; the port's `get_data` answers a
+        // copy, so the changed map is put back
+        let mut presets: std::collections::HashMap<String, i32> = self.get_presets();
+        presets.insert(name.clone(), value);
+        self.presets.lock().borrow_mut().set_data(presets);
         self.presets.lock().borrow().save();
     }
 

@@ -364,6 +364,16 @@ impl compat::ScreenHalf for SoundSelectionPopup {
 
 /// SoundSelectionPopup as the game's screen: `game::set_screen(Box::new(compat::ScreenAdapter::new(..)))`
 impl ModScreen for compat::ScreenAdapter<SoundSelectionPopup> {
+    /// java: AbstractPopupScreen.extractBackground overrides `Screen.extractBackground` without `super`
+    fn extract_background_calls_super(&self) -> bool {
+        false
+    }
+
+    /// java: @Override public void extractBackground(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a)
+    fn extract_background(&mut self, _screen: &mcrust::net::minecraft::client::gui::screens::screen::Screen, context: &mut mcrust::mcrust::modding::screens::ScreenRenderContext<'_>, mouse_x: i32, mouse_y: i32, a: f32) {
+        self.call(|__h| ({ let __f = compat::dispatch(__h, |__t| __t.extract_background()); __f(&compat::view(__h, |a| a as compat::Shared<dyn AbstractPopupScreen>), &mut context.graphics, mouse_x, mouse_y, a) }))
+    }
+
     fn get_title(&self) -> String {
         self.title()
     }
@@ -535,13 +545,13 @@ impl compat::ObjectWidget for ListContainer {
     fn extract_widget_render_state(&mut self, _widget: &AbstractWidget, context: &mut WidgetRenderContext<'_>, mouse_x: i32, mouse_y: i32, _a: f32) {
         // java: graphics.enableScissor(getX(), getY(), getRight(), getBottom());
         // java: for (AbstractWidget widget : filteredWidgets) if (isVisible(widget)) widget.extractRenderState(graphics, mouseX, mouseY, a);
-        // rust: port gap (GAPS_N #3) - the scissor is not applied to the game's widget pass: a widget partly outside the
-        // container is drawn whole
-        let (top, bottom) = (self.base.get_y(), self.base.get_bottom());
+        // (the scissor is each child's `clip`, which the widget pass pushes around that child's draw)
+        let (left, top, right, bottom) = (self.base.get_x(), self.base.get_y(), self.base.get_right(), self.base.get_bottom());
         self.with_children(|children| {
             for __i in 0..children.children().len() {
                 let __w = children.widget_mut(__i);
                 __w.visible = __w.get_bottom() >= top && __w.get_y() < bottom;
+                __w.clip = Some((left, top, right, bottom));
             }
             context.extract_widgets(children, mouse_x, mouse_y);
         });
@@ -661,11 +671,12 @@ impl SoundWidget {
         let Some(outer) = compat::read(__this, |__t| __t.outer.upgrade()) else { return; };
         // java: selectedSound = sound;
         let sound = compat::read(__this, |__t| __t.sound.clone());
-        compat::write(&outer, |__t| __t.selected_sound = Some(sound));
+        compat::write(&outer, |__t| __t.selected_sound = Some(sound.clone()));
         // java: if (doneButton != null) doneButton.active = true;
         SoundSelectionPopup::activate_done_button(&outer);
         // java: minecraft.getSoundManager().stop(); minecraft.getSoundManager().play(SimpleSoundInstance.forUI(sound, 1.0f));
-        // rust: port gap (GAPS_batchH #1) - `SoundManager.stop` / `play` are not reachable from a mod
+        mcrust::mcrust::modding::game::stop_all_sounds();
+        mcrust::mcrust::modding::game::play_ui_sound(&sound, 1.0);
         // java: super.onClick(click, doubled); - empty
     }
 

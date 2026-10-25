@@ -89,3 +89,124 @@ impl AbstractBiomeData {
     }
 
 }
+
+impl Safari {
+    /// Gson's reflective binding of the class's own fields (`ReflectiveTypeAdapterFactory`): each member the
+    /// JSON has is read over the field it names (`@SerializedName`, else the field's name) with the field's declared
+    /// type; an absent member (or a `null` one, or one Gson would reject) leaves the constructor's value.
+    pub fn read_json_fields(&mut self, json: &serde_json::Value) {
+        #[allow(unused_imports)]
+        use crate::io::github::moulberry::repo::neu_repository::gson;
+        if let Some(__v) = gson::member(json, "tickets") {
+            if let Some(__x) = Some(Tickets::from_json(__v)) {
+                self.tickets = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "milestone_claimed_tiers") {
+            if let Some(__x) = Some(AbstractBiomeData::from_json(__v)) {
+                self.milestone_tiers_claimed = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "biome_captures") {
+            if let Some(__x) = Some(AbstractBiomeData::from_json(__v)) {
+                self.biome_captures = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "discovered_critters") {
+            if let Some(__x) = gson::list(__v, |__e0| gson::as_string(__e0)) {
+                self.discovered_critters = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "discovered_sparkling_critters") {
+            if let Some(__x) = gson::list(__v, |__e0| gson::as_string(__e0)) {
+                self.discovered_sparkling_critters = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "total_captured_sparkling_critters") {
+            if let Some(__x) = gson::as_i32(__v) {
+                self.total_sparkling_critters_captured = __x;
+            }
+        }
+    }
+
+    /// `GSON.fromJson(json, Safari.class)`: the no-argument constructor, then the fields.
+    pub fn from_json(json: &serde_json::Value) -> Self {
+        let mut __this = Self::new();
+        __this.read_json_fields(json);
+        __this
+    }
+}
+
+impl Tickets {
+    /// Gson's reflective binding of the class's own fields (`ReflectiveTypeAdapterFactory`): each member the
+    /// JSON has is read over the field it names (`@SerializedName`, else the field's name) with the field's declared
+    /// type; an absent member (or a `null` one, or one Gson would reject) leaves the constructor's value.
+    pub fn read_json_fields(&mut self, json: &serde_json::Value) {
+        #[allow(unused_imports)]
+        use crate::io::github::moulberry::repo::neu_repository::gson;
+        if let Some(__v) = gson::member(json, "basic") {
+            if let Some(__x) = gson::as_i32(__v) {
+                self.basic = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "economy") {
+            if let Some(__x) = gson::as_i32(__v) {
+                self.economy = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "premium") {
+            if let Some(__x) = gson::as_i32(__v) {
+                self.premium = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "first_class") {
+            if let Some(__x) = gson::as_i32(__v) {
+                self.first_class = __x;
+            }
+        }
+    }
+
+    /// `GSON.fromJson(json, Tickets.class)`: the no-argument constructor, then the fields.
+    pub fn from_json(json: &serde_json::Value) -> Self {
+        let mut __this = Self::new();
+        __this.read_json_fields(json);
+        __this
+    }
+}
+
+impl AbstractBiomeData {
+    /// Gson's reflective binding of the class's own fields (`ReflectiveTypeAdapterFactory`): each member the
+    /// JSON has is read over the field it names (`@SerializedName`, else the field's name) with the field's declared
+    /// type; an absent member (or a `null` one, or one Gson would reject) leaves the constructor's value.
+    pub fn read_json_fields(&mut self, json: &serde_json::Value) {
+        #[allow(unused_imports)]
+        use crate::io::github::moulberry::repo::neu_repository::gson;
+        if let Some(__v) = gson::member(json, "cavern") {
+            if let Some(__x) = gson::as_i32(__v) {
+                self.cavern = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "forest") {
+            if let Some(__x) = gson::as_i32(__v) {
+                self.forest = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "haunted") {
+            if let Some(__x) = gson::as_i32(__v) {
+                self.haunted = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "icy") {
+            if let Some(__x) = gson::as_i32(__v) {
+                self.icy = __x;
+            }
+        }
+    }
+
+    /// `GSON.fromJson(json, AbstractBiomeData.class)`: the no-argument constructor, then the fields.
+    pub fn from_json(json: &serde_json::Value) -> compat::Shared<Self> {
+        let __this = Self::new();
+        compat::write(&__this, |__t| __t.read_json_fields(json));
+        __this
+    }
+}

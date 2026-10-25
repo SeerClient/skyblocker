@@ -31,18 +31,17 @@ pub struct SkyblockForgeRecipe {
 
 impl SkyblockForgeRecipe {
     /// java: public SkyblockForgeRecipe(NEUForgeRecipe forgeRecipe)
-    pub fn new(mut forge_recipe: crate::unresolved::NEUForgeRecipe) -> compat::Shared<Self> {
-        // TODO(fabric2seer): `.getInputs(..)` on a NEUForgeRecipe
+    pub fn new(mut forge_recipe: crate::io::github::moulberry::repo::data::neu_forge_recipe::NEUForgeRecipe) -> compat::Shared<Self> {
         //   java: inputs = forgeRecipe.getInputs().stream().map(SkyblockRecipe::getItemStack).toList();
-        // TODO(fabric2seer): `.getOutputStack(..)` on a NEUForgeRecipe
+        let __init_inputs: Vec<compat::Shared<FlexibleItemStack>> = forge_recipe.get_inputs().iter().map(|__a0| crate::de::hysky::skyblocker::skyblock::itemlist::recipes::skyblock_recipe::get_item_stack(__a0)).collect();
         //   java: output = SkyblockRecipe.getItemStack(forgeRecipe.getOutputStack());
-        // TODO(fabric2seer): `.getDuration(..)` on a NEUForgeRecipe
+        let __init_output: compat::Shared<FlexibleItemStack> = crate::de::hysky::skyblocker::skyblock::itemlist::recipes::skyblock_recipe::get_item_stack(forge_recipe.get_output_stack().expect("java.lang.NullPointerException: the NEU recipe has no output stack"));
         //   java: int duration = forgeRecipe.getDuration();
-        let mut duration: i32 = todo!("fabric2seer: the initialiser of `duration` (TODO above)");
+        let mut duration: i32 = forge_recipe.get_duration();
         let __init_duration_string = SkyblockTime::format_time_string((duration) as f64);
         let __this = compat::shared(Self {
-            inputs: todo!("fabric2seer: the field value (TODO above)"),
-            output: todo!("fabric2seer: the field value (TODO above)"),
+            inputs: __init_inputs,
+            output: __init_output,
             duration_string: __init_duration_string,
         });
         __this

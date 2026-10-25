@@ -6,6 +6,7 @@ use crate::de::hysky::skyblocker::skyblock::dungeon::dungeon_class::DungeonClass
 use crate::de::hysky::skyblocker::skyblock::profileviewer2::loading_information::LoadingInformation;
 use crate::de::hysky::skyblocker::skyblock::profileviewer2::pages::profile_viewer_page::ProfileViewerPage;
 use crate::de::hysky::skyblocker::skyblock::profileviewer2::pages::profile_viewer_page::ProfileViewerPageAny;
+use crate::de::hysky::skyblocker::skyblock::profileviewer2::pages::profile_viewer_page::layout_widget;
 use crate::de::hysky::skyblocker::skyblock::profileviewer2::pages::skills_page;
 use crate::de::hysky::skyblocker::skyblock::profileviewer2::widgets::croesus_widget::CroesusWidget;
 use crate::de::hysky::skyblocker::skyblock::profileviewer2::widgets::daily_runs_widget::DailyRunsWidget;
@@ -29,17 +30,17 @@ pub const VERTICAL_SPACING: i32 = 2;
 pub static HORIZONTAL_SPACING: LazyLock<i32> = LazyLock::new(|| VERTICAL_SPACING.wrapping_mul(2));
 
 /// java: public final class CatacombsPage implements ProfileViewerPage<LoadingInformation>
-#[derive(Clone)]
 pub struct CatacombsPage {
-    /// java: private final List<AbstractWidget> widgets = new ArrayList<>();
-    pub widgets: Vec<AbstractWidget>,
+    /// java: private final List<AbstractWidget> widgets = new ArrayList<>(); (held in a `Screen`, the port's holder
+    /// of game widgets: see `ProfileViewerPageAny::widgets_mut`)
+    pub widgets: mcrust::net::minecraft::client::gui::screens::screen::Screen,
 }
 
 impl CatacombsPage {
     /// java: the implicit no-argument constructor
     pub fn new() -> Self {
         let mut this = Self {
-            widgets: Vec::new(),
+            widgets: mcrust::net::minecraft::client::gui::screens::screen::Screen::new(String::new()),
         };
         this
     }
@@ -68,7 +69,11 @@ impl ProfileViewerPageAny for CatacombsPage {
 
     /// java: @Override public List<AbstractWidget> getWidgets()
     fn get_widgets(&self) -> Vec<AbstractWidget> {
-        return self.widgets.clone();
+        return self.widgets.children().to_vec();
+    }
+
+    fn widgets_mut(&mut self) -> &mut mcrust::net::minecraft::client::gui::screens::screen::Screen {
+        &mut self.widgets
     }
 
     /// java: @Override public boolean centred()
@@ -83,39 +88,27 @@ impl ProfileViewerPage<crate::de::hysky::skyblocker::skyblock::profileviewer2::l
     fn build_widgets(&self, info: &LoadingInformation) -> LayoutElement {
         let mut page_layout: LinearLayout = LinearLayout::horizontal().spacing(*HORIZONTAL_SPACING);
         let mut levels_layout: LinearLayout = LinearLayout::vertical().spacing(VERTICAL_SPACING);
-        // TODO(fabric2seer): a widget put in a layout outside a mod screen's own methods: the port's layouts hold a widget by its index in the screen's widget list
-        // rust: levels_layout.add_child(DungeonLevelBarWidget::create_catacombs(skills_page::LEVEL_BAR_WIDTH, info));
-        // TODO(fabric2seer): a widget put in a layout outside a mod screen's own methods: the port's layouts hold a widget by its index in the screen's widget list
-        // rust: levels_layout.add_child(DungeonLevelBarWidget::create_class_average(skills_page::LEVEL_BAR_WIDTH, info));
-        // TODO(fabric2seer): a widget put in a layout outside a mod screen's own methods: the port's layouts hold a widget by its index in the screen's widget list
-        // rust: levels_layout.add_child(DungeonLevelBarWidget::create_class(skills_page::LEVEL_BAR_WIDTH, info, DungeonClass::Healer));
-        // TODO(fabric2seer): a widget put in a layout outside a mod screen's own methods: the port's layouts hold a widget by its index in the screen's widget list
-        // rust: levels_layout.add_child(DungeonLevelBarWidget::create_class(skills_page::LEVEL_BAR_WIDTH, info, DungeonClass::Mage));
-        // TODO(fabric2seer): a widget put in a layout outside a mod screen's own methods: the port's layouts hold a widget by its index in the screen's widget list
-        // rust: levels_layout.add_child(DungeonLevelBarWidget::create_class(skills_page::LEVEL_BAR_WIDTH, info, DungeonClass::Berserk));
-        // TODO(fabric2seer): a widget put in a layout outside a mod screen's own methods: the port's layouts hold a widget by its index in the screen's widget list
-        // rust: levels_layout.add_child(DungeonLevelBarWidget::create_class(skills_page::LEVEL_BAR_WIDTH, info, DungeonClass::Archer));
-        // TODO(fabric2seer): a widget put in a layout outside a mod screen's own methods: the port's layouts hold a widget by its index in the screen's widget list
-        // rust: levels_layout.add_child(DungeonLevelBarWidget::create_class(skills_page::LEVEL_BAR_WIDTH, info, DungeonClass::Tank));
+        levels_layout.add_child(layout_widget(compat::WidgetAdapter::widget(DungeonLevelBarWidget::create_catacombs(skills_page::LEVEL_BAR_WIDTH, info))));
+        levels_layout.add_child(layout_widget(compat::WidgetAdapter::widget(DungeonLevelBarWidget::create_class_average(skills_page::LEVEL_BAR_WIDTH, info))));
+        levels_layout.add_child(layout_widget(compat::WidgetAdapter::widget(DungeonLevelBarWidget::create_class(skills_page::LEVEL_BAR_WIDTH, info, DungeonClass::Healer))));
+        levels_layout.add_child(layout_widget(compat::WidgetAdapter::widget(DungeonLevelBarWidget::create_class(skills_page::LEVEL_BAR_WIDTH, info, DungeonClass::Mage))));
+        levels_layout.add_child(layout_widget(compat::WidgetAdapter::widget(DungeonLevelBarWidget::create_class(skills_page::LEVEL_BAR_WIDTH, info, DungeonClass::Berserk))));
+        levels_layout.add_child(layout_widget(compat::WidgetAdapter::widget(DungeonLevelBarWidget::create_class(skills_page::LEVEL_BAR_WIDTH, info, DungeonClass::Archer))));
+        levels_layout.add_child(layout_widget(compat::WidgetAdapter::widget(DungeonLevelBarWidget::create_class(skills_page::LEVEL_BAR_WIDTH, info, DungeonClass::Tank))));
         page_layout.add_child_with(LayoutElement::Grid(levels_layout.clone().wrapped), page_layout.new_cell_settings().align_horizontally_center());
         let mut stats_layout: LinearLayout = LinearLayout::vertical().spacing(VERTICAL_SPACING);
         let mut row1: LinearLayout = LinearLayout::horizontal().spacing(*HORIZONTAL_SPACING);
-        // TODO(fabric2seer): a widget put in a layout outside a mod screen's own methods: the port's layouts hold a widget by its index in the screen's widget list
-        // rust: row1.add_child(DungeonSecretsWidget::new(skills_page::LEVEL_BAR_WIDTH, info.clone()));
-        // TODO(fabric2seer): a widget put in a layout outside a mod screen's own methods: the port's layouts hold a widget by its index in the screen's widget list
-        // rust: row1.add_child(CroesusWidget::new(skills_page::LEVEL_BAR_WIDTH, info.clone()));
+        row1.add_child(layout_widget(compat::WidgetAdapter::widget(DungeonSecretsWidget::new(skills_page::LEVEL_BAR_WIDTH, info.clone()))));
+        row1.add_child(layout_widget(compat::WidgetAdapter::widget(CroesusWidget::new(skills_page::LEVEL_BAR_WIDTH, info.clone()))));
         stats_layout.add_child(LayoutElement::Grid(row1.clone().wrapped));
         let mut row2: LinearLayout = LinearLayout::horizontal().spacing(*HORIZONTAL_SPACING);
-        // TODO(fabric2seer): a widget put in a layout outside a mod screen's own methods: the port's layouts hold a widget by its index in the screen's widget list
-        // rust: row2.add_child(DungeonRunsWidget::new(skills_page::LEVEL_BAR_WIDTH, info.clone()));
-        // TODO(fabric2seer): a widget put in a layout outside a mod screen's own methods: the port's layouts hold a widget by its index in the screen's widget list
-        // rust: row2.add_child(DailyRunsWidget::new(skills_page::LEVEL_BAR_WIDTH, info.clone()));
+        row2.add_child(layout_widget(compat::WidgetAdapter::widget(DungeonRunsWidget::new(skills_page::LEVEL_BAR_WIDTH, info.clone()))));
+        row2.add_child(layout_widget(compat::WidgetAdapter::widget(DailyRunsWidget::new(skills_page::LEVEL_BAR_WIDTH, info.clone()))));
         stats_layout.add_child(LayoutElement::Grid(row2.clone().wrapped));
-        // TODO(fabric2seer): a widget put in a layout outside a mod screen's own methods: the port's layouts hold a widget by its index in the screen's widget list
-        // rust: stats_layout.add_child(FloorRunsWidget::new(((skills_page::LEVEL_BAR_WIDTH).wrapping_mul(2)).wrapping_add(*HORIZONTAL_SPACING), 94, info.clone()));
+        stats_layout.add_child(layout_widget(compat::WidgetAdapter::widget(FloorRunsWidget::new(((skills_page::LEVEL_BAR_WIDTH).wrapping_mul(2)).wrapping_add(*HORIZONTAL_SPACING), 94, info.clone()))));
         page_layout.add_child_with(LayoutElement::Grid(stats_layout.clone().wrapped), page_layout.new_cell_settings().align_horizontally_center());
-        // TODO(fabric2seer): a lambda for a parameter the port does not type as a closure (`Consumer<net.minecraft.client.gui.components.AbstractWidget>`)
-        // rust: layout::visit_widgets(|__a0| { self.widgets.push(__a0.clone()); });
+        // java: layout.visitWidgets(widgets::add); - every widget the layout holds was collected as it was put in it
+        // (`layout_widget`); `load` hands them to the page
         return LayoutElement::Grid(page_layout.wrapped);
     }
 
@@ -126,6 +119,10 @@ impl CatacombsPage {
     pub fn load_dyn(__this: &compat::Shared<dyn ProfileViewerPageAny>, info: &LoadingInformation) -> compat::LocalFuture<LayoutElement> {
         // java: return CompletableFuture.completedFuture(info).thenApplyAsync(this::buildWidgets, Minecraft.getInstance());
         let __h: compat::Shared<CatacombsPage> = compat::handle_as::<CatacombsPage, _>(__this);
-        return compat::LocalFuture::completed_future(info.clone()).then_apply_async(move |__a0| compat::read(&__h, |__t| __t.build_widgets(&__a0)));
+        return compat::LocalFuture::completed_future(info.clone()).then_apply_async(move |__a0| {
+            let (__layout, __widgets) = crate::de::hysky::skyblocker::skyblock::profileviewer2::pages::profile_viewer_page::collect_widgets(|| compat::read(&__h, |__t| __t.build_widgets(&__a0)));
+            compat::write(&__h, |__t| __t.widgets = __widgets);
+            __layout
+        });
     }
 }

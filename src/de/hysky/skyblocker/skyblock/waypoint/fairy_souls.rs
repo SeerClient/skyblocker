@@ -1,6 +1,7 @@
 //! Ported from de.hysky.skyblocker.skyblock.waypoint.FairySouls by fabric2seer.
 
 #[allow(unused_imports)]
+use mcrust::com::mojang::brigadier::builder::argument_builder::ArgumentBuilder as _;
 use crate::prelude::*;
 use crate::de::hysky::skyblocker::config::skyblocker_config_manager::SkyblockerConfigManager;
 use crate::de::hysky::skyblocker::utils::block_pos_set::BlockPosSet;
@@ -18,6 +19,8 @@ use crate::de::hysky::skyblocker::utils::waypoint::waypoint::Waypoint;
 use crate::de::hysky::skyblocker::utils::waypoint::waypoint::WaypointBase;
 use crate::entry::skyblocker_mod;
 use mcrust::com::mojang::brigadier::command_dispatcher::CommandDispatcher;
+use mcrust::com::mojang::brigadier::context::command_context::CommandContext;
+use crate::de::hysky::skyblocker::utils::constants;
 use mcrust::java::util::concurrent::completable_future::CompletableFuture;
 use mcrust::net::minecraft::chat_formatting;
 use mcrust::net::minecraft::commands::command_build_context::CommandBuildContext;
@@ -70,39 +73,50 @@ impl FairySouls {
     /// java: @Init public static void init()
     pub fn init() {
         FairySouls::load_fairy_souls();
-        // TODO(fabric2seer): no SeerClient event yet: hook HEAD of Minecraft#stop (`net.minecraft.client.Minecraft#stop`: exists)
-        //   java: ClientLifecycleEvents.CLIENT_STOPPING.register(FairySouls::saveFoundFairySouls);
+        // java: ClientLifecycleEvents.CLIENT_STOPPING.register(FairySouls::saveFoundFairySouls); - HEAD of `Minecraft#stop`
+        report(hook::inject("net.minecraft.client.Minecraft#stop", At::Head, |_: &mut CallbackInfo<'_>| {
+            FairySouls::save_found_fairy_souls(compat::minecraft());
+        }));
+        // java: ClientCommandRegistrationCallback.EVENT.register(FairySouls::registerCommands);
         client_command_registration_callback::EVENT.register(Arc::new(
             |dispatcher: &mut client_command_registration_callback::ClientCommandDispatcher| {
-                // TODO(fabric2seer): a command tree this tool cannot read (arguments, redirects, requires) - SeerClient commands receive the words after the name in `ctx.args`
-                //   java: dispatcher.register(literal(SkyblockerMod.NAMESPACE)
-                //   java: 				.then(literal("fairySouls")
-                //   java: 						.then(literal("markAllInCurrentIslandFound").executes(context -> {
-                //   java: 							FairySouls.markAllFairiesOnCurrentIslandFound();
-                //   java: 							context.getSource().sendFeedback(Constants.PREFIX.get().append(Component.translatable("skyblocker.fairySouls.markAllFound")));
-                //   java: 							return 1;
-                //   java: 						}))
-                //   java: 						.then(literal("markAllInCurrentIslandMissing").executes(context -> {
-                //   java: 							FairySouls.markAllFairiesOnCurrentIslandMissing();
-                //   java: 							context.getSource().sendFeedback(Constants.PREFIX.get().append(Component.translatable("skyblocker.fairySouls.markAllMissing")));
-                //   java: 							return 1;
-                //   java: 						}))));
+                FairySouls::register_commands(dispatcher.dispatcher(), dispatcher.build_context());
             },
         ));
         level_render_extraction_callback::EVENT.register(Arc::new(move |__a0| { FairySouls::extract_rendering(&__a0); }));
-        // TODO(fabric2seer): ClientReceiveMessageEvents.ALLOW_GAME.register: no SeerClient equivalent yet
-        //   java: ClientReceiveMessageEvents.ALLOW_GAME.register(FairySouls::onChatMessage);
+        // java: ClientReceiveMessageEvents.ALLOW_GAME.register(FairySouls::onChatMessage);
+        compat::batch_w_allow_game_register(Arc::new(|text: &MutableComponent, overlay: bool| FairySouls::on_chat_message(text, overlay)));
     }
 
     /// java: private static void loadFairySouls()
     pub fn load_fairy_souls() {
         *FAIRY_SOULS_LOADED.get_mut() = NEURepoManager::run_async_after_load(Arc::new(move || {
-            // TODO(fabric2seer): `.getFairySouls(..)` on a NEUConstants
             //   java: maxSouls = NEURepoManager.getConstants().getFairySouls().getMaxSouls();
-            // TODO(fabric2seer): `.getFairySouls(..)` on a NEUConstants
+            let neu_fairy_souls = NEURepoManager::get_constants().get_fairy_souls();
+            compat::set_state(&MAX_SOULS, neu_fairy_souls.get_max_souls());
             //   java: NEURepoManager.getConstants().getFairySouls().getSoulLocations().forEach((location, fairiesForLocation) -> fairySouls.put(location, fairiesForLocation.stream().map(coordinate -> new BlockPos(coordinate.getX(), coordinate.getY(), coordinate.getZ())).collect(Collectors.toUnmodifiableMap(pos -> pos, pos -> new FairySoul(pos, TYPE_SUPPLIER, ColorUtils.getFloatComponents(DyeColor.GREEN), ColorUtils.getFloatComponents(DyeColor.RED))))));
-            // TODO(fabric2seer): static call Map.size(..)
+            // (`Collectors.toUnmodifiableMap` throws on a duplicate position)
+            for (location, fairies_for_location) in neu_fairy_souls.get_soul_locations().iter() {
+                let mut waypoints: std::collections::HashMap<BlockPos, compat::Shared<dyn ProfileAwareWaypoint>> = std::collections::HashMap::new();
+                for coordinate in fairies_for_location.iter() {
+                    let pos: BlockPos = BlockPos::new(coordinate.get_x(), coordinate.get_y(), coordinate.get_z());
+                    if waypoints.contains_key(&pos) {
+                        panic!("java.lang.IllegalStateException: Duplicate key {:?}", pos);
+                    }
+                    let soul = FairySoul::new(
+                        pos.clone(),
+                        TYPE_SUPPLIER.get().clone(),
+                        crate::de::hysky::skyblocker::utils::color_utils::ColorUtils::get_float_components_dye_color(&mcrust::net::minecraft::world::item::dye_color::DyeColor::Green),
+                        crate::de::hysky::skyblocker::utils::color_utils::ColorUtils::get_float_components_dye_color(&mcrust::net::minecraft::world::item::dye_color::DyeColor::Red),
+                    );
+                    waypoints.insert(pos, soul as compat::Shared<dyn ProfileAwareWaypoint>);
+                }
+                FAIRY_SOULS.get_mut().insert(location.clone(), waypoints);
+            }
             //   java: LOGGER.debug("[Skyblocker] Loaded {} fairy souls across {} locations", fairySouls.values().stream().mapToInt(Map::size).sum(), fairySouls.size());
+            let soul_count: i32 = FAIRY_SOULS.get().values().map(|souls| souls.len() as i32).sum::<i32>();
+            let location_count: usize = FAIRY_SOULS.get().len();
+            logger().debug(&format!("[Skyblocker] Loaded {} fairy souls across {} locations", soul_count, location_count));
             // try (BufferedReader reader = Files.newBufferedReader(CONFIG_DIR.resolve("found_fairy_souls.json"))) {..}
             // catch (NoSuchFileException _) {} catch (IOException e) {..}
             match std::fs::read_to_string(skyblocker_mod::CONFIG_DIR.get_mut().join("found_fairy_souls.json")) {
@@ -130,8 +144,10 @@ impl FairySouls {
                     logger().debug("[Skyblocker] Loaded found fairy souls");
                 }
             }
-            // TODO(fabric2seer): static call Map.size(..)
             //   java: LOGGER.info("[Skyblocker] Loaded {} fairy souls across {} locations", fairySouls.values().stream().mapToInt(Map::size).sum(), fairySouls.size());
+            let soul_count: i32 = FAIRY_SOULS.get().values().map(|souls| souls.len() as i32).sum::<i32>();
+            let location_count: usize = FAIRY_SOULS.get().len();
+            logger().info(&format!("[Skyblocker] Loaded {} fairy souls across {} locations", soul_count, location_count));
         }));
     }
 
@@ -170,27 +186,47 @@ impl FairySouls {
     }
 
     /// java: private static void registerCommands(CommandDispatcher<FabricClientCommandSource> dispatcher, CommandBuildContext registryAccess)
-    pub fn register_commands(dispatcher: &CommandDispatcher<crate::unresolved::FabricClientCommandSource>, registry_access: &CommandBuildContext) {
-        // TODO(fabric2seer): a command builder outside dispatcher.register(..)
-        //   java: dispatcher.register(literal(SkyblockerMod.NAMESPACE)
-        //   java: 				.then(literal("fairySouls")
-        //   java: 						.then(literal("markAllInCurrentIslandFound").executes(context -> {
-        //   java: 							FairySouls.markAllFairiesOnCurrentIslandFound();
-        //   java: 							context.getSource().sendFeedback(Constants.PREFIX.get().append(Component.translatable("skyblocker.fairySouls.markAllFound")));
-        //   java: 							return 1;
-        //   java: 						}))
-        //   java: 						.then(literal("markAllInCurrentIslandMissing").executes(context -> {
-        //   java: 							FairySouls.markAllFairiesOnCurrentIslandMissing();
-        //   java: 							context.getSource().sendFeedback(Constants.PREFIX.get().append(Component.translatable("skyblocker.fairySouls.markAllMissing")));
-        //   java: 							return 1;
-        //   java: 						}))));
+    /// (`registryAccess` is the port's `Option`: absent before the first join)
+    pub fn register_commands(dispatcher: &CommandDispatcher<client_command_registration_callback::FabricClientCommandSource>, registry_access: Option<&CommandBuildContext>) {
+        let _ = registry_access;
+        // java: dispatcher.register(literal(SkyblockerMod.NAMESPACE).then(literal("fairySouls")
+        //   .then(literal("markAllInCurrentIslandFound").executes(context -> { FairySouls.markAllFairiesOnCurrentIslandFound();
+        //     context.getSource().sendFeedback(Constants.PREFIX.get().append(Component.translatable("skyblocker.fairySouls.markAllFound"))); return 1; }))
+        //   .then(literal("markAllInCurrentIslandMissing").executes(context -> { FairySouls.markAllFairiesOnCurrentIslandMissing();
+        //     context.getSource().sendFeedback(Constants.PREFIX.get().append(Component.translatable("skyblocker.fairySouls.markAllMissing"))); return 1; }))));
+        let mut mark_all_found = client_command_registration_callback::literal("markAllInCurrentIslandFound");
+        mark_all_found.executes(Arc::new(|_context: &CommandContext<client_command_registration_callback::FabricClientCommandSource>| {
+            FairySouls::mark_all_fairies_on_current_island_found();
+            compat::batch_w_send_feedback(&(constants::PREFIX.get())().append(mcrust::net::minecraft::network::chat::component::translatable("skyblocker.fairySouls.markAllFound")));
+            Ok(1)
+        }));
+        let mut mark_all_missing = client_command_registration_callback::literal("markAllInCurrentIslandMissing");
+        mark_all_missing.executes(Arc::new(|_context: &CommandContext<client_command_registration_callback::FabricClientCommandSource>| {
+            FairySouls::mark_all_fairies_on_current_island_missing();
+            compat::batch_w_send_feedback(&(constants::PREFIX.get())().append(mcrust::net::minecraft::network::chat::component::translatable("skyblocker.fairySouls.markAllMissing")));
+            Ok(1)
+        }));
+        let mut fairy_souls = client_command_registration_callback::literal("fairySouls");
+        fairy_souls.then(&mark_all_found);
+        fairy_souls.then(&mark_all_missing);
+        let mut root = client_command_registration_callback::literal(crate::entry::skyblocker_mod::NAMESPACE);
+        root.then(&fairy_souls);
+        dispatcher.register(&root);
     }
 
     /// java: private static void extractRendering(PrimitiveCollector collector)
     pub fn extract_rendering(collector: &compat::Shared<dyn PrimitiveCollector>) {
         let fairy_souls_config = &SkyblockerConfigManager::get().helpers.fairy_souls;
-        if fairy_souls_config.enable_fairy_souls_helper && (fairy_souls_config.highlight_on_bingo || !(Utils::is_on_bingo())) && FAIRY_SOULS_LOADED.get_mut().as_ref().unwrap().is_done() && FAIRY_SOULS.get_mut().contains_key(&Utils::get_location_raw()) {
-            for fairy_soul in FAIRY_SOULS.get_mut().get(&Utils::get_location_raw()).cloned().unwrap().values().cloned() {
+        // PERF (port-only, same result): `getLocationRaw()` read once, and the island's souls taken as a list of
+        // handles (same order) instead of cloning the whole `HashMap` every frame.
+        let __souls: Option<Vec<compat::Shared<dyn ProfileAwareWaypoint>>> = if fairy_souls_config.enable_fairy_souls_helper && (fairy_souls_config.highlight_on_bingo || !(Utils::is_on_bingo())) && FAIRY_SOULS_LOADED.get_mut().as_ref().unwrap().is_done() {
+            let __location_raw: String = Utils::get_location_raw();
+            FAIRY_SOULS.get_mut().get(&__location_raw).map(|souls| souls.values().cloned().collect())
+        } else {
+            None
+        };
+        if let Some(__souls) = __souls {
+            for fairy_soul in __souls {
                 let fairy_soul_waypoint = compat::view(&fairy_soul, |a| a as compat::Shared<dyn Waypoint>);
                 let mut fairy_soul_not_found: bool = ({ let __f = compat::dispatch(&fairy_soul_waypoint, |__t| __t.should_render()); __f(&fairy_soul_waypoint) });
                 if !fairy_souls_config.highlight_found_souls && !fairy_soul_not_found || fairy_souls_config.highlight_only_nearby_souls && { let __q0 = RenderHelper::get_camera().position(); compat::read(&fairy_soul, |__t| __t.waypoint_base().pos.clone()).unwrap().as_vec3i().dist_to_center_sqr_pos(&__q0) } > (2500 as f64) {

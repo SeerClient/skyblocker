@@ -79,8 +79,8 @@ impl DebugGlowAdder {
     /// java: @Override public int computeColour(Entity entity)
     pub fn compute_colour_impl(__this: &compat::Shared<Self>, entity: &dyn Entity) -> i32 {
         if let Some(chicken) = entity.as_any().unwrap_or(&() as &dyn std::any::Any).downcast_ref::<Chicken>() && chicken.is_baby() {
-            // TODO(fabric2seer): `.getRGB(..)` on a value of unknown type
-            //   java: return Color.YELLOW.getRGB();
+            // java: return Color.YELLOW.getRGB();
+            return mcrust::java::awt::color::yellow().get_rgb();
         }
         return *mob_glow_adder::NO_GLOW;
     }

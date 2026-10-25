@@ -140,3 +140,142 @@ impl Effect {
     }
 
 }
+
+impl PlayerData {
+    /// Gson's reflective binding of the class's own fields (`ReflectiveTypeAdapterFactory`): each member the
+    /// JSON has is read over the field it names (`@SerializedName`, else the field's name) with the field's declared
+    /// type; an absent member (or a `null` one, or one Gson would reject) leaves the constructor's value.
+    pub fn read_json_fields(&mut self, json: &serde_json::Value) {
+        #[allow(unused_imports)]
+        use crate::io::github::moulberry::repo::neu_repository::gson;
+        if let Some(__v) = gson::member(json, "visited_zones") {
+            if let Some(__x) = gson::list(__v, |__e0| gson::as_string(__e0)).map(|__l| __l.into_iter().collect()) {
+                self.visited_zones = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "last_death") {
+            if let Some(__x) = gson::as_i64(__v) {
+                self.last_death = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "perks") {
+            if let Some(__x) = gson::map(__v, gson::string_key, |__e0| gson::as_i32(__e0)) {
+                self.essence_perks = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "garden_chips") {
+            if let Some(__x) = gson::map(__v, gson::string_key, |__e0| gson::as_i32(__e0)) {
+                self.garden_chips = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "active_effects") {
+            if let Some(__x) = gson::list(__v, |__e0| Some(Effect::from_json(__e0))) {
+                self.active_effects = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "reaper_peppers_eaten") {
+            if let Some(__x) = gson::as_i32(__v) {
+                self.reaper_peppers_eaten = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "isopod_husks_eaten") {
+            if let Some(__x) = gson::as_i32(__v) {
+                self.isopod_husks_eaten = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "bee_saliva_eaten") {
+            if let Some(__x) = gson::as_i32(__v) {
+                self.bee_saliva_eaten = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "death_count") {
+            if let Some(__x) = gson::as_i32(__v) {
+                self.death_count = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "disabled_potion_effects") {
+            if let Some(__x) = gson::list(__v, |__e0| gson::as_string(__e0)).map(|__l| __l.into_iter().collect()) {
+                self.disabled_potion_effects = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "achievement_spawned_island_types") {
+            if let Some(__x) = gson::list(__v, |__e0| gson::as_string(__e0)).map(|__l| __l.into_iter().collect()) {
+                self.spawned_island_types = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "visited_modes") {
+            if let Some(__x) = gson::list(__v, |__e0| gson::as_string(__e0)).map(|__l| __l.into_iter().collect()) {
+                self.visited_island_modes = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "unlocked_coll_tiers") {
+            if let Some(__x) = gson::list(__v, |__e0| gson::as_string(__e0)).map(|__l| __l.into_iter().collect()) {
+                self.unlocked_collection_tiers = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "crafted_generators") {
+            if let Some(__x) = gson::list(__v, |__e0| gson::as_string(__e0)).map(|__l| __l.into_iter().collect()) {
+                self.crafted_minions = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "fishing_treasure_caught") {
+            if let Some(__x) = gson::as_i32(__v) {
+                self.fishing_treasures_caught = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "experience") {
+            if let Some(__x) = gson::map(__v, gson::string_key, |__e0| gson::as_f64(__e0)) {
+                self.experience = __x;
+            }
+        }
+    }
+
+    /// `GSON.fromJson(json, PlayerData.class)`: the no-argument constructor, then the fields.
+    pub fn from_json(json: &serde_json::Value) -> Self {
+        let mut __this = Self::new();
+        __this.read_json_fields(json);
+        __this
+    }
+}
+
+impl Effect {
+    /// Gson's reflective binding of the class's own fields (`ReflectiveTypeAdapterFactory`): each member the
+    /// JSON has is read over the field it names (`@SerializedName`, else the field's name) with the field's declared
+    /// type; an absent member (or a `null` one, or one Gson would reject) leaves the constructor's value.
+    pub fn read_json_fields(&mut self, json: &serde_json::Value) {
+        #[allow(unused_imports)]
+        use crate::io::github::moulberry::repo::neu_repository::gson;
+        if let Some(__v) = gson::member(json, "effect") {
+            if let Some(__x) = gson::as_string(__v) {
+                self.effect_id = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "level") {
+            if let Some(__x) = gson::as_i32(__v) {
+                self.level = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "ticks_remaining") {
+            if let Some(__x) = gson::as_i64(__v) {
+                self.ticks_remaining = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "infinite") {
+            if let Some(__x) = gson::as_bool(__v) {
+                self.infinite = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "flags") {
+            if let Some(__x) = gson::as_i32(__v) {
+                self.flags = __x;
+            }
+        }
+    }
+
+    /// `GSON.fromJson(json, Effect.class)`: the no-argument constructor, then the fields.
+    pub fn from_json(json: &serde_json::Value) -> Self {
+        let mut __this = Self::new();
+        __this.read_json_fields(json);
+        __this
+    }
+}

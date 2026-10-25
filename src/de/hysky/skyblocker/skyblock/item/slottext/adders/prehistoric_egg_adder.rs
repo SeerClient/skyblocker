@@ -110,7 +110,8 @@ impl PrehistoricEggAdder {
         if !(stack.get_skyblock_id() == "PREHISTORIC_EGG") {
             return vec![];
         }
-        let mut nbt: Tag = ItemUtils::get_custom_data(stack);
+        let __nbt = ItemUtils::custom_data_component(stack);
+        let nbt: &Tag = ItemUtils::custom_data_tag(&__nbt);
         if !(nbt.contains("blocks_walked")) {
             return vec![];
         }

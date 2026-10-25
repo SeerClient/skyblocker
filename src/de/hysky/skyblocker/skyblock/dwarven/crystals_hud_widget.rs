@@ -94,8 +94,8 @@ impl CrystalsHudWidget {
             return;
         }
         let mut scale: f32 = SkyblockerConfigManager::get().mining.crystals_hud.map_scaling;
-        // TODO(fabric2seer): an assignment used as a value
-        //   java: w = h = (int) (62 * scale);
+        // java: w = h = (int) (62 * scale);
+        { let __v = ((62 as f32) * scale) as i32; compat::write(__this, |__t| { __t.h = __v; __t.w = __v; }); }
     }
 
 }
@@ -130,8 +130,8 @@ impl CrystalsHudWidget {
         let mut scale: f32 = SkyblockerConfigManager::get().mining.crystals_hud.map_scaling;
         let __pose_1 = gui_graphics_extractor::push_pose();
         gui_graphics_extractor::pose_scale((scale) as f32, (scale) as f32);
-        // TODO(fabric2seer): an assignment used as a value
-        //   java: w = h = (int) (62 * scale);
+        // java: w = h = (int) (62 * scale);
+        { let __v = ((62 as f32) * scale) as i32; compat::write(__this, |__t| { __t.h = __v; __t.w = __v; }); }
         gui_graphics_extractor::blit_identifier(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), mcrust::net::minecraft::client::renderer::render_pipelines::gui_textured(), MAP_TEXTURE.get_mut(), 0, 0, ((0) as f32) as f32, ((0) as f32) as f32, 62, 62, 62, 62);
         if SkyblockerConfigManager::get().mining.crystals_hud.show_locations {
             for waypoint in crystals_locations_manager::ACTIVE_WAYPOINTS.get_mut().values().cloned() {
@@ -158,8 +158,8 @@ impl CrystalsHudWidget {
         gui_graphics_extractor::pose_scale((0.75f32) as f32, (0.75f32) as f32);
         gui_graphics_extractor::pose_rotate(((mcrust::net::minecraft::util::mth::DEG_TO_RAD * CrystalsHudWidget::yaw2_cardinal(player_rotation))) as f32);
         gui_graphics_extractor::blit_identifier(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), mcrust::net::minecraft::client::renderer::render_pipelines::gui_textured(), MAP_ICON.get_mut(), 0, 0, ((2) as f32) as f32, ((0) as f32) as f32, 5, 7, 8, 8);
-        // TODO(fabric2seer): popMatrix() without a pushMatrix() in this method
-        //   java: matrices.popMatrix();
+        // java: matrices.popMatrix(); - the `pushMatrix()` at the top of this method
+        gui_graphics_extractor::pop_pose(__pose_1);
     }
 
     /// CrystalsHudWidget.extractWidgetRenderState as the dispatch of HudWidget.extractWidgetRenderState

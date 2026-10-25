@@ -133,7 +133,7 @@ impl Pet {
             return ico::BARRIER.get_mut().clone();
         }
         let mut target_item_id: String = format!("{};{}", self.get_name(), self.get_tier().wrapping_add(if self.held_item.is_some() && self.held_item.clone().unwrap() == "PET_ITEM_TIER_BOOST" { 1 } else { 0 }));
-        let mut item: Option<crate::unresolved::NEUItem> = NEURepoManager::get_item_by_neu_id(&target_item_id);
+        let mut item: Option<Arc<crate::io::github::moulberry::repo::data::neu_item::NEUItem>> = NEURepoManager::get_item_by_neu_id(&target_item_id);
         if item.is_none() && self.held_item.is_some() && self.held_item.clone().unwrap() == "PET_ITEM_TIER_BOOST" {
             item = NEURepoManager::get_item_by_neu_id(&format!("{};{}", self.get_name(), self.get_tier()));
         }
@@ -142,20 +142,26 @@ impl Pet {
     }
 
     /// java: private FlexibleItemStack fromNEUItem(NEUItem item, FlexibleItemStack heldItem)
-    pub fn from_neu_item(&self, item: &crate::unresolved::NEUItem, held_item: Option<&compat::Shared<FlexibleItemStack>>) -> compat::Shared<FlexibleItemStack> {
+    pub fn from_neu_item(&self, item: &crate::io::github::moulberry::repo::data::neu_item::NEUItem, held_item: Option<&compat::Shared<FlexibleItemStack>>) -> compat::Shared<FlexibleItemStack> {
         if false /* java: item == null: never null here */ {
             return self.get_error_stack();
         }
-        // TODO(fabric2seer): `.getSkyblockItemId(..)` on a NEUItem
         //   java: FlexibleItemStack petStack = ItemRepository.getItemStack(item.getSkyblockItemId());
-        let mut pet_stack: compat::Shared<FlexibleItemStack> = todo!("fabric2seer: the initialiser of `petStack` (TODO above)");
-        if false /* java: pet_stack == null: never null here */ || FlexibleItemStack::is_empty(&pet_stack) {
+        //   java: if (petStack == null || petStack.isEmpty()) return getErrorStack();
+        let Some(mut pet_stack) = ItemRepository::get_item_stack(item.get_skyblock_item_id()) else {
+            return self.get_error_stack();
+        };
+        if FlexibleItemStack::is_empty(&pet_stack) {
             return self.get_error_stack();
         }
         pet_stack = FlexibleItemStack::copy(&pet_stack);
-        // TODO(fabric2seer): `.getLore(..)` on a NEUItem
         //   java: List<Component> formattedLore = !(name.equals("GOLDEN_DRAGON") && level < 101) ?  processLore(item.getLore(), heldItem) : buildGoldenDragonEggLore(item.getLore());
-        let mut formatted_lore: Vec<MutableComponent> = todo!("fabric2seer: the initialiser of `formattedLore` (TODO above)");
+        let item_lore: Vec<String> = item.get_lore().to_vec();
+        let mut formatted_lore: Vec<MutableComponent> = if !(self.get_name() == "GOLDEN_DRAGON" && self.level < 101) {
+            self.process_lore(&item_lore, held_item)
+        } else {
+            self.build_golden_dragon_egg_lore(&item_lore)
+        };
         let mut style: Style = mcrust::net::minecraft::network::chat::style::Style::EMPTY.with_italic(Some(false));
         if self.level != 100 && self.level != 200 {
             let mut progress: String = format!("Progress to Level {}: §e{}%", self.level, self.fix_decimals((self.perecentage_to_level * (100 as f64)), true));
@@ -169,20 +175,21 @@ impl Pet {
             formatted_lore.insert(((formatted_lore.len() as i32).wrapping_sub(1)) as usize, component::empty());
         }
         if self.skin_texture.is_some() && self.skin.is_some() {
-            let mut skin_item: Option<crate::unresolved::NEUItem> = NEURepoManager::get_item_by_neu_id(&format!("PET_SKIN_{}", self.skin.clone().unwrap()));
+            let mut skin_item: Option<Arc<crate::io::github::moulberry::repo::data::neu_item::NEUItem>> = NEURepoManager::get_item_by_neu_id(&format!("PET_SKIN_{}", self.skin.clone().unwrap()));
             if let Some(skin_item) = &skin_item {
-                // TODO(fabric2seer): `.getDisplayName(..)` on a NEUItem
                 //   java: formattedLore.set(0, Component.nullToEmpty(formattedLore.getFirst().getString() + ", " + ChatFormatting.stripFormatting(skinItem.getDisplayName())));
+                let __v = component::null_to_empty(Some(&format!("{}, {}", formatted_lore[0].get_string(), mcrust::net::minecraft::chat_formatting::strip_formatting(skin_item.get_display_name()))));
+                formatted_lore[0] = __v;
             }
             FlexibleItemStack::set(&pet_stack, mcrust::net::minecraft::core::component::data_components::profile().clone(), self.skin_texture.clone().unwrap());
         }
         if self.boosted() {
-            formatted_lore[((formatted_lore.len() as i32).wrapping_sub(1)) as usize] = component::literal(&self.get_rarity().next().to_string()).set_style(style.clone()).with_style_format(ChatFormatting::Bold).with_color(self.get_rarity().next().fields().color);
+            let __last = ((formatted_lore.len() as i32).wrapping_sub(1)) as usize;
+            formatted_lore[__last] = component::literal(&self.get_rarity().next().to_string()).set_style(style.clone()).with_style_format(ChatFormatting::Bold).with_color(self.get_rarity().next().fields().color);
         }
         FlexibleItemStack::set(&pet_stack, mcrust::net::minecraft::core::component::data_components::lore().clone(), ItemLore::new(formatted_lore.iter().cloned().map(mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from).collect()).unwrap());
-        // TODO(fabric2seer): `.getDisplayName(..)` on a NEUItem
         //   java: String displayName = ChatFormatting.stripFormatting(item.getDisplayName()).replace("[Lvl {LVL}]", "§7[Lvl " + this.level + "]§r");
-        let mut display_name: String = todo!("fabric2seer: the initialiser of `displayName` (TODO above)");
+        let mut display_name: String = mcrust::net::minecraft::chat_formatting::strip_formatting(item.get_display_name()).replace("[Lvl {LVL}]", &format!("§7[Lvl {}]§r", self.level));
         // (CUSTOM_NAME's value is a Component: the port's is a `FormattedText`)
         FlexibleItemStack::set(&pet_stack, mcrust::net::minecraft::core::component::data_components::custom_name().clone(), mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::literal(&display_name).set_style(style.clone()).with_color((if self.boosted() { self.get_rarity().next() } else { self.get_rarity() }).fields().color)));
         return pet_stack;
@@ -190,17 +197,16 @@ impl Pet {
 
     /// java: private List<Component> processLore(List<String> lore, FlexibleItemStack heldItem)
     pub fn process_lore(&self, lore: &Vec<String>, held_item: Option<&compat::Shared<FlexibleItemStack>>) -> Vec<MutableComponent> {
-        // TODO(fabric2seer): `.getPetNumbers(..)` on a NEUConstants
         //   java: Map<String, Map<Rarity, PetNumbers>> petNums = NEURepoManager.getConstants().getPetNumbers();
-        let mut pet_nums: std::collections::HashMap<String, std::collections::HashMap<crate::unresolved::Rarity, crate::unresolved::PetNumbers>> = todo!("fabric2seer: the initialiser of `petNums` (TODO above)");
-        // TODO(fabric2seer): static call Rarity.values(..)
-        //   java: Rarity rarity = Rarity.values()[getTier()];
-        let mut rarity: crate::unresolved::Rarity = todo!("fabric2seer: the initialiser of `rarity` (TODO above)");
-        // rust: port gap (GAPS_batchB L1, the NEU repo library) - `Rarity` / `PetNumbers` are the library's types, of which
-        // the port has placeholders with no equality or hash: the map cannot be looked up by them
-        // (Rarity is Hash + Eq and PetNumbers Clone now - the Java lookup, restored)
-        let _ = (&pet_nums, &rarity);
-        let mut data: crate::unresolved::PetNumbers = pet_nums.get(&self.get_name()).cloned().unwrap().get(&rarity).cloned().unwrap();
+        let pet_nums: Arc<crate::io::github::moulberry::repo::neu_constants::PetNumbersMap> = NEURepoManager::get_constants().get_pet_numbers();
+        //   java: Rarity rarity = Rarity.values()[getTier()]; - an index past the array throws
+        let mut rarity: crate::io::github::moulberry::repo::data::rarity::Rarity = crate::io::github::moulberry::repo::data::rarity::Rarity::values()[self.get_tier() as usize];
+        //   java: PetNumbers data = petNums.get(getName()).get(rarity); - a missing entry is a null `data` and the NPE below
+        let mut data: crate::io::github::moulberry::repo::constants::pet_numbers::PetNumbers = pet_nums
+            .get(&self.get_name())
+            .and_then(|by_rarity| by_rarity.get(&rarity))
+            .cloned()
+            .expect("java.lang.NullPointerException: PetNumbers data");
         let mut formatted_lore: Vec<MutableComponent> = Vec::new();
         for line in lore.iter() {
             if line.contains("Right-click to add this") || line.contains("pet menu!") {
@@ -212,17 +218,27 @@ impl Pet {
             while stats.find() {
                 let mut placeholder: String = stats.group(0).unwrap();
                 let mut stat_key: String = compat::substring2(&placeholder, 1, (compat::str_len(&placeholder)).wrapping_sub(1));
-                // TODO(fabric2seer): `.interpolatedStatsAtLevel(..)` on a PetNumbers
                 //   java: String statValue = String.valueOf(fixDecimals(data.interpolatedStatsAtLevel(this.level).getStatNumbers().get(statKey), true));
-                let mut stat_value: String = todo!("fabric2seer: the initialiser of `statValue` (TODO above)");
+                let __stat: f64 = *data
+                    .interpolated_stats_at_level(self.level)
+                    .expect("java.lang.NullPointerException: interpolatedStatsAtLevel")
+                    .get_stat_numbers()
+                    .get(&stat_key)
+                    .expect("java.lang.NullPointerException: stat number");
+                let mut stat_value: String = self.fix_decimals(__stat, true);
                 formatted_line = formatted_line.replace(&placeholder, &stat_value);
             }
             while other.find() {
                 let mut placeholder: String = other.group(0).unwrap();
                 let mut number_key: i32 = (compat::substring2(&placeholder, 1, (compat::str_len(&placeholder)).wrapping_sub(1))).parse::<i32>().expect("NumberFormatException");
-                // TODO(fabric2seer): `.interpolatedStatsAtLevel(..)` on a PetNumbers
                 //   java: String statValue = String.valueOf(fixDecimals(data.interpolatedStatsAtLevel(this.level).getOtherNumbers().get(numberKey), false));
-                let mut stat_value: String = todo!("fabric2seer: the initialiser of `statValue` (TODO above)");
+                let __number: f64 = *data
+                    .interpolated_stats_at_level(self.level)
+                    .expect("java.lang.NullPointerException: interpolatedStatsAtLevel")
+                    .get_other_numbers()
+                    .get(number_key as usize)
+                    .expect("java.lang.IndexOutOfBoundsException: other number");
+                let mut stat_value: String = self.fix_decimals(__number, false);
                 formatted_line = formatted_line.replace(&placeholder, &stat_value);
             }
             formatted_lore.push(component::null_to_empty(Some(&formatted_line)));
@@ -257,12 +273,13 @@ impl Pet {
         if (num % (1 as f64)) == (0 as f64) {
             return ((num) as i32).to_string();
         }
-        // TODO(fabric2seer): `new BigDecimal(..)`
-        //   java: BigDecimal roundedNum = new BigDecimal(num).setScale(truncate ? 1 : 3, RoundingMode.HALF_UP);
-        let mut rounded_num: crate::unresolved::BigDecimal = todo!("fabric2seer: the initialiser of `roundedNum` (TODO above)");
-        // TODO(fabric2seer): `.stripTrailingZeros(..)` on a BigDecimal
-        //   java: return roundedNum.stripTrailingZeros().toPlainString();
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        // java: BigDecimal roundedNum = new BigDecimal(num).setScale(truncate ? 1 : 3, RoundingMode.HALF_UP);
+        // java: return roundedNum.stripTrailingZeros().toPlainString();
+        // `new BigDecimal(double)` is the double's EXACT binary value, rounded HALF_UP in decimal (see `big_decimal_*`).
+        let (negative, digits, scale) = big_decimal_exact(num);
+        let (digits, scale) = big_decimal_set_scale_half_up(digits, scale, if truncate { 1 } else { 3 });
+        let (digits, scale) = big_decimal_strip_trailing_zeros(digits, scale);
+        return big_decimal_to_plain_string(negative, &digits, scale);
     }
 
     /// java: private boolean boosted()
@@ -277,4 +294,135 @@ impl Pet {
         return err_icon;
     }
 
+}
+
+/// java: `new BigDecimal(double val)` - the exact decimal expansion of the double's binary value, as (sign, unscaled
+/// magnitude digits, scale): `val == (-1)^sign * digits * 10^-scale`. Java throws `NumberFormatException` for an infinite
+/// or NaN argument.
+fn big_decimal_exact(val: f64) -> (bool, Vec<u8>, i32) {
+    if !val.is_finite() {
+        panic!("NumberFormatException: Infinite or NaN");
+    }
+    let bits = val.to_bits();
+    let negative = (bits >> 63) != 0;
+    let exponent = ((bits >> 52) & 0x7ff) as i32;
+    let fraction = bits & ((1u64 << 52) - 1);
+    // value = mantissa * 2^exp
+    let (mantissa, exp) = if exponent == 0 { (fraction, -1074) } else { (fraction | (1u64 << 52), exponent - 1075) };
+    if mantissa == 0 {
+        return (negative, vec![0], 0);
+    }
+    // little-endian base-10^9 limbs
+    let mut limbs: Vec<u64> = vec![mantissa % 1_000_000_000, (mantissa / 1_000_000_000) % 1_000_000_000, mantissa / 1_000_000_000_000_000_000];
+    let multiply = |limbs: &mut Vec<u64>, by: u64| {
+        let mut carry = 0u64;
+        for limb in limbs.iter_mut() {
+            let v = *limb * by + carry;
+            *limb = v % 1_000_000_000;
+            carry = v / 1_000_000_000;
+        }
+        while carry > 0 {
+            limbs.push(carry % 1_000_000_000);
+            carry /= 1_000_000_000;
+        }
+    };
+    let scale = if exp >= 0 {
+        // an integer: mantissa * 2^exp
+        for _ in 0..exp {
+            multiply(&mut limbs, 2);
+        }
+        0
+    } else {
+        // mantissa * 2^-k = mantissa * 5^k / 10^k
+        for _ in 0..(-exp) {
+            multiply(&mut limbs, 5);
+        }
+        -exp
+    };
+    while limbs.len() > 1 && *limbs.last().unwrap() == 0 {
+        limbs.pop();
+    }
+    let mut text = limbs.last().unwrap().to_string();
+    for limb in limbs.iter().rev().skip(1) {
+        text.push_str(&format!("{limb:09}"));
+    }
+    (negative, text.bytes().map(|c| c - b'0').collect(), scale)
+}
+
+/// java: `BigDecimal.setScale(newScale, RoundingMode.HALF_UP)` on (magnitude digits, scale): round half away from zero.
+fn big_decimal_set_scale_half_up(mut digits: Vec<u8>, scale: i32, new_scale: i32) -> (Vec<u8>, i32) {
+    if new_scale >= scale {
+        digits.extend(std::iter::repeat(0u8).take((new_scale - scale) as usize));
+        return (digits, new_scale);
+    }
+    let drop = (scale - new_scale) as usize;
+    let (keep, dropped): (Vec<u8>, u8) = if drop > digits.len() {
+        (vec![0], 0)
+    } else if drop == digits.len() {
+        (vec![0], digits[0])
+    } else {
+        (digits[..digits.len() - drop].to_vec(), digits[digits.len() - drop])
+    };
+    let mut keep = keep;
+    if dropped >= 5 {
+        // add one to the kept magnitude
+        let mut i = keep.len();
+        loop {
+            if i == 0 {
+                keep.insert(0, 1);
+                break;
+            }
+            i -= 1;
+            if keep[i] == 9 {
+                keep[i] = 0;
+            } else {
+                keep[i] += 1;
+                break;
+            }
+        }
+    }
+    (keep, new_scale)
+}
+
+/// java: `BigDecimal.stripTrailingZeros()` - a zero value is `BigDecimal.ZERO` (scale 0).
+fn big_decimal_strip_trailing_zeros(mut digits: Vec<u8>, mut scale: i32) -> (Vec<u8>, i32) {
+    while digits.len() > 1 && digits[0] == 0 {
+        digits.remove(0);
+    }
+    if digits == [0] {
+        return (digits, 0);
+    }
+    while digits.len() > 1 && *digits.last().unwrap() == 0 {
+        digits.pop();
+        scale -= 1;
+    }
+    (digits, scale)
+}
+
+/// java: `BigDecimal.toPlainString()` (no exponent; a zero magnitude has no sign).
+fn big_decimal_to_plain_string(negative: bool, digits: &[u8], scale: i32) -> String {
+    let unscaled: String = digits.iter().map(|d| (b'0' + d) as char).collect();
+    let is_zero = digits.iter().all(|d| *d == 0);
+    let mut out = String::new();
+    if negative && !is_zero {
+        out.push('-');
+    }
+    if scale <= 0 {
+        out.push_str(&unscaled);
+        if !is_zero {
+            out.extend(std::iter::repeat('0').take((-scale) as usize));
+        }
+    } else {
+        let scale = scale as usize;
+        if unscaled.len() > scale {
+            out.push_str(&unscaled[..unscaled.len() - scale]);
+            out.push('.');
+            out.push_str(&unscaled[unscaled.len() - scale..]);
+        } else {
+            out.push_str("0.");
+            out.extend(std::iter::repeat('0').take(scale - unscaled.len()));
+            out.push_str(&unscaled);
+        }
+    }
+    out
 }

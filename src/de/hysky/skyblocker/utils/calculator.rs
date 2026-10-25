@@ -7,7 +7,6 @@ use mcrust::java::text::decimal_format_symbols::Locale;
 
 /// java: private static final Pattern NUMBER_PATTERN = Pattern.compile("([_,\\d]+\\.?[_,\\d]*)([sekmbtq]?)");
 pub static NUMBER_PATTERN: LazyLock<compat::regex::Pattern> = LazyLock::new(|| compat::regex::Pattern::compile("([_,\\d]+\\.?[_,\\d]*)([sekmbtq]?)"));
-// TODO(fabric2seer): static call Object2LongMap.ofEntries(..)
 //   java: private static final Object2LongMap<String> MAGNITUDE_VALUES = Object2LongMap.ofEntries(
 //   java: 			Object2LongMap.entry("s", 64L),
 //   java: 			Object2LongMap.entry("e", 160L),
@@ -29,14 +28,12 @@ pub static MAGNITUDE_VALUES: LazyLock<std::collections::HashMap<String, i64>> = 
         ("q".to_string(), 1_000_000_000_000_000i64),
     ])
 });
-// TODO(fabric2seer): field `op` of a T
 //   java: private static final java.util.function.Function<String, @Nullable Operator> OPERATOR_MAP = StringRepresentable.createNameLookup(Operator.values(), op -> op.op);
 /// java: private static final java.util.function.Function<String, @Nullable Operator> OPERATOR_MAP = StringRepresentable.createNameLookup(Operator.values(), op -> op.op);
 pub static OPERATOR_OPERATOR_MAP: compat::MainThread<Arc<dyn Fn(String) -> Option<Operator>>> = compat::MainThread::new(|| {
     let lookup = mcrust::net::minecraft::util::string_representable::create_name_lookup(&Operator::VALUES, |op: &Operator| op.fields().op.clone());
     Arc::new(move |name: String| lookup(&name).copied())
 });
-// TODO(fabric2seer): field `name` of a T
 //   java: private static final java.util.function.Function<String, @Nullable Function> FUNCTION_MAP = StringRepresentable.createNameLookup(Function.values(), func -> func.name);
 /// java: private static final java.util.function.Function<String, @Nullable Function> FUNCTION_MAP = StringRepresentable.createNameLookup(Function.values(), func -> func.name);
 pub static FUNCTION_FUNCTION_MAP: compat::MainThread<Arc<dyn Fn(String) -> Option<Function>>> = compat::MainThread::new(|| {
@@ -69,10 +66,10 @@ impl Calculator {
                     let mut op: String = compat::char_at(&input, i).to_string();
                     let mut operator: Option<Operator> = (OPERATOR_OPERATOR_MAP.get_mut())(op.clone());
                     let Some(mut operator) = operator.clone() else {
-                        panic!("CalculatorException: {}", "skyblocker.config.uiAndVisuals.inputCalculator.invalidOperatorError");
+                        CalculatorException::throw("skyblocker.config.uiAndVisuals.inputCalculator.invalidOperatorError", vec![op.clone()]);
                     };
                     if !tokens.is_empty() && compat::read(&tokens[tokens.len() - 1], |__t| __t.token_type()) == TokenType::Operator {
-                        panic!("CalculatorException: {}", "skyblocker.config.uiAndVisuals.inputCalculator.duplicateOperatorError");
+                        CalculatorException::throw("skyblocker.config.uiAndVisuals.inputCalculator.duplicateOperatorError", Vec::new());
                     }
                     break 'yield_2 (compat::shared(OperatorToken::new(operator)) as compat::Shared<dyn AbstractToken>);
                 }
@@ -87,15 +84,15 @@ impl Calculator {
                 }
                 ')' => (compat::shared(Token::new(TokenType::RParenthesis, ")".to_string())) as compat::Shared<dyn AbstractToken>),
                 '_' | ',' => {
-                    panic!("CalculatorException: {}", "skyblocker.config.uiAndVisuals.inputCalculator.invalidNumberError2");
+                    CalculatorException::throw("skyblocker.config.uiAndVisuals.inputCalculator.invalidNumberError2", Vec::new());
                 }
                 '.' => {
-                    panic!("CalculatorException: {}", "skyblocker.config.uiAndVisuals.inputCalculator.invalidNumberError3");
+                    CalculatorException::throw("skyblocker.config.uiAndVisuals.inputCalculator.invalidNumberError3", Vec::new());
                 }
                 '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' | '0' => 'yield_4: {
                     let mut number_matcher: compat::regex::Matcher = NUMBER_PATTERN.matcher(&compat::substring(&input, i));
                     if !number_matcher.find() {
-                        panic!("CalculatorException: {}", "skyblocker.config.uiAndVisuals.inputCalculator.invalidCharacterError");
+                        CalculatorException::throw("skyblocker.config.uiAndVisuals.inputCalculator.invalidCharacterError", vec![compat::substring(&input, i)]);
                     }
                     let mut end: i32 = number_matcher.end(0);
                     let mut number: String = compat::substring2(&input, i, i.wrapping_add(end));
@@ -104,7 +101,7 @@ impl Calculator {
                 }
                 'p' => 'yield_5: {
                     if !tokens.is_empty() && compat::read(&tokens[tokens.len() - 1], |__t| __t.token_type()) == TokenType::Number {
-                        panic!("CalculatorException: {}", "skyblocker.config.uiAndVisuals.inputCalculator.invalidEquation");
+                        CalculatorException::throw("skyblocker.config.uiAndVisuals.inputCalculator.invalidEquation", Vec::new());
                     }
                     if compat::substring2(&input, i, (compat::str_len(&input)).min(i.wrapping_add(5))) == "purse" {
                         i = i.wrapping_add(4);
@@ -115,7 +112,7 @@ impl Calculator {
                     let mut func: String = (compat::regex::split_limit(&(compat::substring(&input, i)), "[ (]", 2))[(0) as usize].clone();
                     let mut function: Option<Function> = (FUNCTION_FUNCTION_MAP.get_mut())(func.clone());
                     let Some(mut function) = function.clone() else {
-                        panic!("CalculatorException: {}", "skyblocker.config.uiAndVisuals.inputCalculator.invalidOperatorError");
+                        CalculatorException::throw("skyblocker.config.uiAndVisuals.inputCalculator.invalidOperatorError", vec![func.clone()]);
                     };
                     if !tokens.is_empty() {
                         let mut last_type: TokenType = compat::read(&tokens[tokens.len() - 1], |__t| __t.token_type());
@@ -166,7 +163,7 @@ impl Calculator {
                 TokenType::RParenthesis => {
                     loop {
                         if operator_stack.is_empty() {
-                            panic!("CalculatorException: {}", "skyblocker.config.uiAndVisuals.inputCalculator.unbalancedParenthesisError");
+                            CalculatorException::throw("skyblocker.config.uiAndVisuals.inputCalculator.unbalancedParenthesisError", Vec::new());
                         }
                         let mut left_token: compat::Shared<dyn AbstractToken> = operator_stack.pop_front().expect("NoSuchElementException");
                         if compat::read(&left_token, |__t| __t.token_type()) == TokenType::LParenthesis {
@@ -211,7 +208,7 @@ impl Calculator {
                 }
                 TokenType::Operator => {
                     if (values.len() as i32) < 2 {
-                        panic!("CalculatorException: {}", "skyblocker.config.uiAndVisuals.inputCalculator.missingValueError");
+                        CalculatorException::throw("skyblocker.config.uiAndVisuals.inputCalculator.missingValueError", Vec::new());
                     }
                     let mut right: f64 = values.pop_front().unwrap();
                     let mut left: f64 = values.pop_front().unwrap();
@@ -221,13 +218,13 @@ impl Calculator {
                         Operator::Mult => (left * right),
                         Operator::Div => 'yield_3: {
                             if right == (0 as f64) {
-                                panic!("CalculatorException: {}", "skyblocker.config.uiAndVisuals.inputCalculator.divisionByZeroError");
+                                CalculatorException::throw("skyblocker.config.uiAndVisuals.inputCalculator.divisionByZeroError", vec![compat::fstr(left)]);
                             }
                             break 'yield_3 (left / right);
                         }
                         Operator::Mod => 'yield_4: {
                             if right == (0 as f64) {
-                                panic!("CalculatorException: {}", "skyblocker.config.uiAndVisuals.inputCalculator.moduloByZeroError");
+                                CalculatorException::throw("skyblocker.config.uiAndVisuals.inputCalculator.moduloByZeroError", vec![compat::fstr(left)]);
                             }
                             break 'yield_4 (left % right);
                         }
@@ -237,7 +234,7 @@ impl Calculator {
                 }
                 TokenType::Function => {
                     if values.is_empty() {
-                        panic!("CalculatorException: {}", "skyblocker.config.uiAndVisuals.inputCalculator.missingValueError");
+                        CalculatorException::throw("skyblocker.config.uiAndVisuals.inputCalculator.missingValueError", Vec::new());
                     }
                     // java: values.push(((Function) token.value).function.apply(values.pollFirst()));
                     let function: Function = compat::read(token, |__t| token_value::<Function>(__t));
@@ -245,13 +242,13 @@ impl Calculator {
                     values.push_front((function.fields().function)(value));
                 }
                 TokenType::LParenthesis | TokenType::RParenthesis => {
-                    panic!("CalculatorException: {}", "skyblocker.config.uiAndVisuals.inputCalculator.unbalancedParenthesisError");
+                    CalculatorException::throw("skyblocker.config.uiAndVisuals.inputCalculator.unbalancedParenthesisError", Vec::new());
                 }
                 _ => {}
             }
         }
         if values.is_empty() {
-            panic!("CalculatorException: {}", "skyblocker.config.uiAndVisuals.inputCalculator.emptyEquationError");
+            CalculatorException::throw("skyblocker.config.uiAndVisuals.inputCalculator.emptyEquationError", Vec::new());
         }
         return values.pop_front().expect("NoSuchElementException");
     }
@@ -260,13 +257,13 @@ impl Calculator {
     pub fn calculate_value(value: &str) -> f64 {
         let mut number_matcher: compat::regex::Matcher = NUMBER_PATTERN.matcher(&value.to_lowercase());
         if !number_matcher.matches() {
-            panic!("CalculatorException: {}", "skyblocker.config.uiAndVisuals.inputCalculator.invalidNumberError");
+            CalculatorException::throw("skyblocker.config.uiAndVisuals.inputCalculator.invalidNumberError", vec![value.to_lowercase()]);
         }
         let mut number: f64 = (compat::regex::replace_all(&number_matcher.group(1).unwrap(), "[_,]", "")).trim().parse::<f64>().expect("NumberFormatException");
         let mut magnitude: String = number_matcher.group(2).unwrap();
         if !magnitude.is_empty() {
             if !(MAGNITUDE_VALUES.contains_key(&magnitude)) {
-                panic!("CalculatorException: {}", "skyblocker.config.uiAndVisuals.inputCalculator.invalidMagnitudeError");
+                CalculatorException::throw("skyblocker.config.uiAndVisuals.inputCalculator.invalidMagnitudeError", vec![magnitude.clone()]);
             }
             number = (number * (MAGNITUDE_VALUES.get(&magnitude).copied().unwrap_or_default() as f64));
         }
@@ -705,31 +702,31 @@ impl Function {
         static FIELDS: LazyLock<Vec<FunctionFields>> = LazyLock::new(|| vec![
             FunctionFields::new("sqrt".to_string(), Arc::new(move |val| {
     if val < (0 as f64) {
-        panic!("CalculatorException: {}", "skyblocker.config.uiAndVisuals.inputCalculator.invalidFunctionInputError");
+        CalculatorException::throw("skyblocker.config.uiAndVisuals.inputCalculator.invalidFunctionInputError", vec![compat::fstr(val), "sqrt".to_string()]);
     }
     return val.sqrt();
 })),
             FunctionFields::new("log".to_string(), Arc::new(move |val| {
     if val <= (0 as f64) {
-        panic!("CalculatorException: {}", "skyblocker.config.uiAndVisuals.inputCalculator.invalidFunctionInputError");
+        CalculatorException::throw("skyblocker.config.uiAndVisuals.inputCalculator.invalidFunctionInputError", vec![compat::fstr(val), "log".to_string()]);
     }
     return val.log10();
 })),
             FunctionFields::new("lg".to_string(), Arc::new(move |val| {
     if val <= (0 as f64) {
-        panic!("CalculatorException: {}", "skyblocker.config.uiAndVisuals.inputCalculator.invalidFunctionInputError");
+        CalculatorException::throw("skyblocker.config.uiAndVisuals.inputCalculator.invalidFunctionInputError", vec![compat::fstr(val), "lg".to_string()]);
     }
     return (val.ln() / (2 as f64).ln());
 })),
             FunctionFields::new("ln".to_string(), Arc::new(move |val| {
     if val <= (0 as f64) {
-        panic!("CalculatorException: {}", "skyblocker.config.uiAndVisuals.inputCalculator.invalidFunctionInputError");
+        CalculatorException::throw("skyblocker.config.uiAndVisuals.inputCalculator.invalidFunctionInputError", vec![compat::fstr(val), "ln".to_string()]);
     }
     return val.ln();
 })),
             FunctionFields::new("factorial".to_string(), Arc::new(move |val| {
     if val < (0 as f64) || val > (170 as f64) {
-        panic!("CalculatorException: {}", "skyblocker.config.uiAndVisuals.inputCalculator.invalidFunctionInputError");
+        CalculatorException::throw("skyblocker.config.uiAndVisuals.inputCalculator.invalidFunctionInputError", vec![compat::fstr(val), "factorial".to_string()]);
     }
     let mut result: f64 = ((1) as f64) as f64;
     for i in 2..=((val) as i32) {
@@ -742,13 +739,13 @@ impl Function {
             FunctionFields::new("tan".to_string(), Arc::new(move |val| val.to_radians().tan())),
             FunctionFields::new("asin".to_string(), Arc::new(move |val| {
     if val < (-1 as f64) || val > (1 as f64) {
-        panic!("CalculatorException: {}", "skyblocker.config.uiAndVisuals.inputCalculator.invalidFunctionInputError");
+        CalculatorException::throw("skyblocker.config.uiAndVisuals.inputCalculator.invalidFunctionInputError", vec![compat::fstr(val), "asin".to_string()]);
     }
     return val.asin().to_degrees();
 })),
             FunctionFields::new("acos".to_string(), Arc::new(move |val| {
     if val < (-1 as f64) || val > (1 as f64) {
-        panic!("CalculatorException: {}", "skyblocker.config.uiAndVisuals.inputCalculator.invalidFunctionInputError");
+        CalculatorException::throw("skyblocker.config.uiAndVisuals.inputCalculator.invalidFunctionInputError", vec![compat::fstr(val), "acos".to_string()]);
     }
     return val.acos().to_degrees();
 })),
@@ -805,36 +802,37 @@ impl FunctionFields {
 /// a functional interface: `apply(double val)` - a lambda / method reference is this closure type
 pub type CalculatorFunction = Arc<dyn Fn(f64) -> f64 + Send + Sync>;
 
-/// java: public static class CalculatorException extends Exception
+/// java: public static class CalculatorException extends Exception - `getMessage()` (a translation key) and `args`
+/// (its translation arguments). Thrown as a panic carrying this value (`std::panic::panic_any`), so a `catch` reads
+/// both back with `CalculatorException::of`.
+#[derive(Clone, Debug)]
 pub struct CalculatorException {
-    /// java: extends java.lang.Exception
-    pub base: crate::unresolved::Exception,
-    /// java: public final Object[] args;
-    pub args: Vec<compat::Object>,
-    /// java: Throwable.detailMessage (`super(message)`)
     pub message: String,
-}
-
-impl std::ops::Deref for CalculatorException {
-    type Target = crate::unresolved::Exception;
-    fn deref(&self) -> &Self::Target {
-        &self.base
-    }
-}
-
-impl std::ops::DerefMut for CalculatorException {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.base
-    }
+    pub args: Vec<String>,
 }
 
 impl CalculatorException {
-    /// java: public CalculatorException(@Translatable String message, Object... args)
-    pub fn new(mut message: String, mut args: Vec<compat::Object>) -> Self {
-        let __init_args = args.clone();
-        // java: super(message);
-        let mut this: Self = Self { base: crate::unresolved::Exception, args: __init_args, message };
-        this
+    /// java: throw new CalculatorException(message, args...)
+    pub fn throw(message: &str, args: Vec<String>) -> ! {
+        std::panic::panic_any(CalculatorException { message: message.to_string(), args })
     }
 
+    /// The exception a `catch (CalculatorException e)` receives from a caught panic; `None` for any other panic.
+    pub fn of(payload: &(dyn std::any::Any + Send)) -> Option<&CalculatorException> {
+        payload.downcast_ref::<CalculatorException>()
+    }
+
+    /// java: Component.translatable(e.getMessage(), e.args)
+    pub fn to_component(&self) -> mcrust::net::minecraft::network::chat::mutable_component::MutableComponent {
+        mcrust::net::minecraft::network::chat::component::translatable_args(
+            &self.message,
+            self.args.iter().map(|a| mcrust::net::minecraft::network::chat::formatted_text::FormattedText::of(a.clone())).collect(),
+        )
+    }
+}
+
+impl std::fmt::Display for CalculatorException {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "CalculatorException: {}", self.message)
+    }
 }

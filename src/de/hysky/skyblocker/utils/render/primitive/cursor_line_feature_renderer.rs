@@ -2,6 +2,7 @@
 
 #[allow(unused_imports)]
 use crate::prelude::*;
+use crate::de::hysky::skyblocker::utils::render::primitive::primitive_feature_renderer;
 use crate::de::hysky::skyblocker::utils::render::primitive::primitive_feature_renderer::PrimitiveFeatureRenderer;
 use crate::de::hysky::skyblocker::utils::render::primitive::primitive_feature_renderer::PrimitiveFeatureRendererBase;
 use crate::de::hysky::skyblocker::utils::render::skyblocker_render_pipelines;
@@ -63,20 +64,18 @@ impl PrimitiveFeatureRenderer<crate::de::hysky::skyblocker::utils::render::primi
     }
 
     /// java: @Override protected void buildGroup(FeatureFrameContext context, List<Submit> submits)
-    fn build_group(&self, context: &FeatureFrameContext, submits: &Vec<Submit>) {
-        for submit in submits.iter() {
-            let mut position_matrix: Matrix4f = Matrix4f::new().translate((((-submit.camera().pos.x)) as f32), (((-submit.camera().pos.y)) as f32), (((-submit.camera().pos.z)) as f32));
-            for state in submit.states() {
-                let mut builder: Box<dyn VertexConsumer> = self.get_vertex_builder(skyblocker_render_pipelines::LINES_THROUGH_WALLS.get_mut());
+    fn build_group(&mut self, context: &mut FeatureFrameContext<'_>, submits: &[std::sync::Arc<dyn SubmitNode>]) {
+        for submit in primitive_feature_renderer::submits::<Submit>(submits) {
+            let mut position_matrix: Matrix4f = Matrix4f::new().translate((((-submit.camera.pos.x)) as f32), (((-submit.camera.pos.y)) as f32), (((-submit.camera.pos.z)) as f32));
+            for state in submit.states.iter() {
+                let builder = self.get_vertex_builder(context, skyblocker_render_pipelines::LINES_THROUGH_WALLS.get_mut());
                 let mut point: Vec3 = state.point();
-                // TODO(fabric2seer): `transform` takes 3 argument(s) in the port (`x: f32, y: f32, z: f32`), Java passes 1
-                // rust: let mut camera_point: Vec3 = submit.camera().pos.add_vec(&Vec3::from_vector3f(&submit.camera().orientation.transform(Vector3f::new((0) as f32, (0) as f32, (-1) as f32))));
-                let mut camera_point: Vec3 = todo!("fabric2seer: the initialiser of `cameraPoint` (TODO above)");
-                // TODO(fabric2seer): `sub` takes 1 argument(s) in the port (`v: &Vector3f`), Java passes 3
-                // rust: let mut normal: Vector3f = (point.to_vector3f().sub(&((camera_point.x) as f32), ((camera_point.y) as f32), ((camera_point.z) as f32))).normalize();
-                let mut normal: Vector3f = todo!("fabric2seer: the initialiser of `normal` (TODO above)");
-                { builder.add_vertex_matrix(&position_matrix, ((camera_point.x) as f32), ((camera_point.y) as f32), ((camera_point.z) as f32)); builder.set_color_f32(state.colour_components()[(0) as usize], state.colour_components()[(1) as usize], state.colour_components()[(2) as usize], state.alpha()); builder.set_normal(normal.x(), normal.y(), normal.z()); builder.set_line_width(state.line_width()); &mut builder };
-                { builder.add_vertex_matrix(&position_matrix, ((point.x()) as f32), ((point.y()) as f32), ((point.z()) as f32)); builder.set_color_f32(state.colour_components()[(0) as usize], state.colour_components()[(1) as usize], state.colour_components()[(2) as usize], state.alpha()); builder.set_normal(normal.x(), normal.y(), normal.z()); builder.set_line_width(state.line_width()); &mut builder };
+                // java: Vec3 cameraPoint = submit.camera().pos.add(new Vec3(submit.camera().orientation.transform(new Vector3f(0, 0, -1))));
+                let camera_point: Vec3 = submit.camera.pos.add_vec(&Vec3::from_vector3f(&submit.camera.orientation.transform(0.0f32, 0.0f32, -1.0f32)));
+                // java: Vector3f normal = point.toVector3f().sub((float) cameraPoint.x, (float) cameraPoint.y, (float) cameraPoint.z).normalize();
+                let normal: Vector3f = point.to_vector3f().sub(&Vector3f::new(camera_point.x as f32, camera_point.y as f32, camera_point.z as f32)).normalize();
+                { builder.add_vertex_matrix(&position_matrix, ((camera_point.x) as f32), ((camera_point.y) as f32), ((camera_point.z) as f32)); builder.set_color_f32(state.colour_components()[(0) as usize], state.colour_components()[(1) as usize], state.colour_components()[(2) as usize], state.alpha()); builder.set_normal(normal.x(), normal.y(), normal.z()); builder.set_line_width(state.line_width()); };
+                { builder.add_vertex_matrix(&position_matrix, ((point.x()) as f32), ((point.y()) as f32), ((point.z()) as f32)); builder.set_color_f32(state.colour_components()[(0) as usize], state.colour_components()[(1) as usize], state.colour_components()[(2) as usize], state.alpha()); builder.set_normal(normal.x(), normal.y(), normal.z()); builder.set_line_width(state.line_width()); };
             }
         }
     }
@@ -113,4 +112,15 @@ impl Submit {
         return TYPE.get_mut().clone();
     }
 
+}
+
+/// java: `implements SubmitNode` - the record's `featureType()`; `as_any` is the downcast `FeatureRenderer` reads it back through
+impl SubmitNode for Submit {
+    fn feature_type(&self) -> FeatureRendererType {
+        *TYPE.get()
+    }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
 }

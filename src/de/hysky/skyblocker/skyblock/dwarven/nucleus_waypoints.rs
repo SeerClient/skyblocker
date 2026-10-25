@@ -43,8 +43,8 @@ impl NucleusWaypoints {
             }
         }));
         if let Err(e) = __result {
-            // TODO(fabric2seer): Logger.getName
-            //   java: LOGGER.error("[{}] Error occurred while rendering Nucleus waypoints. {}", LOGGER.getName(), e);
+            // java: LOGGER.error("[{}] Error occurred while rendering Nucleus waypoints. {}", LOGGER.getName(), e); - LOGGER is LoggerFactory.getLogger(NucleusWaypoints.class): its name is the class's
+            logger().error(&format!("[{}] Error occurred while rendering Nucleus waypoints. {}", "de.hysky.skyblocker.skyblock.dwarven.NucleusWaypoints", compat::panic_message(&e)));
         }
     }
 

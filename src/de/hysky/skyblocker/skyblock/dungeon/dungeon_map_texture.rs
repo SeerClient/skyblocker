@@ -58,11 +58,17 @@ impl DungeonMapTexture {
 
     /// java: @Init public static void init()
     pub fn init() {
-        // TODO(fabric2seer): no SeerClient event yet: hook RETURN of Minecraft's constructor (`net.minecraft.client.Minecraft#<init>`: exists)
-        //   java: ClientLifecycleEvents.CLIENT_STARTED.register(minecraft -> {
-        //   java: 			dungeonMapTexture = new DynamicTexture(() -> "Skyblocker Dungeon Map", MAP_TEXTURE_SIZE, MAP_TEXTURE_SIZE, true);
-        //   java: 			minecraft.getTextureManager().register(ID, dungeonMapTexture);
-        //   java: 		});
+        // java: ClientLifecycleEvents.CLIENT_STARTED.register(minecraft -> {
+        //     dungeonMapTexture = new DynamicTexture(() -> "Skyblocker Dungeon Map", MAP_TEXTURE_SIZE, MAP_TEXTURE_SIZE, true);
+        //     minecraft.getTextureManager().register(ID, dungeonMapTexture); });
+        // (CLIENT_STARTED fires once on the client thread after the `Minecraft` constructor, where the entrypoints run:
+        // `compat::execute` from an entrypoint is that point)
+        compat::execute(|| {
+            let texture = DynamicTexture::new_blank("Skyblocker Dungeon Map", MAP_TEXTURE_SIZE, MAP_TEXTURE_SIZE, true);
+            // (the manager holds the same GPU texture this class writes)
+            compat::minecraft().game_renderer.texture_manager_mut().register(ID.get().clone(), texture.texture.clone());
+            *DUNGEON_MAP_TEXTURE.get_mut() = Some(texture);
+        });
         client_play_connection_events::JOIN.register(Arc::new(|listener: &mut ClientPacketListener| {
             DungeonMapTexture::clear_map_image();
         }));
@@ -112,8 +118,9 @@ impl DungeonMapTexture {
         let mut map_renderer: MapRenderer = compat::minecraft().game_renderer.map_renderer();
         MAP_RENDER_STATE.get_mut().decorations.clear();
         for decoration in map_data.get_decorations() {
-            // rust: port gap - `MapRenderer::extract_decoration_render_state` is private in the port (the Java accessor is `MapRendererInvoker`); GAPS_K #1
-            // rust: MAP_RENDER_STATE.get_mut().decorations.push(map_renderer.extract_decoration_render_state(&decoration));
+            // java: mapRenderState.decorations.add(((MapRendererInvoker) mapRenderer).invokeExtractDecorationRenderState(decoration));
+            let state = map_renderer.extract_decoration_render_state(&decoration);
+            MAP_RENDER_STATE.get_mut().decorations.push(state);
         }
     }
 

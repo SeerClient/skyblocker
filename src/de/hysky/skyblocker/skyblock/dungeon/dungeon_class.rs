@@ -7,9 +7,6 @@ use crate::de::hysky::skyblocker::skyblock::tabhud::util::ico;
 use crate::de::hysky::skyblocker::utils::flexible_item_stack::FlexibleItemStack;
 use mcrust::net::minecraft::util::argb;
 
-// TODO(fabric2seer): call to `values(..)` (not a method of this class)
-//   java: private static final Map<String, DungeonClass> CLASSES_BY_DISPLAY_NAME = Arrays.stream(values())
-//   java: 			.collect(Collectors.toUnmodifiableMap(DungeonClass::displayName, Function.identity()));
 /// java: private static final Map<String, DungeonClass> CLASSES_BY_DISPLAY_NAME = Arrays.stream(values()) .collect(Collectors.toUnmodifiableMap(DungeonClass::displayName, Function.identity()));
 pub static CLASSES_BY_DISPLAY_NAME: LazyLock<std::collections::HashMap<String, DungeonClass>> = LazyLock::new(|| DungeonClass::VALUES.iter().map(|c| (c.display_name(), *c)).collect());
 
@@ -82,8 +79,6 @@ impl DungeonClass {
 
     /// java: public String apiName()
     pub fn api_name(&self) -> String {
-        // TODO(fabric2seer): call to `name(..)` (not a method of this class)
-        //   java: return this.name().toLowerCase(Locale.ENGLISH);
         return self.name().to_lowercase();
     }
 

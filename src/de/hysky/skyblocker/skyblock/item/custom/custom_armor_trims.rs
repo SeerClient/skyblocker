@@ -44,12 +44,10 @@ impl CustomArmorTrims {
     /// java: @Init public static void init()
     pub fn init() {
         skyblock_events::JOIN.register(Arc::new(move || { CustomArmorTrims::initialize_trim_cache(); }));
+        // java: ClientCommandRegistrationCallback.EVENT.register(CustomArmorTrims::registerCommand);
         client_command_registration_callback::EVENT.register(Arc::new(
             |dispatcher: &mut client_command_registration_callback::ClientCommandDispatcher| {
-                dispatcher.register("skyblocker", |ctx| {
-                    #[allow(unreachable_code)]
-                    Ok(())
-                });
+                CustomArmorTrims::register_command(dispatcher.dispatcher(), dispatcher.build_context());
             },
         ));
     }
@@ -82,18 +80,32 @@ impl CustomArmorTrims {
     }
 
     /// java: private static void registerCommand(CommandDispatcher<FabricClientCommandSource> dispatcher, CommandBuildContext registryAccess)
-    pub fn register_command(dispatcher: &CommandDispatcher<crate::unresolved::FabricClientCommandSource>, registry_access: &CommandBuildContext) {
-        // TODO(fabric2seer): a command builder outside dispatcher.register(..)
-        //   java: dispatcher.register(ClientCommands.literal("skyblocker")
-        //   java: 				.then(ClientCommands.literal("custom")
-        //   java: 						.then(ClientCommands.literal("armorTrim")
-        //   java: 								.executes(context -> customizeTrim(context.getSource(), null, null))
-        //   java: 								.then(ClientCommands.argument("material", IdentifierArgument.id())
-        //   java: 										.suggests(getIdSuggestionProvider(Registries.TRIM_MATERIAL))
-        //   java: 										.executes(context -> customizeTrim(context.getSource(), context.getArgument("material", Identifier.class), null))
-        //   java: 										.then(ClientCommands.argument("pattern", IdentifierArgument.id())
-        //   java: 												.suggests(getIdSuggestionProvider(Registries.TRIM_PATTERN))
-        //   java: 												.executes(context -> customizeTrim(context.getSource(), context.getArgument("material", Identifier.class), context.getArgument("pattern", Identifier.class))))))));
+    pub fn register_command(dispatcher: &CommandDispatcher<crate::unresolved::FabricClientCommandSource>, registry_access: Option<&CommandBuildContext>) {
+        //   java: dispatcher.register(ClientCommands.literal("skyblocker").then(ClientCommands.literal("custom").then(ClientCommands.literal("armorTrim")
+        //   java:     .executes(context -> customizeTrim(context.getSource(), null, null))
+        //   java:     .then(ClientCommands.argument("material", IdentifierArgument.id()).suggests(getIdSuggestionProvider(Registries.TRIM_MATERIAL))
+        //   java:         .executes(context -> customizeTrim(context.getSource(), context.getArgument("material", Identifier.class), null))
+        //   java:         .then(ClientCommands.argument("pattern", IdentifierArgument.id()).suggests(getIdSuggestionProvider(Registries.TRIM_PATTERN))
+        //   java:             .executes(context -> customizeTrim(context.getSource(), context.getArgument("material", Identifier.class), context.getArgument("pattern", Identifier.class))))))));
+        use mcrust::com::mojang::brigadier::builder::argument_builder::ArgumentBuilder as _;
+        use mcrust::net::minecraft::commands::arguments::identifier_argument::IdentifierArgument;
+        type Ctx = mcrust::com::mojang::brigadier::context::command_context::CommandContext<crate::unresolved::FabricClientCommandSource>;
+        let _ = registry_access;
+        let mut pattern = client_command_registration_callback::argument("pattern", Arc::new(IdentifierArgument::id()));
+        pattern.suggests(Some(CustomArmorTrims::get_id_suggestion_provider(&mcrust::net::minecraft::core::registries::registries::trim_pattern())));
+        pattern.executes(Arc::new(|context: &Ctx| Ok(CustomArmorTrims::customize_trim(context.get_source(), context.get_argument::<Identifier>("material"), context.get_argument::<Identifier>("pattern")))));
+        let mut material = client_command_registration_callback::argument("material", Arc::new(IdentifierArgument::id()));
+        material.suggests(Some(CustomArmorTrims::get_id_suggestion_provider(&mcrust::net::minecraft::core::registries::registries::trim_material())));
+        material.executes(Arc::new(|context: &Ctx| Ok(CustomArmorTrims::customize_trim(context.get_source(), context.get_argument::<Identifier>("material"), None))));
+        material.then(&pattern);
+        let mut armor_trim = client_command_registration_callback::literal("armorTrim");
+        armor_trim.executes(Arc::new(|context: &Ctx| Ok(CustomArmorTrims::customize_trim(context.get_source(), None, None))));
+        armor_trim.then(&material);
+        let mut custom = client_command_registration_callback::literal("custom");
+        custom.then(&armor_trim);
+        let mut root = client_command_registration_callback::literal("skyblocker");
+        root.then(&custom);
+        dispatcher.register(&root);
     }
 
     /// java: private static SuggestionProvider<FabricClientCommandSource> getIdSuggestionProvider(ResourceKey<? extends Registry<?>> registryKey)
@@ -102,13 +114,12 @@ impl CustomArmorTrims {
         // (the port's `suggestRegistryElements` takes the context's input, which is what it reads of the context)
         use mcrust::net::minecraft::commands::shared_suggestion_provider::SharedSuggestionProvider as _;
         let registry_key = registry_key.clone();
-        Arc::new(move |context, builder| Ok(context.get_source().suggest_registry_elements(&registry_key, mcrust::net::minecraft::commands::shared_suggestion_provider::ElementSuggestionType::Elements, builder, context.get_input())))
+        Arc::new(move |context, builder| Ok(context.get_source().suggest_registry_elements(&registry_key, mcrust::net::minecraft::commands::shared_suggestion_provider::ElementSuggestionType::Elements, builder, context.get_input(), &|_| true)))
     }
 
     /// java: @SuppressWarnings("SameReturnValue") private static int customizeTrim(FabricClientCommandSource source, Identifier material, Identifier pattern)
     pub fn customize_trim(source: &crate::unresolved::FabricClientCommandSource, material: Option<&Identifier>, pattern: Option<&Identifier>) -> i32 {
-        // TODO(fabric2seer): `.getPlayer(..)` on a FabricClientCommandSource
-        //   java: ItemStack heldItem = source.getPlayer().getMainHandItem();
+        // java: ItemStack heldItem = source.getPlayer().getMainHandItem(); (the source's player is the client's)
         let mut held_item: mcrust::net::minecraft::world::item::item_stack::ItemStack = mcrust::mcrust::modding::game::with_player(|player| player.get_main_hand_item().clone()).unwrap_or_else(mcrust::net::minecraft::world::item::item_stack::empty);
         if Utils::is_on_skyblock() && true /* java: held_item != null: never null here */ {
             if held_item.is_in_tag(&mcrust::net::minecraft::tags::item_tags::trimmable_armor()) {
@@ -119,36 +130,38 @@ impl CustomArmorTrims {
                     if material.is_none() && pattern.is_none() {
                         if custom_armor_trims.contains_key(&item_uuid) {
                             SkyblockerConfigManager::update(Arc::new(move |mut config| { config.general.custom_armor_trims.remove(&item_uuid); }));
-                            // TODO(fabric2seer): `.sendFeedback(..)` on a FabricClientCommandSource
-                            //   java: source.sendFeedback(Constants.PREFIX.get().append(Component.translatable("skyblocker.customArmorTrims.removed")));
+                            // java: source.sendFeedback(Constants.PREFIX.get().append(Component.translatable("skyblocker.customArmorTrims.removed")));
+                            compat::batch_w_send_feedback(&(crate::de::hysky::skyblocker::utils::constants::PREFIX.get())().append(mcrust::net::minecraft::network::chat::component::translatable("skyblocker.customArmorTrims.removed")));
                         } else {
-                            // TODO(fabric2seer): `.sendFeedback(..)` on a FabricClientCommandSource
-                            //   java: source.sendFeedback(Constants.PREFIX.get().append(Component.translatable("skyblocker.customArmorTrims.neverHad")));
+                            // java: source.sendFeedback(Constants.PREFIX.get().append(Component.translatable("skyblocker.customArmorTrims.neverHad")));
+                            compat::batch_w_send_feedback(&(crate::de::hysky::skyblocker::utils::constants::PREFIX.get())().append(mcrust::net::minecraft::network::chat::component::translatable("skyblocker.customArmorTrims.neverHad")));
                         }
                     } else {
                         // (the command's other form passes both)
-                        let mut trim_id: ArmorTrimId = ArmorTrimId::new(material.cloned().expect("NullPointerException: material"), pattern.cloned().expect("NullPointerException: pattern"));
-                        if TRIMS_CACHE.get_mut().get(&trim_id).cloned().is_none() {
-                            // TODO(fabric2seer): `.sendError(..)` on a FabricClientCommandSource
-                            //   java: source.sendError(Constants.PREFIX.get().append(Component.translatable("skyblocker.customArmorTrims.invalidMaterialOrPattern").withColor(TextColor.RED)));
+                        // java: ArmorTrimId trimId = new ArmorTrimId(material, pattern); if (TRIMS_CACHE.get(trimId) == null) - a null
+                        // component (the material-only form) is never in the cache
+                        let trim_id: Option<ArmorTrimId> = material.zip(pattern).map(|(material, pattern)| ArmorTrimId::new(material.clone(), pattern.clone()));
+                        let Some(trim_id) = trim_id.filter(|trim_id| TRIMS_CACHE.get_mut().get(trim_id).is_some()) else {
+                            // java: source.sendError(Constants.PREFIX.get().append(Component.translatable("skyblocker.customArmorTrims.invalidMaterialOrPattern").withColor(TextColor.RED)));
+                            compat::batch_w_send_error(&(crate::de::hysky::skyblocker::utils::constants::PREFIX.get())().append(mcrust::net::minecraft::network::chat::component::translatable("skyblocker.customArmorTrims.invalidMaterialOrPattern").with_color(mcrust::net::minecraft::network::chat::text_color::TextColor::RED.get_value())));
                             return 1;
-                        }
+                        };
                         SkyblockerConfigManager::update(Arc::new(move |mut config| { config.general.custom_armor_trims.insert(item_uuid.clone(), trim_id.clone()); }));
-                        // TODO(fabric2seer): `.sendFeedback(..)` on a FabricClientCommandSource
-                        //   java: source.sendFeedback(Constants.PREFIX.get().append(Component.translatable("skyblocker.customArmorTrims.added")));
+                        // java: source.sendFeedback(Constants.PREFIX.get().append(Component.translatable("skyblocker.customArmorTrims.added")));
+                        compat::batch_w_send_feedback(&(crate::de::hysky::skyblocker::utils::constants::PREFIX.get())().append(mcrust::net::minecraft::network::chat::component::translatable("skyblocker.customArmorTrims.added")));
                     }
                 } else {
-                    // TODO(fabric2seer): `.sendError(..)` on a FabricClientCommandSource
-                    //   java: source.sendError(Constants.PREFIX.get().append(Component.translatable("skyblocker.customArmorTrims.noItemUuid").withColor(TextColor.RED)));
+                    // java: source.sendError(Constants.PREFIX.get().append(Component.translatable("skyblocker.customArmorTrims.noItemUuid").withColor(TextColor.RED)));
+                    compat::batch_w_send_error(&(crate::de::hysky::skyblocker::utils::constants::PREFIX.get())().append(mcrust::net::minecraft::network::chat::component::translatable("skyblocker.customArmorTrims.noItemUuid").with_color(mcrust::net::minecraft::network::chat::text_color::TextColor::RED.get_value())));
                 }
             } else {
-                // TODO(fabric2seer): `.sendError(..)` on a FabricClientCommandSource
-                //   java: source.sendError(Constants.PREFIX.get().append(Component.translatable("skyblocker.customArmorTrims.notAnArmorPiece").withColor(TextColor.RED)));
+                // java: source.sendError(Constants.PREFIX.get().append(Component.translatable("skyblocker.customArmorTrims.notAnArmorPiece").withColor(TextColor.RED)));
+                compat::batch_w_send_error(&(crate::de::hysky::skyblocker::utils::constants::PREFIX.get())().append(mcrust::net::minecraft::network::chat::component::translatable("skyblocker.customArmorTrims.notAnArmorPiece").with_color(mcrust::net::minecraft::network::chat::text_color::TextColor::RED.get_value())));
                 return 1;
             }
         } else {
-            // TODO(fabric2seer): `.sendError(..)` on a FabricClientCommandSource
-            //   java: source.sendError(Constants.PREFIX.get().append(Component.translatable("skyblocker.customArmorTrims.unableToSetTrim").withColor(TextColor.RED)));
+            // java: source.sendError(Constants.PREFIX.get().append(Component.translatable("skyblocker.customArmorTrims.unableToSetTrim").withColor(TextColor.RED)));
+            compat::batch_w_send_error(&(crate::de::hysky::skyblocker::utils::constants::PREFIX.get())().append(mcrust::net::minecraft::network::chat::component::translatable("skyblocker.customArmorTrims.unableToSetTrim").with_color(mcrust::net::minecraft::network::chat::text_color::TextColor::RED.get_value())));
         }
         return 1;
     }
@@ -210,8 +223,12 @@ impl ArmorTrimId {
     /// present set; unknown keys are ignored
     pub fn __gson_read(__v: &serde_json::Value) -> Option<ArmorTrimId> {
         let __o = __v.as_object()?;
-        // TODO(fabric2seer): no no-argument constructor - Gson builds the object with every field at zero/null (Unsafe)
-        None
+        // no no-argument constructor: Gson's `Unsafe.allocateInstance`, then each key present set. Both components are
+        // `Identifier`s (the config Gson's `Identifier` adapter); a record with a null component cannot be represented
+        // and never names a trim, so it reads as absent.
+        let material = __o.get("material").and_then(dandelion::compat::gson_string).and_then(|__s| Identifier::try_parse(&__s))?;
+        let pattern = __o.get("pattern").and_then(dandelion::compat::gson_string).and_then(|__s| Identifier::try_parse(&__s))?;
+        Some(ArmorTrimId::new(material, pattern))
     }
 
     /// Dandelion's ConfigPatcher: the field at a dotted path (`getDeclaredField` per segment) set to a

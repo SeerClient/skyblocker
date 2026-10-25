@@ -75,29 +75,27 @@ impl PreviewRoom {
                 let mut secret_index: i32 = (if secret_index_matcher.find() { secret_index_matcher.group(1).unwrap().parse::<i32>().expect("NumberFormatException") } else { 0 });
                 let mut pos: BlockPos = DungeonMapUtils::relative_to_actual(({ let __f = compat::dispatch(__this, |__t| __t.get_direction()); __f(&compat::view(__this, |a| a as compat::Shared<dyn Room>)) }).unwrap(), &({ let __f = compat::dispatch(__this, |__t| __t.get_physical_corner_pos()); __f(&compat::view(__this, |a| a as compat::Shared<dyn Room>)) }).unwrap(), waypoint);
                 let mut secret_waypoint: compat::Shared<SecretWaypoint> = SecretWaypoint::new(secret_index, waypoint.category(), secret_name.clone(), pos.clone());
-                // TODO(fabric2seer): `.put(..)` on a Table
-                //   java: secretWaypoints.put(secretIndex, pos, secretWaypoint);
+                // java: secretWaypoints.put(secretIndex, pos, secretWaypoint);
+                { let __w = secret_waypoint.clone(); compat::write(__this, |__t| __t.room_base_mut().secret_waypoints.put(secret_index, pos.clone(), __w)); }
                 PreviewRoom::show_secret_in_level(__this, &secret_waypoint);
             }
         }
         let mut custom_waypoints: indexmap::IndexMap<BlockPos, compat::Shared<SecretWaypoint>> = DungeonManager::get_custom_waypoints(&compat::get_state(&room_preview_server::SELECTED_ROOM));
         for (pos, secret_waypoint) in custom_waypoints.iter() {
-            // TODO(fabric2seer): `.put(..)` on a Table
-            //   java: secretWaypoints.put(..);
+            // java: customWaypoints.forEach((pos, secretWaypoint) -> secretWaypoints.put(secretWaypoint.secretIndex, pos, secretWaypoint));
+            { let (__i, __w) = (compat::read(secret_waypoint, |__t| __t.secret_index), secret_waypoint.clone()); compat::write(__this, |__t| __t.room_base_mut().secret_waypoints.put(__i, pos.clone(), __w)); }
         }
     }
 
     /// java: protected void showSecretInLevel(SecretWaypoint waypoint)
     pub fn show_secret_in_level(__this: &compat::Shared<Self>, waypoint: &compat::Shared<SecretWaypoint>) {
-        // TODO(fabric2seer): `Minecraft.getSingleplayerServer` has no Rust method in the port (looked for `get_singleplayer_server` in Minecraft and its supertypes)
-        // rust: let mut server: Option<crate::unresolved::IntegratedServer> = Some(compat::minecraft().get_singleplayer_server());
-        let mut server: crate::unresolved::IntegratedServer = todo!("fabric2seer: the initialiser of `server` (TODO above)");
-        if false /* java: server == null: never null here */ {
+        // java: IntegratedServer server = CLIENT.getSingleplayerServer(); if (server == null) return;
+        // GAP (verified, RustSrc NEXT_STEPS 000rr): the port has no integrated server, so this is always null.
+        // NEEDS-GAME-API: Minecraft::get_singleplayer_server / IntegratedServer::overworld
+        let server: Option<crate::unresolved::IntegratedServer> = None;
+        let Some(_server) = server else {
             return;
-        }
-        // TODO(fabric2seer): `IntegratedServer.overworld` has no Rust method in the port (looked for `overworld` in IntegratedServer and its supertypes)
-        // rust: let mut level: Level = server.overworld();
-        let mut level: Level = todo!("fabric2seer: the initialiser of `level` (TODO above)");
+        };
         let mut block: Option<Arc<Block>> = match compat::read(waypoint, |__t| __t.category.clone()) {
             Some(crate::de::hysky::skyblocker::skyblock::dungeon::secrets::secret_waypoint::Category::Entrance) | Some(crate::de::hysky::skyblocker::skyblock::dungeon::secrets::secret_waypoint::Category::Stonk) | Some(crate::de::hysky::skyblocker::skyblock::dungeon::secrets::secret_waypoint::Category::Aotv) | Some(crate::de::hysky::skyblocker::skyblock::dungeon::secrets::secret_waypoint::Category::Pearl) | Some(crate::de::hysky::skyblocker::skyblock::dungeon::secrets::secret_waypoint::Category::Prince) | Some(crate::de::hysky::skyblocker::skyblock::dungeon::secrets::secret_waypoint::Category::Default) => None,
             Some(crate::de::hysky::skyblocker::skyblock::dungeon::secrets::secret_waypoint::Category::Bat) => Some(mcrust::net::minecraft::world::level::block::blocks::stained_glass().green().clone()),
@@ -113,12 +111,9 @@ impl PreviewRoom {
             return;
         };
         let mut state: Arc<BlockState> = block.default_block_state();
-        // TODO(fabric2seer): a lambda for a parameter the port does not type as a closure (`Runnable`)
-        // rust: server.execute(|| {
-        // rust: level.set_block_with_flags(&compat::read(waypoint, |__t| __t.pos.clone()).unwrap(), &state, 3);
-        // rust: // TODO(fabric2seer): `ServerLevel.updateNeighboursOnBlockSet` has no Rust method in the port (looked for `update_neighbours_on_block_set` in ServerLevel and its supertypes)
-        // rust: // rust: level.update_neighbours_on_block_set(&compat::read(waypoint, |__t| __t.pos.clone()).unwrap(), &state);
-        // rust: });
+        // java: server.execute(() -> { level.setBlock(waypoint.pos, state, Block.UPDATE_ALL); level.updateNeighboursOnBlockSet(waypoint.pos, state); });
+        // NEEDS-GAME-API: IntegratedServer::execute / ServerLevel::set_block / update_neighbours_on_block_set (NEXT_STEPS 000rr)
+        let _ = state;
     }
 
 }

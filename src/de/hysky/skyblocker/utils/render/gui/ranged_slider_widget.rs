@@ -159,9 +159,9 @@ impl compat::ObjectWidget for RangedSliderWidget {
 
     /// java: @Override public void onRelease(MouseButtonEvent click)
     fn on_release(&mut self, _widget: &mut AbstractWidget, _event: &MouseButtonEvent) {
-        // java: super.onRelease(click); - `dragging = false; super.playDownSound(..)`
-        // rust: port gap (GAPS_batchH #1) - the release click sound is `SoundManager.play`, which a mod cannot reach
+        // java: super.onRelease(click); - `dragging = false; super.playDownSound(Minecraft.getInstance().getSoundManager())`
         self.state.on_release();
+        mcrust::mcrust::modding::game::play_ui_sound(mcrust::net::minecraft::sounds::sound_events::ui_button_click(), 1.0);
         // java: this.value = valueToProgress(getValue());
         self.state.value = self.value_to_progress(self.get_value());
     }

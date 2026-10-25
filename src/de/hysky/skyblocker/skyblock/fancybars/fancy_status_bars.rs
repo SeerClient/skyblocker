@@ -1,6 +1,7 @@
 //! Ported from de.hysky.skyblocker.skyblock.fancybars.FancyStatusBars by fabric2seer.
 
 #[allow(unused_imports)]
+use mcrust::com::mojang::brigadier::builder::argument_builder::ArgumentBuilder as _;
 use crate::prelude::*;
 use crate::de::hysky::skyblocker::config::configs::ui_and_visuals_config::IntelligenceDisplay;
 use crate::de::hysky::skyblocker::config::configs::ui_and_visuals_config::LegacyBarPosition;
@@ -32,11 +33,14 @@ pub static HUD_LAYER: compat::MainThread<Identifier> = compat::MainThread::new(|
 /// `CONFIG_DIR` lives)
 pub static FILE: LazyLock<std::path::PathBuf> = LazyLock::new(|| skyblocker_mod::CONFIG_DIR.get_mut().join("status_bars.json"));
 
-/// Fabric's `HudElement` - `extractRenderState(GuiGraphicsExtractor context, DeltaTracker tickCounter)`; the port's HUD
-/// callbacks hand the tick counter's partial tick.
-pub type HudElement = Arc<dyn Fn(&GuiGraphicsExtractor, f32)>;
+/// Fabric's `HudElement` - the registry's (`extractRenderState(GuiGraphicsExtractor, DeltaTracker)` as one context)
+use mcrust::mcrust::modding::hud_element_registry::HudElement;
 /// java: public static final FancyStatusBars INSTANCE = new FancyStatusBars();
 pub static INSTANCE: compat::MainThread<compat::Shared<FancyStatusBars>> = compat::MainThread::new(|| FancyStatusBars::new());
+
+/// OPTIMIZED BUT NOT FULLY VANILLA (perf round 1, P02-mods-runtime): `SKYBLOCKER_VANILLA_FANCY_BAR_READS=1` makes
+/// `extractRenderState` read the player with one `with_player` per read, as before.
+static VANILLA_FANCY_BAR_READS: compat::EnvSwitch = compat::EnvSwitch::new("SKYBLOCKER_VANILLA_FANCY_BAR_READS");
 
 /// java: public class FancyStatusBars
 #[derive(Clone)]
@@ -151,60 +155,85 @@ impl FancyStatusBars {
 
     /// java: @SuppressWarnings("deprecation") public void init()
     pub fn init(__this: &compat::Shared<Self>) {
+        // java: Function<HudElement, HudElement> hideIfFancyStatusBarsEnabled = hudElement -> {
+        //   if (shouldProcess()) return (_, _) -> {}; return hudElement; };
         let __this_1 = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
-        // (consumed only by the HudElementRegistry.replaceElement calls below, which have no SeerClient equivalent:
-        // GAPS_batchC "Fabric HudElementRegistry")
-        let mut hide_if_fancy_status_bars_enabled: Arc<dyn Fn(HudElement) -> HudElement> = Arc::new(move |hud_element: HudElement| -> HudElement {
+        let hide_if_fancy_status_bars_enabled: Arc<hud_element_registry::HudElementReplacer> = Arc::new(move |hud_element: Arc<HudElement>| -> Arc<HudElement> {
             let Some(this) = __this_1.get().upgrade() else { return hud_element; };
             if FancyStatusBars::should_process(&this) {
-                return Arc::new(move |_: &GuiGraphicsExtractor, _: f32| {});
+                // OPTIMIZED BUT NOT FULLY VANILLA (perf round 1, P02-mods-runtime): the shared empty element
+                // (`compat::empty_hud_element`). Was:
+                //     let empty: Arc<HudElement> = Arc::new(|_: &mut hud_render_callback::HudRenderContext<'_>| {});
+                return compat::empty_hud_element();
             }
-            return hud_element;
+            hud_element
         });
-        // TODO(fabric2seer): HudElementRegistry.replaceElement: no SeerClient equivalent yet
-        //   java: HudElementRegistry.replaceElement(VanillaHudElements.HEALTH_BAR, hudElement -> {
-        //   java: 			if (!shouldProcess()) return hudElement;
-        //   java: 			if (isHealthFancyBarEnabled()) {
-        //   java: 				return (_, _) -> {};
-        //   java: 			} else if (isExperienceFancyBarEnabled()) {
-        //   java: 				return (context, tickCounter) -> {
-        //   java: 					Matrix3x2fStack pose = context.pose();
-        //   java: 					pose.pushMatrix();
-        //   java: 					pose.translate(0, 6);
-        //   java: 					hudElement.extractRenderState(context, tickCounter);
-        //   java: 					pose.popMatrix();
-        //   java: 				};
-        //   java: 			}
-        //   java: 			return hudElement;
-        //   java: 		});
-        // TODO(fabric2seer): HudElementRegistry.replaceElement: no SeerClient equivalent yet
-        //   java: HudElementRegistry.replaceElement(VanillaHudElements.EXPERIENCE_LEVEL, hudElement -> {
-        //   java: 			if (!shouldProcess() || !isExperienceFancyBarEnabled()) return hudElement;
-        //   java: 			return (_, _) -> {};
-        //   java: 		});
-        // TODO(fabric2seer): HudElementRegistry.replaceElement: no SeerClient equivalent yet
-        //   java: HudElementRegistry.replaceElement(VanillaHudElements.INFO_BAR, hudElement -> {
-        //   java: 			if (!shouldProcess() || !isExperienceFancyBarEnabled()) return hudElement;
-        //   java: 			return (_, _) -> {};
-        //   java: 		});
-        // TODO(fabric2seer): HudElementRegistry.replaceElement: no SeerClient equivalent yet
-        //   java: HudElementRegistry.replaceElement(VanillaHudElements.ARMOR_BAR, hideIfFancyStatusBarsEnabled);
-        // TODO(fabric2seer): HudElementRegistry.replaceElement: no SeerClient equivalent yet
-        //   java: HudElementRegistry.replaceElement(VanillaHudElements.MOUNT_HEALTH, hideIfFancyStatusBarsEnabled);
-        // TODO(fabric2seer): HudElementRegistry.replaceElement: no SeerClient equivalent yet
-        //   java: HudElementRegistry.replaceElement(VanillaHudElements.FOOD_BAR, hideIfFancyStatusBarsEnabled);
-        // TODO(fabric2seer): HudElementRegistry.replaceElement: no SeerClient equivalent yet
-        //   java: HudElementRegistry.replaceElement(VanillaHudElements.AIR_BAR, hideIfFancyStatusBarsEnabled);
+        // java: HudElementRegistry.replaceElement(VanillaHudElements.HEALTH_BAR, hudElement -> {
+        //   if (!shouldProcess()) return hudElement;
+        //   if (isHealthFancyBarEnabled()) { return (_, _) -> {}; }
+        //   else if (isExperienceFancyBarEnabled()) { return (context, tickCounter) -> { Matrix3x2fStack pose = context.pose();
+        //     pose.pushMatrix(); pose.translate(0, 6); hudElement.extractRenderState(context, tickCounter); pose.popMatrix(); }; }
+        //   return hudElement; });
+        let __this_health = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
+        hud_element_registry::replace_element(vanilla_hud_elements::HEALTH_BAR, Arc::new(move |hud_element: Arc<HudElement>| -> Arc<HudElement> {
+            let Some(this) = __this_health.get().upgrade() else { return hud_element; };
+            if !FancyStatusBars::should_process(&this) {
+                return hud_element;
+            }
+            if FancyStatusBars::is_health_fancy_bar_enabled(&this) {
+                // OPTIMIZED BUT NOT FULLY VANILLA (perf round 1, P02-mods-runtime): the shared empty element. Was:
+                //     let empty: Arc<HudElement> = Arc::new(|_: &mut hud_render_callback::HudRenderContext<'_>| {});
+                return compat::empty_hud_element();
+            } else if FancyStatusBars::is_experience_fancy_bar_enabled(&this) {
+                let moved: Arc<HudElement> = Arc::new(move |context: &mut hud_render_callback::HudRenderContext<'_>| {
+                    let saved = mcrust::net::minecraft::client::gui::gui_graphics_extractor::push_pose();
+                    mcrust::net::minecraft::client::gui::gui_graphics_extractor::pose_translate(0.0, 6.0);
+                    hud_element(context);
+                    mcrust::net::minecraft::client::gui::gui_graphics_extractor::pop_pose(saved);
+                });
+                return moved;
+            }
+            hud_element
+        }));
+        // java: HudElementRegistry.replaceElement(VanillaHudElements.EXPERIENCE_LEVEL, hudElement -> {
+        //   if (!shouldProcess() || !isExperienceFancyBarEnabled()) return hudElement; return (_, _) -> {}; });
+        // java: HudElementRegistry.replaceElement(VanillaHudElements.INFO_BAR, hudElement -> {
+        //   if (!shouldProcess() || !isExperienceFancyBarEnabled()) return hudElement; return (_, _) -> {}; });
+        for element in [vanilla_hud_elements::EXPERIENCE_LEVEL, vanilla_hud_elements::INFO_BAR] {
+            let __this_experience = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
+            hud_element_registry::replace_element(element, Arc::new(move |hud_element: Arc<HudElement>| -> Arc<HudElement> {
+                let Some(this) = __this_experience.get().upgrade() else { return hud_element; };
+                if !FancyStatusBars::should_process(&this) || !FancyStatusBars::is_experience_fancy_bar_enabled(&this) {
+                    return hud_element;
+                }
+                // OPTIMIZED BUT NOT FULLY VANILLA (perf round 1, P02-mods-runtime): the shared empty element. Was:
+                //     let empty: Arc<HudElement> = Arc::new(|_: &mut hud_render_callback::HudRenderContext<'_>| {});
+                //     empty
+                compat::empty_hud_element()
+            }));
+        }
+        // java: HudElementRegistry.replaceElement(VanillaHudElements.ARMOR_BAR, hideIfFancyStatusBarsEnabled);
+        hud_element_registry::replace_element(vanilla_hud_elements::ARMOR_BAR, hide_if_fancy_status_bars_enabled.clone());
+        // java: HudElementRegistry.replaceElement(VanillaHudElements.MOUNT_HEALTH, hideIfFancyStatusBarsEnabled);
+        hud_element_registry::replace_element(vanilla_hud_elements::MOUNT_HEALTH, hide_if_fancy_status_bars_enabled.clone());
+        // java: HudElementRegistry.replaceElement(VanillaHudElements.FOOD_BAR, hideIfFancyStatusBarsEnabled);
+        hud_element_registry::replace_element(vanilla_hud_elements::FOOD_BAR, hide_if_fancy_status_bars_enabled.clone());
+        // java: HudElementRegistry.replaceElement(VanillaHudElements.AIR_BAR, hideIfFancyStatusBarsEnabled);
+        hud_element_registry::replace_element(vanilla_hud_elements::AIR_BAR, hide_if_fancy_status_bars_enabled.clone());
+        // java: HudElementRegistry.attachElementAfter(VanillaHudElements.HOTBAR, HUD_LAYER, (context, _) -> {
+        //   if (shouldProcess()) extractRenderState(context, Minecraft.getInstance()); });
         let __this_hud = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
-        hud_render_callback::EVENT.register(Arc::new(move |ctx: &mut hud_render_callback::HudRenderContext<'_>| {
-            // SAFETY: `ctx` outlives every call made through `graphics` (this callback).
+        hud_element_registry::attach_element_after(vanilla_hud_elements::HOTBAR, HUD_LAYER.get(), Arc::new(move |ctx: &mut hud_render_callback::HudRenderContext<'_>| {
+            // PERF (port-only, same result): `shouldProcess()` first - off Skyblock (or with the bars off) the
+            // element draws nothing, so the graphics session it would open is not set up at all.
+            let Some(this) = __this_hud.get().upgrade() else { return; };
+            if !FancyStatusBars::should_process(&this) {
+                return;
+            }
+            // SAFETY: `ctx` outlives every call made through `graphics` (this element).
             let graphics = unsafe { ScriptGraphics::new(ctx.gl, &*ctx.minecraft, ctx.gui_width, ctx.gui_height) };
             let _session = graphics.session();
-            let Some(this) = __this_hud.get().upgrade() else { return; };
-            // java: (context, _) -> { if (shouldProcess()) extractRenderState(context, client); }
-            if FancyStatusBars::should_process(&this) {
-                FancyStatusBars::extract_render_state(&this, &ctx.graphics, &mut *ctx.minecraft);
-            }
+            FancyStatusBars::extract_render_state(&this, &ctx.graphics, &mut *ctx.minecraft);
         }));
         for r#type in StatusBarType::values() {
             let __h0 = (r#type).new_status_bar();
@@ -251,12 +280,25 @@ impl FancyStatusBars {
             logger().error(&format!("[Skyblocker] Failed reading status bars config"));
             return Default::default(); // java: return null
         });
-        // TODO(fabric2seer): no SeerClient event yet: hook HEAD of Minecraft#stop (`net.minecraft.client.Minecraft#stop`: exists)
-        //   java: ClientLifecycleEvents.CLIENT_STOPPING.register(_ -> saveBarConfig());
+        // java: ClientLifecycleEvents.CLIENT_STOPPING.register(_ -> saveBarConfig()); - HEAD of `Minecraft#stop`
+        let __this_stop = compat::RenderThread::new(__this.clone());
+        report(hook::inject("net.minecraft.client.Minecraft#stop", At::Head, move |_: &mut CallbackInfo<'_>| {
+            FancyStatusBars::save_bar_config(__this_stop.get());
+        }));
+        // java: ClientCommandRegistrationCallback.EVENT.register((dispatcher, _) -> dispatcher.register(ClientCommands.literal(SkyblockerMod.NAMESPACE)
+        //   .then(ClientCommands.literal("bars").executes(Scheduler.queueOpenScreenCommand(() -> new StatusBarsConfigScreen(this))))));
+        let __this_bars = compat::RenderThread::new(__this.clone());
+        let __this_bars = Arc::new(__this_bars);
         client_command_registration_callback::EVENT.register(Arc::new(
-            |dispatcher: &mut client_command_registration_callback::ClientCommandDispatcher| {
-                // TODO(fabric2seer): a command tree this tool cannot read (arguments, redirects, requires) - SeerClient commands receive the words after the name in `ctx.args`
-                //   java: dispatcher.register(..);
+            move |dispatcher: &mut client_command_registration_callback::ClientCommandDispatcher| {
+                let __this_screen = __this_bars.clone();
+                let mut bars = client_command_registration_callback::literal("bars");
+                bars.executes(crate::de::hysky::skyblocker::utils::scheduler::scheduler::SchedulerBase::queue_open_screen_command(Arc::new(move || {
+                    Box::new(compat::ScreenAdapter::new(crate::de::hysky::skyblocker::skyblock::fancybars::status_bars_config_screen::StatusBarsConfigScreen::new(__this_screen.get().clone()))) as Box<dyn mcrust::mcrust::modding::screens::ModScreen>
+                })));
+                let mut root = client_command_registration_callback::literal(crate::entry::skyblocker_mod::NAMESPACE);
+                root.then(&bars);
+                dispatcher.dispatcher().register(&root);
             },
         ));
         let __this_3 = compat::RenderThread::new(__this.clone());
@@ -454,23 +496,39 @@ impl FancyStatusBars {
             return false;
         }
         let mut bar_collection: Vec<compat::Shared<dyn StatusBar>> = compat::read(__this, |__t| __t.status_bars.values().cloned().collect::<Vec<_>>());
+        // PERF (port-only, same result): `!enabled || !visible` read under one borrow, and the method to call
+        // fetched under that same borrow - one lock per bar per pass instead of three.
         for status_bar in bar_collection.iter() {
-            if !(compat::read(status_bar, |__t| __t.status_bar_base().enabled)) || !(compat::read(status_bar, |__t| __t.status_bar_base().visible)) {
+            let Some(__f) = compat::read(status_bar, |__t| (__t.status_bar_base().enabled && __t.status_bar_base().visible).then(|| __t.extract_bar())) else {
                 continue;
-            }
-            ({ let __f = compat::dispatch(status_bar, |__t| __t.extract_bar()); __f(status_bar, graphics) });
+            };
+            __f(status_bar, graphics);
         }
         for status_bar in bar_collection.iter() {
-            if !(compat::read(status_bar, |__t| __t.status_bar_base().enabled)) || !(compat::read(status_bar, |__t| __t.status_bar_base().visible)) {
+            let Some(__f) = compat::read(status_bar, |__t| (__t.status_bar_base().enabled && __t.status_bar_base().visible).then(|| __t.extract_text())) else {
                 continue;
-            }
-            ({ let __f = compat::dispatch(status_bar, |__t| __t.extract_text()); __f(status_bar, graphics) });
+            };
+            __f(status_bar, graphics);
         }
         let mut defense_bar: compat::Shared<dyn StatusBar> = __this.lock().borrow().status_bars.get(&StatusBarType::Defense).cloned().unwrap();
         let mut vitality_bar: compat::Shared<dyn StatusBar> = __this.lock().borrow().status_bars.get(&StatusBarType::Vitality).cloned().unwrap();
         if Utils::is_in_the_rift() {
             let mut div: i32 = (if SkyblockerConfigManager::get().ui_and_visuals.bars.rift_health_hp { 1 } else { 2 });
-            ({ let __r = &__this.lock().borrow().status_bars.get(&StatusBarType::Health).cloned().unwrap(); let __f = compat::dispatch(__r, |__t| __t.update_values()); __f(__r, ((compat::java_round_f32(mcrust::mcrust::modding::game::with_player(|player| player.base.base.base.get_health()).unwrap()) as f32) / mcrust::mcrust::modding::game::with_player(|player| player.base.base.base.get_max_health()).unwrap()), ((0) as f32) as f32, (compat::java_round_f32(mcrust::mcrust::modding::game::with_player(|player| player.base.base.base.get_health()).unwrap())).wrapping_div(div), Some((compat::java_round_f32(mcrust::mcrust::modding::game::with_player(|player| player.base.base.base.get_max_health()).unwrap())).wrapping_div(div)), None) });
+            if VANILLA_FANCY_BAR_READS.on() {
+                ({ let __r = &__this.lock().borrow().status_bars.get(&StatusBarType::Health).cloned().unwrap(); let __f = compat::dispatch(__r, |__t| __t.update_values()); __f(__r, ((compat::java_round_f32(mcrust::mcrust::modding::game::with_player(|player| player.base.base.base.get_health()).unwrap()) as f32) / mcrust::mcrust::modding::game::with_player(|player| player.base.base.base.get_max_health()).unwrap()), ((0) as f32) as f32, (compat::java_round_f32(mcrust::mcrust::modding::game::with_player(|player| player.base.base.base.get_health()).unwrap())).wrapping_div(div), Some((compat::java_round_f32(mcrust::mcrust::modding::game::with_player(|player| player.base.base.base.get_max_health()).unwrap())).wrapping_div(div)), None) });
+            } else {
+                // OPTIMIZED BUT NOT FULLY VANILLA (perf round 1, P02-mods-runtime): the argument list's four player reads
+                // in ONE `with_player`, in the order the arguments made them (getHealth, getMaxHealth, getHealth,
+                // getMaxHealth); between them and their old place only the bar's lookup ran, which calls nothing hooked.
+                let (health_0, max_health_1, health_2, max_health_3): (f32, f32, f32, f32) = mcrust::mcrust::modding::game::with_player(|player| {
+                    let health_0 = player.base.base.base.get_health();
+                    let max_health_1 = player.base.base.base.get_max_health();
+                    let health_2 = player.base.base.base.get_health();
+                    let max_health_3 = player.base.base.base.get_max_health();
+                    (health_0, max_health_1, health_2, max_health_3)
+                }).unwrap();
+                ({ let __r = &__this.lock().borrow().status_bars.get(&StatusBarType::Health).cloned().unwrap(); let __f = compat::dispatch(__r, |__t| __t.update_values()); __f(__r, ((compat::java_round_f32(health_0) as f32) / max_health_1), ((0) as f32) as f32, (compat::java_round_f32(health_2)).wrapping_div(div), Some((compat::java_round_f32(max_health_3)).wrapping_div(div)), None) });
+            }
             { let __v = false; compat::write(&defense_bar, |__t| __t.status_bar_base_mut().visible = __v); }
             { let __v = false; compat::write(&vitality_bar, |__t| __t.status_bar_base_mut().visible = __v); }
         } else {
@@ -484,7 +542,9 @@ impl FancyStatusBars {
             ({ let __f = compat::dispatch(&vitality_bar, |__t| __t.update_with_resource()); __f(&vitality_bar, &EstimatedResource::resource(&vitality)) });
         }
         let mut intelligence: compat::Shared<EstimatedResource> = StatusBarTracker::get_mana();
-        if SkyblockerConfigManager::get().ui_and_visuals.bars.intelligence_display == IntelligenceDisplay::Accurate {
+        // (the config read once for the frame: Java reads the same field)
+        let __bars_config = &SkyblockerConfigManager::get().ui_and_visuals.bars;
+        if __bars_config.intelligence_display == IntelligenceDisplay::Accurate {
             let mut total_intelligence: f32 = (((EstimatedResource::max(&intelligence)) as f32) + (EstimatedResource::overflow(&intelligence) as f32));
             ({ let __r = &__this.lock().borrow().status_bars.get(&StatusBarType::Intelligence).cloned().unwrap(); let __f = compat::dispatch(__r, |__t| __t.update_values()); __f(__r, (((EstimatedResource::value(&intelligence) as f32) / total_intelligence) + ((EstimatedResource::overflow(&intelligence) as f32) / total_intelligence)), ((EstimatedResource::overflow(&intelligence) as f32) / total_intelligence), EstimatedResource::value(&intelligence), Some(EstimatedResource::max(&intelligence)), Some(EstimatedResource::overflow(&intelligence))) });
         } else {
@@ -494,13 +554,28 @@ impl FancyStatusBars {
         ({ let __r = &__this.lock().borrow().status_bars.get(&StatusBarType::Speed).cloned().unwrap(); let __f = compat::dispatch(__r, |__t| __t.update_with_resource()); __f(__r, &speed) });
         // java: statusBars.get(StatusBarType.EXPERIENCE).updateValues(player.experienceProgress, 0, player.experienceLevel, null, null);
         // (Player.experienceProgress / experienceLevel are PlayerBase fields: LocalPlayer -> AbstractClientPlayer -> Player)
-        let (experience_progress, experience_level) = mcrust::mcrust::modding::game::with_player(|player| (player.base.base.experience_progress, player.base.base.experience_level)).unwrap();
+        // OPTIMIZED BUT NOT FULLY VANILLA (perf round 1, P02-mods-runtime): `player.isUnderWater()` read in this same
+        // `with_player` - between here and its old place below only the experience bar's update, the air tracker and the
+        // air bar's update run, none of which calls anything hooked or touches the player. Was:
+        //     let (experience_progress, experience_level) = mcrust::mcrust::modding::game::with_player(|player| (player.base.base.experience_progress, player.base.base.experience_level)).unwrap();
+        let (experience_progress, experience_level, __under_water_read): (f32, i32, Option<bool>) = if VANILLA_FANCY_BAR_READS.on() {
+            let (experience_progress, experience_level) = mcrust::mcrust::modding::game::with_player(|player| (player.base.base.experience_progress, player.base.base.experience_level)).unwrap();
+            (experience_progress, experience_level, None)
+        } else {
+            mcrust::mcrust::modding::game::with_player(|player| (player.base.base.experience_progress, player.base.base.experience_level, Some(player.is_under_water()))).unwrap()
+        };
         ({ let __r = &compat::read(__this, |__t| __t.status_bars.get(&StatusBarType::Experience).cloned().unwrap()); let __f = compat::dispatch(__r, |__t| __t.update_values()); __f(__r, experience_progress, ((0) as f32) as f32, experience_level, None, None) });
         let mut air: Resource = StatusBarTracker::get_air();
         let mut air_bar: compat::Shared<dyn StatusBar> = __this.lock().borrow().status_bars.get(&StatusBarType::Air).cloned().unwrap();
         ({ let __f = compat::dispatch(&air_bar, |__t| __t.update_with_resource()); __f(&air_bar, &air) });
-        if mcrust::mcrust::modding::game::with_player(|player| player.is_under_water()).unwrap() != compat::read(&air_bar, |__t| __t.status_bar_base().visible) {
-            { let __v = mcrust::mcrust::modding::game::with_player(|player| player.is_under_water()).unwrap(); compat::write(&air_bar, |__t| __t.status_bar_base_mut().visible = __v); }
+        // (`player.isUnderWater()` evaluated once: Java's two calls read the same field within the statement pair)
+        // Was: let __under_water: bool = mcrust::mcrust::modding::game::with_player(|player| player.is_under_water()).unwrap();
+        let __under_water: bool = match __under_water_read {
+            Some(under_water) => under_water,
+            None => mcrust::mcrust::modding::game::with_player(|player| player.is_under_water()).unwrap(),
+        };
+        if __under_water != compat::read(&air_bar, |__t| __t.status_bar_base().visible) {
+            { let __v = __under_water; compat::write(&air_bar, |__t| __t.status_bar_base_mut().visible = __v); }
             { let __v = true; compat::write(__this, |__t| __t.update_positions_next_frame = __v); }
         }
         if compat::read(__this, |__t| __t.update_positions_next_frame) {

@@ -44,7 +44,7 @@ impl HoneyhiveHighlighter {
         let mut pos_predicate: Arc<dyn Fn(&ClientLevel, BlockPos) -> bool> = Arc::new(move |level: &ClientLevel, pos: BlockPos| !(level.get_block_state_typed(&pos.above()).is_block(&blocks::blocks().get("BIRCH_FENCE"))));
         // java: state -> state.is(Blocks.BEE_NEST) && state.getValueOrElse(BeehiveBlock.HONEY_LEVEL, 0) == BeehiveBlock.MAX_HONEY_LEVELS
         // (`BeehiveBlock.HONEY_LEVEL` is `BlockStateProperties.LEVEL_HONEY`; `MAX_HONEY_LEVELS` is BeehiveBlock:68's 5,
-        // which the port's beehive_block.rs does not declare - rust: port gap)
+        // the game holds as the literal its `animateTick` compares against: the constant is written here)
         let mut state_predicate: Arc<dyn Fn(&BlockState) -> bool> = Arc::new(move |state: &BlockState| {
             use mcrust::net::minecraft::world::level::block::state::properties::property::Comparable;
             const MAX_HONEY_LEVELS: i32 = 5;

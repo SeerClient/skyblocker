@@ -26,3 +26,25 @@ impl ApiProfileResponse {
     }
 
 }
+
+impl ApiProfileResponse {
+    /// Gson's reflective binding of the class's own fields (`ReflectiveTypeAdapterFactory`): each member the
+    /// JSON has is read over the field it names (`@SerializedName`, else the field's name) with the field's declared
+    /// type; an absent member (or a `null` one, or one Gson would reject) leaves the constructor's value.
+    pub fn read_json_fields(&mut self, json: &serde_json::Value) {
+        #[allow(unused_imports)]
+        use crate::io::github::moulberry::repo::neu_repository::gson;
+        if let Some(__v) = gson::member(json, "profiles") {
+            if let Some(__x) = gson::list(__v, |__e0| Some(ApiProfile::from_json(__e0))) {
+                self.profiles = __x;
+            }
+        }
+    }
+
+    /// `GSON.fromJson(json, ApiProfileResponse.class)`: the no-argument constructor, then the fields.
+    pub fn from_json(json: &serde_json::Value) -> compat::Shared<Self> {
+        let __this = Self::new();
+        compat::write(&__this, |__t| __t.read_json_fields(json));
+        __this
+    }
+}

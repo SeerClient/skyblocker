@@ -73,8 +73,8 @@ impl BlockBreakPrediction {
 
     /// java: @Init public static void init()
     pub fn init() {
-        // TODO(fabric2seer): AttackBlockCallback.EVENT.register: no SeerClient equivalent yet
-        //   java: AttackBlockCallback.EVENT.register(BlockBreakPrediction::onBlockInteract);
+        // java: AttackBlockCallback.EVENT.register(BlockBreakPrediction::onBlockInteract);
+        compat::batch_w_register_attack_block_callback(Arc::new(|player: &dyn mcrust::net::minecraft::world::entity::player::player::Player, level: &mcrust::net::minecraft::world::level::level::Level, hand: mcrust::net::minecraft::world::interaction_hand::InteractionHand, pos: &mcrust::net::minecraft::core::block_pos::BlockPos, direction: mcrust::net::minecraft::core::direction::Direction| BlockBreakPrediction::on_block_interact(player, level, &hand, pos, &direction)));
         NEURepoManager::run_async_after_load(Arc::new(move || { BlockBreakPrediction::load_block_strength(); }));
     }
 
@@ -131,7 +131,7 @@ impl BlockBreakPrediction {
         let mut speed: Option<compat::regex::Matcher> = PlayerListManager::get_player_string_list().into_iter().map(|__a0| MINING_SPEED_PATTERN.matcher(&__a0)).filter_map(|mut __a0| __a0.matches().then_some(__a0)).next();
         if speed.is_none() {
             if !(compat::get_state(&SENT_WARNING_MESSAGE)) {
-                mcrust::mcrust::modding::game::with_player(|player| { script_host::send_feedback(&(constants::PREFIX.get_mut())().append(component::translatable("skyblocker.config.mining.blockBreakPrediction.enableStatsMessage")).with_style_format(ChatFormatting::Red).to_string()); });
+                mcrust::mcrust::modding::game::with_player(|player| { compat::batch_w_send_feedback(&(constants::PREFIX.get_mut())().append(component::translatable("skyblocker.config.mining.blockBreakPrediction.enableStatsMessage")).with_style_format(ChatFormatting::Red)); });
                 compat::set_state(&SENT_WARNING_MESSAGE, true);
             }
             return -1;
@@ -172,7 +172,8 @@ impl BlockBreakPrediction {
     pub fn load_block_strength() {
         // java: try {..} catch (NEURepositoryException exception) - an exception here is a panic, caught by `catch_unwind`
         let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            let mut blocks: Vec<crate::unresolved::NEURepoFile> = NEURepoManager::tree("mining/blocks").collect::<Vec<_>>();
+            // java: NEURepoManager.tree("mining/blocks") throws NEURepositoryException
+            let mut blocks: Vec<crate::io::github::moulberry::repo::neu_repo_file::NEURepoFile> = NEURepoManager::tree("mining/blocks").unwrap_or_else(|e| panic!("{e}")).collect::<Vec<_>>();
             for file in blocks.iter() {
                 //   java: !file.isFile()
                 if !compat::neu_repo_file_is_file(file) {

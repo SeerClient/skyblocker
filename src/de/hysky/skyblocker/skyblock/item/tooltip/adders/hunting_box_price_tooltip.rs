@@ -127,7 +127,6 @@ impl HuntingBoxPriceTooltip {
         let mut attribute: Option<Attribute> = Attributes::get_attribute_from_item_name(stack);
         if attribute.is_some() && { let (__a0,) = (&attribute.as_ref().unwrap().api_id(),); tooltip_info_type::BAZAAR.get_mut().lock().borrow().has_or_null_warning(__a0) } {
             let mut count: i32 = ItemUtils::get_item_count_in_hunting_box(stack).unwrap_or(1);
-            // TODO(fabric2seer): `.get(..)` on a T
             //   java: BazaarProduct product = TooltipInfoType.BAZAAR.getData().get(attribute.apiId());
             let mut product: BazaarProduct = tooltip_info_type::BAZAAR.get_mut().lock().borrow().get_data().expect("NullPointerException: TooltipInfoType.BAZAAR.getData()").get(&attribute.as_ref().unwrap().api_id()).cloned().expect("NullPointerException: BazaarProduct product");
             let mut holding_shift: bool = GuiHelper::has_shift_down();

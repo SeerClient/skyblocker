@@ -144,8 +144,8 @@ impl LividColor {
     /// java: @SuppressWarnings("DataFlowIssue") public static int getGlowColor(String name)
     pub fn get_glow_color(name: &str) -> i32 {
         if compat::read(&SkyblockerConfigManager::get().dungeons.livid, |__t| __t.enable_solid_color) {
-            // TODO(fabric2seer): `.getRGB(..)` on a Color
-            //   java: return SkyblockerConfigManager.get().dungeons.livid.customColor.getRGB();
+            // java: return SkyblockerConfigManager.get().dungeons.livid.customColor.getRGB();
+            return compat::read(&SkyblockerConfigManager::get().dungeons.livid, |__t| __t.custom_color.get_rgb());
         }
         if LIVID_TO_FORMATTING.get_mut().contains_key(name) {
             return TextColor::from_legacy_format(LIVID_TO_FORMATTING.get_mut().get(name).cloned().unwrap()).unwrap().get_value();

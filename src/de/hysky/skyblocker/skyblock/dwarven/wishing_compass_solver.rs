@@ -76,12 +76,12 @@ impl WishingCompassSolver {
 
     /// java: @Init public static void init()
     pub fn init() {
-        // TODO(fabric2seer): UseItemCallback.EVENT.register: no SeerClient equivalent yet
-        //   java: UseItemCallback.EVENT.register(WishingCompassSolver::onItemInteract);
-        // TODO(fabric2seer): UseBlockCallback.EVENT.register: no SeerClient equivalent yet
-        //   java: UseBlockCallback.EVENT.register(WishingCompassSolver::onBlockInteract);
-        // TODO(fabric2seer): ClientReceiveMessageEvents.ALLOW_GAME.register: no SeerClient equivalent yet
-        //   java: ClientReceiveMessageEvents.ALLOW_GAME.register(WishingCompassSolver::failMessageListener);
+        // java: UseItemCallback.EVENT.register(WishingCompassSolver::onItemInteract);
+        compat::register_use_item_callback(|player: &dyn mcrust::net::minecraft::world::entity::player::player::Player, level: &mcrust::net::minecraft::world::level::level::Level, hand: mcrust::net::minecraft::world::interaction_hand::InteractionHand| WishingCompassSolver::on_item_interact(player, level, &hand).unwrap_or(InteractionResult::Pass));
+        // java: UseBlockCallback.EVENT.register(WishingCompassSolver::onBlockInteract);
+        compat::batch_w_register_use_block_callback(Arc::new(|player: &dyn mcrust::net::minecraft::world::entity::player::player::Player, level: &mcrust::net::minecraft::world::level::level::Level, hand: mcrust::net::minecraft::world::interaction_hand::InteractionHand, hit_result: &mcrust::net::minecraft::world::phys::block_hit_result::BlockHitResult| WishingCompassSolver::on_block_interact(player, level, &hand, hit_result).unwrap_or(InteractionResult::Pass)));
+        // java: ClientReceiveMessageEvents.ALLOW_GAME.register(WishingCompassSolver::failMessageListener);
+        compat::register_allow_game(|text: &mcrust::net::minecraft::network::chat::mutable_component::MutableComponent, overlay: bool| WishingCompassSolver::fail_message_listener(text, overlay));
         client_play_connection_events::JOIN.register(Arc::new(|listener: &mut ClientPacketListener| {
             WishingCompassSolver::reset();
         }));
@@ -118,7 +118,7 @@ impl WishingCompassSolver {
             return false;
         }
         if !PlayerListManager::get_player_string_list().into_iter().any(|entry| entry.starts_with("Active Effects:")) {
-            mcrust::mcrust::modding::game::with_player(|player| { script_host::send_feedback(&(constants::PREFIX.get_mut())().append(component::translatable("skyblocker.config.mining.crystalsWaypoints.wishingCompassSolver.enableTabEffectsMessage")).to_string()); });
+            mcrust::mcrust::modding::game::with_player(|player| { compat::batch_w_send_feedback(&(constants::PREFIX.get_mut())().append(component::translatable("skyblocker.config.mining.crystalsWaypoints.wishingCompassSolver.enableTabEffectsMessage"))); });
             return false;
         }
         return PlayerListManager::get_player_string_list().into_iter().any(|entry| entry.starts_with("King's Scent"));
@@ -142,7 +142,7 @@ impl WishingCompassSolver {
             return false;
         }
         if !PlayerListManager::get_player_string_list().into_iter().any(|entry| (entry == "Crystals:")) {
-            mcrust::mcrust::modding::game::with_player(|player| { script_host::send_feedback(&(constants::PREFIX.get_mut())().append(component::translatable("skyblocker.config.mining.crystalsWaypoints.wishingCompassSolver.enableTabMessage")).to_string()); });
+            mcrust::mcrust::modding::game::with_player(|player| { compat::batch_w_send_feedback(&(constants::PREFIX.get_mut())().append(component::translatable("skyblocker.config.mining.crystalsWaypoints.wishingCompassSolver.enableTabMessage"))); });
             return false;
         }
         let mut display_name_stream = PlayerListManager::get_player_string_list().into_iter();
@@ -178,10 +178,10 @@ impl WishingCompassSolver {
 
     /// java: @SuppressWarnings("incomplete-switch") private static void onParticle(ClientboundLevelParticlesPacket packet)
     pub fn on_particle(packet: &ClientboundLevelParticlesPacket) {
-        if !(Utils::is_in_crystal_hollows()) || !packet.get_particle().is_some_and(|particle| compat::particle_type_is(particle, mcrust::net::minecraft::core::particles::particle_types::happy_villager())) {
+        if !(Utils::is_in_crystal_hollows()) || !packet.particle().is_some_and(|particle| compat::particle_type_is(particle, mcrust::net::minecraft::core::particles::particle_types::happy_villager())) {
             return;
         }
-        let mut particle_pos: Vec3 = Vec3::new(packet.get_x(), packet.get_y(), packet.get_z());
+        let mut particle_pos: Vec3 = Vec3::new(packet.x(), packet.y(), packet.z());
         compat::set_state(&PARTICLE_LAST_UPDATE, compat::millis());
         if particle_pos.distance_to(PARTICLE_LAST_POS.get_mut()) > PARTICLES_MAX_DISTANCE {
             return;
@@ -195,7 +195,7 @@ impl WishingCompassSolver {
                 if compat::get_state(&PARTICLE_USED_COUNT_ONE) >= PARTICLES_PER_LINE {
                     compat::set_state(&CURRENT_STATE, SolverStates::WaitingForSecond);
                     if mcrust::mcrust::modding::game::with_player(|_| ()).is_some() {
-                        mcrust::mcrust::modding::game::with_player(|player| { script_host::send_feedback(&(constants::PREFIX.get_mut())().append(component::translatable("skyblocker.config.mining.crystalsWaypoints.wishingCompassSolver.wishingCompassUsedMessage").with_style_format(ChatFormatting::Green)).to_string()); });
+                        mcrust::mcrust::modding::game::with_player(|player| { compat::batch_w_send_feedback(&(constants::PREFIX.get_mut())().append(component::translatable("skyblocker.config.mining.crystalsWaypoints.wishingCompassSolver.wishingCompassUsedMessage").with_style_format(ChatFormatting::Green))); });
                     }
                 }
             }
@@ -219,18 +219,18 @@ impl WishingCompassSolver {
         }
         let mut target_location: Option<Vec3> = WishingCompassSolver::solve(START_POS_ONE.get_mut(), START_POS_TWO.get_mut(), DIRECTION_ONE.get_mut(), DIRECTION_TWO.get_mut());
         if target_location.is_none() {
-            mcrust::mcrust::modding::game::with_player(|player| { script_host::send_feedback(&(constants::PREFIX.get_mut())().append(component::translatable("skyblocker.config.mining.crystalsWaypoints.wishingCompassSolver.somethingWentWrongMessage").with_style_format(ChatFormatting::Red)).to_string()); });
+            mcrust::mcrust::modding::game::with_player(|player| { compat::batch_w_send_feedback(&(constants::PREFIX.get_mut())().append(component::translatable("skyblocker.config.mining.crystalsWaypoints.wishingCompassSolver.somethingWentWrongMessage").with_style_format(ChatFormatting::Red))); });
         } else {
             let mut player_zone: Zone = WishingCompassSolver::get_zone_of_location(START_POS_ONE.get_mut());
             let mut location: CrystalHollowsLocationsCategory = WishingCompassSolver::get_target_location(player_zone);
             if !(WishingCompassSolver::verify_location(player_zone, target_location.as_ref().unwrap())) {
                 location = CrystalHollowsLocationsCategory::Unknown;
-                mcrust::mcrust::modding::game::with_player(|player| { script_host::send_feedback(&(constants::PREFIX.get_mut())().append(component::translatable("skyblocker.config.mining.crystalsWaypoints.wishingCompassSolver.targetLocationToFar").with_style_format(ChatFormatting::Red)).to_string()); });
+                mcrust::mcrust::modding::game::with_player(|player| { compat::batch_w_send_feedback(&(constants::PREFIX.get_mut())().append(component::translatable("skyblocker.config.mining.crystalsWaypoints.wishingCompassSolver.targetLocationToFar").with_style_format(ChatFormatting::Red))); });
             }
             if location == CrystalHollowsLocationsCategory::JungleTemple {
                 target_location = Some(target_location.as_ref().unwrap().add_vec(JUNGLE_TEMPLE_DOOR_OFFSET.get_mut()));
             }
-            mcrust::mcrust::modding::game::with_player(|player| { script_host::send_feedback(&(constants::PREFIX.get_mut())().append(component::translatable("skyblocker.config.mining.crystalsWaypoints.wishingCompassSolver.foundMessage").with_style_format(ChatFormatting::Green)).append(component::literal(&location.get_name()).with_color(location.get_color())).append(component::literal(&format!(": {} {} {}", ((target_location.as_ref().unwrap().x()) as i32), ((target_location.as_ref().unwrap().y()) as i32), ((target_location.as_ref().unwrap().z()) as i32)))).to_string()); });
+            mcrust::mcrust::modding::game::with_player(|player| { compat::batch_w_send_feedback(&(constants::PREFIX.get_mut())().append(component::translatable("skyblocker.config.mining.crystalsWaypoints.wishingCompassSolver.foundMessage").with_style_format(ChatFormatting::Green)).append(component::literal(&location.get_name()).with_color(location.get_color())).append(component::literal(&format!(": {} {} {}", ((target_location.as_ref().unwrap().x()) as i32), ((target_location.as_ref().unwrap().y()) as i32), ((target_location.as_ref().unwrap().z()) as i32))))); });
             CrystalsLocationsManager::add_custom_waypoint(location.get_name(), &BlockPos::containing_position(target_location.as_ref().unwrap()));
         }
         WishingCompassSolver::reset();
@@ -300,18 +300,18 @@ impl WishingCompassSolver {
         match compat::get_state(&CURRENT_STATE) {
             SolverStates::NotStarted => {
                 if current_zone == Zone::CrystalNucleus {
-                    mcrust::mcrust::modding::game::with_player(|player| { script_host::send_feedback(&(constants::PREFIX.get_mut())().append(component::translatable("skyblocker.config.mining.crystalsWaypoints.wishingCompassSolver.useOutsideNucleusMessage")).to_string()); });
+                    mcrust::mcrust::modding::game::with_player(|player| { compat::batch_w_send_feedback(&(constants::PREFIX.get_mut())().append(component::translatable("skyblocker.config.mining.crystalsWaypoints.wishingCompassSolver.useOutsideNucleusMessage"))); });
                     return true;
                 }
                 WishingCompassSolver::start_new_state(SolverStates::ProcessingFirstUse);
             }
             SolverStates::WaitingForSecond => {
                 if START_POS_ONE.get_mut().closer_than(&player_pos, (DISTANCE_BETWEEN_USES) as f64) {
-                    mcrust::mcrust::modding::game::with_player(|player| { script_host::send_feedback(&(constants::PREFIX.get_mut())().append(component::translatable("skyblocker.config.mining.crystalsWaypoints.wishingCompassSolver.moveFurtherMessage")).to_string()); });
+                    mcrust::mcrust::modding::game::with_player(|player| { compat::batch_w_send_feedback(&(constants::PREFIX.get_mut())().append(component::translatable("skyblocker.config.mining.crystalsWaypoints.wishingCompassSolver.moveFurtherMessage"))); });
                     return true;
                 } else {
                     if current_zone != WishingCompassSolver::get_zone_of_location(START_POS_ONE.get_mut()) {
-                        mcrust::mcrust::modding::game::with_player(|player| { script_host::send_feedback(&(constants::PREFIX.get_mut())().append(component::translatable("skyblocker.config.mining.crystalsWaypoints.wishingCompassSolver.changingZoneMessage")).to_string()); });
+                        mcrust::mcrust::modding::game::with_player(|player| { compat::batch_w_send_feedback(&(constants::PREFIX.get_mut())().append(component::translatable("skyblocker.config.mining.crystalsWaypoints.wishingCompassSolver.changingZoneMessage"))); });
                         WishingCompassSolver::reset();
                         WishingCompassSolver::start_new_state(SolverStates::ProcessingFirstUse);
                     } else {
@@ -321,10 +321,10 @@ impl WishingCompassSolver {
             }
             SolverStates::ProcessingFirstUse | SolverStates::ProcessingSecondUse => {
                 if (compat::millis()).wrapping_sub(compat::get_state(&PARTICLE_LAST_UPDATE)) < PARTICLES_MAX_DELAY {
-                    mcrust::mcrust::modding::game::with_player(|player| { script_host::send_feedback(&(constants::PREFIX.get_mut())().append(component::translatable("skyblocker.config.mining.crystalsWaypoints.wishingCompassSolver.waitLongerMessage").with_style_format(ChatFormatting::Red)).to_string()); });
+                    mcrust::mcrust::modding::game::with_player(|player| { compat::batch_w_send_feedback(&(constants::PREFIX.get_mut())().append(component::translatable("skyblocker.config.mining.crystalsWaypoints.wishingCompassSolver.waitLongerMessage").with_style_format(ChatFormatting::Red))); });
                     return true;
                 } else {
-                    mcrust::mcrust::modding::game::with_player(|player| { script_host::send_feedback(&(constants::PREFIX.get_mut())().append(component::translatable("skyblocker.config.mining.crystalsWaypoints.wishingCompassSolver.couldNotDetectLastUseMessage").with_style_format(ChatFormatting::Red)).to_string()); });
+                    mcrust::mcrust::modding::game::with_player(|player| { compat::batch_w_send_feedback(&(constants::PREFIX.get_mut())().append(component::translatable("skyblocker.config.mining.crystalsWaypoints.wishingCompassSolver.couldNotDetectLastUseMessage").with_style_format(ChatFormatting::Red))); });
                     WishingCompassSolver::reset();
                     WishingCompassSolver::start_new_state(SolverStates::ProcessingFirstUse);
                 }

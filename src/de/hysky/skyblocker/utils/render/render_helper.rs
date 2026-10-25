@@ -6,6 +6,11 @@ use mcrust::net::minecraft::world::level::block_getter::BlockGetter as _;
 use crate::de::hysky::skyblocker::utils::render::level_render_extraction_callback;
 use crate::de::hysky::skyblocker::utils::render::primitive::primitive_collector::PrimitiveCollector;
 use crate::de::hysky::skyblocker::utils::render::primitive::primitive_collector_impl::PrimitiveCollectorImpl;
+use crate::de::hysky::skyblocker::utils::render::primitive;
+use crate::de::hysky::skyblocker::utils::render::primitive::primitive_feature_renderer::PrimitiveFeatureRendererAdapter;
+use mcrust::net::minecraft::client::renderer::culling::frustum::Frustum;
+use mcrust::net::minecraft::client::renderer::state::level::level_render_state::LevelRenderState;
+use mcrust::net::minecraft::client::renderer::submit_node_storage::SubmitNodeStorage;
 use mcrust::com::mojang::blaze3d::systems::render_system;
 use mcrust::net::minecraft::client::camera::Camera;
 use mcrust::net::minecraft::client::multiplayer::client_level::ClientLevel;
@@ -33,62 +38,74 @@ impl RenderHelper {
 
     /// java: @Init public static void init()
     pub fn init() {
-        // TODO(fabric2seer): LevelExtractionEvents.END_EXTRACTION.register: no SeerClient equivalent yet
-        //   java: LevelExtractionEvents.END_EXTRACTION.register(RenderHelper::startExtraction);
+        // java: LevelExtractionEvents.END_EXTRACTION.register(RenderHelper::startExtraction);
+        // java: LevelRenderEvents.COLLECT_SUBMITS.register(RenderHelper::dispatchSubmits);
+        // Both read the frame's `LevelRenderState`; the port lends it (and the submit collector) with the `GameRenderer`
+        // at `WorldRenderEvents.BEFORE_ENTITIES` - the HEAD of `LevelRenderer.submitFeatures`, which is after the whole
+        // level extraction (Fabric's END_EXTRACTION) and before any feature of the frame is submitted (COLLECT_SUBMITS
+        // runs inside it). The two run there in Java's order: the collection, then its submits.
         world_render_events::BEFORE_ENTITIES.register(Arc::new(|ctx: &mut world_render_events::WorldRenderContext<'_>| {
-            let mut profiler = profiler::get();
-            profiler.push("skyblockerDispatchSubmits");
-            // TODO(fabric2seer): WorldRenderContext.levelState() - the port's context only carries the GameRenderer (`gameRenderer`)
-            //   java: collector.dispatchSubmits(context.levelState(), context.submitNodeCollector());
-            profiler.pop();
+            // java: context.levelState().cameraRenderState.cullFrustum
+            let Some(frustum) = ctx.game_renderer.main_camera().get_cull_frustum().copied() else {
+                return;
+            };
+            let (level_state, submit_node_collector) = compat::leftovers_level_render_context(ctx.game_renderer);
+            RenderHelper::start_extraction(level_state, frustum);
+            RenderHelper::dispatch_submits(level_state, submit_node_collector);
         }));
-        // TODO(fabric2seer): Fabric API `FeatureRendererRegistry.register` has no SeerClient equivalent
-        //   java: FeatureRendererRegistry.register(FilledBoxInstancedFeatureRenderer.TYPE, FilledBoxInstancedFeatureRenderer::new);
-        // TODO(fabric2seer): Fabric API `FeatureRendererRegistry.register` has no SeerClient equivalent
-        //   java: FeatureRendererRegistry.register(FilledBoxFeatureRenderer.TYPE, FilledBoxFeatureRenderer::new);
-        // TODO(fabric2seer): Fabric API `FeatureRendererRegistry.register` has no SeerClient equivalent
-        //   java: FeatureRendererRegistry.register(OutlinedBoxInstancedFeatureRenderer.TYPE, OutlinedBoxInstancedFeatureRenderer::new);
-        // TODO(fabric2seer): Fabric API `FeatureRendererRegistry.register` has no SeerClient equivalent
-        //   java: FeatureRendererRegistry.register(OutlinedBoxFeatureRenderer.TYPE, OutlinedBoxFeatureRenderer::new);
-        // TODO(fabric2seer): Fabric API `FeatureRendererRegistry.register` has no SeerClient equivalent
-        //   java: FeatureRendererRegistry.register(LinesFeatureRenderer.TYPE, LinesFeatureRenderer::new);
-        // TODO(fabric2seer): Fabric API `FeatureRendererRegistry.register` has no SeerClient equivalent
-        //   java: FeatureRendererRegistry.register(CursorLineFeatureRenderer.TYPE, CursorLineFeatureRenderer::new);
-        // TODO(fabric2seer): Fabric API `FeatureRendererRegistry.register` has no SeerClient equivalent
-        //   java: FeatureRendererRegistry.register(QuadFeatureRenderer.TYPE, QuadFeatureRenderer::new);
-        // TODO(fabric2seer): Fabric API `FeatureRendererRegistry.register` has no SeerClient equivalent
-        //   java: FeatureRendererRegistry.register(TexturedQuadFeatureRenderer.TYPE, TexturedQuadFeatureRenderer::new);
-        // TODO(fabric2seer): Fabric API `FeatureRendererRegistry.register` has no SeerClient equivalent
-        //   java: FeatureRendererRegistry.register(BlockHologramFeatureRenderer.TYPE, BlockHologramFeatureRenderer::new);
-        // TODO(fabric2seer): Fabric API `FeatureRendererRegistry.register` has no SeerClient equivalent
-        //   java: FeatureRendererRegistry.register(TextFeatureRenderer.TYPE, TextFeatureRenderer::new);
-        // TODO(fabric2seer): Fabric API `FeatureRendererRegistry.register` has no SeerClient equivalent
-        //   java: FeatureRendererRegistry.register(CylinderFeatureRenderer.TYPE, CylinderFeatureRenderer::new);
-        // TODO(fabric2seer): Fabric API `FeatureRendererRegistry.register` has no SeerClient equivalent
-        //   java: FeatureRendererRegistry.register(SphereFeatureRenderer.TYPE, SphereFeatureRenderer::new);
-        // TODO(fabric2seer): Fabric API `FeatureRendererRegistry.register` has no SeerClient equivalent
-        //   java: FeatureRendererRegistry.register(FilledCircleFeatureRenderer.TYPE, FilledCircleFeatureRenderer::new);
-        // TODO(fabric2seer): Fabric API `FeatureRendererRegistry.register` has no SeerClient equivalent
-        //   java: FeatureRendererRegistry.register(OutlinedCircleFeatureRenderer.TYPE, OutlinedCircleFeatureRenderer::new);
+        // java: FeatureRendererRegistry.register(FilledBoxInstancedFeatureRenderer.TYPE, FilledBoxInstancedFeatureRenderer::new);
+        compat::leftovers_register_feature_renderer(*primitive::filled_box_instanced_feature_renderer::TYPE.get(), || Box::new(PrimitiveFeatureRendererAdapter::<_, primitive::filled_box_instanced_feature_renderer::Submit>::new(primitive::filled_box_instanced_feature_renderer::FilledBoxInstancedFeatureRenderer::new())));
+        // java: FeatureRendererRegistry.register(FilledBoxFeatureRenderer.TYPE, FilledBoxFeatureRenderer::new);
+        compat::leftovers_register_feature_renderer(*primitive::filled_box_feature_renderer::TYPE.get(), || Box::new(PrimitiveFeatureRendererAdapter::<_, primitive::filled_box_feature_renderer::Submit>::new(primitive::filled_box_feature_renderer::FilledBoxFeatureRenderer::new())));
+        // java: FeatureRendererRegistry.register(OutlinedBoxInstancedFeatureRenderer.TYPE, OutlinedBoxInstancedFeatureRenderer::new);
+        compat::leftovers_register_feature_renderer(*primitive::outlined_box_instanced_feature_renderer::TYPE.get(), || Box::new(PrimitiveFeatureRendererAdapter::<_, primitive::outlined_box_instanced_feature_renderer::Submit>::new(primitive::outlined_box_instanced_feature_renderer::OutlinedBoxInstancedFeatureRenderer::new())));
+        // java: FeatureRendererRegistry.register(OutlinedBoxFeatureRenderer.TYPE, OutlinedBoxFeatureRenderer::new);
+        compat::leftovers_register_feature_renderer(*primitive::outlined_box_feature_renderer::TYPE.get(), || Box::new(PrimitiveFeatureRendererAdapter::<_, primitive::outlined_box_feature_renderer::Submit>::new(primitive::outlined_box_feature_renderer::OutlinedBoxFeatureRenderer::new())));
+        // java: FeatureRendererRegistry.register(LinesFeatureRenderer.TYPE, LinesFeatureRenderer::new);
+        compat::leftovers_register_feature_renderer(*primitive::lines_feature_renderer::TYPE.get(), || Box::new(PrimitiveFeatureRendererAdapter::<_, primitive::lines_feature_renderer::Submit>::new(primitive::lines_feature_renderer::LinesFeatureRenderer::new())));
+        // java: FeatureRendererRegistry.register(CursorLineFeatureRenderer.TYPE, CursorLineFeatureRenderer::new);
+        compat::leftovers_register_feature_renderer(*primitive::cursor_line_feature_renderer::TYPE.get(), || Box::new(PrimitiveFeatureRendererAdapter::<_, primitive::cursor_line_feature_renderer::Submit>::new(primitive::cursor_line_feature_renderer::CursorLineFeatureRenderer::new())));
+        // java: FeatureRendererRegistry.register(QuadFeatureRenderer.TYPE, QuadFeatureRenderer::new);
+        compat::leftovers_register_feature_renderer(*primitive::quad_feature_renderer::TYPE.get(), || Box::new(PrimitiveFeatureRendererAdapter::<_, primitive::quad_feature_renderer::Submit>::new(primitive::quad_feature_renderer::QuadFeatureRenderer::new())));
+        // java: FeatureRendererRegistry.register(TexturedQuadFeatureRenderer.TYPE, TexturedQuadFeatureRenderer::new);
+        compat::leftovers_register_feature_renderer(*primitive::textured_quad_feature_renderer::TYPE.get(), || Box::new(PrimitiveFeatureRendererAdapter::<_, primitive::textured_quad_feature_renderer::Submit>::new(primitive::textured_quad_feature_renderer::TexturedQuadFeatureRenderer::new())));
+        // java: FeatureRendererRegistry.register(BlockHologramFeatureRenderer.TYPE, BlockHologramFeatureRenderer::new);
+        compat::leftovers_register_feature_renderer(*primitive::block_hologram_feature_renderer::TYPE.get(), || Box::new(PrimitiveFeatureRendererAdapter::<_, primitive::block_hologram_feature_renderer::Submit>::new(primitive::block_hologram_feature_renderer::BlockHologramFeatureRenderer::new())));
+        // java: FeatureRendererRegistry.register(TextFeatureRenderer.TYPE, TextFeatureRenderer::new);
+        compat::leftovers_register_feature_renderer(*primitive::text_feature_renderer::TYPE.get(), || Box::new(PrimitiveFeatureRendererAdapter::<_, primitive::text_feature_renderer::Submit>::new(primitive::text_feature_renderer::TextFeatureRenderer::new())));
+        // java: FeatureRendererRegistry.register(CylinderFeatureRenderer.TYPE, CylinderFeatureRenderer::new);
+        compat::leftovers_register_feature_renderer(*primitive::cylinder_feature_renderer::TYPE.get(), || Box::new(PrimitiveFeatureRendererAdapter::<_, primitive::cylinder_feature_renderer::Submit>::new(primitive::cylinder_feature_renderer::CylinderFeatureRenderer::new())));
+        // java: FeatureRendererRegistry.register(SphereFeatureRenderer.TYPE, SphereFeatureRenderer::new);
+        compat::leftovers_register_feature_renderer(*primitive::sphere_feature_renderer::TYPE.get(), || Box::new(PrimitiveFeatureRendererAdapter::<_, primitive::sphere_feature_renderer::Submit>::new(primitive::sphere_feature_renderer::SphereFeatureRenderer::new())));
+        // java: FeatureRendererRegistry.register(FilledCircleFeatureRenderer.TYPE, FilledCircleFeatureRenderer::new);
+        compat::leftovers_register_feature_renderer(*primitive::filled_circle_feature_renderer::TYPE.get(), || Box::new(PrimitiveFeatureRendererAdapter::<_, primitive::filled_circle_feature_renderer::Submit>::new(primitive::filled_circle_feature_renderer::FilledCircleFeatureRenderer::new())));
+        // java: FeatureRendererRegistry.register(OutlinedCircleFeatureRenderer.TYPE, OutlinedCircleFeatureRenderer::new);
+        compat::leftovers_register_feature_renderer(*primitive::outlined_circle_feature_renderer::TYPE.get(), || Box::new(PrimitiveFeatureRendererAdapter::<_, primitive::outlined_circle_feature_renderer::Submit>::new(primitive::outlined_circle_feature_renderer::OutlinedCircleFeatureRenderer::new())));
     }
 
     /// java: private static void startExtraction(LevelExtractionContext context)
-    pub fn start_extraction(context: &crate::unresolved::LevelExtractionContext) {
+    /// (`context.levelState()` and its `cameraRenderState.cullFrustum`)
+    pub fn start_extraction(level_state: &mut LevelRenderState, frustum: Frustum) {
         let mut profiler = profiler::get();
         profiler.push("skyblockerPrimitiveCollection");
-        // TODO(fabric2seer): `.levelState(..)` on a LevelExtractionContext
-        //   java: collector = new PrimitiveCollectorImpl(context.levelState(), context.levelState().cameraRenderState.cullFrustum);
-        (level_render_extraction_callback::event_invoker())((COLLECTOR.get_mut().clone().expect("RenderHelper.collector") as compat::Shared<dyn PrimitiveCollector>));
-        PrimitiveCollectorImpl::end_collection(COLLECTOR.get_mut().as_ref().unwrap());
+        // java: collector = new PrimitiveCollectorImpl(context.levelState(), context.levelState().cameraRenderState.cullFrustum);
+        let collector = PrimitiveCollectorImpl::new(frustum);
+        *COLLECTOR.get_mut() = Some(collector.clone());
+        level_render_extraction_callback::invoke(collector.clone() as compat::Shared<dyn PrimitiveCollector>);
+        // java: collector.endCollection(); (and the states it added to `worldState.blockEntityRenderStates`)
+        PrimitiveCollectorImpl::end_collection_into(&collector, level_state);
         profiler.pop();
     }
 
     /// java: private static void dispatchSubmits(LevelRenderContext context)
-    pub fn dispatch_submits(context: &crate::unresolved::LevelRenderContext) {
+    /// (`context.levelState()`, `context.submitNodeCollector()`)
+    pub fn dispatch_submits(level_state: &LevelRenderState, submit_node_collector: &mut SubmitNodeStorage) {
         let mut profiler = profiler::get();
         profiler.push("skyblockerDispatchSubmits");
-        // TODO(fabric2seer): `.levelState(..)` on a LevelRenderContext
-        //   java: collector.dispatchSubmits(context.levelState(), context.submitNodeCollector());
+        let collector = COLLECTOR.get_mut().clone();
+        if let Some(collector) = collector {
+            PrimitiveCollectorImpl::dispatch_submits(&collector, level_state, submit_node_collector);
+        }
         profiler.pop();
     }
 

@@ -43,34 +43,44 @@ impl CompactorDeletorPreview {
             return false;
         }
         let mut custom_data: Tag = ItemUtils::get_custom_data(stack);
-        // TODO(fabric2seer): static call StringUtils.substringAfterLast(..)
-        //   java: List<IntObjectPair<@Nullable FlexibleItemStack>> slots = customData.keySet()
-        //   java: 														.stream()
-        //   java: 														.filter(slot -> slot.contains(type.toLowerCase(Locale.ENGLISH).substring(0, 7)))
-        //   java: 														.map(slot -> IntObjectPair.of(Integer.parseInt(StringUtils.substringAfterLast(slot, "_")), ItemRepository.getItemStack(customData.getStringOr(slot, "")))).toList();
-        let mut slots: Vec<(i32, Option<compat::Shared<FlexibleItemStack>>)> = todo!("fabric2seer: the initialiser of `slots` (TODO above)");
-        // TODO(fabric2seer): the port's `create_text` ports this Java method with other parameters ( for Java's char_sequence)
-        // TODO(fabric2seer): `create_text` takes 0 argument(s) in the port (``), Java passes 1
-        // rust: let mut components: Vec<Box<dyn ClientTooltipComponent>> = tooltips.iter().cloned().map(|__a0| __a0.get_visual_order_text()).map(|__a0| client_tooltip_component::create_text(__a0.clone())).collect::<Vec<_>>();
-        let mut components: Vec<Box<dyn ClientTooltipComponent>> = todo!("fabric2seer: the initialiser of `components` (TODO above)");
+        // java: List<IntObjectPair<@Nullable FlexibleItemStack>> slots = customData.keySet().stream()
+        //           .filter(slot -> slot.contains(type.toLowerCase(Locale.ENGLISH).substring(0, 7)))
+        //           .map(slot -> IntObjectPair.of(Integer.parseInt(StringUtils.substringAfterLast(slot, "_")), ItemRepository.getItemStack(customData.getStringOr(slot, "")))).toList();
+        let type_prefix: String = compat::substring2(&r#type.to_lowercase(), 0, 7);
+        let mut slots: Vec<(i32, Option<compat::Shared<FlexibleItemStack>>)> = custom_data
+            .key_set()
+            .into_iter()
+            .filter(|slot| slot.contains(type_prefix.as_str()))
+            .map(|slot| {
+                // `StringUtils.substringAfterLast(slot, "_")`: after the last `_`, or "" when there is none
+                let after_last: &str = slot.rfind('_').map(|i| &slot[i + 1..]).unwrap_or("");
+                // `Integer.parseInt` throws on a malformed number
+                let index: i32 = after_last.parse::<i32>().unwrap_or_else(|e| panic!("NumberFormatException: For input string: \"{}\" ({})", after_last, e));
+                (index, crate::de::hysky::skyblocker::skyblock::itemlist::item_repository::ItemRepository::get_item_stack(&custom_data.get_string_or(slot, "")))
+            })
+            .collect();
+        // java: List<ClientTooltipComponent> components = tooltips.stream().map(Component::getVisualOrderText).map(ClientTooltipComponent::create).collect(Collectors.toList());
+        let mut components: Vec<Box<dyn ClientTooltipComponent>> = tooltips.iter().map(|line| create_text_component(line.clone())).collect();
         let mut dimensions: (i32, i32) = DIMENSIONS.get_mut().get(size).cloned().unwrap_or_else(|| DEFAULT_DIMENSION.get_mut().clone());
+        // If there are no items in compactor or deletor
         if slots.is_empty() {
             let mut slots_count: i32 = dimensions.0.wrapping_mul(dimensions.1);
-            // TODO(fabric2seer): the port's `create_text` ports this Java method with other parameters ( for Java's char_sequence)
-            // TODO(fabric2seer): `create_text` takes 0 argument(s) in the port (``), Java passes 1
-            // rust: components.insert((target_index) as usize, client_tooltip_component::create_text((component::literal(&format!("{}{}", slots_count, (if slots_count == 1 { " slot" } else { " slots" })))).with_style_format(ChatFormatting::Gray).get_visual_order_text()));
-            // TODO(fabric2seer): `tooltip` takes 7 argument(s) in the port (`graphics: &mut crate::net::minecraft::client::gui::screens::inventory::tooltip::client_tooltip_component::TooltipGraphics<'_>, font: &dyn crate::net::minecraft::client::gui::screens::inventory::tooltip::client_tooltip_component::TooltipFont ..`), Java passes 6
-            // rust: gui_graphics_extractor::tooltip(&mut compat::font(), &components, &x, y, mcrust::net::minecraft::client::gui::screens::inventory::tooltip::default_tooltip_positioner::DefaultTooltipPositioner::INSTANCE, &stack.get(mcrust::net::minecraft::core::component::data_components::tooltip_style()).unwrap());
+            // java: components.add(targetIndex, ClientTooltipComponent.create(Component.literal(slotsCount + (slotsCount == 1 ? " slot" : " slots")).withStyle(ChatFormatting.GRAY).getVisualOrderText()));
+            components.insert((target_index) as usize, create_text_component(component::literal(&format!("{}{}", slots_count, (if slots_count == 1 { " slot" } else { " slots" }))).with_style_format(ChatFormatting::Gray)));
+            // java: graphics.tooltip(client.font, components, x, y, DefaultTooltipPositioner.INSTANCE, stack.get(DataComponents.TOOLTIP_STYLE));
+            draw_tooltip(graphics, stack, components, x, y);
             return true;
         }
+        // Add the preview tooltip component
         components.insert((target_index) as usize, Box::new(CompactorPreviewTooltipComponent::new(slots.clone(), dimensions.clone())));
         if custom_data.contains("PERSONAL_DELETOR_ACTIVE") {
-            // TODO(fabric2seer): the port's `create_text` ports this Java method with other parameters ( for Java's char_sequence)
-            // TODO(fabric2seer): `create_text` takes 0 argument(s) in the port (``), Java passes 1
-            // rust: components.insert((target_index) as usize, client_tooltip_component::create_text((component::literal("Active: ").append((if custom_data.get_boolean_or("PERSONAL_DELETOR_ACTIVE", false) { component::literal("YES").with_style_format(ChatFormatting::Bold).with_style_format(ChatFormatting::Green) } else { component::literal("NO").with_style_format(ChatFormatting::Bold).with_style_format(ChatFormatting::Red) }))).get_visual_order_text()));
+            // java: components.add(targetIndex, ClientTooltipComponent.create(Component.literal("Active: ").append(customData.getBooleanOr("PERSONAL_DELETOR_ACTIVE", false)
+            //           ? Component.literal("YES").withStyle(ChatFormatting.BOLD).withStyle(ChatFormatting.GREEN) : Component.literal("NO").withStyle(ChatFormatting.BOLD).withStyle(ChatFormatting.RED)).getVisualOrderText()));
+            let active: MutableComponent = if custom_data.get_boolean_or("PERSONAL_DELETOR_ACTIVE", false) { component::literal("YES").with_style_format(ChatFormatting::Bold).with_style_format(ChatFormatting::Green) } else { component::literal("NO").with_style_format(ChatFormatting::Bold).with_style_format(ChatFormatting::Red) };
+            components.insert((target_index) as usize, create_text_component(component::literal("Active: ").append(active)));
         }
-        // TODO(fabric2seer): `tooltip` takes 7 argument(s) in the port (`graphics: &mut crate::net::minecraft::client::gui::screens::inventory::tooltip::client_tooltip_component::TooltipGraphics<'_>, font: &dyn crate::net::minecraft::client::gui::screens::inventory::tooltip::client_tooltip_component::TooltipFont ..`), Java passes 6
-        // rust: gui_graphics_extractor::tooltip(&mut compat::font(), &components, &x, y, mcrust::net::minecraft::client::gui::screens::inventory::tooltip::default_tooltip_positioner::DefaultTooltipPositioner::INSTANCE, &stack.get(mcrust::net::minecraft::core::component::data_components::tooltip_style()).unwrap());
+        // java: graphics.tooltip(client.font, components, x, y, DefaultTooltipPositioner.INSTANCE, stack.get(DataComponents.TOOLTIP_STYLE));
+        draw_tooltip(graphics, stack, components, x, y);
         return true;
     }
 
@@ -90,4 +100,18 @@ impl CompactorDeletorPreview {
         return target_index;
     }
 
+}
+
+/// `ClientTooltipComponent.create(component.getVisualOrderText())` - a text line.
+fn create_text_component(line: MutableComponent) -> Box<dyn ClientTooltipComponent> {
+    Box::new(mcrust::net::minecraft::client::gui::screens::inventory::tooltip::client_text_tooltip::ClientTextTooltip::new(mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(line)))
+}
+
+/// `graphics.tooltip(client.font, components, x, y, DefaultTooltipPositioner.INSTANCE, stack.get(DataComponents.TOOLTIP_STYLE))`.
+/// Drawn now, at `x, y`, through the game's `widgets::draw_tooltip` (the `GuiGraphicsExtractor.tooltip` call for a mod's
+/// draw), with the item's tooltip style.
+fn draw_tooltip(graphics: &GuiGraphicsExtractor, stack: &mcrust::net::minecraft::world::item::item_stack::ItemStack, components: Vec<Box<dyn ClientTooltipComponent>>, x: i32, y: i32) {
+    let _ = graphics;
+    let style = mcrust::mcrust::modding::widgets::item_tooltip_style(stack);
+    mcrust::mcrust::modding::widgets::draw_tooltip(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), &components, x, y, &mcrust::net::minecraft::client::gui::screens::inventory::tooltip::default_tooltip_positioner::DefaultTooltipPositioner, style.as_ref());
 }

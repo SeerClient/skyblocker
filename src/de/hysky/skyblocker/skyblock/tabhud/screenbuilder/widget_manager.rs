@@ -168,7 +168,7 @@ impl WidgetManager {
     pub fn init() {
         // java: ClientLifecycleEvents.CLIENT_STARTED.register(_ -> {..}); - RETURN of `Minecraft`'s constructor (the client
         // entrypoints run inside it, so this registers before it returns)
-        // rust: a RETURN injector registered from inside `Minecraft#<init>` (the client entrypoints run there) is not in
+        // Port note: a RETURN injector registered from inside `Minecraft#<init>` (the client entrypoints run there) is not in
         // that call's injector snapshot, so it never fired; `compat::execute` runs it before the first client tick, which
         // is where Fabric fires CLIENT_STARTED (early in `Minecraft.run`).
         compat::execute(|| {
@@ -185,13 +185,14 @@ impl WidgetManager {
             WidgetManager::save_config();
         })
         .map_err(|e| logger().error(&format!("[Skyblocker] Failed to hook the client stop: {:?}", e)));
+        // Renders the hud (always on screen) widgets.
         // java: HudElementRegistry.attachElementBefore(VanillaHudElements.DEMO_TIMER, FANCY_TAB_HUD, (context, _) -> extractRenderState(context, true));
-        // java: HudElementRegistry.attachElementBefore(VanillaHudElements.PLAYER_LIST, FANCY_TAB, (context, _) -> extractRenderState(context, false));
-        // rust: port gap - no HUD element registry: both draw at RETURN of `Hud#extractRenderState`, after the vanilla HUD
-        hud_render_callback::EVENT.register(Arc::new(|ctx: &mut hud_render_callback::HudRenderContext<'_>| {
+        hud_element_registry::attach_element_before(vanilla_hud_elements::DEMO_TIMER, FANCY_TAB_HUD.get(), Arc::new(|ctx: &mut hud_render_callback::HudRenderContext<'_>| {
             WidgetManager::extract_render_state(&mut ctx.graphics, true);
         }));
-        hud_render_callback::EVENT.register(Arc::new(|ctx: &mut hud_render_callback::HudRenderContext<'_>| {
+        // Renders the tab widgets
+        // java: HudElementRegistry.attachElementBefore(VanillaHudElements.PLAYER_LIST, FANCY_TAB, (context, _) -> extractRenderState(context, false));
+        hud_element_registry::attach_element_before(vanilla_hud_elements::PLAYER_LIST, FANCY_TAB.get(), Arc::new(|ctx: &mut hud_render_callback::HudRenderContext<'_>| {
             WidgetManager::extract_render_state(&mut ctx.graphics, false);
         }));
     }
@@ -204,9 +205,12 @@ impl WidgetManager {
         let client = compat::minecraft();
         // java: Screen screen = ScreenUtils.getUnderlyingScreen(client.gui.screen());
         //       if (screen instanceof WidgetsConfigurationScreen || screen instanceof OtherOptionsScreen) return;
-        // rust: port gap - the open screen object is reached by its class only on top of the stack
-        // (`game::current_screen_is`); a popup over one of these two screens is not seen through (GAPS_batchA #19)
-        if mcrust::mcrust::modding::game::current_screen_is::<compat::ScreenAdapter<WidgetsConfigurationScreen>>() || mcrust::mcrust::modding::game::current_screen_is::<compat::ScreenAdapter<OtherOptionsScreen>>() {
+        // (`game::get_underlying_screen` is the screen a popup was opened over, `None` when the up screen is itself)
+        let __underlying_is_config: bool = match mcrust::mcrust::modding::game::get_underlying_screen() {
+            Some(underlying) => underlying.is::<compat::ScreenAdapter<WidgetsConfigurationScreen>>() || underlying.is::<compat::ScreenAdapter<OtherOptionsScreen>>(),
+            None => mcrust::mcrust::modding::game::current_screen_is::<compat::ScreenAdapter<WidgetsConfigurationScreen>>() || mcrust::mcrust::modding::game::current_screen_is::<compat::ScreenAdapter<OtherOptionsScreen>>(),
+        };
+        if __underlying_is_config {
             return;
         }
         let window = client.get_window();

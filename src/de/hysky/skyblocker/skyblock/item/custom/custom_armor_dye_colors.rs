@@ -23,31 +23,38 @@ impl CustomArmorDyeColors {
 
     /// java: @Init public static void init()
     pub fn init() {
+        // java: ClientCommandRegistrationCallback.EVENT.register(CustomArmorDyeColors::registerCommands);
         client_command_registration_callback::EVENT.register(Arc::new(
             |dispatcher: &mut client_command_registration_callback::ClientCommandDispatcher| {
-                dispatcher.register("skyblocker", |ctx| {
-                    #[allow(unreachable_code)]
-                    Ok(())
-                });
+                CustomArmorDyeColors::register_commands(dispatcher.dispatcher(), dispatcher.build_context());
             },
         ));
     }
 
     /// java: private static void registerCommands(CommandDispatcher<FabricClientCommandSource> dispatcher, CommandBuildContext registryAccess)
-    pub fn register_commands(dispatcher: &CommandDispatcher<crate::unresolved::FabricClientCommandSource>, registry_access: &CommandBuildContext) {
-        // TODO(fabric2seer): a command builder outside dispatcher.register(..)
-        //   java: dispatcher.register(ClientCommands.literal("skyblocker")
-        //   java: 				.then(ClientCommands.literal("custom")
-        //   java: 						.then(ClientCommands.literal("dyeColor")
-        //   java: 								.executes(context -> customizeDyeColor(context.getSource(), Integer.MIN_VALUE))
-        //   java: 								.then(ClientCommands.argument("hexCode", ColorArgumentType.hex())
-        //   java: 										.executes(context -> customizeDyeColor(context.getSource(), ColorArgumentType.getIntFromHex(context, "hexCode")))))));
+    pub fn register_commands(dispatcher: &CommandDispatcher<crate::unresolved::FabricClientCommandSource>, registry_access: Option<&CommandBuildContext>) {
+        //   java: dispatcher.register(ClientCommands.literal("skyblocker").then(ClientCommands.literal("custom").then(ClientCommands.literal("dyeColor")
+        //   java:     .executes(context -> customizeDyeColor(context.getSource(), Integer.MIN_VALUE))
+        //   java:     .then(ClientCommands.argument("hexCode", ColorArgumentType.hex()).executes(context -> customizeDyeColor(context.getSource(), ColorArgumentType.getIntFromHex(context, "hexCode")))))));
+        use mcrust::com::mojang::brigadier::builder::argument_builder::ArgumentBuilder as _;
+        use crate::de::hysky::skyblocker::utils::command::argumenttypes::color::color_argument_type::ColorArgumentType;
+        type Ctx = mcrust::com::mojang::brigadier::context::command_context::CommandContext<crate::unresolved::FabricClientCommandSource>;
+        let _ = registry_access;
+        let mut hex_code = client_command_registration_callback::argument("hexCode", Arc::new(ColorArgumentType::hex()));
+        hex_code.executes(Arc::new(|context: &Ctx| Ok(CustomArmorDyeColors::customize_dye_color(context.get_source(), ColorArgumentType::get_int_from_hex(context, "hexCode")))));
+        let mut dye_color = client_command_registration_callback::literal("dyeColor");
+        dye_color.executes(Arc::new(|context: &Ctx| Ok(CustomArmorDyeColors::customize_dye_color(context.get_source(), i32::MIN))));
+        dye_color.then(&hex_code);
+        let mut custom = client_command_registration_callback::literal("custom");
+        custom.then(&dye_color);
+        let mut root = client_command_registration_callback::literal("skyblocker");
+        root.then(&custom);
+        dispatcher.register(&root);
     }
 
     /// java: @SuppressWarnings("SameReturnValue") private static int customizeDyeColor(FabricClientCommandSource source, int color)
     pub fn customize_dye_color(source: &crate::unresolved::FabricClientCommandSource, mut color: i32) -> i32 {
-        // TODO(fabric2seer): `.getPlayer(..)` on a FabricClientCommandSource
-        //   java: ItemStack heldItem = source.getPlayer().getMainHandItem();
+        // java: ItemStack heldItem = source.getPlayer().getMainHandItem(); (the source's player is the client's)
         let mut held_item: mcrust::net::minecraft::world::item::item_stack::ItemStack = mcrust::mcrust::modding::game::with_player(|player| player.get_main_hand_item().clone()).unwrap_or_else(mcrust::net::minecraft::world::item::item_stack::empty);
         if Utils::is_on_skyblock() && true /* java: held_item != null: never null here */ {
             if held_item.is_in_tag(&mcrust::net::minecraft::tags::item_tags::cauldron_can_remove_dye()) {
@@ -57,29 +64,29 @@ impl CustomArmorDyeColors {
                     if color == i32::MIN {
                         if custom_dye_colors.contains_key(&item_uuid) {
                             SkyblockerConfigManager::update(Arc::new(move |mut config| { config.general.custom_dye_colors.remove(&item_uuid); }));
-                            // TODO(fabric2seer): `.sendFeedback(..)` on a FabricClientCommandSource
-                            //   java: source.sendFeedback(Constants.PREFIX.get().append(Component.translatable("skyblocker.customDyeColors.removed")));
+                            // java: source.sendFeedback(Constants.PREFIX.get().append(Component.translatable("skyblocker.customDyeColors.removed")));
+                            compat::batch_w_send_feedback(&(crate::de::hysky::skyblocker::utils::constants::PREFIX.get())().append(mcrust::net::minecraft::network::chat::component::translatable("skyblocker.customDyeColors.removed")));
                         } else {
-                            // TODO(fabric2seer): `.sendFeedback(..)` on a FabricClientCommandSource
-                            //   java: source.sendFeedback(Constants.PREFIX.get().append(Component.translatable("skyblocker.customDyeColors.neverHad")));
+                            // java: source.sendFeedback(Constants.PREFIX.get().append(Component.translatable("skyblocker.customDyeColors.neverHad")));
+                            compat::batch_w_send_feedback(&(crate::de::hysky::skyblocker::utils::constants::PREFIX.get())().append(mcrust::net::minecraft::network::chat::component::translatable("skyblocker.customDyeColors.neverHad")));
                         }
                     } else {
                         SkyblockerConfigManager::update(Arc::new(move |mut config| { config.general.custom_dye_colors.insert(item_uuid.clone(), color); }));
-                        // TODO(fabric2seer): `.sendFeedback(..)` on a FabricClientCommandSource
-                        //   java: source.sendFeedback(Constants.PREFIX.get().append(Component.translatable("skyblocker.customDyeColors.added")));
+                        // java: source.sendFeedback(Constants.PREFIX.get().append(Component.translatable("skyblocker.customDyeColors.added")));
+                        compat::batch_w_send_feedback(&(crate::de::hysky::skyblocker::utils::constants::PREFIX.get())().append(mcrust::net::minecraft::network::chat::component::translatable("skyblocker.customDyeColors.added")));
                     }
                 } else {
-                    // TODO(fabric2seer): `.sendError(..)` on a FabricClientCommandSource
-                    //   java: source.sendError(Constants.PREFIX.get().append(Component.translatable("skyblocker.customDyeColors.noItemUuid").withColor(TextColor.RED)));
+                    // java: source.sendError(Constants.PREFIX.get().append(Component.translatable("skyblocker.customDyeColors.noItemUuid").withColor(TextColor.RED)));
+                    compat::batch_w_send_error(&(crate::de::hysky::skyblocker::utils::constants::PREFIX.get())().append(mcrust::net::minecraft::network::chat::component::translatable("skyblocker.customDyeColors.noItemUuid").with_color(mcrust::net::minecraft::network::chat::text_color::TextColor::RED.get_value())));
                 }
             } else {
-                // TODO(fabric2seer): `.sendError(..)` on a FabricClientCommandSource
-                //   java: source.sendError(Constants.PREFIX.get().append(Component.translatable("skyblocker.customDyeColors.notDyeable").withColor(TextColor.RED)));
+                // java: source.sendError(Constants.PREFIX.get().append(Component.translatable("skyblocker.customDyeColors.notDyeable").withColor(TextColor.RED)));
+                compat::batch_w_send_error(&(crate::de::hysky::skyblocker::utils::constants::PREFIX.get())().append(mcrust::net::minecraft::network::chat::component::translatable("skyblocker.customDyeColors.notDyeable").with_color(mcrust::net::minecraft::network::chat::text_color::TextColor::RED.get_value())));
                 return 1;
             }
         } else {
-            // TODO(fabric2seer): `.sendError(..)` on a FabricClientCommandSource
-            //   java: source.sendError(Constants.PREFIX.get().append(Component.translatable("skyblocker.customDyeColors.unableToSetColor").withColor(TextColor.RED)));
+            // java: source.sendError(Constants.PREFIX.get().append(Component.translatable("skyblocker.customDyeColors.unableToSetColor").withColor(TextColor.RED)));
+            compat::batch_w_send_error(&(crate::de::hysky::skyblocker::utils::constants::PREFIX.get())().append(mcrust::net::minecraft::network::chat::component::translatable("skyblocker.customDyeColors.unableToSetColor").with_color(mcrust::net::minecraft::network::chat::text_color::TextColor::RED.get_value())));
         }
         return 1;
     }

@@ -106,7 +106,7 @@ impl MuseumItemCache {
         MuseumItemCache::load_museum_items();
         // java: ClientLifecycleEvents.CLIENT_STARTED.register(_ -> MUSEUM_ITEM_CACHE.load()); - RETURN of `Minecraft`'s
         // constructor (as `WidgetManager.init` hooks it)
-        // rust: a RETURN injector registered from inside `Minecraft#<init>` (the client entrypoints run there) is not in
+        // A RETURN injector registered from inside `Minecraft#<init>` (the client entrypoints run there) is not in
         // that call's injector snapshot, so it never fired; `compat::execute` runs it before the first client tick, which
         // is where Fabric fires CLIENT_STARTED (early in `Minecraft.run`).
         compat::execute(|| {
@@ -139,9 +139,8 @@ impl MuseumItemCache {
             resync.executes(Arc::new(|context: &CommandContext<client_command_registration_callback::FabricClientCommandSource>| {
                 let source = context.get_source();
                 let text: MutableComponent = MuseumItemCache::try_resync(source);
-                // rust: port gap (GAPS_batchD #17) - `sendFeedback(Component)`: the port's feedback is text-only, the
-                // hover event of a failure message is dropped
-                mcrust::mcrust::modding::script_host::send_feedback(&(constants::PREFIX.get_mut())().append(text).get_string());
+                // java: source.sendFeedback(Constants.PREFIX.get().append(text)); - the component itself (its hover event)
+                compat::batch_w_send_feedback(&(constants::PREFIX.get_mut())().append(text));
                 Ok(1)
             }));
             let mut museum = client_command_registration_callback::literal("museum");
@@ -191,12 +190,15 @@ impl MuseumItemCache {
                 return;
             };
             {
-                // java: try (BufferedReader reader = Files.newBufferedReader(filePath.getFsPath())) {
-                // rust: port gap (GAPS_batchH, GAPS_J #5) - `NEURepoFile.getFsPath()`: the NEU repo file is a
-                // `crate::unresolved` placeholder with no path. The reader's text is what `JsonParser.parseReader` reads.
-                let mut reader: String = todo!("fabric2seer: Files.newBufferedReader(filePath.getFsPath()) - NEURepoFile is unported");
                 // java: try {..} catch (NoSuchFileException _) catch (IOException e) - an exception here is a panic, caught by `catch_unwind`
                 let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                    // java: try (BufferedReader reader = Files.newBufferedReader(filePath.getFsPath())) - the reader's text is
+                    // what `JsonParser.parseReader` reads; `catch (NoSuchFileException _) {}` ends the load silently
+                    let mut reader: String = match std::fs::read_to_string(file_path.get_fs_path()) {
+                        Ok(text) => text,
+                        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return,
+                        Err(e) => panic!("java.io.IOException: {e}"),
+                    };
                     // java: JsonObject json = JsonParser.parseReader(reader).getAsJsonObject();
                     let mut json: serde_json::Map<String, serde_json::Value> = compat::json::get_as_json_object(&serde_json::from_str::<serde_json::Value>(&reader).expect("JsonSyntaxException"));
                     // (`asMap()` is Gson's insertion-ordered view: the maps stay `serde_json::Map`s, which keep that order)
@@ -273,8 +275,10 @@ impl MuseumItemCache {
                             MUSEUM_DONATIONS.get_mut().push(Donation::new(category.to_string(), item_id.clone(), set.clone(), item_xp));
                         }
                     }
+                    // (one snapshot of ORDERED_UPGRADES - nothing below writes it - not a clone per donation)
+                    let __ordered_upgrades: Vec<Vec<String>> = compat::get_state(&ORDERED_UPGRADES);
                     for donation in MUSEUM_DONATIONS.get_mut().iter() {
-                        for list in compat::get_state(&ORDERED_UPGRADES) {
+                        for list in __ordered_upgrades.iter() {
                             let mut armor_index: i32 = list.iter().position(|e| *e == Donation::get_id(donation)).map_or(-1, |i| i as i32);
                             if armor_index > 0 {
                                 {
@@ -294,8 +298,7 @@ impl MuseumItemCache {
                 }));
                 if let Err(e) = __result {
                     // java: catch (NoSuchFileException _) {} catch (IOException e) { LOGGER.error("[Skyblocker] Failed to load donations data", e); }
-                    // (the reader's IO errors are the gap above; any other exception propagates to `runAsyncAfterLoad`'s
-                    // handler in Java - logged here)
+                    // (any other exception propagates to `runAsyncAfterLoad`'s handler in Java - logged here)
                     logger().error(&format!("[Skyblocker] Failed to load donations data {}", compat::panic_message(&e)));
                 }
             }
@@ -455,7 +458,7 @@ impl MuseumItemCache {
                             MUSEUM_ITEM_CACHE.get_mut().lock().borrow().save();
                             if has_source {
                                 // java: source.sendFeedback(Constants.PREFIX.get().append(Component.translatable("skyblocker.museum.resyncSuccess")));
-                                mcrust::mcrust::modding::script_host::send_feedback(&(constants::PREFIX.get_mut())().append(component::translatable("skyblocker.museum.resyncSuccess")).get_string());
+                                compat::batch_w_send_feedback(&(constants::PREFIX.get_mut())().append(component::translatable("skyblocker.museum.resyncSuccess")));
                             }
                             logger().info(&format!("[Skyblocker] Successfully updated museum item cache for profile {}", profile_id));
                         }
@@ -465,8 +468,7 @@ impl MuseumItemCache {
                             if has_source {
                                 // java: source.sendFeedback(Constants.PREFIX.get().append(Component.translatable("skyblocker.museum.resyncFailure", Component.translatable("skyblocker.museum.resyncFailure.apiDisabled")))
                                 // java: 		.withStyle(style -> style.withHoverEvent(new HoverEvent.ShowText(Component.translatable("skyblocker.museum.resyncFailure.apiDisabled.@Tooltip")))));
-                                // rust: port gap (GAPS_batchD #17) - the feedback is text-only: the hover event is dropped
-                                mcrust::mcrust::modding::script_host::send_feedback(&(constants::PREFIX.get_mut())().append(component::translatable_args("skyblocker.museum.resyncFailure", vec![mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::translatable("skyblocker.museum.resyncFailure.apiDisabled"))])).get_string());
+                                compat::batch_w_send_feedback(&(constants::PREFIX.get_mut())().append(component::translatable_args("skyblocker.museum.resyncFailure", vec![mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::translatable("skyblocker.museum.resyncFailure.apiDisabled"))])).with_style_fn(|style| style.with_hover_event(Some(mcrust::net::minecraft::network::chat::hover_event::HoverEvent::new_show_text(mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::translatable("skyblocker.museum.resyncFailure.apiDisabled.@Tooltip")))))));
                             }
                             // java: LOGGER.warn(ERROR_LOG_TEMPLATE + " because the Museum API is disabled!", profileId);
                             logger().warn(&format!("[Skyblocker] Failed to refresh museum item data for profile {} because the Museum API is disabled!", profile_id));
@@ -475,7 +477,7 @@ impl MuseumItemCache {
                             // If the request returns a non 200 status code
                             MuseumItemCache::put_empty(uuid.clone(), profile_id.clone());
                             if has_source {
-                                mcrust::mcrust::modding::script_host::send_feedback(&(constants::PREFIX.get_mut())().append(component::translatable_args("skyblocker.museum.resyncFailure", vec![mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::translatable("skyblocker.museum.resyncFailure.unknownError"))])).get_string());
+                                compat::batch_w_send_feedback(&(constants::PREFIX.get_mut())().append(component::translatable_args("skyblocker.museum.resyncFailure", vec![mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::translatable("skyblocker.museum.resyncFailure.unknownError"))])));
                             }
                             // java: LOGGER.error(ERROR_LOG_TEMPLATE + " because a non 200 status code was encountered! Response: {}", profileId, response);
                             // (`response` is the record's toString)
@@ -490,7 +492,7 @@ impl MuseumItemCache {
                     // java: catch (Exception e) - If an exception was somehow thrown
                     MuseumItemCache::put_empty(uuid.clone(), profile_id.clone());
                     if has_source {
-                        mcrust::mcrust::modding::script_host::send_feedback(&(constants::PREFIX.get_mut())().append(component::translatable_args("skyblocker.museum.resyncFailure", vec![mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::translatable("skyblocker.museum.resyncFailure.unknownError"))])).get_string());
+                        compat::batch_w_send_feedback(&(constants::PREFIX.get_mut())().append(component::translatable_args("skyblocker.museum.resyncFailure", vec![mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::translatable("skyblocker.museum.resyncFailure.unknownError"))])));
                     }
                     // java: LOGGER.error(ERROR_LOG_TEMPLATE, profileId, e);
                     logger().error(&format!("[Skyblocker] Failed to refresh museum item data for profile {} {}", profile_id, compat::panic_message(&e)));

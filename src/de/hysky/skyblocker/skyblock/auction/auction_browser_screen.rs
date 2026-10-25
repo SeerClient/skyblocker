@@ -192,7 +192,7 @@ impl AuctionBrowserScreen {
         let __r0 = compat::read(__this, |__t| __t.rarity_widget.clone());
         { let (__q0,) = (compat::WidgetAdapter::widget(__r0.unwrap()),); __this.lock().borrow_mut().screen.add_renderable_widget(__q0) };
         let __this_w4 = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
-        let mut __reset: AbstractWidget = ScaledTextButtonWidget::new((compat::read(__this, |__t| __t.left_pos)).wrapping_add(10), (compat::read(__this, |__t| __t.top_pos)).wrapping_add(77), 12, 12, component::literal("↻"), OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| { let Some(__this_4) = __this_w4.get().upgrade() else { return Default::default(); }; { AuctionBrowserScreen::on_reset_pressed((&__this_4), (__screen.widget_mut(__index))); } }))).base;
+        let mut __reset: AbstractWidget = compat::WidgetAdapter::widget(compat::shared(ScaledTextButtonWidget::new((compat::read(__this, |__t| __t.left_pos)).wrapping_add(10), (compat::read(__this, |__t| __t.top_pos)).wrapping_add(77), 12, 12, component::literal("↻"), OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| { let Some(__this_4) = __this_w4.get().upgrade() else { return Default::default(); }; { AuctionBrowserScreen::on_reset_pressed((&__this_4), (__screen.widget_mut(__index))); } })))));
         __reset.set_tooltip(Tooltip::create(component::literal("Reset Filters").get_string()));
         //   java: resetFiltersButton.setTooltipDelay(Duration.ofMillis(500));
         __reset.set_tooltip_delay(500);
@@ -206,12 +206,17 @@ impl AuctionBrowserScreen {
                 let mut category_tab_widget: compat::Shared<CategoryTabWidget> = CategoryTabWidget::new(mcrust::net::minecraft::world::item::item_stack::ItemStack::of_one(items::items().get("sponge")), Arc::new(move |__a0: i32, __a1: i32| { let Some(__this_6) = __this_w6.get().upgrade() else { return; }; (&__this_6).lock().borrow_mut().click_slot(__a0, __a1) }), i);
                 let __h0 = category_tab_widget.clone();
                 __this.lock().borrow_mut().category_tab_widgets.push(__h0);
-                // (renderable: see `extract_render_state`)
-                { let (__q0,) = (compat::WidgetAdapter::widget(category_tab_widget.clone()),); __this.lock().borrow_mut().screen.add_renderable_widget(__q0) };
+                // java: addWidget(categoryTabWidget); categoryTabWidget.setPosition(leftPos - 30, topPos + 3 + i * 28);
+                // The game's clickable copy is taken from the object when it is handed over (`WidgetAdapter::widget`)
+                // and a later `setPosition` on the object reaches it only at the widget's next lent call - which a
+                // widget at (0, 0) never gets, being under no click. Java's two statements act on ONE object, so
+                // the position is set first here.
                 let __wa1 = (compat::read(__this, |__t| __t.left_pos)).wrapping_sub(30);
                 let __wa2 = ((compat::read(__this, |__t| __t.top_pos)).wrapping_add(3)).wrapping_add(i.wrapping_mul(28));
                 let __o7 = category_tab_widget.clone();
                 compat::write(&__o7, |__t| __t.set_position(__wa1, __wa2));
+                // only clickable: `extract_render_state` draws it, over the slots
+                { let (__q0,) = (compat::WidgetAdapter::widget(category_tab_widget.clone()),); __this.lock().borrow_mut().screen.add_widget(__q0) };
             }
         } else {
             for i in { 0..(__this.lock().borrow().category_tab_widgets.len() as i32) } {
@@ -220,8 +225,8 @@ impl AuctionBrowserScreen {
                 let __wa4 = ((compat::read(__this, |__t| __t.top_pos)).wrapping_add(3)).wrapping_add(i.wrapping_mul(28));
                 let __o8 = category_tab_widget.clone();
                 compat::write(&__o8, |__t| __t.set_position(__wa3, __wa4));
-                // (renderable: see `extract_render_state`)
-                { let (__q0,) = (compat::WidgetAdapter::widget(category_tab_widget.clone()),); __this.lock().borrow_mut().screen.add_renderable_widget(__q0) };
+                // java: addWidget(categoryTabWidget); - only clickable: `extract_render_state` draws it, over the slots
+                { let (__q0,) = (compat::WidgetAdapter::widget(category_tab_widget.clone()),); __this.lock().borrow_mut().screen.add_widget(__q0) };
             }
         }
     }
@@ -243,9 +248,24 @@ impl AuctionBrowserScreen {
     pub fn extract_render_state(__this: &compat::Shared<Self>, graphics: &GuiGraphicsExtractor, mut mouse_x: i32, mut mouse_y: i32, mut a: f32) {
         ();
         //   java: for (CategoryTabWidget categoryTabWidget : categoryTabWidgets) categoryTabWidget.extractRenderState(graphics, mouseX, mouseY, a);
-        // rust: port gap - a mod screen cannot draw one of its widgets from its own `extractRenderState` (the widget's draw
-        // is the game's, over the screen's list); the tabs are drawn by the screen with its widgets instead (`init` adds
-        // them renderable), i.e. under the container's slots rather than over them (GAPS_K)
+        // (`AbstractWidget.extractRenderState`: `if (visible) { isHovered = graphics.containsPointInScissor(..) &&
+        // areCoordinatesInRectangle(..); extractWidgetRenderState(..); }` - on the object's own widget half, which the
+        // game's clickable copy (`addWidget` in `init`) keeps in step; `extractWidgetRenderState` is `extractContents`)
+        let __tabs: Vec<compat::Shared<CategoryTabWidget>> = compat::read(__this, |__t| __t.category_tab_widgets.clone());
+        for category_tab_widget in __tabs.iter() {
+            let __visible = compat::write(category_tab_widget, |__t| {
+                let __w = compat::WidgetHalf::widget_half(__t);
+                if __w.visible {
+                    __w.set_hovered_from_extract(mouse_x, mouse_y);
+                }
+                __w.visible
+            });
+            if __visible {
+                let __v = compat::view(category_tab_widget, |a| a as compat::Shared<dyn SideTabButtonWidget>);
+                let __f = compat::dispatch(&*__v, |__t| __t.extract_contents());
+                __f(&__v, &mut GuiGraphicsExtractor::new(), mouse_x, mouse_y, a);
+            }
+        }
         if compat::read(__this, |__t| __t.is_waiting_for_server) {
             let mut waiting: String = "Waiting for server...".to_string();
             gui_graphics_extractor::text_string_with_drop_shadow(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), Some(&waiting), ((compat::read(__this, |__t| __t.screen.width)).wrapping_sub(compat::font().width(&waiting))).wrapping_sub(5), ((compat::read(__this, |__t| __t.screen.height)).wrapping_sub(mcrust::net::minecraft::client::gui::font::LINE_HEIGHT)).wrapping_sub(2), mcrust::net::minecraft::util::common_colors::WHITE, true);
@@ -283,7 +303,6 @@ impl AuctionBrowserScreen {
 
     /// java: @Override protected void extractSlot(GuiGraphicsExtractor graphics, Slot slot, int mouseX, int mouseY)
     pub fn extract_slot(__this: &compat::Shared<Self>, graphics: &mut GuiGraphicsExtractor, slot: &Slot, mut mouse_x: i32, mut mouse_y: i32) {
-        // TODO(fabric2seer): `has_item` takes 1 argument(s) in the port (`containers: &Containers<'_>`), Java passes 0
         if SkyblockerConfigManager::get().ui_and_visuals.fancy_auction_house.highlight_cheap_bin && compat::slot_has_item(slot) && __this.lock().borrow().is_slot_highlighted.get(&slot.index).cloned().unwrap_or_else(|| false) {
             GuiHelper::border(graphics, slot.x, slot.y, 16, 16, (Color::new_with_alpha(0, 255, 0, 100)).get_rgb());
         }
@@ -517,7 +536,9 @@ impl compat::ContainerHalf for AuctionBrowserScreen {
 impl ModContainerScreen for compat::ContainerScreenAdapter<AuctionBrowserScreen> {
     /// java: @Override protected void init()
     fn init(&mut self, screen: &mut AbstractContainerScreen) {
-        self.lend(screen, |__h| {
+        // `lend_init`: the constructor's `imageHeight = 187` / `titleLabelX = 999` / `inventoryLabelY = 93` on the
+        // game's (vanilla chest) screen, and `super.init()`'s centring with them
+        self.lend_init(screen, |__h| {
             AuctionBrowserScreen::init(__h);
             // a second `init` is `repositionElements` (a popup over the screen closed): the menu's items again
             if compat::write(__h, |__t| std::mem::replace(&mut __t.initialized, true)) {
@@ -534,7 +555,12 @@ impl ModContainerScreen for compat::ContainerScreenAdapter<AuctionBrowserScreen>
 
     /// java: @Override public void extractBackground(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a)
     fn extract_background(&mut self, screen: &AbstractContainerScreen, context: &mut WidgetRenderContext<'_>, mouse_x: i32, mouse_y: i32, a: f32, super_extract_background: &mut dyn FnMut()) {
-        compat::with_super(super_extract_background, || self.lend_ref(screen, |__h| AuctionBrowserScreen::extract_background(__h, &context.graphics, mouse_x, mouse_y, a)))
+        // `super.extractBackground` is `AbstractContainerScreen`'s (= `Screen`'s: the dimming), not the vanilla chest
+        // screen's `generic_54` panel the game hands as `super_extract_background`
+        let _ = super_extract_background;
+        let __ctx: &WidgetRenderContext<'_> = &*context;
+        let mut __super = || mcrust::mcrust::modding::container_screens::extract_abstract_container_screen_background(__ctx);
+        compat::with_super(&mut __super, || self.lend_ref(screen, |__h| AuctionBrowserScreen::extract_background(__h, &__ctx.graphics, mouse_x, mouse_y, a)))
     }
 
     /// java: @Override public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a)
@@ -545,6 +571,11 @@ impl ModContainerScreen for compat::ContainerScreenAdapter<AuctionBrowserScreen>
     /// java: @Override public boolean mouseClicked(MouseButtonEvent click, boolean doubled)
     fn mouse_clicked(&mut self, screen: &mut AbstractContainerScreen, event: &MouseButtonEvent, double_click: bool) -> bool {
         self.lend(screen, |__h| { abstract_custom_hypixel_gui::drain_slot_changes::<compat::Shared<AuctionHouseScreenHandler>, AuctionBrowserScreen>(__h); AuctionBrowserScreen::mouse_clicked(__h, event, double_click) })
+    }
+
+    /// java: @Override protected boolean hasClickedOutside(double mouseX, double mouseY, int left, int top)
+    fn has_clicked_outside(&mut self, screen: &AbstractContainerScreen, mx: f64, my: f64, xo: i32, yo: i32) -> Option<bool> {
+        Some(self.lend_ref(screen, |__h| AuctionBrowserScreen::has_clicked_outside(__h, mx, my, xo, yo)))
     }
 
     /// java: @Override public boolean keyPressed(KeyEvent input)
@@ -599,15 +630,20 @@ impl ScaledTextButtonWidget {
         // java: super(x, y, width, height, message, onPress, Supplier::get); - a Button (the default narration supplier)
         let mut base = AbstractWidget::new(x, y, width, height, message.get_string(), mcrust::net::minecraft::client::gui::components::abstract_widget::WidgetKind::Button, on_press);
         base.set_message_text(mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(message));
-        // rust: port gap (GAPS_batchB L4) - this Button subclass overrides extractContents (scaled text); the port's Button
-        // draws itself and has no subclass slot, so the widget is drawn as a plain Button
+        // (the subclass's `extractContents` is reached as a mod widget: `compat::WidgetAdapter::widget` of the object,
+        // whose `ModWidget` impl below is the class; the press stays the widget's `onPress`, which the screen runs)
         Self { base }
+    }
+
+    /// java: AbstractButton.extractDefaultSprite(graphics) - `graphics.blitSprite(RenderPipelines.GUI_TEXTURED,
+    /// SPRITES.get(this.active, this.isHoveredOrFocused()), getX(), getY(), getWidth(), getHeight(), ARGB.white(this.alpha))`
+    fn extract_default_sprite(&self, _graphics: &GuiGraphicsExtractor) {
+        gui_graphics_extractor::blit_sprite_identifier_with_alpha(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), mcrust::net::minecraft::client::renderer::render_pipelines::gui_textured(), &self.base.sprite(), self.get_x(), self.get_y(), self.get_width(), self.get_height(), self.alpha);
     }
 
     /// java: @Override public void extractContents(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a)
     pub fn extract_contents(&self, graphics: &GuiGraphicsExtractor, mut mouse_x: i32, mut mouse_y: i32, mut a: f32) {
-        // TODO(fabric2seer): `Button.extractDefaultSprite` has no Rust method in the port (looked for `extract_default_sprite` in Button and its supertypes)
-        // rust: self.extract_default_sprite(graphics);
+        self.extract_default_sprite(graphics);
         let mut font: Font = compat::font();
         let mut text_scale: f32 = 2.0f32;
         let __pose_1 = gui_graphics_extractor::push_pose();
@@ -619,4 +655,24 @@ impl ScaledTextButtonWidget {
 
 }
 
-// NOTE(fabric2seer): extractContents override(s) of Button - the port dispatches its own calls, so these run only where the mod calls them; hook the port's method to make the game call them
+/// ScaledTextButtonWidget's widget half (`super`'s fields), lent by the game for each call
+impl compat::WidgetHalf for ScaledTextButtonWidget {
+    fn widget_half(&mut self) -> &mut AbstractWidget {
+        &mut self.base
+    }
+}
+
+/// ScaledTextButtonWidget as the game's widget: `compat::WidgetAdapter::widget(handle)` where Java hands it on
+/// (`AuctionBrowserScreen.init`'s `addRenderableWidget`)
+impl mcrust::mcrust::modding::widgets::ModWidget for compat::WidgetAdapter<ScaledTextButtonWidget> {
+    /// java: `AbstractButton.extractWidgetRenderState` - `this.extractContents(graphics, mouseX, mouseY, a)`, which this
+    /// class overrides
+    fn extract_widget_render_state(&mut self, widget: &AbstractWidget, context: &mut WidgetRenderContext<'_>, mouse_x: i32, mouse_y: i32, a: f32) {
+        self.lend_ref(widget, |__h| compat::read(__h, |__t| __t.extract_contents(&context.graphics, mouse_x, mouse_y, a)))
+    }
+
+    /// java: `Button.updateWidgetNarration` - `defaultButtonNarrationText(output)` (the `Supplier::get` narration)
+    fn update_widget_narration(&mut self, widget: &AbstractWidget, output: &mut dyn mcrust::net::minecraft::client::gui::narration::narration_element_output::NarrationElementOutput) {
+        widget.default_button_narration_text(output);
+    }
+}

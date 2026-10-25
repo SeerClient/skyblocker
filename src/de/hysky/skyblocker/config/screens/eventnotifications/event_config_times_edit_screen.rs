@@ -391,8 +391,15 @@ impl TimeEditBox {
         // java: setValue(SkyblockTime.formatTime(seconds).getString());
         compat::set_edit_box_value(&mut widget, &SkyblockTime::format_time(seconds as f64).get_string());
         // java: addFormatter((string, _) -> FormattedCharSequence.forward(string, valid ? Style.EMPTY : Style.EMPTY.applyFormat(ChatFormatting.RED)));
-        // rust: port gap - `EditBox.addFormatter` takes the port's closed `TextFormatter` enum, so a mod's formatter (the
-        //   red text of an invalid time) cannot be added (GAPS_batchE.md)
+        // (`valid` is the state `onUpdate` keeps: the formatter reads it each time the box formats its text)
+        let formatter_state = state.clone();
+        compat::with_edit_box(&mut widget, |e| {
+            e.add_formatter(mcrust::net::minecraft::client::gui::components::edit_box::TextFormatter::Mod(mcrust::net::minecraft::client::gui::components::edit_box::ModTextFormatter::new(move |string: &str, _offset: i32| {
+                let valid = compat::lock(&formatter_state).1;
+                let style = if valid { mcrust::net::minecraft::network::chat::style::Style::EMPTY } else { mcrust::net::minecraft::network::chat::style::Style::EMPTY.apply_format(mcrust::net::minecraft::chat_formatting::ChatFormatting::Red) };
+                Some(FormattedText::of_styled(string, style))
+            })))
+        });
         (TimeEditBox { state }, widget)
     }
 

@@ -27,7 +27,7 @@ use mcrust::net::minecraft::core::component::data_component_holder::DataComponen
 use mcrust::net::minecraft::network::chat::component::Component as _;
 
 /// java: private static final Font textRenderer = Minecraft.getInstance().font;
-pub static TEXT_RENDERER: compat::MainThread<Font> = compat::MainThread::new(|| compat::font());
+pub static TEXT_RENDERER: compat::LiveFont = compat::LiveFont;
 /// java: private static final Identifier BUTTON_TEXTURE = SkyblockerMod.id("textures/gui/profile_viewer/button_icon_toggled.png");
 pub static BUTTON_TEXTURE: compat::MainThread<Identifier> = compat::MainThread::new(|| crate::entry::skyblocker_mod::id("textures/gui/profile_viewer/button_icon_toggled.png"));
 /// java: private static final int COLUMN_GAP = 26;
@@ -184,12 +184,12 @@ impl GenericCategory {
                 }
             }
             if mouse_x > x && mouse_x < x.wrapping_add(16) && mouse_y > y && mouse_y < y.wrapping_add(16) {
-                // TODO(fabric2seer): field `EMPTY` of a value of unknown type
-                //   java: List<Component> tooltip = collections.get(i).getTooltipLines(Item.TooltipContext.EMPTY, Minecraft.getInstance().player, TooltipFlag.NORMAL);
-                let mut tooltip: Vec<MutableComponent> = todo!("fabric2seer: the initialiser of `tooltip` (TODO above)");
-                // TODO(fabric2seer): the port's `set_component_tooltip_for_next_frame` ports this Java method with other parameters (tooltip_for_next_frame, lines for Java's lines, xo, yo)
-                // TODO(fabric2seer): `set_component_tooltip_for_next_frame` takes 2 argument(s) in the port (`tooltip_for_next_frame: &mut Option<DeferredTooltip>, lines: Vec<crate::net::minecraft::network::chat::formatted_text::FormattedText>`), Java passes 4
-                // rust: gui_graphics_extractor::set_component_tooltip_for_next_frame(TEXT_RENDERER.get_mut(), tooltip.clone(), mouse_x, mouse_y);
+                // java: List<Component> tooltip = collections.get(i).getTooltipLines(Item.TooltipContext.EMPTY, Minecraft.getInstance().player, TooltipFlag.NORMAL);
+                let context = mcrust::net::minecraft::world::item::item::TooltipContext::empty();
+                let tooltip: Vec<mcrust::net::minecraft::network::chat::formatted_text::FormattedText> = mcrust::mcrust::modding::game::with_player(|player| item_stack.get_tooltip_lines(&context, Some(&*player as &dyn mcrust::net::minecraft::world::entity::player::player::Player), mcrust::net::minecraft::world::item::tooltip_flag::NORMAL))
+                    .unwrap_or_else(|| item_stack.get_tooltip_lines(&context, None, mcrust::net::minecraft::world::item::tooltip_flag::NORMAL));
+                // java: graphics.setComponentTooltipForNextFrame(textRenderer, tooltip, mouseX, mouseY); - the frame's deferred tooltip (drawn at the mouse)
+                compat::batch_s_set_tooltip_for_next_frame(tooltip);
             }
         }
     }

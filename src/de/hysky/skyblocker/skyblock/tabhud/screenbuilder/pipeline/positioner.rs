@@ -8,8 +8,6 @@ use crate::de::hysky::skyblocker::skyblock::tabhud::screenbuilder::widget_positi
 use mcrust::com::mojang::serialization::codec::Codec;
 use mcrust::com::mojang::serialization::codec::CodecRef;
 
-// TODO(fabric2seer): `from_enum` takes 2 argument(s) in the port (`values: Vec<E>, serialized_name: impl Fn(&E) -> String + Send + Sync + Copy + 'static`), Java passes 1
-//   java: public static final Codec<Positioner> CODEC = StringRepresentable.fromEnum(Positioner::values);
 /// java: public static final Codec<Positioner> CODEC = StringRepresentable.fromEnum(Positioner::values);
 pub static CODEC: compat::MainThread<CodecRef<Positioner>> = compat::MainThread::new(|| mcrust::net::minecraft::util::string_representable::from_enum(Positioner::values(), |e: &Positioner| e.get_serialized_name()));
 

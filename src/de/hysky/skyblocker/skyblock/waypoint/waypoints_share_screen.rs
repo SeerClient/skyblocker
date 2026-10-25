@@ -2,6 +2,7 @@
 
 #[allow(unused_imports)]
 use crate::prelude::*;
+use crate::de::hysky::skyblocker::skyblock::waypoint::abstract_waypoints_screen;
 use crate::de::hysky::skyblocker::skyblock::waypoint::abstract_waypoints_screen::AbstractWaypointsScreen;
 use crate::de::hysky::skyblocker::skyblock::waypoint::abstract_waypoints_screen::AbstractWaypointsScreenBase;
 use crate::de::hysky::skyblocker::skyblock::waypoint::waypoints;
@@ -14,25 +15,25 @@ use crate::de::hysky::skyblocker::utils::waypoint::named_waypoint::NamedWaypoint
 use crate::de::hysky::skyblocker::utils::waypoint::waypoint_group::WaypointGroup;
 use mcrust::mcrust::modding::screens::ModScreen;
 use mcrust::mcrust::modding::screens::ScreenRenderContext;
+use mcrust::net::minecraft::client::gui::components::abstract_widget::AbstractWidget;
 use mcrust::net::minecraft::client::gui::components::abstract_widget::OnPress;
 use mcrust::net::minecraft::client::gui::components::abstract_widget::PressLambda;
 use mcrust::net::minecraft::client::gui::components::button;
 use mcrust::net::minecraft::client::gui::components::toasts::system_toast;
 use mcrust::net::minecraft::client::gui::components::tooltip::Tooltip;
-use mcrust::net::minecraft::client::gui::gui;
 use mcrust::net::minecraft::client::gui::layouts::grid_layout::GridLayout;
 use mcrust::net::minecraft::client::gui::layouts::grid_layout::RowHelper;
 use mcrust::net::minecraft::client::gui::layouts::layout_element::LayoutElement;
-use mcrust::net::minecraft::client::input::character_event::CharacterEvent;
-use mcrust::net::minecraft::client::input::mouse_button_event::MouseButtonEvent;
-use mcrust::net::minecraft::client::input::mouse_button_info::MouseButtonInfo;
+use mcrust::net::minecraft::client::gui::screens::screen::Screen;
 use mcrust::net::minecraft::network::chat::component;
+use mcrust::net::minecraft::network::chat::formatted_text::FormattedText;
+use mcrust::net::minecraft::network::chat::mutable_component::MutableComponent;
 use mcrust::net::minecraft::network::chat::component::Component as _;
 
 /// java: public class WaypointsShareScreen extends AbstractWaypointsScreen<WaypointsScreen>
 pub struct WaypointsShareScreen {
     /// java: extends AbstractWaypointsScreen
-    pub base: AbstractWaypointsScreenBase<compat::Shared<WaypointsScreen>>,
+    pub base: AbstractWaypointsScreenBase,
     /// java: private final Set<NamedWaypoint> selectedWaypoints = new HashSet<>();
     /// A `HashSet` keyed by `NamedWaypoint.equals` / `hashCode` (structural, not identity): the members are kept in a
     /// list and asked with `NamedWaypoint.equals` (`<dyn NamedWaypoint>::equals_shared`).
@@ -46,7 +47,7 @@ pub struct WaypointsShareScreen {
 }
 
 impl std::ops::Deref for WaypointsShareScreen {
-    type Target = AbstractWaypointsScreenBase<compat::Shared<WaypointsScreen>>;
+    type Target = AbstractWaypointsScreenBase;
     fn deref(&self) -> &Self::Target {
         &self.base
     }
@@ -58,11 +59,49 @@ impl std::ops::DerefMut for WaypointsShareScreen {
     }
 }
 
+/// `Set.add(waypoint)` over the structural set: only when no equal member is there.
+fn set_add(set: &mut Vec<compat::Shared<dyn NamedWaypoint>>, waypoint: &compat::Shared<dyn NamedWaypoint>) {
+    if !set.iter().any(|w| <dyn NamedWaypoint>::equals_shared(w, waypoint)) {
+        set.push(waypoint.clone());
+    }
+}
+
+/// `minecraft.keyboardHandler.getClipboard()`
+fn get_clipboard() -> String {
+    let mut __memory = mcrust::net::minecraft::client::gui::components::edit_box::MemoryClipboard::default();
+    match mcrust::net::minecraft::client::minecraft::SdlClipboard::published() {
+        Some(mut __glfw) => compat::minecraft().keyboard_handler.get_clipboard(&mut __glfw),
+        None => compat::minecraft().keyboard_handler.get_clipboard(&mut __memory),
+    }
+}
+
+/// `minecraft.keyboardHandler.setClipboard(value)`
+fn set_clipboard(value: &str) {
+    let mut __memory = mcrust::net::minecraft::client::gui::components::edit_box::MemoryClipboard::default();
+    match mcrust::net::minecraft::client::minecraft::SdlClipboard::published() {
+        Some(mut __glfw) => compat::minecraft().keyboard_handler.set_clipboard(&mut __glfw, value),
+        None => compat::minecraft().keyboard_handler.set_clipboard(&mut __memory, value),
+    }
+}
+
+/// `SystemToast.addOrUpdate(minecraft.gui.toastManager(), Waypoints.WAYPOINTS_TOAST_TYPE, title, message)`
+fn waypoints_toast(title: MutableComponent, message: MutableComponent) {
+    let minecraft = compat::minecraft();
+    system_toast::add_or_update(&mut minecraft.gui.toast_manager().borrow_mut(), &minecraft.font, *waypoints::WAYPOINTS_TOAST_TYPE.get(), &FormattedText::from(title), Some(&FormattedText::from(message)));
+}
+
+/// `Component.translatable(key, waypointCount, groupCount)` - the two `Integer` arguments
+fn count_text(key: &str, waypoint_count: i32, group_count: i32) -> MutableComponent {
+    component::translatable_args(key, vec![FormattedText::of(waypoint_count.to_string()), FormattedText::of(group_count.to_string())])
+}
+
 impl WaypointsShareScreen {
     /// java: protected WaypointsShareScreen(WaypointsScreen parent, Multimap<Location, WaypointGroup> waypoints)
-    pub fn new(mut parent: compat::Shared<WaypointsScreen>, mut waypoints: compat::Shared<crate::de::hysky::skyblocker::skyblock::waypoint::waypoints::LocationMultimap>) -> compat::Shared<Self> {
+    pub fn new(parent: compat::Shared<WaypointsScreen>, waypoints: compat::Shared<waypoints::LocationMultimap>) -> compat::Shared<Self> {
+        // java: super(Component.translatable("skyblocker.waypoints.shareWaypoints"), parent, waypoints, parent.island);
+        let __island = compat::read(&parent, |__t| __t.island).unwrap();
         let __this = compat::shared(Self {
-            base: AbstractWaypointsScreenBase::<compat::Shared<WaypointsScreen>>::new_4(component::translatable("skyblocker.waypoints.shareWaypoints"), parent.clone(), waypoints.clone(), compat::read(&parent, |__t| __t.island.clone()).unwrap()),
+            base: AbstractWaypointsScreenBase::new_4(component::translatable("skyblocker.waypoints.shareWaypoints"), Some(std::rc::Rc::new(parent) as std::rc::Rc<dyn std::any::Any>), waypoints, __island),
             self_ref: std::sync::Weak::new(),
             selected_waypoints: Vec::new(),
             override_location: false,
@@ -72,26 +111,228 @@ impl WaypointsShareScreen {
         __this
     }
 
+    /// The object as the class it extends (`AbstractWaypointsScreen<?>`), for the bodies the base class declares.
+    fn as_abstract(__this: &compat::Shared<Self>) -> compat::Shared<dyn AbstractWaypointsScreen> {
+        __this.clone()
+    }
+
+    /// `adder.addChild(widget[, occupiedColumns])`: the widget joins the screen's widget list, the grid holds its index.
+    fn add_to_grid(__this: &compat::Shared<Self>, adder: &mut RowHelper, grid: &mut GridLayout, widget: AbstractWidget, columns: i32) {
+        let (__ww, __wh) = (widget.get_width(), widget.get_height());
+        let __i = compat::write(__this, |__t| __t.base.base.add_widget(widget));
+        adder.add_child_width(grid, LayoutElement::widget(__i, __ww, __wh), columns).unwrap();
+    }
+
+    /// A button whose press runs `action` on this screen (the live screen lent to it for the call).
+    fn button(__this: &compat::Shared<Self>, message: MutableComponent, action: fn(&compat::Shared<Self>)) -> mcrust::net::minecraft::client::gui::components::button::Builder {
+        let __this_w = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
+        button::builder(message.get_string(), OnPress::Lambda(PressLambda::new(move |__screen: &mut Screen, __index: usize| {
+            let Some(__this) = __this_w.get().upgrade() else { return };
+            compat::lend_screen(&__this, __screen, || action(&__this))
+        })))
+    }
+
+    /// `Checkbox.builder(message, font).maxWidth(Button.DEFAULT_WIDTH).onValueChange((_, checked) -> field = checked)
+    /// .tooltip(Tooltip.create(tooltip)).build()`
+    fn option_checkbox(__this: &compat::Shared<Self>, message: &str, tooltip: &str, set: fn(&mut Self, bool)) -> AbstractWidget {
+        let __this_w = compat::RenderThread::new(std::sync::Arc::downgrade(__this));
+        let mut checkbox = compat::checkbox(FormattedText::from(component::translatable(message)), 0, 0, Some(button::DEFAULT_WIDTH), false, move |checked: bool| {
+            if let Some(__this) = __this_w.get().upgrade() {
+                compat::write(&__this, |__t| set(__t, checked));
+            }
+        });
+        checkbox.set_tooltip(Tooltip::create(component::translatable(tooltip).get_string()));
+        checkbox
+    }
+
+    /// java: @Override protected void init()
+    pub fn init(__this: &compat::Shared<Self>) {
+        let __abstract = WaypointsShareScreen::as_abstract(__this);
+        // java: super.init();
+        <dyn AbstractWaypointsScreen>::init_super(&__abstract);
+        let mut row_spacing: i32 = 2;
+        let mut column_spacing: i32 = 5;
+        // java: GridLayout gridWidget = new GridLayout().columnSpacing(columnSpacing).rowSpacing(rowSpacing);
+        let mut grid_widget: GridLayout = GridLayout::new_default();
+        grid_widget.column_spacing(column_spacing);
+        grid_widget.row_spacing(row_spacing);
+        let mut adder: RowHelper = grid_widget.create_row_helper(2);
+        // First row
+        let __override = WaypointsShareScreen::option_checkbox(__this, "skyblocker.waypoints.importOptions.overrideLocation", "skyblocker.waypoints.importOptions.overrideLocation.tooltip", |__t, checked| __t.override_location = checked);
+        WaypointsShareScreen::add_to_grid(__this, &mut adder, &mut grid_widget, __override, 1);
+        let __sort = WaypointsShareScreen::option_checkbox(__this, "skyblocker.waypoints.importOptions.sortWaypoints", "skyblocker.waypoints.importOptions.sortWaypoints.tooltip", |__t, checked| __t.sort_waypoints = checked);
+        WaypointsShareScreen::add_to_grid(__this, &mut adder, &mut grid_widget, __sort, 1);
+        // Second Row
+        let __import_skyblocker = WaypointsShareScreen::button(__this, component::translatable("skyblocker.waypoints.importWaypointsSkyblocker"), WaypointsShareScreen::import_waypoints_skyblocker).tooltip(Some(component::translatable("skyblocker.waypoints.importWaypointsSkyblocker.tooltip").get_string())).build();
+        WaypointsShareScreen::add_to_grid(__this, &mut adder, &mut grid_widget, __import_skyblocker, 1);
+        let __export_skyblocker = WaypointsShareScreen::button(__this, component::translatable("skyblocker.waypoints.exportWaypointsSkyblocker"), WaypointsShareScreen::export_waypoints_skyblocker).tooltip(Some(component::translatable("skyblocker.waypoints.exportWaypointsSkyblocker.tooltip").get_string())).build();
+        WaypointsShareScreen::add_to_grid(__this, &mut adder, &mut grid_widget, __export_skyblocker, 1);
+        // Third row
+        let __import_skytils = WaypointsShareScreen::button(__this, component::translatable("skyblocker.waypoints.importWaypointsSkytils"), WaypointsShareScreen::import_waypoints_skytils).tooltip(Some(component::translatable("skyblocker.waypoints.importWaypointsSkytils.tooltip").get_string())).build();
+        WaypointsShareScreen::add_to_grid(__this, &mut adder, &mut grid_widget, __import_skytils, 1);
+        // Fourth row
+        let __import_snoopy = WaypointsShareScreen::button(__this, component::translatable("skyblocker.waypoints.importWaypointsSnoopy"), WaypointsShareScreen::import_waypoints_snoopy).tooltip(Some(component::translatable("skyblocker.waypoints.importWaypointsSnoopy.tooltip").get_string())).build();
+        WaypointsShareScreen::add_to_grid(__this, &mut adder, &mut grid_widget, __import_snoopy, 1);
+        // java: adder.addChild(Button.builder(CommonComponents.GUI_DONE, _ -> onClose()).width((Button.DEFAULT_WIDTH * 2) + columnSpacing).build(), 2);
+        let __done = WaypointsShareScreen::button(__this, compat::component_of(mcrust::net::minecraft::network::chat::common_components::gui_done()), WaypointsShareScreen::on_close).width((button::DEFAULT_WIDTH.wrapping_mul(2)).wrapping_add(column_spacing)).build();
+        WaypointsShareScreen::add_to_grid(__this, &mut adder, &mut grid_widget, __done, 2);
+        // java: layout.addToFooter(gridWidget); int rows = 4; layout.setFooterHeight(20 * rows + rowSpacing * (rows - 1) + 8);
+        let mut rows: i32 = 4;
+        compat::write(__this, |__t| {
+            let __layout = __t.base.layout.as_mut().unwrap();
+            __layout.add_to_footer(LayoutElement::Grid(grid_widget));
+            __layout.set_footer_height(((20i32.wrapping_mul(rows)).wrapping_add(row_spacing.wrapping_mul(rows.wrapping_sub(1)))).wrapping_add(8));
+        });
+        // java: super.lateInit();
+        <dyn AbstractWaypointsScreen>::late_init(&__abstract);
+    }
+
+    /// The imported groups into the screen's map: `withIsland` / `sortWaypoints` by the import options, the waypoints
+    /// selected, each group put under its island (the loop the three importers share)
+    fn put_imported(__this: &compat::Shared<Self>, waypoint_groups: &[compat::Shared<WaypointGroup>]) {
+        let (island, override_location, sort_waypoints, map) = compat::read(__this, |__t| (__t.base.island.unwrap(), __t.override_location, __t.sort_waypoints, __t.base.waypoints.clone().unwrap()));
+        for waypoint_group in waypoint_groups.iter() {
+            let mut waypoint_group: compat::Shared<WaypointGroup> = waypoint_group.clone();
+            // java: if (overrideLocation) waypointGroup = waypointGroup.withIsland(island);
+            if override_location {
+                waypoint_group = WaypointGroup::with_island(&waypoint_group, island);
+            }
+            // java: if (sortWaypoints) waypointGroup = waypointGroup.sortWaypoints(NamedWaypoint.NAME_COMPARATOR);
+            if sort_waypoints {
+                waypoint_group = WaypointGroup::sort_waypoints(&waypoint_group, named_waypoint::NAME_COMPARATOR.get().clone());
+            }
+            // java: selectedWaypoints.addAll(waypointGroup.waypoints());
+            let __waypoints = WaypointGroup::waypoints(&waypoint_group);
+            compat::write(__this, |__t| {
+                for __w in __waypoints.iter() {
+                    set_add(&mut __t.selected_waypoints, __w);
+                }
+            });
+            // java: waypoints.put(waypointGroup.island(), waypointGroup);
+            let __island = WaypointGroup::island(&waypoint_group);
+            compat::write(&map, |__m| __m.put(__island, waypoint_group.clone()));
+        }
+    }
+
+    /// java: the "importWaypointsSkyblocker" button's action
+    fn import_waypoints_skyblocker(__this: &compat::Shared<Self>) {
+        WaypointsShareScreen::import_waypoints(__this, Waypoints::from_skyblocker, "Skyblocker");
+    }
+
+    /// java: the "importWaypointsSkytils" button's action
+    fn import_waypoints_skytils(__this: &compat::Shared<Self>) {
+        WaypointsShareScreen::import_waypoints(__this, Waypoints::from_skytils, "Skytils");
+    }
+
+    /// java: `try { List<WaypointGroup> waypointGroups = Waypoints.fromX(minecraft.keyboardHandler.getClipboard(), island);
+    ///   if (waypointGroups == null) { showErrorToast(); return; } for (..) {..} waypointsListWidget.updateEntries();
+    ///   SystemToast.addOrUpdate(.., "skyblocker.waypoints.importSuccess", "skyblocker.waypoints.importSuccessText", ..); }
+    ///   catch (Exception e) { LOGGER.error("[Skyblocker Waypoints] Encountered exception while parsing X waypoint data", e); showErrorToast(); }`
+    fn import_waypoints(__this: &compat::Shared<Self>, parse: fn(String, Location) -> Option<Vec<compat::Shared<WaypointGroup>>>, source: &str) {
+        let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let island = compat::read(__this, |__t| __t.base.island.unwrap());
+            let Some(waypoint_groups) = parse(get_clipboard(), island) else {
+                WaypointsShareScreen::show_error_toast(__this);
+                return;
+            };
+            WaypointsShareScreen::put_imported(__this, &waypoint_groups);
+            // java: waypointsListWidget.updateEntries();
+            <dyn AbstractWaypointsScreen>::with_list(&WaypointsShareScreen::as_abstract(__this), |__h| WaypointsListWidget::update_entries(__h));
+            // java: waypointGroups.stream().map(WaypointGroup::waypoints).mapToInt(List::size).sum(), waypointGroups.size()
+            let waypoint_count: i32 = waypoint_groups.iter().map(|__g| WaypointGroup::waypoints(__g).len() as i32).sum();
+            waypoints_toast(component::translatable("skyblocker.waypoints.importSuccess"), count_text("skyblocker.waypoints.importSuccessText", waypoint_count, waypoint_groups.len() as i32));
+        }));
+        if let Err(e) = __result {
+            logger().error(&format!("[Skyblocker Waypoints] Encountered exception while parsing {} waypoint data {}", source, compat::panic_message(&e)));
+            WaypointsShareScreen::show_error_toast(__this);
+        }
+    }
+
+    /// java: the "exportWaypointsSkyblocker" button's action
+    fn export_waypoints_skyblocker(__this: &compat::Shared<Self>) {
+        let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            // java: List<WaypointGroup> waypointGroups = waypoints.values().stream().filter(waypointGroup -> waypointGroup.island().equals(island))
+            //   .map(waypointGroup -> waypointGroup.filterWaypoints(selectedWaypoints::contains)).filter(waypointGroup -> !waypointGroup.waypoints().isEmpty()).toList();
+            let (island, map, selected) = compat::read(__this, |__t| (__t.base.island.unwrap(), __t.base.waypoints.clone().unwrap(), __t.selected_waypoints.clone()));
+            let selected = compat::RenderThread::new(selected);
+            let contains: Arc<dyn Fn(compat::Shared<dyn NamedWaypoint>) -> bool> = Arc::new(move |__w: compat::Shared<dyn NamedWaypoint>| selected.get().iter().any(|__s| <dyn NamedWaypoint>::equals_shared(__s, &__w)));
+            let waypoint_groups: Vec<compat::Shared<WaypointGroup>> = compat::read(&map, |__m| __m.values())
+                .into_iter()
+                .filter(|__g| WaypointGroup::island(__g) == island)
+                .map(|__g| WaypointGroup::filter_waypoints(&__g, contains.clone()))
+                .filter(|__g| !WaypointGroup::waypoints(__g).is_empty())
+                .collect();
+            // java: minecraft.keyboardHandler.setClipboard(Waypoints.toSkyblocker(waypointGroups));
+            set_clipboard(&Waypoints::to_skyblocker(&waypoint_groups));
+            let waypoint_count: i32 = waypoint_groups.iter().map(|__g| WaypointGroup::waypoints(__g).len() as i32).sum();
+            waypoints_toast(component::translatable("skyblocker.waypoints.exportSuccess"), count_text("skyblocker.waypoints.exportSuccessText", waypoint_count, waypoint_groups.len() as i32));
+        }));
+        if let Err(e) = __result {
+            logger().error(&format!("[Skyblocker Waypoints] Encountered exception while serializing Skyblocker waypoint data {}", compat::panic_message(&e)));
+            waypoints_toast(component::translatable("skyblocker.waypoints.exportError"), component::translatable("skyblocker.waypoints.exportErrorText"));
+        }
+    }
+
+    /// java: the "importWaypointsSnoopy" button's action
+    fn import_waypoints_snoopy(__this: &compat::Shared<Self>) {
+        let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            // java: WaypointGroup waypointGroup = Waypoints.fromColeweightJson(minecraft.keyboardHandler.getClipboard(), island);
+            let island = compat::read(__this, |__t| __t.base.island.unwrap());
+            let waypoint_group: compat::Shared<WaypointGroup> = Waypoints::from_coleweight_json(&get_clipboard(), island);
+            WaypointsShareScreen::put_imported(__this, std::slice::from_ref(&waypoint_group));
+            // java: waypointsListWidget.updateEntries();
+            <dyn AbstractWaypointsScreen>::with_list(&WaypointsShareScreen::as_abstract(__this), |__h| WaypointsListWidget::update_entries(__h));
+            // java: Component.translatable("skyblocker.waypoints.importSuccessText", waypointGroup.waypoints().size(), 1) - the
+            // group as imported (before `withIsland` / `sortWaypoints`, which keep its waypoint count)
+            waypoints_toast(component::translatable("skyblocker.waypoints.importSuccess"), count_text("skyblocker.waypoints.importSuccessText", WaypointGroup::waypoints(&waypoint_group).len() as i32, 1));
+        }));
+        if let Err(e) = __result {
+            logger().error(&format!("[Skyblocker Waypoints] Encountered exception while parsing Snoopy waypoint data {}", compat::panic_message(&e)));
+            WaypointsShareScreen::show_error_toast(__this);
+        }
+    }
+
     /// java: private void showErrorToast()
     pub fn show_error_toast(__this: &compat::Shared<Self>) {
+        let _ = __this;
         // java: SystemToast.addOrUpdate(client.getToastManager(), Waypoints.WAYPOINTS_TOAST_TYPE, Component.translatable("skyblocker.waypoints.importError"), Component.translatable("skyblocker.waypoints.importErrorText"));
-        { let minecraft = compat::minecraft(); system_toast::add_or_update(&mut minecraft.gui.toast_manager().borrow_mut(), &minecraft.font, *waypoints::WAYPOINTS_TOAST_TYPE.get(), &mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::translatable("skyblocker.waypoints.importError")), Some(&mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::translatable("skyblocker.waypoints.importErrorText")))); }
+        waypoints_toast(component::translatable("skyblocker.waypoints.importError"), component::translatable("skyblocker.waypoints.importErrorText"));
+    }
+
+    /// java: @Override protected boolean isEnabled(NamedWaypoint waypoint) - `selectedWaypoints.contains(waypoint)`
+    pub fn is_enabled_dyn(__this: &compat::Shared<dyn AbstractWaypointsScreen>, waypoint: &compat::Shared<dyn NamedWaypoint>) -> bool {
+        let __this = compat::view_as::<Self, _, Self>(__this, |a| a);
+        return compat::read(&*__this, |__t| __t.selected_waypoints.iter().any(|w| <dyn NamedWaypoint>::equals_shared(w, waypoint)));
+    }
+
+    /// java: @Override protected void enabledChanged(NamedWaypoint waypoint, boolean enabled)
+    pub fn enabled_changed_dyn(__this: &compat::Shared<dyn AbstractWaypointsScreen>, waypoint: &compat::Shared<dyn NamedWaypoint>, enabled: bool) {
+        let __this = compat::view_as::<Self, _, Self>(__this, |a| a);
+        compat::write(&*__this, |__t| {
+            if enabled {
+                // java: selectedWaypoints.add(waypoint);
+                set_add(&mut __t.selected_waypoints, waypoint);
+            } else if let Some(index) = __t.selected_waypoints.iter().position(|w| <dyn NamedWaypoint>::equals_shared(w, waypoint)) {
+                // java: selectedWaypoints.remove(waypoint);
+                __t.selected_waypoints.remove(index);
+            }
+        });
     }
 
     /// java: @SuppressWarnings("DataFlowIssue") @Override public void onClose()
     pub fn on_close(__this: &compat::Shared<Self>) {
-        // `minecraft.gui.setScreen(parent)`: the waypoints screen opened this one keeping itself as the parent
+        let _ = __this;
+        // java: minecraft.gui.setScreen(parent); - the waypoints screen opened this one keeping itself as the parent
         // (`set_screen_keeping_parent`), and the game's stack hands that same object back.
         mcrust::mcrust::modding::game::set_screen_to_parent();
     }
-
 }
 
-impl AbstractWaypointsScreen<compat::Shared<crate::de::hysky::skyblocker::skyblock::waypoint::waypoints_screen::WaypointsScreen>> for WaypointsShareScreen {
-    fn abstract_waypoints_screen_base(&self) -> &AbstractWaypointsScreenBase<compat::Shared<crate::de::hysky::skyblocker::skyblock::waypoint::waypoints_screen::WaypointsScreen>> {
+impl AbstractWaypointsScreen for WaypointsShareScreen {
+    fn abstract_waypoints_screen_base(&self) -> &AbstractWaypointsScreenBase {
         &self.base
     }
-    fn abstract_waypoints_screen_base_mut(&mut self) -> &mut AbstractWaypointsScreenBase<compat::Shared<crate::de::hysky::skyblocker::skyblock::waypoint::waypoints_screen::WaypointsScreen>> {
+    fn abstract_waypoints_screen_base_mut(&mut self) -> &mut AbstractWaypointsScreenBase {
         &mut self.base
     }
 
@@ -99,185 +340,23 @@ impl AbstractWaypointsScreen<compat::Shared<crate::de::hysky::skyblocker::skyblo
         self
     }
 
-    /// java: @Override protected void init()
-    fn init(&mut self) {
-        self.init_super();
-        let mut row_spacing: i32 = 2;
-        let mut column_spacing: i32 = 5;
-        let mut grid_widget: GridLayout = GridLayout::new_default();
-        grid_widget.column_spacing(column_spacing);
-        grid_widget.row_spacing(row_spacing);
-        let mut adder: RowHelper = grid_widget.create_row_helper(2);
-        // TODO(fabric2seer): static `Checkbox.builder` has no Rust counterpart in the port
-        // TODO(fabric2seer): `Builder.maxWidth` has no Rust method in the port (looked for `max_width` in Checkbox and its supertypes)
-        // TODO(fabric2seer): `Builder.onValueChange` has no Rust method in the port (looked for `on_value_change` in Checkbox and its supertypes)
-        // TODO(fabric2seer): `Builder.tooltip` has no Rust method in the port (looked for `tooltip` in Checkbox and its supertypes)
-        // TODO(fabric2seer): `Builder.build` has no Rust method in the port (looked for `build` in Checkbox and its supertypes)
-        // TODO(fabric2seer): the port's `add_child` ports this Java method with other parameters (grid, child for Java's widget)
-        // TODO(fabric2seer): `add_child` takes 2 argument(s) in the port (`grid: &mut GridLayout, child: LayoutElement`), Java passes 1
-        // rust: adder.add_child(&mut (Checkbox::builder(component::translatable("skyblocker.waypoints.importOptions.overrideLocation"), compat::font())).max_width(mcrust::net::minecraft::client::gui::components::button::DEFAULT_WIDTH).on_value_change(&Arc::new(move |_, checked| { self.override_location = checked.clone(); self.override_location })).tooltip(&Tooltip::create(component::translatable("skyblocker.waypoints.importOptions.overrideLocation.tooltip").get_string())).build()).unwrap();
-        // TODO(fabric2seer): static `Checkbox.builder` has no Rust counterpart in the port
-        // TODO(fabric2seer): `Builder.maxWidth` has no Rust method in the port (looked for `max_width` in Checkbox and its supertypes)
-        // TODO(fabric2seer): `Builder.onValueChange` has no Rust method in the port (looked for `on_value_change` in Checkbox and its supertypes)
-        // TODO(fabric2seer): `Builder.tooltip` has no Rust method in the port (looked for `tooltip` in Checkbox and its supertypes)
-        // TODO(fabric2seer): `Builder.build` has no Rust method in the port (looked for `build` in Checkbox and its supertypes)
-        // TODO(fabric2seer): the port's `add_child` ports this Java method with other parameters (grid, child for Java's widget)
-        // TODO(fabric2seer): `add_child` takes 2 argument(s) in the port (`grid: &mut GridLayout, child: LayoutElement`), Java passes 1
-        // rust: adder.add_child(&mut (Checkbox::builder(component::translatable("skyblocker.waypoints.importOptions.sortWaypoints"), compat::font())).max_width(mcrust::net::minecraft::client::gui::components::button::DEFAULT_WIDTH).on_value_change(&Arc::new(move |_, checked| { self.sort_waypoints = checked.clone(); self.sort_waypoints })).tooltip(&Tooltip::create(component::translatable("skyblocker.waypoints.importOptions.sortWaypoints.tooltip").get_string())).build()).unwrap();
-        // TODO(fabric2seer): the port's `add_child` ports this Java method with other parameters (grid, child for Java's widget)
-        // TODO(fabric2seer): `add_child` takes 2 argument(s) in the port (`grid: &mut GridLayout, child: LayoutElement`), Java passes 1
-        // rust: adder.add_child(&mut ((button::builder(component::translatable("skyblocker.waypoints.importWaypointsSkyblocker").get_string(), OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| {
-        // rust: // TODO(fabric2seer): `get_clipboard` takes 1 argument(s) in the port (`clipboard: &mut dyn ClipboardAccess`), Java passes 0
-        // rust: // java: try {..} catch (Exception e) - the body runs inline: a Rust body does not throw checked exceptions (a panic in it propagates)
-        // rust: {
-        // rust: let Some(mut waypoint_groups) = Waypoints::from_skyblocker(compat::minecraft().keyboard_handler.get_clipboard(), self.island.clone().unwrap()) else {
-        // rust: WaypointsShareScreen::show_error_toast(&self.self_ref.upgrade().unwrap());
-        // rust: return;
-        // rust: };
-        // rust: for waypoint_group in waypoint_groups.iter() {
-        // rust: if self.override_location {
-        // rust: *waypoint_group = WaypointGroup::with_island(waypoint_group, self.island.clone().unwrap());
-        // rust: }
-        // rust: if self.sort_waypoints {
-        // rust: *waypoint_group = WaypointGroup::sort_waypoints(waypoint_group, named_waypoint::NAME_COMPARATOR.get_mut().clone());
-        // rust: }
-        // rust: self.selected_waypoints.extend(WaypointGroup::waypoints(waypoint_group).into_iter());
-        // rust: // TODO(fabric2seer): `.put(..)` on a Multimap
-        // rust: //   java: waypoints.put(waypointGroup.island(), waypointGroup);
-        // rust: }
-        // rust: WaypointsListWidget::update_entries(self.waypoints_list_widget.as_ref().unwrap());
-        // rust: // TODO(fabric2seer): static `List.size` has no Rust counterpart in the port
-        // rust: // TODO(fabric2seer): `add_or_update` takes 5 argument(s) in the port (`toast_manager: &mut ToastManager, font: &FontSet, id: SystemToastId, title: &FormattedText, message: Option<&FormattedText>`), Java passes 4
-        // rust: // rust: system_toast::add_or_update(&mut compat::minecraft().gui.toast_manager(), waypoints::WAYPOINTS_TOAST_TYPE.get_mut(), component::translatable("skyblocker.waypoints.importSuccess"), &mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::translatable_args("skyblocker.waypoints.importSuccessText", vec![mcrust::net::minecraft::network::chat::formatted_text::FormattedText::of(waypoint_groups.iter().cloned().map(|__a0| WaypointGroup::waypoints(&__a0)).map(|__a0| List::size(__a0.clone())).sum::<i32>().to_string()), mcrust::net::minecraft::network::chat::formatted_text::FormattedText::of((waypoint_groups.len() as i32).to_string())])));
-        // rust: }
-        // rust: // TODO(fabric2seer): the `catch (Exception e)` block is not reached in Rust - the try body returns, breaks or continues, so it cannot run inside `catch_unwind`
-        // rust: //   java: {
-        // rust: //   java: 				Waypoints.LOGGER.error("[Skyblocker Waypoints] Encountered exception while parsing Skyblocker waypoint data", e);
-        // rust: //   java: 				showErrorToast();
-        // rust: //   java: 			}
-        // rust: })))).tooltip_text(Some(Tooltip::create(component::translatable("skyblocker.waypoints.importWaypointsSkyblocker.tooltip").get_string()).message.clone()))).build()).unwrap();
-        // TODO(fabric2seer): the port's `add_child` ports this Java method with other parameters (grid, child for Java's widget)
-        // TODO(fabric2seer): `add_child` takes 2 argument(s) in the port (`grid: &mut GridLayout, child: LayoutElement`), Java passes 1
-        // rust: adder.add_child(&mut ((button::builder(component::translatable("skyblocker.waypoints.exportWaypointsSkyblocker").get_string(), OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| {
-        // rust: // java: try {..} catch (Exception e) - an exception here is a panic, caught by `catch_unwind`
-        // rust: let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        // rust: // TODO(fabric2seer): `.values(..)` on a Multimap
-        // rust: //   java: List<WaypointGroup> waypointGroups = waypoints.values().stream().filter(waypointGroup -> waypointGroup.island().equals(island)).map(waypointGroup -> waypointGroup.filterWaypoints(selectedWaypoints::contains)).filter(waypointGroup -> !waypointGroup.waypoints().isEmpty()).toList();
-        // rust: let mut waypoint_groups: Vec<compat::Shared<WaypointGroup>> = todo!("fabric2seer: the initialiser of `waypointGroups` (TODO above)");
-        // rust: // TODO(fabric2seer): `set_clipboard` takes 2 argument(s) in the port (`clipboard: &mut dyn ClipboardAccess, value: &str`), Java passes 1
-        // rust: // rust: compat::minecraft().keyboard_handler.set_clipboard(&mut Waypoints::to_skyblocker(&waypoint_groups));
-        // rust: // TODO(fabric2seer): static `List.size` has no Rust counterpart in the port
-        // rust: // TODO(fabric2seer): `add_or_update` takes 5 argument(s) in the port (`toast_manager: &mut ToastManager, font: &FontSet, id: SystemToastId, title: &FormattedText, message: Option<&FormattedText>`), Java passes 4
-        // rust: // rust: system_toast::add_or_update(&mut compat::minecraft().gui.toast_manager(), waypoints::WAYPOINTS_TOAST_TYPE.get_mut(), component::translatable("skyblocker.waypoints.exportSuccess"), &mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::translatable_args("skyblocker.waypoints.exportSuccessText", vec![mcrust::net::minecraft::network::chat::formatted_text::FormattedText::of(waypoint_groups.iter().cloned().map(|__a0| WaypointGroup::waypoints(&__a0)).map(|__a0| List::size(__a0.clone())).sum::<i32>().to_string()), mcrust::net::minecraft::network::chat::formatted_text::FormattedText::of((waypoint_groups.len() as i32).to_string())])));
-        // rust: }));
-        // rust: if let Err(e) = __result {
-        // rust: logger().error(&format!("[Skyblocker Waypoints] Encountered exception while serializing Skyblocker waypoint data"));
-        // rust: // TODO(fabric2seer): `add_or_update` takes 5 argument(s) in the port (`toast_manager: &mut ToastManager, font: &FontSet, id: SystemToastId, title: &FormattedText, message: Option<&FormattedText>`), Java passes 4
-        // rust: // rust: system_toast::add_or_update(&mut compat::minecraft().gui.toast_manager(), waypoints::WAYPOINTS_TOAST_TYPE.get_mut(), component::translatable("skyblocker.waypoints.exportError"), &mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::translatable("skyblocker.waypoints.exportErrorText")));
-        // rust: }
-        // rust: })))).tooltip_text(Some(Tooltip::create(component::translatable("skyblocker.waypoints.exportWaypointsSkyblocker.tooltip").get_string()).message.clone()))).build()).unwrap();
-        // TODO(fabric2seer): the port's `add_child` ports this Java method with other parameters (grid, child for Java's widget)
-        // TODO(fabric2seer): `add_child` takes 2 argument(s) in the port (`grid: &mut GridLayout, child: LayoutElement`), Java passes 1
-        // rust: adder.add_child(&mut ((button::builder(component::translatable("skyblocker.waypoints.importWaypointsSkytils").get_string(), OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| {
-        // rust: // TODO(fabric2seer): `get_clipboard` takes 1 argument(s) in the port (`clipboard: &mut dyn ClipboardAccess`), Java passes 0
-        // rust: // java: try {..} catch (Exception e) - the body runs inline: a Rust body does not throw checked exceptions (a panic in it propagates)
-        // rust: {
-        // rust: let Some(mut waypoint_groups) = Waypoints::from_skytils(compat::minecraft().keyboard_handler.get_clipboard(), self.island.clone().unwrap()) else {
-        // rust: WaypointsShareScreen::show_error_toast(&self.self_ref.upgrade().unwrap());
-        // rust: return;
-        // rust: };
-        // rust: for waypoint_group in waypoint_groups.iter() {
-        // rust: if self.override_location {
-        // rust: *waypoint_group = WaypointGroup::with_island(waypoint_group, self.island.clone().unwrap());
-        // rust: }
-        // rust: if self.sort_waypoints {
-        // rust: *waypoint_group = WaypointGroup::sort_waypoints(waypoint_group, named_waypoint::NAME_COMPARATOR.get_mut().clone());
-        // rust: }
-        // rust: self.selected_waypoints.extend(WaypointGroup::waypoints(waypoint_group).into_iter());
-        // rust: // TODO(fabric2seer): `.put(..)` on a Multimap
-        // rust: //   java: waypoints.put(waypointGroup.island(), waypointGroup);
-        // rust: }
-        // rust: WaypointsListWidget::update_entries(self.waypoints_list_widget.as_ref().unwrap());
-        // rust: // TODO(fabric2seer): static `List.size` has no Rust counterpart in the port
-        // rust: // TODO(fabric2seer): `add_or_update` takes 5 argument(s) in the port (`toast_manager: &mut ToastManager, font: &FontSet, id: SystemToastId, title: &FormattedText, message: Option<&FormattedText>`), Java passes 4
-        // rust: // rust: system_toast::add_or_update(&mut compat::minecraft().gui.toast_manager(), waypoints::WAYPOINTS_TOAST_TYPE.get_mut(), component::translatable("skyblocker.waypoints.importSuccess"), &mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::translatable_args("skyblocker.waypoints.importSuccessText", vec![mcrust::net::minecraft::network::chat::formatted_text::FormattedText::of(waypoint_groups.iter().cloned().map(|__a0| WaypointGroup::waypoints(&__a0)).map(|__a0| List::size(__a0.clone())).sum::<i32>().to_string()), mcrust::net::minecraft::network::chat::formatted_text::FormattedText::of((waypoint_groups.len() as i32).to_string())])));
-        // rust: }
-        // rust: // TODO(fabric2seer): the `catch (Exception e)` block is not reached in Rust - the try body returns, breaks or continues, so it cannot run inside `catch_unwind`
-        // rust: //   java: {
-        // rust: //   java: 				Waypoints.LOGGER.error("[Skyblocker Waypoints] Encountered exception while parsing Skytils waypoint data", e);
-        // rust: //   java: 				showErrorToast();
-        // rust: //   java: 			}
-        // rust: })))).tooltip_text(Some(Tooltip::create(component::translatable("skyblocker.waypoints.importWaypointsSkytils.tooltip").get_string()).message.clone()))).build()).unwrap();
-        // TODO(fabric2seer): the port's `add_child` ports this Java method with other parameters (grid, child for Java's widget)
-        // TODO(fabric2seer): `add_child` takes 2 argument(s) in the port (`grid: &mut GridLayout, child: LayoutElement`), Java passes 1
-        // rust: adder.add_child(&mut ((button::builder(component::translatable("skyblocker.waypoints.importWaypointsSnoopy").get_string(), OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| {
-        // rust: // java: try {..} catch (Exception e) - an exception here is a panic, caught by `catch_unwind`
-        // rust: let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        // rust: // TODO(fabric2seer): `get_clipboard` takes 1 argument(s) in the port (`clipboard: &mut dyn ClipboardAccess`), Java passes 0
-        // rust: // rust: let mut waypoint_group: compat::Shared<WaypointGroup> = Waypoints::from_coleweight_json(&compat::minecraft().keyboard_handler.get_clipboard(), self.island.clone().unwrap());
-        // rust: let mut waypoint_group: compat::Shared<WaypointGroup> = todo!("fabric2seer: the initialiser of `waypointGroup` (TODO above)");
-        // rust: if self.override_location {
-        // rust: waypoint_group = WaypointGroup::with_island(&waypoint_group, self.island.clone().unwrap());
-        // rust: }
-        // rust: if self.sort_waypoints {
-        // rust: waypoint_group = WaypointGroup::sort_waypoints(&waypoint_group, named_waypoint::NAME_COMPARATOR.get_mut().clone());
-        // rust: }
-        // rust: self.selected_waypoints.extend(WaypointGroup::waypoints(&waypoint_group).into_iter());
-        // rust: // TODO(fabric2seer): `.put(..)` on a Multimap
-        // rust: //   java: waypoints.put(waypointGroup.island(), waypointGroup);
-        // rust: WaypointsListWidget::update_entries(self.waypoints_list_widget.as_ref().unwrap());
-        // rust: // TODO(fabric2seer): `add_or_update` takes 5 argument(s) in the port (`toast_manager: &mut ToastManager, font: &FontSet, id: SystemToastId, title: &FormattedText, message: Option<&FormattedText>`), Java passes 4
-        // rust: // rust: system_toast::add_or_update(&mut compat::minecraft().gui.toast_manager(), waypoints::WAYPOINTS_TOAST_TYPE.get_mut(), component::translatable("skyblocker.waypoints.importSuccess"), &mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::translatable_args("skyblocker.waypoints.importSuccessText", vec![mcrust::net::minecraft::network::chat::formatted_text::FormattedText::of((WaypointGroup::waypoints(&waypoint_group).len() as i32).to_string()), mcrust::net::minecraft::network::chat::formatted_text::FormattedText::of(1.to_string())])));
-        // rust: }));
-        // rust: if let Err(e) = __result {
-        // rust: logger().error(&format!("[Skyblocker Waypoints] Encountered exception while parsing Snoopy waypoint data"));
-        // rust: WaypointsShareScreen::show_error_toast(&self.self_ref.upgrade().unwrap());
-        // rust: }
-        // rust: })))).tooltip_text(Some(Tooltip::create(component::translatable("skyblocker.waypoints.importWaypointsSnoopy.tooltip").get_string()).message.clone()))).build()).unwrap();
-        // TODO(fabric2seer): the port's `add_child_width` ports this Java method with other parameters (grid, child, column_width for Java's widget, column_width)
-        // TODO(fabric2seer): `add_child_width` takes 3 argument(s) in the port (`grid: &mut GridLayout, child: LayoutElement, column_width: i32`), Java passes 2
-        // rust: adder.add_child_width(&mut (button::builder(mcrust::net::minecraft::network::chat::common_components::gui_done().get_string(), OnPress::Lambda(PressLambda::new(move |__screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, __index: usize| { WaypointsShareScreen::on_close(&self.self_ref.upgrade().unwrap()); })))).width(((mcrust::net::minecraft::client::gui::components::button::DEFAULT_WIDTH).wrapping_mul(2)).wrapping_add(column_spacing)).build(), 2).unwrap();
-        self.layout.as_mut().unwrap().add_to_footer(LayoutElement::Grid(grid_widget.clone()));
-        let mut rows: i32 = 4;
-        self.layout.as_mut().unwrap().set_footer_height(((20i32.wrapping_mul(rows)).wrapping_add(row_spacing.wrapping_mul(rows.wrapping_sub(1)))).wrapping_add(8));
-        self.late_init();
-    }
-
     /// java: @Override protected boolean isEnabled(NamedWaypoint waypoint)
-    fn is_enabled(&self, waypoint: &compat::Shared<dyn NamedWaypoint>) -> bool {
-        return self.selected_waypoints.iter().any(|w| <dyn NamedWaypoint>::equals_shared(w, waypoint));
+    fn is_enabled(&self) -> fn(&compat::Shared<dyn AbstractWaypointsScreen>, &compat::Shared<dyn NamedWaypoint>) -> bool {
+        WaypointsShareScreen::is_enabled_dyn
     }
 
     /// java: @Override protected void enabledChanged(NamedWaypoint waypoint, boolean enabled)
-    fn enabled_changed(&mut self, waypoint: &compat::Shared<dyn NamedWaypoint>, mut enabled: bool) {
-        if enabled {
-            // `Set.add`: only when no equal member is there.
-            if !self.selected_waypoints.iter().any(|w| <dyn NamedWaypoint>::equals_shared(w, waypoint)) {
-                self.selected_waypoints.push(waypoint.clone());
-            }
-        } else if let Some(index) = self.selected_waypoints.iter().position(|w| <dyn NamedWaypoint>::equals_shared(w, waypoint)) {
-            self.selected_waypoints.remove(index);
-        }
+    fn enabled_changed(&self) -> fn(&compat::Shared<dyn AbstractWaypointsScreen>, &compat::Shared<dyn NamedWaypoint>, bool) {
+        WaypointsShareScreen::enabled_changed_dyn
     }
-
-    /// `this::islandChanged` for the island dropdown, through this screen's own handle.
-    fn island_changed_callback(&self) -> Arc<dyn Fn(Location)> {
-        let __this_w = compat::RenderThread::new(self.self_ref.clone());
-        Arc::new(move |location| {
-            if let Some(__this) = __this_w.get().upgrade() {
-                compat::write(&__this, |__t| __t.island_changed(location));
-            }
-        })
-    }
-
 }
 
 /// WaypointsShareScreen's `Screen` half (`super`'s fields and widget tree), lent by the game for each call
 impl compat::ScreenHalf for WaypointsShareScreen {
-    fn screen_half(&mut self) -> &mut mcrust::net::minecraft::client::gui::screens::screen::Screen {
+    fn screen_half(&mut self) -> &mut Screen {
         &mut self.base.base
     }
-    fn screen_parts(&mut self) -> (&mut mcrust::net::minecraft::client::gui::screens::screen::Screen, Option<&mut compat::WidgetCache>) {
+    fn screen_parts(&mut self) -> (&mut Screen, Option<&mut compat::WidgetCache>) {
         let __s = &mut self.base;
         (&mut __s.base, Some(&mut __s.__widgets))
     }
@@ -289,13 +368,28 @@ impl ModScreen for compat::ScreenAdapter<WaypointsShareScreen> {
         self.title()
     }
 
-    /// java: Screen.tick (the base body)
-    fn tick(&mut self, screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen) {
-        self.lend(screen, |_| ())
+    /// java: @Override protected void init()
+    fn init(&mut self, screen: &mut Screen) {
+        self.lend(screen, |__h| WaypointsShareScreen::init(__h))
+    }
+
+    /// java: AbstractWaypointsScreen.repositionElements (it does not rebuild the widgets)
+    fn reposition_elements(&mut self, screen: &mut Screen) {
+        self.lend(screen, |__h| <dyn AbstractWaypointsScreen>::reposition_elements(&WaypointsShareScreen::as_abstract(__h)))
+    }
+
+    /// java: Screen.tick (the base body), and the `updateButtons()` a click asked for
+    fn tick(&mut self, screen: &mut Screen) {
+        self.lend(screen, |__h| <dyn AbstractWaypointsScreen>::tick(&WaypointsShareScreen::as_abstract(__h)))
+    }
+
+    /// java: Screen.extractRenderState (the base body) - the island dropdown and the popup container last
+    fn extract_render_state(&mut self, screen: &Screen, context: &mut ScreenRenderContext<'_>, mouse_x: i32, mouse_y: i32, a: f32) {
+        self.lend_ref(screen, |__h| <dyn AbstractWaypointsScreen>::extract_render_state(&WaypointsShareScreen::as_abstract(__h), context, mouse_x, mouse_y, a))
     }
 
     /// java: Screen.keyPressed (the base body)
-    fn key_pressed(&mut self, screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, event: &mcrust::net::minecraft::client::input::key_event::KeyEvent) -> bool {
+    fn key_pressed(&mut self, screen: &mut Screen, event: &mcrust::net::minecraft::client::input::key_event::KeyEvent) -> bool {
         self.lend(screen, |_| ());
         if event.is_escape() && self.should_close_on_esc() {
             self.on_close();
@@ -304,9 +398,28 @@ impl ModScreen for compat::ScreenAdapter<WaypointsShareScreen> {
         false
     }
 
+    /// java: AbstractWaypointsScreen.mouseClicked
+    fn mouse_clicked(&mut self, screen: &mut Screen, x: f64, y: f64, button: i32) -> bool {
+        self.lend(screen, |__h| <dyn AbstractWaypointsScreen>::mouse_clicked(&WaypointsShareScreen::as_abstract(__h), &abstract_waypoints_screen::click_event(x, y, button), false))
+    }
+
+    /// java: Screen.mouseReleased - the popup container while it is dragged
+    fn mouse_released(&mut self, screen: &mut Screen, x: f64, y: f64, button: i32) -> bool {
+        self.lend(screen, |__h| <dyn AbstractWaypointsScreen>::mouse_released(&WaypointsShareScreen::as_abstract(__h), &abstract_waypoints_screen::click_event(x, y, button)))
+    }
+
+    /// java: Screen.mouseDragged - the popup container while it is dragged
+    fn mouse_dragged(&mut self, screen: &mut Screen, x: f64, y: f64, button: i32, dx: f64, dy: f64) -> bool {
+        self.lend(screen, |__h| <dyn AbstractWaypointsScreen>::mouse_dragged(&WaypointsShareScreen::as_abstract(__h), &abstract_waypoints_screen::click_event(x, y, button), dx, dy))
+    }
+
+    /// java: AbstractWaypointsScreen.mouseScrolled
+    fn mouse_scrolled(&mut self, screen: &mut Screen, x: f64, y: f64, scroll_x: f64, scroll_y: f64) -> bool {
+        self.lend(screen, |__h| <dyn AbstractWaypointsScreen>::mouse_scrolled(&WaypointsShareScreen::as_abstract(__h), x, y, scroll_x, scroll_y))
+    }
+
     /// java: @SuppressWarnings("DataFlowIssue") @Override public void onClose()
     fn on_close(&mut self) {
         self.call(|__h| WaypointsShareScreen::on_close(__h))
     }
-
 }

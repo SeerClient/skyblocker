@@ -38,8 +38,12 @@ impl ConfigBackupManager {
                 logger().error(&format!("[Skyblocker] Failed to create backup directory!"));
             }
         })(), compat::executor);
-        // TODO(fabric2seer): no SeerClient event yet: hook HEAD of Minecraft#stop (`net.minecraft.client.Minecraft#stop`: exists)
         //   java: ClientLifecycleEvents.CLIENT_STOPPING.register(_ -> backupConfig());
+        // (`CLIENT_STOPPING` is Fabric's HEAD injector on `Minecraft#stop`)
+        let _ = mcrust::mcrust::modding::hook::inject("net.minecraft.client.Minecraft#stop", mcrust::mcrust::modding::hook::At::Head, |_: &mut mcrust::mcrust::modding::hook::CallbackInfo<'_>| {
+            ConfigBackupManager::backup_config();
+        })
+        .map_err(|e| logger().error(&format!("[Skyblocker] Failed to hook the client stop: {:?}", e)));
     }
 
     /// java: public static void backupConfig()

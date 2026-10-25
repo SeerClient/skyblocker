@@ -29,7 +29,8 @@ fn is_quiver_item(stack: &mcrust::net::minecraft::world::item::item_stack::ItemS
     let Some(component) = mcrust::com::mojang::serialization::cast::<mcrust::net::minecraft::world::item::component::custom_data::CustomData>(&component) else {
         return false;
     };
-    let compound: mcrust::net::minecraft::nbt::tag::Tag = component.copy_tag();
+    // (the component's tag read in place - `copyTag()` deep-copies it - as `getTag()` would; it is only read)
+    let compound: &mcrust::net::minecraft::nbt::tag::Tag = component.get_tag();
     let element: Option<&mcrust::net::minecraft::nbt::tag::Tag> = compound.get("quiver_arrow");
     compat::set_state(&PREV_QUIVER_SLOT, element.is_some_and(|element| element.as_boolean().unwrap_or(false) || element.as_string().unwrap_or("false") == "true"));
     return compat::get_state(&PREV_QUIVER_SLOT);
@@ -55,18 +56,21 @@ fn skyblocker_extract_hotbar_item_lock_or_background(ci: &mut CallbackInfo<'_>) 
     // `inventory.get_item(i)`).
     let Some(stack) = compat::detach_ref(ci.arg::<mcrust::net::minecraft::world::item::item_stack::ItemStack>(4)) else { return; };
     if crate::de::hysky::skyblocker::utils::utils::Utils::is_on_skyblock() {
-        // rust: port gap - the port's hotbar draws through `gl` / `gfx` and the `HotbarItem` list, with no
-        // `GuiGraphicsExtractor` to hand `ItemBackgroundManager`, `blitSprite` or `ItemProtection.drawSlotIcon`
-        // (GAPS_batchD); the three draws are not made.
-        //   java: ItemBackgroundManager.drawBackgrounds(player.getInventory().getNonEquipmentItems().get(index), graphics, x, y);
+        // The hotbar's slots are drawn by `extractSlot` into the frame's GUI render state, the one
+        // `GuiGraphicsExtractor` appends to; these draws go in right before the slot's item, as Java's do.
+        let graphics = mcrust::net::minecraft::client::gui::gui_graphics_extractor::GuiGraphicsExtractor::new();
+        // java: ItemBackgroundManager.drawBackgrounds(player.getInventory().getNonEquipmentItems().get(index), graphics, x, y);
+        crate::de::hysky::skyblocker::skyblock::item::background::item_background_manager::ItemBackgroundManager::draw_backgrounds(stack, &graphics, x, y);
         // slot lock
         if crate::de::hysky::skyblocker::skyblock::item::hotbar_slot_lock::HotbarSlotLock::is_locked(index) {
-            //   java: graphics.blitSprite(RenderPipelines.GUI_TEXTURED, SLOT_LOCK_ICON.get(), x, y, 16, 16);
-            let _ = (slot_lock_icon, x, y);
+            // java: graphics.blitSprite(RenderPipelines.GUI_TEXTURED, SLOT_LOCK_ICON.get(), x, y, 16, 16);
+            mcrust::net::minecraft::client::gui::gui_graphics_extractor::blit_sprite_identifier(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), mcrust::net::minecraft::client::renderer::render_pipelines::gui_textured(), &slot_lock_icon(), x, y, 16, 16);
         }
         //item protection
-        if crate::de::hysky::skyblocker::skyblock::item::item_protection::ItemProtection::is_item_protected(Some(stack.duplicate())) {
-            //   java: ItemProtection.drawSlotIcon(graphics, x, y);
+        // (the stack itself, not a `duplicate()` - a deep copy of its components per slot per frame)
+        if crate::de::hysky::skyblocker::skyblock::item::item_protection::ItemProtection::is_item_protected_ref(Some(stack)) {
+            // java: ItemProtection.drawSlotIcon(graphics, x, y);
+            crate::de::hysky::skyblocker::skyblock::item::item_protection::ItemProtection::draw_slot_icon(&graphics, x, y);
         }
         IS_QUIVER_SLOT.store(index == 8, std::sync::atomic::Ordering::Relaxed);
     }

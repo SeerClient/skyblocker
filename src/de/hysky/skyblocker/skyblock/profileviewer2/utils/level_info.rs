@@ -19,9 +19,8 @@ pub struct LevelInfo {
 impl LevelInfo {
     /// java: public LevelInfo(long xp, int level, Cap cap, @Nullable Progress progress)
     pub fn new(mut xp: i64, mut level: i32, mut cap: Cap, mut progress: Option<Progress>) -> Self {
-        // TODO(fabric2seer): this(..) to an unknown constructor
-        //   java: this(xp, level, cap, Optional.ofNullable(progress));
-        let mut this: Self = todo!("constructor");
+        // java: this(xp, level, cap, Optional.ofNullable(progress));
+        let this: Self = Self { xp, level, cap, progress };
         this
     }
 

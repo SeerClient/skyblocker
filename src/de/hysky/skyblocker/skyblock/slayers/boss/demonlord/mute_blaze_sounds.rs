@@ -8,17 +8,6 @@ use crate::de::hysky::skyblocker::utils::utils::Utils;
 use mcrust::net::minecraft::resources::identifier::Identifier;
 use mcrust::net::minecraft::sounds::sound_event::SoundEvent;
 
-// TODO(fabric2seer): static call ObjectSet.of(..)
-//   java: private static final ObjectSet<Identifier> MUTED_SOUNDS = ObjectSet.of(
-//   java: 			SoundEvents.BLAZE_BURN.location(),
-//   java: 			SoundEvents.BLAZE_AMBIENT.location(),
-//   java: 			SoundEvents.BLAZE_HURT.location(),
-//   java: 			SoundEvents.GHAST_SHOOT.location(),
-//   java: 			SoundEvents.FIRE_AMBIENT.location(),
-//   java: 			SoundEvents.LAVA_POP.location(),
-//   java: 			SoundEvents.LIGHTNING_BOLT_THUNDER.location(),
-//   java: 			SoundEvents.LIGHTNING_BOLT_IMPACT.location()
-//   java: 	);
 /// java: private static final ObjectSet<Identifier> MUTED_SOUNDS = ObjectSet.of( SoundEvents.BLAZE_BURN.location(), SoundEvents.BLAZE_AMBIENT.location(), SoundEvents.BLAZE_HURT.location(), SoundEvents.GHAST_SH
 pub static MUTED_SOUNDS: compat::MainThread<std::collections::HashSet<Identifier>> = compat::MainThread::new(|| { use mcrust::net::minecraft::sounds::sound_events as se; [se::blaze_burn(), se::blaze_ambient(), se::blaze_hurt(), se::ghast_shoot(), se::fire_ambient(), se::lava_pop(), se::lightning_bolt_thunder(), se::lightning_bolt_impact()].into_iter().map(|e| e.location().clone()).collect() });
 

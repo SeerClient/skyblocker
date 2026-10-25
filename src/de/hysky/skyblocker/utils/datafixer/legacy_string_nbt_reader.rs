@@ -27,30 +27,18 @@ pub static TRAILING: LazyLock<Arc<SimpleCommandExceptionType>> = LazyLock::new(|
 pub static EXPECTED_KEY: LazyLock<Arc<SimpleCommandExceptionType>> = LazyLock::new(|| SimpleCommandExceptionType::new(Arc::new(component::translatable("argument.nbt.expected.key"))));
 /// java: public static final SimpleCommandExceptionType EXPECTED_VALUE = new SimpleCommandExceptionType(Component.translatable("argument.nbt.expected.value"));
 pub static EXPECTED_VALUE: LazyLock<Arc<SimpleCommandExceptionType>> = LazyLock::new(|| SimpleCommandExceptionType::new(Arc::new(component::translatable("argument.nbt.expected.value"))));
-// TODO(fabric2seer): `new Dynamic2CommandExceptionType(..)`: the port has no `Dynamic2CommandExceptionType::new`
-//   java: public static final Dynamic2CommandExceptionType LIST_MIXED = new Dynamic2CommandExceptionType(
-//   java: 		(receivedType, expectedType) -> Component.translatableEscape("argument.nbt.list.mixed", receivedType, expectedType)
-//   java: 	);
 /// java: public static final Dynamic2CommandExceptionType LIST_MIXED = new Dynamic2CommandExceptionType( (receivedType, expectedType) -> Component.translatableEscape("argument.nbt.list.mixed", receivedType, ex
 pub static LIST_MIXED: LazyLock<Arc<Dynamic2CommandExceptionType>> = LazyLock::new(|| {
     Dynamic2CommandExceptionType::new(|received_type: &str, expected_type: &str| {
         Arc::new(component::translatable_escape("argument.nbt.list.mixed", vec![FormattedText::Plain(received_type.to_string()), FormattedText::Plain(expected_type.to_string())])) as Arc<dyn Message>
     })
 });
-// TODO(fabric2seer): `new Dynamic2CommandExceptionType(..)`: the port has no `Dynamic2CommandExceptionType::new`
-//   java: public static final Dynamic2CommandExceptionType ARRAY_MIXED = new Dynamic2CommandExceptionType(
-//   java: 		(receivedType, expectedType) -> Component.translatableEscape("argument.nbt.array.mixed", receivedType, expectedType)
-//   java: 	);
 /// java: public static final Dynamic2CommandExceptionType ARRAY_MIXED = new Dynamic2CommandExceptionType( (receivedType, expectedType) -> Component.translatableEscape("argument.nbt.array.mixed", receivedType, 
 pub static ARRAY_MIXED: LazyLock<Arc<Dynamic2CommandExceptionType>> = LazyLock::new(|| {
     Dynamic2CommandExceptionType::new(|received_type: &str, expected_type: &str| {
         Arc::new(component::translatable_escape("argument.nbt.array.mixed", vec![FormattedText::Plain(received_type.to_string()), FormattedText::Plain(expected_type.to_string())])) as Arc<dyn Message>
     })
 });
-// TODO(fabric2seer): `new DynamicCommandExceptionType(..)`: the port has no `DynamicCommandExceptionType::new`
-//   java: public static final DynamicCommandExceptionType ARRAY_INVALID = new DynamicCommandExceptionType(
-//   java: 		type -> Component.translatableEscape("argument.nbt.array.invalid", type)
-//   java: 	);
 /// java: public static final DynamicCommandExceptionType ARRAY_INVALID = new DynamicCommandExceptionType( type -> Component.translatableEscape("argument.nbt.array.invalid", type) );
 pub static ARRAY_INVALID: LazyLock<Arc<DynamicCommandExceptionType>> = LazyLock::new(|| {
     DynamicCommandExceptionType::new(|r#type: &str| {

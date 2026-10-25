@@ -61,13 +61,15 @@ impl TuningSlotWidget {
         let mut title_height: i32 = (line_height.wrapping_add(TEXT_EXTRA_SPACING)).wrapping_add(TITLE_BOTTOM_PADDING);
         let mut lines_height: i32 = (line_height.wrapping_add(TEXT_EXTRA_SPACING)).wrapping_mul((halves.0.len() as i32).max((halves.1.len() as i32)));
         let mut height: i32 = ((OFFSET.wrapping_mul(2)).wrapping_add(title_height)).wrapping_add(lines_height);
-        // TODO(fabric2seer): super(..) with 0 argument(s)
-        //   java:
-        let __this: compat::Shared<Self> = todo!("constructor");
-        // TODO(fabric2seer): super statement
-        //   java: super(width, height);
-        { let __v = Some(component::literal("Tuning Stats").with_style_format(ChatFormatting::Bold)); compat::write(&__this, |__t| __t.title = __v); }
-        { let __v = Some(halves.clone()); compat::write(&__this, |__t| __t.halves = __v); }
+        // java: super(width, height); this.title = Component.literal("Tuning Stats").withStyle(ChatFormatting.BOLD); this.halves = halves;
+        let (_, __this) = BasicInfoBoxWidgetBase::new_in(width, height, move |__base| {
+            let __h = compat::shared(Self {
+                base: __base,
+                title: Some(component::literal("Tuning Stats").with_style_format(ChatFormatting::Bold)),
+                halves: Some(halves),
+            });
+            ((__h.clone() as compat::Shared<dyn BasicInfoBoxWidget>), __h)
+        });
         __this
     }
 

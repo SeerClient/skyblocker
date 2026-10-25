@@ -57,30 +57,46 @@ impl ThreeWeirdos {
             });
             ((__h.clone() as compat::Shared<dyn DungeonPuzzle>), __h)
         });
-        // TODO(fabric2seer): ClientReceiveMessageEvents.ALLOW_GAME.register: no SeerClient equivalent yet
-        //   java: ClientReceiveMessageEvents.ALLOW_GAME.register((message, overlay) -> {
-        //   java: 			ClientLevel world = Minecraft.getInstance().level;
-        //   java: 			if (overlay || !shouldSolve() || !SkyblockerConfigManager.get().dungeons.puzzleSolvers.solveThreeWeirdos || world == null || !DungeonManager.isCurrentRoomMatched()) return true;
-        //   java:
-        //   java: 			Matcher matcher = PATTERN.matcher(ChatFormatting.stripFormatting(message.getString()));
-        //   java: 			if (!matcher.matches()) return true;
-        //   java: 			String name = matcher.group(1);
-        //   java: 			Room room = DungeonManager.getCurrentRoom();
-        //   java: 			if (room == null || !room.isMatched()) return true;
-        //   java:
-        //   java: 			checkForNPC(world, room, new BlockPos(13, 69, 24), name);
-        //   java: 			checkForNPC(world, room, new BlockPos(15, 69, 25), name);
-        //   java: 			checkForNPC(world, room, new BlockPos(17, 69, 24), name);
-        //   java:
-        //   java: 			return true;
-        //   java: 		});
-        // TODO(fabric2seer): UseBlockCallback.EVENT.register: no SeerClient equivalent yet
-        //   java: UseBlockCallback.EVENT.register((_, _, _, blockHitResult) -> {
-        //   java: 			if (blockHitResult.getType() == HitResult.Type.BLOCK && blockHitResult.getBlockPos().equals(pos)) {
-        //   java: 				pos = null;
-        //   java: 			}
-        //   java: 			return InteractionResult.PASS;
-        //   java: 		});
+        // java: ClientReceiveMessageEvents.ALLOW_GAME.register((message, overlay) -> {..}); - the listener holds this object
+        let __this_allow_game = compat::RenderThread::new(__this.clone());
+        compat::register_allow_game(move |message, overlay| {
+            use mcrust::net::minecraft::network::chat::component::Component as _;
+            let __this = __this_allow_game.get();
+            // java: ClientLevel world = Minecraft.getInstance().level;
+            let world = mcrust::mcrust::modding::game::level();
+            // java: if (overlay || !shouldSolve() || !SkyblockerConfigManager.get().dungeons.puzzleSolvers.solveThreeWeirdos || world == null || !DungeonManager.isCurrentRoomMatched()) return true;
+            let should_solve: bool = { let __f = compat::dispatch(__this, |__t| __t.should_solve()); __f(&compat::view(__this, |a| a as compat::Shared<dyn DungeonPuzzle>)) };
+            if overlay || !should_solve || !crate::de::hysky::skyblocker::config::skyblocker_config_manager::SkyblockerConfigManager::get().dungeons.puzzle_solvers.solve_three_weirdos || world.is_none() || !crate::de::hysky::skyblocker::skyblock::dungeon::secrets::dungeon_manager::DungeonManager::is_current_room_matched() {
+                return true;
+            }
+            let world = world.unwrap();
+            // java: Matcher matcher = PATTERN.matcher(ChatFormatting.stripFormatting(message.getString()));
+            let mut matcher = PATTERN.matcher(&mcrust::net::minecraft::chat_formatting::strip_formatting(&message.get_string()));
+            if !matcher.matches() {
+                return true;
+            }
+            let name: String = matcher.group(1).unwrap_or_default();
+            // java: Room room = DungeonManager.getCurrentRoom(); if (room == null || !room.isMatched()) return true;
+            let Some(room) = crate::de::hysky::skyblocker::skyblock::dungeon::secrets::dungeon_manager::DungeonManager::get_current_room() else {
+                return true;
+            };
+            if !{ let __f = compat::dispatch(&room, |__t| __t.is_matched()); __f(&room) } {
+                return true;
+            }
+            ThreeWeirdos::check_for_npc(__this, &world, &room, &BlockPos::new(13, 69, 24), &name);
+            ThreeWeirdos::check_for_npc(__this, &world, &room, &BlockPos::new(15, 69, 25), &name);
+            ThreeWeirdos::check_for_npc(__this, &world, &room, &BlockPos::new(17, 69, 24), &name);
+            return true;
+        });
+        // java: UseBlockCallback.EVENT.register((_, _, _, blockHitResult) -> {
+        //     if (blockHitResult.getType() == HitResult.Type.BLOCK && blockHitResult.getBlockPos().equals(pos)) pos = null;
+        //     return InteractionResult.PASS; });
+        mcrust::mcrust::modding::events::use_block_callback::register(|_, _, _, block_hit_result| {
+            if block_hit_result.get_type() == mcrust::net::minecraft::world::phys::hit_result::Type::Block && POS.get().as_ref() == Some(&block_hit_result.get_block_pos()) {
+                *POS.get_mut() = None;
+            }
+            mcrust::net::minecraft::world::interaction_result::InteractionResult::Pass
+        });
         __this
     }
 
@@ -91,12 +107,6 @@ impl ThreeWeirdos {
     /// java: private void checkForNPC(ClientLevel world, Room room, BlockPos relative, String name)
     pub fn check_for_npc(__this: &compat::Shared<Self>, world: &ClientLevel, room: &compat::Shared<dyn Room>, relative: &BlockPos, name: &str) {
         let mut npc_pos: BlockPos = ({ let __f = compat::dispatch(room, |__t| __t.relative_to_actual()); __f(room, relative) });
-        // TODO(fabric2seer): `.getName(..)` on a T
-        //   java: List<ArmorStand> npcs = world.getEntitiesOfClass(
-        //   java: 				ArmorStand.class,
-        //   java: 				AABB.encapsulatingFullBlocks(npcPos, npcPos),
-        //   java: 				entity -> entity.getName().getString().equals(name)
-        //   java: 		);
         // (the port's class filter has no ArmorStand.class: the base class Entity plus `instanceof ArmorStand`)
         use mcrust::net::minecraft::world::level::entity_getter::EntityGetter as _;
         use mcrust::net::minecraft::network::chat::component::Component as _;

@@ -5,10 +5,13 @@
 use crate::prelude::*;
 
 /// @Accessor getUnderlyingScreen -> net.minecraft.client.gui.components.PopupScreen.backgroundScreen
-// TODO(fabric2seer): `Screen` - return `&obj.background_screen` with its Rust type
-// pub fn get_underlying_screen(obj: &mcrust::net::minecraft::client::gui::components::popup_screen::PopupScreen) -> &T { &obj.background_screen }
+/// A vanilla `PopupScreen` is the port's `ScreenExtra::Popup(PopupState)`; its `backgroundScreen` is the state's
+/// `background_widgets` (the screen it was opened over).
+pub fn get_underlying_screen(obj: &mcrust::net::minecraft::client::gui::gui::PopupState) -> &Screen {
+    &obj.background_widgets
+}
 
 /// Mixins apply before the game runs: the `preLaunch` entrypoint calls this.
 pub fn register() {
-    // (nothing to register)
+    // (nothing to register: accessors are plain functions)
 }

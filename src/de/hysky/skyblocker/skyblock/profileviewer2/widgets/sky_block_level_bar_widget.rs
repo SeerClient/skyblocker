@@ -55,14 +55,13 @@ impl SkyBlockLevelBarWidget {
 
     /// java: public static LevelBarWidget create(int width, LoadingInformation info)
     pub fn create(mut width: i32, info: &LoadingInformation) -> compat::Shared<dyn LevelBarWidget> {
-        let mut level_info: LevelInfo = LevelCalculator::get_skyblock_level(info.member().lock().borrow().levelling.experience);
+        let mut level_info: LevelInfo = LevelCalculator::get_skyblock_level(compat::read(&info.member(), |__m| __m.levelling.experience));
         let mut level: i32 = level_info.level();
         let mut label: MutableComponent = component::empty().append_str("SB Level ").append(component::literal("[").with_style_format(ChatFormatting::DarkGray)).append(component::literal(&level.to_string()).with_style_format(SkyBlockLevelBarWidget::get_level_colour(level))).append(component::literal("]").with_style_format(ChatFormatting::DarkGray));
         let mut icon: mcrust::net::minecraft::world::item::item_stack::ItemStack = FlexibleItemStack::get_stack_or_throw(ico::EXPERIENCE_BOTTLE.get_mut());
         let mut bar_fill_percentage: f64 = LevelBarWidgetBase::get_bar_fill_percentage(&level_info);
-        // TODO(fabric2seer): `.getRGB(..)` on a value of unknown type
-        //   java: int barFillColour = Color.CYAN.getRGB();
-        let mut bar_fill_colour: i32 = todo!("fabric2seer: the initialiser of `barFillColour` (TODO above)");
+        // java: int barFillColour = Color.CYAN.getRGB();
+        let mut bar_fill_colour: i32 = mcrust::java::awt::color::cyan().get_rgb();
         let mut tooltip: Vec<MutableComponent> = LevelBarWidgetBase::build_tooltip(&label, &level_info, info.get_leaderboard_position("skyblockxp"));
         let mut tooltip_style: Identifier = LevelBarWidgetBase::get_tooltip_style(&level_info, 100).unwrap();
         return (SkyBlockLevelBarWidget::new(width, icon.clone(), label.clone(), bar_fill_percentage, bar_fill_colour, tooltip.clone(), Some(tooltip_style.clone())) as compat::Shared<dyn LevelBarWidget>);

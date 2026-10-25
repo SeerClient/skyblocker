@@ -154,9 +154,9 @@ impl CorpseProfitScreen {
     /// java: @Override protected void init()
     pub fn init(__this: &compat::Shared<Self>) {
         { let __v = Some(HeaderAndFooterLayout::with_heights(0, 0, 25, 45)); compat::write(__this, |__t| __t.layout = __v); }
-        // `layout.addTitleHeader(title, font)`: the port's `HeaderAndFooterLayout` has no `addTitleHeader`
-        // (GAPS_batchD.md); its body (HeaderAndFooterLayout.java:125-127) is `headerFrame.addChild(new StringWidget(component, font))`.
-        // rust: port gap - HeaderAndFooterLayout.addTitleHeader is unported, so its body is written here and a hook on it cannot see this call
+        // java: layout.addTitleHeader(title, font) - `HeaderAndFooterLayout.addTitleHeader:125-127` is
+        // `headerFrame.addChild(new StringWidget(component, font))`; the port's layout holds its children as the screen's
+        // widget indices, so the widget joins the screen first (as the game's own screens make this call)
         { let __w = compat::string_widget(0, 0, -1, 9, component::translatable("skyblocker.corpseTracker.screenTitle").with_style_format(ChatFormatting::Bold)); let (__ww, __wh) = (__w.get_width(), __w.get_height()); let __q0 = LayoutElement::widget(compat::write(__this, |__t| __t.add_widget(__w)), __ww, __wh); __this.lock().borrow_mut().layout.as_mut().unwrap().add_to_header(__q0) };
         // `selectionList = summaryView ? getRewardList() : getCorpseList();` - the two lists are kept by the screen and
         // `selectionList` is the same widget as the chosen one.

@@ -10,7 +10,12 @@ use mcrust::net::minecraft::client::renderer::texture::texture_atlas_sprite::Tex
 pub struct ColoredItemBackgroundBase<T> {
     /// java: private final Int2ReferenceOpenHashMap<T> cache = new Int2ReferenceOpenHashMap<>();
     /// (the map holds Java's `null` values too: a key cached as "no background")
-    pub cache: std::collections::HashMap<i32, Option<T>>,
+    // OPTIMIZED BUT NOT FULLY VANILLA (perf round 1, P02 S7): an integer-keyed
+    // map with a multiplicative hasher (Java's Int2ReferenceOpenHashMap hashes
+    // the int itself too). Only get/contains_key/insert/clear touch it, so the
+    // hasher is unobservable, and `mem::take` of it builds no RandomState. Was:
+    // pub cache: std::collections::HashMap<i32, Option<T>>,
+    pub cache: ColorKeyCache<T>,
     /// java: private final Supplier<TextureAtlasSprite> sprite;
     pub sprite: Arc<dyn Fn() -> TextureAtlasSprite>,
 }
@@ -22,7 +27,7 @@ impl<T: Clone + 'static> ColoredItemBackgroundBase<T> {
         //   .getSprite(SkyblockerConfigManager.get().general.itemInfoDisplay.itemBackgroundStyle.tex);
         // (the GUI atlas is `Minecraft.gui_sprites` in the port)
         let mut this = Self {
-            cache: std::collections::HashMap::new(),
+            cache: ColorKeyCache::default(),
             sprite: Arc::new(|| {
                 compat::minecraft().gui_sprites.get_sprite(&crate::de::hysky::skyblocker::config::skyblocker_config_manager::SkyblockerConfigManager::get().general.item_info_display.item_background_style.fields().tex).clone()
             }),
@@ -44,7 +49,7 @@ pub trait ColoredItemBackground<T> {
 
     /// java: protected abstract T getColorKey(ItemStack stack, Int2ReferenceOpenHashMap<T> cache);
     /// `None` is Java's null: no background.
-    fn get_color_key(&mut self, stack: &mcrust::net::minecraft::world::item::item_stack::ItemStack, cache: &mut std::collections::HashMap<i32, Option<T>>) -> Option<T>;
+    fn get_color_key(&mut self, stack: &mcrust::net::minecraft::world::item::item_stack::ItemStack, cache: &mut ColorKeyCache<T>) -> Option<T>;
 
     /// java: protected abstract void extract(GuiGraphicsExtractor graphics, int x, int y, T colorKey);
     fn extract(&self, graphics: &GuiGraphicsExtractor, x: i32, y: i32, color_key: &T);
@@ -85,3 +90,28 @@ pub trait AnyColoredItemBackground {
     fn try_extract(&mut self, stack: &mcrust::net::minecraft::world::item::item_stack::ItemStack, graphics: &GuiGraphicsExtractor, x: i32, y: i32);
     fn clear_cache(&mut self);
 }
+
+/// PORT-ONLY (perf round 1, P02 S7): the hasher of `ColorKeyCache` - one
+/// multiply of the i32 key (Fibonacci hashing), as cheap as fastutil's
+/// `HashCommon.mix` over an int key. Only `i32` keys are ever written.
+#[derive(Default, Clone, Copy)]
+pub struct IntHasher(u64);
+
+impl std::hash::Hasher for IntHasher {
+    fn finish(&self) -> u64 {
+        self.0
+    }
+
+    fn write(&mut self, bytes: &[u8]) {
+        for &b in bytes {
+            self.0 = (self.0.rotate_left(8) ^ b as u64).wrapping_mul(0x9E37_79B9_7F4A_7C15);
+        }
+    }
+
+    fn write_i32(&mut self, i: i32) {
+        self.0 = (i as u32 as u64).wrapping_mul(0x9E37_79B9_7F4A_7C15);
+    }
+}
+
+/// java: `Int2ReferenceOpenHashMap<T>` (a key cached as "no background" holds `None`).
+pub type ColorKeyCache<T> = std::collections::HashMap<i32, Option<T>, std::hash::BuildHasherDefault<IntHasher>>;

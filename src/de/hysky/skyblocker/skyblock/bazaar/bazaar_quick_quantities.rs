@@ -14,6 +14,9 @@ use mcrust::net::minecraft::network::chat::component;
 use mcrust::net::minecraft::network::chat::mutable_component::MutableComponent;
 use mcrust::net::minecraft::network::chat::component::Component as _;
 
+/// `messages[0]` as the last button press wrote it, until the sign screen commits it (`install_sign_commit`).
+static PENDING_FIRST_LINE: std::sync::Mutex<Option<String>> = std::sync::Mutex::new(None);
+
 /// java: public class BazaarQuickQuantities
 #[derive(Clone)]
 pub struct BazaarQuickQuantities {}
@@ -36,8 +39,12 @@ impl BazaarQuickQuantities {
         let mut y: i32 = 45;
         // java: each button's action is `_ -> onButtonPressed(messages, config.slotNQuantity)` over the sign screen's own
         // `messages` array.
-        // rust: port gap - a button's press is handed the screen's `Screen` half, not the sign screen, so the action
-        // cannot reach the sign's `messages`; it writes into the array as it was lent here (GAPS_batchF.md)
+        // A button's press is handed the sign screen's `Screen` half, not the `AbstractSignEditScreen`, so the action
+        // writes into the array as it was lent here, and the value it writes into `messages[0]` reaches the screen's own
+        // array where the sign screen commits it (`removed:121-131`, see `install_sign_commit`).
+        // The open sign editor's own `messages[0]` is written through `game::with_sign_edit_screen` (see
+        // `on_button_pressed_string_string`), so the new first line also shows on the sign before it closes.
+        BazaarQuickQuantities::install_sign_commit();
         let __messages = compat::RenderThread::new(std::sync::Arc::new(std::sync::Mutex::new(messages.clone())));
         let (__q1, __q2, __q3) = (config.slot1_quantity, config.slot2_quantity, config.slot3_quantity);
         let __m = __messages.clone();
@@ -49,7 +56,7 @@ impl BazaarQuickQuantities {
         // java: String clipboard = client.keyboardHandler.getClipboard().replace(",", "");
         let mut clipboard: String = {
             let mut __memory = mcrust::net::minecraft::client::gui::components::edit_box::MemoryClipboard::default();
-            match mcrust::net::minecraft::client::minecraft::GlfwClipboard::published() {
+            match mcrust::net::minecraft::client::minecraft::SdlClipboard::published() {
                 Some(mut __glfw) => compat::minecraft().keyboard_handler.get_clipboard(&mut __glfw),
                 None => compat::minecraft().keyboard_handler.get_clipboard(&mut __memory),
             }
@@ -67,6 +74,23 @@ impl BazaarQuickQuantities {
         return Some(buttons);
     }
 
+    /// The sign screen's `messages[0]` as a button press wrote it: applied to the lines the screen commits
+    /// (`AbstractSignEditScreen.removed:121-131` answers them), once.
+    fn install_sign_commit() {
+        static ONCE: std::sync::Once = std::sync::Once::new();
+        ONCE.call_once(|| {
+            let hooked = mcrust::mcrust::modding::hook::modify_return_value::<(bool, [String; 4])>("net.minecraft.client.gui.screens.inventory.AbstractSignEditScreen#removed", |(front, mut lines)| {
+                if let Some(first) = PENDING_FIRST_LINE.lock().unwrap_or_else(|p| p.into_inner()).take() {
+                    lines[0] = first;
+                }
+                (front, lines)
+            });
+            if let Err(e) = hooked {
+                logger().error(&format!("[Skyblocker Bazaar Quick Quantities] Failed to hook the sign commit: {:?}", e));
+            }
+        });
+    }
+
     /// java: static void onButtonPressed(String[] messages, int value)
     pub fn on_button_pressed(messages: &mut Vec<String>, mut value: i32) {
         BazaarQuickQuantities::on_button_pressed_string_string(messages, value.to_string());
@@ -75,11 +99,19 @@ impl BazaarQuickQuantities {
     /// java: static void onButtonPressed(String[] messages, String value)
     pub fn on_button_pressed_string_string(messages: &mut Vec<String>, mut value: String) {
         messages[(0) as usize] = value.clone();
+        // the sign screen's own `messages[0]` (Java's array is the screen's)
+        let __line: String = value.clone();
+        mcrust::mcrust::modding::game::with_sign_edit_screen(move |screen| {
+            screen.messages[0] = __line;
+        });
+        *PENDING_FIRST_LINE.lock().unwrap_or_else(|p| p.into_inner()) = Some(value.clone());
         let config = &SkyblockerConfigManager::get().ui_and_visuals.bazaar_quick_quantities;
         if config.close_sign_on_use && compat::minecraft().gui.screen().is_some() {
             SignCalculator::calculate(messages[(0) as usize].clone());
-            // TODO(fabric2seer): `on_close_for_interrupt` takes 12 argument(s) in the port (`gfx: &mut crate::net::minecraft::client::minecraft::Minecraft, screen: &mut Screen, screen_extra: &mut crate::net::minecraft::client::gui::gui::ScreenExtra, options_data: &mut crate::net::minecraft::client::options::OptionsData, open_sign_e ..`), Java passes 0
-            // rust: screen::on_close_for_interrupt();
+            // java: client.gui.screen().onClose(); - the open screen is the sign screen these buttons are on, whose
+            // `onClose:116-119` is `onDone:233-235`, `minecraft.gui.setScreen(null)` (which commits the text through
+            // `removed`)
+            mcrust::mcrust::modding::game::set_screen_null();
         }
     }
 

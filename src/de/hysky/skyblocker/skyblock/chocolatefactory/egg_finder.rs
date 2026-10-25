@@ -14,6 +14,7 @@ use crate::de::hysky::skyblocker::utils::render::renderable::Renderable;
 use crate::de::hysky::skyblocker::utils::time::skyblock_time;
 use crate::de::hysky::skyblocker::utils::time::skyblock_time::Season;
 use crate::de::hysky::skyblocker::utils::waypoint::waypoint::Waypoint;
+use crate::entry::skyblocker_mod;
 use crate::de::hysky::skyblocker::utils::waypoint::waypoint::WaypointBase;
 use crate::de::hysky::skyblocker::utils::ws::message::egg_waypoint_message::EggWaypointMessage;
 use crate::de::hysky::skyblocker::utils::ws::message::message::Message;
@@ -41,16 +42,10 @@ pub static EGG_FOUND_PATTERN: LazyLock<compat::regex::Pattern> = LazyLock::new(|
 pub static NO_EGGS_PATTERN: LazyLock<compat::regex::Pattern> = LazyLock::new(|| compat::regex::Pattern::compile("^There are no hidden Chocolate Rabbit Eggs nearby! Try again later!$"));
 /// java: private static final Set<Location> LOCATIONS = Set.of( Location.BACKWATER_BAYOU, Location.CRIMSON_ISLE, Location.CRYSTAL_HOLLOWS, Location.DEEP_CAVERNS, Location.DUNGEON_HUB, Location.DWARVEN_MINES, L
 pub static LOCATIONS: LazyLock<std::collections::HashSet<Location>> = LazyLock::new(|| std::collections::HashSet::from([Location::BackwaterBayou, Location::CrimsonIsle, Location::CrystalHollows, Location::DeepCaverns, Location::DungeonHub, Location::DwarvenMines, Location::Galatea, Location::GoldMine, Location::Hub, Location::LotusAtoll, Location::SpidersDen, Location::TheEnd, Location::TheFarmingIsland, Location::ThePark, Location::TorrhusCanyon]));
-// TODO(fabric2seer): `.get(..)` on a AtomicReference
-//   java: private static boolean isSpring = SkyblockTime.skyblockSeason.get() == SkyblockTime.Season.SPRING;
 /// java: private static boolean isSpring = SkyblockTime.skyblockSeason.get() == SkyblockTime.Season.SPRING;
 pub static IS_SPRING: LazyLock<Mutex<bool>> = LazyLock::new(|| Mutex::new(compat::get_state(&skyblock_time::SKYBLOCK_SEASON) == Season::Spring));
-// TODO(fabric2seer): `from_values` takes 2 argument(s) in the port (`values: Vec<E>, serialized_name: impl Fn(&E) -> String + Send + Sync + Copy + 'static`), Java passes 1
-//   java: public static final Codec<EggType> CODEC = StringRepresentable.fromValues(EggType::values);
 /// java: public static final Codec<EggType> CODEC = StringRepresentable.fromValues(EggType::values);
 pub static EGG_TYPE_CODEC: compat::MainThread<CodecRef<EggType>> = compat::MainThread::new(|| mcrust::net::minecraft::util::string_representable::from_values(EggType::values(), |egg_type: &EggType| egg_type.get_serialized_name()));
-// TODO(fabric2seer): static call ObjectImmutableList.of(..)
-//   java: public static final ObjectImmutableList<EggType> entries = ObjectImmutableList.of(EggType.values());
 /// java: public static final ObjectImmutableList<EggType> entries = ObjectImmutableList.of(EggType.values());
 pub static EGG_TYPE_ENTRIES: LazyLock<Vec<EggType>> = LazyLock::new(|| EggType::values());
 
@@ -72,8 +67,8 @@ impl EggFinder {
             EggFinder::clear_eggs();
         }));
         skyblock_events::LOCATION_CHANGE.register(Arc::new(move |__a0| { EggFinder::handle_location_change(__a0); }));
-        // TODO(fabric2seer): ClientReceiveMessageEvents.ALLOW_GAME.register: no SeerClient equivalent yet
-        //   java: ClientReceiveMessageEvents.ALLOW_GAME.register(EggFinder::onChatMessage);
+        // java: ClientReceiveMessageEvents.ALLOW_GAME.register(EggFinder::onChatMessage);
+        compat::register_allow_game(|text, overlay| EggFinder::on_chat_message(text, overlay));
         level_render_extraction_callback::EVENT.register(Arc::new(move |__a0| { EggFinder::extract_rendering(&__a0); }));
         skyblock_time::HOUR_CHANGE.register(Arc::new(move |hour| {
             if !(compat::get_state(&IS_SPRING)) {
@@ -98,35 +93,61 @@ impl EggFinder {
         }));
         client_command_registration_callback::EVENT.register(Arc::new(
             |dispatcher: &mut client_command_registration_callback::ClientCommandDispatcher| {
-                // TODO(fabric2seer): a command tree this tool cannot read (arguments, redirects, requires) - SeerClient commands receive the words after the name in `ctx.args`
-                //   java: dispatcher.register(literal(SkyblockerMod.NAMESPACE).then(literal("eggFinder").then(literal("shareLocation").then(argument("eggType", EggTypeArgumentType.eggType())
-                //   java: 					.executes(context -> {
-                //   java: 						EggType eggType = context.getArgument("eggType", EggType.class);
-                //   java: 						if (eggType.egg == null) {
-                //   java: 							context.getSource().sendError(Constants.PREFIX.get().append(Component.translatable("skyblocker.helpers.hoppitysHunt.unableToShareEgg").withStyle(style -> style.withColor(ChatFormatting.RED))));
-                //   java: 							return Command.SINGLE_SUCCESS;
-                //   java: 						}
-                //   java: 						MessageScheduler.INSTANCE.sendMessageAfterCooldown("[Skyblocker] Chocolate %s Egg found at %s".formatted(eggType.name, eggType.egg.pos.toShortString()), false);
-                //   java: 						return Command.SINGLE_SUCCESS;
-                //   java: 					})))));
+                use mcrust::com::mojang::brigadier::builder::argument_builder::ArgumentBuilder as _;
+                use crate::prelude::client_command_registration_callback as ccr;
+                type Ctx = mcrust::com::mojang::brigadier::context::command_context::CommandContext<ccr::FabricClientCommandSource>;
+                //   java: dispatcher.register(literal(NAMESPACE).then(literal("eggFinder").then(literal("shareLocation").then(argument("eggType", EggTypeArgumentType.eggType()).executes(context -> {
+                //   java:     EggType eggType = context.getArgument("eggType", EggType.class);
+                //   java:     if (eggType.egg == null) { sendError(PREFIX.append(translatable("skyblocker.helpers.hoppitysHunt.unableToShareEgg").withStyle(RED))); return 1; }
+                //   java:     MessageScheduler.INSTANCE.sendMessageAfterCooldown("[Skyblocker] Chocolate %s Egg found at %s".formatted(eggType.name, eggType.egg.pos.toShortString()), false); return 1; })))));
+                let mut egg_type_argument = ccr::argument("eggType", Arc::new(crate::de::hysky::skyblocker::utils::command::argumenttypes::egg_type_argument_type::EggTypeArgumentType::egg_type()));
+                egg_type_argument.executes(Arc::new(|context: &Ctx| {
+                    let egg_type: EggType = *context.get_argument::<EggType>("eggType").expect("the eggType argument");
+                    let Some(egg) = egg_type.fields().egg.clone() else {
+                        compat::batch_w_send_error(&(crate::de::hysky::skyblocker::utils::constants::PREFIX.get())().append(mcrust::net::minecraft::network::chat::component::translatable("skyblocker.helpers.hoppitysHunt.unableToShareEgg").with_style_fn(|style| style.with_color_format(Some(mcrust::net::minecraft::chat_formatting::ChatFormatting::Red)))));
+                        return Ok(1);
+                    };
+                    let pos = compat::read(&egg, |__t| __t.pos.clone()).unwrap();
+                    let message: String = format!("[Skyblocker] Chocolate {} Egg found at {}, {}, {}", egg_type.fields().name, pos.get_x(), pos.get_y(), pos.get_z());
+                    crate::de::hysky::skyblocker::utils::scheduler::message_scheduler::MessageScheduler::send_message_after_cooldown(crate::de::hysky::skyblocker::utils::scheduler::message_scheduler::INSTANCE.get_mut(), &message, false);
+                    Ok(1)
+                }));
+                let mut share_location = ccr::literal("shareLocation");
+                share_location.then(&egg_type_argument);
+                let mut egg_finder = ccr::literal("eggFinder");
+                egg_finder.then(&share_location);
+                let mut root = ccr::literal(skyblocker_mod::NAMESPACE);
+                root.then(&egg_finder);
+                dispatcher.dispatcher().register(&root);
                 if !(crate::de::hysky::skyblocker::debug::debug::Debug::debug_enabled()) {
                     return;
                 }
-                // TODO(fabric2seer): a command tree this tool cannot read (arguments, redirects, requires) - SeerClient commands receive the words after the name in `ctx.args`
-                //   java: dispatcher.register(literal(SkyblockerMod.NAMESPACE).then(literal("eggFinder").then(literal("resetFoundStatus")
-                //   java: 					.executes(_ -> {
-                //   java: 						for (EggType type : EggType.entries) {
-                //   java: 							type.collected = false;
-                //   java: 							if (type.egg != null) type.egg.setMissing();
-                //   java: 						}
-                //   java: 						return Command.SINGLE_SUCCESS;
-                //   java: 					}))));
-                // TODO(fabric2seer): a command tree this tool cannot read (arguments, redirects, requires) - SeerClient commands receive the words after the name in `ctx.args`
-                //   java: dispatcher.register(literal(SkyblockerMod.NAMESPACE).then(literal("eggFinder").then(literal("clearWaypoints")
-                //   java: 					.executes(_ -> {
-                //   java: 						clearEggs();
-                //   java: 						return Command.SINGLE_SUCCESS;
-                //   java: 					}))));
+                //   java: dispatcher.register(literal(NAMESPACE).then(literal("eggFinder").then(literal("resetFoundStatus").executes(_ -> {
+                //   java:     for (EggType type : EggType.entries) { type.collected = false; if (type.egg != null) type.egg.setMissing(); } return 1; }))));
+                let mut reset_found_status = ccr::literal("resetFoundStatus");
+                reset_found_status.executes(Arc::new(|_: &Ctx| {
+                    for r#type in EGG_TYPE_ENTRIES.iter().copied() {
+                        r#type.fields().collected = false;
+                        if let Some(egg) = r#type.fields().egg.clone() {
+                            let __f = compat::dispatch(&egg, |__t| __t.set_missing());
+                            __f(&compat::view(&egg, |a| a as compat::Shared<dyn Waypoint>));
+                        }
+                    }
+                    Ok(1)
+                }));
+                let mut egg_finder = ccr::literal("eggFinder");
+                egg_finder.then(&reset_found_status);
+                let mut root = ccr::literal(skyblocker_mod::NAMESPACE);
+                root.then(&egg_finder);
+                dispatcher.dispatcher().register(&root);
+                //   java: dispatcher.register(literal(NAMESPACE).then(literal("eggFinder").then(literal("clearWaypoints").executes(_ -> { clearEggs(); return 1; }))));
+                let mut clear_waypoints = ccr::literal("clearWaypoints");
+                clear_waypoints.executes(Arc::new(|_: &Ctx| { EggFinder::clear_eggs(); Ok(1) }));
+                let mut egg_finder = ccr::literal("eggFinder");
+                egg_finder.then(&clear_waypoints);
+                let mut root = ccr::literal(skyblocker_mod::NAMESPACE);
+                root.then(&egg_finder);
+                dispatcher.dispatcher().register(&root);
             },
         ));
     }
@@ -211,8 +232,9 @@ impl EggFinder {
         if !matcher.find() {
             return true;
         }
-        // java: try {..} catch (IllegalArgumentException e) - the body runs inline: a Rust body does not throw checked exceptions (a panic in it propagates)
-        {
+        // java: try {..} catch (IllegalArgumentException e) { LOGGER.error("[Skyblocker Egg Finder] Failed to process an egg!", e); }
+        // (a Java IllegalArgumentException is a panic whose message names it; any other panic propagates)
+        let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| -> bool {
             let Some(mut egg_type) = EggType::get_type_by_name(matcher.group(1).as_deref().unwrap()) else {
                 return true;
             };
@@ -228,7 +250,6 @@ impl EggFinder {
             }
             // java: client.level.getEntitiesOfClass(ArmorStand.class, AABB.ofSize(client.player.position(), 4f, 4f, 4f), entity -> checkIfEgg(entity, eggType))
             // (the port's class filter has no ArmorStand.class: the base class Entity plus the instanceof the class test makes)
-            // rust: let mut entities: Vec<ArmorStand> = mcrust::mcrust::modding::game::level().unwrap().get_entities_of_class(std::any::TypeId::of::<ArmorStand>(), Some(AABB::of_size(&mcrust::mcrust::modding::game::with_player(|player| player.position()).unwrap(), (4.0f32) as f64, (4.0f32) as f64, (4.0f32) as f64)), |entity| EggFinder::check_if_egg(&entity, egg_type));
             let Some(player_position) = mcrust::mcrust::modding::game::with_player(|player| player.position()) else {
                 return true;
             };
@@ -254,11 +275,18 @@ impl EggFinder {
                 return true;
             }
             WsMessageHandler::send_location_message(Service::EggWaypoints, &EggWaypointMessage::new(egg_type, compat::read(&egg, |__t| __t.pos.clone()).unwrap(), None));
+            true
+        }));
+        match __result {
+            Ok(value) => return value,
+            Err(payload) => {
+                let message: String = payload.downcast_ref::<String>().cloned().or_else(|| payload.downcast_ref::<&str>().map(|s| s.to_string())).unwrap_or_default();
+                if !message.contains("IllegalArgumentException") {
+                    std::panic::resume_unwind(payload);
+                }
+                logger().error(&format!("[Skyblocker Egg Finder] Failed to process an egg! {message}"));
+            }
         }
-        // TODO(fabric2seer): the `catch (IllegalArgumentException e)` block is not reached in Rust - the try body returns, breaks or continues, so it cannot run inside `catch_unwind`
-        //   java: {
-        //   java: 			LOGGER.error("[Skyblocker Egg Finder] Failed to process an egg!", e);
-        //   java: 		}
         return true;
     }
 

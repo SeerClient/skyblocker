@@ -37,22 +37,23 @@ impl FishingHelper {
 
     /// java: @Init public static void init()
     pub fn init() {
-        // TODO(fabric2seer): UseItemCallback.EVENT.register: no SeerClient equivalent yet
-        //   java: UseItemCallback.EVENT.register((player, _, hand) -> {
-        //   java: 			ItemStack stack = player.getItemInHand(hand);
-        //   java: 			if (!Utils.isOnSkyblock()) {
-        //   java: 				return InteractionResult.PASS;
-        //   java: 			}
-        //   java: 			if (stack.is(Items.FISHING_ROD)) {
-        //   java: 				if (player.fishing == null) {
-        //   java: 					waitingForBobberTicks = BOBBER_TIMEOUT_TICKS;
-        //   java: 				} else {
-        //   java: 					waitingForBobberTicks = 0;
-        //   java: 					reset();
-        //   java: 				}
-        //   java: 			}
-        //   java: 			return InteractionResult.PASS;
-        //   java: 		});
+        // java: UseItemCallback.EVENT.register((player, _, hand) -> { .. });
+        mcrust::mcrust::modding::events::use_item_callback::register(|player, _, hand| {
+            use mcrust::net::minecraft::world::entity::player::player::Player as _;
+            if !Utils::is_on_skyblock() {
+                return mcrust::net::minecraft::world::interaction_result::InteractionResult::Pass;
+            }
+            let stack = player.player().base.get_item_in_hand(hand);
+            if stack.is_item(&mcrust::net::minecraft::world::item::items::items().get("fishing_rod")) {
+                if player.player().fishing.is_none() {
+                    compat::set_state(&WAITING_FOR_BOBBER_TICKS, BOBBER_TIMEOUT_TICKS);
+                } else {
+                    compat::set_state(&WAITING_FOR_BOBBER_TICKS, 0);
+                    FishingHelper::reset();
+                }
+            }
+            mcrust::net::minecraft::world::interaction_result::InteractionResult::Pass
+        });
         client_tick_events::END_CLIENT_TICK.register(Arc::new(|minecraft: &mut Minecraft| {
             if mcrust::mcrust::modding::game::with_player(|_| ()).is_some() {
                 if compat::get_state(&WAITING_FOR_BOBBER_TICKS) > 0 {

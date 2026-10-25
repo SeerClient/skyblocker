@@ -11,7 +11,7 @@ use mcrust::net::minecraft::network::chat::mutable_component::MutableComponent;
 use mcrust::net::minecraft::resources::identifier::Identifier;
 
 /// java: private static final Font textRenderer = Minecraft.getInstance().font;
-pub static TEXT_RENDERER: compat::MainThread<Font> = compat::MainThread::new(|| compat::font());
+pub static TEXT_RENDERER: compat::LiveFont = compat::LiveFont;
 /// java: private static final Identifier TEXTURE = SkyblockerMod.id("textures/gui/profile_viewer/dungeons_body.png");
 pub static TEXTURE: compat::MainThread<Identifier> = compat::MainThread::new(|| crate::entry::skyblocker_mod::id("textures/gui/profile_viewer/dungeons_body.png"));
 /// java: private static final String[] DUNGEONS = {"catacombs", "master_catacombs"};
@@ -42,8 +42,8 @@ impl DungeonFloorRunsWidget {
     /// java: public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, int x, int y)
     pub fn extract_render_state(&self, graphics: &mut GuiGraphicsExtractor, mut mouse_x: i32, mut mouse_y: i32, mut x: i32, mut y: i32) {
         gui_graphics_extractor::blit_identifier(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), mcrust::net::minecraft::client::renderer::render_pipelines::gui_textured(), TEXTURE.get_mut(), x, y, ((0) as f32) as f32, ((0) as f32) as f32, 109, 110, 109, 110);
-        // TODO(fabric2seer): `.getRGB(..)` on a value of unknown type
-        //   java: graphics.text(textRenderer, Component.literal("Floor Runs").withStyle(ChatFormatting.BOLD), x + 6, y + 4, Color.WHITE.getRGB(), true);
+        // java: graphics.text(textRenderer, Component.literal("Floor Runs").withStyle(ChatFormatting.BOLD), x + 6, y + 4, Color.WHITE.getRGB(), true);
+        gui_graphics_extractor::draw_formatted_text_with_drop_shadow(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), &mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::literal("Floor Runs").with_style_format(ChatFormatting::Bold)), x.wrapping_add(6), y.wrapping_add(4), mcrust::java::awt::color::white().get_rgb(), true);
         let mut column_x: i32 = x.wrapping_add(4);
         let mut element_y: i32 = y.wrapping_add(15);
         for dungeon in DUNGEONS.iter() {
@@ -77,9 +77,8 @@ impl DungeonFloorRunsWidget {
                         if fastest_times.is_some() && compat::json::has(&fastest_times.as_ref().unwrap(), &entry.0) && (tooltip_text.len() as i32) == 1 {
                             tooltip_text.push((component::literal(&format!("Completion:  {}", self.format_time(compat::json::get_as_long(&fastest_times.as_ref().unwrap().get(&entry.0).cloned().unwrap()))))).with_style_format(ChatFormatting::Gold));
                         }
-                        // TODO(fabric2seer): the port's `set_component_tooltip_for_next_frame` ports this Java method with other parameters (tooltip_for_next_frame, lines for Java's lines, xo, yo)
-                        // TODO(fabric2seer): `set_component_tooltip_for_next_frame` takes 2 argument(s) in the port (`tooltip_for_next_frame: &mut Option<DeferredTooltip>, lines: Vec<crate::net::minecraft::network::chat::formatted_text::FormattedText>`), Java passes 4
-                        // rust: gui_graphics_extractor::set_component_tooltip_for_next_frame(TEXT_RENDERER.get_mut(), tooltip_text.clone(), mouse_x, mouse_y);
+                        // java: graphics.setComponentTooltipForNextFrame(textRenderer, tooltipText, mouseX, mouseY); - the frame's deferred tooltip (drawn at the mouse)
+                        compat::batch_s_set_tooltip_for_next_frame(tooltip_text.iter().cloned().map(mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from).collect());
                     }
                     element_y = element_y.wrapping_add(11);
                 }

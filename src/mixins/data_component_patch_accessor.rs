@@ -4,14 +4,20 @@
 #[allow(unused_imports)]
 use crate::prelude::*;
 
-/// @Accessor getMap -> net.minecraft.core.component.DataComponentPatch.map
-// TODO(fabric2seer): `Reference2ObjectMap<DataComponentType<?>, Optional<?>>` - return `&obj.map` with its Rust type
-// pub fn get_map(obj: &mcrust::net::minecraft::core::component::data_component_patch::DataComponentPatch) -> &T { &obj.map }
+use mcrust::net::minecraft::core::component::data_component_patch::{DataComponentPatch, PatchMap};
 
-/// @Invoker invokeInit -> net.minecraft.core.component.DataComponentPatch.<init>
-// @Invoker: native mods call the method directly: `obj.<init>(..)` (or `mcrust::net::minecraft::core::component::data_component_patch::DataComponentPatch::<init>(..)`)
+/// @Accessor getMap -> net.minecraft.core.component.DataComponentPatch.map
+/// (`Reference2ObjectMap<DataComponentType<?>, Optional<?>>` is the port's `PatchMap`: `(type, Some(value) | None)` pairs.)
+pub fn get_map(obj: &DataComponentPatch) -> &PatchMap {
+    obj.entry_set()
+}
+
+/// @Invoker invokeInit -> net.minecraft.core.component.DataComponentPatch.<init>(Reference2ObjectMap)
+pub fn invoke_init(map: PatchMap) -> DataComponentPatch {
+    DataComponentPatch::new(map)
+}
 
 /// Mixins apply before the game runs: the `preLaunch` entrypoint calls this.
 pub fn register() {
-    // (nothing to register)
+    // (nothing to register: accessors are plain functions)
 }

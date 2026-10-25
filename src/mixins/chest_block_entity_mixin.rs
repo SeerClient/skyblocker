@@ -15,8 +15,10 @@ fn skyblocker_on_synced_block_event(ci: &mut CallbackInfo<'_>) {
     if r#type != 1 || data <= 0 {
         return;
     }
-    // TODO(fabric2seer): unknown name `worldPosition`
-    //   java: DungeonManager.onChestOpened(worldPosition);
+    // java: DungeonManager.onChestOpened(worldPosition); - `worldPosition` is `BlockEntity`'s field, reached through the
+    // port's `extends` chain (ChestBlockEntity -> RandomizableContainerBlockEntity -> BaseContainerBlockEntity -> BlockEntity).
+    let world_position = this.randomizable.container.base.get_block_pos();
+    crate::de::hysky::skyblocker::skyblock::dungeon::secrets::dungeon_manager::DungeonManager::on_chest_opened(&world_position);
 }
 
 /// Mixins apply before the game runs: the `preLaunch` entrypoint calls this.

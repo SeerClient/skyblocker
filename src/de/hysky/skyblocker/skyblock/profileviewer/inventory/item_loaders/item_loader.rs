@@ -82,9 +82,15 @@ impl dyn ItemLoader {
                 item_list.push(mcrust::net::minecraft::world::item::item_stack::empty());
                 continue;
             }
-            // TODO(fabric2seer): `.set(..)` on a value of unknown type
-            //   java: ItemStack stack = LegacyItemStackFixer.fixLegacyStack(nbt, ItemStack.CODEC, ItemStack.EMPTY, ItemStack::set);
-            let mut stack: mcrust::net::minecraft::world::item::item_stack::ItemStack = todo!("fabric2seer: the initialiser of `stack` (TODO above)");
+            // java: ItemStack stack = LegacyItemStackFixer.fixLegacyStack(nbt, ItemStack.CODEC, ItemStack.EMPTY, ItemStack::set);
+            let mut stack: mcrust::net::minecraft::world::item::item_stack::ItemStack = crate::de::hysky::skyblocker::utils::datafixer::legacy_item_stack_fixer::LegacyItemStackFixer::fix_legacy_stack(
+                &nbt,
+                &mcrust::net::minecraft::world::item::item_stack::codec(),
+                &mcrust::net::minecraft::world::item::item_stack::empty(),
+                &|s: &mut mcrust::net::minecraft::world::item::item_stack::ItemStack, r#type, value| {
+                    s.set(r#type, Some(value));
+                },
+            );
             if stack.is_empty() {
                 let mut fallback: mcrust::net::minecraft::world::item::item_stack::ItemStack = FlexibleItemStack::get_stack_or_throw(ico::BARRIER.get_mut()).copy();
                 fallback.set(mcrust::net::minecraft::core::component::data_components::custom_name().clone(), Some(mcrust::com::mojang::serialization::obj(mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::literal(&format!("Error: {}", compat::optional_string(&nbt.get_compound_or_empty("tag").get_compound_or_empty("ExtraAttributes").get_string_opt("id"))))))));
@@ -100,8 +106,13 @@ impl dyn ItemLoader {
                 continue;
             }
             if stack.has(mcrust::net::minecraft::core::component::data_components::custom_data()) {
-                // TODO(fabric2seer): `.putBoolean(..)` on a T
-                //   java: customData.put("aaron-mod", Util.make(new CompoundTag(), comp -> comp.putBoolean("alwaysDisplaySkyblockInfo", true)));
+                // java: customData.put("aaron-mod", Util.make(new CompoundTag(), comp -> comp.putBoolean("alwaysDisplaySkyblockInfo", true)));
+                // (`ItemUtils.getCustomData` is the stack's own `CustomData` tag in Java, so the put lands in the stack; the port's is
+                // a copy, which is written back)
+                let mut aaron_mod: Tag = Tag::compound();
+                aaron_mod.put_boolean("alwaysDisplaySkyblockInfo", true);
+                custom_data.put("aaron-mod", aaron_mod);
+                stack.set(mcrust::net::minecraft::core::component::data_components::custom_data().clone(), Some(mcrust::com::mojang::serialization::obj(mcrust::net::minecraft::world::item::component::custom_data::CustomData::of(&custom_data))));
             }
             item_list.push(stack.clone());
         }

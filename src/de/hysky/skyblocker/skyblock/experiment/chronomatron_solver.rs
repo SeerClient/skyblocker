@@ -21,19 +21,6 @@ use mcrust::net::minecraft::world::item::item::Item;
 use mcrust::net::minecraft::client::gui::screens::inventory::abstract_container_screen::ContainerScreenHost as _;
 use mcrust::net::minecraft::network::chat::component::Component as _;
 
-// TODO(fabric2seer): static call Object2ObjectMap.ofEntries(..)
-//   java: public static final Object2ObjectMap<Item, Item> TERRACOTTA_TO_GLASS = Object2ObjectMap.ofEntries(
-//   java: 			Object2ObjectMap.entry(Items.DYED_TERRACOTTA.red(), Items.STAINED_GLASS.red()),
-//   java: 			Object2ObjectMap.entry(Items.DYED_TERRACOTTA.orange(), Items.STAINED_GLASS.orange()),
-//   java: 			Object2ObjectMap.entry(Items.DYED_TERRACOTTA.yellow(), Items.STAINED_GLASS.yellow()),
-//   java: 			Object2ObjectMap.entry(Items.DYED_TERRACOTTA.lime(), Items.STAINED_GLASS.lime()),
-//   java: 			Object2ObjectMap.entry(Items.DYED_TERRACOTTA.green(), Items.STAINED_GLASS.green()),
-//   java: 			Object2ObjectMap.entry(Items.DYED_TERRACOTTA.cyan(), Items.STAINED_GLASS.cyan()),
-//   java: 			Object2ObjectMap.entry(Items.DYED_TERRACOTTA.lightBlue(), Items.STAINED_GLASS.lightBlue()),
-//   java: 			Object2ObjectMap.entry(Items.DYED_TERRACOTTA.blue(), Items.STAINED_GLASS.blue()),
-//   java: 			Object2ObjectMap.entry(Items.DYED_TERRACOTTA.purple(), Items.STAINED_GLASS.purple()),
-//   java: 			Object2ObjectMap.entry(Items.DYED_TERRACOTTA.pink(), Items.STAINED_GLASS.pink())
-//   java: 	);
 /// java: public static final Object2ObjectMap<Item, Item> TERRACOTTA_TO_GLASS = Object2ObjectMap.ofEntries( Object2ObjectMap.entry(Items.DYED_TERRACOTTA.red(), Items.STAINED_GLASS.red()), Object2ObjectMap.entr
 /// (`Item` keeps `Object.equals`: the map is its entries, looked up by identity)
 pub static TERRACOTTA_TO_GLASS: compat::MainThread<Vec<(Arc<Item>, Arc<Item>)>> = compat::MainThread::new(|| {
@@ -51,7 +38,12 @@ pub struct ChronomatronSolver {
     /// java: extends ExperimentSolver
     pub base: ExperimentSolverBase,
     /// java: private @Nullable AbstractContainerScreen<?> screen;
+    /// (the port lends the mod no handle to the game's screen object; what `start` keeps of it is its menu's listener,
+    /// `slot_changes`, and `screen != null` is `slot_changes.is_some()`)
     pub screen: Option<AbstractContainerScreen>,
+    /// The `slotChanged` calls `screen.getMenu()` made to this listener (`addSlotListener(this)` in `start`), queued by
+    /// the menu inside the game's hold of the player and run by this solver's next `tick`.
+    pub slot_changes: Option<compat::SlotChangeQueue>,
     /// java: private final List<Item> chronomatronSlots = new ArrayList<>();
     pub chronomatron_slots: Vec<Arc<Item>>,
     /// java: private int chronomatronChainLengthCount;
@@ -87,6 +79,7 @@ impl ChronomatronSolver {
                 base: __base,
                 self_ref: std::sync::Weak::new(),
                 screen: None,
+                slot_changes: None,
                 chronomatron_slots: Vec::new(),
                 chronomatron_chain_length_count: 0,
                 chronomatron_current_slot: 0,
@@ -100,7 +93,9 @@ impl ChronomatronSolver {
     }
 
     /// java: @SuppressWarnings("incomplete-switch") @Override public void slotChanged(AbstractContainerMenu handler, int slotId, ItemStack stack)
-    pub fn slot_changed(__this: &compat::Shared<Self>, handler: &AbstractContainerMenu, mut slot_id: i32, stack: &mcrust::net::minecraft::world::item::item_stack::ItemStack) {
+    ///
+    /// `handler` is the menu the call came from (not read); the queued calls are run without it.
+    pub fn slot_changed(__this: &compat::Shared<Self>, handler: Option<&AbstractContainerMenu>, mut slot_id: i32, stack: &mcrust::net::minecraft::world::item::item_stack::ItemStack) {
         if slot_id < 17 || slot_id > (if compat::read(__this, |__t| __t.is_single_row) { 25 } else { 34 }) && slot_id != 49 {
             return;
         }
@@ -148,7 +143,7 @@ impl ChronomatronSolver {
     }
 
     /// java: @Override public void dataChanged(AbstractContainerMenu handler, int property, int value)
-    pub fn data_changed(__this: &compat::Shared<Self>, handler: &AbstractContainerMenu, mut property: i32, mut value: i32) {
+    pub fn data_changed(__this: &compat::Shared<Self>, handler: Option<&AbstractContainerMenu>, mut property: i32, mut value: i32) {
     }
 
 }
@@ -217,7 +212,7 @@ impl ContainerMatcher for ChronomatronSolver {
 
 impl ContainerSolver for ChronomatronSolver {
     /// java: @Override public List<ColorHighlight> getColors(Int2ObjectMap<ItemStack> slots) (dispatch: the body for this class)
-    fn get_colors(&self) -> fn(&compat::Shared<dyn ContainerSolver>, &mut std::collections::HashMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack>) -> Vec<ColorHighlight> {
+    fn get_colors(&self) -> fn(&compat::Shared<dyn ContainerSolver>, &mut std::collections::BTreeMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack>) -> Vec<ColorHighlight> {
         ChronomatronSolver::get_colors_dyn
     }
 
@@ -270,6 +265,13 @@ impl ChronomatronSolver {
 
     /// java: @Override protected void tick(AbstractContainerScreen<?> screen)
     pub fn tick_impl(__this: &compat::Shared<Self>, screen: &AbstractContainerScreen) {
+        // (the body is empty in Java; the menu's `slotChanged` calls since the last tick run here - see `slot_changes`)
+        let Some(queue) = compat::read(__this, |__t| __t.slot_changes.clone()) else {
+            return;
+        };
+        for (slot_id, stack) in compat::take_slot_changes(&queue) {
+            ChronomatronSolver::slot_changed(__this, None, slot_id, &stack);
+        }
     }
 
     /// ChronomatronSolver.tick as the dispatch of ExperimentSolver.tick
@@ -278,7 +280,7 @@ impl ChronomatronSolver {
     }
 
     /// java: @Override public List<ColorHighlight> getColors(Int2ObjectMap<ItemStack> slots)
-    pub fn get_colors_impl(__this: &compat::Shared<Self>, slots: &mut std::collections::HashMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack>) -> Vec<ColorHighlight> {
+    pub fn get_colors_impl(__this: &compat::Shared<Self>, slots: &mut std::collections::BTreeMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack>) -> Vec<ColorHighlight> {
         let mut highlights: Vec<ColorHighlight> = Vec::new();
         if ({ let __f = compat::dispatch(__this, |__t| __t.get_state()); __f(&compat::view(__this, |a| a as compat::Shared<dyn ExperimentSolver>)) }) == State::Show && (__this.lock().borrow().chronomatron_slots.len() as i32) > compat::read(__this, |__t| __t.chronomatron_current_ordinal) {
             for index_stack in slots.iter().map(|(k, v)| (k.clone(), v.clone())) {
@@ -294,7 +296,7 @@ impl ChronomatronSolver {
     }
 
     /// ChronomatronSolver.getColors as the dispatch of ContainerSolver.getColors
-    pub fn get_colors_dyn(__this: &compat::Shared<dyn ContainerSolver>, __p0: &mut std::collections::HashMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack>) -> Vec<ColorHighlight> {
+    pub fn get_colors_dyn(__this: &compat::Shared<dyn ContainerSolver>, __p0: &mut std::collections::BTreeMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack>) -> Vec<ColorHighlight> {
         Self::get_colors_impl(&compat::view_as::<Self, _, Self>(__this, |a| a), __p0)
     }
 
@@ -323,10 +325,13 @@ impl ChronomatronSolver {
     /// java: @Override public void start(AbstractContainerScreen<?> screen)
     pub fn start_impl(__this: &compat::Shared<Self>, screen: &AbstractContainerScreen) {
         <dyn ExperimentSolver>::start_body(&compat::view(__this, |a| a as compat::Shared<dyn ExperimentSolver>), screen);
-        // TODO(fabric2seer): the mod keeps the game's `AbstractContainerScreen` (Java holds a reference to the live object); the port's `AbstractContainerScreen` is not a value to copy and the port lends the mod no handle to it
-        // rust: { let __v = Some(screen.clone()); compat::write(__this, |__t| __t.screen = __v); }
-        // TODO(fabric2seer): `addSlotListener` on a Object
+        //   java: this.screen = screen;
         //   java: screen.getMenu().addSlotListener(this);
+        // (`screen.getMenu()` is the player's open menu)
+        let __queue: compat::SlotChangeQueue = Default::default();
+        if add_open_menu_slot_listener(Box::new(compat::QueueSlotListener { pending: __queue.clone(), name: "ChronomatronSolver" })) {
+            compat::write(__this, |__t| __t.slot_changes = Some(__queue));
+        }
         let mut title: String = screen.screen.get_title().to_string();
         { let __v = (title.ends_with("(High)") || title.ends_with("(Grand)") || title.ends_with("(Supreme)")); compat::write(__this, |__t| __t.is_single_row = __v); }
     }
@@ -342,9 +347,9 @@ impl ChronomatronSolver {
         { let __v = 0; compat::write(__this, |__t| __t.chronomatron_chain_length_count = __v); }
         { let __v = 0; compat::write(__this, |__t| __t.chronomatron_current_slot = __v); }
         { let __v = 0; compat::write(__this, |__t| __t.chronomatron_current_ordinal = __v); }
-        if compat::read(__this, |__t| __t.screen.is_some()) {
-            // TODO(fabric2seer): `removeSlotListener` on a Object
-            //   java: screen.getMenu().removeSlotListener(this);
+        //   java: if (screen != null) screen.getMenu().removeSlotListener(this);
+        if compat::read(__this, |__t| __t.slot_changes.is_some()) {
+            remove_open_menu_slot_listener();
         }
         <dyn ExperimentSolver>::reset_body(&compat::view(__this, |a| a as compat::Shared<dyn ExperimentSolver>));
     }
@@ -354,4 +359,34 @@ impl ChronomatronSolver {
         Self::reset_impl(&compat::view_as::<Self, _, Self>(__this, |a| a))
     }
 
+}
+
+/// `screen.getMenu().addSlotListener(listener)` on the player's open chest menu (the experiment table): the port's
+/// takes the `Containers` its `broadcastChanges` reads. `false` when there is no player or the open menu is not a chest.
+fn add_open_menu_slot_listener(listener: Box<dyn mcrust::net::minecraft::world::inventory::container_listener::ContainerListener>) -> bool {
+    use mcrust::net::minecraft::world::entity::player::player::Player as _;
+    mcrust::mcrust::modding::game::with_player(move |player| {
+        let (menu, _, inventory) = player.player_mut().get_container_menu_and_inventory();
+        match menu {
+            mcrust::net::minecraft::world::entity::player::player::ContainerMenu::Chest(chest) => {
+                let chest = &mut **chest;
+                let container_id = chest.menu.container_id;
+                let mut handler = std::mem::replace(&mut chest.menu, AbstractContainerMenu::new(container_id));
+                {
+                    let mut containers = chest.containers_for(inventory);
+                    handler.add_slot_listener(listener, &mut containers);
+                }
+                chest.menu = handler;
+                true
+            }
+            _ => false,
+        }
+    })
+    .unwrap_or(false)
+}
+
+/// `screen.getMenu().removeSlotListener(this)` on the player's open chest menu (the port's removes the menu's
+/// listeners, of which this solver's is the client's only one).
+fn remove_open_menu_slot_listener() {
+    mcrust::mcrust::modding::game::with_chest_menu(|chest| chest.menu.remove_slot_listener());
 }

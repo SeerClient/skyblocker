@@ -257,12 +257,18 @@ impl ShortcutsConfigScreen {
     }
 
     /// java: @Override public boolean mouseClicked(MouseButtonEvent click, boolean doubled)
-    /// (`super.mouseClicked` - the widget sweep - is the game's, which runs when this answers `false`; the list's own
-    /// `mouseClicked` override runs its half there)
+    /// - reached when no child is under the cursor (`super.mouseClicked` - `ContainerEventHandler.mouseClicked`, whose
+    /// `getChildAt` finds none - answered `false`); a click on a child is the game's sweep, and the list's own
+    /// `mouseClicked` override runs these same lines when the click falls through it
+    /// (`ShortcutsConfigListWidget::mouse_clicked_body`)
     pub fn mouse_clicked(__this: &compat::Shared<Self>, _click: &MouseButtonEvent, _doubled: bool) -> bool {
-        // rust: Java runs `super.mouseClicked` FIRST and the lines below only when no widget took the click; the port's
-        //   sweep runs after this method, so they run from the sweep's `false` answer instead: a click outside every widget
-        //   is the list's `mouseClicked` falling through (`ShortcutsConfigListWidget::mouse_clicked_body`)
+        // java: if (super.mouseClicked(click, doubled)) return true; - false here (see above)
+        // java: if (shortcutsConfigListWidget.stopEditing()) shortcutsConfigListWidget.updateKeybinds();
+        if ShortcutsConfigScreen::with_list(__this, |list| ShortcutsConfigListWidget::stop_editing(list)) {
+            ShortcutsConfigScreen::with_list(__this, |list| ShortcutsConfigListWidget::update_keybinds(list, None));
+        }
+        // java: checkForDuplicates();
+        ShortcutsConfigScreen::check_for_duplicates(__this);
         return false;
     }
 
@@ -396,6 +402,11 @@ impl ModScreen for compat::ScreenAdapter<ShortcutsConfigScreen> {
 
     /// java: @Override public boolean mouseClicked(MouseButtonEvent click, boolean doubled)
     fn mouse_clicked(&mut self, screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, x: f64, y: f64, button: i32) -> bool {
+        // `super.mouseClicked` first: a child under the cursor takes the click through the game's sweep (this answers
+        // `false` to let it run); with none, Java's own lines run here
+        if screen.get_child_at(x, y).is_some() {
+            return false;
+        }
         self.lend(screen, |__h| ShortcutsConfigScreen::mouse_clicked(__h, &MouseButtonEvent::new(x, y, MouseButtonInfo::new(button, 0)), false))
     }
 

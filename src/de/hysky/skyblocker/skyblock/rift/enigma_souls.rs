@@ -167,35 +167,44 @@ impl EnigmaSouls {
     }
 
     /// java: static void registerCommands(CommandDispatcher<FabricClientCommandSource> dispatcher, CommandBuildContext registryAccess)
-    pub fn register_commands(dispatcher: &CommandDispatcher<crate::unresolved::FabricClientCommandSource>, registry_access: &CommandBuildContext) {
-        // TODO(fabric2seer): a command builder outside dispatcher.register(..)
-        //   java: dispatcher.register(literal(SkyblockerMod.NAMESPACE)
-        //   java: 				.then(literal("rift")
-        //   java: 						.then(literal("enigmaSouls")
-        //   java: 								.then(literal("markAllFound").executes(context -> {
-        //   java: 									SOUL_WAYPOINTS.values().forEach(Waypoint::setFound);
-        //   java: 									context.getSource().sendFeedback(Constants.PREFIX.get().append(Component.translatable("skyblocker.rift.enigmaSouls.markAllFound")));
-        //   java:
-        //   java: 									return Command.SINGLE_SUCCESS;
-        //   java: 								}))
-        //   java: 								.then(literal("markAllMissing").executes(context -> {
-        //   java: 									SOUL_WAYPOINTS.values().forEach(Waypoint::setMissing);
-        //   java: 									context.getSource().sendFeedback(Constants.PREFIX.get().append(Component.translatable("skyblocker.rift.enigmaSouls.markAllMissing")));
-        //   java:
-        //   java: 									return Command.SINGLE_SUCCESS;
-        //   java: 								}))
-        //   java: 								.then(literal("markClosestFound").executes(context -> {
-        //   java: 									markClosestSoul(true);
-        //   java: 									context.getSource().sendFeedback(Constants.PREFIX.get().append(Component.translatable("skyblocker.rift.enigmaSouls.markClosestFound")));
-        //   java:
-        //   java: 									return Command.SINGLE_SUCCESS;
-        //   java: 								}))
-        //   java: 								.then(literal("markClosestMissing").executes(context -> {
-        //   java: 									markClosestSoul(false);
-        //   java: 									context.getSource().sendFeedback(Constants.PREFIX.get().append(Component.translatable("skyblocker.rift.enigmaSouls.markClosestMissing")));
-        //   java:
-        //   java: 									return Command.SINGLE_SUCCESS;
-        //   java: 								})))));
+    pub fn register_commands(dispatcher: &CommandDispatcher<crate::prelude::client_command_registration_callback::FabricClientCommandSource>, registry_access: Option<&CommandBuildContext>) {
+        //   java: dispatcher.register(literal(SkyblockerMod.NAMESPACE).then(literal("rift").then(literal("enigmaSouls")
+        //   java:     .then(literal("markAllFound")..).then(literal("markAllMissing")..).then(literal("markClosestFound")..).then(literal("markClosestMissing")..))));
+        use mcrust::com::mojang::brigadier::builder::argument_builder::ArgumentBuilder as _;
+        use crate::prelude::client_command_registration_callback as ccr;
+        type Ctx = mcrust::com::mojang::brigadier::context::command_context::CommandContext<ccr::FabricClientCommandSource>;
+        let _ = registry_access;
+        fn feedback(key: &str) {
+            // java: context.getSource().sendFeedback(Constants.PREFIX.get().append(Component.translatable(key)));
+            compat::batch_w_send_feedback(&(crate::de::hysky::skyblocker::utils::constants::PREFIX.get())().append(mcrust::net::minecraft::network::chat::component::translatable(key)));
+        }
+        fn mark_all(found: bool) {
+            // java: SOUL_WAYPOINTS.values().forEach(Waypoint::setFound / Waypoint::setMissing);
+            let souls: Vec<compat::Shared<dyn ProfileAwareWaypoint>> = SOUL_WAYPOINTS.get().values().cloned().collect();
+            for soul in souls {
+                let soul: compat::Shared<dyn Waypoint> = compat::view(&soul, |a| a as compat::Shared<dyn Waypoint>).clone();
+                let __f = if found { compat::dispatch(&soul, |__t| __t.set_found()) } else { compat::dispatch(&soul, |__t| __t.set_missing()) };
+                __f(&soul);
+            }
+        }
+        let mut mark_all_found = ccr::literal("markAllFound");
+        mark_all_found.executes(Arc::new(|_: &Ctx| { mark_all(true); feedback("skyblocker.rift.enigmaSouls.markAllFound"); Ok(1) }));
+        let mut mark_all_missing = ccr::literal("markAllMissing");
+        mark_all_missing.executes(Arc::new(|_: &Ctx| { mark_all(false); feedback("skyblocker.rift.enigmaSouls.markAllMissing"); Ok(1) }));
+        let mut mark_closest_found = ccr::literal("markClosestFound");
+        mark_closest_found.executes(Arc::new(|_: &Ctx| { EnigmaSouls::mark_closest_soul(true); feedback("skyblocker.rift.enigmaSouls.markClosestFound"); Ok(1) }));
+        let mut mark_closest_missing = ccr::literal("markClosestMissing");
+        mark_closest_missing.executes(Arc::new(|_: &Ctx| { EnigmaSouls::mark_closest_soul(false); feedback("skyblocker.rift.enigmaSouls.markClosestMissing"); Ok(1) }));
+        let mut enigma_souls = ccr::literal("enigmaSouls");
+        enigma_souls.then(&mark_all_found);
+        enigma_souls.then(&mark_all_missing);
+        enigma_souls.then(&mark_closest_found);
+        enigma_souls.then(&mark_closest_missing);
+        let mut rift = ccr::literal("rift");
+        rift.then(&enigma_souls);
+        let mut root = ccr::literal(skyblocker_mod::NAMESPACE);
+        root.then(&rift);
+        dispatcher.register(&root);
     }
 
     /// java: private static void markClosestSoul(boolean asFound)

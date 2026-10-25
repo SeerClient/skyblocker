@@ -28,7 +28,7 @@ pub static BAR_FILL: compat::MainThread<Identifier> = compat::MainThread::new(||
 /// java: private static final Identifier BAR_BACK = SkyblockerMod.id("bars/bar_back");
 pub static BAR_BACK: compat::MainThread<Identifier> = compat::MainThread::new(|| crate::entry::skyblocker_mod::id("bars/bar_back"));
 /// java: private static final Font textRenderer = Minecraft.getInstance().font;
-pub static TEXT_RENDERER: compat::MainThread<Font> = compat::MainThread::new(|| compat::font());
+pub static TEXT_RENDERER: compat::LiveFont = compat::LiveFont;
 /// java: private static final Map<String, FlexibleItemStack> CLASS_ICON = Map.ofEntries( Map.entry("Healer", Ico.S_POTION), Map.entry("Mage", Ico.B_ROD), Map.entry("Berserk", Ico.IRON_SWORD), Map.entry("Archer
 pub static CLASS_ICON: compat::MainThread<std::collections::HashMap<String, compat::Shared<FlexibleItemStack>>> = compat::MainThread::new(|| std::collections::HashMap::from([("Healer".to_string(), ico::S_POTION.get_mut().clone()), ("Mage".to_string(), ico::B_ROD.get_mut().clone()), ("Berserk".to_string(), ico::IRON_SWORD.get_mut().clone()), ("Archer".to_string(), ico::BOW.get_mut().clone()), ("Tank".to_string(), ico::CHESTPLATE.get_mut().clone())]));
 
@@ -78,8 +78,8 @@ impl DungeonClassWidget {
         if self.active {
             ItemProtection::draw_slot_icon(graphics, x.wrapping_add(3), y.wrapping_add(5));
         }
-        // TODO(fabric2seer): `.getRGB(..)` on a value of unknown type
-        //   java: graphics.text(textRenderer, className + " " + classLevel.level, x + 31, y + 5, Color.WHITE.getRGB(), false);
+        // java: graphics.text(textRenderer, className + " " + classLevel.level, x + 31, y + 5, Color.WHITE.getRGB(), false);
+        gui_graphics_extractor::draw_formatted_text_with_drop_shadow(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), &mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(component::literal(&format!("{} {}", self.class_name, compat::read(self.class_level.as_ref().unwrap(), |__t| __t.level)))), x.wrapping_add(31), y.wrapping_add(5), mcrust::java::awt::color::white().get_rgb(), false);
         let mut fill_color: Color = (if compat::read(self.class_level.as_ref().unwrap(), |__t| __t.level) >= CLASS_CAP { mcrust::java::awt::color::magenta() } else { mcrust::java::awt::color::green() });
         gui_graphics_extractor::blit_sprite_identifier(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), mcrust::net::minecraft::client::renderer::render_pipelines::gui_textured(), BAR_BACK.get_mut(), x.wrapping_add(30), y.wrapping_add(15), 75, 6);
         GuiHelper::nine_slice_colored_gui_graphics_extractor_identifier_int_int_int_int_color(graphics, BAR_FILL.get_mut(), x.wrapping_add(30), y.wrapping_add(15), ((((75 as f64) * compat::read(self.class_level.as_ref().unwrap(), |__t| __t.fill))) as i32), 6, &fill_color);
@@ -87,9 +87,8 @@ impl DungeonClassWidget {
             let mut tooltip_text: Vec<MutableComponent> = Vec::new();
             tooltip_text.push(component::literal(&self.class_name).with_style_format(ChatFormatting::Green));
             tooltip_text.push((component::literal(&format!("XP: {}", formatters::INTEGER_NUMBERS.get_mut().format((compat::read(self.class_level.as_ref().unwrap(), |__t| __t.xp)) as f64)))).with_style_format(ChatFormatting::Gold));
-            // TODO(fabric2seer): the port's `set_component_tooltip_for_next_frame` ports this Java method with other parameters (tooltip_for_next_frame, lines for Java's lines, xo, yo)
-            // TODO(fabric2seer): `set_component_tooltip_for_next_frame` takes 2 argument(s) in the port (`tooltip_for_next_frame: &mut Option<DeferredTooltip>, lines: Vec<crate::net::minecraft::network::chat::formatted_text::FormattedText>`), Java passes 4
-            // rust: gui_graphics_extractor::set_component_tooltip_for_next_frame(TEXT_RENDERER.get_mut(), tooltip_text.clone(), mouse_x, mouse_y);
+            // java: graphics.setComponentTooltipForNextFrame(textRenderer, tooltipText, mouseX, mouseY); - the frame's deferred tooltip (drawn at the mouse)
+            compat::batch_s_set_tooltip_for_next_frame(tooltip_text.iter().cloned().map(mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from).collect());
         }
     }
 

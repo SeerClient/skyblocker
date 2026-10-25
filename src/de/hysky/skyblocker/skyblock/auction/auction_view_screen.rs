@@ -144,9 +144,10 @@ impl AuctionViewScreen {
     fn string_widget(__this: &compat::Shared<Self>, message: MutableComponent) -> AbstractWidget {
         let max_width = compat::read(__this, |__t| __t.image_width) - 10;
         let mut widget = compat::string_widget(0, 0, -1, 9, message);
+        widget.set_max_width(max_width, mcrust::net::minecraft::client::gui::components::string_widget::TextOverflow::Scrolling);
+        // `StringWidget.getWidth()` with a max width: `min(maxWidth, font.width(message))` (the port's widget keeps the
+        // box in `width`)
         if widget.get_width() > max_width {
-            // rust: port gap - `StringWidget.TextOverflow.SCROLLING` (the text scrolling inside the box) is not a mode of
-            // the game's string widget, which clips (GAPS_N #5)
             widget.width = max_width;
         }
         widget
@@ -155,7 +156,16 @@ impl AuctionViewScreen {
     /// `widget.setMessage(message)` on one of the screen's widgets (a `StringWidget` keeps its `setMaxWidth` box)
     fn set_message(__this: &compat::Shared<Self>, index: Option<usize>, message: MutableComponent) {
         let Some(index) = index else { return; };
-        compat::write(__this, |__t| __t.screen.widget_mut(index).set_message_text(FormattedText::from(message)));
+        // (`StringWidget.setMessage` marks the cached width dirty: `getWidth()` is `min(maxWidth, font.width(message))`
+        // again)
+        let text_width = compat::font().width_of(&FormattedText::from(message.clone()));
+        compat::write(__this, |__t| {
+            let widget = __t.screen.widget_mut(index);
+            widget.set_message_text(FormattedText::from(message));
+            if widget.max_width > 0 {
+                widget.width = widget.max_width.min(text_width);
+            }
+        });
     }
 
     /// `widget.active = active` / `widget.visible = visible` on one of the screen's widgets
@@ -355,9 +365,19 @@ impl AuctionViewScreen {
         // java: super.extractTooltip(graphics, x, y); - the game's (the hovered slot's tooltip)
         if x > (compat::read(__this, |__t| __t.left_pos)).wrapping_add(75) && x < ((compat::read(__this, |__t| __t.left_pos)).wrapping_add(75)).wrapping_add(26) && y > (compat::read(__this, |__t| __t.top_pos)).wrapping_add(13) && y < ((compat::read(__this, |__t| __t.top_pos)).wrapping_add(13)).wrapping_add(26) {
             // java: ItemStack itemStack = menu.getSlot(13).getItem(); graphics.setTooltipForNextFrame(this.font, itemStack, x, y);
-            let _item_stack: ItemStack = AuctionViewScreen::auctioned_item(__this);
-            // rust: port gap (GAPS_batchE #1) - `setTooltipForNextFrame` from a mod screen's draw: the frame's deferred
-            // tooltip is not reachable from a `ModContainerScreen`
+            let item_stack: ItemStack = AuctionViewScreen::auctioned_item(__this);
+            // `setTooltipForNextFrame(font, stack, x, y)` is `setTooltipForNextFrame(font, Screen.getTooltipFromItem(minecraft,
+            // stack), stack.getTooltipImage(), x, y, stack.get(TOOLTIP_STYLE))`: the lines parked in the frame's deferred
+            // slot (`compat::batch_s_set_tooltip_for_next_frame`, which carries lines only - no image, default style)
+            {
+                let level = mcrust::mcrust::modding::game::level();
+                let flag = mcrust::net::minecraft::client::gui::screens::inventory::abstract_container_screen::tooltip_flag_from_options();
+                let lines = mcrust::mcrust::modding::game::with_player(|player| {
+                    mcrust::net::minecraft::client::gui::screens::inventory::abstract_container_screen::get_tooltip_from_item(&item_stack, level.as_deref(), Some(&*player as &dyn mcrust::net::minecraft::world::entity::player::player::Player), flag)
+                })
+                .unwrap_or_else(|| mcrust::net::minecraft::client::gui::screens::inventory::abstract_container_screen::get_tooltip_from_item(&item_stack, level.as_deref(), None, flag));
+                compat::batch_s_set_tooltip_for_next_frame(lines);
+            }
         }
     }
 
@@ -449,21 +469,24 @@ impl AuctionViewScreen {
     /// java: public PopupScreen getConfirmPurchasePopup(Component title)
     ///
     /// `new PopupScreen.Builder(this, title).addButton(..confirm.., _ -> click slot 11).addButton(..cancel..,
-    /// PopupScreen::onClose).addMessage(..price..).onClose(() -> click slot 15).build()` - the game's confirm dialog as a
-    /// mod screen (`compat::ConfirmScreen`): its first button clicks slot 11, its second and Escape are the popup's
-    /// `onClose`, which clicks slot 15.
-    /// (rust: port gap - GAPS_L G3: the game's `PopupScreen` cannot be built by a mod. `onClose`'s `setScreen(this)`
-    /// back to the auction view is left to the server, which answers the click on slot 15 with the auction view's menu.)
-    pub fn get_confirm_purchase_popup(__this: &compat::Shared<Self>, title: &MutableComponent) -> compat::ConfirmScreen {
+    /// PopupScreen::onClose).addMessage(..price..).onClose(() -> click slot 15).build()` (the popup is opened over this
+    /// screen, which the game's screen stack keeps as its background)
+    pub fn get_confirm_purchase_popup(__this: &compat::Shared<Self>, title: &MutableComponent) -> compat::BatchUPopupScreen {
         let (is_bin, price_text) = compat::read(__this, |__t| (__t.is_bin_auction, __t.price_text.clone()));
-        let message = (if is_bin { component::translatable("skyblocker.fancyAuctionHouse.price") } else { component::translatable("skyblocker.fancyAuctionHouse.newBid") }).append_str(" ").append(price_text);
+        // This really shouldn't be possible to be null in its ACTUAL use case.
+        // java: this.minecraft.gameMode.handleContainerInput(this.minecraft.player.containerMenu.containerId, slot,
+        //   ContainerUtils.getContainerClickButton(InputConstants.MOUSE_BUTTON_LEFT), ContainerInput.PICKUP, minecraft.player);
         let click = |slot: i32| {
-            // java: this.minecraft.gameMode.handleContainerInput(this.minecraft.player.containerMenu.containerId, slot, ContainerUtils.getContainerClickButton(InputConstants.MOUSE_BUTTON_LEFT), ContainerInput.PICKUP, minecraft.player);
             use mcrust::net::minecraft::world::entity::player::player::Player as _;
             let Some(container_id) = mcrust::mcrust::modding::game::with_player(|player| player.player().container_menu_container_id()) else { return; };
             compat::handle_container_input(container_id, slot, ContainerUtils::get_container_click_button(0), ContainerInput::Pickup);
         };
-        compat::ConfirmScreen::new(move |confirmed: bool| if confirmed { click(11) } else { click(15) }, title.clone(), message, component::translatable("text.skyblocker.confirm"), component::translatable("gui.cancel"))
+        compat::BatchUPopupScreenBuilder::new(title.clone())
+            .add_button(component::translatable("text.skyblocker.confirm"), move |_: &compat::BatchUPopupScreenRef| click(11))
+            .add_button(component::translatable("gui.cancel"), |popup: &compat::BatchUPopupScreenRef| popup.on_close())
+            .add_message((if is_bin { component::translatable("skyblocker.fancyAuctionHouse.price") } else { component::translatable("skyblocker.fancyAuctionHouse.newBid") }).append_str(" ").append(price_text))
+            .on_close(move || click(15))
+            .build()
     }
 
     /// java: @SuppressWarnings("deprecation") @Override public void onSlotChange(AuctionHouseScreenHandler handler, int slotId, ItemStack stack)
@@ -562,12 +585,18 @@ impl compat::ContainerHalf for AuctionViewScreen {
 impl ModContainerScreen for compat::ContainerScreenAdapter<AuctionViewScreen> {
     /// java: @Override protected void init()
     fn init(&mut self, screen: &mut AbstractContainerScreen) {
-        self.lend(screen, |__h| AuctionViewScreen::init(__h))
+        // `lend_init`: the constructor's geometry on the game's (vanilla chest) screen, and `super.init()`'s centring
+        self.lend_init(screen, |__h| AuctionViewScreen::init(__h))
     }
 
     /// java: @Override public void extractBackground(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a)
     fn extract_background(&mut self, screen: &AbstractContainerScreen, context: &mut WidgetRenderContext<'_>, mouse_x: i32, mouse_y: i32, a: f32, super_extract_background: &mut dyn FnMut()) {
-        compat::with_super(super_extract_background, || self.lend_ref(screen, |__h| AuctionViewScreen::extract_background(__h, &context.graphics, mouse_x, mouse_y, a)))
+        // `super.extractBackground` is `AbstractContainerScreen`'s (= `Screen`'s: the dimming), not the vanilla chest
+        // screen's `generic_54` panel the game hands as `super_extract_background`
+        let _ = super_extract_background;
+        let __ctx: &WidgetRenderContext<'_> = &*context;
+        let mut __super = || mcrust::mcrust::modding::container_screens::extract_abstract_container_screen_background(__ctx);
+        compat::with_super(&mut __super, || self.lend_ref(screen, |__h| AuctionViewScreen::extract_background(__h, &__ctx.graphics, mouse_x, mouse_y, a)))
     }
 
     /// java: @Override public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a)

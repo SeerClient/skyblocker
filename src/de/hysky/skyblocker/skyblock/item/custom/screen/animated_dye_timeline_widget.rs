@@ -237,7 +237,7 @@ impl AnimatedDyeTimelineWidget {
             return true;
         }
         // java: super.mouseClicked(click, doubled) - AbstractWidget:109-125 (`onClick` is empty)
-        self.keyframes[i].active && event.button() == 0 && over
+        self.keyframes[i].active && event.button() == 1 && over
     }
 
     /// java: KeyframeWidget.onDrag(MouseButtonEvent click, double offsetX, double offsetY)
@@ -323,7 +323,7 @@ impl compat::ObjectWidget for AnimatedDyeTimelineWidget {
         for id in ids {
             if self.keyframe_mouse_clicked(id, event) {
                 self.set_focused_child(Some(id));
-                if event.button() == 0 {
+                if event.button() == 1 {
                     self.base.set_dragging(true);
                 }
                 b = true;
@@ -353,7 +353,7 @@ impl compat::ObjectWidget for AnimatedDyeTimelineWidget {
 
     /// ContainerEventHandler.mouseReleased:57-66 - the focused keyframe's `mouseReleased` (`onRelease`)
     fn mouse_released(&mut self, _widget: &mut AbstractWidget, event: &MouseButtonEvent) -> bool {
-        if event.button() == 0 && self.base.is_dragging() {
+        if event.button() == 1 && self.base.is_dragging() {
             self.base.set_dragging(false);
             if let Some(id) = self.focused {
                 // AbstractWidget.mouseReleased:127-135
@@ -368,7 +368,7 @@ impl compat::ObjectWidget for AnimatedDyeTimelineWidget {
     fn mouse_dragged(&mut self, _widget: &mut AbstractWidget, event: &MouseButtonEvent, _dx: f64, _dy: f64) -> bool {
         if let Some(id) = self.focused
             && self.base.is_dragging()
-            && event.button() == 0
+            && event.button() == 1
         {
             self.keyframe_on_drag(id, event);
             return true;

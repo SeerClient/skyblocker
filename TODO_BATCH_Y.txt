@@ -1,0 +1,11 @@
+src/de/hysky/skyblocker/skyblock/tabhud/
+src/de/hysky/skyblocker/skyblock/item/
+src/de/hysky/skyblocker/compatibility/rei/
+src/
+src/de/hysky/skyblocker/utils/data/
+src/de/hysky/skyblocker/skyblock/radial_menu/
+src/de/hysky/skyblocker/skyblock/chocolatefactory/
+src/de/hysky/skyblocker/utils/command/
+src/de/hysky/skyblocker/utils/scheduler/
+src/de/hysky/skyblocker/skyblock/entity/
+src/de/hysky/skyblocker/skyblock/slayers/

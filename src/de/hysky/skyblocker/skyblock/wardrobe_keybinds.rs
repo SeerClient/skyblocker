@@ -82,8 +82,14 @@ impl WardrobeKeybinds {
             WardrobeKeybinds::allow_input(Arc::new(move |keybinding: mcrust::net::minecraft::client::key_mapping::KeyMapping| key_mapping::matches(keybinding.get_name(), &key_event)))
         }));
         //   java: ScreenMouseEvents.allowMouseClick(containerScreen).register((_, click) -> allowInput(client, containerScreen, keybinding -> keybinding.matchesMouse(click)));
-        // rust: port gap - `screen_mouse_events::ALLOW_MOUSE_CLICK` is not handed the button (`MouseButtonEvent`), so
-        // `keybinding.matchesMouse(click)` cannot be asked: a loadout bound to a mouse button does nothing (GAPS_K)
+        // (`ALLOW_MOUSE_BUTTON` is `allowMouseClick` for every button, with the whole `MouseButtonEvent`)
+        mcrust::mcrust::modding::events::screen_mouse_events::ALLOW_MOUSE_BUTTON.register(Arc::new(|_screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, click: &mcrust::net::minecraft::client::input::mouse_button_event::MouseButtonEvent, pressed: bool| {
+            if !pressed || !compat::get_state(&SCREEN_ACCEPTED) {
+                return true;
+            }
+            let button: i32 = click.button();
+            WardrobeKeybinds::allow_input(Arc::new(move |keybinding: mcrust::net::minecraft::client::key_mapping::KeyMapping| key_mapping::matches_mouse(keybinding.get_name(), button)))
+        }));
     }
 
     /// java: private static boolean allowInput(Minecraft minecraft, AbstractContainerScreen<?> containerScreen, Predicate<KeyMapping> predicate)

@@ -179,8 +179,8 @@ impl ItemTab {
                     }
                 });
                 // java: minecraft.gui.setScreen(new ModelSelectionPopup(parentScreen, applyItemModel));
-                // rust: port gap (GAPS_batchA #19) - the popup base keeps its background as the game's `Screen` value;
-                //   the screen that is up is held by the game (`set_screen_keeping_parent`) and an empty screen stands in
+                // Port note: the popup's background screen is the one the game holds under it (`set_screen_keeping_parent`);
+                //   the base's `Screen` field gets an empty stand-in
                 let popup = ModelSelectionPopup::new(mcrust::net::minecraft::client::gui::screens::screen::Screen::new(String::new()), apply_item_model);
                 mcrust::mcrust::modding::game::set_screen_keeping_parent(Box::new(compat::ScreenAdapter::new(popup)));
             })))
@@ -416,8 +416,8 @@ impl ItemSelector {
                     ItemTab::set_current_item(&tab, stack);
                 }
             });
-            // rust: port gap (GAPS_batchA #19) - the popup base keeps its background as the game's `Screen` value;
-            //   the screen that is up is held by the game (`set_screen_keeping_parent`) and an empty screen stands in
+            // Port note: the popup's background screen is the one the game holds under it (`set_screen_keeping_parent`);
+            //   the base's `Screen` field gets an empty stand-in
             let popup = ItemSelectPopup::new(mcrust::net::minecraft::client::gui::screens::screen::Screen::new(String::new()), callback);
             mcrust::mcrust::modding::game::set_screen_keeping_parent(Box::new(compat::ScreenAdapter::new(popup)));
         })))
@@ -481,7 +481,7 @@ impl compat::ObjectWidget for ItemSelector {
             compat::read(&tab, |tab| {
                 if (mouse_x as f32) >= x && (mouse_x as f32) < x + 32.0 && mouse_y >= y && mouse_y < y + 32 {
                     // java: graphics.setTooltipForNextFrame(currentItem.getHoverName(), mouseX, mouseY);
-                    // rust: port gap - the frame's deferred tooltip is not reachable from a mod widget (GAPS_batchE.md)
+                    compat::batch_s_set_tooltip_for_next_frame(vec![tab.current_item.get_hover_name()]);
                 }
                 // java: matrices.pushMatrix(); matrices.translate(x, y); matrices.scale(2); graphics.item(currentItem, 0, 0); matrices.popMatrix();
                 let saved = gui_graphics_extractor::push_pose();

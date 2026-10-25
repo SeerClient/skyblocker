@@ -73,3 +73,55 @@ impl SlayerBoss {
     }
 
 }
+
+impl SlayerBoss {
+    /// Gson's reflective binding of the class's own fields (`ReflectiveTypeAdapterFactory`): each member the
+    /// JSON has is read over the field it names (`@SerializedName`, else the field's name) with the field's declared
+    /// type; an absent member (or a `null` one, or one Gson would reject) leaves the constructor's value.
+    pub fn read_json_fields(&mut self, json: &serde_json::Value) {
+        #[allow(unused_imports)]
+        use crate::io::github::moulberry::repo::neu_repository::gson;
+        if let Some(__v) = gson::member(json, "claimed_levels") {
+            if let Some(__x) = gson::map(__v, gson::string_key, |__e0| gson::as_bool(__e0)) {
+                self.claimed_levels = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "boss_kills_tier_0") {
+            if let Some(__x) = gson::as_i32(__v) {
+                self.boss_kills0 = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "boss_kills_tier_1") {
+            if let Some(__x) = gson::as_i32(__v) {
+                self.boss_kills1 = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "boss_kills_tier_2") {
+            if let Some(__x) = gson::as_i32(__v) {
+                self.boss_kills2 = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "boss_kills_tier_3") {
+            if let Some(__x) = gson::as_i32(__v) {
+                self.boss_kills3 = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "boss_kills_tier_4") {
+            if let Some(__x) = gson::as_i32(__v) {
+                self.boss_kills4 = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "xp") {
+            if let Some(__x) = gson::as_i32(__v) {
+                self.xp = __x;
+            }
+        }
+    }
+
+    /// `GSON.fromJson(json, SlayerBoss.class)`: the no-argument constructor, then the fields.
+    pub fn from_json(json: &serde_json::Value) -> Self {
+        let mut __this = Self::new();
+        __this.read_json_fields(json);
+        __this
+    }
+}

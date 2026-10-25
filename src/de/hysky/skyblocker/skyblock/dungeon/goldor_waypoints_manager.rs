@@ -110,10 +110,12 @@ impl GoldorWaypointsManager {
     /// java: @Init public static void init()
     pub fn init() {
         level_render_extraction_callback::EVENT.register(Arc::new(move |__a0| { GoldorWaypointsManager::extract_rendering(&__a0); }));
-        // TODO(fabric2seer): no SeerClient event yet: hook RETURN of Minecraft's constructor (`net.minecraft.client.Minecraft#<init>`: exists)
-        //   java: ClientLifecycleEvents.CLIENT_STARTED.register(GoldorWaypointsManager::load);
-        // TODO(fabric2seer): ClientReceiveMessageEvents.ALLOW_GAME.register: no SeerClient equivalent yet
-        //   java: ClientReceiveMessageEvents.ALLOW_GAME.register(GoldorWaypointsManager::onChatMessage);
+        // java: ClientLifecycleEvents.CLIENT_STARTED.register(GoldorWaypointsManager::load);
+        // (CLIENT_STARTED fires once on the client thread after the `Minecraft` constructor: `compat::execute` from an
+        // entrypoint is that point)
+        compat::execute(|| GoldorWaypointsManager::load(compat::minecraft()));
+        // java: ClientReceiveMessageEvents.ALLOW_GAME.register(GoldorWaypointsManager::onChatMessage);
+        compat::register_allow_game(|text, overlay| GoldorWaypointsManager::on_chat_message(text, overlay));
         client_play_connection_events::JOIN.register(Arc::new(|listener: &mut ClientPacketListener| {
             GoldorWaypointsManager::reset();
         }));

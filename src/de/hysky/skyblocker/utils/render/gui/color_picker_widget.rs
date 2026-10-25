@@ -115,16 +115,14 @@ impl ColorPickerWidget {
     pub fn create_rainbow_colors(mut samples: i32) -> Vec<i32> {
         let mut rainbow_colors: Vec<i32> = vec![0; (samples) as usize];
         for i in 0..samples {
-            // TODO(fabric2seer): static `Color.HSBtoRGB` has no Rust counterpart in the port
-            // rust: rainbow_colors[(i) as usize] = Color::hs_bto_rgb((((i) as f32) / (samples as f32)), 1, 1);
+            rainbow_colors[(i) as usize] = mcrust::java::awt::color::Color::hsb_to_rgb((((i) as f32) / (samples as f32)), 1.0, 1.0);
         }
         return rainbow_colors;
     }
 
     /// java: @Override public void onRelease(MouseButtonEvent click)
     pub fn on_release(__this: &compat::Shared<Self>, click: &MouseButtonEvent) {
-        // TODO(fabric2seer): `AbstractWidget.onRelease` has no Rust method in the port (looked for `on_release` in AbstractWidget and its supertypes)
-        // rust: __this.lock().borrow_mut().base.on_release(click);
+        // java: super.onRelease(click); - `AbstractWidget.onRelease:103-104` is empty
         if (compat::read(__this, |__t| __t.dragging_h) || compat::read(__this, |__t| __t.dragging_sv) || compat::read(__this, |__t| __t.dragging_a)) && compat::read(__this, |__t| __t.on_color_change.clone()).is_some() {
             (compat::read(__this, |__t| __t.on_color_change.clone()).unwrap())((compat::read(__this, |__t| __t.argb_color) | compat::read(__this, |__t| __t.alpha_mask)), true);
         }
@@ -178,8 +176,7 @@ impl ColorPickerWidget {
 
     /// java: @Override public void onClick(MouseButtonEvent click, boolean doubled)
     pub fn on_click(__this: &compat::Shared<Self>, click: &MouseButtonEvent, mut doubled: bool) {
-        // TODO(fabric2seer): `AbstractWidget.onClick` has no Rust method in the port (looked for `on_click` in AbstractWidget and its supertypes)
-        // rust: __this.lock().borrow_mut().base.on_click(click, doubled);
+        // java: super.onClick(click, doubled); - `AbstractWidget.onClick:100-101` is empty
         let mut i: i32 = ((click.x()) as i32);
         let mut j: i32 = ((click.y()) as i32);
         if __this.lock().borrow().h_rect.as_ref().unwrap().contains_point(i, j) {
@@ -198,12 +195,10 @@ impl ColorPickerWidget {
 
     /// java: @Override protected void onDrag(MouseButtonEvent click, double deltaX, double deltaY)
     pub fn on_drag(__this: &compat::Shared<Self>, click: &MouseButtonEvent, mut delta_x: f64, mut delta_y: f64) {
-        // TODO(fabric2seer): `AbstractWidget.onDrag` has no Rust method in the port (looked for `on_drag` in AbstractWidget and its supertypes)
-        // rust: __this.lock().borrow_mut().base.on_drag(click, delta_x, delta_y);
+        // java: super.onDrag(click, deltaX, deltaY); - `AbstractWidget.onDrag:106-107` is empty
         if compat::read(__this, |__t| __t.dragging_h) {
             { let __v = (click.x() - (__this.lock().borrow().h_rect.as_ref().unwrap().left() as f64)).clamp((0 as f64), ((__this.lock().borrow().h_rect.as_ref().unwrap().width()).wrapping_sub(1) as f64)); compat::write(__this, |__t| __t.h_thumb_x = __v); }
-            // TODO(fabric2seer): static `Color.HSBtoRGB` has no Rust counterpart in the port
-            // rust: { let __v = Color::hs_bto_rgb((((compat::read(__this, |__t| __t.h_thumb_x) / ((__this.lock().borrow().h_rect.as_ref().unwrap().width()).wrapping_sub(1) as f64))) as f32), 1, 1); compat::write(__this, |__t| __t.sv_color = __v); }
+            { let __v = mcrust::java::awt::color::Color::hsb_to_rgb((((compat::read(__this, |__t| __t.h_thumb_x) / ((__this.lock().borrow().h_rect.as_ref().unwrap().width()).wrapping_sub(1) as f64))) as f32), 1.0, 1.0); compat::write(__this, |__t| __t.sv_color = __v); }
         }
         if compat::read(__this, |__t| __t.dragging_sv) {
             { let __v = (click.x() - (__this.lock().borrow().sv_rect.as_ref().unwrap().left() as f64)).clamp((0 as f64), ((__this.lock().borrow().sv_rect.as_ref().unwrap().width()).wrapping_sub(1) as f64)); compat::write(__this, |__t| __t.sv_thumb_x = __v); }
@@ -214,8 +209,7 @@ impl ColorPickerWidget {
         }
         if compat::read(__this, |__t| __t.dragging_h) || compat::read(__this, |__t| __t.dragging_sv) || compat::read(__this, |__t| __t.dragging_a) {
             let mut alpha: f32 = (if compat::read(__this, |__t| __t.has_alpha) { (((compat::read(__this, |__t| __t.a_thumb_x)) as f32) / ((__this.lock().borrow().a_rect.width()).wrapping_sub(1) as f32)) } else { 1.0f32 });
-            // TODO(fabric2seer): static `Color.HSBtoRGB` has no Rust counterpart in the port
-            // rust: { let __v = argb::color_alpha_f32_rgb(alpha, Color::hs_bto_rgb((((compat::read(__this, |__t| __t.h_thumb_x) / ((__this.lock().borrow().h_rect.as_ref().unwrap().width()).wrapping_sub(1) as f64))) as f32), (((compat::read(__this, |__t| __t.sv_thumb_x) / ((__this.lock().borrow().sv_rect.as_ref().unwrap().width()).wrapping_sub(1) as f64))) as f32), ((((1 as f64) - (compat::read(__this, |__t| __t.sv_thumb_y) / ((__this.lock().borrow().sv_rect.as_ref().unwrap().height()).wrapping_sub(1) as f64)))) as f32))); compat::write(__this, |__t| __t.argb_color = __v); }
+            { let __v = argb::color_alpha_f32_rgb(alpha, mcrust::java::awt::color::Color::hsb_to_rgb((((compat::read(__this, |__t| __t.h_thumb_x) / ((__this.lock().borrow().h_rect.as_ref().unwrap().width()).wrapping_sub(1) as f64))) as f32), (((compat::read(__this, |__t| __t.sv_thumb_x) / ((__this.lock().borrow().sv_rect.as_ref().unwrap().width()).wrapping_sub(1) as f64))) as f32), ((((1 as f64) - (compat::read(__this, |__t| __t.sv_thumb_y) / ((__this.lock().borrow().sv_rect.as_ref().unwrap().height()).wrapping_sub(1) as f64)))) as f32))); compat::write(__this, |__t| __t.argb_color = __v); }
             if compat::read(__this, |__t| __t.on_color_change.clone()).is_some() {
                 (compat::read(__this, |__t| __t.on_color_change.clone()).unwrap())(compat::read(__this, |__t| __t.argb_color), false);
             }
@@ -252,18 +246,15 @@ impl ColorPickerWidget {
         graphics.fill(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), (__this.lock().borrow().get_x()).wrapping_add(1), (__this.lock().borrow().get_y()).wrapping_add(1), (__this.lock().borrow().sv_rect.as_ref().unwrap().left()).wrapping_sub(3), __this.lock().borrow().sv_rect.as_ref().unwrap().bottom(), compat::read(__this, |__t| __t.argb_color));
         if __this.lock().borrow().is_hovered() {
             if __this.lock().borrow().sv_rect.as_ref().unwrap().contains_point(mouse_x, mouse_y) || __this.lock().borrow().h_rect.as_ref().unwrap().contains_point(mouse_x, mouse_y) || __this.lock().borrow().a_rect.contains_point(mouse_x, mouse_y) {
-                // TODO(fabric2seer): static `CursorTypes.POINTING_HAND` has no Rust counterpart in the port's CursorTypes file
-                // TODO(fabric2seer): `GuiGraphicsExtractor.requestCursor` has no Rust method in the port (looked for `request_cursor` in GuiGraphicsExtractor and its supertypes)
-                // rust: graphics.request_cursor(&CursorTypes::POINTING_HAND);
+                // java: graphics.requestCursor(CursorTypes.POINTING_HAND);
+                compat::batch_w_request_cursor(compat::BatchWCursor::PointingHand);
             }
             if compat::read(__this, |__t| __t.dragging_sv) {
-                // TODO(fabric2seer): static `CursorTypes.CROSSHAIR` has no Rust counterpart in the port's CursorTypes file
-                // TODO(fabric2seer): `GuiGraphicsExtractor.requestCursor` has no Rust method in the port (looked for `request_cursor` in GuiGraphicsExtractor and its supertypes)
-                // rust: graphics.request_cursor(&CursorTypes::CROSSHAIR);
+                // java: graphics.requestCursor(CursorTypes.CROSSHAIR);
+                compat::batch_w_request_cursor(compat::BatchWCursor::Crosshair);
             } else if compat::read(__this, |__t| __t.dragging_h) || compat::read(__this, |__t| __t.dragging_a) {
-                // TODO(fabric2seer): static `CursorTypes.RESIZE_EW` has no Rust counterpart in the port's CursorTypes file
-                // TODO(fabric2seer): `GuiGraphicsExtractor.requestCursor` has no Rust method in the port (looked for `request_cursor` in GuiGraphicsExtractor and its supertypes)
-                // rust: graphics.request_cursor(&CursorTypes::RESIZE_EW);
+                // java: graphics.requestCursor(CursorTypes.RESIZE_EW);
+                compat::batch_w_request_cursor(compat::BatchWCursor::ResizeEw);
             }
         }
     }
@@ -283,9 +274,9 @@ impl ColorPickerWidget {
     /// java: public void setARGBColor(int argb)
     pub fn set_argb_color(__this: &compat::Shared<Self>, mut argb: i32) {
         { let __v = (argb | compat::read(__this, |__t| __t.alpha_mask)); compat::write(__this, |__t| __t.argb_color = __v); }
-        // TODO(fabric2seer): static `Color.RGBtoHSB` has no Rust counterpart in the port
-        // rust: let mut floats: Vec<f32> = Color::rg_bto_hsb(((compat::read(__this, |__t| __t.argb_color)).wrapping_shr((16) as u32) & 0xFF), ((compat::read(__this, |__t| __t.argb_color)).wrapping_shr((8) as u32) & 0xFF), (compat::read(__this, |__t| __t.argb_color) & 0xFF), None);
-        let mut floats: Vec<f32> = todo!("fabric2seer: the initialiser of `floats` (TODO above)");
+        // java: float[] floats = Color.RGBtoHSB((argbColor >> 16) & 0xFF, (argbColor >> 8) & 0xFF, argbColor & 0xFF, null);
+        let __argb = compat::read(__this, |__t| __t.argb_color);
+        let mut floats: Vec<f32> = mcrust::java::awt::color::Color::rgb_to_hsb((__argb >> 16) & 0xFF, (__argb >> 8) & 0xFF, __argb & 0xFF, None).to_vec();
         ColorPickerWidget::set_hsv(__this, floats[(0) as usize], floats[(1) as usize], floats[(2) as usize]);
         ColorPickerWidget::set_alpha(__this, argb::alpha_float(compat::read(__this, |__t| __t.argb_color)));
     }
@@ -295,8 +286,7 @@ impl ColorPickerWidget {
         { let __v = ((h * ((__this.lock().borrow().h_rect.as_ref().unwrap().width()).wrapping_sub(1) as f32))) as f64; compat::write(__this, |__t| __t.h_thumb_x = __v); }
         { let __v = ((s * ((__this.lock().borrow().sv_rect.as_ref().unwrap().width()).wrapping_sub(1) as f32))) as f64; compat::write(__this, |__t| __t.sv_thumb_x = __v); }
         { let __v = ((((1 as f32) - v) * ((__this.lock().borrow().sv_rect.as_ref().unwrap().height()).wrapping_sub(1) as f32))) as f64; compat::write(__this, |__t| __t.sv_thumb_y = __v); }
-        // TODO(fabric2seer): static `Color.HSBtoRGB` has no Rust counterpart in the port
-        // rust: { let __v = Color::hs_bto_rgb((((compat::read(__this, |__t| __t.h_thumb_x) / ((__this.lock().borrow().h_rect.as_ref().unwrap().width()).wrapping_sub(1) as f64))) as f32), 1, 1); compat::write(__this, |__t| __t.sv_color = __v); }
+        { let __v = mcrust::java::awt::color::Color::hsb_to_rgb((((compat::read(__this, |__t| __t.h_thumb_x) / ((__this.lock().borrow().h_rect.as_ref().unwrap().width()).wrapping_sub(1) as f64))) as f32), 1.0, 1.0); compat::write(__this, |__t| __t.sv_color = __v); }
     }
 
     /// java: public void setAlpha(float alpha)

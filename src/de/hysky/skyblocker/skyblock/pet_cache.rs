@@ -53,26 +53,27 @@ impl PetCache {
             if Utils::is_on_skyblock() && matches!(compat::minecraft().gui.screen_kind, mcrust::net::minecraft::client::gui::gui::ScreenKind::Container) {
                 if screen.get_title().to_string().starts_with("Pets") {
                     compat::set_state(&SHOULD_LOOK4_PETS, true);
-                    // TODO(fabric2seer): ScreenEvents.afterTick(..).register: no SeerClient equivalent yet
-                    //   java: ScreenEvents.afterTick(screen).register(_ -> {
-                    //   java: 						if (shouldLook4Pets) {
-                    //   java: 							for (Slot slot : genericContainerScreen.getMenu().slots) {
-                    //   java: 								ItemStack stack = slot.getItem();
-                    //   java:
-                    //   java: 								if (!stack.isEmpty() && ItemUtils.getLoreLineIf(stack, line -> line.equals("Click to despawn!")) != null) {
-                    //   java: 									shouldLook4Pets = false;
-                    //   java: 									parsePet(stack, false);
-                    //   java:
-                    //   java: 									break;
-                    //   java: 								}
-                    //   java: 							}
-                    //   java: 						}
-                    //   java: 					});
+                    // java: ScreenEvents.afterTick(screen).register(_ -> { if (shouldLook4Pets) { for (Slot slot : genericContainerScreen.getMenu().slots) { .. } } });
+                    // (`genericContainerScreen.getMenu()` is the player's open `ChestMenu`)
+                    screen_events::after_tick(screen, Arc::new(|_screen: &mut Screen| {
+                        if !compat::get_state(&SHOULD_LOOK4_PETS) {
+                            return;
+                        }
+                        let slots: Vec<Slot> = mcrust::mcrust::modding::game::with_chest_menu(|menu| menu.menu.slots.clone()).unwrap_or_default();
+                        for slot in slots.iter() {
+                            let stack: mcrust::net::minecraft::world::item::item_stack::ItemStack = compat::slot_item(slot);
+                            if !stack.is_empty() && crate::de::hysky::skyblocker::utils::item_utils::ItemUtils::get_lore_line_if(&stack, Arc::new(|line: String| line == "Click to despawn!")).is_some() {
+                                compat::set_state(&SHOULD_LOOK4_PETS, false);
+                                PetCache::parse_pet(&stack, false);
+                                break;
+                            }
+                        }
+                    }));
                 }
             }
         }));
-        // TODO(fabric2seer): ClientReceiveMessageEvents.ALLOW_GAME.register: no SeerClient equivalent yet
-        //   java: ClientReceiveMessageEvents.ALLOW_GAME.register(PetCache::onMessage);
+        // java: ClientReceiveMessageEvents.ALLOW_GAME.register(PetCache::onMessage);
+        compat::register_allow_game(|text, overlay| PetCache::on_message(text, overlay));
     }
 
     /// java: public static void handlePetEquip(Slot slot, int slotId)

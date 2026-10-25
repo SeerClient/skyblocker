@@ -51,20 +51,21 @@ impl BuildersWandPreview {
             if !(Utils::is_in_private_island()) && !(Utils::is_in_garden()) {
                 return;
             }
-            // TODO(fabric2seer): an `instanceof` pattern under `||` / `!`
-            //   java: if (!(client.hitResult instanceof BlockHitResult blockHitResult) || blockHitResult.getType() != HitResult.Type.BLOCK) return;
+            // java: if (!(client.hitResult instanceof BlockHitResult blockHitResult) || blockHitResult.getType() != HitResult.Type.BLOCK) return;
+            let block_hit_result: BlockHitResult = match compat::minecraft().hit_result.as_ref() {
+                Some(mcrust::net::minecraft::world::phys::hit_result::AnyHitResult::Block(hit)) if hit.get_type() == mcrust::net::minecraft::world::phys::hit_result::Type::Block => hit.clone(),
+                _ => return,
+            };
             let mut stack: mcrust::net::minecraft::world::item::item_stack::ItemStack = mcrust::mcrust::modding::game::with_player(|player| player.get_main_hand_item().clone()).unwrap();
             if !(stack.is_item(&items::items().get("blaze_rod"))) {
                 return;
             }
             match stack.get_skyblock_id().as_str() {
                 "BUILDERS_WAND" => {
-                    // TODO(fabric2seer): unknown name `blockHitResult`
-                    //   java: extractBuildersWandPreview(collector, blockHitResult);
+                    BuildersWandPreview::extract_builders_wand_preview(&collector, &block_hit_result);
                 }
                 "BUILDERS_RULER" => {
-                    // TODO(fabric2seer): unknown name `blockHitResult`
-                    //   java: extractBuildersRulerPreview(collector, blockHitResult);
+                    BuildersWandPreview::extract_builders_ruler_preview(&collector, &block_hit_result);
                 }
                 _ => {}
             }

@@ -13,6 +13,8 @@ use crate::de::hysky::skyblocker::skyblock::garden::visitor::visitor_helper::Vis
 use crate::de::hysky::skyblocker::skyblock::itemlist::item_repository::ItemRepository;
 use crate::de::hysky::skyblocker::skyblock::storageoverlay::storage_overlay_screen::StorageOverlayScreen;
 use crate::de::hysky::skyblocker::utils::utils::Utils;
+use crate::de::hysky::skyblocker::utils::flexible_item_stack::FlexibleItemStack;
+use crate::de::hysky::skyblocker::utils::datafixer::item_stack_componentization_fixer::ItemStackComponentizationFixer;
 use mcrust::net::minecraft::client::gui::screens::inventory::container_screen::ContainerScreen;
 use mcrust::net::minecraft::client::gui::screens::inventory::inventory_screen::InventoryScreen;
 use mcrust::net::minecraft::client::renderer::rect2i::Rect2i;
@@ -37,14 +39,50 @@ pub fn get_plugin_uid() -> Identifier {
 }
 
 pub fn register_item_subtypes(registration: &crate::unresolved::ISubtypeRegistration) {
-    // TODO(fabric2seer): `.getInterpreters(..)` on a SubtypeRegistration
     //   java: @SuppressWarnings("unused")
     //   java: 		SubtypeInterpreters interpreters = ((SubtypeRegistration) registration).getInterpreters();
-    let mut interpreters: crate::unresolved::SubtypeInterpreters = todo!("fabric2seer: the initialiser of `interpreters` (TODO above)");
-    // TODO(fabric2seer): `.contains(..)` on a SubtypeInterpreters
+    let mut interpreters: crate::unresolved::SubtypeInterpreters = jei_get_interpreters(registration);
     //   java: ItemRepository.getItemsStream().filter(stack -> !interpreters.contains(VanillaTypes.ITEM_STACK, stack.getStackOrThrow())).map(FlexibleItemStack::getStackOrThrow).distinct().forEach(item ->
     //   java: 				registration.registerSubtypeInterpreter(item.getItem(), (stack, _) -> ItemStackComponentizationFixer.componentsAsString(stack))
     //   java: 		);
+    // (`distinct()` is `ItemStack`'s identity `equals`; `getStackOrThrow` answers each `FlexibleItemStack`'s one cached
+    // stack, so two elements are the same stack exactly when they are the same `FlexibleItemStack`)
+    let mut __seen: Vec<compat::Shared<FlexibleItemStack>> = Vec::new();
+    for stack in ItemRepository::get_items_stream() {
+        if jei_interpreters_contains(&interpreters, &FlexibleItemStack::get_stack_or_throw(&stack)) {
+            continue;
+        }
+        if __seen.iter().any(|s| std::sync::Arc::ptr_eq(s, &stack)) {
+            continue;
+        }
+        __seen.push(stack.clone());
+        let item = FlexibleItemStack::get_stack_or_throw(&stack);
+        jei_register_subtype_interpreter(registration, item.get_item(), Arc::new(|stack: &mcrust::net::minecraft::world::item::item_stack::ItemStack| {
+            let mut __stack = stack.clone();
+            ItemStackComponentizationFixer::components_as_string(&mut __stack)
+        }));
+    }
+}
+
+// JEI (`mezz.jei`) is a separate mod that SeerClient never loads (`JEICompatibility.JEI_LOADED` is false), so JEI never
+// calls this plugin. Its API types are the `crate::unresolved` names; the functions below are JEI's side of the
+// boundary (see `compatibility/jei/abstract_skyblock_recipe_category.rs`).
+
+/// `((SubtypeRegistration) registration).getInterpreters()`.
+fn jei_get_interpreters(registration: &crate::unresolved::ISubtypeRegistration) -> crate::unresolved::SubtypeInterpreters {
+    let _ = registration;
+    crate::unresolved::SubtypeInterpreters
+}
+
+/// `interpreters.contains(VanillaTypes.ITEM_STACK, stack)` - no interpreter is registered by anyone.
+fn jei_interpreters_contains(interpreters: &crate::unresolved::SubtypeInterpreters, stack: &mcrust::net::minecraft::world::item::item_stack::ItemStack) -> bool {
+    let _ = (interpreters, stack);
+    false
+}
+
+/// `registration.registerSubtypeInterpreter(item, interpreter)`.
+fn jei_register_subtype_interpreter(registration: &crate::unresolved::ISubtypeRegistration, item: Arc<mcrust::net::minecraft::world::item::item::Item>, interpreter: Arc<dyn Fn(&mcrust::net::minecraft::world::item::item_stack::ItemStack) -> String>) {
+    let _ = (registration, item, interpreter);
 }
 
 pub fn register_categories(registration: &crate::unresolved::IRecipeCategoryRegistration) {

@@ -79,12 +79,12 @@ impl StatusBarTracker {
 
     /// java: @Init public static void init()
     pub fn init() {
-        // TODO(fabric2seer): ClientReceiveMessageEvents.ALLOW_GAME.register: no SeerClient equivalent yet
-        //   java: ClientReceiveMessageEvents.ALLOW_GAME.register(StatusBarTracker::allowOverlayMessage);
-        // TODO(fabric2seer): ClientReceiveMessageEvents.MODIFY_GAME.register: no SeerClient equivalent yet
-        //   java: ClientReceiveMessageEvents.MODIFY_GAME.register(StatusBarTracker::onOverlayMessage);
-        // TODO(fabric2seer): UseItemCallback.EVENT.register: no SeerClient equivalent yet
-        //   java: UseItemCallback.EVENT.register(StatusBarTracker::interactItem);
+        // java: ClientReceiveMessageEvents.ALLOW_GAME.register(StatusBarTracker::allowOverlayMessage);
+        compat::register_allow_game(|text, overlay| StatusBarTracker::allow_overlay_message(text, overlay));
+        // java: ClientReceiveMessageEvents.MODIFY_GAME.register(StatusBarTracker::onOverlayMessage);
+        compat::register_modify_game(|text, overlay| StatusBarTracker::on_overlay_message(text.clone(), overlay));
+        // java: UseItemCallback.EVENT.register(StatusBarTracker::interactItem);
+        mcrust::mcrust::modding::events::use_item_callback::register(|player, world, hand| StatusBarTracker::interact_item(player, world, &hand));
         ({ let __r = scheduler::INSTANCE.get_mut(); let __f = compat::dispatch(__r, |__t| __t.schedule_cyclic()); __f(__r, Arc::new(move || { StatusBarTracker::tick(); }), 1) });
     }
 
@@ -138,10 +138,12 @@ impl StatusBarTracker {
 
     /// java: @SuppressWarnings("SameReturnValue") private static InteractionResult interactItem(Player player, Level world, InteractionHand hand)
     pub fn interact_item(player: &dyn Player, world: &Level, hand: &InteractionHand) -> InteractionResult {
-        if mcrust::mcrust::modding::game::with_player(|_| ()).is_none() {
-            return InteractionResult::Pass;
-        }
-        let mut hand_stack: mcrust::net::minecraft::world::item::item_stack::ItemStack = mcrust::mcrust::modding::game::with_player(|mc_player| mc_player.get_main_hand_item().clone()).unwrap();
+        // java: if (client.player == null) return InteractionResult.PASS;
+        //       ItemStack handStack = client.player.getMainHandItem();
+        // (the callback is handed the client's player - the game holds it while it asks, so it is read through the
+        // argument rather than `game::with_player`, which would wait on that hold)
+        use mcrust::net::minecraft::world::entity::player::player::Player as _;
+        let mut hand_stack: mcrust::net::minecraft::world::item::item_stack::ItemStack = player.player().base.get_item_in_hand(mcrust::net::minecraft::world::interaction_hand::InteractionHand::MainHand).clone();
         let mut mana_cost: i32 = 0;
         for ability in hand_stack.skyblocker_get_abilities() {
             if ability.activation().is_right_click() {

@@ -56,25 +56,24 @@ impl TooltipManager {
 
     /// java: @Init public static void init()
     pub fn init() {
-        item_tooltip_callback::EVENT.register(Arc::new(|stack: &ItemStack, _context: &TooltipContext<'_>, flag: TooltipFlag, lines: &mut Vec<FormattedText>| {
+        item_tooltip_callback::SLOT_EVENT.register(Arc::new(|stack: &ItemStack, focused: Option<&item_tooltip_callback::TooltipSlot>, _context: &TooltipContext<'_>, flag: TooltipFlag, lines: &mut Vec<FormattedText>| {
+            // A hidden tooltip (`TooltipDisplay.hideTooltip`) is an empty list and is never shown.
+            if lines.is_empty() {
+                return;
+            }
             // `lines` is the tooltip's `List<Component>`: the adders edit it as components and it goes back as the
             // port's `FormattedText` lines.
             let mut components: Vec<MutableComponent> = lines.drain(..).map(compat::component_of).collect();
-            if compat::container_screen_open() {
-                // addToTooltip(((AbstractContainerScreenAccessor) handledScreen).getFocusedSlot(), stack, lines);
-                // rust: port gap - `AbstractContainerScreen.hoveredSlot` is not readable by a mod here: the screen object is
-                // not published and the tooltip is built under the game's player lock (`extract_render_state_tail`), so
-                // neither the screen nor `player.containerMenu` answer. GAPS_batchB.md.
-                TooltipManager::add_to_tooltip(None, &stack, &mut components);
-            } else {
-                TooltipManager::add_to_tooltip(None, &stack, &mut components);
-            }
+            // addToTooltip(((AbstractContainerScreenAccessor) handledScreen).getFocusedSlot(), stack, lines);
+            TooltipManager::add_to_tooltip(focused.map(|f| f.slot.clone()), &stack, &mut components);
             lines.extend(components.into_iter().map(mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from));
         }));
         screen_events::AFTER_INIT.register(Arc::new(|screen: &mut Screen, width: i32, height: i32| {
             TooltipManager::on_screen_change(&screen);
-            // TODO(fabric2seer): ScreenEvents.remove(..).register: no SeerClient equivalent yet
-            //   java: ScreenEvents.remove(screen).register(_ -> currentScreenAdders = List.of());
+            // java: ScreenEvents.remove(screen).register(_ -> currentScreenAdders = List.of());
+            screen_events::remove(&*screen, Arc::new(|_screen: &Screen| {
+                CURRENT_SCREEN_ADDERS.get_mut().clear();
+            }));
         }));
     }
 

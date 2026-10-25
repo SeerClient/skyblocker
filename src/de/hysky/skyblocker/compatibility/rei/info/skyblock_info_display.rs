@@ -23,23 +23,20 @@ impl SkyblockInfoDisplay {
 
     /// java: @Override public List<EntryIngredient> getInputEntries()
     pub fn get_input_entries(&self) -> Vec<crate::unresolved::EntryIngredient> {
-        // TODO(fabric2seer): static call EntryIngredient.of(..)
-        //   java: return List.of(EntryIngredient.of(EntryStacks.of(displayItem)));
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        // java: return List.of(EntryIngredient.of(EntryStacks.of(displayItem)));
+        return vec![crate::de::hysky::skyblocker::compatibility::rei::rei_entry_ingredient_of(crate::de::hysky::skyblocker::compatibility::rei::rei_entry_stacks_of(&self.display_item))];
     }
 
     /// java: @Override public List<EntryIngredient> getOutputEntries()
     pub fn get_output_entries(&self) -> Vec<crate::unresolved::EntryIngredient> {
-        // TODO(fabric2seer): static call EntryIngredient.of(..)
-        //   java: return List.of(EntryIngredient.of(EntryStacks.of(displayItem)));
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        // java: return List.of(EntryIngredient.of(EntryStacks.of(displayItem)));
+        return vec![crate::de::hysky::skyblocker::compatibility::rei::rei_entry_ingredient_of(crate::de::hysky::skyblocker::compatibility::rei::rei_entry_stacks_of(&self.display_item))];
     }
 
     /// java: @Override public CategoryIdentifier<?> getCategoryIdentifier()
     pub fn get_category_identifier(&self) -> crate::unresolved::CategoryIdentifier {
-        // TODO(fabric2seer): static call CategoryIdentifier.of(..)
-        //   java: return CategoryIdentifier.of(SkyblockerMod.id("skyblock_info"));
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        // java: return CategoryIdentifier.of(SkyblockerMod.id("skyblock_info"));
+        return crate::de::hysky::skyblocker::compatibility::rei::rei_category_identifier_of(&crate::entry::skyblocker_mod::id("skyblock_info"));
     }
 
     /// java: @Override public Optional<Identifier> getDisplayLocation()

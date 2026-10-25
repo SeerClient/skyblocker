@@ -56,8 +56,13 @@ impl SignCalculator {
             }));
             if let Err(e) = __result {
                 compat::set_state(&OUTPUT, ((-1) as f64) as f64);
-                // TODO(fabric2seer): field `args` of a exception
-                //   java: error = Component.translatable(e.getMessage(), e.args).withStyle(ChatFormatting.RED);
+                // java: error = Component.translatable(e.getMessage(), e.args).withStyle(ChatFormatting.RED);
+                // (only a `CalculatorException` is caught: any other panic propagates)
+                let exception = crate::de::hysky::skyblocker::utils::calculator::CalculatorException::of(&*e).cloned();
+                let Some(exception) = exception else {
+                    std::panic::resume_unwind(e);
+                };
+                *ERROR.get_mut() = Some(exception.to_component().with_style_format(ChatFormatting::Red));
             }
         }
     }

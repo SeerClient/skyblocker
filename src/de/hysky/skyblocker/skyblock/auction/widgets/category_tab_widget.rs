@@ -109,10 +109,12 @@ impl CategoryTabWidget {
     pub fn extract_contents_impl(__this: &compat::Shared<Self>, graphics: &mut GuiGraphicsExtractor, mut mouse_x: i32, mut mouse_y: i32, mut a: f32) {
         <dyn SideTabButtonWidget>::extract_contents_body(&compat::view(__this, |a| a as compat::Shared<dyn SideTabButtonWidget>), graphics, mouse_x, mouse_y, a);
         if { let (__q0, __q1,) = ((mouse_x) as f64, (mouse_y) as f64,); __this.lock().borrow().is_mouse_over(__q0, __q1) } {
-            // TODO(fabric2seer): the mod keeps the game's `LocalPlayer` (Java holds a reference to the live object); the port's `LocalPlayer` is not a value to copy and the port lends the mod no handle to it
-            // TODO(fabric2seer): the port's `set_component_tooltip_for_next_frame` ports this Java method with other parameters (tooltip_for_next_frame, lines for Java's lines, xo, yo)
-            // TODO(fabric2seer): `set_component_tooltip_for_next_frame` takes 2 argument(s) in the port (`tooltip_for_next_frame: &mut Option<DeferredTooltip>, lines: Vec<crate::net::minecraft::network::chat::formatted_text::FormattedText>`), Java passes 4
-            // rust: gui_graphics_extractor::set_component_tooltip_for_next_frame(&mut compat::font(), mcrust::mcrust::modding::game::with_player(|player| { let (__q0, __q1, __q2,) = (&mcrust::net::minecraft::world::item::item::TooltipContext::empty(), Some(player.clone()), mcrust::net::minecraft::world::item::tooltip_flag::NORMAL,); __this.lock().borrow().icon.as_ref().unwrap().get_tooltip_lines(__q0, __q1, __q2) }).unwrap(), mouse_x, mouse_y);
+            // java: graphics.setComponentTooltipForNextFrame(Minecraft.getInstance().font, icon.getTooltipLines(TooltipContext.EMPTY,
+            //   Minecraft.getInstance().player, TooltipFlag.NORMAL), mouseX, mouseY);
+            let icon = compat::read(__this, |__t| __t.icon.clone()).expect("NullPointerException: icon");
+            let lines = mcrust::mcrust::modding::game::with_player(|player| icon.get_tooltip_lines(&mcrust::net::minecraft::world::item::item::TooltipContext::empty(), Some(&*player as &dyn mcrust::net::minecraft::world::entity::player::player::Player), mcrust::net::minecraft::world::item::tooltip_flag::NORMAL))
+                .unwrap_or_else(|| icon.get_tooltip_lines(&mcrust::net::minecraft::world::item::item::TooltipContext::empty(), None, mcrust::net::minecraft::world::item::tooltip_flag::NORMAL));
+            compat::batch_s_set_tooltip_for_next_frame(lines);
         }
     }
 

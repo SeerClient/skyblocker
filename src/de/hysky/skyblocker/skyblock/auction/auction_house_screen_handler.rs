@@ -111,4 +111,3 @@ impl compat::MenuHalf for AuctionHouseScreenHandler {
 impl compat::MenuOverrides for AuctionHouseScreenHandler {
 }
 
-// NOTE(fabric2seer): setItem override(s) of ChestMenu - the port dispatches its own calls, so these run only where the mod calls them; hook the port's method to make the game call them

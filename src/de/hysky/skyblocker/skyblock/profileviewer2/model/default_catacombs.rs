@@ -62,3 +62,37 @@ impl GenericCatacombs for DefaultCatacombs {
     }
 
 }
+
+impl DefaultCatacombs {
+    /// Gson's reflective binding of the class's own fields (`ReflectiveTypeAdapterFactory`): each member the
+    /// JSON has is read over the field it names (`@SerializedName`, else the field's name) with the field's declared
+    /// type; an absent member (or a `null` one, or one Gson would reject) leaves the constructor's value.
+    pub fn read_json_fields(&mut self, json: &serde_json::Value) {
+        #[allow(unused_imports)]
+        use crate::io::github::moulberry::repo::neu_repository::gson;
+        // java: the fields `GenericCatacombs` declares (`extends GenericCatacombs`)
+        self.base.read_json_fields(json);
+        if let Some(__v) = gson::member(json, "experience") {
+            if let Some(__x) = gson::as_f64(__v) {
+                self.experience = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "times_played") {
+            if let Some(__x) = (Some(AggregateStat::from_json(__v))).map(Some) {
+                self.times_played = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "watcher_kills") {
+            if let Some(__x) = (Some(AggregateStat::from_json(__v))).map(Some) {
+                self.watcher_kills = __x;
+            }
+        }
+    }
+
+    /// `GSON.fromJson(json, DefaultCatacombs.class)`: the no-argument constructor, then the fields.
+    pub fn from_json(json: &serde_json::Value) -> compat::Shared<Self> {
+        let __this = Self::new();
+        compat::write(&__this, |__t| __t.read_json_fields(json));
+        __this
+    }
+}

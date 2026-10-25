@@ -124,3 +124,146 @@ impl OwnedShard {
     }
 
 }
+
+impl Shards {
+    /// Gson's reflective binding of the class's own fields (`ReflectiveTypeAdapterFactory`): each member the
+    /// JSON has is read over the field it names (`@SerializedName`, else the field's name) with the field's declared
+    /// type; an absent member (or a `null` one, or one Gson would reject) leaves the constructor's value.
+    pub fn read_json_fields(&mut self, json: &serde_json::Value) {
+        #[allow(unused_imports)]
+        use crate::io::github::moulberry::repo::neu_repository::gson;
+        if let Some(__v) = gson::member(json, "traps") {
+            if let Some(__x) = Some(Traps::from_json(__v)) {
+                self.traps = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "owned") {
+            if let Some(__x) = gson::list(__v, |__e0| Some(OwnedShard::from_json(__e0))) {
+                self.owned = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "fused") {
+            if let Some(__x) = gson::as_i32(__v) {
+                self.fused = __x;
+            }
+        }
+    }
+
+    /// `GSON.fromJson(json, Shards.class)`: the no-argument constructor, then the fields.
+    pub fn from_json(json: &serde_json::Value) -> Self {
+        let mut __this = Self::new();
+        __this.read_json_fields(json);
+        __this
+    }
+}
+
+impl Traps {
+    /// Gson's reflective binding of the class's own fields (`ReflectiveTypeAdapterFactory`): each member the
+    /// JSON has is read over the field it names (`@SerializedName`, else the field's name) with the field's declared
+    /// type; an absent member (or a `null` one, or one Gson would reject) leaves the constructor's value.
+    pub fn read_json_fields(&mut self, json: &serde_json::Value) {
+        #[allow(unused_imports)]
+        use crate::io::github::moulberry::repo::neu_repository::gson;
+        if let Some(__v) = gson::member(json, "active_traps") {
+            if let Some(__x) = gson::list(__v, |__e0| Some(ActiveTrap::from_json(__e0))) {
+                self.active_traps = __x;
+            }
+        }
+    }
+
+    /// `GSON.fromJson(json, Traps.class)`: the no-argument constructor, then the fields.
+    pub fn from_json(json: &serde_json::Value) -> Self {
+        let mut __this = Self::new();
+        __this.read_json_fields(json);
+        __this
+    }
+}
+
+impl ActiveTrap {
+    /// Gson's reflective binding of the class's own fields (`ReflectiveTypeAdapterFactory`): each member the
+    /// JSON has is read over the field it names (`@SerializedName`, else the field's name) with the field's declared
+    /// type; an absent member (or a `null` one, or one Gson would reject) leaves the constructor's value.
+    pub fn read_json_fields(&mut self, json: &serde_json::Value) {
+        #[allow(unused_imports)]
+        use crate::io::github::moulberry::repo::neu_repository::gson;
+        if let Some(__v) = gson::member(json, "trap_item") {
+            if let Some(__x) = gson::as_string(__v) {
+                self.trap_item = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "capture_time") {
+            if let Some(__x) = gson::as_i64(__v) {
+                self.capture_time = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "mode") {
+            if let Some(__x) = gson::as_string(__v) {
+                self.mode = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "location") {
+            if let Some(__x) = gson::as_string(__v) {
+                self.location = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "placed_at") {
+            if let Some(__x) = gson::as_i64(__v) {
+                self.placed_at = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "shard") {
+            if let Some(__x) = gson::as_string(__v) {
+                self.shard = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "captured") {
+            if let Some(__x) = gson::as_bool(__v) {
+                self.captured = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "museum") {
+            if let Some(__x) = gson::as_bool(__v) {
+                self.museum = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "uuid") {
+            if let Some(__x) = crate::de::hysky::skyblocker::skyblock::profileviewer2::profile_viewer::json_uuid(__v) {
+                self.uuid = __x;
+            }
+        }
+    }
+
+    /// `GSON.fromJson(json, ActiveTrap.class)`: the no-argument constructor, then the fields.
+    pub fn from_json(json: &serde_json::Value) -> Self {
+        let mut __this = Self::new();
+        __this.read_json_fields(json);
+        __this
+    }
+}
+
+impl OwnedShard {
+    /// Gson's reflective binding of the class's own fields (`ReflectiveTypeAdapterFactory`): each member the
+    /// JSON has is read over the field it names (`@SerializedName`, else the field's name) with the field's declared
+    /// type; an absent member (or a `null` one, or one Gson would reject) leaves the constructor's value.
+    pub fn read_json_fields(&mut self, json: &serde_json::Value) {
+        #[allow(unused_imports)]
+        use crate::io::github::moulberry::repo::neu_repository::gson;
+        if let Some(__v) = gson::member(json, "amount_owned") {
+            if let Some(__x) = gson::as_i32(__v) {
+                self.amount_owned = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "captured") {
+            if let Some(__x) = gson::as_i64(__v) {
+                self.captured = __x;
+            }
+        }
+    }
+
+    /// `GSON.fromJson(json, OwnedShard.class)`: the no-argument constructor, then the fields.
+    pub fn from_json(json: &serde_json::Value) -> Self {
+        let mut __this = Self::new();
+        __this.read_json_fields(json);
+        __this
+    }
+}

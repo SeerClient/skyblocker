@@ -23,10 +23,13 @@ use mcrust::org::joml::matrix3x2f_stack::Matrix3x2fStack;
 pub const CLOSED_HEIGHT: i32 = 35;
 
 /// java: public class OptionDropdownWidget extends AbstractSelectionList<OptionDropdownWidget.AbstractEntry>
-#[derive(Clone)]
 pub struct OptionDropdownWidget {
-    /// java: extends net.minecraft.client.gui.components.AbstractSelectionList
-    pub base: AbstractSelectionList,
+    /// java: extends net.minecraft.client.gui.components.AbstractSelectionList - the game's list with its rows (`Entry.object`)
+    /// and this class's own overrides of the list's methods (`DropdownListClass`)
+    pub base: ModSelectionList,
+    /// The list's `AbstractWidget` half (`AbstractSelectionList extends AbstractWidget`) the game's list draw is handed:
+    /// this list is drawn by its container, not as a widget of the screen, so its box is copied in before each draw.
+    pub __widget: mcrust::net::minecraft::client::gui::components::abstract_widget::AbstractWidget,
     /// java: private final int slotId;
     pub slot_id: i32,
     /// java: private final Component name;
@@ -52,13 +55,13 @@ pub struct OptionDropdownWidget {
 impl std::ops::Deref for OptionDropdownWidget {
     type Target = AbstractSelectionList;
     fn deref(&self) -> &Self::Target {
-        &self.base
+        &self.base.list
     }
 }
 
 impl std::ops::DerefMut for OptionDropdownWidget {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.base
+        &mut self.base.list
     }
 }
 
@@ -70,7 +73,8 @@ impl OptionDropdownWidget {
         let __init_slot_id = slot_id;
         //   java: super(screen.getClient(), width, CLOSED_HEIGHT, y, 15); - `AbstractSelectionList(minecraft, width, height, y, itemHeight)`
         let __this = compat::shared(Self {
-            base: AbstractSelectionList::new(width, CLOSED_HEIGHT, y, 15),
+            base: ModSelectionList::with_class(mcrust::mcrust::modding::widgets::ListKind::Object, width, CLOSED_HEIGHT, y, 15, std::sync::Arc::new(DropdownListClass)),
+            __widget: compat::string_widget(0, 0, 0, 0, component::empty()),
             slot_id: __init_slot_id,
             name: None,
             max_height: __init_max_height,
@@ -123,9 +127,9 @@ impl OptionDropdownWidget {
                 return true;
             }
         }
-        // TODO(fabric2seer): `AbstractContainerWidget::mouse_clicked` ports `mouseClicked`, but the port's `AbstractSelectionList` holds no `AbstractContainerWidget` (no Deref, no `base` field) to call it on
-        // rust: return { let (__q0, __q1,) = (click.clone(), doubled,); __this.lock().borrow_mut().base.mouse_clicked(__q0, __q1) };
-        return todo!("fabric2seer: see the TODO above");
+        // java: return super.mouseClicked(click, doubled); - `AbstractContainerWidget.mouseClicked` over the rows. The rows'
+        // own `mouseClicked` read and write this object, so the list is taken out for the call (`with_list_lent`).
+        return OptionDropdownWidget::with_list_lent(__this, |list| list.mouse_clicked_base(click, doubled));
     }
 
     /// java: @Override protected void updateWidgetNarration(NarrationElementOutput builder)
@@ -133,7 +137,9 @@ impl OptionDropdownWidget {
     }
 
     /// java: @Override public void extractWidgetRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a)
-    pub fn extract_widget_render_state(__this: &compat::Shared<Self>, graphics: &mut GuiGraphicsExtractor, mut mouse_x: i32, mut mouse_y: i32, mut a: f32) {
+    /// (`context` is the frame's render context the container's draw is handed: `super.extractWidgetRenderState` is the
+    /// game's list draw, which takes it)
+    pub fn extract_widget_render_state(__this: &compat::Shared<Self>, context: &mut WidgetRenderContext<'_>, mut mouse_x: i32, mut mouse_y: i32, mut a: f32) {
         if compat::read(__this, |__t| __t.is_open) {
             if compat::read(__this, |__t| __t.animation_progress) < (1 as f32) {
                 { let __v = (compat::read(__this, |__t| __t.animation_progress) + (a * 0.5f32)); compat::write(__this, |__t| __t.animation_progress = __v); }
@@ -161,7 +167,7 @@ impl OptionDropdownWidget {
             let __o8 = compat::read(__this, |__t| __t.header.clone());
             let __o9 = compat::read(__this, |__t| __t.header.clone());
             let __o10 = compat::read(__this, |__t| __t.header.clone());
-            graphics.fill(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), __this.lock().borrow().get_x(), (compat::write(&__o7, |__t| __t.get_y())).wrapping_add(Header::get_height(&compat::read(__this, |__t| __t.header.clone()))), ((__this.lock().borrow().get_x()).wrapping_add(__this.lock().borrow().get_width())).wrapping_sub(1), ((compat::write(&__o10, |__t| __t.get_y())).wrapping_add(opened_list_height)).wrapping_add(Header::get_height(&compat::read(__this, |__t| __t.header.clone()))), 0xFFF0F0F0u32 as i32);
+            context.graphics.fill(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), __this.lock().borrow().get_x(), (compat::write(&__o7, |__t| __t.get_y())).wrapping_add(Header::get_height(&compat::read(__this, |__t| __t.header.clone()))), ((__this.lock().borrow().get_x()).wrapping_add(__this.lock().borrow().get_width())).wrapping_sub(1), ((compat::write(&__o10, |__t| __t.get_y())).wrapping_add(opened_list_height)).wrapping_add(Header::get_height(&compat::read(__this, |__t| __t.header.clone()))), 0xFFF0F0F0u32 as i32);
             let __o11 = compat::read(__this, |__t| __t.header.clone());
             let __o12 = compat::read(__this, |__t| __t.header.clone());
             let __o13 = compat::read(__this, |__t| __t.header.clone());
@@ -174,10 +180,25 @@ impl OptionDropdownWidget {
             let __o20 = compat::read(__this, |__t| __t.header.clone());
             let __o21 = compat::read(__this, |__t| __t.header.clone());
             let __o22 = compat::read(__this, |__t| __t.header.clone());
-            graphics.fill(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), (__this.lock().borrow().get_x()).wrapping_add(1), ((compat::write(&__o19, |__t| __t.get_y())).wrapping_add(Header::get_height(&compat::read(__this, |__t| __t.header.clone())))).wrapping_add(1), ((__this.lock().borrow().get_x()).wrapping_add(__this.lock().borrow().get_width())).wrapping_sub(2), (((compat::write(&__o22, |__t| __t.get_y())).wrapping_add(opened_list_height)).wrapping_add(Header::get_height(&compat::read(__this, |__t| __t.header.clone())))).wrapping_sub(1), mcrust::net::minecraft::util::common_colors::BLACK);
+            context.graphics.fill(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), (__this.lock().borrow().get_x()).wrapping_add(1), ((compat::write(&__o19, |__t| __t.get_y())).wrapping_add(Header::get_height(&compat::read(__this, |__t| __t.header.clone())))).wrapping_add(1), ((__this.lock().borrow().get_x()).wrapping_add(__this.lock().borrow().get_width())).wrapping_sub(2), (((compat::write(&__o22, |__t| __t.get_y())).wrapping_add(opened_list_height)).wrapping_add(Header::get_height(&compat::read(__this, |__t| __t.header.clone())))).wrapping_sub(1), mcrust::net::minecraft::util::common_colors::BLACK);
         }
-        // TODO(fabric2seer): `AbstractSelectionList.extractWidgetRenderState` has no Rust method in the port (looked for `extract_widget_render_state` in AbstractSelectionList and its supertypes)
-        // rust: __this.lock().borrow_mut().base.extract_widget_render_state(graphics, mouse_x, mouse_y, a);
+        // java: super.extractWidgetRenderState(graphics, mouseX, mouseY, a); - the game's list draw (`ModSelectionList`'s
+        // `extractWidgetRenderState`), handed the list's box; the rows' `extractContent` read this object, so the list is
+        // taken out for the draw (`with_list_lent`)
+        let __widget_box = compat::write(__this, |__t| {
+            let (x, y, w, h, visible, active) = (__t.base.list.get_x(), __t.base.list.get_y(), __t.base.list.get_width(), __t.base.list.get_height(), __t.base.visible, __t.base.active);
+            __t.__widget.set_position(x, y);
+            __t.__widget.width = w;
+            __t.__widget.height = h;
+            __t.__widget.visible = visible;
+            __t.__widget.active = active;
+            std::mem::replace(&mut __t.__widget, compat::string_widget(0, 0, 0, 0, component::empty()))
+        });
+        OptionDropdownWidget::with_list_lent(__this, |list| {
+            use mcrust::mcrust::modding::widgets::ModWidget as _;
+            list.extract_widget_render_state(&__widget_box, context, mouse_x, mouse_y, a);
+        });
+        compat::write(__this, |__t| __t.__widget = __widget_box);
     }
 
     /// java: @Override protected void extractListSeparators(GuiGraphicsExtractor graphics)
@@ -198,7 +219,7 @@ impl OptionDropdownWidget {
         { let __v = 0.0f32; compat::write(__this, |__t| __t.animation_progress = __v); }
         // java: clearEntriesExcept(header); - the header is the list's first row (the constructor adds it, every clear
         // keeps it)
-        compat::write(__this, |__t| __t.base.clear_entries_except(0));
+        compat::write(__this, |__t| __t.base.list.clear_entries_except(0));
         for __a0 in entries.iter() {
             { let (__q0,) = (row_entry(__a0.clone()),); __this.lock().borrow_mut().add_entry(__q0) };
         }
@@ -214,7 +235,21 @@ impl OptionDropdownWidget {
         { let __v = CLOSED_HEIGHT; compat::write(__this, |__t| __t.height = __v); }
         // java: clearEntriesExcept(header); - the header is the list's first row (the constructor adds it, every clear
         // keeps it)
-        compat::write(__this, |__t| __t.base.clear_entries_except(0));
+        compat::write(__this, |__t| __t.base.list.clear_entries_except(0));
+    }
+
+    /// The list, taken out of this object for `f` (a dropdown with this one's box stands in): the rows' own methods, which
+    /// the list's bodies call, read and write this object (`OptionDropdownWidget.this`), which the call must not hold.
+    fn with_list_lent<R>(__this: &compat::Shared<Self>, f: impl FnOnce(&mut ModSelectionList) -> R) -> R {
+        let mut list: ModSelectionList = compat::write(__this, |__t| {
+            let (x, y, w, h) = (__t.base.list.get_x(), __t.base.list.get_y(), __t.base.list.get_width(), __t.base.list.get_height());
+            let mut stand_in = ModSelectionList::new(mcrust::mcrust::modding::widgets::ListKind::Object, w, h, y, 15);
+            stand_in.list.set_x(x);
+            std::mem::replace(&mut __t.base, stand_in)
+        });
+        let answer = f(&mut list);
+        compat::write(__this, |__t| __t.base = list);
+        answer
     }
 
     /// java: @Override protected boolean entriesCanBeSelected()
@@ -224,7 +259,47 @@ impl OptionDropdownWidget {
 
 }
 
-// NOTE(fabric2seer): entriesCanBeSelected, extractListBackground, extractListSeparators, extractWidgetRenderState, getRowLeft, getRowWidth, mouseClicked, scrollBarX, updateWidgetNarration override(s) of AbstractSelectionList - the port dispatches its own calls, so these run only where the mod calls them; hook the port's method to make the game call them
+/// `OptionDropdownWidget`'s overrides of the list's own methods (`getRowLeft`, `getRowWidth`, `scrollBarX`,
+/// `entriesCanBeSelected`, `extractListBackground`, `extractListSeparators`): the game's list asks them where its bodies
+/// call the virtual. Their bodies read only the list's box (`getX()`, `getWidth()`), which `list` is - so they are
+/// answered from it rather than through the object, which the list's own calls may be holding.
+struct DropdownListClass;
+
+impl mcrust::mcrust::modding::widgets::ModList for DropdownListClass {
+    /// java: @Override public int getRowLeft() - `getX() + 2`
+    fn get_row_left(&self, list: &AbstractSelectionList, super_answer: i32) -> i32 {
+        let _ = super_answer;
+        list.get_x().wrapping_add(2)
+    }
+
+    /// java: @Override public int getRowWidth() - `getWidth() - 6`
+    fn get_row_width(&self, list: &AbstractSelectionList, super_answer: i32) -> i32 {
+        let _ = super_answer;
+        list.get_width().wrapping_sub(6)
+    }
+
+    /// java: @Override protected int scrollBarX() - `getRowLeft() + getRowWidth()`
+    fn scroll_bar_x(&self, list: &AbstractSelectionList, super_answer: i32) -> i32 {
+        let _ = super_answer;
+        list.get_x().wrapping_add(2).wrapping_add(list.get_width().wrapping_sub(6))
+    }
+
+    /// java: @Override protected boolean entriesCanBeSelected() - `false`
+    fn entries_can_be_selected(&self, list: &AbstractSelectionList, super_answer: bool) -> bool {
+        let _ = (list, super_answer);
+        false
+    }
+
+    /// java: @Override protected void extractListBackground(GuiGraphicsExtractor graphics) - empty
+    fn extract_list_background(&self, list: &AbstractSelectionList, context: &mut WidgetRenderContext<'_>, super_extract_list_background: &mut dyn FnMut(&mut WidgetRenderContext<'_>)) {
+        let _ = (list, context, super_extract_list_background);
+    }
+
+    /// java: @Override protected void extractListSeparators(GuiGraphicsExtractor graphics) - empty
+    fn extract_list_separators(&self, list: &AbstractSelectionList, context: &mut WidgetRenderContext<'_>, super_extract_list_separators: &mut dyn FnMut(&mut WidgetRenderContext<'_>)) {
+        let _ = (list, context, super_extract_list_separators);
+    }
+}
 
 /// java: private class Header extends AbstractEntry
 pub struct Header {
@@ -454,7 +529,7 @@ impl Option {
         if PartyFinderScreen::is_waiting_for_server(&screen) {
             return false;
         }
-        if click.button() == 0 {
+        if click.button() == 1 {
             //   java: screen.clickAndWaitForServer(this.optionSlotId);
             PartyFinderScreen::click_and_wait_for_server(&screen, compat::read(__this, |__t| __t.option_slot_id));
             //   java: setSelectedOption(this);

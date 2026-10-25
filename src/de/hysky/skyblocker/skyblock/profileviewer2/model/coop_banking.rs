@@ -95,3 +95,67 @@ impl std::fmt::Display for BankAction {
         f.write_str(self.name())
     }
 }
+
+impl CoopBanking {
+    /// Gson's reflective binding of the class's own fields (`ReflectiveTypeAdapterFactory`): each member the
+    /// JSON has is read over the field it names (`@SerializedName`, else the field's name) with the field's declared
+    /// type; an absent member (or a `null` one, or one Gson would reject) leaves the constructor's value.
+    pub fn read_json_fields(&mut self, json: &serde_json::Value) {
+        #[allow(unused_imports)]
+        use crate::io::github::moulberry::repo::neu_repository::gson;
+        if let Some(__v) = gson::member(json, "balance") {
+            if let Some(__x) = gson::as_f64(__v) {
+                self.balance = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "transactions") {
+            if let Some(__x) = gson::list(__v, |__e0| Some(Transaction::from_json(__e0))) {
+                self.transactions = __x;
+            }
+        }
+    }
+
+    /// `GSON.fromJson(json, CoopBanking.class)`: the no-argument constructor, then the fields.
+    pub fn from_json(json: &serde_json::Value) -> Self {
+        let mut __this = Self::new();
+        __this.read_json_fields(json);
+        __this
+    }
+}
+
+impl Transaction {
+    /// Gson's reflective binding of the class's own fields (`ReflectiveTypeAdapterFactory`): each member the
+    /// JSON has is read over the field it names (`@SerializedName`, else the field's name) with the field's declared
+    /// type; an absent member (or a `null` one, or one Gson would reject) leaves the constructor's value.
+    pub fn read_json_fields(&mut self, json: &serde_json::Value) {
+        #[allow(unused_imports)]
+        use crate::io::github::moulberry::repo::neu_repository::gson;
+        if let Some(__v) = gson::member(json, "amount") {
+            if let Some(__x) = gson::as_f64(__v) {
+                self.amount = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "timestamp") {
+            if let Some(__x) = gson::as_i64(__v) {
+                self.timestamp = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "action") {
+            if let Some(__x) = gson::as_string(__v).and_then(|__s| BankAction::values().into_iter().find(|__a| __a.name() == __s)).map(Some) {
+                self.action = __x;
+            }
+        }
+        if let Some(__v) = gson::member(json, "initiator_name") {
+            if let Some(__x) = gson::as_string(__v) {
+                self.initiator_name = __x;
+            }
+        }
+    }
+
+    /// `GSON.fromJson(json, Transaction.class)`: the no-argument constructor, then the fields.
+    pub fn from_json(json: &serde_json::Value) -> Self {
+        let mut __this = Self::new();
+        __this.read_json_fields(json);
+        __this
+    }
+}

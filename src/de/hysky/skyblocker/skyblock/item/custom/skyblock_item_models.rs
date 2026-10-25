@@ -32,48 +32,52 @@ impl SkyblockItemModels {
         SkyblockerConfigManager::update(Arc::new(move |mut config| {
             // java: try {..} catch (Exception e) - an exception here is a panic, caught by `catch_unwind`
             let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                // TODO(fabric2seer): `.getResourcePack(..)` on a NEUConstants
                 //   java: ResourcePack.ItemModels itemModelsData = NEURepoManager.getConstants().getResourcePack().getItemModels();
-                let mut item_models_data: crate::unresolved::ItemModels = todo!("fabric2seer: the initialiser of `itemModelsData` (TODO above)");
-                let mut iterator = config.general.custom_item_model.iter().map(|(k, v)| (k.clone(), v.clone()));
-                // TODO(fabric2seer): the condition: Iterator.hasNext - use a `for` loop / `while let Some(x) = it.next()`
-                //   java: iterator.hasNext(..)
-                while todo!("fabric2seer: the condition (TODO above)") {
-                    let mut entry: (String, Identifier) = iterator.next().unwrap();
-                    let item_model = &entry.1;
-                    // TODO(fabric2seer): `fmt` takes 1 argument(s) in the port (`f: &mut fmt::Formatter<'_>`), Java passes 0
-                    // rust: let mut item_model_string: String = item_model.fmt();
-                    let mut item_model_string: String = todo!("fabric2seer: the initialiser of `itemModelString` (TODO above)");
+                let resource_pack = NEURepoManager::get_constants().get_resource_pack();
+                let item_models_data = resource_pack.get_item_models();
+                //   java: Iterator<Map.Entry<String, Identifier>> iterator = config.general.customItemModel.entrySet().iterator();
+                //   java: while (iterator.hasNext()) { Map.Entry<String, Identifier> entry = iterator.next(); ..
+                // (the entries are walked by key; `iterator.remove()` detaches the entry, so a later `entry.setValue`
+                // on it no longer reaches the map - `removed` keeps that)
+                let keys: Vec<String> = config.general.custom_item_model.keys().cloned().collect();
+                for key in keys {
+                    let Some(item_model) = config.general.custom_item_model.get(&key).cloned() else {
+                        continue;
+                    };
+                    let mut item_model_string: String = item_model.to_string();
                     if item_model.namespace() == utils::HYPIXEL_SKYBLOCK_NAMESPACE {
-                        // TODO(fabric2seer): the condition: `.getRemoved(..)` on a ItemModels
-                        //   java: itemModelsData.getRemoved(..).contains(..)
-                        if todo!("fabric2seer: the condition (TODO above)") {
-                            // TODO(fabric2seer): Stream.remove
+                        let mut removed: bool = false;
+                        // Remove item models that no longer exist
+                        if item_models_data.get_removed().contains(&item_model_string) {
                             //   java: iterator.remove();
+                            config.general.custom_item_model.remove(&key);
+                            removed = true;
                         }
-                        // TODO(fabric2seer): the condition: `.getRenamed(..)` on a ItemModels
-                        //   java: !itemModelsData.getRenamed().containsKey(itemModelString)
-                        if todo!("fabric2seer: the condition (TODO above)") {
+                        // Skip updating model name if possible
+                        if !item_models_data.get_renamed().contains_key(&item_model_string) {
                             continue;
                         }
-                        // TODO(fabric2seer): `.getRenamed(..)` on a ItemModels
+                        // Update old item models recursively with some protection against circular map references
                         //   java: String currentModel = itemModelsData.getRenamed().get(itemModelString);
-                        let mut current_model: String = todo!("fabric2seer: the initialiser of `currentModel` (TODO above)");
+                        let mut current_model: String = item_models_data.get_renamed().get(&item_model_string).cloned().unwrap_or_default();
                         let mut visited: std::collections::HashSet<String> = std::collections::HashSet::new();
                         visited.insert(item_model_string.clone());
-                        // TODO(fabric2seer): `.getRenamed(..)` on a ItemModels
                         //   java: String nextModel = itemModelsData.getRenamed().get(currentModel);
-                        let mut next_model: Option<String> = todo!("fabric2seer: the initialiser of `nextModel` (TODO above)");
+                        let mut next_model: Option<String> = item_models_data.get_renamed().get(&current_model).cloned();
                         // java: while (nextModel != null) - `Map.get` answers null for a model that was not renamed
                         while let Some(next) = next_model.clone() {
                             if visited.contains(&next) {
+                                // Circular reference so break loop
                                 break;
                             }
-                            entry.1 = Identifier::parse(&next);
+                            //   java: entry.setValue(Identifier.parse(nextModel));
+                            if !removed {
+                                config.general.custom_item_model.insert(key.clone(), Identifier::parse(&next));
+                            }
                             visited.insert(next.clone());
                             current_model = next;
-                            // TODO(fabric2seer): `.getRenamed(..)` on a ItemModels
                             //   java: nextModel = itemModelsData.getRenamed().get(currentModel);
+                            next_model = item_models_data.get_renamed().get(&current_model).cloned();
                         }
                     }
                 }

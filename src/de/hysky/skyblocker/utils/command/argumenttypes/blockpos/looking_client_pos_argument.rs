@@ -51,24 +51,24 @@ impl LookingClientPosArgument {
                 return LookingClientPosArgument::new(d, e, f);
             } else {
                 reader.set_cursor(i);
-                panic!("{:?}", mcrust::net::minecraft::commands::arguments::coordinates::vec3_argument::error_not_complete().create_with_context(reader));
+                std::panic::panic_any(mcrust::net::minecraft::commands::arguments::coordinates::vec3_argument::error_not_complete().create_with_context(reader));
             }
         } else {
             reader.set_cursor(i);
-            panic!("{:?}", mcrust::net::minecraft::commands::arguments::coordinates::vec3_argument::error_not_complete().create_with_context(reader));
+            std::panic::panic_any(mcrust::net::minecraft::commands::arguments::coordinates::vec3_argument::error_not_complete().create_with_context(reader));
         }
     }
 
     /// java: private static double readCoordinate(StringReader reader, int startingCursorPos) throws CommandSyntaxException
     pub fn read_coordinate(reader: &mut StringReader, mut starting_cursor_pos: i32) -> f64 {
         if !reader.can_read() {
-            panic!("{:?}", mcrust::net::minecraft::commands::arguments::coordinates::world_coordinate::error_expected_double().create_with_context(reader));
+            std::panic::panic_any(mcrust::net::minecraft::commands::arguments::coordinates::world_coordinate::error_expected_double().create_with_context(reader));
         } else if reader.peek() != '^' {
             reader.set_cursor(starting_cursor_pos);
-            panic!("{:?}", mcrust::net::minecraft::commands::arguments::coordinates::vec3_argument::error_mixed_type().create_with_context(reader));
+            std::panic::panic_any(mcrust::net::minecraft::commands::arguments::coordinates::vec3_argument::error_mixed_type().create_with_context(reader));
         } else {
             reader.skip();
-            return (if reader.can_read() && reader.peek() != ' ' { reader.read_double().unwrap() } else { 0.0 });
+            return (if reader.can_read() && reader.peek() != ' ' { reader.read_double().unwrap_or_else(|e| std::panic::panic_any(e)) } else { 0.0 });
         }
     }
 
@@ -104,12 +104,12 @@ impl ClientPosArgument for LookingClientPosArgument {
     }
 
     /// java: @Override public Vec3 toAbsolutePos(FabricClientCommandSource source) (dispatch: the body for this class)
-    fn to_absolute_pos(&self) -> fn(&compat::Shared<dyn ClientPosArgument>, &crate::unresolved::FabricClientCommandSource) -> Vec3 {
+    fn to_absolute_pos(&self) -> fn(&compat::Shared<dyn ClientPosArgument>, &mcrust::mcrust::modding::events::client_command_registration_callback::FabricClientCommandSource) -> Vec3 {
         LookingClientPosArgument::to_absolute_pos_dyn
     }
 
     /// java: @Override public Vec2 toAbsoluteRotation(FabricClientCommandSource source) (dispatch: the body for this class)
-    fn to_absolute_rotation(&self) -> fn(&compat::Shared<dyn ClientPosArgument>, &crate::unresolved::FabricClientCommandSource) -> Vec2 {
+    fn to_absolute_rotation(&self) -> fn(&compat::Shared<dyn ClientPosArgument>, &mcrust::mcrust::modding::events::client_command_registration_callback::FabricClientCommandSource) -> Vec2 {
         LookingClientPosArgument::to_absolute_rotation_dyn
     }
 
@@ -132,13 +132,12 @@ impl ClientPosArgument for LookingClientPosArgument {
 
 impl LookingClientPosArgument {
     /// java: @Override public Vec3 toAbsolutePos(FabricClientCommandSource source)
-    pub fn to_absolute_pos_impl(__this: &compat::Shared<Self>, source: &crate::unresolved::FabricClientCommandSource) -> Vec3 {
-        // TODO(fabric2seer): `.getRotation(..)` on a FabricClientCommandSource
-        //   java: Vec2 vec2f = source.getRotation();
-        let mut vec2f: Vec2 = todo!("fabric2seer: the initialiser of `vec2f` (TODO above)");
-        // TODO(fabric2seer): `.getPlayer(..)` on a FabricClientCommandSource
-        //   java: Vec3 vec3d = source.getPlayer().position();
-        let mut vec3d: Vec3 = todo!("fabric2seer: the initialiser of `vec3d` (TODO above)");
+    pub fn to_absolute_pos_impl(__this: &compat::Shared<Self>, source: &mcrust::mcrust::modding::events::client_command_registration_callback::FabricClientCommandSource) -> Vec3 {
+        // java: Vec2 vec2f = source.getRotation(); - Fabric's client source: `client.player.getRotationVector()` (xRot, yRot)
+        let _ = source;
+        let vec2f: Vec2 = mcrust::mcrust::modding::game::with_player(|player| Vec2::new(player.base.base.base.base.get_x_rot(), player.base.base.base.base.get_y_rot())).unwrap_or_else(|| panic!("NullPointerException: no player"));
+        // java: Vec3 vec3d = source.getPlayer().position();
+        let vec3d: Vec3 = mcrust::mcrust::modding::game::with_player(|player| player.base.base.base.base.position()).unwrap_or_else(|| panic!("NullPointerException: no player"));
         let mut f: f32 = mth::cos((((vec2f.y + 90.0f32) * (((std::f64::consts::PI / 180.0)) as f32))) as f64);
         let mut g: f32 = mth::sin((((vec2f.y + 90.0f32) * (((std::f64::consts::PI / 180.0)) as f32))) as f64);
         let mut h: f32 = mth::cos((((-vec2f.x) * (((std::f64::consts::PI / 180.0)) as f32))) as f64);
@@ -155,17 +154,17 @@ impl LookingClientPosArgument {
     }
 
     /// LookingClientPosArgument.toAbsolutePos as the dispatch of ClientPosArgument.toAbsolutePos
-    pub fn to_absolute_pos_dyn(__this: &compat::Shared<dyn ClientPosArgument>, __p0: &crate::unresolved::FabricClientCommandSource) -> Vec3 {
+    pub fn to_absolute_pos_dyn(__this: &compat::Shared<dyn ClientPosArgument>, __p0: &mcrust::mcrust::modding::events::client_command_registration_callback::FabricClientCommandSource) -> Vec3 {
         Self::to_absolute_pos_impl(&compat::view_as::<Self, _, Self>(__this, |a| a), __p0)
     }
 
     /// java: @Override public Vec2 toAbsoluteRotation(FabricClientCommandSource source)
-    pub fn to_absolute_rotation_impl(__this: &compat::Shared<Self>, source: &crate::unresolved::FabricClientCommandSource) -> Vec2 {
+    pub fn to_absolute_rotation_impl(__this: &compat::Shared<Self>, source: &mcrust::mcrust::modding::events::client_command_registration_callback::FabricClientCommandSource) -> Vec2 {
         return mcrust::net::minecraft::world::phys::vec2::ZERO;
     }
 
     /// LookingClientPosArgument.toAbsoluteRotation as the dispatch of ClientPosArgument.toAbsoluteRotation
-    pub fn to_absolute_rotation_dyn(__this: &compat::Shared<dyn ClientPosArgument>, __p0: &crate::unresolved::FabricClientCommandSource) -> Vec2 {
+    pub fn to_absolute_rotation_dyn(__this: &compat::Shared<dyn ClientPosArgument>, __p0: &mcrust::mcrust::modding::events::client_command_registration_callback::FabricClientCommandSource) -> Vec2 {
         Self::to_absolute_rotation_impl(&compat::view_as::<Self, _, Self>(__this, |a| a), __p0)
     }
 

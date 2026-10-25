@@ -22,10 +22,9 @@ use mcrust::net::minecraft::world::item::component::resolvable_profile::Resolvab
 
 /// java: private static final Gson GSON = SkyblockerMod.GSON.newBuilder() .registerTypeHierarchyAdapter(UUID.class, new LenientUuidTypeAdapter()) .create();
 ///
-/// rust: port gap - Gson's reflective object binding (`GSON.fromJson(json, ApiProfileResponse.class)`, every field of
-/// the ~40 `profileviewer2.model` classes by name, `@SerializedName`, and the `UUID` hierarchy adapter) has no
-/// counterpart in the port or the mod (`crate::unresolved::Gson` is a name only; GAPS_batchC, GAPS_M #9). The value is
-/// the placeholder the mod's `Gson` type stands for; `api_profile_response_from_json` is where its one use lands.
+/// The binding itself is each `profileviewer2.model` class's `from_json` (Gson's reflective adapter written out per
+/// class, `@SerializedName` the member names), with `UUID`s read by `json_uuid` - the `LenientUuidTypeAdapter` this
+/// builder registers - and `Object`s by `json_object` (Gson's `ObjectTypeAdapter`).
 pub static GSON: compat::MainThread<crate::unresolved::Gson> = compat::MainThread::new(|| crate::unresolved::Gson);
 /// java: public static final boolean ENABLED = Debug.debugEnabled();
 pub static ENABLED: LazyLock<bool> = LazyLock::new(|| crate::de::hysky::skyblocker::debug::debug::Debug::debug_enabled());
@@ -213,13 +212,37 @@ struct FetchedData {
 }
 
 /// `GSON.fromJson(json, ApiProfileResponse.class)`.
-///
-/// rust: port gap - Gson's reflective binding of the `profileviewer2.model` graph (see `GSON`; GAPS_M #9): there is no
-/// binder to build an `ApiProfileResponse` from the JSON, so the profile does not load (`Optional.empty()`, which the
-/// caller answers with "Failed to load Skyblock profiles.").
 fn api_profile_response_from_json(json: &serde_json::Map<String, serde_json::Value>) -> Option<compat::Shared<ApiProfileResponse>> {
-    let _ = (GSON.get(), json);
-    None
+    let _ = GSON.get();
+    Some(ApiProfileResponse::from_json(&serde_json::Value::Object(json.clone())))
+}
+
+/// `GSON`'s `UUID` type: `LenientUuidTypeAdapter.deserialize` (`UUIDUtil.AUTHLIB_CODEC` - an int array, a dashed or an
+/// undashed string). A value the codec rejects is `None` (the field keeps its constructor's value).
+pub(crate) fn json_uuid(json: &serde_json::Value) -> Option<mcrust::java::util::uuid::Uuid> {
+    use mcrust::com::mojang::serialization::decoder::Decoder as _;
+    mcrust::net::minecraft::core::uuid_util::authlib_codec().parse(&mcrust::com::mojang::serialization::json_ops::JsonOps::instance(), &compat::json_to_port(json)).get_or_throw().ok()
+}
+
+/// A `Map<UUID, V>` key: Gson's `MapTypeAdapterFactory` reads the member name as a JSON string through the `UUID`
+/// adapter (`json_uuid`).
+pub(crate) fn json_uuid_key(key: &str) -> Option<mcrust::java::util::uuid::Uuid> {
+    json_uuid(&serde_json::Value::String(key.to_string()))
+}
+
+/// Gson's `ObjectTypeAdapter` (an `Object` field or map value): a number is a `Double` (`ToNumberPolicy.DOUBLE`, the
+/// default `SkyblockerMod.GSON` keeps), a string a `String`, a boolean a `Boolean`, an array an `ArrayList<Object>`, an
+/// object a `LinkedTreeMap<String, Object>` (here `Vec<Object>` / `HashMap<String, Object>`; `null` elements are
+/// `None`).
+pub(crate) fn json_object(json: &serde_json::Value) -> compat::Object {
+    match json {
+        serde_json::Value::Number(n) => std::sync::Arc::new(n.as_f64().unwrap_or(0.0)),
+        serde_json::Value::String(s) => std::sync::Arc::new(s.clone()),
+        serde_json::Value::Bool(b) => std::sync::Arc::new(*b),
+        serde_json::Value::Array(a) => std::sync::Arc::new(a.iter().map(|e| if e.is_null() { None } else { Some(json_object(e)) }).collect::<Vec<Option<compat::Object>>>()),
+        serde_json::Value::Object(o) => std::sync::Arc::new(o.iter().map(|(k, e)| (k.clone(), if e.is_null() { None } else { Some(json_object(e)) })).collect::<std::collections::HashMap<String, Option<compat::Object>>>()),
+        serde_json::Value::Null => std::sync::Arc::new(()),
+    }
 }
 
 

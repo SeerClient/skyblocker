@@ -73,10 +73,54 @@ impl BackpackPreview {
             // screen instanceof AbstractContainerScreen<?> handledScreen - the screen being initialised is the one the
             // game names now
             if compat::container_screen_open() {
-                // TODO(fabric2seer): ScreenEvents.remove(..).register: no SeerClient equivalent yet
-                //   java: ScreenEvents.remove(screen).register(_ -> updateStorage(handledScreen));
+                // `handledScreen.getMenu()` - the menu open while the screen initialises is the screen's own. The port's
+                // storage cannot hold that menu's container object (Java's `slots.getFirst().container`, read live), so
+                // it is followed by its container id: while it is still the open menu its items are re-read each tick
+                // (the live container's contents), and at `removed` the last of them become the cached storage - by
+                // then the game may already have made the NEXT menu the open one (`MenuScreens.create` sets
+                // `containerMenu` before `setScreen` removes this screen), whose items are not this storage's.
+                let menu_id: Option<i32> = compat::with_open_menu(|menu, _| menu.container_id);
+                if let Some(menu_id) = menu_id {
+                    screen_events::after_tick(screen, Arc::new(move |s: &mut Screen| {
+                        let title: String = s.get_title().to_string();
+                        BackpackPreview::follow_storage(&title, menu_id, false);
+                        // (`initializeStorage` too, while the menu is still there to read - it only adds and drops blanks)
+                        if STRORAGE_PATTERN.matcher(&title).matches() {
+                            BackpackPreview::initialize_storage(s, menu_id);
+                        }
+                    }));
+                    // java: ScreenEvents.remove(screen).register(_ -> updateStorage(handledScreen));
+                    screen_events::remove(screen, Arc::new(move |removed: &Screen| BackpackPreview::update_storage(removed, menu_id)));
+                }
             }
         }));
+    }
+
+    /// The storage of the screen whose menu is `menu_id` refreshed from that menu while it is still the open one
+    /// (`slots.getFirst().container`'s items); `dirty` as Java's `new Storage(.., title, true)` at `removed`, `false`
+    /// for the per-tick refresh so that only the removal is saved.
+    pub fn follow_storage(title: &str, menu_id: i32, dirty: bool) {
+        let index: i32 = BackpackPreview::get_storage_index_from_title(title);
+        if index == -1 {
+            return;
+        }
+        let __items: Option<Vec<mcrust::net::minecraft::world::item::item_stack::ItemStack>> = compat::with_open_menu(|menu, containers| {
+            if menu.container_id != menu_id || menu.slots.is_empty() {
+                return None;
+            }
+            let container = containers.get(menu.slots[0].container);
+            Some((0..container.get_container_size()).map(|i| container.get_item(i).duplicate()).collect())
+        }).flatten();
+        match __items {
+            Some(items) => STORAGES.get_mut()[(index) as usize] = Some(Storage::new(SimpleContainer::of(items), title.to_string(), dirty)),
+            // the menu is gone: the last refresh is the storage, marked for saving
+            None if dirty => {
+                if let Some(storage) = STORAGES.get()[(index) as usize].clone() {
+                    compat::write(&storage, |__t| { __t.dirty = true; __t.name = title.to_string(); });
+                }
+            }
+            None => {}
+        }
     }
 
     /// java: public static void tick()
@@ -173,30 +217,30 @@ impl BackpackPreview {
     }
 
     /// java: private static void updateStorage(AbstractContainerScreen<?> handledScreen)
-    pub fn update_storage(handled_screen: &AbstractContainerScreen) {
-        let mut title: String = handled_screen.screen.get_title().to_string();
-        let mut index: i32 = BackpackPreview::get_storage_index_from_title(&title);
-        if index != -1 {
-            // storages[index] = new Storage(handledScreen.getMenu().slots.getFirst().container, title, true);
-            // The port's mod cannot keep the menu's container object, so the storage takes its items as they are when
-            // the screen is removed (the call site) - after which the client's container no longer changes.
-            let __items: Vec<mcrust::net::minecraft::world::item::item_stack::ItemStack> = compat::with_open_menu(|menu, containers| {
-                let container = containers.get(menu.slots[0].container);
-                (0..container.get_container_size()).map(|i| container.get_item(i).duplicate()).collect()
-            }).unwrap_or_default();
-            STORAGES.get_mut()[(index) as usize] = Some(Storage::new(SimpleContainer::of(__items), title.clone(), true));
-        }
+    /// (`handledScreen` is the container screen's `Screen` half - its title; its menu is the player's open menu)
+    pub fn update_storage(handled_screen: &mcrust::net::minecraft::client::gui::screens::screen::Screen, menu_id: i32) {
+        let mut title: String = handled_screen.get_title().to_string();
+        // storages[index] = new Storage(handledScreen.getMenu().slots.getFirst().container, title, true); - see `init`
+        BackpackPreview::follow_storage(&title, menu_id, true);
         if STRORAGE_PATTERN.matcher(&title).matches() {
-            BackpackPreview::initialize_storage(handled_screen);
+            BackpackPreview::initialize_storage(handled_screen, menu_id);
         }
     }
 
     /// java: private static void initializeStorage(AbstractContainerScreen<?> handledScreen)
-    pub fn initialize_storage(handled_screen: &AbstractContainerScreen) {
+    /// (`menu_id`: the screen's menu, read only while it is still the open one - see `init`)
+    pub fn initialize_storage(handled_screen: &mcrust::net::minecraft::client::gui::screens::screen::Screen, menu_id: i32) {
+        let _ = handled_screen;
         // NonNullList<Slot> slots = handledScreen.getMenu().slots; - what the loops read of them, `slot.getItem()`
         let mut slots: Vec<mcrust::net::minecraft::world::item::item_stack::ItemStack> = compat::with_open_menu(|menu, containers| {
+            if menu.container_id != menu_id {
+                return Vec::new();
+            }
             menu.slots.iter().map(|slot| slot.get_item(containers).duplicate()).collect()
         }).unwrap_or_default();
+        if slots.len() < 45 {
+            return;
+        }
         //echests
         for i in 9..18i32 {
             let slot_item = &slots[(i) as usize];
@@ -259,7 +303,7 @@ impl BackpackPreview {
             let mut item_x: i32 = (x.wrapping_add(((i.wrapping_sub(9)).wrapping_rem(9)).wrapping_mul(18))).wrapping_add(8);
             let mut item_y: i32 = (y.wrapping_add(((i.wrapping_sub(9)).wrapping_div(9)).wrapping_mul(18))).wrapping_add(18);
             ItemBackgroundManager::draw_backgrounds(&current_stack, graphics, item_x, item_y);
-            if ItemProtection::is_item_protected(Some(current_stack.clone())) {
+            if ItemProtection::is_item_protected_ref(Some(&current_stack)) {
                 ItemProtection::draw_slot_icon(graphics, item_x, item_y);
             }
             graphics.item(&current_stack, item_x, item_y);

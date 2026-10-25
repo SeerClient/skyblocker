@@ -30,8 +30,8 @@ impl SackMessagePrice {
 
     /// java: @Init public static void init()
     pub fn init() {
-        // TODO(fabric2seer): ClientReceiveMessageEvents.MODIFY_GAME.register: no SeerClient equivalent yet
         //   java: ClientReceiveMessageEvents.MODIFY_GAME.register(SackMessagePrice::onMessage);
+        compat::register_modify_game(|original, overlay| SackMessagePrice::on_message(original, overlay));
     }
 
     /// java: private static Component onMessage(Component original, boolean overlay)
@@ -96,19 +96,28 @@ impl SackMessagePrice {
             text_list.push(component::literal(mcrust::net::minecraft::network::chat::common_components::NEW_LINE));
             text_list.push(component::empty().append(component::literal("Bazaar Sell Price: ").with_style_format(ChatFormatting::Gold)).append((if bazaar_sell_price > (0 as f64) { ItemTooltip::get_coins_message(bazaar_sell_price, 1) } else { component::literal("No data").with_style_format(ChatFormatting::Red) })));
         }
+        // Java's lists ARE the hover texts' sibling lists inside `copy`, so the additions above land in `copy`: the
+        // port's components are values, so the lists are written back into the same hover texts.
+        copy = SackMessagePrice::set_hover_event_siblings(&copy, list_list);
         return copy;
     }
 
     /// java: private static MutableComponent deepCopy(Component text)
     pub fn deep_copy(text: &MutableComponent) -> MutableComponent {
         let mut copy: MutableComponent = text.plain_copy();
-        // TODO(fabric2seer): not translated (expected ')' at '(' (offset 6049))
         //   java: if (text.getStyle().getHoverEvent() instanceof ShowText(Component showText)) {
         //   java: 			// DO NOT simplify to `text.getStyle().withHoverEvent(new ShowText(showText);`,
         //   java: 			// Style.withHoverEvent(hoverEvent) checks if the given value is equal to the current one, and since our text clone is equal by value, it will not create a new style.
         //   java: 			// This means the original hover event will still be used which is immutable, and our list modifications will fail with an UnsupportedOperationException in #onMessage.
         //   java: 			copy.setStyle(Style.EMPTY.withHoverEvent(new ShowText(deepCopy(showText))).applyTo(text.getStyle()));
         //   java: 		} else copy.setStyle(text.getStyle());
+        if let Some(mcrust::net::minecraft::network::chat::hover_event::HoverEvent::ShowText { value: show_text }) = text.get_style().get_hover_event() {
+            let show_text: MutableComponent = compat::component_of(show_text.clone());
+            let hover = mcrust::net::minecraft::network::chat::hover_event::HoverEvent::new_show_text(mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(SackMessagePrice::deep_copy(&show_text)));
+            copy = copy.set_style(mcrust::net::minecraft::network::chat::style::Style::EMPTY.with_hover_event(Some(hover)).apply_to(text.get_style()));
+        } else {
+            copy = copy.set_style(text.get_style().clone());
+        }
         for sibling in text.get_siblings().iter() {
             copy = copy.append(SackMessagePrice::deep_copy(sibling));
         }
@@ -126,10 +135,8 @@ impl SackMessagePrice {
         //   java: 					LOGGER.warn("Failed to find the NEU item ID for item: {}", itemName);
         //   java: 					return null; // This won't be used to calculate the price
         //   java: 				});
-        match crate::de::hysky::skyblocker::utils::neu_repo_manager::NEURepoManager::get_item_by_name(item_name).into_iter().flatten().next() {
-            // rust: port gap - `NEUItem.getSkyblockItemId` (the NEU repo parser is a `crate::unresolved` placeholder,
-            // GAPS_batchB L1; the repo never loads, so no item is found and this arm is not reached)
-            Some(_item) => todo!("rust: port gap - NEUItem.getSkyblockItemId"),
+        match crate::de::hysky::skyblocker::utils::neu_repo_manager::NEURepoManager::get_item_by_name(item_name).into_iter().next() {
+            Some(item) => Some(item.get_skyblock_item_id().to_string()),
             None => {
                 logger().warn(&format!("Failed to find the NEU item ID for item: {}", item_name));
                 return None; // This won't be used to calculate the price
@@ -141,14 +148,52 @@ impl SackMessagePrice {
     pub fn get_hover_event_siblings(text: &MutableComponent) -> Vec<Vec<MutableComponent>> {
         let mut list_list: Vec<Vec<MutableComponent>> = Vec::new();
         for sibling in text.get_siblings().iter() {
-            // TODO(fabric2seer): not translated (expected ')' at '(' (offset 7402))
             //   java: if (sibling.getStyle().getHoverEvent() instanceof ShowText(Component hoverText)
             //   java: 					&& hoverText.getContents() instanceof LiteralContents(String rootContent) // Only match the root content since we only need the root content.
             //   java: 					&& Strings.CS.startsWithAny(rootContent, "Added items:", "Removed items:")) {
             //   java: 				listList.add(hoverText.getSiblings());
             //   java: 			}
+            if let Some(hover_text) = SackMessagePrice::item_list_hover_text(sibling) {
+                list_list.push(hover_text.get_siblings().to_vec());
+            }
         }
         return list_list;
+    }
+
+    /// The hover text `getHoverEventSiblings` takes a sibling's list from: its `ShowText` value, when that value's root
+    /// content is a literal starting with "Added items:" or "Removed items:".
+    fn item_list_hover_text(sibling: &MutableComponent) -> Option<MutableComponent> {
+        let Some(mcrust::net::minecraft::network::chat::hover_event::HoverEvent::ShowText { value }) = sibling.get_style().get_hover_event() else {
+            return None;
+        };
+        let hover_text: MutableComponent = compat::component_of(value.clone());
+        let is_item_list: bool = match &**hover_text.get_contents() {
+            mcrust::net::minecraft::network::chat::component_contents::ComponentContents::Text(mcrust::net::minecraft::network::chat::contents::plain_text_contents::PlainTextContents::Literal(root_content)) => root_content.starts_with("Added items:") || root_content.starts_with("Removed items:"),
+            _ => false,
+        };
+        if is_item_list { Some(hover_text) } else { None }
+    }
+
+    /// Writes the lists `getHoverEventSiblings` handed out back into `text`'s hover texts, in the same order - what
+    /// Java's in-place list modification leaves behind.
+    fn set_hover_event_siblings(text: &MutableComponent, list_list: Vec<Vec<MutableComponent>>) -> MutableComponent {
+        let mut lists = list_list.into_iter();
+        let siblings: Vec<MutableComponent> = text
+            .get_siblings()
+            .iter()
+            .map(|sibling| {
+                let Some(hover_text) = SackMessagePrice::item_list_hover_text(sibling) else {
+                    return sibling.clone();
+                };
+                let Some(list) = lists.next() else {
+                    return sibling.clone();
+                };
+                let rebuilt = MutableComponent::new(hover_text.get_contents().clone(), list, hover_text.get_style().clone());
+                let hover = mcrust::net::minecraft::network::chat::hover_event::HoverEvent::new_show_text(mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(rebuilt));
+                MutableComponent::new(sibling.get_contents().clone(), sibling.get_siblings().to_vec(), sibling.get_style().with_hover_event(Some(hover)))
+            })
+            .collect();
+        MutableComponent::new(text.get_contents().clone(), siblings, text.get_style().clone())
     }
 
     /// java: @SuppressWarnings("ConstantValue") // It's much easier to read this way. private static Object2IntArrayMap<String> parseItems(List<Component> texts)
@@ -157,7 +202,6 @@ impl SackMessagePrice {
         let mut last_count: Option<i32> = None;
         let mut last_item_name: Option<String> = None;
         for text in texts.iter() {
-            // TODO(fabric2seer): not translated (expected ')' at '(' (offset 8583))
             //   java: if (text.getContents() instanceof LiteralContents(String content)) { // Only match the root content since we only need the root content.
             //   java: 				if (content.equals("\n\n")) break; // End of items list, we can stop parsing here - NOTE: This has to come before the isBlank check, otherwise it will be skipped.
             //   java: 				if (content.isBlank()) continue; // This includes \n lines, which we don't want to try and parse as item names or counts
@@ -179,6 +223,29 @@ impl SackMessagePrice {
             //   java: 					lastItemName = null;
             //   java: 				}
             //   java: 			}
+            let mcrust::net::minecraft::network::chat::component_contents::ComponentContents::Text(mcrust::net::minecraft::network::chat::contents::plain_text_contents::PlainTextContents::Literal(content)) = &**text.get_contents() else {
+                continue;
+            };
+            if content == "\n\n" {
+                break;
+            }
+            if compat::is_blank(content) {
+                continue;
+            }
+            let trimmed: String = compat::trim(content);
+            if last_count.is_none() && last_item_name.is_none() {
+                let mut matcher = ITEM_COUNT_PATTERN.matcher(&trimmed);
+                let count: Option<i32> = crate::de::hysky::skyblocker::utils::regex_utils::RegexUtils::find_int_from_matcher(&mut matcher);
+                let Some(count) = count else {
+                    logger().error(&format!("Failed to parse item count from text content: `{}`", trimmed));
+                    return std::collections::HashMap::new();
+                };
+                last_count = Some(count);
+            } else if last_count.is_some() && last_item_name.is_none() {
+                last_item_name = Some(trimmed);
+            } else if last_count.is_some() && last_item_name.is_some() {
+                items.insert(last_item_name.take().unwrap(), last_count.take().unwrap());
+            }
         }
         return items;
     }

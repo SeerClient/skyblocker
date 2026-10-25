@@ -27,20 +27,30 @@ pub struct SkyblockCraftingRecipe {
 
 impl SkyblockCraftingRecipe {
     /// java: public SkyblockCraftingRecipe(NEUCraftingRecipe neuCraftingRecipe)
-    pub fn new(mut neu_crafting_recipe: crate::unresolved::NEUCraftingRecipe) -> compat::Shared<Self> {
-        // TODO(fabric2seer): `.getExtraText(..)` on a NEUCraftingRecipe
+    pub fn new(mut neu_crafting_recipe: crate::io::github::moulberry::repo::data::neu_crafting_recipe::NEUCraftingRecipe) -> compat::Shared<Self> {
         //   java: this.craftText = neuCraftingRecipe.getExtraText() != null ? Component.literal(neuCraftingRecipe.getExtraText()) : Component.empty();
+        let __init_craft_text: MutableComponent = match neu_crafting_recipe.get_extra_text() {
+            Some(extra_text) => mcrust::net::minecraft::network::chat::component::literal(extra_text),
+            None => mcrust::net::minecraft::network::chat::component::empty(),
+        };
         let __this = compat::shared(Self {
-            craft_text: todo!("fabric2seer: the field value (TODO above)"),
+            craft_text: __init_craft_text,
             grid: Vec::with_capacity((9) as usize),
             result: None,
         });
-        // TODO(fabric2seer): `.getInputs(..)` on a NEUCraftingRecipe
         //   java: for (NEUIngredient input : neuCraftingRecipe.getInputs()) {
         //   java: 			grid.add(SkyblockRecipe.getItemStack(input));
         //   java: 		}
-        // TODO(fabric2seer): `.getOutput(..)` on a NEUCraftingRecipe
+        // (a slot the recipe does not name is a null element, and `getItemStack(null)` throws - as in Java, the item's
+        // `loadRecipes` is what fails)
+        for input in neu_crafting_recipe.get_inputs().iter() {
+            let input = input.as_ref().expect("java.lang.NullPointerException: NEUIngredient input");
+            let __v = crate::de::hysky::skyblocker::skyblock::itemlist::recipes::skyblock_recipe::get_item_stack(input);
+            compat::write(&__this, |__t| __t.grid.push(__v));
+        }
         //   java: result = SkyblockRecipe.getItemStack(neuCraftingRecipe.getOutput());
+        let __v = crate::de::hysky::skyblocker::skyblock::itemlist::recipes::skyblock_recipe::get_item_stack(neu_crafting_recipe.get_output().expect("java.lang.NullPointerException: the NEU recipe has no output"));
+        compat::write(&__this, |__t| __t.result = Some(__v));
         __this
     }
 

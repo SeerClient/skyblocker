@@ -7,13 +7,8 @@ use crate::prelude::*;
 pub static KEY_STR_BASE64: LazyLock<Mutex<Vec<char>>> = LazyLock::new(|| Mutex::new("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=".chars().collect::<Vec<char>>()));
 /// java: private static char[] keyStrUriSafe = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+-$".toCharArray();
 pub static KEY_STR_URI_SAFE: LazyLock<Mutex<Vec<char>>> = LazyLock::new(|| Mutex::new("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+-$".chars().collect::<Vec<char>>()));
-// TODO(fabric2seer): expression not parsed
-//   java:
-/// java: 
 /// java: private static Map<char[], Map<Character, Integer>> baseReverseDic = new HashMap<char[], Map<Character, Integer>>();
 pub static BASE_REVERSE_DIC: LazyLock<Mutex<std::collections::HashMap<Vec<char>, std::collections::HashMap<char, i32>>>> = LazyLock::new(|| Mutex::new(std::collections::HashMap::new()));
-/// java: 
-pub static MAP: LazyLock<Mutex<std::collections::HashMap<Vec<char>, std::collections::HashMap<char, i32>>>> = LazyLock::new(|| Mutex::new(Default::default()));
 
 /// java: public class LZString
 #[derive(Clone)]

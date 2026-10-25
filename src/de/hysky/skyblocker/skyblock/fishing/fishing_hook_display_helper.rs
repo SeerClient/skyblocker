@@ -40,39 +40,15 @@ impl FishingHookDisplayHelper {
         client_play_connection_events::JOIN.register(Arc::new(|listener: &mut ClientPacketListener| {
             *FISHING_HOOK_ARMOR_STAND.get_mut() = None;
         }));
-        hud_render_callback::EVENT.register(Arc::new(|ctx: &mut hud_render_callback::HudRenderContext<'_>| {
-            // SAFETY: `ctx` outlives every call made through `graphics` (this callback).
-            let graphics = unsafe { ScriptGraphics::new(ctx.gl, &*ctx.minecraft, ctx.gui_width, ctx.gui_height) };
-            let _session = graphics.session();
-            if SkyblockerConfigManager::get().helpers.fishing.fishing_hook_display == FishingHookDisplay::Off {
-                return;
-            }
-            if !FishingHookDisplayHelper::armor_stand_valid() {
-                *FISHING_HOOK_ARMOR_STAND.get_mut() = None;
-                return;
-            }
-            let mut client = (&mut *ctx.minecraft);
-            if mcrust::mcrust::modding::game::with_player(|_| ()).is_none() || FishingHookDisplayHelper::player_fishing().is_none() || FISHING_HOOK_ARMOR_STAND.get_mut().is_none() {
-                return;
-            }
-            if SkyblockerConfigManager::get().helpers.fishing.fishing_hook_display == FishingHookDisplay::Crosshair {
-                let mut armor_stand_name: MutableComponent = FishingHookDisplayHelper::armor_stand_name();
-                let mut screen_width: i32 = client.get_window().get_gui_scaled_width();
-                let mut screen_height: i32 = client.get_window().get_gui_scaled_height();
-                let mut x: i32 = screen_width.wrapping_div(2);
-                let mut y: i32 = screen_height.wrapping_div(2);
-                graphics.push_pose();
-                graphics.scale((3.0f32) as f32, (3.0f32) as f32);
-                gui_graphics_extractor::centered_text(ctx.gl, &*ctx.minecraft, &mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(armor_stand_name.clone()), ((((x as f32) / 3.0f32)) as i32), ((((y as f32) / 3.0f32)) as i32), 0xFFFFFF00u32 as i32);
-                let _ = graphics.pop_pose();
-            } else {
-                ({ let __r = &FishingHudWidget::get_instance(); let __f = compat::dispatch(__r, |__t| __t.update()); __f(&compat::view(__r, |a| a as compat::Shared<dyn ElementBasedWidget>)) });
-            }
-        }));
+        // java: HudElementRegistry.attachElementAfter(VanillaHudElements.TITLE_AND_SUBTITLE, FISHING_HOOK_DISPLAY, FishingHookDisplayHelper::render);
+        hud_element_registry::attach_element_after(vanilla_hud_elements::TITLE_AND_SUBTITLE, FISHING_HOOK_DISPLAY.get(), Arc::new(|ctx: &mut hud_render_callback::HudRenderContext<'_>| { FishingHookDisplayHelper::render(ctx) }));
     }
 
     /// java: public static void render(GuiGraphicsExtractor graphics, DeltaTracker tickDelta)
-    pub fn render(graphics: &GuiGraphicsExtractor, tick_delta: &crate::unresolved::DeltaTracker) {
+    pub fn render(ctx: &mut hud_render_callback::HudRenderContext<'_>) {
+        // SAFETY: `ctx` outlives every call made through `graphics` (this callback).
+        let graphics = unsafe { ScriptGraphics::new(ctx.gl, &*ctx.minecraft, ctx.gui_width, ctx.gui_height) };
+        let _session = graphics.session();
         if SkyblockerConfigManager::get().helpers.fishing.fishing_hook_display == FishingHookDisplay::Off {
             return;
         }
@@ -80,7 +56,7 @@ impl FishingHookDisplayHelper {
             *FISHING_HOOK_ARMOR_STAND.get_mut() = None;
             return;
         }
-        let client = compat::minecraft();
+        let client = &*ctx.minecraft;
         if mcrust::mcrust::modding::game::with_player(|_| ()).is_none() || FishingHookDisplayHelper::player_fishing().is_none() || FISHING_HOOK_ARMOR_STAND.get_mut().is_none() {
             return;
         }
@@ -90,10 +66,10 @@ impl FishingHookDisplayHelper {
             let mut screen_height: i32 = client.get_window().get_gui_scaled_height();
             let mut x: i32 = screen_width.wrapping_div(2);
             let mut y: i32 = screen_height.wrapping_div(2);
-            let __pose_1 = gui_graphics_extractor::push_pose();
-            gui_graphics_extractor::pose_scale((3.0f32) as f32, (3.0f32) as f32);
-            gui_graphics_extractor::centered_text(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), &mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(armor_stand_name.clone()), ((((x as f32) / 3.0f32)) as i32), ((((y as f32) / 3.0f32)) as i32), 0xFFFFFF00u32 as i32);
-            gui_graphics_extractor::pop_pose(__pose_1);
+            graphics.push_pose();
+            graphics.scale((3.0f32) as f32, (3.0f32) as f32);
+            gui_graphics_extractor::centered_text(ctx.gl, &*ctx.minecraft, &mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(armor_stand_name.clone()), ((((x as f32) / 3.0f32)) as i32), ((((y as f32) / 3.0f32)) as i32), 0xFFFFFF00u32 as i32);
+            let _ = graphics.pop_pose();
         } else {
             ({ let __r = &FishingHudWidget::get_instance(); let __f = compat::dispatch(__r, |__t| __t.update()); __f(&compat::view(__r, |a| a as compat::Shared<dyn ElementBasedWidget>)) });
         }

@@ -81,17 +81,16 @@ impl EditableSlotEntry {
         let mut text_renderer: Font = compat::font();
         ({ let __f = compat::dispatch(__this, |__t| WidgetsListSlotEntry::extract_icon_and_text(__t)); __f(&compat::view(__this, |a| a as compat::Shared<dyn WidgetsListSlotEntry>), graphics, __this.lock().borrow().get_y(), __this.lock().borrow().get_x(), __this.lock().borrow().get_height()) });
         if compat::read(__this, |__t| __t.locked) {
+            // (Java draws no edit button here: the adapter draws every row widget, so this one is hidden for the frame)
+            compat::write(__this, |__t| { let __s = &mut *__t; if let Some(__r) = __s.edit_button.as_mut() { __s.base.base.__widgets.with(&mut __s.base.base.__row, __r, |__w| __w.visible = false); } });
             gui_graphics_extractor::text_string_with_drop_shadow(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), Some("LOCKED"), ((__this.lock().borrow().get_x()).wrapping_add(__this.lock().borrow().get_width())).wrapping_sub(50), text_y, mcrust::net::minecraft::util::common_colors::RED, true);
         } else {
             let __wa1 = ((__this.lock().borrow().get_x()).wrapping_add(__this.lock().borrow().get_width())).wrapping_sub(40);
             let __wa2 = (__this.lock().borrow().get_y()).wrapping_add(((__this.lock().borrow().get_height()).wrapping_sub(12)).wrapping_div(2));
+            compat::write(__this, |__t| { let __s = &mut *__t; if let Some(__r) = __s.edit_button.as_mut() { __s.base.base.__widgets.with(&mut __s.base.base.__row, __r, |__w| __w.visible = true); } });
             compat::write(__this, |__t| { let __s = &mut *__t; let __r = __s.edit_button.as_mut().unwrap(); __s.base.base.__widgets.with(&mut __s.base.base.__row, __r, |__w| __w.set_position(__wa1, __wa2)) });
-            // TODO(fabric2seer): `extract_render_state` is a method of the port's trait `Renderable`, which the port's `AbstractWidget` does not implement
-            // rust: let __wa3 = graphics.clone();
-            // rust: let __wa4 = mouse_x;
-            // rust: let __wa5 = mouse_y;
-            // rust: let __wa6 = delta_ticks;
-            // rust: compat::write(__this, |__t| { let __s = &mut *__t; let __r = __s.edit_button.as_mut().unwrap(); __s.base.base.__widgets.with(&mut __s.base.base.__row, __r, |__w| __w.extract_render_state(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), __wa4, __wa5, __wa6)) });
+            // java: edit_button.extractRenderState(graphics, mouseX, mouseY, deltaTicks); - the row's widgets are drawn by
+            // its `compat::EntryAdapter` right after this method returns (`ModListEntry::extract_content`)
         }
     }
 
@@ -131,9 +130,8 @@ impl EditableSlotEntry {
     pub fn extract_tooltip_impl(__this: &compat::Shared<Self>, graphics: &mut GuiGraphicsExtractor, mut x: i32, mut y: i32, mut entry_width: i32, mut entry_height: i32, mut mouse_x: i32, mut mouse_y: i32) {
         if mouse_x >= x && mouse_x <= (x.wrapping_add(entry_width)).wrapping_sub(50) && mouse_y >= y && mouse_y <= y.wrapping_add(entry_height) {
             let mut lore: Vec<MutableComponent> = ItemUtils::get_lore(&compat::read(__this, |__t| __t.icon.clone()));
-            // TODO(fabric2seer): the port's `set_component_tooltip_for_next_frame` ports this Java method with other parameters (tooltip_for_next_frame, lines for Java's lines, xo, yo)
-            // TODO(fabric2seer): `set_component_tooltip_for_next_frame` takes 2 argument(s) in the port (`tooltip_for_next_frame: &mut Option<DeferredTooltip>, lines: Vec<crate::net::minecraft::network::chat::formatted_text::FormattedText>`), Java passes 4
-            // rust: gui_graphics_extractor::set_component_tooltip_for_next_frame(&mut compat::font(), (if compat::read(__this, |__t| __t.locked) { lore.clone() } else { lore[(0) as usize..(((lore.len() as i32).wrapping_sub(2)).max(0)) as usize].to_vec() }), mouse_x, mouse_y);
+            // java: graphics.setComponentTooltipForNextFrame(minecraft.font, lines, mouseX, mouseY);
+            compat::batch_s_set_tooltip_for_next_frame(((if compat::read(__this, |__t| __t.locked) { lore.clone() } else { lore[(0) as usize..(((lore.len() as i32).wrapping_sub(2)).max(0)) as usize].to_vec() })).into_iter().map(mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from).collect());
         }
     }
 

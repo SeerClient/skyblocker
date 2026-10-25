@@ -20,9 +20,9 @@ impl LenientUuidTypeAdapter {
 
     /// java: @Override public UUID deserialize(JsonElement json, Type typeOfT, JsonDeserializationContext context) throws JsonParseException
     pub fn deserialize(&self, json: &serde_json::Value, type_of_t: &crate::unresolved::Type, context: &crate::unresolved::JsonDeserializationContext) -> Uuid {
-        // TODO(fabric2seer): `new JsonParseException(..)`
-        //   java: return UUIDUtil.AUTHLIB_CODEC.parse(JsonOps.INSTANCE, json).getOrThrow(JsonParseException::new);
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        // java: return UUIDUtil.AUTHLIB_CODEC.parse(JsonOps.INSTANCE, json).getOrThrow(JsonParseException::new);
+        let _ = (type_of_t, context);
+        mcrust::net::minecraft::core::uuid_util::authlib_codec().parse(&mcrust::com::mojang::serialization::json_ops::JsonOps::instance(), &compat::json_to_port(json)).get_or_throw().unwrap_or_else(|e| panic!("JsonParseException: {e}"))
     }
 
     /// java: @Override public JsonElement serialize(UUID src, Type typeOfSrc, JsonSerializationContext context)

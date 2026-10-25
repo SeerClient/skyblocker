@@ -83,8 +83,8 @@ impl InvisibugHighlighter {
 
     /// java: private static void onParticle(ClientboundLevelParticlesPacket packet)
     pub fn on_particle(packet: &ClientboundLevelParticlesPacket) {
-        if InvisibugHighlighter::is_active() && packet.get_particle().is_some_and(|particle| compat::particle_type_is(particle, mcrust::net::minecraft::core::particles::particle_types::crit())) && mcrust::mcrust::modding::game::level().is_some() {
-            let mut pos: Vec3 = Vec3::new(packet.get_x(), packet.get_y(), packet.get_z());
+        if InvisibugHighlighter::is_active() && packet.particle().is_some_and(|particle| compat::particle_type_is(particle, mcrust::net::minecraft::core::particles::particle_types::crit())) && mcrust::mcrust::modding::game::level().is_some() {
+            let mut pos: Vec3 = Vec3::new(packet.x(), packet.y(), packet.z());
             let __level = mcrust::mcrust::modding::game::level().unwrap();
             if (__level.get_entities_of_class_no_spectators(mcrust::net::minecraft::world::level::entity::entity_type_test::EntityClass::LivingEntity, None, &AABB::of_size(&pos, (1) as f64, (1) as f64, (1) as f64))).is_empty() && !(InvisibugHighlighter::is_near_pet(&__level, &pos)) {
                 InvisibugHighlighter::handle_invisibug_particle(pos.clone());

@@ -334,9 +334,8 @@ impl StatusBarsConfigScreen {
                             // java: resizeHover.first(bar); resizeHover.right(right);
                             compat::write(__this, |__t| __t.resize_hover.0 = Some(bar.clone()));
                             compat::write(__this, |__t| __t.resize_hover.1 = right);
-                            // TODO(fabric2seer): static `CursorTypes.RESIZE_EW` has no Rust counterpart in the port's CursorTypes file
-                            // TODO(fabric2seer): `GuiGraphicsExtractor.requestCursor` has no Rust method in the port (looked for `request_cursor` in GuiGraphicsExtractor and its supertypes)
-                            // rust: graphics.request_cursor(&CursorTypes::RESIZE_EW);
+                            // java: graphics.requestCursor(CursorTypes.RESIZE_EW);
+                            compat::batch_w_request_cursor(compat::BatchWCursor::ResizeEw);
                             break 'rect_loop;
                         } else {
                             // java: resizeHover.first(null);
@@ -364,11 +363,12 @@ impl StatusBarsConfigScreen {
         // java: this.addRenderableWidget(Button.builder(Component.literal("?"), _ -> minecraft.gui.setScreen(new PopupScreen.Builder(this,
         //   Component.translatable("skyblocker.bars.config.explanationTitle")).addButton(Component.translatable("gui.ok"), PopupScreen::onClose)
         //   .addMessage(Component.translatable("skyblocker.bars.config.explanation")).build())).bounds(width - 20, height / 2 - 17, 15, 15).build());
-        // rust: port gap (GAPS_L G3) - a mod cannot build the game's `PopupScreen`: the game's confirm dialog stands in, both
-        // of its buttons closing it (`PopupScreen::onClose`)
         let (__w, __h) = compat::read(__this, |__t| (__t.width, __t.height));
         let __explain = mcrust::net::minecraft::client::gui::components::button::builder(component::literal("?").get_string(), mcrust::net::minecraft::client::gui::components::abstract_widget::OnPress::Lambda(mcrust::net::minecraft::client::gui::components::abstract_widget::PressLambda::new(|_, _| {
-            let popup = compat::ConfirmScreen::new(|_: bool| mcrust::mcrust::modding::game::set_screen_to_parent(), component::translatable("skyblocker.bars.config.explanationTitle"), component::translatable("skyblocker.bars.config.explanation"), component::translatable("gui.ok"), component::translatable("gui.ok"));
+            let popup = compat::BatchUPopupScreenBuilder::new(component::translatable("skyblocker.bars.config.explanationTitle"))
+                .add_button(component::translatable("gui.ok"), |popup: &compat::BatchUPopupScreenRef| popup.on_close())
+                .add_message(component::translatable("skyblocker.bars.config.explanation"))
+                .build();
             mcrust::mcrust::modding::game::set_screen_keeping_parent(Box::new(popup));
         }))).bounds(__w.wrapping_sub(20), (__h.wrapping_div(2)).wrapping_sub(17), 15, 15).build();
         compat::write(__this, |__t| __t.add_renderable_widget(__explain));
@@ -376,16 +376,17 @@ impl StatusBarsConfigScreen {
         //   Component.translatable("skyblocker.bars.config.resetTitle")).addButton(CommonComponents.GUI_NO, PopupScreen::onClose)
         //   .addButton(CommonComponents.GUI_YES, popup -> { bars.resetBarPositions(); popup.onClose(); })
         //   .addMessage(Component.translatable("skyblocker.bars.config.reset")).build())).bounds(width - 20, height / 2 + 2, 15, 15).build());
-        // rust: port gap (GAPS_L G3) - the game's confirm dialog stands in for the `PopupScreen` (YES resets, both close it)
         let __bars = compat::RenderThread::new(compat::read(__this, |__t| __t.bars.clone()));
         let __reset = mcrust::net::minecraft::client::gui::components::button::builder(component::literal("⟲").get_string(), mcrust::net::minecraft::client::gui::components::abstract_widget::OnPress::Lambda(mcrust::net::minecraft::client::gui::components::abstract_widget::PressLambda::new(move |_, _| {
             let __bars = compat::RenderThread::new(__bars.get().clone());
-            let popup = compat::ConfirmScreen::new(move |yes: bool| {
-                if yes {
+            let popup = compat::BatchUPopupScreenBuilder::new(component::translatable("skyblocker.bars.config.resetTitle"))
+                .add_button(component::translatable(mcrust::net::minecraft::client::gui::screens::confirm_screen::GUI_NO_KEY), |popup: &compat::BatchUPopupScreenRef| popup.on_close())
+                .add_button(component::translatable(mcrust::net::minecraft::client::gui::screens::confirm_screen::GUI_YES_KEY), move |popup: &compat::BatchUPopupScreenRef| {
                     FancyStatusBars::reset_bar_positions(__bars.get());
-                }
-                mcrust::mcrust::modding::game::set_screen_to_parent();
-            }, component::translatable("skyblocker.bars.config.resetTitle"), component::translatable("skyblocker.bars.config.reset"), component::translatable(mcrust::net::minecraft::client::gui::screens::confirm_screen::GUI_YES_KEY), component::translatable(mcrust::net::minecraft::client::gui::screens::confirm_screen::GUI_NO_KEY));
+                    popup.on_close();
+                })
+                .add_message(component::translatable("skyblocker.bars.config.reset"))
+                .build();
             mcrust::mcrust::modding::game::set_screen_keeping_parent(Box::new(popup));
         }))).bounds(__w.wrapping_sub(20), (__h.wrapping_div(2)).wrapping_add(2), 15, 15).build();
         compat::write(__this, |__t| __t.add_renderable_widget(__reset));
@@ -421,7 +422,7 @@ impl StatusBarsConfigScreen {
 
     /// java: private void onBarClick(StatusBar statusBar, MouseButtonEvent click)
     pub fn on_bar_click(__this: &compat::Shared<Self>, mut status_bar: compat::Shared<dyn StatusBar>, click: &MouseButtonEvent) {
-        if click.button() == 0 {
+        if click.button() == 1 {
             { let __v = ScreenPosition::new(((((({ let __f = compat::dispatch(&status_bar, |__t| __t.get_x()); __f(&status_bar) }) as f64) - click.x())) as i32), ((((({ let __f = compat::dispatch(&status_bar, |__t| __t.get_y()); __f(&status_bar) }) as f64) - click.y())) as i32)); compat::write(__this, |__t| __t.cursor_offset = __v); }
             { let __v = Some(status_bar.clone()); compat::write(__this, |__t| __t.cursor_bar = __v); }
             { let __v = true; compat::write(&compat::read(__this, |__t| __t.cursor_bar.clone()).unwrap(), |__t| __t.status_bar_base_mut().in_mouse = __v); }
@@ -433,7 +434,7 @@ impl StatusBarsConfigScreen {
             FancyStatusBars::update_positions(&compat::read(__this, |__t| __t.bars.clone()), true);
             ({ let __r = &compat::read(__this, |__t| __t.cursor_bar.clone()).unwrap(); let __f = compat::dispatch(__r, |__t| __t.set_x()); __f(__r, (compat::read(__this, |__t| __t.width)).wrapping_add(5)) });
             StatusBarsConfigScreen::update_screen_rects(__this);
-        } else if click.button() == 1 {
+        } else if click.button() == 3 {
             let mut x: i32 = (((click.x() - (1 as f64)).min(((compat::read(__this, |__t| __t.width)).wrapping_sub(__this.lock().borrow().edit_bar_widget.as_ref().unwrap().get_width()) as f64))) as i32);
             let mut y: i32 = (((click.y() - (1 as f64)).min(((compat::read(__this, |__t| __t.height)).wrapping_sub(__this.lock().borrow().edit_bar_widget.as_ref().unwrap().get_height()) as f64))) as i32);
             __this.lock().borrow_mut().edit_bar_widget.as_mut().unwrap().visible = true;
@@ -496,7 +497,7 @@ impl StatusBarsConfigScreen {
     /// java: @Override public boolean mouseClicked(MouseButtonEvent click, boolean doubled)
     pub fn mouse_clicked(__this: &compat::Shared<Self>, click: &MouseButtonEvent, mut doubled: bool) -> bool {
         let mut first: Option<compat::Shared<dyn StatusBar>> = compat::read(__this, |__t| __t.resize_hover.clone()).0.clone();
-        if !({ let (__q0, __q1,) = (click.x(), click.y(),); __this.lock().borrow().edit_bar_widget.as_ref().unwrap().is_mouse_over(__q0, __q1) }) && click.button() == 0 && first.is_some() {
+        if !({ let (__q0, __q1,) = (click.x(), click.y(),); __this.lock().borrow().edit_bar_widget.as_ref().unwrap().is_mouse_over(__q0, __q1) }) && click.button() == 1 && first.is_some() {
             let first_bar: compat::Shared<dyn StatusBar> = first.clone().unwrap();
             let mut bar_anchor: Option<BarAnchor> = compat::read(&first_bar, |__t| __t.status_bar_base().anchor.clone());
             let right_boolean: bool = compat::read(__this, |__t| __t.resize_hover.1);
@@ -618,4 +619,3 @@ impl ModScreen for compat::ScreenAdapter<StatusBarsConfigScreen> {
 
 }
 
-// NOTE(fabric2seer): extractRenderState, init, isPauseScreen, mouseClicked, mouseReleased, removed override(s) of Screen - the port dispatches its own calls, so these run only where the mod calls them; hook the port's method to make the game call them

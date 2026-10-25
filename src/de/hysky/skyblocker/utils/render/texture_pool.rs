@@ -12,6 +12,7 @@ use std::rc::Rc;
 ///
 /// The three arrays are the record's own objects, written through its accessors (`this.textures()[i] = ..`): cells
 /// here, so the record's `&self` methods write them as Java does.
+#[derive(Clone)]
 pub struct TexturePool {
     /// java: String name
     pub name: String,
@@ -22,27 +23,30 @@ pub struct TexturePool {
     /// java: GpuFormat format
     pub format: GpuFormat,
     /// java: @Nullable GpuTexture[] textures
-    pub textures: std::cell::RefCell<Vec<Option<Rc<dyn GpuTexture>>>>,
+    pub textures: Rc<std::cell::RefCell<Vec<Option<Rc<dyn GpuTexture>>>>>,
     /// java: @Nullable GpuTextureView[] textureViews
-    pub texture_views: std::cell::RefCell<Vec<Option<Rc<dyn GpuTextureView>>>>,
+    pub texture_views: Rc<std::cell::RefCell<Vec<Option<Rc<dyn GpuTextureView>>>>>,
     /// java: boolean[] usedSlots
-    pub used_slots: std::cell::RefCell<Vec<bool>>,
+    pub used_slots: Rc<std::cell::RefCell<Vec<bool>>>,
 }
 
 impl TexturePool {
     /// java: the canonical record constructor
     pub fn new(mut name: String, mut size: i32, mut usage: i32, mut format: GpuFormat, mut textures: Vec<Option<Rc<dyn GpuTexture>>>, mut texture_views: Vec<Option<Rc<dyn GpuTextureView>>>, mut used_slots: Vec<bool>) -> Self {
-        // TODO(fabric2seer): method reference `::clearUnusedTextures` to a method this tool cannot see
-        //   java: LevelRenderEvents.START_MAIN.register(this::clearUnusedTextures);
-        Self {
+        let this = Self {
             name,
             size,
             usage,
             format,
-            textures: std::cell::RefCell::new(textures),
-            texture_views: std::cell::RefCell::new(texture_views),
-            used_slots: std::cell::RefCell::new(used_slots),
-        }
+            textures: Rc::new(std::cell::RefCell::new(textures)),
+            texture_views: Rc::new(std::cell::RefCell::new(texture_views)),
+            used_slots: Rc::new(std::cell::RefCell::new(used_slots)),
+        };
+        // java: LevelRenderEvents.START_MAIN.register(this::clearUnusedTextures);
+        // (`this` is the record: a copy sharing its three arrays, which are what the method reads and writes)
+        let listener = compat::RenderThread::new(this.clone());
+        mcrust::mcrust::modding::events::world_render_events::START_MAIN.register(Arc::new(move |context: &mut mcrust::mcrust::modding::hook::CallbackInfo<'_>| listener.get().clear_unused_textures(context)));
+        this
     }
 
     /// java: the record accessor `name()`
@@ -87,7 +91,8 @@ impl TexturePool {
     }
 
     /// java: private void clearUnusedTextures(LevelTerrainRenderContext context)
-    pub fn clear_unused_textures(&self, context: &crate::unresolved::LevelTerrainRenderContext) {
+    /// (`context` is the `START_MAIN` stage the port hands its listeners: its `CallbackInfo`; unread, as in Java)
+    pub fn clear_unused_textures(&self, context: &mut mcrust::mcrust::modding::hook::CallbackInfo<'_>) {
         // Close textures if they were unused for a frame
         for i in 0..self.size() {
             if !(self.used_slots().borrow()[(i) as usize]) {
@@ -117,7 +122,7 @@ impl TexturePool {
                     return i;
                 } else if !texture_exists {
                     let mut new_texture: Rc<dyn GpuTexture> = render_system::get_device().create_texture(Some(&format!("{} {}", self.name(), i)), self.usage(), self.format(), required_width, required_height, 1, 1);
-                    let mut new_texture_view: Rc<dyn GpuTextureView> = render_system::get_device().create_texture_view(new_texture.clone());
+                    let mut new_texture_view: Rc<dyn GpuTextureView> = render_system::get_device().create_texture_view_whole(new_texture.clone());
                     self.textures().borrow_mut()[(i) as usize] = Some(new_texture);
                     self.texture_views().borrow_mut()[(i) as usize] = Some(new_texture_view);
                     self.used_slots().borrow_mut()[(i) as usize] = true;

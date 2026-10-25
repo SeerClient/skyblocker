@@ -61,20 +61,15 @@ impl SchedulerBase {
     }
 
     /// java: public static Command<FabricClientCommandSource> queueOpenScreenCommand(Screen screen)
-    pub fn queue_open_screen_command_screen(screen: Box<dyn ModScreen>) -> Command<FabricClientCommandSource> {
+    /// Java reopens the SAME screen object on every run: the object is the mod's `compat::Shared` screen, and each run
+    /// opens a new game-side handle (`compat::ScreenAdapter`) over that one object.
+    pub fn queue_open_screen_command_screen<S: compat::ScreenHalf + 'static>(screen: compat::Shared<S>) -> Command<FabricClientCommandSource>
+    where
+        compat::ScreenAdapter<S>: ModScreen,
+    {
         // java: return _ -> queueOpenScreen(screen);
-        // rust: Java reopens the SAME screen object on every run; the port takes a mod screen by value, so the
-        // command opens it on its first run (a later run finds it gone and logs it)
-        let screen: std::sync::Mutex<Option<Box<dyn ModScreen>>> = std::sync::Mutex::new(Some(screen));
-        return Arc::new(move |_: &CommandContext<FabricClientCommandSource>| {
-            match compat::lock(&screen).take() {
-                Some(screen) => Ok(SchedulerBase::queue_open_screen_screen(screen)),
-                None => {
-                    logger().warn("[Skyblocker Scheduler] queueOpenScreenCommand(Screen): the screen was already opened once");
-                    Ok(1)
-                }
-            }
-        });
+        let screen = compat::RenderThread::new(screen);
+        return Arc::new(move |_: &CommandContext<FabricClientCommandSource>| Ok(SchedulerBase::queue_open_screen_screen(Box::new(compat::ScreenAdapter::new(screen.get().clone())))));
     }
 
     /// java: @Deprecated(forRemoval = true) public static int queueOpenScreen(Supplier<Screen> screenSupplier)
@@ -191,7 +186,12 @@ impl dyn Scheduler {
                 i += 1;
             }
             // java: tasks.remove(currentTick);
-            compat::write(__this, |__t| __t.scheduler_base_mut().tasks.remove(&current_tick));
+            // PERF (port-only, same result): the removed list's buffer is kept for the next `addTask` that needs a new
+            // list (cyclic tasks re-add themselves every period), instead of one free + one allocation per tick.
+            let removed: Option<Vec<Arc<dyn Fn()>>> = compat::write(__this, |__t| __t.scheduler_base_mut().tasks.remove(&current_tick));
+            if let Some(list) = removed {
+                recycle_task_list(list);
+            }
         }
         { let __v = (compat::read(__this, |__t| __t.scheduler_base().current_tick)).wrapping_add(1); compat::write(__this, |__t| __t.scheduler_base_mut().current_tick = __v); }
         profiler.pop();
@@ -211,7 +211,7 @@ impl dyn Scheduler {
                 // java: tasks.get(schedule).add(task);
                 tasks.get_mut(&schedule).unwrap().push(task.clone());
             } else {
-                let mut list: Vec<Arc<dyn Fn()>> = Vec::new();
+                let mut list: Vec<Arc<dyn Fn()>> = take_task_list();
                 list.push(task.clone());
                 // java: tasks.put(schedule, list);
                 tasks.insert(schedule, list);
@@ -219,6 +219,27 @@ impl dyn Scheduler {
         });
     }
 
+}
+
+thread_local! {
+    /// PERF (port-only): emptied task lists, reused by `addTask` (see `tick`). Bounded; the render thread's only.
+    static TASK_LIST_POOL: std::cell::RefCell<Vec<Vec<Arc<dyn Fn()>>>> = const { std::cell::RefCell::new(Vec::new()) };
+}
+
+/// A list for `addTask`'s `new ArrayList<>()`: an emptied one from the pool when there is one.
+fn take_task_list() -> Vec<Arc<dyn Fn()>> {
+    TASK_LIST_POOL.with(|pool| pool.borrow_mut().pop()).unwrap_or_default()
+}
+
+/// Returns a removed list's buffer to the pool (its tasks are dropped here, as the removal dropped them).
+fn recycle_task_list(mut list: Vec<Arc<dyn Fn()>>) {
+    list.clear();
+    TASK_LIST_POOL.with(|pool| {
+        let mut pool = pool.borrow_mut();
+        if pool.len() < 64 {
+            pool.push(list);
+        }
+    });
 }
 
 impl Scheduler for SchedulerBase {
@@ -261,8 +282,15 @@ impl ScheduledTask {
     }
 
     /// The record as the `Runnable` it implements (what the scheduler's task lists hold).
+    ///
+    /// The runnable knows its own handle (a `Weak`), so a cyclic task re-adds THAT object - Java's
+    /// `INSTANCE.addTask(this, ..)` - instead of allocating a fresh runnable on every run (PERF, port-only).
     pub fn into_runnable(self) -> Arc<dyn Fn()> {
-        Arc::new(move || self.run())
+        let slot: std::rc::Rc<std::cell::OnceCell<std::sync::Weak<dyn Fn()>>> = std::rc::Rc::new(std::cell::OnceCell::new());
+        let slot_in = slot.clone();
+        let runnable: Arc<dyn Fn()> = Arc::new(move || self.run_as(slot_in.get().and_then(|weak| weak.upgrade())));
+        let _ = slot.set(Arc::downgrade(&runnable));
+        runnable
     }
 
     /// java: the record accessor `task()`
@@ -287,10 +315,15 @@ impl ScheduledTask {
 
     /// java: @Override public void run()
     pub fn run(&self) {
+        self.run_as(None);
+    }
+
+    /// `run()` with the runnable that holds this record (`this` as the scheduler's lists hold it), if known.
+    fn run_as(&self, this_runnable: Option<Arc<dyn Fn()>>) {
         if self.multithreaded {
             // java: INSTANCE.executors.execute(this.task);
-            // rust: port gap - a scheduled task is an `Arc<dyn Fn()>` over the mod's render-thread objects (not
-            // `Send`), so it cannot be handed to another thread; it runs here (GAPS_batchA.md)
+            // Verified gap (GAPS_batchA.md): a scheduled task is an `Arc<dyn Fn()>` over the mod's render-thread objects
+            // (not `Send`), so it cannot be handed to another thread; it runs here
             (self.task)();
         } else {
             (self.task)();
@@ -299,7 +332,7 @@ impl ScheduledTask {
             // java: INSTANCE.addTask(this, INSTANCE.currentTick + this.interval);
             let __r = INSTANCE.get_mut();
             let current_tick: i32 = compat::read(__r, |__t| __t.scheduler_base().current_tick);
-            let runnable: Arc<dyn Fn()> = self.clone().into_runnable();
+            let runnable: Arc<dyn Fn()> = this_runnable.unwrap_or_else(|| self.clone().into_runnable());
             ({ let __f = compat::dispatch(__r, |__t| __t.add_task()); __f(__r, runnable, current_tick.wrapping_add(self.interval)) });
         }
     }

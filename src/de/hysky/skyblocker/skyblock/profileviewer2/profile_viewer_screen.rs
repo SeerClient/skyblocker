@@ -146,11 +146,12 @@ impl ProfileViewerScreen {
                     } else {
                         compat::write(&__this_1, |__t| __t.content_layout.add_child_adjusted(layout_element.clone(), &mut |l| { *l = l.align_vertically_top().align_horizontally_left(); }));
                     }
-                    // java: this.contentLayout.arrangeElements(); (the arranged widgets take their positions in the screen)
-                    { compat::write(&__this_1, |__t| __t.content_layout.arrange_elements()); let mut __vw = Vec::new(); compat::read(&__this_1, |__t| __t.content_layout.visit_widgets(&mut __vw)); for (__i, __x, __y) in __vw { compat::write(&__this_1, |__t| __t.widget_mut(__i).set_position(__x, __y)); } };
-                    ProfileViewerScreen::reposition_elements(&__this_1);
-                    // java: this.loadedPages.add(page);
+                    // java: this.loadedPages.add(page); (first here: the content layout's children are the loaded pages' layouts,
+                    // in the order they were added, which is how their widgets find their page below)
                     compat::write(&__this_1, |__t| if !__t.loaded_pages.iter().any(|p| std::sync::Arc::ptr_eq(p, &__page_1)) { __t.loaded_pages.push(__page_1.clone()); });
+                    // java: this.contentLayout.arrangeElements();
+                    compat::write(&__this_1, |__t| __t.content_layout.arrange_elements());
+                    ProfileViewerScreen::reposition_elements(&__this_1);
                 })
                 .exceptionally_async(move |_throwable: String| {
                     logger().error(&format!("[Skyblocker Profile Viewer] Failed to load {} page!", compat::read(&__page_2, |__p| __p.get_name()).get_string()));
@@ -181,9 +182,56 @@ impl ProfileViewerScreen {
         }
     }
 
+    /// The content layout's widgets moved where it put them (Java's layout moves the widget objects themselves): the
+    /// content layout's children are the loaded pages' layouts, in `loadedPages` order, and each one's widget elements
+    /// index its page's widget list.
+    pub fn place_page_widgets(__this: &compat::Shared<Self>) {
+        let mut __per_page: Vec<Vec<(usize, i32, i32)>> = Vec::new();
+        compat::read(__this, |__t| __t.content_layout.visit_children(&mut |__child| {
+            let mut __visited = Vec::new();
+            __child.visit_widgets(&mut __visited);
+            __per_page.push(__visited);
+        }));
+        let __pages = compat::read(__this, |__t| __t.loaded_pages.clone());
+        for (__page, __visited) in __pages.iter().zip(__per_page) {
+            compat::write(__page, |__p| {
+                let __widgets = __p.widgets_mut();
+                for (__index, __x, __y) in __visited {
+                    if __index < __widgets.children().len() {
+                        __widgets.widget_mut(__index).set_position(__x, __y);
+                    }
+                }
+            });
+        }
+    }
+
+    /// `Screen.mouseClicked` - `ContainerEventHandler.mouseClicked:39-55` over `children()`: the selected page's widgets
+    /// first (held in the page's list, which a press lambda of theirs is lent as its `screen`; taken out of the page for
+    /// the call, so a press reaches the page freely), then the tabs, which the game offers the click to through
+    /// `children()` when this answers `false`.
+    pub fn mouse_clicked(__this: &compat::Shared<Self>, event: &mcrust::net::minecraft::client::input::mouse_button_event::MouseButtonEvent) -> bool {
+        let __page = ProfileViewerScreen::get_selected_page(__this);
+        if !compat::read(__this, |__t| __t.loaded_pages.iter().any(|p| std::sync::Arc::ptr_eq(p, &__page))) {
+            return false;
+        }
+        let mut __widgets = compat::write(&__page, |__p| std::mem::take(__p.widgets_mut()));
+        let __took = compat::children_mouse_clicked(&mut __widgets, event);
+        compat::write(&__page, |__p| *__p.widgets_mut() = __widgets);
+        __took
+    }
+
+    /// `Screen.mouseReleased` - `ContainerEventHandler.mouseReleased:57-66` over the selected page's widgets
+    pub fn mouse_released(__this: &compat::Shared<Self>, event: &mcrust::net::minecraft::client::input::mouse_button_event::MouseButtonEvent) {
+        let __page = ProfileViewerScreen::get_selected_page(__this);
+        if !compat::read(__this, |__t| __t.loaded_pages.iter().any(|p| std::sync::Arc::ptr_eq(p, &__page))) {
+            return;
+        }
+        let mut __widgets = compat::write(&__page, |__p| std::mem::take(__p.widgets_mut()));
+        compat::children_mouse_released(&mut __widgets, event);
+        compat::write(&__page, |__p| *__p.widgets_mut() = __widgets);
+    }
+
     /// java: @Override public List<? extends GuiEventListener> children()
-    /// rust: port gap - a mod screen's event targets are its `Screen` half's widgets; `ModScreen` has no `children()`
-    /// override, so nothing reads this list (GAPS_batchC)
     pub fn children(__this: &compat::Shared<Self>) -> Vec<AbstractWidget> {
         let mut children: Vec<AbstractWidget> = Vec::new();
         let __page = ProfileViewerScreen::get_selected_page(__this);
@@ -203,6 +251,8 @@ impl ProfileViewerScreen {
             ({ let __f = compat::dispatch(&widget, |__t| __t.update_position()); __f(&compat::view(&widget, |a| a as compat::Shared<dyn ProfileViewerWidget>), ({ let __f = compat::dispatch(__this, |__t| __t.get_background_x()); __f(&compat::view(__this, |a| a as compat::Shared<dyn AbstractProfileViewerScreen>)) }), ({ let __f = compat::dispatch(__this, |__t| __t.get_background_y()); __f(&compat::view(__this, |a| a as compat::Shared<dyn AbstractProfileViewerScreen>)) })) });
         }
         { let (__q0, __q1,) = (({ let __f = compat::dispatch(__this, |__t| __t.get_background_x()); __f(&compat::view(__this, |a| a as compat::Shared<dyn AbstractProfileViewerScreen>)) }).wrapping_add(abstract_profile_viewer_screen::PADDING), ({ let __f = compat::dispatch(__this, |__t| __t.get_background_y()); __f(&compat::view(__this, |a| a as compat::Shared<dyn AbstractProfileViewerScreen>)) }).wrapping_add(abstract_profile_viewer_screen::PADDING),); __this.lock().borrow_mut().content_layout.set_position(__q0, __q1) };
+        // (the widgets follow the layout - see `place_page_widgets`)
+        ProfileViewerScreen::place_page_widgets(__this);
     }
 
     /// java: private void extractTabButtons(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a, boolean onlySelected)
@@ -257,11 +307,10 @@ impl ProfileViewerScreen {
             //   java: for (AbstractWidget widget : selectedPage.getWidgets()) widget.extractRenderState(graphics, mouseX, mouseY, a);
             // The page's widgets are game widgets the screen draws itself: held in a `Screen` for the call and drawn by the
             // widget pass (`WidgetRenderContext::extract_widgets` - `extractRenderState:56-62`'s hover test, then the pass).
-            let mut __page_widgets = mcrust::net::minecraft::client::gui::screens::screen::Screen::new(String::new());
-            for widget in compat::read(&selected_page, |__p| __p.get_widgets()) {
-                __page_widgets.add_renderable_widget(widget);
-            }
+            // (the page's own list, taken out of the page for the draw)
+            let mut __page_widgets = compat::write(&selected_page, |__p| std::mem::take(__p.widgets_mut()));
             mcrust::mcrust::modding::widgets::WidgetRenderContext::new(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft()).extract_widgets(&mut __page_widgets, mouse_x, mouse_y);
+            compat::write(&selected_page, |__p| *__p.widgets_mut() = __page_widgets);
         } else {
             let mut centre_x: i32 = ({ let __f = compat::dispatch(__this, |__t| __t.get_background_x()); __f(&compat::view(__this, |a| a as compat::Shared<dyn AbstractProfileViewerScreen>)) }).wrapping_add((abstract_profile_viewer_screen::BACKGROUND_WIDTH).wrapping_div(2));
             let mut centre_y: i32 = ({ let __f = compat::dispatch(__this, |__t| __t.get_background_y()); __f(&compat::view(__this, |a| a as compat::Shared<dyn AbstractProfileViewerScreen>)) }).wrapping_add((abstract_profile_viewer_screen::BACKGROUND_HEIGHT).wrapping_div(2));
@@ -327,9 +376,22 @@ impl ModScreen for compat::ScreenAdapter<ProfileViewerScreen> {
         false
     }
 
-    /// java: Screen.mouseClicked (the base body)
+    /// java: Screen.mouseClicked (the base body) - `ContainerEventHandler` over `children()`
     fn mouse_clicked(&mut self, screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, x: f64, y: f64, button: i32) -> bool {
-        self.lend(screen, |_| false)
+        let __event = MouseButtonEvent::new(x, y, MouseButtonInfo::new(button, 0));
+        self.lend(screen, |__h| ProfileViewerScreen::mouse_clicked(__h, &__event))
+    }
+
+    /// java: Screen.mouseReleased (the base body) - `ContainerEventHandler` over `children()`
+    fn mouse_released(&mut self, screen: &mut mcrust::net::minecraft::client::gui::screens::screen::Screen, x: f64, y: f64, button: i32) -> bool {
+        let __event = MouseButtonEvent::new(x, y, MouseButtonInfo::new(button, 0));
+        self.lend(screen, |__h| ProfileViewerScreen::mouse_released(__h, &__event));
+        false
+    }
+
+    /// java: @Override public List<? extends GuiEventListener> children() - the selected page's widgets and the tabs
+    fn children(&mut self, screen: &mcrust::net::minecraft::client::gui::screens::screen::Screen) -> Option<Vec<AbstractWidget>> {
+        Some(self.lend_ref(screen, |__h| ProfileViewerScreen::children(__h)))
     }
 
 }

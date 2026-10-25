@@ -38,8 +38,8 @@ impl GlaciteColdOverlay {
     /// java: @Init public static void init()
     pub fn init() {
         ({ let __r = scheduler::INSTANCE.get_mut(); let __f = compat::dispatch(__r, |__t| __t.schedule_cyclic()); __f(__r, Arc::new(move || { GlaciteColdOverlay::update(); }), 20) });
-        // TODO(fabric2seer): ClientReceiveMessageEvents.ALLOW_GAME.register: no SeerClient equivalent yet
-        //   java: ClientReceiveMessageEvents.ALLOW_GAME.register(GlaciteColdOverlay::coldReset);
+        // java: ClientReceiveMessageEvents.ALLOW_GAME.register(GlaciteColdOverlay::coldReset);
+        compat::register_allow_game(|text: &mcrust::net::minecraft::network::chat::mutable_component::MutableComponent, overlay: bool| GlaciteColdOverlay::cold_reset(text, overlay));
         hud_render_callback::EVENT.register(Arc::new(|ctx: &mut hud_render_callback::HudRenderContext<'_>| {
             // SAFETY: `ctx` outlives every call made through `graphics` (this callback).
             let graphics = unsafe { ScriptGraphics::new(ctx.gl, &*ctx.minecraft, ctx.gui_width, ctx.gui_height) };

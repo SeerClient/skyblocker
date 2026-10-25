@@ -29,13 +29,8 @@ use mcrust::com::mojang::serialization::decoder::Decoder as _;
 
 /// java: public static final HotmTreeBuilder INSTANCE = new HotmTreeBuilder();
 pub static INSTANCE: compat::MainThread<compat::Shared<HotmTreeBuilder>> = compat::MainThread::new(|| HotmTreeBuilder::new());
-// TODO(fabric2seer): `PrimitiveCodec.listOf` has no Rust method in the port (looked for `list_of` in PrimitiveCodec and its supertypes)
-//   java: private static final Codec<Layout> CODEC = RecordCodecBuilder.create(instance -> instance.group(
-//   java: 				Codec.STRING.listOf().fieldOf("prelude").forGetter(Layout::prelude),
-//   java: 				Hotx.CODEC.fieldOf("hotm").forGetter(Layout::hotm)
-//   java: 				).apply(instance, Layout::new));
-/// java: private static final Codec<Layout> CODEC = RecordCodecBuilder.create(instance -> instance.group( Codec.STRING.listOf().fieldOf("prelude").forGetter(Layout::prelude), Hotx.CODEC.fieldOf("hotm").forGett
-pub static LAYOUT_CODEC: compat::MainThread<CodecRef<Layout>> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `CODEC` - see the TODO above"));
+/// java: private static final Codec<Layout> CODEC = RecordCodecBuilder.create(instance -> instance.group( Codec.STRING.listOf().fieldOf("prelude").forGetter(Layout::prelude), Hotx.CODEC.fieldOf("hotm").forGetter(Layout::hotm) ).apply(instance, Layout::new));
+pub static LAYOUT_CODEC: compat::MainThread<CodecRef<Layout>> = compat::MainThread::new(|| record_codec_builder::create(record_codec_builder::apply2(record_codec_builder::of(|o: &Layout| o.prelude(), mcrust::com::mojang::serialization::codec::field_of(mcrust::com::mojang::serialization::codec::list(mcrust::com::mojang::serialization::codec::string_codec()), "prelude")), record_codec_builder::of(|o: &Layout| o.hotm(), mcrust::com::mojang::serialization::codec::field_of(skill_tree_builder::HOTX_CODEC.get().clone(), "hotm")), move |__a0, __a1| Layout::new(__a0.clone(), __a1.clone()))));
 
 /// java: public final class HotmTreeBuilder extends SkillTreeBuilder
 pub struct HotmTreeBuilder {
@@ -44,7 +39,7 @@ pub struct HotmTreeBuilder {
     /// java: private @Nullable Layout layout;
     pub layout: Option<Layout>,
     /// java: private @Nullable LispExecutionContext lispContext;
-    pub lisp_context: Option<Arc<crate::unresolved::LispExecutionContext>>,
+    pub lisp_context: Option<std::rc::Rc<crate::compat::nea_lisp::LispExecutionContext>>,
 }
 
 impl std::ops::Deref for HotmTreeBuilder {
@@ -92,17 +87,20 @@ impl HotmTreeBuilder {
 
     /// java: private void updateLispContext(Layout layout)
     pub fn update_lisp_context(__this: &compat::Shared<Self>, layout: &Layout) {
-        // TODO(fabric2seer): `new LispExecutionContext(..)`
-        //   java: LispExecutionContext lec = new LispExecutionContext();
-        let mut lec: Arc<crate::unresolved::LispExecutionContext> = todo!("fabric2seer: the initialiser of `lec` (TODO above)");
-        // TODO(fabric2seer): `.setupStandardBindings(..)` on a LispExecutionContext
-        //   java: lec.setupStandardBindings();
-        // TODO(fabric2seer): `new AutoBinder(..)`
-        //   java: new AutoBinder().bindTo(new LispExtensions(), lec.getRootStackFrame());
+        // Initialize LISP context
+        // java: LispExecutionContext lec = new LispExecutionContext(); lec.setupStandardBindings();
+        let mut lec: std::rc::Rc<crate::compat::nea_lisp::LispExecutionContext> = std::rc::Rc::new(crate::compat::nea_lisp::LispExecutionContext::new());
+        lec.setup_standard_bindings();
+        // Bind the extra methods we need
+        // java: new AutoBinder().bindTo(new LispExtensions(), lec.getRootStackFrame());
+        crate::de::hysky::skyblocker::skyblock::profileviewer2::utils::tree::lisp_extensions::LispExtensions::new().bind_to(&lec.get_root_stack_frame());
+        // Bind the prelude functions
         for i in 0..(layout.prelude().len() as i32) {
             let mut name: String = format!("hotmlayout:prelude:{}", i);
-            // TODO(fabric2seer): `.executeProgram(..)` on a LispExecutionContext
-            //   java: lec.executeProgram(lec.getRootStackFrame(), LispParser.Companion.parse(name, layout.prelude().get(i)));
+            // java: lec.executeProgram(lec.getRootStackFrame(), LispParser.Companion.parse(name, layout.prelude().get(i)));
+            // (the parser's exception leaves this method - `updateLayout` catches it)
+            let __program = crate::compat::nea_lisp::LispParser::parse(&name, &layout.prelude()[(i) as usize]).unwrap_or_else(|e| panic!("{}", e));
+            lec.execute_program(&lec.get_root_stack_frame(), &__program);
         }
         { let __v = Some(lec.clone()); compat::write(__this, |__t| __t.lisp_context = __v); }
     }
@@ -115,7 +113,7 @@ impl HotmTreeBuilder {
         let mut is_max_level: bool = (level == perk.max_level());
         let mut hotm: i32 = ({ let __f = compat::dispatch(__this, |__t| __t.get_heart_of_the_x_level()); __f(&compat::view(__this, |a| a as compat::Shared<dyn SkillTreeBuilder>), member) });
         let mut cotm: i32 = PrimitiveTypeUtils::coerce_int(Some(tree.get(&({ let __f = compat::dispatch(__this, |__t| __t.get_core_of_the_x_id()); __f(&compat::view(__this, |a| a as compat::Shared<dyn SkillTreeBuilder>)) })).cloned().unwrap_or_else(|| (std::sync::Arc::new(0) as compat::Object))));
-        let mut values_and_bindings: (std::collections::HashMap<String, Arc<crate::unresolved::LispData>>, Arc<crate::unresolved::StackFrame>) = HotmTreeBuilder::calculate_perk_values(__this, perk, level, hotm, cotm);
+        let mut values_and_bindings: (std::collections::HashMap<String, crate::compat::nea_lisp::LispData>, crate::compat::nea_lisp::StackFrame) = HotmTreeBuilder::calculate_perk_values(__this, perk, level, hotm, cotm);
         let mut icon: mcrust::net::minecraft::world::item::item_stack::ItemStack = ({ let __f = compat::dispatch(__this, |__t| __t.get_icon()); __f(&compat::view(__this, |a| a as compat::Shared<dyn SkillTreeBuilder>), enabled, &values_and_bindings.0) });
         let mut tooltip: Vec<MutableComponent> = HotmTreeBuilder::get_tooltip(__this, perk, id, level, enabled, &values_and_bindings.0, &values_and_bindings.1, &__this.lock().borrow().layout.as_ref().unwrap().hotm().powders());
         // java: @Nullable Identifier tooltipStyle = isMaxLevel ? SkyBlockTooltipStyles.LEGENDARY : null;
@@ -126,29 +124,23 @@ impl HotmTreeBuilder {
     }
 
     /// java: private Pair<Map<String, LispData>, StackFrame> calculatePerkValues(Perk perk, int level, int hotm, int cotm)
-    pub fn calculate_perk_values(__this: &compat::Shared<Self>, perk: &Perk, mut level: i32, mut hotm: i32, mut cotm: i32) -> (std::collections::HashMap<String, Arc<crate::unresolved::LispData>>, Arc<crate::unresolved::StackFrame>) {
-        // TODO(fabric2seer): `.genBindings(..)` on a LispExecutionContext
-        //   java: StackFrame bindings = this.lispContext.genBindings();
-        let mut bindings: Arc<crate::unresolved::StackFrame> = todo!("fabric2seer: the initialiser of `bindings` (TODO above)");
-        // TODO(fabric2seer): `.setValueLocal(..)` on a StackFrame
-        //   java: bindings.setValueLocal("hotm", new LispData.LispNumber(hotm));
-        // TODO(fabric2seer): `.setValueLocal(..)` on a StackFrame
-        //   java: bindings.setValueLocal("potm", new LispData.LispNumber(cotm));
-        // TODO(fabric2seer): `.setValueLocal(..)` on a StackFrame
-        //   java: bindings.setValueLocal("level", new LispData.LispNumber(level == 0 ? 1d : level));
-        // TODO(fabric2seer): `.setValueLocal(..)` on a StackFrame
-        //   java: bindings.setValueLocal("maxLevel", new LispData.LispNumber(perk.maxLevel()));
-        // TODO(fabric2seer): `.setValueLocal(..)` on a StackFrame
-        //   java: bindings.setValueLocal("level0", new LispData.LispNumber(level));
-        // TODO(fabric2seer): static field Map.Entry
-        //   java: Map<String, LispData> values = perk.programCache().entrySet().stream()
-        //   java: 				.collect(Collectors.toMap(Map.Entry::getKey, entry -> this.lispContext.executeProgram(bindings.fork(), entry.getValue())));
-        let mut values: std::collections::HashMap<String, Arc<crate::unresolved::LispData>> = todo!("fabric2seer: the initialiser of `values` (TODO above)");
+    pub fn calculate_perk_values(__this: &compat::Shared<Self>, perk: &Perk, mut level: i32, mut hotm: i32, mut cotm: i32) -> (std::collections::HashMap<String, crate::compat::nea_lisp::LispData>, crate::compat::nea_lisp::StackFrame) {
+        let lisp_context = compat::read(__this, |__t| __t.lisp_context.clone()).expect("NullPointerException: lispContext");
+        // java: StackFrame bindings = this.lispContext.genBindings();
+        let mut bindings: crate::compat::nea_lisp::StackFrame = lisp_context.gen_bindings();
+        bindings.set_value_local("hotm", crate::compat::nea_lisp::LispData::LispNumber(hotm as f64));
+        bindings.set_value_local("potm", crate::compat::nea_lisp::LispData::LispNumber(cotm as f64));
+        bindings.set_value_local("level", crate::compat::nea_lisp::LispData::LispNumber(if level == 0 { 1.0 } else { level as f64 }));
+        bindings.set_value_local("maxLevel", crate::compat::nea_lisp::LispData::LispNumber(perk.max_level() as f64));
+        bindings.set_value_local("level0", crate::compat::nea_lisp::LispData::LispNumber(level as f64));
+        // java: Map<String, LispData> values = perk.programCache().entrySet().stream()
+        //   .collect(Collectors.toMap(Map.Entry::getKey, entry -> this.lispContext.executeProgram(bindings.fork(), entry.getValue())));
+        let mut values: std::collections::HashMap<String, crate::compat::nea_lisp::LispData> = perk.program_cache().iter().map(|(key, program)| (key.clone(), lisp_context.execute_program(&bindings.fork(), program))).collect();
         return (values.clone(), bindings.clone());
     }
 
     /// java: private List<Component> getTooltip(Perk perk, String id, int level, boolean enabled, Map<String, LispData> values, StackFrame bindings, Map<String, PowderInfo> powders)
-    pub fn get_tooltip(__this: &compat::Shared<Self>, perk: &Perk, id: &str, mut level: i32, mut enabled: bool, values: &std::collections::HashMap<String, Arc<crate::unresolved::LispData>>, bindings: &Arc<crate::unresolved::StackFrame>, powders: &std::collections::HashMap<String, PowderInfo>) -> Vec<MutableComponent> {
+    pub fn get_tooltip(__this: &compat::Shared<Self>, perk: &Perk, id: &str, mut level: i32, mut enabled: bool, values: &std::collections::HashMap<String, crate::compat::nea_lisp::LispData>, bindings: &crate::compat::nea_lisp::StackFrame, powders: &std::collections::HashMap<String, PowderInfo>) -> Vec<MutableComponent> {
         let mut max_level: bool = (perk.max_level() == level);
         let mut tooltip: Vec<MutableComponent> = Vec::new();
         let mut name_formatting: ChatFormatting = (if enabled && level != 0 { (if max_level { ChatFormatting::Green } else { ChatFormatting::Yellow }) } else { ChatFormatting::Red });
@@ -164,12 +156,15 @@ impl HotmTreeBuilder {
         tooltip.push(component::empty());
         let mut dynamic_tooltip: Vec<String> = Vec::new();
         {
-            // TODO(fabric2seer): static field CoreBindings.INSTANCE
-            //   java: List<String> applicableLines = perk.lore().stream()
-            //   java: 					.filter(line -> line.condition().isPresent() ? CoreBindings.INSTANCE.isTruthy(this.lispContext.executeProgram(bindings.fork(), line.condition().get())) : true)
-            //   java: 					.map(LoreLine::template)
-            //   java: 					.toList();
-            let mut applicable_lines: Vec<String> = todo!("fabric2seer: the initialiser of `applicableLines` (TODO above)");
+            // java: List<String> applicableLines = perk.lore().stream()
+            //   .filter(line -> line.condition().isPresent() ? CoreBindings.INSTANCE.isTruthy(this.lispContext.executeProgram(bindings.fork(), line.condition().get())) : true)
+            //   .map(LoreLine::template).toList();
+            // (`isTruthy` answers a `Boolean` the filter unboxes: a non-boolean answer is a NullPointerException)
+            let lisp_context = compat::read(__this, |__t| __t.lisp_context.clone()).expect("NullPointerException: lispContext");
+            let mut applicable_lines: Vec<String> = perk.lore().into_iter().filter(|line| match line.condition() {
+                Some(condition) => crate::compat::nea_lisp::is_truthy(&lisp_context.execute_program(&bindings.fork(), &condition)).expect("NullPointerException: CoreBindings.isTruthy answered null"),
+                None => true,
+            }).map(|line| line.template()).collect();
             dynamic_tooltip.extend(applicable_lines.iter().cloned());
         }
         'powder: {
@@ -177,36 +172,55 @@ impl HotmTreeBuilder {
                 break 'powder;
             }
             dynamic_tooltip.push("".to_string());
-            // TODO(fabric2seer): `.fork(..)` on a StackFrame
-            //   java: StackFrame powderBindings = bindings.fork();
-            let mut powder_bindings: Arc<crate::unresolved::StackFrame> = todo!("fabric2seer: the initialiser of `powderBindings` (TODO above)");
-            'powder: for powder in powders.keys().cloned() {
-                // TODO(fabric2seer): `.setValueLocal(..)` on a StackFrame
-                //   java: powderBindings.setValueLocal(powder, new LispData.LispString(powder));
+            // java: StackFrame powderBindings = bindings.fork();
+            let mut powder_bindings: crate::compat::nea_lisp::StackFrame = bindings.fork();
+            for powder in powders.keys().cloned() {
+                // java: powderBindings.setValueLocal(powder, new LispData.LispString(powder));
+                powder_bindings.set_value_local(&powder, crate::compat::nea_lisp::LispData::LispString(powder.clone()));
             }
-            // TODO(fabric2seer): `.executeProgram(..)` on a LispExecutionContext
-            //   java: String powderType = this.lispContext.executeProgram(powderBindings, perk.powder()) instanceof LispData.LispString string ? string.getString() : "";
-            let mut powder_type: String = todo!("fabric2seer: the initialiser of `powderType` (TODO above)");
+            // java: String powderType = this.lispContext.executeProgram(powderBindings, perk.powder()) instanceof LispData.LispString string ? string.getString() : "";
+            let lisp_context = compat::read(__this, |__t| __t.lisp_context.clone()).expect("NullPointerException: lispContext");
+            let mut powder_type: String = match lisp_context.execute_program(&powder_bindings, &perk.powder()) {
+                crate::compat::nea_lisp::LispData::LispString(string) => string,
+                _ => "".to_string(),
+            };
             let mut cost_line: String = (powders.get(&powder_type).cloned().unwrap_or_else(|| skill_tree_builder::POWDER_INFO_EMPTY.clone())).cost_line();
             dynamic_tooltip.push(cost_line.clone());
         }
-        // TODO(fabric2seer): a lambda / method reference where this call does not take one
-        //   java: dynamicTooltip.replaceAll(line -> LORE_TEMPLATE_PATTERN.matcher(line).replaceAll(match -> {
-        //   java: 			String name = match.group("name");
-        //   java:
-        //   java: 			if (name != null) {
-        //   java: 				return switch (values.get(name)) {
-        //   java: 					case LispData.LispString string -> string.getString();
-        //   java: 					case LispData.LispNumber number -> {
-        //   java: 						double value = name.equals("cost") ? Math.floor(number.getValue()) : number.getValue();
-        //   java: 						yield Formatters.DOUBLE_NUMBERS.format(value);
-        //   java: 					}
-        //   java: 					case null, default -> "<lisp error - " + name + ">";
-        //   java: 				};
-        //   java: 			}
-        //   java:
-        //   java: 			return line;
-        //   java: 		}));
+        // Fill in the templates inside the dynamic lore (e.g. {cost}, {stat}, etc.)
+        // java: dynamicTooltip.replaceAll(line -> LORE_TEMPLATE_PATTERN.matcher(line).replaceAll(match -> {
+        //   String name = match.group("name");
+        //   if (name != null) return switch (values.get(name)) {
+        //     case LispData.LispString string -> string.getString();
+        //     case LispData.LispNumber number -> { double value = name.equals("cost") ? Math.floor(number.getValue()) : number.getValue(); yield Formatters.DOUBLE_NUMBERS.format(value); }
+        //     case null, default -> "<lisp error - " + name + ">"; };
+        //   return line; }));
+        // (`return line` is the group-less match's replacement: the whole line, as Java's lambda answers it)
+        for line in dynamic_tooltip.iter_mut() {
+            let original = line.clone();
+            let mut matcher = skill_tree_builder::LORE_TEMPLATE_PATTERN.matcher(&original);
+            let mut replaced = String::new();
+            let mut last_end = 0;
+            while matcher.find() {
+                let (start, end) = (matcher.start(0), matcher.end(0));
+                replaced.push_str(&compat::substring2(&original, last_end, start));
+                let replacement: String = match matcher.group_named("name") {
+                    Some(name) => match values.get(&name) {
+                        Some(crate::compat::nea_lisp::LispData::LispString(string)) => string.clone(),
+                        Some(crate::compat::nea_lisp::LispData::LispNumber(number)) => {
+                            let value: f64 = if name == "cost" { number.floor() } else { *number };
+                            crate::de::hysky::skyblocker::utils::formatters::DOUBLE_NUMBERS.get_mut().format(value)
+                        }
+                        _ => format!("<lisp error - {}>", name),
+                    },
+                    None => original.clone(),
+                };
+                replaced.push_str(&replacement);
+                last_end = end;
+            }
+            replaced.push_str(&compat::substring(&original, last_end));
+            *line = replaced;
+        }
         for line in dynamic_tooltip.iter() {
             tooltip.push(component::literal(line));
         }
@@ -272,14 +286,13 @@ impl HotmTreeBuilder {
     /// java: @Override protected void loadLayout()
     pub fn load_layout_impl(__this: &compat::Shared<Self>) {
         {
-            // TODO(fabric2seer): `.stream(..)` on a NEURepoFile
-            //   java: InputStream stream = NEURepoManager.file(..).stream(..);
-            let mut stream: crate::unresolved::InputStream = todo!("fabric2seer: the initialiser of `stream` (TODO above)");
-            // java: try {..} catch (Exception e) - an exception here is a panic, caught by `catch_unwind`
+            // java: try (InputStream stream = NEURepoManager.file("constants/hotmlayout.json").stream()) {..} catch (Exception e) - the
+            // resource is opened inside the try (a missing file is a null `file(..)`); an exception is a panic, caught by `catch_unwind`
             let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                // TODO(fabric2seer): `.readAllBytes(..)` on a InputStream
+                let stream = NEURepoManager::file("constants/hotmlayout.json")
+                    .expect("java.lang.NullPointerException: NEURepoManager.file(\"constants/hotmlayout.json\")");
                 //   java: String content = new String(stream.readAllBytes());
-                let mut content: String = todo!("fabric2seer: the initialiser of `content` (TODO above)");
+                let mut content: String = compat::neu_repo_file_read_all(&stream);
                 let mut layout: Layout = (LAYOUT_CODEC.get_mut().parse(&mcrust::com::mojang::serialization::json_ops::JsonOps::instance(), &compat::json_to_port(&serde_json::from_str::<serde_json::Value>(&content).expect("JsonSyntaxException")))).get_or_throw().unwrap();
                 let __this_1 = compat::RenderThread::new(__this.clone());
                 CompletableFuture::<()>::run_async(move || (|| { HotmTreeBuilder::update_layout(__this_1.get(), layout.clone()); })(), |__t: Box<dyn FnOnce() + Send>| crate::compat::execute(__t));
@@ -299,10 +312,8 @@ impl HotmTreeBuilder {
     pub fn build_layout_impl(__this: &compat::Shared<Self>, member: &compat::Shared<ProfileMember>, mut slot: i32) -> LayoutElement {
         if compat::read(__this, |__t| __t.layout.is_none()) || compat::read(__this, |__t| __t.lisp_context.is_none()) {
             // java: return new StringWidget(Component.literal("Error loading HOTM layout :("), Minecraft.getInstance().font);
-            // rust: port gap (GAPS_batchC #L3) - a widget object is not a layout element outside a screen: an empty layout
-            // stands where the error text would be
-            let _ = compat::string_widget(0, 0, -1, 9, component::literal("Error loading HOTM layout :("));
-            return LayoutElement::Grid(mcrust::net::minecraft::client::gui::layouts::grid_layout::GridLayout::new_default());
+            // (the widget joins the list of the page whose layout this is)
+            return crate::de::hysky::skyblocker::skyblock::profileviewer2::pages::profile_viewer_page::layout_widget(compat::string_widget(0, 0, -1, 9, component::literal("Error loading HOTM layout :(")));
         }
         let __perks: Vec<(String, Perk)> = compat::read(__this, |__t| __t.layout.as_ref().unwrap().hotm().perks().iter().map(|(k, v)| (k.clone(), v.clone())).collect());
         let mut nodes: Vec<Node> = __perks.iter().map(|entry| HotmTreeBuilder::build_node(__this, &entry.0, &entry.1, member, slot)).collect::<Vec<_>>();

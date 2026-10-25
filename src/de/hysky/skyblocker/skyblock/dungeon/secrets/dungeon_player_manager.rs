@@ -43,8 +43,8 @@ impl DungeonPlayerManager {
     pub fn init() {
         dungeon_events::DUNGEON_LOADED.register(Arc::new(move || { compat::set_state(&DUNGEON_LOADED, true); }));
         ({ let __r = scheduler::INSTANCE.get_mut(); let __f = compat::dispatch(__r, |__t| __t.schedule_cyclic()); __f(__r, Arc::new(move || { DungeonPlayerManager::update_players(); }), 1) });
-        // TODO(fabric2seer): ClientReceiveMessageEvents.ALLOW_GAME.register: no SeerClient equivalent yet
-        //   java: ClientReceiveMessageEvents.ALLOW_GAME.register(DungeonPlayerManager::onPlayerGhost);
+        // java: ClientReceiveMessageEvents.ALLOW_GAME.register(DungeonPlayerManager::onPlayerGhost);
+        compat::register_allow_game(|text, overlay| DungeonPlayerManager::on_player_ghost(text, overlay));
         client_play_connection_events::JOIN.register(Arc::new(|listener: &mut ClientPacketListener| {
             DungeonPlayerManager::reset();
         }));

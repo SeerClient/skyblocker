@@ -26,11 +26,6 @@ pub static STATE_TRACKERS: compat::MainThread<Vec<(AnimatedHead, AnimatedHeadSta
 pub static TICKS: LazyLock<Mutex<i32>> = LazyLock::new(|| Mutex::new(0));
 /// java: private static final Codec<ResolvableProfile> FRAME_CODEC = Codec.STRING.xmap(AnimatedHead::fromString, AnimatedHead::toString);
 pub static ANIMATED_HEAD_FRAME_CODEC: compat::MainThread<CodecRef<ResolvableProfile>> = compat::MainThread::new(|| codec::xmap(mcrust::com::mojang::serialization::codec::string_codec(), |__a0| AnimatedHead::from_string(&compat::jstring(&__a0)), |__a0| AnimatedHead::to_string(&__a0)));
-// TODO(fabric2seer): static call Function.identity(..)
-//   java: private static final Codec<AnimatedHead> CODEC = RecordCodecBuilder.create(instance -> instance.group(
-//   java: 				Codec.INT.xmap(i -> Math.max(i, 1), Function.identity()).fieldOf("ticks").forGetter(AnimatedHead::tickThreshold),
-//   java: 				FRAME_CODEC.listOf().validate(AnimatedHead::validateFrames).fieldOf("textures").forGetter(AnimatedHead::frames)
-//   java: 				).apply(instance, AnimatedHead::new));
 /// java: private static final Codec<AnimatedHead> CODEC = RecordCodecBuilder.create(instance -> instance.group( Codec.INT.xmap(i -> Math.max(i, 1), Function.identity()).fieldOf("ticks").forGetter(AnimatedHead:
 pub static ANIMATED_HEAD_CODEC: compat::MainThread<CodecRef<AnimatedHead>> = compat::MainThread::new(|| record_codec_builder::create(record_codec_builder::apply2(
     record_codec_builder::of(|o: &AnimatedHead| o.tick_threshold(), codec::field_of(codec::xmap(mcrust::com::mojang::serialization::codec::int_codec(), |i: i32| i.max(1), |i: &i32| *i), "ticks")),
@@ -70,7 +65,6 @@ impl CustomAnimatedHelmetTextures {
             let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                 let stream = NEURepoManager::file("constants/animatedskulls.json").expect("java.lang.NullPointerException: NEURepoManager.file(\"constants/animatedskulls.json\")");
                 //   java: String data = new String(stream.readAllBytes());
-                // (the NEU repo library is a port gap - GAPS_M #10 - so the file reads empty and the parse below fails)
                 let mut data: String = compat::neu_repo_file_read_all(&stream);
                 let mut animated_heads: std::collections::HashMap<String, AnimatedHead> = (ANIMATED_HEAD_MAP_CODEC.get_mut().parse(&mcrust::com::mojang::serialization::json_ops::JsonOps::instance(), &compat::json_to_port(&(compat::json::get_as_json_object(&(serde_json::from_str::<serde_json::Value>(&data).expect("JsonSyntaxException")))).get("skins").cloned().unwrap()))).get_or_throw().unwrap().into_iter().collect();
                 crate::compat::execute(move || {
@@ -92,8 +86,6 @@ impl CustomAnimatedHelmetTextures {
 
     /// java: public static String formatName(String id)
     pub fn format_name(id: &str) -> String {
-        // TODO(fabric2seer): static call WordUtils.capitalizeFully(..)
-        //   java: return WordUtils.capitalizeFully(id.replace('_', ' '));
         compat::capitalize_fully(&id.replace('_', " "))
     }
 

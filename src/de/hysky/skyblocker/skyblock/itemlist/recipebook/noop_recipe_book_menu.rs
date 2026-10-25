@@ -12,14 +12,19 @@ use mcrust::net::minecraft::world::item::crafting::recipe_holder::RecipeHolder;
 use mcrust::net::minecraft::world::level::level::Level;
 
 /// java: public class NoopRecipeBookMenu extends RecipeBookMenu
+/// (`RecipeBookMenu extends AbstractContainerMenu`: the menu half is the base; the port's `RecipeBookMenu` is the trait
+/// of its two client abstract members, implemented below)
 pub struct NoopRecipeBookMenu {
-    // TODO(fabric2seer): extends RecipeBookMenu - a TRAIT in the port: implement it for NoopRecipeBookMenu instead of holding a base
+    /// java: extends AbstractContainerMenu (through RecipeBookMenu)
+    pub base: mcrust::net::minecraft::world::inventory::abstract_container_menu::AbstractContainerMenu,
 }
 
 impl NoopRecipeBookMenu {
     /// java: protected NoopRecipeBookMenu(int syncId)
     pub fn new(mut sync_id: i32) -> Self {
+        // java: super(null, syncId);
         let mut this = Self {
+            base: mcrust::net::minecraft::world::inventory::abstract_container_menu::AbstractContainerMenu::new(sync_id),
         };
         this
     }
@@ -27,15 +32,6 @@ impl NoopRecipeBookMenu {
     /// java: @Override public PostPlaceAction handlePlacement(boolean craftAll, boolean creative, RecipeHolder<?> recipe, ServerLevel world, Inventory inventory)
     pub fn handle_placement(&self, mut craft_all: bool, mut creative: bool, recipe: &RecipeHolder, world: &Level, inventory: &Inventory) -> PostPlaceAction {
         return PostPlaceAction::Nothing;
-    }
-
-    /// java: @Override public void fillCraftSlotsStackedContents(StackedItemContents finder)
-    pub fn fill_craft_slots_stacked_contents(&self, finder: &StackedItemContents) {
-    }
-
-    /// java: @Override public RecipeBookType getRecipeBookType()
-    pub fn get_recipe_book_type(&self) -> RecipeBookType {
-        return RecipeBookType::Crafting;
     }
 
     /// java: @Override public ItemStack quickMoveStack(Player player, int slot)
@@ -50,4 +46,13 @@ impl NoopRecipeBookMenu {
 
 }
 
-// NOTE(fabric2seer): fillCraftSlotsStackedContents, getRecipeBookType, handlePlacement, quickMoveStack, stillValid override(s) of RecipeBookMenu - the port dispatches its own calls, so these run only where the mod calls them; hook the port's method to make the game call them
+impl RecipeBookMenu for NoopRecipeBookMenu {
+    /// java: @Override public void fillCraftSlotsStackedContents(StackedItemContents finder)
+    fn fill_craft_slots_stacked_contents(&self, finder: &mut StackedItemContents) {
+    }
+
+    /// java: @Override public RecipeBookType getRecipeBookType()
+    fn get_recipe_book_type(&self) -> RecipeBookType {
+        return RecipeBookType::Crafting;
+    }
+}

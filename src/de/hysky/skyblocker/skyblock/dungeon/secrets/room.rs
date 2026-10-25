@@ -31,6 +31,7 @@ use mcrust::net::minecraft::commands::arguments::string_representable_argument::
 use mcrust::net::minecraft::core::block_pos::BlockPos;
 use mcrust::net::minecraft::network::chat::mutable_component::MutableComponent;
 use mcrust::net::minecraft::world::entity::ambient::ambient_creature::AmbientCreature;
+use mcrust::net::minecraft::world::entity::entity::Entity;
 use mcrust::net::minecraft::world::entity::item::item_entity::ItemEntity;
 use mcrust::net::minecraft::world::level::block::blocks;
 use mcrust::net::minecraft::world::level::block::state::block_state::BlockState;
@@ -322,7 +323,7 @@ pub trait Room: Tickable + Renderable {
     }
 
     /// java: protected void addCustomWaypoint(CommandContext<FabricClientCommandSource> context, BlockPos pos) (dispatch: the body for this class)
-    fn add_custom_waypoint(&self) -> fn(&compat::Shared<dyn Room>, &CommandContext<crate::unresolved::FabricClientCommandSource>, &BlockPos) {
+    fn add_custom_waypoint(&self) -> fn(&compat::Shared<dyn Room>, &CommandContext<mcrust::mcrust::modding::events::client_command_registration_callback::FabricClientCommandSource>, &BlockPos) {
         <dyn Room>::add_custom_waypoint_body
     }
 
@@ -337,7 +338,7 @@ pub trait Room: Tickable + Renderable {
     }
 
     /// java: protected void removeCustomWaypoint(CommandContext<FabricClientCommandSource> context, BlockPos pos) (dispatch: the body for this class)
-    fn remove_custom_waypoint(&self) -> fn(&compat::Shared<dyn Room>, &CommandContext<crate::unresolved::FabricClientCommandSource>, &BlockPos) {
+    fn remove_custom_waypoint(&self) -> fn(&compat::Shared<dyn Room>, &CommandContext<mcrust::mcrust::modding::events::client_command_registration_callback::FabricClientCommandSource>, &BlockPos) {
         <dyn Room>::remove_custom_waypoint_body
     }
 
@@ -567,13 +568,23 @@ impl dyn Room {
     }
 
     /// java: protected void addCustomWaypoint(CommandContext<FabricClientCommandSource> context, BlockPos pos)
-    pub fn add_custom_waypoint_body(__this: &compat::Shared<dyn Room>, context: &CommandContext<crate::unresolved::FabricClientCommandSource>, pos: &BlockPos) {
+    pub fn add_custom_waypoint_body(__this: &compat::Shared<dyn Room>, context: &CommandContext<mcrust::mcrust::modding::events::client_command_registration_callback::FabricClientCommandSource>, pos: &BlockPos) {
         let mut secret_index: i32 = IntegerArgumentType::get_integer(context, "secretIndex");
         let mut category: crate::de::hysky::skyblocker::skyblock::dungeon::secrets::secret_waypoint::Category = CategoryArgumentType::get_category(context, "category");
-        let mut waypoint_name: MutableComponent = context.get_argument::<MutableComponent>("name").cloned().unwrap();
+        // (`ComponentArgument` parses to a `Component`, the port's `FormattedText`)
+        let mut waypoint_name: MutableComponent = compat::component_of(context.get_argument::<mcrust::net::minecraft::network::chat::formatted_text::FormattedText>("name").cloned().unwrap());
         ({ let __f = compat::dispatch(__this, |__t| __t.add_custom_waypoint_4()); __f(__this, secret_index, category, &waypoint_name, pos) });
-        // TODO(fabric2seer): `.sendFeedback(..)` on a FabricClientCommandSource
-        //   java: context.getSource().sendFeedback(Constants.PREFIX.get().append(Component.translatableEscape("skyblocker.dungeons.secrets.customWaypointAdded", pos.getX(), pos.getY(), pos.getZ(), name, secretIndex, category, waypointName)));
+        // java: context.getSource().sendFeedback(Constants.PREFIX.get().append(Component.translatableEscape("skyblocker.dungeons.secrets.customWaypointAdded", pos.getX(), pos.getY(), pos.getZ(), name, secretIndex, category, waypointName)));
+        let name: String = compat::read(__this, |__t| __t.room_base().name.clone()).unwrap_or_else(|| "null".to_string());
+        compat::batch_w_send_feedback(&(crate::de::hysky::skyblocker::utils::constants::PREFIX.get())().append(mcrust::net::minecraft::network::chat::component::translatable_args("skyblocker.dungeons.secrets.customWaypointAdded", vec![
+            mcrust::net::minecraft::network::chat::formatted_text::FormattedText::of(pos.get_x().to_string()),
+            mcrust::net::minecraft::network::chat::formatted_text::FormattedText::of(pos.get_y().to_string()),
+            mcrust::net::minecraft::network::chat::formatted_text::FormattedText::of(pos.get_z().to_string()),
+            mcrust::net::minecraft::network::chat::formatted_text::FormattedText::of(name),
+            mcrust::net::minecraft::network::chat::formatted_text::FormattedText::of(secret_index.to_string()),
+            mcrust::net::minecraft::network::chat::formatted_text::FormattedText::of(category.to_string()),
+            mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(waypoint_name.clone()),
+        ])));
     }
 
     /// java: @SuppressWarnings("JavadocReference") private void addCustomWaypoint(int secretIndex, SecretWaypoint.Category category, Component waypointName, BlockPos pos)
@@ -599,14 +610,32 @@ impl dyn Room {
     }
 
     /// java: protected void removeCustomWaypoint(CommandContext<FabricClientCommandSource> context, BlockPos pos)
-    pub fn remove_custom_waypoint_body(__this: &compat::Shared<dyn Room>, context: &CommandContext<crate::unresolved::FabricClientCommandSource>, pos: &BlockPos) {
+    pub fn remove_custom_waypoint_body(__this: &compat::Shared<dyn Room>, context: &CommandContext<mcrust::mcrust::modding::events::client_command_registration_callback::FabricClientCommandSource>, pos: &BlockPos) {
         let mut waypoint: Option<compat::Shared<SecretWaypoint>> = ({ let __f = compat::dispatch(__this, |__t| __t.remove_custom_waypoint_1()); __f(__this, pos) });
         if let Some(waypoint) = &waypoint {
-            // TODO(fabric2seer): `.sendFeedback(..)` on a FabricClientCommandSource
-            //   java: context.getSource().sendFeedback(Constants.PREFIX.get().append(Component.translatable("skyblocker.dungeons.secrets.customWaypointRemoved", pos.getX(), pos.getY(), pos.getZ(), name, waypoint.secretIndex, waypoint.category.getSerializedName(), waypoint.getName())));
+            // java: context.getSource().sendFeedback(Constants.PREFIX.get().append(Component.translatable("skyblocker.dungeons.secrets.customWaypointRemoved", pos.getX(), pos.getY(), pos.getZ(), name, waypoint.secretIndex, waypoint.category.getSerializedName(), waypoint.getName())));
+            let name: String = compat::read(__this, |__t| __t.room_base().name.clone()).unwrap_or_else(|| "null".to_string());
+            let (secret_index, category) = compat::read(waypoint, |__t| (__t.secret_index, __t.category.clone().unwrap().get_serialized_name()));
+            let named = compat::view(waypoint, |a| a as compat::Shared<dyn crate::de::hysky::skyblocker::utils::waypoint::named_waypoint::NamedWaypoint>);
+            let waypoint_name: MutableComponent = { let __f = compat::dispatch(&named, |__t| __t.get_name()); __f(&named) };
+            compat::batch_w_send_feedback(&(crate::de::hysky::skyblocker::utils::constants::PREFIX.get())().append(mcrust::net::minecraft::network::chat::component::translatable_args("skyblocker.dungeons.secrets.customWaypointRemoved", vec![
+                mcrust::net::minecraft::network::chat::formatted_text::FormattedText::of(pos.get_x().to_string()),
+                mcrust::net::minecraft::network::chat::formatted_text::FormattedText::of(pos.get_y().to_string()),
+                mcrust::net::minecraft::network::chat::formatted_text::FormattedText::of(pos.get_z().to_string()),
+                mcrust::net::minecraft::network::chat::formatted_text::FormattedText::of(name),
+                mcrust::net::minecraft::network::chat::formatted_text::FormattedText::of(secret_index.to_string()),
+                mcrust::net::minecraft::network::chat::formatted_text::FormattedText::of(category),
+                mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(waypoint_name),
+            ])));
         } else {
-            // TODO(fabric2seer): `.sendFeedback(..)` on a FabricClientCommandSource
-            //   java: context.getSource().sendFeedback(Constants.PREFIX.get().append(Component.translatable("skyblocker.dungeons.secrets.customWaypointNotFound", pos.getX(), pos.getY(), pos.getZ(), name).withColor(TextColor.RED)));
+            // java: context.getSource().sendFeedback(Constants.PREFIX.get().append(Component.translatable("skyblocker.dungeons.secrets.customWaypointNotFound", pos.getX(), pos.getY(), pos.getZ(), name).withColor(TextColor.RED)));
+            let name: String = compat::read(__this, |__t| __t.room_base().name.clone()).unwrap_or_else(|| "null".to_string());
+            compat::batch_w_send_feedback(&(crate::de::hysky::skyblocker::utils::constants::PREFIX.get())().append(mcrust::net::minecraft::network::chat::component::translatable_args("skyblocker.dungeons.secrets.customWaypointNotFound", vec![
+                mcrust::net::minecraft::network::chat::formatted_text::FormattedText::of(pos.get_x().to_string()),
+                mcrust::net::minecraft::network::chat::formatted_text::FormattedText::of(pos.get_y().to_string()),
+                mcrust::net::minecraft::network::chat::formatted_text::FormattedText::of(pos.get_z().to_string()),
+                mcrust::net::minecraft::network::chat::formatted_text::FormattedText::of(name),
+            ]).with_color_text(mcrust::net::minecraft::network::chat::text_color::TextColor::RED)));
         }
     }
 
@@ -649,7 +678,7 @@ impl dyn Room {
         let __this_w1 = std::sync::Arc::downgrade(__this);
         let __this_w2 = std::sync::Arc::downgrade(__this);
         // java: findRoom = CompletableFuture.runAsync(() -> {..}).exceptionally(e -> {..});
-        // rust: the search reads and writes this room (not `Send`), so it runs deferred on the render thread
+        // DIVERGENCE: the search reads and writes this room (not `Send`), so it runs deferred on the render thread
         // (`compat::LocalFuture::supply_local`) rather than on a worker
         { let __v = Some(compat::LocalFuture::<()>::supply_local(move || { let Some(__this_1) = __this_w1.upgrade() else { return Default::default(); }; {
             for pos in BlockPos::between_closed_pos(&mcrust::mcrust::modding::game::with_player(|player| player.base.base.base.base.block_position().offset(-5, -5, -5)).unwrap(), &mcrust::mcrust::modding::game::with_player(|player| player.base.base.base.base.block_position().offset(5, 5, 5)).unwrap()) {
@@ -841,12 +870,14 @@ impl dyn Room {
             ({ let __f = compat::dispatch(&renderable, |__t| __t.extract_rendering()); __f(&renderable, collector) });
         }
         if compat::read(&SkyblockerConfigManager::get().dungeons.secret_waypoints, |__t| __t.enable_secret_waypoints) && { let __f = compat::dispatch(__this, |__t| __t.is_matched()); __f(__this) } {
-            // TODO(fabric2seer): `.values(..)` on a Table
-            //   java: for (SecretWaypoint secretWaypoint : secretWaypoints.values()) {
-            //   java: 				if (secretWaypoint.shouldRender()) {
-            //   java: 					secretWaypoint.extractRendering(collector);
-            //   java: 				}
-            //   java: 			}
+            // java: for (SecretWaypoint secretWaypoint : secretWaypoints.values()) { if (secretWaypoint.shouldRender()) secretWaypoint.extractRendering(collector); }
+            for secret_waypoint in compat::read(__this, |__t| __t.room_base().secret_waypoints.values()) {
+                let waypoint = secret_as_waypoint(&secret_waypoint);
+                if { let __f = compat::dispatch(&waypoint, |__t| __t.should_render()); __f(&waypoint) } {
+                    let renderable = compat::view(&secret_waypoint, |a| a as compat::Shared<dyn Renderable>);
+                    { let __f = compat::dispatch(&renderable, |__t| __t.extract_rendering()); __f(&renderable, collector) };
+                }
+            }
         }
     }
 
@@ -858,11 +889,13 @@ impl dyn Room {
     /// java: protected void onChatMessage(String message, boolean overlay)
     pub fn on_chat_message_body(__this: &compat::Shared<dyn Room>, message: &str, mut overlay: bool) {
         if CHEST_ALREADY_OPENED == message && (compat::read(__this, |__t| __t.room_base().last_chest_secret_time)).wrapping_add(1000 as i64) > compat::millis() && compat::read(__this, |__t| __t.room_base().last_chest_secret.clone()).is_some() {
-            // TODO(fabric2seer): `.column(..)` on a Table
-            //   java: secretWaypoints.column(lastChestSecret).values().stream().filter(SecretWaypoint::needsInteraction).findAny()
-            //   java: 					.ifPresent(secretWaypoint -> {
-            //   java: 						markSecretsFoundAndLogInfo(secretWaypoint, "[Skyblocker Dungeon Secrets] Detected already searched chest interaction, setting secret #{} as found", secretWaypoint.secretIndex);
-            //   java: 					});
+            // java: secretWaypoints.column(lastChestSecret).values().stream().filter(SecretWaypoint::needsInteraction).findAny()
+            //     .ifPresent(secretWaypoint -> markSecretsFoundAndLogInfo(secretWaypoint, "[Skyblocker Dungeon Secrets] Detected already searched chest interaction, setting secret #{} as found", secretWaypoint.secretIndex));
+            let last_chest_secret: BlockPos = compat::read(__this, |__t| __t.room_base().last_chest_secret.clone()).unwrap();
+            if let Some(secret_waypoint) = secrets_in_column(__this, &last_chest_secret).into_iter().find(|w| SecretWaypoint::needs_interaction(w)) {
+                let secret_index = compat::read(&secret_waypoint, |__t| __t.secret_index);
+                mark_found_and_log(__this, &secret_waypoint, "[Skyblocker Dungeon Secrets] Detected already searched chest interaction, setting secret #{} as found", vec![log_arg(secret_index)]);
+            }
         }
         if compat::read(__this, |__t| __t.room_base().secret_count_outdated) && overlay {
             ({ let __f = compat::dispatch(__this, |__t| __t.update_secret_count()); __f(__this, message) });
@@ -888,6 +921,7 @@ impl dyn Room {
             { let __v = compat::millis(); compat::write(__this, |__t| __t.room_base_mut().last_chest_secret_time = __v); }
             // the lambda captures `world`: the client's level (the object `world` is), held by its handle
             let __world = mcrust::mcrust::modding::game::level();
+            let __this_1 = compat::RenderThread::new(__this.clone());
             ({ let __r = scheduler::INSTANCE.get_mut(); let __f = compat::dispatch(__r, |__t| __t.schedule()); __f(__r, Arc::new(move || {
                 let Some(world) = __world.as_deref() else {
                     return;
@@ -895,36 +929,50 @@ impl dyn Room {
                 if !(world.get_block_state_typed(&pos).is_air()) {
                     return;
                 }
-                // TODO(fabric2seer): `.column(..)` on a Table
-                //   java: secretWaypoints.column(pos).values().stream().filter(SecretWaypoint::needsInteraction).filter(SecretWaypoint::isEnabled).findAny()
-                //   java: 						.ifPresent(secretWaypoint -> markSecretsFoundAndLogInfo(secretWaypoint, "[Skyblocker Dungeon Secrets] Detected chest block removed, setting secret #{} as found", secretWaypoint.secretIndex));
+                // java: secretWaypoints.column(pos).values().stream().filter(SecretWaypoint::needsInteraction).filter(SecretWaypoint::isEnabled).findAny()
+                //     .ifPresent(secretWaypoint -> markSecretsFoundAndLogInfo(secretWaypoint, "[Skyblocker Dungeon Secrets] Detected chest block removed, setting secret #{} as found", secretWaypoint.secretIndex));
+                let __this = __this_1.get();
+                if let Some(secret_waypoint) = secrets_in_column(__this, &pos).into_iter().filter(|w| SecretWaypoint::needs_interaction(w)).find(|w| secret_is_enabled(w)) {
+                    let secret_index = compat::read(&secret_waypoint, |__t| __t.secret_index);
+                    mark_found_and_log(__this, &secret_waypoint, "[Skyblocker Dungeon Secrets] Detected chest block removed, setting secret #{} as found", vec![log_arg(secret_index)]);
+                }
             }), 5) });
         } else if state.is_block(&blocks::blocks().get("PLAYER_HEAD")) || state.is_block(&blocks::blocks().get("PLAYER_WALL_HEAD")) {
-            // TODO(fabric2seer): `.column(..)` on a Table
-            //   java: secretWaypoints.column(pos).values().stream().filter(SecretWaypoint::needsInteraction).filter(SecretWaypoint::isEnabled).findAny()
-            //   java: 					.ifPresent(secretWaypoint -> {
-            //   java: 						if (secretWaypoint.category == SecretWaypoint.Category.REDSTONE_KEY) {
-            //   java: 							DungeonManager.LOGGER.info("[Skyblocker Dungeon Secrets] Detected {} interaction, hiding secret #{} waypoint {}", secretWaypoint.category, secretWaypoint.secretIndex, secretWaypoint.name);
-            //   java: 							secretWaypoint.setFound();
-            //   java: 							return;
-            //   java: 						}
-            //   java: 						markSecretsFoundAndLogInfo(secretWaypoint, "[Skyblocker Dungeon Secrets] Detected {} interaction, setting secret #{} as found", secretWaypoint.category, secretWaypoint.secretIndex);
-            //   java: 					});
+            // java: secretWaypoints.column(pos).values().stream().filter(SecretWaypoint::needsInteraction).filter(SecretWaypoint::isEnabled).findAny().ifPresent(secretWaypoint -> {..});
+            if let Some(secret_waypoint) = secrets_in_column(__this, &pos).into_iter().filter(|w| SecretWaypoint::needs_interaction(w)).find(|w| secret_is_enabled(w)) {
+                let (category, secret_index, name) = compat::read(&secret_waypoint, |__t| (__t.category.clone().unwrap(), __t.secret_index, __t.name.clone().map(|n| n.get_string()).unwrap_or_else(|| "null".to_string())));
+                if category == secret_waypoint::Category::RedstoneKey {
+                    logger().info(&format!("[Skyblocker Dungeon Secrets] Detected {} interaction, hiding secret #{} waypoint {}", category.to_string(), secret_index, name));
+                    let waypoint = secret_as_waypoint(&secret_waypoint);
+                    { let __f = compat::dispatch(&waypoint, |__t| __t.set_found()); __f(&waypoint) };
+                } else {
+                    mark_found_and_log(__this, &secret_waypoint, "[Skyblocker Dungeon Secrets] Detected {} interaction, setting secret #{} as found", vec![log_arg(category.to_string()), log_arg(secret_index)]);
+                }
+            }
         } else if state.is_block(&blocks::blocks().get("REDSTONE_BLOCK")) {
-            // TODO(fabric2seer): `.column(..)` on a Table
-            //   java: secretWaypoints.column(pos.above()).values().stream().filter(SecretWaypoint::needsInteraction).filter(SecretWaypoint::isEnabled).findAny()
-            //   java: 					.ifPresent(secretWaypoint -> markSecretsFoundAndLogInfo(secretWaypoint, "[Skyblocker Dungeon Secrets] Detected {} interaction, setting secret #{} as found", secretWaypoint.category, secretWaypoint.secretIndex));
+            // java: secretWaypoints.column(pos.above()).values().stream().filter(SecretWaypoint::needsInteraction).filter(SecretWaypoint::isEnabled).findAny()
+            //     .ifPresent(secretWaypoint -> markSecretsFoundAndLogInfo(secretWaypoint, "[Skyblocker Dungeon Secrets] Detected {} interaction, setting secret #{} as found", secretWaypoint.category, secretWaypoint.secretIndex));
+            if let Some(secret_waypoint) = secrets_in_column(__this, &pos.above()).into_iter().filter(|w| SecretWaypoint::needs_interaction(w)).find(|w| secret_is_enabled(w)) {
+                let (category, secret_index) = compat::read(&secret_waypoint, |__t| (__t.category.clone().unwrap(), __t.secret_index));
+                mark_found_and_log(__this, &secret_waypoint, "[Skyblocker Dungeon Secrets] Detected {} interaction, setting secret #{} as found", vec![log_arg(category.to_string()), log_arg(secret_index)]);
+            }
         } else if state.is_block(&blocks::blocks().get("LEVER")) {
-            // TODO(fabric2seer): `.column(..)` on a Table
-            //   java: secretWaypoints.column(pos).values().stream().filter(SecretWaypoint::isLever).forEach(SecretWaypoint::setFound);
+            // java: secretWaypoints.column(pos).values().stream().filter(SecretWaypoint::isLever).forEach(SecretWaypoint::setFound);
+            for secret_waypoint in secrets_in_column(__this, &pos).into_iter().filter(|w| SecretWaypoint::is_lever(w)) {
+                let waypoint = secret_as_waypoint(&secret_waypoint);
+                { let __f = compat::dispatch(&waypoint, |__t| __t.set_found()); __f(&waypoint) };
+            }
         }
     }
 
     /// java: protected void onChestOpened(BlockPos pos)
     pub fn on_chest_opened_body(__this: &compat::Shared<dyn Room>, pos: &BlockPos) {
-        // TODO(fabric2seer): `.column(..)` on a Table
-        //   java: secretWaypoints.column(pos).values().stream().filter(SecretWaypoint::needsInteraction).filter(SecretWaypoint::isEnabled).findAny()
-        //   java: 				.ifPresent(secretWaypoint -> markSecretsFoundAndLogInfo(secretWaypoint, "[Skyblocker Dungeon Secrets] Detected chest opened, setting secret #{} as found", secretWaypoint.secretIndex));
+        // java: secretWaypoints.column(pos).values().stream().filter(SecretWaypoint::needsInteraction).filter(SecretWaypoint::isEnabled).findAny()
+        //     .ifPresent(secretWaypoint -> markSecretsFoundAndLogInfo(secretWaypoint, "[Skyblocker Dungeon Secrets] Detected chest opened, setting secret #{} as found", secretWaypoint.secretIndex));
+        if let Some(secret_waypoint) = secrets_in_column(__this, pos).into_iter().filter(|w| SecretWaypoint::needs_interaction(w)).find(|w| secret_is_enabled(w)) {
+            let secret_index = compat::read(&secret_waypoint, |__t| __t.secret_index);
+            mark_found_and_log(__this, &secret_waypoint, "[Skyblocker Dungeon Secrets] Detected chest opened, setting secret #{} as found", vec![log_arg(secret_index)]);
+        }
     }
 
     /// java: protected void onItemPickup(ItemEntity itemEntity)
@@ -932,16 +980,32 @@ impl dyn Room {
         if !secret_waypoint::SECRET_ITEMS.iter().cloned().any(|__a0| compat::component_of(item_entity.get_item().get_hover_name()).get_string().contains(&__a0)) {
             return;
         }
-        // TODO(fabric2seer): `.values(..)` on a Table
-        //   java: secretWaypoints.values().stream().filter(SecretWaypoint::needsItemPickup).min(Comparator.comparingDouble(SecretWaypoint.getSquaredDistanceToFunction(itemEntity))).filter(SecretWaypoint.getRangePredicate(itemEntity))
-        //   java: 				.ifPresent(secretWaypoint -> markSecretsFoundAndLogInfo(secretWaypoint, "[Skyblocker Dungeon Secrets] Detected item {} removed from a {} secret, setting secret #{} as found", itemEntity.getName().getString(), secretWaypoint.category, secretWaypoint.secretIndex));
+        // java: secretWaypoints.values().stream().filter(SecretWaypoint::needsItemPickup).min(Comparator.comparingDouble(SecretWaypoint.getSquaredDistanceToFunction(itemEntity))).filter(SecretWaypoint.getRangePredicate(itemEntity))
+        //     .ifPresent(secretWaypoint -> markSecretsFoundAndLogInfo(secretWaypoint, "[Skyblocker Dungeon Secrets] Detected item {} removed from a {} secret, setting secret #{} as found", itemEntity.getName().getString(), secretWaypoint.category, secretWaypoint.secretIndex));
+        let entity: &dyn Entity = item_entity;
+        let distance = SecretWaypoint::get_squared_distance_to_function(entity);
+        let in_range = SecretWaypoint::get_range_predicate(entity);
+        let candidates: Vec<compat::Shared<SecretWaypoint>> = compat::read(__this, |__t| __t.room_base().secret_waypoints.values()).into_iter().filter(|w| SecretWaypoint::needs_item_pickup(w)).collect();
+        if let Some(secret_waypoint) = min_by_distance(candidates, &*distance).filter(|w| in_range(w.clone())) {
+            let (category, secret_index) = compat::read(&secret_waypoint, |__t| (__t.category.clone().unwrap(), __t.secret_index));
+            let item_name: String = compat::component_of(entity.get_name()).get_string();
+            mark_found_and_log(__this, &secret_waypoint, "[Skyblocker Dungeon Secrets] Detected item {} removed from a {} secret, setting secret #{} as found", vec![log_arg(item_name), log_arg(category.to_string()), log_arg(secret_index)]);
+        }
     }
 
     /// java: protected void onBatRemoved(AmbientCreature bat)
     pub fn on_bat_removed_body(__this: &compat::Shared<dyn Room>, bat: &dyn AmbientCreature) {
-        // TODO(fabric2seer): `.values(..)` on a Table
-        //   java: secretWaypoints.values().stream().filter(SecretWaypoint::isBat).min(Comparator.comparingDouble(SecretWaypoint.getSquaredDistanceToFunction(bat))).filter(SecretWaypoint.getRangePredicate(bat))
-        //   java: 				.ifPresent(secretWaypoint -> markSecretsFoundAndLogInfo(secretWaypoint, "[Skyblocker Dungeon Secrets] Detected {} killed for a {} secret, setting secret #{} as found", bat.getName().getString(), secretWaypoint.category, secretWaypoint.secretIndex));
+        // java: secretWaypoints.values().stream().filter(SecretWaypoint::isBat).min(Comparator.comparingDouble(SecretWaypoint.getSquaredDistanceToFunction(bat))).filter(SecretWaypoint.getRangePredicate(bat))
+        //     .ifPresent(secretWaypoint -> markSecretsFoundAndLogInfo(secretWaypoint, "[Skyblocker Dungeon Secrets] Detected {} killed for a {} secret, setting secret #{} as found", bat.getName().getString(), secretWaypoint.category, secretWaypoint.secretIndex));
+        let entity: &dyn Entity = bat;
+        let distance = SecretWaypoint::get_squared_distance_to_function(entity);
+        let in_range = SecretWaypoint::get_range_predicate(entity);
+        let candidates: Vec<compat::Shared<SecretWaypoint>> = compat::read(__this, |__t| __t.room_base().secret_waypoints.values()).into_iter().filter(|w| SecretWaypoint::is_bat(w)).collect();
+        if let Some(secret_waypoint) = min_by_distance(candidates, &*distance).filter(|w| in_range(w.clone())) {
+            let (category, secret_index) = compat::read(&secret_waypoint, |__t| (__t.category.clone().unwrap(), __t.secret_index));
+            let bat_name: String = compat::component_of(entity.get_name()).get_string();
+            mark_found_and_log(__this, &secret_waypoint, "[Skyblocker Dungeon Secrets] Detected {} killed for a {} secret, setting secret #{} as found", vec![log_arg(bat_name), log_arg(category.to_string()), log_arg(secret_index)]);
+        }
     }
 
     /// java: private void markSecretsFoundAndLogInfo(SecretWaypoint secretWaypoint, String msg, Object... args)
@@ -956,15 +1020,14 @@ impl dyn Room {
             { let __v = true; compat::write(__this, |__t| __t.room_base_mut().secret_count_outdated = __v); }
         }
         ({ let __f = compat::dispatch(__this, |__t| __t.mark_secrets()); __f(__this, compat::read(secret_waypoint, |__t| __t.secret_index), found) });
-        // TODO(fabric2seer): a log call with a non-literal format
-        //   java: DungeonManager.LOGGER.info(msg, args);
+        // java: DungeonManager.LOGGER.info(msg, args); - SLF4J's `{}` placeholders, filled in order
+        logger().info(&slf4j_format(msg, args));
     }
 
     /// java: protected int getIndexByWaypointHash(int waypointHash)
     pub fn get_index_by_waypoint_hash_body(__this: &compat::Shared<dyn Room>, mut waypoint_hash: i32) -> i32 {
         for i in 0..({ let __f = compat::dispatch(__this, |__t| __t.get_secret_count()); __f(__this) }) {
-            // TODO(fabric2seer): the condition: `.containsRow(..)` on a Table
-            //   java: !secretWaypoints.containsRow(i)
+            // java: !secretWaypoints.containsRow(i)
             if !compat::read(__this, |__t| __t.room_base().secret_waypoints.contains_row(&i)) {
                 continue;
             }
@@ -987,8 +1050,7 @@ impl dyn Room {
 
     /// java: protected boolean markSecrets(int secretIndex, boolean found)
     pub fn mark_secrets_body(__this: &compat::Shared<dyn Room>, mut secret_index: i32, mut found: bool) -> bool {
-        // TODO(fabric2seer): `.row(..)` on a Table
-        //   java: Map<BlockPos, SecretWaypoint> secret = secretWaypoints.row(secretIndex);
+        // java: Map<BlockPos, SecretWaypoint> secret = secretWaypoints.row(secretIndex);
         let mut secret: Vec<(BlockPos, compat::Shared<SecretWaypoint>)> = compat::read(__this, |__t| __t.room_base().secret_waypoints.row(&secret_index));
         if secret.is_empty() {
             return false;
@@ -1008,8 +1070,15 @@ impl dyn Room {
 
     /// java: protected void markAllSecrets(boolean found)
     pub fn mark_all_secrets_body(__this: &compat::Shared<dyn Room>, mut found: bool) {
-        // TODO(fabric2seer): `.values(..)` on a Table
-        //   java: secretWaypoints.values().forEach(found ? SecretWaypoint::setFound : SecretWaypoint::setMissing);
+        // java: secretWaypoints.values().forEach(found ? SecretWaypoint::setFound : SecretWaypoint::setMissing);
+        for secret_waypoint in compat::read(__this, |__t| __t.room_base().secret_waypoints.values()) {
+            let waypoint = secret_as_waypoint(&secret_waypoint);
+            if found {
+                { let __f = compat::dispatch(&waypoint, |__t| __t.set_found()); __f(&waypoint) };
+            } else {
+                { let __f = compat::dispatch(&waypoint, |__t| __t.set_missing()); __f(&waypoint) };
+            }
+        }
     }
 
     /// java: public int getMaxSecretCount()
@@ -1019,8 +1088,7 @@ impl dyn Room {
 
     /// java: protected int getSecretCount()
     pub fn get_secret_count_body(__this: &compat::Shared<dyn Room>) -> i32 {
-        // TODO(fabric2seer): `.rowMap(..)` on a Table
-        //   java: return secretWaypoints.rowMap().size();
+        // java: return secretWaypoints.rowMap().size();
         compat::read(__this, |__t| __t.room_base().secret_waypoints.row_map().len() as i32)
     }
 
@@ -1388,7 +1456,6 @@ impl std::ops::DerefMut for DirectionArgumentType {
 impl DirectionArgumentType {
     /// java: DirectionArgumentType()
     pub fn new() -> Self {
-        // TODO(fabric2seer): `new` takes 3 argument(s) in the port (`values: Vec<T>, codec_name: fn(&T) -> String, convert_id: fn(&str) -> String`), Java passes 2
         //   java: super(CODEC, Direction::values); - the two-argument constructor is `this(codec, values, s -> s)`; the
         // port's is handed the names the codec writes (`CODEC`'s `getSerializedName`) and that identity.
         let mut this: Self = Self {
@@ -1509,4 +1576,71 @@ impl std::fmt::Display for MatchState {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(self.name())
     }
+}
+
+/// A secret waypoint as the `Waypoint` it extends (`setFound`, `isEnabled`, `shouldRender` dispatch through it).
+fn secret_as_waypoint(secret_waypoint: &compat::Shared<SecretWaypoint>) -> compat::Shared<dyn crate::de::hysky::skyblocker::utils::waypoint::waypoint::Waypoint> {
+    (*compat::view(secret_waypoint, |a| a as compat::Shared<dyn crate::de::hysky::skyblocker::utils::waypoint::waypoint::Waypoint>)).clone()
+}
+
+/// `SecretWaypoint::isEnabled` (the `Waypoint` method, virtual).
+fn secret_is_enabled(secret_waypoint: &compat::Shared<SecretWaypoint>) -> bool {
+    let waypoint = secret_as_waypoint(secret_waypoint);
+    let __f = compat::dispatch(&waypoint, |__t| __t.is_enabled());
+    __f(&waypoint)
+}
+
+/// `secretWaypoints.column(pos).values()` - read out of the room once, so no guard is held while each is used.
+fn secrets_in_column(room: &compat::Shared<dyn Room>, pos: &BlockPos) -> Vec<compat::Shared<SecretWaypoint>> {
+    compat::read(room, |__t| __t.room_base().secret_waypoints.column(pos)).into_iter().map(|(_, waypoint)| waypoint).collect()
+}
+
+/// `stream.min(Comparator.comparingDouble(f))`: the first of the smallest (`Stream.min` keeps the earlier of two equal ones).
+fn min_by_distance(candidates: Vec<compat::Shared<SecretWaypoint>>, distance: &dyn Fn(compat::Shared<SecretWaypoint>) -> f64) -> Option<compat::Shared<SecretWaypoint>> {
+    let mut best: Option<(f64, compat::Shared<SecretWaypoint>)> = None;
+    for candidate in candidates {
+        let d = distance(candidate.clone());
+        if best.as_ref().is_none_or(|(b, _)| d.total_cmp(b) == std::cmp::Ordering::Less) {
+            best = Some((d, candidate));
+        }
+    }
+    best.map(|(_, w)| w)
+}
+
+/// One `Object... args` value of a log call.
+fn log_arg<T: std::fmt::Display>(value: T) -> compat::Object {
+    Arc::new(value.to_string())
+}
+
+/// `markSecretsFoundAndLogInfo(secretWaypoint, msg, args)` through the room's virtual.
+fn mark_found_and_log(room: &compat::Shared<dyn Room>, secret_waypoint: &compat::Shared<SecretWaypoint>, msg: &str, args: Vec<compat::Object>) {
+    let __f = compat::dispatch(room, |__t| __t.mark_secrets_found_and_log_info());
+    __f(room, secret_waypoint, msg, &args)
+}
+
+/// SLF4J's `MessageFormatter`: each `{}` takes the next argument's `toString()`; one left over prints as `{}`.
+fn slf4j_format(msg: &str, args: &Vec<compat::Object>) -> String {
+    let mut out = String::with_capacity(msg.len());
+    let mut rest = msg;
+    let mut next = args.iter();
+    while let Some(at) = rest.find("{}") {
+        out.push_str(&rest[..at]);
+        match next.next() {
+            Some(arg) => {
+                if let Some(text) = arg.downcast_ref::<String>() {
+                    out.push_str(text);
+                } else if let Some(n) = arg.downcast_ref::<i32>() {
+                    out.push_str(&n.to_string());
+                } else if let Some(text) = arg.downcast_ref::<&'static str>() {
+                    out.push_str(text);
+                } else {
+                    out.push_str("{}");
+                }
+            }
+            None => out.push_str("{}"),
+        }
+        rest = &rest[at + 2..];
+    }
+    out.push_str(rest);
+    out
 }

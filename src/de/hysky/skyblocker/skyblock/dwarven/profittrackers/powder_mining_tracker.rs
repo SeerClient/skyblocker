@@ -138,15 +138,61 @@ impl PowderMiningTracker {
 
     /// java: @Init public static void init()
     pub fn init() {
-        // TODO(fabric2seer): ClientReceiveMessageEvents.ALLOW_GAME.register: no SeerClient equivalent yet
-        //   java: ClientReceiveMessageEvents.ALLOW_GAME.register(INSTANCE::onChatMessage);
+        // java: ClientReceiveMessageEvents.ALLOW_GAME.register(INSTANCE::onChatMessage);
+        compat::register_allow_game(|text: &mcrust::net::minecraft::network::chat::mutable_component::MutableComponent, overlay: bool| PowderMiningTracker::on_chat_message(INSTANCE.get_mut(), text, overlay));
         item_price_update_event::ON_PRICE_UPDATE.register(Arc::new(move || { PowderMiningTracker::on_price_update(INSTANCE.get_mut()); }));
         let all_rewards = compat::read(INSTANCE.get(), |__t| __t.all_rewards.clone()).unwrap();
         compat::write(&all_rewards, |__t| { __t.init(); });
         client_command_registration_callback::EVENT.register(Arc::new(
             |dispatcher: &mut client_command_registration_callback::ClientCommandDispatcher| {
-                // TODO(fabric2seer): a command tree this tool cannot read (arguments, redirects, requires) - SeerClient commands receive the words after the name in `ctx.args`
-                //   java: dispatcher.register(..);
+                use mcrust::com::mojang::brigadier::builder::argument_builder::ArgumentBuilder as _;
+                use mcrust::com::mojang::brigadier::context::command_context::CommandContext;
+                type Source = client_command_registration_callback::FabricClientCommandSource;
+                // java: dispatcher.register(literal(SkyblockerMod.NAMESPACE).then(literal("rewardTrackers").then(literal("powderMining")
+                //   .then(literal("list").executes(ctx -> { .. }))
+                //   .then(literal("reset").executes(ctx -> { .. })))));
+                let mut list = client_command_registration_callback::literal("list");
+                list.executes(Arc::new(|_: &CommandContext<Source>| {
+                    let prefix = || (crate::de::hysky::skyblocker::utils::constants::PREFIX.get())();
+                    // java: if (INSTANCE.currentProfileRewards.isEmpty()) {..} else if (INSTANCE.shownRewards.isEmpty()) {..}
+                    if compat::read(INSTANCE.get(), |__t| __t.current_profile_rewards.is_empty()) {
+                        compat::batch_w_send_feedback(&prefix().append(component::translatable("skyblocker.powderTracker.emptyHistory").with_style_format(ChatFormatting::Red)));
+                        return Ok(1);
+                    } else if compat::read(INSTANCE.get(), |__t| __t.shown_rewards.is_empty()) {
+                        compat::batch_w_send_feedback(&prefix().append(component::translatable("skyblocker.powderTracker.rewardsFilteredOut").with_style_format(ChatFormatting::Red)));
+                        return Ok(1);
+                    }
+                    // java: for (Entry<Component> entry : INSTANCE.shownRewards.object2IntEntrySet()) ctx.getSource().sendFeedback(Component.empty().append(entry.getKey())
+                    //   .append(Component.literal(": ").withStyle(ChatFormatting.GRAY)).append(Component.literal(String.valueOf(entry.getIntValue()))));
+                    let shown_rewards = compat::read(INSTANCE.get(), |__t| __t.shown_rewards.clone());
+                    for (key, value) in shown_rewards.iter() {
+                        compat::batch_w_send_feedback(&component::empty().append(key.clone()).append(component::literal(": ").with_style_format(ChatFormatting::Gray)).append(component::literal(&value.to_string())));
+                    }
+                    // java: ctx.getSource().sendFeedback(Component.translatable("skyblocker.powderTracker.profit", NumberFormat.getInstance().format(INSTANCE.profit)).withStyle(ChatFormatting.GOLD));
+                    let profit = compat::read(INSTANCE.get(), |__t| __t.profit);
+                    compat::batch_w_send_feedback(&component::translatable_args("skyblocker.powderTracker.profit", vec![mcrust::net::minecraft::network::chat::formatted_text::FormattedText::of(&compat::number_format_instance().format(profit))]).with_style_format(ChatFormatting::Gold));
+                    Ok(1)
+                }));
+                let mut reset = client_command_registration_callback::literal("reset");
+                reset.executes(Arc::new(|_: &CommandContext<Source>| {
+                    // java: INSTANCE.currentProfileRewards.clear(); INSTANCE.allRewards.save(); INSTANCE.shownRewards.clear();
+                    compat::write(INSTANCE.get(), |__t| __t.current_profile_rewards.clear());
+                    let all_rewards = compat::read(INSTANCE.get(), |__t| __t.all_rewards.clone());
+                    if let Some(all_rewards) = all_rewards {
+                        compat::read(&all_rewards, |__t| __t.save());
+                    }
+                    compat::write(INSTANCE.get(), |__t| __t.shown_rewards.clear());
+                    compat::batch_w_send_feedback(&(crate::de::hysky::skyblocker::utils::constants::PREFIX.get())().append(component::translatable("skyblocker.powderTracker.historyReset").with_style_format(ChatFormatting::Green)));
+                    Ok(1)
+                }));
+                let mut powder_mining = client_command_registration_callback::literal("powderMining");
+                powder_mining.then(&list);
+                powder_mining.then(&reset);
+                let mut reward_trackers = client_command_registration_callback::literal("rewardTrackers");
+                reward_trackers.then(&powder_mining);
+                let mut root = client_command_registration_callback::literal(crate::entry::skyblocker_mod::NAMESPACE);
+                root.then(&reward_trackers);
+                dispatcher.dispatcher().register(&root);
             },
         ));
         skyblock_events::PROFILE_CHANGE.register(Arc::new(move |__a0, __a1| { PowderMiningTracker::on_profile_change(INSTANCE.get_mut(), &__a0, &__a1); }));

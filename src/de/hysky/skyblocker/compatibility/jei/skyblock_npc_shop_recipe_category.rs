@@ -13,10 +13,9 @@ use mcrust::net::minecraft::client::gui::gui_graphics_extractor::GuiGraphicsExtr
 use mcrust::net::minecraft::network::chat::component;
 use mcrust::net::minecraft::network::chat::mutable_component::MutableComponent;
 
-// TODO(fabric2seer): static call IRecipeType.create(..)
 //   java: private static final IRecipeType<SkyblockNpcShopRecipe> RECIPE_TYPE = IRecipeType.create(SkyblockNpcShopRecipe.ID, SkyblockNpcShopRecipe.class);
 /// java: private static final IRecipeType<SkyblockNpcShopRecipe> RECIPE_TYPE = IRecipeType.create(SkyblockNpcShopRecipe.ID, SkyblockNpcShopRecipe.class);
-pub static RECIPE_TYPE: compat::MainThread<crate::unresolved::IRecipeType> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `RECIPE_TYPE` - see the TODO above"));
+pub static RECIPE_TYPE: compat::MainThread<crate::unresolved::IRecipeType> = compat::MainThread::new(|| crate::de::hysky::skyblocker::compatibility::jei::abstract_skyblock_recipe_category::jei_recipe_type_create(crate::de::hysky::skyblocker::skyblock::itemlist::recipes::skyblock_npc_shop_recipe::ID.get_mut().clone()));
 /// java: private static final Component TITLE = Component.translatable("emi.category.skyblocker.skyblock_npc_shop");
 pub static TITLE: compat::MainThread<MutableComponent> = compat::MainThread::new(|| component::translatable("emi.category.skyblocker.skyblock_npc_shop"));
 /// java: private static final int ITEM_SIZE = 16;
@@ -68,21 +67,18 @@ impl AbstractSkyblockRecipeCategory<compat::Shared<crate::de::hysky::skyblocker:
 
     /// java: @Override public void draw(SkyblockNpcShopRecipe recipe, IRecipeSlotsView recipeSlotsView, GuiGraphicsExtractor context, double mouseX, double mouseY)
     fn draw(&self, recipe: &compat::Shared<SkyblockNpcShopRecipe>, recipe_slots_view: &crate::unresolved::IRecipeSlotsView, context: &GuiGraphicsExtractor, mut mouse_x: f64, mut mouse_y: f64) {
-        // TODO(fabric2seer): `.getRecipeArrow(..)` on a IGuiHelper
         //   java: IDrawableStatic recipeArrow = this.guiHelper.getRecipeArrow();
-        let mut recipe_arrow: crate::unresolved::IDrawableStatic = todo!("fabric2seer: the initialiser of `recipeArrow` (TODO above)");
-        // TODO(fabric2seer): `.getHeight(..)` on a IDrawableStatic
+        let mut recipe_arrow: crate::unresolved::IDrawableStatic = crate::de::hysky::skyblocker::compatibility::jei::abstract_skyblock_recipe_category::jei_get_recipe_arrow(&self.gui_helper);
         //   java: int arrowYOffset = (this.getHeight() - recipeArrow.getHeight()) / 2;
-        let mut arrow_y_offset: i32 = todo!("fabric2seer: the initialiser of `arrowYOffset` (TODO above)");
-        // TODO(fabric2seer): `.draw(..)` on a IDrawableStatic
+        let mut arrow_y_offset: i32 = (self.get_height().wrapping_sub(crate::de::hysky::skyblocker::compatibility::jei::abstract_skyblock_recipe_category::jei_drawable_height(&recipe_arrow))).wrapping_div(2);
         //   java: recipeArrow.draw(context, 61, arrowYOffset);
-        // TODO(fabric2seer): `.getWidth(..)` on a IDrawableStatic
+        crate::de::hysky::skyblocker::compatibility::jei::abstract_skyblock_recipe_category::jei_drawable_draw(&recipe_arrow, context, 61, arrow_y_offset);
         //   java: int itemX = 61 + ((recipeArrow.getWidth() - ITEM_SIZE) / 2);
-        let mut item_x: i32 = todo!("fabric2seer: the initialiser of `itemX` (TODO above)");
+        let mut item_x: i32 = 61i32.wrapping_add((crate::de::hysky::skyblocker::compatibility::jei::abstract_skyblock_recipe_category::jei_drawable_width(&recipe_arrow).wrapping_sub(ITEM_SIZE)).wrapping_div(2));
         let mut item_y: i32 = (arrow_y_offset.wrapping_sub(ITEM_SIZE)).wrapping_sub(NPC_ITEM_PADDING);
         context.item(&FlexibleItemStack::get_stack_or_throw(&({ let __f = compat::dispatch(recipe, |__t| __t.get_representative()); __f(&compat::view(recipe, |a| a as compat::Shared<dyn CenteredRecipe>)) }).unwrap()), item_x, item_y);
         if GuiHelper::point_is_in_area(mouse_x, mouse_y, (item_x) as f64, (item_y) as f64, ((item_x.wrapping_add(ITEM_SIZE)) as f64) as f64, ((item_y.wrapping_add(ITEM_SIZE)) as f64) as f64) {
-            self.draw_tooltip(&mut context, &compat::component_of((FlexibleItemStack::get_stack_or_throw(&({ let __f = compat::dispatch(recipe, |__t| __t.get_representative()); __f(&compat::view(recipe, |a| a as compat::Shared<dyn CenteredRecipe>)) }).unwrap())).get_hover_name()), mouse_x, mouse_y);
+            self.draw_tooltip(context, &compat::component_of((FlexibleItemStack::get_stack_or_throw(&({ let __f = compat::dispatch(recipe, |__t| __t.get_representative()); __f(&compat::view(recipe, |a| a as compat::Shared<dyn CenteredRecipe>)) }).unwrap())).get_hover_name()), mouse_x, mouse_y);
         }
     }
 

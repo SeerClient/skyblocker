@@ -442,9 +442,8 @@ impl CustomizeNameWidget {
     /// The colour buttons' `client.gui.setScreen(ColorPopup.create(parent, color -> setStyle(..)))` /
     /// `ColorPopup.createGradient(parent, this::createGradient)`.
     fn open_color_popup(&mut self, gradient: bool) {
-        // rust: port gap (GAPS_batchA #19) - the popup base keeps its background as the game's `Screen` value and the
-        //   port lends no handle to the live one; the screen that is up is held by the game (`set_screen_keeping_parent`)
-        //   and an empty screen stands in for the base's field
+        // Port note: the popup's background screen is the one the game holds under it (`set_screen_keeping_parent`,
+        //   which the popup base draws and returns to); the base's `Screen` field gets an empty stand-in
         let parent = mcrust::net::minecraft::client::gui::screens::screen::Screen::new(String::new());
         let this = compat::RenderThread::new(self.self_ref.clone());
         let popup = if gradient {
@@ -509,9 +508,16 @@ impl CustomizeNameWidget {
         // java: graphics.text(textRenderer, text, textX, textY, -1, false);
         gui_graphics_extractor::draw_formatted_text_no_shadow(context.gl, context.minecraft, text_x, text_y, &FormattedText::from(text), -1);
 
-        // java: if (this.preeditOverlay != null) { .. graphics.setPreeditOverlay(this.preeditOverlay); }
-        // rust: port gap - a mod widget is handed no `preeditUpdated` (IME composition), so `preeditOverlay` stays null
-        //   (GAPS_batchE.md)
+        // java: if (this.preeditOverlay != null) { this.preeditOverlay.updateInputPosition(textX, textY); graphics.setPreeditOverlay(this.preeditOverlay); }
+        let overlay = compat::write(&self.text_field, |tf| {
+            tf.preedit_overlay.as_mut().map(|overlay| {
+                overlay.update_input_position(text_x, text_y);
+                overlay.clone()
+            })
+        });
+        if let Some(overlay) = overlay {
+            mcrust::mcrust::modding::widgets::set_preedit_overlay(overlay);
+        }
     }
 }
 
@@ -538,14 +544,14 @@ fn utf16_len(s: &str) -> i32 {
 
 /// `client.keyboardHandler.setClipboard(value)`.
 fn set_clipboard(value: &str) {
-    if let Some(mut clipboard) = mcrust::net::minecraft::client::minecraft::GlfwClipboard::published() {
+    if let Some(mut clipboard) = mcrust::net::minecraft::client::minecraft::SdlClipboard::published() {
         clipboard.set_clipboard(value);
     }
 }
 
 /// `client.keyboardHandler.getClipboard()`.
 fn get_clipboard() -> String {
-    match mcrust::net::minecraft::client::minecraft::GlfwClipboard::published() {
+    match mcrust::net::minecraft::client::minecraft::SdlClipboard::published() {
         Some(mut clipboard) => clipboard.get_clipboard(),
         None => String::new(),
     }
@@ -820,6 +826,8 @@ pub struct TextField {
     pub render_start: i32,
     /// java: private int renderEnd;
     pub render_end: i32,
+    /// java: private @Nullable IMEPreeditOverlay preeditOverlay;
+    pub preedit_overlay: Option<mcrust::net::minecraft::client::gui::components::ime_preedit_overlay::IMEPreeditOverlay>,
     events: NameEvents,
 }
 
@@ -827,7 +835,7 @@ impl TextField {
     /// java: private TextField()
     fn new(events: NameEvents) -> compat::Shared<Self> {
         // java: super(0, 0, 320, 20, Component.literal("TextField"));
-        compat::shared(TextField { base: AbstractContainerWidget::new(0, 0, 320, 20, FormattedText::of("TextField")), rendered_selection_start: 0, rendered_selection_end: 0, update_me_pretty_please: false, render_start: 0, render_end: 0, events })
+        compat::shared(TextField { base: AbstractContainerWidget::new(0, 0, 320, 20, FormattedText::of("TextField")), rendered_selection_start: 0, rendered_selection_end: 0, update_me_pretty_please: false, render_start: 0, render_end: 0, preedit_overlay: None, events })
     }
 }
 
@@ -917,7 +925,23 @@ impl compat::ObjectWidget for TextField {
     fn set_focused(&mut self, widget: &mut AbstractWidget, focused: bool) {
         widget.set_focused(focused, mcrust::net::minecraft::client::input_type::InputType::None);
         // java: if (focused) Minecraft.getInstance().onTextInputFocusChange(this, focused); - "Required for IME support"
-        // rust: port gap - a mod widget has no IME hook in the port (see `extract_text_field`)
+        if focused {
+            mcrust::mcrust::modding::widgets::on_text_input_focus_change(focused);
+        }
+    }
+
+    /// java: @Override public boolean preeditUpdated(@Nullable final PreeditEvent event)
+    fn preedit_updated(&mut self, widget: &mut AbstractWidget, event: Option<&mcrust::net::minecraft::client::input::preedit_event::PreeditEvent>) -> bool {
+        if widget.is_active() {
+            // java: this.preeditOverlay = event != null ? new IMEPreeditOverlay(event, CustomizeNameWidget.this.textRenderer, 9 + 1) : null;
+            self.preedit_overlay = event.map(|event| {
+                let font = compat::font();
+                mcrust::net::minecraft::client::gui::components::ime_preedit_overlay::IMEPreeditOverlay::new(event, &|s: &str| font.width(s), 9 + 1)
+            });
+            return true;
+        }
+        // java: return super.preeditUpdated(event); - `GuiEventListener.preeditUpdated`'s `false`
+        false
     }
 
     /// java: @Override public void playDownSound(SoundManager soundManager) - empty

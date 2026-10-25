@@ -21,7 +21,7 @@ pub const TOTAL_HEIGHT: i32 = 165;
 /// java: private static final Map<String, FlexibleItemStack> ICON_MAP = Map.ofEntries( Map.entry("MINING", Ico.STONE_PICKAXE), Map.entry("FARMING", Ico.GOLDEN_HOE), Map.entry("COMBAT", Ico.STONE_SWORD), Map.en
 pub static ICON_MAP: compat::MainThread<std::collections::HashMap<String, compat::Shared<FlexibleItemStack>>> = compat::MainThread::new(|| std::collections::HashMap::from([("MINING".to_string(), ico::STONE_PICKAXE.get_mut().clone()), ("FARMING".to_string(), ico::GOLDEN_HOE.get_mut().clone()), ("COMBAT".to_string(), ico::STONE_SWORD.get_mut().clone()), ("FISHING".to_string(), ico::FISH_ROD.get_mut().clone()), ("FORAGING".to_string(), ico::JUNGLE_SAPLING.get_mut().clone()), ("RIFT".to_string(), ico::MYCELIUM.get_mut().clone())]));
 /// java: private static final Font textRenderer = Minecraft.getInstance().font;
-pub static TEXT_RENDERER: compat::MainThread<Font> = compat::MainThread::new(|| compat::font());
+pub static TEXT_RENDERER: compat::LiveFont = compat::LiveFont;
 
 /// java: public class CollectionsPage implements ProfileViewerPage
 #[derive(Clone)]
@@ -107,14 +107,15 @@ impl CollectionsPage {
             let __wa2 = starting_y.wrapping_add(i.wrapping_mul(21));
             let __o2 = __this.lock().borrow().collection_select_buttons[(i) as usize].clone();
             compat::write(&__o2, |__t| __t.set_y(__wa2));
-            // rust: port gap (GAPS_batchC #C2) - `button.extractRenderState(graphics, ..)` on a widget OBJECT: the port's
-            // widget is drawn by the screen it was added to (`ProfileViewerScreen.init` adds `getButtons()`, which the game draws)
-            // rust: let __wa3 = graphics.clone();
-            // rust: let __wa4 = mouse_x;
-            // rust: let __wa5 = mouse_y;
-            // rust: let __wa6 = a;
-            // rust: let __o3 = __this.lock().borrow().collection_select_buttons[(i) as usize].clone();
-            // rust: compat::write(&__o3, |__t| __t.extract_render_state(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), __wa4, __wa5, __wa6));
+            // java: button.extractRenderState(graphics, mouseX, mouseY, a); - `AbstractWidget.extractRenderState`: when visible, the
+            // hover flag and then the class's `extractWidgetRenderState` (the screen draws the same widget again, as in Java)
+            {
+                let __button = __this.lock().borrow().collection_select_buttons[(i) as usize].clone();
+                if compat::read(&__button, |__t| __t.base.visible) {
+                    compat::write(&__button, |__t| __t.base.set_hovered_from_extract(mouse_x, mouse_y));
+                    SubPageSelectButton::extract_widget_render_state(&__button, graphics, mouse_x, mouse_y, a);
+                }
+            }
         }
         // java: if (collections[activePage] == null) { .. return; }
         let __active = compat::read(__this, |__t| __t.active_page) as usize;

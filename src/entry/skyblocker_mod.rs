@@ -65,6 +65,7 @@ pub fn id(path: &str) -> Identifier {
 }
 
 pub fn on_initialize_client() {
+    crate::overflow_trace::install();
     Utils::is_on_skyblock();
     client_tick_events::END_CLIENT_TICK.register(Arc::new(|minecraft: &mut Minecraft| {
         ({ let __r = scheduler::INSTANCE.get_mut(); let __f = compat::dispatch(__r, |__t| __t.tick()); __f(__r) });

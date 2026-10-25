@@ -76,13 +76,11 @@ pub struct SkyblockRecipeResults {
 impl SkyblockRecipeResults {
     /// java: protected SkyblockRecipeResults()
     pub fn new() -> compat::Shared<Self> {
-        // TODO(fabric2seer): the initialiser of `resultButtons`: static call Lists.newArrayListWithCapacity(..)
-        //   java: private final List<SkyblockRecipeResultButton> resultButtons = Lists.newArrayListWithCapacity(20);
-        // TODO(fabric2seer): the initialiser of `recipeSlotButtons`: static call Lists.newArrayListWithCapacity(..)
-        //   java: private final List<SkyblockRecipeResultButton> recipeSlotButtons = Lists.newArrayListWithCapacity(16);
         let __this = compat::shared(Self {
-            result_buttons: Default::default(),
-            recipe_slot_buttons: Default::default(),
+            // java: private final List<SkyblockRecipeResultButton> resultButtons = Lists.newArrayListWithCapacity(20);
+            result_buttons: Vec::with_capacity(20),
+            // java: private final List<SkyblockRecipeResultButton> recipeSlotButtons = Lists.newArrayListWithCapacity(16);
+            recipe_slot_buttons: Vec::with_capacity(16),
             recipe_icon: None,
             next_page_button: None,
             prev_page_button: None,
@@ -298,6 +296,42 @@ impl RecipeAreaDisplay for SkyblockRecipeResults {
 }
 
 impl SkyblockRecipeResults {
+    /// `new ImageButton(x, y, 12, 17, sprites, _ -> {})` with `RecipeBookPage.PAGE_FORWARD_SPRITES` /
+    /// `PAGE_BACKWARD_SPRITES` (`new WidgetSprites(sprite, highlighted)`)
+    fn page_button(x: i32, y: i32, sprite: mcrust::net::minecraft::resources::identifier::Identifier, highlighted: mcrust::net::minecraft::resources::identifier::Identifier) -> AbstractWidget {
+        let sprites = mcrust::net::minecraft::client::gui::components::widget_sprites::WidgetSprites::with_focused(sprite, highlighted);
+        AbstractWidget::new(x, y, 12, 17, String::new(), mcrust::net::minecraft::client::gui::components::abstract_widget::WidgetKind::ImageButton(sprites), mcrust::net::minecraft::client::gui::components::abstract_widget::OnPress::Inert)
+    }
+
+    /// `imageButton.extractRenderState(graphics, mouseX, mouseY, delta)`: when visible, the hover state, then
+    /// `ImageButton.extractContents` - `blitSprite(sprites.get(isActive(), isHoveredOrFocused()), ..)` - and
+    /// `AbstractButton`'s `handleCursor`
+    fn extract_image_button(button: &mut AbstractWidget, mouse_x: i32, mouse_y: i32) {
+        if !button.visible {
+            return;
+        }
+        button.set_hovered_from_extract(mouse_x, mouse_y);
+        let mcrust::net::minecraft::client::gui::components::abstract_widget::WidgetKind::ImageButton(sprites) = &button.kind else {
+            return;
+        };
+        let sprite = sprites.get(button.is_active(), button.is_hovered_or_focused()).clone();
+        gui_graphics_extractor::blit_sprite_identifier(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), mcrust::net::minecraft::client::renderer::render_pipelines::gui_textured(), &sprite, button.get_x(), button.get_y(), button.width, button.height);
+        if button.is_hovered() {
+            compat::batch_w_request_cursor(if button.is_active() { compat::BatchWCursor::PointingHand } else { compat::BatchWCursor::NotAllowed });
+        }
+    }
+
+    /// `resultButton.extractRenderState(graphics, mouseX, mouseY, delta)` (`AbstractWidget`'s): when visible, the hover
+    /// state, then the button's `extractWidgetRenderState`
+    fn extract_result_button(button: &compat::Shared<dyn SkyblockRecipeResultButton>, graphics: &GuiGraphicsExtractor, mouse_x: i32, mouse_y: i32, delta: f32) {
+        if !compat::read(button, |__t| __t.skyblock_recipe_result_button_base().visible) {
+            return;
+        }
+        compat::write(button, |__t| __t.skyblock_recipe_result_button_base_mut().set_hovered_from_extract(mouse_x, mouse_y));
+        let __f = compat::dispatch(button, |__t| __t.extract_widget_render_state());
+        __f(button, graphics, mouse_x, mouse_y, delta);
+    }
+
     /// java: @Override public void initialize(Minecraft client, int parentLeft, int parentTop)
     pub fn initialize_impl(__this: &compat::Shared<Self>, client: &mut mcrust::net::minecraft::client::minecraft::Minecraft, mut parent_left: i32, mut parent_top: i32) {
         for i in { 0..(__this.lock().borrow().result_buttons.len() as i32) } {
@@ -306,16 +340,10 @@ impl SkyblockRecipeResults {
             let __o1 = __this.lock().borrow().result_buttons[(i) as usize].clone();
             compat::write(&__o1, |__t| __t.skyblock_recipe_result_button_base_mut().set_position(__wa1, __wa2));
         }
-        // TODO(fabric2seer): static `RecipeBookPage.PAGE_FORWARD_SPRITES` has no Rust counterpart in the port's RecipeBookPage file
-        // TODO(fabric2seer): `new ImageButton(..)`: the port has no `ImageButton::new`
-        // rust: { let __v = Some(AbstractWidget::new(parent_left.wrapping_add(93), parent_top.wrapping_add(137), 12, 17, RecipeBookPage::PAGE_FORWARD_SPRITES.clone(), Arc::new(move |_| {
-        // rust: 
-        // rust: }))); compat::write(__this, |__t| __t.next_page_button = __v); }
-        // TODO(fabric2seer): static `RecipeBookPage.PAGE_BACKWARD_SPRITES` has no Rust counterpart in the port's RecipeBookPage file
-        // TODO(fabric2seer): `new ImageButton(..)`: the port has no `ImageButton::new`
-        // rust: { let __v = Some(AbstractWidget::new(parent_left.wrapping_add(38), parent_top.wrapping_add(137), 12, 17, RecipeBookPage::PAGE_BACKWARD_SPRITES.clone(), Arc::new(move |_| {
-        // rust: 
-        // rust: }))); compat::write(__this, |__t| __t.prev_page_button = __v); }
+        // java: nextPageButton = new ImageButton(parentLeft + 93, parentTop + 137, 12, 17, RecipeBookPage.PAGE_FORWARD_SPRITES, _ -> {});
+        { let __v = Some(SkyblockRecipeResults::page_button(parent_left.wrapping_add(93), parent_top.wrapping_add(137), mcrust::net::minecraft::client::gui::screens::recipebook::recipe_book_page::page_forward_sprite(), mcrust::net::minecraft::client::gui::screens::recipebook::recipe_book_page::page_forward_highlighted_sprite())); compat::write(__this, |__t| __t.next_page_button = __v); }
+        // java: prevPageButton = new ImageButton(parentLeft + 38, parentTop + 137, 12, 17, RecipeBookPage.PAGE_BACKWARD_SPRITES, _ -> {});
+        { let __v = Some(SkyblockRecipeResults::page_button(parent_left.wrapping_add(38), parent_top.wrapping_add(137), mcrust::net::minecraft::client::gui::screens::recipebook::recipe_book_page::page_backward_sprite(), mcrust::net::minecraft::client::gui::screens::recipebook::recipe_book_page::page_backward_highlighted_sprite())); compat::write(__this, |__t| __t.prev_page_button = __v); }
         SkyblockRecipeResults::update_result_buttons(__this);
     }
 
@@ -338,26 +366,20 @@ impl SkyblockRecipeResults {
         }
         { let __v = None; compat::write(__this, |__t| __t.hovered_result_button = __v); }
         for result_button in (if compat::read(__this, |__t| __t.recipe_view) { compat::read(__this, |__t| __t.recipe_slot_buttons.clone()) } else { compat::read(__this, |__t| __t.result_buttons.clone()) }) {
-            // TODO(fabric2seer): `extract_render_state` is a method of the port's trait `Renderable`, which the port's `AbstractWidget` does not implement
-            // rust: let __wa1 = graphics.clone();
-            // rust: let __wa2 = mouse_x;
-            // rust: let __wa3 = mouse_y;
-            // rust: let __wa4 = delta;
-            // rust: let __o1 = result_button.clone();
-            // rust: compat::write(&__o1, |__t| __t.skyblock_recipe_result_button_base_mut().extract_render_state(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), __wa2, __wa3, __wa4));
+            SkyblockRecipeResults::extract_result_button(&result_button, graphics, mouse_x, mouse_y, delta);
             let __o2 = result_button.clone();
             let __o3 = result_button.clone();
             if compat::read(&result_button, |__t| __t.skyblock_recipe_result_button_base().visible) && compat::write(&__o3, |__t| __t.skyblock_recipe_result_button_base_mut().is_hovered_or_focused()) {
                 { let __v = Some(result_button.clone()); compat::write(__this, |__t| __t.hovered_result_button = __v); }
             }
         }
-        if compat::read(__this, |__t| __t.prev_page_button.clone()).is_some() {
-            // TODO(fabric2seer): `extract_render_state` is a method of the port's trait `Renderable`, which the port's `AbstractWidget` does not implement
-            // rust: { let (__q0, __q1, __q2, __q3, __q4,) = (mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), mouse_x, mouse_y, delta,); __this.lock().borrow_mut().prev_page_button.as_mut().unwrap().extract_render_state(__q0, __q1, __q2, __q3, __q4) };
+        if compat::read(__this, |__t| __t.prev_page_button.is_some()) {
+            // java: prevPageButton.extractRenderState(graphics, mouseX, mouseY, delta);
+            compat::write(__this, |__t| SkyblockRecipeResults::extract_image_button(__t.prev_page_button.as_mut().unwrap(), mouse_x, mouse_y));
         }
-        if compat::read(__this, |__t| __t.next_page_button.clone()).is_some() {
-            // TODO(fabric2seer): `extract_render_state` is a method of the port's trait `Renderable`, which the port's `AbstractWidget` does not implement
-            // rust: { let (__q0, __q1, __q2, __q3, __q4,) = (mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), mouse_x, mouse_y, delta,); __this.lock().borrow_mut().next_page_button.as_mut().unwrap().extract_render_state(__q0, __q1, __q2, __q3, __q4) };
+        if compat::read(__this, |__t| __t.next_page_button.is_some()) {
+            // java: nextPageButton.extractRenderState(graphics, mouseX, mouseY, delta);
+            compat::write(__this, |__t| SkyblockRecipeResults::extract_image_button(__t.next_page_button.as_mut().unwrap(), mouse_x, mouse_y));
         }
     }
 
@@ -371,12 +393,11 @@ impl SkyblockRecipeResults {
         if compat::minecraft().gui.screen().is_some() {
             if compat::read(__this, |__t| __t.hovered_result_button.clone()).is_some() && !(({ let __r = &compat::read(__this, |__t| __t.hovered_result_button.clone()).unwrap(); let __f = compat::dispatch(__r, |__t| __t.get_display_stack()); __f(__r) }).unwrap().is_empty()) {
                 let mut stack: mcrust::net::minecraft::world::item::item_stack::ItemStack = ({ let __r = &compat::read(__this, |__t| __t.hovered_result_button.clone()).unwrap(); let __f = compat::dispatch(__r, |__t| __t.get_display_stack()); __f(__r) }).unwrap();
-                // TODO(fabric2seer): `GuiGraphicsExtractor.setTooltipForNextFrame` has no Rust method in the port (looked for `set_tooltip_for_next_frame` in GuiGraphicsExtractor and its supertypes)
-                // rust: graphics.set_tooltip_for_next_frame(&compat::font(), &stack, x, y);
+                // java: graphics.setTooltipForNextFrame(Minecraft.getInstance().font, stack, x, y);
+                compat::batch_w_set_item_tooltip_for_next_frame(&stack);
             } else if compat::read(__this, |__t| __t.hovered_text.clone()).is_some() {
-                // TODO(fabric2seer): the port's `set_tooltip_for_next_frame_text` ports this Java method with other parameters (tooltip_for_next_frame, text for Java's text, xo, yo)
-                // TODO(fabric2seer): `set_tooltip_for_next_frame_text` takes 2 argument(s) in the port (`tooltip_for_next_frame: &mut Option<DeferredTooltip>, text: crate::net::minecraft::network::chat::formatted_text::FormattedText`), Java passes 4
-                // rust: gui_graphics_extractor::set_tooltip_for_next_frame_text(&mut compat::font(), mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(compat::read(__this, |__t| __t.hovered_text.clone()).unwrap()), x, y);
+                // java: graphics.setTooltipForNextFrame(Minecraft.getInstance().font, hoveredText, x, y);
+                compat::batch_s_set_tooltip_for_next_frame(vec![mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(compat::read(__this, |__t| __t.hovered_text.clone()).unwrap())]);
             }
         }
     }
@@ -418,17 +439,20 @@ impl SkyblockRecipeResults {
 
     /// java: @Override public boolean mouseClicked(MouseButtonEvent click, boolean doubled)
     pub fn mouse_clicked_impl(__this: &compat::Shared<Self>, click: &MouseButtonEvent, mut doubled: bool) -> bool {
-        // TODO(fabric2seer): `mouse_clicked` takes 3 argument(s) in the port (`button: i32, x: f64, y: f64`), Java passes 2
-        if { let (__q0, __q1,) = (click.clone(), doubled,); __this.lock().borrow().next_page_button.as_ref().unwrap().mouse_clicked(__q0.button(), __q0.x(), __q0.y()).is_some() } {
+        // java: if (nextPageButton.mouseClicked(click, doubled)) - `AbstractWidget.mouseClicked`: the press plays the
+        // down sound and runs the (empty) `onPress`
+        if compat::read(__this, |__t| __t.next_page_button.as_ref().unwrap().mouse_clicked(click.button(), click.x(), click.y()).is_some()) {
+            compat::batch_w_play_down_sound();
             { let __v = compat::read(__this, |__t| __t.current_page) + 1; compat::write(__this, |__t| __t.current_page = __v); }
             SkyblockRecipeResults::update_result_buttons(__this);
             return true;
-        } else if { let (__q0, __q1,) = (click.clone(), doubled,); __this.lock().borrow().prev_page_button.as_ref().unwrap().mouse_clicked(__q0.button(), __q0.x(), __q0.y()).is_some() } {
+        } else if compat::read(__this, |__t| __t.prev_page_button.as_ref().unwrap().mouse_clicked(click.button(), click.x(), click.y()).is_some()) {
+            compat::batch_w_play_down_sound();
             { let __v = compat::read(__this, |__t| __t.current_page) - 1; compat::write(__this, |__t| __t.current_page = __v); }
             SkyblockRecipeResults::update_result_buttons(__this);
             return true;
         }
-        if compat::read(__this, |__t| __t.recipe_view) && click.button() == 1 {
+        if compat::read(__this, |__t| __t.recipe_view) && click.button() == 3 {
             let mut result = __this.lock().borrow().result_buttons[(14) as usize].clone();
             let mut raw_id = ({ let __f = compat::dispatch(&result, |__t| __t.get_display_stack()); __f(&result) }).unwrap().get_skyblock_id();
             let __wa1 = click.x();
@@ -443,14 +467,10 @@ impl SkyblockRecipeResults {
             }
         }
         for result_button in (if compat::read(__this, |__t| __t.recipe_view) { compat::read(__this, |__t| __t.recipe_slot_buttons.clone()) } else { compat::read(__this, |__t| __t.result_buttons.clone()) }) {
-            // TODO(fabric2seer): `mouse_clicked` takes 3 argument(s) in the port (`button: i32, x: f64, y: f64`), Java passes 2
-            let __wa5 = click.clone();
-            let __wa6 = doubled;
-            let __o3 = result_button.clone();
-            let __wa7 = click.clone();
-            let __wa8 = doubled;
-            let __o4 = result_button.clone();
-            if compat::write(&__o4, |__t| __t.skyblock_recipe_result_button_base_mut().mouse_clicked(__wa7.button(), __wa7.x(), __wa7.y()).is_some()) {
+            // java: if (resultButton.mouseClicked(click, doubled)) - `AbstractWidget.mouseClicked` (down sound, then the
+            // empty `onClick`)
+            if compat::read(&result_button, |__t| __t.skyblock_recipe_result_button_base().mouse_clicked(click.button(), click.x(), click.y()).is_some()) {
+                compat::batch_w_play_down_sound();
                 let mut item_id: String = ({ let __f = compat::dispatch(&result_button, |__t| __t.get_display_stack()); __f(&result_button) }).unwrap().get_skyblock_id();
                 if item_id.is_empty() {
                     continue;

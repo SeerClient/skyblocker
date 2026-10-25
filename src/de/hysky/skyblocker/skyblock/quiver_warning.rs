@@ -30,8 +30,8 @@ impl QuiverWarning {
 
     /// java: @Init public static void init()
     pub fn init() {
-        // TODO(fabric2seer): ClientReceiveMessageEvents.ALLOW_GAME.register: no SeerClient equivalent yet
-        //   java: ClientReceiveMessageEvents.ALLOW_GAME.register(QuiverWarning::onChatMessage);
+        // java: ClientReceiveMessageEvents.ALLOW_GAME.register(QuiverWarning::onChatMessage);
+        compat::register_allow_game(|text, overlay| QuiverWarning::on_chat_message(text, overlay));
         ({ let __r = scheduler::INSTANCE.get_mut(); let __f = compat::dispatch(__r, |__t| __t.schedule_cyclic()); __f(__r, Arc::new(move || { QuiverWarning::update(); }), 10) });
     }
 

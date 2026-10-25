@@ -109,25 +109,34 @@ impl PartyEntryListWidget {
     }
 
     /// java: @Override public boolean mouseClicked(MouseButtonEvent click, boolean doubled)
-    pub fn mouse_clicked(__this: &compat::Shared<Self>, click: &MouseButtonEvent, mut doubled: bool) -> bool {
-        // this.visible - the list's own field (ModSelectionList.visible, synced from its widget)
-        if !(compat::read(__this, |__t| __t.base.visible)) {
+    /// (`list` is the live list the game lends the override; `super_mouse_clicked` is `super.mouseClicked(click, doubled)`)
+    pub fn mouse_clicked(list: &mut ModSelectionList, click: &MouseButtonEvent, doubled: bool, super_mouse_clicked: &mut dyn FnMut(&mut ModSelectionList) -> bool) -> bool {
+        let _ = (click, doubled);
+        // java: if (!visible) return false; - the list's own field (`ModSelectionList.visible`, synced from its widget)
+        if !list.visible {
             return false;
         }
-        // TODO(fabric2seer): `AbstractContainerWidget::mouse_clicked` ports `mouseClicked`, but the port's `AbstractSelectionList` holds no `AbstractContainerWidget` (no Deref, no `base` field) to call it on
-        // rust: return { let (__q0, __q1,) = (click.clone(), doubled,); __this.lock().borrow_mut().base.list.mouse_clicked(__q0, __q1) };
-        return todo!("fabric2seer: see the TODO above");
+        // java: return super.mouseClicked(click, doubled);
+        return super_mouse_clicked(list);
     }
 
     /// java: @Override public void extractWidgetRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a)
-    pub fn extract_widget_render_state(__this: &compat::Shared<Self>, graphics: &GuiGraphicsExtractor, mut mouse_x: i32, mut mouse_y: i32, mut a: f32) {
-        if (compat::write(__this, |__t| { let __l = &mut __t.base; compat::list_entries::<dyn PartyEntry>(__l) })).is_empty() {
-            let mut string: MutableComponent = component::translatable("skyblocker.partyFinder.loadingError");
-            let mut text_renderer: Font = compat::font();
-            gui_graphics_extractor::text_with_word_wrap_with_drop_shadow(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), &mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(string.clone()), __this.lock().borrow().get_row_left(), (__this.lock().borrow().get_y()).wrapping_add(10), PartyEntryListWidget::get_row_width(__this), mcrust::net::minecraft::util::common_colors::WHITE, false);
+    /// The override's two arms around `super`: with no rows the error line is drawn where the rows go and the base body
+    /// is skipped; with rows it is the base body. The game runs the list's `extractWidgetRenderState`, and this class's
+    /// other overrides leave its base body nothing to draw but the rows (`extractListBackground` / `extractListSeparators`
+    /// are empty, a list with no rows has no scrollbar) - so the override is dispatched from the rows' pass
+    /// (`ModList::extract_list_items` below), handed the list and its `super` there.
+    pub fn extract_widget_render_state(list: &mut ModSelectionList, context: &mut WidgetRenderContext<'_>, mouse_x: i32, mouse_y: i32, a: f32, super_extract: &mut dyn FnMut(&mut ModSelectionList, &mut WidgetRenderContext<'_>)) {
+        let _ = (mouse_x, mouse_y, a);
+        // java: if (children().isEmpty()) {
+        if list.list.entry_count() == 0 {
+            // java: graphics.textWithWordWrap(textRenderer, string, getRowLeft(), getY() + 10, getRowWidth(), CommonColors.WHITE, false);
+            let string: MutableComponent = component::translatable("skyblocker.partyFinder.loadingError");
+            let (row_left, y, row_width) = (list.list.get_row_left(), list.list.get_y(), list.list.get_row_width());
+            gui_graphics_extractor::text_with_word_wrap_with_drop_shadow(context.gl, context.minecraft, &mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(string), row_left, y.wrapping_add(10), row_width, mcrust::net::minecraft::util::common_colors::WHITE, false);
         } else {
-            // TODO(fabric2seer): `ContainerObjectSelectionList.extractWidgetRenderState` has no Rust method in the port (looked for `extract_widget_render_state` in ContainerObjectSelectionList and its supertypes)
-            // rust: __this.lock().borrow_mut().base.list.extract_widget_render_state(graphics, mouse_x, mouse_y, a);
+            // java: super.extractWidgetRenderState(graphics, mouseX, mouseY, a);
+            super_extract(list, context);
         }
     }
 
@@ -172,6 +181,16 @@ impl ModList for compat::ListClass<PartyEntryListWidget> {
         self.ask(list, (), |__h| PartyEntryListWidget::extract_list_separators(__h, &context.graphics))
     }
 
+    /// java: @Override public boolean mouseClicked(MouseButtonEvent click, boolean doubled)
+    fn mouse_clicked(&self, list: &mut ModSelectionList, event: &MouseButtonEvent, double_click: bool, super_mouse_clicked: &mut dyn FnMut(&mut ModSelectionList) -> bool) -> bool {
+        PartyEntryListWidget::mouse_clicked(list, event, double_click, super_mouse_clicked)
+    }
+
+    /// java: @Override public void extractWidgetRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a)
+    /// (see `PartyEntryListWidget::extract_widget_render_state`)
+    fn extract_list_items(&self, list: &mut ModSelectionList, context: &mut WidgetRenderContext<'_>, mouse_x: i32, mouse_y: i32, a: f32, super_extract_list_items: &mut dyn FnMut(&mut ModSelectionList, &mut WidgetRenderContext<'_>)) {
+        PartyEntryListWidget::extract_widget_render_state(list, context, mouse_x, mouse_y, a, super_extract_list_items)
+    }
+
 }
 
-// NOTE(fabric2seer): extractListBackground, extractListSeparators, extractWidgetRenderState, getRowWidth, mouseClicked, scrollBarX override(s) of ContainerObjectSelectionList - the port dispatches its own calls, so these run only where the mod calls them; hook the port's method to make the game call them

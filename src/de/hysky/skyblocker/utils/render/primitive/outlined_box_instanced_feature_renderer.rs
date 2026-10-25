@@ -2,6 +2,7 @@
 
 #[allow(unused_imports)]
 use crate::prelude::*;
+use crate::de::hysky::skyblocker::utils::render::primitive::primitive_feature_renderer;
 use crate::de::hysky::skyblocker::utils::render::instancing_parameters::InstancingParameters;
 use crate::de::hysky::skyblocker::utils::render::outlined_box_data_uniform::OutlinedBoxDataUniform;
 use crate::de::hysky::skyblocker::utils::render::primitive::primitive_feature_renderer::PrimitiveFeatureRenderer;
@@ -101,25 +102,21 @@ impl PrimitiveFeatureRenderer<crate::de::hysky::skyblocker::utils::render::primi
     }
 
     /// java: @Override protected void buildGroup(FeatureFrameContext context, List<Submit> submits)
-    fn build_group(&self, context: &FeatureFrameContext, submits: &Vec<Submit>) {
+    fn build_group(&mut self, context: &mut FeatureFrameContext<'_>, submits: &[std::sync::Arc<dyn SubmitNode>]) {
         {
-            // TODO(fabric2seer): static call Arena.ofConfined(..)
-            //   java: Arena arena = Arena.ofConfined(..);
-            let mut arena: crate::unresolved::Arena = todo!("fabric2seer: the initialiser of `arena` (TODO above)");
-            for submit in submits.iter() {
-                let mut boxes: i32 = (submit.states().len() as i32);
-                // TODO(fabric2seer): `.allocate(..)` on a Arena
-                //   java: MemorySegment uniformSegment = arena.allocate(this.outlinedBoxData.calculateRequiredSize(boxes));
-                let mut uniform_segment: crate::unresolved::MemorySegment = todo!("fabric2seer: the initialiser of `uniformSegment` (TODO above)");
-                self.outlined_box_data.write_to_buffer(&submit.states(), &submit.camera(), &mut uniform_segment);
-                let mut device = render_system::get_device();
-                // TODO(fabric2seer): `.asByteBuffer(..)` on a MemorySegment
-                //   java: GpuBufferSlice tbo = device.createCommandEncoder()
-                //   java: 						.transientMemory()
-                //   java: 						.uploadGpu(uniformSegment.asByteBuffer(), device.getDeviceInfo().limits().minUniformOffsetAlignment(), GpuBuffer.USAGE_UNIFORM_TEXEL_BUFFER);
-                let mut tbo: GpuBufferSlice = todo!("fabric2seer: the initialiser of `tbo` (TODO above)");
-                let mut pipeline: std::rc::Rc<RenderPipeline> = (if submit.through_walls() { skyblocker_render_pipelines::OUTLINED_BOX_THROUGH_WALLS_INSTANCED.get_mut().clone() } else { skyblocker_render_pipelines::OUTLINED_BOX_INSTANCED.get_mut().clone() });
-                let mut builder: Box<dyn VertexConsumer> = self.get_vertex_builder_render_pipeline_instancing_parameters(&pipeline, &InstancingParameters::new(boxes, Some("OutlinedBoxData".to_string()), Some(tbo.clone())));
+            // java: try (Arena arena = Arena.ofConfined()) - each `allocate` is a zero-filled native segment, freed at the
+            // end of the block: a `Vec<u8>` per segment, dropped at the end of its iteration
+            for submit in primitive_feature_renderer::submits::<Submit>(submits) {
+                let boxes: i32 = (submit.states.len() as i32);
+                // java: MemorySegment uniformSegment = arena.allocate(this.outlinedBoxData.calculateRequiredSize(boxes));
+                let mut uniform_segment: Vec<u8> = vec![0u8; self.outlined_box_data.calculate_required_size(boxes) as usize];
+                self.outlined_box_data.write_to_buffer(&submit.states, &submit.camera, &mut uniform_segment);
+                let device = render_system::get_device();
+                // java: GpuBufferSlice tbo = device.createCommandEncoder().transientMemory()
+                //           .uploadGpu(uniformSegment.asByteBuffer(), device.getDeviceInfo().limits().minUniformOffsetAlignment(), GpuBuffer.USAGE_UNIFORM_TEXEL_BUFFER);
+                let tbo: GpuBufferSlice = device.create_command_encoder().transient_memory().upload_gpu(&uniform_segment, device.get_device_info().limits.min_uniform_offset_alignment as i64, mcrust::com::mojang::blaze3d::buffers::gpu_buffer::USAGE_UNIFORM_TEXEL_BUFFER);
+                let mut pipeline: std::sync::Arc<RenderPipeline> = (if submit.through_walls() { skyblocker_render_pipelines::OUTLINED_BOX_THROUGH_WALLS_INSTANCED.get_mut().clone() } else { skyblocker_render_pipelines::OUTLINED_BOX_INSTANCED.get_mut().clone() });
+                let builder = self.get_vertex_builder_render_pipeline_instancing_parameters(context, &pipeline, &InstancingParameters::new(boxes, Some("OutlinedBoxData".to_string()), Some(tbo.clone())));
                 OutlinedBoxInstancedFeatureRenderer::build_unit_box(((UNIT_BOX.get_mut().min_x) as f32), ((UNIT_BOX.get_mut().min_y) as f32), ((UNIT_BOX.get_mut().min_z) as f32), ((UNIT_BOX.get_mut().max_x) as f32), ((UNIT_BOX.get_mut().max_y) as f32), ((UNIT_BOX.get_mut().max_z) as f32), &mut *builder);
             }
         }
@@ -164,4 +161,15 @@ impl Submit {
         return TYPE.get_mut().clone();
     }
 
+}
+
+/// java: `implements SubmitNode` - the record's `featureType()`; `as_any` is the downcast `FeatureRenderer` reads it back through
+impl SubmitNode for Submit {
+    fn feature_type(&self) -> FeatureRendererType {
+        *TYPE.get()
+    }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
 }

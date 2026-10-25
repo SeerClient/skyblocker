@@ -60,7 +60,7 @@ impl ColoredItemBackground<crate::de::hysky::skyblocker::skyblock::item::skybloc
     }
 
     /// java: @Override protected SkyblockItemRarity getColorKey(ItemStack stack, Int2ReferenceOpenHashMap<SkyblockItemRarity> cache)
-    fn get_color_key(&mut self, stack: &mcrust::net::minecraft::world::item::item_stack::ItemStack, cache: &mut std::collections::HashMap<i32, Option<SkyblockItemRarity>>) -> Option<SkyblockItemRarity> {
+    fn get_color_key(&mut self, stack: &mcrust::net::minecraft::world::item::item_stack::ItemStack, cache: &mut crate::de::hysky::skyblocker::skyblock::item::background::colored_item_background::ColorKeyCache<SkyblockItemRarity>) -> Option<SkyblockItemRarity> {
         return Some(stack.get_skyblock_rarity());
     }
 

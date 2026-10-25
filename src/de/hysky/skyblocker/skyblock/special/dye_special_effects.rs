@@ -27,8 +27,8 @@ impl DyeSpecialEffects {
 
     /// java: @Init public static void init()
     pub fn init() {
-        // TODO(fabric2seer): ClientReceiveMessageEvents.ALLOW_GAME.register: no SeerClient equivalent yet
-        //   java: ClientReceiveMessageEvents.ALLOW_GAME.register(DyeSpecialEffects::displayDyeDropEffect);
+        // java: ClientReceiveMessageEvents.ALLOW_GAME.register(DyeSpecialEffects::display_dye_drop_effect);
+        compat::register_allow_game(|message, overlay| DyeSpecialEffects::display_dye_drop_effect(message, overlay));
     }
 
     /// java: private static boolean displayDyeDropEffect(Component message, boolean overlay)

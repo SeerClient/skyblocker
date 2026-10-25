@@ -7,6 +7,7 @@ use crate::de::hysky::skyblocker::events::skyblock_events;
 use crate::de::hysky::skyblocker::skyblock::end::end_hud_widget::EndHudWidget;
 use crate::de::hysky::skyblocker::skyblock::tabhud::widget::element_based_widget::ElementBasedWidget;
 use crate::de::hysky::skyblocker::utils::color_utils::ColorUtils;
+use crate::de::hysky::skyblocker::utils::utils::Utils;
 use crate::de::hysky::skyblocker::utils::data::profiled_data::ProfiledData;
 use crate::de::hysky::skyblocker::utils::render::level_render_extraction_callback;
 use crate::de::hysky::skyblocker::utils::render::primitive::primitive_collector::PrimitiveCollector;
@@ -27,7 +28,7 @@ use mcrust::net::minecraft::network::chat::component;
 use mcrust::net::minecraft::network::chat::mutable_component::MutableComponent;
 use mcrust::net::minecraft::world::entity::decoration::armor_stand::ArmorStand;
 use mcrust::net::minecraft::world::entity::entity::Entity;
-use mcrust::net::minecraft::world::entity::monster::ender_man::EnderMan;
+use mcrust::net::minecraft::world::entity::monster::enderman::Enderman;
 use mcrust::net::minecraft::world::item::dye_color::DyeColor;
 use mcrust::net::minecraft::world::level::block::blocks;
 use mcrust::net::minecraft::world::level::block::state::block_state::BlockState;
@@ -73,37 +74,42 @@ impl TheEnd {
 
     /// java: @Init public static void init()
     pub fn init() {
-        // TODO(fabric2seer): AttackEntityCallback.EVENT.register: no SeerClient equivalent yet
-        //   java: AttackEntityCallback.EVENT.register((_, _, _, entity, _) -> {
-        //   java: 			if (entity instanceof EnderMan enderman && isZealot(enderman)) {
-        //   java: 				HIT_ZEALOTS.add(enderman.getUUID());
-        //   java: 			}
-        //   java: 			return InteractionResult.PASS;
-        //   java: 		});
-        // TODO(fabric2seer): ClientChunkEvents.CHUNK_LOAD.register: no SeerClient equivalent yet
-        //   java: ClientChunkEvents.CHUNK_LOAD.register((world, chunk) -> {
-        //   java: 			Area area = Utils.getArea();
-        //   java: 			if (Utils.isInTheEnd() || area.equals(Area.TheEnd.THE_END) || area.equals(Area.TheEnd.DRAGONS_NEST)) {
-        //   java: 				ChunkPos pos = chunk.getPos();
-        //   java: 				AABB box = new AABB(pos.getMinBlockX(), 4, pos.getMinBlockZ(), pos.getMaxBlockX() + 1, 5, pos.getMaxBlockZ() + 1);
-        //   java: 				for (ProtectorLocation protectorLocation : PROTECTOR_LOCATIONS) {
-        //   java: 					if (box.contains(protectorLocation.x(), 4, protectorLocation.z())) {
-        //   java: 						if (isProtectorHere(world, protectorLocation)) break;
-        //   java: 					}
-        //   java: 				}
-        //   java: 			}
-        //   java: 		});
+        // java: AttackEntityCallback.EVENT.register((_, _, _, entity, _) -> { if (entity instanceof EnderMan enderman && isZealot(enderman)) HIT_ZEALOTS.add(enderman.getUUID()); return InteractionResult.PASS; });
+        mcrust::mcrust::modding::events::attack_entity_callback::register(|_, _, _, entity, _| {
+            if let Some(enderman) = entity.as_any().and_then(|any| any.downcast_ref::<Enderman>()) && TheEnd::is_zealot(enderman) {
+                HIT_ZEALOTS.get_mut().insert(compat::uuid_of(enderman.base().get_uuid()));
+            }
+            mcrust::net::minecraft::world::interaction_result::InteractionResult::Pass
+        });
+        // java: ClientChunkEvents.CHUNK_LOAD.register((world, chunk) -> { .. });
+        mcrust::mcrust::modding::events::client_chunk_events::register_chunk_load(|world, chunk| {
+            use crate::de::hysky::skyblocker::utils::area::TheEnd as TheEndArea;
+            let is_end_area: bool = compat::read(&Utils::get_area(), |__t| compat::DynAny::dyn_any(__t).downcast_ref::<TheEndArea>().is_some_and(|__e| *__e == TheEndArea::TheEnd || *__e == TheEndArea::DragonsNest));
+            if Utils::is_in_the_end() || is_end_area {
+                let pos = chunk.get_pos();
+                let bounds = mcrust::net::minecraft::world::phys::aabb::AABB::new(pos.get_min_block_x() as f64, 4.0, pos.get_min_block_z() as f64, (pos.get_max_block_x() + 1) as f64, 5.0, (pos.get_max_block_z() + 1) as f64);
+                for protector_location in PROTECTOR_LOCATIONS.get().iter() {
+                    if bounds.contains(protector_location.x() as f64, 4.0, protector_location.z() as f64) {
+                        if TheEnd::is_protector_here(world, protector_location.clone()) {
+                            break;
+                        }
+                    }
+                }
+            }
+        });
         skyblock_events::PROFILE_CHANGE.register(Arc::new(move |_, _| { ({ let __r = &EndHudWidget::get_instance(); let __f = compat::dispatch(__r, |__t| __t.update()); __f(&compat::view(__r, |a| a as compat::Shared<dyn ElementBasedWidget>)) }); }));
         skyblock_events::LOCATION_CHANGE.register(Arc::new(move |_| {
             TheEnd::reset_location();
             HIT_ZEALOTS.get_mut().clear();
         }));
-        // TODO(fabric2seer): ClientReceiveMessageEvents.ALLOW_GAME.register: no SeerClient equivalent yet
-        //   java: ClientReceiveMessageEvents.ALLOW_GAME.register((message, overlay) -> {
-        //   java: 			if (!Utils.isInTheEnd() || overlay) return true;
-        //   java: 			onMessage(message.getString());
-        //   java: 			return true;
-        //   java: 		});
+        // java: ClientReceiveMessageEvents.ALLOW_GAME.register((message, overlay) -> { if (!Utils.isInTheEnd() || overlay) return true; onMessage(message.getString()); return true; });
+        compat::register_allow_game(|message, overlay| {
+            if !Utils::is_in_the_end() || overlay {
+                return true;
+            }
+            TheEnd::on_message(&message.get_string());
+            true
+        });
         level_render_extraction_callback::EVENT.register(Arc::new(move |__a0| { TheEnd::extract_rendering(&__a0); }));
         PROFILES_STATS.get_mut().lock().borrow_mut().init();
     }
@@ -167,7 +173,7 @@ impl TheEnd {
     /// java: public static void onEntityDeath(Entity entity)
     pub fn on_entity_death(entity: &dyn Entity) {
         // java: if (!(entity instanceof EnderMan enderman) || !isZealot(enderman)) return;
-        let Some(enderman) = entity.as_any().and_then(|any| any.downcast_ref::<EnderMan>()) else {
+        let Some(enderman) = entity.as_any().and_then(|any| any.downcast_ref::<Enderman>()) else {
             return;
         };
         if !TheEnd::is_zealot(enderman) {
@@ -191,7 +197,7 @@ impl TheEnd {
     }
 
     /// java: public static boolean isZealot(EnderMan enderman)
-    pub fn is_zealot(enderman: &EnderMan) -> bool {
+    pub fn is_zealot(enderman: &Enderman) -> bool {
         if compat::component_of(enderman.get_name()).get_string().to_lowercase().contains("zealot") {
             return true;
         }
@@ -215,7 +221,7 @@ impl TheEnd {
     }
 
     /// java: public static boolean isSpecialZealot(EnderMan enderman)
-    pub fn is_special_zealot(enderman: &EnderMan) -> bool {
+    pub fn is_special_zealot(enderman: &Enderman) -> bool {
         let mut carried_block: Option<Arc<BlockState>> = enderman.get_carried_block();
         return (carried_block.is_some() && carried_block.as_ref().unwrap().is_block(&blocks::blocks().get("END_PORTAL_FRAME")) && TheEnd::is_zealot(enderman));
     }

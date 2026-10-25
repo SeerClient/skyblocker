@@ -28,15 +28,6 @@ use mcrust::net::minecraft::network::chat::component::Component as _;
 
 /// java: private static final MutableComponent TITLE = Component.literal("Pet").withStyle(ChatFormatting.YELLOW, ChatFormatting.BOLD);
 pub static TITLE: compat::MainThread<MutableComponent> = compat::MainThread::new(|| component::literal("Pet").with_style_formats(&[ChatFormatting::Yellow, ChatFormatting::Bold]));
-// TODO(fabric2seer): static call CacheBuilder.newBuilder(..)
-//   java: private static final LoadingCache<String, FlexibleItemStack> PET_ICON_CACHE = CacheBuilder.newBuilder()
-//   java: 			.expireAfterWrite(Duration.ofMinutes(5L))
-//   java: 			.build(new CacheLoader<>() {
-//   java: 				@Override
-//   java: 				public FlexibleItemStack load(String key) throws Exception {
-//   java: 					return getIcon(key);
-//   java: 				}
-//   java: 			});
 /// java: private static final LoadingCache<String, FlexibleItemStack> PET_ICON_CACHE = CacheBuilder.newBuilder() .expireAfterWrite(Duration.ofMinutes(5L)) .build(new CacheLoader<>() { @Override public Flexible
 pub static PET_ICON_CACHE: compat::MainThread<LoadingCache<String, compat::Shared<FlexibleItemStack>, PetIconLoader>> = compat::MainThread::new(|| {
     mcrust::com::google::common::cache::loading_cache::CacheBuilder::new_builder()
@@ -96,9 +87,8 @@ impl PetWidget {
     /// java: private static FlexibleItemStack getIcon(String petName)
     pub fn get_icon(pet_name: &str) -> compat::Shared<FlexibleItemStack> {
         return ItemRepository::get_items_stream().filter(|stack| {
-            // TODO(fabric2seer): `.getString(..)` on a T
-            //   java: String string1 = stack.get(DataComponents.CUSTOM_NAME).getString();
-            let mut string1: String = todo!("fabric2seer: the initialiser of `string1` (TODO above)");
+            // java: String string1 = stack.get(DataComponents.CUSTOM_NAME).getString(); - a missing name is the NPE
+            let mut string1: String = compat::component_of(FlexibleItemStack::get::<mcrust::net::minecraft::network::chat::formatted_text::FormattedText>(stack, mcrust::net::minecraft::core::component::data_components::custom_name()).expect("NullPointerException: CUSTOM_NAME")).get_string();
             if !(string1.contains("]")) {
                 return false;
             }

@@ -14,6 +14,7 @@ use mcrust::java::text::decimal_format_symbols::Locale;
 use mcrust::net::minecraft::nbt::compound_tag;
 use mcrust::net::minecraft::nbt::tag::Tag;
 use mcrust::net::minecraft::world::level::block::blocks;
+use mcrust::net::minecraft::network::chat::component::Component as _;
 use crate::de::hysky::skyblocker::injected::skyblocker_stack::SkyblockerStack as _;
 use mcrust::net::minecraft::world::entity::living_entity::LivingEntity as _;
 
@@ -29,8 +30,6 @@ pub const STATS_WINDOW: i32 = 5000;
 pub static COUNTER_TYPE: LazyLock<Mutex<CounterType>> = LazyLock::new(|| Mutex::new(CounterType::None));
 /// java: private static final Deque<LongLongPair> counter = new ArrayDeque<>();
 pub static COUNTER: compat::MainThread<std::collections::VecDeque<(i64, i64)>> = compat::MainThread::new(|| std::collections::VecDeque::new());
-// TODO(fabric2seer): `new LongArrayFIFOQueue(..)`
-//   java: private static final LongPriorityQueue blockBreaks = new LongArrayFIFOQueue();
 /// java: private static final LongPriorityQueue blockBreaks = new LongArrayFIFOQueue();
 ///
 /// `LongArrayFIFOQueue`: first in, first out (`enqueue` at the back, `dequeueLong` / `firstLong` at the front).
@@ -72,12 +71,16 @@ impl FarmingHud {
                 }
             }
         }));
-        // TODO(fabric2seer): ClientPlayerBlockBreakEvents.AFTER.register: no SeerClient equivalent yet
-        //   java: ClientPlayerBlockBreakEvents.AFTER.register((_, _, _, _) -> {
-        //   java: 			if (shouldRender()) {
-        //   java: 				blockBreaks.enqueue(System.currentTimeMillis());
-        //   java: 			}
-        //   java: 		});
+        // java: ClientPlayerBlockBreakEvents.AFTER.register((_, _, _, _) -> {
+        // java: 	if (shouldRender()) {
+        // java: 		blockBreaks.enqueue(System.currentTimeMillis());
+        // java: 	}
+        // java: });
+        compat::batch_s_register_after_block_break(|_pos: &mcrust::net::minecraft::core::block_pos::BlockPos| {
+            if FarmingHud::should_render() {
+                BLOCK_BREAKS.get_mut().push_back(compat::millis());
+            }
+        });
         world_events::BLOCK_STATE_UPDATE.register(Arc::new(move |pos, old_state, new_state| {
             if mcrust::mcrust::modding::game::with_player(|_| ()).is_none() || mcrust::mcrust::modding::game::level().is_none() || !(FarmingHud::should_render()) {
                 return;
@@ -99,28 +102,54 @@ impl FarmingHud {
             }
             BLOCK_BREAKS.get_mut().push_back(compat::millis());
         }));
-        // TODO(fabric2seer): ClientReceiveMessageEvents.ALLOW_GAME.register: no SeerClient equivalent yet
-        //   java: ClientReceiveMessageEvents.ALLOW_GAME.register((message, overlay) -> {
-        //   java: 			if (shouldRender() && overlay) {
-        //   java: 				Matcher matcher = FARMING_XP.matcher(ChatFormatting.stripFormatting(message.getString()));
-        //   java: 				if (matcher.find()) {
-        //   java: 					try {
-        //   java: 						farmingXp.offer(FloatLongPair.of(NUMBER_FORMAT.parse(matcher.group("xp")).floatValue(), System.currentTimeMillis()));
-        //   java: 						if (matcher.group("percent") != null) {
-        //   java: 							farmingXpPercentProgress = NUMBER_FORMAT.parse(matcher.group("percent")).floatValue();
-        //   java: 						} else if (matcher.group("current") != null) {
-        //   java: 							float max = NUMBER_FORMAT.parse(matcher.group("max")).floatValue();
-        //   java: 							if (matcher.group("max").endsWith("k")) max *= 1000;
-        //   java: 							farmingXpPercentProgress = NUMBER_FORMAT.parse(matcher.group("current")).floatValue() / max * 100;
-        //   java: 						}
-        //   java: 					} catch (ParseException e) {
-        //   java: 						LOGGER.error("[Skyblocker Farming HUD] Failed to parse farming xp", e);
-        //   java: 					}
-        //   java: 				}
-        //   java: 			}
-        //   java:
-        //   java: 			return true;
-        //   java: 		});
+        // java: ClientReceiveMessageEvents.ALLOW_GAME.register((message, overlay) -> {
+        // java: 	if (shouldRender() && overlay) {
+        // java: 		Matcher matcher = FARMING_XP.matcher(ChatFormatting.stripFormatting(message.getString()));
+        // java: 		if (matcher.find()) {
+        // java: 			try {
+        // java: 				farmingXp.offer(FloatLongPair.of(NUMBER_FORMAT.parse(matcher.group("xp")).floatValue(), System.currentTimeMillis()));
+        // java: 				if (matcher.group("percent") != null) {
+        // java: 					farmingXpPercentProgress = NUMBER_FORMAT.parse(matcher.group("percent")).floatValue();
+        // java: 				} else if (matcher.group("current") != null) {
+        // java: 					float max = NUMBER_FORMAT.parse(matcher.group("max")).floatValue();
+        // java: 					if (matcher.group("max").endsWith("k")) max *= 1000;
+        // java: 					farmingXpPercentProgress = NUMBER_FORMAT.parse(matcher.group("current")).floatValue() / max * 100;
+        // java: 				}
+        // java: 			} catch (ParseException e) {
+        // java: 				LOGGER.error("[Skyblocker Farming HUD] Failed to parse farming xp", e);
+        // java: 			}
+        // java: 		}
+        // java: 	}
+        // java: 	return true;
+        // java: });
+        // (`NUMBER_FORMAT` is `NumberFormat.getInstance(Locale.US)`: its `parse` is `compat::number_instance_us_parse`,
+        // `None` being the `ParseException`)
+        compat::register_allow_game(|message: &mcrust::net::minecraft::network::chat::mutable_component::MutableComponent, overlay: bool| {
+            if FarmingHud::should_render() && overlay {
+                let mut matcher: compat::regex::Matcher = FARMING_XP.matcher(&mcrust::net::minecraft::chat_formatting::strip_formatting(&message.get_string()));
+                if matcher.find() {
+                    let parsed: Option<()> = (|| {
+                        let xp: f32 = compat::number_instance_us_parse(&matcher.group_named("xp")?)? as f32;
+                        FARMING_XP_2.get_mut().push_back((xp, compat::millis()));
+                        if let Some(percent) = matcher.group_named("percent") {
+                            compat::set_state(&FARMING_XP_PERCENT_PROGRESS, compat::number_instance_us_parse(&percent)? as f32);
+                        } else if let Some(current) = matcher.group_named("current") {
+                            let max_text: String = matcher.group_named("max")?;
+                            let mut max: f32 = compat::number_instance_us_parse(&max_text)? as f32;
+                            if max_text.ends_with('k') {
+                                max *= 1000.0;
+                            }
+                            compat::set_state(&FARMING_XP_PERCENT_PROGRESS, compat::number_instance_us_parse(&current)? as f32 / max * 100.0);
+                        }
+                        Some(())
+                    })();
+                    if parsed.is_none() {
+                        logger().error("[Skyblocker Farming HUD] Failed to parse farming xp");
+                    }
+                }
+            }
+            true
+        });
     }
 
     /// java: @SuppressWarnings("SameParameterValue") private static boolean tryGetCounter(ItemStack stack, CounterType counterType)

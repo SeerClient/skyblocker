@@ -20,7 +20,7 @@ use mcrust::net::minecraft::client::gui::components::renderable::Renderable as _
 /// java: private static final Identifier TEXTURE = Identifier.parse("textures/gui/container/generic_54.png");
 pub static TEXTURE: compat::MainThread<Identifier> = compat::MainThread::new(|| Identifier::parse("textures/gui/container/generic_54.png"));
 /// java: private static final Font textRenderer = CLIENT.font;
-pub static TEXT_RENDERER: compat::MainThread<Font> = compat::MainThread::new(|| compat::font());
+pub static TEXT_RENDERER: compat::LiveFont = compat::LiveFont;
 
 /// java: public class Inventory implements ProfileViewerPage
 #[derive(Clone)]
@@ -133,14 +133,15 @@ impl Inventory {
             let __wa2 = root_y.wrapping_add(136);
             let __o2 = compat::read(__this, |__t| __t.previous_page.clone()).unwrap();
             compat::write(&__o2, |__t| __t.set_y(__wa2));
-            // rust: port gap (GAPS_batchC #C2) - `button.extractRenderState(graphics, ..)` on a widget OBJECT: the port's
-            // widget is drawn by the screen it was added to (`ProfileViewerScreen.init` adds `getButtons()`, which the game draws)
-            // rust: let __wa3 = graphics.clone();
-            // rust: let __wa4 = mouse_x;
-            // rust: let __wa5 = mouse_y;
-            // rust: let __wa6 = delta;
-            // rust: let __o3 = compat::read(__this, |__t| __t.previous_page.clone()).unwrap();
-            // rust: compat::write(&__o3, |__t| __t.extract_render_state(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), __wa4, __wa5, __wa6));
+            // java: button.extractRenderState(graphics, mouseX, mouseY, a); - `AbstractWidget.extractRenderState`: when visible, the
+            // hover flag and then the class's `extractWidgetRenderState` (the screen draws the same widget again, as in Java)
+            {
+                let __button = compat::read(__this, |__t| __t.previous_page.clone()).unwrap();
+                if compat::read(&__button, |__t| __t.base.visible) {
+                    compat::write(&__button, |__t| __t.base.set_hovered_from_extract(mouse_x, mouse_y));
+                    PaginationButton::extract_widget_render_state(&__button, graphics, mouse_x, mouse_y, delta);
+                }
+            }
             // java: graphics.centeredText(textRenderer, "Page: " + (activePage + 1) + "/" + totalPages, rootX + 88, rootY + 140, Color.WHITE.getRGB());
             let __page_text = format!("Page: {}/{}", (compat::read(__this, |__t| __t.active_page)).wrapping_add(1), compat::read(__this, |__t| __t.total_pages));
             gui_graphics_extractor::centered_text_string(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), &__page_text, root_x.wrapping_add(88), root_y.wrapping_add(140), mcrust::java::awt::color::white().get_rgb());
@@ -150,14 +151,15 @@ impl Inventory {
             let __wa8 = root_y.wrapping_add(136);
             let __o5 = compat::read(__this, |__t| __t.next_page.clone()).unwrap();
             compat::write(&__o5, |__t| __t.set_y(__wa8));
-            // rust: port gap (GAPS_batchC #C2) - `button.extractRenderState(graphics, ..)` on a widget OBJECT: the port's
-            // widget is drawn by the screen it was added to (`ProfileViewerScreen.init` adds `getButtons()`, which the game draws)
-            // rust: let __wa9 = graphics.clone();
-            // rust: let __wa10 = mouse_x;
-            // rust: let __wa11 = mouse_y;
-            // rust: let __wa12 = delta;
-            // rust: let __o6 = compat::read(__this, |__t| __t.next_page.clone()).unwrap();
-            // rust: compat::write(&__o6, |__t| __t.extract_render_state(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), __wa10, __wa11, __wa12));
+            // java: button.extractRenderState(graphics, mouseX, mouseY, a); - `AbstractWidget.extractRenderState`: when visible, the
+            // hover flag and then the class's `extractWidgetRenderState` (the screen draws the same widget again, as in Java)
+            {
+                let __button = compat::read(__this, |__t| __t.next_page.clone()).unwrap();
+                if compat::read(&__button, |__t| __t.base.visible) {
+                    compat::write(&__button, |__t| __t.base.set_hovered_from_extract(mouse_x, mouse_y));
+                    PaginationButton::extract_widget_render_state(&__button, graphics, mouse_x, mouse_y, delta);
+                }
+            }
         }
         let mut start_index: i32 = (compat::read(__this, |__t| __t.active_page)).wrapping_mul(compat::read(__this, |__t| __t.items_per_page));
         let mut end_index: i32 = (start_index.wrapping_add(compat::read(__this, |__t| __t.items_per_page))).min((__this.lock().borrow().container_list.len() as i32));
@@ -175,19 +177,19 @@ impl Inventory {
             let mut x: i32 = (root_x.wrapping_add(8)).wrapping_add(column.wrapping_mul(18));
             let mut y: i32 = (root_y_adjusted.wrapping_add(18)).wrapping_add(row.wrapping_mul(18));
             ItemBackgroundManager::draw_backgrounds(stack, graphics, x, y);
-            if ItemProtection::is_item_protected(Some(stack.clone())) {
+            if ItemProtection::is_item_protected_ref(Some(stack)) {
                 ItemProtection::draw_slot_icon(graphics, x, y);
             }
             graphics.item(stack, x, y);
             graphics.item_decorations(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), &*compat::minecraft(), stack, x, y);
-            SlotTextManager::extract_slot_text_7(graphics, TEXT_RENDERER.get_mut(), None, stack, i, x, y);
+            SlotTextManager::extract_slot_text_7(graphics, &TEXT_RENDERER.get_mut(), None, stack, i, x, y);
             if mouse_x > x.wrapping_sub(2) && mouse_x < (x.wrapping_add(16)).wrapping_add(1) && mouse_y > y.wrapping_sub(2) && mouse_y < (y.wrapping_add(16)).wrapping_add(1) {
                 hovered_stack = Some(stack.clone());
             }
         }
         if let Some(hovered_stack) = &hovered_stack {
-            // TODO(fabric2seer): `GuiGraphicsExtractor.setTooltipForNextFrame` has no Rust method in the port (looked for `set_tooltip_for_next_frame` in GuiGraphicsExtractor and its supertypes)
-            // rust: graphics.set_tooltip_for_next_frame(TEXT_RENDERER.get_mut(), hovered_stack, mouse_x, mouse_y);
+            // java: graphics.setTooltipForNextFrame(textRenderer, hoveredStack, mouseX, mouseY);
+            compat::batch_w_set_item_tooltip_for_next_frame(hovered_stack);
         }
     }
 

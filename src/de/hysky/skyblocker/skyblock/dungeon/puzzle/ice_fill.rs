@@ -76,8 +76,44 @@ impl IceFill {
         if crate::de::hysky::skyblocker::debug::debug::Debug::debug_enabled() {
             client_command_registration_callback::EVENT.register(Arc::new(
                 |dispatcher: &mut client_command_registration_callback::ClientCommandDispatcher| {
-                    // TODO(fabric2seer): a command tree this tool cannot read (arguments, redirects, requires) - SeerClient commands receive the words after the name in `ctx.args`
-                    //   java: dispatcher.register(..);
+                    use mcrust::com::mojang::brigadier::builder::argument_builder::ArgumentBuilder as _;
+                    use crate::prelude::client_command_registration_callback as ccr;
+                    type Ctx = mcrust::com::mojang::brigadier::context::command_context::CommandContext<ccr::FabricClientCommandSource>;
+                    fn prefixed(text: mcrust::net::minecraft::network::chat::mutable_component::MutableComponent) -> mcrust::net::minecraft::network::chat::mutable_component::MutableComponent {
+                        (crate::de::hysky::skyblocker::utils::constants::PREFIX.get())().append(text)
+                    }
+                    // java: .then(literal(INSTANCE.puzzleName).then(literal("printBoard1..3")..).then(literal("printPath1..3")..)) under NAMESPACE dungeons puzzle
+                    fn vector_list(path: &[mcrust::org::joml::vector2i::Vector2i]) -> String {
+                        // `List<Vector2ic>.toString()` - `[` + each JOML `toString` `(x y)` + `]`
+                        format!("[{}]", path.iter().map(|v| format!("({} {})", v.x(), v.y())).collect::<Vec<_>>().join(", "))
+                    }
+                    let puzzle_name: String = compat::read(INSTANCE.get(), |__t| __t.dungeon_puzzle_base().puzzle_name.clone());
+                    let mut puzzle = ccr::literal(&puzzle_name);
+                    for i in 0..3usize {
+                        let mut print_board = ccr::literal(&format!("printBoard{}", i + 1));
+                        print_board.executes(Arc::new(move |_: &Ctx| {
+                            let board = compat::read(INSTANCE.get(), |__t| __t.ice_fill_boards[i].clone());
+                            compat::batch_w_send_feedback(&prefixed(mcrust::net::minecraft::network::chat::component::literal(&IceFill::board_to_string(&board))));
+                            Ok(1)
+                        }));
+                        puzzle.then(&print_board);
+                    }
+                    for i in 0..3usize {
+                        let mut print_path = ccr::literal(&format!("printPath{}", i + 1));
+                        print_path.executes(Arc::new(move |_: &Ctx| {
+                            let path = compat::read(INSTANCE.get(), |__t| __t.ice_fill_paths[i].clone());
+                            compat::batch_w_send_feedback(&prefixed(mcrust::net::minecraft::network::chat::component::literal(&vector_list(&path))));
+                            Ok(1)
+                        }));
+                        puzzle.then(&print_path);
+                    }
+                    let mut __n0 = ccr::literal("puzzle");
+                    __n0.then(&puzzle);
+                    let mut __n1 = ccr::literal("dungeons");
+                    __n1.then(&__n0);
+                    let mut __n2 = ccr::literal(crate::entry::skyblocker_mod::NAMESPACE);
+                    __n2.then(&__n1);
+                    dispatcher.dispatcher().register(&__n2);
                 },
             ));
         }

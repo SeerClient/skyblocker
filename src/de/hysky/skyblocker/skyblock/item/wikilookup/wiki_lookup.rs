@@ -9,10 +9,6 @@ use mcrust::net::minecraft::world::inventory::slot::Slot;
 
 /// java: Map<String, String> CHARACTER_ENCODER = Map.ofEntries( Map.entry(" ", "_"), Map.entry("'", encodeChar("'")), // Special case for only a visitor that has '?' Map.entry("?", encodeChar("?")) );
 pub static CHARACTER_ENCODER: LazyLock<std::collections::HashMap<String, String>> = LazyLock::new(|| std::collections::HashMap::from([(" ".to_string(), "_".to_string()), ("'".to_string(), encode_char("'")), ("?".to_string(), encode_char("?"))]));
-// TODO(fabric2seer): static call Function.identity(..)
-//   java: Function<String, String> REPLACING_FUNCTION = CHARACTER_ENCODER.entrySet().stream()
-//   java: 			.map(entryToReplace -> (Function<String, String>) s -> s.replace(entryToReplace.getKey(), entryToReplace.getValue()))
-//   java: 			.reduce(Function.identity(), Function::andThen);
 /// java: Function<String, String> REPLACING_FUNCTION = CHARACTER_ENCODER.entrySet().stream() .map(entryToReplace -> (Function<String, String>) s -> s.replace(entryToReplace.getKey(), entryToReplace.getValue())
 pub static REPLACING_FUNCTION: compat::MainThread<Arc<dyn Fn(String) -> String>> = compat::MainThread::new(|| { let __fs: Vec<Arc<dyn Fn(String) -> String>> = CHARACTER_ENCODER.iter().map(|(k, v)| { let (k, v) = (k.clone(), v.clone()); Arc::new(move |s: String| s.replace(&k, &v)) as Arc<dyn Fn(String) -> String> }).collect(); Arc::new(move |s: String| __fs.iter().fold(s, |acc, f| f(acc))) as Arc<dyn Fn(String) -> String> });
 
@@ -40,7 +36,16 @@ impl dyn WikiLookup {
 
 /// java: private static String encodeChar(String character)
 pub fn encode_char(character: &str) -> String {
-    // TODO(fabric2seer): static call URLEncoder.encode(..)
-    //   java: return URLEncoder.encode(character, StandardCharsets.UTF_8);
-    todo!("fabric2seer: the value of this function is in a TODO above")
+    // java: return URLEncoder.encode(character, StandardCharsets.UTF_8);
+    // (`URLEncoder.encode`: `a-z A-Z 0-9 . - * _` are kept, a space is `+`, every other byte of the UTF-8 form is
+    // `%XY` with upper-case hex)
+    let mut encoded = String::new();
+    for byte in character.as_bytes() {
+        match *byte {
+            b'a'..=b'z' | b'A'..=b'Z' | b'0'..=b'9' | b'.' | b'-' | b'*' | b'_' => encoded.push(*byte as char),
+            b' ' => encoded.push('+'),
+            other => encoded.push_str(&format!("%{:02X}", other)),
+        }
+    }
+    return encoded;
 }

@@ -8,7 +8,7 @@ use crate::prelude::*;
 ///   java: @Inject(method = "fromPacket", at = @At("HEAD"), cancellable = true)
 fn skyblocker_open(args: &mcrust::mcrust::modding::container_screens::ContainerScreenArgs, menu: &mut mcrust::net::minecraft::world::entity::player::player::ContainerMenu) -> Option<mcrust::mcrust::modding::container_screens::ModContainer> {
     let mut __result = compat::ContainerResult::default();
-    if mcrust::mcrust::modding::game::with_player(|_| ()).is_none() {
+    if !mcrust::mcrust::modding::game::has_player() {
         return None;
     }
     if !(crate::de::hysky::skyblocker::utils::utils::Utils::is_on_skyblock()) {
@@ -32,6 +32,7 @@ fn skyblocker_open(args: &mcrust::mcrust::modding::container_screens::ContainerS
         // java: player.containerMenu = the server's menu - it already is
         if let Some(__sel4) = compat::minecraft().gui.screen().as_ref() && let Some(screen) = mcrust::mcrust::modding::game::current_mod_screen::<compat::ScreenAdapter<crate::de::hysky::skyblocker::skyblock::dungeon::partyfinder::party_finder_screen::PartyFinderScreen>, _>(|__s| __s.object().clone()) {
             crate::de::hysky::skyblocker::skyblock::dungeon::partyfinder::party_finder_screen::PartyFinderScreen::update_handler(&screen, compat::LiveChestMenu::of(&*container_screen_handler), mcrust::net::minecraft::network::chat::component::literal(&args.title).clone());
+            __result.keep_screen();
         } else {
             //   java: client.gui.setScreen(new PartyFinderScreen(containerScreenHandler, player.getInventory(), title));
             __result.mod_screen(Box::new(compat::ScreenAdapter::new(crate::de::hysky::skyblocker::skyblock::dungeon::partyfinder::party_finder_screen::PartyFinderScreen::new(compat::LiveChestMenu::of(&*container_screen_handler), compat::PlayerInventory, mcrust::net::minecraft::network::chat::component::literal(&args.title).clone()))));
@@ -42,6 +43,7 @@ fn skyblocker_open(args: &mcrust::mcrust::modding::container_screens::ContainerS
         __result.menu(compat::mod_menu(auction_house_screen_handler.clone()));
         if let Some(__sel7) = compat::minecraft().gui.screen().as_ref() && let Some(auction_browser_screen) = mcrust::mcrust::modding::container_screens::current_mod_container_screen::<compat::ContainerScreenAdapter<crate::de::hysky::skyblocker::skyblock::auction::auction_browser_screen::AuctionBrowserScreen>, _>(|__s| __s.object().clone()) {
             auction_browser_screen.lock().borrow_mut().change_handler(auction_house_screen_handler.clone(), container_screen_handler);
+            __result.keep_screen();
         } else {
             __result.container_screen(Box::new(compat::ContainerScreenAdapter::new(crate::de::hysky::skyblocker::skyblock::auction::auction_browser_screen::AuctionBrowserScreen::new_listening(auction_house_screen_handler.clone(), container_screen_handler))));
         }
@@ -51,6 +53,7 @@ fn skyblocker_open(args: &mcrust::mcrust::modding::container_screens::ContainerS
         __result.menu(compat::mod_menu(auction_house_screen_handler.clone()));
         if let Some(__sel10) = compat::minecraft().gui.screen().as_ref() && let Some(auction_view_screen) = mcrust::mcrust::modding::container_screens::current_mod_container_screen::<compat::ContainerScreenAdapter<crate::de::hysky::skyblocker::skyblock::auction::auction_view_screen::AuctionViewScreen>, _>(|__s| __s.object().clone()) {
             auction_view_screen.lock().borrow_mut().change_handler(auction_house_screen_handler.clone(), container_screen_handler);
+            __result.keep_screen();
         } else {
             __result.container_screen(Box::new(compat::ContainerScreenAdapter::new(crate::de::hysky::skyblocker::skyblock::auction::auction_view_screen::AuctionViewScreen::new_listening(auction_house_screen_handler.clone(), container_screen_handler, mcrust::net::minecraft::network::chat::component::literal(&args.title).clone()))));
         }
@@ -70,6 +73,7 @@ fn skyblocker_open(args: &mcrust::mcrust::modding::container_screens::ContainerS
         // java: player.containerMenu = the server's menu - it already is
         if let Some(__sel16) = compat::minecraft().gui.screen().as_ref() && let Some(screen) = mcrust::mcrust::modding::game::current_mod_screen::<compat::ScreenAdapter<crate::de::hysky::skyblocker::skyblock::tabhud::config::list::widgets_list_screen::WidgetsListScreen>, _>(|__s| __s.object().clone()) {
             crate::de::hysky::skyblocker::skyblock::tabhud::config::list::widgets_list_screen::WidgetsListScreen::update_handler(&screen, compat::LiveChestMenu::of(&*container_screen_handler), &mcrust::net::minecraft::network::chat::component::literal(&args.title));
+            __result.keep_screen();
         } else {
             __result.mod_screen(Box::new(compat::ScreenAdapter::new(crate::de::hysky::skyblocker::skyblock::tabhud::config::list::widgets_list_screen::WidgetsListScreen::new(compat::LiveChestMenu::of(&*container_screen_handler), mcrust::net::minecraft::network::chat::component::literal(&args.title).clone()))));
         }

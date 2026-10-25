@@ -40,11 +40,6 @@ impl CollectionTiers {
 
     /// java: public static int getMaxUnlockedTier(ApiProfile profile, String collection)
     pub fn get_max_unlocked_tier(profile: &compat::Shared<ApiProfile>, collection: &str) -> i32 {
-        // TODO(fabric2seer): static field Map.Entry
-        //   java: long collected = profile.members.entrySet().stream()
-        //   java: 				.map(Map.Entry::getValue)
-        //   java: 				.mapToLong(member -> member.collection.getOrDefault(collection, 0L))
-        //   java: 				.sum();
         let mut collected: i64 = { let __members: Vec<compat::Shared<crate::de::hysky::skyblocker::skyblock::profileviewer2::model::profile_member::ProfileMember>> = profile.lock().borrow().members.values().cloned().collect(); __members.iter().fold(0i64, |sum, m| sum.wrapping_add(m.lock().borrow().collection.get(collection).cloned().unwrap_or(0))) };
         return CollectionTiers::get_max_unlocked_tier_string_long(collection, collected);
     }
@@ -80,12 +75,6 @@ impl CollectionTiers {
     /// java: public static Report getCollectionReport(ApiProfile profile, UUID member, String collection)
     pub fn get_collection_report(profile: &compat::Shared<ApiProfile>, member: &Uuid, collection: &str) -> Report {
         let mut personal: i64 = profile.lock().borrow().members.get(member).cloned().unwrap().lock().borrow().collection.get(collection).cloned().unwrap_or_else(|| 0);
-        // TODO(fabric2seer): static field Map.Entry
-        //   java: long coop = profile.members.entrySet().stream()
-        //   java: 				.filter(entry -> !entry.getKey().equals(member))
-        //   java: 				.map(Map.Entry::getValue)
-        //   java: 				.mapToLong(profileMember -> profileMember.collection.getOrDefault(collection, 0L))
-        //   java: 				.sum();
         let mut coop: i64 = { let __members: Vec<compat::Shared<crate::de::hysky::skyblocker::skyblock::profileviewer2::model::profile_member::ProfileMember>> = profile.lock().borrow().members.iter().filter(|(k, _)| *k != member).map(|(_, v)| v.clone()).collect(); __members.iter().fold(0i64, |sum, m| sum.wrapping_add(m.lock().borrow().collection.get(collection).cloned().unwrap_or(0))) };
         let mut total: i64 = personal.wrapping_add(coop);
         let mut tier: i32 = CollectionTiers::get_max_unlocked_tier_string_long(collection, total);
@@ -96,8 +85,6 @@ impl CollectionTiers {
     pub fn load_collections_data() -> Option<serde_json::Value> {
         // java: try {..} catch (Exception e) - an exception here is a panic, caught by `catch_unwind`; the body's `return` is the closure's value
         match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            // TODO(fabric2seer): `Http.sendGetRequest` is not a static method of Http
-            //   java: String response = Http.sendGetRequest("https://api.hypixel.net/v2/resources/skyblock/collections");
             let mut response: String = crate::de::hysky::skyblocker::utils::http::Http::send_get_request("https://api.hypixel.net/v2/resources/skyblock/collections");
             return Some(serde_json::from_str::<serde_json::Value>(&response).expect("JsonSyntaxException"));
         })) {
@@ -107,7 +94,6 @@ impl CollectionTiers {
                 return None;
             }
         }
-        todo!("fabric2seer: the value of this function is in a TODO above")
     }
 
     /// java: private static void parseCollectionsData(@Nullable JsonElement data)
@@ -129,17 +115,14 @@ impl CollectionTiers {
                     let mut item_tiers: Vec<i32> = compat::sorted_by((compat::json::get_as_json_array_of(&item, "tiers")).clone().into_iter().map(|__a0| compat::json::get_as_json_object(&__a0)), |o1, o2| (compat::ord_int(compat::json::get_as_int(&o1.get("tier").cloned().unwrap()).cmp(&compat::json::get_as_int(&o2.get("tier").cloned().unwrap())))).cmp(&0)).map(|tier| compat::json::get_as_int(&tier.get("amountRequired").cloned().unwrap())).map(|__a0| __a0).collect::<Vec<_>>();
                     parsed_tiers.insert(item_name.clone(), item_tiers.to_vec());
                 }
-                // TODO(fabric2seer): static field Map.Entry
-                //   java: List<String> collectionItems = items.entrySet().stream()
-                //   java: 						.sorted((o1, o2) -> {
-                //   java: 							String name1 = o1.getValue().getAsJsonObject().get("name").getAsString();
-                //   java: 							String name2 = o2.getValue().getAsJsonObject().get("name").getAsString();
-                //   java:
-                //   java: 							return String.CASE_INSENSITIVE_ORDER.compare(name1, name2);
-                //   java: 						})
-                //   java: 						.map(Map.Entry::getKey)
-                //   java: 						.toList();
-                let mut collection_items: Vec<String> = todo!("fabric2seer: the initialiser of `collectionItems` (TODO above)");
+                let mut item_entries: Vec<(String, serde_json::Value)> = items.iter().map(|(k, v)| (k.clone(), v.clone())).collect();
+                // java: String.CASE_INSENSITIVE_ORDER over each item's `name` (a stable sort)
+                item_entries.sort_by(|o1, o2| {
+                    let name1 = compat::json::get_as_string(&compat::json::get_as_json_object(&o1.1).get("name").cloned().unwrap());
+                    let name2 = compat::json::get_as_string(&compat::json::get_as_json_object(&o2.1).get("name").cloned().unwrap());
+                    name1.chars().map(|c| c.to_uppercase().next().unwrap().to_lowercase().next().unwrap()).collect::<String>().cmp(&name2.chars().map(|c| c.to_uppercase().next().unwrap().to_lowercase().next().unwrap()).collect::<String>())
+                });
+                let collection_items: Vec<String> = item_entries.into_iter().map(|(k, _)| k).collect();
                 parsed_categories.insert(type_name.clone(), collection_items.clone());
             }
             compat::set_state(&TIERS, parsed_tiers.clone());

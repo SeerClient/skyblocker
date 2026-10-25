@@ -122,15 +122,20 @@ impl dyn AbstractPopupScreen {
 
     /// java: @Override public void extractBackground(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a)
     pub fn extract_background_body(__this: &compat::Shared<dyn AbstractPopupScreen>, graphics: &mut GuiGraphicsExtractor, mut mouse_x: i32, mut mouse_y: i32, mut a: f32) {
+        let _ = (mouse_x, mouse_y);
         // java: this.backgroundScreen.extractBackground(graphics, -1, -1, a);
-        // rust: port gap - the held parent screen (`set_screen_keeping_parent`) is not drawn under a mod screen: the
-        // port has no call that extracts the held screen's background and widgets from a mod screen (GAPS_N #1)
+        mcrust::mcrust::modding::game::extract_underlying_screen_background(-1, -1, a);
         gui_graphics_extractor::next_stratum();
         // java: this.backgroundScreen.extractRenderState(graphics, -1, -1, a);
-        // rust: port gap - the held parent screen is not drawn under a mod screen (GAPS_N #1)
+        mcrust::mcrust::modding::game::extract_underlying_screen_render_state(-1, -1, a);
         gui_graphics_extractor::next_stratum();
-        // java: this.extractTransparentBackground(graphics);
-        // (the port's generic screen pass draws a mod screen's background before the screen's own extract)
+        // java: this.extractTransparentBackground(graphics); - `Screen.extractTransparentBackground`, the dim over the
+        // screen behind: `graphics.fillGradient(0, 0, width, height, -1072689136, -804253680)`
+        {
+            let minecraft = compat::minecraft();
+            let (width, height) = (gui_graphics_extractor::gui_width(&*minecraft), gui_graphics_extractor::gui_height(&*minecraft));
+            graphics.fill_gradient(mcrust::com::mojang::blaze3d::opengl::gl_state_manager::gl(), 0, 0, width, height, mcrust::net::minecraft::client::gui::screens::screen::TRANSPARENT_BACKGROUND_TOP, mcrust::net::minecraft::client::gui::screens::screen::TRANSPARENT_BACKGROUND_BOTTOM);
+        }
     }
 
     /// java: @Override protected void init()
@@ -226,7 +231,7 @@ impl EnterConfirmTextFieldWidget {
         let __super_key_pressed: bool = compat::write(__this, |__t| {
             let b = &mut __t.filtered_edit_box_base_mut().base;
             let mut memory = mcrust::net::minecraft::client::gui::components::edit_box::MemoryClipboard::default();
-            match mcrust::net::minecraft::client::minecraft::GlfwClipboard::published() {
+            match mcrust::net::minecraft::client::minecraft::SdlClipboard::published() {
                 Some(mut clipboard) => b.key_pressed(&__font.splitter(), input.clone(), focused, active, &mut clipboard),
                 None => b.key_pressed(&__font.splitter(), input.clone(), focused, active, &mut memory),
             }

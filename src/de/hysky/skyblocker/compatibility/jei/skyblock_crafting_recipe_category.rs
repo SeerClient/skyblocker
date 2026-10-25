@@ -9,10 +9,9 @@ use crate::de::hysky::skyblocker::utils::item_utils::ItemUtils;
 use mcrust::net::minecraft::network::chat::component;
 use mcrust::net::minecraft::network::chat::mutable_component::MutableComponent;
 
-// TODO(fabric2seer): static call IRecipeType.create(..)
 //   java: private static final IRecipeType<SkyblockCraftingRecipe> RECIPE_TYPE = IRecipeType.create(SkyblockCraftingRecipe.ID, SkyblockCraftingRecipe.class);
 /// java: private static final IRecipeType<SkyblockCraftingRecipe> RECIPE_TYPE = IRecipeType.create(SkyblockCraftingRecipe.ID, SkyblockCraftingRecipe.class);
-pub static RECIPE_TYPE: compat::MainThread<crate::unresolved::IRecipeType> = compat::MainThread::new(|| todo!("fabric2seer: the initialiser of `RECIPE_TYPE` - see the TODO above"));
+pub static RECIPE_TYPE: compat::MainThread<crate::unresolved::IRecipeType> = compat::MainThread::new(|| crate::de::hysky::skyblocker::compatibility::jei::abstract_skyblock_recipe_category::jei_recipe_type_create(crate::de::hysky::skyblocker::skyblock::itemlist::recipes::skyblock_crafting_recipe::ID.get_mut().clone()));
 /// java: private static final Component TITLE = Component.translatable("emi.category.skyblocker.skyblock_crafting");
 pub static TITLE: compat::MainThread<MutableComponent> = compat::MainThread::new(|| component::translatable("emi.category.skyblocker.skyblock_crafting"));
 

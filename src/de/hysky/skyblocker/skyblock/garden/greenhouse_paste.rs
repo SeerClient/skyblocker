@@ -42,6 +42,7 @@ use mcrust::net::minecraft::network::chat::component::Component as _;
 use mcrust::net::minecraft::world::entity::living_entity::LivingEntity as _;
 use mcrust::net::minecraft::world::level::block_getter::BlockGetter as _;
 use mcrust::net::minecraft::world::level::entity_getter::EntityGetter as _;
+use std::sync::Arc;
 
 /// java: private static final float PREVIEW_ALPHA = 0.6f;
 pub const PREVIEW_ALPHA: f32 = 0.6f32;
@@ -78,7 +79,7 @@ impl GreenhousePaste {
     pub fn init() {
         // java: ClientLifecycleEvents.CLIENT_STARTED.register(_ -> PRESETS_DATA.init()); - RETURN of `Minecraft`'s
         // constructor (as `WidgetManager.init` hooks it)
-        // rust: a RETURN injector registered from inside `Minecraft#<init>` (the client entrypoints run there) is not in
+        // A RETURN injector registered from inside `Minecraft#<init>` (the client entrypoints run there) is not in
         // that call's injector snapshot, so it never fired; `compat::execute` runs it before the first client tick, which
         // is where Fabric fires CLIENT_STARTED (early in `Minecraft.run`).
         compat::execute(|| {
@@ -173,8 +174,9 @@ impl GreenhousePaste {
             }
             GreenhousePaste::render_preview(&collector);
         }));
-        // TODO(fabric2seer): ClientPlayerBlockBreakEvents.AFTER.register: no SeerClient equivalent yet
-        //   java: ClientPlayerBlockBreakEvents.AFTER.register((_, _, pos, _) -> onBlockChange(pos));
+        // java: ClientPlayerBlockBreakEvents.AFTER.register((_, _, pos, _) -> onBlockChange(pos));
+        compat::batch_s_register_after_block_break(|pos: &mcrust::net::minecraft::core::block_pos::BlockPos| GreenhousePaste::on_block_change(pos));
+        // java: WorldEvents.BLOCK_STATE_UPDATE.register((pos, _, _) -> onBlockChange(pos));
         world_events::BLOCK_STATE_UPDATE.register(Arc::new(move |pos, _, _| { GreenhousePaste::on_block_change(&pos); }));
         GreenhousePaste::remove_preview();
     }
@@ -232,8 +234,9 @@ impl GreenhousePaste {
         if mcrust::mcrust::modding::game::with_player(|_| ()).is_none() {
             return 1;
         }
-        // TODO(fabric2seer): `.getOrDefault(..)` on a T
-        //   java: loadFromLink(PRESETS_DATA.getData().getOrDefault(preset, ""));
+        // java: loadFromLink(PRESETS_DATA.getData().getOrDefault(preset, ""));
+        let link: String = PRESETS_DATA.get().lock().borrow().get_data().get(preset).cloned().unwrap_or_default();
+        GreenhousePaste::load_from_link(&link);
         return 1;
     }
 
@@ -243,7 +246,7 @@ impl GreenhousePaste {
             return 1;
         }
         GreenhousePaste::remove_preview();
-        mcrust::mcrust::modding::game::with_player(|player| { script_host::send_feedback(&(constants::PREFIX.get_mut())().append(component::translatable("skyblocker.config.farming.greenhouse.greenhousePaste.unload").with_style_format(ChatFormatting::Green)).to_string()); });
+        mcrust::mcrust::modding::game::with_player(|player| { compat::batch_w_send_feedback(&(constants::PREFIX.get_mut())().append(component::translatable("skyblocker.config.farming.greenhouse.greenhousePaste.unload").with_style_format(ChatFormatting::Green))); });
         return 1;
     }
 
@@ -282,7 +285,7 @@ impl GreenhousePaste {
         // (the port's `getClipboard` takes the clipboard it reads: GLFW's once the window is up)
         let mut clipboard: String = {
             let mut __memory = mcrust::net::minecraft::client::gui::components::edit_box::MemoryClipboard::default();
-            match mcrust::net::minecraft::client::minecraft::GlfwClipboard::published() {
+            match mcrust::net::minecraft::client::minecraft::SdlClipboard::published() {
                 Some(mut __glfw) => compat::minecraft().keyboard_handler.get_clipboard(&mut __glfw),
                 None => compat::minecraft().keyboard_handler.get_clipboard(&mut __memory),
             }
@@ -310,10 +313,10 @@ impl GreenhousePaste {
             _ => unreachable!("switch expression: no case matched"),
         };
         if !success {
-            mcrust::mcrust::modding::game::with_player(|player| { script_host::send_feedback(&(constants::PREFIX.get_mut())().append(component::translatable("skyblocker.config.farming.greenhouse.greenhousePaste.loadFail").with_style_format(ChatFormatting::Red)).append(component::literal(&encoded).with_style_format(ChatFormatting::Gray)).to_string()); });
+            mcrust::mcrust::modding::game::with_player(|player| { compat::batch_w_send_feedback(&(constants::PREFIX.get_mut())().append(component::translatable("skyblocker.config.farming.greenhouse.greenhousePaste.loadFail").with_style_format(ChatFormatting::Red)).append(component::literal(&encoded).with_style_format(ChatFormatting::Gray))); });
             return;
         }
-        mcrust::mcrust::modding::game::with_player(|player| { script_host::send_feedback(&(constants::PREFIX.get_mut())().append(component::translatable("skyblocker.config.farming.greenhouse.greenhousePaste.loadSuccess").with_style_format(ChatFormatting::Green)).to_string()); });
+        mcrust::mcrust::modding::game::with_player(|player| { compat::batch_w_send_feedback(&(constants::PREFIX.get_mut())().append(component::translatable("skyblocker.config.farming.greenhouse.greenhousePaste.loadSuccess").with_style_format(ChatFormatting::Green))); });
         GreenhousePaste::locate_greenhouse();
     }
 
@@ -394,7 +397,7 @@ impl GreenhousePaste {
                 return true;
             }
         }
-        mcrust::mcrust::modding::game::with_player(|player| { script_host::send_feedback(&(constants::PREFIX.get_mut())().append(component::translatable("skyblocker.config.farming.greenhouse.greenhousePaste.notInGreenhouse").with_style_format(ChatFormatting::Red)).to_string()); });
+        mcrust::mcrust::modding::game::with_player(|player| { compat::batch_w_send_feedback(&(constants::PREFIX.get_mut())().append(component::translatable("skyblocker.config.farming.greenhouse.greenhousePaste.notInGreenhouse").with_style_format(ChatFormatting::Red))); });
         return false;
     }
 
@@ -634,7 +637,6 @@ impl GreenhousePaste {
                 let Some(mut target_crop) = greenhouse_crops::CROP_BY_INT.get_mut().get(&target_crop_id).cloned() else {
                     continue;
                 };
-                // TODO(fabric2seer): `Minecraft.getEntityModels` has no Rust method in the port (looked for `get_entity_models` in Minecraft and its supertypes)
                 if current_crop_id != 0 {
                     ({ let __f = compat::dispatch(collector, |__t| __t.submit_outlined_box_5()); __f(collector, &AABB::of_block_pos(&pos), &vec![1.0f32, 0.0f32, 0.0f32], 0.5f32, 4.0f32, true) });
                 } else if target_crop.is_head() {
@@ -654,16 +656,17 @@ impl GreenhousePaste {
                     let Some(profile) = mcrust::com::mojang::serialization::cast::<mcrust::net::minecraft::world::item::component::resolvable_profile::ResolvableProfile>(&profile).cloned() else {
                         continue;
                     };
-                    let mut render_type: std::rc::Rc<RenderType> = compat::minecraft().game_renderer.player_skin_render_cache.as_ref().expect("Minecraft.playerSkinRenderCache()").get_or_default(&profile).render_type();
+                    let mut render_type: std::sync::Arc<RenderType> = compat::minecraft().game_renderer.player_skin_render_cache.as_ref().expect("Minecraft.playerSkinRenderCache()").get_or_default(&profile).render_type();
                     // collector.submitVanilla(null, (_, worldState, submitNodeCollector) -> {..}): the lambda is
                     // `SkullPreviewRenderer`; `submitVanilla` is generic, so it is reached on the one implementation
                     let renderer: compat::Shared<dyn VanillaRenderer<Option<()>>> = compat::shared(SkullPreviewRenderer { pos: pos.clone(), model, render_type }) as compat::Shared<dyn VanillaRenderer<Option<()>>>;
                     compat::write_as::<PrimitiveCollectorImpl, dyn PrimitiveCollector, _>(collector, |collector| collector.submit_vanilla(&None, &renderer));
                 } else {
                     let mut block_state: Arc<BlockState> = target_crop.crop_block().default_block_state();
-                    // rust: port gap - `instanceof CropBlock`: the port's `Block` carries no class identity (GAPS_batchG). Of the
-                    // blocks a `Crop` names (CROP_ID_MAP), the CropBlocks (wheat, carrots, potatoes) are exactly the
-                    // ones whose state has `CropBlock.AGE` (= `BlockStateProperties.AGE_7`)
+                    // java: if (targetCrop.cropBlock() instanceof CropBlock) blockState = ..setValue(CropBlock.AGE, 7);
+                    // The blocks a `Crop` names are AIR, WHEAT, CARROTS, POTATOES, NETHER_WART, SUGAR_CANE, DEAD_BUSH and
+                    // FIRE; the CropBlocks among them (wheat, carrots, potatoes) are exactly the ones whose state has
+                    // `CropBlock.AGE` (= `BlockStateProperties.AGE_7`) - nether wart is AGE_3, sugar cane and fire AGE_15
                     if target_crop.crop_block().default_block_state().has_property(&mcrust::net::minecraft::world::level::block::state::properties::block_state_properties::age_7()) {
                         block_state = target_crop.crop_block().default_block_state().set_value(&mcrust::net::minecraft::world::level::block::state::properties::block_state_properties::age_7(), mcrust::net::minecraft::world::level::block::state::properties::property::Comparable::Integer(7));
                     }
@@ -710,9 +713,9 @@ impl GreenhousePaste {
         if mcrust::mcrust::modding::game::with_player(|_| ()).is_none() {
             return;
         }
-        mcrust::mcrust::modding::game::with_player(|player| { script_host::send_feedback(&(component::literal("=== CURRENT GREENHOUSE ===")).with_style_format(ChatFormatting::Yellow).to_string()); });
+        mcrust::mcrust::modding::game::with_player(|player| { compat::batch_w_send_feedback(&(component::literal("=== CURRENT GREENHOUSE ===")).with_style_format(ChatFormatting::Yellow)); });
         GreenhousePaste::print_grid(&compat::get_state(&GREENHOUSE));
-        mcrust::mcrust::modding::game::with_player(|player| { script_host::send_feedback(&(component::literal("=== TARGET GREENHOUSE ===")).with_style_format(ChatFormatting::Aqua).to_string()); });
+        mcrust::mcrust::modding::game::with_player(|player| { compat::batch_w_send_feedback(&(component::literal("=== TARGET GREENHOUSE ===")).with_style_format(ChatFormatting::Aqua)); });
         GreenhousePaste::print_grid(&compat::get_state(&TARGET_GREENHOUSE));
     }
 
@@ -789,8 +792,8 @@ impl std::fmt::Display for LayoutSite {
 /// `setupAnim` it calls) and `renderType`.
 struct SkullPreviewRenderer {
     pos: BlockPos,
-    model: std::rc::Rc<std::cell::RefCell<dyn mcrust::net::minecraft::client::renderer::feature::model_feature_renderer::AnimatedModel>>,
-    render_type: std::rc::Rc<RenderType>,
+    model: mcrust::net::minecraft::client::renderer::feature::model_feature_renderer::ModelRc<dyn mcrust::net::minecraft::client::renderer::feature::model_feature_renderer::AnimatedModel>,
+    render_type: std::sync::Arc<RenderType>,
 }
 
 impl VanillaRenderer<Option<()>> for SkullPreviewRenderer {
@@ -810,6 +813,6 @@ impl VanillaRenderer<Option<()>> for SkullPreviewRenderer {
         // java: submitNodeCollector.submitModel(model, skullState, matrices, renderType, LightCoordsUtil.FULL_BRIGHT,
         //   OverlayTexture.pack(PREVIEW_TINT, false), 0, null);
         let overlay = mcrust::net::minecraft::client::renderer::texture::overlay_texture::pack_progress(PREVIEW_TINT, false);
-        submit_node_collector.submit_model_untinted(self.model.clone(), std::rc::Rc::new(skull_state), &matrices, self.render_type.clone(), mcrust::net::minecraft::util::light_coords_util::FULL_BRIGHT, overlay, 0, None);
+        submit_node_collector.submit_model_untinted(self.model.clone(), std::sync::Arc::new(skull_state), &matrices, self.render_type.clone(), mcrust::net::minecraft::util::light_coords_util::FULL_BRIGHT, overlay, 0);
     }
 }

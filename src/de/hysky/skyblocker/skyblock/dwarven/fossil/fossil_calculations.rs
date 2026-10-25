@@ -85,7 +85,7 @@ impl FossilCalculations {
     }
 
     /// java: protected static Structures.TileGrid convertItemsToTiles(Int2ObjectMap<ItemStack> currentState)
-    pub fn convert_items_to_tiles(current_state: &std::collections::HashMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack>) -> TileGrid {
+    pub fn convert_items_to_tiles(current_state: &std::collections::BTreeMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack>) -> TileGrid {
         let mut output: TileGrid = TileGrid::of_size(EXCAVATOR_WIDTH, EXCAVATOR_HEIGHT);
         let mut index: i32 = 0;
         for y in 0..EXCAVATOR_HEIGHT {

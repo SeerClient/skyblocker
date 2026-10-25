@@ -68,23 +68,24 @@ impl SkillTreeBuilderBase {
     }
 
     /// java: protected static Map<String, LispAst.Program> precompilePrograms(Dynamic<?> extraData)
-    pub fn precompile_programs(extra_data: &Dynamic) -> std::collections::HashMap<String, Arc<crate::unresolved::Program>> {
-        let mut cache: std::collections::HashMap<String, Arc<crate::unresolved::Program>> = std::collections::HashMap::new();
-        // TODO(fabric2seer): static call Function.identity(..)
-        //   java: @SuppressWarnings({ "unchecked", "rawtypes" })
-        //   java: 		Map<Dynamic<?>, Dynamic<?>> allFields = (Map) extraData.asMap(Function.identity(), Function.identity());
-        let mut all_fields: std::collections::HashMap<Dynamic, Dynamic> = todo!("fabric2seer: the initialiser of `allFields` (TODO above)");
+    pub fn precompile_programs(extra_data: &Dynamic) -> std::collections::HashMap<String, crate::compat::nea_lisp::Program> {
+        let mut cache: std::collections::HashMap<String, crate::compat::nea_lisp::Program> = std::collections::HashMap::new();
+        // java: Map<Dynamic<?>, Dynamic<?>> allFields = (Map) extraData.asMap(Function.identity(), Function.identity());
+        // (`asMap` answers an empty map when the value is no map)
+        let mut all_fields: Vec<(Dynamic, Dynamic)> = extra_data.as_map_opt().result().unwrap_or_default();
         for entry in all_fields.iter().map(|(k, v)| (k.clone(), v.clone())) {
             let mut name: String = entry.0.as_string_or("");
             let mut source: String = entry.1.as_string_or("");
             if !name.is_empty() && PERK_PROGRAM_PREFIXES.iter().cloned().any(|prefix| name.starts_with(&prefix)) && !source.is_empty() {
                 // java: try {..} catch (Exception e) - an exception here is a panic, caught by `catch_unwind`
-                let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                    // TODO(fabric2seer): static field LispParser.Companion
-                    //   java: cache.put(name, LispParser.Companion.parse(name, source));
-                }));
-                if let Err(e) = __result {
-                    logger().warn(&format!("[Skyblocker Profile Viewer] Failed to compile HOTM program {}", name));
+                // java: cache.put(name, LispParser.Companion.parse(name, source)); - the parser's exception is its `Err`
+                match crate::compat::nea_lisp::LispParser::parse(&name, &source) {
+                    Ok(program) => {
+                        cache.insert(name.clone(), program);
+                    }
+                    Err(e) => {
+                        logger().warn(&format!("[Skyblocker Profile Viewer] Failed to compile HOTM program {} {}", name, e));
+                    }
                 }
             }
         }
@@ -128,7 +129,7 @@ pub trait SkillTreeBuilder: compat::DynAny {
     fn get_disabled_perk_icon(&self) -> fn(&compat::Shared<dyn SkillTreeBuilder>) -> mcrust::net::minecraft::world::item::item_stack::ItemStack;
 
     /// java: protected final ItemStack getIcon(boolean enabled, Map<String, LispData> values) (dispatch: the body for this class)
-    fn get_icon(&self) -> fn(&compat::Shared<dyn SkillTreeBuilder>, bool, &std::collections::HashMap<String, Arc<crate::unresolved::LispData>>) -> mcrust::net::minecraft::world::item::item_stack::ItemStack {
+    fn get_icon(&self) -> fn(&compat::Shared<dyn SkillTreeBuilder>, bool, &std::collections::HashMap<String, crate::compat::nea_lisp::LispData>) -> mcrust::net::minecraft::world::item::item_stack::ItemStack {
         <dyn SkillTreeBuilder>::get_icon_body
     }
 
@@ -146,33 +147,33 @@ impl dyn SkillTreeBuilder {
         let mut layout: GridLayout = GridLayout::new_default();
         for node in nodes.iter() {
             let mut widget: compat::Shared<SkillTreeNodeWidget> = SkillTreeNodeWidget::new(node.icon(), node.tooltip(), node.tooltip_style());
-            // TODO(fabric2seer): a widget put in a layout outside a mod screen's own methods: the port's layouts hold a widget by its index in the screen's widget list
-            // rust: layout.add_child_at(widget.clone(), node.row(), node.column()).unwrap();
+            // java: layout.addChild(widget, node.row(), node.column()); - the widget joins the list of the page whose
+            // layout this is (the profile viewer page building it)
+            layout.add_child_at(crate::de::hysky::skyblocker::skyblock::profileviewer2::pages::profile_viewer_page::layout_widget(compat::WidgetAdapter::widget(widget.clone())), node.row(), node.column()).unwrap();
         }
         return LayoutElement::Grid(layout);
     }
 
     /// java: protected final ItemStack getIcon(boolean enabled, Map<String, LispData> values)
-    pub fn get_icon_body(__this: &compat::Shared<dyn SkillTreeBuilder>, mut enabled: bool, values: &std::collections::HashMap<String, Arc<crate::unresolved::LispData>>) -> mcrust::net::minecraft::world::item::item_stack::ItemStack {
+    pub fn get_icon_body(__this: &compat::Shared<dyn SkillTreeBuilder>, mut enabled: bool, values: &std::collections::HashMap<String, crate::compat::nea_lisp::LispData>) -> mcrust::net::minecraft::world::item::item_stack::ItemStack {
         if !enabled {
             return ({ let __f = compat::dispatch(__this, |__t| __t.get_disabled_perk_icon()); __f(__this) });
         }
-        // TODO(fabric2seer): static field LispData.LispNil
-        //   java: LispData itemId = values.getOrDefault("item", LispData.LispNil.INSTANCE);
-        let mut item_id: Arc<crate::unresolved::LispData> = todo!("fabric2seer: the initialiser of `itemId` (TODO above)");
-        // TODO(fabric2seer): a pattern switch expression
-        //   java: String idPath = switch (itemId) {
-        //   java: 			case LispData.Atom atom -> atom.getLabel();
-        //   java: 			case LispData.LispString string -> string.getString();
-        //   java: 			default -> "barrier";
-        //   java: 		};
-        let mut id_path: String = todo!("fabric2seer: the initialiser of `idPath` (TODO above)");
-        // TODO(fabric2seer): `.value(..)` on a value of unknown type
-        //   java: return BuiltInRegistries.ITEM.get(Identifier.withDefaultNamespace(idPath.toLowerCase(Locale.ENGLISH)))
-        //   java: 				.map(Holder.Reference::value)
-        //   java: 				.map(ItemStack::new)
-        //   java: 				.orElseGet(() -> ItemUtils.getNamedPlaceholder(idPath).getStackOrThrow());
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        // java: LispData itemId = values.getOrDefault("item", LispData.LispNil.INSTANCE);
+        let mut item_id: crate::compat::nea_lisp::LispData = values.get("item").cloned().unwrap_or(crate::compat::nea_lisp::LispData::LispNil);
+        // java: String idPath = switch (itemId) { case LispData.Atom atom -> atom.getLabel(); case LispData.LispString string -> string.getString(); default -> "barrier"; };
+        let mut id_path: String = match &item_id {
+            crate::compat::nea_lisp::LispData::Atom(label) => label.clone(),
+            crate::compat::nea_lisp::LispData::LispString(string) => string.clone(),
+            _ => "barrier".to_string(),
+        };
+        // java: return BuiltInRegistries.ITEM.get(Identifier.withDefaultNamespace(idPath.toLowerCase(Locale.ENGLISH)))
+        //   .map(Holder.Reference::value).map(ItemStack::new).orElseGet(() -> ItemUtils.getNamedPlaceholder(idPath).getStackOrThrow());
+        // (the `minecraft:` items by path)
+        match mcrust::net::minecraft::world::item::items::items().get_optional(&id_path.to_lowercase()) {
+            Some(item) => mcrust::net::minecraft::world::item::item_stack::ItemStack::of_one(item),
+            None => crate::de::hysky::skyblocker::utils::flexible_item_stack::FlexibleItemStack::get_stack_or_throw(&crate::de::hysky::skyblocker::utils::item_utils::ItemUtils::get_named_placeholder(&id_path)),
+        }
     }
 
 }
@@ -275,25 +276,25 @@ pub struct Perk {
     /// java: int maxLevel
     pub max_level: i32,
     /// java: LispAst.Program powder
-    pub powder: Arc<crate::unresolved::Program>,
+    pub powder: crate::compat::nea_lisp::Program,
     /// java: List<LoreLine> lore
     pub lore: Vec<LoreLine>,
     /// java: Dynamic<?> extraData
     pub extra_data: Dynamic,
     /// java: Map<String, LispAst.Program> programCache
-    pub program_cache: std::collections::HashMap<String, Arc<crate::unresolved::Program>>,
+    pub program_cache: std::collections::HashMap<String, crate::compat::nea_lisp::Program>,
 }
 
 impl Perk {
     /// java: private Perk(String name, int x, int y, int maxLevel, LispAst.Program powder, List<LoreLine> lore, Dynamic<?> extraData)
-    pub fn new(mut name: String, mut x: i32, mut y: i32, mut max_level: i32, mut powder: Arc<crate::unresolved::Program>, mut lore: Vec<LoreLine>, mut extra_data: Dynamic) -> Self {
+    pub fn new(mut name: String, mut x: i32, mut y: i32, mut max_level: i32, mut powder: crate::compat::nea_lisp::Program, mut lore: Vec<LoreLine>, mut extra_data: Dynamic) -> Self {
         // java: this(name, x, y, maxLevel, powder, lore, extraData, precompilePrograms(extraData));
         let program_cache = SkillTreeBuilderBase::precompile_programs(&extra_data);
         Self::new_canonical(name, x, y, max_level, powder, lore, extra_data, program_cache)
     }
 
     /// java: the canonical record constructor
-    pub fn new_canonical(mut name: String, mut x: i32, mut y: i32, mut max_level: i32, mut powder: Arc<crate::unresolved::Program>, mut lore: Vec<LoreLine>, mut extra_data: Dynamic, mut program_cache: std::collections::HashMap<String, Arc<crate::unresolved::Program>>) -> Self {
+    pub fn new_canonical(mut name: String, mut x: i32, mut y: i32, mut max_level: i32, mut powder: crate::compat::nea_lisp::Program, mut lore: Vec<LoreLine>, mut extra_data: Dynamic, mut program_cache: std::collections::HashMap<String, crate::compat::nea_lisp::Program>) -> Self {
         Self { name, x, y, max_level, powder, lore, extra_data, program_cache }
     }
 
@@ -318,7 +319,7 @@ impl Perk {
     }
 
     /// java: the record accessor `powder()`
-    pub fn powder(&self) -> Arc<crate::unresolved::Program> {
+    pub fn powder(&self) -> crate::compat::nea_lisp::Program {
         self.powder.clone()
     }
 
@@ -333,7 +334,7 @@ impl Perk {
     }
 
     /// java: the record accessor `programCache()`
-    pub fn program_cache(&self) -> std::collections::HashMap<String, Arc<crate::unresolved::Program>> {
+    pub fn program_cache(&self) -> std::collections::HashMap<String, crate::compat::nea_lisp::Program> {
         self.program_cache.clone()
     }
 
@@ -345,12 +346,12 @@ pub struct LoreLine {
     /// java: String template
     pub template: String,
     /// java: Optional<LispAst.Program> condition
-    pub condition: Option<Arc<crate::unresolved::Program>>,
+    pub condition: Option<crate::compat::nea_lisp::Program>,
 }
 
 impl LoreLine {
     /// java: the canonical record constructor
-    pub fn new(mut template: String, mut condition: Option<Arc<crate::unresolved::Program>>) -> Self {
+    pub fn new(mut template: String, mut condition: Option<crate::compat::nea_lisp::Program>) -> Self {
         Self { template, condition }
     }
 
@@ -360,7 +361,7 @@ impl LoreLine {
     }
 
     /// java: the record accessor `condition()`
-    pub fn condition(&self) -> Option<Arc<crate::unresolved::Program>> {
+    pub fn condition(&self) -> Option<crate::compat::nea_lisp::Program> {
         self.condition.clone()
     }
 

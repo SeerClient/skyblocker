@@ -11,6 +11,16 @@ use crate::de::hysky::skyblocker::skyblock::itemlist::stack_overlays::StackOverl
 use crate::de::hysky::skyblocker::utils::flexible_item_stack::FlexibleItemStack;
 use crate::de::hysky::skyblocker::utils::item_utils::ItemUtils;
 use crate::de::hysky::skyblocker::utils::neu_repo_manager::NEURepoManager;
+use crate::de::hysky::skyblocker::skyblock::itemlist::recipes::skyblock_crafting_recipe::SkyblockCraftingRecipe;
+use crate::de::hysky::skyblocker::skyblock::itemlist::recipes::skyblock_forge_recipe::SkyblockForgeRecipe;
+use crate::de::hysky::skyblocker::skyblock::itemlist::recipes::skyblock_kat_upgrade_recipe::SkyblockKatUpgradeRecipe;
+use crate::de::hysky::skyblocker::skyblock::itemlist::recipes::skyblock_npc_shop_recipe::SkyblockNpcShopRecipe;
+use crate::io::github::moulberry::repo::data::neu_crafting_recipe::NEUCraftingRecipe;
+use crate::io::github::moulberry::repo::data::neu_forge_recipe::NEUForgeRecipe;
+use crate::io::github::moulberry::repo::data::neu_item::NEUItem;
+use crate::io::github::moulberry::repo::data::neu_kat_upgrade_recipe::NEUKatUpgradeRecipe;
+use crate::io::github::moulberry::repo::data::neu_npc_shop_recipe::NEUNpcShopRecipe;
+use crate::io::github::moulberry::repo::data::neu_recipe::NEURecipe;
 use mcrust::java::util::concurrent::completable_future::CompletableFuture;
 use mcrust::net::minecraft::client::minecraft;
 use mcrust::net::minecraft::network::protocol::game::clientbound_update_recipes_packet::ClientboundUpdateRecipesPacket;
@@ -66,9 +76,12 @@ impl ItemRepository {
         let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             crate::compat::execute(move || {
                 // java: client.getConnection().handleUpdateRecipes(packet);
-                // rust: port gap - `minecraft::get_connection` answers the play listener's sinks, not the game's
-                // `ClientPacketListener`, so a mod cannot hand it a packet to handle (GAPS_batchF.md)
-                let _ = &packet;
+                // (`ClientPacketListener.handleUpdateRecipes`: `this.recipes = new ClientRecipeContainer(packet.itemSets(),
+                // packet.stonecutterRecipes())` - the listener's `recipes` is the SAME object the play sinks publish)
+                if let Some(connection) = compat::get_connection(compat::minecraft()) {
+                    let container = mcrust::net::minecraft::client::multiplayer::client_recipe_container::ClientRecipeContainer::new(packet.item_sets().clone(), packet.stonecutter_recipes().clone());
+                    *compat::lock(&connection.recipes) = container;
+                }
                 if *jei_compatibility::JEI_LOADED {
                     crate::entry::skyblocker_jei_plugin::trick_jei_into_loading_recipes();
                 }
@@ -80,7 +93,22 @@ impl ItemRepository {
     }
 
     /// java: private static void importItemFiles()
+    ///
+    /// Java runs this as a `runAsyncAfterLoad` task, i.e. on `SkyblockerMod.VIRTUAL_THREAD_EXECUTOR`: parsing every NEU
+    /// item (~25 s here) must not happen on the render thread. The body runs on a worker; the readers stay gated on
+    /// `itemsImported` / `filesImported` exactly as in Java, and the after-import tasks (render-thread objects, not
+    /// `Send`) are dispatched back on the render thread.
     pub fn import_item_files() {
+        compat::executor(Box::new(|| {
+            let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(ItemRepository::import_item_files_body));
+            if let Err(e) = __result {
+                logger().error(&format!("[Skyblocker NEU Repo] Encountered unknown exception while running after load task {}", compat::panic_message(&e)));
+            }
+        }));
+    }
+
+    /// `importItemFiles`'s body, on the worker `import_item_files` starts.
+    fn import_item_files_body() {
         compat::set_state(&ITEMS_IMPORTED, false);
         compat::set_state(&FILES_IMPORTED, false);
         ITEMS.get_mut().clear();
@@ -107,14 +135,18 @@ impl ItemRepository {
         // java: }));
         // Both executors: the runnables are the mod's (not `Send`), so they run deferred on the render thread
         // (`compat::execute_local`, the Minecraft executor) - batch F pattern 10.
-        let __tasks: Vec<AfterImportTask> = AFTER_IMPORT_TASKS.get().clone();
-        for task in __tasks {
-            compat::run_async_logging(task.runnable.clone(), "[Skyblocker Item Repo Loader] Encountered unknown exception while running after import tasks");
-        }
+        // (this runs on the import worker: the hop to the render thread is the `Send` task below, which then queues each
+        // non-`Send` runnable there)
+        crate::compat::execute(|| {
+            let __tasks: Vec<AfterImportTask> = AFTER_IMPORT_TASKS.get().clone();
+            for task in __tasks {
+                compat::run_async_logging(task.runnable.clone(), "[Skyblocker Item Repo Loader] Encountered unknown exception while running after import tasks");
+            }
+        });
     }
 
     /// java: private static void loadItem(NEUItem item)
-    pub fn load_item(item: &crate::unresolved::NEUItem) {
+    pub fn load_item(item: &NEUItem) {
         // java: try {..} catch (Exception e) - an exception here is a panic, caught by `catch_unwind`
         let __result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             let mut stack: compat::Shared<FlexibleItemStack> = ItemStackBuilder::from_neu_item(item);
@@ -126,41 +158,47 @@ impl ItemRepository {
             }
             ITEMS.get_mut().push(stack.clone());
             // java: itemsMap.put(item.getSkyblockItemId(), stack);
-            // rust: port gap (GAPS_batchB L1 / GAPS_J #5) - `NEUItem` is a `crate::unresolved` unit struct (the NEU repo
-            // library is unported), so it has no `getSkyblockItemId()`.
+            ITEMS_MAP.get_mut().insert(item.get_skyblock_item_id().to_string(), stack.clone());
         }));
         if let Err(e) = __result {
             // java: LOGGER.error("[Skyblocker Item Repo Loader] Failed to load item, please report this! Skyblock Id: {}", item.getSkyblockItemId(), e);
-            // rust: port gap (GAPS_J #5) - `NEUItem.getSkyblockItemId()` (unported NEU library); the id is left out.
-            logger().error(&format!("[Skyblocker Item Repo Loader] Failed to load item, please report this! Skyblock Id: {}", "<NEUItem.getSkyblockItemId unported>"));
-            let _ = compat::panic_message(&e);
+            logger().error(&format!("[Skyblocker Item Repo Loader] Failed to load item, please report this! Skyblock Id: {} {}", item.get_skyblock_item_id(), compat::panic_message(&e)));
         }
     }
 
     /// java: private static void loadRecipes(NEUItem item)
-    pub fn load_recipes(item: &crate::unresolved::NEUItem) {
-        // TODO(fabric2seer): `.getRecipes(..)` on a NEUItem
+    pub fn load_recipes(item: &NEUItem) {
         //   java: item.getRecipes().stream().map(ItemRepository::toSkyblockRecipe).filter(Objects::nonNull).forEach(recipes::add);
+        let __recipes: Vec<compat::Shared<dyn SkyblockRecipe>> = item.get_recipes().iter().filter_map(|__r| ItemRepository::to_skyblock_recipe(&**__r)).collect();
+        RECIPES.get_mut().extend(__recipes);
     }
 
     /// java: private static void loadBazaarStocks()
     pub fn load_bazaar_stocks() {
         compat::lock(&BAZAAR_STOCKS).clear();
-        // TODO(fabric2seer): `.getBazaarStocks(..)` on a NEUConstants
         //   java: NEURepoManager.getConstants().getBazaarStocks().getStocks().forEach((String neuId, String skyblockId) -> bazaarStocks.put(skyblockId, neuId));
+        let constants = NEURepoManager::get_constants();
+        let mut bazaar_stocks = compat::lock(&BAZAAR_STOCKS);
+        for (neu_id, skyblock_id) in constants.get_bazaar_stocks().get_stocks().iter() {
+            bazaar_stocks.insert(skyblock_id.clone(), neu_id.clone());
+        }
     }
 
     /// java: public static @Nullable String getWikiLink(String neuId)
     pub fn get_wiki_link(neu_id: &str) -> Option<String> {
-        let mut item: Option<crate::unresolved::NEUItem> = NEURepoManager::get_item_by_neu_id(neu_id);
-        // TODO(fabric2seer): the condition: `.getInfo(..)` on a NEUItem
-        //   java: item == null || item.getInfo() == null || item.getInfo().isEmpty()
-        if todo!("fabric2seer: the condition (TODO above)") {
+        let item = NEURepoManager::get_item_by_neu_id(neu_id);
+        //   java: if (item == null || item.getInfo() == null || item.getInfo().isEmpty()) return null;
+        let Some(item) = item else {
+            return None;
+        };
+        let Some(info) = item.get_info() else {
+            return None;
+        };
+        if info.is_empty() {
             return None;
         }
-        // TODO(fabric2seer): `.getInfo(..)` on a NEUItem
         //   java: List<String> info = item.getInfo();
-        let mut info: Vec<String> = todo!("fabric2seer: the initialiser of `info` (TODO above)");
+        let mut info: Vec<String> = info.to_vec();
         let mut wiki_link0: String = info[0].clone();
         let mut wiki_link1: String = (if (info.len() as i32) > 1 { info[(1) as usize].clone() } else { "".to_string() });
         let mut wiki_domain: String = ItemRepository::get_wiki_link_0();
@@ -230,22 +268,19 @@ impl ItemRepository {
     /// java: public static Stream<SkyblockRecipe> getRecipes(ItemStack stack)
     pub fn get_recipes(stack: &mcrust::net::minecraft::world::item::item_stack::ItemStack) -> Box<dyn Iterator<Item = compat::Shared<dyn SkyblockRecipe>> + '_> {
         // java: NEURepoManager.getRecipes().getOrDefault(stack.getNeuName(), Set.of()).stream().map(ItemRepository::toSkyblockRecipe).filter(Objects::nonNull)
-        let __recipes: Vec<compat::Shared<dyn SkyblockRecipe>> = NEURepoManager::get_recipes().get(&stack.get_neu_name()).map(|__set| __set.iter().filter_map(|__a0| ItemRepository::to_skyblock_recipe(__a0)).collect()).unwrap_or_default();
+        let __recipes: Vec<compat::Shared<dyn SkyblockRecipe>> = NEURepoManager::get_recipes().get(&stack.get_neu_name()).map(|__set| __set.iter().filter_map(|__a0| ItemRepository::to_skyblock_recipe(&**__a0)).collect()).unwrap_or_default();
         return Box::new(__recipes.into_iter());
     }
 
     /// java: public static Stream<SkyblockRecipe> getUsages(ItemStack stack)
     pub fn get_usages(stack: &mcrust::net::minecraft::world::item::item_stack::ItemStack) -> Box<dyn Iterator<Item = compat::Shared<dyn SkyblockRecipe>> + '_> {
         // java: NEURepoManager.getUsages().getOrDefault(stack.getNeuName(), Set.of()).stream().map(ItemRepository::toSkyblockRecipe).filter(Objects::nonNull)
-        let __usages: Vec<compat::Shared<dyn SkyblockRecipe>> = NEURepoManager::get_usages().get(&stack.get_neu_name()).map(|__set| __set.iter().filter_map(|__a0| ItemRepository::to_skyblock_recipe(__a0)).collect()).unwrap_or_default();
+        let __usages: Vec<compat::Shared<dyn SkyblockRecipe>> = NEURepoManager::get_usages().get(&stack.get_neu_name()).map(|__set| __set.iter().filter_map(|__a0| ItemRepository::to_skyblock_recipe(&**__a0)).collect()).unwrap_or_default();
         return Box::new(__usages.into_iter());
     }
 
     /// java: private static @Nullable SkyblockRecipe toSkyblockRecipe(NEURecipe neuRecipe)
-    pub fn to_skyblock_recipe(neu_recipe: &crate::unresolved::NEURecipe) -> Option<compat::Shared<dyn SkyblockRecipe>> {
-        // rust: port gap (GAPS_J #5) - the switch dispatches on the NEU library's recipe subclasses
-        // (`NEUCraftingRecipe`, `NEUForgeRecipe`, `NEUNpcShopRecipe`, `NEUKatUpgradeRecipe`), all `crate::unresolved`
-        // unit structs with no common type to match on. The todo! stays until the NEU repo library is ported.
+    pub fn to_skyblock_recipe(neu_recipe: &dyn NEURecipe) -> Option<compat::Shared<dyn SkyblockRecipe>> {
         //   java: return switch (neuRecipe) {
         //   java: 			case NEUCraftingRecipe craftingRecipe -> new SkyblockCraftingRecipe(craftingRecipe);
         //   java: 			case NEUForgeRecipe forgeRecipe -> new SkyblockForgeRecipe(forgeRecipe);
@@ -253,7 +288,20 @@ impl ItemRepository {
         //   java: 			case NEUKatUpgradeRecipe katUpgradeRecipe -> new SkyblockKatUpgradeRecipe(katUpgradeRecipe);
         //   java: 			case null, default -> null;
         //   java: 		};
-        todo!("fabric2seer: the value of this function is in a TODO above")
+        // (a type switch: the recipe's concrete class, in the cases' order; the Skyblocker recipes keep their own copy)
+        if let Some(crafting_recipe) = neu_recipe.downcast_ref::<NEUCraftingRecipe>() {
+            return Some(SkyblockCraftingRecipe::new(crafting_recipe.clone()) as compat::Shared<dyn SkyblockRecipe>);
+        }
+        if let Some(forge_recipe) = neu_recipe.downcast_ref::<NEUForgeRecipe>() {
+            return Some(SkyblockForgeRecipe::new(forge_recipe.clone()) as compat::Shared<dyn SkyblockRecipe>);
+        }
+        if let Some(shop_recipe) = neu_recipe.downcast_ref::<NEUNpcShopRecipe>() {
+            return Some(SkyblockNpcShopRecipe::new(shop_recipe.clone()) as compat::Shared<dyn SkyblockRecipe>);
+        }
+        if let Some(kat_upgrade_recipe) = neu_recipe.downcast_ref::<NEUKatUpgradeRecipe>() {
+            return Some(SkyblockKatUpgradeRecipe::new(kat_upgrade_recipe.clone()) as compat::Shared<dyn SkyblockRecipe>);
+        }
+        None
     }
 
     /// java: public static void runAsyncAfterImport(Runnable runnable)

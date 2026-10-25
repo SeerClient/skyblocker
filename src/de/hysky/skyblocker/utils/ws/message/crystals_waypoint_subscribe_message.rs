@@ -16,10 +16,9 @@ use mcrust::net::minecraft::world::timeline::timeline::Timeline;
 pub static CODEC: compat::MainThread<CodecRef<CrystalsWaypointSubscribeMessage>> = compat::MainThread::new(|| record_codec_builder::create(record_codec_builder::apply1(record_codec_builder::of(|o: &CrystalsWaypointSubscribeMessage| o.timestamp(), codec::field_of(mcrust::com::mojang::serialization::codec::long_codec(), "timestamp")), move |__a0| CrystalsWaypointSubscribeMessage::new(__a0.clone()))));
 /// java: private static final long MAX_LOBBY_LIFETIME = 26;
 pub const MAX_LOBBY_LIFETIME: i64 = ((26) as i64) as i64;
-// TODO(fabric2seer): `.toMillis(..)` on a Duration
-//   java: private static final long MILLIS_PER_MINECRAFT_DAY = Duration.ofMinutes(20).toMillis();
 /// java: private static final long MILLIS_PER_MINECRAFT_DAY = Duration.ofMinutes(20).toMillis();
-pub static MILLIS_PER_MINECRAFT_DAY: LazyLock<i64> = LazyLock::new(|| 20i64 * 60 * 1000);
+/// (`Duration.ofMinutes(20).toMillis()`: 20 * 60 seconds * 1000 milliseconds)
+pub static MILLIS_PER_MINECRAFT_DAY: LazyLock<i64> = LazyLock::new(|| std::time::Duration::from_secs(20 * 60).as_millis() as i64);
 /// java: private static final long MILLIS_TO_SECONDS = 1000;
 pub const MILLIS_TO_SECONDS: i64 = ((1000) as i64) as i64;
 
@@ -43,14 +42,19 @@ impl CrystalsWaypointSubscribeMessage {
 
     /// java: public static CrystalsWaypointSubscribeMessage create(ClientLevel world)
     pub fn create(world: &ClientLevel) -> CrystalsWaypointSubscribeMessage {
+        // java: ClockManager clockManager = world.clockManager();
         let clock_manager = world.clock_manager();
-        // TODO(fabric2seer): `RegistryAccess.get` has no Rust method in the port (looked for `get` in RegistryAccess and its supertypes)
-        // rust: let mut timeline: Option<Reference> = world.registry_access().get(&mcrust::net::minecraft::world::timeline::timelines::overworld_day());
-        let mut timeline: Option<Reference> = todo!("fabric2seer: the initialiser of `timeline` (TODO above)");
-        if timeline.is_some() {
-            // TODO(fabric2seer): `.getPeriodCount(..)` on a value of unknown type
-            //   java: int dayCount = timeline.get().value().getPeriodCount(clockManager);
-            let mut day_count: i32 = todo!("fabric2seer: the initialiser of `dayCount` (TODO above)");
+        // java: Optional<Holder.Reference<Timeline>> timeline = world.registryAccess().get(Timelines.OVERWORLD_DAY);
+        // (`HolderGetter.Provider.get` is the port's `get_element`; a reference's value is the erased `Timeline`)
+        use mcrust::net::minecraft::core::holder_getter::HolderGetterProvider as _;
+        let timeline: Option<Timeline> = world
+            .registry_access()
+            .get_element(&mcrust::net::minecraft::world::timeline::timelines::overworld_day())
+            .filter(|reference| reference.is_bound())
+            .and_then(|reference| mcrust::com::mojang::serialization::cast::<Timeline>(&reference.value()).cloned());
+        if let Some(timeline) = &timeline {
+            // java: int dayCount = timeline.get().value().getPeriodCount(clockManager);
+            let mut day_count: i32 = timeline.get_period_count(clock_manager.as_ref());
             if crate::de::hysky::skyblocker::debug::debug::Debug::debug_enabled() && crate::de::hysky::skyblocker::debug::debug::Debug::web_socket_debug() {
                 logger().info(&format!("[Skyblocker WebSocket] CH Day Count: {}", day_count));
             }

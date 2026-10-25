@@ -150,7 +150,11 @@ impl SkyblockerScreen {
                 type Source = client_command_registration_callback::FabricClientCommandSource;
                 let mut root = client_command_registration_callback::literal(crate::entry::skyblocker_mod::NAMESPACE);
                 root.executes(Arc::new(|_: &CommandContext<Source>| {
+                    // Diagnostic (one line per run of the command, which a player types): the chain the screen takes
+                    // - executes, then `Scheduler.queueOpenScreen`'s scheduled `setScreen`.
+                    logger().info("[Skyblocker] /skyblocker: queueing SkyblockerScreen");
                     mcrust::net::minecraft::client::minecraft::execute(Box::new(|_minecraft| {
+                        logger().info("[Skyblocker] /skyblocker: setScreen(new SkyblockerScreen())");
                         mcrust::mcrust::modding::game::set_screen(Box::new(compat::ScreenAdapter::new(SkyblockerScreen::new())));
                     }));
                     Ok(1)

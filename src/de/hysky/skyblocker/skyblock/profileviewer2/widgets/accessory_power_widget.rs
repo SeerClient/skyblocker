@@ -57,19 +57,22 @@ impl AccessoryPowerWidget {
     pub fn new(mut width: i32, mut info: LoadingInformation, mut item_storage: ProfileItemStorage) -> compat::Shared<Self> {
         let mut accessory_power: i32 = AccessoryPowerCalculator::calculate_accessory_power(&info.member(), &item_storage.bags().accessories());
         let mut main_lines: Vec<MutableComponent> = AccessoryPowerWidget::build_lines(&info, accessory_power);
-        let mut stat_lines: Vec<MutableComponent> = AccessoryPowerCalculator::get_power_stats(accessory_power, &info.member().lock().borrow().accessory_bag_storage.selected_power);
+        let __selected_power = compat::read(&info.member(), |__m| __m.accessory_bag_storage.selected_power.clone());
+        let mut stat_lines: Vec<MutableComponent> = AccessoryPowerCalculator::get_power_stats(accessory_power, &__selected_power);
         let mut stats_halves: (Vec<MutableComponent>, Vec<MutableComponent>) = CollectionUtils::halve(&stat_lines);
         let mut line_height: i32 = mcrust::net::minecraft::client::gui::font::LINE_HEIGHT;
         let mut main_lines_height: i32 = (line_height.wrapping_add(TEXT_EXTRA_SPACING)).wrapping_mul(main_lines.len() as i32);
         let mut stat_lines_height: i32 = (line_height.wrapping_add(TEXT_EXTRA_SPACING)).wrapping_mul((stats_halves.0.len() as i32).max((stats_halves.1.len() as i32)));
         let mut height: i32 = ((OFFSET.wrapping_mul(2)).wrapping_add(main_lines_height)).wrapping_add(stat_lines_height);
-        // TODO(fabric2seer): super(..) with 0 argument(s)
-        //   java:
-        let __this: compat::Shared<Self> = todo!("constructor");
-        // TODO(fabric2seer): super statement
-        //   java: super(width, height);
-        { let __v = main_lines.clone(); compat::write(&__this, |__t| __t.main_lines = __v); }
-        { let __v = Some(stats_halves.clone()); compat::write(&__this, |__t| __t.stats_halves = __v); }
+        // java: super(width, height); this.mainLines = mainLines; this.statsHalves = statsHalves;
+        let (_, __this) = BasicInfoBoxWidgetBase::new_in(width, height, move |__base| {
+            let __h = compat::shared(Self {
+                base: __base,
+                main_lines,
+                stats_halves: Some(stats_halves),
+            });
+            ((__h.clone() as compat::Shared<dyn BasicInfoBoxWidget>), __h)
+        });
         __this
     }
 
@@ -78,10 +81,6 @@ impl AccessoryPowerWidget {
         let mut lines: Vec<MutableComponent> = Vec::new();
         let mut ap_text: MutableComponent = component::empty().append(component::literal("AP: ").with_style_format(ChatFormatting::Gold)).append_str(&formatters::INTEGER_NUMBERS.get_mut().format((accessory_power) as f64));
         lines.push(ap_text.clone());
-        // TODO(fabric2seer): static call WordUtils.capitalizeFully(..)
-        //   java: Component powerText = Component.empty()
-        //   java: 				.append(Component.literal("Power: ").withStyle(ChatFormatting.GREEN))
-        //   java: 				.append(WordUtils.capitalizeFully(info.member().accessoryBagStorage.selectedPower));
         let mut power_text: MutableComponent = component::empty().append(component::literal("Power: ").with_style_format(ChatFormatting::Green)).append_str(&compat::capitalize_fully(&info.member().lock().borrow().accessory_bag_storage.selected_power));
         lines.push(power_text.clone());
         lines.push(component::empty());

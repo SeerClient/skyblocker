@@ -48,9 +48,10 @@ impl IdentifierTexture {
     pub fn update(__this: &compat::Shared<Self>) {
         let minecraft = compat::minecraft();
         if compat::read(__this, |__t| __t.atlas.clone()).is_some() {
-            // TODO(fabric2seer): `Minecraft.getAtlasManager` has no Rust method in the port (looked for `get_atlas_manager` in Minecraft and its supertypes)
-            // rust: let mut texture_atlas: TextureAtlas = minecraft.get_atlas_manager().get_atlas_or_throw(&compat::read(__this, |__t| __t.atlas.clone()).unwrap());
-            let mut texture_atlas: TextureAtlas = todo!("fabric2seer: the initialiser of `textureAtlas` (TODO above)");
+            // java: TextureAtlas textureAtlas = minecraft.getAtlasManager().getAtlasOrThrow(this.atlas);
+            let __atlas_id = compat::read(__this, |__t| __t.atlas.clone()).unwrap();
+            let __atlas_manager = minecraft.get_atlas_manager().expect("Minecraft.getAtlasManager() before the atlases loaded");
+            let texture_atlas = __atlas_manager.get_atlas_or_throw(&__atlas_id);
             // java: textureAtlas.missingSprite() == textureAtlas.getSprite(this.texture) - the same sprite object
             if std::ptr::eq(texture_atlas.missing_sprite(), texture_atlas.get_sprite(&compat::read(__this, |__t| __t.texture.clone()))) {
                 { let __v = compat::read(__this, |__t| __t.fallback.clone()); compat::write(__this, |__t| __t.current_texture = __v); }

@@ -16,6 +16,8 @@ pub struct StorageOverlayScreenHandler {
     pub base: AbstractContainerMenu,
     /// java: private final int rows;
     pub rows: i32,
+    /// java: `this.containerId` (`super(type, syncId, ..)`) - which of the player's menus is THIS object's own
+    pub container_id: i32,
 }
 
 impl std::ops::Deref for StorageOverlayScreenHandler {
@@ -39,6 +41,7 @@ impl StorageOverlayScreenHandler {
         let __this = compat::shared(Self {
             base: AbstractContainerMenu::new(0),
             rows: __init_rows,
+            container_id: sync_id,
         });
         // java: the constructor's body - run on the server's menu when the game attaches this object
         compat::defer_menu_init(&__this, move |__this_ref| {
@@ -98,13 +101,30 @@ impl StorageOverlayScreenHandler {
             // java: Slot slot = this.slots.get(i); SlotAccessor slotAccessor = (SlotAccessor) slot; slotAccessor.setX(itemX); slotAccessor.setY(itemY);
             // (`this.slots` is the menu this object rides on: the player's open one, where the screen draws and
             // hit-tests the slots)
-            let _ = mcrust::mcrust::modding::game::with_abstract_container_menu(|__menu| {
+            let _ = StorageOverlayScreenHandler::with_own_menu(__this, |__menu| {
                 if let Some(slot) = __menu.slots.get_mut((i) as usize) {
                     slot.x = item_x;
                     slot.y = item_y;
                 }
             });
         }
+    }
+
+    /// `this.slots` outside the constructor: the player's open menu, but ONLY while it is the menu THIS object rides on
+    /// - its own `containerId` with a `StorageOverlayScreenHandler` attached - never `player.inventoryMenu` (id 0) and
+    /// never the NEXT menu the server opened. Java's handler is its own menu instance, so its slot moves can never reach
+    /// another menu; but here the packet drain puts the new menu on the player a frame before the new screen replaces
+    /// this overlay, and that frame's overlay re-laid the new menu's slots (`moveBackpackSlots` over slots 9.. of a
+    /// "Craft Item" chest whose own handler had attached, or of the next backpack's).
+    pub fn with_own_menu<R>(__this: &compat::Shared<Self>, f: impl FnOnce(&mut AbstractContainerMenu) -> R) -> Option<R> {
+        let __own_id: i32 = compat::read(__this, |__t| __t.container_id);
+        mcrust::mcrust::modding::game::with_abstract_container_menu(|__menu| {
+            (__menu.container_id != 0
+                && __menu.container_id == __own_id
+                && __menu.mod_menu().is_some_and(|__m| __m.is::<compat::MenuAdapter<StorageOverlayScreenHandler>>()))
+            .then(|| f(__menu))
+        })
+        .flatten()
     }
 
 }

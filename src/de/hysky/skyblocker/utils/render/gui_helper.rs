@@ -126,16 +126,52 @@ impl GuiHelper {
     pub fn equipment<S: Clone + 'static>(graphics: &GuiGraphicsExtractor, equipment_renderer: &EquipmentLayerRenderer, layer_type: &LayerType, asset_key: &ResourceKey, model: &Model, state: &S, stack: &mcrust::net::minecraft::world::item::item_stack::ItemStack, mut x1: i32, mut y1: i32, mut x2: i32, mut y2: i32, mut rotation: f32, mut scale: f32, mut offset: f32) {
         // java: GuiEquipmentRenderState<S> renderState = new GuiEquipmentRenderState<>(equipmentRenderer, layerType, assetKey, model, state, stack, x1, y1, x2, y2, rotation, scale, offset, graphics.scissorStack.peek());
         // java: graphics.guiRenderState.addPicturesInPictureState(renderState);
-        // rust: blocked (cross-package, GAPS_J #3) - `GuiEquipmentRenderState`'s constructor is
-        // still `todo!("constructor")` in the unowned `utils/render/state/gui/`, it takes the
-        // `EquipmentLayerRenderer` BY VALUE (Java shares the live one) and implements no
-        // `PictureInPictureRenderState`, which `GuiRenderState::add_pictures_in_picture_state` takes.
+        // BLOCKED (cross-package, `skyblock/item/custom/screen/trim_element_button.rs`): the state and its renderer are ported (`GuiEquipmentRenderState` implements
+        // `PictureInPictureRenderState`; `GuiEquipmentRenderer` registers through `compat::leftovers_register_picture_in_picture_renderer`),
+        // but this signature hands a `Model` VALUE where `EquipmentLayerRenderer.renderLayers` (and so the state) takes the
+        // shared `Rc<RefCell<dyn AnimatedModel>>` the model is posed through, and the only caller (`TrimElementButton.Pattern`)
+        // never reaches here: its `equipmentModelData` is baked from `Minecraft.getEntityModels()`, which the port does not
+        // lend a mod (GAPS_batchE). The statement lands with that model handle.
+        let _ = (graphics, equipment_renderer, layer_type, asset_key, model, state, stack, x1, y1, x2, y2, rotation, scale, offset);
     }
 
     /// java: public static void outlinedText(GuiGraphicsExtractor graphics, Component text, int x, int y, int color, int outlineColor)
     pub fn outlined_text(graphics: &GuiGraphicsExtractor, text: &MutableComponent, mut x: i32, mut y: i32, mut color: i32, mut outline_color: i32) {
         let mut ordered_text: Seq = text.get_visual_order_text();
         GuiHelper::outlined_text_7(graphics, &ordered_text, &(if *modern_ui_compatibility::MODERNUI_ENABLED { component::literal(&text.get_string()).get_visual_order_text() } else { ordered_text.clone() }), x, y, color, outline_color);
+    }
+
+    /// PERF (port-only, same draw): `outlinedText(graphics, text, x, y, color, outlineColor)` above, answering the
+    /// resolved record it added when a caller may keep it: neither compat arm can draw (no Caxton, no ModernUI -
+    /// then `outlinedText`'s outline sequence IS the text's) and the resolve was cacheable. A caller that draws
+    /// the same text at the same place in the same colours, under the same
+    /// `gui_graphics_extractor::gui_text_record_epoch`, hands the record back through `add_kept_outlined_text`
+    /// instead of building the outline (8 glyph passes) and the text again.
+    pub fn outlined_text_kept(graphics: &GuiGraphicsExtractor, text: &MutableComponent, x: i32, y: i32, color: i32, outline_color: i32) -> Option<Rc<mcrust::net::minecraft::client::renderer::state::gui::gui_text_render_state::PreparedText>> {
+        if !GuiHelper::outlined_text_keepable() {
+            GuiHelper::outlined_text(graphics, text, x, y, color, outline_color);
+            return None;
+        }
+        let ordered_text: Seq = text.get_visual_order_text();
+        // `outlinedText(graphics, ordered, ordered, ..)`'s last statements: both compat arms answer false here.
+        let render_state = GuiOutlinedTextRenderState::new(&compat::font(), ordered_text, gui_graphics_extractor::current_pose(), x, y, color, outline_color, false, false, gui_graphics_extractor::peek_scissor());
+        let kept = render_state.cacheable.then(|| render_state.base.ensure_prepared_shared().clone());
+        gui_graphics_extractor::with_gui_render_state(|__s| __s.add_text(render_state.base));
+        kept
+    }
+
+    /// PERF (port-only): whether `outlined_text_kept` can answer a record at all - neither Caxton nor ModernUI is
+    /// loaded (each draws the outline its own way).
+    pub fn outlined_text_keepable() -> bool {
+        !*crate::de::hysky::skyblocker::compatibility::caxton_compatibility::CAXTON_ENABLED && !*modern_ui_compatibility::MODERNUI_ENABLED
+    }
+
+    /// PERF (port-only, same draw): the `addText` `outlined_text_kept` made, with a record it answered - the live
+    /// pose and scissor, as the constructor takes them (`GuiTextRenderState::new_shared` computes the bounds as
+    /// `new` does).
+    pub fn add_kept_outlined_text(prepared: &Rc<mcrust::net::minecraft::client::renderer::state::gui::gui_text_render_state::PreparedText>) {
+        let state = mcrust::net::minecraft::client::renderer::state::gui::gui_text_render_state::GuiTextRenderState::new_shared(prepared.clone(), gui_graphics_extractor::current_pose(), gui_graphics_extractor::peek_scissor());
+        gui_graphics_extractor::with_gui_render_state(|__s| __s.add_text(state));
     }
 
     /// java: public static void outlinedText(GuiGraphicsExtractor graphics, FormattedCharSequence text, int x, int y, int color, int outlineColor)
@@ -153,10 +189,10 @@ impl GuiHelper {
         }
         // java: GuiOutlinedTextRenderState renderState = new GuiOutlinedTextRenderState(CLIENT.font, text, new Matrix3x2f(graphics.pose()), x, y, color, outlineColor, false, false, graphics.scissorStack.peek());
         // java: graphics.guiRenderState.addText(renderState);
-        // rust: blocked (cross-package, GAPS_J #3) - `GuiOutlinedTextRenderState::new` is still
-        // `todo!("constructor")` in the unowned `utils/render/state/gui/`, and the port's
-        // `GuiRenderState::add_text` takes the game's `GuiTextRenderState` struct, not a subclass;
-        // calling it here would panic every outlined text, so the statement stays out.
+        let render_state = GuiOutlinedTextRenderState::new(&compat::font(), text.clone(), gui_graphics_extractor::current_pose(), x, y, color, outline_color, false, false, gui_graphics_extractor::peek_scissor());
+        // (the game's `addText` takes its own state: the subclass hands it the base it prepared - its
+        // `ensurePrepared()` record)
+        gui_graphics_extractor::with_gui_render_state(|__s| __s.add_text(render_state.base));
     }
 
     /// java: public static void blurredRectangle(GuiGraphicsExtractor graphics, int x0, int y0, int x1, int y1, int radius)
@@ -172,11 +208,14 @@ impl GuiHelper {
         let mut sampler: Rc<dyn GpuSampler> = render_system::with_sampler_cache(|cache| cache.get_clamp_to_edge(FilterMode::Linear));
         let mut vertex_colour: i32 = argb::color_rgb(radius, 255, 255);
         // java: ((GuiGraphicsExtractorInvoker) graphics).invokeInnerFill(SkyblockerRenderPipelines.BLURRED_RECTANGLE, TextureSetup.singleTexture(blitTextureView, sampler), x0, y0, x1, y1, vertexColour, null);
-        // rust: port gap (GAPS_J #2) - `GuiGraphicsExtractor.innerFill` is a private free fn
-        // (`gui_graphics_extractor::inner_fill`, no `pub`) and no public overload passes a colour
-        // with a pipeline + texture setup (`fill_with_texture_setup` fixes it at -1, and the
-        // colour here carries the blur radius). Needs `pub fn inner_fill`. Then:
-        // rust: gui_graphics_extractor::inner_fill(skyblocker_render_pipelines::BLURRED_RECTANGLE.get_mut(), &TextureSetup::single_texture(blit_texture_view.clone(), sampler.clone()), x0, y0, x1, y1, vertex_colour, None);
+        // `GuiGraphicsExtractor.innerFill:217-232` is private in the port; the invoker runs its body,
+        // which is public API: `addGuiElement(new ColoredRectangleRenderState(pipeline, textureSetup,
+        // new Matrix3x2f(pose), x0, y0, x1, y1, color1, color2 != null ? color2 : color1, scissorStack.peek()))`.
+        let _ = graphics;
+        let pipeline = skyblocker_render_pipelines::BLURRED_RECTANGLE.get().clone();
+        let texture_setup = TextureSetup::single_texture(blit_texture_view.clone(), sampler.clone());
+        let element = mcrust::net::minecraft::client::renderer::state::gui::colored_rectangle_render_state::ColoredRectangleRenderState::new(pipeline, texture_setup, gui_graphics_extractor::current_pose(), x0, y0, x1, y1, vertex_colour, vertex_colour, gui_graphics_extractor::peek_scissor());
+        gui_graphics_extractor::with_gui_render_state(|__s| __s.add_gui_element(Box::new(element)));
     }
 
     /// java: public static void updateScreenBlitTexture()

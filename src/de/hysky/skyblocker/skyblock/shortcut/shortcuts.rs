@@ -1,6 +1,7 @@
 //! Ported from de.hysky.skyblocker.skyblock.shortcut.Shortcuts by fabric2seer.
 
 #[allow(unused_imports)]
+use mcrust::com::mojang::brigadier::builder::argument_builder::ArgumentBuilder as _;
 use crate::prelude::*;
 use crate::de::hysky::skyblocker::config::skyblocker_config_manager::SkyblockerConfigManager;
 use crate::de::hysky::skyblocker::skyblock::shortcut::shortcut_key_binding;
@@ -21,6 +22,7 @@ use mcrust::net::minecraft::chat_formatting::ChatFormatting;
 use mcrust::net::minecraft::commands::command_build_context::CommandBuildContext;
 use mcrust::net::minecraft::network::chat::component;
 use mcrust::net::minecraft::network::chat::mutable_component::MutableComponent;
+use mcrust::net::minecraft::network::chat::component::Component as _;
 
 /// java: private static final Path SHORTCUTS_FILE = SkyblockerMod.CONFIG_DIR.resolve("shortcuts.json");
 pub static SHORTCUTS_FILE: compat::MainThread<std::path::PathBuf> = compat::MainThread::new(|| skyblocker_mod::CONFIG_DIR.get_mut().join("shortcuts.json"));
@@ -77,57 +79,14 @@ impl Shortcuts {
     /// java: @Init public static void init()
     pub fn init() {
         SHORTCUTS.get_mut().lock().borrow_mut().init();
+        // java: ClientCommandRegistrationCallback.EVENT.register(Shortcuts::registerCommands);
         client_command_registration_callback::EVENT.register(Arc::new(
             |dispatcher: &mut client_command_registration_callback::ClientCommandDispatcher| {
-                // TODO(fabric2seer): a command tree this tool cannot read (arguments, redirects, requires) - SeerClient commands receive the words after the name in `ctx.args`
-                //   java: dispatcher.register(literal(SkyblockerMod.NAMESPACE).then(literal("help").executes(context -> {
-                //   java: 			FabricClientCommandSource source = context.getSource();
-                //   java: 			GeneralConfig.Shortcuts shortcutsConf = SkyblockerConfigManager.get().general.shortcuts;
-                //   java: 			boolean shortcutsEnabled = shortcutsConf.enableShortcuts;
-                //   java: 			source.sendFeedback(statusMessage("Command Shortcuts", shortcutsEnabled && shortcutsConf.enableCommandShortcuts));
-                //   java: 			if (!isShortcutsLoaded()) {
-                //   java: 				source.sendFeedback(NOT_LOADED_TEXT);
-                //   java: 			} else for (Map.Entry<String, String> command : shortcuts.getData().commands.entrySet()) {
-                //   java: 				source.sendFeedback(shortcutEntry(command.getKey(), command.getValue()));
-                //   java: 			}
-                //   java:
-                //   java: 			source.sendFeedback(statusMessage("Command Argument Shortcuts", shortcutsEnabled && shortcutsConf.enableCommandArgShortcuts));
-                //   java: 			if (!isShortcutsLoaded()) {
-                //   java: 				source.sendFeedback(NOT_LOADED_TEXT);
-                //   java: 			} else for (Map.Entry<String, String> commandArg : shortcuts.getData().commandArgs.entrySet()) {
-                //   java: 				source.sendFeedback(shortcutEntry(commandArg.getKey(), commandArg.getValue()));
-                //   java: 			}
-                //   java:
-                //   java: 			source.sendFeedback(statusMessage("Key Binding Shortcuts", shortcutsEnabled && shortcutsConf.enableKeyBindingShortcuts));
-                //   java: 			if (!isShortcutsLoaded()) {
-                //   java: 				source.sendFeedback(NOT_LOADED_TEXT);
-                //   java: 			} else for (Map.Entry<ShortcutKeyBinding, String> keyBinding : shortcuts.getData().keyBindings.entrySet()) {
-                //   java: 				source.sendFeedback(shortcutEntry(keyBinding.getKey().getBoundKeysText().getString(), keyBinding.getValue()));
-                //   java: 			}
-                //   java:
-                //   java: 			source.sendFeedback(Component.empty().withStyle(ChatFormatting.BOLD)
-                //   java: 					.append(Component.literal("Skyblocker").withColor(TextColor.YELLOW))
-                //   java: 					.append(" ")
-                //   java: 					.append("Commands")
-                //   java: 			);
-                //   java: 			for (String command : dispatcher.getSmartUsage(dispatcher.getRoot().getChild(SkyblockerMod.NAMESPACE), source).values()) {
-                //   java: 				source.sendFeedback(Component.literal("/" + SkyblockerMod.NAMESPACE + " " + command).withColor(TextColor.GRAY));
-                //   java: 			}
-                //   java: 			return Command.SINGLE_SUCCESS;
-                //   java: 			// Queue the screen or else the screen will be immediately closed after executing this command
-                //   java: 		})).then(literal("shortcuts").executes(Scheduler.queueOpenScreenCommand(ShortcutsConfigScreen::new))));
-                if !(SkyblockerConfigManager::get().general.shortcuts.enable_shortcuts) {
-                    return;
-                }
-                if !(Shortcuts::is_shortcuts_loaded()) {
-                    logger().warn("[Skyblocker Shortcuts] Shortcuts not loaded yet, skipping command registration");
-                    return;
-                }
-                Shortcuts::register_shortcut_commands(dispatcher.dispatcher());
+                Shortcuts::register_commands(dispatcher.dispatcher(), dispatcher.build_context());
             },
         ));
-        // TODO(fabric2seer): ClientSendMessageEvents.MODIFY_COMMAND.register: no SeerClient equivalent yet
-        //   java: ClientSendMessageEvents.MODIFY_COMMAND.register(Shortcuts::modifyCommand);
+        // java: ClientSendMessageEvents.MODIFY_COMMAND.register(Shortcuts::modifyCommand);
+        compat::batch_w_register_modify_command(Arc::new(|command: String| Shortcuts::modify_command(command)));
     }
 
     /// java: private static ShortcutsRecord getDefaultShortcuts()
@@ -192,44 +151,72 @@ impl Shortcuts {
     }
 
     /// java: private static void registerCommands(CommandDispatcher<FabricClientCommandSource> dispatcher, CommandBuildContext registryAccess)
-    pub fn register_commands(dispatcher: &CommandDispatcher<crate::unresolved::FabricClientCommandSource>, registry_access: &CommandBuildContext) {
-        // TODO(fabric2seer): a command builder outside dispatcher.register(..)
-        //   java: dispatcher.register(literal(SkyblockerMod.NAMESPACE).then(literal("help").executes(context -> {
-        //   java: 			FabricClientCommandSource source = context.getSource();
-        //   java: 			GeneralConfig.Shortcuts shortcutsConf = SkyblockerConfigManager.get().general.shortcuts;
-        //   java: 			boolean shortcutsEnabled = shortcutsConf.enableShortcuts;
-        //   java: 			source.sendFeedback(statusMessage("Command Shortcuts", shortcutsEnabled && shortcutsConf.enableCommandShortcuts));
-        //   java: 			if (!isShortcutsLoaded()) {
-        //   java: 				source.sendFeedback(NOT_LOADED_TEXT);
-        //   java: 			} else for (Map.Entry<String, String> command : shortcuts.getData().commands.entrySet()) {
-        //   java: 				source.sendFeedback(shortcutEntry(command.getKey(), command.getValue()));
-        //   java: 			}
-        //   java:
-        //   java: 			source.sendFeedback(statusMessage("Command Argument Shortcuts", shortcutsEnabled && shortcutsConf.enableCommandArgShortcuts));
-        //   java: 			if (!isShortcutsLoaded()) {
-        //   java: 				source.sendFeedback(NOT_LOADED_TEXT);
-        //   java: 			} else for (Map.Entry<String, String> commandArg : shortcuts.getData().commandArgs.entrySet()) {
-        //   java: 				source.sendFeedback(shortcutEntry(commandArg.getKey(), commandArg.getValue()));
-        //   java: 			}
-        //   java:
-        //   java: 			source.sendFeedback(statusMessage("Key Binding Shortcuts", shortcutsEnabled && shortcutsConf.enableKeyBindingShortcuts));
-        //   java: 			if (!isShortcutsLoaded()) {
-        //   java: 				source.sendFeedback(NOT_LOADED_TEXT);
-        //   java: 			} else for (Map.Entry<ShortcutKeyBinding, String> keyBinding : shortcuts.getData().keyBindings.entrySet()) {
-        //   java: 				source.sendFeedback(shortcutEntry(keyBinding.getKey().getBoundKeysText().getString(), keyBinding.getValue()));
-        //   java: 			}
-        //   java:
-        //   java: 			source.sendFeedback(Component.empty().withStyle(ChatFormatting.BOLD)
-        //   java: 					.append(Component.literal("Skyblocker").withColor(TextColor.YELLOW))
-        //   java: 					.append(" ")
-        //   java: 					.append("Commands")
-        //   java: 			);
-        //   java: 			for (String command : dispatcher.getSmartUsage(dispatcher.getRoot().getChild(SkyblockerMod.NAMESPACE), source).values()) {
-        //   java: 				source.sendFeedback(Component.literal("/" + SkyblockerMod.NAMESPACE + " " + command).withColor(TextColor.GRAY));
-        //   java: 			}
-        //   java: 			return Command.SINGLE_SUCCESS;
-        //   java: 			// Queue the screen or else the screen will be immediately closed after executing this command
-        //   java: 		})).then(literal("shortcuts").executes(Scheduler.queueOpenScreenCommand(ShortcutsConfigScreen::new))));
+    /// (`registryAccess` is the port's `Option`: absent before the first join)
+    pub fn register_commands(dispatcher: &CommandDispatcher<client_command_registration_callback::FabricClientCommandSource>, registry_access: Option<&CommandBuildContext>) {
+        let _ = registry_access;
+        type Source = client_command_registration_callback::FabricClientCommandSource;
+        // java: dispatcher.register(literal(SkyblockerMod.NAMESPACE).then(literal("help").executes(context -> { .. }))
+        //   .then(literal("shortcuts").executes(Scheduler.queueOpenScreenCommand(ShortcutsConfigScreen::new))));
+        let mut help = client_command_registration_callback::literal("help");
+        help.executes(Arc::new(|context: &mcrust::com::mojang::brigadier::context::command_context::CommandContext<Source>| {
+            // java: FabricClientCommandSource source = context.getSource();
+            let source: Source = context.get_source().clone();
+            let shortcuts_conf = &SkyblockerConfigManager::get().general.shortcuts;
+            let shortcuts_enabled: bool = shortcuts_conf.enable_shortcuts;
+            // java: source.sendFeedback(statusMessage("Command Shortcuts", shortcutsEnabled && shortcutsConf.enableCommandShortcuts));
+            compat::batch_w_send_feedback(&Shortcuts::status_message("Command Shortcuts", shortcuts_enabled && shortcuts_conf.enable_command_shortcuts));
+            if !Shortcuts::is_shortcuts_loaded() {
+                compat::batch_w_send_feedback(NOT_LOADED_TEXT.get());
+            } else {
+                // java: for (Map.Entry<String, String> command : shortcuts.getData().commands.entrySet())
+                let commands = SHORTCUTS.get().lock().borrow().get_data().commands.clone();
+                for (key, value) in commands.iter() {
+                    compat::batch_w_send_feedback(&Shortcuts::shortcut_entry(key, value));
+                }
+            }
+            // java: source.sendFeedback(statusMessage("Command Argument Shortcuts", shortcutsEnabled && shortcutsConf.enableCommandArgShortcuts));
+            compat::batch_w_send_feedback(&Shortcuts::status_message("Command Argument Shortcuts", shortcuts_enabled && shortcuts_conf.enable_command_arg_shortcuts));
+            if !Shortcuts::is_shortcuts_loaded() {
+                compat::batch_w_send_feedback(NOT_LOADED_TEXT.get());
+            } else {
+                let command_args = SHORTCUTS.get().lock().borrow().get_data().command_args.clone();
+                for (key, value) in command_args.iter() {
+                    compat::batch_w_send_feedback(&Shortcuts::shortcut_entry(key, value));
+                }
+            }
+            // java: source.sendFeedback(statusMessage("Key Binding Shortcuts", shortcutsEnabled && shortcutsConf.enableKeyBindingShortcuts));
+            compat::batch_w_send_feedback(&Shortcuts::status_message("Key Binding Shortcuts", shortcuts_enabled && shortcuts_conf.enable_key_binding_shortcuts));
+            if !Shortcuts::is_shortcuts_loaded() {
+                compat::batch_w_send_feedback(NOT_LOADED_TEXT.get());
+            } else {
+                let key_bindings = SHORTCUTS.get().lock().borrow().get_data().key_bindings.clone();
+                for (key_binding, value) in key_bindings.iter() {
+                    compat::batch_w_send_feedback(&Shortcuts::shortcut_entry(&key_binding.get_bound_keys_text().get_string(), value));
+                }
+            }
+            // java: source.sendFeedback(Component.empty().withStyle(ChatFormatting.BOLD).append(Component.literal("Skyblocker").withColor(TextColor.YELLOW)).append(" ").append("Commands"));
+            compat::batch_w_send_feedback(&component::empty().with_style_format(ChatFormatting::Bold).append(component::literal("Skyblocker").with_color_text(mcrust::net::minecraft::network::chat::text_color::TextColor::YELLOW)).append_str(" ").append_str("Commands"));
+            // java: for (String command : dispatcher.getSmartUsage(dispatcher.getRoot().getChild(SkyblockerMod.NAMESPACE), source).values())
+            //   source.sendFeedback(Component.literal("/" + SkyblockerMod.NAMESPACE + " " + command).withColor(TextColor.GRAY));
+            // (`dispatcher` is the client command dispatcher this tree was registered on: the active one)
+            if let Some(dispatcher) = client_command_registration_callback::get_active_dispatcher() {
+                let root = dispatcher.get_root().get_child(skyblocker_mod::NAMESPACE).expect("NullPointerException");
+                for (_, command) in dispatcher.get_smart_usage(&root, &source) {
+                    compat::batch_w_send_feedback(&component::literal(&format!("/{} {}", skyblocker_mod::NAMESPACE, command)).with_color_text(mcrust::net::minecraft::network::chat::text_color::TextColor::GRAY));
+                }
+            }
+            Ok(1)
+        }));
+        // Queue the screen or else the screen will be immediately closed after executing this command
+        let mut shortcuts = client_command_registration_callback::literal("shortcuts");
+        shortcuts.executes(crate::de::hysky::skyblocker::utils::scheduler::scheduler::SchedulerBase::queue_open_screen_command(Arc::new(|| {
+            Box::new(compat::ScreenAdapter::new(crate::de::hysky::skyblocker::skyblock::shortcut::shortcuts_config_screen::ShortcutsConfigScreen::new())) as Box<dyn mcrust::mcrust::modding::screens::ModScreen>
+        })));
+        let mut root = client_command_registration_callback::literal(skyblocker_mod::NAMESPACE);
+        root.then(&help);
+        root.then(&shortcuts);
+        dispatcher.register(&root);
+        // java: if (!SkyblockerConfigManager.get().general.shortcuts.enableShortcuts) return;
         if !(SkyblockerConfigManager::get().general.shortcuts.enable_shortcuts) {
             return;
         }
@@ -237,7 +224,7 @@ impl Shortcuts {
             logger().warn("[Skyblocker Shortcuts] Shortcuts not loaded yet, skipping command registration");
             return;
         }
-        // (the callback above registers these: the port hands its listener the Fabric-side dispatcher)
+        Shortcuts::register_shortcut_commands(dispatcher);
     }
 
     /// java: the shortcut half of `registerCommands`: each command shortcut as a literal, each command argument

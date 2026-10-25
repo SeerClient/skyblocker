@@ -68,8 +68,10 @@ impl InventoryItemLoader {
         for inventory in INVENTORIES.iter() {
             match inventory.as_str() {
                 "inv_armor" => {
-                    // TODO(fabric2seer): a lambda / method reference where this call does not take one
-                    //   java: inventoryItems.addAll(inv.reversed());
+                    // java: List<ItemStack> inv = super.loadItems(data.getAsJsonObject(inventory)); inventoryItems.addAll(inv.reversed());
+                    let mut inv: Vec<mcrust::net::minecraft::world::item::item_stack::ItemStack> = <dyn ItemLoader>::load_items_body(&compat::view(__this, |a| a as compat::Shared<dyn ItemLoader>), &compat::json::get_as_json_object_of(&data, inventory));
+                    inv.reverse();
+                    inventory_items.extend(inv);
                 }
                 "inv_contents" => {
                     inventory_items.extend((<dyn ItemLoader>::load_items_body(&compat::view(__this, |a| a as compat::Shared<dyn ItemLoader>), &compat::json::get_as_json_object_of(&data, inventory)))[(9) as usize..(((<dyn ItemLoader>::load_items_body(&compat::view(__this, |a| a as compat::Shared<dyn ItemLoader>), &compat::json::get_as_json_object_of(&data, inventory))).len() as i32)) as usize].to_vec().into_iter());

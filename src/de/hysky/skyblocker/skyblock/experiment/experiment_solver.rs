@@ -22,7 +22,7 @@ pub struct ExperimentSolverBase {
     /// java: private State state = State.REMEMBER;
     pub state: State,
     /// java: private final Int2ObjectMap<ItemStack> slots = new Int2ObjectOpenHashMap<>();
-    pub slots: std::collections::HashMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack>,
+    pub slots: std::collections::BTreeMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack>,
 }
 
 impl std::ops::Deref for ExperimentSolverBase {
@@ -45,7 +45,7 @@ impl ExperimentSolverBase {
             let this = Self {
                 base: __base,
                 state: State::Remember,
-                slots: std::collections::HashMap::new(),
+                slots: std::collections::BTreeMap::new(),
             };
             let (__h, __r) = __wrap(this);
             ((__h.clone() as compat::Shared<dyn SimpleContainerSolver>), (__h, __r))
@@ -71,7 +71,7 @@ pub trait ExperimentSolver: SimpleContainerSolver + StackDisplayModifier {
     }
 
     /// java: public Int2ObjectMap<ItemStack> getSlots() (dispatch: the body for this class)
-    fn get_slots(&self) -> fn(&compat::Shared<dyn ExperimentSolver>) -> std::collections::HashMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack> {
+    fn get_slots(&self) -> fn(&compat::Shared<dyn ExperimentSolver>) -> std::collections::BTreeMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack> {
         <dyn ExperimentSolver>::get_slots_body
     }
 
@@ -100,7 +100,7 @@ impl dyn ExperimentSolver {
     }
 
     /// java: public Int2ObjectMap<ItemStack> getSlots()
-    pub fn get_slots_body(__this: &compat::Shared<dyn ExperimentSolver>) -> std::collections::HashMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack> {
+    pub fn get_slots_body(__this: &compat::Shared<dyn ExperimentSolver>) -> std::collections::BTreeMap<i32, mcrust::net::minecraft::world::item::item_stack::ItemStack> {
         return compat::read(__this, |__t| __t.experiment_solver_base().slots.clone());
     }
 
@@ -122,8 +122,40 @@ impl dyn ExperimentSolver {
     /// java: @Override public void start(AbstractContainerScreen<?> screen)
     pub fn start_body(__this: &compat::Shared<dyn ExperimentSolver>, screen: &AbstractContainerScreen) {
         { let __v = State::Remember; compat::write(__this, |__t| __t.experiment_solver_base_mut().state = __v); }
-        // TODO(fabric2seer): ScreenEvents.afterTick(..).register: no SeerClient equivalent yet
         //   java: ScreenEvents.afterTick(screen).register(_ -> tick(screen));
+        // (Fabric's per-screen `afterTick` is the end of `Screen.tick`, whose last statement for a container screen is
+        // `containerTick()`: the listener is this solver, run by `install_after_tick`'s RETURN injector there, for the
+        // screen it was started on - the solver is reset when that screen is removed, which ends the listener as the
+        // screen's own listener list ends with it. As `AccessoriesHelper` does.)
+        let _ = screen;
+        <dyn ExperimentSolver>::install_after_tick();
+        AFTER_TICK_SOLVER.with(|s| *s.borrow_mut() = Some(__this.clone()));
+    }
+
+    /// The `containerTick` RETURN injector that runs the started solver's `tick(screen)` (see `start_body`).
+    fn install_after_tick() {
+        static HOOKED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+        if HOOKED.swap(true, std::sync::atomic::Ordering::AcqRel) {
+            return;
+        }
+        let result = mcrust::mcrust::modding::hook::inject(
+            "net.minecraft.client.gui.screens.inventory.AbstractContainerScreen#containerTick",
+            mcrust::mcrust::modding::hook::At::Return,
+            |ci: &mut mcrust::mcrust::modding::hook::CallbackInfo<'_>| {
+                let Some(solver) = AFTER_TICK_SOLVER.with(|s| s.borrow().clone()) else {
+                    return;
+                };
+                let Some(screen) = ci.this::<AbstractContainerScreen>() else {
+                    return;
+                };
+                // java: _ -> tick(screen)
+                let __f = compat::dispatch(&solver, |__t| __t.tick());
+                __f(&solver, screen);
+            },
+        );
+        if let Err(e) = result {
+            mcrust::mcrust::modding::log::warn_once("skyblocker-experiment-after-tick", &format!("{e:?}"));
+        }
     }
 
     /// ExperimentSolver.start as the dispatch of ContainerSolver.start for the concrete class `__C`
@@ -133,6 +165,13 @@ impl dyn ExperimentSolver {
 
     /// java: @Override public void reset()
     pub fn reset_body(__this: &compat::Shared<dyn ExperimentSolver>) {
+        // the screen this solver's `afterTick` listener belonged to is gone (see `start_body`)
+        AFTER_TICK_SOLVER.with(|s| {
+            let mut s = s.borrow_mut();
+            if s.as_ref().is_some_and(|started| std::sync::Arc::ptr_eq(started, __this)) {
+                *s = None;
+            }
+        });
         { let __v = State::Remember; compat::write(__this, |__t| __t.experiment_solver_base_mut().state = __v); }
         __this.lock().borrow_mut().experiment_solver_base_mut().slots.clear();
     }
@@ -211,4 +250,9 @@ impl std::fmt::Display for State {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(self.name())
     }
+}
+
+thread_local! {
+    /// The solver whose `ScreenEvents.afterTick(screen)` listener is registered (`start`), until its `reset`.
+    static AFTER_TICK_SOLVER: std::cell::RefCell<Option<compat::Shared<dyn ExperimentSolver>>> = const { std::cell::RefCell::new(None) };
 }

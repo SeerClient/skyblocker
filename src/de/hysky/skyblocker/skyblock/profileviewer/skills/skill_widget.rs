@@ -23,35 +23,13 @@ pub static BAR_FILL: compat::MainThread<Identifier> = compat::MainThread::new(||
 /// java: private static final Identifier BAR_BACK = SkyblockerMod.id("bars/bar_back");
 pub static BAR_BACK: compat::MainThread<Identifier> = compat::MainThread::new(|| crate::entry::skyblocker_mod::id("bars/bar_back"));
 /// java: private static final Font textRenderer = Minecraft.getInstance().font;
-pub static TEXT_RENDERER: compat::MainThread<Font> = compat::MainThread::new(|| compat::font());
+pub static TEXT_RENDERER: compat::LiveFont = compat::LiveFont;
 /// java: private static final Map<String, FlexibleItemStack> SKILL_LOGO = Map.ofEntries( Map.entry("Combat", Ico.STONE_SWORD), Map.entry("Farming", Ico.GOLDEN_HOE), Map.entry("Mining", Ico.STONE_PICKAXE), Map.
 pub static SKILL_LOGO: compat::MainThread<std::collections::HashMap<String, compat::Shared<FlexibleItemStack>>> = compat::MainThread::new(|| std::collections::HashMap::from([("Combat".to_string(), ico::STONE_SWORD.get_mut().clone()), ("Farming".to_string(), ico::GOLDEN_HOE.get_mut().clone()), ("Mining".to_string(), ico::STONE_PICKAXE.get_mut().clone()), ("Foraging".to_string(), ico::JUNGLE_SAPLING.get_mut().clone()), ("Fishing".to_string(), ico::FISH_ROD.get_mut().clone()), ("Enchanting".to_string(), ico::ENCHANTING_TABLE.get_mut().clone()), ("Alchemy".to_string(), ico::BREWING_STAND.get_mut().clone()), ("Taming".to_string(), ico::SPAWN_EGG.get_mut().clone()), ("Carpentry".to_string(), ico::CRAFTING_TABLE.get_mut().clone()), ("Catacombs".to_string(), ProfileViewerUtils::create_skull("eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHBzOi8vdGV4dHVyZXMubWluZWNyYWZ0Lm5ldC90ZXh0dXJlLzliNTY4OTViOTY1OTg5NmFkNjQ3ZjU4NTk5MjM4YWY1MzJkNDZkYjljMWIwMzg5YjhiYmViNzA5OTlkYWIzM2QifX19")), ("Runecraft".to_string(), ico::MAGMA_CREAM.get_mut().clone()), ("Social".to_string(), ico::EMERALD.get_mut().clone())]));
-// TODO(fabric2seer): static call Object2IntMap.ofEntries(..)
-//   java: private static final Object2IntMap<String> SKILL_CAP = Object2IntMap.ofEntries(
-//   java: 			Object2IntMap.entry("Combat", 60),
-//   java: 			Object2IntMap.entry("Farming", 60),
-//   java: 			Object2IntMap.entry("Mining", 60),
-//   java: 			Object2IntMap.entry("Foraging", 50),
-//   java: 			Object2IntMap.entry("Fishing", 50),
-//   java: 			Object2IntMap.entry("Enchanting", 60),
-//   java: 			Object2IntMap.entry("Alchemy", 50),
-//   java: 			Object2IntMap.entry("Taming", 60),
-//   java: 			Object2IntMap.entry("Carpentry", 50),
-//   java: 			Object2IntMap.entry("Catacombs", 50),
-//   java: 			Object2IntMap.entry("Runecraft", 25),
-//   java: 			Object2IntMap.entry("Social", 25)
-//   java: 	);
 /// java: private static final Object2IntMap<String> SKILL_CAP = Object2IntMap.ofEntries( Object2IntMap.entry("Combat", 60), Object2IntMap.entry("Farming", 60), Object2IntMap.entry("Mining", 60), Object2IntMap.
 pub static SKILL_CAP: LazyLock<std::collections::HashMap<String, i32>> = LazyLock::new(|| [("Combat", 60), ("Farming", 60), ("Mining", 60), ("Foraging", 50), ("Fishing", 50), ("Enchanting", 60), ("Alchemy", 50), ("Taming", 60), ("Carpentry", 50), ("Catacombs", 50), ("Runecraft", 25), ("Social", 25)].into_iter().map(|(k, v)| (k.to_string(), v)).collect());
-// TODO(fabric2seer): static call Object2IntMap.ofEntries(..)
-//   java: private static final Object2IntMap<String> SOFT_SKILL_CAP = Object2IntMap.ofEntries(
-//   java: 			Object2IntMap.entry("Taming", 50),
-//   java: 			Object2IntMap.entry("Farming", 50)
-//   java: 	);
 /// java: private static final Object2IntMap<String> SOFT_SKILL_CAP = Object2IntMap.ofEntries( Object2IntMap.entry("Taming", 50), Object2IntMap.entry("Farming", 50) );
 pub static SOFT_SKILL_CAP: LazyLock<std::collections::HashMap<String, i32>> = LazyLock::new(|| [("Taming", 50), ("Farming", 50)].into_iter().map(|(k, v)| (k.to_string(), v)).collect());
-// TODO(fabric2seer): static call Object2IntMaps.singleton(..)
-//   java: private static final Object2IntMap<String> INFINITE = Object2IntMaps.singleton("Catacombs", 0);
 /// java: private static final Object2IntMap<String> INFINITE = Object2IntMaps.singleton("Catacombs", 0);
 pub static INFINITE: LazyLock<std::collections::HashMap<String, i32>> = LazyLock::new(|| std::collections::HashMap::from([("Catacombs".to_string(), 0)]));
 
@@ -82,8 +60,9 @@ impl SkillWidget {
         }
         this.stack = Some(SKILL_LOGO.get_mut().get(&skill).cloned().unwrap_or_else(|| ico::BARRIER.get_mut().clone()));
         if player_cap != -1 {
-            // TODO(fabric2seer): static field SKILL_LEVEL.level
-            //   java: this.SKILL_LEVEL.level = Math.min(SKILL_LEVEL.level, (SOFT_SKILL_CAP.getInt(this.SKILL_NAME) + playerCap));
+            // java: this.SKILL_LEVEL.level = Math.min(SKILL_LEVEL.level, (SOFT_SKILL_CAP.getInt(this.SKILL_NAME) + playerCap)); (`getInt` of a missing key is 0)
+            let __capped = compat::read(&this.skill_level, |__t| __t.level).min(SOFT_SKILL_CAP.get(&this.skill_name).copied().unwrap_or(0).wrapping_add(player_cap));
+            compat::write(&this.skill_level, |__t| __t.level = __capped);
         }
         this
     }
@@ -104,11 +83,10 @@ impl SkillWidget {
         if mouse_x > x.wrapping_add(30) && mouse_x < x.wrapping_add(105) && mouse_y > y.wrapping_add(10) && mouse_y < y.wrapping_add(19) {
             let mut tooltip_text: Vec<MutableComponent> = Vec::new();
             tooltip_text.push(component::literal(&self.skill_name).with_style_format(ChatFormatting::Green));
-            // TODO(fabric2seer): static field SKILL_LEVEL.xp
-            //   java: tooltipText.add(Component.literal("XP: " + Formatters.INTEGER_NUMBERS.format(this.SKILL_LEVEL.xp)).withStyle(ChatFormatting.GOLD));
-            // TODO(fabric2seer): the port's `set_component_tooltip_for_next_frame` ports this Java method with other parameters (tooltip_for_next_frame, lines for Java's lines, xo, yo)
-            // TODO(fabric2seer): `set_component_tooltip_for_next_frame` takes 2 argument(s) in the port (`tooltip_for_next_frame: &mut Option<DeferredTooltip>, lines: Vec<crate::net::minecraft::network::chat::formatted_text::FormattedText>`), Java passes 4
-            // rust: gui_graphics_extractor::set_component_tooltip_for_next_frame(TEXT_RENDERER.get_mut(), tooltip_text.clone(), mouse_x, mouse_y);
+            // java: tooltipText.add(Component.literal("XP: " + Formatters.INTEGER_NUMBERS.format(this.SKILL_LEVEL.xp)).withStyle(ChatFormatting.GOLD));
+            tooltip_text.push((component::literal(&format!("XP: {}", formatters::INTEGER_NUMBERS.get_mut().format((compat::read(&self.skill_level, |__t| __t.xp)) as f64)))).with_style_format(ChatFormatting::Gold));
+            // java: graphics.setComponentTooltipForNextFrame(textRenderer, tooltipText, mouseX, mouseY); - the frame's deferred tooltip (drawn at the mouse)
+            compat::batch_s_set_tooltip_for_next_frame(tooltip_text.iter().cloned().map(mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from).collect());
         }
     }
 

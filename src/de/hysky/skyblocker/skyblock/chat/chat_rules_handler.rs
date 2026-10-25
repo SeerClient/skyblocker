@@ -51,14 +51,31 @@ impl ChatRulesHandler {
 
     /// java: @Init public static void init()
     pub fn init() {
-        // TODO(fabric2seer): no SeerClient event yet: hook RETURN of Minecraft's constructor (`net.minecraft.client.Minecraft#<init>`: exists)
         //   java: ClientLifecycleEvents.CLIENT_STARTED.register(_ -> CHAT_RULE_LIST.init());
-        // TODO(fabric2seer): ClientReceiveMessageEvents.ALLOW_GAME.register: no SeerClient equivalent yet
+        // (CLIENT_STARTED fires once the `Minecraft` constructor - where the entrypoints run - has returned, before the
+        // first client tick: `compat::execute` from an entrypoint)
+        compat::execute(|| {
+            let __r = CHAT_RULE_LIST.get().clone();
+            let _ = __r.lock().borrow_mut().init();
+        });
         //   java: ClientReceiveMessageEvents.ALLOW_GAME.register(ChatRulesHandler::checkMessage);
+        compat::register_allow_game(|message, overlay| ChatRulesHandler::check_message(message, overlay));
         client_command_registration_callback::EVENT.register(Arc::new(
             |dispatcher: &mut client_command_registration_callback::ClientCommandDispatcher| {
-                // TODO(fabric2seer): a command tree this tool cannot read (arguments, redirects, requires) - SeerClient commands receive the words after the name in `ctx.args`
-                //   java: dispatcher.register(..);
+                //   java: dispatcher.register(ClientCommands.literal(SkyblockerMod.NAMESPACE)
+                //   java: 		.then(ClientCommands.literal("chatRules").executes(Scheduler.queueOpenScreenCommand(() -> new ChatRulesConfigScreen(null)))));
+                // (`queueOpenScreenCommand`: the screen is built and set in a task the client runs next)
+                use mcrust::com::mojang::brigadier::builder::argument_builder::ArgumentBuilder as _;
+                let mut chat_rules = client_command_registration_callback::literal("chatRules");
+                chat_rules.executes(Arc::new(|_: &mcrust::com::mojang::brigadier::context::command_context::CommandContext<client_command_registration_callback::FabricClientCommandSource>| {
+                    mcrust::net::minecraft::client::minecraft::execute(Box::new(|_minecraft| {
+                        mcrust::mcrust::modding::game::set_screen(Box::new(compat::ScreenAdapter::new(crate::de::hysky::skyblocker::skyblock::chat::chat_rules_config_screen::ChatRulesConfigScreen::new(None))));
+                    }));
+                    Ok(1)
+                }));
+                let mut root = client_command_registration_callback::literal(crate::entry::skyblocker_mod::NAMESPACE);
+                root.then(&chat_rules);
+                dispatcher.dispatcher().register(&root);
             },
         ));
     }
@@ -92,7 +109,9 @@ impl ChatRulesHandler {
                 TitleContainer::add_title_2(&Title::new_1(ChatRulesHandler::format_text(&(r#match).insert_capture_groups(&compat::read(&announcement_message, |__t| __t.message.clone())))), (((compat::read(&announcement_message, |__t| __t.display_duration)).wrapping_div(50 as i64)) as i32));
             }
             if ChatRule::get_action_bar_message(rule).is_some() && mcrust::mcrust::modding::game::with_player(|_| ()).is_some() {
-                mcrust::mcrust::modding::game::with_player(|player| { script_host::send_feedback(&ChatRulesHandler::format_text(&(r#match).insert_capture_groups(ChatRule::get_action_bar_message(rule).as_deref().unwrap())).to_string()); });
+                // java: CLIENT.player.sendOverlayMessage(..) - `LocalPlayer.sendOverlayMessage` is `minecraft.gui.hud.setOverlayMessage(message, false)`
+                let overlay_text = ChatRulesHandler::format_text(&(r#match).insert_capture_groups(ChatRule::get_action_bar_message(rule).as_deref().unwrap()));
+                mcrust::net::minecraft::client::gui::hud::set_overlay_message(&mut compat::minecraft().gui.hud, mcrust::net::minecraft::network::chat::formatted_text::FormattedText::from(overlay_text), false);
             }
             if ChatRule::get_toast_message(rule).is_some() {
                 let mut toast_message: compat::Shared<ToastMessage> = ChatRule::get_toast_message(rule).unwrap();
